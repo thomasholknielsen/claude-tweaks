@@ -70,14 +70,14 @@ This will:
 ```
 INBOX item ──→ Brief ──→ Design Doc ──→ Spec ──→ Code
   /capture    /challenge  brainstorming  /specify  /build
-                                           ↓
-                                    (deletes brief
-                                     + design doc)
+                                           ↓           ↓
+                                    (deletes brief  Deferred Work
+                                     + design doc)  (specs/DEFERRED.md)
 
 Code ──→ Review Summary ──→ Learnings routed ──→ Clean slate
  /build      /review            /wrap-up
-                                  ↓
-                           (deletes spec
+               ↓                  ↓
+          Deferred Work    (deletes spec
                             + plans)
 ```
 

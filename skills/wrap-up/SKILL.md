@@ -98,10 +98,10 @@ Check the `/claude-tweaks:review` summary for the **Tradeoffs Accepted** section
 ## Step 4: Analyze Leftover Work (spec-based only)
 
 For any unfinished sections, determine placement:
-- Merge into an existing spec
-- Create a new focused spec
-- Defer to a later tier
-- Drop entirely (if no longer relevant)
+1. Merge into an existing spec — work fits naturally into another spec's scope
+2. Add to `specs/DEFERRED.md` — work needs its own context (include origin spec, files, trigger)
+3. Create a new INBOX item — genuinely new idea discovered during implementation
+4. Drop entirely — no longer relevant
 
 ---
 
@@ -235,6 +235,7 @@ Commit with a message summarizing the wrap-up actions.
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:review` | Must pass before /claude-tweaks:wrap-up — handles verification, code review, and simplification |
-| `/claude-tweaks:capture` | /claude-tweaks:wrap-up may create INBOX items for leftover work |
+| `/claude-tweaks:capture` | /claude-tweaks:wrap-up may create INBOX items for genuinely new ideas discovered during implementation |
+| `specs/DEFERRED.md` | /claude-tweaks:wrap-up routes leftover work here (with origin spec, files, trigger) |
 | `/claude-tweaks:help` | /claude-tweaks:wrap-up suggests running /claude-tweaks:help to see what's unblocked |
 | `/claude-tweaks:tidy` | /claude-tweaks:wrap-up cleans artifacts for a single spec — /claude-tweaks:tidy does periodic bulk cleanup |

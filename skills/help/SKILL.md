@@ -54,6 +54,7 @@ These run in order — each skill feeds into the next.
 | 5 | `/claude-tweaks:specify` | Decompose a design doc into agent-sized specs | design doc path, topic, INBOX ref |
 | 6 | `/claude-tweaks:build` | Implement a spec or design doc end-to-end | spec number, design doc path, topic + optional mode: `autonomous` (default), `guided`, `branched` |
 | 7 | `/claude-tweaks:review` | Quality gate — verification, code review, simplification | spec number, file paths |
+| 7b | `/claude-tweaks:browser-review` | Visual inspection — test the running app in a browser | URL, page, flow |
 | 8 | `/claude-tweaks:wrap-up` | Reflection, knowledge capture, artifact cleanup | spec number |
 
 ### Utility Skills
@@ -75,17 +76,17 @@ These run in order — each skill feeds into the next.
 ### Artifact Lifecycle
 
 ```
-INBOX item ──→ Brief ──→ Design Doc ──→ Spec ──→ Code
+INBOX item ──→ Brief ──→ Design Doc ──→ Spec ──→ Code + Journey
   /capture    /challenge  brainstorming  /specify  /build
-                                           ↓
-                                    (deletes brief
-                                     + design doc)
+                                           ↓           ↓       ↓
+                                    (deletes brief  Deferred  docs/journeys/
+                                     + design doc)  Work
 
 Code ──→ Review Summary ──→ Learnings routed ──→ Clean slate
  /build      /review            /wrap-up
-                                  ↓
-                           (deletes spec
-                            + plans)
+            ↕        ↓                ↓
+   /browser-review  Deferred Work  (deletes spec
+   (walks journeys)                 + plans)
 ```
 
 ---
@@ -102,6 +103,15 @@ Scan the full workflow state across all pipeline stages.
 - Flag stale items (> 4 weeks old)
 - Identify items marked as related to existing specs
 - Flag items with baked-in assumptions (solution-oriented phrasing) → candidates for `/claude-tweaks:challenge`
+
+### Stage 1.5: Deferred Work (`specs/DEFERRED.md`)
+
+- Count total deferred items
+- Check triggers against current state:
+  - Completed specs referenced in triggers → these items are now actionable
+  - In-progress specs referenced → flag for awareness
+- Flag items with no clear trigger (missing context)
+- Flag items older than 4 weeks with unmet triggers
 
 ### Stage 2: Design Docs (`docs/plans/*-design.md`)
 
@@ -146,6 +156,8 @@ Scan the full workflow state across all pipeline stages.
 |-------|-------|--------|
 | INBOX items | {N} ({M} stale) | `/claude-tweaks:capture` to add, `/claude-tweaks:tidy` if stale |
 | INBOX items needing debiasing | {N} | `/claude-tweaks:challenge {topic}` |
+| Deferred items ready | {N} | Trigger met — promote to spec or merge |
+| Deferred items waiting | {N} | Triggers not yet met |
 | Design docs unspecified | {N} | `/claude-tweaks:specify {topic}` |
 | Specs ready to build | {N} | `/claude-tweaks:build {number}` |
 | Specs in progress | {N} | Resume `/claude-tweaks:build` or check status |
@@ -175,10 +187,11 @@ Scan the full workflow state across all pipeline stages.
 2. **Specs awaiting wrap-up** — wrap up reviewed work (captures learnings while fresh)
 3. **Specs in progress** — finish what's started before starting new work
 4. **Design docs unspecified** — specify before building (don't let designs go stale)
-5. **Specs ready to build** — pick the highest-priority spec with met prerequisites
-6. **INBOX review** — if inbox is stale, suggest `/claude-tweaks:tidy` before new brainstorming
-7. **Challenge + Brainstorming** — if pipeline is empty, suggest promoting an INBOX item; if it has baked-in assumptions, run `/claude-tweaks:challenge` first, then `brainstorming`
-8. **Nothing to do** — if everything is clean, say so
+5. **Deferred items with met triggers** — promote before starting new work
+6. **Specs ready to build** — pick the highest-priority spec with met prerequisites
+7. **INBOX review** — if inbox is stale, suggest `/claude-tweaks:tidy` before new brainstorming
+8. **Challenge + Brainstorming** — if pipeline is empty, suggest promoting an INBOX item; if it has baked-in assumptions, run `/claude-tweaks:challenge` first, then `brainstorming`
+9. **Nothing to do** — if everything is clean, say so
 
 ### Tie-Breaking
 
@@ -225,7 +238,9 @@ Pick an action (reply with the number):
 | `/claude-tweaks:specify` | /claude-tweaks:help flags unspecified design docs |
 | `/claude-tweaks:build` | /claude-tweaks:help recommends which spec to build |
 | `/claude-tweaks:review` | /claude-tweaks:help flags specs awaiting review |
+| `/claude-tweaks:browser-review` | Visual complement to /claude-tweaks:review — listed in lifecycle commands |
 | `/claude-tweaks:wrap-up` | /claude-tweaks:help flags specs awaiting wrap-up |
 | `/claude-tweaks:tidy` | /claude-tweaks:help suggests /claude-tweaks:tidy when maintenance is needed |
+| `specs/DEFERRED.md` | /claude-tweaks:help scans deferred items and flags those with met triggers |
 | `/claude-tweaks:flow` | /claude-tweaks:help lists /claude-tweaks:flow as an automation option for ready specs |
 | `/claude-tweaks:next` | Redirects to /claude-tweaks:help (legacy alias) |

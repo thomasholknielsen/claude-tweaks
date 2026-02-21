@@ -27,7 +27,7 @@ Present this summary after completing all review steps.
 (or: No findings — code is clean.)
 
 ### Implementation Hindsight
-- {finding} → {change now / capture for later / accept as-is}
+- {finding} → {change now / defer / capture as new idea / accept as-is}
 (or: No changes needed — approach is sound.)
 
 ### Tradeoffs Accepted
@@ -37,6 +37,10 @@ Present this summary after completing all review steps.
 (or: No tradeoffs — all findings were addressed or trivial.)
 
 > `/claude-tweaks:wrap-up` uses this section to decide whether accepted tradeoffs should be documented in CLAUDE.md, skills, or memory files. A tradeoff worth accepting once may be worth documenting as a project convention.
+
+### Browser Review
+- **Journey tested:** {journey name, or "N/A — page-based review" or "Skipped"}
+- {summary of visual/UX findings, or "Skipped — no UI changes" or "Skipped — browser tools not configured"}
 
 ### Code Simplification
 - {summary of simplifier changes, or "No simplifications needed"}

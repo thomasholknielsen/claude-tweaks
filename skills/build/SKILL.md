@@ -107,7 +107,7 @@ Spec mode? ──yes──→ [Spec Steps 1-3]
     ↓                       │
     └───────────────────────┘
                 ↓
-        [Common Steps 1-5]
+        [Common Steps 1-6]
 ```
 
 ---
@@ -248,7 +248,72 @@ Check CLAUDE.md for the project's specific commands (e.g., `pnpm typecheck`, `np
 
 If anything fails, fix it and commit the fix.
 
-### Common Step 5: Handoff
+### Common Step 5: User Journey Capture
+
+After verification passes, automatically create or update user journey files for the features that were built. This is not optional and does not require user input — if you built a user-facing feature, document the journey.
+
+#### Determine affected journeys
+
+Analyze what was built and identify the user or developer journeys it enables or modifies:
+
+1. **Scan existing journeys** — read `docs/journeys/*.md` to see if any existing journey includes pages, flows, or features that were just built or changed
+2. **Identify new journeys** — if the feature introduces a new user flow that doesn't map to any existing journey, a new journey file is needed
+3. **Backend-only changes** — if the build has no user-facing or developer-facing flow impact, skip this step entirely
+
+#### Create new journey files
+
+For each new journey identified, create a file at `docs/journeys/{journey-name}.md`:
+
+```markdown
+# {Journey Name}
+
+**Persona:** {Who is this user? Be specific — not "user" but "first-time visitor with no account" or "developer setting up local environment"}
+**Goal:** {What are they trying to accomplish?}
+**Entry point:** {Where do they start? URL or trigger}
+**Success state:** {What does "done" look like? What should they feel at the end?}
+
+## Steps
+
+### 1. {Step name} — {Page or action}
+- **URL:** {path}
+- **Action:** {What the user does}
+- **Should feel:** {The emotional/experiential quality — "fast and effortless", "guided but not forced", "like an accomplishment"}
+- **Should understand:** {What the user should know after this step}
+- **Red flags:** {What would make this step fail experientially — not just functionally}
+
+### 2. {Next step}
+...
+
+## Origin
+- Created during build of {spec number or design doc}
+- Steps {N-M} built in this session
+- Related specs: {list}
+```
+
+Key principles for writing journeys:
+- **"Should feel" is the most important field.** It's what browser-review tests against. Be specific — "low commitment" not "good."
+- **One journey per goal**, not per feature. A journey may span features from multiple specs.
+- **Include the entry point and success state.** These bookend the journey and define what "complete" means.
+- **Personas are specific people**, not roles. "Developer who just joined the team and is setting up for the first time" not "developer."
+
+#### Update existing journey files
+
+If the build modifies or extends an existing journey:
+
+1. Read the existing journey file
+2. Add, update, or reorder steps to reflect what was built
+3. Update the Origin section to reference the current build
+4. Preserve existing "Should feel" and "Red flags" for steps that weren't changed — those are tested expectations
+
+#### Commit the journey files
+
+Commit journey files separately from the implementation code:
+```
+git add docs/journeys/{journey-name}.md
+git commit -m "Add/update {journey name} journey"
+```
+
+### Common Step 6: Handoff
 
 After successful build, present:
 
@@ -268,6 +333,10 @@ After successful build, present:
 
 ### Code simplification
 - {summary of simplifications made, or "No changes needed"}
+
+### User Journeys
+- {created/updated journey name} — {summary of what changed}
+(or: No user-facing journeys affected.)
 
 ### Blocked items (if any)
 - {item} — blocked by {reason}
@@ -325,6 +394,9 @@ These apply in **autonomous** and **branched** modes. In **guided** mode, pause 
 | Using `git reset` or `git checkout .` | Other processes may be committing concurrently — destroys their work |
 | Skipping code simplification | Iterative implementation accumulates unnecessary complexity across tasks |
 | Building a spec with unmet prerequisites | Downstream specs depend on upstream work — check the dependency graph first |
+| Skipping journey capture for user-facing features | Journeys are what browser-review tests against — no journey means no visual QA anchor |
+| Writing journeys with vague "should feel" | "Good" and "intuitive" are not testable. "Low commitment" and "like an accomplishment" are. |
+| Asking the user whether to create a journey | Journey capture is automatic. The user didn't know they needed the spec either — that's why the workflow exists. |
 
 ## Relationship to Other Skills
 
@@ -338,3 +410,4 @@ These apply in **autonomous** and **branched** modes. In **guided** mode, pause 
 | `/claude-tweaks:review` | Runs AFTER /claude-tweaks:build — in design mode, uses git diff instead of spec compliance |
 | `/claude-tweaks:wrap-up` | Runs AFTER /claude-tweaks:review — cleans up and captures learnings |
 | `/claude-tweaks:capture` | Design mode may create INBOX items for blocked work |
+| `/claude-tweaks:browser-review` | Tests the user journeys that /claude-tweaks:build creates — journey files are the bridge between build and visual QA |

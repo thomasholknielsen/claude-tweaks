@@ -21,6 +21,8 @@ Quick capture for ideas that aren't ready for full specification. Part of the wo
 - "We should probably..." or "Don't forget to..." moments
 - Anything that would otherwise be lost or forgotten
 
+> **INBOX vs DEFERRED:** Use `/claude-tweaks:capture` for new ideas and half-formed features. Work deferred from an active build/review goes to `specs/DEFERRED.md` instead — it carries origin context, file references, and timing triggers that INBOX entries don't have.
+
 ## File Location
 
 `specs/INBOX.md` — single file, append-only during capture.
@@ -89,5 +91,6 @@ INBOX: "{item title}"
 | `brainstorming` (Superpowers) | Explores promoted INBOX items — produces design docs |
 | `/claude-tweaks:specify` | Converts brainstorming output into specs |
 | `/claude-tweaks:tidy` | Reviews INBOX for stale items — promotes, merges, or deletes |
-| `/claude-tweaks:review` | May create INBOX items for "capture for later" findings |
-| `/claude-tweaks:wrap-up` | May create INBOX items for leftover work |
+| `/claude-tweaks:review` | May create INBOX items for new ideas discovered during review |
+| `/claude-tweaks:wrap-up` | May create INBOX items for genuinely new ideas; leftover work goes to DEFERRED.md |
+| `specs/DEFERRED.md` | Structured deferral for build/review work — carries origin, files, and triggers that INBOX doesn't |

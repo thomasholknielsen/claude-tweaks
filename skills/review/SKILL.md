@@ -156,8 +156,9 @@ For each finding, present numbered options:
 ```
 Finding: {description}
 1. Change now — Cost of fixing is low, benefit is clear
-2. Capture for later — Create an INBOX item via /claude-tweaks:capture
-3. Accept as-is — Record the rationale for /claude-tweaks:wrap-up
+2. Defer — Add to specs/DEFERRED.md with origin, files, and trigger (work related to current implementation)
+3. Capture as new idea — Create an INBOX item via /claude-tweaks:capture (unrelated new idea)
+4. Accept as-is — Record the rationale for /claude-tweaks:wrap-up
 ```
 
 If any findings are **"Change now"**, make the changes, re-run verification (Step 3), and resume.
@@ -185,9 +186,44 @@ If the code-simplifier makes changes, re-run verification (Step 3) before procee
 
 ---
 
-## Step 7: Present Review Summary
+## Step 7: Browser Review (Optional)
 
-Present a structured summary covering spec compliance, verification results, code review findings, implementation hindsight, tradeoffs, simplification, and a verdict (PASS or BLOCKED). For the complete template, read `review-summary-template.md` in this skill's directory.
+If the changes affect UI or user-facing behavior, offer a visual review.
+
+**When to skip silently:** Browser integration is not configured (no Chrome Extension or Playwright MCP available). Don't nag about missing browser tools during a code review. Also skip for backend-only, config-only, or test-only changes.
+
+### Check for affected journeys
+
+Before offering the browser review, scan `docs/journeys/*.md` for journeys that reference pages, routes, or features touched by this build. This determines the review mode:
+
+- **Journeys found** — offer journey-mode browser review (walks the full journey, tests each step against its "should feel" / "red flags")
+- **No journeys but UI changed** — offer standard browser review (URL-based)
+
+### Present options
+
+```
+The code review is complete. These changes touch UI.
+
+{If journeys found:}
+Found {N} user journey(s) affected by this build:
+- {journey name} — {persona} → {goal}
+
+How would you like to verify visually?
+1. Run /claude-tweaks:browser-review journey:{name} — Walk the full journey **(Recommended)**
+2. Run /claude-tweaks:browser-review {url} — Review a specific page
+3. Skip — proceed to summary
+
+{If no journeys:}
+Want to verify visually?
+1. Run /claude-tweaks:browser-review **(Recommended)**
+2. Skip — proceed to summary
+```
+
+If the user runs `/claude-tweaks:browser-review`, its findings feed back into the same decision flow — fix now, defer, capture, or accept. After the browser review completes, return here for the summary.
+
+## Step 8: Present Review Summary
+
+Present a structured summary covering spec compliance, verification results, code review findings, browser review (if run), implementation hindsight, tradeoffs, simplification, and a verdict (PASS or BLOCKED). For the complete template, read `review-summary-template.md` in this skill's directory.
 
 ## Important Notes
 
@@ -213,5 +249,7 @@ Present a structured summary covering spec compliance, verification results, cod
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:build` | Produces the code that /claude-tweaks:review evaluates |
+| `/claude-tweaks:browser-review` | Visual complement — /claude-tweaks:review offers to chain into it for UI changes |
 | `/claude-tweaks:wrap-up` | Runs after /claude-tweaks:review passes — focuses on reflection, cleanup, and knowledge capture |
-| `/claude-tweaks:capture` | /claude-tweaks:review may create INBOX items for "capture for later" findings |
+| `/claude-tweaks:capture` | /claude-tweaks:review may create INBOX items for new ideas discovered during review |
+| `specs/DEFERRED.md` | /claude-tweaks:review routes implementation-related deferrals here (with origin, files, trigger) |
