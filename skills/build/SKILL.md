@@ -22,9 +22,59 @@ Implement a spec or design doc end-to-end: plan it, build it, simplify it, verif
 - /claude-tweaks:help recommends building a specific spec
 - Resuming a partially-completed build
 
+## Build Modes
+
+Build mode controls execution style, git strategy, and feedback behavior. Specify as the last argument:
+
+```
+/claude-tweaks:build 42                → autonomous (default)
+/claude-tweaks:build 42 guided         → pause at key checkpoints
+/claude-tweaks:build 42 branched       → feature branch, autonomous
+```
+
+| Mode | Execution | Git Strategy | Feedback | Best for |
+|------|-----------|-------------|----------|----------|
+| **autonomous** | Subagent-driven | Commit on current branch | Never ask | Solo work, trusted pipeline |
+| **guided** | Subagent-driven | Commit on current branch | Pause at checkpoints | Complex specs, unfamiliar code |
+| **branched** | Subagent-driven | Feature branch → PR-ready | Never ask | Team projects, code review gates |
+
+### Default mode resolution
+
+1. Explicit argument (`/claude-tweaks:build 42 guided`) — always wins
+2. CLAUDE.md setting (`build-mode: autonomous`) — project-level default
+3. Fallback — `autonomous`
+
+To set a project default, add to CLAUDE.md:
+
+```
+## Build
+build-mode: autonomous
+```
+
+### Mode-specific behavior
+
+**autonomous** (default):
+- Subagent-driven-development runs the full plan
+- Commits land on the current branch
+- Never asks for feedback, never presents options
+- Push commits promptly
+
+**guided**:
+- Same subagent-driven execution
+- Commits land on the current branch
+- Pauses after plan creation: "Here's the plan — proceed or adjust?"
+- Pauses after implementation, before simplification: "Implementation complete — review before simplifying?"
+- Presents options when ambiguous instead of choosing silently
+
+**branched**:
+- Creates a feature branch from the current branch: `build/{spec-number}-{short-title}` or `build/{topic}`
+- Same autonomous behavior (no feedback, no options)
+- Ends with the branch ready — does NOT create a PR (that's a user decision)
+- Handoff suggests creating a PR or merging
+
 ## Input
 
-`$ARGUMENTS` = spec number, design doc path, or topic name.
+`$ARGUMENTS` = spec number, design doc path, or topic name — optionally followed by a build mode.
 
 ### Resolve the input:
 
@@ -229,11 +279,22 @@ Pick an action (reply with the number):
 1. `/claude-tweaks:review {number}` — Run the quality gate ⭐ **(Recommended)**
 2. `/claude-tweaks:help` — See full workflow status
 3. Done for now
+
+(Branched mode adds: "Create PR from `{branch}`" as an option)
 ```
+
+## Git Strategy
+
+**autonomous / guided:** Commit directly on the current branch.
+
+**branched:** Before any work begins:
+1. Create branch: `git checkout -b build/{spec-number}-{short-title}`
+2. All commits land on this branch
+3. At handoff, the branch is ready for PR or merge — do NOT auto-merge or auto-PR
 
 ## Git Rules — NON-NEGOTIABLE
 
-These rules exist because multiple processes may commit to the same branch simultaneously.
+These rules apply in ALL modes. They exist because multiple processes may commit to the same branch simultaneously.
 
 | Rule | Reason |
 |------|--------|
@@ -247,6 +308,8 @@ These rules exist because multiple processes may commit to the same branch simul
 If you encounter a merge conflict, resolve it — do not reset or discard.
 
 ## Autonomy Rules
+
+These apply in **autonomous** and **branched** modes. In **guided** mode, pause at documented checkpoints instead.
 
 - **Do not ask for feedback** during execution. Make reasonable decisions and keep moving.
 - **Do not ask "should I proceed?"** — yes, you should. Always.

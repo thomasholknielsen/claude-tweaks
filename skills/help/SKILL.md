@@ -52,7 +52,7 @@ These run in order — each skill feeds into the next.
 | 3 | `/claude-tweaks:capture` | Brain-dump ideas into INBOX | idea text |
 | 4 | `/claude-tweaks:challenge` | Debias a problem statement before brainstorming | INBOX item, topic |
 | 5 | `/claude-tweaks:specify` | Decompose a design doc into agent-sized specs | design doc path, topic, INBOX ref |
-| 6 | `/claude-tweaks:build` | Implement a spec or design doc end-to-end | spec number, design doc path, topic |
+| 6 | `/claude-tweaks:build` | Implement a spec or design doc end-to-end | spec number, design doc path, topic + optional mode: `autonomous` (default), `guided`, `branched` |
 | 7 | `/claude-tweaks:review` | Quality gate — verification, code review, simplification | spec number, file paths |
 | 8 | `/claude-tweaks:wrap-up` | Reflection, knowledge capture, artifact cleanup | spec number |
 
