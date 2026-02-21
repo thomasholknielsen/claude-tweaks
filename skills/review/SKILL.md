@@ -2,6 +2,8 @@
 name: claude-tweaks:review
 description: Use after building to review code quality, verify correctness, and simplify before wrapping up. The quality gate between implementation and lifecycle cleanup.
 ---
+> **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
+
 
 # Review
 
@@ -141,11 +143,14 @@ Evaluate:
 
 For each finding, classify:
 
-| Verdict | Action |
-|---------|--------|
-| **Change now** | Cost of fixing is low, benefit is clear — do it before proceeding |
-| **Capture for later** | Real issue but not worth the churn — create an INBOX item via `/claude-tweaks:capture` |
-| **Accept as-is** | Tradeoff is acceptable or the "better" approach isn't clearly better — **record the rationale** so `/claude-tweaks:wrap-up` can assess whether it's worth documenting |
+For each finding, present numbered options:
+
+```
+Finding: {description}
+1. Change now — Cost of fixing is low, benefit is clear
+2. Capture for later — Create an INBOX item via /claude-tweaks:capture
+3. Accept as-is — Record the rationale for /claude-tweaks:wrap-up
+```
 
 If any findings are **"Change now"**, make the changes, re-run verification (Step 3), and resume.
 
@@ -210,7 +215,16 @@ If the code-simplifier makes changes, re-run verification (Step 3) before procee
 - {summary of simplifier changes, or "No simplifications needed"}
 
 ### Verdict
-**{PASS — ready for /claude-tweaks:wrap-up}** or **{BLOCKED — issues need fixing}**
+**{PASS}** or **{BLOCKED — issues need fixing}**
+
+### What's Next?
+
+Pick an action (reply with the number):
+
+1. `/claude-tweaks:wrap-up {number}` — Capture learnings and clean up ⭐ Recommended
+2. `/claude-tweaks:build {number}` — Back to build (if BLOCKED)
+3. `/claude-tweaks:next` — See full workflow status
+4. Done for now
 ```
 
 ## Important Notes

@@ -2,6 +2,8 @@
 name: claude-tweaks:tidy
 description: Use for periodic backlog hygiene — review stale INBOX items, partially-complete specs, orphaned plans, and overall spec health
 ---
+> **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
+
 
 # Tidy
 
@@ -31,7 +33,15 @@ Read `specs/INBOX.md` and evaluate each entry:
 | 2-4 weeks | Review — is it still relevant? |
 | > 4 weeks | Stale — promote, merge, or delete |
 
-For each entry, recommend: **Promote** (brainstorm it), **Merge** (into existing spec), **Delete** (superseded/irrelevant), or **Keep** (valid but not ready).
+For each entry, present numbered options:
+
+```
+INBOX: "{item title}" ({age} old)
+1. Promote — Run brainstorming on this topic
+2. Merge — Add to existing spec {N}
+3. Delete — No longer relevant
+4. Keep — Not ready yet
+```
 
 ## Step 2: Audit Existing Specs
 
@@ -131,7 +141,16 @@ For specs not yet built, check sizing:
 - Plans to clean: {D} design docs, {E} execution plans
 ```
 
-Ask the user which actions to execute.
+Present the full action list as numbered options:
+
+```
+Approve actions (reply with numbers, e.g. "1,3,5"):
+1. Delete INBOX entry: {title}
+2. Delete design doc: {filename}
+3. Run `/claude-tweaks:review {N}` — Spec appears complete
+4. Run `/claude-tweaks:wrap-up {N}` — Spec reviewed, needs wrap-up
+5. Delete orphaned plan: {filename}
+```
 
 ## Step 7: Execute Approved Actions
 

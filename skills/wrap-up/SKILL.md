@@ -2,6 +2,8 @@
 name: claude-tweaks:wrap-up
 description: Use after /claude-tweaks:review passes to capture learnings, clean up specs/plans, update skills, and suggest next steps. The lifecycle closure step.
 ---
+> **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
+
 
 # Wrap Up
 
@@ -162,10 +164,31 @@ Overall: {X}% complete
 - [ ] {specific changes or "No changes needed"}
 
 ### Next Steps
-**Recommended next:** Spec {number} — {title}
+### What's Next?
+
+Pick an action (reply with the number):
+
+1. `/claude-tweaks:build {next spec number}` — {next spec title} ⭐ Recommended
+2. `/claude-tweaks:next` — See full workflow status
+3. `/claude-tweaks:capture` — Capture a new idea
+4. Done for now
 ```
 
-Ask the user to confirm or modify each action category.
+Present each action category as numbered options:
+
+```
+Cleanup Actions:
+1. Delete spec {N} and update INDEX.md
+2. Delete plans from docs/plans/
+3. Skip cleanup for now
+
+Documentation / Skills / CLAUDE.md:
+1. Apply all suggested changes
+2. Apply selectively (I'll tell you which)
+3. Skip documentation updates
+```
+
+Ask the user to pick numbers for each category.
 
 ## Step 11: Execute Approved Actions
 

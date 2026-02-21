@@ -2,6 +2,8 @@
 name: claude-tweaks:setup
 description: Use to bootstrap the workflow system — installs plugin dependencies, creates directory structure, and verifies the project is ready for /claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up.
 ---
+> **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
+
 
 # Setup
 
@@ -146,8 +148,15 @@ The workflow system relies on git for change tracking (`/claude-tweaks:review` u
 | Git repo | {yes/no} | {none/`git init`} |
 
 ### Ready to Go
-{All green → "You're set! Run `/claude-tweaks:capture` to add your first idea, or `/claude-tweaks:next` to see the workflow status."}
-{Missing items → list what needs attention}
+{All green → present options:}
+
+What's next?
+1. `/claude-tweaks:capture` — Add your first idea ⭐ Recommended
+2. `/claude-tweaks:codebase-onboarding` — Generate CLAUDE.md and skills for this project
+3. `/claude-tweaks:next` — See workflow status
+4. Done for now
+
+{Missing items → list what needs attention with numbered fix actions}
 ```
 
 ## Important Notes

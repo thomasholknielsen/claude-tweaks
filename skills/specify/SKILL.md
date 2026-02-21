@@ -2,6 +2,8 @@
 name: claude-tweaks:specify
 description: Use when converting a brainstorming design document into agent-sized work units (specs). Takes a design doc and decomposes it into self-contained specifications.
 ---
+> **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
+
 
 # Specify
 
@@ -256,6 +258,16 @@ Present a summary:
 - Design doc: `docs/plans/{filename}` (absorbed into specs)
 - Brainstorming brief: `docs/plans/{filename}` (absorbed into spec Gotchas) — if it existed
 - INBOX entry: {title} (promoted)
+```
+
+Present next steps as numbered options:
+
+```
+What's next?
+1. `/claude-tweaks:build {first spec number}` — Start building the highest-priority spec ⭐ Recommended
+2. `/claude-tweaks:next` — See full workflow status
+3. `/claude-tweaks:build {design doc}` — Build directly from a design doc (skip specs)
+4. Done for now
 ```
 
 Commit with a message describing the specs created.

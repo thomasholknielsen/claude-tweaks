@@ -2,6 +2,8 @@
 name: claude-tweaks:codebase-onboarding
 description: Use when setting up Claude Code for a new or existing project — generates skills, CLAUDE.md, and rules. Re-run to find drift, gaps, and stale configuration.
 ---
+> **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
+
 
 # Codebase Onboarding — Intelligent Skill Generation
 
@@ -283,7 +285,14 @@ Synthesize Phase 1 findings into a structured profile:
 {Prioritized list — see Phase 3}
 ```
 
-Ask: **"Does this profile look accurate? Anything I'm missing or got wrong?"**
+Present as numbered options:
+
+```
+Does this profile look accurate?
+1. Looks good — proceed to skill generation
+2. Needs corrections — I'll tell you what to fix
+3. Missing context — let me add team conventions you can't see in the code
+```
 
 Also ask: **"Are there team conventions or preferences that aren't visible in the code?"** (e.g., PR review process, deploy cadence, on-call expectations, style preferences debated but never codified)
 
@@ -424,7 +433,15 @@ Only generate skills for patterns that **actually exist** in the codebase. Mark 
 - `review-plan` — validates implementation plans against project conventions
 ```
 
-Ask: **"Which skills should I generate? All Priority 1? Specific ones?"**
+Present as numbered options:
+
+```
+Which skills should I generate?
+1. All Priority 1 skills ⭐ Recommended
+2. All Priority 1 + Priority 2
+3. Let me pick specific ones (list the numbers)
+4. None for now — I'll generate them later
+```
 
 ---
 

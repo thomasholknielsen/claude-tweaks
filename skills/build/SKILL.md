@@ -2,6 +2,8 @@
 name: claude-tweaks:build
 description: Use when implementing a spec or design doc end-to-end. Accepts a spec number for full lifecycle tracking, or a design doc path to skip /claude-tweaks:specify and build directly from brainstorming output.
 ---
+> **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
+
 
 # Build
 
@@ -21,7 +23,13 @@ Implement a spec or design doc end-to-end: plan it, build it, simplify it, verif
 
 1. **Spec number** (e.g., `42`, `73`) → **Spec mode** — full lifecycle with prerequisites, INDEX.md tracking, and spec compliance
 2. **Design doc path** (e.g., `docs/plans/2026-02-21-meal-planning-design.md`) → **Design mode** — build directly from the design doc, skipping spec machinery
-3. **Topic name** (e.g., `meal planning`) → search for a matching design doc in `docs/plans/*-design.md` AND a matching spec in `specs/`. If both exist, ask the user which to build from. If only one exists, use it.
+3. **Topic name** (e.g., `meal planning`) → search for a matching design doc in `docs/plans/*-design.md` AND a matching spec in `specs/`. If both exist, present numbered options:
+
+```
+Found both a spec and a design doc for "{topic}":
+1. Spec mode (spec {N}: {title}) — Full lifecycle with prerequisites and tracking
+2. Design mode ({design doc filename}) — Build directly, skip spec machinery
+``` If only one exists, use it.
 4. **No arguments** → check conversation context or recent git activity for clues. Ask if unclear.
 
 | Mode | Source | Skips | Best for |
@@ -207,10 +215,14 @@ After successful build, present:
 ### Blocked items (if any)
 - {item} — blocked by {reason}
 
-### Recommended next steps
-1. Run `/claude-tweaks:review {number or blank}` for the quality gate
-2. Run `/claude-tweaks:wrap-up {number or blank}` to finalize and capture knowledge
-3. (Design mode) Consider cleaning up the design doc and brief if the work is complete
+### What's Next?
+
+Pick an action (reply with the number):
+
+1. `/claude-tweaks:review {number or blank}` — Run the quality gate ⭐ Recommended
+2. `/claude-tweaks:wrap-up {number or blank}` — Skip review, go straight to wrap-up
+3. `/claude-tweaks:next` — See full workflow status
+4. Done for now
 ```
 
 ## Git Rules — NON-NEGOTIABLE

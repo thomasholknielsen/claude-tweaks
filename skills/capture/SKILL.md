@@ -2,6 +2,8 @@
 name: claude-tweaks:capture
 description: Use when capturing ideas that need specification later - brain dumps, half-formed features, things to not forget
 ---
+> **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
+
 
 # Capture
 
@@ -59,10 +61,15 @@ If it takes more than 5 lines to describe, it's past the inbox stage — run `br
 
 Periodically (or when inbox gets long), use `/claude-tweaks:tidy` or manually review:
 
-1. **Promote** — Ready for brainstorming? Run `brainstorming` on this topic, then `/claude-tweaks:specify` to create work units
-2. **Merge** — Fits into existing spec? Add to that spec's scope, delete from inbox
-3. **Delete** — No longer relevant or duplicate? Just delete
-4. **Keep** — Not ready yet? Leave it
+Present numbered options for each item:
+
+```
+INBOX: "{item title}"
+1. Promote — Run brainstorming, then /claude-tweaks:specify
+2. Merge into spec {N} — Add to existing spec's scope
+3. Delete — No longer relevant
+4. Keep — Not ready yet
+```
 
 ## Anti-Patterns
 

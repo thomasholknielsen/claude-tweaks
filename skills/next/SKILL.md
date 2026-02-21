@@ -2,6 +2,8 @@
 name: claude-tweaks:next
 description: Use to see workflow status and get a recommendation for what to do next — scans INBOX, design docs, specs, and recent work
 ---
+> **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
+
 
 # Next
 
@@ -81,9 +83,14 @@ Scan the full workflow state and recommend the logical next action. Part of the 
 |------|-------|-----------------|
 | {item} | {issue} | {action} |
 
-### Recommendation
-**Next action:** {specific recommendation with command}
-**Why:** {brief rationale}
+### What's Next?
+
+Pick an action (reply with the number):
+
+1. {recommended action with command} — {brief rationale} ⭐ Recommended
+2. {alternative action} — {why this is also viable}
+3. {another option if applicable}
+4. Nothing right now — pipeline is healthy
 ```
 
 ## Recommendation Logic
