@@ -84,7 +84,20 @@ Check the `/claude-tweaks:review` summary for the **Tradeoffs Accepted** section
 
 ### Route Each Insight
 
-| Finding Type | Routed To |
+For each insight surfaced by the four lenses and the tradeoff review, present numbered options. **Every insight must be explicitly resolved** — nothing is silently dropped.
+
+```
+Insight: {description}
+Suggested destination: {where it should go based on the table below}
+1. Route as suggested — {destination}
+2. Route elsewhere — {let user specify}
+3. Implement now — This insight reveals something we should fix or add right now
+4. Don't capture — Explicitly not worth documenting (state why)
+```
+
+Use this table to suggest the destination:
+
+| Finding Type | Suggested Destination |
 |-------------|-----------|
 | "Never do X because Y" | CLAUDE.md Don'ts |
 | "When building Z, always do W" | Existing skill update |
@@ -92,6 +105,10 @@ Check the `/claude-tweaks:review` summary for the **Tradeoffs Accepted** section
 | "Remaining specs should use X instead" | Spec amendments |
 | "A fundamentally better approach exists" | Skill update + Memory file |
 | "We chose X over Y because Z" (from review tradeoffs) | CLAUDE.md Convention or Memory file (if it's a recurring decision) |
+
+If an insight leads to "Implement now", route it back to `/claude-tweaks:build` or handle it directly before continuing wrap-up.
+
+> **Principle:** Nothing is implicitly "not done." Even dropping an insight requires stating "not worth documenting because {reason}." This protects against learnings silently disappearing.
 
 ---
 
@@ -218,7 +235,7 @@ Commit with a message summarizing the wrap-up actions.
 - INDEX.md is forward-looking only — remove completed entries
 - Skills document reusable patterns, not one-off implementations
 - CLAUDE.md stays concise — use skills, rules, or reference docs for details
-- Reflection insights with no clear destination can be safely dropped
+- Reflection insights with no clear destination must still be explicitly resolved — the user confirms "don't capture" with a reason, rather than the skill silently dropping them
 
 ## Anti-Patterns
 
@@ -229,6 +246,7 @@ Commit with a message summarizing the wrap-up actions.
 | Adding every insight to CLAUDE.md | CLAUDE.md has a size budget — route detailed content to skills, rules, or memory files |
 | Skipping reflection for "simple" work | Simple work still surfaces surprises and near-misses worth capturing |
 | Keeping design docs and plans after wrap-up | Consumed artifacts create stale references — the spec and code are the durable records |
+| Silently dropping insights with no obvious destination | Every insight gets an explicit decision — even "don't capture" requires a stated reason from the user |
 
 ## Relationship to Other Skills
 

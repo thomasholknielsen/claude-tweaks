@@ -137,6 +137,29 @@ Review changed files through these lenses. Skip lenses that don't apply to the t
 - No test pollution (shared mutable state)?
 - Mocks are minimal and at the right level?
 
+### 4g: Route Code Review Findings
+
+**Every finding from lenses 4a-4f must be explicitly resolved.** No finding should exist only in a summary table — each one gets a decision.
+
+For each finding (or group of closely related findings), present numbered options:
+
+```
+Finding: {description} [{severity}: {category}]
+Affected: {files}
+1. Fix now — The fix is clear and straightforward
+2. Defer — Add to specs/DEFERRED.md with origin, files, and context for when to revisit
+3. Don't fix — Record the explicit reason (e.g., "acceptable risk because X", "out of scope because Y")
+```
+
+**Severity shortcuts:**
+- **Critical** (security vulnerabilities, data loss risks) — must be "Fix now". Do not offer defer or don't-fix for critical findings.
+- **High** (broken behavior, missing validation) — default recommendation is "Fix now" but defer is acceptable with justification.
+- **Medium/Low** — all three options available.
+
+If any findings are marked "Fix now", make the changes, re-run verification (Step 3), and resume from Step 4g to verify the fix didn't introduce new findings.
+
+> **Principle:** Nothing is implicitly "not done." Every finding either gets fixed, gets explicitly deferred with context, or gets explicitly accepted with a stated reason. The summary in Step 8 records the resolution for each finding.
+
 ---
 
 ## Step 5: Implementation Hindsight (Decision Point)
@@ -243,6 +266,8 @@ Present a structured summary covering spec compliance, verification results, cod
 | Reviewing unrelated code | Scope creep — only review files changed in the current work |
 | Accepting all Implementation Hindsight findings as-is | The action gate exists for a reason — "change now" items must be fixed |
 | Running review without a prior build | Review assumes code exists and was recently written — it is not a codebase-wide audit |
+| Listing code review findings without routing them | Every finding must be explicitly resolved: fix now, defer with context, or don't fix with stated reason. No implicit drops. |
+| Putting findings only in the summary table | The summary records resolutions, not unresolved observations. Route first (Step 4g), then summarize (Step 8). |
 
 ## Relationship to Other Skills
 

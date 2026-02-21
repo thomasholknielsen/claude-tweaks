@@ -236,6 +236,28 @@ If any part of the plan is blocked (missing infrastructure, unresolved dependenc
 2. Note what unblocks them
 3. These will be picked up by `/claude-tweaks:help` when scanning for actionable work
 
+### Common Step 3.5: Architecture Alignment Check
+
+Compare what was actually built to what the spec or design doc said to build. Implementation often drifts from the plan — sometimes for good reasons, sometimes not. Catch it here before verification locks it in.
+
+**Check:**
+1. Read the spec (or design doc) and identify its stated architectural approach — the "how" decisions: patterns chosen, boundaries defined, data flow described
+2. Compare against the actual implementation — scan the files created/modified for structural alignment
+3. Note any deviations
+
+**For each deviation found, classify and route:**
+
+```
+Deviation: {what the spec said vs. what was built}
+1. Beneficial — The deviation is an improvement. Note it for /claude-tweaks:wrap-up reflection.
+2. Fix now — The deviation contradicts the spec's intent. Correct the implementation.
+3. Update the spec — The spec was wrong or incomplete. Update the spec to match reality.
+```
+
+**Skip this step if:**
+- Design mode with no formal spec (no stated architecture to compare against)
+- The plan was trivial (< 3 tasks, single-file changes)
+
 ### Common Step 4: Final Verification
 
 After code simplification, verify the full build using the project's standard checks:
@@ -397,6 +419,7 @@ These apply in **autonomous** and **branched** modes. In **guided** mode, pause 
 | Skipping journey capture for user-facing features | Journeys are what browser-review tests against — no journey means no visual QA anchor |
 | Writing journeys with vague "should feel" | "Good" and "intuitive" are not testable. "Low commitment" and "like an accomplishment" are. |
 | Asking the user whether to create a journey | Journey capture is automatic. The user didn't know they needed the spec either — that's why the workflow exists. |
+| Ignoring architectural deviations from the spec | Drift happens during implementation — catch it in Step 3.5 before it becomes tech debt. Every deviation must be explicitly classified. |
 
 ## Relationship to Other Skills
 

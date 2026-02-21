@@ -47,7 +47,22 @@ If it takes more than 5 lines to describe, it's past the inbox stage — run `br
 
 1. Open `specs/INBOX.md`
 2. Append new entry at the bottom
-3. Don't overthink — capture the essence, move on
+3. Don't overthink — capture the essence
+
+## Immediate Routing
+
+After adding the entry, present a quick decision so the item doesn't silently sit in the INBOX without a plan:
+
+```
+Added to INBOX: "{item title}"
+
+What should happen with this?
+1. Promote now — Run /claude-tweaks:challenge then brainstorming on this topic
+2. Keep in INBOX — Not ready yet, will be reviewed during /claude-tweaks:tidy
+3. Merge into spec {N} — This belongs in an existing spec (if a related spec is obvious)
+```
+
+This ensures every captured idea has an explicit next step — either immediate action or a conscious decision to park it.
 
 **Good entries:**
 

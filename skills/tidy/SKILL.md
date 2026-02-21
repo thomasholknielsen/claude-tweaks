@@ -76,12 +76,21 @@ For each spec, do a lightweight scan:
 - Search for key files, endpoints, tests mentioned in the spec
 - Estimate completion: `not started`, `in progress (~X%)`, `mostly done (~90%+)`, `appears complete`
 
-Flag specs that:
-- **Appear complete, not reviewed** → run `/claude-tweaks:review` first (check if `/claude-tweaks:review` was run by looking for review commits or summary artifacts)
-- **Appear complete, reviewed but not wrapped up** → run `/claude-tweaks:wrap-up`
-- **Have been in progress for 4+ weeks** → may be stuck
-- **Have unmet prerequisites** that are themselves stale
-- **Overlap significantly** with other specs → candidates for merging
+Flag specs that need attention. **For each flagged spec, present a decision:**
+
+```
+SPEC {N}: "{title}" — {issue}
+1. Act now — {recommended action: run /review, run /wrap-up, resume /build}
+2. Defer — Keep as-is, revisit next tidy
+3. Drop — Spec is no longer relevant (remove from INDEX.md)
+```
+
+Issues to flag:
+- **Appears complete, not reviewed** → recommend `/claude-tweaks:review {N}`
+- **Appears complete, reviewed but not wrapped up** → recommend `/claude-tweaks:wrap-up {N}`
+- **In progress for 4+ weeks** → recommend resuming `/claude-tweaks:build` or re-evaluating scope
+- **Unmet prerequisites that are themselves stale** → recommend re-prioritizing the blocking spec
+- **Overlaps significantly with another spec** → recommend merging
 
 ### Dependency Health
 
@@ -90,36 +99,70 @@ Check the INDEX.md dependency graph:
 - Specs blocked by specs that haven't been started?
 - Orphan specs with no tier placement?
 
+For each dependency issue found, present a decision:
+
+```
+DEPENDENCY: {description of issue}
+1. Fix now — {recommended fix}
+2. Defer — Address in next tidy cycle
+```
+
 ## Step 3: Audit Design Docs and Briefs
 
-Scan `docs/plans/*-design.md` and `docs/plans/*-brief.md`:
+Scan `docs/plans/*-design.md` and `docs/plans/*-brief.md`.
 
-| Status | Action |
+**For each design doc, present a decision:**
+
+```
+DESIGN DOC: "{filename}" — {status}
+1. Act now — {recommended action: run /specify, delete, mark as specified}
+2. Keep — Still needed
+3. Delete — No longer relevant
+```
+
+Use this table to determine the recommended action:
+
+| Status | Recommended Action |
 |--------|--------|
-| Marked as specified | Check if derived specs are complete → if yes, delete |
+| Marked as specified, derived specs complete | Delete |
 | No status, matches existing specs | Mark as specified |
-| No status, no matching specs | Flag — brainstormed but never `/claude-tweaks:specify`'d |
-| Very old (4+ weeks), no specs | Candidate for deletion or re-brainstorming |
+| No status, no matching specs | Run `/claude-tweaks:specify` |
+| Very old (4+ weeks), no specs | Delete or re-brainstorm |
 
-**Briefs** (`*-brief.md`) follow a simpler lifecycle:
+**For each brief, present a decision:**
 
-| Status | Action |
+```
+BRIEF: "{filename}" — {status}
+1. Act now — {recommended action}
+2. Keep — Still needed
+3. Delete — No longer relevant
+```
+
+| Status | Recommended Action |
 |--------|--------|
-| Matching design doc exists | Keep — brief is waiting for `/claude-tweaks:specify` to consume both |
-| No matching design doc, matching specs exist | Delete — brief was absorbed into specs, `/claude-tweaks:specify` missed cleanup |
-| No matching design doc, no specs | Orphan — brainstorming never happened. Re-run `brainstorming` or delete |
-| Very old (4+ weeks), no design doc | Delete — the challenge output went stale |
+| Matching design doc exists | Keep |
+| No matching design doc, specs exist | Delete |
+| No matching design doc, no specs | Re-run `brainstorming` or delete |
+| Very old (4+ weeks), no design doc | Delete |
 
 ## Step 4: Audit Execution Plans
 
-Scan `docs/plans/` for non-design plan files and `~/.claude/plans/`:
+Scan `docs/plans/` for non-design plan files and `~/.claude/plans/`.
 
-| Status | Action |
+**For each plan, present a decision:**
+
+```
+PLAN: "{filename}" — {status}
+1. Delete — {reason: served its purpose / orphaned / stale}
+2. Keep — Related spec is in progress
+```
+
+| Status | Recommended Action |
 |--------|--------|
-| Related spec is complete | Delete — served its purpose |
+| Related spec is complete | Delete |
 | Related spec is in progress | Keep |
-| No related spec found | Orphan — delete |
-| Very old, spec not started | Flag for review |
+| No related spec found | Delete (orphan) |
+| Very old, spec not started | Delete or flag for review |
 
 ## Step 4.5: Audit Git Worktrees and Build Branches
 
@@ -254,9 +297,12 @@ Commit with a message summarizing the tidy-up.
 
 ## Anti-Patterns
 
-- Deleting specs without checking if they're implemented (always scan the codebase first)
-- Promoting INBOX items directly to specs without brainstorming
-- Keeping everything "just in case" — stale items create noise and slow down `/claude-tweaks:help`
+| Pattern | Why It Fails |
+|---------|-------------|
+| Deleting specs without checking if they're implemented | Always scan the codebase first — the spec may be partially or fully built |
+| Promoting INBOX items directly to specs without brainstorming | Brainstorming catches assumptions that skip straight to implementation |
+| Keeping everything "just in case" | Stale items create noise and slow down `/claude-tweaks:help` |
+| Listing recommendations in a summary without per-item decisions | Every flagged item must get an explicit vote: act now, defer, or drop. No implicit "we'll get to it." |
 
 ## Relationship to Other Skills
 

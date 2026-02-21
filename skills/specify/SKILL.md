@@ -46,13 +46,26 @@ Read and analyze in parallel:
 
 ### Overlap Analysis
 
-For each major section/feature in the design doc, classify:
+For each major section/feature in the design doc, classify coverage:
 
-| Coverage | Meaning | Action |
-|----------|---------|--------|
-| **Already exists** | A spec covers this fully | Skip — don't create a duplicate |
-| **Partial overlap** | An existing spec covers part of this | Extend that spec OR create a companion spec with a dependency link |
-| **Gap** | No existing spec addresses this | Create a new work unit |
+| Coverage | Meaning |
+|----------|---------|
+| **Already exists** | A spec covers this fully |
+| **Partial overlap** | An existing spec covers part of this |
+| **Gap** | No existing spec addresses this |
+
+**For each item with overlap, present a decision:**
+
+```
+OVERLAP: "{design doc section}" ↔ Spec {N}: "{spec title}"
+Coverage: {Already exists / Partial overlap}
+1. Skip — Spec {N} already covers this, don't duplicate
+2. Extend spec {N} — Add the new scope to the existing spec
+3. Companion spec — Create a new spec with a dependency on spec {N}
+4. Replace — The design doc supersedes spec {N}, rewrite it
+```
+
+This ensures overlap handling is an explicit user decision, not a silent assumption. For **Gap** items, proceed directly to Step 2 (decompose into work units).
 
 ## Step 2: Decompose into Work Units
 
@@ -201,6 +214,7 @@ Commit with a message describing the specs created.
 | Vague acceptance criteria | "Works correctly" can't be verified — writing-plans needs specific, testable assertions |
 | Keeping the design doc after specifying | Creates dangling references — the spec is the durable record, the design doc is consumed |
 | Skipping the codebase scan | Specs without Current State context force writing-plans into blind exploration |
+| Silently deciding how to handle overlapping specs | Overlap handling (extend vs. companion vs. replace) is a user decision — present numbered options, don't assume |
 
 ## Relationship to Other Skills
 
