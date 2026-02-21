@@ -40,6 +40,7 @@ This will:
 
 ```
 /claude-tweaks:setup → /claude-tweaks:codebase-onboarding → /claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+                                                                                                                                                          ╰─── /claude-tweaks:flow automates ───╯
 ```
 
 ### Core Skills
@@ -59,8 +60,10 @@ This will:
 
 | Skill | Command | Purpose |
 |-------|---------|---------|
-| next | `/claude-tweaks:next` | Dashboard + recommendation for what to do next |
+| help | `/claude-tweaks:help` | Quick reference, workflow status dashboard, next-step recommendations |
 | tidy | `/claude-tweaks:tidy` | Periodic backlog hygiene |
+| flow | `/claude-tweaks:flow` | Automated pipeline: build → review → wrap-up with gates |
+| next | `/claude-tweaks:next` | Redirects to `/claude-tweaks:help` (legacy) |
 
 ### Artifact Lifecycle
 

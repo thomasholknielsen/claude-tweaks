@@ -10,10 +10,17 @@ description: Use when implementing a spec or design doc end-to-end. Accepts a sp
 Implement a spec or design doc end-to-end: plan it, build it, simplify it, verify it. Part of the workflow lifecycle:
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
-                                                                 ↑                          ↑
-                                                                 └── or skip directly ──────┘
+/claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → [ /claude-tweaks:build ] → /claude-tweaks:review → /claude-tweaks:wrap-up
+                                                                 ↑                        ^^^^ YOU ARE HERE ^^^^   ↑
+                                                                 └── or skip directly ─────────────────────────────┘
 ```
+
+## When to Use
+
+- A spec is ready to build (prerequisites met, plan exists or will be created)
+- A design doc is ready for direct implementation (skipping /claude-tweaks:specify)
+- /claude-tweaks:help recommends building a specific spec
+- Resuming a partially-completed build
 
 ## Input
 
@@ -177,7 +184,7 @@ If any part of the plan is blocked (missing infrastructure, unresolved dependenc
    - **Spec mode:** add to the spec file under a "Blocked / Future Work" section
    - **Design mode:** create an INBOX entry via `/claude-tweaks:capture`
 2. Note what unblocks them
-3. These will be picked up by `/claude-tweaks:next` when scanning for actionable work
+3. These will be picked up by `/claude-tweaks:help` when scanning for actionable work
 
 ### Common Step 4: Final Verification
 
@@ -219,9 +226,9 @@ After successful build, present:
 
 Pick an action (reply with the number):
 
-1. `/claude-tweaks:review {number or blank}` — Run the quality gate **(Recommended)**
+1. `/claude-tweaks:review {number or blank}` — Run the quality gate ⭐ **(Recommended)**
 2. `/claude-tweaks:wrap-up {number or blank}` — Skip review, go straight to wrap-up
-3. `/claude-tweaks:next` — See full workflow status
+3. `/claude-tweaks:help` — See full workflow status
 4. Done for now
 ```
 
@@ -246,6 +253,16 @@ If you encounter a merge conflict, resolve it — do not reset or discard.
 - **Do not ask "should I proceed?"** — yes, you should. Always.
 - **Do not present options** — pick the best one and implement it.
 - **If ambiguous**, choose the simpler approach and note the alternative in a code comment.
+
+## Anti-Patterns
+
+| Pattern | Why It Fails |
+|---------|-------------|
+| Building without a spec or design doc | No clear scope leads to scope creep and unverifiable results |
+| Asking for feedback during execution | Build is autonomous — make reasonable decisions and keep moving |
+| Using `git reset` or `git checkout .` | Other processes may be committing concurrently — destroys their work |
+| Skipping code simplification | Iterative implementation accumulates unnecessary complexity across tasks |
+| Building a spec with unmet prerequisites | Downstream specs depend on upstream work — check the dependency graph first |
 
 ## Relationship to Other Skills
 

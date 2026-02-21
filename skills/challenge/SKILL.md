@@ -1,6 +1,6 @@
 ---
 name: claude-tweaks:challenge
-description: Use before brainstorming to challenge assumptions and remove bias from a problem statement. Takes an INBOX item or topic and produces a debiased problem framing that feeds into brainstorming.
+description: Use when you need to challenge assumptions and remove bias from a problem statement before brainstorming. Takes an INBOX item or topic and produces a debiased problem framing.
 ---
 > **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
 
@@ -10,7 +10,8 @@ description: Use before brainstorming to challenge assumptions and remove bias f
 Pre-brainstorming debiasing to ensure you're solving the right problem before investing time exploring solutions. Part of the workflow lifecycle:
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+/claude-tweaks:capture → [ /claude-tweaks:challenge ] → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+                           ^^^^ YOU ARE HERE ^^^^
 ```
 
 ## Overview
@@ -40,7 +41,7 @@ Do NOT accept the user's problem statement at face value. Do NOT jump to solutio
 - User has been going back and forth on something without resolution
 - User's framing contains strong assumptions in the phrasing
 - User asks for a "sanity check" or "fresh perspective"
-- `/claude-tweaks:next` flags an INBOX item with baked-in assumptions
+- `/claude-tweaks:help` flags an INBOX item with baked-in assumptions
 
 ### When to Skip
 
@@ -126,6 +127,8 @@ Ask: *"Is this even the right question to ask?"*
 - Propose an alternative framing if one has emerged
 - This is often the most valuable output of the entire process
 
+---
+
 ## Process
 
 1. **Listen** — Let the user explain their problem fully. Do not interrupt with lenses yet.
@@ -133,6 +136,8 @@ Ask: *"Is this even the right question to ask?"*
 3. **Work through lenses** — One at a time. Ask one question per message. Wait for the user's response before moving to the next lens.
 4. **Skip irrelevant lenses** — If a lens clearly doesn't apply, acknowledge it briefly and move on. Not every problem needs all 7 lenses.
 5. **Synthesize** — After the lenses, produce the Brainstorming Brief (see Output below).
+
+---
 
 ## Output: Brainstorming Brief
 
@@ -176,7 +181,7 @@ After saving the brief, present numbered options:
 
 ```
 The brief has been saved. What's next?
-1. Run `brainstorming` on the reframed problem — Start exploring solutions **(Recommended)**
+1. Run `brainstorming` on the reframed problem — Start exploring solutions ⭐ **(Recommended)**
 2. Adjust the reframing — The truth is somewhere between original and reframed
 3. Start over with a different lens — Re-examine from scratch
 4. Park it — Save the brief and come back later

@@ -1,6 +1,6 @@
 ---
 name: claude-tweaks:tidy
-description: Use for periodic backlog hygiene — review stale INBOX items, partially-complete specs, orphaned plans, and overall spec health
+description: Use when the backlog needs hygiene — review stale INBOX items, partially-complete specs, orphaned plans, and overall spec health
 ---
 > **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
 
@@ -12,7 +12,8 @@ Periodic backlog hygiene to keep the spec system healthy. Run when the backlog f
 ```
 /claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
                                                                  ↑
-                                              /claude-tweaks:tidy (maintenance loop)
+                                          [ /claude-tweaks:tidy ] (maintenance loop)
+                                            ^^^^ YOU ARE HERE ^^^^
 ```
 
 ## When to Use
@@ -21,7 +22,7 @@ Periodic backlog hygiene to keep the spec system healthy. Run when the backlog f
 - Starting a new brainstorming session (clean the landscape first)
 - After completing a batch of specs (check what's unblocked)
 - Monthly hygiene pass
-- When `/claude-tweaks:next` flags issues
+- When `/claude-tweaks:help` flags issues
 
 ## Step 1: Audit the INBOX
 
@@ -106,6 +107,8 @@ For specs not yet built, check sizing:
 - **Too small** (1-2 trivial tasks): recommend merging with a related spec
 - **Too vague** (no concrete deliverables or acceptance criteria): recommend re-specifying
 
+---
+
 ## Step 6: Present Findings
 
 ```markdown
@@ -152,6 +155,8 @@ Approve actions (reply with numbers, e.g. "1,3,5"):
 5. Delete orphaned plan: {filename}
 ```
 
+---
+
 ## Step 7: Execute Approved Actions
 
 1. Delete approved INBOX entries
@@ -165,4 +170,4 @@ Commit with a message summarizing the tidy-up.
 
 - Deleting specs without checking if they're implemented (always scan the codebase first)
 - Promoting INBOX items directly to specs without brainstorming
-- Keeping everything "just in case" — stale items create noise and slow down `/claude-tweaks:next`
+- Keeping everything "just in case" — stale items create noise and slow down `/claude-tweaks:help`

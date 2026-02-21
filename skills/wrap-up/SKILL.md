@@ -1,6 +1,6 @@
 ---
 name: claude-tweaks:wrap-up
-description: Use after /claude-tweaks:review passes to capture learnings, clean up specs/plans, update skills, and suggest next steps. The lifecycle closure step.
+description: Use when /claude-tweaks:review passes and you need to capture learnings, clean up specs/plans, update skills, and decide next steps. The lifecycle closure step.
 ---
 > **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
 
@@ -10,8 +10,16 @@ description: Use after /claude-tweaks:review passes to capture learnings, clean 
 Post-review reflection, knowledge capture, and lifecycle cleanup. Part of the workflow lifecycle:
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+/claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → [ /claude-tweaks:wrap-up ]
+                                                                                                                                            ^^^^ YOU ARE HERE ^^^^
 ```
+
+## When to Use
+
+- `/claude-tweaks:review` just passed and the work needs reflection and cleanup
+- A spec is complete and needs its artifacts (plans, design docs) cleaned up
+- You finished conversation-based work and want to capture learnings
+- `/claude-tweaks:help` flags specs awaiting wrap-up
 
 ## Overview
 
@@ -59,13 +67,12 @@ Review conversation and recent commits to identify what was implemented and whic
 
 ### Four Reflection Lenses
 
-**Lens 1: "What surprised us?"** — Unexpected constraints, library behavior, or shape changes. Surfaces: don'ts, skill updates.
-
-**Lens 2: "What would we do differently?"** — Better patterns discovered midway, over/under-engineering. Surfaces: skill updates, conventions, spec adjustments.
-
-**Lens 3: "What broke or almost broke?"** — Unexpected test failures, type errors, cross-platform ripples. Surfaces: don'ts, testing patterns, gotchas.
-
-**Lens 4: "If we started fresh?"** — Would we choose the same approach? What would v2 look like? Surfaces: architectural alternatives, memory files.
+| Lens | Question | Surfaces |
+|------|----------|----------|
+| **1. Surprises** | "What surprised us?" — Unexpected constraints, library behavior, shape changes | Don'ts, skill updates |
+| **2. Hindsight** | "What would we do differently?" — Better patterns discovered midway, over/under-engineering | Skill updates, conventions, spec adjustments |
+| **3. Near-misses** | "What broke or almost broke?" — Unexpected test failures, type errors, cross-platform ripples | Don'ts, testing patterns, gotchas |
+| **4. Fresh start** | "If we started fresh?" — Would we choose the same approach? What would v2 look like? | Architectural alternatives, memory files |
 
 ### Review Tradeoffs
 
@@ -86,6 +93,8 @@ Check the `/claude-tweaks:review` summary for the **Tradeoffs Accepted** section
 | "A fundamentally better approach exists" | Skill update + Memory file |
 | "We chose X over Y because Z" (from review tradeoffs) | CLAUDE.md Convention or Memory file (if it's a recurring decision) |
 
+---
+
 ## Step 4: Analyze Leftover Work (spec-based only)
 
 For any unfinished sections, determine placement:
@@ -93,6 +102,8 @@ For any unfinished sections, determine placement:
 - Create a new focused spec
 - Defer to a later tier
 - Drop entirely (if no longer relevant)
+
+---
 
 ## Step 5: Clean Up Artifacts
 
@@ -139,7 +150,9 @@ Determine:
 2. **Parallel opportunities** — which specs have no dependencies?
 3. **Recommended next spec** — based on dependencies and logical flow
 
-Suggest running `/claude-tweaks:next` to see the full workflow status.
+Suggest running `/claude-tweaks:help` to see the full workflow status.
+
+---
 
 ## Step 10: Present Consolidated Summary
 
@@ -168,8 +181,8 @@ Overall: {X}% complete
 
 Pick an action (reply with the number):
 
-1. `/claude-tweaks:build {next spec number}` — {next spec title} **(Recommended)**
-2. `/claude-tweaks:next` — See full workflow status
+1. `/claude-tweaks:build {next spec number}` — {next spec title} ⭐ **(Recommended)**
+2. `/claude-tweaks:help` — See full workflow status
 3. `/claude-tweaks:capture` — Capture a new idea
 4. Done for now
 ```
@@ -207,11 +220,21 @@ Commit with a message summarizing the wrap-up actions.
 - CLAUDE.md stays concise — use skills, rules, or reference docs for details
 - Reflection insights with no clear destination can be safely dropped
 
+## Anti-Patterns
+
+| Pattern | Why It Fails |
+|---------|-------------|
+| Running wrap-up before review | Wrap-up assumes code quality is verified — skipping review means capturing learnings from unvalidated work |
+| Deleting specs that aren't 100% complete | Partial specs need leftover work routed, not deleted — use Step 4 first |
+| Adding every insight to CLAUDE.md | CLAUDE.md has a size budget — route detailed content to skills, rules, or memory files |
+| Skipping reflection for "simple" work | Simple work still surfaces surprises and near-misses worth capturing |
+| Keeping design docs and plans after wrap-up | Consumed artifacts create stale references — the spec and code are the durable records |
+
 ## Relationship to Other Skills
 
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:review` | Must pass before /claude-tweaks:wrap-up — handles verification, code review, and simplification |
 | `/claude-tweaks:capture` | /claude-tweaks:wrap-up may create INBOX items for leftover work |
-| `/claude-tweaks:next` | /claude-tweaks:wrap-up suggests running /claude-tweaks:next to see what's unblocked |
+| `/claude-tweaks:help` | /claude-tweaks:wrap-up suggests running /claude-tweaks:help to see what's unblocked |
 | `/claude-tweaks:tidy` | /claude-tweaks:wrap-up cleans artifacts for a single spec — /claude-tweaks:tidy does periodic bulk cleanup |

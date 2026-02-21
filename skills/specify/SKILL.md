@@ -10,8 +10,16 @@ description: Use when converting a brainstorming design document into agent-size
 Convert a brainstorming design document into self-contained, agent-sized work units in `specs/`. Part of the workflow lifecycle:
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+/claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → [ /claude-tweaks:specify ] → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+                                                                      ^^^^ YOU ARE HERE ^^^^
 ```
+
+## When to Use
+
+- A brainstorming session produced a design doc that needs decomposing into specs
+- An INBOX item has been brainstormed and is ready for specification
+- `/claude-tweaks:help` flags unspecified design docs
+- You need to break a large feature into agent-sized work units
 
 ## Input
 
@@ -96,98 +104,7 @@ For each work unit, assign the next available spec number (check `specs/INDEX.md
 
 ### Spec Template
 
-The spec must be detailed enough for `writing-plans` to produce a TDD execution plan without additional context. Writing-plans assumes zero codebase familiarity — the spec provides the anchoring.
-
-```markdown
----
-tier: {1-5}
-status: not-started
-progress: 0
-blocked-by: [{spec numbers or empty}]
----
-
-# {Number}: {Title}
-
-## Overview
-
-{1-2 paragraphs describing what this work unit delivers and why. Absorb key decisions and rationale from the design doc — the design doc will be deleted after this step.}
-
-**Complexity:** {Low | Medium | High}
-**Estimated tasks:** {3-8}
-
-## Non-Goals
-
-{Explicit boundaries. What this spec does NOT cover. Prevents writing-plans from scope-creeping beyond the work unit boundary.}
-
-- {Thing that might seem in scope but isn't}
-- {Related work that belongs in a different spec}
-
-## Prerequisites
-
-| Spec | Title | Status |
-|------|-------|--------|
-| {N} | {title} | {status} |
-
-## Current State
-
-{What already exists in the codebase that this work builds on. Not a code dump — pointers that give writing-plans its starting points.}
-
-- Data: `{path}` — {what tables/models exist}
-- API: `{path}` — {what endpoints exist}
-- UI: `{path}` — {what components exist}
-- Tests: `{path}` — {what test patterns to follow}
-
-## Deliverables
-
-- [ ] {Concrete deliverable 1}
-- [ ] {Concrete deliverable 2}
-- [ ] ...
-
-## Acceptance Criteria
-
-1. {Specific, testable criterion that writing-plans can convert to a TDD step}
-2. {Specific, testable criterion}
-3. ...
-
-## Technical Approach
-
-{Key architectural decisions absorbed from the design doc, specific to this work unit.}
-
-### Data / API Surface
-
-{If this spec involves data model or API changes, define the contract surface. Table/model names, field types, endpoint signatures, validation schemas. Not full implementation — just enough for writing-plans to generate exact code.}
-
-### Key Files
-
-- `{path}` — {what changes or new file purpose}
-- `{path}` — {what changes}
-
-### Package Dependencies
-
-- `{package}` — {what's needed from it}
-
-## Gotchas
-
-{Things learned during brainstorming, from past experience, or from project memory that writing-plans won't know. These prevent common subagent mistakes.}
-
-- {e.g., "Use upsert, not delete+insert for this operation"}
-- {e.g., "The status enum values are exactly: draft, published, archived"}
-- {e.g., "This mutation needs a transaction — it modifies two tables atomically"}
-- {e.g., "Import shared types from the contracts package, don't redeclare inline"}
-```
-
-### Why Each Section Matters for writing-plans
-
-| Section | What writing-plans does with it |
-|---------|-------------------------------|
-| **Overview** | Sets the goal and context for the plan header |
-| **Non-Goals** | Prevents scope creep in task decomposition |
-| **Current State** | Gives starting points — avoids blind codebase exploration |
-| **Deliverables** | Maps to plan tasks (roughly 1 deliverable = 1-2 tasks) |
-| **Acceptance Criteria** | Becomes the "verify" step in each TDD cycle |
-| **Data / API Surface** | Enables exact code generation — names, types, endpoints |
-| **Key Files** | Exact paths for the plan's "Files" section |
-| **Gotchas** | Injected as constraints into subagent prompts |
+Each spec follows a structured template with sections designed to give `writing-plans` everything it needs to produce a TDD execution plan. For the complete template and a table explaining what writing-plans does with each section, read `spec-template.md` in this skill's directory.
 
 ### Rules
 
@@ -197,6 +114,8 @@ blocked-by: [{spec numbers or empty}]
 - **Don't over-specify implementation** — the spec says *what* and *where*, the plan (created by `writing-plans` during `/claude-tweaks:build`) says *how*.
 - **Include gotchas from project memory** — search CLAUDE.md and memory files for relevant patterns, common mistakes, and lessons learned.
 - **Absorb the brainstorming brief** — if a `*-brief.md` exists for this topic, carry its assumptions, blind spots, and constraints into the relevant specs' Gotchas sections. These are hard-won insights from `/claude-tweaks:challenge` that should survive.
+
+---
 
 ## Step 4: Update INDEX.md
 
@@ -236,6 +155,8 @@ If the work originated from an INBOX item:
 - Remove the entry from `specs/INBOX.md`
 - It has been promoted — the specs are the durable artifact now
 
+---
+
 ## Step 7: Summary and Commit
 
 Present a summary:
@@ -264,13 +185,23 @@ Present next steps as numbered options:
 
 ```
 What's next?
-1. `/claude-tweaks:build {first spec number}` — Start building the highest-priority spec **(Recommended)**
-2. `/claude-tweaks:next` — See full workflow status
+1. `/claude-tweaks:build {first spec number}` — Start building the highest-priority spec ⭐ **(Recommended)**
+2. `/claude-tweaks:help` — See full workflow status
 3. `/claude-tweaks:build {design doc}` — Build directly from a design doc (skip specs)
 4. Done for now
 ```
 
 Commit with a message describing the specs created.
+
+## Anti-Patterns
+
+| Pattern | Why It Fails |
+|---------|-------------|
+| Specifying without a design doc | Specs need brainstorming output — without it, assumptions go unchallenged |
+| Specs that touch every layer | A single spec spanning data + API + UI + infra is too large for agent-sized execution |
+| Vague acceptance criteria | "Works correctly" can't be verified — writing-plans needs specific, testable assertions |
+| Keeping the design doc after specifying | Creates dangling references — the spec is the durable record, the design doc is consumed |
+| Skipping the codebase scan | Specs without Current State context force writing-plans into blind exploration |
 
 ## Relationship to Other Skills
 
@@ -281,4 +212,4 @@ Commit with a message describing the specs created.
 | `/claude-tweaks:build` | Runs AFTER /claude-tweaks:specify — takes a single spec and implements it |
 | `/claude-tweaks:capture` | Feeds INBOX items that may trigger brainstorming → /claude-tweaks:specify |
 | `/claude-tweaks:tidy` | Reviews specs created by /claude-tweaks:specify for staleness |
-| `/claude-tweaks:next` | Shows which specs from /claude-tweaks:specify are ready for /claude-tweaks:build |
+| `/claude-tweaks:help` | Shows which specs from /claude-tweaks:specify are ready for /claude-tweaks:build |

@@ -10,7 +10,8 @@ description: Use when capturing ideas that need specification later - brain dump
 Quick capture for ideas that aren't ready for full specification. Part of the workflow lifecycle:
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+[ /claude-tweaks:capture ] → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+  ^^^^ YOU ARE HERE ^^^^
 ```
 
 ## When to Use

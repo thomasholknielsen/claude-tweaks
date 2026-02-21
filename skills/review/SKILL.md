@@ -1,6 +1,6 @@
 ---
 name: claude-tweaks:review
-description: Use after building to review code quality, verify correctness, and simplify before wrapping up. The quality gate between implementation and lifecycle cleanup.
+description: Use when a build is complete and you need to verify code quality, correctness, and simplicity before wrapping up. The quality gate between implementation and lifecycle cleanup.
 ---
 > **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
 
@@ -10,8 +10,16 @@ description: Use after building to review code quality, verify correctness, and 
 Post-build quality gate. Verifies, reviews, and refines the code before handing off to wrap-up. Part of the workflow lifecycle:
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+/claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → [ /claude-tweaks:review ] → /claude-tweaks:wrap-up
+                                                                                                                      ^^^^ YOU ARE HERE ^^^^
 ```
+
+## When to Use
+
+- A `/claude-tweaks:build` session just finished and needs quality verification
+- You want to verify code before creating a PR
+- Code was written outside the workflow and needs a structured review
+- `/claude-tweaks:help` recommends reviewing a spec that appears complete
 
 ## Overview
 
@@ -129,6 +137,8 @@ Review changed files through these lenses. Skip lenses that don't apply to the t
 - No test pollution (shared mutable state)?
 - Mocks are minimal and at the right level?
 
+---
+
 ## Step 5: Implementation Hindsight (Decision Point)
 
 This is NOT a thought exercise — it's an **action gate**. After the code review, explicitly ask:
@@ -141,8 +151,6 @@ Evaluate:
 3. **Missing consolidation** — Opportunities to merge, deduplicate, or simplify that are obvious now?
 4. **Convention drift** — Did we accidentally diverge from established project patterns?
 
-For each finding, classify:
-
 For each finding, present numbered options:
 
 ```
@@ -153,6 +161,8 @@ Finding: {description}
 ```
 
 If any findings are **"Change now"**, make the changes, re-run verification (Step 3), and resume.
+
+---
 
 ## Step 6: Simplify Changed Code
 
@@ -173,59 +183,11 @@ Task tool with subagent_type="code-simplifier"
 
 If the code-simplifier makes changes, re-run verification (Step 3) before proceeding.
 
+---
+
 ## Step 7: Present Review Summary
 
-```markdown
-## Review: {spec number or description}
-
-### Spec Compliance (spec-based only)
-| Deliverable | Status |
-|-------------|--------|
-| {deliverable} | {done/partial/missing} |
-
-| Acceptance Criterion | Status |
-|---------------------|--------|
-| {criterion} | {met/partially met/not met} |
-(or: No spec — file/commit-based review.)
-
-### Verification
-- Type check: {pass/fail}
-- Lint: {pass/fail}
-- Tests: {pass/fail}
-
-### Code Review Findings
-| Category | Finding | Severity | Action |
-|----------|---------|----------|--------|
-| {convention/security/error/perf/arch/test} | {finding} | {low/medium/high} | {fixed/claude-tweaks:captured/accepted} |
-(or: No findings — code is clean.)
-
-### Implementation Hindsight
-- {finding} → {change now / capture for later / accept as-is}
-(or: No changes needed — approach is sound.)
-
-### Tradeoffs Accepted
-| Tradeoff | Rationale |
-|----------|-----------|
-| {what was accepted} | {why — the reasoning that made this acceptable} |
-(or: No tradeoffs — all findings were addressed or trivial.)
-
-> `/claude-tweaks:wrap-up` uses this section to decide whether accepted tradeoffs should be documented in CLAUDE.md, skills, or memory files. A tradeoff worth accepting once may be worth documenting as a project convention.
-
-### Code Simplification
-- {summary of simplifier changes, or "No simplifications needed"}
-
-### Verdict
-**{PASS}** or **{BLOCKED — issues need fixing}**
-
-### What's Next?
-
-Pick an action (reply with the number):
-
-1. `/claude-tweaks:wrap-up {number}` — Capture learnings and clean up **(Recommended)**
-2. `/claude-tweaks:build {number}` — Back to build (if BLOCKED)
-3. `/claude-tweaks:next` — See full workflow status
-4. Done for now
-```
+Present a structured summary covering spec compliance, verification results, code review findings, implementation hindsight, tradeoffs, simplification, and a verdict (PASS or BLOCKED). For the complete template, read `review-summary-template.md` in this skill's directory.
 
 ## Important Notes
 
@@ -235,6 +197,16 @@ Pick an action (reply with the number):
 - Code simplification runs on changed files only — never expand scope to unrelated code
 - Skip review lenses that don't apply to the type of change
 - This skill reviews the *current work* — for periodic codebase-wide drift detection, use `code-review-max`
+
+## Anti-Patterns
+
+| Pattern | Why It Fails |
+|---------|-------------|
+| Reviewing incomplete specs | Wastes effort — spec compliance check (Step 1) catches this, but don't skip it |
+| Skipping verification to "save time" | Broken code invalidates the entire review — verification is a hard gate |
+| Reviewing unrelated code | Scope creep — only review files changed in the current work |
+| Accepting all Implementation Hindsight findings as-is | The action gate exists for a reason — "change now" items must be fixed |
+| Running review without a prior build | Review assumes code exists and was recently written — use `code-review-max` for codebase-wide audits |
 
 ## Relationship to Other Skills
 

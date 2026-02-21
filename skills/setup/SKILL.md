@@ -1,6 +1,6 @@
 ---
 name: claude-tweaks:setup
-description: Use to bootstrap the workflow system — installs plugin dependencies, creates directory structure, and verifies the project is ready for /claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up.
+description: Use when bootstrapping the workflow system for a project — installs plugin dependencies, creates directory structure, and verifies readiness for the full lifecycle.
 ---
 > **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
 
@@ -10,14 +10,15 @@ description: Use to bootstrap the workflow system — installs plugin dependenci
 Bootstrap the workflow system for a project. Installs dependencies, creates directory structure, and verifies everything is wired up.
 
 ```
-/claude-tweaks:setup → /claude-tweaks:codebase-onboarding → /claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+[ /claude-tweaks:setup ] → /claude-tweaks:codebase-onboarding → /claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+  ^^^^ YOU ARE HERE ^^^^
 ```
 
 ## When to Use
 
 - First time using the workflow system on a project
 - After cloning a repo that uses this workflow (to verify dependencies)
-- When `/claude-tweaks:next` or `/claude-tweaks:build` fails because something is missing
+- When `/claude-tweaks:help` or `/claude-tweaks:build` fails because something is missing
 - The user says "set up the workflow" or "get me started"
 
 ## Step 1: Check Plugin Dependencies
@@ -82,7 +83,7 @@ Ideas and features captured for future specification. Use `/claude-tweaks:captur
 ```markdown
 # Spec Index
 
-Tiered roadmap of work units. Use `/claude-tweaks:specify` to add specs, `/claude-tweaks:next` to see what's ready to build.
+Tiered roadmap of work units. Use `/claude-tweaks:specify` to add specs, `/claude-tweaks:help` to see what's ready to build.
 
 ## Tier 1 — Critical Path
 
@@ -151,9 +152,9 @@ The workflow system relies on git for change tracking (`/claude-tweaks:review` u
 {All green → present options:}
 
 What's next?
-1. `/claude-tweaks:capture` — Add your first idea **(Recommended)**
+1. `/claude-tweaks:capture` — Add your first idea ⭐ **(Recommended)**
 2. `/claude-tweaks:codebase-onboarding` — Generate CLAUDE.md and skills for this project
-3. `/claude-tweaks:next` — See workflow status
+3. `/claude-tweaks:help` — See workflow status
 4. Done for now
 
 {Missing items → list what needs attention with numbered fix actions}
@@ -172,5 +173,5 @@ What's next?
 |-------|-------------|
 | `/claude-tweaks:codebase-onboarding` | Generates CLAUDE.md, skills, and rules — complements /claude-tweaks:setup's structural bootstrapping |
 | `/claude-tweaks:capture` | First skill to use after /claude-tweaks:setup — add ideas to the INBOX |
-| `/claude-tweaks:next` | Shows workflow status — useful to verify /claude-tweaks:setup worked |
+| `/claude-tweaks:help` | Shows workflow status — useful to verify /claude-tweaks:setup worked |
 | All workflow skills | Depend on the structure /claude-tweaks:setup creates |
