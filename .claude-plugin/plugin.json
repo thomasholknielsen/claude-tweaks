@@ -1,12 +1,12 @@
 {
   "name": "claude-tweaks",
-  "description": "A collection of useful skills and tweaks for Claude Code",
-  "version": "1.0.0",
+  "description": "A structured workflow system for Claude Code — from idea capture through build, review, and wrap-up",
+  "version": "2.0.0",
   "author": {
     "name": "Thomas Holk Nielsen",
     "url": "https://github.com/thomasholknielsen"
   },
   "repository": "https://github.com/thomasholknielsen/claude-tweaks",
   "license": "MIT",
-  "keywords": ["tweaks", "utilities", "productivity"]
+  "keywords": ["workflow", "productivity", "specs", "planning", "code-review"]
 }
