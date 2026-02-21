@@ -1,5 +1,5 @@
 ---
-name: codebase-onboarding
+name: claude-tweaks:codebase-onboarding
 description: Use when setting up Claude Code for a new or existing project — generates skills, CLAUDE.md, and rules. Re-run to find drift, gaps, and stale configuration.
 ---
 
@@ -27,7 +27,7 @@ Do NOT generate generic skills. Every skill you produce must be grounded in patt
 - You're onboarding to a team's existing codebase
 - You want to audit/refresh an existing Claude Code setup after the codebase has evolved
 - The user says "set up Claude Code for this repo" or "update my Claude config"
-- The user invokes `/codebase-onboarding`
+- The user invokes `/claude-tweaks:codebase-onboarding`
 
 ## Inputs
 

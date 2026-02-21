@@ -1,6 +1,6 @@
 ---
-name: wrap-up
-description: Use after /review passes to capture learnings, clean up specs/plans, update skills, and suggest next steps. The lifecycle closure step.
+name: claude-tweaks:wrap-up
+description: Use after /claude-tweaks:review passes to capture learnings, clean up specs/plans, update skills, and suggest next steps. The lifecycle closure step.
 ---
 
 # Wrap Up
@@ -8,14 +8,14 @@ description: Use after /review passes to capture learnings, clean up specs/plans
 Post-review reflection, knowledge capture, and lifecycle cleanup. Part of the workflow lifecycle:
 
 ```
-/capture → /challenge → brainstorming → /specify → /build → /review → /wrap-up
+/claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
 ```
 
 ## Overview
 
-`/review` verified the code is good. `/wrap-up` asks: what did we learn, and what needs cleaning up?
+`/claude-tweaks:review` verified the code is good. `/claude-tweaks:wrap-up` asks: what did we learn, and what needs cleaning up?
 
-This skill handles reflection (capturing learnings), spec lifecycle (completion/cleanup), and knowledge routing (updating skills, CLAUDE.md, memory). It does NOT re-review code quality — that's `/review`'s job.
+This skill handles reflection (capturing learnings), spec lifecycle (completion/cleanup), and knowledge routing (updating skills, CLAUDE.md, memory). It does NOT re-review code quality — that's `/claude-tweaks:review`'s job.
 
 ## Step 1: Identify the Work Context
 
@@ -39,15 +39,15 @@ Determine what type of work was completed:
 
 ## Step 2: Summarize Completed Work
 
-> Note: Spec compliance (deliverables + acceptance criteria) was already verified in `/review` Step 1. This step summarizes what was done — it does not re-verify.
+> Note: Spec compliance (deliverables + acceptance criteria) was already verified in `/claude-tweaks:review` Step 1. This step summarizes what was done — it does not re-verify.
 
 ### For spec-based work:
 
 Summarize the implementation against the spec:
 
 1. List what was delivered (high-level, not a re-audit)
-2. **100% complete** (confirmed by `/review`) → spec will be deleted
-3. **Partial** (if `/review` passed with minor gaps flagged) → identify what remains
+2. **100% complete** (confirmed by `/claude-tweaks:review`) → spec will be deleted
+3. **Partial** (if `/claude-tweaks:review` passed with minor gaps flagged) → identify what remains
 
 ### For conversation-based work:
 
@@ -67,7 +67,7 @@ Review conversation and recent commits to identify what was implemented and whic
 
 ### Review Tradeoffs
 
-Check the `/review` summary for the **Tradeoffs Accepted** section. For each accepted tradeoff, assess whether it represents:
+Check the `/claude-tweaks:review` summary for the **Tradeoffs Accepted** section. For each accepted tradeoff, assess whether it represents:
 
 - A **project-wide pattern** worth documenting (e.g., "we always choose X over Y because Z") → route to CLAUDE.md or a skill
 - A **one-off decision** specific to this work → no action needed
@@ -98,7 +98,7 @@ For any unfinished sections, determine placement:
 
 Search `docs/plans/` for plan files related to this spec → **delete them**.
 
-Note: Design docs (`*-design.md`) should already have been deleted by `/specify`. If any are found, delete them now.
+Note: Design docs (`*-design.md`) should already have been deleted by `/claude-tweaks:specify`. If any are found, delete them now.
 
 ### Auto-Generated Plans
 
@@ -137,7 +137,7 @@ Determine:
 2. **Parallel opportunities** — which specs have no dependencies?
 3. **Recommended next spec** — based on dependencies and logical flow
 
-Suggest running `/next` to see the full workflow status.
+Suggest running `/claude-tweaks:next` to see the full workflow status.
 
 ## Step 10: Present Consolidated Summary
 
@@ -178,7 +178,7 @@ Commit with a message summarizing the wrap-up actions.
 
 ## Important Notes
 
-- `/review` should have been run before `/wrap-up` — this skill assumes code quality is verified
+- `/claude-tweaks:review` should have been run before `/claude-tweaks:wrap-up` — this skill assumes code quality is verified
 - INDEX.md is forward-looking only — remove completed entries
 - Skills document reusable patterns, not one-off implementations
 - CLAUDE.md stays concise — use skills, rules, or reference docs for details
@@ -188,7 +188,7 @@ Commit with a message summarizing the wrap-up actions.
 
 | Skill | Relationship |
 |-------|-------------|
-| `/review` | Must pass before /wrap-up — handles verification, code review, and simplification |
-| `/capture` | /wrap-up may create INBOX items for leftover work |
-| `/next` | /wrap-up suggests running /next to see what's unblocked |
-| `/tidy` | /wrap-up cleans artifacts for a single spec — /tidy does periodic bulk cleanup |
+| `/claude-tweaks:review` | Must pass before /claude-tweaks:wrap-up — handles verification, code review, and simplification |
+| `/claude-tweaks:capture` | /claude-tweaks:wrap-up may create INBOX items for leftover work |
+| `/claude-tweaks:next` | /claude-tweaks:wrap-up suggests running /claude-tweaks:next to see what's unblocked |
+| `/claude-tweaks:tidy` | /claude-tweaks:wrap-up cleans artifacts for a single spec — /claude-tweaks:tidy does periodic bulk cleanup |

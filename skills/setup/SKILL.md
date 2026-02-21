@@ -1,6 +1,6 @@
 ---
-name: setup
-description: Use to bootstrap the workflow system — installs plugin dependencies, creates directory structure, and verifies the project is ready for /capture → /challenge → brainstorming → /specify → /build → /review → /wrap-up.
+name: claude-tweaks:setup
+description: Use to bootstrap the workflow system — installs plugin dependencies, creates directory structure, and verifies the project is ready for /claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up.
 ---
 
 # Setup
@@ -8,14 +8,14 @@ description: Use to bootstrap the workflow system — installs plugin dependenci
 Bootstrap the workflow system for a project. Installs dependencies, creates directory structure, and verifies everything is wired up.
 
 ```
-/setup → /codebase-onboarding → /capture → /challenge → brainstorming → /specify → /build → /review → /wrap-up
+/claude-tweaks:setup → /claude-tweaks:codebase-onboarding → /claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
 ```
 
 ## When to Use
 
 - First time using the workflow system on a project
 - After cloning a repo that uses this workflow (to verify dependencies)
-- When `/next` or `/build` fails because something is missing
+- When `/claude-tweaks:next` or `/claude-tweaks:build` fails because something is missing
 - The user says "set up the workflow" or "get me started"
 
 ## Step 1: Check Plugin Dependencies
@@ -38,7 +38,7 @@ claude plugins add obra/superpowers-marketplace
 
 ### Required: Code Simplifier
 
-Provides the `code-simplifier` subagent used by `/review`.
+Provides the `code-simplifier` subagent used by `/claude-tweaks:review`.
 
 ```bash
 # Check if installed — it's a built-in agent type, verify it's available
@@ -70,9 +70,9 @@ For each directory, check if it exists first. Only create what's missing.
 ```markdown
 # INBOX
 
-Ideas and features captured for future specification. Use `/capture` to add items, `/tidy` to review.
+Ideas and features captured for future specification. Use `/claude-tweaks:capture` to add items, `/claude-tweaks:tidy` to review.
 
-<!-- Add new entries at the bottom using /capture -->
+<!-- Add new entries at the bottom using /claude-tweaks:capture -->
 ```
 
 ### `specs/INDEX.md` (if missing)
@@ -80,7 +80,7 @@ Ideas and features captured for future specification. Use `/capture` to add item
 ```markdown
 # Spec Index
 
-Tiered roadmap of work units. Use `/specify` to add specs, `/next` to see what's ready to build.
+Tiered roadmap of work units. Use `/claude-tweaks:specify` to add specs, `/claude-tweaks:next` to see what's ready to build.
 
 ## Tier 1 — Critical Path
 
@@ -105,15 +105,15 @@ Tiered roadmap of work units. Use `/specify` to add specs, `/next` to see what's
 
 Check if `CLAUDE.md` exists in the project root.
 
-- **Exists** — Good. Verify it has a `Commands` section (needed by `/review` for running checks).
-- **Missing** — Suggest running `/codebase-onboarding` to generate it. The workflow system works best with a CLAUDE.md that documents commands, conventions, and don'ts.
+- **Exists** — Good. Verify it has a `Commands` section (needed by `/claude-tweaks:review` for running checks).
+- **Missing** — Suggest running `/claude-tweaks:codebase-onboarding` to generate it. The workflow system works best with a CLAUDE.md that documents commands, conventions, and don'ts.
 
 ## Step 5: Verify Git
 
-The workflow system relies on git for change tracking (`/review` uses `git diff`, `/wrap-up` checks recent commits).
+The workflow system relies on git for change tracking (`/claude-tweaks:review` uses `git diff`, `/claude-tweaks:wrap-up` checks recent commits).
 
 - Check that the current directory is a git repo
-- If not, warn the user — the workflow will partially work but `/review` and `/wrap-up` will be degraded
+- If not, warn the user — the workflow will partially work but `/claude-tweaks:review` and `/claude-tweaks:wrap-up` will be degraded
 
 ## Step 6: Present Status
 
@@ -142,11 +142,11 @@ The workflow system relies on git for change tracking (`/review` uses `git diff`
 ### Project Configuration
 | Item | Status | Recommendation |
 |------|--------|---------------|
-| CLAUDE.md | {exists/missing} | {none/run `/codebase-onboarding`} |
+| CLAUDE.md | {exists/missing} | {none/run `/claude-tweaks:codebase-onboarding`} |
 | Git repo | {yes/no} | {none/`git init`} |
 
 ### Ready to Go
-{All green → "You're set! Run `/capture` to add your first idea, or `/next` to see the workflow status."}
+{All green → "You're set! Run `/claude-tweaks:capture` to add your first idea, or `/claude-tweaks:next` to see the workflow status."}
 {Missing items → list what needs attention}
 ```
 
@@ -161,7 +161,7 @@ The workflow system relies on git for change tracking (`/review` uses `git diff`
 
 | Skill | Relationship |
 |-------|-------------|
-| `/codebase-onboarding` | Generates CLAUDE.md, skills, and rules — complements /setup's structural bootstrapping |
-| `/capture` | First skill to use after /setup — add ideas to the INBOX |
-| `/next` | Shows workflow status — useful to verify /setup worked |
-| All workflow skills | Depend on the structure /setup creates |
+| `/claude-tweaks:codebase-onboarding` | Generates CLAUDE.md, skills, and rules — complements /claude-tweaks:setup's structural bootstrapping |
+| `/claude-tweaks:capture` | First skill to use after /claude-tweaks:setup — add ideas to the INBOX |
+| `/claude-tweaks:next` | Shows workflow status — useful to verify /claude-tweaks:setup worked |
+| All workflow skills | Depend on the structure /claude-tweaks:setup creates |

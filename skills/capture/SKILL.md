@@ -1,5 +1,5 @@
 ---
-name: capture
+name: claude-tweaks:capture
 description: Use when capturing ideas that need specification later - brain dumps, half-formed features, things to not forget
 ---
 
@@ -8,7 +8,7 @@ description: Use when capturing ideas that need specification later - brain dump
 Quick capture for ideas that aren't ready for full specification. Part of the workflow lifecycle:
 
 ```
-/capture → /challenge → brainstorming → /specify → /build → /review → /wrap-up
+/claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
 ```
 
 ## When to Use
@@ -57,9 +57,9 @@ If it takes more than 5 lines to describe, it's past the inbox stage — run `br
 
 ## Review Workflow
 
-Periodically (or when inbox gets long), use `/tidy` or manually review:
+Periodically (or when inbox gets long), use `/claude-tweaks:tidy` or manually review:
 
-1. **Promote** — Ready for brainstorming? Run `brainstorming` on this topic, then `/specify` to create work units
+1. **Promote** — Ready for brainstorming? Run `brainstorming` on this topic, then `/claude-tweaks:specify` to create work units
 2. **Merge** — Fits into existing spec? Add to that spec's scope, delete from inbox
 3. **Delete** — No longer relevant or duplicate? Just delete
 4. **Keep** — Not ready yet? Leave it
@@ -68,7 +68,7 @@ Periodically (or when inbox gets long), use `/tidy` or manually review:
 
 - Using inbox for stuff that already has a spec (add to that spec instead)
 - Writing full specs in the inbox (just create the spec directly)
-- Never reviewing the inbox (becomes a graveyard — use `/tidy` periodically)
+- Never reviewing the inbox (becomes a graveyard — use `/claude-tweaks:tidy` periodically)
 - Adding implementation details (inbox = what, not how)
 - Skipping brainstorming and going straight to specs (brainstorming catches assumptions)
 - Putting notes about existing specs in INBOX (annotate the spec file instead)

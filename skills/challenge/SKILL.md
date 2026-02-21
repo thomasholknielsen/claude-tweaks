@@ -1,5 +1,5 @@
 ---
-name: challenge
+name: claude-tweaks:challenge
 description: Use before brainstorming to challenge assumptions and remove bias from a problem statement. Takes an INBOX item or topic and produces a debiased problem framing that feeds into brainstorming.
 ---
 
@@ -8,7 +8,7 @@ description: Use before brainstorming to challenge assumptions and remove bias f
 Pre-brainstorming debiasing to ensure you're solving the right problem before investing time exploring solutions. Part of the workflow lifecycle:
 
 ```
-/capture → /challenge → brainstorming → /specify → /build → /review → /wrap-up
+/claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
 ```
 
 ## Overview
@@ -38,7 +38,7 @@ Do NOT accept the user's problem statement at face value. Do NOT jump to solutio
 - User has been going back and forth on something without resolution
 - User's framing contains strong assumptions in the phrasing
 - User asks for a "sanity check" or "fresh perspective"
-- `/next` flags an INBOX item with baked-in assumptions
+- `/claude-tweaks:next` flags an INBOX item with baked-in assumptions
 
 ### When to Skip
 
@@ -165,8 +165,8 @@ The output is structured to feed directly into `brainstorming` as a debiased pro
 Save the brief to `docs/plans/{YYYY-MM-DD}-{topic}-brief.md` so it survives across sessions. This file is:
 
 - **Read by** `brainstorming` as input context
-- **Read by** `/specify` when writing specs (ensures assumptions and constraints reach the spec's Gotchas section)
-- **Deleted by** `/specify` Step 5 (alongside the design doc — both are consumed artifacts)
+- **Read by** `/claude-tweaks:specify` when writing specs (ensures assumptions and constraints reach the spec's Gotchas section)
+- **Deleted by** `/claude-tweaks:specify` Step 5 (alongside the design doc — both are consumed artifacts)
 
 ### Handoff to Brainstorming
 
@@ -194,14 +194,14 @@ After saving the brief:
 | Running all 7 lenses mechanically | Some problems only need 2-3 lenses |
 | Being adversarial rather than curious | The goal is insight, not winning an argument |
 | Softening challenges with "maybe" | Be direct — the user opted into this |
-| Skipping /challenge for "obvious" features | Obvious features often have the strongest hidden assumptions |
+| Skipping /claude-tweaks:challenge for "obvious" features | Obvious features often have the strongest hidden assumptions |
 
 ## Relationship to Other Skills
 
 | Skill | Relationship |
 |-------|-------------|
-| `/capture` | Feeds INBOX items that /challenge can debias |
+| `/claude-tweaks:capture` | Feeds INBOX items that /claude-tweaks:challenge can debias |
 | `brainstorming` | Consumes the Brainstorming Brief — explores *within* the debiased frame |
-| `/specify` | Downstream — converts brainstorming output into specs |
-| `review-plan` | Evaluates a *plan's* quality — /challenge questions whether the problem is right |
-| `architecture-decision` | Chooses *between approaches* — /challenge asks whether the decision criteria are correct |
+| `/claude-tweaks:specify` | Downstream — converts brainstorming output into specs |
+| `review-plan` | Evaluates a *plan's* quality — /claude-tweaks:challenge questions whether the problem is right |
+| `architecture-decision` | Chooses *between approaches* — /claude-tweaks:challenge asks whether the decision criteria are correct |

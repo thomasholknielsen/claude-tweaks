@@ -1,5 +1,5 @@
 ---
-name: review
+name: claude-tweaks:review
 description: Use after building to review code quality, verify correctness, and simplify before wrapping up. The quality gate between implementation and lifecycle cleanup.
 ---
 
@@ -8,12 +8,12 @@ description: Use after building to review code quality, verify correctness, and 
 Post-build quality gate. Verifies, reviews, and refines the code before handing off to wrap-up. Part of the workflow lifecycle:
 
 ```
-/capture → /challenge → brainstorming → /specify → /build → /review → /wrap-up
+/claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
 ```
 
 ## Overview
 
-`/build` produces code. `/review` asks: is this code good enough to ship? `/wrap-up` then handles reflection, cleanup, and knowledge capture.
+`/claude-tweaks:build` produces code. `/claude-tweaks:review` asks: is this code good enough to ship? `/claude-tweaks:wrap-up` then handles reflection, cleanup, and knowledge capture.
 
 This skill is the single quality gate — everything from automated checks to human-judgment code review to code simplification lives here.
 
@@ -41,7 +41,7 @@ If a spec number was provided, read the spec file and verify the implementation 
 |--------|--------|
 | All deliverables done + all criteria met | Proceed to Step 2 |
 | Minor gaps (1-2 partial items) | Flag gaps, proceed — they may be addressed in Implementation Hindsight |
-| Significant gaps (missing deliverables or criteria) | **BLOCKED** — the spec isn't fully built yet. List what's missing so the user can resume `/build` |
+| Significant gaps (missing deliverables or criteria) | **BLOCKED** — the spec isn't fully built yet. List what's missing so the user can resume `/claude-tweaks:build` |
 
 If blocked, skip the rest of the review. Present the gap analysis so the user knows exactly what to finish.
 
@@ -144,8 +144,8 @@ For each finding, classify:
 | Verdict | Action |
 |---------|--------|
 | **Change now** | Cost of fixing is low, benefit is clear — do it before proceeding |
-| **Capture for later** | Real issue but not worth the churn — create an INBOX item via `/capture` |
-| **Accept as-is** | Tradeoff is acceptable or the "better" approach isn't clearly better — **record the rationale** so `/wrap-up` can assess whether it's worth documenting |
+| **Capture for later** | Real issue but not worth the churn — create an INBOX item via `/claude-tweaks:capture` |
+| **Accept as-is** | Tradeoff is acceptable or the "better" approach isn't clearly better — **record the rationale** so `/claude-tweaks:wrap-up` can assess whether it's worth documenting |
 
 If any findings are **"Change now"**, make the changes, re-run verification (Step 3), and resume.
 
@@ -191,7 +191,7 @@ If the code-simplifier makes changes, re-run verification (Step 3) before procee
 ### Code Review Findings
 | Category | Finding | Severity | Action |
 |----------|---------|----------|--------|
-| {convention/security/error/perf/arch/test} | {finding} | {low/medium/high} | {fixed/captured/accepted} |
+| {convention/security/error/perf/arch/test} | {finding} | {low/medium/high} | {fixed/claude-tweaks:captured/accepted} |
 (or: No findings — code is clean.)
 
 ### Implementation Hindsight
@@ -204,18 +204,18 @@ If the code-simplifier makes changes, re-run verification (Step 3) before procee
 | {what was accepted} | {why — the reasoning that made this acceptable} |
 (or: No tradeoffs — all findings were addressed or trivial.)
 
-> `/wrap-up` uses this section to decide whether accepted tradeoffs should be documented in CLAUDE.md, skills, or memory files. A tradeoff worth accepting once may be worth documenting as a project convention.
+> `/claude-tweaks:wrap-up` uses this section to decide whether accepted tradeoffs should be documented in CLAUDE.md, skills, or memory files. A tradeoff worth accepting once may be worth documenting as a project convention.
 
 ### Code Simplification
 - {summary of simplifier changes, or "No simplifications needed"}
 
 ### Verdict
-**{PASS — ready for /wrap-up}** or **{BLOCKED — issues need fixing}**
+**{PASS — ready for /claude-tweaks:wrap-up}** or **{BLOCKED — issues need fixing}**
 ```
 
 ## Important Notes
 
-- Spec compliance is the first gate — incomplete specs go back to `/build`, not through code review
+- Spec compliance is the first gate — incomplete specs go back to `/claude-tweaks:build`, not through code review
 - Verification is a hard gate — broken code blocks the entire review
 - Implementation Hindsight is an action gate — "change now" items must be fixed before passing
 - Code simplification runs on changed files only — never expand scope to unrelated code
@@ -226,8 +226,8 @@ If the code-simplifier makes changes, re-run verification (Step 3) before procee
 
 | Skill | Relationship |
 |-------|-------------|
-| `/build` | Produces the code that /review evaluates |
-| `/wrap-up` | Runs after /review passes — focuses on reflection, cleanup, and knowledge capture |
-| `code-review-max` | Periodic drift detection across the whole codebase — /review is scoped to current work |
-| `pr-review-checklist` | PR preparation standards — /review happens before the PR is created |
-| `/capture` | /review may create INBOX items for "capture for later" findings |
+| `/claude-tweaks:build` | Produces the code that /claude-tweaks:review evaluates |
+| `/claude-tweaks:wrap-up` | Runs after /claude-tweaks:review passes — focuses on reflection, cleanup, and knowledge capture |
+| `code-review-max` | Periodic drift detection across the whole codebase — /claude-tweaks:review is scoped to current work |
+| `pr-review-checklist` | PR preparation standards — /claude-tweaks:review happens before the PR is created |
+| `/claude-tweaks:capture` | /claude-tweaks:review may create INBOX items for "capture for later" findings |

@@ -1,5 +1,5 @@
 ---
-name: build
+name: claude-tweaks:build
 description: Use when implementing a spec end-to-end. Chains Superpowers planning and subagent-driven development with project-specific guardrails.
 ---
 
@@ -8,7 +8,7 @@ description: Use when implementing a spec end-to-end. Chains Superpowers plannin
 Implement a spec end-to-end: plan it, build it, simplify it, verify it. Part of the workflow lifecycle:
 
 ```
-/capture → /challenge → brainstorming → /specify → /build → /review → /wrap-up
+/claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
 ```
 
 ## Input
@@ -34,7 +34,7 @@ Invoke writing-plans    no
                         ↓
                     Final verification
                         ↓
-                    Suggest /challenge → /wrap-up
+                    Suggest /claude-tweaks:challenge → /claude-tweaks:wrap-up
 ```
 
 ## Step 1: Read & Assess the Spec
@@ -115,7 +115,7 @@ If any part of the plan is blocked (missing infrastructure, unresolved dependenc
 
 1. Document blocked items in the spec file under a "Blocked / Future Work" section
 2. Note what unblocks them
-3. These will be picked up by `/next` when scanning for actionable work
+3. These will be picked up by `/claude-tweaks:next` when scanning for actionable work
 
 ## Step 7: Final Verification
 
@@ -151,8 +151,8 @@ After successful build, present:
 - {item} — blocked by {reason}
 
 ### Recommended next steps
-1. Run `/challenge` to challenge assumptions and surface learnings
-2. Run `/wrap-up {number}` to finalize, clean up, and capture knowledge
+1. Run `/claude-tweaks:challenge` to challenge assumptions and surface learnings
+2. Run `/claude-tweaks:wrap-up {number}` to finalize, clean up, and capture knowledge
 ```
 
 ## Git Rules — NON-NEGOTIABLE
@@ -181,9 +181,9 @@ If you encounter a merge conflict, resolve it — do not reset or discard.
 
 | Skill | Relationship |
 |-------|-------------|
-| `/specify` | Runs BEFORE /build — creates the spec that /build implements |
-| `writing-plans` (Superpowers) | Invoked BY /build to create the execution plan |
-| `subagent-driven-development` (Superpowers) | Invoked BY /build to execute the plan |
-| `code-simplifier` | Invoked BY /build after implementation, before verification |
-| `/challenge` | Runs AFTER /build — challenges assumptions before wrap-up |
-| `/wrap-up` | Runs AFTER /challenge — cleans up and captures learnings |
+| `/claude-tweaks:specify` | Runs BEFORE /claude-tweaks:build — creates the spec that /claude-tweaks:build implements |
+| `writing-plans` (Superpowers) | Invoked BY /claude-tweaks:build to create the execution plan |
+| `subagent-driven-development` (Superpowers) | Invoked BY /claude-tweaks:build to execute the plan |
+| `code-simplifier` | Invoked BY /claude-tweaks:build after implementation, before verification |
+| `/claude-tweaks:challenge` | Runs AFTER /claude-tweaks:build — challenges assumptions before wrap-up |
+| `/claude-tweaks:wrap-up` | Runs AFTER /claude-tweaks:challenge — cleans up and captures learnings |

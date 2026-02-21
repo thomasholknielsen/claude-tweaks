@@ -1,5 +1,5 @@
 ---
-name: tidy
+name: claude-tweaks:tidy
 description: Use for periodic backlog hygiene — review stale INBOX items, partially-complete specs, orphaned plans, and overall spec health
 ---
 
@@ -8,9 +8,9 @@ description: Use for periodic backlog hygiene — review stale INBOX items, part
 Periodic backlog hygiene to keep the spec system healthy. Run when the backlog feels cluttered, before a brainstorming session, or on a regular cadence.
 
 ```
-/capture → /challenge → brainstorming → /specify → /build → /review → /wrap-up
+/claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
                                                                  ↑
-                                              /tidy (maintenance loop)
+                                              /claude-tweaks:tidy (maintenance loop)
 ```
 
 ## When to Use
@@ -19,7 +19,7 @@ Periodic backlog hygiene to keep the spec system healthy. Run when the backlog f
 - Starting a new brainstorming session (clean the landscape first)
 - After completing a batch of specs (check what's unblocked)
 - Monthly hygiene pass
-- When `/next` flags issues
+- When `/claude-tweaks:next` flags issues
 
 ## Step 1: Audit the INBOX
 
@@ -44,8 +44,8 @@ For each spec, do a lightweight scan:
 - Estimate completion: `not started`, `in progress (~X%)`, `mostly done (~90%+)`, `appears complete`
 
 Flag specs that:
-- **Appear complete, not reviewed** → run `/review` first (check if `/review` was run by looking for review commits or summary artifacts)
-- **Appear complete, reviewed but not wrapped up** → run `/wrap-up`
+- **Appear complete, not reviewed** → run `/claude-tweaks:review` first (check if `/claude-tweaks:review` was run by looking for review commits or summary artifacts)
+- **Appear complete, reviewed but not wrapped up** → run `/claude-tweaks:wrap-up`
 - **Have been in progress for 4+ weeks** → may be stuck
 - **Have unmet prerequisites** that are themselves stale
 - **Overlap significantly** with other specs → candidates for merging
@@ -65,15 +65,15 @@ Scan `docs/plans/*-design.md` and `docs/plans/*-brief.md`:
 |--------|--------|
 | Marked as specified | Check if derived specs are complete → if yes, delete |
 | No status, matches existing specs | Mark as specified |
-| No status, no matching specs | Flag — brainstormed but never `/specify`'d |
+| No status, no matching specs | Flag — brainstormed but never `/claude-tweaks:specify`'d |
 | Very old (4+ weeks), no specs | Candidate for deletion or re-brainstorming |
 
 **Briefs** (`*-brief.md`) follow a simpler lifecycle:
 
 | Status | Action |
 |--------|--------|
-| Matching design doc exists | Keep — brief is waiting for `/specify` to consume both |
-| No matching design doc, matching specs exist | Delete — brief was absorbed into specs, `/specify` missed cleanup |
+| Matching design doc exists | Keep — brief is waiting for `/claude-tweaks:specify` to consume both |
+| No matching design doc, matching specs exist | Delete — brief was absorbed into specs, `/claude-tweaks:specify` missed cleanup |
 | No matching design doc, no specs | Orphan — brainstorming never happened. Re-run `brainstorming` or delete |
 | Very old (4+ weeks), no design doc | Delete — the challenge output went stale |
 
@@ -109,8 +109,8 @@ For specs not yet built, check sizing:
 ### Specs Requiring Attention
 | Spec | Issue | Recommendation |
 |------|-------|---------------|
-| {N} | Appears complete, not reviewed | Run `/review {N}` |
-| {N} | Appears complete, reviewed | Run `/wrap-up {N}` |
+| {N} | Appears complete, not reviewed | Run `/claude-tweaks:review {N}` |
+| {N} | Appears complete, reviewed | Run `/claude-tweaks:wrap-up {N}` |
 | {N} | Stale (4+ weeks) | Deprioritize or re-evaluate |
 | {N} | Too large | Split into {suggestion} |
 
@@ -118,7 +118,7 @@ For specs not yet built, check sizing:
 | File | Status | Action |
 |------|--------|--------|
 | {filename} | All derived specs done | Delete |
-| {filename} | Never specified | Run `/specify` or delete |
+| {filename} | Never specified | Run `/claude-tweaks:specify` or delete |
 
 ### Orphaned Plans
 | File | Action |
@@ -138,7 +138,7 @@ Ask the user which actions to execute.
 1. Delete approved INBOX entries
 2. Delete approved design docs and plans
 3. Update INDEX.md if specs were merged or removed
-4. Note items flagged for brainstorming or `/specify`
+4. Note items flagged for brainstorming or `/claude-tweaks:specify`
 
 Commit with a message summarizing the tidy-up.
 
@@ -146,4 +146,4 @@ Commit with a message summarizing the tidy-up.
 
 - Deleting specs without checking if they're implemented (always scan the codebase first)
 - Promoting INBOX items directly to specs without brainstorming
-- Keeping everything "just in case" — stale items create noise and slow down `/next`
+- Keeping everything "just in case" — stale items create noise and slow down `/claude-tweaks:next`

@@ -4,26 +4,42 @@ A structured workflow system for Claude Code — from idea capture through build
 
 ## Installation
 
-### Via marketplace
+### Step 1: Add the marketplace and install claude-tweaks
 
-```bash
-# Add the marketplace
+Inside Claude Code:
+
+```
 /plugin marketplace add thomasholknielsen/claude-tweaks-marketplace
-
-# Install the plugin
-claude plugin install claude-tweaks
+/plugin install claude-tweaks@claude-tweaks-marketplace
 ```
 
-### Via direct install
+### Step 2: Install dependencies
 
-```bash
-claude plugin install thomasholknielsen/claude-tweaks
+The workflow system depends on the **Superpowers** plugin for brainstorming, planning, and subagent-driven development.
+
 ```
+/plugin marketplace add obra/superpowers-marketplace
+/plugin install superpowers@superpowers-marketplace
+```
+
+### Step 3: Bootstrap a project
+
+Run the setup skill in any project to create the directory structure and verify everything is wired up:
+
+```
+/claude-tweaks:setup
+```
+
+This will:
+- Verify plugin dependencies (Superpowers, code-simplifier)
+- Create `specs/`, `docs/plans/`, and starter files (`INBOX.md`, `INDEX.md`)
+- Check for `CLAUDE.md` and git
+- Present a status report
 
 ## Workflow Lifecycle
 
 ```
-/setup → /codebase-onboarding → /capture → /challenge → brainstorming → /specify → /build → /review → /wrap-up
+/claude-tweaks:setup → /claude-tweaks:codebase-onboarding → /claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
 ```
 
 ### Core Skills
@@ -64,7 +80,10 @@ Code ──→ Review Summary ──→ Learnings routed ──→ Clean slate
 
 ## Dependencies
 
-This plugin works best with the [Superpowers plugin](https://github.com/obra/superpowers-marketplace) which provides `brainstorming`, `writing-plans`, and `subagent-driven-development` skills used by `/challenge`, `/build`, and `/specify`.
+| Plugin | Source | Required for |
+|--------|--------|-------------|
+| [Superpowers](https://github.com/obra/superpowers-marketplace) | `obra/superpowers-marketplace` | `brainstorming`, `writing-plans`, `subagent-driven-development` |
+| code-simplifier | Built-in subagent | Code simplification in `/claude-tweaks:review` and `/claude-tweaks:build` |
 
 ## Local development
 

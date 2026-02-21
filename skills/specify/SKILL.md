@@ -1,5 +1,5 @@
 ---
-name: specify
+name: claude-tweaks:specify
 description: Use when converting a brainstorming design document into agent-sized work units (specs). Takes a design doc and decomposes it into self-contained specifications.
 ---
 
@@ -8,7 +8,7 @@ description: Use when converting a brainstorming design document into agent-size
 Convert a brainstorming design document into self-contained, agent-sized work units in `specs/`. Part of the workflow lifecycle:
 
 ```
-/capture → /challenge → brainstorming → /specify → /build → /review → /wrap-up
+/claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
 ```
 
 ## Input
@@ -28,7 +28,7 @@ If no design doc exists for the topic, tell the user to run `brainstorming` firs
 Read and analyze in parallel:
 
 1. **The design doc** — understand what was decided, the scope, and the technical approach
-2. **The brainstorming brief** (if one exists in `docs/plans/*-brief.md` for this topic) — contains assumptions surfaced by `/challenge`, blind spots, and constraints. These should be absorbed into spec Gotchas sections.
+2. **The brainstorming brief** (if one exists in `docs/plans/*-brief.md` for this topic) — contains assumptions surfaced by `/claude-tweaks:challenge`, blind spots, and constraints. These should be absorbed into spec Gotchas sections.
 3. **`specs/INDEX.md`** — current tier structure, dependency graph, existing specs
 4. **All existing spec files** (`specs/*.md`) — scan for overlap with the design doc's scope
 5. **Recent git log** — check if any part of the design has already been implemented
@@ -76,7 +76,7 @@ Each is independently buildable with clear dependencies (73 → 74 → 75).
 
 ### What Makes a Good Work Unit
 
-- **Self-contained**: An agent can `/build` it without needing context from other uncommitted work
+- **Self-contained**: An agent can `/claude-tweaks:build` it without needing context from other uncommitted work
 - **Testable**: Has clear acceptance criteria that can be verified
 - **Atomic**: Either fully done or not done — no meaningful "50% complete" state
 - **Ordered**: Dependencies are explicit and minimal
@@ -192,9 +192,9 @@ blocked-by: [{spec numbers or empty}]
 - **Absorb decisions from the design doc** — the spec must be self-contained. The design doc will be deleted, so all rationale, decisions, and technical context must live here.
 - **Be specific about files** — "update the API" is too vague. Name the exact file and what to add.
 - **Include testable acceptance criteria** — not "works correctly" but specific assertions an agent can verify.
-- **Don't over-specify implementation** — the spec says *what* and *where*, the plan (created by `writing-plans` during `/build`) says *how*.
+- **Don't over-specify implementation** — the spec says *what* and *where*, the plan (created by `writing-plans` during `/claude-tweaks:build`) says *how*.
 - **Include gotchas from project memory** — search CLAUDE.md and memory files for relevant patterns, common mistakes, and lessons learned.
-- **Absorb the brainstorming brief** — if a `*-brief.md` exists for this topic, carry its assumptions, blind spots, and constraints into the relevant specs' Gotchas sections. These are hard-won insights from `/challenge` that should survive.
+- **Absorb the brainstorming brief** — if a `*-brief.md` exists for this topic, carry its assumptions, blind spots, and constraints into the relevant specs' Gotchas sections. These are hard-won insights from `/claude-tweaks:challenge` that should survive.
 
 ## Step 4: Update INDEX.md
 
@@ -264,9 +264,9 @@ Commit with a message describing the specs created.
 
 | Skill | Relationship |
 |-------|-------------|
-| `brainstorming` (Superpowers) | Runs BEFORE /specify — produces the design doc that /specify consumes and deletes |
-| `writing-plans` (Superpowers) | Consumes specs AFTER /specify — the spec must provide enough context for writing-plans to produce a TDD execution plan |
-| `/build` | Runs AFTER /specify — takes a single spec and implements it |
-| `/capture` | Feeds INBOX items that may trigger brainstorming → /specify |
-| `/tidy` | Reviews specs created by /specify for staleness |
-| `/next` | Shows which specs from /specify are ready for /build |
+| `brainstorming` (Superpowers) | Runs BEFORE /claude-tweaks:specify — produces the design doc that /claude-tweaks:specify consumes and deletes |
+| `writing-plans` (Superpowers) | Consumes specs AFTER /claude-tweaks:specify — the spec must provide enough context for writing-plans to produce a TDD execution plan |
+| `/claude-tweaks:build` | Runs AFTER /claude-tweaks:specify — takes a single spec and implements it |
+| `/claude-tweaks:capture` | Feeds INBOX items that may trigger brainstorming → /claude-tweaks:specify |
+| `/claude-tweaks:tidy` | Reviews specs created by /claude-tweaks:specify for staleness |
+| `/claude-tweaks:next` | Shows which specs from /claude-tweaks:specify are ready for /claude-tweaks:build |
