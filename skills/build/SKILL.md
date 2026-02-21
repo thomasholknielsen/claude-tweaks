@@ -1,43 +1,55 @@
 ---
 name: claude-tweaks:build
-description: Use when implementing a spec end-to-end. Chains Superpowers planning and subagent-driven development with project-specific guardrails.
+description: Use when implementing a spec or design doc end-to-end. Accepts a spec number for full lifecycle tracking, or a design doc path to skip /claude-tweaks:specify and build directly from brainstorming output.
 ---
 
 # Build
 
-Implement a spec end-to-end: plan it, build it, simplify it, verify it. Part of the workflow lifecycle:
+Implement a spec or design doc end-to-end: plan it, build it, simplify it, verify it. Part of the workflow lifecycle:
 
 ```
 /claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+                                                                 ↑                          ↑
+                                                                 └── or skip directly ──────┘
 ```
 
 ## Input
 
-`$ARGUMENTS` = spec number (e.g., `42`, `73`)
+`$ARGUMENTS` = spec number, design doc path, or topic name.
+
+### Resolve the input:
+
+1. **Spec number** (e.g., `42`, `73`) → **Spec mode** — full lifecycle with prerequisites, INDEX.md tracking, and spec compliance
+2. **Design doc path** (e.g., `docs/plans/2026-02-21-meal-planning-design.md`) → **Design mode** — build directly from the design doc, skipping spec machinery
+3. **Topic name** (e.g., `meal planning`) → search for a matching design doc in `docs/plans/*-design.md` AND a matching spec in `specs/`. If both exist, ask the user which to build from. If only one exists, use it.
+4. **No arguments** → check conversation context or recent git activity for clues. Ask if unclear.
+
+| Mode | Source | Skips | Best for |
+|------|--------|-------|----------|
+| **Spec mode** | `specs/{N}-*.md` | Nothing | Tracked work with acceptance criteria, dependencies, and INDEX.md |
+| **Design mode** | `docs/plans/*-design.md` | `/claude-tweaks:specify`, prerequisite checks, INDEX.md | Quick builds where the design doc is clear enough to execute directly |
 
 ## Workflow
 
 ```
-Read spec
+Resolve input
     ↓
-Plan exists? ──yes──→ Review plan for freshness
+Spec mode? ──yes──→ [Spec Steps 1-3]
     │                       ↓
-    no              Still valid? ──yes──→ Execute
-    ↓                   │
-Invoke writing-plans    no
-    ↓                   ↓
-    └───────────────→ Invoke writing-plans
-                        ↓
-                    Invoke subagent-driven-development
-                        ↓
-                    Code simplification
-                        ↓
-                    Final verification
-                        ↓
-                    Suggest /claude-tweaks:challenge → /claude-tweaks:wrap-up
+    no (design mode)        │
+    ↓                       │
+[Design Steps 1-3]         │
+    ↓                       │
+    └───────────────────────┘
+                ↓
+        [Common Steps 1-5]
 ```
 
-## Step 1: Read & Assess the Spec
+---
+
+## Spec Mode
+
+### Spec Step 1: Read & Assess the Spec
 
 ```
 specs/{number}-*.md
@@ -48,32 +60,72 @@ specs/{number}-*.md
 - Check prerequisites — are all blocking specs completed?
 - If prerequisites are not met, **stop** and tell the user what's blocking
 
-## Step 2: Check for Existing Plan
+### Spec Step 2: Check for Existing Plan
 
 Search `docs/plans/` for a plan matching this spec (by number, topic, or date).
 
-### If a plan exists:
+#### If a plan exists:
 
 - Read it and compare against the spec — has the spec evolved since the plan was written?
 - Check what's already implemented (search codebase for files, routes, tests referenced in the plan)
-- If the plan is still valid and work remains, proceed to Step 4
-- If the plan is stale (spec changed, codebase diverged), proceed to Step 3 to create a fresh plan
+- If the plan is still valid and work remains, skip to Common Step 1
+- If the plan is stale (spec changed, codebase diverged), proceed to Spec Step 3
 
-### If no plan exists:
+#### If no plan exists:
 
-Proceed to Step 3.
+Proceed to Spec Step 3.
 
-## Step 3: Create the Plan
+### Spec Step 3: Create the Plan
 
 Invoke the `superpowers:writing-plans` skill.
 
 Context to provide to writing-plans:
 - The full spec content (including Current State, Gotchas, and acceptance criteria)
-- Any existing progress identified in Step 2
+- Any existing progress identified in Spec Step 2
 
 The plan will be written to `docs/plans/YYYY-MM-DD-{feature}.md`.
 
-## Step 4: Execute the Plan
+Proceed to **Common Step 1**.
+
+---
+
+## Design Mode
+
+### Design Step 1: Read the Design Doc
+
+- Read the full design doc
+- If a brainstorming brief exists (`docs/plans/*-brief.md` for the same topic), read it too — it contains debiased constraints and assumptions from `/claude-tweaks:challenge`
+- Scan the codebase for existing files, schemas, APIs, and patterns relevant to the design
+
+### Design Step 2: Check for Existing Plan
+
+Search `docs/plans/` for an execution plan matching this design doc (by topic or date).
+
+- If a plan exists and is still valid → skip to Common Step 1
+- If no plan or plan is stale → proceed to Design Step 3
+
+### Design Step 3: Create the Plan
+
+Invoke the `superpowers:writing-plans` skill.
+
+Context to provide to writing-plans:
+- The full design doc content
+- The brainstorming brief (if it exists) — especially constraints and assumptions
+- Relevant codebase context (existing files, patterns, schemas)
+
+<IMPORTANT>
+Design mode has no spec with structured acceptance criteria. When providing context to writing-plans, extract testable outcomes from the design doc's decisions and recommendations. If the design doc lacks clear success criteria, ask the user to confirm what "done" looks like before proceeding.
+</IMPORTANT>
+
+The plan will be written to `docs/plans/YYYY-MM-DD-{feature}.md`.
+
+Proceed to **Common Step 1**.
+
+---
+
+## Common Steps (both modes)
+
+### Common Step 1: Execute the Plan
 
 Invoke the `superpowers:subagent-driven-development` skill.
 
@@ -83,7 +135,7 @@ This runs the full Superpowers execution chain:
 3. Per task: **code quality reviewer** subagent evaluates implementation excellence
 4. After all tasks: **final overall code review**
 
-### Project-Specific Context
+#### Project-Specific Context
 
 The implementer subagents will pick up project conventions from CLAUDE.md, `.claude/rules/`, and loaded skills. Ensure your CLAUDE.md documents:
 - Import conventions (shared types packages, etc.)
@@ -92,7 +144,7 @@ The implementer subagents will pick up project conventions from CLAUDE.md, `.cla
 - Validation approach
 - Naming conventions
 
-## Step 5: Code Simplification
+### Common Step 2: Code Simplification
 
 After all implementation tasks are complete, run the `code-simplifier` agent on the recently modified code.
 
@@ -109,15 +161,17 @@ The code-simplifier catches patterns that individual task-focused subagents miss
 
 If the simplifier makes changes, commit them separately.
 
-## Step 6: Handle Blocked Work
+### Common Step 3: Handle Blocked Work
 
 If any part of the plan is blocked (missing infrastructure, unresolved dependencies, pending external work):
 
-1. Document blocked items in the spec file under a "Blocked / Future Work" section
+1. Document blocked items:
+   - **Spec mode:** add to the spec file under a "Blocked / Future Work" section
+   - **Design mode:** create an INBOX entry via `/claude-tweaks:capture`
 2. Note what unblocks them
 3. These will be picked up by `/claude-tweaks:next` when scanning for actionable work
 
-## Step 7: Final Verification
+### Common Step 4: Final Verification
 
 After code simplification, verify the full build using the project's standard checks:
 
@@ -129,12 +183,15 @@ Check CLAUDE.md for the project's specific commands (e.g., `pnpm typecheck`, `np
 
 If anything fails, fix it and commit the fix.
 
-## Step 8: Handoff
+### Common Step 5: Handoff
 
 After successful build, present:
 
 ```markdown
-## Build Complete: Spec {number} — {title}
+## Build Complete: {spec number and title OR design doc topic}
+
+### Mode
+{Spec mode (spec {number}) | Design mode ({design doc filename})}
 
 ### Verification
 - Type check: {pass/fail}
@@ -151,8 +208,9 @@ After successful build, present:
 - {item} — blocked by {reason}
 
 ### Recommended next steps
-1. Run `/claude-tweaks:challenge` to challenge assumptions and surface learnings
-2. Run `/claude-tweaks:wrap-up {number}` to finalize, clean up, and capture knowledge
+1. Run `/claude-tweaks:review {number or blank}` for the quality gate
+2. Run `/claude-tweaks:wrap-up {number or blank}` to finalize and capture knowledge
+3. (Design mode) Consider cleaning up the design doc and brief if the work is complete
 ```
 
 ## Git Rules — NON-NEGOTIABLE
@@ -181,9 +239,11 @@ If you encounter a merge conflict, resolve it — do not reset or discard.
 
 | Skill | Relationship |
 |-------|-------------|
-| `/claude-tweaks:specify` | Runs BEFORE /claude-tweaks:build — creates the spec that /claude-tweaks:build implements |
+| `/claude-tweaks:specify` | Runs BEFORE /claude-tweaks:build in spec mode — creates the spec. Can be skipped using design mode. |
+| `brainstorming` (Superpowers) | Produces the design doc that design mode consumes directly |
 | `writing-plans` (Superpowers) | Invoked BY /claude-tweaks:build to create the execution plan |
 | `subagent-driven-development` (Superpowers) | Invoked BY /claude-tweaks:build to execute the plan |
 | `code-simplifier` | Invoked BY /claude-tweaks:build after implementation, before verification |
-| `/claude-tweaks:challenge` | Runs AFTER /claude-tweaks:build — challenges assumptions before wrap-up |
-| `/claude-tweaks:wrap-up` | Runs AFTER /claude-tweaks:challenge — cleans up and captures learnings |
+| `/claude-tweaks:review` | Runs AFTER /claude-tweaks:build — in design mode, uses git diff instead of spec compliance |
+| `/claude-tweaks:wrap-up` | Runs AFTER /claude-tweaks:review — cleans up and captures learnings |
+| `/claude-tweaks:capture` | Design mode may create INBOX items for blocked work |
