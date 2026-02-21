@@ -219,7 +219,7 @@ After successful build, present:
 
 Pick an action (reply with the number):
 
-1. `/claude-tweaks:review {number or blank}` — Run the quality gate ⭐ Recommended
+1. `/claude-tweaks:review {number or blank}` — Run the quality gate **(Recommended)**
 2. `/claude-tweaks:wrap-up {number or blank}` — Skip review, go straight to wrap-up
 3. `/claude-tweaks:next` — See full workflow status
 4. Done for now

@@ -87,7 +87,7 @@ Scan the full workflow state and recommend the logical next action. Part of the 
 
 Pick an action (reply with the number):
 
-1. {recommended action with command} — {brief rationale} ⭐ Recommended
+1. {recommended action with command} — {brief rationale} **(Recommended)**
 2. {alternative action} — {why this is also viable}
 3. {another option if applicable}
 4. Nothing right now — pipeline is healthy

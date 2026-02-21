@@ -151,7 +151,7 @@ The workflow system relies on git for change tracking (`/claude-tweaks:review` u
 {All green → present options:}
 
 What's next?
-1. `/claude-tweaks:capture` — Add your first idea ⭐ Recommended
+1. `/claude-tweaks:capture` — Add your first idea **(Recommended)**
 2. `/claude-tweaks:codebase-onboarding` — Generate CLAUDE.md and skills for this project
 3. `/claude-tweaks:next` — See workflow status
 4. Done for now

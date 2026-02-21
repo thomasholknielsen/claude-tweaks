@@ -176,7 +176,7 @@ After saving the brief, present numbered options:
 
 ```
 The brief has been saved. What's next?
-1. Run `brainstorming` on the reframed problem — Start exploring solutions ⭐ Recommended
+1. Run `brainstorming` on the reframed problem — Start exploring solutions **(Recommended)**
 2. Adjust the reframing — The truth is somewhere between original and reframed
 3. Start over with a different lens — Re-examine from scratch
 4. Park it — Save the brief and come back later

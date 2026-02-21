@@ -168,7 +168,7 @@ Overall: {X}% complete
 
 Pick an action (reply with the number):
 
-1. `/claude-tweaks:build {next spec number}` — {next spec title} ⭐ Recommended
+1. `/claude-tweaks:build {next spec number}` — {next spec title} **(Recommended)**
 2. `/claude-tweaks:next` — See full workflow status
 3. `/claude-tweaks:capture` — Capture a new idea
 4. Done for now

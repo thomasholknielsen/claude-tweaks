@@ -221,7 +221,7 @@ If the code-simplifier makes changes, re-run verification (Step 3) before procee
 
 Pick an action (reply with the number):
 
-1. `/claude-tweaks:wrap-up {number}` — Capture learnings and clean up ⭐ Recommended
+1. `/claude-tweaks:wrap-up {number}` — Capture learnings and clean up **(Recommended)**
 2. `/claude-tweaks:build {number}` — Back to build (if BLOCKED)
 3. `/claude-tweaks:next` — See full workflow status
 4. Done for now
