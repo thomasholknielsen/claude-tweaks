@@ -54,7 +54,7 @@ These run in order — each skill feeds into the next.
 | 5 | `/claude-tweaks:specify` | Decompose a design doc into agent-sized specs | design doc path, topic, INBOX ref |
 | 6 | `/claude-tweaks:build` | Implement a spec or design doc end-to-end | spec number, design doc path, topic + optional mode: `autonomous` (default), `guided`, `branched` |
 | 7 | `/claude-tweaks:review` | Quality gate — verification, code review, simplification | spec number, file paths |
-| 7b | `/claude-tweaks:browser-review` | Visual inspection — test the running app in a browser | URL, page, flow |
+| 7b | `/claude-tweaks:browser-review` | Visual inspection — test the running app in a browser | URL, page, flow, `journey:{name}`, `discover` |
 | 8 | `/claude-tweaks:wrap-up` | Reflection, knowledge capture, artifact cleanup | spec number |
 
 ### Utility Skills

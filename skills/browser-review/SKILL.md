@@ -40,10 +40,11 @@ Browser tools aren't configured yet. Run /claude-tweaks:setup to set up browser 
 
 ### Resolve the input:
 
-1. **Journey reference** (e.g., `journey:new-user-onboarding`) → **Journey mode** — load the journey file from `docs/journeys/`, walk the full journey step by step
-2. **URL provided** (e.g., "http://localhost:3000/settings") → **Page mode** — navigate directly, review that page
-3. **Page or flow described** (e.g., "the login page" or "checkout flow") → **Page mode** — ask for the URL or find it from project config
-4. **No arguments** → check `docs/journeys/` for journeys that reference recently changed files or routes. If a journey matches, suggest journey mode. Otherwise, check for a dev server URL in project config (package.json scripts, CLAUDE.md, .env). Ask the user if unclear.
+1. **`discover`** → **Discover mode** — scan codebase for routes/pages, then walk the app to create journey files
+2. **Journey reference** (e.g., `journey:new-user-onboarding`) → **Journey mode** — load the journey file from `docs/journeys/`, walk the full journey step by step
+3. **URL provided** (e.g., "http://localhost:3000/settings") → **Page mode** — navigate directly, review that page
+4. **Page or flow described** (e.g., "the login page" or "checkout flow") → **Page mode** — ask for the URL or find it from project config
+5. **No arguments** → check `docs/journeys/` for journeys that reference recently changed files or routes. If a journey matches, suggest journey mode. Otherwise, check for a dev server URL in project config (package.json scripts, CLAUDE.md, .env). Ask the user if unclear.
 
 ### Review modes
 
@@ -51,8 +52,9 @@ Browser tools aren't configured yet. Run /claude-tweaks:setup to set up browser 
 |------|-------|-------------|
 | **Journey mode** | `journey:{name}` | Walk a documented journey step by step. Each step is reviewed against its "should feel" / "red flags." The overall arc is assessed for coherence. |
 | **Page mode** | URL or description | Review a single page or flow. The full creative framework applies but without journey-level expectations to test against. |
+| **Discover mode** | `discover` | Explore the running app to identify and document user journeys that don't have journey files yet. Hybrid: codebase scan for routes/pages, then browser walkthrough to create journey files. |
 
-Journey mode is the richer review — it has defined personas, goals, and experiential expectations at every step. Page mode is useful for quick checks or pages that aren't part of a defined journey yet.
+Journey mode is the richer review — it has defined personas, goals, and experiential expectations at every step. Page mode is useful for quick checks or pages that aren't part of a defined journey yet. Discover mode is for brownfield projects that need journey coverage bootstrapped.
 
 ### Ensure the app is running:
 
@@ -130,6 +132,142 @@ After the journey report, proceed to Step 7 (Route Findings) as normal.
 ### Update the journey file
 
 If the browser review revealed that "should feel" descriptions are inaccurate, red flags are missing, or steps need reordering, **update the journey file**. The journey is a living document — each browser review refines it.
+
+---
+
+## Discover Mode
+
+When running in discover mode, the goal is to identify all user and developer journeys in an existing application and create journey files for them. This is the brownfield bootstrapping mode — used when a project has features but no documented journeys.
+
+### Phase 1: Codebase Scan
+
+Scan the codebase to build a map of what exists before opening the browser. Run these in parallel:
+
+**Routes and pages:**
+- Search for route definitions (React Router, Next.js pages/app directory, Express routes, Rails routes, etc.)
+- Search for navigation components (navbars, sidebars, menus) to understand the information architecture
+- Search for page/view components or templates
+
+**Entry points:**
+- Public pages (landing, login, signup, pricing)
+- Authenticated pages (dashboard, settings, profile)
+- Admin/internal pages
+- API documentation pages
+- Developer-facing entry points (CLI commands, setup scripts, config files)
+
+**User-facing features:**
+- Forms (signup, settings, create/edit flows)
+- CRUD operations (lists, detail views, create, edit, delete)
+- Workflows (multi-step processes, wizards, checkout flows)
+- Search, filtering, sorting interfaces
+
+**Personas (infer from the codebase):**
+- Are there user roles? (admin, user, guest, developer)
+- Is there an onboarding flow? (implies first-time user persona)
+- Is there a public-facing site vs. authenticated app? (implies visitor vs. user)
+- Is there API documentation or a developer portal? (implies developer persona)
+
+### Phase 2: Journey Candidates
+
+From the codebase scan, compile a list of candidate journeys. Each candidate is a hypothesis: "a {persona} probably does {goal} by going through {these pages}."
+
+Present the candidates as numbered options:
+
+```
+Found {N} potential user journeys in the codebase:
+
+1. New user signup → onboarding → first project
+   Persona: First-time visitor
+   Pages: /, /signup, /onboarding, /projects/new
+
+2. Returning user creates a {thing}
+   Persona: Authenticated user
+   Pages: /dashboard, /{things}/new, /{things}/{id}
+
+3. Admin manages users
+   Persona: Admin
+   Pages: /admin, /admin/users, /admin/users/{id}
+
+4. Developer sets up local environment
+   Persona: New developer
+   Entry: README.md → install → config → first run
+
+...
+
+Which journeys should I walk in the browser?
+1. All of them **(Recommended)**
+2. Let me pick (list numbers)
+3. Add more candidates first
+```
+
+Include developer journeys when the project has CLI tools, APIs, or developer-facing setup.
+
+### Phase 3: Browser Walkthrough
+
+For each approved candidate, open the browser and walk the journey. This is where the codebase skeleton gets filled with experiential details.
+
+For each step in the candidate journey:
+
+1. **Navigate** to the page
+2. **Apply the First Impressions test** (Step 2 below) — capture the raw "should feel" for this step
+3. **Interact as the persona** — perform the action, note friction, note delight
+4. **Discover adjacent steps** — the codebase scan may have missed steps. If a page leads naturally to another page not in the candidate, add it.
+5. **Write the "should feel" and "red flags"** — these come from actually experiencing the page, not guessing from code
+
+### Phase 4: Write Journey Files
+
+For each walked journey, create a file at `docs/journeys/{journey-name}.md` using the standard journey format (see `/build` Common Step 5 for the template).
+
+Key differences from build-created journeys:
+- **Origin section** says "Created during journey discovery (brownfield)" instead of referencing a spec
+- **"Should feel" comes from actual browser experience**, not from spec intentions
+- **Steps may reference features built across many past commits** — no single spec to reference
+
+### Phase 5: Coverage Report
+
+After creating all journey files, present a coverage report:
+
+```markdown
+## Journey Discovery Report
+
+### Journeys Created
+| Journey | Persona | Steps | Coverage |
+|---------|---------|-------|----------|
+| {name} | {persona} | {count} | {which pages/features are covered} |
+
+### Pages Not Covered by Any Journey
+| Page/Route | Reason |
+|-----------|--------|
+| {route} | {no clear user goal identified / admin-only / deprecated / utility page} |
+
+### Gaps Identified
+| Gap | Description |
+|-----|-------------|
+| {what's missing} | {e.g., "no error recovery journey", "no mobile journey", "no developer onboarding journey"} |
+```
+
+For each uncovered page or gap, present a decision:
+
+```
+GAP: {description}
+1. Create a journey for this — needs further exploration
+2. Not a journey — this is a utility page / internal tool / no user goal
+3. Capture to INBOX — worth thinking about later
+```
+
+### Phase 6: Handoff
+
+```
+Journey discovery complete. Created {N} journey files in docs/journeys/.
+
+What's next?
+1. /claude-tweaks:browser-review journey:{name} — Test a specific journey **(Recommended)**
+2. /claude-tweaks:browser-review discover — Discover more journeys
+3. /claude-tweaks:help — See full workflow status
+4. Done for now
+```
+
+Commit journey files with message: "Add {N} user journeys from discovery (brownfield)"
 
 ---
 
@@ -421,12 +559,14 @@ Adjust recommendation based on context:
 | Running journey mode with an outdated journey file | If the journey file doesn't match the current app, update the journey first. Stale expectations produce false findings. |
 | Testing steps individually without assessing the arc | Individual step quality matters, but journey coherence is what users actually experience. Always assess the overall arc. |
 | Ignoring "should feel" mismatches because the feature "works" | Functional correctness is necessary but not sufficient. A step can work perfectly and still feel wrong. |
+| Running discover mode without walking the app in the browser | Codebase-only discovery produces skeletons. The browser walkthrough is what makes "should feel" real. |
+| Skipping the coverage report in discover mode | Uncovered pages need explicit decisions: create a journey, mark as not-a-journey, or capture to INBOX. |
 
 ## Important Notes
 
 - This skill requires browser integration — either Chrome Extension or Playwright MCP
 - Screenshots and snapshots are ephemeral — findings should be captured in the report, not as file references
-- The skill is scoped to the current work — don't review the entire application (except in journey mode, where the full journey is in scope)
+- The skill is scoped to the current work — don't review the entire application (except in journey mode, where the full journey is in scope, and discover mode, which scans the whole app)
 - Journey mode auto-detects when invoked with no arguments by checking `docs/journeys/` against recent changes
 - Journey files are living documents — update them when browser-review reveals gaps or inaccuracies
 - When used as part of `/review`, the findings feed into the same decision flow (fix/defer/capture/accept)
@@ -444,4 +584,5 @@ Adjust recommendation based on context:
 | `/claude-tweaks:challenge` | Ideas captured from `/browser-review` may have baked-in assumptions → debias before brainstorming |
 | `specs/DEFERRED.md` | Visual issues not worth fixing now get deferred with page/URL context |
 | `/claude-tweaks:wrap-up` | After both reviews pass, wrap-up handles reflection and cleanup |
+| `/claude-tweaks:codebase-onboarding` | Phase 7 delegates to `/browser-review discover` for brownfield journey bootstrapping |
 | `/claude-tweaks:setup` | Step 6 configures the browser integration this skill depends on |
