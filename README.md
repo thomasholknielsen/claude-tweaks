@@ -80,10 +80,10 @@ Code ──→ Review Summary ──→ Learnings routed ──→ Clean slate
 
 ## Dependencies
 
-| Plugin | Source | Required for |
-|--------|--------|-------------|
-| [Superpowers](https://github.com/obra/superpowers-marketplace) | `obra/superpowers-marketplace` | `brainstorming`, `writing-plans`, `subagent-driven-development` |
-| code-simplifier | Built-in subagent | Code simplification in `/claude-tweaks:review` and `/claude-tweaks:build` |
+| Plugin | Marketplace | Git Source | Required for |
+|--------|-------------|------------|-------------|
+| [Superpowers](https://github.com/obra/superpowers) | [`obra/superpowers-marketplace`](https://github.com/obra/superpowers-marketplace) | [obra/superpowers](https://github.com/obra/superpowers.git) | `brainstorming`, `writing-plans`, `subagent-driven-development` |
+| code-simplifier | — | Built-in subagent | Code simplification in `/claude-tweaks:review` and `/claude-tweaks:build` |
 
 ## Local development
 
