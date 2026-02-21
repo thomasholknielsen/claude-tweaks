@@ -31,14 +31,14 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 ## Syntax
 
 ```
-/claude-tweaks:flow <spec-or-path> [step1,step2,step3]
+/claude-tweaks:flow <spec> [step1,step2,step3]
 ```
 
 ### Arguments
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `<spec-or-path>` | Yes | Spec number (e.g., `42`) or design doc path |
+| `<spec>` | Yes | Spec number (e.g., `42`) |
 | `[steps]` | No | Comma-separated list of steps to run. Default: `build,review,wrap-up` |
 
 ### Examples
@@ -47,7 +47,6 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 /claude-tweaks:flow 42                          → build, review, wrap-up (full pipeline)
 /claude-tweaks:flow 42 build,review             → build and review only (skip wrap-up)
 /claude-tweaks:flow 42 review,wrap-up           → review and wrap-up only (already built)
-/claude-tweaks:flow docs/plans/2026-02-21-auth-design.md  → design mode, full pipeline
 ```
 
 ## Allowed Steps

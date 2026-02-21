@@ -16,6 +16,14 @@ One-stop reference and status dashboard for the workflow system. Combines comman
                                             ^^^^ YOU ARE HERE ^^^^
 ```
 
+## When to Use
+
+- You need a quick reference for available commands and their syntax
+- You want to see what's in the pipeline and what needs attention
+- You're unsure what to do next in the workflow
+- You want a recommendation based on current pipeline state
+- After completing a batch of work, to check what's unblocked
+
 ## Input
 
 `$ARGUMENTS` controls what to show:

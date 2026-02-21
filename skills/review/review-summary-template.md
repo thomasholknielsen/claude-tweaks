@@ -23,7 +23,7 @@ Present this summary after completing all review steps.
 ### Code Review Findings
 | Category | Finding | Severity | Action |
 |----------|---------|----------|--------|
-| {convention/security/error/perf/arch/test} | {finding} | {low/medium/high} | {fixed/claude-tweaks:captured/accepted} |
+| {convention/security/error/perf/arch/test} | {finding} | {low/medium/high} | {fixed/captured/accepted} |
 (or: No findings — code is clean.)
 
 ### Implementation Hindsight

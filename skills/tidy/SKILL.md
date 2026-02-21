@@ -171,3 +171,13 @@ Commit with a message summarizing the tidy-up.
 - Deleting specs without checking if they're implemented (always scan the codebase first)
 - Promoting INBOX items directly to specs without brainstorming
 - Keeping everything "just in case" — stale items create noise and slow down `/claude-tweaks:help`
+
+## Relationship to Other Skills
+
+| Skill | Relationship |
+|-------|-------------|
+| `/claude-tweaks:capture` | Feeds the INBOX that /claude-tweaks:tidy audits |
+| `/claude-tweaks:specify` | /claude-tweaks:tidy flags unspecified design docs for /claude-tweaks:specify |
+| `/claude-tweaks:review` | /claude-tweaks:tidy flags specs that appear complete but lack review |
+| `/claude-tweaks:wrap-up` | /claude-tweaks:tidy flags reviewed specs that need wrap-up |
+| `/claude-tweaks:help` | /claude-tweaks:help suggests /claude-tweaks:tidy when maintenance signals are detected |

@@ -210,8 +210,8 @@ Only generate skills for patterns that **actually exist** in the codebase. Mark 
 - {technology} — too standard, no project-specific patterns to encode
 
 ### Meta-skills to consider
-- `finalize-work` — captures learnings after completing features (keeps skills alive)
-- `review-plan` — validates implementation plans against project conventions
+- `/claude-tweaks:wrap-up` — captures learnings after completing features (keeps skills alive)
+- `/claude-tweaks:review` — validates implementation quality against project conventions
 ```
 
 Present as numbered options:
@@ -292,7 +292,7 @@ Execute only after user confirmation.
 
 - **One session is not enough** — the initial skill set will be ~70% right. Expect to refine skills after the first week of actual use. Tell the user this explicitly.
 - **Re-run periodically** — run this skill in Update Mode after major refactors, stack upgrades, or when skills start feeling stale. A quarterly cadence works for active projects.
-- **Skills are living documents** — they should evolve as the team's understanding of the project deepens. Recommend creating a `finalize-work` equivalent that reviews and updates skills after completing features.
+- **Skills are living documents** — they should evolve as the team's understanding of the project deepens. Use `/claude-tweaks:wrap-up` after completing features to review and update skills.
 - **Don't over-generate** — 5 excellent skills beat 15 mediocre ones. Each skill should earn its existence by encoding knowledge that would otherwise be lost or forgotten.
 - **Existing docs are gold** — README, CONTRIBUTING, ADRs, wiki pages, onboarding docs — mine these for conventions the code alone doesn't reveal.
 - **Ask the team** — if the user can answer questions about team preferences (PR process, deployment flow, naming debates), incorporate those answers. Code archaeology alone misses social conventions.
@@ -300,3 +300,11 @@ Execute only after user confirmation.
 - **Preserve what works** — in Update Mode, bias toward patching over rewriting. Existing config often embeds hard-won lessons that aren't visible in the code.
 - **Depth over breadth** — a deep skill for the project's most complex domain (usually data access or the API layer) is worth more than shallow skills for 10 domains.
 - **Update Mode should be fast** — the value is in catching drift quickly. If the audit finds <3 issues, present them inline instead of going through the full phase ceremony.
+
+## Relationship to Other Skills
+
+| Skill | Relationship |
+|-------|-------------|
+| `/claude-tweaks:setup` | Bootstraps the directory structure — /claude-tweaks:codebase-onboarding generates the content |
+| `/claude-tweaks:wrap-up` | Captures learnings after features — keeps generated skills alive and accurate |
+| `/claude-tweaks:help` | Shows workflow status — useful to verify onboarding produced a working setup |

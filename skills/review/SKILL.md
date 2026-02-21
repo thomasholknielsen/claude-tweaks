@@ -196,7 +196,7 @@ Present a structured summary covering spec compliance, verification results, cod
 - Implementation Hindsight is an action gate — "change now" items must be fixed before passing
 - Code simplification runs on changed files only — never expand scope to unrelated code
 - Skip review lenses that don't apply to the type of change
-- This skill reviews the *current work* — for periodic codebase-wide drift detection, use `code-review-max`
+- This skill reviews the *current work* — it is not a codebase-wide audit
 
 ## Anti-Patterns
 
@@ -206,7 +206,7 @@ Present a structured summary covering spec compliance, verification results, cod
 | Skipping verification to "save time" | Broken code invalidates the entire review — verification is a hard gate |
 | Reviewing unrelated code | Scope creep — only review files changed in the current work |
 | Accepting all Implementation Hindsight findings as-is | The action gate exists for a reason — "change now" items must be fixed |
-| Running review without a prior build | Review assumes code exists and was recently written — use `code-review-max` for codebase-wide audits |
+| Running review without a prior build | Review assumes code exists and was recently written — it is not a codebase-wide audit |
 
 ## Relationship to Other Skills
 
@@ -214,6 +214,4 @@ Present a structured summary covering spec compliance, verification results, cod
 |-------|-------------|
 | `/claude-tweaks:build` | Produces the code that /claude-tweaks:review evaluates |
 | `/claude-tweaks:wrap-up` | Runs after /claude-tweaks:review passes — focuses on reflection, cleanup, and knowledge capture |
-| `code-review-max` | Periodic drift detection across the whole codebase — /claude-tweaks:review is scoped to current work |
-| `pr-review-checklist` | PR preparation standards — /claude-tweaks:review happens before the PR is created |
 | `/claude-tweaks:capture` | /claude-tweaks:review may create INBOX items for "capture for later" findings |

@@ -41,7 +41,7 @@ claude plugins add obra/superpowers-marketplace
 
 ### Required: Code Simplifier
 
-Provides the `code-simplifier` subagent used by `/claude-tweaks:review`.
+Provides the `code-simplifier` subagent used by `/claude-tweaks:build` and `/claude-tweaks:review`.
 
 ```bash
 # Check if installed — it's a built-in agent type, verify it's available
@@ -159,6 +159,14 @@ What's next?
 
 {Missing items → list what needs attention with numbered fix actions}
 ```
+
+## Anti-Patterns
+
+| Pattern | Why It Fails |
+|---------|-------------|
+| Modifying existing INBOX.md or INDEX.md content | Setup is additive — it creates missing files but must not overwrite user content |
+| Skipping CLAUDE.md verification | Without CLAUDE.md, /claude-tweaks:review can't find verification commands |
+| Running setup in a non-git directory without warning | /claude-tweaks:review and /claude-tweaks:wrap-up depend on git — the user should know about degraded behavior |
 
 ## Important Notes
 

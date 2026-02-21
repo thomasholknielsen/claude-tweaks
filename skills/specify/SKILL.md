@@ -187,8 +187,7 @@ Present next steps as numbered options:
 What's next?
 1. `/claude-tweaks:build {first spec number}` — Start building the highest-priority spec ⭐ **(Recommended)**
 2. `/claude-tweaks:help` — See full workflow status
-3. `/claude-tweaks:build {design doc}` — Build directly from a design doc (skip specs)
-4. Done for now
+3. Done for now
 ```
 
 Commit with a message describing the specs created.

@@ -226,10 +226,9 @@ After successful build, present:
 
 Pick an action (reply with the number):
 
-1. `/claude-tweaks:review {number or blank}` — Run the quality gate ⭐ **(Recommended)**
-2. `/claude-tweaks:wrap-up {number or blank}` — Skip review, go straight to wrap-up
-3. `/claude-tweaks:help` — See full workflow status
-4. Done for now
+1. `/claude-tweaks:review {number}` — Run the quality gate ⭐ **(Recommended)**
+2. `/claude-tweaks:help` — See full workflow status
+3. Done for now
 ```
 
 ## Git Rules — NON-NEGOTIABLE

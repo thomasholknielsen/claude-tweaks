@@ -1,6 +1,6 @@
 ---
 name: claude-tweaks:capture
-description: Use when capturing ideas that need specification later - brain dumps, half-formed features, things to not forget
+description: Use when capturing ideas that need specification later — brain dumps, half-formed features, things to not forget
 ---
 > **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
 
@@ -80,3 +80,14 @@ INBOX: "{item title}"
 - Adding implementation details (inbox = what, not how)
 - Skipping brainstorming and going straight to specs (brainstorming catches assumptions)
 - Putting notes about existing specs in INBOX (annotate the spec file instead)
+
+## Relationship to Other Skills
+
+| Skill | Relationship |
+|-------|-------------|
+| `/claude-tweaks:challenge` | Debiases INBOX items before brainstorming — /claude-tweaks:help flags candidates |
+| `brainstorming` (Superpowers) | Explores promoted INBOX items — produces design docs |
+| `/claude-tweaks:specify` | Converts brainstorming output into specs |
+| `/claude-tweaks:tidy` | Reviews INBOX for stale items — promotes, merges, or deletes |
+| `/claude-tweaks:review` | May create INBOX items for "capture for later" findings |
+| `/claude-tweaks:wrap-up` | May create INBOX items for leftover work |

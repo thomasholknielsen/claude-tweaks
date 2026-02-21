@@ -212,7 +212,6 @@ The brief has been saved. What's next?
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:capture` | Feeds INBOX items that /claude-tweaks:challenge can debias |
-| `brainstorming` | Consumes the Brainstorming Brief — explores *within* the debiased frame |
+| `brainstorming` (Superpowers) | Consumes the Brainstorming Brief — explores *within* the debiased frame |
 | `/claude-tweaks:specify` | Downstream — converts brainstorming output into specs |
-| `review-plan` | Evaluates a *plan's* quality — /claude-tweaks:challenge questions whether the problem is right |
-| `architecture-decision` | Chooses *between approaches* — /claude-tweaks:challenge asks whether the decision criteria are correct |
+| `/claude-tweaks:help` | Flags INBOX items with baked-in assumptions as candidates for /claude-tweaks:challenge |

@@ -40,7 +40,7 @@ This will:
 
 ```
 /claude-tweaks:setup → /claude-tweaks:codebase-onboarding → /claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
-                                                                                                                                                          ╰─── /claude-tweaks:flow automates ───╯
+                                                                                                                                                                          ╰──── /claude-tweaks:flow automates ────╯
 ```
 
 ### Core Skills
