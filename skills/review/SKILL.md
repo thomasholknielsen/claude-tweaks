@@ -313,7 +313,7 @@ Present a structured summary covering spec compliance, verification results, cod
 
 | Skill | Relationship |
 |-------|-------------|
-| `/claude-tweaks:build` | Produces the code that /claude-tweaks:review evaluates |
+| `/claude-tweaks:build` | Produces the code and journey files that /claude-tweaks:review evaluates |
 | `/claude-tweaks:browser-review` | Visual complement — /claude-tweaks:review offers to chain into it for UI changes |
 | `/claude-tweaks:wrap-up` | Runs after /claude-tweaks:review passes — focuses on reflection, cleanup, and knowledge capture |
 | `/claude-tweaks:capture` | /claude-tweaks:review may create INBOX items for new ideas discovered during review |

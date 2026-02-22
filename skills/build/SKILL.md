@@ -7,7 +7,7 @@ description: Use when implementing a spec or design doc end-to-end. Accepts a sp
 
 # Build
 
-Implement a spec or design doc end-to-end: plan it, build it, simplify it, verify it. Part of the workflow lifecycle:
+Implement a spec or design doc end-to-end: plan it, build it, simplify it, verify it, and capture the journeys it enables. Part of the workflow lifecycle:
 
 ```
 /claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → [ /claude-tweaks:build ] → /claude-tweaks:review → /claude-tweaks:wrap-up
@@ -278,15 +278,15 @@ If anything fails, fix it and commit the fix.
 
 ### Common Step 5: User Journey Capture
 
-After verification passes, automatically create or update user journey files for the features that were built. This is not optional and does not require user input — if you built a user-facing feature, document the journey.
+After verification passes, automatically create or update journey files for the features that were built. This is not optional and does not require user input — if you built a feature that any persona interacts with (end user, admin, developer, internal tooling user), document the journey.
 
 #### Determine affected journeys
 
-Analyze what was built and identify the user or developer journeys it enables or modifies:
+Analyze what was built and identify the journeys it enables or modifies — for any persona (end users, admins, developers, internal tooling users):
 
-1. **Scan existing journeys** — read `docs/journeys/*.md` to see if any existing journey includes pages, flows, or features that were just built or changed
-2. **Identify new journeys** — if the feature introduces a new user flow that doesn't map to any existing journey, a new journey file is needed
-3. **Backend-only changes** — if the build has no user-facing or developer-facing flow impact, skip this step entirely
+1. **Scan existing journeys** — read `docs/journeys/*.md` to see if any existing journey includes pages, flows, features, CLI commands, or APIs that were just built or changed
+2. **Identify new journeys** — if the feature introduces a new flow for any persona that doesn't map to an existing journey, a new journey file is needed
+3. **No interaction surface** — if the build has no flow impact for any persona (pure internal refactor, library-only changes with no behavioral shift), skip this step entirely
 
 #### Create new journey files
 
@@ -426,7 +426,7 @@ These apply in **autonomous** and **branched** modes. In **guided** mode, pause 
 | Using `git reset` or `git checkout .` | Other processes may be committing concurrently — destroys their work |
 | Skipping code simplification | Iterative implementation accumulates unnecessary complexity across tasks |
 | Building a spec with unmet prerequisites | Downstream specs depend on upstream work — check the dependency graph first |
-| Skipping journey capture for user-facing features | Journeys are what browser-review tests against — no journey means no visual QA anchor |
+| Skipping journey capture for features with an interaction surface | Journeys are what browser-review tests against — no journey means no QA anchor. This applies to all personas: end users, admins, developers, internal tooling users. |
 | Writing journeys with vague "should feel" | "Good" and "intuitive" are not testable. "Low commitment" and "like an accomplishment" are. |
 | Asking the user whether to create a journey | Journey capture is automatic. The user didn't know they needed the spec either — that's why the workflow exists. |
 | Ignoring architectural deviations from the spec | Drift happens during implementation — catch it in Step 3.5 before it becomes tech debt. Every deviation must be explicitly classified. |
