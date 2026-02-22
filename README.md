@@ -12,7 +12,9 @@ claude-tweaks adds that system. It's a set of skills that guide Claude through a
 - **Challenge** assumptions before committing to an approach
 - **Specify** work into agent-sized units with clear acceptance criteria
 - **Build** with automatic journey capture and architectural alignment
+- **Test** independently with targeted or full-suite verification
 - **Review** with batched code review findings, visual browser inspection, and simplification
+- **Hotfix** emergencies with a streamlined fast path
 - **Wrap up** with reflection, knowledge routing, and artifact cleanup
 
 Every finding is explicitly routed — fixed now, deferred with context, or explicitly accepted. Nothing silently drops.
@@ -55,8 +57,8 @@ This will:
 ```
 /setup → /codebase-onboarding → /capture → /challenge → brainstorming → /specify → /build → /review → /wrap-up
                                                                                        ╰── /flow automates ──╯
-                                                                                                 ↕
-                                                                                          /browser-review
+                                                                           /test ↕    /review visual modes
+                                                                           /hotfix (emergency fast path)
 ```
 
 ### Lifecycle Skills
@@ -69,8 +71,9 @@ This will:
 | 4 | `/claude-tweaks:challenge` | Debias a problem statement before brainstorming |
 | 5 | `/claude-tweaks:specify` | Decompose design doc into agent-sized specs with implicit dependency detection |
 | 6 | `/claude-tweaks:build` | Implement a spec end-to-end (autonomous, guided, or branched mode) |
-| 7 | `/claude-tweaks:review` | Quality gate — spec compliance, batched code review, simplification |
-| 7b | `/claude-tweaks:browser-review` | Visual inspection — test the running app against user journeys |
+| 6b | `/claude-tweaks:test` | Standalone verification — types, lint, tests |
+| 7 | `/claude-tweaks:review` | Quality gate — code review + optional visual browser review |
+| 7b | `/claude-tweaks:hotfix` | Emergency fast path — fix, test, ship |
 | 8 | `/claude-tweaks:wrap-up` | Reflection, knowledge capture, artifact cleanup |
 
 ### Utility Skills
@@ -80,6 +83,56 @@ This will:
 | `/claude-tweaks:help` | Quick reference, workflow status dashboard, recommendations |
 | `/claude-tweaks:tidy` | Batch backlog hygiene with cross-spec pattern detection |
 | `/claude-tweaks:flow` | Automated pipeline: build → review → wrap-up with gates |
+
+## Common Workflows
+
+### Feature from scratch (full pipeline)
+
+```
+/claude-tweaks:capture "users need meal planning"
+/claude-tweaks:challenge meal planning
+brainstorming
+/claude-tweaks:specify meal planning
+/claude-tweaks:build 73
+/claude-tweaks:review 73
+/claude-tweaks:wrap-up 73
+```
+
+### Fast pipeline (spec ready, fully automated)
+
+```
+/claude-tweaks:flow 42
+```
+
+Or run multiple independent specs in parallel on separate branches:
+
+```
+/claude-tweaks:flow 42,45,48
+```
+
+### Emergency hotfix
+
+```
+/claude-tweaks:hotfix "login page returns 500 error"
+```
+
+Streamlined path: identify root cause → minimal fix → regression test → verification → lightweight review → ship.
+
+### Visual QA session
+
+Run a full code + visual review:
+
+```
+/claude-tweaks:review 42 full
+```
+
+Or standalone visual modes:
+
+```
+/claude-tweaks:review journey:checkout-flow    → walk a documented journey
+/claude-tweaks:review visual http://localhost:3000/settings    → review a single page
+/claude-tweaks:review discover    → find and document all user journeys
+```
 
 ## Key Features
 
@@ -91,19 +144,34 @@ This will:
 /claude-tweaks:build 42 branched       → feature branch, autonomous
 ```
 
-### Browser Review
+### Review Modes
 
-Visual inspection with a creative framework: reaction → experience → analysis → imagination. Three modes:
+Code review with optional visual inspection. Five modes:
 
-- **Journey mode** — walk a documented user journey, testing each step against "should feel" expectations
-- **Page mode** — review a single URL through persona rotation and structured analysis
-- **Discover mode** — scan a brownfield codebase for routes, walk the app in a browser, create journey files
+| Mode | What it does |
+|------|-------------|
+| **code** (default) | Spec compliance, verification, code review, hindsight, simplification |
+| **full** | Code review + visual browser review |
+| **visual** | Browser review only — single page |
+| **journey** | Browser review only — walk a documented journey |
+| **discover** | Browser review only — scan and document all user journeys |
 
 ### User Journeys
 
-Persistent markdown files in `docs/journeys/` that describe how personas accomplish goals. Created automatically during `/build` for user-facing features, tested by `/browser-review`, discovered in bulk via `/browser-review discover` or `/codebase-onboarding`.
+Persistent markdown files in `docs/journeys/` that describe how personas accomplish goals. Created automatically during `/build` for user-facing features, tested by `/review` visual modes, discovered in bulk via `/review discover` or `/codebase-onboarding`.
 
 Each journey tracks its implementing source files via `files:` frontmatter. During `/review`, changed files are checked against all journeys — if a build touches files that an existing journey depends on, the review flags it for visual regression testing.
+
+### Standalone Testing
+
+`/test` runs verification checks independently — useful for quick sanity checks, targeted testing, or reproducing CI failures:
+
+```
+/claude-tweaks:test                    → full suite (types + lint + tests)
+/claude-tweaks:test types lint         → type checking and linting only
+/claude-tweaks:test affected           → tests affected by uncommitted changes
+/claude-tweaks:test src/api/           → tests scoped to a directory
+```
 
 ### Batch Decisions
 
@@ -125,7 +193,11 @@ The workflow learns from its own history:
 
 - **Pattern detection** — `/tidy` scans recent review and wrap-up history for recurring findings across specs (repeated convention violations, responsibility-magnet files, rediscovered gotchas) and recommends project-level fixes
 - **Journey regression** — `/review` detects when a build's changed files overlap with existing journey `files:` frontmatter, flagging affected journeys for visual testing
-- **Dependency intelligence** — `/specify` builds a file→spec map from Key Files sections and detects implicit dependencies (two specs modifying the same files). `/help` uses this to warn before building specs that conflict with in-progress work
+- **Dependency intelligence** — `/specify` builds a file->spec map from Key Files sections and detects implicit dependencies (two specs modifying the same files). `/help` uses this to warn before building specs that conflict with in-progress work
+
+### Context Flow
+
+Skills communicate through **durable artifacts on disk** — specs, briefs, design docs, journey files, review summaries. Each skill reads artifacts produced by upstream skills and writes artifacts consumed by downstream skills. Context survives across sessions, is inspectable as markdown files, and is explicitly consumed (not silently accumulated). For a detailed breakdown of what each skill reads and writes, see `skills/help/context-flow.md`.
 
 ### Parallel Execution
 
@@ -133,7 +205,7 @@ Skills include explicit parallelization directives that tell Claude when to run 
 
 ### No Implicit Drops
 
-Every surfaced finding — code review issues, browser observations, wrap-up insights, tidy items — must be explicitly resolved: fix now, defer with context, or accept with a stated reason. Nothing silently disappears.
+Every surfaced finding — code review issues, visual review observations, wrap-up insights, tidy items — must be explicitly resolved: fix now, defer with context, or accept with a stated reason. Nothing silently disappears.
 
 ## Artifact Lifecycle
 
@@ -146,9 +218,9 @@ INBOX item ──→ Brief ──→ Design Doc ──→ Spec ──→ Code + 
 
 Code ──→ Review Summary ──→ Learnings routed ──→ Clean slate
  /build      /review            /wrap-up
-            ↕        ↓                ↓
-   /browser-review  Deferred Work  (deletes spec
-   (walks journeys)                 + plans)
+       (visual modes)   ↓                ↓
+                    Deferred Work  (deletes spec
+                                    + plans)
 ```
 
 ## Dependencies

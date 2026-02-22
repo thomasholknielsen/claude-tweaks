@@ -325,7 +325,7 @@ files:
 ```
 
 Key principles for writing journeys:
-- **"Should feel" is the most important field.** It's what browser-review tests against. Be specific — "low commitment" not "good."
+- **"Should feel" is the most important field.** It's what visual review tests against. Be specific — "low commitment" not "good."
 - **`files:` enables regression detection.** List the key source files that implement this journey's functionality — components, API routes, pages, services. `/review` uses this to detect when a future build changes files that an existing journey depends on. Don't list every file — just the ones whose changes would affect the journey's behavior.
 - **One journey per goal**, not per feature. A journey may span features from multiple specs.
 - **Include the entry point and success state.** These bookend the journey and define what "complete" means.
@@ -426,7 +426,7 @@ These apply in **autonomous** and **branched** modes. In **guided** mode, pause 
 | Using `git reset` or `git checkout .` | Other processes may be committing concurrently — destroys their work |
 | Skipping code simplification | Iterative implementation accumulates unnecessary complexity across tasks |
 | Building a spec with unmet prerequisites | Downstream specs depend on upstream work — check the dependency graph first |
-| Skipping journey capture for features with an interaction surface | Journeys are what browser-review tests against — no journey means no QA anchor. This applies to all personas: end users, admins, developers, internal tooling users. |
+| Skipping journey capture for features with an interaction surface | Journeys are what visual review tests against — no journey means no QA anchor. This applies to all personas: end users, admins, developers, internal tooling users. |
 | Writing journeys with vague "should feel" | "Good" and "intuitive" are not testable. "Low commitment" and "like an accomplishment" are. |
 | Asking the user whether to create a journey | Journey capture is automatic. The user didn't know they needed the spec either — that's why the workflow exists. |
 | Ignoring architectural deviations from the spec | Drift happens during implementation — catch it in Step 3.5 before it becomes tech debt. Every deviation must be explicitly classified. |
@@ -443,5 +443,6 @@ These apply in **autonomous** and **branched** modes. In **guided** mode, pause 
 | `/claude-tweaks:review` | Runs AFTER /claude-tweaks:build — in design mode, uses git diff instead of spec compliance |
 | `/claude-tweaks:wrap-up` | Runs AFTER /claude-tweaks:review — cleans up and captures learnings |
 | `/claude-tweaks:capture` | Design mode may create INBOX items for blocked work |
-| `/claude-tweaks:browser-review` | Tests the user journeys that /claude-tweaks:build creates — journey files are the bridge between build and visual QA |
+| `/claude-tweaks:test` | Standalone verification — /test runs the same checks as /build Common Step 4 |
+| `/claude-tweaks:review` (visual modes) | Tests the user journeys that /build creates — visual review modes are the bridge between build and visual QA |
 | `/claude-tweaks:tidy` | Reviews specs from /claude-tweaks:build for staleness — periodic cleanup complement |
