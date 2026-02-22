@@ -341,6 +341,7 @@ Present a structured summary covering spec compliance, verification results, cod
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:build` | Produces the code and journey files that /claude-tweaks:review evaluates |
+| `/claude-tweaks:test` | Standalone verification — /test runs the same checks as /review Step 3 but without code review |
 | `/claude-tweaks:wrap-up` | Runs after /claude-tweaks:review passes — focuses on reflection, cleanup, and knowledge capture |
 | `/claude-tweaks:capture` | /claude-tweaks:review may create INBOX items for new ideas discovered during review |
 | `/claude-tweaks:codebase-onboarding` | Phase 7 delegates to `/review discover` for brownfield journey bootstrapping |

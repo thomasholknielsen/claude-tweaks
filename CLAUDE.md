@@ -23,9 +23,9 @@ README.md                         → User-facing documentation
 LICENSE                           → MIT
 ```
 
-### Skill directories (11 total)
+### Skill directories (12 total)
 
-**Lifecycle:** setup, codebase-onboarding, capture, challenge, specify, build, review, wrap-up
+**Lifecycle:** setup, codebase-onboarding, capture, challenge, specify, build, test, review, wrap-up
 **Utility:** help, tidy, flow
 
 ### Skills with sub-files

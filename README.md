@@ -12,6 +12,7 @@ claude-tweaks adds that system. It's a set of skills that guide Claude through a
 - **Challenge** assumptions before committing to an approach
 - **Specify** work into agent-sized units with clear acceptance criteria
 - **Build** with automatic journey capture and architectural alignment
+- **Test** independently with targeted or full-suite verification
 - **Review** with batched code review findings, visual browser inspection, and simplification
 - **Wrap up** with reflection, knowledge routing, and artifact cleanup
 
@@ -55,7 +56,7 @@ This will:
 ```
 /setup → /codebase-onboarding → /capture → /challenge → brainstorming → /specify → /build → /review → /wrap-up
                                                                                        ╰── /flow automates ──╯
-                                                                                      /review visual modes
+                                                                           /test ↕    /review visual modes
 ```
 
 ### Lifecycle Skills
@@ -68,6 +69,7 @@ This will:
 | 4 | `/claude-tweaks:challenge` | Debias a problem statement before brainstorming |
 | 5 | `/claude-tweaks:specify` | Decompose design doc into agent-sized specs with implicit dependency detection |
 | 6 | `/claude-tweaks:build` | Implement a spec end-to-end (autonomous, guided, or branched mode) |
+| 6b | `/claude-tweaks:test` | Standalone verification — types, lint, tests |
 | 7 | `/claude-tweaks:review` | Quality gate — code review + optional visual browser review |
 | 8 | `/claude-tweaks:wrap-up` | Reflection, knowledge capture, artifact cleanup |
 
@@ -148,6 +150,17 @@ Code review with optional visual inspection. Five modes:
 Persistent markdown files in `docs/journeys/` that describe how personas accomplish goals. Created automatically during `/build` for user-facing features, tested by `/review` visual modes, discovered in bulk via `/review discover` or `/codebase-onboarding`.
 
 Each journey tracks its implementing source files via `files:` frontmatter. During `/review`, changed files are checked against all journeys — if a build touches files that an existing journey depends on, the review flags it for visual regression testing.
+
+### Standalone Testing
+
+`/test` runs verification checks independently — useful for quick sanity checks, targeted testing, or reproducing CI failures:
+
+```
+/claude-tweaks:test                    → full suite (types + lint + tests)
+/claude-tweaks:test types lint         → type checking and linting only
+/claude-tweaks:test affected           → tests affected by uncommitted changes
+/claude-tweaks:test src/api/           → tests scoped to a directory
+```
 
 ### Batch Decisions
 

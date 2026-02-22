@@ -53,6 +53,7 @@ These run in order — each skill feeds into the next.
 | 4 | `/claude-tweaks:challenge` | Debias a problem statement before brainstorming | INBOX item, topic |
 | 5 | `/claude-tweaks:specify` | Decompose a design doc into agent-sized specs | design doc path, topic, INBOX ref |
 | 6 | `/claude-tweaks:build` | Implement a spec or design doc end-to-end | spec number, design doc path, topic + optional mode: `autonomous` (default), `guided`, `branched` |
+| 6b | `/claude-tweaks:test` | Standalone verification — types, lint, tests | `types`, `lint`, `unit`, file path, `affected` |
 | 7 | `/claude-tweaks:review` | Quality gate — code review + optional visual browser review | spec number, file paths + `full`, `visual`, `journey:{name}`, `discover` |
 | 8 | `/claude-tweaks:wrap-up` | Reflection, knowledge capture, artifact cleanup | spec number |
 
@@ -241,6 +242,7 @@ For a detailed explanation of how context flows between skills via artifacts, re
 | `/claude-tweaks:challenge` | /claude-tweaks:help flags items with baked-in assumptions for debiasing |
 | `/claude-tweaks:specify` | /claude-tweaks:help flags unspecified design docs and uses Key Files from specs for implicit dependency detection |
 | `/claude-tweaks:build` | /claude-tweaks:help recommends which spec to build |
+| `/claude-tweaks:test` | /claude-tweaks:help can recommend /test when code changes exist but no review is warranted |
 | `/claude-tweaks:review` | /claude-tweaks:help flags specs awaiting review |
 | `/claude-tweaks:wrap-up` | /claude-tweaks:help flags specs awaiting wrap-up |
 | `/claude-tweaks:tidy` | /claude-tweaks:help suggests /claude-tweaks:tidy when maintenance is needed |

@@ -12,6 +12,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/challenge` | Debias assumptions before brainstorming | INBOX item, topic |
 | `/specify` | Decompose design doc into agent-sized specs | design doc, topic |
 | `/build` | Implement a spec or design doc | spec #, doc path + `autonomous`/`guided`/`branched` |
+| `/test` | Run verification checks standalone | `types`, `lint`, `unit`, path, `affected` |
 | `/review` | Quality gate: code + optional visual review | spec #, files + `full`/`visual`/`journey:{name}`/`discover` |
 | `/wrap-up` | Reflect, capture learnings, clean up | spec # |
 
@@ -48,6 +49,11 @@ brainstorming
 or standalone:
 ```
 /review journey:checkout-flow
+```
+
+### Verify before commit
+```
+/test
 ```
 
 ### Parallel specs
