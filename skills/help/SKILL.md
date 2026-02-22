@@ -63,7 +63,7 @@ These run in order — each skill feeds into the next.
 |---------|---------|---------|
 | `/claude-tweaks:help` | This dashboard — commands, status, recommendations | `status`, `commands`, spec/topic |
 | `/claude-tweaks:tidy` | Periodic backlog hygiene | — |
-| `/claude-tweaks:flow` | Automated pipeline: build → review → wrap-up | spec number, design doc path, or topic `[steps]` |
+| `/claude-tweaks:flow` | Automated pipeline: build → review → wrap-up | spec number(s) (comma-separated for parallel), design doc path, or topic `[steps]` |
 | `/claude-tweaks:next` | Legacy alias — redirects to `/claude-tweaks:help` | *(same as help)* |
 
 ### Superpowers (External Plugin)
@@ -97,6 +97,8 @@ Code ──→ Review Summary ──→ Learnings routed ──→ Clean slate
 *(Skip if `$ARGUMENTS` = `commands`)*
 
 Scan the full workflow state across all pipeline stages.
+
+> **Parallel execution:** Dispatch Stages 1-7 as parallel Task agents — each stage scans an independent data source and returns counts, flags, and recommendations. The orchestrator assembles the dashboard after all agents complete.
 
 ### Stage 1: INBOX (`specs/INBOX.md`)
 

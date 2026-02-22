@@ -31,30 +31,33 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 ## Syntax
 
 ```
-/claude-tweaks:flow <spec-or-design-doc> [step1,step2,step3]
+/claude-tweaks:flow <spec-or-design-doc>[,spec2,spec3] [step1,step2,step3]
 ```
 
 ### Arguments
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `<spec-or-design-doc>` | Yes | Spec number (e.g., `42`), design doc path (e.g., `docs/plans/2026-02-21-meal-planning-design.md`), or topic name (e.g., `meal planning`) |
+| `<spec-or-design-doc>` | Yes | Spec number (e.g., `42`), comma-separated spec numbers (e.g., `42,45,48`), design doc path, or topic name |
 | `[steps]` | No | Comma-separated list of steps to run. Default: `build,review,wrap-up` |
 
 ### Input resolution
 
-1. **Spec number** (e.g., `42`) → **Spec mode** — build uses spec tracking, review checks spec compliance
-2. **Design doc path** (e.g., `docs/plans/*-design.md`) → **Design mode** — build reads the design doc directly, review uses git diff instead of spec compliance
-3. **Topic name** (e.g., `meal planning`) → search for a matching spec AND design doc. If both exist, prefer spec mode. If only a design doc exists, use design mode.
+1. **Single spec number** (e.g., `42`) → **Spec mode** — build uses spec tracking, review checks spec compliance
+2. **Multiple spec numbers** (e.g., `42,45,48`) → **Multi-spec mode** — each spec runs through the pipeline in parallel (see Multi-Spec Parallel Flow below)
+3. **Design doc path** (e.g., `docs/plans/*-design.md`) → **Design mode** — build reads the design doc directly, review uses git diff instead of spec compliance
+4. **Topic name** (e.g., `meal planning`) → search for a matching spec AND design doc. If both exist, prefer spec mode. If only a design doc exists, use design mode.
 
 ### Examples
 
 ```
 /claude-tweaks:flow 42                                              → spec mode: build, review, wrap-up
+/claude-tweaks:flow 42,45,48                                        → multi-spec: parallel pipelines on separate branches
 /claude-tweaks:flow docs/plans/2026-02-21-meal-planning-design.md   → design mode: build, review, wrap-up
 /claude-tweaks:flow meal planning                                   → auto-detect: spec or design mode
 /claude-tweaks:flow 42 build,review                                 → spec mode: build and review only
 /claude-tweaks:flow 42 review,wrap-up                               → review and wrap-up only (already built)
+/claude-tweaks:flow 42,45 build,review                              → multi-spec: parallel build+review only
 ```
 
 ## Allowed Steps
@@ -156,6 +159,60 @@ On successful completion of all steps:
 `/claude-tweaks:flow {next spec}` — run the pipeline on the next spec. Or `/claude-tweaks:help` for full status.
 ```
 
+---
+
+## Multi-Spec Parallel Flow
+
+When multiple spec numbers are provided (e.g., `42,45,48`), flow runs each spec's pipeline in parallel on separate branches.
+
+### Validation
+
+Before dispatching, validate the spec list:
+
+1. **Parse** — split on commas, resolve each to a spec file
+2. **Prerequisites** — check that each spec's `blocked-by` is satisfied. Reject any spec with unmet prerequisites.
+3. **File overlap** — extract `Key Files` from each spec. If any two specs share files, **reject the pair** — concurrent modification of the same files causes merge conflicts. Present the overlap:
+   ```
+   CONFLICT: Spec 42 and Spec 45 both modify:
+   - src/components/ShoppingList.tsx
+   - src/api/items.ts
+
+   Run these specs sequentially, or restructure to eliminate file overlap.
+   ```
+4. **Force branched mode** — multi-spec flow always uses branched mode. Each spec gets its own `build/{N}-{title}` branch. This is not optional — concurrent work on the same branch would conflict.
+
+### Execution
+
+> **Parallel execution:** Dispatch each spec pipeline as a parallel Task agent. Each agent runs the full step sequence (build → review → wrap-up) independently on its own branch. A gate failure in one agent does not affect the others — each pipeline succeeds or fails independently.
+
+Each agent:
+1. Creates its `build/{N}-{title}` branch from the current HEAD
+2. Runs the pipeline steps in order (same gate behavior as single-spec flow)
+3. Returns its outcome: completed steps, gate failures, and summary
+
+### Multi-Spec Summary
+
+After all agents complete, present a consolidated summary:
+
+```markdown
+## Flow: Multi-Spec Pipeline Complete
+
+| Spec | Branch | Build | Review | Wrap-Up | Outcome |
+|------|--------|-------|--------|---------|---------|
+| {N} | build/{N}-{title} | passed | PASS | done | Complete |
+| {N} | build/{N}-{title} | passed | BLOCKED | — | Stopped at review |
+| {N} | build/{N}-{title} | failed | — | — | Stopped at build |
+
+### Per-Spec Details
+(expand each spec's key outputs, failures, and review findings)
+
+### Recommended Next
+- Specs that completed: merge branches or run `/claude-tweaks:help` for status
+- Specs that failed: fix issues and re-run `/claude-tweaks:flow {spec} {remaining steps}`
+```
+
+---
+
 ## Anti-Patterns
 
 | Pattern | Why It Fails |
@@ -164,6 +221,8 @@ On successful completion of all steps:
 | Ignoring gate failures and restarting | Gates exist to catch real problems — investigate before retrying |
 | Running flow on specs with unmet prerequisites | The pipeline will fail at build — check dependencies first |
 | Using flow for interactive skills | Capture, challenge, and specify need human decisions — they can't be automated |
+| Multi-spec flow with overlapping Key Files | Concurrent modification of the same files causes merge conflicts — reject pairs that share files |
+| Multi-spec flow without branched mode | Parallel work on the same branch would conflict — multi-spec always forces branched mode |
 
 ## Relationship to Other Skills
 
@@ -173,5 +232,5 @@ On successful completion of all steps:
 | `/claude-tweaks:review` | Second step — receives build output, produces verdict. Uses spec compliance (spec mode) or git diff (design mode) |
 | `/claude-tweaks:wrap-up` | Third step — receives review output, produces clean slate |
 | `/claude-tweaks:help` | Shows pipeline status and recommends flow-ready specs |
-| `/claude-tweaks:specify` | Creates the specs that flow consumes in spec mode |
+| `/claude-tweaks:specify` | Creates the specs that flow consumes — multi-spec uses Key Files from /specify for file overlap detection |
 | `brainstorming` (Superpowers) | Produces the design docs that flow consumes in design mode — skipping /specify |

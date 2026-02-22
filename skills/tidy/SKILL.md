@@ -28,6 +28,8 @@ Periodic backlog hygiene to keep the spec system healthy. Run when the backlog f
 
 > **No decisions during scanning.** Steps 1-4.5 silently collect all findings. Everything is presented as one batch in Step 6 for approval. This replaces the previous per-item decision model.
 
+> **Parallel execution:** Dispatch Steps 1 through 4.5 as parallel Task agents — each scan is independent (INBOX, Deferred, Specs, Design Docs, Plans, Git). Each agent returns findings in the `[type] item — detail — recommendation` format. Assemble all findings into the Step 6 report after all agents complete. Step 5 (Sizing Review) and Step 5.5 (Cross-Spec Pattern Detection) run after, since they depend on the spec scan results.
+
 ### Step 1: Audit the INBOX
 
 Read `specs/INBOX.md` and classify each entry:

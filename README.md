@@ -127,6 +127,10 @@ The workflow learns from its own history:
 - **Journey regression** — `/review` detects when a build's changed files overlap with existing journey `files:` frontmatter, flagging affected journeys for visual testing
 - **Dependency intelligence** — `/specify` builds a file→spec map from Key Files sections and detects implicit dependencies (two specs modifying the same files). `/help` uses this to warn before building specs that conflict with in-progress work
 
+### Parallel Execution
+
+Skills include explicit parallelization directives that tell Claude when to run operations concurrently — parallel tool calls for independent reads and searches, parallel Task agents for heavier analytical work like review lenses and pipeline scans, and conditional dispatch for context-dependent parallelism. `/flow` supports multi-spec parallel pipelines (`/flow 42,45,48`) where each spec runs on its own branch concurrently.
+
 ### No Implicit Drops
 
 Every surfaced finding — code review issues, browser observations, wrap-up insights, tidy items — must be explicitly resolved: fix now, defer with context, or accept with a stated reason. Nothing silently disappears.

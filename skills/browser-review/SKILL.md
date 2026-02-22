@@ -141,7 +141,9 @@ When running in discover mode, the goal is to identify all user and developer jo
 
 ### Phase 1: Codebase Scan
 
-Scan the codebase to build a map of what exists before opening the browser. Run these in parallel:
+Scan the codebase to build a map of what exists before opening the browser.
+
+> **Parallel execution:** Use parallel tool calls aggressively — all glob/grep operations across the four scan categories below are independent and should run concurrently. Front-load all codebase reads before browser interaction.
 
 **Routes and pages:**
 - Search for route definitions (React Router, Next.js pages/app directory, Express routes, Rails routes, etc.)
@@ -200,6 +202,8 @@ Proceeding to walk all {N} journeys in the browser. Say "skip {numbers}" to excl
 Include developer journeys when the project has CLI tools, APIs, or developer-facing setup.
 
 ### Phase 3: Browser Walkthrough
+
+> **Parallel execution (conditional):** When multiple candidate journeys share no pages, walk them in parallel using separate browser tabs — each journey runs independently. Journeys that share pages must remain sequential to avoid state interference (e.g., login state, form data). A single journey's steps are always sequential.
 
 For each approved candidate, open the browser and walk the journey. This is where the codebase skeleton gets filled with experiential details.
 

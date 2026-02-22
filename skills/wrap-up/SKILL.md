@@ -149,6 +149,8 @@ Search `~/.claude/plans/` for related plans → **delete them**.
 
 > **Batch collection.** Steps 6-8 collect all potential updates in a single pass. No decisions are made here — everything is presented together in Step 10 for batch approval.
 
+> **Parallel execution:** Run all three scans (documentation, skills, CLAUDE.md/rules) as parallel tool calls — each checks independent sources and collects findings in the `[type] target — change` format.
+
 ### 6: Documentation
 
 Check if the work requires updates to project documentation:

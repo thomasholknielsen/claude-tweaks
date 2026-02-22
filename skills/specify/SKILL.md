@@ -35,7 +35,7 @@ If no design doc exists for the topic, tell the user to run `brainstorming` firs
 
 ## Step 1: Understand the Landscape
 
-Read and analyze in parallel:
+> **Parallel execution:** Use parallel tool calls aggressively — all reads and searches below are independent and should run concurrently. Front-load all I/O before analysis.
 
 1. **The design doc** — understand what was decided, the scope, and the technical approach
 2. **The brainstorming brief** (if one exists in `docs/plans/*-brief.md` for this topic) — contains assumptions surfaced by `/claude-tweaks:challenge`, blind spots, and constraints. These should be absorbed into spec Gotchas sections.

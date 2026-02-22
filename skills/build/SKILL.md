@@ -209,6 +209,10 @@ The implementer subagents will pick up project conventions from CLAUDE.md, `.cla
 - Validation approach
 - Naming conventions
 
+### Common Steps 2 + 3.5: Simplification and Alignment (Concurrent)
+
+> **Parallel execution:** After implementation completes, run code simplification (Task agent via code-simplifier) and architecture alignment check (main thread) concurrently — they operate on independent concerns. Common Step 4 (Final Verification) gates after both complete.
+
 ### Common Step 2: Code Simplification
 
 After all implementation tasks are complete, run the `code-simplifier` agent on the recently modified code.

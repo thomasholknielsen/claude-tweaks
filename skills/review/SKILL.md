@@ -74,6 +74,8 @@ Run the project's standard verification commands. Check CLAUDE.md for the specif
 
 ### Checks:
 
+> **Parallel execution:** Run type checking, linting, and tests as parallel Bash calls — they are independent and should complete concurrently. Evaluate the gate after all three finish.
+
 - Type checking
 - Linting
 - Tests (unit + integration)
@@ -90,6 +92,10 @@ Run the project's standard verification commands. Check CLAUDE.md for the specif
 ## Step 4: Code Review
 
 Review changed files through these lenses. Skip lenses that don't apply to the type of change (e.g., skip "Performance" for a docs-only change).
+
+> **Parallel execution:** Before running any lens, gather all context upfront — read all changed files and their surrounding context (imports, tests, schemas) as parallel Read/Grep calls. Each lens needs the same files, so front-loading reads avoids redundant I/O.
+
+> **Parallel execution (conditional):** When the diff spans 10+ files, dispatch each applicable lens (4a-4f) as a parallel Task agent. Each agent receives the full file context and returns findings in the `| # | Finding | Severity | Category | Affected | Recommended |` format. When the diff is smaller, run lenses sequentially in the main thread — the overhead of agent dispatch isn't worth it.
 
 ### 4a: Convention Compliance
 
@@ -139,7 +145,9 @@ Review changed files through these lenses. Skip lenses that don't apply to the t
 
 ### 4g: Route Code Review Findings
 
-**Every finding from lenses 4a-4f must be explicitly resolved.** Present all findings as a single batch table with recommended actions pre-filled:
+**Every finding from lenses 4a-4f must be explicitly resolved.** When lenses were dispatched as parallel Task agents, merge their results into a single table here: combine all findings, preserve their category labels, and de-duplicate — if two lenses flag the same issue, keep the entry with the higher severity.
+
+Present all findings as a single batch table with recommended actions pre-filled:
 
 ```
 ### Code Review Findings

@@ -2,7 +2,7 @@
 
 ## What this is
 
-A Claude Code plugin (v2.7.0) containing markdown skill files that guide Claude through a structured development lifecycle. This is not a code application — it's a system of prompts organized as skills.
+A Claude Code plugin (v2.8.0) containing markdown skill files that guide Claude through a structured development lifecycle. This is not a code application — it's a system of prompts organized as skills.
 
 ## Stack
 
@@ -65,6 +65,18 @@ All skills use this identical directive after the frontmatter:
 ```
 > **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." End skills with a recommended next step, not a navigation menu.
 ```
+
+### Parallel execution directives
+
+Skills use three standardized blockquote forms to signal when operations should run concurrently:
+
+| Form | Trigger | Use for |
+|------|---------|---------|
+| **Form A — parallel tool calls** | `> **Parallel execution:** Use parallel tool calls aggressively — all {tools} operations in {scope} are independent and should run concurrently.` | Independent read-only operations (Glob, Grep, Read, Bash). Front-loads I/O before analysis. |
+| **Form B — parallel Task agents** | `> **Parallel execution:** Dispatch {scope} as parallel Task agents — each runs independently and returns {output format}. Assemble results after all agents complete.` | Heavier analytical work where each unit can run in a separate agent thread. |
+| **Form C — conditional** | `> **Parallel execution (conditional):** When {condition}, dispatch {scope} as parallel Task agents. Otherwise, run sequentially in the main thread.` | Context-dependent dispatch — e.g., only for large diffs or multiple independent journeys. |
+
+Use the exact blockquote prefix (`> **Parallel execution:**` or `> **Parallel execution (conditional):**`) so directives are visually consistent and greppable across skills.
 
 ### Versioning
 
