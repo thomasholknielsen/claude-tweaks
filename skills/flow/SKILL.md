@@ -1,6 +1,6 @@
 ---
 name: claude-tweaks:flow
-description: Use when you want to run an automated build → review → wrap-up pipeline on a spec without stopping between steps.
+description: Use when you want to run an automated build → review → wrap-up pipeline on a spec or design doc without stopping between steps.
 ---
 > **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." End skills with a recommended next step, not a navigation menu.
 
@@ -11,14 +11,15 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 
 ```
 /claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
-                                                                                              ╰──────────────────────────────────────────────╯
-                                                                                                    [ /claude-tweaks:flow ] automates this
-                                                                                                      ^^^^ YOU ARE HERE ^^^^
+                                                         ↑                                    ╰──────────────────────────────────────────────╯
+                                                         └── or skip /specify ────────────────╯ [ /claude-tweaks:flow ] automates this
+                                                                                                  ^^^^ YOU ARE HERE ^^^^
 ```
 
 ## When to Use
 
 - A spec is ready to build and you want to go from code to clean-slate in one command
+- A brainstorming session just produced a design doc and you want to skip `/specify` and go straight through the pipeline
 - You trust the pipeline to catch issues at gates rather than stopping for manual checkpoints
 - You want to batch a build + review + wrap-up session
 
@@ -26,27 +27,34 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 
 - First time building a complex spec (run steps individually for more control)
 - When you expect significant review findings that need discussion
-- For design mode builds (flow assumes spec mode)
 
 ## Syntax
 
 ```
-/claude-tweaks:flow <spec> [step1,step2,step3]
+/claude-tweaks:flow <spec-or-design-doc> [step1,step2,step3]
 ```
 
 ### Arguments
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `<spec>` | Yes | Spec number (e.g., `42`) |
+| `<spec-or-design-doc>` | Yes | Spec number (e.g., `42`), design doc path (e.g., `docs/plans/2026-02-21-meal-planning-design.md`), or topic name (e.g., `meal planning`) |
 | `[steps]` | No | Comma-separated list of steps to run. Default: `build,review,wrap-up` |
+
+### Input resolution
+
+1. **Spec number** (e.g., `42`) → **Spec mode** — build uses spec tracking, review checks spec compliance
+2. **Design doc path** (e.g., `docs/plans/*-design.md`) → **Design mode** — build reads the design doc directly, review uses git diff instead of spec compliance
+3. **Topic name** (e.g., `meal planning`) → search for a matching spec AND design doc. If both exist, prefer spec mode. If only a design doc exists, use design mode.
 
 ### Examples
 
 ```
-/claude-tweaks:flow 42                          → build, review, wrap-up (full pipeline)
-/claude-tweaks:flow 42 build,review             → build and review only (skip wrap-up)
-/claude-tweaks:flow 42 review,wrap-up           → review and wrap-up only (already built)
+/claude-tweaks:flow 42                                              → spec mode: build, review, wrap-up
+/claude-tweaks:flow docs/plans/2026-02-21-meal-planning-design.md   → design mode: build, review, wrap-up
+/claude-tweaks:flow meal planning                                   → auto-detect: spec or design mode
+/claude-tweaks:flow 42 build,review                                 → spec mode: build and review only
+/claude-tweaks:flow 42 review,wrap-up                               → review and wrap-up only (already built)
 ```
 
 ## Allowed Steps
@@ -97,18 +105,20 @@ When a gate fails, the pipeline stops immediately. Present:
 
 ### Recommended Next
 
-Fix the issues, then resume: `/claude-tweaks:flow {spec} {remaining steps}`
-Or run the failed step manually: `/claude-tweaks:{step} {spec}`
+Fix the issues, then resume: `/claude-tweaks:flow {spec or design doc} {remaining steps}`
+Or run the failed step manually: `/claude-tweaks:{step} {spec or design doc}`
 ```
 
 ## Execution
 
 ### Step 1: Validate Input
 
-1. Parse `$ARGUMENTS` — extract spec/path and optional step list
-2. Validate step list is in lifecycle order
-3. If spec mode: check prerequisites are met (same as `/claude-tweaks:build` Spec Step 1)
-4. If prerequisites not met → **stop before starting**
+1. Parse `$ARGUMENTS` — extract spec number or design doc path, plus optional step list
+2. Determine mode: spec mode (number) or design mode (path/topic)
+3. Validate step list is in lifecycle order
+4. If spec mode: check prerequisites are met (same as `/claude-tweaks:build` Spec Step 1)
+5. If design mode: verify the design doc file exists
+6. If validation fails → **stop before starting**
 
 ### Step 2: Run Pipeline
 
@@ -128,7 +138,7 @@ On successful completion of all steps:
 ```markdown
 ## Flow: Pipeline Complete
 
-### Spec {number}: {title}
+### {Spec {number}: {title} | Design: {design doc topic}}
 
 | Step | Outcome |
 |------|---------|
@@ -159,8 +169,9 @@ On successful completion of all steps:
 
 | Skill | Relationship |
 |-------|-------------|
-| `/claude-tweaks:build` | First step in the default pipeline |
-| `/claude-tweaks:review` | Second step — receives build output, produces verdict |
+| `/claude-tweaks:build` | First step in the default pipeline — runs in spec mode or design mode depending on flow input |
+| `/claude-tweaks:review` | Second step — receives build output, produces verdict. Uses spec compliance (spec mode) or git diff (design mode) |
 | `/claude-tweaks:wrap-up` | Third step — receives review output, produces clean slate |
 | `/claude-tweaks:help` | Shows pipeline status and recommends flow-ready specs |
-| `/claude-tweaks:specify` | Creates the specs that flow consumes |
+| `/claude-tweaks:specify` | Creates the specs that flow consumes in spec mode |
+| `brainstorming` (Superpowers) | Produces the design docs that flow consumes in design mode — skipping /specify |

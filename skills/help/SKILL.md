@@ -63,7 +63,7 @@ These run in order — each skill feeds into the next.
 |---------|---------|---------|
 | `/claude-tweaks:help` | This dashboard — commands, status, recommendations | `status`, `commands`, spec/topic |
 | `/claude-tweaks:tidy` | Periodic backlog hygiene | — |
-| `/claude-tweaks:flow` | Automated pipeline: build → review → wrap-up | spec/path `[steps]` |
+| `/claude-tweaks:flow` | Automated pipeline: build → review → wrap-up | spec number, design doc path, or topic `[steps]` |
 | `/claude-tweaks:next` | Legacy alias — redirects to `/claude-tweaks:help` | *(same as help)* |
 
 ### Superpowers (External Plugin)
