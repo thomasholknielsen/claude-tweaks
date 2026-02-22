@@ -12,9 +12,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/challenge` | Debias assumptions before brainstorming | INBOX item, topic |
 | `/specify` | Decompose design doc into agent-sized specs | design doc, topic |
 | `/build` | Implement a spec or design doc | spec #, doc path + `autonomous`/`guided`/`branched` |
-| `/test` | Run verification checks standalone | `types`, `lint`, `unit`, path, `affected` |
 | `/review` | Quality gate: code + optional visual review | spec #, files + `full`/`visual`/`journey:{name}`/`discover` |
-| `/hotfix` | Emergency fast path: fix, test, ship | issue description, error, file path |
 | `/wrap-up` | Reflect, capture learnings, clean up | spec # |
 
 ## Utility
@@ -26,11 +24,6 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/flow` | Automated pipeline: build → review → wrap-up | spec #(s), doc path + `[steps]` |
 
 ## Common Workflows
-
-### Quick fix (no spec)
-```
-/hotfix "login returns 500 error"
-```
 
 ### Feature from scratch
 ```
@@ -55,11 +48,6 @@ brainstorming
 or standalone:
 ```
 /review journey:checkout-flow
-```
-
-### Verify before commit
-```
-/test
 ```
 
 ### Parallel specs
@@ -87,4 +75,4 @@ Each arrow means "consumed by the next skill." Consumed artifacts are deleted �
 - **Every finding is routed** — fix now, defer, or capture. Nothing drops silently.
 - **Batch decisions** — multi-item findings are one table with "apply all / override."
 - **Artifacts are context** — skills communicate through files on disk, not session state.
-- **Minimal ceremony** — use `/hotfix` for urgent, `/flow` for automated, full pipeline for planned work.
+- **Minimal ceremony** — use `/flow` for automated, full pipeline for planned work.

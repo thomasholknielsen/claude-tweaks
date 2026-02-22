@@ -40,9 +40,7 @@ src/             (in commit/output)     CLAUDE.md updates       (spec + plans de
 | `brainstorming` | `docs/plans/*-brief.md` | `docs/plans/*-design.md` | — |
 | `/specify` | `*-design.md`, `*-brief.md`, `specs/INDEX.md` | `specs/NN-*.md`, `specs/INDEX.md` | `*-design.md`, `*-brief.md`, INBOX entry |
 | `/build` | `specs/NN-*.md`, `docs/plans/*.md` | Code, `docs/journeys/*.md`, plan files | — |
-| `/test` | CLAUDE.md (for commands) | — (output only) | — |
 | `/review` | Code (via git diff), `specs/NN-*.md`, `docs/journeys/*.md` | Review summary | — |
-| `/hotfix` | Codebase (tracing root cause) | Fix + regression test, INBOX/DEFERRED items | — |
 | `/wrap-up` | `specs/NN-*.md`, review output, plan files | CLAUDE.md updates, skill updates, `DEFERRED.md` | Spec file, plan files |
 | `/tidy` | All artifacts | Cleanup actions | Stale artifacts |
 
