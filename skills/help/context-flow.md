@@ -16,7 +16,8 @@ This design means:
 ```
 INBOX item          ──→ Brief               ──→ Design Doc          ──→ Spec              ──→ Code + Journey
 specs/INBOX.md         docs/plans/*-brief.md   docs/plans/*-design.md  specs/NN-*.md         src/ + docs/journeys/
-  /capture               /challenge              brainstorming          /specify              /build
+  /capture               /challenge              /superpowers:          /specify              /build
+                                                 brainstorm
                                                                          ↓                     ↓
                                                                    (deletes brief           Deferred items
                                                                     + design doc)           specs/DEFERRED.md
@@ -37,7 +38,7 @@ src/             (in commit/output)     CLAUDE.md updates       (spec + plans de
 |-------|-------|--------|---------|
 | `/capture` | — | `specs/INBOX.md` (append) | — |
 | `/challenge` | `specs/INBOX.md` | `docs/plans/*-brief.md` | — |
-| `brainstorming` | `docs/plans/*-brief.md` | `docs/plans/*-design.md` | — |
+| `/superpowers:brainstorm` | `docs/plans/*-brief.md` | `docs/plans/*-design.md` | — |
 | `/specify` | `*-design.md`, `*-brief.md`, `specs/INDEX.md` | `specs/NN-*.md`, `specs/INDEX.md` | `*-design.md`, `*-brief.md`, INBOX entry |
 | `/build` | `specs/NN-*.md`, `docs/plans/*.md` | Code, `docs/journeys/*.md`, plan files | — |
 | `/test` | CLAUDE.md (for commands) | — (output only) | — |

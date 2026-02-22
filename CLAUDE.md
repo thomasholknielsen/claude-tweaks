@@ -10,7 +10,7 @@ A Claude Code plugin (v2.9.0) containing markdown skill files that guide Claude 
 |-------|-----------|
 | Runtime | Claude Code plugin system |
 | Content | Markdown (SKILL.md files with YAML frontmatter) |
-| Dependencies | Superpowers plugin (brainstorming, writing-plans, subagent-driven-development), code-simplifier (built-in subagent) |
+| Dependencies | Superpowers plugin (`/superpowers:brainstorm`, `/superpowers:write-plan`, `/superpowers:execute-plan`), code-simplifier (built-in subagent) |
 | Distribution | Plugin marketplace via `thomasholknielsen/claude-tweaks-marketplace` |
 
 ## Structure

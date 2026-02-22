@@ -10,7 +10,7 @@ description: Use when bootstrapping the workflow system for a project — instal
 Bootstrap the workflow system for a project. Installs dependencies, creates directory structure, and verifies everything is wired up.
 
 ```
-[ /claude-tweaks:setup ] → /claude-tweaks:codebase-onboarding → /claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+[ /claude-tweaks:setup ] → /claude-tweaks:codebase-onboarding → /claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorm → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
   ^^^^ YOU ARE HERE ^^^^
 ```
 
@@ -27,7 +27,7 @@ The workflow system depends on two external plugins. Check if they're installed:
 
 ### Required: Superpowers
 
-Provides `brainstorming`, `writing-plans`, and `subagent-driven-development`.
+Provides `/superpowers:brainstorm`, `/superpowers:write-plan`, and `/superpowers:execute-plan`.
 
 ```bash
 # Check if installed
@@ -60,7 +60,7 @@ Check and create the required directories:
 
 ```
 specs/              → Spec files and INBOX
-docs/plans/         → Design docs (from brainstorming) and execution plans (from writing-plans)
+docs/plans/         → Design docs (from `/superpowers:brainstorm`) and execution plans (from `/superpowers:write-plan`)
 docs/journeys/      → User and developer journey files (created by /claude-tweaks:build, tested by /claude-tweaks:review visual modes)
 .claude/skills/     → Skill files (should already exist if this skill is running)
 ```

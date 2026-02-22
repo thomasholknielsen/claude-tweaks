@@ -10,7 +10,7 @@ description: Use when you need a quick reference for available commands, want to
 One-stop reference and status dashboard for the workflow system. Combines command help, pipeline scanning, and next-step recommendations.
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+/claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorm → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
     ↑                                                                                                                                            |
     └──────────────────────────────────── [ /claude-tweaks:help ] (dashboard + reference) ←──────────────────────────────────────────────────────┘
                                             ^^^^ YOU ARE HERE ^^^^
@@ -71,15 +71,16 @@ For a concise one-page reference, read `reference-card.md` in this skill's direc
 
 | Command | Purpose | Used by |
 |---------|---------|---------|
-| `brainstorming` | Explore solutions for a debiased problem | After `/claude-tweaks:challenge` |
-| `writing-plans` | Create TDD execution plan from a spec | `/claude-tweaks:build` |
-| `subagent-driven-development` | Execute a plan with implementer + reviewer subagents | `/claude-tweaks:build` |
+| `/superpowers:brainstorm` | Explore solutions for a debiased problem | After `/claude-tweaks:challenge` |
+| `/superpowers:write-plan` | Create TDD execution plan from a spec | `/claude-tweaks:build` |
+| `/superpowers:execute-plan` | Execute a plan with implementer + reviewer subagents | `/claude-tweaks:build` |
 
 ### Artifact Lifecycle
 
 ```
 INBOX item ──→ Brief ──→ Design Doc ──→ Spec ──→ Code + Journey
-  /capture    /challenge  brainstorming  /specify  /build
+  /capture    /challenge  /superpowers:   /specify  /build
+                          brainstorm
                                            ↓           ↓       ↓
                                     (deletes brief  Deferred  docs/journeys/
                                      + design doc)  Work
@@ -195,7 +196,7 @@ Scan the full workflow state across all pipeline stages.
 5. **Deferred items with met triggers** — promote before starting new work
 6. **Specs ready to build** — pick the highest-priority spec with met prerequisites
 7. **INBOX review** — if inbox is stale, suggest `/claude-tweaks:tidy` before new brainstorming
-8. **Challenge + Brainstorming** — if pipeline is empty, suggest promoting an INBOX item; if it has baked-in assumptions, run `/claude-tweaks:challenge` first, then `brainstorming`
+8. **Challenge + Brainstorming** — if pipeline is empty, suggest promoting an INBOX item; if it has baked-in assumptions, run `/claude-tweaks:challenge` first, then `/superpowers:brainstorm`
 9. **Nothing to do** — if everything is clean, say so
 
 ### Tie-Breaking

@@ -10,7 +10,7 @@ description: Use when implementing a spec or design doc end-to-end. Accepts a sp
 Implement a spec or design doc end-to-end: plan it, build it, simplify it, verify it, and capture the journeys it enables. Part of the workflow lifecycle:
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → [ /claude-tweaks:build ] → /claude-tweaks:review → /claude-tweaks:wrap-up
+/claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorm → /claude-tweaks:specify → [ /claude-tweaks:build ] → /claude-tweaks:review → /claude-tweaks:wrap-up
                                                                  ↑                        ^^^^ YOU ARE HERE ^^^^   ↑
                                                                  └── or skip directly ─────────────────────────────┘
 ```
@@ -54,7 +54,7 @@ build-mode: autonomous
 ### Mode-specific behavior
 
 **autonomous** (default):
-- Subagent-driven-development runs the full plan
+- `/superpowers:execute-plan` runs the full plan
 - Commits land on the current branch
 - Never asks for feedback, never presents options
 - Push commits promptly
@@ -142,9 +142,9 @@ Proceed to Spec Step 3.
 
 ### Spec Step 3: Create the Plan
 
-Invoke the `superpowers:writing-plans` skill.
+Invoke the `/superpowers:write-plan` skill.
 
-Context to provide to writing-plans:
+Context to provide to `/superpowers:write-plan`:
 - The full spec content (including Current State, Gotchas, and acceptance criteria)
 - Any existing progress identified in Spec Step 2
 
@@ -171,15 +171,15 @@ Search `docs/plans/` for an execution plan matching this design doc (by topic or
 
 ### Design Step 3: Create the Plan
 
-Invoke the `superpowers:writing-plans` skill.
+Invoke the `/superpowers:write-plan` skill.
 
-Context to provide to writing-plans:
+Context to provide to `/superpowers:write-plan`:
 - The full design doc content
 - The brainstorming brief (if it exists) — especially constraints and assumptions
 - Relevant codebase context (existing files, patterns, schemas)
 
 <IMPORTANT>
-Design mode has no spec with structured acceptance criteria. When providing context to writing-plans, extract testable outcomes from the design doc's decisions and recommendations. If the design doc lacks clear success criteria, ask the user to confirm what "done" looks like before proceeding.
+Design mode has no spec with structured acceptance criteria. When providing context to `/superpowers:write-plan`, extract testable outcomes from the design doc's decisions and recommendations. If the design doc lacks clear success criteria, ask the user to confirm what "done" looks like before proceeding.
 </IMPORTANT>
 
 The plan will be written to `docs/plans/YYYY-MM-DD-{feature}.md`.
@@ -192,7 +192,7 @@ Proceed to **Common Step 1**.
 
 ### Common Step 1: Execute the Plan
 
-Invoke the `superpowers:subagent-driven-development` skill.
+Invoke the `/superpowers:execute-plan` skill.
 
 This runs the full Superpowers execution chain:
 1. Per task: **implementer** subagent builds the code
@@ -436,9 +436,9 @@ These apply in **autonomous** and **branched** modes. In **guided** mode, pause 
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:specify` | Runs BEFORE /claude-tweaks:build in spec mode — creates the spec. Can be skipped using design mode. |
-| `brainstorming` (Superpowers) | Produces the design doc that design mode consumes directly |
-| `writing-plans` (Superpowers) | Invoked BY /claude-tweaks:build to create the execution plan |
-| `subagent-driven-development` (Superpowers) | Invoked BY /claude-tweaks:build to execute the plan |
+| `/superpowers:brainstorm` | Produces the design doc that design mode consumes directly |
+| `/superpowers:write-plan` | Invoked BY /claude-tweaks:build to create the execution plan |
+| `/superpowers:execute-plan` | Invoked BY /claude-tweaks:build to execute the plan |
 | `code-simplifier` | Invoked BY /claude-tweaks:build after implementation, before verification |
 | `/claude-tweaks:review` | Runs AFTER /claude-tweaks:build — in design mode, uses git diff instead of spec compliance |
 | `/claude-tweaks:wrap-up` | Runs AFTER /claude-tweaks:review — cleans up and captures learnings |

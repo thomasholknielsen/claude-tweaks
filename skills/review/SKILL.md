@@ -10,7 +10,7 @@ description: Use when a build is complete and you need to verify code quality, c
 Post-build quality gate. Verifies, reviews, and refines the code before handing off to wrap-up. Part of the workflow lifecycle:
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → [ /claude-tweaks:review ] → /claude-tweaks:wrap-up
+/claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorm → /claude-tweaks:specify → /claude-tweaks:build → [ /claude-tweaks:review ] → /claude-tweaks:wrap-up
                                                                                                                       ^^^^ YOU ARE HERE ^^^^
 ```
 
@@ -194,7 +194,7 @@ Present all findings as a single batch table with recommended actions pre-filled
 
 **When "Fix now" isn't possible**, route to the right destination:
 - **Defer** (DEFERRED.md) — the fix is understood but it's bigger and not relevant to the current work. Include origin spec, affected files, and trigger for when to revisit.
-- **Capture to INBOX** — the finding is complex or uncertain and needs brainstorming/exploration before it can be acted on. This enters the full capture → challenge → brainstorming pipeline.
+- **Capture to INBOX** — the finding is complex or uncertain and needs brainstorming/exploration before it can be acted on. This enters the full capture → challenge → `/superpowers:brainstorm` pipeline.
 
 If any findings are "Fix now", make the changes, re-run verification (Step 3), and verify fixes didn't introduce new findings.
 

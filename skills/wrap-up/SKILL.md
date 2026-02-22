@@ -10,7 +10,7 @@ description: Use when /claude-tweaks:review passes and you need to capture learn
 Post-review reflection, knowledge capture, and lifecycle cleanup. Part of the workflow lifecycle:
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → [ /claude-tweaks:wrap-up ]
+/claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorm → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → [ /claude-tweaks:wrap-up ]
                                                                                                                                             ^^^^ YOU ARE HERE ^^^^
 ```
 

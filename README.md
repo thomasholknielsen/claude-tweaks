@@ -54,7 +54,7 @@ This will:
 ## Workflow Lifecycle
 
 ```
-/setup → /codebase-onboarding → /capture → /challenge → brainstorming → /specify → /build → /review → /wrap-up
+/setup → /codebase-onboarding → /capture → /challenge → /superpowers:brainstorm → /specify → /build → /review → /wrap-up
                                                                                        ╰── /flow automates ──╯
                                                                            /test ↕    /review visual modes
 ```
@@ -88,7 +88,7 @@ This will:
 ```
 /claude-tweaks:capture "users need meal planning"
 /claude-tweaks:challenge meal planning
-brainstorming
+/superpowers:brainstorm
 /claude-tweaks:specify meal planning
 /claude-tweaks:build 73
 /claude-tweaks:review 73
@@ -199,8 +199,8 @@ Every surfaced finding — code review issues, visual review observations, wrap-
 ## Artifact Lifecycle
 
 ```
-INBOX item ──→ Brief ──→ Design Doc ──→ Spec ──→ Code + Journey
-  /capture    /challenge  brainstorming  /specify  /build
+INBOX item ──→ Brief ──→ Design Doc ──────→ Spec ──→ Code + Journey
+  /capture    /challenge  /superpowers:brainstorm  /specify  /build
                                            ↓           ↓       ↓
                                     (deletes brief  Deferred  docs/journeys/
                                      + design doc)  Work
@@ -216,7 +216,7 @@ Code ──→ Review Summary ──→ Learnings routed ──→ Clean slate
 
 | Plugin | Marketplace | Required for |
 |--------|-------------|-------------|
-| [Superpowers](https://github.com/obra/superpowers) | [`obra/superpowers-marketplace`](https://github.com/obra/superpowers-marketplace) | `brainstorming`, `writing-plans`, `subagent-driven-development` |
+| [Superpowers](https://github.com/obra/superpowers) | [`obra/superpowers-marketplace`](https://github.com/obra/superpowers-marketplace) | `/superpowers:brainstorm`, `/superpowers:write-plan`, `/superpowers:execute-plan` |
 | code-simplifier | Built-in subagent | Code simplification in `/review` and `/build` |
 
 ## Local development

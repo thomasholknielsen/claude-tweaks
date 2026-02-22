@@ -30,7 +30,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 ```
 /capture "users need meal planning"
 /challenge meal planning
-brainstorming
+/superpowers:brainstorm
 /specify meal planning
 /build 73
 /review 73

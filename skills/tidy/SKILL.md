@@ -10,9 +10,9 @@ description: Use when the backlog needs hygiene — review stale INBOX items, pa
 Periodic backlog hygiene to keep the spec system healthy. Run when the backlog feels cluttered, before a brainstorming session, or on a regular cadence.
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
-                                                                 ↑
-                                          [ /claude-tweaks:tidy ] (maintenance loop)
+/claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorm → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+                                                                          ↑
+                                               [ /claude-tweaks:tidy ] (maintenance loop)
                                             ^^^^ YOU ARE HERE ^^^^
 ```
 

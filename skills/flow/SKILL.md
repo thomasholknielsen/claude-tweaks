@@ -10,9 +10,9 @@ description: Use when you want to run an automated build → review → wrap-up 
 Run multiple lifecycle steps in sequence without stopping between them. Each step has a gate — if a gate fails, the pipeline stops and presents the failure.
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
-                                                         ↑                                    ╰──────────────────────────────────────────────╯
-                                                         └── or skip /specify ────────────────╯ [ /claude-tweaks:flow ] automates this
+/claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorm → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+                                                                          ↑                                    ╰──────────────────────────────────────────────╯
+                                                                          └── or skip /specify ────────────────╯ [ /claude-tweaks:flow ] automates this
                                                                                                   ^^^^ YOU ARE HERE ^^^^
 ```
 
@@ -233,4 +233,4 @@ After all agents complete, present a consolidated summary:
 | `/claude-tweaks:wrap-up` | Third step — receives review output, produces clean slate |
 | `/claude-tweaks:help` | Shows pipeline status and recommends flow-ready specs |
 | `/claude-tweaks:specify` | Creates the specs that flow consumes — multi-spec uses Key Files from /specify for file overlap detection |
-| `brainstorming` (Superpowers) | Produces the design docs that flow consumes in design mode — skipping /specify |
+| `/superpowers:brainstorm` | Produces the design docs that flow consumes in design mode — skipping /specify |

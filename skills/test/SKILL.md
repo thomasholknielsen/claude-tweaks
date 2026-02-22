@@ -10,7 +10,7 @@ description: Use when you need to run tests, type checking, or linting as a stan
 Run verification checks independently — type checking, linting, and tests. Useful for quick sanity checks without a full review cycle, targeted testing of specific modules, or reproducing CI failures locally.
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → [ /claude-tweaks:test ] → /claude-tweaks:review → /claude-tweaks:wrap-up
+/claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorm → /claude-tweaks:specify → /claude-tweaks:build → [ /claude-tweaks:test ] → /claude-tweaks:review → /claude-tweaks:wrap-up
                                                                                                                       ^^^^ YOU ARE HERE ^^^^
 ```
 
