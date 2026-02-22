@@ -148,8 +148,8 @@ Review changed files through these lenses. Skip lenses that don't apply to the t
 |---|---------|----------|----------|----------|-------------|
 | 1 | {description} | Critical | Security | {files} | Fix now |
 | 2 | {description} | High | Error | {files} | Fix now |
-| 3 | {description} | Medium | Convention | {files} | Defer |
-| 4 | {description} | Low | Perf | {files} | Don't fix — {reason} |
+| 3 | {description} | Medium | Convention | {files} | Fix now — small effort |
+| 4 | {description} | Low | Perf | {files} | Capture to INBOX |
 
 1. Apply all recommendations **(Recommended)**
 2. Override specific items (tell me which #s to change)
@@ -158,11 +158,13 @@ Review changed files through these lenses. Skip lenses that don't apply to the t
 **Recommendation rules:**
 - **Critical** (security vulnerabilities, data loss risks) — always "Fix now". Non-negotiable.
 - **High** (broken behavior, missing validation) — default "Fix now".
-- **Medium/Low** — recommend based on effort vs. impact.
+- **Medium** — default "Fix now" if effort is small (< ~5 min). Otherwise "Capture" (add to INBOX or DEFERRED for a future spec).
+- **Low** — default "Fix now" if trivial (1-2 lines). Otherwise "Capture."
+- **"Don't fix"** — only for false positives or intentional patterns. If the finding is a genuine improvement, it must be fixed now or captured — never silently dismissed.
 
 If any findings are "Fix now", make the changes, re-run verification (Step 3), and verify fixes didn't introduce new findings.
 
-> **Principle:** Nothing is implicitly "not done." Every finding either gets fixed, gets explicitly deferred with context, or gets explicitly accepted with a stated reason. The summary in Step 8 records the resolution for each finding.
+> **Routing bias:** Fix it now. If a finding is a genuine improvement, the strong default is "Fix now" — especially for small things. Capture to INBOX only when the fix is genuinely out of scope (different feature area, needs design work, blocked by something). Reserve "Don't fix" for things that are not actually improvements. The goal is to close gaps early, not accumulate a backlog of small improvements.
 
 ---
 
@@ -186,12 +188,17 @@ Present all findings as a batch:
 | # | Finding | Recommended |
 |---|---------|-------------|
 | 1 | {description} | Change now — low cost, clear benefit |
-| 2 | {description} | Accept as-is — {rationale} |
-| 3 | {description} | Capture as new idea |
+| 2 | {description} | Capture to INBOX — genuine improvement, not in scope now |
+| 3 | {description} | Accept as-is — not an improvement because {reason} |
 
 1. Apply all recommendations **(Recommended)**
 2. Override specific items (tell me which #s to change)
 ```
+
+**Recommendation rules:**
+- **Change now** — the strong default. If the improvement is clear, make the change. Most hindsight findings are small enough to fix in a few minutes — do it now rather than deferring.
+- **Capture to INBOX** — only when the change is genuinely out of scope (different feature area, needs design work, or blocked by something external).
+- **Accept as-is** — only when the current approach is genuinely better, or the finding is a false positive. If it's a real improvement, it should be changed or captured — not accepted.
 
 If any findings are **"Change now"**, make the changes, re-run verification (Step 3), and resume.
 

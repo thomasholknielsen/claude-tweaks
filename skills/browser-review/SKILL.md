@@ -499,14 +499,23 @@ Present all issues as a batch table with recommended actions:
 | # | Issue | Severity | Recommended |
 |---|-------|----------|-------------|
 | 1 | {description} | Critical | Fix now |
-| 2 | {description} | Minor | Defer |
-| 3 | {group of cosmetic issues} | Cosmetic | Accept as-is — {reason} |
+| 2 | {description} | Minor | Fix now — small effort |
+| 3 | {description} | Minor | Capture to INBOX — needs its own scope |
+| 4 | {description} | Cosmetic | Fix now — trivial (1-2 lines) |
 
 1. Apply all recommendations **(Recommended)**
 2. Override specific items (tell me which #s to change)
 ```
 
-Group minor cosmetic issues into a single row rather than listing each individually.
+**Recommendation rules:**
+- **Critical/Major** — always "Fix now."
+- **Minor** — default "Fix now." Capture to INBOX only if genuinely out of scope (different feature area, needs design work).
+- **Cosmetic** — default "Fix now" — these are usually trivial to fix and they accumulate into a feeling of low quality if left.
+- **"Accept as-is"** — only for intentional design choices. If it's a genuine defect, fix it or capture it.
+
+> **Routing bias:** Fix it now. The strong default for all issue severities is "Fix now." Capture to INBOX only when the fix is genuinely out of scope. The goal is to close gaps early — small fixes done now prevent a backlog of accumulated quality debt.
+
+Group related cosmetic issues into a single row rather than listing each individually.
 
 ### Ideas (improvements, reimaginations, "what if"s)
 
@@ -517,11 +526,13 @@ Present all ideas as a batch table:
 |---|------|--------|-------------|
 | 1 | {description} | High | Capture to INBOX |
 | 2 | {description} | Medium | Add to current spec |
-| 3 | {description} | Low | Note for later |
+| 3 | {description} | Low | Capture to INBOX |
 
 1. Apply all recommendations **(Recommended)**
 2. Override specific items (tell me which #s to change)
 ```
+
+Every idea goes to a durable destination — INBOX, current spec, or DEFERRED. "Note for later" without a destination means "lose forever."
 
 ### Recommended next
 

@@ -249,10 +249,12 @@ Compare what was actually built to what the spec or design doc said to build. Im
 
 ```
 Deviation: {what the spec said vs. what was built}
-1. Beneficial — The deviation is an improvement. Note it for /claude-tweaks:wrap-up reflection.
+1. Beneficial — The deviation is an improvement. Update the spec to match reality AND capture the insight (why the deviation was better) in the commit message so /wrap-up can reflect on it.
 2. Fix now — The deviation contradicts the spec's intent. Correct the implementation.
 3. Update the spec — The spec was wrong or incomplete. Update the spec to match reality.
 ```
+
+"Beneficial" deviations still require action — update the spec and document why. Don't just "note it" — that loses the insight.
 
 **Skip this step if:**
 - Design mode with no formal spec (no stated architecture to compare against)

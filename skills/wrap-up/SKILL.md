@@ -104,15 +104,21 @@ Present all insights as a batch:
 |---|---------|------------------------|
 | 1 | {description} | CLAUDE.md Don'ts |
 | 2 | {description} | Skill: {name} |
-| 3 | {description} | Don't capture — {reason} |
+| 3 | {description} | Capture to INBOX — future improvement |
+| 4 | {description} | Don't capture — not actionable because {reason} |
 
 1. Apply all recommendations **(Recommended)**
 2. Override specific items (tell me which #s to change)
 ```
 
+**Recommendation rules:**
+- If an insight is actionable (could improve a skill, convention, or future work) → route it to a durable destination (CLAUDE.md, skill, INBOX, memory file).
+- **"Don't capture"** — only for insights that are not actionable (one-off observations, context-specific facts, things already documented elsewhere). Must state why it's not actionable.
+- Default to capturing. If in doubt, route to INBOX — it's cheap and reversible.
+
 If any insight leads to "Implement now", handle it before continuing wrap-up.
 
-> **Principle:** Nothing is implicitly "not done." Even dropping an insight requires a stated reason in the table. This protects against learnings silently disappearing.
+> **Routing bias:** Implement it now. If an insight leads to a concrete change (update CLAUDE.md, update a skill, add a rule), make the change during wrap-up rather than deferring. Capture to INBOX only when the change needs its own design or scope. "Don't capture" requires a stated reason why the insight is not actionable.
 
 ---
 

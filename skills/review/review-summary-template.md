@@ -27,7 +27,7 @@ Present this summary after completing all review steps.
 (or: No findings — code is clean.)
 
 ### Implementation Hindsight
-- {finding} → {change now / defer / capture as new idea / accept as-is}
+- {finding} → {change now / capture to INBOX / accept as-is — not an improvement because {reason}}
 (or: No changes needed — approach is sound.)
 
 ### Tradeoffs Accepted
