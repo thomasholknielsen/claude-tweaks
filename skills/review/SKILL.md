@@ -148,8 +148,8 @@ Review changed files through these lenses. Skip lenses that don't apply to the t
 |---|---------|----------|----------|----------|-------------|
 | 1 | {description} | Critical | Security | {files} | Fix now |
 | 2 | {description} | High | Error | {files} | Fix now |
-| 3 | {description} | Medium | Convention | {files} | Fix now — small effort |
-| 4 | {description} | Low | Perf | {files} | Capture to INBOX |
+| 3 | {description} | Medium | Convention | {files} | Fix now |
+| 4 | {description} | Low | Perf | {files} | Fix now |
 
 1. Apply all recommendations **(Recommended)**
 2. Override specific items (tell me which #s to change)
@@ -158,13 +158,17 @@ Review changed files through these lenses. Skip lenses that don't apply to the t
 **Recommendation rules:**
 - **Critical** (security vulnerabilities, data loss risks) — always "Fix now". Non-negotiable.
 - **High** (broken behavior, missing validation) — default "Fix now".
-- **Medium** — default "Fix now" if effort is small (< ~5 min). Otherwise "Capture" (add to INBOX or DEFERRED for a future spec).
-- **Low** — default "Fix now" if trivial (1-2 lines). Otherwise "Capture."
-- **"Don't fix"** — only for false positives or intentional patterns. If the finding is a genuine improvement, it must be fixed now or captured — never silently dismissed.
+- **Medium** — default "Fix now". Even if effort is moderate, close the gap now.
+- **Low** — default "Fix now". Most low-severity findings are trivial to fix.
+- **"Don't fix"** — only for false positives or intentional patterns. If the finding is a genuine improvement, it must be fixed or routed — never silently dismissed.
+
+**When "Fix now" isn't possible**, route to the right destination:
+- **Defer** (DEFERRED.md) — the fix is understood but it's bigger and not relevant to the current work. Include origin spec, affected files, and trigger for when to revisit.
+- **Capture to INBOX** — the finding is complex or uncertain and needs brainstorming/exploration before it can be acted on. This enters the full capture → challenge → brainstorming pipeline.
 
 If any findings are "Fix now", make the changes, re-run verification (Step 3), and verify fixes didn't introduce new findings.
 
-> **Routing bias:** Fix it now. If a finding is a genuine improvement, the strong default is "Fix now" — especially for small things. Capture to INBOX only when the fix is genuinely out of scope (different feature area, needs design work, blocked by something). Reserve "Don't fix" for things that are not actually improvements. The goal is to close gaps early, not accumulate a backlog of small improvements.
+> **Routing bias:** Fix it now — always the recommended default, regardless of severity. Defer when the fix is understood but bigger and not relevant now. Capture to INBOX when the finding needs exploration before it can be acted on. The goal is to close gaps early, not accumulate a backlog.
 
 ---
 
@@ -187,18 +191,20 @@ Present all findings as a batch:
 
 | # | Finding | Recommended |
 |---|---------|-------------|
-| 1 | {description} | Change now — low cost, clear benefit |
-| 2 | {description} | Capture to INBOX — genuine improvement, not in scope now |
-| 3 | {description} | Accept as-is — not an improvement because {reason} |
+| 1 | {description} | Change now |
+| 2 | {description} | Change now |
+| 3 | {description} | Defer — bigger scope, not relevant now |
+| 4 | {description} | Capture to INBOX — needs exploration |
 
 1. Apply all recommendations **(Recommended)**
 2. Override specific items (tell me which #s to change)
 ```
 
 **Recommendation rules:**
-- **Change now** — the strong default. If the improvement is clear, make the change. Most hindsight findings are small enough to fix in a few minutes — do it now rather than deferring.
-- **Capture to INBOX** — only when the change is genuinely out of scope (different feature area, needs design work, or blocked by something external).
-- **Accept as-is** — only when the current approach is genuinely better, or the finding is a false positive. If it's a real improvement, it should be changed or captured — not accepted.
+- **Change now** — the strong default. If the improvement is clear, make the change. Most hindsight findings are small enough to fix in a few minutes.
+- **Defer** (DEFERRED.md) — the improvement is understood but it's bigger and not relevant to the current work. Include origin, files, trigger.
+- **Capture to INBOX** — the finding is complex or uncertain and needs brainstorming/exploration before it can be acted on.
+- **Accept as-is** — only when the current approach is genuinely better, or the finding is a false positive. Not a valid option for genuine improvements.
 
 If any findings are **"Change now"**, make the changes, re-run verification (Step 3), and resume.
 

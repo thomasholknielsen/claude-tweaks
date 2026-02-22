@@ -499,21 +499,20 @@ Present all issues as a batch table with recommended actions:
 | # | Issue | Severity | Recommended |
 |---|-------|----------|-------------|
 | 1 | {description} | Critical | Fix now |
-| 2 | {description} | Minor | Fix now — small effort |
-| 3 | {description} | Minor | Capture to INBOX — needs its own scope |
-| 4 | {description} | Cosmetic | Fix now — trivial (1-2 lines) |
+| 2 | {description} | Minor | Fix now |
+| 3 | {description} | Cosmetic | Fix now |
 
 1. Apply all recommendations **(Recommended)**
 2. Override specific items (tell me which #s to change)
 ```
 
 **Recommendation rules:**
-- **Critical/Major** — always "Fix now."
-- **Minor** — default "Fix now." Capture to INBOX only if genuinely out of scope (different feature area, needs design work).
-- **Cosmetic** — default "Fix now" — these are usually trivial to fix and they accumulate into a feeling of low quality if left.
-- **"Accept as-is"** — only for intentional design choices. If it's a genuine defect, fix it or capture it.
+- **All severities** — default "Fix now." Close the gap now.
+- **Defer** (DEFERRED.md) — the fix is understood but bigger and not relevant to the current work. Include origin, affected files, trigger.
+- **Capture to INBOX** — the issue is complex or uncertain and needs brainstorming/exploration before it can be acted on.
+- **"Accept as-is"** — only for intentional design choices. If it's a genuine defect, fix it or route it.
 
-> **Routing bias:** Fix it now. The strong default for all issue severities is "Fix now." Capture to INBOX only when the fix is genuinely out of scope. The goal is to close gaps early — small fixes done now prevent a backlog of accumulated quality debt.
+> **Routing bias:** Fix it now — always the recommended default. Defer when the fix is bigger and not relevant now. Capture to INBOX when the issue needs exploration. Cosmetic issues accumulate into a feeling of low quality — fix them while they're fresh.
 
 Group related cosmetic issues into a single row rather than listing each individually.
 
@@ -524,15 +523,21 @@ Present all ideas as a batch table:
 ```
 | # | Idea | Impact | Recommended |
 |---|------|--------|-------------|
-| 1 | {description} | High | Capture to INBOX |
-| 2 | {description} | Medium | Add to current spec |
-| 3 | {description} | Low | Capture to INBOX |
+| 1 | {description} | High | Fix now — add to current spec |
+| 2 | {description} | Medium | Fix now — add to current spec |
+| 3 | {description} | Low | Defer — not relevant now |
+| 4 | {description} | High | Capture to INBOX — needs brainstorming |
 
 1. Apply all recommendations **(Recommended)**
 2. Override specific items (tell me which #s to change)
 ```
 
-Every idea goes to a durable destination — INBOX, current spec, or DEFERRED. "Note for later" without a destination means "lose forever."
+**Recommendation rules:**
+- **Fix now** — the strong default. If the idea can be implemented in the current session, do it. Add to the current spec scope if applicable.
+- **Defer** (DEFERRED.md) — the idea is clear but bigger and not relevant to the current work.
+- **Capture to INBOX** — the idea is complex or uncertain and needs brainstorming/exploration before it can be acted on.
+
+Every idea goes to a durable destination. "Note for later" without a destination means "lose forever."
 
 ### Recommended next
 

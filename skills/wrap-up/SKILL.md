@@ -102,23 +102,24 @@ Present all insights as a batch:
 
 | # | Insight | Recommended Destination |
 |---|---------|------------------------|
-| 1 | {description} | CLAUDE.md Don'ts |
-| 2 | {description} | Skill: {name} |
-| 3 | {description} | Capture to INBOX — future improvement |
-| 4 | {description} | Don't capture — not actionable because {reason} |
+| 1 | {description} | Implement now → CLAUDE.md Don'ts |
+| 2 | {description} | Implement now → Skill: {name} |
+| 3 | {description} | Defer — bigger, not relevant now |
+| 4 | {description} | Capture to INBOX — needs brainstorming |
 
 1. Apply all recommendations **(Recommended)**
 2. Override specific items (tell me which #s to change)
 ```
 
 **Recommendation rules:**
-- If an insight is actionable (could improve a skill, convention, or future work) → route it to a durable destination (CLAUDE.md, skill, INBOX, memory file).
-- **"Don't capture"** — only for insights that are not actionable (one-off observations, context-specific facts, things already documented elsewhere). Must state why it's not actionable.
-- Default to capturing. If in doubt, route to INBOX — it's cheap and reversible.
+- **Implement now** — the strong default. If an insight leads to a concrete change (update CLAUDE.md, update a skill, add a rule, update memory), make the change during wrap-up. Most insights are small enough to implement immediately.
+- **Defer** (DEFERRED.md) — the insight leads to a known improvement but it's bigger and not relevant to the current work. Include origin, context, trigger.
+- **Capture to INBOX** — the insight is complex or uncertain and needs brainstorming/exploration before it can be acted on.
+- **Don't capture** — only for insights that are genuinely not actionable (one-off observations, context-specific facts, things already documented elsewhere). Must state why.
 
-If any insight leads to "Implement now", handle it before continuing wrap-up.
+If any insight is "Implement now", handle it before continuing wrap-up.
 
-> **Routing bias:** Implement it now. If an insight leads to a concrete change (update CLAUDE.md, update a skill, add a rule), make the change during wrap-up rather than deferring. Capture to INBOX only when the change needs its own design or scope. "Don't capture" requires a stated reason why the insight is not actionable.
+> **Routing bias:** Implement it now — always the recommended default. Defer when the improvement is bigger and not relevant now. Capture to INBOX when the insight needs brainstorming. The goal is to close gaps while the context is fresh.
 
 ---
 
