@@ -2,7 +2,7 @@
 name: claude-tweaks:specify
 description: Use when converting a brainstorming design document into agent-sized work units (specs). Takes a design doc and decomposes it into self-contained specifications.
 ---
-> **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." End skills with a recommended next step, not a navigation menu.
 
 
 # Specify
@@ -194,14 +194,7 @@ Present a summary:
 - INBOX entry: {title} (promoted)
 ```
 
-Present next steps as numbered options:
-
-```
-What's next?
-1. `/claude-tweaks:build {first spec number}` — Start building the highest-priority spec ⭐ **(Recommended)**
-2. `/claude-tweaks:help` — See full workflow status
-3. Done for now
-```
+**Recommended next:** `/claude-tweaks:build {first spec number}` — start building the highest-priority spec.
 
 Commit with a message describing the specs created.
 

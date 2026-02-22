@@ -2,7 +2,7 @@
 name: claude-tweaks:setup
 description: Use when bootstrapping the workflow system for a project — installs plugin dependencies, creates directory structure, and verifies readiness for the full lifecycle.
 ---
-> **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." End skills with a recommended next step, not a navigation menu.
 
 
 # Setup
@@ -269,13 +269,9 @@ Note that the user skipped browser integration. The workflow system works withou
 | Playwright MCP | {configured/not configured/skipped} |
 
 ### Ready to Go
-{All green → present options:}
 
-What's next?
-1. `/claude-tweaks:capture` — Add your first idea ⭐ **(Recommended)**
-2. `/claude-tweaks:codebase-onboarding` — Generate CLAUDE.md and skills for this project
-3. `/claude-tweaks:help` — See workflow status
-4. Done for now
+{All green:}
+**Recommended next:** `/claude-tweaks:capture` — add your first idea. Or run `/claude-tweaks:codebase-onboarding` to generate CLAUDE.md and skills for this project.
 
 {Missing items → list what needs attention with numbered fix actions}
 ```

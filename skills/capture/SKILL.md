@@ -2,7 +2,7 @@
 name: claude-tweaks:capture
 description: Use when capturing ideas that need specification later — brain dumps, half-formed features, things to not forget
 ---
-> **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." End skills with a recommended next step, not a navigation menu.
 
 
 # Capture
@@ -77,17 +77,7 @@ This ensures every captured idea has an explicit next step — either immediate 
 
 ## Review Workflow
 
-Periodically (or when inbox gets long), use `/claude-tweaks:tidy` or manually review:
-
-Present numbered options for each item:
-
-```
-INBOX: "{item title}"
-1. Promote — Run brainstorming, then /claude-tweaks:specify
-2. Merge into spec {N} — Add to existing spec's scope
-3. Delete — No longer relevant
-4. Keep — Not ready yet
-```
+Periodically (or when inbox gets long), use `/claude-tweaks:tidy` to batch-review all INBOX items with recommended actions.
 
 ## Anti-Patterns
 

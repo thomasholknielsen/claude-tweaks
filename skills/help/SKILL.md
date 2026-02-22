@@ -2,7 +2,7 @@
 name: claude-tweaks:help
 description: Use when you need a quick reference for available commands, want to see workflow status, or need a recommendation for what to do next.
 ---
-> **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." End skills with a recommended next step, not a navigation menu.
 
 
 # Help — Quick Reference + Workflow Dashboard
@@ -64,6 +64,7 @@ These run in order — each skill feeds into the next.
 | `/claude-tweaks:help` | This dashboard — commands, status, recommendations | `status`, `commands`, spec/topic |
 | `/claude-tweaks:tidy` | Periodic backlog hygiene | — |
 | `/claude-tweaks:flow` | Automated pipeline: build → review → wrap-up | spec/path `[steps]` |
+| `/claude-tweaks:next` | Legacy alias — redirects to `/claude-tweaks:help` | *(same as help)* |
 
 ### Superpowers (External Plugin)
 
@@ -210,14 +211,11 @@ An INBOX item likely needs debiasing when it:
 ### Present Recommendation
 
 ```markdown
-### What's Next?
+### Recommended Next
 
-Pick an action (reply with the number):
+**{recommended action with command}** — {brief rationale}.
 
-1. {recommended action with command} — {brief rationale} ⭐ **(Recommended)**
-2. {alternative action} — {why this is also viable}
-3. {another option if applicable}
-4. Nothing right now — pipeline is healthy
+Other options: {alternative action}, {another option if applicable}. Or: pipeline is healthy, nothing urgent.
 ```
 
 ## Anti-Patterns

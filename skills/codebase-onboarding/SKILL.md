@@ -2,7 +2,7 @@
 name: claude-tweaks:codebase-onboarding
 description: Use when setting up Claude Code for a new or existing project — generates skills, CLAUDE.md, and rules. Re-run to find drift, gaps, and stale configuration.
 ---
-> **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." End skills with a recommended next step, not a navigation menu.
 
 
 # Codebase Onboarding — Intelligent Skill Generation

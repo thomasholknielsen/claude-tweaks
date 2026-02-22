@@ -2,7 +2,7 @@
 name: claude-tweaks:tidy
 description: Use when the backlog needs hygiene — review stale INBOX items, partially-complete specs, orphaned plans, and overall spec health
 ---
-> **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." End skills with a recommended next step, not a navigation menu.
 
 
 # Tidy
@@ -24,196 +24,106 @@ Periodic backlog hygiene to keep the spec system healthy. Run when the backlog f
 - Monthly hygiene pass
 - When `/claude-tweaks:help` flags issues
 
-## Step 1: Audit the INBOX
+## Steps 1-4.5: Scan Everything
 
-Read `specs/INBOX.md` and evaluate each entry:
+> **No decisions during scanning.** Steps 1-4.5 silently collect all findings. Everything is presented as one batch in Step 6 for approval. This replaces the previous per-item decision model.
 
-| Age | Classification |
-|-----|---------------|
-| < 2 weeks | Fresh — leave it |
-| 2-4 weeks | Review — is it still relevant? |
-| > 4 weeks | Stale — promote, merge, or delete |
+### Step 1: Audit the INBOX
 
-For each entry, present numbered options:
+Read `specs/INBOX.md` and classify each entry:
 
-```
-INBOX: "{item title}" ({age} old)
-1. Promote — Run brainstorming on this topic
-2. Merge — Add to existing spec {N}
-3. Delete — No longer relevant
-4. Keep — Not ready yet
-```
+| Age | Classification | Default Recommendation |
+|-----|---------------|----------------------|
+| < 2 weeks | Fresh | Keep |
+| 2-4 weeks | Review | Keep (unless clearly stale) |
+| > 4 weeks | Stale | Delete or Promote |
 
-## Step 1.5: Audit Deferred Work
+→ Collect each as: `[inbox] {title} — {age} — {recommendation}`
 
-Read `specs/DEFERRED.md` and evaluate each entry:
+### Step 1.5: Audit Deferred Work
 
-| Trigger Status | Classification |
-|---------------|---------------|
-| Trigger met (referenced spec complete) | Actionable — promote to spec or merge |
-| Trigger not met, < 4 weeks | Active — leave it |
-| Trigger not met, > 4 weeks | Stale — re-evaluate trigger or drop |
-| No clear trigger | Incomplete — add a trigger or move to INBOX |
+Read `specs/DEFERRED.md` and classify each entry:
 
-For each entry, present numbered options:
+| Trigger Status | Default Recommendation |
+|---------------|----------------------|
+| Trigger met (referenced spec complete) | Promote to spec or merge |
+| Trigger not met, < 4 weeks | Keep |
+| Trigger not met, > 4 weeks | Re-evaluate or delete |
+| No clear trigger | Move to INBOX or delete |
 
-```
-DEFERRED: "{item title}" (from spec {N}, {age} old)
-1. Promote — Create a spec or run brainstorming
-2. Merge — Add to existing spec {N}
-3. Move to INBOX — Lost its context, treat as a new idea
-4. Delete — No longer relevant
-5. Keep — Trigger not yet met
-```
+→ Collect each as: `[deferred] {title} — from spec {N} — {recommendation}`
 
-## Step 2: Audit Existing Specs
+### Step 2: Audit Existing Specs
 
-Read `specs/INDEX.md` and all spec files. Check each spec against the codebase:
-
-### Completion Check
-
-For each spec, do a lightweight scan:
+Read `specs/INDEX.md` and all spec files. For each spec, do a lightweight scan:
 - Search for key files, endpoints, tests mentioned in the spec
 - Estimate completion: `not started`, `in progress (~X%)`, `mostly done (~90%+)`, `appears complete`
 
-Flag specs that need attention. **For each flagged spec, present a decision:**
-
-```
-SPEC {N}: "{title}" — {issue}
-1. Act now — {recommended action: run /review, run /wrap-up, resume /build}
-2. Defer — Keep as-is, revisit next tidy
-3. Drop — Spec is no longer relevant (remove from INDEX.md)
-```
-
-Issues to flag:
+Flag specs that need attention:
 - **Appears complete, not reviewed** → recommend `/claude-tweaks:review {N}`
 - **Appears complete, reviewed but not wrapped up** → recommend `/claude-tweaks:wrap-up {N}`
 - **In progress for 4+ weeks** → recommend resuming `/claude-tweaks:build` or re-evaluating scope
 - **Unmet prerequisites that are themselves stale** → recommend re-prioritizing the blocking spec
 - **Overlaps significantly with another spec** → recommend merging
 
-### Dependency Health
+Check dependency health: circular dependencies, specs blocked by unstarted specs, orphan specs.
 
-Check the INDEX.md dependency graph:
-- Circular dependencies?
-- Specs blocked by specs that haven't been started?
-- Orphan specs with no tier placement?
+→ Collect each as: `[spec] Spec {N}: {title} — {issue} — {recommendation}`
+→ Collect each as: `[dependency] {issue} — {recommendation}`
 
-For each dependency issue found, present a decision:
-
-```
-DEPENDENCY: {description of issue}
-1. Fix now — {recommended fix}
-2. Defer — Address in next tidy cycle
-```
-
-## Step 3: Audit Design Docs and Briefs
+### Step 3: Audit Design Docs and Briefs
 
 Scan `docs/plans/*-design.md` and `docs/plans/*-brief.md`.
 
-**For each design doc, present a decision:**
+**Design doc classification:**
 
-```
-DESIGN DOC: "{filename}" — {status}
-1. Act now — {recommended action: run /specify, delete, mark as specified}
-2. Keep — Still needed
-3. Delete — No longer relevant
-```
-
-Use this table to determine the recommended action:
-
-| Status | Recommended Action |
-|--------|--------|
+| Status | Recommendation |
+|--------|---------------|
 | Marked as specified, derived specs complete | Delete |
 | No status, matches existing specs | Mark as specified |
 | No status, no matching specs | Run `/claude-tweaks:specify` |
-| Very old (4+ weeks), no specs | Delete or re-brainstorm |
+| Very old (4+ weeks), no specs | Delete |
 
-**For each brief, present a decision:**
+**Brief classification:**
 
-```
-BRIEF: "{filename}" — {status}
-1. Act now — {recommended action}
-2. Keep — Still needed
-3. Delete — No longer relevant
-```
-
-| Status | Recommended Action |
-|--------|--------|
+| Status | Recommendation |
+|--------|---------------|
 | Matching design doc exists | Keep |
 | No matching design doc, specs exist | Delete |
-| No matching design doc, no specs | Re-run `brainstorming` or delete |
+| No matching design doc, no specs | Delete |
 | Very old (4+ weeks), no design doc | Delete |
 
-## Step 4: Audit Execution Plans
+→ Collect each as: `[doc] {filename} — {recommendation}`
+
+### Step 4: Audit Execution Plans
 
 Scan `docs/plans/` for non-design plan files and `~/.claude/plans/`.
 
-**For each plan, present a decision:**
-
-```
-PLAN: "{filename}" — {status}
-1. Delete — {reason: served its purpose / orphaned / stale}
-2. Keep — Related spec is in progress
-```
-
-| Status | Recommended Action |
-|--------|--------|
+| Status | Recommendation |
+|--------|---------------|
 | Related spec is complete | Delete |
 | Related spec is in progress | Keep |
 | No related spec found | Delete (orphan) |
-| Very old, spec not started | Delete or flag for review |
+| Very old, spec not started | Delete |
 
-## Step 4.5: Audit Git Worktrees and Build Branches
+→ Collect each as: `[plan] {filename} — {recommendation}`
 
-Check for leftover worktrees and branches from previous builds.
+### Step 4.5: Audit Git Worktrees and Build Branches
 
-### Worktrees
+**Worktrees:** Run `git worktree list`. Any worktree beyond the main working tree is a candidate.
 
-```bash
-git worktree list
-```
+**Build branches:** Run `git branch --list "build/*"`.
 
-Any worktree beyond the main working tree is a candidate for cleanup. Also check for worktree directories that may have been left behind:
+| Status | Recommendation |
+|--------|---------------|
+| Related spec complete + changes merged | Remove/delete |
+| Related spec in progress | Keep |
+| No related spec found | Remove/delete (orphan) |
+| Unmerged changes | Keep (flag for attention) |
 
-```bash
-ls -d .worktrees/ worktrees/ 2>/dev/null
-```
+→ Collect each as: `[git] {worktree/branch} — {recommendation}`
 
-For each extra worktree, present numbered options:
-
-```
-WORKTREE: "{path}" on branch {branch} ({last commit age} old)
-1. Remove — Work is merged or no longer needed
-2. Keep — Still in use
-```
-
-To remove: `git worktree remove {path}` (removes the directory and unregisters the worktree).
-
-### Build Branches
-
-```bash
-git branch --list "build/*"
-```
-
-For each build branch, check whether the related spec is complete, merged, or abandoned:
-
-| Branch Status | Classification |
-|--------------|---------------|
-| Related spec complete + changes merged | Stale — safe to delete |
-| Related spec in progress | Active — leave it |
-| No related spec found | Orphan — likely safe to delete |
-| Unmerged changes | Caution — confirm with user before deleting |
-
-For each build branch, present numbered options:
-
-```
-BRANCH: "build/{name}" ({last commit age} old, {merged/unmerged})
-1. Delete — `git branch -d build/{name}`
-2. Keep — Still in use
-```
-
-Use `git branch -d` (safe delete, refuses if unmerged) unless the user explicitly confirms force-deleting unmerged work.
+Use `git branch -d` (safe delete, refuses if unmerged). Use `git worktree remove {path}` for worktrees.
 
 ## Step 5: Spec Sizing Review
 
@@ -225,44 +135,27 @@ For specs not yet built, check sizing:
 
 ---
 
-## Step 6: Present Findings
+## Step 6: Present Tidy Report and Approve
+
+Present all collected findings as a single report. Every item has a pre-filled recommendation from the scanning steps.
 
 ```markdown
 ## Tidy Report — {date}
 
-### INBOX ({N} items)
-| Item | Age | Recommendation | Reason |
-|------|-----|---------------|--------|
-| {title} | {days} | Promote / Merge / Delete / Keep | {reason} |
+### Actions
 
-### Deferred Work ({N} items)
-| Item | Origin | Age | Trigger | Recommendation |
-|------|--------|-----|---------|---------------|
-| {title} | spec {N} | {days} | {trigger status} | Promote / Merge / Move to INBOX / Delete / Keep |
-
-### Specs Requiring Attention
-| Spec | Issue | Recommendation |
-|------|-------|---------------|
-| {N} | Appears complete, not reviewed | Run `/claude-tweaks:review {N}` |
-| {N} | Appears complete, reviewed | Run `/claude-tweaks:wrap-up {N}` |
-| {N} | Stale (4+ weeks) | Deprioritize or re-evaluate |
-| {N} | Too large | Split into {suggestion} |
-
-### Design Docs
-| File | Status | Action |
-|------|--------|--------|
-| {filename} | All derived specs done | Delete |
-| {filename} | Never specified | Run `/claude-tweaks:specify` or delete |
-
-### Orphaned Plans
-| File | Action |
-|------|--------|
-| {filename} | Delete (no related spec) |
-
-### Git Cleanup
-| Item | Type | Age | Status | Recommendation |
-|------|------|-----|--------|---------------|
-| {path or branch name} | Worktree / Branch | {age} | {merged/unmerged/orphan} | Remove / Keep |
+| # | Type | Item | Recommendation |
+|---|------|------|---------------|
+| 1 | INBOX | "{title}" (4+ weeks) | Delete — stale |
+| 2 | INBOX | "{title}" (2 weeks) | Keep — still fresh |
+| 3 | Deferred | "{title}" (trigger met) | Promote to spec |
+| 4 | Spec | Spec {N} (appears complete) | Run `/review {N}` |
+| 5 | Spec | Spec {N} (4+ weeks in progress) | Re-evaluate scope |
+| 6 | Dependency | Circular: {A} ↔ {B} | Fix now |
+| 7 | Design doc | "{filename}" (specified) | Delete |
+| 8 | Plan | "{filename}" (orphaned) | Delete |
+| 9 | Worktree | "{path}" (merged) | Remove |
+| 10 | Branch | "build/{name}" (merged) | Delete |
 
 ### Summary
 - INBOX: {X} items ({Y} stale, {Z} ready to promote)
@@ -270,18 +163,14 @@ For specs not yet built, check sizing:
 - Specs: {A} total, {B} appear complete, {C} need attention
 - Plans to clean: {D} design docs, {E} execution plans
 - Git cleanup: {F} worktrees, {G} build branches
+
+1. Apply all recommendations **(Recommended)**
+2. Override specific items (tell me which #s to change)
 ```
 
-Present the full action list as numbered options:
+Items recommended as "Keep" are included for visibility but require no action. Only items with an active recommendation (delete, promote, fix, run) are executed.
 
-```
-Approve actions (reply with numbers, e.g. "1,3,5"):
-1. Delete INBOX entry: {title}
-2. Delete design doc: {filename}
-3. Run `/claude-tweaks:review {N}` — Spec appears complete
-4. Run `/claude-tweaks:wrap-up {N}` — Spec reviewed, needs wrap-up
-5. Delete orphaned plan: {filename}
-```
+**Recommended next** (after execution): `/claude-tweaks:help` for full pipeline status.
 
 ---
 
@@ -302,7 +191,7 @@ Commit with a message summarizing the tidy-up.
 | Deleting specs without checking if they're implemented | Always scan the codebase first — the spec may be partially or fully built |
 | Promoting INBOX items directly to specs without brainstorming | Brainstorming catches assumptions that skip straight to implementation |
 | Keeping everything "just in case" | Stale items create noise and slow down `/claude-tweaks:help` |
-| Listing recommendations in a summary without per-item decisions | Every flagged item must get an explicit vote: act now, defer, or drop. No implicit "we'll get to it." |
+| Presenting items one-at-a-time for individual decisions | Scan silently, present one batch report, let the user approve all or override specific items. Per-item prompts scale badly. |
 
 ## Relationship to Other Skills
 

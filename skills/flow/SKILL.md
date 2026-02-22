@@ -2,7 +2,7 @@
 name: claude-tweaks:flow
 description: Use when you want to run an automated build → review → wrap-up pipeline on a spec without stopping between steps.
 ---
-> **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." End skills with a recommended next step, not a navigation menu.
 
 
 # Flow — Automated Pipeline
@@ -95,14 +95,10 @@ When a gate fails, the pipeline stops immediately. Present:
 ### Failed at: {step}
 {failure details from the step's output}
 
-### What's Next?
+### Recommended Next
 
-Pick an action (reply with the number):
-
-1. Fix the issues and resume — `/claude-tweaks:flow {spec} {remaining steps}` ⭐ **(Recommended)**
-2. Run the failed step manually — `/claude-tweaks:{step} {spec}`
-3. `/claude-tweaks:help` — See full workflow status
-4. Done for now
+Fix the issues, then resume: `/claude-tweaks:flow {spec} {remaining steps}`
+Or run the failed step manually: `/claude-tweaks:{step} {spec}`
 ```
 
 ## Execution
@@ -145,13 +141,9 @@ On successful completion of all steps:
 - {summary of review findings, if any}
 - {summary of wrap-up actions taken}
 
-### What's Next?
+### Recommended Next
 
-Pick an action (reply with the number):
-
-1. `/claude-tweaks:flow {next spec}` — Run the pipeline on the next spec ⭐ **(Recommended)**
-2. `/claude-tweaks:help` — See full workflow status
-3. Done for now
+`/claude-tweaks:flow {next spec}` — run the pipeline on the next spec. Or `/claude-tweaks:help` for full status.
 ```
 
 ## Anti-Patterns

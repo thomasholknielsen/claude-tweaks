@@ -2,7 +2,7 @@
 name: claude-tweaks:build
 description: Use when implementing a spec or design doc end-to-end. Accepts a spec number for full lifecycle tracking, or a design doc path to skip /claude-tweaks:specify and build directly from brainstorming output.
 ---
-> **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." End skills with a recommended next step, not a navigation menu.
 
 
 # Build
@@ -363,15 +363,11 @@ After successful build, present:
 ### Blocked items (if any)
 - {item} — blocked by {reason}
 
-### What's Next?
+### Recommended Next
 
-Pick an action (reply with the number):
+`/claude-tweaks:review {number}` — run the quality gate.
 
-1. `/claude-tweaks:review {number}` — Run the quality gate ⭐ **(Recommended)**
-2. `/claude-tweaks:help` — See full workflow status
-3. Done for now
-
-(Branched mode adds: "Create PR from `{branch}`" as an option)
+(Branched mode: also consider creating a PR from `{branch}`.)
 ```
 
 ## Git Strategy
@@ -434,3 +430,4 @@ These apply in **autonomous** and **branched** modes. In **guided** mode, pause 
 | `/claude-tweaks:wrap-up` | Runs AFTER /claude-tweaks:review — cleans up and captures learnings |
 | `/claude-tweaks:capture` | Design mode may create INBOX items for blocked work |
 | `/claude-tweaks:browser-review` | Tests the user journeys that /claude-tweaks:build creates — journey files are the bridge between build and visual QA |
+| `/claude-tweaks:tidy` | Reviews specs from /claude-tweaks:build for staleness — periodic cleanup complement |

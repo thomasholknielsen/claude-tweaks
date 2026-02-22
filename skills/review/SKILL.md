@@ -2,7 +2,7 @@
 name: claude-tweaks:review
 description: Use when a build is complete and you need to verify code quality, correctness, and simplicity before wrapping up. The quality gate between implementation and lifecycle cleanup.
 ---
-> **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." End skills with a recommended next step, not a navigation menu.
 
 
 # Review
@@ -139,24 +139,28 @@ Review changed files through these lenses. Skip lenses that don't apply to the t
 
 ### 4g: Route Code Review Findings
 
-**Every finding from lenses 4a-4f must be explicitly resolved.** No finding should exist only in a summary table — each one gets a decision.
-
-For each finding (or group of closely related findings), present numbered options:
+**Every finding from lenses 4a-4f must be explicitly resolved.** Present all findings as a single batch table with recommended actions pre-filled:
 
 ```
-Finding: {description} [{severity}: {category}]
-Affected: {files}
-1. Fix now — The fix is clear and straightforward
-2. Defer — Add to specs/DEFERRED.md with origin, files, and context for when to revisit
-3. Don't fix — Record the explicit reason (e.g., "acceptable risk because X", "out of scope because Y")
+### Code Review Findings
+
+| # | Finding | Severity | Category | Affected | Recommended |
+|---|---------|----------|----------|----------|-------------|
+| 1 | {description} | Critical | Security | {files} | Fix now |
+| 2 | {description} | High | Error | {files} | Fix now |
+| 3 | {description} | Medium | Convention | {files} | Defer |
+| 4 | {description} | Low | Perf | {files} | Don't fix — {reason} |
+
+1. Apply all recommendations **(Recommended)**
+2. Override specific items (tell me which #s to change)
 ```
 
-**Severity shortcuts:**
-- **Critical** (security vulnerabilities, data loss risks) — must be "Fix now". Do not offer defer or don't-fix for critical findings.
-- **High** (broken behavior, missing validation) — default recommendation is "Fix now" but defer is acceptable with justification.
-- **Medium/Low** — all three options available.
+**Recommendation rules:**
+- **Critical** (security vulnerabilities, data loss risks) — always "Fix now". Non-negotiable.
+- **High** (broken behavior, missing validation) — default "Fix now".
+- **Medium/Low** — recommend based on effort vs. impact.
 
-If any findings are marked "Fix now", make the changes, re-run verification (Step 3), and resume from Step 4g to verify the fix didn't introduce new findings.
+If any findings are "Fix now", make the changes, re-run verification (Step 3), and verify fixes didn't introduce new findings.
 
 > **Principle:** Nothing is implicitly "not done." Every finding either gets fixed, gets explicitly deferred with context, or gets explicitly accepted with a stated reason. The summary in Step 8 records the resolution for each finding.
 
@@ -174,17 +178,24 @@ Evaluate:
 3. **Missing consolidation** — Opportunities to merge, deduplicate, or simplify that are obvious now?
 4. **Convention drift** — Did we accidentally diverge from established project patterns?
 
-For each finding, present numbered options:
+Present all findings as a batch:
 
 ```
-Finding: {description}
-1. Change now — Cost of fixing is low, benefit is clear
-2. Defer — Add to specs/DEFERRED.md with origin, files, and trigger (work related to current implementation)
-3. Capture as new idea — Create an INBOX item via /claude-tweaks:capture (unrelated new idea)
-4. Accept as-is — Record the rationale for /claude-tweaks:wrap-up
+### Implementation Hindsight
+
+| # | Finding | Recommended |
+|---|---------|-------------|
+| 1 | {description} | Change now — low cost, clear benefit |
+| 2 | {description} | Accept as-is — {rationale} |
+| 3 | {description} | Capture as new idea |
+
+1. Apply all recommendations **(Recommended)**
+2. Override specific items (tell me which #s to change)
 ```
 
 If any findings are **"Change now"**, make the changes, re-run verification (Step 3), and resume.
+
+If no hindsight findings, state "No changes needed — approach is sound" and proceed.
 
 ---
 
@@ -213,36 +224,27 @@ If the code-simplifier makes changes, re-run verification (Step 3) before procee
 
 If the changes affect UI or user-facing behavior, offer a visual review.
 
-**When to skip silently:** Browser integration is not configured (no Chrome Extension or Playwright MCP available). Don't nag about missing browser tools during a code review. Also skip for backend-only, config-only, or test-only changes.
+**When to skip silently:** Backend-only, config-only, or test-only changes — no UI to inspect.
+
+**When browser tools are unavailable:** If the changes touch UI but no browser integration is configured (no Chrome Extension or Playwright MCP), don't silently skip. Instead, note it:
+
+```
+Browser review skipped — no browser integration configured.
+To set up browser tools, run /claude-tweaks:setup and choose browser integration.
+```
+
+This keeps the skip visible without blocking the review.
 
 ### Check for affected journeys
 
-Before offering the browser review, scan `docs/journeys/*.md` for journeys that reference pages, routes, or features touched by this build. This determines the review mode:
+Scan `docs/journeys/*.md` for journeys that reference pages, routes, or features touched by this build.
 
-- **Journeys found** — offer journey-mode browser review (walks the full journey, tests each step against its "should feel" / "red flags")
-- **No journeys but UI changed** — offer standard browser review (URL-based)
+**Do not stop to ask.** Note the browser review recommendation in the summary (Step 8) instead:
 
-### Present options
+- **Journeys found** → summary notes: "Browser review recommended: `/claude-tweaks:browser-review journey:{name}` — {N} affected journey(s)."
+- **No journeys but UI changed** → summary notes: "Browser review recommended: `/claude-tweaks:browser-review {url}`."
 
-```
-The code review is complete. These changes touch UI.
-
-{If journeys found:}
-Found {N} user journey(s) affected by this build:
-- {journey name} — {persona} → {goal}
-
-How would you like to verify visually?
-1. Run /claude-tweaks:browser-review journey:{name} — Walk the full journey **(Recommended)**
-2. Run /claude-tweaks:browser-review {url} — Review a specific page
-3. Skip — proceed to summary
-
-{If no journeys:}
-Want to verify visually?
-1. Run /claude-tweaks:browser-review **(Recommended)**
-2. Skip — proceed to summary
-```
-
-If the user runs `/claude-tweaks:browser-review`, its findings feed back into the same decision flow — fix now, defer, capture, or accept. After the browser review completes, return here for the summary.
+This keeps the review flowing. The user runs browser review after seeing the summary if they want visual verification. Browser review findings feed back into the same decision flow when run.
 
 ## Step 8: Present Review Summary
 

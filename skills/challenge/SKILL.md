@@ -2,7 +2,7 @@
 name: claude-tweaks:challenge
 description: Use when you need to challenge assumptions and remove bias from a problem statement before brainstorming. Takes an INBOX item or topic and produces a debiased problem framing.
 ---
-> **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." End skills with a recommended next step, not a navigation menu.
 
 
 # Challenge — Cognitive Debiasing Partner
@@ -177,15 +177,11 @@ Save the brief to `docs/plans/{YYYY-MM-DD}-{topic}-brief.md` so it survives acro
 
 ### Handoff to Brainstorming
 
-After saving the brief, present numbered options:
+After saving the brief:
 
-```
-The brief has been saved. What's next?
-1. Run `brainstorming` on the reframed problem — Start exploring solutions ⭐ **(Recommended)**
-2. Adjust the reframing — The truth is somewhere between original and reframed
-3. Start over with a different lens — Re-examine from scratch
-4. Park it — Save the brief and come back later
-```
+**Recommended next:** Run `brainstorming` on the reframed problem — start exploring solutions.
+
+If the user wants to adjust the reframing or re-examine from a different lens, they can say so. Otherwise, proceed to brainstorming.
 
 ## Key Principles
 

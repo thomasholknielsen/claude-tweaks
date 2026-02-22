@@ -39,8 +39,9 @@ Present this summary after completing all review steps.
 > `/claude-tweaks:wrap-up` uses this section to decide whether accepted tradeoffs should be documented in CLAUDE.md, skills, or memory files. A tradeoff worth accepting once may be worth documenting as a project convention.
 
 ### Browser Review
-- **Journey tested:** {journey name, or "N/A — page-based review" or "Skipped"}
-- {summary of visual/UX findings, or "Skipped — no UI changes" or "Skipped — browser tools not configured"}
+- **Status:** {Completed / Recommended / Skipped — no UI changes / Skipped — browser tools not configured}
+- {If completed: summary of visual/UX findings}
+- {If recommended: `/claude-tweaks:browser-review journey:{name}` or `/claude-tweaks:browser-review {url}`}
 
 ### Code Simplification
 - {summary of simplifier changes, or "No simplifications needed"}
@@ -48,12 +49,8 @@ Present this summary after completing all review steps.
 ### Verdict
 **{PASS}** or **{BLOCKED — issues need fixing}**
 
-### What's Next?
+### Recommended Next
 
-Pick an action (reply with the number):
-
-1. `/claude-tweaks:wrap-up {number}` — Capture learnings and clean up ⭐ **(Recommended)**
-2. `/claude-tweaks:build {number}` — Back to build (if BLOCKED)
-3. `/claude-tweaks:help` — See full workflow status
-4. Done for now
+- If **PASS**: `/claude-tweaks:wrap-up {number}` — capture learnings and clean up.
+- If **BLOCKED**: Resume `/claude-tweaks:build {number}` to address the gaps listed above.
 ```

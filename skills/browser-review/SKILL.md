@@ -2,7 +2,7 @@
 name: claude-tweaks:browser-review
 description: Use when you need visual eyes on what was built — opens a browser to inspect, test, and assess the running application. Works standalone or as a visual complement to /claude-tweaks:review.
 ---
-> **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." End skills with a recommended next step, not a navigation menu.
 
 
 # Browser Review
@@ -194,10 +194,7 @@ Found {N} potential user journeys in the codebase:
 
 ...
 
-Which journeys should I walk in the browser?
-1. All of them **(Recommended)**
-2. Let me pick (list numbers)
-3. Add more candidates first
+Proceeding to walk all {N} journeys in the browser. Say "skip {numbers}" to exclude any.
 ```
 
 Include developer journeys when the project has CLI tools, APIs, or developer-facing setup.
@@ -246,28 +243,24 @@ After creating all journey files, present a coverage report:
 | {what's missing} | {e.g., "no error recovery journey", "no mobile journey", "no developer onboarding journey"} |
 ```
 
-For each uncovered page or gap, present a decision:
+Present uncovered pages and gaps as a batch:
 
 ```
-GAP: {description}
-1. Create a journey for this — needs further exploration
-2. Not a journey — this is a utility page / internal tool / no user goal
-3. Capture to INBOX — worth thinking about later
+| # | Gap | Recommended |
+|---|-----|-------------|
+| 1 | {page/route} | Not a journey — utility page |
+| 2 | {missing flow} | Capture to INBOX |
+| 3 | {page/route} | Create a journey — needs exploration |
+
+1. Apply all recommendations **(Recommended)**
+2. Override specific items (tell me which #s to change)
 ```
 
 ### Phase 6: Handoff
 
-```
-Journey discovery complete. Created {N} journey files in docs/journeys/.
-
-What's next?
-1. /claude-tweaks:browser-review journey:{name} — Test a specific journey **(Recommended)**
-2. /claude-tweaks:browser-review discover — Discover more journeys
-3. /claude-tweaks:help — See full workflow status
-4. Done for now
-```
-
 Commit journey files with message: "Add {N} user journeys from discovery (brownfield)"
+
+**Recommended next:** `/claude-tweaks:browser-review journey:{name}` — test a specific journey against its expectations.
 
 ---
 
@@ -500,45 +493,43 @@ Separate issues from ideas — they go through different routing.
 
 ### Issues (bugs, broken things, visual defects)
 
-For each issue or group of related issues:
+Present all issues as a batch table with recommended actions:
 
 ```
-Issue: {description}
-1. Fix now — The issue is clear and the fix is straightforward
-2. Defer — Add to specs/DEFERRED.md with origin, page, and description
-3. Accept as-is — Not worth fixing right now, note the rationale
+| # | Issue | Severity | Recommended |
+|---|-------|----------|-------------|
+| 1 | {description} | Critical | Fix now |
+| 2 | {description} | Minor | Defer |
+| 3 | {group of cosmetic issues} | Cosmetic | Accept as-is — {reason} |
+
+1. Apply all recommendations **(Recommended)**
+2. Override specific items (tell me which #s to change)
 ```
 
-Group minor cosmetic issues together rather than presenting each individually.
+Group minor cosmetic issues into a single row rather than listing each individually.
 
 ### Ideas (improvements, reimaginations, "what if"s)
 
-For each idea or group of related ideas:
+Present all ideas as a batch table:
 
 ```
-Idea: {description}
-1. Capture to INBOX — Worth exploring further via /claude-tweaks:capture
-2. Add to current spec — Small enough to include in this build cycle
-3. Note for later — Interesting but not actionable right now
+| # | Idea | Impact | Recommended |
+|---|------|--------|-------------|
+| 1 | {description} | High | Capture to INBOX |
+| 2 | {description} | Medium | Add to current spec |
+| 3 | {description} | Low | Note for later |
+
+1. Apply all recommendations **(Recommended)**
+2. Override specific items (tell me which #s to change)
 ```
 
-### Next steps
+### Recommended next
 
-After routing all findings, present next steps:
-
-```
-What's next?
-1. `/claude-tweaks:review` — Run code review (if not done yet) **(Recommended)**
-2. `/claude-tweaks:wrap-up` — Wrap up the current work
-3. `/claude-tweaks:browser-review` — Review another page or flow
-4. `/claude-tweaks:capture` — Capture ideas from this session
-5. Done for now
-```
-
-Adjust recommendation based on context:
-- If coming from `/review` → recommend `/wrap-up`
-- If standalone → recommend `/review` or `/capture`
-- If there were "fix now" items → those should be addressed first, then re-run this skill
+**Recommended next** (adjust based on context):
+- Coming from `/review` → `/claude-tweaks:wrap-up {number}`
+- Not yet reviewed → `/claude-tweaks:review {number}`
+- "Fix now" items exist → address fixes first, then re-run this skill
+- Standalone → `/claude-tweaks:capture` for ideas surfaced during the session
 
 ---
 

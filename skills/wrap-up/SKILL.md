@@ -2,7 +2,7 @@
 name: claude-tweaks:wrap-up
 description: Use when /claude-tweaks:review passes and you need to capture learnings, clean up specs/plans, update skills, and decide next steps. The lifecycle closure step.
 ---
-> **Interaction style:** Present choices as numbered options (1, 2, 3…) so the user can reply with just a number. Do the same when suggesting the next skill to run.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." End skills with a recommended next step, not a navigation menu.
 
 
 # Wrap Up
@@ -82,20 +82,9 @@ Check the `/claude-tweaks:review` summary for the **Tradeoffs Accepted** section
 - A **one-off decision** specific to this work → no action needed
 - A **known limitation** others should be aware of → route to Don'ts or memory
 
-### Route Each Insight
+### Route Insights (batch)
 
-For each insight surfaced by the four lenses and the tradeoff review, present numbered options. **Every insight must be explicitly resolved** — nothing is silently dropped.
-
-```
-Insight: {description}
-Suggested destination: {where it should go based on the table below}
-1. Route as suggested — {destination}
-2. Route elsewhere — {let user specify}
-3. Implement now — This insight reveals something we should fix or add right now
-4. Don't capture — Explicitly not worth documenting (state why)
-```
-
-Use this table to suggest the destination:
+Collect all insights from the four lenses and the tradeoff review into a single table. Use this routing guide to pre-fill recommended destinations:
 
 | Finding Type | Suggested Destination |
 |-------------|-----------|
@@ -106,9 +95,24 @@ Use this table to suggest the destination:
 | "A fundamentally better approach exists" | Skill update + Memory file |
 | "We chose X over Y because Z" (from review tradeoffs) | CLAUDE.md Convention or Memory file (if it's a recurring decision) |
 
-If an insight leads to "Implement now", route it back to `/claude-tweaks:build` or handle it directly before continuing wrap-up.
+Present all insights as a batch:
 
-> **Principle:** Nothing is implicitly "not done." Even dropping an insight requires stating "not worth documenting because {reason}." This protects against learnings silently disappearing.
+```
+### Reflection Insights
+
+| # | Insight | Recommended Destination |
+|---|---------|------------------------|
+| 1 | {description} | CLAUDE.md Don'ts |
+| 2 | {description} | Skill: {name} |
+| 3 | {description} | Don't capture — {reason} |
+
+1. Apply all recommendations **(Recommended)**
+2. Override specific items (tell me which #s to change)
+```
+
+If any insight leads to "Implement now", handle it before continuing wrap-up.
+
+> **Principle:** Nothing is implicitly "not done." Even dropping an insight requires a stated reason in the table. This protects against learnings silently disappearing.
 
 ---
 
@@ -134,7 +138,11 @@ Note: Design docs (`*-design.md`) should already have been deleted by `/claude-t
 
 Search `~/.claude/plans/` for related plans → **delete them**.
 
-## Step 6: Assess Documentation
+## Steps 6-8: Assess Configuration Updates
+
+> **Batch collection.** Steps 6-8 collect all potential updates in a single pass. No decisions are made here — everything is presented together in Step 10 for batch approval.
+
+### 6: Documentation
 
 Check if the work requires updates to project documentation:
 - Setup guides
@@ -142,14 +150,18 @@ Check if the work requires updates to project documentation:
 - API documentation
 - ADRs for significant architectural decisions
 
-## Step 7: Assess Skills
+→ Collect each needed update as: `[doc] {file} — {what to add/change}`
+
+### 7: Skills
 
 Compare implementation patterns against existing skills in `.claude/skills/`:
 1. **Deviations** — different patterns than documented?
 2. **Gaps** — new reusable patterns not yet documented?
 3. **Reflection findings** — route tagged insights to appropriate skills
 
-## Step 8: Assess CLAUDE.md and Rules
+→ Collect each needed update as: `[skill] {skill name} — {what to update/create}`
+
+### 8: CLAUDE.md and Rules
 
 Check if the work introduced project-wide conventions:
 1. New commands or scripts
@@ -159,6 +171,8 @@ Check if the work introduced project-wide conventions:
 5. Path-scoped rules for `.claude/rules/`
 
 Before adding to CLAUDE.md, check the size budget — keep it concise. Move detailed content to skills or rules.
+
+→ Collect each needed update as: `[claude.md] {section} — {what to add/change}` or `[rule] {path scope} — {convention}`
 
 ## Step 9: Analyze Next Steps (spec-based only)
 
@@ -190,35 +204,37 @@ Overall: {X}% complete
 - [ ] Delete plans from docs/plans/
 - [ ] Leftover work: {recommendation}
 
-### Documentation / Skills / CLAUDE.md
-- [ ] {specific changes or "No changes needed"}
+### Configuration Updates (from Steps 6-8)
+| # | Type | Target | Change |
+|---|------|--------|--------|
+| 1 | {doc/skill/claude.md/rule} | {target} | {what to add/change} |
+| 2 | ... | ... | ... |
+(or: No configuration updates needed.)
 
 ### Next Steps
-### What's Next?
-
-Pick an action (reply with the number):
-
-1. `/claude-tweaks:build {next spec number}` — {next spec title} ⭐ **(Recommended)**
-2. `/claude-tweaks:help` — See full workflow status
-3. `/claude-tweaks:capture` — Capture a new idea
-4. Done for now
+(spec-based only — from Step 9)
+- Newly unblocked: {specs}
+- Recommended next: {spec}
 ```
 
-Present each action category as numbered options:
+Present **two batch decisions** (not per-step):
 
 ```
 Cleanup Actions:
-1. Delete spec {N} and update INDEX.md
-2. Delete plans from docs/plans/
+1. Apply all cleanup (delete spec, update INDEX, delete plans)
+2. Apply selectively (I'll tell you which)
 3. Skip cleanup for now
 
-Documentation / Skills / CLAUDE.md:
-1. Apply all suggested changes
-2. Apply selectively (I'll tell you which)
-3. Skip documentation updates
+Configuration Updates:
+(Present all collected items from Steps 6-8 as a numbered list)
+1. Apply all {N} updates ⭐ **(Recommended)**
+2. Apply selectively — I'll tell you which items to skip
+3. Skip all configuration updates
 ```
 
-Ask the user to pick numbers for each category.
+If the user chooses "Apply selectively", present the numbered list from the summary table and let them pick which to apply.
+
+**Recommended next:** `/claude-tweaks:build {next spec number}` — {next spec title}. Or run `/claude-tweaks:help` for full pipeline status.
 
 ## Step 11: Execute Approved Actions
 
@@ -257,3 +273,5 @@ Commit with a message summarizing the wrap-up actions.
 | `specs/DEFERRED.md` | /claude-tweaks:wrap-up routes leftover work here (with origin spec, files, trigger) |
 | `/claude-tweaks:help` | /claude-tweaks:wrap-up suggests running /claude-tweaks:help to see what's unblocked |
 | `/claude-tweaks:tidy` | /claude-tweaks:wrap-up cleans artifacts for a single spec — /claude-tweaks:tidy does periodic bulk cleanup |
+| `/claude-tweaks:build` | Runs BEFORE /claude-tweaks:review — produces the code and journeys that wrap-up reflects on |
+| `/claude-tweaks:browser-review` | Visual complement — findings from browser review may feed into wrap-up's reflection lenses |
