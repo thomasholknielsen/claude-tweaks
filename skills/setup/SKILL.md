@@ -61,7 +61,7 @@ Check and create the required directories:
 ```
 specs/              → Spec files and INBOX
 docs/plans/         → Design docs (from brainstorming) and execution plans (from writing-plans)
-docs/journeys/      → User and developer journey files (created by /claude-tweaks:build, tested by /claude-tweaks:browser-review)
+docs/journeys/      → User and developer journey files (created by /claude-tweaks:build, tested by /claude-tweaks:review visual modes)
 .claude/skills/     → Skill files (should already exist if this skill is running)
 ```
 

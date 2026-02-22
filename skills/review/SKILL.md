@@ -1,6 +1,6 @@
 ---
 name: claude-tweaks:review
-description: Use when a build is complete and you need to verify code quality, correctness, and simplicity before wrapping up. The quality gate between implementation and lifecycle cleanup.
+description: Use when a build is complete and you need to verify code quality, correctness, and simplicity before wrapping up. Also handles visual browser review for UI changes. The quality gate between implementation and lifecycle cleanup.
 ---
 > **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." End skills with a recommended next step, not a navigation menu.
 
@@ -20,22 +20,44 @@ Post-build quality gate. Verifies, reviews, and refines the code before handing 
 - You want to verify code before creating a PR
 - Code was written outside the workflow and needs a structured review
 - `/claude-tweaks:help` recommends reviewing a spec that appears complete
+- You need a visual browser review of the running application
+- You want to discover and document user journeys in a brownfield project
 
 ## Overview
 
 `/claude-tweaks:build` produces code. `/claude-tweaks:review` asks: is this code good enough to ship? `/claude-tweaks:wrap-up` then handles reflection, cleanup, and knowledge capture.
 
-This skill is the single quality gate — everything from automated checks to human-judgment code review to code simplification lives here.
+This skill is the single quality gate — everything from automated checks to human-judgment code review to visual browser inspection to code simplification lives here.
+
+## Review Modes
+
+| Mode | Syntax | What runs |
+|------|--------|-----------|
+| **code** (default) | `/claude-tweaks:review 42` | Steps 1-8: spec compliance, verification, code review, hindsight, simplification, summary |
+| **full** | `/claude-tweaks:review 42 full` | Code review (Steps 1-6) + visual browser review (Step 7) + summary (Step 8) |
+| **visual** | `/claude-tweaks:review visual {url}` | Browser review only — page mode |
+| **journey** | `/claude-tweaks:review journey:{name}` | Browser review only — walk a documented journey |
+| **discover** | `/claude-tweaks:review discover` | Browser review only — scan and document all user journeys |
+
+Code mode is the default. Append `full` to include a visual pass after code review. Use `visual`, `journey:`, or `discover` for browser-only reviews without code analysis.
+
+For complete visual review procedures, read `browser-review.md` in this skill's directory.
 
 ## Input
 
-`$ARGUMENTS` = spec number, file paths, or nothing (auto-detect).
+`$ARGUMENTS` = spec number, file paths, mode, or visual review target.
 
 ### Resolve the input:
 
-1. **Spec number** (e.g., "42") — find all files changed for that spec via git history
-2. **File paths** — review those specific files
-3. **No arguments** — use `git diff` against the base branch or recent commits to identify changed files
+1. **Spec number** (e.g., "42") — find all files changed for that spec via git history. Mode: code.
+2. **Spec number + `full`** (e.g., "42 full") — code review + visual browser review
+3. **File paths** — review those specific files. Mode: code.
+4. **`visual` + URL or description** (e.g., "visual http://localhost:3000") — browser review only (page mode)
+5. **`journey:{name}`** (e.g., "journey:checkout") — browser review only (journey mode)
+6. **`discover`** — browser review only (discover mode)
+7. **No arguments** — use `git diff` against the base branch or recent commits to identify changed files. Mode: code.
+
+In visual, journey, and discover modes, skip Steps 1-6 and 8 — run only the visual review procedures from `browser-review.md` in this skill's directory.
 
 ## Step 1: Spec Compliance Check (spec-based only)
 
@@ -241,26 +263,16 @@ If the code-simplifier makes changes, re-run verification (Step 3) before procee
 
 ---
 
-## Step 7: Browser Review (Optional)
+## Step 7: Visual Review
 
-If the changes affect UI or user-facing behavior, offer a visual review.
+**When this step runs:**
+- **Code mode:** Check for affected journeys and recommend — do not stop to ask (note in summary)
+- **Full mode:** Run the complete visual review from `browser-review.md` in this skill's directory
+- **Visual/journey/discover mode:** This is the *only* step — skip Steps 1-6 and 8
 
-**When to skip silently:** Backend-only, config-only, or test-only changes — no UI to inspect.
-
-**When browser tools are unavailable:** If the changes touch UI but no browser integration is configured (no Chrome Extension or Playwright MCP), don't silently skip. Instead, note it:
-
-```
-Browser review skipped — no browser integration configured.
-To set up browser tools, run /claude-tweaks:setup and choose browser integration.
-```
-
-This keeps the skip visible without blocking the review.
-
-### Check for affected journeys
+### Code mode: Check for affected journeys
 
 Detect when this build's changes may affect existing user journeys — even journeys from previous specs.
-
-#### How to check
 
 1. Get the list of changed files: `git diff --name-only` (or against the base branch)
 2. Read all journey files in `docs/journeys/*.md`
@@ -269,20 +281,31 @@ Detect when this build's changes may affect existing user journeys — even jour
 
 A journey is **affected** if any file in its `files:` frontmatter was modified in this build, OR if its steps reference routes/pages that correspond to changed files.
 
-#### Route the results
+**Do not stop to ask.** Note the visual review recommendation in the summary (Step 8) instead:
 
-**Do not stop to ask.** Note the browser review recommendation in the summary (Step 8) instead:
-
-- **Affected journeys found** → summary notes: "Browser review recommended — {N} journey(s) reference changed files:" followed by a table:
+- **Affected journeys found** → summary notes: "Visual review recommended — {N} journey(s) reference changed files:" followed by a table:
   ```
   | Journey | Overlapping Files | Command |
   |---------|------------------|---------|
-  | {name} | {file1}, {file2} | `/claude-tweaks:browser-review journey:{name}` |
+  | {name} | {file1}, {file2} | `/claude-tweaks:review journey:{name}` |
   ```
-- **No journeys but UI changed** → summary notes: "Browser review recommended: `/claude-tweaks:browser-review {url}`."
+- **No journeys but UI changed** → summary notes: "Visual review recommended: `/claude-tweaks:review visual {url}`."
 - **No UI impact** → skip silently.
 
-This keeps the review flowing. The user runs browser review after seeing the summary if they want visual verification. Browser review findings feed back into the same decision flow when run.
+**When browser tools are unavailable:** If the changes touch UI but no browser integration is configured (no Chrome Extension or Playwright MCP), don't silently skip. Instead, note it:
+
+```
+Visual review skipped — no browser integration configured.
+To set up browser tools, run /claude-tweaks:setup and choose browser integration.
+```
+
+### Full mode: Run visual review
+
+Run the complete visual review procedures from `browser-review.md` in this skill's directory. Findings feed into the summary (Step 8).
+
+### Visual/journey/discover mode: Standalone
+
+When invoked with `visual`, `journey:`, or `discover`, run only the procedures from `browser-review.md`. The visual review's own report and routing steps handle the output — skip the review summary (Step 8).
 
 ## Step 8: Present Review Summary
 
@@ -308,13 +331,19 @@ Present a structured summary covering spec compliance, verification results, cod
 | Running review without a prior build | Review assumes code exists and was recently written — it is not a codebase-wide audit |
 | Listing code review findings without routing them | Every finding must be explicitly resolved: fix now, defer with context, or don't fix with stated reason. No implicit drops. |
 | Putting findings only in the summary table | The summary records resolutions, not unresolved observations. Route first (Step 4g), then summarize (Step 8). |
+| Skipping First Impressions in visual review | The whole point is raw reaction before structured analysis — don't make it analytical |
+| Starting the dev server without asking | The user knows their build setup — don't guess at start commands |
+| Generic visual ideas ("improve the UX") | Ideas must be concrete and implementable in the current tech stack |
+| Running visual review without a running app | The browser can't inspect what isn't served — verify the URL responds first |
 
 ## Relationship to Other Skills
 
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:build` | Produces the code and journey files that /claude-tweaks:review evaluates |
-| `/claude-tweaks:browser-review` | Visual complement — /claude-tweaks:review offers to chain into it for UI changes |
+| `/claude-tweaks:test` | Standalone verification — /test runs the same checks as /review Step 3 but without code review |
 | `/claude-tweaks:wrap-up` | Runs after /claude-tweaks:review passes — focuses on reflection, cleanup, and knowledge capture |
 | `/claude-tweaks:capture` | /claude-tweaks:review may create INBOX items for new ideas discovered during review |
+| `/claude-tweaks:codebase-onboarding` | Phase 7 delegates to `/review discover` for brownfield journey bootstrapping |
+| `/claude-tweaks:setup` | Step 6 configures the browser integration that visual review depends on |
 | `specs/DEFERRED.md` | /claude-tweaks:review routes implementation-related deferrals here (with origin, files, trigger) |

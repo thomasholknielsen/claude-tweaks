@@ -2,7 +2,7 @@
 
 ## What this is
 
-A Claude Code plugin (v2.8.0) containing markdown skill files that guide Claude through a structured development lifecycle. This is not a code application — it's a system of prompts organized as skills.
+A Claude Code plugin (v2.9.0) containing markdown skill files that guide Claude through a structured development lifecycle. This is not a code application — it's a system of prompts organized as skills.
 
 ## Stack
 
@@ -23,18 +23,19 @@ README.md                         → User-facing documentation
 LICENSE                           → MIT
 ```
 
-### Skill directories (14 total)
+### Skill directories (12 total)
 
-**Lifecycle:** setup, codebase-onboarding, capture, challenge, specify, build, review, browser-review, wrap-up
-**Utility:** help, tidy, flow, next (legacy redirect)
+**Lifecycle:** setup, codebase-onboarding, capture, challenge, specify, build, test, review, wrap-up
+**Utility:** help, tidy, flow
 
 ### Skills with sub-files
 
 | Skill | Sub-files | Purpose |
 |-------|-----------|---------|
 | codebase-onboarding | detection-tables.md, profile-templates.md, claude-md-template.md, skill-template.md, summary-templates.md | Lazy-loaded reference content for each phase |
-| review | review-summary-template.md | Structured summary template |
+| review | review-summary-template.md, browser-review.md | Structured summary template; visual review procedures |
 | specify | spec-template.md | Spec file template with field rationale |
+| help | reference-card.md, context-flow.md | Quick reference card; artifact flow documentation |
 
 ## Conventions
 

@@ -287,7 +287,7 @@ If the project has a user-facing application (web app, CLI tool, API with docume
 
 ```
 This project has user-facing features but no documented user journeys.
-User journeys help /browser-review test the app against experiential expectations.
+User journeys help /review test the app against experiential expectations.
 
 Would you like to discover and document journeys?
 1. Yes — scan codebase for routes and user flows, create journey files **(Recommended)**
@@ -307,11 +307,11 @@ Use the codebase scan from Phase 1 to identify journey candidates. This produces
 4. **Write skeleton journey files** to `docs/journeys/` using the standard format
 5. **Mark as skeleton** — add `**Status:** Skeleton — inferred from code, not yet browser-tested` to each journey file
 
-Skeleton journeys are useful immediately — they document the intended flows. But the "should feel" fields will be weaker since they're inferred, not experienced. Running `/browser-review journey:{name}` later fills in the experiential details and removes the skeleton status.
+Skeleton journeys are useful immediately — they document the intended flows. But the "should feel" fields will be weaker since they're inferred, not experienced. Running `/review journey:{name}` later fills in the experiential details and removes the skeleton status.
 
 ### Option 2: Hybrid discovery (codebase + browser)
 
-This delegates to `/browser-review discover` — which runs the full 6-phase discovery process (codebase scan → journey candidates → browser walkthrough → write files → coverage report → handoff).
+This delegates to `/review discover` — which runs the full 6-phase discovery process (codebase scan → journey candidates → browser walkthrough → write files → coverage report → handoff).
 
 Tell the user:
 ```
@@ -319,11 +319,11 @@ This will scan the codebase for routes and user flows, then open a browser to wa
 The app needs to be running. What's the dev server URL?
 ```
 
-Then invoke `/claude-tweaks:browser-review discover`.
+Then invoke `/claude-tweaks:review discover`.
 
 ### Option 3: Skip
 
-Note that the user skipped journey discovery. Suggest running `/browser-review discover` later when they're ready.
+Note that the user skipped journey discovery. Suggest running `/review discover` later when they're ready.
 
 ---
 
@@ -346,7 +346,7 @@ Execute only after user confirmation.
 | Over-generating skills (15 mediocre > 5 excellent) | Each skill must earn its existence by encoding knowledge that would otherwise be lost |
 | Skipping team input | Code archaeology alone misses social conventions — PR process, deploy cadence, naming debates |
 | Aspirational Don'ts that don't match real pain points | Don'ts should come from observed inconsistencies and pain points, not textbook warnings |
-| Skipping journey discovery for projects with user-facing features | Journeys are what `/browser-review` tests against — without them, visual QA has no experiential anchor |
+| Skipping journey discovery for projects with user-facing features | Journeys are what `/review` tests against — without them, visual QA has no experiential anchor |
 | Writing journey "should feel" without actually using the app | Codebase-only skeletons are a starting point but the "should feel" is weaker — mark them as skeletons |
 
 ## Important Notes
@@ -367,6 +367,6 @@ Execute only after user confirmation.
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:setup` | Bootstraps the directory structure — /claude-tweaks:codebase-onboarding generates the content |
-| `/claude-tweaks:browser-review` | Phase 7 (hybrid mode) delegates to `/browser-review discover` for browser-assisted journey discovery |
+| `/claude-tweaks:review` | Phase 7 (hybrid mode) delegates to `/review discover` for browser-assisted journey discovery |
 | `/claude-tweaks:wrap-up` | Captures learnings after features — keeps generated skills alive and accurate |
 | `/claude-tweaks:help` | Shows workflow status — useful to verify onboarding produced a working setup |
