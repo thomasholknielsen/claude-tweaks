@@ -1,25 +1,6 @@
----
-name: claude-tweaks:browser-review
-description: Use when you need visual eyes on what was built — opens a browser to inspect, test, and assess the running application. Works standalone or as a visual complement to /claude-tweaks:review.
----
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." End skills with a recommended next step, not a navigation menu.
+# Browser Review Procedures
 
-
-# Browser Review
-
-Visual inspection, interactive testing, and creative assessment of the running application. Gives Claude "eyes" on what was actually built — catching bugs, but more importantly, generating ideas for how to make it better.
-
-```
-/claude-tweaks:capture → /claude-tweaks:challenge → brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review ←→ [ /claude-tweaks:browser-review ] → /claude-tweaks:wrap-up
-                                                                                                                      ^^^^ YOU ARE HERE ^^^^
-```
-
-## When to Use
-
-- After `/claude-tweaks:build` — verify the implementation visually before or during code review
-- After `/claude-tweaks:review` — add a visual pass to complement the code-level review
-- Standalone — explore the current state of the app to generate ideas or reproduce bugs
-- The user says "let me see it", "check the browser", "does it look right", or "test it visually"
+Visual inspection, interactive testing, and creative assessment of the running application. This file contains the detailed procedures for the visual review modes of `/claude-tweaks:review`.
 
 ## Prerequisites
 
@@ -34,19 +15,7 @@ If neither is available, **stop** and tell the user:
 Browser tools aren't configured yet. Run /claude-tweaks:setup to set up browser integration (Step 6).
 ```
 
-## Input
-
-`$ARGUMENTS` = URL, page description, journey reference, or nothing (auto-detect).
-
-### Resolve the input:
-
-1. **`discover`** → **Discover mode** — scan codebase for routes/pages, then walk the app to create journey files
-2. **Journey reference** (e.g., `journey:new-user-onboarding`) → **Journey mode** — load the journey file from `docs/journeys/`, walk the full journey step by step
-3. **URL provided** (e.g., "http://localhost:3000/settings") → **Page mode** — navigate directly, review that page
-4. **Page or flow described** (e.g., "the login page" or "checkout flow") → **Page mode** — ask for the URL or find it from project config
-5. **No arguments** → check `docs/journeys/` for journeys that reference recently changed files or routes. If a journey matches, suggest journey mode. Otherwise, check for a dev server URL in project config (package.json scripts, CLAUDE.md, .env). Ask the user if unclear.
-
-### Review modes
+## Mode Resolution
 
 | Mode | Input | What happens |
 |------|-------|-------------|
@@ -56,7 +25,7 @@ Browser tools aren't configured yet. Run /claude-tweaks:setup to set up browser 
 
 Journey mode is the richer review — it has defined personas, goals, and experiential expectations at every step. Page mode is useful for quick checks or pages that aren't part of a defined journey yet. Discover mode is for brownfield projects that need journey coverage bootstrapped.
 
-### Ensure the app is running:
+### Ensure the app is running
 
 Before navigating, confirm the application is accessible. If the URL doesn't respond, ask the user:
 ```
@@ -264,7 +233,7 @@ Present uncovered pages and gaps as a batch:
 
 Commit journey files with message: "Add {N} user journeys from discovery (brownfield)"
 
-**Recommended next:** `/claude-tweaks:browser-review journey:{name}` — test a specific journey against its expectations.
+**Recommended next:** `/claude-tweaks:review journey:{name}` — test a specific journey against its expectations.
 
 ---
 
@@ -382,9 +351,9 @@ Now shift to structured inspection. This is the analytical pass — systematic w
 
 ### Responsive Behavior (if applicable)
 - Resize the browser (`browser_resize`) to common breakpoints:
-  - Mobile: 375×667
-  - Tablet: 768×1024
-  - Desktop: 1280×800
+  - Mobile: 375x667
+  - Tablet: 768x1024
+  - Desktop: 1280x800
 - Check for overflow, cramped layouts, or hidden content at each size
 - Only test responsive if the project is expected to support it — ask if unsure
 
@@ -438,7 +407,7 @@ These aren't prescriptions — they're conversation starters. The goal is to exp
 Present a structured report that balances issues, observations, and ideas.
 
 ```markdown
-## Browser Review: {page/feature description}
+## Visual Review: {page/feature description}
 
 **URL:** {url}
 **Browser:** {Chrome Extension / Playwright MCP}
@@ -546,54 +515,20 @@ Every idea goes to a durable destination. "Note for later" without a destination
 ### Recommended next
 
 **Recommended next** (adjust based on context):
-- Coming from `/review` → `/claude-tweaks:wrap-up {number}`
-- Not yet reviewed → `/claude-tweaks:review {number}`
-- "Fix now" items exist → address fixes first, then re-run this skill
+- Coming from full review mode → `/claude-tweaks:wrap-up {number}`
+- Not yet code-reviewed → `/claude-tweaks:review {number}`
+- "Fix now" items exist → address fixes first, then re-run this review
 - Standalone → `/claude-tweaks:capture` for ideas surfaced during the session
 
 ---
 
-## Anti-Patterns
-
-| Pattern | Why It Fails |
-|---------|-------------|
-| Skipping First Impressions or making them analytical | The whole point is raw, unstructured reaction. Turning it into a checklist defeats the purpose. |
-| Jumping straight to defect-finding | The skill is designed to move from reaction → experience → analysis → imagination. Skipping to analysis loses the creative steps. |
-| Only reporting what's wrong | If the report is all negative, the user learns nothing about what to preserve. Strengths matter. |
-| Generic ideas ("improve the UX") | Ideas must be concrete and implementable. "Add a skeleton loader to reduce perceived load time" not "make it feel faster." |
-| Reviewing without a running app | The browser can't inspect what isn't served — verify the URL responds before starting |
-| Starting the dev server without asking | The user knows their build setup — don't guess at start commands |
-| Exhaustive accessibility audit | This is a visual review, not a WCAG compliance audit — flag obvious issues only |
-| Reviewing pages unrelated to the current work | Stay scoped to the feature or pages affected by the recent build |
-| Testing responsive on every review | Only check responsive behavior if the project supports it and the changes affect layout |
-| Reimagining without constraints | "Rewrite everything" isn't useful. Ideas must be feasible in the current tech stack and scope. |
-| Running journey mode with an outdated journey file | If the journey file doesn't match the current app, update the journey first. Stale expectations produce false findings. |
-| Testing steps individually without assessing the arc | Individual step quality matters, but journey coherence is what users actually experience. Always assess the overall arc. |
-| Ignoring "should feel" mismatches because the feature "works" | Functional correctness is necessary but not sufficient. A step can work perfectly and still feel wrong. |
-| Running discover mode without walking the app in the browser | Codebase-only discovery produces skeletons. The browser walkthrough is what makes "should feel" real. |
-| Skipping the coverage report in discover mode | Uncovered pages need explicit decisions: create a journey, mark as not-a-journey, or capture to INBOX. |
-
 ## Important Notes
 
-- This skill requires browser integration — either Chrome Extension or Playwright MCP
+- This review requires browser integration — either Chrome Extension or Playwright MCP
 - Screenshots and snapshots are ephemeral — findings should be captured in the report, not as file references
-- The skill is scoped to the current work — don't review the entire application (except in journey mode, where the full journey is in scope, and discover mode, which scans the whole app)
+- The review is scoped to the current work — don't review the entire application (except in journey mode, where the full journey is in scope, and discover mode, which scans the whole app)
 - Journey mode auto-detects when invoked with no arguments by checking `docs/journeys/` against recent changes
-- Journey files are living documents — update them when browser-review reveals gaps or inaccuracies
-- When used as part of `/review`, the findings feed into the same decision flow (fix/defer/capture/accept)
+- Journey files are living documents — update them when visual review reveals gaps or inaccuracies
 - Console errors and network failures are often the fastest signal — check them first in the health check
 - Resize testing is optional and should be skipped unless layout changes are in scope
 - The step order matters: reaction → experience → analysis → imagination. Don't rearrange.
-
-## Relationship to Other Skills
-
-| Skill | Relationship |
-|-------|-------------|
-| `/claude-tweaks:review` | Code-level complement — `/review` checks the code, `/browser-review` checks the result. `/review` may chain into this skill. |
-| `/claude-tweaks:build` | Produces what `/browser-review` inspects — run after a build to verify visually |
-| `/claude-tweaks:capture` | `/browser-review` generates ideas from visual inspection → route to INBOX via `/capture` |
-| `/claude-tweaks:challenge` | Ideas captured from `/browser-review` may have baked-in assumptions → debias before brainstorming |
-| `specs/DEFERRED.md` | Visual issues not worth fixing now get deferred with page/URL context |
-| `/claude-tweaks:wrap-up` | After both reviews pass, wrap-up handles reflection and cleanup |
-| `/claude-tweaks:codebase-onboarding` | Phase 7 delegates to `/browser-review discover` for brownfield journey bootstrapping |
-| `/claude-tweaks:setup` | Step 6 configures the browser integration this skill depends on |

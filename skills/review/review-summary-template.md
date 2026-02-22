@@ -38,10 +38,10 @@ Present this summary after completing all review steps.
 
 > `/claude-tweaks:wrap-up` uses this section to decide whether accepted tradeoffs should be documented in CLAUDE.md, skills, or memory files. A tradeoff worth accepting once may be worth documenting as a project convention.
 
-### Browser Review
+### Visual Review
 - **Status:** {Completed / Recommended / Skipped — no UI changes / Skipped — browser tools not configured}
 - {If completed: summary of visual/UX findings}
-- {If recommended: `/claude-tweaks:browser-review journey:{name}` or `/claude-tweaks:browser-review {url}`}
+- {If recommended: `/claude-tweaks:review journey:{name}` or `/claude-tweaks:review visual {url}`}
 
 ### Code Simplification
 - {summary of simplifier changes, or "No simplifications needed"}

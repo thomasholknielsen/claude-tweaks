@@ -53,9 +53,11 @@ These run in order — each skill feeds into the next.
 | 4 | `/claude-tweaks:challenge` | Debias a problem statement before brainstorming | INBOX item, topic |
 | 5 | `/claude-tweaks:specify` | Decompose a design doc into agent-sized specs | design doc path, topic, INBOX ref |
 | 6 | `/claude-tweaks:build` | Implement a spec or design doc end-to-end | spec number, design doc path, topic + optional mode: `autonomous` (default), `guided`, `branched` |
-| 7 | `/claude-tweaks:review` | Quality gate — verification, code review, simplification | spec number, file paths |
-| 7b | `/claude-tweaks:browser-review` | Visual inspection — test the running app in a browser | URL, page, flow, `journey:{name}`, `discover` |
+| 6b | `/claude-tweaks:test` | Standalone verification — types, lint, tests | `types`, `lint`, `unit`, file path, `affected` |
+| 7 | `/claude-tweaks:review` | Quality gate — code review + optional visual browser review | spec number, file paths + `full`, `visual`, `journey:{name}`, `discover` |
 | 8 | `/claude-tweaks:wrap-up` | Reflection, knowledge capture, artifact cleanup | spec number |
+
+For a concise one-page reference, read `reference-card.md` in this skill's directory.
 
 ### Utility Skills
 
@@ -64,7 +66,6 @@ These run in order — each skill feeds into the next.
 | `/claude-tweaks:help` | This dashboard — commands, status, recommendations | `status`, `commands`, spec/topic |
 | `/claude-tweaks:tidy` | Periodic backlog hygiene | — |
 | `/claude-tweaks:flow` | Automated pipeline: build → review → wrap-up | spec number(s) (comma-separated for parallel), design doc path, or topic `[steps]` |
-| `/claude-tweaks:next` | Legacy alias — redirects to `/claude-tweaks:help` | *(same as help)* |
 
 ### Superpowers (External Plugin)
 
@@ -85,9 +86,9 @@ INBOX item ──→ Brief ──→ Design Doc ──→ Spec ──→ Code + 
 
 Code ──→ Review Summary ──→ Learnings routed ──→ Clean slate
  /build      /review            /wrap-up
-            ↕        ↓                ↓
-   /browser-review  Deferred Work  (deletes spec
-   (walks journeys)                 + plans)
+       (visual modes)   ↓                ↓
+                    Deferred Work  (deletes spec
+                                    + plans)
 ```
 
 ---
@@ -231,6 +232,8 @@ Other options: {alternative action}, {another option if applicable}. Or: pipelin
 | Skipping the INBOX scan | Stale INBOX items create noise and slow down the pipeline |
 | Not checking for baked-in assumptions | Solution-oriented INBOX items bypass the debiasing step |
 
+For a detailed explanation of how context flows between skills via artifacts, read `context-flow.md` in this skill's directory.
+
 ## Relationship to Other Skills
 
 | Skill | Relationship |
@@ -239,10 +242,9 @@ Other options: {alternative action}, {another option if applicable}. Or: pipelin
 | `/claude-tweaks:challenge` | /claude-tweaks:help flags items with baked-in assumptions for debiasing |
 | `/claude-tweaks:specify` | /claude-tweaks:help flags unspecified design docs and uses Key Files from specs for implicit dependency detection |
 | `/claude-tweaks:build` | /claude-tweaks:help recommends which spec to build |
+| `/claude-tweaks:test` | /claude-tweaks:help can recommend /test when code changes exist but no review is warranted |
 | `/claude-tweaks:review` | /claude-tweaks:help flags specs awaiting review |
-| `/claude-tweaks:browser-review` | Visual complement to /claude-tweaks:review — listed in lifecycle commands |
 | `/claude-tweaks:wrap-up` | /claude-tweaks:help flags specs awaiting wrap-up |
 | `/claude-tweaks:tidy` | /claude-tweaks:help suggests /claude-tweaks:tidy when maintenance is needed |
 | `specs/DEFERRED.md` | /claude-tweaks:help scans deferred items and flags those with met triggers |
 | `/claude-tweaks:flow` | /claude-tweaks:help lists /claude-tweaks:flow as an automation option for ready specs |
-| `/claude-tweaks:next` | Redirects to /claude-tweaks:help (legacy alias) |

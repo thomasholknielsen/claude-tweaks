@@ -283,4 +283,4 @@ Commit with a message summarizing the wrap-up actions.
 | `/claude-tweaks:help` | /claude-tweaks:wrap-up suggests running /claude-tweaks:help to see what's unblocked |
 | `/claude-tweaks:tidy` | /claude-tweaks:wrap-up cleans artifacts for a single spec — /claude-tweaks:tidy does periodic bulk cleanup |
 | `/claude-tweaks:build` | Runs BEFORE /claude-tweaks:review — produces the code and journeys that wrap-up reflects on |
-| `/claude-tweaks:browser-review` | Visual complement — findings from browser review may feed into wrap-up's reflection lenses |
+| `/claude-tweaks:review` (visual modes) | Visual complement — findings from visual review may feed into wrap-up's reflection lenses |
