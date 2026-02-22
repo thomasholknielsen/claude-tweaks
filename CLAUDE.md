@@ -2,7 +2,7 @@
 
 ## What this is
 
-A Claude Code plugin (v2.6.0) containing markdown skill files that guide Claude through a structured development lifecycle. This is not a code application — it's a system of prompts organized as skills.
+A Claude Code plugin (v2.7.0) containing markdown skill files that guide Claude through a structured development lifecycle. This is not a code application — it's a system of prompts organized as skills.
 
 ## Stack
 

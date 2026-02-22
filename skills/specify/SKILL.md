@@ -44,6 +44,18 @@ Read and analyze in parallel:
 5. **Recent git log** — check if any part of the design has already been implemented
 6. **The codebase** — identify existing files, schemas, APIs, and patterns that the new work will build on. This context is critical for writing specs that `writing-plans` can act on.
 
+### File Reference Map
+
+Extract the `Key Files` section from every existing spec to build a file→spec map:
+
+```
+src/components/ShoppingList.tsx → Spec 41, Spec 45
+src/api/items.ts → Spec 41
+src/pages/shopping.tsx → Spec 45, Spec 52
+```
+
+This map is used in Step 2 to detect implicit file-based dependencies when creating new specs. If a new spec will touch files that an existing spec also touches, that's an implicit dependency — even if neither spec lists the other in `blocked-by`.
+
 ### Overlap Analysis
 
 For each major section/feature in the design doc, classify coverage:
@@ -110,6 +122,21 @@ Each is independently buildable with clear dependencies (73 → 74 → 75).
 - Touches every layer (data + API + UI + infra) in a single spec
 - Has vague acceptance criteria ("improve performance")
 - Would decompose into 15+ tasks
+
+### Implicit Dependency Detection
+
+After decomposing into work units, before writing spec files, check each new work unit's planned Key Files against the file reference map from Step 1.
+
+| Overlap Type | Meaning | Action |
+|-------------|---------|--------|
+| New spec's files overlap with a **completed** spec | No conflict — completed specs are done | No action |
+| New spec's files overlap with a **not-started** spec | Potential conflict — both will modify the same files | Add to `blocked-by` or reorder to avoid concurrent modification |
+| New spec's files overlap with an **in-progress** spec | Active conflict — concurrent changes to the same files | Add to `blocked-by` — wait for the in-progress spec to finish |
+| Two **new** specs from this decomposition share files | Internal conflict within the batch | Add explicit dependency between them and order accordingly |
+
+Present any detected implicit dependencies as part of the Step 7 summary. These are flagged alongside the explicit `blocked-by` relationships from the tier/prerequisite analysis.
+
+> **Why this matters:** Explicit `blocked-by` captures logical dependencies (spec B needs spec A's API). File-based overlap captures physical dependencies (both specs modify the same file). Missing the physical dependency leads to merge conflicts and duplicated work during concurrent builds.
 
 ## Step 3: Write the Spec Files
 
@@ -218,4 +245,4 @@ Commit with a message describing the specs created.
 | `/claude-tweaks:build` | Runs AFTER /claude-tweaks:specify — takes a single spec and implements it |
 | `/claude-tweaks:capture` | Feeds INBOX items that may trigger brainstorming → /claude-tweaks:specify |
 | `/claude-tweaks:tidy` | Reviews specs created by /claude-tweaks:specify for staleness |
-| `/claude-tweaks:help` | Shows which specs from /claude-tweaks:specify are ready for /claude-tweaks:build |
+| `/claude-tweaks:help` | Shows which specs from /claude-tweaks:specify are ready for /claude-tweaks:build — also uses Key Files for implicit dependency detection |

@@ -67,7 +67,7 @@ This will:
 | 2 | `/claude-tweaks:codebase-onboarding` | Generate CLAUDE.md, skills, and rules for a project |
 | 3 | `/claude-tweaks:capture` | Brain-dump ideas into INBOX |
 | 4 | `/claude-tweaks:challenge` | Debias a problem statement before brainstorming |
-| 5 | `/claude-tweaks:specify` | Decompose design doc into agent-sized specs |
+| 5 | `/claude-tweaks:specify` | Decompose design doc into agent-sized specs with implicit dependency detection |
 | 6 | `/claude-tweaks:build` | Implement a spec end-to-end (autonomous, guided, or branched mode) |
 | 7 | `/claude-tweaks:review` | Quality gate — spec compliance, batched code review, simplification |
 | 7b | `/claude-tweaks:browser-review` | Visual inspection — test the running app against user journeys |
@@ -78,7 +78,7 @@ This will:
 | Command | Purpose |
 |---------|---------|
 | `/claude-tweaks:help` | Quick reference, workflow status dashboard, recommendations |
-| `/claude-tweaks:tidy` | Batch backlog hygiene — scan everything, approve in one pass |
+| `/claude-tweaks:tidy` | Batch backlog hygiene with cross-spec pattern detection |
 | `/claude-tweaks:flow` | Automated pipeline: build → review → wrap-up with gates |
 
 ## Key Features
@@ -103,6 +103,8 @@ Visual inspection with a creative framework: reaction → experience → analysi
 
 Persistent markdown files in `docs/journeys/` that describe how personas accomplish goals. Created automatically during `/build` for user-facing features, tested by `/browser-review`, discovered in bulk via `/browser-review discover` or `/codebase-onboarding`.
 
+Each journey tracks its implementing source files via `files:` frontmatter. During `/review`, changed files are checked against all journeys — if a build touches files that an existing journey depends on, the review flags it for visual regression testing.
+
 ### Batch Decisions
 
 Multi-item findings (code review, tidy, wrap-up insights) are presented as a single table with pre-filled recommendations:
@@ -116,6 +118,14 @@ Multi-item findings (code review, tidy, wrap-up insights) are presented as a sin
 1. Apply all recommendations (Recommended)
 2. Override specific items (tell me which #s to change)
 ```
+
+### Cross-Spec Intelligence
+
+The workflow learns from its own history:
+
+- **Pattern detection** — `/tidy` scans recent review and wrap-up history for recurring findings across specs (repeated convention violations, responsibility-magnet files, rediscovered gotchas) and recommends project-level fixes
+- **Journey regression** — `/review` detects when a build's changed files overlap with existing journey `files:` frontmatter, flagging affected journeys for visual testing
+- **Dependency intelligence** — `/specify` builds a file→spec map from Key Files sections and detects implicit dependencies (two specs modifying the same files). `/help` uses this to warn before building specs that conflict with in-progress work
 
 ### No Implicit Drops
 

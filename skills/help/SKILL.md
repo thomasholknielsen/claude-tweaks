@@ -125,6 +125,7 @@ Scan the full workflow state across all pipeline stages.
 - Check YAML frontmatter for `status: not-started` with empty or satisfied `blocked-by`
 - Check which tier they're in (lower tier = higher priority)
 - Check if a plan already exists in `docs/plans/` (ready for immediate `/claude-tweaks:build`)
+- **Implicit dependency check:** Extract `Key Files` from each ready spec and each in-progress spec. If a ready spec shares files with an in-progress spec, flag it in the "Needs Attention" table — building it now risks merge conflicts or duplicated work. This supplements the explicit `blocked-by` field with file-level awareness.
 
 ### Stage 4: Specs In Progress
 
@@ -198,6 +199,7 @@ Scan the full workflow state across all pipeline stages.
 
 When multiple specs are ready to build at the same tier:
 - Prefer specs that unblock other specs (check dependency graph)
+- Prefer specs with no file overlap with in-progress work (avoids conflicts)
 - Prefer smaller specs (faster feedback loop)
 - Prefer specs with existing plans (less setup needed)
 
@@ -233,7 +235,7 @@ Other options: {alternative action}, {another option if applicable}. Or: pipelin
 |-------|-------------|
 | `/claude-tweaks:capture` | Feeds items that /claude-tweaks:help surfaces |
 | `/claude-tweaks:challenge` | /claude-tweaks:help flags items with baked-in assumptions for debiasing |
-| `/claude-tweaks:specify` | /claude-tweaks:help flags unspecified design docs |
+| `/claude-tweaks:specify` | /claude-tweaks:help flags unspecified design docs and uses Key Files from specs for implicit dependency detection |
 | `/claude-tweaks:build` | /claude-tweaks:help recommends which spec to build |
 | `/claude-tweaks:review` | /claude-tweaks:help flags specs awaiting review |
 | `/claude-tweaks:browser-review` | Visual complement to /claude-tweaks:review — listed in lifecycle commands |

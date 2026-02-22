@@ -287,6 +287,12 @@ Analyze what was built and identify the user or developer journeys it enables or
 For each new journey identified, create a file at `docs/journeys/{journey-name}.md`:
 
 ```markdown
+---
+files:
+  - {path/to/key-source-file.ts}
+  - {path/to/another-file.ts}
+---
+
 # {Journey Name}
 
 **Persona:** {Who is this user? Be specific — not "user" but "first-time visitor with no account" or "developer setting up local environment"}
@@ -314,6 +320,7 @@ For each new journey identified, create a file at `docs/journeys/{journey-name}.
 
 Key principles for writing journeys:
 - **"Should feel" is the most important field.** It's what browser-review tests against. Be specific — "low commitment" not "good."
+- **`files:` enables regression detection.** List the key source files that implement this journey's functionality — components, API routes, pages, services. `/review` uses this to detect when a future build changes files that an existing journey depends on. Don't list every file — just the ones whose changes would affect the journey's behavior.
 - **One journey per goal**, not per feature. A journey may span features from multiple specs.
 - **Include the entry point and success state.** These bookend the journey and define what "complete" means.
 - **Personas are specific people**, not roles. "Developer who just joined the team and is setting up for the first time" not "developer."
@@ -324,8 +331,9 @@ If the build modifies or extends an existing journey:
 
 1. Read the existing journey file
 2. Add, update, or reorder steps to reflect what was built
-3. Update the Origin section to reference the current build
-4. Preserve existing "Should feel" and "Red flags" for steps that weren't changed — those are tested expectations
+3. Update the `files:` frontmatter — add new source files, remove files that are no longer relevant
+4. Update the Origin section to reference the current build
+5. Preserve existing "Should feel" and "Red flags" for steps that weren't changed — those are tested expectations
 
 #### Commit the journey files
 

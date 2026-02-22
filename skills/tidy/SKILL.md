@@ -133,6 +133,30 @@ For specs not yet built, check sizing:
 - **Too small** (1-2 trivial tasks): recommend merging with a related spec
 - **Too vague** (no concrete deliverables or acceptance criteria): recommend re-specifying
 
+### Step 5.5: Cross-Spec Pattern Detection
+
+Scan recent git history for recurring findings across review summaries and wrap-up reflections. Patterns that appear in 2+ specs signal systemic issues worth addressing at the project level rather than per-spec.
+
+#### How to scan
+
+1. Search recent commits for review and wrap-up artifacts:
+   - `git log --all --oneline --grep="review" --grep="wrap-up" --since="4 weeks ago"` (or check `docs/plans/*-review-summary*` and recent wrap-up commits)
+2. Read the review summaries and wrap-up reflections referenced in those commits
+3. Extract findings by category (Security, Convention, Performance, Error Handling, Architecture, Test Quality)
+
+#### What to look for
+
+| Signal | Example | Recommendation |
+|--------|---------|---------------|
+| Same finding category in 3+ reviews | "Convention: import from shared package" in specs 41, 43, 45 | Add rule to CLAUDE.md or `.claude/rules/` |
+| Same file flagged across specs | `src/utils/validate.ts` modified and reviewed in 4 specs | Refactor — this file may be a responsibility magnet |
+| Same gotcha rediscovered | "Use upsert not delete+insert" in 3 spec Gotchas | Add to CLAUDE.md as a project convention |
+| Recurring deferred items with similar themes | "Add error boundary" deferred in 3 specs | Promote to its own spec — it's not going away |
+
+→ Collect each as: `[pattern] {description} — seen in {spec list} — {recommendation}`
+
+Patterns are informational — they surface systemic issues the user may want to address. They appear in the tidy report alongside actionable items but don't require immediate action.
+
 ---
 
 ## Step 6: Present Tidy Report and Approve
@@ -156,6 +180,15 @@ Present all collected findings as a single report. Every item has a pre-filled r
 | 8 | Plan | "{filename}" (orphaned) | Delete |
 | 9 | Worktree | "{path}" (merged) | Remove |
 | 10 | Branch | "build/{name}" (merged) | Delete |
+
+### Cross-Spec Patterns (if any)
+
+| # | Pattern | Seen In | Recommended |
+|---|---------|---------|-------------|
+| 11 | {description} | Specs {list} | Add rule to CLAUDE.md |
+| 12 | {description} | Specs {list} | Promote to spec |
+
+*Patterns are informational — they highlight systemic issues across multiple specs. Address them to prevent the same findings from recurring.*
 
 ### Summary
 - INBOX: {X} items ({Y} stale, {Z} ready to promote)
@@ -202,5 +235,7 @@ Commit with a message summarizing the tidy-up.
 | `/claude-tweaks:review` | /claude-tweaks:tidy flags specs that appear complete but lack review |
 | `/claude-tweaks:wrap-up` | /claude-tweaks:tidy flags reviewed specs that need wrap-up |
 | `/claude-tweaks:help` | /claude-tweaks:help suggests /claude-tweaks:tidy when maintenance signals are detected |
+| `/claude-tweaks:review` | /claude-tweaks:tidy scans review summaries for cross-spec patterns (recurring findings, flagged files) |
+| `/claude-tweaks:wrap-up` | /claude-tweaks:tidy scans wrap-up reflections for cross-spec patterns (recurring gotchas, deferred themes) |
 | `specs/DEFERRED.md` | /claude-tweaks:tidy audits deferred items — promotes, merges, moves to INBOX, or deletes |
 | `/claude-tweaks:build` | /claude-tweaks:tidy cleans up leftover worktrees and `build/*` branches from previous builds |

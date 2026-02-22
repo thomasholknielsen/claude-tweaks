@@ -237,12 +237,29 @@ This keeps the skip visible without blocking the review.
 
 ### Check for affected journeys
 
-Scan `docs/journeys/*.md` for journeys that reference pages, routes, or features touched by this build.
+Detect when this build's changes may affect existing user journeys — even journeys from previous specs.
+
+#### How to check
+
+1. Get the list of changed files: `git diff --name-only` (or against the base branch)
+2. Read all journey files in `docs/journeys/*.md`
+3. For each journey, check its `files:` frontmatter for overlap with the changed files list
+4. Also scan journey step URLs and content for references to changed routes or pages
+
+A journey is **affected** if any file in its `files:` frontmatter was modified in this build, OR if its steps reference routes/pages that correspond to changed files.
+
+#### Route the results
 
 **Do not stop to ask.** Note the browser review recommendation in the summary (Step 8) instead:
 
-- **Journeys found** → summary notes: "Browser review recommended: `/claude-tweaks:browser-review journey:{name}` — {N} affected journey(s)."
+- **Affected journeys found** → summary notes: "Browser review recommended — {N} journey(s) reference changed files:" followed by a table:
+  ```
+  | Journey | Overlapping Files | Command |
+  |---------|------------------|---------|
+  | {name} | {file1}, {file2} | `/claude-tweaks:browser-review journey:{name}` |
+  ```
 - **No journeys but UI changed** → summary notes: "Browser review recommended: `/claude-tweaks:browser-review {url}`."
+- **No UI impact** → skip silently.
 
 This keeps the review flowing. The user runs browser review after seeing the summary if they want visual verification. Browser review findings feed back into the same decision flow when run.
 
