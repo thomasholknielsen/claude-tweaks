@@ -386,3 +386,4 @@ stories:
 | `/claude-tweaks:review` | QA mode (`/review qa`) validates the stories that /stories generates |
 | `/claude-tweaks:browse` | Used BY /stories to explore sites and validate generated stories |
 | `/claude-tweaks:flow` | Can include /stories as an optional step between build and review |
+| `/claude-tweaks:setup` | Step 6 configures the browser backends that /stories depends on (via /browse) |

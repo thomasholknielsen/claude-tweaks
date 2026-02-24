@@ -36,6 +36,7 @@ LICENSE                           → MIT
 |-------|-----------|---------|
 | codebase-onboarding | detection-tables.md, profile-templates.md, claude-md-template.md, skill-template.md, summary-templates.md | Lazy-loaded reference content for each phase |
 | browse | playwright-reference.md, chrome-reference.md | Full command references for each browser backend |
+| test | verification.md | Shared verification procedure (referenced by /build, /review, and /test) |
 | review | review-summary-template.md, browser-review.md, qa-review.md | Structured summary template; visual review procedures; QA review procedures |
 | specify | spec-template.md | Spec file template with field rationale |
 | help | reference-card.md, context-flow.md | Quick reference card; artifact flow documentation |
@@ -58,7 +59,7 @@ Every skill follows this structure:
 ### Interaction patterns
 
 - **Decisions** — numbered options (1, 2, 3...) so users reply with a number
-- **Multi-item decisions** — batch table with pre-filled recommendations + "apply all / override"
+- **Multi-item decisions** — batch table with pre-filled recommendations + "apply all / override". For 10+ items, lead with a severity/count summary before the full table so the user sees the scope before the details.
 - **Skill handoffs** — `**Recommended next:** \`/command\` — reason.` (never a navigation menu)
 - **Hard gates** — BLOCKED/STOP conditions that prevent proceeding with degraded state
 
@@ -109,4 +110,4 @@ claude --plugin-dir ./              # Local development — load plugin from cur
 - Don't silently skip or drop findings — every surfaced item must be explicitly resolved (fix now, defer, accept with reason)
 - Don't put detailed reference content inline in a SKILL.md when it would make the file unwieldy — use a sub-file and reference it with "read `{filename}` in this skill's directory"
 - Don't forget to update README.md and `/help` when adding or changing skills
-- Don't use emojis in skill files (except the star in `**(Recommended)**` labels, which was replaced with bold text)
+- Don't use emojis in skill files — use `**(Recommended)**` bold text for emphasis instead

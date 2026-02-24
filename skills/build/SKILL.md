@@ -200,6 +200,17 @@ This runs the full Superpowers execution chain:
 3. Per task: **code quality reviewer** subagent evaluates implementation excellence
 4. After all tasks: **final overall code review**
 
+#### Superpowers Failure Handling
+
+If `/superpowers:execute-plan` (or `/superpowers:write-plan` in Step 3) fails:
+
+| Failure | Recovery |
+|---------|----------|
+| **Not installed** (command not found) | Stop. Tell the user: "Superpowers plugin is required. Install: `/plugin marketplace add obra/superpowers-marketplace` then `/plugin install superpowers@superpowers-marketplace`" |
+| **Timeout or partial output** | Re-run the specific step that failed. If write-plan timed out, re-invoke it with the same context. If execute-plan timed out mid-task, check which tasks completed (scan git log) and resume from the next incomplete task. |
+| **Malformed plan** (write-plan produced output that execute-plan can't parse) | Re-run `/superpowers:write-plan` with the same context. If it fails again, fall back to manual planning: break the spec into 3-5 implementation tasks, present them to the user, and implement each task directly without the Superpowers execution chain. |
+| **Subagent failures** (individual tasks fail within execute-plan) | Let execute-plan's built-in retry handle it first. If the task fails repeatedly, implement that task directly in the main thread and continue. |
+
 #### Project-Specific Context
 
 The implementer subagents will pick up project conventions from CLAUDE.md, `.claude/rules/`, and loaded skills. Ensure your CLAUDE.md documents:
@@ -267,13 +278,7 @@ Deviation: {what the spec said vs. what was built}
 
 ### Common Step 4: Final Verification
 
-After code simplification, verify the full build using the project's standard checks:
-
-- Type checking
-- Linting
-- Tests
-
-Check CLAUDE.md for the project's specific commands (e.g., `pnpm typecheck`, `npm run lint`, `yarn test`).
+After code simplification, run the shared verification procedure from `verification.md` in the `/claude-tweaks:test` skill's directory. This runs type checking, linting, and tests using the project's commands from CLAUDE.md.
 
 If anything fails, fix it and commit the fix.
 

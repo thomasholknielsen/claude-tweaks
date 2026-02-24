@@ -204,6 +204,12 @@ Suggest running `/claude-tweaks:help` to see the full workflow status.
 
 Read the open items ledger (`docs/plans/*-ledger.md` for this work). If the ledger doesn't exist (standalone wrap-up, or work predating the ledger), skip this gate.
 
+### Bulk-resolve fast path
+
+If all ledger items already have a terminal status (`fixed`, `deferred`, or `accepted`), skip the interactive resolution — just report: "All {N} ledger items resolved. No open items." and proceed to Step 10. This avoids re-presenting items that were already resolved during earlier pipeline phases.
+
+### Interactive resolution (when open items exist)
+
 Present all items in a single table:
 
 ```
@@ -281,7 +287,7 @@ Cleanup Actions:
 
 Configuration Updates:
 (Present all collected items from Steps 6-8 as a numbered list)
-1. Apply all {N} updates ⭐ **(Recommended)**
+1. Apply all {N} updates **(Recommended)**
 2. Apply selectively — I'll tell you which items to skip
 3. Skip all configuration updates
 ```

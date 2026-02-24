@@ -26,7 +26,12 @@ Do NOT accept the user's problem statement at face value. Do NOT jump to solutio
 
 ## Input
 
-`$ARGUMENTS` = an INBOX item title, a topic about to be brainstormed, or a problem statement.
+`$ARGUMENTS` = an INBOX item title, a topic about to be brainstormed, or a problem statement — optionally preceded by `quick`.
+
+### Mode detection:
+
+- **`quick` keyword present** (e.g., `/challenge quick meal planning`) → **Quick mode** — run only Lens 1 (Surface Hidden Assumptions) and Lens 7 (The Meta-Question). Two interactions instead of seven.
+- **No `quick` keyword** → **Full mode** — run all applicable lenses (default).
 
 ### Resolve the input:
 
@@ -134,7 +139,9 @@ Ask: *"Is this even the right question to ask?"*
 1. **Listen** — Let the user explain their problem fully. Do not interrupt with lenses yet.
 2. **Reflect back** — Summarize what you heard in 2-3 sentences. Ask if that's accurate.
 3. **Work through lenses** — One at a time. Ask one question per message. Wait for the user's response before moving to the next lens.
-4. **Skip irrelevant lenses** — If a lens clearly doesn't apply, acknowledge it briefly and move on. Not every problem needs all 7 lenses.
+   - **Quick mode:** Run only Lens 1 (Surface Hidden Assumptions) and Lens 7 (The Meta-Question). Skip Lenses 2-6 entirely. This is a sanity check, not a full debiasing session.
+   - **Full mode:** Run all applicable lenses. Skip irrelevant ones — if a lens clearly doesn't apply, acknowledge it briefly and move on. Not every problem needs all 7 lenses.
+4. **Stop when the frame shifts** — If a lens produces a genuine "aha" moment, don't mechanically continue through remaining lenses. Follow the energy.
 5. **Synthesize** — After the lenses, produce the Brainstorming Brief (see Output below).
 
 ---

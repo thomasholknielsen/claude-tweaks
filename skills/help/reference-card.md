@@ -9,7 +9,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/setup` | Bootstrap directories and dependencies | — |
 | `/codebase-onboarding` | Generate CLAUDE.md, skills, rules | path, URL, `update` |
 | `/capture` | Brain-dump idea into INBOX | idea text |
-| `/challenge` | Debias assumptions before brainstorming | INBOX item, topic |
+| `/challenge` | Debias assumptions before brainstorming | `quick`, INBOX item, topic |
 | `/specify` | Decompose design doc into agent-sized specs | design doc, topic |
 | `/build` | Implement a spec or design doc | spec #, doc path + `autonomous`/`guided`/`branched` |
 | `/test` | Run verification checks standalone | `types`, `lint`, `unit`, path, `affected` |

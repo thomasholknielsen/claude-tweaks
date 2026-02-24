@@ -95,15 +95,9 @@ This classification guides which review lenses to apply — a pure UI change doe
 
 ## Step 3: Automated Verification (Gate)
 
-Run the project's standard verification commands. Check CLAUDE.md for the specific commands.
+Run the shared verification procedure from `verification.md` in the `/claude-tweaks:test` skill's directory. This runs type checking, linting, and tests using the project's commands from CLAUDE.md.
 
-### Checks:
-
-> **Parallel execution:** Run type checking, linting, and tests as parallel Bash calls — they are independent and should complete concurrently. Evaluate the gate after all three finish.
-
-- Type checking
-- Linting
-- Tests (unit + integration)
+When running inside a `/claude-tweaks:flow` pipeline where build already verified successfully, this step is skipped automatically (see the "Skip-if-recent" clause in the verification procedure).
 
 ### Additional checks:
 

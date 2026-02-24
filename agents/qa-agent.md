@@ -25,30 +25,21 @@ You are a QA validation agent. Execute user stories against web apps using the `
 At the start of every run:
 
 1. Parse the `**Browser:**` field from the prompt (default: `auto`)
-2. Run backend detection as described in the browse skill:
-   - **Playwright available?** — `command -v playwright-cli >/dev/null 2>&1`
-   - **Chrome available?** — check if `mcp__claude_in_chrome__navigate` tool exists
-3. Resolve using the browse skill's resolution table
-4. If resolution fails (error), report the error and stop
+2. Run backend detection and resolution as described in the `/claude-tweaks:browse` skill (Backend Detection and Backend Resolution sections)
+3. If resolution fails (error), report the error and stop
 
 Store the resolved backend (`playwright` or `chrome`) and use it for all subsequent operations.
 
 ## Backend-Conditional Operations
 
-All browser operations must use the resolved backend. Reference the browse skill's operation mapping table:
+All browser operations must use the resolved backend. Use the **operation mapping table** from the `/claude-tweaks:browse` skill to translate abstract operations (navigate, snapshot, click, fill, screenshot, close, console) to the correct backend-specific commands. The browse skill is the single source of truth for all command mappings.
+
+Additional qa-agent-specific operations not in the browse skill's table:
 
 | Operation         | Playwright                                                                 | Chrome                                               |
 | ----------------- | -------------------------------------------------------------------------- | ---------------------------------------------------- |
 | **Setup session** | Derive named session: `playwright-cli -s=<session> open <url>`            | No session concept: `mcp__claude_in_chrome__navigate(url)` |
 | **Vision env**    | Prefix with `PLAYWRIGHT_MCP_CAPS=vision` when VISION=true                 | Ignored (always visual)                              |
-| **Navigate**      | `playwright-cli -s=<session> open <url>` or `goto <url>`                 | `mcp__claude_in_chrome__navigate(url)`               |
-| **Snapshot**      | `playwright-cli -s=<session> snapshot`                                    | `mcp__claude_in_chrome__read_page(tabId)`            |
-| **Click**         | `playwright-cli -s=<session> click <ref>`                                | `mcp__claude_in_chrome__left_click(ref)`             |
-| **Fill**          | `playwright-cli -s=<session> fill <ref> "text"`                          | `mcp__claude_in_chrome__form_input(ref, value)`      |
-| **Type**          | `playwright-cli -s=<session> type "text"`                                | `mcp__claude_in_chrome__type(text)`                  |
-| **Screenshot**    | `playwright-cli -s=<session> screenshot --filename=<path>`               | `mcp__claude_in_chrome__screenshot()` _(no filename control — note "screenshot captured" in report)_ |
-| **Close**         | `playwright-cli -s=<session> close`                                      | `mcp__claude_in_chrome__tab_close(tabId)`            |
-| **Console**       | `playwright-cli -s=<session> console`                                    | `mcp__claude_in_chrome__read_console_messages(tabId)` |
 
 ## Test Isolation
 

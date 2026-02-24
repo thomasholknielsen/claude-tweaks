@@ -4,17 +4,9 @@ Visual inspection, interactive testing, and creative assessment of the running a
 
 ## Prerequisites
 
-A browser backend must be available. Check in this order:
+A browser backend must be available. Run the backend detection and resolution from the `/claude-tweaks:browse` skill (Backend Detection and Backend Resolution sections). If resolution fails, **stop** and report the error message from the browse skill's resolution table.
 
-1. **playwright-cli:** `command -v playwright-cli >/dev/null 2>&1`
-2. **Chrome MCP:** check if `mcp__claude_in_chrome__navigate` tool exists
-
-If playwright-cli is available, use it as the default backend. If only Chrome MCP is available, use Chrome. If neither is available, **stop** and tell the user:
-```
-No browser backend configured. Run /claude-tweaks:setup to set up browser integration (Step 6).
-```
-
-Use the `/claude-tweaks:browse` skill's operation mapping table for all browser operations.
+Use the `/claude-tweaks:browse` skill's operation mapping table for all browser operations throughout this document. The browse skill is the single source of truth for all backend detection, resolution, and command mappings.
 
 ## Mode Resolution
 

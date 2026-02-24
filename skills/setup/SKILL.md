@@ -117,6 +117,25 @@ Tiered roadmap of work units. Use `/claude-tweaks:specify` to add specs, `/claud
 | — | — | — | — |
 ```
 
+## Step 3.5: Suggest .gitignore Entries
+
+Check if `.gitignore` exists and whether it already covers workflow artifacts. Suggest entries for transient files that shouldn't be committed:
+
+```gitignore
+# claude-tweaks: transient artifacts
+screenshots/
+```
+
+If `stories/` exists or will be created, ask the user:
+
+```
+Should story YAML files be committed to version control?
+1. Yes — stories are part of the project's test suite (Recommended)
+2. No — add stories/ to .gitignore
+```
+
+Do not modify `.gitignore` without asking — the user may have opinions about what to track.
+
 ## Step 4: Verify CLAUDE.md
 
 Check if `CLAUDE.md` exists in the project root.

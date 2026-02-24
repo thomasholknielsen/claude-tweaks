@@ -50,7 +50,7 @@ These run in order — each skill feeds into the next.
 | 1 | `/claude-tweaks:setup` | Bootstrap workflow directories and dependencies | — |
 | 2 | `/claude-tweaks:codebase-onboarding` | Generate CLAUDE.md, skills, and rules for a project | path, URL, `update` |
 | 3 | `/claude-tweaks:capture` | Brain-dump ideas into INBOX | idea text |
-| 4 | `/claude-tweaks:challenge` | Debias a problem statement before brainstorming | INBOX item, topic |
+| 4 | `/claude-tweaks:challenge` | Debias a problem statement before brainstorming | `quick`, INBOX item, topic |
 | 5 | `/claude-tweaks:specify` | Decompose a design doc into agent-sized specs | design doc path, topic, INBOX ref |
 | 6 | `/claude-tweaks:build` | Implement a spec or design doc end-to-end | spec number, design doc path, topic + optional mode: `autonomous` (default), `guided`, `branched` |
 | 6b | `/claude-tweaks:test` | Standalone verification — types, lint, tests | `types`, `lint`, `unit`, file path, `affected` |
@@ -215,6 +215,8 @@ An INBOX item likely needs debiasing when it:
 - Names a specific technology as the solution (e.g., "Add Redis caching" instead of "Improve response times")
 - Frames the problem as a solution (e.g., "Build a microservice for X" vs "X is too slow")
 - Contains strong assumptions about the approach without exploring alternatives
+
+**Mode recommendation:** Items with mild assumption signals (slightly solution-oriented phrasing, but the problem space is mostly clear) → recommend `/claude-tweaks:challenge quick {topic}`. Items with strong solution-baking or multiple competing assumptions → recommend full `/claude-tweaks:challenge {topic}`.
 
 ### Present Recommendation
 

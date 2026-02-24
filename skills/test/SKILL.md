@@ -42,66 +42,32 @@ Run verification checks independently — type checking, linting, and tests. Use
 
 Multiple arguments can be combined: `/claude-tweaks:test types lint` runs both type checking and linting.
 
-## Step 1: Resolve Test Commands
-
-Read CLAUDE.md for the project's specific verification commands. Look for:
-
-- Type check command (e.g., `pnpm typecheck`, `tsc --noEmit`, `mypy`)
-- Lint command (e.g., `eslint .`, `ruff check`, `golangci-lint run`)
-- Test command (e.g., `pytest`, `jest`, `go test ./...`)
-- Any project-specific test scripts or configurations
-
-If CLAUDE.md doesn't document verification commands, scan `package.json` scripts, `Makefile`, `pyproject.toml`, `Cargo.toml`, or equivalent for the project's stack.
-
-## Step 2: Determine Scope
-
-Based on `$ARGUMENTS`:
+## Step 1: Resolve Scope and Execute
 
 ### Full suite (no arguments)
 
-Run all checks. Order matters — fail fast:
+Run the shared verification procedure from `verification.md` in this skill's directory. This resolves commands from CLAUDE.md and runs type checking, linting, and tests.
 
-1. Type checking (fastest feedback)
-2. Linting
-3. Tests
+### Targeted scope (with arguments)
 
-> **Parallel execution:** Run type checking and linting as parallel Bash calls — they are independent. Run tests after both pass (tests are slower and type/lint failures often cause test failures too).
-
-### Targeted scope
+When `$ARGUMENTS` specifies a targeted scope, resolve commands from CLAUDE.md (see `verification.md` Step 1), then run only the requested checks:
 
 - **By check type** (`types`, `lint`, `unit`, etc.) — run only the specified checks
 - **By path** — scope test commands to the given file or directory
 - **By pattern** — pass the pattern to the test runner's filter flag (e.g., `jest --testNamePattern`, `pytest -k`)
 - **`affected`** — use `git diff --name-only` to identify changed files, then scope tests to those files and their dependents
 
-## Step 3: Run and Report
+> **Parallel execution:** When running multiple check types (e.g., `/test types lint`), run them as parallel Bash calls — they are independent.
 
-Execute the resolved commands and present results:
+## Step 2: Report
 
-```markdown
-## Test Results
-
-| Check | Status | Duration | Details |
-|-------|--------|----------|---------|
-| Type check | {pass/fail} | {Xs} | {error count if failed} |
-| Lint | {pass/fail} | {Xs} | {warning/error count} |
-| Tests | {pass/fail} | {Xs} | {passed}/{total}, {failed count} failures |
-
-### Failures (if any)
-
-#### {Check name}
-{error output — truncated to relevant lines}
-
-**Recommended next:** Fix the issues above, then re-run `/claude-tweaks:test`.
-```
-
-If all checks pass:
+Present results using the format from `verification.md` Step 3. If all checks pass:
 
 ```
 All checks passed. Recommended next: `/claude-tweaks:review {spec}` or commit your changes.
 ```
 
-## Step 4: Fix Mode (Optional)
+## Step 3: Fix Mode (Optional)
 
 If tests fail and the failures look straightforward (type errors, lint violations, simple test failures), offer to fix them:
 

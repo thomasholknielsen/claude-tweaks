@@ -36,6 +36,8 @@ src/ + journeys    stories/*.yaml     screenshots/qa/         (in commit/output)
 
 | Skill | Reads | Writes | Deletes |
 |-------|-------|--------|---------|
+| `/setup` | `~/.claude/plugins/`, CLAUDE.md, git state | `specs/`, `docs/plans/`, `docs/journeys/`, `specs/INBOX.md`, `specs/DEFERRED.md`, `specs/INDEX.md` | — |
+| `/codebase-onboarding` | Entire codebase, CLAUDE.md, config files | CLAUDE.md, `.claude/skills/*.md`, `.claude/rules/`, `docs/journeys/*.md` | — |
 | `/capture` | — | `specs/INBOX.md` (append) | — |
 | `/challenge` | `specs/INBOX.md` | `docs/plans/*-brief.md` | — |
 | `/superpowers:brainstorm` | `docs/plans/*-brief.md` | `docs/plans/*-design.md` | — |

@@ -219,7 +219,7 @@ Present as numbered options:
 
 ```
 Which skills should I generate?
-1. All Priority 1 skills ⭐ **(Recommended)**
+1. All Priority 1 skills **(Recommended)**
 2. All Priority 1 + Priority 2
 3. Let me pick specific ones (list the numbers)
 4. None for now — I'll generate them later

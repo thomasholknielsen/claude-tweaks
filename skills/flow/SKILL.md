@@ -39,7 +39,7 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 | Argument | Required | Description |
 |----------|----------|-------------|
 | `<spec-or-design-doc>` | Yes | Spec number (e.g., `42`), comma-separated spec numbers (e.g., `42,45,48`), design doc path, or topic name |
-| `stories` | No | Include `/claude-tweaks:stories` step between build and review. Requires running app. |
+| `stories` | No | Include `/claude-tweaks:stories` step between build and review. Requires a running app — validation checks the URL before proceeding. |
 | `[steps]` | No | Comma-separated list of steps to run. Default: `build,review,wrap-up` |
 
 ### Input resolution
@@ -130,8 +130,9 @@ Or run the failed step manually: `/claude-tweaks:{step} {spec or design doc}`
 3. Validate step list is in lifecycle order
 4. If spec mode: check prerequisites are met (same as `/claude-tweaks:build` Spec Step 1)
 5. If design mode: verify the design doc file exists
-6. If validation fails → **stop before starting**
-7. **Create the open items ledger** at `docs/plans/YYYY-MM-DD-{feature}-ledger.md` — the `{feature}` name matches the execution plan that build will create. This file tracks findings and operational tasks across all pipeline phases. Format:
+6. If `stories` keyword is present: ask the user for the app URL (e.g., `http://localhost:3000`). Verify the URL responds with a quick HTTP check (`curl -s -o /dev/null -w "%{http_code}" <url>`). If unreachable, stop: "Stories step requires a running app at {url}. Start the dev server and re-run."
+7. If validation fails → **stop before starting**
+8. **Create the open items ledger** at `docs/plans/YYYY-MM-DD-{feature}-ledger.md` — the `{feature}` name matches the execution plan that build will create. This file tracks findings and operational tasks across all pipeline phases. Format:
    ```markdown
    # Open Items — {spec title or design topic}
 
@@ -151,7 +152,7 @@ For each step in order:
    - `build` → `stories` receives the UI changed files list + app URL
    - `stories` → `review qa` receives the stories directory
    - `review qa` → `review` (code) receives the QA verdict
-   - `build` → `review` receives the build summary and changed files
+   - `build` → `review` receives the build summary, changed files, and `VERIFICATION_PASSED=true` (so review skips redundant verification — see `verification.md` in the `/claude-tweaks:test` skill)
    - `review` → `wrap-up` receives the review summary and verdict
 5. **Ledger carries forward** — each step reads and appends to the open items ledger. Unlike conversation context (which may be compressed), the ledger is a file — it survives context window limits.
 
@@ -234,10 +235,51 @@ After all agents complete, present a consolidated summary:
 
 ### Per-Spec Details
 (expand each spec's key outputs, failures, and review findings)
+```
+
+### Phase 4: Merge Reconciliation
+
+After presenting the multi-spec summary, merge completed branches back.
+
+#### Merge Order
+
+1. Sort completed branches by diff size (smallest first — `git diff --stat main..build/{N}-{title} | tail -1`)
+2. Merge branches sequentially into the base branch
+
+#### Merge Procedure
+
+For each completed branch (in order):
+
+1. `git merge build/{N}-{title}` into the base branch
+2. **If merge succeeds** — continue to the next branch
+3. **If merge conflicts** — present the conflicts:
+   ```
+   Merge conflict merging spec {N} (build/{N}-{title}):
+
+   Conflicting files:
+   - {file1}
+   - {file2}
+
+   1. Resolve conflicts now **(Recommended)** — I'll resolve based on both specs' intent
+   2. Skip this branch — merge remaining branches first, come back to this one
+   3. Abort all remaining merges — I'll handle merges manually
+   ```
+4. After all merges, update `specs/INDEX.md` to reflect completed specs
+
+#### Post-Merge
+
+```markdown
+### Merge Results
+
+| Spec | Branch | Merge Status |
+|------|--------|-------------|
+| {N} | build/{N}-{title} | Merged cleanly |
+| {N} | build/{N}-{title} | Merged with conflict resolution |
+| {N} | build/{N}-{title} | Skipped (pipeline failed) |
 
 ### Recommended Next
-- Specs that completed: merge branches or run `/claude-tweaks:help` for status
-- Specs that failed: fix issues and re-run `/claude-tweaks:flow {spec} {remaining steps}`
+- Failed specs: fix issues and re-run `/claude-tweaks:flow {spec} {remaining steps}`
+- All merged: run `/claude-tweaks:help` for full pipeline status
 ```
 
 ---
@@ -264,4 +306,5 @@ After all agents complete, present a consolidated summary:
 | `/claude-tweaks:wrap-up` | Final step — receives review output, produces clean slate |
 | `/claude-tweaks:help` | Shows pipeline status and recommends flow-ready specs |
 | `/claude-tweaks:specify` | Creates the specs that flow consumes — multi-spec uses Key Files from /specify for file overlap detection |
+| `/claude-tweaks:browse` | Used transitively — /stories and /review visual/qa modes use /browse for browser interaction |
 | `/superpowers:brainstorm` | Produces the design docs that flow consumes in design mode — skipping /specify |

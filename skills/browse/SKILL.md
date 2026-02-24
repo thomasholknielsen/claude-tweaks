@@ -221,6 +221,8 @@ Adapt the specific URLs and targets to match the actual task context.
 
 ## "do N" Handling
 
+> **Note:** This interaction pattern is unique to `/browse`. Other skills use numbered options (1, 2, 3) for decisions. The "do N" pattern exists here because browse reports offer follow-up *actions* (not choices), and users often want to chain multiple actions after exploring.
+
 When the user replies with a "do N" pattern after receiving a Browse Report, match it to the corresponding recommendation and execute it.
 
 **Supported patterns:**
@@ -239,7 +241,7 @@ When the user replies with a "do N" pattern after receiving a Browse Report, mat
 | Pattern | Why It Fails |
 |---------|-------------|
 | Proceeding without checking backend availability | Commands will fail — always detect and resolve first |
-| Using Playwright MCP tools (`mcp__playwright__*`) | Standardized on playwright-cli — use CLI commands, not MCP tools |
+| Using Playwright MCP tools (`mcp__playwright__*`) | Standardized on playwright-cli — use CLI commands, not MCP tools. Even if Playwright MCP tools appear in your available tools list, **always use `playwright-cli` CLI commands instead**. The MCP tools are not part of this workflow. |
 | Skipping screenshots | Browse tasks must capture at minimum start and end state |
 | Running Chrome tasks in parallel | Chrome MCP shares a single controller — one task at a time |
 | Using generic session names | Session names should be descriptive kebab-case derived from the task |
@@ -252,4 +254,5 @@ When the user replies with a "do N" pattern after receiving a Browse Report, mat
 |-------|-------------|
 | `/claude-tweaks:stories` | Uses /browse to explore sites and validate generated stories |
 | `/claude-tweaks:review` | Visual, journey, discover, and qa modes use /browse for browser interaction |
+| `/claude-tweaks:flow` | /flow can chain /stories and /review which use /browse transitively |
 | `/claude-tweaks:setup` | Step 6 configures the browser backends that /browse depends on |
