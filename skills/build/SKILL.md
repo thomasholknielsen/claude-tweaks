@@ -211,11 +211,11 @@ The implementer subagents will pick up project conventions from CLAUDE.md, `.cla
 
 ### Common Steps 2 + 3.5: Simplification and Alignment (Concurrent)
 
-> **Parallel execution:** After implementation completes, run code simplification (Task agent via code-simplifier) and architecture alignment check (main thread) concurrently — they operate on independent concerns. Common Step 4 (Final Verification) gates after both complete.
+> **Parallel execution:** After implementation completes, run code simplification (Task agent via code-simplifier:code-simplifier) and architecture alignment check (main thread) concurrently — they operate on independent concerns. Common Step 4 (Final Verification) gates after both complete.
 
 ### Common Step 2: Code Simplification
 
-After all implementation tasks are complete, run the `code-simplifier` agent on the recently modified code.
+After all implementation tasks are complete, run the `code-simplifier:code-simplifier` agent on the recently modified code.
 
 This step:
 - Simplifies and refines code for clarity, consistency, and maintainability
@@ -238,7 +238,8 @@ If any part of the plan is blocked (missing infrastructure, unresolved dependenc
    - **Spec mode:** add to the spec file under a "Blocked / Future Work" section
    - **Design mode:** create an INBOX entry via `/claude-tweaks:capture`
 2. Note what unblocks them
-3. These will be picked up by `/claude-tweaks:help` when scanning for actionable work
+3. Append blocked items to the open items ledger with status `open`
+4. These will be picked up by `/claude-tweaks:help` when scanning for actionable work
 
 ### Common Step 3.5: Architecture Alignment Check
 
@@ -275,6 +276,23 @@ After code simplification, verify the full build using the project's standard ch
 Check CLAUDE.md for the project's specific commands (e.g., `pnpm typecheck`, `npm run lint`, `yarn test`).
 
 If anything fails, fix it and commit the fix.
+
+### Common Step 4.5: Operational Checklist
+
+After verification passes, check for operational tasks that are easy to forget. These are not code quality issues — they're deployment and environment concerns that slip through code review.
+
+> **Parallel execution:** Use parallel tool calls — all checks are independent Grep/Glob operations.
+
+| Check | Detect | Action |
+|-------|--------|--------|
+| Schema changes | `git diff --name-only` includes schema/migration files | Run the project's schema push command (check CLAUDE.md). If no command is documented, append to ledger as `open`. |
+| Shared constant value changed | `git diff` shows a constant's value changed in a shared package | Grep all test files for the old literal value. Update any hardcoded assertions to import the constant instead. |
+| New environment variables | Grep changed files for new `process.env.*` or env access patterns | Check `.env.example` (or equivalent) includes the new variable. Add if missing. |
+| New package exports | `package.json` `exports` field changed | Run the package build to verify exports resolve correctly. |
+
+Append each finding to the open items ledger (`docs/plans/*-ledger.md` for this work). Resolve immediately — these are operational, not design decisions. Update status to `fixed` after each.
+
+If the ledger doesn't exist (standalone build without `/claude-tweaks:flow`), create it at `docs/plans/YYYY-MM-DD-{feature}-ledger.md`.
 
 ### Common Step 5: User Journey Capture
 
@@ -379,6 +397,10 @@ After successful build, present:
 
 ### Recommended Next
 
+{If UI files changed (`.tsx`, `.jsx`, `.vue`, `.svelte`, `.html`, `.css`, component/page directories):}
+`/claude-tweaks:stories {url}` — generate QA stories for the changed UI, then `/claude-tweaks:review`.
+
+{Otherwise:}
 `/claude-tweaks:review {number}` — run the quality gate.
 
 (Branched mode: also consider creating a PR from `{branch}`.)
@@ -439,7 +461,8 @@ These apply in **autonomous** and **branched** modes. In **guided** mode, pause 
 | `/superpowers:brainstorm` | Produces the design doc that design mode consumes directly |
 | `/superpowers:write-plan` | Invoked BY /claude-tweaks:build to create the execution plan |
 | `/superpowers:execute-plan` | Invoked BY /claude-tweaks:build to execute the plan |
-| `code-simplifier` | Invoked BY /claude-tweaks:build after implementation, before verification |
+| `code-simplifier:code-simplifier` | Invoked BY /claude-tweaks:build after implementation, before verification |
+| `/claude-tweaks:stories` | Runs AFTER /claude-tweaks:build when UI files change — generates QA stories before review |
 | `/claude-tweaks:review` | Runs AFTER /claude-tweaks:build — in design mode, uses git diff instead of spec compliance |
 | `/claude-tweaks:wrap-up` | Runs AFTER /claude-tweaks:review — cleans up and captures learnings |
 | `/claude-tweaks:capture` | Design mode may create INBOX items for blocked work |

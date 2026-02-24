@@ -1,6 +1,6 @@
 ---
 name: claude-tweaks:review
-description: Use when a build is complete and you need to verify code quality, correctness, and simplicity before wrapping up. Also handles visual browser review for UI changes. The quality gate between implementation and lifecycle cleanup.
+description: Use when a build is complete and you need to verify code quality, correctness, and simplicity before wrapping up. Also handles visual browser review for UI changes and QA story validation. The quality gate between implementation and lifecycle cleanup.
 ---
 > **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." End skills with a recommended next step, not a navigation menu.
 
@@ -22,6 +22,7 @@ Post-build quality gate. Verifies, reviews, and refines the code before handing 
 - `/claude-tweaks:help` recommends reviewing a spec that appears complete
 - You need a visual browser review of the running application
 - You want to discover and document user journeys in a brownfield project
+- You want to validate QA stories against a running app (`/review qa`)
 
 ## Overview
 
@@ -38,6 +39,7 @@ This skill is the single quality gate — everything from automated checks to hu
 | **visual** | `/claude-tweaks:review visual {url}` | Browser review only — page mode |
 | **journey** | `/claude-tweaks:review journey:{name}` | Browser review only — walk a documented journey |
 | **discover** | `/claude-tweaks:review discover` | Browser review only — scan and document all user journeys |
+| **qa** | `/claude-tweaks:review qa [options]` | Structured YAML story execution — parallel agents, dependency tiers, pass/fail report |
 
 Code mode is the default. Append `full` to include a visual pass after code review. Use `visual`, `journey:`, or `discover` for browser-only reviews without code analysis.
 
@@ -55,9 +57,10 @@ For complete visual review procedures, read `browser-review.md` in this skill's 
 4. **`visual` + URL or description** (e.g., "visual http://localhost:3000") — browser review only (page mode)
 5. **`journey:{name}`** (e.g., "journey:checkout") — browser review only (journey mode)
 6. **`discover`** — browser review only (discover mode)
-7. **No arguments** — use `git diff` against the base branch or recent commits to identify changed files. Mode: code.
+7. **`qa` + options** (e.g., "qa tag=smoke") — QA story execution mode
+8. **No arguments** — use `git diff` against the base branch or recent commits to identify changed files. Mode: code.
 
-In visual, journey, and discover modes, skip Steps 1-6 and 8 — run only the visual review procedures from `browser-review.md` in this skill's directory.
+In visual, journey, discover, and qa modes, skip Steps 1-6 and 8 — run only the procedures from the appropriate sub-file (`browser-review.md` or `qa-review.md` in this skill's directory).
 
 ## Step 1: Spec Compliance Check (spec-based only)
 
@@ -196,7 +199,15 @@ Present all findings as a single batch table with recommended actions pre-filled
 - **Defer** (DEFERRED.md) — the fix is understood but it's bigger and not relevant to the current work. Include origin spec, affected files, and trigger for when to revisit.
 - **Capture to INBOX** — the finding is complex or uncertain and needs brainstorming/exploration before it can be acted on. This enters the full capture → challenge → `/superpowers:brainstorm` pipeline.
 
+**Deferral gate:** An item may only be deferred if it meets ALL of these:
+- Pre-existing (not introduced by this build), OR requires design discussion that can't be resolved in the current session
+- Has a clear trigger documented for when to revisit
+
+Items introduced by this build that are fixable now must be fixed now — even if the fix is imperfect, closing the gap is better than deferring.
+
 If any findings are "Fix now", make the changes, re-run verification (Step 3), and verify fixes didn't introduce new findings.
+
+**Write all findings to the open items ledger** (`docs/plans/*-ledger.md` for this work). Status: `open` for "Fix now" items, `deferred` for items routed to DEFERRED.md, `accepted` for "Don't fix" items (with reason). After fixing, update status to `fixed`.
 
 > **Routing bias:** Fix it now — always the recommended default, regardless of severity. Defer when the fix is understood but bigger and not relevant now. Capture to INBOX when the finding needs exploration before it can be acted on. The goal is to close gaps early, not accumulate a backlog.
 
@@ -238,16 +249,18 @@ Present all findings as a batch:
 
 If any findings are **"Change now"**, make the changes, re-run verification (Step 3), and resume.
 
+**Write all hindsight findings to the open items ledger.** Status: `open` for "Change now" items; update to `fixed` after making changes.
+
 If no hindsight findings, state "No changes needed — approach is sound" and proceed.
 
 ---
 
 ## Step 6: Simplify Changed Code
 
-Run the **code-simplifier** subagent on files modified during this work:
+Run the **code-simplifier:code-simplifier** subagent on files modified during this work:
 
 ```
-Task tool with subagent_type="code-simplifier"
+Task tool with subagent_type="code-simplifier:code-simplifier"
 ```
 
 **Scope:** Only files changed in the current work (use `git diff --name-only`). Do NOT simplify unrelated code.
@@ -292,16 +305,20 @@ A journey is **affected** if any file in its `files:` frontmatter was modified i
 - **No journeys but UI changed** → summary notes: "Visual review recommended: `/claude-tweaks:review visual {url}`."
 - **No UI impact** → skip silently.
 
-**When browser tools are unavailable:** If the changes touch UI but no browser integration is configured (no Chrome Extension or Playwright MCP), don't silently skip. Instead, note it:
+**When browser tools are unavailable:** If the changes touch UI but no browser backend is configured, don't silently skip. Instead, note it:
 
 ```
-Visual review skipped — no browser integration configured.
+Visual review skipped — no browser backend configured.
 To set up browser tools, run /claude-tweaks:setup and choose browser integration.
 ```
 
 ### Full mode: Run visual review
 
 Run the complete visual review procedures from `browser-review.md` in this skill's directory. Findings feed into the summary (Step 8).
+
+### QA mode: Run QA review
+
+Run the QA review procedures from `qa-review.md` in this skill's directory. The QA review discovers YAML stories, fans out parallel qa-agents, and produces a pass/fail report. Skip all other review steps — the QA report is the complete output.
 
 ### Visual/journey/discover mode: Standalone
 
@@ -345,5 +362,7 @@ Present a structured summary covering spec compliance, verification results, cod
 | `/claude-tweaks:wrap-up` | Runs after /claude-tweaks:review passes — focuses on reflection, cleanup, and knowledge capture |
 | `/claude-tweaks:capture` | /claude-tweaks:review may create INBOX items for new ideas discovered during review |
 | `/claude-tweaks:codebase-onboarding` | Phase 7 delegates to `/review discover` for brownfield journey bootstrapping |
-| `/claude-tweaks:setup` | Step 6 configures the browser integration that visual review depends on |
+| `/claude-tweaks:stories` | Generates the YAML stories that QA mode validates |
+| `/claude-tweaks:browse` | Used by visual, journey, discover, and QA modes for browser interaction |
+| `/claude-tweaks:setup` | Step 6 configures the browser backends that visual and QA review depend on |
 | `specs/DEFERRED.md` | /claude-tweaks:review routes implementation-related deferrals here (with origin, files, trigger) |

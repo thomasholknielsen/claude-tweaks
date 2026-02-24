@@ -2,7 +2,7 @@
 
 ## What this is
 
-A Claude Code plugin (v2.9.0) containing markdown skill files that guide Claude through a structured development lifecycle. This is not a code application — it's a system of prompts organized as skills.
+A Claude Code plugin (v3.0.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation and QA pipeline support. This is not a code application — it's a system of prompts organized as skills.
 
 ## Stack
 
@@ -10,7 +10,7 @@ A Claude Code plugin (v2.9.0) containing markdown skill files that guide Claude 
 |-------|-----------|
 | Runtime | Claude Code plugin system |
 | Content | Markdown (SKILL.md files with YAML frontmatter) |
-| Dependencies | Superpowers plugin (`/superpowers:brainstorm`, `/superpowers:write-plan`, `/superpowers:execute-plan`), code-simplifier (built-in subagent) |
+| Dependencies | Superpowers plugin (`/superpowers:brainstorm`, `/superpowers:write-plan`, `/superpowers:execute-plan`), code-simplifier (built-in subagent), playwright-cli (optional) |
 | Distribution | Plugin marketplace via `thomasholknielsen/claude-tweaks-marketplace` |
 
 ## Structure
@@ -19,21 +19,24 @@ A Claude Code plugin (v2.9.0) containing markdown skill files that guide Claude 
 .claude-plugin/plugin.json        → Plugin manifest (name, version, description)
 skills/{name}/SKILL.md            → Skill definition (frontmatter + body)
 skills/{name}/*.md                → Sub-files lazy-loaded by the skill
+agents/{name}.md                  → Agent definitions (frontmatter + body)
+hooks/hooks.json                  → Hook definitions (SessionStart checks)
 README.md                         → User-facing documentation
 LICENSE                           → MIT
 ```
 
-### Skill directories (12 total)
+### Skill directories (14 total)
 
-**Lifecycle:** setup, codebase-onboarding, capture, challenge, specify, build, test, review, wrap-up
-**Utility:** help, tidy, flow
+**Lifecycle:** setup, codebase-onboarding, capture, challenge, specify, build, test, stories, review, wrap-up
+**Utility:** help, tidy, flow, browse
 
 ### Skills with sub-files
 
 | Skill | Sub-files | Purpose |
 |-------|-----------|---------|
 | codebase-onboarding | detection-tables.md, profile-templates.md, claude-md-template.md, skill-template.md, summary-templates.md | Lazy-loaded reference content for each phase |
-| review | review-summary-template.md, browser-review.md | Structured summary template; visual review procedures |
+| browse | playwright-reference.md, chrome-reference.md | Full command references for each browser backend |
+| review | review-summary-template.md, browser-review.md, qa-review.md | Structured summary template; visual review procedures; QA review procedures |
 | specify | spec-template.md | Spec file template with field rationale |
 | help | reference-card.md, context-flow.md | Quick reference card; artifact flow documentation |
 

@@ -13,7 +13,9 @@ claude-tweaks adds that system. It's a set of skills that guide Claude through a
 - **Specify** work into agent-sized units with clear acceptance criteria
 - **Build** with automatic journey capture and architectural alignment
 - **Test** independently with targeted or full-suite verification
-- **Review** with batched code review findings, visual browser inspection, and simplification
+- **Browse** web pages with unified automation (playwright-cli or Chrome MCP)
+- **Stories** — generate QA story YAML files by browsing your app
+- **Review** with batched code review findings, visual browser inspection, QA story validation, and simplification
 - **Wrap up** with reflection, knowledge routing, and artifact cleanup
 
 Every finding is explicitly routed — fixed now, deferred with context, or explicitly accepted. Nothing silently drops.
@@ -48,15 +50,15 @@ This will:
 - Verify plugin dependencies (Superpowers, code-simplifier)
 - Create `specs/`, `docs/plans/`, `docs/journeys/`, and starter files (`INBOX.md`, `INDEX.md`)
 - Check for `CLAUDE.md` and git
-- Optionally set up browser integration (Chrome Extension or Playwright MCP)
+- Optionally set up browser integration (playwright-cli and/or Chrome MCP)
 - Present a status report
 
 ## Workflow Lifecycle
 
 ```
-/setup → /codebase-onboarding → /capture → /challenge → /superpowers:brainstorm → /specify → /build → /review → /wrap-up
-                                                                                       ╰── /flow automates ──╯
-                                                                           /test ↕    /review visual modes
+/setup → /codebase-onboarding → /capture → /challenge → /superpowers:brainstorm → /specify → /build → [/stories] → /review → /wrap-up
+                                                                                       ╰──────── /flow automates ────────╯
+                                                                           /test ↕    /browse ↕    /review visual + qa modes
 ```
 
 ### Lifecycle Skills
@@ -70,7 +72,8 @@ This will:
 | 5 | `/claude-tweaks:specify` | Decompose design doc into agent-sized specs with implicit dependency detection |
 | 6 | `/claude-tweaks:build` | Implement a spec end-to-end (autonomous, guided, or branched mode) |
 | 6b | `/claude-tweaks:test` | Standalone verification — types, lint, tests |
-| 7 | `/claude-tweaks:review` | Quality gate — code review + optional visual browser review |
+| 6c | `/claude-tweaks:stories` | Generate or update QA story YAML files by browsing a site |
+| 7 | `/claude-tweaks:review` | Quality gate — code review + optional visual/QA review |
 | 8 | `/claude-tweaks:wrap-up` | Reflection, knowledge capture, artifact cleanup |
 
 ### Utility Skills
@@ -79,7 +82,8 @@ This will:
 |---------|---------|
 | `/claude-tweaks:help` | Quick reference, workflow status dashboard, recommendations |
 | `/claude-tweaks:tidy` | Batch backlog hygiene with cross-spec pattern detection |
-| `/claude-tweaks:flow` | Automated pipeline: build → review → wrap-up with gates |
+| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] review → wrap-up with gates |
+| `/claude-tweaks:browse` | Unified browser automation — playwright-cli or Chrome MCP |
 
 ## Common Workflows
 
@@ -135,7 +139,7 @@ Or standalone visual modes:
 
 ### Review Modes
 
-Code review with optional visual inspection. Five modes:
+Code review with optional visual inspection and QA validation. Six modes:
 
 | Mode | What it does |
 |------|-------------|
@@ -144,12 +148,43 @@ Code review with optional visual inspection. Five modes:
 | **visual** | Browser review only — single page |
 | **journey** | Browser review only — walk a documented journey |
 | **discover** | Browser review only — scan and document all user journeys |
+| **qa** | Structured YAML story execution — parallel agents, dependency tiers, pass/fail report |
 
 ### User Journeys
 
 Persistent markdown files in `docs/journeys/` that describe how personas accomplish goals. Created automatically during `/build` for user-facing features, tested by `/review` visual modes, discovered in bulk via `/review discover` or `/codebase-onboarding`.
 
 Each journey tracks its implementing source files via `files:` frontmatter. During `/review`, changed files are checked against all journeys — if a build touches files that an existing journey depends on, the review flags it for visual regression testing.
+
+### Browser Automation
+
+`/browse` provides unified browser automation that auto-detects the best available backend:
+
+- **playwright-cli** (recommended) — headless CLI automation, parallel sessions, token-efficient
+- **Chrome MCP** (optional) — observable automation using your real Chrome with existing profile and cookies
+
+```
+/claude-tweaks:browse http://localhost:3000                    → auto-detect backend, explore site
+/claude-tweaks:browse screenshot http://example.com            → capture visual state
+/claude-tweaks:browse browser=chrome http://localhost:3000     → force Chrome backend
+```
+
+### QA Pipeline
+
+Generate user stories by browsing your app, then validate them with parallel agents:
+
+```
+/claude-tweaks:stories http://localhost:3000                   → browse site, generate story YAML files
+/claude-tweaks:review qa                                       → validate all stories against running app
+/claude-tweaks:review qa tag=smoke                             → validate smoke tests only
+/claude-tweaks:review qa retry=screenshots/qa/20260210_143022  → re-run only failed stories
+```
+
+Or include stories in the automated pipeline:
+
+```
+/claude-tweaks:flow 42 stories                                 → build → stories → review qa → review code → wrap-up
+```
 
 ### Standalone Testing
 
@@ -196,6 +231,8 @@ Skills include explicit parallelization directives that tell Claude when to run 
 
 Every surfaced finding — code review issues, visual review observations, wrap-up insights, tidy items — must be explicitly resolved: fix now, defer with context, or accept with a stated reason. Nothing silently disappears.
 
+The **open items ledger** (`docs/plans/*-ledger.md`) tracks all findings and operational tasks across pipeline phases as a file on disk — surviving context compression. `/wrap-up` enforces a nothing-left-behind gate: every item must reach a terminal status before the pipeline completes.
+
 ## Artifact Lifecycle
 
 ```
@@ -205,19 +242,23 @@ INBOX item ──→ Brief ──→ Design Doc ──────→ Spec ─�
                                     (deletes brief  Deferred  docs/journeys/
                                      + design doc)  Work
 
-Code ──→ Review Summary ──→ Learnings routed ──→ Clean slate
- /build      /review            /wrap-up
-       (visual modes)   ↓                ↓
-                    Deferred Work  (deletes spec
-                                    + plans)
+Code + Journey ──→ Story YAML ──→ QA Report ──→ Review Summary ──→ Learnings routed ──→ Clean slate
+     /build         /stories      /review qa       /review            /wrap-up
+               (visual modes)                  ↓                ↓
+                                           Deferred Work  (deletes spec
+                                                            + plans + ledger)
+
+Open Items Ledger ── tracks findings across all phases ── resolved + deleted by /wrap-up
 ```
 
 ## Dependencies
 
-| Plugin | Marketplace | Required for |
-|--------|-------------|-------------|
+| Plugin / Tool | Source | Required for |
+|---------------|--------|-------------|
 | [Superpowers](https://github.com/obra/superpowers) | [`obra/superpowers-marketplace`](https://github.com/obra/superpowers-marketplace) | `/superpowers:brainstorm`, `/superpowers:write-plan`, `/superpowers:execute-plan` |
 | code-simplifier | Built-in subagent | Code simplification in `/review` and `/build` |
+| playwright-cli | `npm install -g @playwright/cli@latest` | `/browse`, `/stories`, `/review qa` (optional — Chrome MCP is an alternative) |
+| Chrome MCP | Chrome extension + `claude --chrome` | `/browse` Chrome backend (optional — playwright-cli is the recommended default) |
 
 ## Local development
 

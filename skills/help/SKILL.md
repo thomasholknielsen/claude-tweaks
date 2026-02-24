@@ -54,7 +54,8 @@ These run in order — each skill feeds into the next.
 | 5 | `/claude-tweaks:specify` | Decompose a design doc into agent-sized specs | design doc path, topic, INBOX ref |
 | 6 | `/claude-tweaks:build` | Implement a spec or design doc end-to-end | spec number, design doc path, topic + optional mode: `autonomous` (default), `guided`, `branched` |
 | 6b | `/claude-tweaks:test` | Standalone verification — types, lint, tests | `types`, `lint`, `unit`, file path, `affected` |
-| 7 | `/claude-tweaks:review` | Quality gate — code review + optional visual browser review | spec number, file paths + `full`, `visual`, `journey:{name}`, `discover` |
+| 6c | `/claude-tweaks:stories` | Generate or update QA story YAML files by browsing a site | URL + `persona=`, `dir=`, `focus=`, `browser=`, `refine=`, `negative=` |
+| 7 | `/claude-tweaks:review` | Quality gate — code review + optional visual/QA review | spec number, file paths + `full`, `visual`, `journey:{name}`, `discover`, `qa` |
 | 8 | `/claude-tweaks:wrap-up` | Reflection, knowledge capture, artifact cleanup | spec number |
 
 For a concise one-page reference, read `reference-card.md` in this skill's directory.
@@ -65,7 +66,8 @@ For a concise one-page reference, read `reference-card.md` in this skill's direc
 |---------|---------|---------|
 | `/claude-tweaks:help` | This dashboard — commands, status, recommendations | `status`, `commands`, spec/topic |
 | `/claude-tweaks:tidy` | Periodic backlog hygiene | — |
-| `/claude-tweaks:flow` | Automated pipeline: build → review → wrap-up | spec number(s) (comma-separated for parallel), design doc path, or topic `[steps]` |
+| `/claude-tweaks:flow` | Automated pipeline: build → review → wrap-up | spec number(s) (comma-separated for parallel), design doc path, or topic + `stories` `[steps]` |
+| `/claude-tweaks:browse` | Unified browser automation (utility) | URL or task description + `browser=`, `headless`, `vision` |
 
 ### Superpowers (External Plugin)
 
@@ -85,11 +87,11 @@ INBOX item ──→ Brief ──→ Design Doc ──→ Spec ──→ Code + 
                                     (deletes brief  Deferred  docs/journeys/
                                      + design doc)  Work
 
-Code ──→ Review Summary ──→ Learnings routed ──→ Clean slate
- /build      /review            /wrap-up
-       (visual modes)   ↓                ↓
-                    Deferred Work  (deletes spec
-                                    + plans)
+Code + Journey ──→ Story YAML ──→ QA Report ──→ Review Summary ──→ Clean slate
+     /build         /stories      /review qa       /review            /wrap-up
+               (visual modes)                  ↓                ↓
+                                           Deferred Work  (deletes spec
+                                                            + plans)
 ```
 
 ---
@@ -249,3 +251,5 @@ For a detailed explanation of how context flows between skills via artifacts, re
 | `/claude-tweaks:tidy` | /claude-tweaks:help suggests /claude-tweaks:tidy when maintenance is needed |
 | `specs/DEFERRED.md` | /claude-tweaks:help scans deferred items and flags those with met triggers |
 | `/claude-tweaks:flow` | /claude-tweaks:help lists /claude-tweaks:flow as an automation option for ready specs |
+| `/claude-tweaks:browse` | Utility skill — /claude-tweaks:help lists it in the utility skills table |
+| `/claude-tweaks:stories` | Lifecycle skill — /claude-tweaks:help lists it between /test and /review |

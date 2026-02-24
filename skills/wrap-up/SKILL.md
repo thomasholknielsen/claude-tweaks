@@ -119,6 +119,8 @@ Present all insights as a batch:
 
 If any insight is "Implement now", handle it before continuing wrap-up.
 
+**Write all actionable insights to the open items ledger** (`docs/plans/*-ledger.md` for this work). "Implement now" items get status `open` until implemented (then `fixed`); "Defer" items get status `deferred`.
+
 > **Routing bias:** Implement it now — always the recommended default. Defer when the improvement is bigger and not relevant now. Capture to INBOX when the insight needs brainstorming. The goal is to close gaps while the context is fresh.
 
 ---
@@ -144,6 +146,10 @@ Note: Design docs (`*-design.md`) should already have been deleted by `/claude-t
 ### Auto-Generated Plans
 
 Search `~/.claude/plans/` for related plans → **delete them**.
+
+### Open Items Ledger
+
+Delete `docs/plans/*-ledger.md` for this work. All items have been resolved by the nothing-left-behind gate (Step 9.5). If the file doesn't exist (standalone wrap-up), skip this.
 
 ## Steps 6-8: Assess Configuration Updates
 
@@ -194,6 +200,44 @@ Suggest running `/claude-tweaks:help` to see the full workflow status.
 
 ---
 
+## Step 9.5: Nothing Left Behind (Gate)
+
+Read the open items ledger (`docs/plans/*-ledger.md` for this work). If the ledger doesn't exist (standalone wrap-up, or work predating the ledger), skip this gate.
+
+Present all items in a single table:
+
+```
+### Open Items Resolution
+
+| # | Phase | Item | Status | Resolution |
+|---|-------|------|--------|------------|
+| 1 | build | ... | fixed | Commit abc123 |
+| 2 | review | ... | fixed | Commit def456 |
+| 3 | review | ... | deferred | DEFERRED.md — pre-existing pattern |
+| 4 | wrap-up | ... | open | — |
+```
+
+**Gate:** Every item must have a terminal status (`fixed`, `deferred`, or `accepted`). If any item is still `open`:
+
+1. Assess whether it can be fixed now (most can — especially items flagged during this session)
+2. Present remaining open items:
+   ```
+   These items are still open:
+
+   | # | Item | Recommended |
+   |---|------|-------------|
+   | 4 | ... | Fix now — {N} lines, {reason} |
+
+   1. Fix all **(Recommended)**
+   2. I'll tell you which to defer
+   ```
+3. Fix approved items, update ledger status to `fixed`
+4. Defer remaining items to DEFERRED.md (with origin, files, trigger), update ledger status to `deferred`
+
+**No item may remain `open` when wrap-up completes.**
+
+---
+
 ## Step 10: Present Consolidated Summary
 
 ```
@@ -211,6 +255,7 @@ Overall: {X}% complete
 - [ ] Delete spec (if 100%) or update status
 - [ ] Update INDEX.md
 - [ ] Delete plans from docs/plans/
+- [ ] Delete open items ledger
 - [ ] Leftover work: {recommendation}
 
 ### Configuration Updates (from Steps 6-8)
@@ -272,6 +317,7 @@ Commit with a message summarizing the wrap-up actions.
 | Skipping reflection for "simple" work | Simple work still surfaces surprises and near-misses worth capturing |
 | Keeping design docs and plans after wrap-up | Consumed artifacts create stale references — the spec and code are the durable records |
 | Silently dropping insights with no obvious destination | Every insight gets an explicit decision — even "don't capture" requires a stated reason from the user |
+| Completing wrap-up with open ledger items | The nothing-left-behind gate exists to prevent dropped work — resolve every item before presenting the summary |
 
 ## Relationship to Other Skills
 

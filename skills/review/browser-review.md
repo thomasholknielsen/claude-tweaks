@@ -4,16 +4,17 @@ Visual inspection, interactive testing, and creative assessment of the running a
 
 ## Prerequisites
 
-Browser integration must be configured. If not available, direct the user to `/claude-tweaks:setup` (Step 6).
+A browser backend must be available. Check in this order:
 
-Check availability:
-- **Chrome Extension** — look for `/chrome` availability or ask the user to confirm Chrome is connected
-- **Playwright MCP** — check if `mcp__playwright__*` tools are available
+1. **playwright-cli:** `command -v playwright-cli >/dev/null 2>&1`
+2. **Chrome MCP:** check if `mcp__claude_in_chrome__navigate` tool exists
 
-If neither is available, **stop** and tell the user:
+If playwright-cli is available, use it as the default backend. If only Chrome MCP is available, use Chrome. If neither is available, **stop** and tell the user:
 ```
-Browser tools aren't configured yet. Run /claude-tweaks:setup to set up browser integration (Step 6).
+No browser backend configured. Run /claude-tweaks:setup to set up browser integration (Step 6).
 ```
+
+Use the `/claude-tweaks:browse` skill's operation mapping table for all browser operations.
 
 ## Mode Resolution
 
@@ -253,8 +254,8 @@ Navigate to the target URL and verify the page is functional before investing in
 - Note the page title, visible state, and any immediate errors
 
 ### Check for obvious problems:
-- Console errors (use `browser_console_messages` with level "error")
-- Failed network requests (use `browser_network_requests`)
+- Console errors (Playwright: `playwright-cli -s=<session> console` / Chrome: `mcp__claude_in_chrome__read_console_messages(tabId)`)
+- Failed network requests (Playwright: `playwright-cli -s=<session> network` / Chrome: `mcp__claude_in_chrome__read_network_requests(tabId)`)
 - Blank or broken page rendering
 - Missing assets (images, fonts, styles)
 
@@ -350,7 +351,7 @@ Now shift to structured inspection. This is the analytical pass — systematic w
 - Are fonts loading correctly?
 
 ### Responsive Behavior (if applicable)
-- Resize the browser (`browser_resize`) to common breakpoints:
+- Resize the browser (Playwright: `playwright-cli -s=<session> resize <w> <h>` / Chrome: resize browser window) to common breakpoints:
   - Mobile: 375x667
   - Tablet: 768x1024
   - Desktop: 1280x800
@@ -410,7 +411,7 @@ Present a structured report that balances issues, observations, and ideas.
 ## Visual Review: {page/feature description}
 
 **URL:** {url}
-**Browser:** {Chrome Extension / Playwright MCP}
+**Browser:** {playwright-cli|Chrome MCP}
 
 ### Page Health
 - Console errors: {count or "none"}
@@ -524,7 +525,7 @@ Every idea goes to a durable destination. "Note for later" without a destination
 
 ## Important Notes
 
-- This review requires browser integration — either Chrome Extension or Playwright MCP
+- This review requires browser integration — playwright-cli or Chrome MCP must be configured
 - Screenshots and snapshots are ephemeral — findings should be captured in the report, not as file references
 - The review is scoped to the current work — don't review the entire application (except in journey mode, where the full journey is in scope, and discover mode, which scans the whole app)
 - Journey mode auto-detects when invoked with no arguments by checking `docs/journeys/` against recent changes

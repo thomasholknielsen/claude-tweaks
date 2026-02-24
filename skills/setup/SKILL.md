@@ -48,7 +48,7 @@ Provides the `code-simplifier` subagent used by `/claude-tweaks:build` and `/cla
 # code-simplifier is part of claude-code's built-in subagent types
 ```
 
-Note: `code-simplifier` is a built-in subagent type (`subagent_type="code-simplifier"` in the Task tool). No plugin installation needed — just verify it's available by checking the Task tool's agent type list.
+Note: `code-simplifier` is a built-in subagent type (`subagent_type="code-simplifier:code-simplifier"` in the Task tool). No plugin installation needed — just verify it's available by checking the Task tool's agent type list.
 
 ### Optional: Claude Tweaks
 
@@ -133,102 +133,63 @@ The workflow system relies on git for change tracking (`/claude-tweaks:review` u
 
 ## Step 6: Browser Integration (Optional)
 
-Ask the user if they want to set up browser integration. This lets Claude Code interact with web pages — useful for testing UIs, scraping docs, verifying deployments, etc.
+Ask the user if they want to set up browser integration. This lets Claude Code interact with web pages — useful for testing UIs, running QA stories, scraping docs, and verifying deployments.
 
 ### Detect Existing Setup
 
 Before offering options, check what's already configured:
 
 ```bash
-# Check for Playwright MCP server
-cat .mcp.json 2>/dev/null | grep -i playwright
-cat ~/.claude.json 2>/dev/null | grep -i playwright
+# Check for playwright-cli
+command -v playwright-cli >/dev/null 2>&1 && echo "playwright-cli: installed" || echo "playwright-cli: not found"
+
+# Check for Chrome MCP tools
+# Look for mcp__claude_in_chrome__navigate in available tools
 ```
 
-If browser tools are already available (e.g., `mcp__playwright__*` tools exist), report the status and skip to the next step.
+If either backend is already available, report the status and skip to the next step.
 
 ### Present Options
 
 If no browser integration is detected, offer:
 
 ```
-Browser integration lets Claude Code control a web browser for testing, scraping, and verification.
+Browser integration lets Claude Code control a web browser for testing, QA story validation, and scraping.
 
-How would you like to set it up?
-1. Chrome Extension **(Recommended)** — Uses your real Chrome browser with existing login sessions. Simple setup.
-2. Playwright MCP — Headless browser automation. No extension needed, supports multiple browsers.
-3. Skip — Set up later
+1. Install playwright-cli **(Recommended)** — Headless CLI automation. Parallel sessions, token-efficient.
+2. Both (playwright-cli + Chrome MCP) — Headless + observable Chrome with your real profile.
+3. Skip — Set up later. Browser features are optional.
 ```
 
-### Option 1: Chrome Extension
+### Option 1: playwright-cli (Recommended)
 
-The official native integration. Uses Chrome's Native Messaging API to connect Claude Code to a running Chrome/Edge window.
-
-**Prerequisites:**
-- Google Chrome or Microsoft Edge
-- Claude extension installed from the Chrome Web Store
-- Claude Code v2.0.73+
-- Direct Anthropic plan (Pro, Max, Teams, or Enterprise)
-
-**Setup steps:**
-
-1. Check if the Chrome extension is installed by looking for the native messaging host config:
-   ```bash
-   # macOS — Chrome
-   ls ~/Library/Application\ Support/Google/Chrome/NativeMessagingHosts/com.anthropic.claude_code_browser_extension.json 2>/dev/null
-   # macOS — Edge
-   ls ~/Library/Application\ Support/Microsoft\ Edge/NativeMessagingHosts/com.anthropic.claude_code_browser_extension.json 2>/dev/null
-   # Linux — Chrome
-   ls ~/.config/google-chrome/NativeMessagingHosts/com.anthropic.claude_code_browser_extension.json 2>/dev/null
-   ```
-
-2. If not found, tell the user:
-   ```
-   Install the "Claude" extension from the Chrome Web Store:
-   https://chromewebstore.google.com/detail/claude/fcoeoabgfenejglbffodgkkbkcdhcgfn
-
-   Once installed, come back and re-run this step.
-   ```
-
-3. If found, enable Chrome integration:
-   ```
-   To use Chrome in this session: /chrome
-   To enable by default: run /chrome and select "Enabled by default"
-   ```
-
-4. Verify by asking the user to confirm Chrome is open, then test with a simple navigation.
-
-**Troubleshooting notes to share if setup fails:**
-- Extension must be enabled in `chrome://extensions`
-- Dismiss any JavaScript modals (alert/confirm/prompt dialogs) in Chrome
-- Restart the extension from `chrome://extensions` if the browser isn't responding
-
-### Option 2: Playwright MCP
-
-Headless browser automation via the Playwright MCP server. Works without a Chrome extension.
+Headless browser automation via the Playwright CLI.
 
 **Prerequisites:**
 - Node.js installed
 
-**Setup steps:**
+**Setup:**
+```bash
+npm install -g @playwright/cli@latest
+```
 
-1. Add the Playwright MCP server:
-   ```bash
-   claude mcp add --transport stdio playwright -- npx -y @playwright/mcp@latest
-   ```
+Verify:
+```bash
+command -v playwright-cli && playwright-cli --version
+```
 
-2. Verify the server is registered:
-   ```bash
-   cat .mcp.json 2>/dev/null | grep -i playwright || cat ~/.claude.json 2>/dev/null | grep -i playwright
-   ```
+### Option 2: Both (playwright-cli + Chrome MCP)
 
-3. Tell the user to restart Claude Code for the MCP server to activate, then verify with `/mcp`.
+Install playwright-cli (as above), plus set up Chrome MCP for observable automation using your real Chrome browser.
 
-4. On first use, Playwright may need to install browser binaries. If tools error with a missing browser, run `browser_install`.
+**Chrome MCP setup:**
+1. Install the Chrome extension for Claude
+2. Restart Claude Code with: `claude --chrome`
+3. Verify Chrome MCP tools are available (look for `mcp__claude_in_chrome__*`)
 
 ### Option 3: Skip
 
-Note that the user skipped browser integration. The workflow system works without it — browser tools are an optional enhancement.
+Note that the user skipped browser integration. The workflow system works without it — `/claude-tweaks:browse`, `/claude-tweaks:stories`, and `/claude-tweaks:review qa` require a browser backend, but all other skills function normally.
 
 ## Step 7: Present Status
 
@@ -263,10 +224,10 @@ Note that the user skipped browser integration. The workflow system works withou
 | Git repo | {yes/no} | {none/`git init`} |
 
 ### Browser Integration
-| Method | Status |
-|--------|--------|
-| Chrome Extension | {connected/not detected/skipped} |
-| Playwright MCP | {configured/not configured/skipped} |
+| Backend | Status |
+|---------|--------|
+| playwright-cli | {installed/not installed/skipped} |
+| Chrome MCP | {available/not available/skipped} |
 
 ### Ready to Go
 
@@ -284,7 +245,7 @@ Note that the user skipped browser integration. The workflow system works withou
 | Skipping CLAUDE.md verification | Without CLAUDE.md, /claude-tweaks:review can't find verification commands |
 | Running setup in a non-git directory without warning | /claude-tweaks:review and /claude-tweaks:wrap-up depend on git — the user should know about degraded behavior |
 | Installing browser tools without asking | Browser integration is optional — always let the user choose whether and how to set it up |
-| Forcing a restart mid-setup for Playwright MCP | Note that a restart is needed but finish the remaining steps first |
+| Forcing a restart mid-setup for Chrome MCP | Note that a restart is needed but finish the remaining steps first |
 
 ## Important Notes
 
@@ -300,4 +261,5 @@ Note that the user skipped browser integration. The workflow system works withou
 | `/claude-tweaks:codebase-onboarding` | Generates CLAUDE.md, skills, and rules — complements /claude-tweaks:setup's structural bootstrapping |
 | `/claude-tweaks:capture` | First skill to use after /claude-tweaks:setup — add ideas to the INBOX |
 | `/claude-tweaks:help` | Shows workflow status — useful to verify /claude-tweaks:setup worked |
+| `/claude-tweaks:browse` | Depends on the browser backends that /setup configures in Step 6 |
 | All workflow skills | Depend on the structure /claude-tweaks:setup creates |

@@ -31,7 +31,7 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 ## Syntax
 
 ```
-/claude-tweaks:flow <spec-or-design-doc>[,spec2,spec3] [step1,step2,step3]
+/claude-tweaks:flow <spec-or-design-doc>[,spec2,spec3] [stories] [step1,step2,step3]
 ```
 
 ### Arguments
@@ -39,6 +39,7 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 | Argument | Required | Description |
 |----------|----------|-------------|
 | `<spec-or-design-doc>` | Yes | Spec number (e.g., `42`), comma-separated spec numbers (e.g., `42,45,48`), design doc path, or topic name |
+| `stories` | No | Include `/claude-tweaks:stories` step between build and review. Requires running app. |
 | `[steps]` | No | Comma-separated list of steps to run. Default: `build,review,wrap-up` |
 
 ### Input resolution
@@ -52,6 +53,7 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 
 ```
 /claude-tweaks:flow 42                                              → spec mode: build, review, wrap-up
+/claude-tweaks:flow 42 stories                                      → build, stories, review qa, review code, wrap-up
 /claude-tweaks:flow 42,45,48                                        → multi-spec: parallel pipelines on separate branches
 /claude-tweaks:flow docs/plans/2026-02-21-meal-planning-design.md   → design mode: build, review, wrap-up
 /claude-tweaks:flow meal planning                                   → auto-detect: spec or design mode
@@ -67,16 +69,18 @@ Only automatable skills can be included in the pipeline:
 | Step | Skill invoked | Why it's automatable |
 |------|--------------|---------------------|
 | `build` | `/claude-tweaks:build` | Fully autonomous — plans, implements, simplifies, verifies |
+| `stories` | `/claude-tweaks:stories` | Autonomous — browses app, generates YAML stories |
 | `review` | `/claude-tweaks:review` | Runs verification, code review, simplification — produces a verdict |
 | `wrap-up` | `/claude-tweaks:wrap-up` | Reflection, cleanup, knowledge routing — produces actionable summary |
 
-**Not allowed in flow:** `capture`, `challenge`, `specify`, `setup`, `codebase-onboarding`, `tidy`, `help` — these require interactive decision-making.
+**Not allowed in flow:** `capture`, `challenge`, `specify`, `setup`, `codebase-onboarding`, `tidy`, `help`, `browse` — these require interactive decision-making or are utility skills.
 
 ### Step Order
 
 Steps must follow lifecycle order. Invalid orderings are rejected:
 
 - `build,review,wrap-up` — valid
+- `build,stories,review,wrap-up` — valid (when `stories` keyword is present)
 - `build,review` — valid
 - `review,wrap-up` — valid (assumes build is already done)
 - `wrap-up` — valid (assumes build and review are done)
@@ -90,6 +94,8 @@ Each step has a gate that determines whether to proceed to the next step.
 | Step | Gate condition | On pass | On failure |
 |------|---------------|---------|-----------|
 | `build` | Final verification passes (type check + lint + tests) | Proceed to next step | **STOP** — present verification failures |
+| `stories` | YAML files created + no parse errors | Proceed to review qa | **STOP** — present generation failures |
+| `review qa` | ALL PASSED | Proceed to review code | **STOP** — present QA failures |
 | `review` | Verdict is **PASS** | Proceed to next step | **STOP** — present **BLOCKED** verdict with findings |
 | `wrap-up` | Always passes | Pipeline complete | — |
 
@@ -105,6 +111,9 @@ When a gate fails, the pipeline stops immediately. Present:
 
 ### Failed at: {step}
 {failure details from the step's output}
+
+### Open Items (at time of failure)
+{current ledger contents — so the user sees what's been tracked}
 
 ### Recommended Next
 
@@ -122,6 +131,14 @@ Or run the failed step manually: `/claude-tweaks:{step} {spec or design doc}`
 4. If spec mode: check prerequisites are met (same as `/claude-tweaks:build` Spec Step 1)
 5. If design mode: verify the design doc file exists
 6. If validation fails → **stop before starting**
+7. **Create the open items ledger** at `docs/plans/YYYY-MM-DD-{feature}-ledger.md` — the `{feature}` name matches the execution plan that build will create. This file tracks findings and operational tasks across all pipeline phases. Format:
+   ```markdown
+   # Open Items — {spec title or design topic}
+
+   | # | Phase | Item | Status | Resolution |
+   |---|-------|------|--------|------------|
+   ```
+   Status lifecycle: `open` → `fixed` / `deferred` / `accepted`. Each phase appends rows; wrap-up enforces resolution of every item before completing.
 
 ### Step 2: Run Pipeline
 
@@ -131,10 +148,21 @@ For each step in order:
 2. **Execute** the full skill as documented in its own SKILL.md
 3. **Check the gate** — if the step fails its gate, stop the pipeline
 4. **Pass context forward** — each step's output feeds into the next:
+   - `build` → `stories` receives the UI changed files list + app URL
+   - `stories` → `review qa` receives the stories directory
+   - `review qa` → `review` (code) receives the QA verdict
    - `build` → `review` receives the build summary and changed files
    - `review` → `wrap-up` receives the review summary and verdict
+5. **Ledger carries forward** — each step reads and appends to the open items ledger. Unlike conversation context (which may be compressed), the ledger is a file — it survives context window limits.
 
 ### Step 3: Present Pipeline Summary
+
+**Nothing-left-behind gate:** Before presenting the summary, read the open items ledger. If any item has status `open`:
+1. Present the open items table
+2. For each open item, determine resolution: fix now, defer (DEFERRED.md with origin/trigger), or accept with stated reason
+3. Update the ledger — no item may remain `open`
+
+The pipeline cannot complete with unresolved items.
 
 On successful completion of all steps:
 
@@ -147,7 +175,7 @@ On successful completion of all steps:
 |------|---------|
 | build | Verification passed |
 | review | Verdict: PASS |
-| wrap-up | Learnings captured, artifacts cleaned |
+| wrap-up | Learnings captured, artifacts cleaned, ledger resolved |
 
 ### Key Outputs
 - {summary of what was built}
@@ -187,8 +215,9 @@ Before dispatching, validate the spec list:
 
 Each agent:
 1. Creates its `build/{N}-{title}` branch from the current HEAD
-2. Runs the pipeline steps in order (same gate behavior as single-spec flow)
-3. Returns its outcome: completed steps, gate failures, and summary
+2. Creates its own ledger: `docs/plans/YYYY-MM-DD-{spec-N-feature}-ledger.md`
+3. Runs the pipeline steps in order (same gate behavior as single-spec flow)
+4. Returns its outcome: completed steps, gate failures, and summary
 
 ### Multi-Spec Summary
 
@@ -223,14 +252,16 @@ After all agents complete, present a consolidated summary:
 | Using flow for interactive skills | Capture, challenge, and specify need human decisions — they can't be automated |
 | Multi-spec flow with overlapping Key Files | Concurrent modification of the same files causes merge conflicts — reject pairs that share files |
 | Multi-spec flow without branched mode | Parallel work on the same branch would conflict — multi-spec always forces branched mode |
+| Ignoring open ledger items at pipeline end | The nothing-left-behind gate prevents dropped work — every item must be explicitly resolved |
 
 ## Relationship to Other Skills
 
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:build` | First step in the default pipeline — runs in spec mode or design mode depending on flow input |
-| `/claude-tweaks:review` | Second step — receives build output, produces verdict. Uses spec compliance (spec mode) or git diff (design mode) |
-| `/claude-tweaks:wrap-up` | Third step — receives review output, produces clean slate |
+| `/claude-tweaks:stories` | Optional step between build and review — generates QA stories when `stories` keyword is present |
+| `/claude-tweaks:review` | Review step — receives build output, produces verdict. Includes QA mode when stories step ran. |
+| `/claude-tweaks:wrap-up` | Final step — receives review output, produces clean slate |
 | `/claude-tweaks:help` | Shows pipeline status and recommends flow-ready specs |
 | `/claude-tweaks:specify` | Creates the specs that flow consumes — multi-spec uses Key Files from /specify for file overlap detection |
 | `/superpowers:brainstorm` | Produces the design docs that flow consumes in design mode — skipping /specify |

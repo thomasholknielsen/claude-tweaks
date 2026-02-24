@@ -13,7 +13,8 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/specify` | Decompose design doc into agent-sized specs | design doc, topic |
 | `/build` | Implement a spec or design doc | spec #, doc path + `autonomous`/`guided`/`branched` |
 | `/test` | Run verification checks standalone | `types`, `lint`, `unit`, path, `affected` |
-| `/review` | Quality gate: code + optional visual review | spec #, files + `full`/`visual`/`journey:{name}`/`discover` |
+| `/stories` | Generate or update QA story YAML files | URL + `persona=`, `dir=`, `focus=`, `browser=`, `refine=`, `negative=` |
+| `/review` | Quality gate: code + optional visual/QA review | spec #, files + `full`/`visual`/`journey:{name}`/`discover`/`qa` |
 | `/wrap-up` | Reflect, capture learnings, clean up | spec # |
 
 ## Utility
@@ -22,7 +23,8 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 |---------|-------------|-------|
 | `/help` | Dashboard: commands + status + recommendations | `status`, `commands`, spec/topic |
 | `/tidy` | Batch backlog hygiene | — |
-| `/flow` | Automated pipeline: build → review → wrap-up | spec #(s), doc path + `[steps]` |
+| `/flow` | Automated pipeline: build → review → wrap-up | spec #(s), doc path + `stories` `[steps]` |
+| `/browse` | Unified browser automation (utility) | URL or task + `browser=`, `headless`, `vision` |
 
 ## Common Workflows
 
@@ -61,6 +63,12 @@ or standalone:
 /flow 42,45,48
 ```
 
+### QA pipeline
+```
+/stories http://localhost:3000
+/review qa
+```
+
 ### Brownfield onboarding
 ```
 /setup
@@ -71,7 +79,7 @@ or standalone:
 ## Artifact Lifecycle
 
 ```
-INBOX → Brief → Design Doc → Spec → Code + Journey → Review → Learnings → Clean Slate
+INBOX → Brief → Design Doc → Spec → Code + Journey → Story YAML → QA Report → Review → Learnings → Clean Slate
 ```
 
 Each arrow means "consumed by the next skill." Consumed artifacts are deleted — specs and code are the durable outputs.
