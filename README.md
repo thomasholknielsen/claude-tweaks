@@ -70,7 +70,7 @@ This will:
 | 3 | `/claude-tweaks:capture` | Brain-dump ideas into INBOX |
 | 4 | `/claude-tweaks:challenge` | Debias a problem statement before brainstorming |
 | 5 | `/claude-tweaks:specify` | Decompose design doc into agent-sized specs with implicit dependency detection |
-| 6 | `/claude-tweaks:build` | Implement a spec end-to-end (autonomous, guided, or branched mode) |
+| 6 | `/claude-tweaks:build` | Implement a spec end-to-end (subagent/batched execution, current-branch/worktree git strategy) |
 | 6b | `/claude-tweaks:test` | Standalone verification — types, lint, tests |
 | 6c | `/claude-tweaks:stories` | Generate or update QA story YAML files by browsing a site |
 | 7 | `/claude-tweaks:review` | Quality gate — code review + optional visual/QA review |
@@ -105,10 +105,17 @@ This will:
 /claude-tweaks:flow 42
 ```
 
-Or run multiple independent specs in parallel on separate branches:
+Or run multiple specs sequentially in one terminal:
 
 ```
 /claude-tweaks:flow 42,45,48
+```
+
+For true parallel execution, use separate terminals with worktree mode:
+
+```
+# Terminal 1                          # Terminal 2                          # Terminal 3
+/claude-tweaks:flow 42 worktree       /claude-tweaks:flow 45 worktree       /claude-tweaks:flow 48 worktree
 ```
 
 ### Visual QA session
@@ -129,12 +136,20 @@ Or standalone visual modes:
 
 ## Key Features
 
-### Build Modes
+### Build Options
+
+Two orthogonal choices: **execution strategy** (subagent/batched) and **git strategy** (current-branch/worktree).
+
+| | **Current branch** | **Worktree** |
+|---|---|---|
+| **Subagent** (default) | Fast solo work. | Isolated automated build. |
+| **Batched** | Hands-on review, no isolation. | Full control + full isolation. |
 
 ```
-/claude-tweaks:build 42                → autonomous (default)
-/claude-tweaks:build 42 guided         → pause at key checkpoints
-/claude-tweaks:build 42 branched       → feature branch, autonomous
+/claude-tweaks:build 42                    → subagent + current branch (default)
+/claude-tweaks:build 42 worktree           → subagent + worktree feature branch
+/claude-tweaks:build 42 batched            → human-reviewed batches + current branch
+/claude-tweaks:build 42 batched worktree   → human-reviewed batches + worktree
 ```
 
 ### Review Modes
@@ -225,7 +240,12 @@ Skills communicate through **durable artifacts on disk** — specs, briefs, desi
 
 ### Parallel Execution
 
-Skills include explicit parallelization directives that tell Claude when to run operations concurrently — parallel tool calls for independent reads and searches, parallel Task agents for heavier analytical work like review lenses and pipeline scans, and conditional dispatch for context-dependent parallelism. `/flow` supports multi-spec parallel pipelines (`/flow 42,45,48`) where each spec runs on its own branch concurrently.
+Skills include explicit parallelization directives that tell Claude when to run operations concurrently — parallel tool calls for independent reads and searches, parallel Task agents for heavier analytical work like review lenses and pipeline scans, and conditional dispatch for context-dependent parallelism (e.g., `/review` dispatches 3+ independent fixes via `/superpowers:dispatching-parallel-agents`). For true parallel spec execution, use separate terminals with worktree mode:
+
+```
+# Terminal 1                          # Terminal 2                          # Terminal 3
+/claude-tweaks:flow 42 worktree       /claude-tweaks:flow 45 worktree       /claude-tweaks:flow 48 worktree
+```
 
 ### No Implicit Drops
 
@@ -255,7 +275,7 @@ Open Items Ledger ── tracks findings across all phases ── resolved + del
 
 | Plugin / Tool | Source | Required for |
 |---------------|--------|-------------|
-| [Superpowers](https://github.com/obra/superpowers) | [`obra/superpowers-marketplace`](https://github.com/obra/superpowers-marketplace) | `/superpowers:brainstorm`, `/superpowers:write-plan`, `/superpowers:execute-plan` |
+| [Superpowers](https://github.com/obra/superpowers) | [`obra/superpowers-marketplace`](https://github.com/obra/superpowers-marketplace) | `/superpowers:brainstorm`, `/superpowers:write-plan`, `/superpowers:subagent-driven-development`, `/superpowers:executing-plans`, `/superpowers:using-git-worktrees`, `/superpowers:finishing-a-development-branch`, `/superpowers:dispatching-parallel-agents` |
 | code-simplifier | Built-in subagent | Code simplification in `/review` and `/build` |
 | playwright-cli | `npm install -g @playwright/cli@latest` | `/browse`, `/stories`, `/review qa` (optional — Chrome MCP is an alternative) |
 | Chrome MCP | Chrome extension + `claude --chrome` | `/browse` Chrome backend (optional — playwright-cli is the recommended default) |

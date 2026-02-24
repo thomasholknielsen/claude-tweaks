@@ -27,7 +27,7 @@ The workflow system depends on two external plugins. Check if they're installed:
 
 ### Required: Superpowers
 
-Provides `/superpowers:brainstorm`, `/superpowers:write-plan`, and `/superpowers:execute-plan`.
+Provides `/superpowers:brainstorm`, `/superpowers:write-plan`, `/superpowers:subagent-driven-development`, `/superpowers:executing-plans`, `/superpowers:using-git-worktrees`, `/superpowers:finishing-a-development-branch`, and `/superpowers:dispatching-parallel-agents`.
 
 ```bash
 # Check if installed
@@ -150,6 +150,26 @@ The workflow system relies on git for change tracking (`/claude-tweaks:review` u
 - Check that the current directory is a git repo
 - If not, warn the user — the workflow will partially work but `/claude-tweaks:review` and `/claude-tweaks:wrap-up` will be degraded
 
+## Step 5.5: Worktree Configuration (Optional)
+
+`/claude-tweaks:build worktree` and `/claude-tweaks:flow worktree` use `/superpowers:using-git-worktrees` to create isolated workspaces. This step checks if a worktree directory is configured.
+
+1. Check if `.worktrees/` or `worktrees/` directory exists in the project root
+2. Check CLAUDE.md for a worktree directory preference (e.g., `worktree-dir: .worktrees`)
+3. If neither exists, offer to configure:
+
+```
+Worktree mode (/build worktree, /flow worktree) needs a directory for isolated workspaces.
+
+1. Project-local `.worktrees/` **(Recommended)** — worktrees live alongside the project
+2. Global `~/.config/superpowers/worktrees/` — shared across all projects
+3. Skip — configure later. `/superpowers:using-git-worktrees` will prompt at first use.
+```
+
+4. If a directory is chosen, verify it's in `.gitignore` (suggest adding if not)
+
+This step is optional — `using-git-worktrees` will prompt for configuration at first use if unconfigured.
+
 ## Step 6: Browser Integration (Optional)
 
 Ask the user if they want to set up browser integration. This lets Claude Code interact with web pages — useful for testing UIs, running QA stories, scraping docs, and verifying deployments.
@@ -242,6 +262,11 @@ Note that the user skipped browser integration. The workflow system works withou
 | CLAUDE.md | {exists/missing} | {none/run `/claude-tweaks:codebase-onboarding`} |
 | Git repo | {yes/no} | {none/`git init`} |
 
+### Worktree Configuration
+| Item | Status |
+|------|--------|
+| Worktree directory | {configured: {path}/not configured/skipped} |
+
 ### Browser Integration
 | Backend | Status |
 |---------|--------|
@@ -281,4 +306,5 @@ Note that the user skipped browser integration. The workflow system works withou
 | `/claude-tweaks:capture` | First skill to use after /claude-tweaks:setup — add ideas to the INBOX |
 | `/claude-tweaks:help` | Shows workflow status — useful to verify /claude-tweaks:setup worked |
 | `/claude-tweaks:browse` | Depends on the browser backends that /setup configures in Step 6 |
+| `/superpowers:using-git-worktrees` | /claude-tweaks:setup optionally configures the worktree directory that `using-git-worktrees` needs |
 | All workflow skills | Depend on the structure /claude-tweaks:setup creates |

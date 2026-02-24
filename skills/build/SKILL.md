@@ -22,59 +22,77 @@ Implement a spec or design doc end-to-end: plan it, build it, simplify it, verif
 - /claude-tweaks:help recommends building a specific spec
 - Resuming a partially-completed build
 
-## Build Modes
+## Build Options
 
-Build mode controls execution style, git strategy, and feedback behavior. Specify as the last argument:
+Two orthogonal choices control how `/build` runs. Combine them freely:
+
+**Execution strategy** — how work gets done and reviewed:
+
+| Strategy | Superpowers skill | Review model | Best for |
+|----------|------------------|--------------|----------|
+| **subagent** (default) | `subagent-driven-development` | Automated review chain — spec reviewer, code quality reviewer, final review. No human in the loop. | Solo work, trusted pipeline |
+| **batched** | `executing-plans` | Human reviews in batches of 3 tasks. Pauses after each batch. | Complex specs, unfamiliar code, hands-on review |
+
+**Git strategy** — where work happens:
+
+| Strategy | Behavior | Best for |
+|----------|----------|----------|
+| **current-branch** (default) | Commit directly on the current branch | Solo work, simple changes |
+| **worktree** | Isolated workspace via `using-git-worktrees` → build → `finishing-a-development-branch` | Parallel work, team projects, risky changes |
+
+**The 2x2 matrix:**
+
+| | **Current branch** | **Worktree** |
+|---|---|---|
+| **Subagent** | Default. Fast solo work. | Isolated automated build. |
+| **Batched** | Hands-on review, no isolation. | Full control + full isolation. |
 
 ```
-/claude-tweaks:build 42                → autonomous (default)
-/claude-tweaks:build 42 guided         → pause at key checkpoints
-/claude-tweaks:build 42 branched       → feature branch, autonomous
+/claude-tweaks:build 42                    → subagent + current branch (default)
+/claude-tweaks:build 42 worktree           → subagent + worktree feature branch
+/claude-tweaks:build 42 batched            → human-reviewed batches + current branch
+/claude-tweaks:build 42 batched worktree   → human-reviewed batches + worktree
 ```
 
-| Mode | Execution | Git Strategy | Feedback | Best for |
-|------|-----------|-------------|----------|----------|
-| **autonomous** | Subagent-driven | Commit on current branch | Never ask | Solo work, trusted pipeline |
-| **guided** | Subagent-driven | Commit on current branch | Pause at checkpoints | Complex specs, unfamiliar code |
-| **branched** | Subagent-driven | Feature branch → PR-ready | Never ask | Team projects, code review gates |
+### Default resolution
 
-### Default mode resolution
+1. Explicit arguments (`/claude-tweaks:build 42 batched worktree`) — always win
+2. CLAUDE.md settings — project-level defaults:
+   ```
+   ## Build
+   execution-strategy: subagent
+   git-strategy: current-branch
+   ```
+3. Fallback — `subagent` + `current-branch`
 
-1. Explicit argument (`/claude-tweaks:build 42 guided`) — always wins
-2. CLAUDE.md setting (`build-mode: autonomous`) — project-level default
-3. Fallback — `autonomous`
+### Execution strategy behavior
 
-To set a project default, add to CLAUDE.md:
-
-```
-## Build
-build-mode: autonomous
-```
-
-### Mode-specific behavior
-
-**autonomous** (default):
-- `/superpowers:execute-plan` runs the full plan
-- Commits land on the current branch
+**subagent** (default):
+- Invokes `/superpowers:subagent-driven-development` for the full plan
+- Fresh subagent per task, spec reviewer, code quality reviewer, final review
 - Never asks for feedback, never presents options
 - Push commits promptly
 
-**guided**:
-- Same subagent-driven execution
-- Commits land on the current branch
-- Pauses after plan creation: "Here's the plan — proceed or adjust?"
-- Pauses after implementation, before simplification: "Implementation complete — review before simplifying?"
-- Presents options when ambiguous instead of choosing silently
+**batched**:
+- Invokes `/superpowers:executing-plans` for the plan
+- Executes in batches of 3 tasks, pauses for human review after each batch
+- User acts as reviewer — approves, requests changes, or skips tasks
+- Push commits after each approved batch
 
-**branched**:
-- Creates a feature branch from the current branch: `build/{spec-number}-{short-title}` or `build/{topic}`
-- Same autonomous behavior (no feedback, no options)
-- Ends with the branch ready — does NOT create a PR (that's a user decision)
-- Handoff suggests creating a PR or merging
+### Git strategy behavior
+
+**current-branch** (default):
+- Commits land directly on the current branch
+- No isolation — simple and fast
+
+**worktree**:
+- Before execution, invokes `/superpowers:using-git-worktrees` to create an isolated workspace with dependency install and baseline test verification
+- All commits land in the worktree on a feature branch
+- At handoff, delegates to `/superpowers:finishing-a-development-branch` (merge locally, create PR, keep, or discard)
 
 ## Input
 
-`$ARGUMENTS` = spec number, design doc path, or topic name — optionally followed by a build mode.
+`$ARGUMENTS` = spec number, design doc path, or topic name — optionally followed by execution strategy (`batched`) and/or git strategy (`worktree`).
 
 ### Resolve the input:
 
@@ -190,26 +208,53 @@ Proceed to **Common Step 1**.
 
 ## Common Steps (both modes)
 
+### Common Step 0: Set Up Worktree (worktree strategy only)
+
+If the user specified `worktree`:
+
+1. Invoke `/superpowers:using-git-worktrees` to create an isolated workspace
+2. The skill handles: branch creation, dependency install, baseline test verification
+3. All subsequent work happens in the worktree
+
+If the user did not specify `worktree`, skip this step.
+
 ### Common Step 1: Execute the Plan
 
-Invoke the `/superpowers:execute-plan` skill.
+Execution depends on the chosen execution strategy:
 
-This runs the full Superpowers execution chain:
+**subagent** (default):
+
+Invoke `/superpowers:subagent-driven-development`.
+
+This runs the full automated execution chain:
 1. Per task: **implementer** subagent builds the code
 2. Per task: **spec reviewer** subagent verifies it matches requirements
 3. Per task: **code quality reviewer** subagent evaluates implementation excellence
 4. After all tasks: **final overall code review**
 
+No human in the loop — the review chain is fully automated.
+
+**batched**:
+
+Invoke `/superpowers:executing-plans`.
+
+This runs execution in human-reviewed batches:
+1. Executes 3 tasks per batch
+2. Pauses after each batch for human review
+3. User reviews the batch output and approves, requests changes, or skips tasks
+4. Continues to the next batch after approval
+
 #### Superpowers Failure Handling
 
-If `/superpowers:execute-plan` (or `/superpowers:write-plan` in Step 3) fails:
+If the execution skill (or `/superpowers:write-plan` in Step 3) fails:
 
 | Failure | Recovery |
 |---------|----------|
 | **Not installed** (command not found) | Stop. Tell the user: "Superpowers plugin is required. Install: `/plugin marketplace add obra/superpowers-marketplace` then `/plugin install superpowers@superpowers-marketplace`" |
-| **Timeout or partial output** | Re-run the specific step that failed. If write-plan timed out, re-invoke it with the same context. If execute-plan timed out mid-task, check which tasks completed (scan git log) and resume from the next incomplete task. |
-| **Malformed plan** (write-plan produced output that execute-plan can't parse) | Re-run `/superpowers:write-plan` with the same context. If it fails again, fall back to manual planning: break the spec into 3-5 implementation tasks, present them to the user, and implement each task directly without the Superpowers execution chain. |
-| **Subagent failures** (individual tasks fail within execute-plan) | Let execute-plan's built-in retry handle it first. If the task fails repeatedly, implement that task directly in the main thread and continue. |
+| **Timeout or partial output** | Re-run the specific step that failed. If write-plan timed out, re-invoke it with the same context. If `subagent-driven-development` or `executing-plans` timed out mid-task, check which tasks completed (scan git log) and resume from the next incomplete task. |
+| **Malformed plan** (write-plan produced output that the execution skill can't parse) | Re-run `/superpowers:write-plan` with the same context. If it fails again, fall back to manual planning: break the spec into 3-5 implementation tasks, present them to the user, and implement each task directly without the Superpowers execution chain. |
+| **Subagent failures** (individual tasks fail within `subagent-driven-development`) | Let the skill's built-in retry handle it first. If the task fails repeatedly, implement that task directly in the main thread and continue. |
+| **Batch rejection** (user rejects a batch in `executing-plans`) | Review the feedback, adjust the failing tasks, and re-run the rejected batch. If the user rejects the same batch twice, implement those tasks directly in the main thread. |
 
 #### Project-Specific Context
 
@@ -408,17 +453,23 @@ After successful build, present:
 {Otherwise:}
 `/claude-tweaks:review {number}` — run the quality gate.
 
-(Branched mode: also consider creating a PR from `{branch}`.)
+{Worktree mode: also suggest completing the branch via `/superpowers:finishing-a-development-branch`.}
 ```
+
+#### Worktree Handoff
+
+If the build used `worktree` git strategy, after presenting the summary above, delegate branch completion to `/superpowers:finishing-a-development-branch`. This skill handles:
+- Merging the feature branch locally
+- Creating a PR
+- Keeping or discarding the worktree
+
+The user decides the outcome — `/build` does not auto-merge or auto-PR.
 
 ## Git Strategy
 
-**autonomous / guided:** Commit directly on the current branch.
+**current-branch** (default): Commit directly on the current branch. No isolation.
 
-**branched:** Before any work begins:
-1. Create branch: `git checkout -b build/{spec-number}-{short-title}`
-2. All commits land on this branch
-3. At handoff, the branch is ready for PR or merge — do NOT auto-merge or auto-PR
+**worktree**: Before any work begins, `/superpowers:using-git-worktrees` creates an isolated workspace on a feature branch. All commits land in the worktree. At handoff, `/superpowers:finishing-a-development-branch` handles merge, PR, or discard — do NOT auto-merge or auto-PR.
 
 ## Git Rules — NON-NEGOTIABLE
 
@@ -437,7 +488,7 @@ If you encounter a merge conflict, resolve it — do not reset or discard.
 
 ## Autonomy Rules
 
-These apply in **autonomous** and **branched** modes. In **guided** mode, pause at documented checkpoints instead.
+These apply in **subagent** execution strategy. In **batched** strategy, autonomy rules apply within each batch but execution pauses between batches for human review.
 
 - **Do not ask for feedback** during execution. Make reasonable decisions and keep moving.
 - **Do not ask "should I proceed?"** — yes, you should. Always.
@@ -449,7 +500,7 @@ These apply in **autonomous** and **branched** modes. In **guided** mode, pause 
 | Pattern | Why It Fails |
 |---------|-------------|
 | Building without a spec or design doc | No clear scope leads to scope creep and unverifiable results |
-| Asking for feedback during execution | Build is autonomous — make reasonable decisions and keep moving |
+| Asking for feedback during subagent execution | Subagent strategy is fully automated — make reasonable decisions and keep moving |
 | Using `git reset` or `git checkout .` | Other processes may be committing concurrently — destroys their work |
 | Skipping code simplification | Iterative implementation accumulates unnecessary complexity across tasks |
 | Building a spec with unmet prerequisites | Downstream specs depend on upstream work — check the dependency graph first |
@@ -457,6 +508,7 @@ These apply in **autonomous** and **branched** modes. In **guided** mode, pause 
 | Writing journeys with vague "should feel" | "Good" and "intuitive" are not testable. "Low commitment" and "like an accomplishment" are. |
 | Asking the user whether to create a journey | Journey capture is automatic. The user didn't know they needed the spec either — that's why the workflow exists. |
 | Ignoring architectural deviations from the spec | Drift happens during implementation — catch it in Step 3.5 before it becomes tech debt. Every deviation must be explicitly classified. |
+| Using `batched` execution within `/flow` | Flow's purpose is hands-off automation — batched pauses for human review after every 3 tasks, contradicting flow's no-stopping design. Use `subagent` with `/flow`. |
 
 ## Relationship to Other Skills
 
@@ -465,7 +517,10 @@ These apply in **autonomous** and **branched** modes. In **guided** mode, pause 
 | `/claude-tweaks:specify` | Runs BEFORE /claude-tweaks:build in spec mode — creates the spec. Can be skipped using design mode. |
 | `/superpowers:brainstorm` | Produces the design doc that design mode consumes directly |
 | `/superpowers:write-plan` | Invoked BY /claude-tweaks:build to create the execution plan |
-| `/superpowers:execute-plan` | Invoked BY /claude-tweaks:build to execute the plan |
+| `/superpowers:subagent-driven-development` | Invoked BY /claude-tweaks:build (subagent execution strategy) to execute the plan with automated review chain |
+| `/superpowers:executing-plans` | Invoked BY /claude-tweaks:build (batched execution strategy) to execute the plan with human-reviewed batches |
+| `/superpowers:using-git-worktrees` | Invoked BY /claude-tweaks:build (worktree git strategy) to create an isolated workspace before execution |
+| `/superpowers:finishing-a-development-branch` | Invoked BY /claude-tweaks:build (worktree git strategy) at handoff to merge, PR, or discard the feature branch |
 | `code-simplifier:code-simplifier` | Invoked BY /claude-tweaks:build after implementation, before verification |
 | `/claude-tweaks:stories` | Runs AFTER /claude-tweaks:build when UI files change — generates QA stories before review |
 | `/claude-tweaks:review` | Runs AFTER /claude-tweaks:build — in design mode, uses git diff instead of spec compliance |

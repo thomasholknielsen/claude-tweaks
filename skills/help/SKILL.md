@@ -52,7 +52,7 @@ These run in order — each skill feeds into the next.
 | 3 | `/claude-tweaks:capture` | Brain-dump ideas into INBOX | idea text |
 | 4 | `/claude-tweaks:challenge` | Debias a problem statement before brainstorming | `quick`, INBOX item, topic |
 | 5 | `/claude-tweaks:specify` | Decompose a design doc into agent-sized specs | design doc path, topic, INBOX ref |
-| 6 | `/claude-tweaks:build` | Implement a spec or design doc end-to-end | spec number, design doc path, topic + optional mode: `autonomous` (default), `guided`, `branched` |
+| 6 | `/claude-tweaks:build` | Implement a spec or design doc end-to-end | spec number, design doc path, topic + optional `batched`, `worktree` |
 | 6b | `/claude-tweaks:test` | Standalone verification — types, lint, tests | `types`, `lint`, `unit`, file path, `affected` |
 | 6c | `/claude-tweaks:stories` | Generate or update QA story YAML files by browsing a site | URL + `persona=`, `dir=`, `focus=`, `browser=`, `refine=`, `negative=` |
 | 7 | `/claude-tweaks:review` | Quality gate — code review + optional visual/QA review | spec number, file paths + `full`, `visual`, `journey:{name}`, `discover`, `qa` |
@@ -66,7 +66,7 @@ For a concise one-page reference, read `reference-card.md` in this skill's direc
 |---------|---------|---------|
 | `/claude-tweaks:help` | This dashboard — commands, status, recommendations | `status`, `commands`, spec/topic |
 | `/claude-tweaks:tidy` | Periodic backlog hygiene | — |
-| `/claude-tweaks:flow` | Automated pipeline: build → review → wrap-up | spec number(s) (comma-separated for parallel), design doc path, or topic + `stories` `[steps]` |
+| `/claude-tweaks:flow` | Automated pipeline: build → review → wrap-up | spec number(s) (comma-separated for sequential), design doc path, or topic + `worktree` `stories` `[steps]` |
 | `/claude-tweaks:browse` | Unified browser automation (utility) | URL or task description + `browser=`, `headless`, `vision` |
 
 ### Superpowers (External Plugin)
@@ -75,7 +75,11 @@ For a concise one-page reference, read `reference-card.md` in this skill's direc
 |---------|---------|---------|
 | `/superpowers:brainstorm` | Explore solutions for a debiased problem | After `/claude-tweaks:challenge` |
 | `/superpowers:write-plan` | Create TDD execution plan from a spec | `/claude-tweaks:build` |
-| `/superpowers:execute-plan` | Execute a plan with implementer + reviewer subagents | `/claude-tweaks:build` |
+| `/superpowers:subagent-driven-development` | Automated execution with review chain — no human in the loop | `/claude-tweaks:build` (subagent mode, default) |
+| `/superpowers:executing-plans` | Human-reviewed execution in batches of 3 tasks | `/claude-tweaks:build` (batched mode) |
+| `/superpowers:using-git-worktrees` | Create isolated workspace on a feature branch | `/claude-tweaks:build` and `/claude-tweaks:flow` (worktree mode) |
+| `/superpowers:finishing-a-development-branch` | Merge, PR, or discard a feature branch | `/claude-tweaks:build` and `/claude-tweaks:flow` (worktree mode, at handoff) |
+| `/superpowers:dispatching-parallel-agents` | Dispatch concurrent independent fixes | `/claude-tweaks:review` (conditional, 3+ independent fixes) |
 
 ### Artifact Lifecycle
 

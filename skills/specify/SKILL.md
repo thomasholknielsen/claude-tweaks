@@ -87,7 +87,7 @@ Break the design doc into self-contained work units. Each work unit must be:
 
 | Criteria | Target |
 |----------|--------|
-| Tasks per work unit | 3–8 (what `/superpowers:execute-plan` will execute) |
+| Tasks per work unit | 3–8 (what `/superpowers:subagent-driven-development` or `/superpowers:executing-plans` will execute) |
 | Files touched per task | 1–3 |
 | Dependency depth | Max 2 levels (A blocks B blocks C, but not deeper) |
 | Cross-package scope | A work unit should touch at most 2-3 packages/modules |
@@ -242,6 +242,8 @@ Commit with a message describing the specs created.
 |-------|-------------|
 | `/superpowers:brainstorm` | Runs BEFORE /claude-tweaks:specify — produces the design doc that /claude-tweaks:specify consumes and deletes |
 | `/superpowers:write-plan` | Consumes specs AFTER /claude-tweaks:specify — the spec must provide enough context for `/superpowers:write-plan` to produce a TDD execution plan |
+| `/superpowers:subagent-driven-development` | Executes specs AFTER /claude-tweaks:specify — uses the plan from `/superpowers:write-plan` (via `/claude-tweaks:build` subagent execution strategy) |
+| `/superpowers:executing-plans` | Executes specs AFTER /claude-tweaks:specify — uses the plan from `/superpowers:write-plan` (via `/claude-tweaks:build` batched execution strategy) |
 | `/claude-tweaks:build` | Runs AFTER /claude-tweaks:specify — takes a single spec and implements it |
 | `/claude-tweaks:capture` | Feeds INBOX items that may trigger brainstorming → /claude-tweaks:specify |
 | `/claude-tweaks:tidy` | Reviews specs created by /claude-tweaks:specify for staleness |

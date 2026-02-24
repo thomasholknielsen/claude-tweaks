@@ -11,7 +11,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/capture` | Brain-dump idea into INBOX | idea text |
 | `/challenge` | Debias assumptions before brainstorming | `quick`, INBOX item, topic |
 | `/specify` | Decompose design doc into agent-sized specs | design doc, topic |
-| `/build` | Implement a spec or design doc | spec #, doc path + `autonomous`/`guided`/`branched` |
+| `/build` | Implement a spec or design doc | spec #, doc path + `batched`, `worktree` |
 | `/test` | Run verification checks standalone | `types`, `lint`, `unit`, path, `affected` |
 | `/stories` | Generate or update QA story YAML files | URL + `persona=`, `dir=`, `focus=`, `browser=`, `refine=`, `negative=` |
 | `/review` | Quality gate: code + optional visual/QA review | spec #, files + `full`/`visual`/`journey:{name}`/`discover`/`qa` |
@@ -23,7 +23,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 |---------|-------------|-------|
 | `/help` | Dashboard: commands + status + recommendations | `status`, `commands`, spec/topic |
 | `/tidy` | Batch backlog hygiene | — |
-| `/flow` | Automated pipeline: build → review → wrap-up | spec #(s), doc path + `stories` `[steps]` |
+| `/flow` | Automated pipeline: build → review → wrap-up | spec #(s), doc path + `worktree` `stories` `[steps]` |
 | `/browse` | Unified browser automation (utility) | URL or task + `browser=`, `headless`, `vision` |
 
 ## Common Workflows
@@ -58,7 +58,13 @@ or standalone:
 /test
 ```
 
-### Parallel specs
+### Parallel specs (separate terminals with worktree)
+```
+# Terminal 1              # Terminal 2              # Terminal 3
+/flow 42 worktree         /flow 45 worktree         /flow 48 worktree
+```
+
+### Sequential multi-spec
 ```
 /flow 42,45,48
 ```

@@ -336,4 +336,5 @@ Commit with a message summarizing the wrap-up actions.
 | `/claude-tweaks:help` | /claude-tweaks:wrap-up suggests running /claude-tweaks:help to see what's unblocked |
 | `/claude-tweaks:tidy` | /claude-tweaks:wrap-up cleans artifacts for a single spec — /claude-tweaks:tidy does periodic bulk cleanup |
 | `/claude-tweaks:build` | Runs BEFORE /claude-tweaks:review — produces the code and journeys that wrap-up reflects on |
+| `/superpowers:finishing-a-development-branch` | When build used worktree git strategy, wrap-up should verify the feature branch was completed (merged, PR created, or discarded) before cleaning up artifacts |
 | `/claude-tweaks:review` (visual modes) | Visual complement — findings from visual review may feed into wrap-up's reflection lenses |

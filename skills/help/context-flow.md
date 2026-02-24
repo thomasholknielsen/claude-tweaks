@@ -42,7 +42,7 @@ src/ + journeys    stories/*.yaml     screenshots/qa/         (in commit/output)
 | `/challenge` | `specs/INBOX.md` | `docs/plans/*-brief.md` | — |
 | `/superpowers:brainstorm` | `docs/plans/*-brief.md` | `docs/plans/*-design.md` | — |
 | `/specify` | `*-design.md`, `*-brief.md`, `specs/INDEX.md` | `specs/NN-*.md`, `specs/INDEX.md` | `*-design.md`, `*-brief.md`, INBOX entry |
-| `/build` | `specs/NN-*.md`, `docs/plans/*.md` | Code, `docs/journeys/*.md`, plan files, ledger items | — |
+| `/build` | `specs/NN-*.md`, `docs/plans/*.md` | Code, `docs/journeys/*.md`, plan files, ledger items. Worktree mode also produces transient worktree directories and feature branches. | — |
 | `/test` | CLAUDE.md (for commands) | — (output only) | — |
 | `/browse` | — | `screenshots/browse/` | — |
 | `/stories` | Existing `stories/*.yaml`, site via `/browse` | `stories/*.yaml` | — |

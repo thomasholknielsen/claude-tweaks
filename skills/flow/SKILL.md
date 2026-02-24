@@ -31,7 +31,7 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 ## Syntax
 
 ```
-/claude-tweaks:flow <spec-or-design-doc>[,spec2,spec3] [stories] [step1,step2,step3]
+/claude-tweaks:flow <spec-or-design-doc>[,spec2,spec3] [worktree] [stories] [step1,step2,step3]
 ```
 
 ### Arguments
@@ -39,13 +39,16 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 | Argument | Required | Description |
 |----------|----------|-------------|
 | `<spec-or-design-doc>` | Yes | Spec number (e.g., `42`), comma-separated spec numbers (e.g., `42,45,48`), design doc path, or topic name |
+| `worktree` | No | Use worktree git strategy — isolated workspace on a feature branch. See "Parallel Development with Worktrees" below. |
 | `stories` | No | Include `/claude-tweaks:stories` step between build and review. Requires a running app — validation checks the URL before proceeding. |
 | `[steps]` | No | Comma-separated list of steps to run. Default: `build,review,wrap-up` |
+
+Flow always uses **subagent** execution strategy — its purpose is hands-off automation. The `batched` option (which pauses for human review) is not available in flow; use `/claude-tweaks:build batched` directly instead.
 
 ### Input resolution
 
 1. **Single spec number** (e.g., `42`) → **Spec mode** — build uses spec tracking, review checks spec compliance
-2. **Multiple spec numbers** (e.g., `42,45,48`) → **Multi-spec mode** — each spec runs through the pipeline in parallel (see Multi-Spec Parallel Flow below)
+2. **Multiple spec numbers** (e.g., `42,45,48`) → **Multi-spec mode** — runs each spec sequentially in one terminal (see Multi-Spec Sequential Flow below). For true parallel execution, use separate terminals with `worktree` mode.
 3. **Design doc path** (e.g., `docs/plans/*-design.md`) → **Design mode** — build reads the design doc directly, review uses git diff instead of spec compliance
 4. **Topic name** (e.g., `meal planning`) → search for a matching spec AND design doc. If both exist, prefer spec mode. If only a design doc exists, use design mode.
 
@@ -53,13 +56,14 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 
 ```
 /claude-tweaks:flow 42                                              → spec mode: build, review, wrap-up
+/claude-tweaks:flow 42 worktree                                     → isolated worktree: build, review, wrap-up
 /claude-tweaks:flow 42 stories                                      → build, stories, review qa, review code, wrap-up
-/claude-tweaks:flow 42,45,48                                        → multi-spec: parallel pipelines on separate branches
+/claude-tweaks:flow 42,45,48                                        → multi-spec: sequential pipelines in one terminal
+/claude-tweaks:flow 42,45,48 worktree                               → multi-spec sequential, each in its own worktree
 /claude-tweaks:flow docs/plans/2026-02-21-meal-planning-design.md   → design mode: build, review, wrap-up
 /claude-tweaks:flow meal planning                                   → auto-detect: spec or design mode
 /claude-tweaks:flow 42 build,review                                 → spec mode: build and review only
 /claude-tweaks:flow 42 review,wrap-up                               → review and wrap-up only (already built)
-/claude-tweaks:flow 42,45 build,review                              → multi-spec: parallel build+review only
 ```
 
 ## Allowed Steps
@@ -68,7 +72,7 @@ Only automatable skills can be included in the pipeline:
 
 | Step | Skill invoked | Why it's automatable |
 |------|--------------|---------------------|
-| `build` | `/claude-tweaks:build` | Fully autonomous — plans, implements, simplifies, verifies |
+| `build` | `/claude-tweaks:build` | Fully autonomous — plans, implements, simplifies, verifies. Always uses `subagent` execution. Passes `worktree` through if specified. |
 | `stories` | `/claude-tweaks:stories` | Autonomous — browses app, generates YAML stories |
 | `review` | `/claude-tweaks:review` | Runs verification, code review, simplification — produces a verdict |
 | `wrap-up` | `/claude-tweaks:wrap-up` | Reflection, cleanup, knowledge routing — produces actionable summary |
@@ -190,71 +194,83 @@ On successful completion of all steps:
 
 ---
 
-## Multi-Spec Parallel Flow
+## Multi-Spec Sequential Flow
 
-When multiple spec numbers are provided (e.g., `42,45,48`), flow runs each spec's pipeline in parallel on separate branches.
+When multiple spec numbers are provided (e.g., `42,45,48`), flow runs each spec's pipeline **sequentially** in one terminal.
 
 ### Validation
 
-Before dispatching, validate the spec list:
+Before starting, validate the spec list:
 
 1. **Parse** — split on commas, resolve each to a spec file
 2. **Prerequisites** — check that each spec's `blocked-by` is satisfied. Reject any spec with unmet prerequisites.
-3. **File overlap** — extract `Key Files` from each spec. If any two specs share files, **reject the pair** — concurrent modification of the same files causes merge conflicts. Present the overlap:
-   ```
-   CONFLICT: Spec 42 and Spec 45 both modify:
-   - src/components/ShoppingList.tsx
-   - src/api/items.ts
-
-   Run these specs sequentially, or restructure to eliminate file overlap.
-   ```
-4. **Force branched mode** — multi-spec flow always uses branched mode. Each spec gets its own `build/{N}-{title}` branch. This is not optional — concurrent work on the same branch would conflict.
 
 ### Execution
 
-> **Parallel execution:** Dispatch each spec pipeline as a parallel Task agent. Each agent runs the full step sequence (build → review → wrap-up) independently on its own branch. A gate failure in one agent does not affect the others — each pipeline succeeds or fails independently.
+Run each spec's full pipeline in order (spec 42 → spec 45 → spec 48). Each spec completes its pipeline (build → review → wrap-up) before the next begins. A gate failure in one spec stops the remaining specs — present what completed and what remains.
 
-Each agent:
-1. Creates its `build/{N}-{title}` branch from the current HEAD
-2. Creates its own ledger: `docs/plans/YYYY-MM-DD-{spec-N-feature}-ledger.md`
-3. Runs the pipeline steps in order (same gate behavior as single-spec flow)
-4. Returns its outcome: completed steps, gate failures, and summary
+If `worktree` is specified, each spec gets its own worktree via `/superpowers:using-git-worktrees`. The worktree is finished via `/superpowers:finishing-a-development-branch` before the next spec begins.
 
 ### Multi-Spec Summary
 
-After all agents complete, present a consolidated summary:
+After all specs complete (or one fails), present a consolidated summary:
 
 ```markdown
 ## Flow: Multi-Spec Pipeline Complete
 
-| Spec | Branch | Build | Review | Wrap-Up | Outcome |
-|------|--------|-------|--------|---------|---------|
-| {N} | build/{N}-{title} | passed | PASS | done | Complete |
-| {N} | build/{N}-{title} | passed | BLOCKED | — | Stopped at review |
-| {N} | build/{N}-{title} | failed | — | — | Stopped at build |
+| Spec | Build | Review | Wrap-Up | Outcome |
+|------|-------|--------|---------|---------|
+| {N} | passed | PASS | done | Complete |
+| {N} | passed | BLOCKED | — | Stopped at review |
+| {N} | — | — | — | Not started (previous spec failed) |
 
 ### Per-Spec Details
 (expand each spec's key outputs, failures, and review findings)
 ```
 
-### Phase 4: Merge Reconciliation
+---
 
-After presenting the multi-spec summary, merge completed branches back.
+## Parallel Development with Worktrees
+
+For true parallel execution, run separate terminals with `worktree` mode — each terminal gets an isolated copy of the repository:
+
+```
+# Terminal 1                          # Terminal 2                          # Terminal 3
+/claude-tweaks:flow 42 worktree      /claude-tweaks:flow 45 worktree      /claude-tweaks:flow 48 worktree
+```
+
+Each terminal creates its own worktree and feature branch. There is no file overlap risk because each worktree is a full, isolated copy.
+
+### When to use worktree mode
+
+- **Parallel work** — multiple specs building simultaneously in separate terminals
+- **Team projects** — isolated branches ready for PR review
+- **Risky changes** — experiment without affecting the main working tree
+
+### When to use current-branch mode
+
+- **Solo work** — simple, sequential, fast
+- **Quick specs** — low risk, no isolation needed
+- **Single terminal** — no need for parallel execution
+
+### Merge Reconciliation (after parallel worktree runs)
+
+After all terminals complete, merge the feature branches back. Run this once from the main working tree:
 
 #### Merge Order
 
-1. Sort completed branches by diff size (smallest first — `git diff --stat main..build/{N}-{title} | tail -1`)
+1. Sort completed branches by diff size (smallest first — `git diff --stat main..{branch} | tail -1`)
 2. Merge branches sequentially into the base branch
 
 #### Merge Procedure
 
 For each completed branch (in order):
 
-1. `git merge build/{N}-{title}` into the base branch
+1. `git merge {branch}` into the base branch
 2. **If merge succeeds** — continue to the next branch
 3. **If merge conflicts** — present the conflicts:
    ```
-   Merge conflict merging spec {N} (build/{N}-{title}):
+   Merge conflict merging {branch}:
 
    Conflicting files:
    - {file1}
@@ -266,22 +282,6 @@ For each completed branch (in order):
    ```
 4. After all merges, update `specs/INDEX.md` to reflect completed specs
 
-#### Post-Merge
-
-```markdown
-### Merge Results
-
-| Spec | Branch | Merge Status |
-|------|--------|-------------|
-| {N} | build/{N}-{title} | Merged cleanly |
-| {N} | build/{N}-{title} | Merged with conflict resolution |
-| {N} | build/{N}-{title} | Skipped (pipeline failed) |
-
-### Recommended Next
-- Failed specs: fix issues and re-run `/claude-tweaks:flow {spec} {remaining steps}`
-- All merged: run `/claude-tweaks:help` for full pipeline status
-```
-
 ---
 
 ## Anti-Patterns
@@ -292,8 +292,7 @@ For each completed branch (in order):
 | Ignoring gate failures and restarting | Gates exist to catch real problems — investigate before retrying |
 | Running flow on specs with unmet prerequisites | The pipeline will fail at build — check dependencies first |
 | Using flow for interactive skills | Capture, challenge, and specify need human decisions — they can't be automated |
-| Multi-spec flow with overlapping Key Files | Concurrent modification of the same files causes merge conflicts — reject pairs that share files |
-| Multi-spec flow without branched mode | Parallel work on the same branch would conflict — multi-spec always forces branched mode |
+| Using `batched` execution in flow | Flow's purpose is hands-off automation — batched pauses for human review, contradicting flow's no-stopping design. Use `/claude-tweaks:build batched` directly. |
 | Ignoring open ledger items at pipeline end | The nothing-left-behind gate prevents dropped work — every item must be explicitly resolved |
 
 ## Relationship to Other Skills
@@ -305,6 +304,8 @@ For each completed branch (in order):
 | `/claude-tweaks:review` | Review step — receives build output, produces verdict. Includes QA mode when stories step ran. |
 | `/claude-tweaks:wrap-up` | Final step — receives review output, produces clean slate |
 | `/claude-tweaks:help` | Shows pipeline status and recommends flow-ready specs |
-| `/claude-tweaks:specify` | Creates the specs that flow consumes — multi-spec uses Key Files from /specify for file overlap detection |
+| `/claude-tweaks:specify` | Creates the specs that flow consumes |
 | `/claude-tweaks:browse` | Used transitively — /stories and /review visual/qa modes use /browse for browser interaction |
 | `/superpowers:brainstorm` | Produces the design docs that flow consumes in design mode — skipping /specify |
+| `/superpowers:using-git-worktrees` | Invoked BY flow (when `worktree` specified) to create isolated workspace for each spec |
+| `/superpowers:finishing-a-development-branch` | Invoked BY flow (when `worktree` specified) at handoff to merge, PR, or discard each feature branch |
