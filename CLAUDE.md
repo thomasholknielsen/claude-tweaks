@@ -60,6 +60,7 @@ Every skill follows this structure:
 
 - **Decisions** — numbered options (1, 2, 3...) so users reply with a number
 - **Multi-item decisions** — batch table with pre-filled recommendations + "apply all / override". For 10+ items, lead with a severity/count summary before the full table so the user sees the scope before the details.
+- **One decision per message** — never present more than one "apply all / override" table in a single response. If a skill produces multiple decision tables, present them sequentially (one per message, wait for resolution before showing the next).
 - **Skill handoffs** — `**Recommended next:** \`/command\` — reason.` (never a navigation menu)
 - **Hard gates** — BLOCKED/STOP conditions that prevent proceeding with degraded state
 
@@ -68,7 +69,7 @@ Every skill follows this structure:
 All skills use this identical directive after the frontmatter:
 
 ```
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." End skills with a recommended next step, not a navigation menu.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a recommended next step, not a navigation menu.
 ```
 
 ### Parallel execution directives

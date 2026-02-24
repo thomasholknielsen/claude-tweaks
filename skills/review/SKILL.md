@@ -2,7 +2,7 @@
 name: claude-tweaks:review
 description: Use when a build is complete and you need to verify code quality, correctness, and simplicity before wrapping up. Also handles visual browser review for UI changes and QA story validation. The quality gate between implementation and lifecycle cleanup.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." End skills with a recommended next step, not a navigation menu.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a recommended next step, not a navigation menu.
 
 
 # Review
@@ -204,6 +204,8 @@ If any findings are "Fix now", make the changes, re-run verification (Step 3), a
 **Write all findings to the open items ledger** (`docs/plans/*-ledger.md` for this work). Status: `open` for "Fix now" items, `deferred` for items routed to DEFERRED.md, `accepted` for "Don't fix" items (with reason). After fixing, update status to `fixed`.
 
 > **Routing bias:** Fix it now — always the recommended default, regardless of severity. Defer when the fix is understood but bigger and not relevant now. Capture to INBOX when the finding needs exploration before it can be acted on. The goal is to close gaps early, not accumulate a backlog.
+
+**Wait for resolution.** Present the code review findings table and wait for the user's response before proceeding to Step 5. Even if there are no "Fix now" items, present the table (or note "No findings") in one message, then present hindsight findings in the next message. Never combine Steps 4g and 5 into a single response.
 
 ---
 

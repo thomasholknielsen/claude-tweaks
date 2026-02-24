@@ -2,7 +2,7 @@
 name: claude-tweaks:wrap-up
 description: Use when /claude-tweaks:review passes and you need to capture learnings, clean up specs/plans, update skills, and decide next steps. The lifecycle closure step.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." End skills with a recommended next step, not a navigation menu.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a recommended next step, not a navigation menu.
 
 
 # Wrap Up
@@ -277,22 +277,23 @@ Overall: {X}% complete
 - Recommended next: {spec}
 ```
 
-Present **two batch decisions** (not per-step):
+Present **one consolidated batch decision** covering both cleanup and configuration:
 
 ```
-Cleanup Actions:
-1. Apply all cleanup (delete spec, update INDEX, delete plans)
-2. Apply selectively (I'll tell you which)
-3. Skip cleanup for now
+| # | Type | Action | Details |
+|---|------|--------|---------|
+| 1 | cleanup | Delete spec | specs/{number}.md (100% complete) |
+| 2 | cleanup | Update INDEX.md | Remove completed entry |
+| 3 | cleanup | Delete plans | docs/plans/{files} |
+| 4 | cleanup | Delete ledger | docs/plans/*-ledger.md |
+| 5 | config | {doc/skill/claude.md/rule} | {what to add/change} |
+| 6 | config | ... | ... |
 
-Configuration Updates:
-(Present all collected items from Steps 6-8 as a numbered list)
-1. Apply all {N} updates **(Recommended)**
-2. Apply selectively — I'll tell you which items to skip
-3. Skip all configuration updates
+1. Apply all **(Recommended)**
+2. Override specific items (tell me which #s to change)
 ```
 
-If the user chooses "Apply selectively", present the numbered list from the summary table and let them pick which to apply.
+If the user chooses to override, let them pick which items to skip or change.
 
 **Recommended next:** `/claude-tweaks:build {next spec number}` — {next spec title}. Or run `/claude-tweaks:help` for full pipeline status.
 

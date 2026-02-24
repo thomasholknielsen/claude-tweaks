@@ -2,7 +2,7 @@
 name: claude-tweaks:help
 description: Use when you need a quick reference for available commands, want to see workflow status, or need a recommendation for what to do next.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." End skills with a recommended next step, not a navigation menu.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a recommended next step, not a navigation menu.
 
 
 # Help — Quick Reference + Workflow Dashboard

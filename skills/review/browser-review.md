@@ -455,55 +455,36 @@ Present a structured report that balances issues, observations, and ideas.
 
 ## Step 7: Route Findings
 
-Separate issues from ideas — they go through different routing.
-
-### Issues (bugs, broken things, visual defects)
-
-Present all issues as a batch table with recommended actions:
+Present all findings — issues and ideas — in a single batch table with a Type column to distinguish them.
 
 ```
-| # | Issue | Severity | Recommended |
-|---|-------|----------|-------------|
-| 1 | {description} | Critical | Fix now |
-| 2 | {description} | Minor | Fix now |
-| 3 | {description} | Cosmetic | Fix now |
+| # | Finding | Type | Severity/Impact | Recommended |
+|---|---------|------|-----------------|-------------|
+| 1 | {description} | Issue | Critical | Fix now |
+| 2 | {description} | Issue | Minor | Fix now |
+| 3 | {description} | Issue | Cosmetic | Fix now |
+| 4 | {description} | Idea | High | Fix now — add to current spec |
+| 5 | {description} | Idea | Medium | Defer — not relevant now |
+| 6 | {description} | Idea | Low | Capture to INBOX — needs brainstorming |
 
 1. Apply all recommendations **(Recommended)**
 2. Override specific items (tell me which #s to change)
 ```
 
-**Recommendation rules:**
+**Recommendation rules for Issues:**
 - **All severities** — default "Fix now." Close the gap now.
 - **Defer** (DEFERRED.md) — the fix is understood but bigger and not relevant to the current work. Include origin, affected files, trigger.
 - **Capture to INBOX** — the issue is complex or uncertain and needs brainstorming/exploration before it can be acted on.
 - **"Accept as-is"** — only for intentional design choices. If it's a genuine defect, fix it or route it.
 
-> **Routing bias:** Fix it now — always the recommended default. Defer when the fix is bigger and not relevant now. Capture to INBOX when the issue needs exploration. Cosmetic issues accumulate into a feeling of low quality — fix them while they're fresh.
-
-Group related cosmetic issues into a single row rather than listing each individually.
-
-### Ideas (improvements, reimaginations, "what if"s)
-
-Present all ideas as a batch table:
-
-```
-| # | Idea | Impact | Recommended |
-|---|------|--------|-------------|
-| 1 | {description} | High | Fix now — add to current spec |
-| 2 | {description} | Medium | Fix now — add to current spec |
-| 3 | {description} | Low | Defer — not relevant now |
-| 4 | {description} | High | Capture to INBOX — needs brainstorming |
-
-1. Apply all recommendations **(Recommended)**
-2. Override specific items (tell me which #s to change)
-```
-
-**Recommendation rules:**
+**Recommendation rules for Ideas:**
 - **Fix now** — the strong default. If the idea can be implemented in the current session, do it. Add to the current spec scope if applicable.
 - **Defer** (DEFERRED.md) — the idea is clear but bigger and not relevant to the current work.
 - **Capture to INBOX** — the idea is complex or uncertain and needs brainstorming/exploration before it can be acted on.
 
-Every idea goes to a durable destination. "Note for later" without a destination means "lose forever."
+> **Routing bias:** Fix it now — always the recommended default. Defer when the fix is bigger and not relevant now. Capture to INBOX when the issue/idea needs exploration. Cosmetic issues accumulate into a feeling of low quality — fix them while they're fresh.
+
+Group related cosmetic issues into a single row rather than listing each individually. Every idea goes to a durable destination. "Note for later" without a destination means "lose forever."
 
 ### Recommended next
 
