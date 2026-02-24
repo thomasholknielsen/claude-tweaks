@@ -9,6 +9,6 @@
   "repository": "https://github.com/thomasholknielsen/claude-tweaks",
   "license": "MIT",
   "keywords": ["workflow", "productivity", "specs", "planning", "code-review", "browser", "automation", "playwright", "testing", "qa"],
-  "agents": "./agents/",
+  "agents": ["./agents/qa-agent.md"],
   "hooks": "./hooks/hooks.json"
 }
