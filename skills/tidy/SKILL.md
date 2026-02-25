@@ -161,6 +161,28 @@ Patterns are informational — they surface systemic issues the user may want to
 
 ---
 
+## Action Vocabulary
+
+Every recommendation in the tidy report uses one of these actions. Each action is atomic — either fully executed or not at all. Do not commit partial state (e.g., removing from INBOX without creating the destination artifact).
+
+| Action | What It Means | Execution | Removes from Source? |
+|--------|--------------|-----------|---------------------|
+| **Delete** | Item is no longer needed — stale, already implemented, or out of scope | Remove entry from source file | Yes |
+| **Defer** | Valid but not timely — park with a trigger condition | (1) Add to `specs/DEFERRED.md` with `**Deferred:** {date} \| **From:** {source} \| **Trigger:** {condition}`, (2) remove from source | Yes — moves to DEFERRED.md |
+| **Merge** | Scope belongs in an existing spec | (1) Integrate scope into target spec's **Deliverables**, **Acceptance Criteria**, and **Technical Approach** — not as an appendix, as first-class spec content, (2) update target spec's `Last Updated`, (3) remove from source | Yes |
+| **Promote** | Ready for the brainstorm → specify pipeline | Tag in INBOX as `**Promoted:** {date} — awaiting brainstorm`. Do NOT remove from INBOX | No — stays in INBOX with tag |
+| **Keep** | No action needed | None | No |
+
+### Why "Promote" keeps the item in INBOX
+
+The lifecycle is: INBOX → brainstorm → design doc → specify → spec file. "Promote" means the item is ready to enter that pipeline, but until a spec file exists, the INBOX entry is the only tracking artifact. Removing it creates a gap where the item exists nowhere — decided on but with no durable record. The INBOX entry stays as a pointer until `/claude-tweaks:specify` creates the spec, at which point `/claude-tweaks:specify` Step 6 removes it from INBOX.
+
+### Merge means integrate, not append
+
+When merging an INBOX or deferred item into an existing spec, the merged content must be indistinguishable from original spec content. Add new deliverables to the Deliverables checklist, new assertions to Acceptance Criteria, new architectural notes to Technical Approach, and new caveats to Gotchas. Do NOT create a "Merged Scope" appendix section at the bottom of the spec — that creates second-class content that `/superpowers:write-plan` may miss or treat differently.
+
+---
+
 ## Step 6: Present Tidy Report and Approve
 
 Present all collected findings as a single report. Every item has a pre-filled recommendation from the scanning steps.
@@ -174,21 +196,24 @@ Present all collected findings as a single report. Every item has a pre-filled r
 |---|------|------|---------------|
 | 1 | INBOX | "{title}" (4+ weeks) | Delete — stale |
 | 2 | INBOX | "{title}" (2 weeks) | Keep — still fresh |
-| 3 | Deferred | "{title}" (trigger met) | Promote to spec |
-| 4 | Spec | Spec {N} (appears complete) | Run `/review {N}` |
-| 5 | Spec | Spec {N} (4+ weeks in progress) | Re-evaluate scope |
-| 6 | Dependency | Circular: {A} ↔ {B} | Fix now |
-| 7 | Design doc | "{filename}" (specified) | Delete |
-| 8 | Plan | "{filename}" (orphaned) | Delete |
-| 9 | Worktree | "{path}" (merged) | Remove |
-| 10 | Branch | "build/{name}" (merged) | Delete |
+| 3 | INBOX | "{title}" (clean, ready) | Promote — tag, awaiting brainstorm |
+| 4 | INBOX | "{title}" (overlaps spec {N}) | Merge → Spec {N} |
+| 5 | INBOX | "{title}" (valid, not timely) | Defer — trigger: {condition} |
+| 6 | Deferred | "{title}" (trigger met) | Promote — move to INBOX for brainstorm |
+| 7 | Spec | Spec {N} (appears complete) | Run `/review {N}` |
+| 8 | Spec | Spec {N} (4+ weeks in progress) | Re-evaluate scope |
+| 9 | Dependency | Circular: {A} ↔ {B} | Fix now |
+| 10 | Design doc | "{filename}" (specified) | Delete |
+| 11 | Plan | "{filename}" (orphaned) | Delete |
+| 12 | Worktree | "{path}" (merged) | Remove |
+| 13 | Branch | "build/{name}" (merged) | Delete |
 
 ### Cross-Spec Patterns (if any)
 
 | # | Pattern | Seen In | Recommended |
 |---|---------|---------|-------------|
-| 11 | {description} | Specs {list} | Add rule to CLAUDE.md |
-| 12 | {description} | Specs {list} | Promote to spec |
+| 14 | {description} | Specs {list} | Add rule to CLAUDE.md |
+| 15 | {description} | Specs {list} | Promote to spec |
 
 *Patterns are informational — they highlight systemic issues across multiple specs. Address them to prevent the same findings from recurring.*
 
@@ -211,11 +236,54 @@ Items recommended as "Keep" are included for visibility but require no action. O
 
 ## Step 7: Execute Approved Actions
 
-1. Delete approved INBOX entries
-2. Delete approved design docs and plans
-3. Remove approved worktrees and delete approved build branches
-4. Update INDEX.md if specs were merged or removed
-5. Note items flagged for brainstorming or `/claude-tweaks:specify`
+Execute each approved action per the Action Vocabulary. Every action must be atomic — complete all its execution steps or none.
+
+### Deletes
+
+Remove entries from their source file (`specs/INBOX.md`, `specs/DEFERRED.md`, design docs, plans, worktrees, branches).
+
+### Defers
+
+1. Add entry to `specs/DEFERRED.md` with `**Deferred:** {date} | **From:** {source} | **Trigger:** {condition}`
+2. Remove from source file
+
+### Merges
+
+1. Read the target spec file
+2. Integrate the merged scope into the spec's existing structure:
+   - Add new items to the **Deliverables** checklist
+   - Add new assertions to **Acceptance Criteria**
+   - Update **Technical Approach** if the merge adds architectural decisions
+   - Add to **Gotchas** if the merged item has caveats
+3. Update the spec's `Last Updated` date
+4. Remove from source file (INBOX or DEFERRED)
+
+### Promotes
+
+Tag the INBOX entry with `**Promoted:** {date} — awaiting brainstorm`. Do NOT remove from INBOX.
+
+For deferred items being promoted: move the entry to INBOX with the `**Promoted:**` tag, then remove from DEFERRED.md.
+
+### Other actions
+
+- Update `specs/INDEX.md` if specs were merged, split, or removed
+- Remove worktrees with `git worktree remove {path}`, delete branches with `git branch -d {name}`
+
+## Step 7.5: Verify Execution
+
+After all actions are applied, verify every decision was fully executed. Present a verification checklist:
+
+```markdown
+### Verification
+
+- [x] Deleted: "{title}" — removed from INBOX
+- [x] Deferred: "{title}" — in DEFERRED.md (trigger: {condition}), removed from INBOX
+- [x] Merged: "{title}" → Spec {N} — integrated into Deliverables/AC, removed from INBOX
+- [x] Promoted: "{title}" — tagged in INBOX, still present
+- [ ] FAILED: "{title}" — {what went wrong}
+```
+
+If any verification fails, fix it before committing. Do not commit partial state.
 
 Commit with a message summarizing the tidy-up.
 
@@ -227,13 +295,16 @@ Commit with a message summarizing the tidy-up.
 | Promoting INBOX items directly to specs without brainstorming | Brainstorming catches assumptions that skip straight to implementation |
 | Keeping everything "just in case" | Stale items create noise and slow down `/claude-tweaks:help` |
 | Presenting items one-at-a-time for individual decisions | Scan silently, present one batch report, let the user approve all or override specific items. Per-item prompts scale badly. |
+| Removing INBOX items marked as "Promote" | Promoted items stay in INBOX until a spec file exists. The INBOX entry is the tracking artifact — removing it drops the item on the floor. |
+| Appending a "Merged Scope" section to a spec | Merged content must be integrated into existing Deliverables, Acceptance Criteria, and Technical Approach. Appendix sections create second-class content that `/superpowers:write-plan` may miss. |
+| Committing without running verification | Always verify every action landed (Step 7.5) before committing. Partial execution creates orphaned or lost items. |
 
 ## Relationship to Other Skills
 
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:capture` | Feeds the INBOX that /claude-tweaks:tidy audits |
-| `/claude-tweaks:specify` | /claude-tweaks:tidy flags unspecified design docs for /claude-tweaks:specify |
+| `/claude-tweaks:specify` | /claude-tweaks:tidy flags unspecified design docs for /claude-tweaks:specify. /claude-tweaks:specify Step 6 removes promoted items from INBOX after creating the spec |
 | `/claude-tweaks:review` | /claude-tweaks:tidy flags specs that appear complete but lack review |
 | `/claude-tweaks:wrap-up` | /claude-tweaks:tidy flags reviewed specs that need wrap-up |
 | `/claude-tweaks:help` | /claude-tweaks:help suggests /claude-tweaks:tidy when maintenance signals are detected |

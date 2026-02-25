@@ -112,6 +112,7 @@ Scan the full workflow state across all pipeline stages.
 
 - Count total items
 - Flag stale items (> 4 weeks old)
+- Flag items tagged as `**Promoted:**` — these are awaiting `/superpowers:brainstorm` and should appear as brainstorm candidates in the recommendation
 - Identify items marked as related to existing specs
 - Flag items with baked-in assumptions (solution-oriented phrasing) → candidates for `/claude-tweaks:challenge`
 
@@ -167,6 +168,7 @@ Scan the full workflow state across all pipeline stages.
 | Stage | Count | Action |
 |-------|-------|--------|
 | INBOX items | {N} ({M} stale) | `/claude-tweaks:capture` to add, `/claude-tweaks:tidy` if stale |
+| INBOX items promoted | {N} | `/superpowers:brainstorm {topic}` (or `/claude-tweaks:challenge` first if assumptions present) |
 | INBOX items needing debiasing | {N} | `/claude-tweaks:challenge {topic}` |
 | Deferred items ready | {N} | Trigger met — promote to spec or merge |
 | Deferred items waiting | {N} | Triggers not yet met |
@@ -201,9 +203,10 @@ Scan the full workflow state across all pipeline stages.
 4. **Design docs unspecified** — specify before building (don't let designs go stale)
 5. **Deferred items with met triggers** — promote before starting new work
 6. **Specs ready to build** — pick the highest-priority spec with met prerequisites
-7. **INBOX review** — if inbox is stale, suggest `/claude-tweaks:tidy` before new brainstorming
-8. **Challenge + Brainstorming** — if pipeline is empty, suggest promoting an INBOX item; if it has baked-in assumptions, run `/claude-tweaks:challenge` first, then `/superpowers:brainstorm`
-9. **Nothing to do** — if everything is clean, say so
+7. **Promoted INBOX items** — items tagged `**Promoted:**` are ready for `/superpowers:brainstorm` (or `/claude-tweaks:challenge` first if they have baked-in assumptions). These have already been triaged and prioritized over unpromoted items.
+8. **INBOX review** — if inbox is stale or has 10+ items, suggest `/claude-tweaks:tidy` before new brainstorming
+9. **Challenge + Brainstorming** — if pipeline is empty and no promoted items exist, suggest promoting an INBOX item; if it has baked-in assumptions, run `/claude-tweaks:challenge` first, then `/superpowers:brainstorm`
+10. **Nothing to do** — if everything is clean, say so
 
 ### Tie-Breaking
 
@@ -240,6 +243,7 @@ Other options: {alternative action}, {another option if applicable}. Or: pipelin
 | Recommending new work when specs await review | Finish in-progress work first — stale reviews lose context |
 | Skipping the INBOX scan | Stale INBOX items create noise and slow down the pipeline |
 | Not checking for baked-in assumptions | Solution-oriented INBOX items bypass the debiasing step |
+| Triaging INBOX items from /help instead of handing off to /tidy | /help is a read-only dashboard — it reports status and recommends next steps. If the user wants to triage, delete, promote, merge, or defer INBOX items, hand off to `/claude-tweaks:tidy`. Do not improvise an ad-hoc walkthrough. |
 
 For a detailed explanation of how context flows between skills via artifacts, read `context-flow.md` in this skill's directory.
 

@@ -246,5 +246,5 @@ Commit with a message describing the specs created.
 | `/superpowers:executing-plans` | Executes specs AFTER /claude-tweaks:specify — uses the plan from `/superpowers:write-plan` (via `/claude-tweaks:build` batched execution strategy) |
 | `/claude-tweaks:build` | Runs AFTER /claude-tweaks:specify — takes a single spec and implements it |
 | `/claude-tweaks:capture` | Feeds INBOX items that may trigger brainstorming → /claude-tweaks:specify |
-| `/claude-tweaks:tidy` | Reviews specs created by /claude-tweaks:specify for staleness |
+| `/claude-tweaks:tidy` | Reviews specs created by /claude-tweaks:specify for staleness. /claude-tweaks:tidy tags INBOX items as `**Promoted:**` — /claude-tweaks:specify Step 6 removes them from INBOX after creating the spec |
 | `/claude-tweaks:help` | Shows which specs from /claude-tweaks:specify are ready for /claude-tweaks:build — also uses Key Files for implicit dependency detection |
