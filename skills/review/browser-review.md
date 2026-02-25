@@ -179,7 +179,7 @@ For each step in the candidate journey:
 
 ### Phase 4: Write Journey Files
 
-For each walked journey, create a file at `docs/journeys/{journey-name}.md` using the standard journey format (see `/build` Common Step 5 for the template).
+For each walked journey, create a file at `docs/journeys/{journey-name}.md` using the standard journey format (see `/build` Common Step 6 for the template).
 
 Key differences from build-created journeys:
 - **Origin section** says "Created during journey discovery (brownfield)" instead of referencing a spec

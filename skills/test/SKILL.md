@@ -99,7 +99,7 @@ If the user chooses to fix:
 
 | Skill | Relationship |
 |-------|-------------|
-| `/claude-tweaks:build` | /build runs verification as Common Step 4 — /test is the standalone equivalent |
+| `/claude-tweaks:build` | /build runs verification as Common Step 5 — /test is the standalone equivalent |
 | `/claude-tweaks:review` | /review runs verification as Step 3 (gate) — /test is lighter weight, no code review |
 | `/claude-tweaks:flow` | /flow chains build → review → wrap-up — /test can be used ad-hoc outside the pipeline |
 | `/claude-tweaks:help` | /help can recommend /test when code changes exist but no review is warranted |

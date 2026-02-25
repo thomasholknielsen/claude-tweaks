@@ -129,9 +129,10 @@ Or run the failed step manually: `/claude-tweaks:{step} {spec or design doc}`
 
 ### Step 1: Validate Input
 
-1. Parse `$ARGUMENTS` — extract spec number or design doc path, plus optional step list
+1. Parse `$ARGUMENTS` — extract spec number or design doc path, detect `worktree` keyword, plus optional step list
 2. Determine mode: spec mode (number) or design mode (path/topic)
-3. Validate step list is in lifecycle order
+3. If `worktree` keyword is present, set git strategy to `worktree` — this is passed through to `/claude-tweaks:build` and controls isolation
+4. Validate step list is in lifecycle order
 4. If spec mode: check prerequisites are met (same as `/claude-tweaks:build` Spec Step 1)
 5. If design mode: verify the design doc file exists
 6. If `stories` keyword is present: ask the user for the app URL (e.g., `http://localhost:3000`). Verify the URL responds with a quick HTTP check (`curl -s -o /dev/null -w "%{http_code}" <url>`). If unreachable, stop: "Stories step requires a running app at {url}. Start the dev server and re-run."
@@ -281,6 +282,22 @@ For each completed branch (in order):
    3. Abort all remaining merges — I'll handle merges manually
    ```
 4. After all merges, update `specs/INDEX.md` to reflect completed specs
+
+#### Post-Merge Summary
+
+```markdown
+### Merge Results
+
+| Branch | Spec | Merge Status |
+|--------|------|-------------|
+| {branch} | {N} | Merged cleanly |
+| {branch} | {N} | Merged with conflict resolution |
+| {branch} | {N} | Skipped (pipeline failed) |
+
+### Recommended Next
+- Failed specs: fix issues and re-run `/claude-tweaks:flow {spec} worktree {remaining steps}`
+- All merged: run `/claude-tweaks:help` for full pipeline status
+```
 
 ---
 

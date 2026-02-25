@@ -125,7 +125,7 @@ Spec mode? ──yes──→ [Spec Steps 1-3]
     ↓                       │
     └───────────────────────┘
                 ↓
-        [Common Steps 1-6]
+        [Common Steps 1-7]
 ```
 
 ---
@@ -151,7 +151,7 @@ Search `docs/plans/` for a plan matching this spec (by number, topic, or date).
 
 - Read it and compare against the spec — has the spec evolved since the plan was written?
 - Check what's already implemented (search codebase for files, routes, tests referenced in the plan)
-- If the plan is still valid and work remains, skip to Common Step 1
+- If the plan is still valid and work remains, skip to Common Step 2
 - If the plan is stale (spec changed, codebase diverged), proceed to Spec Step 3
 
 #### If no plan exists:
@@ -168,7 +168,7 @@ Context to provide to `/superpowers:write-plan`:
 
 The plan will be written to `docs/plans/YYYY-MM-DD-{feature}.md`.
 
-Proceed to **Common Step 1**.
+Proceed to **Common Step 2**.
 
 ---
 
@@ -184,7 +184,7 @@ Proceed to **Common Step 1**.
 
 Search `docs/plans/` for an execution plan matching this design doc (by topic or date).
 
-- If a plan exists and is still valid → skip to Common Step 1
+- If a plan exists and is still valid → skip to Common Step 2
 - If no plan or plan is stale → proceed to Design Step 3
 
 ### Design Step 3: Create the Plan
@@ -202,13 +202,13 @@ Design mode has no spec with structured acceptance criteria. When providing cont
 
 The plan will be written to `docs/plans/YYYY-MM-DD-{feature}.md`.
 
-Proceed to **Common Step 1**.
+Proceed to **Common Step 2**.
 
 ---
 
 ## Common Steps (both modes)
 
-### Common Step 0: Set Up Worktree (worktree strategy only)
+### Common Step 1: Set Up Worktree (worktree strategy only)
 
 If the user specified `worktree`:
 
@@ -218,7 +218,7 @@ If the user specified `worktree`:
 
 If the user did not specify `worktree`, skip this step.
 
-### Common Step 1: Execute the Plan
+### Common Step 2: Execute the Plan
 
 Execution depends on the chosen execution strategy:
 
@@ -265,11 +265,11 @@ The implementer subagents will pick up project conventions from CLAUDE.md, `.cla
 - Validation approach
 - Naming conventions
 
-### Common Steps 2 + 3.5: Simplification and Alignment (Concurrent)
+### Common Steps 3 + 4.5: Simplification and Alignment (Concurrent)
 
-> **Parallel execution:** After implementation completes, run code simplification (Task agent via code-simplifier:code-simplifier) and architecture alignment check (main thread) concurrently — they operate on independent concerns. Common Step 4 (Final Verification) gates after both complete.
+> **Parallel execution:** After implementation completes, run code simplification (Task agent via code-simplifier:code-simplifier) and architecture alignment check (main thread) concurrently — they operate on independent concerns. Common Step 5 (Final Verification) gates after both complete.
 
-### Common Step 2: Code Simplification
+### Common Step 3: Code Simplification
 
 After all implementation tasks are complete, run the `code-simplifier:code-simplifier` agent on the recently modified code.
 
@@ -286,7 +286,7 @@ The code-simplifier catches patterns that individual task-focused subagents miss
 
 If the simplifier makes changes, commit them separately.
 
-### Common Step 3: Handle Blocked Work
+### Common Step 4: Handle Blocked Work
 
 If any part of the plan is blocked (missing infrastructure, unresolved dependencies, pending external work):
 
@@ -297,7 +297,7 @@ If any part of the plan is blocked (missing infrastructure, unresolved dependenc
 3. Append blocked items to the open items ledger with status `open`
 4. These will be picked up by `/claude-tweaks:help` when scanning for actionable work
 
-### Common Step 3.5: Architecture Alignment Check
+### Common Step 4.5: Architecture Alignment Check
 
 Compare what was actually built to what the spec or design doc said to build. Implementation often drifts from the plan — sometimes for good reasons, sometimes not. Catch it here before verification locks it in.
 
@@ -321,13 +321,13 @@ Deviation: {what the spec said vs. what was built}
 - Design mode with no formal spec (no stated architecture to compare against)
 - The plan was trivial (< 3 tasks, single-file changes)
 
-### Common Step 4: Final Verification
+### Common Step 5: Final Verification
 
 After code simplification, run the shared verification procedure from `verification.md` in the `/claude-tweaks:test` skill's directory. This runs type checking, linting, and tests using the project's commands from CLAUDE.md.
 
 If anything fails, fix it and commit the fix.
 
-### Common Step 4.5: Operational Checklist
+### Common Step 5.5: Operational Checklist
 
 After verification passes, check for operational tasks that are easy to forget. These are not code quality issues — they're deployment and environment concerns that slip through code review.
 
@@ -344,7 +344,7 @@ Append each finding to the open items ledger (`docs/plans/*-ledger.md` for this 
 
 If the ledger doesn't exist (standalone build without `/claude-tweaks:flow`), create it at `docs/plans/YYYY-MM-DD-{feature}-ledger.md`.
 
-### Common Step 5: User Journey Capture
+### Common Step 6: User Journey Capture
 
 After verification passes, automatically create or update journey files for the features that were built. This is not optional and does not require user input — if you built a feature that any persona interacts with (end user, admin, developer, internal tooling user), document the journey.
 
@@ -417,7 +417,7 @@ git add docs/journeys/{journey-name}.md
 git commit -m "Add/update {journey name} journey"
 ```
 
-### Common Step 6: Handoff
+### Common Step 7: Handoff
 
 After successful build, present:
 
@@ -507,7 +507,7 @@ These apply in **subagent** execution strategy. In **batched** strategy, autonom
 | Skipping journey capture for features with an interaction surface | Journeys are what visual review tests against — no journey means no QA anchor. This applies to all personas: end users, admins, developers, internal tooling users. |
 | Writing journeys with vague "should feel" | "Good" and "intuitive" are not testable. "Low commitment" and "like an accomplishment" are. |
 | Asking the user whether to create a journey | Journey capture is automatic. The user didn't know they needed the spec either — that's why the workflow exists. |
-| Ignoring architectural deviations from the spec | Drift happens during implementation — catch it in Step 3.5 before it becomes tech debt. Every deviation must be explicitly classified. |
+| Ignoring architectural deviations from the spec | Drift happens during implementation — catch it in Step 4.5 before it becomes tech debt. Every deviation must be explicitly classified. |
 | Using `batched` execution within `/flow` | Flow's purpose is hands-off automation — batched pauses for human review after every 3 tasks, contradicting flow's no-stopping design. Use `subagent` with `/flow`. |
 
 ## Relationship to Other Skills
@@ -526,6 +526,6 @@ These apply in **subagent** execution strategy. In **batched** strategy, autonom
 | `/claude-tweaks:review` | Runs AFTER /claude-tweaks:build — in design mode, uses git diff instead of spec compliance |
 | `/claude-tweaks:wrap-up` | Runs AFTER /claude-tweaks:review — cleans up and captures learnings |
 | `/claude-tweaks:capture` | Design mode may create INBOX items for blocked work |
-| `/claude-tweaks:test` | Standalone verification — /test runs the same checks as /build Common Step 4 |
+| `/claude-tweaks:test` | Standalone verification — /test runs the same checks as /build Common Step 5 |
 | `/claude-tweaks:review` (visual modes) | Tests the user journeys that /build creates — visual review modes are the bridge between build and visual QA |
 | `/claude-tweaks:tidy` | Reviews specs from /claude-tweaks:build for staleness — periodic cleanup complement |
