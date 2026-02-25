@@ -107,6 +107,24 @@ Found both a spec and a design doc for "{topic}":
 ``` If only one exists, use it.
 4. **No arguments** → check conversation context or recent git activity for clues. Ask if unclear.
 
+### Prompt for build options
+
+After resolving the input, if execution strategy and git strategy were not provided as arguments, prompt the user:
+
+```
+How should this build run?
+
+Execution strategy:
+1. Subagent **(Recommended)** — fully automated review chain, no stopping
+2. Batched — human reviews every 3 tasks
+
+Git strategy:
+1. Current branch **(Recommended)** — commit directly, no isolation
+2. Worktree — isolated workspace on a feature branch
+```
+
+Skip this prompt if both options were provided as arguments (e.g., `/build 42 batched worktree`). If only one was provided, prompt for the missing one only.
+
 | Mode | Source | Skips | Best for |
 |------|--------|-------|----------|
 | **Spec mode** | `specs/{N}-*.md` | Nothing | Tracked work with acceptance criteria, dependencies, and INDEX.md |

@@ -131,7 +131,13 @@ Or run the failed step manually: `/claude-tweaks:{step} {spec or design doc}`
 
 1. Parse `$ARGUMENTS` — extract spec number or design doc path, detect `worktree` keyword, plus optional step list
 2. Determine mode: spec mode (number) or design mode (path/topic)
-3. If `worktree` keyword is present, set git strategy to `worktree` — this is passed through to `/claude-tweaks:build` and controls isolation
+3. If `worktree` keyword is present, set git strategy to `worktree`. If not provided as an argument, prompt the user:
+   ```
+   Git strategy for this pipeline:
+   1. Current branch **(Recommended)** — commit directly, no isolation
+   2. Worktree — isolated workspace on a feature branch
+   ```
+   This is passed through to `/claude-tweaks:build` and controls isolation. Flow always uses `subagent` execution — no prompt needed for execution strategy.
 4. Validate step list is in lifecycle order
 4. If spec mode: check prerequisites are met (same as `/claude-tweaks:build` Spec Step 1)
 5. If design mode: verify the design doc file exists
