@@ -123,6 +123,7 @@ Check if `.gitignore` exists and whether it already covers workflow artifacts. S
 ```gitignore
 # claude-tweaks: transient artifacts
 screenshots/
+.claude/worktrees/
 ```
 
 If `stories/` exists or will be created, ask the user:
@@ -151,23 +152,11 @@ The workflow system relies on git for change tracking (`/claude-tweaks:review` u
 
 ## Step 5.5: Worktree Configuration (Optional)
 
-`/claude-tweaks:build worktree` and `/claude-tweaks:flow worktree` use `/using-git-worktrees` to create isolated workspaces. This step checks if a worktree directory is configured.
+`/claude-tweaks:build worktree` and `/claude-tweaks:flow worktree` use `/using-git-worktrees` to create isolated workspaces. The standard worktree directory is `.claude/worktrees/` in the project root.
 
-1. Check if `.worktrees/` or `worktrees/` directory exists in the project root
-2. Check CLAUDE.md for a worktree directory preference (e.g., `worktree-dir: .worktrees`)
-3. If neither exists, offer to configure:
-
-```
-Worktree mode (/build worktree, /flow worktree) needs a directory for isolated workspaces.
-
-1. Project-local `.worktrees/` **(Recommended)** — worktrees live alongside the project
-2. Global (shared across all projects) — `~/.config/superpowers/worktrees/` on macOS/Linux, `%APPDATA%\superpowers\worktrees\` on Windows
-3. Skip — configure later. `/using-git-worktrees` will prompt at first use.
-```
-
-4. If a directory is chosen, verify it's in `.gitignore` (suggest adding if not)
-
-This step is optional — `using-git-worktrees` will prompt for configuration at first use if unconfigured.
+1. Check if `.claude/worktrees/` exists in the project root
+2. If it doesn't exist, create it and verify it's in `.gitignore` (suggest adding if not)
+3. If a legacy worktree directory exists (`.worktrees/` or `worktrees/`), suggest migrating to `.claude/worktrees/` for consistency
 
 ## Step 6: Browser Integration (Optional)
 
