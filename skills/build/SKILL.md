@@ -465,11 +465,7 @@ After successful build, present:
 
 ### Recommended Next
 
-{If UI files changed (`.tsx`, `.jsx`, `.vue`, `.svelte`, `.html`, `.css`, component/page directories):}
-`/claude-tweaks:stories {url}` — generate QA stories for the changed UI, then `/claude-tweaks:review`.
-
-{Otherwise:}
-`/claude-tweaks:review {number}` — run the quality gate.
+`/claude-tweaks:review {number}` — run the quality gate. Review auto-validates QA stories when they exist (Step 2.5) and flags affected journeys.
 
 {Worktree mode: also suggest completing the branch via `/finishing-a-development-branch`.}
 ```
@@ -540,8 +536,8 @@ These apply in **subagent** execution strategy. In **batched** strategy, autonom
 | `/using-git-worktrees` | Invoked BY /claude-tweaks:build (worktree git strategy) to create an isolated workspace before execution |
 | `/finishing-a-development-branch` | Invoked BY /claude-tweaks:build (worktree git strategy) at handoff to merge, PR, or discard the feature branch |
 | `code-simplifier:code-simplifier` | Invoked BY /claude-tweaks:build after implementation, before verification |
-| `/claude-tweaks:stories` | Runs AFTER /claude-tweaks:build when UI files change — generates QA stories before review |
-| `/claude-tweaks:review` | Runs AFTER /claude-tweaks:build — in design mode, uses git diff instead of spec compliance |
+| `/claude-tweaks:stories` | Runs AFTER /claude-tweaks:build — auto-triggered by `/flow` when UI files change, or run manually. Stories are auto-validated by `/review` Step 2.5. |
+| `/claude-tweaks:review` | Runs AFTER /claude-tweaks:build — auto-validates QA stories when they exist (Step 2.5). In design mode, uses git diff instead of spec compliance. |
 | `/claude-tweaks:wrap-up` | Runs AFTER /claude-tweaks:review — cleans up and captures learnings |
 | `/claude-tweaks:capture` | Design mode may create INBOX items for blocked work |
 | `/claude-tweaks:test` | Standalone verification — /test runs the same checks as /build Common Step 5 |

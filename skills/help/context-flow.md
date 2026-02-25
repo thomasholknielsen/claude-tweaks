@@ -23,12 +23,12 @@ specs/INBOX.md         docs/plans/*-brief.md   docs/plans/*-design.md  specs/NN-
 ```
 
 ```
-Code + Journey ──→ Story YAML     ──→ QA Report          ──→ Review Summary    ──→ Learnings Routed    ──→ Clean Slate
-src/ + journeys    stories/*.yaml     screenshots/qa/         (in commit/output)     CLAUDE.md updates       (spec + plans + ledger deleted)
-  /build             /stories           /review qa              /review                /wrap-up
-                                                                 ↕                       ↑
-                                                           Visual findings         Open Items Ledger
-                                                           (browser review)        (tracks findings across phases)
+Code + Journey ──→ Story YAML     ──→ Review (auto-QA + code) ──→ Learnings Routed    ──→ Clean Slate
+src/ + journeys    stories/*.yaml     (in commit/output)            CLAUDE.md updates       (spec + plans + ledger deleted)
+  /build             /stories           /review                       /wrap-up
+             (auto in /flow          Step 2.5 auto-validates    ↕                       ↑
+              when UI changed)       stories when present   Visual findings         Open Items Ledger
+                                                            (browser review)        (tracks findings across phases)
 ```
 
 ## What Each Skill Reads and Writes
@@ -45,7 +45,7 @@ src/ + journeys    stories/*.yaml     screenshots/qa/         (in commit/output)
 | `/test` | CLAUDE.md (for commands) | — (output only) | — |
 | `/browse` | — | `screenshots/browse/` | — |
 | `/stories` | Existing `stories/*.yaml`, site via `/browse` | `stories/*.yaml` | — |
-| `/review` | Code (via git diff), `specs/NN-*.md`, `docs/journeys/*.md`, ledger | Review summary, ledger items | — |
+| `/review` | Code (via git diff), `specs/NN-*.md`, `docs/journeys/*.md`, `stories/*.yaml` (auto Step 2.5), ledger | Review summary, ledger items, QA report (when stories exist) | — |
 | `/review` (qa mode) | `stories/*.yaml` | `screenshots/qa/report.json`, `screenshots/qa/report.md` | — |
 | `/wrap-up` | `specs/NN-*.md`, review output, plan files, ledger | CLAUDE.md updates, skill updates, `DEFERRED.md` | Spec file, plan files, ledger |
 | `/tidy` | All artifacts | Cleanup actions | Stale artifacts |

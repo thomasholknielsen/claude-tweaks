@@ -58,7 +58,8 @@ This will:
 ```
 /setup → /codebase-onboarding → /capture → /challenge → /brainstorm → /specify → /build → [/stories] → /review → /wrap-up
                                                                                        ╰──────── /flow automates ────────╯
-                                                                           /test ↕    /browse ↕    /review visual + qa modes
+                                                                          /test ↕    /browse ↕    stories auto-generated when UI changes
+                                                                                                  review auto-validates stories (Step 2.5)
 ```
 
 ### Lifecycle Skills
@@ -72,8 +73,8 @@ This will:
 | 5 | `/claude-tweaks:specify` | Decompose design doc into agent-sized specs with implicit dependency detection |
 | 6 | `/claude-tweaks:build` | Implement a spec end-to-end (subagent/batched execution, current-branch/worktree git strategy) |
 | 6b | `/claude-tweaks:test` | Standalone verification — types, lint, tests |
-| 6c | `/claude-tweaks:stories` | Generate or update QA story YAML files by browsing a site |
-| 7 | `/claude-tweaks:review` | Quality gate — code review + optional visual/QA review |
+| 6c | `/claude-tweaks:stories` | Generate or update QA story YAML files by browsing a site (auto-triggered by /flow on UI changes) |
+| 7 | `/claude-tweaks:review` | Quality gate — auto QA validation + code review + optional visual review |
 | 8 | `/claude-tweaks:wrap-up` | Reflection, knowledge capture, artifact cleanup |
 
 ### Utility Skills
@@ -82,7 +83,7 @@ This will:
 |---------|---------|
 | `/claude-tweaks:help` | Quick reference, workflow status dashboard, recommendations |
 | `/claude-tweaks:tidy` | Batch backlog hygiene with cross-spec pattern detection |
-| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] review → wrap-up with gates |
+| `/claude-tweaks:flow` | Automated pipeline: build → [stories (auto on UI change) →] review → wrap-up with gates |
 | `/claude-tweaks:browse` | Unified browser automation — playwright-cli or Chrome MCP |
 
 ## Common Workflows
@@ -186,19 +187,21 @@ Each journey tracks its implementing source files via `files:` frontmatter. Duri
 
 ### QA Pipeline
 
-Generate user stories by browsing your app, then validate them with parallel agents:
+Stories are **auto-generated** when `/flow` detects UI file changes after build, and **auto-validated** by `/review` Step 2.5 when they exist. No manual URL entry — the dev server is auto-detected.
 
 ```
-/claude-tweaks:stories http://localhost:3000                   → browse site, generate story YAML files
+/claude-tweaks:flow 42                                         → build → stories (auto if UI changed) → review (auto QA + code) → wrap-up
+/claude-tweaks:flow 42 no-stories                              → build → review → wrap-up (skip stories even if UI changed)
+```
+
+Manual story generation and validation:
+
+```
+/claude-tweaks:stories                                         → auto-detect dev server, browse site, generate stories
+/claude-tweaks:stories http://localhost:3000                    → explicit URL, browse site, generate stories
 /claude-tweaks:review qa                                       → validate all stories against running app
 /claude-tweaks:review qa tag=smoke                             → validate smoke tests only
 /claude-tweaks:review qa retry=screenshots/qa/20260210_143022  → re-run only failed stories
-```
-
-Or include stories in the automated pipeline:
-
-```
-/claude-tweaks:flow 42 stories                                 → build → stories → review qa → review code → wrap-up
 ```
 
 ### Standalone Testing
@@ -262,11 +265,11 @@ INBOX item ──→ Brief ──→ Design Doc ──────→ Spec ─�
                                     (deletes brief  Deferred  docs/journeys/
                                      + design doc)  Work
 
-Code + Journey ──→ Story YAML ──→ QA Report ──→ Review Summary ──→ Learnings routed ──→ Clean slate
-     /build         /stories      /review qa       /review            /wrap-up
-               (visual modes)                  ↓                ↓
-                                           Deferred Work  (deletes spec
-                                                            + plans + ledger)
+Code + Journey ──→ Story YAML ──→ Review (auto-QA + code) ──→ Learnings routed ──→ Clean slate
+     /build         /stories          /review                    /wrap-up
+             (auto in /flow       Step 2.5 auto-validates   ↓
+              when UI changed)    stories when present   Deferred Work
+                                                        (deletes spec + plans + ledger)
 
 Open Items Ledger ── tracks findings across all phases ── resolved + deleted by /wrap-up
 ```

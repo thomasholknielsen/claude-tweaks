@@ -5,16 +5,24 @@ Structured YAML story execution with parallel agents, dependency tiers, and pass
 ## Prerequisites
 
 - YAML stories must exist in `stories/` (or custom dir specified with `dir=`)
+- A running dev server URL must be available
 - A browser backend must be available (playwright-cli or Chrome MCP)
 
-Check availability:
+### URL Resolution
+
+When QA is triggered automatically (by `/claude-tweaks:review` Step 2.5 or `/claude-tweaks:flow`), the dev server URL is auto-detected using the shared procedure from `dev-url-detection.md` in the `/claude-tweaks:stories` skill's directory. When invoked directly via `/claude-tweaks:review qa`, the URL is not needed — stories contain their own URLs.
+
+### Browser Check
+
 1. Check `playwright-cli`: run `playwright-cli --version` and check if it succeeds
 2. Fall back to Chrome MCP: check if `mcp__claude_in_chrome__navigate` tool exists
 3. If neither: **stop** and suggest `/claude-tweaks:setup` (Step 6) or `/claude-tweaks:stories` to generate stories
 
+### Story Check
+
 If no stories exist, suggest:
 ```
-No user stories found in `{STORIES_DIR}/*.yaml`. Generate stories with `/claude-tweaks:stories <url>` or create YAML files manually. Use `dir=<path>` to specify a custom directory.
+No user stories found in `{STORIES_DIR}/*.yaml`. Generate stories with `/claude-tweaks:stories` or create YAML files manually. Use `dir=<path>` to specify a custom directory.
 ```
 
 ## Variables

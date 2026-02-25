@@ -13,8 +13,8 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/specify` | Decompose design doc into agent-sized specs | design doc, topic |
 | `/build` | Implement a spec or design doc | spec #, doc path + `batched`, `worktree` |
 | `/test` | Run verification checks standalone | `types`, `lint`, `unit`, path, `affected` |
-| `/stories` | Generate or update QA story YAML files | URL + `persona=`, `dir=`, `focus=`, `browser=`, `refine=`, `negative=` |
-| `/review` | Quality gate: code + optional visual/QA review | spec #, files + `full`/`visual`/`journey:{name}`/`discover`/`qa` |
+| `/stories` | Generate or update QA story YAML files | URL (auto-detected if omitted) + `persona=`, `dir=`, `focus=`, `browser=`, `refine=`, `negative=` |
+| `/review` | Quality gate: auto QA + code + optional visual review | spec #, files + `full`/`visual`/`journey:{name}`/`discover`/`qa` |
 | `/wrap-up` | Reflect, capture learnings, clean up | spec # |
 
 ## Utility
@@ -23,7 +23,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 |---------|-------------|-------|
 | `/help` | Dashboard: commands + status + recommendations | `status`, `commands`, spec/topic |
 | `/tidy` | Batch backlog hygiene | — |
-| `/flow` | Automated pipeline: build → review → wrap-up | spec #(s), doc path + `worktree` `stories` `[steps]` |
+| `/flow` | Automated pipeline: build → [stories →] review → wrap-up | spec #(s), doc path + `worktree` `no-stories` `[steps]` |
 | `/browse` | Unified browser automation (utility) | URL or task + `browser=`, `headless`, `vision` |
 
 ## Common Workflows
@@ -69,10 +69,11 @@ or standalone:
 /flow 42,45,48
 ```
 
-### QA pipeline
+### QA pipeline (automatic in /flow)
 ```
-/stories http://localhost:3000
-/review qa
+/flow 42                                → stories auto-generated if UI changed, auto-validated in review
+/stories                                → auto-detects dev server, generates stories
+/review qa                              → validate stories manually
 ```
 
 ### Brownfield onboarding

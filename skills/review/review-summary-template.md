@@ -20,6 +20,9 @@ Present this summary after completing all review steps.
 - Lint: {pass/fail}
 - Tests: {pass/fail}
 
+### QA Validation
+- **Status:** {ALL PASSED (N stories) | Skipped — no stories | Skipped — no dev server}
+
 ### Code Review Findings
 | Category | Finding | Severity | Action |
 |----------|---------|----------|--------|

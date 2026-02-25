@@ -31,7 +31,7 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 ## Syntax
 
 ```
-/claude-tweaks:flow <spec-or-design-doc>[,spec2,spec3] [worktree] [stories] [step1,step2,step3]
+/claude-tweaks:flow <spec-or-design-doc>[,spec2,spec3] [worktree] [no-stories] [step1,step2,step3]
 ```
 
 ### Arguments
@@ -40,7 +40,7 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 |----------|----------|-------------|
 | `<spec-or-design-doc>` | Yes | Spec number (e.g., `42`), comma-separated spec numbers (e.g., `42,45,48`), design doc path, or topic name |
 | `worktree` | No | Use worktree git strategy — isolated workspace on a feature branch. See "Parallel Development with Worktrees" below. |
-| `stories` | No | Include `/claude-tweaks:stories` step between build and review. Requires a running app — validation checks the URL before proceeding. |
+| `no-stories` | No | Skip automatic story generation even if UI files changed. By default, flow auto-generates stories when the build produces UI file changes. |
 | `[steps]` | No | Comma-separated list of steps to run. Default: `build,review,wrap-up` |
 
 Flow always uses **subagent** execution strategy — its purpose is hands-off automation. The `batched` option (which pauses for human review) is not available in flow; use `/claude-tweaks:build batched` directly instead.
@@ -52,12 +52,22 @@ Flow always uses **subagent** execution strategy — its purpose is hands-off au
 3. **Design doc path** (e.g., `docs/plans/*-design.md`) → **Design mode** — build reads the design doc directly, review uses git diff instead of spec compliance
 4. **Topic name** (e.g., `meal planning`) → search for a matching spec AND design doc. If both exist, prefer spec mode. If only a design doc exists, use design mode.
 
+### Automatic story generation
+
+After build completes, flow checks the build output for UI file changes (`.tsx`, `.jsx`, `.vue`, `.svelte`, `.html`, `.css`, or files in component/page directories). If UI files changed and `no-stories` was not specified:
+
+1. Auto-detect the dev server URL using `dev-url-detection.md` from the `/claude-tweaks:stories` skill's directory
+2. Run `/claude-tweaks:stories` with the detected URL
+3. Generated stories feed into `/claude-tweaks:review` (which auto-validates them in Step 2.5)
+
+If no UI files changed, or `no-stories` is set, the stories step is skipped.
+
 ### Examples
 
 ```
-/claude-tweaks:flow 42                                              → spec mode: build, review, wrap-up
+/claude-tweaks:flow 42                                              → spec mode: build, review, wrap-up (stories auto-generated if UI changed)
 /claude-tweaks:flow 42 worktree                                     → isolated worktree: build, review, wrap-up
-/claude-tweaks:flow 42 stories                                      → build, stories, review qa, review code, wrap-up
+/claude-tweaks:flow 42 no-stories                                   → build, review, wrap-up (skip stories even if UI changed)
 /claude-tweaks:flow 42,45,48                                        → multi-spec: sequential pipelines in one terminal
 /claude-tweaks:flow 42,45,48 worktree                               → multi-spec sequential, each in its own worktree
 /claude-tweaks:flow docs/plans/2026-02-21-meal-planning-design.md   → design mode: build, review, wrap-up
@@ -73,8 +83,8 @@ Only automatable skills can be included in the pipeline:
 | Step | Skill invoked | Why it's automatable |
 |------|--------------|---------------------|
 | `build` | `/claude-tweaks:build` | Fully autonomous — plans, implements, simplifies, verifies. Always uses `subagent` execution. Passes `worktree` through if specified. |
-| `stories` | `/claude-tweaks:stories` | Autonomous — browses app, generates YAML stories |
-| `review` | `/claude-tweaks:review` | Runs verification, code review, simplification — produces a verdict |
+| `stories` | `/claude-tweaks:stories` | Autonomous — browses app, generates YAML stories. Auto-triggered when build produces UI file changes (unless `no-stories`). |
+| `review` | `/claude-tweaks:review` | Runs QA validation (when stories exist), verification, code review, simplification — produces a verdict |
 | `wrap-up` | `/claude-tweaks:wrap-up` | Reflection, cleanup, knowledge routing — produces actionable summary |
 
 **Not allowed in flow:** `capture`, `challenge`, `specify`, `setup`, `codebase-onboarding`, `tidy`, `help`, `browse` — these require interactive decision-making or are utility skills.
@@ -83,8 +93,8 @@ Only automatable skills can be included in the pipeline:
 
 Steps must follow lifecycle order. Invalid orderings are rejected:
 
-- `build,review,wrap-up` — valid
-- `build,stories,review,wrap-up` — valid (when `stories` keyword is present)
+- `build,review,wrap-up` — valid (stories auto-inserted if UI changed)
+- `build,stories,review,wrap-up` — valid (stories always runs regardless of UI changes)
 - `build,review` — valid
 - `review,wrap-up` — valid (assumes build is already done)
 - `wrap-up` — valid (assumes build and review are done)
@@ -97,10 +107,9 @@ Each step has a gate that determines whether to proceed to the next step.
 
 | Step | Gate condition | On pass | On failure |
 |------|---------------|---------|-----------|
-| `build` | Final verification passes (type check + lint + tests) | Proceed to next step | **STOP** — present verification failures |
-| `stories` | YAML files created + no parse errors | Proceed to review qa | **STOP** — present generation failures |
-| `review qa` | ALL PASSED | Proceed to review code | **STOP** — present QA failures |
-| `review` | Verdict is **PASS** | Proceed to next step | **STOP** — present **BLOCKED** verdict with findings |
+| `build` | Final verification passes (type check + lint + tests) | Check for UI changes → auto-trigger stories if applicable → proceed | **STOP** — present verification failures |
+| `stories` (auto) | YAML files created + no parse errors | Proceed to review (which auto-validates stories in Step 2.5) | **STOP** — present generation failures |
+| `review` | Verdict is **PASS** (includes QA validation when stories exist) | Proceed to next step | **STOP** — present **BLOCKED** verdict with findings (QA or code) |
 | `wrap-up` | Always passes | Pipeline complete | — |
 
 ### On Gate Failure
@@ -129,7 +138,7 @@ Or run the failed step manually: `/claude-tweaks:{step} {spec or design doc}`
 
 ### Step 1: Validate Input
 
-1. Parse `$ARGUMENTS` — extract spec number or design doc path, detect `worktree` keyword, plus optional step list
+1. Parse `$ARGUMENTS` — extract spec number or design doc path, detect `worktree` and `no-stories` keywords, plus optional step list
 2. Determine mode: spec mode (number) or design mode (path/topic)
 3. If `worktree` keyword is present, set git strategy to `worktree`. If not provided as an argument, prompt the user:
    ```
@@ -141,8 +150,7 @@ Or run the failed step manually: `/claude-tweaks:{step} {spec or design doc}`
 4. Validate step list is in lifecycle order
 4. If spec mode: check prerequisites are met (same as `/claude-tweaks:build` Spec Step 1)
 5. If design mode: verify the design doc file exists
-6. If `stories` keyword is present: ask the user for the app URL (e.g., `http://localhost:3000`). Verify the URL responds using the WebFetch tool or a cross-platform HTTP check via Node.js (`node -e "require('http').get('{url}', r => { console.log(r.statusCode); r.resume() }).on('error', () => { console.error('unreachable'); process.exit(1) })"`). If unreachable, stop: "Stories step requires a running app at {url}. Start the dev server and re-run."
-7. If validation fails → **stop before starting**
+6. If validation fails → **stop before starting**
 8. **Create the open items ledger** at `docs/plans/YYYY-MM-DD-{feature}-ledger.md` — the `{feature}` name matches the execution plan that build will create. This file tracks findings and operational tasks across all pipeline phases. Format:
    ```markdown
    # Open Items — {spec title or design topic}
@@ -160,9 +168,8 @@ For each step in order:
 2. **Execute** the full skill as documented in its own SKILL.md
 3. **Check the gate** — if the step fails its gate, stop the pipeline
 4. **Pass context forward** — each step's output feeds into the next:
-   - `build` → `stories` receives the UI changed files list + app URL
-   - `stories` → `review qa` receives the stories directory
-   - `review qa` → `review` (code) receives the QA verdict
+   - `build` → check output for UI file changes (`.tsx`, `.jsx`, `.vue`, `.svelte`, `.html`, `.css`, component/page directories). If UI changed and `no-stories` not set → auto-detect dev URL via `dev-url-detection.md` and run `stories` step.
+   - `stories` → `review` receives the stories directory (review auto-validates via Step 2.5)
    - `build` → `review` receives the build summary, changed files, and `VERIFICATION_PASSED=true` (so review skips redundant verification — see `verification.md` in the `/claude-tweaks:test` skill)
    - `review` → `wrap-up` receives the review summary and verdict
 5. **Ledger carries forward** — each step reads and appends to the open items ledger. Unlike conversation context (which may be compressed), the ledger is a file — it survives context window limits.
@@ -186,7 +193,8 @@ On successful completion of all steps:
 | Step | Outcome |
 |------|---------|
 | build | Verification passed |
-| review | Verdict: PASS |
+| stories | {Generated N stories | Skipped — no UI changes | Skipped — no-stories} |
+| review | Verdict: PASS {(QA: N stories passed) | (QA: skipped)} |
 | wrap-up | Learnings captured, artifacts cleaned, ledger resolved |
 
 ### Key Outputs
@@ -323,8 +331,8 @@ For each completed branch (in order):
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:build` | First step in the default pipeline — runs in spec mode or design mode depending on flow input |
-| `/claude-tweaks:stories` | Optional step between build and review — generates QA stories when `stories` keyword is present |
-| `/claude-tweaks:review` | Review step — receives build output, produces verdict. Includes QA mode when stories step ran. |
+| `/claude-tweaks:stories` | Auto-triggered between build and review when UI files change (unless `no-stories`). Uses `dev-url-detection.md` for URL resolution. |
+| `/claude-tweaks:review` | Review step — receives build output, produces verdict. Auto-validates QA stories (Step 2.5) when they exist. |
 | `/claude-tweaks:wrap-up` | Final step — receives review output, produces clean slate |
 | `/claude-tweaks:help` | Shows pipeline status and recommends flow-ready specs |
 | `/claude-tweaks:specify` | Creates the specs that flow consumes |

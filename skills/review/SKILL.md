@@ -34,8 +34,8 @@ This skill is the single quality gate — everything from automated checks to hu
 
 | Mode | Syntax | What runs |
 |------|--------|-----------|
-| **code** (default) | `/claude-tweaks:review 42` | Steps 1-8: spec compliance, verification, code review, hindsight, simplification, summary |
-| **full** | `/claude-tweaks:review 42 full` | Code review (Steps 1-6) + visual browser review (Step 7) + summary (Step 8) |
+| **code** (default) | `/claude-tweaks:review 42` | Steps 1-8: spec compliance, QA validation (when stories exist), verification, code review, hindsight, simplification, summary |
+| **full** | `/claude-tweaks:review 42 full` | Code review (Steps 1-2.5, 3-6) + visual browser review (Step 7) + summary (Step 8). Includes QA validation when stories exist. |
 | **visual** | `/claude-tweaks:review visual {url}` | Browser review only — page mode |
 | **journey** | `/claude-tweaks:review journey:{name}` | Browser review only — walk a documented journey |
 | **discover** | `/claude-tweaks:review discover` | Browser review only — scan and document all user journeys |
@@ -92,6 +92,28 @@ Analyze `git diff` (or `git diff` against the base branch) to understand the sco
 - Whether new dependencies were introduced
 
 This classification guides which review lenses to apply — a pure UI change doesn't need a database review.
+
+## Step 2.5: QA Story Validation (automatic)
+
+When QA stories exist, validate them automatically before proceeding to code review. This step runs silently when no stories are found.
+
+1. **Discover stories:** Glob `stories/*.yaml` (or the project's configured stories directory).
+2. **No stories found** — skip silently. Proceed to Step 3.
+3. **Stories found:**
+   a. Auto-detect the dev server URL using the shared procedure from `dev-url-detection.md` in the `/claude-tweaks:stories` skill's directory.
+   b. If no dev server is reachable and none can be started — skip QA validation. Note in the summary: "QA validation skipped — no dev server."
+   c. Run the QA procedures from `qa-review.md` in this skill's directory.
+
+### Gate:
+
+| Result | Action |
+|--------|--------|
+| ALL PASSED | Proceed to Step 3 |
+| Any failure | **STOP** — present the QA failure report before code review. QA failures must be fixed before the code review is meaningful. |
+| Skipped (no stories) | Proceed to Step 3 |
+| Skipped (no dev server) | Proceed to Step 3 — note in summary |
+
+> **Why this runs before code review:** QA failures indicate broken user-facing behavior. Reviewing code quality on code that doesn't work is wasted effort — fix the functional issues first.
 
 ## Step 3: Automated Verification (Gate)
 
@@ -347,9 +369,11 @@ Present a structured summary covering spec compliance, verification results, cod
 | Listing code review findings without routing them | Every finding must be explicitly resolved: fix now, defer with context, or don't fix with stated reason. No implicit drops. |
 | Putting findings only in the summary table | The summary records resolutions, not unresolved observations. Route first (Step 4g), then summarize (Step 8). |
 | Skipping First Impressions in visual review | The whole point is raw reaction before structured analysis — don't make it analytical |
-| Starting the dev server without asking | The user knows their build setup — don't guess at start commands |
+| Starting the dev server without asking | Dev URL auto-detection offers to start — it doesn't force it |
 | Generic visual ideas ("improve the UX") | Ideas must be concrete and implementable in the current tech stack |
 | Running visual review without a running app | The browser can't inspect what isn't served — verify the URL responds first |
+| Skipping QA validation when stories exist | Stories exist to be validated — Step 2.5 runs automatically for a reason |
+| Running code review when QA stories are failing | Fix functional issues first — code quality review on broken code wastes effort |
 
 ## Relationship to Other Skills
 
@@ -360,7 +384,7 @@ Present a structured summary covering spec compliance, verification results, cod
 | `/claude-tweaks:wrap-up` | Runs after /claude-tweaks:review passes — focuses on reflection, cleanup, and knowledge capture |
 | `/claude-tweaks:capture` | /claude-tweaks:review may create INBOX items for new ideas discovered during review |
 | `/claude-tweaks:codebase-onboarding` | Phase 7 delegates to `/review discover` for brownfield journey bootstrapping |
-| `/claude-tweaks:stories` | Generates the YAML stories that QA mode validates |
+| `/claude-tweaks:stories` | Generates the YAML stories that QA mode and automatic QA validation (Step 2.5) validate. Also provides `dev-url-detection.md` used by Step 2.5. |
 | `/claude-tweaks:browse` | Used by visual, journey, discover, and QA modes for browser interaction |
 | `/claude-tweaks:setup` | Step 6 configures the browser backends that visual and QA review depend on |
 | `specs/DEFERRED.md` | /claude-tweaks:review routes implementation-related deferrals here (with origin, files, trigger) |

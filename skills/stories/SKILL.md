@@ -27,7 +27,7 @@ Browse a website, understand its structure and flows, and generate user story YA
 
 Parse `$ARGUMENTS` to extract:
 
-- **URL:** (required) the site to browse and generate stories for
+- **URL:** (required, auto-detected if omitted) the site to browse and generate stories for. When no URL is provided, auto-detect using `dev-url-detection.md` in this skill's directory.
 - **PERSONA:** (optional) `persona=<name>` — the type of user to generate stories for (e.g. "customer", "admin", "developer"). If not specified, infer appropriate personas from the site's structure.
 - **OUTPUT_DIR:** (optional) `dir=<path>` — directory to write stories to. Default: `stories/`
 - **FOCUS:** (optional) `focus=<area>` — specific area or flow to focus on (e.g. "checkout", "settings", "onboarding")
@@ -43,6 +43,10 @@ Parse `$ARGUMENTS` to extract:
 - `persona=<name>` → PERSONA = `<name>`
 - `focus=<area>` → FOCUS = `<area>`
 - Remaining non-keyword argument → URL
+
+### URL Resolution
+
+If no URL is provided in `$ARGUMENTS`, run the dev URL detection procedure from `dev-url-detection.md` in this skill's directory. This probes common ports, checks project configuration, and resolves `APP_URL` automatically. If no server can be detected or started, stop and ask the user for a URL.
 
 **Auto-detected behavior:**
 - **Update mode:** If `{OUTPUT_DIR}/*.yaml` files already exist, automatically enter diff-aware mode. No keyword needed — the skill detects existing stories and only generates new or changed ones.
@@ -383,7 +387,7 @@ stories:
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:build` | Runs BEFORE /stories — recommends /stories when UI files change |
-| `/claude-tweaks:review` | QA mode (`/review qa`) validates the stories that /stories generates |
+| `/claude-tweaks:review` | QA mode (`/review qa`) and automatic QA validation (Step 2.5) validate the stories that /stories generates. Review references `dev-url-detection.md` for auto-detection. |
 | `/claude-tweaks:browse` | Used BY /stories to explore sites and validate generated stories |
-| `/claude-tweaks:flow` | Can include /stories as an optional step between build and review |
+| `/claude-tweaks:flow` | Auto-triggers /stories between build and review when UI files change (unless `no-stories`). Uses `dev-url-detection.md` for URL resolution. |
 | `/claude-tweaks:setup` | Step 6 configures the browser backends that /stories depends on (via /browse) |
