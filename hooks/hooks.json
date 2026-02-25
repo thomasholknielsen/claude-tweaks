@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "command -v playwright-cli >/dev/null 2>&1 || echo 'claude-tweaks: Browser features require playwright-cli. Install: npm install -g @playwright/cli@latest — or use Chrome MCP: claude --chrome. Browser features are optional.'"
+            "command": "node -e \"try{require('child_process').execSync('playwright-cli --version',{stdio:'ignore'})}catch(e){console.log('claude-tweaks: Browser features require playwright-cli. Install: npm install -g @playwright/cli@latest -- or use Chrome MCP: claude --chrome. Browser features are optional.')}\""
           }
         ]
       }

@@ -29,9 +29,8 @@ The workflow system depends on two external plugins. Check if they're installed:
 
 Provides `/superpowers:brainstorm`, `/superpowers:write-plan`, `/superpowers:subagent-driven-development`, `/superpowers:executing-plans`, `/superpowers:using-git-worktrees`, `/superpowers:finishing-a-development-branch`, and `/superpowers:dispatching-parallel-agents`.
 
-```bash
-# Check if installed
-ls ~/.claude/plugins/ | grep -i superpowers
+```
+Check if installed — use the Glob tool to search for *superpowers* under the user's ~/.claude/plugins/ directory.
 ```
 
 If missing, install:
@@ -162,7 +161,7 @@ The workflow system relies on git for change tracking (`/claude-tweaks:review` u
 Worktree mode (/build worktree, /flow worktree) needs a directory for isolated workspaces.
 
 1. Project-local `.worktrees/` **(Recommended)** — worktrees live alongside the project
-2. Global `~/.config/superpowers/worktrees/` — shared across all projects
+2. Global (shared across all projects) — `~/.config/superpowers/worktrees/` on macOS/Linux, `%APPDATA%\superpowers\worktrees\` on Windows
 3. Skip — configure later. `/superpowers:using-git-worktrees` will prompt at first use.
 ```
 
@@ -178,9 +177,9 @@ Ask the user if they want to set up browser integration. This lets Claude Code i
 
 Before offering options, check what's already configured:
 
-```bash
-# Check for playwright-cli
-command -v playwright-cli >/dev/null 2>&1 && echo "playwright-cli: installed" || echo "playwright-cli: not found"
+```
+# Check for playwright-cli — run and check if it succeeds
+playwright-cli --version
 
 # Check for Chrome MCP tools
 # Look for mcp__claude_in_chrome__navigate in available tools
@@ -214,7 +213,7 @@ npm install -g @playwright/cli@latest
 
 Verify:
 ```bash
-command -v playwright-cli && playwright-cli --version
+playwright-cli --version
 ```
 
 ### Option 2: Both (playwright-cli + Chrome MCP)

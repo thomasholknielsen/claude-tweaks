@@ -63,7 +63,7 @@ Gather pre-existing information before browsing.
 
 ## Step 2: Explore
 
-4. Create the output directory if it doesn't exist: `mkdir -p {OUTPUT_DIR}`
+4. Create the output directory if it doesn't exist (use `mkdir` via the Bash tool — it creates parent directories on all platforms).
 5. Use the `/claude-tweaks:browse` skill to open the site.
 6. Take a snapshot to understand the page structure.
 7. Identify the main navigation, key pages, and interactive elements.

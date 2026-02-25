@@ -41,7 +41,7 @@ Default: BROWSER = `auto`, HEADLESS = `false`, VISION = `false`.
 
 Run these checks at the start of every browser task:
 
-1. **Playwright available?** — `command -v playwright-cli >/dev/null 2>&1`
+1. **Playwright available?** — run `playwright-cli --version` and check if it succeeds
 2. **Chrome available?** — check if `mcp__claude_in_chrome__navigate` tool exists
 
 ## Backend Resolution
@@ -106,6 +106,8 @@ PLAYWRIGHT_MCP_VIEWPORT_SIZE=1440x900 playwright-cli -s=<session-name> open <url
 # or with vision:
 PLAYWRIGHT_MCP_VIEWPORT_SIZE=1440x900 PLAYWRIGHT_MCP_CAPS=vision playwright-cli -s=<session-name> open <url>
 ```
+
+> **Cross-platform note:** The `VAR=value command` syntax is bash/zsh. On Windows PowerShell use `$env:VAR='value'; command`, on CMD use `set VAR=value && command`. Adapt the env var prefix to the user's shell when running Playwright commands.
 
 **Chrome:** Navigate directly:
 ```

@@ -134,14 +134,14 @@ Or run the failed step manually: `/claude-tweaks:{step} {spec or design doc}`
 3. If `worktree` keyword is present, set git strategy to `worktree`. If not provided as an argument, prompt the user:
    ```
    Git strategy for this pipeline:
-   1. Current branch **(Recommended)** — commit directly, no isolation
-   2. Worktree — isolated workspace on a feature branch
+   1. Worktree **(Recommended)** — isolated workspace on a feature branch (safest for automated pipelines)
+   2. Current branch — commit directly, no isolation
    ```
    This is passed through to `/claude-tweaks:build` and controls isolation. Flow always uses `subagent` execution — no prompt needed for execution strategy.
 4. Validate step list is in lifecycle order
 4. If spec mode: check prerequisites are met (same as `/claude-tweaks:build` Spec Step 1)
 5. If design mode: verify the design doc file exists
-6. If `stories` keyword is present: ask the user for the app URL (e.g., `http://localhost:3000`). Verify the URL responds with a quick HTTP check (`curl -s -o /dev/null -w "%{http_code}" <url>`). If unreachable, stop: "Stories step requires a running app at {url}. Start the dev server and re-run."
+6. If `stories` keyword is present: ask the user for the app URL (e.g., `http://localhost:3000`). Verify the URL responds using the WebFetch tool or a cross-platform HTTP check via Node.js (`node -e "require('http').get('{url}', r => { console.log(r.statusCode); r.resume() }).on('error', () => { console.error('unreachable'); process.exit(1) })"`). If unreachable, stop: "Stories step requires a running app at {url}. Start the dev server and re-run."
 7. If validation fails → **stop before starting**
 8. **Create the open items ledger** at `docs/plans/YYYY-MM-DD-{feature}-ledger.md` — the `{feature}` name matches the execution plan that build will create. This file tracks findings and operational tasks across all pipeline phases. Format:
    ```markdown
@@ -266,7 +266,7 @@ After all terminals complete, merge the feature branches back. Run this once fro
 
 #### Merge Order
 
-1. Sort completed branches by diff size (smallest first — `git diff --stat main..{branch} | tail -1`)
+1. Sort completed branches by diff size (smallest first — run `git diff --stat main..{branch}` and read the summary line at the end of its output)
 2. Merge branches sequentially into the base branch
 
 #### Merge Procedure

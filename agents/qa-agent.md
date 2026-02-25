@@ -74,9 +74,9 @@ Extract from the prompt:
 ### 2. Setup
 
 a. **Resolve backend** using the Backend Resolution section above.
-b. **Playwright:** Derive a named session from the story ID or name. Create the screenshots subdirectory via `mkdir -p`.
-   **Chrome:** Create the screenshots subdirectory via `mkdir -p` (no session needed).
-c. If VISION is `true` and backend is Playwright, prefix all `playwright-cli` commands with `PLAYWRIGHT_MCP_CAPS=vision` for the entire session. (Ignored for Chrome.)
+b. **Playwright:** Derive a named session from the story ID or name. Create the screenshots subdirectory (`mkdir` via the Bash tool).
+   **Chrome:** Create the screenshots subdirectory (`mkdir` via the Bash tool — no session needed).
+c. If VISION is `true` and backend is Playwright, prefix all `playwright-cli` commands with `PLAYWRIGHT_MCP_CAPS=vision` for the entire session. On Windows PowerShell use `$env:PLAYWRIGHT_MCP_CAPS='vision'; playwright-cli ...`, on CMD use `set PLAYWRIGHT_MCP_CAPS=vision && playwright-cli ...`. (Ignored for Chrome.)
 d. If **Viewport** is specified:
    - **Playwright:** Set the browser viewport size accordingly via env var.
    - **Chrome:** Resize the browser window accordingly.
@@ -137,8 +137,8 @@ Return the structured report as detailed in the "Report" section below.
 
 1. **Parse** the user story into discrete, sequential steps (support all legacy formats in the Examples section)
 2. **Setup** — resolve the backend, then:
-   - **Playwright:** derive a named session from the story, create the screenshots subdirectory via `mkdir -p`. If VISION is `true`, prefix all `playwright-cli` commands with `PLAYWRIGHT_MCP_CAPS=vision` for the entire session.
-   - **Chrome:** create the screenshots subdirectory via `mkdir -p`.
+   - **Playwright:** derive a named session from the story, create the screenshots subdirectory (`mkdir` via Bash tool). If VISION is `true`, prefix all `playwright-cli` commands with `PLAYWRIGHT_MCP_CAPS=vision` for the entire session (adapt env var syntax to the user's shell — see Setup step c above).
+   - **Chrome:** create the screenshots subdirectory (`mkdir` via Bash tool).
 3. **Execute each step sequentially:**
    a. Perform the action using the resolved backend's commands
    b. Take a screenshot (backend-appropriate)

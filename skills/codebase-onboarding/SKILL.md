@@ -120,7 +120,7 @@ Detect:
 - LICENSE — open source vs proprietary
 - .github/, .gitlab-ci.yml, Jenkinsfile, .circleci/ — CI/CD platform
 - Monorepo vs single app (workspaces config, multiple package.json, apps/, packages/)
-- Age — earliest commit date (git log --reverse --format='%ai' | head -1)
+- Age — earliest commit date (`git log --reverse --format="%ai" -1`)
 - Activity — commits in last 90 days, number of contributors
 ```
 

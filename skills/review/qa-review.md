@@ -8,7 +8,7 @@ Structured YAML story execution with parallel agents, dependency tiers, and pass
 - A browser backend must be available (playwright-cli or Chrome MCP)
 
 Check availability:
-1. Check `playwright-cli`: `command -v playwright-cli >/dev/null 2>&1`
+1. Check `playwright-cli`: run `playwright-cli --version` and check if it succeeds
 2. Fall back to Chrome MCP: check if `mcp__claude_in_chrome__navigate` tool exists
 3. If neither: **stop** and suggest `/claude-tweaks:setup` (Step 6) or `/claude-tweaks:stories` to generate stories
 
@@ -57,7 +57,9 @@ Parse from `$ARGUMENTS` after the `qa` keyword (keyword detection, case-insensit
 9. If no stories remain after filtering, report and stop
 10. Generate `RUN_DIR`:
     ```bash
-    RUN_DIR="screenshots/qa/$(date +%Y%m%d_%H%M%S)_$(uuidgen | tr '[:upper:]' '[:lower:]' | head -c 6)"
+    RUN_DIR="screenshots/qa/{YYYYMMDD}_{HHMMSS}_{6-char-random-hex}"
+    # Generate the timestamp and random suffix using a cross-platform method:
+    # node -e "const d=new Date();console.log('screenshots/qa/'+d.toISOString().replace(/[-T:.Z]/g,'').slice(0,15)+'_'+require('crypto').randomBytes(3).toString('hex'))"
     ```
 11. For each story, build its `SCREENSHOT_PATH`:
     - `{RUN_DIR}/{file-stem}/{story-id-or-slug}/`

@@ -60,6 +60,8 @@ PLAYWRIGHT_MCP_VIEWPORT_SIZE=1440x900 playwright-cli -s=<session-name> open <url
 PLAYWRIGHT_MCP_VIEWPORT_SIZE=1440x900 PLAYWRIGHT_MCP_CAPS=vision playwright-cli -s=<session-name> open <url>
 ```
 
+> **Cross-platform note:** The `VAR=value command` syntax is bash/zsh. On Windows PowerShell use `$env:VAR='value'; command`, on CMD use `set VAR=value && command`. Adapt the env var prefix to the user's shell.
+
 2. Get element references via snapshot:
 ```bash
 playwright-cli snapshot
