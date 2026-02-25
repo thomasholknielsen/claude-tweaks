@@ -1,6 +1,6 @@
 # Spec Template
 
-The spec must be detailed enough for `/superpowers:write-plan` to produce a TDD execution plan without additional context. `/superpowers:write-plan` assumes zero codebase familiarity — the spec provides the anchoring.
+The spec must be detailed enough for `/write-plan` to produce a TDD execution plan without additional context. `/write-plan` assumes zero codebase familiarity — the spec provides the anchoring.
 
 ```markdown
 ---
@@ -21,7 +21,7 @@ blocked-by: [{spec numbers or empty}]
 
 ## Non-Goals
 
-{Explicit boundaries. What this spec does NOT cover. Prevents `/superpowers:write-plan` from scope-creeping beyond the work unit boundary.}
+{Explicit boundaries. What this spec does NOT cover. Prevents `/write-plan` from scope-creeping beyond the work unit boundary.}
 
 - {Thing that might seem in scope but isn't}
 - {Related work that belongs in a different spec}
@@ -34,7 +34,7 @@ blocked-by: [{spec numbers or empty}]
 
 ## Current State
 
-{What already exists in the codebase that this work builds on. Not a code dump — pointers that give `/superpowers:write-plan` its starting points.}
+{What already exists in the codebase that this work builds on. Not a code dump — pointers that give `/write-plan` its starting points.}
 
 - Data: `{path}` — {what tables/models exist}
 - API: `{path}` — {what endpoints exist}
@@ -49,7 +49,7 @@ blocked-by: [{spec numbers or empty}]
 
 ## Acceptance Criteria
 
-1. {Specific, testable criterion that `/superpowers:write-plan` can convert to a TDD step}
+1. {Specific, testable criterion that `/write-plan` can convert to a TDD step}
 2. {Specific, testable criterion}
 3. ...
 
@@ -59,7 +59,7 @@ blocked-by: [{spec numbers or empty}]
 
 ### Data / API Surface
 
-{If this spec involves data model or API changes, define the contract surface. Table/model names, field types, endpoint signatures, validation schemas. Not full implementation — just enough for `/superpowers:write-plan` to generate exact code.}
+{If this spec involves data model or API changes, define the contract surface. Table/model names, field types, endpoint signatures, validation schemas. Not full implementation — just enough for `/write-plan` to generate exact code.}
 
 ### Key Files
 
@@ -72,7 +72,7 @@ blocked-by: [{spec numbers or empty}]
 
 ## Gotchas
 
-{Things learned during brainstorming, from past experience, or from project memory that `/superpowers:write-plan` won't know. These prevent common subagent mistakes.}
+{Things learned during brainstorming, from past experience, or from project memory that `/write-plan` won't know. These prevent common subagent mistakes.}
 
 - {e.g., "Use upsert, not delete+insert for this operation"}
 - {e.g., "The status enum values are exactly: draft, published, archived"}
@@ -80,9 +80,9 @@ blocked-by: [{spec numbers or empty}]
 - {e.g., "Import shared types from the contracts package, don't redeclare inline"}
 ```
 
-## Why Each Section Matters for `/superpowers:write-plan`
+## Why Each Section Matters for `/write-plan`
 
-| Section | What `/superpowers:write-plan` does with it |
+| Section | What `/write-plan` does with it |
 |---------|-------------------------------|
 | **Overview** | Sets the goal and context for the plan header |
 | **Non-Goals** | Prevents scope creep in task decomposition |

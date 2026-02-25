@@ -10,7 +10,7 @@ description: Use when capturing ideas that need specification later — brain du
 Quick capture for ideas that aren't ready for full specification. Part of the workflow lifecycle:
 
 ```
-[ /claude-tweaks:capture ] → /claude-tweaks:challenge → /superpowers:brainstorm → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+[ /claude-tweaks:capture ] → /claude-tweaks:challenge → /brainstorm → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
   ^^^^ YOU ARE HERE ^^^^
 ```
 
@@ -41,7 +41,7 @@ Scope: Rough sense of what it might involve (can be vague)
 
 ### Hard cap: ~5 lines per entry
 
-If it takes more than 5 lines to describe, it's past the inbox stage — run `/superpowers:brainstorm` on it instead.
+If it takes more than 5 lines to describe, it's past the inbox stage — run `/brainstorm` on it instead.
 
 ## Adding an Entry
 
@@ -57,8 +57,8 @@ After adding the entry, present a quick decision so the item doesn't silently si
 Added to INBOX: "{item title}"
 
 What should happen with this?
-1. Challenge first — Run /claude-tweaks:challenge to stress-test assumptions, then /superpowers:brainstorm
-2. Brainstorm directly — Run /superpowers:brainstorm to explore the idea now
+1. Challenge first — Run /claude-tweaks:challenge to stress-test assumptions, then /brainstorm
+2. Brainstorm directly — Run /brainstorm to explore the idea now
 3. Keep in INBOX — Not ready yet, will be reviewed during /claude-tweaks:tidy
 4. Merge into spec {N} — This belongs in an existing spec (if a related spec is obvious)
 ```
@@ -86,16 +86,16 @@ Periodically (or when inbox gets long), use `/claude-tweaks:tidy` to batch-revie
 - Writing full specs in the inbox (just create the spec directly)
 - Never reviewing the inbox (becomes a graveyard — use `/claude-tweaks:tidy` periodically)
 - Adding implementation details (inbox = what, not how)
-- Skipping `/superpowers:brainstorm` and going straight to specs (brainstorming catches assumptions)
+- Skipping `/brainstorm` and going straight to specs (brainstorming catches assumptions)
 - Putting notes about existing specs in INBOX (annotate the spec file instead)
 
 ## Relationship to Other Skills
 
 | Skill | Relationship |
 |-------|-------------|
-| `/claude-tweaks:challenge` | Debiases INBOX items before `/superpowers:brainstorm` — /claude-tweaks:help flags candidates |
-| `/superpowers:brainstorm` | Explores promoted INBOX items — produces design docs |
-| `/claude-tweaks:specify` | Converts `/superpowers:brainstorm` output into specs |
+| `/claude-tweaks:challenge` | Debiases INBOX items before `/brainstorm` — /claude-tweaks:help flags candidates |
+| `/brainstorm` | Explores promoted INBOX items — produces design docs |
+| `/claude-tweaks:specify` | Converts `/brainstorm` output into specs |
 | `/claude-tweaks:tidy` | Reviews INBOX for stale items — promotes, merges, or deletes |
 | `/claude-tweaks:review` | May create INBOX items for new ideas discovered during review |
 | `/claude-tweaks:wrap-up` | May create INBOX items for genuinely new ideas; leftover work goes to DEFERRED.md |

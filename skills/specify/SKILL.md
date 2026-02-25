@@ -10,7 +10,7 @@ description: Use when converting a brainstorming design document into agent-size
 Convert a brainstorming design document into self-contained, agent-sized work units in `specs/`. Part of the workflow lifecycle:
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorm → [ /claude-tweaks:specify ] → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+/claude-tweaks:capture → /claude-tweaks:challenge → /brainstorm → [ /claude-tweaks:specify ] → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
                                                                       ^^^^ YOU ARE HERE ^^^^
 ```
 
@@ -31,7 +31,7 @@ Convert a brainstorming design document into self-contained, agent-sized work un
 2. **Topic name** (e.g., `meal planning`) — search `docs/plans/*-design.md` for a matching design doc
 3. **INBOX reference** (e.g., `"Voice shopping list"`) — find the entry in `specs/INBOX.md`, then check if a design doc exists for it
 
-If no design doc exists for the topic, tell the user to run `/superpowers:brainstorm` first. Do NOT proceed without a design document — the brainstorming step is where divergent exploration and user decisions happen.
+If no design doc exists for the topic, tell the user to run `/brainstorm` first. Do NOT proceed without a design document — the brainstorming step is where divergent exploration and user decisions happen.
 
 ## Step 1: Understand the Landscape
 
@@ -42,7 +42,7 @@ If no design doc exists for the topic, tell the user to run `/superpowers:brains
 3. **`specs/INDEX.md`** — current tier structure, dependency graph, existing specs
 4. **All existing spec files** (`specs/*.md`) — scan for overlap with the design doc's scope
 5. **Recent git log** — check if any part of the design has already been implemented
-6. **The codebase** — identify existing files, schemas, APIs, and patterns that the new work will build on. This context is critical for writing specs that `/superpowers:write-plan` can act on.
+6. **The codebase** — identify existing files, schemas, APIs, and patterns that the new work will build on. This context is critical for writing specs that `/write-plan` can act on.
 
 ### File Reference Map
 
@@ -87,7 +87,7 @@ Break the design doc into self-contained work units. Each work unit must be:
 
 | Criteria | Target |
 |----------|--------|
-| Tasks per work unit | 3–8 (what `/superpowers:subagent-driven-development` or `/superpowers:executing-plans` will execute) |
+| Tasks per work unit | 3–8 (what `/subagent-driven-development` or `/executing-plans` will execute) |
 | Files touched per task | 1–3 |
 | Dependency depth | Max 2 levels (A blocks B blocks C, but not deeper) |
 | Cross-package scope | A work unit should touch at most 2-3 packages/modules |
@@ -144,14 +144,14 @@ For each work unit, assign the next available spec number (check `specs/INDEX.md
 
 ### Spec Template
 
-Each spec follows a structured template with sections designed to give `/superpowers:write-plan` everything it needs to produce a TDD execution plan. For the complete template and a table explaining what `/superpowers:write-plan` does with each section, read `spec-template.md` in this skill's directory.
+Each spec follows a structured template with sections designed to give `/write-plan` everything it needs to produce a TDD execution plan. For the complete template and a table explaining what `/write-plan` does with each section, read `spec-template.md` in this skill's directory.
 
 ### Rules
 
 - **Absorb decisions from the design doc** — the spec must be self-contained. The design doc will be deleted, so all rationale, decisions, and technical context must live here.
 - **Be specific about files** — "update the API" is too vague. Name the exact file and what to add.
 - **Include testable acceptance criteria** — not "works correctly" but specific assertions an agent can verify.
-- **Don't over-specify implementation** — the spec says *what* and *where*, the plan (created by `/superpowers:write-plan` during `/claude-tweaks:build`) says *how*.
+- **Don't over-specify implementation** — the spec says *what* and *where*, the plan (created by `/write-plan` during `/claude-tweaks:build`) says *how*.
 - **Include gotchas from project memory** — search CLAUDE.md and memory files for relevant patterns, common mistakes, and lessons learned.
 - **Absorb the brainstorming brief** — if a `*-brief.md` exists for this topic, carry its assumptions, blind spots, and constraints into the relevant specs' Gotchas sections. These are hard-won insights from `/claude-tweaks:challenge` that should survive.
 
@@ -231,19 +231,19 @@ Commit with a message describing the specs created.
 |---------|-------------|
 | Specifying without a design doc | Specs need brainstorming output — without it, assumptions go unchallenged |
 | Specs that touch every layer | A single spec spanning data + API + UI + infra is too large for agent-sized execution |
-| Vague acceptance criteria | "Works correctly" can't be verified — `/superpowers:write-plan` needs specific, testable assertions |
+| Vague acceptance criteria | "Works correctly" can't be verified — `/write-plan` needs specific, testable assertions |
 | Keeping the design doc after specifying | Creates dangling references — the spec is the durable record, the design doc is consumed |
-| Skipping the codebase scan | Specs without Current State context force `/superpowers:write-plan` into blind exploration |
+| Skipping the codebase scan | Specs without Current State context force `/write-plan` into blind exploration |
 | Silently deciding how to handle overlapping specs | Overlap handling (extend vs. companion vs. replace) is a user decision — present numbered options, don't assume |
 
 ## Relationship to Other Skills
 
 | Skill | Relationship |
 |-------|-------------|
-| `/superpowers:brainstorm` | Runs BEFORE /claude-tweaks:specify — produces the design doc that /claude-tweaks:specify consumes and deletes |
-| `/superpowers:write-plan` | Consumes specs AFTER /claude-tweaks:specify — the spec must provide enough context for `/superpowers:write-plan` to produce a TDD execution plan |
-| `/superpowers:subagent-driven-development` | Executes specs AFTER /claude-tweaks:specify — uses the plan from `/superpowers:write-plan` (via `/claude-tweaks:build` subagent execution strategy) |
-| `/superpowers:executing-plans` | Executes specs AFTER /claude-tweaks:specify — uses the plan from `/superpowers:write-plan` (via `/claude-tweaks:build` batched execution strategy) |
+| `/brainstorm` | Runs BEFORE /claude-tweaks:specify — produces the design doc that /claude-tweaks:specify consumes and deletes |
+| `/write-plan` | Consumes specs AFTER /claude-tweaks:specify — the spec must provide enough context for `/write-plan` to produce a TDD execution plan |
+| `/subagent-driven-development` | Executes specs AFTER /claude-tweaks:specify — uses the plan from `/write-plan` (via `/claude-tweaks:build` subagent execution strategy) |
+| `/executing-plans` | Executes specs AFTER /claude-tweaks:specify — uses the plan from `/write-plan` (via `/claude-tweaks:build` batched execution strategy) |
 | `/claude-tweaks:build` | Runs AFTER /claude-tweaks:specify — takes a single spec and implements it |
 | `/claude-tweaks:capture` | Feeds INBOX items that may trigger brainstorming → /claude-tweaks:specify |
 | `/claude-tweaks:tidy` | Reviews specs created by /claude-tweaks:specify for staleness. /claude-tweaks:tidy tags INBOX items as `**Promoted:**` — /claude-tweaks:specify Step 6 removes them from INBOX after creating the spec |

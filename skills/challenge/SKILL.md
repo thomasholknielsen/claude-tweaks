@@ -10,7 +10,7 @@ description: Use when you need to challenge assumptions and remove bias from a p
 Pre-brainstorming debiasing to ensure you're solving the right problem before investing time exploring solutions. Part of the workflow lifecycle:
 
 ```
-/claude-tweaks:capture → [ /claude-tweaks:challenge ] → /superpowers:brainstorm → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+/claude-tweaks:capture → [ /claude-tweaks:challenge ] → /brainstorm → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
                            ^^^^ YOU ARE HERE ^^^^
 ```
 
@@ -148,7 +148,7 @@ Ask: *"Is this even the right question to ask?"*
 
 ## Output: Brainstorming Brief
 
-The output is structured to feed directly into `/superpowers:brainstorm` as a debiased problem statement:
+The output is structured to feed directly into `/brainstorm` as a debiased problem statement:
 
 ```markdown
 ## Brainstorming Brief: {topic}
@@ -178,15 +178,15 @@ The output is structured to feed directly into `/superpowers:brainstorm` as a de
 
 Save the brief to `docs/plans/{YYYY-MM-DD}-{topic}-brief.md` so it survives across sessions. This file is:
 
-- **Read by** `/superpowers:brainstorm` as input context
+- **Read by** `/brainstorm` as input context
 - **Read by** `/claude-tweaks:specify` when writing specs (ensures assumptions and constraints reach the spec's Gotchas section)
 - **Deleted by** `/claude-tweaks:specify` Step 5 (alongside the design doc — both are consumed artifacts)
 
-### Handoff to /superpowers:brainstorm
+### Handoff to /brainstorm
 
 After saving the brief:
 
-**Recommended next:** Run `/superpowers:brainstorm` on the reframed problem — start exploring solutions.
+**Recommended next:** Run `/brainstorm` on the reframed problem — start exploring solutions.
 
 If the user wants to adjust the reframing or re-examine from a different lens, they can say so. Otherwise, proceed to brainstorming.
 
@@ -215,6 +215,6 @@ If the user wants to adjust the reframing or re-examine from a different lens, t
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:capture` | Feeds INBOX items that /claude-tweaks:challenge can debias |
-| `/superpowers:brainstorm` | Consumes the Brainstorming Brief — explores *within* the debiased frame |
+| `/brainstorm` | Consumes the Brainstorming Brief — explores *within* the debiased frame |
 | `/claude-tweaks:specify` | Downstream — converts brainstorming output into specs |
 | `/claude-tweaks:help` | Flags INBOX items with baked-in assumptions as candidates for /claude-tweaks:challenge |

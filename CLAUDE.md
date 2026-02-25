@@ -2,7 +2,7 @@
 
 ## What this is
 
-A Claude Code plugin (v3.3.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation and QA pipeline support. This is not a code application — it's a system of prompts organized as skills.
+A Claude Code plugin (v3.4.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation and QA pipeline support. This is not a code application — it's a system of prompts organized as skills.
 
 ## Stack
 
@@ -10,7 +10,7 @@ A Claude Code plugin (v3.3.0) containing markdown skill files that guide Claude 
 |-------|-----------|
 | Runtime | Claude Code plugin system |
 | Content | Markdown (SKILL.md files with YAML frontmatter) |
-| Dependencies | Superpowers plugin (`/superpowers:brainstorm`, `/superpowers:write-plan`, `/superpowers:subagent-driven-development`, `/superpowers:executing-plans`, `/superpowers:using-git-worktrees`, `/superpowers:finishing-a-development-branch`, `/superpowers:dispatching-parallel-agents`), code-simplifier (built-in subagent), playwright-cli (optional) |
+| Dependencies | Superpowers plugin (`/brainstorm`, `/write-plan`, `/subagent-driven-development`, `/executing-plans`, `/using-git-worktrees`, `/finishing-a-development-branch`, `/dispatching-parallel-agents`), code-simplifier (built-in subagent), playwright-cli (optional) |
 | Distribution | Plugin marketplace via `thomasholknielsen/claude-tweaks-marketplace` |
 
 ## Structure

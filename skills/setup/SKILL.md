@@ -10,7 +10,7 @@ description: Use when bootstrapping the workflow system for a project — instal
 Bootstrap the workflow system for a project. Installs dependencies, creates directory structure, and verifies everything is wired up.
 
 ```
-[ /claude-tweaks:setup ] → /claude-tweaks:codebase-onboarding → /claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorm → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+[ /claude-tweaks:setup ] → /claude-tweaks:codebase-onboarding → /claude-tweaks:capture → /claude-tweaks:challenge → /brainstorm → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
   ^^^^ YOU ARE HERE ^^^^
 ```
 
@@ -27,7 +27,7 @@ The workflow system depends on two external plugins. Check if they're installed:
 
 ### Required: Superpowers
 
-Provides `/superpowers:brainstorm`, `/superpowers:write-plan`, `/superpowers:subagent-driven-development`, `/superpowers:executing-plans`, `/superpowers:using-git-worktrees`, `/superpowers:finishing-a-development-branch`, and `/superpowers:dispatching-parallel-agents`.
+Provides `/brainstorm`, `/write-plan`, `/subagent-driven-development`, `/executing-plans`, `/using-git-worktrees`, `/finishing-a-development-branch`, and `/dispatching-parallel-agents`.
 
 ```
 Check if installed — use the Glob tool to search for *superpowers* under the user's ~/.claude/plugins/ directory.
@@ -59,7 +59,7 @@ Check and create the required directories:
 
 ```
 specs/              → Spec files and INBOX
-docs/plans/         → Design docs (from `/superpowers:brainstorm`) and execution plans (from `/superpowers:write-plan`)
+docs/plans/         → Design docs (from `/brainstorm`) and execution plans (from `/write-plan`)
 docs/journeys/      → User and developer journey files (created by /claude-tweaks:build, tested by /claude-tweaks:review visual modes)
 .claude/skills/     → Skill files (should already exist if this skill is running)
 ```
@@ -151,7 +151,7 @@ The workflow system relies on git for change tracking (`/claude-tweaks:review` u
 
 ## Step 5.5: Worktree Configuration (Optional)
 
-`/claude-tweaks:build worktree` and `/claude-tweaks:flow worktree` use `/superpowers:using-git-worktrees` to create isolated workspaces. This step checks if a worktree directory is configured.
+`/claude-tweaks:build worktree` and `/claude-tweaks:flow worktree` use `/using-git-worktrees` to create isolated workspaces. This step checks if a worktree directory is configured.
 
 1. Check if `.worktrees/` or `worktrees/` directory exists in the project root
 2. Check CLAUDE.md for a worktree directory preference (e.g., `worktree-dir: .worktrees`)
@@ -162,7 +162,7 @@ Worktree mode (/build worktree, /flow worktree) needs a directory for isolated w
 
 1. Project-local `.worktrees/` **(Recommended)** — worktrees live alongside the project
 2. Global (shared across all projects) — `~/.config/superpowers/worktrees/` on macOS/Linux, `%APPDATA%\superpowers\worktrees\` on Windows
-3. Skip — configure later. `/superpowers:using-git-worktrees` will prompt at first use.
+3. Skip — configure later. `/using-git-worktrees` will prompt at first use.
 ```
 
 4. If a directory is chosen, verify it's in `.gitignore` (suggest adding if not)
@@ -305,5 +305,5 @@ Note that the user skipped browser integration. The workflow system works withou
 | `/claude-tweaks:capture` | First skill to use after /claude-tweaks:setup — add ideas to the INBOX |
 | `/claude-tweaks:help` | Shows workflow status — useful to verify /claude-tweaks:setup worked |
 | `/claude-tweaks:browse` | Depends on the browser backends that /setup configures in Step 6 |
-| `/superpowers:using-git-worktrees` | /claude-tweaks:setup optionally configures the worktree directory that `using-git-worktrees` needs |
+| `/using-git-worktrees` | /claude-tweaks:setup optionally configures the worktree directory that `using-git-worktrees` needs |
 | All workflow skills | Depend on the structure /claude-tweaks:setup creates |

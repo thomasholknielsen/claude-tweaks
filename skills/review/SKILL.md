@@ -10,7 +10,7 @@ description: Use when a build is complete and you need to verify code quality, c
 Post-build quality gate. Verifies, reviews, and refines the code before handing off to wrap-up. Part of the workflow lifecycle:
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorm → /claude-tweaks:specify → /claude-tweaks:build → [ /claude-tweaks:review ] → /claude-tweaks:wrap-up
+/claude-tweaks:capture → /claude-tweaks:challenge → /brainstorm → /claude-tweaks:specify → /claude-tweaks:build → [ /claude-tweaks:review ] → /claude-tweaks:wrap-up
                                                                                                                       ^^^^ YOU ARE HERE ^^^^
 ```
 
@@ -191,7 +191,7 @@ Present all findings as a single batch table with recommended actions pre-filled
 
 **When "Fix now" isn't possible**, route to the right destination:
 - **Defer** (DEFERRED.md) — the fix is understood but it's bigger and not relevant to the current work. Include origin spec, affected files, and trigger for when to revisit.
-- **Capture to INBOX** — the finding is complex or uncertain and needs brainstorming/exploration before it can be acted on. This enters the full capture → challenge → `/superpowers:brainstorm` pipeline.
+- **Capture to INBOX** — the finding is complex or uncertain and needs brainstorming/exploration before it can be acted on. This enters the full capture → challenge → `/brainstorm` pipeline.
 
 **Deferral gate:** An item may only be deferred if it meets ALL of these:
 - Pre-existing (not introduced by this build), OR requires design discussion that can't be resolved in the current session
@@ -201,7 +201,7 @@ Items introduced by this build that are fixable now must be fixed now — even i
 
 If any findings are "Fix now", make the changes, re-run verification (Step 3), and verify fixes didn't introduce new findings.
 
-> **Parallel execution (conditional):** When there are 3+ "Fix now" findings across different files with no shared file dependencies, dispatch fixes as parallel agents using the `/superpowers:dispatching-parallel-agents` pattern — one agent per independent fix domain. Each agent gets: specific file scope, finding details, constraint to not modify other files. Returns summary of changes. After all agents complete, check for conflicts between agent changes, then re-run verification. When fixes overlap files or there are fewer than 3 findings, fix sequentially in the main thread.
+> **Parallel execution (conditional):** When there are 3+ "Fix now" findings across different files with no shared file dependencies, dispatch fixes as parallel agents using the `/dispatching-parallel-agents` pattern — one agent per independent fix domain. Each agent gets: specific file scope, finding details, constraint to not modify other files. Returns summary of changes. After all agents complete, check for conflicts between agent changes, then re-run verification. When fixes overlap files or there are fewer than 3 findings, fix sequentially in the main thread.
 
 **Write all findings to the open items ledger** (`docs/plans/*-ledger.md` for this work). Status: `open` for "Fix now" items, `deferred` for items routed to DEFERRED.md, `accepted` for "Don't fix" items (with reason). After fixing, update status to `fixed`.
 
@@ -364,4 +364,4 @@ Present a structured summary covering spec compliance, verification results, cod
 | `/claude-tweaks:browse` | Used by visual, journey, discover, and QA modes for browser interaction |
 | `/claude-tweaks:setup` | Step 6 configures the browser backends that visual and QA review depend on |
 | `specs/DEFERRED.md` | /claude-tweaks:review routes implementation-related deferrals here (with origin, files, trigger) |
-| `/superpowers:dispatching-parallel-agents` | Used BY /claude-tweaks:review (conditional) to dispatch 3+ independent fix-now findings as parallel agents |
+| `/dispatching-parallel-agents` | Used BY /claude-tweaks:review (conditional) to dispatch 3+ independent fix-now findings as parallel agents |

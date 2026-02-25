@@ -10,7 +10,7 @@ description: Use when you want to run an automated build → review → wrap-up 
 Run multiple lifecycle steps in sequence without stopping between them. Each step has a gate — if a gate fails, the pipeline stops and presents the failure.
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorm → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+/claude-tweaks:capture → /claude-tweaks:challenge → /brainstorm → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
                                                                           ↑                                    ╰──────────────────────────────────────────────╯
                                                                           └── or skip /specify ────────────────╯ [ /claude-tweaks:flow ] automates this
                                                                                                   ^^^^ YOU ARE HERE ^^^^
@@ -216,7 +216,7 @@ Before starting, validate the spec list:
 
 Run each spec's full pipeline in order (spec 42 → spec 45 → spec 48). Each spec completes its pipeline (build → review → wrap-up) before the next begins. A gate failure in one spec stops the remaining specs — present what completed and what remains.
 
-If `worktree` is specified, each spec gets its own worktree via `/superpowers:using-git-worktrees`. The worktree is finished via `/superpowers:finishing-a-development-branch` before the next spec begins.
+If `worktree` is specified, each spec gets its own worktree via `/using-git-worktrees`. The worktree is finished via `/finishing-a-development-branch` before the next spec begins.
 
 ### Multi-Spec Summary
 
@@ -329,6 +329,6 @@ For each completed branch (in order):
 | `/claude-tweaks:help` | Shows pipeline status and recommends flow-ready specs |
 | `/claude-tweaks:specify` | Creates the specs that flow consumes |
 | `/claude-tweaks:browse` | Used transitively — /stories and /review visual/qa modes use /browse for browser interaction |
-| `/superpowers:brainstorm` | Produces the design docs that flow consumes in design mode — skipping /specify |
-| `/superpowers:using-git-worktrees` | Invoked BY flow (when `worktree` specified) to create isolated workspace for each spec |
-| `/superpowers:finishing-a-development-branch` | Invoked BY flow (when `worktree` specified) at handoff to merge, PR, or discard each feature branch |
+| `/brainstorm` | Produces the design docs that flow consumes in design mode — skipping /specify |
+| `/using-git-worktrees` | Invoked BY flow (when `worktree` specified) to create isolated workspace for each spec |
+| `/finishing-a-development-branch` | Invoked BY flow (when `worktree` specified) at handoff to merge, PR, or discard each feature branch |

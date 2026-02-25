@@ -10,7 +10,7 @@ description: Use when the backlog needs hygiene — review stale INBOX items, pa
 Periodic backlog hygiene to keep the spec system healthy. Run when the backlog feels cluttered, before a brainstorming session, or on a regular cadence.
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorm → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+/claude-tweaks:capture → /claude-tweaks:challenge → /brainstorm → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
                                                                           ↑
                                                [ /claude-tweaks:tidy ] (maintenance loop)
                                             ^^^^ YOU ARE HERE ^^^^
@@ -179,7 +179,7 @@ The lifecycle is: INBOX → brainstorm → design doc → specify → spec file.
 
 ### Merge means integrate, not append
 
-When merging an INBOX or deferred item into an existing spec, the merged content must be indistinguishable from original spec content. Add new deliverables to the Deliverables checklist, new assertions to Acceptance Criteria, new architectural notes to Technical Approach, and new caveats to Gotchas. Do NOT create a "Merged Scope" appendix section at the bottom of the spec — that creates second-class content that `/superpowers:write-plan` may miss or treat differently.
+When merging an INBOX or deferred item into an existing spec, the merged content must be indistinguishable from original spec content. Add new deliverables to the Deliverables checklist, new assertions to Acceptance Criteria, new architectural notes to Technical Approach, and new caveats to Gotchas. Do NOT create a "Merged Scope" appendix section at the bottom of the spec — that creates second-class content that `/write-plan` may miss or treat differently.
 
 ---
 
@@ -296,7 +296,7 @@ Commit with a message summarizing the tidy-up.
 | Keeping everything "just in case" | Stale items create noise and slow down `/claude-tweaks:help` |
 | Presenting items one-at-a-time for individual decisions | Scan silently, present one batch report, let the user approve all or override specific items. Per-item prompts scale badly. |
 | Removing INBOX items marked as "Promote" | Promoted items stay in INBOX until a spec file exists. The INBOX entry is the tracking artifact — removing it drops the item on the floor. |
-| Appending a "Merged Scope" section to a spec | Merged content must be integrated into existing Deliverables, Acceptance Criteria, and Technical Approach. Appendix sections create second-class content that `/superpowers:write-plan` may miss. |
+| Appending a "Merged Scope" section to a spec | Merged content must be integrated into existing Deliverables, Acceptance Criteria, and Technical Approach. Appendix sections create second-class content that `/write-plan` may miss. |
 | Committing without running verification | Always verify every action landed (Step 7.5) before committing. Partial execution creates orphaned or lost items. |
 
 ## Relationship to Other Skills

@@ -10,7 +10,7 @@ description: Use when you need a quick reference for available commands, want to
 One-stop reference and status dashboard for the workflow system. Combines command help, pipeline scanning, and next-step recommendations.
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorm → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+/claude-tweaks:capture → /claude-tweaks:challenge → /brainstorm → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
     ↑                                                                                                                                            |
     └──────────────────────────────────── [ /claude-tweaks:help ] (dashboard + reference) ←──────────────────────────────────────────────────────┘
                                             ^^^^ YOU ARE HERE ^^^^
@@ -73,20 +73,19 @@ For a concise one-page reference, read `reference-card.md` in this skill's direc
 
 | Command | Purpose | Used by |
 |---------|---------|---------|
-| `/superpowers:brainstorm` | Explore solutions for a debiased problem | After `/claude-tweaks:challenge` |
-| `/superpowers:write-plan` | Create TDD execution plan from a spec | `/claude-tweaks:build` |
-| `/superpowers:subagent-driven-development` | Automated execution with review chain — no human in the loop | `/claude-tweaks:build` (subagent mode, default) |
-| `/superpowers:executing-plans` | Human-reviewed execution in batches of 3 tasks | `/claude-tweaks:build` (batched mode) |
-| `/superpowers:using-git-worktrees` | Create isolated workspace on a feature branch | `/claude-tweaks:build` and `/claude-tweaks:flow` (worktree mode) |
-| `/superpowers:finishing-a-development-branch` | Merge, PR, or discard a feature branch | `/claude-tweaks:build` and `/claude-tweaks:flow` (worktree mode, at handoff) |
-| `/superpowers:dispatching-parallel-agents` | Dispatch concurrent independent fixes | `/claude-tweaks:review` (conditional, 3+ independent fixes) |
+| `/brainstorm` | Explore solutions for a debiased problem | After `/claude-tweaks:challenge` |
+| `/write-plan` | Create TDD execution plan from a spec | `/claude-tweaks:build` |
+| `/subagent-driven-development` | Automated execution with review chain — no human in the loop | `/claude-tweaks:build` (subagent mode, default) |
+| `/executing-plans` | Human-reviewed execution in batches of 3 tasks | `/claude-tweaks:build` (batched mode) |
+| `/using-git-worktrees` | Create isolated workspace on a feature branch | `/claude-tweaks:build` and `/claude-tweaks:flow` (worktree mode) |
+| `/finishing-a-development-branch` | Merge, PR, or discard a feature branch | `/claude-tweaks:build` and `/claude-tweaks:flow` (worktree mode, at handoff) |
+| `/dispatching-parallel-agents` | Dispatch concurrent independent fixes | `/claude-tweaks:review` (conditional, 3+ independent fixes) |
 
 ### Artifact Lifecycle
 
 ```
 INBOX item ──→ Brief ──→ Design Doc ──→ Spec ──→ Code + Journey
-  /capture    /challenge  /superpowers:   /specify  /build
-                          brainstorm
+  /capture    /challenge  /brainstorm     /specify  /build
                                            ↓           ↓       ↓
                                     (deletes brief  Deferred  docs/journeys/
                                      + design doc)  Work
@@ -112,7 +111,7 @@ Scan the full workflow state across all pipeline stages.
 
 - Count total items
 - Flag stale items (> 4 weeks old)
-- Flag items tagged as `**Promoted:**` — these are awaiting `/superpowers:brainstorm` and should appear as brainstorm candidates in the recommendation
+- Flag items tagged as `**Promoted:**` — these are awaiting `/brainstorm` and should appear as brainstorm candidates in the recommendation
 - Identify items marked as related to existing specs
 - Flag items with baked-in assumptions (solution-oriented phrasing) → candidates for `/claude-tweaks:challenge`
 
@@ -168,7 +167,7 @@ Scan the full workflow state across all pipeline stages.
 | Stage | Count | Action |
 |-------|-------|--------|
 | INBOX items | {N} ({M} stale) | `/claude-tweaks:capture` to add, `/claude-tweaks:tidy` if stale |
-| INBOX items promoted | {N} | `/superpowers:brainstorm {topic}` (or `/claude-tweaks:challenge` first if assumptions present) |
+| INBOX items promoted | {N} | `/brainstorm {topic}` (or `/claude-tweaks:challenge` first if assumptions present) |
 | INBOX items needing debiasing | {N} | `/claude-tweaks:challenge {topic}` |
 | Deferred items ready | {N} | Trigger met — promote to spec or merge |
 | Deferred items waiting | {N} | Triggers not yet met |
@@ -203,9 +202,9 @@ Scan the full workflow state across all pipeline stages.
 4. **Design docs unspecified** — specify before building (don't let designs go stale)
 5. **Deferred items with met triggers** — promote before starting new work
 6. **Specs ready to build** — pick the highest-priority spec with met prerequisites
-7. **Promoted INBOX items** — items tagged `**Promoted:**` are ready for `/superpowers:brainstorm` (or `/claude-tweaks:challenge` first if they have baked-in assumptions). These have already been triaged and prioritized over unpromoted items.
+7. **Promoted INBOX items** — items tagged `**Promoted:**` are ready for `/brainstorm` (or `/claude-tweaks:challenge` first if they have baked-in assumptions). These have already been triaged and prioritized over unpromoted items.
 8. **INBOX review** — if inbox is stale or has 10+ items, suggest `/claude-tweaks:tidy` before new brainstorming
-9. **Challenge + Brainstorming** — if pipeline is empty and no promoted items exist, suggest promoting an INBOX item; if it has baked-in assumptions, run `/claude-tweaks:challenge` first, then `/superpowers:brainstorm`
+9. **Challenge + Brainstorming** — if pipeline is empty and no promoted items exist, suggest promoting an INBOX item; if it has baked-in assumptions, run `/claude-tweaks:challenge` first, then `/brainstorm`
 10. **Nothing to do** — if everything is clean, say so
 
 ### Tie-Breaking

@@ -16,8 +16,7 @@ This design means:
 ```
 INBOX item          ──→ Brief               ──→ Design Doc          ──→ Spec              ──→ Code + Journey
 specs/INBOX.md         docs/plans/*-brief.md   docs/plans/*-design.md  specs/NN-*.md         src/ + docs/journeys/
-  /capture               /challenge              /superpowers:          /specify              /build
-                                                 brainstorm
+  /capture               /challenge              /brainstorm            /specify              /build
                                                                          ↓                     ↓
                                                                    (deletes brief           Deferred items
                                                                     + design doc)           specs/DEFERRED.md
@@ -40,7 +39,7 @@ src/ + journeys    stories/*.yaml     screenshots/qa/         (in commit/output)
 | `/codebase-onboarding` | Entire codebase, CLAUDE.md, config files | CLAUDE.md, `.claude/skills/*.md`, `.claude/rules/`, `docs/journeys/*.md` | — |
 | `/capture` | — | `specs/INBOX.md` (append) | — |
 | `/challenge` | `specs/INBOX.md` | `docs/plans/*-brief.md` | — |
-| `/superpowers:brainstorm` | `docs/plans/*-brief.md` | `docs/plans/*-design.md` | — |
+| `/brainstorm` | `docs/plans/*-brief.md` | `docs/plans/*-design.md` | — |
 | `/specify` | `*-design.md`, `*-brief.md`, `specs/INDEX.md` | `specs/NN-*.md`, `specs/INDEX.md` | `*-design.md`, `*-brief.md`, INBOX entry |
 | `/build` | `specs/NN-*.md`, `docs/plans/*.md` | Code, `docs/journeys/*.md`, plan files, ledger items. Worktree mode also produces transient worktree directories and feature branches. | — |
 | `/test` | CLAUDE.md (for commands) | — (output only) | — |

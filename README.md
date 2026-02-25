@@ -56,7 +56,7 @@ This will:
 ## Workflow Lifecycle
 
 ```
-/setup → /codebase-onboarding → /capture → /challenge → /superpowers:brainstorm → /specify → /build → [/stories] → /review → /wrap-up
+/setup → /codebase-onboarding → /capture → /challenge → /brainstorm → /specify → /build → [/stories] → /review → /wrap-up
                                                                                        ╰──────── /flow automates ────────╯
                                                                            /test ↕    /browse ↕    /review visual + qa modes
 ```
@@ -92,7 +92,7 @@ This will:
 ```
 /claude-tweaks:capture "users need meal planning"
 /claude-tweaks:challenge meal planning
-/superpowers:brainstorm
+/brainstorm
 /claude-tweaks:specify meal planning
 /claude-tweaks:build 73
 /claude-tweaks:review 73
@@ -240,7 +240,7 @@ Skills communicate through **durable artifacts on disk** — specs, briefs, desi
 
 ### Parallel Execution
 
-Skills include explicit parallelization directives that tell Claude when to run operations concurrently — parallel tool calls for independent reads and searches, parallel Task agents for heavier analytical work like review lenses and pipeline scans, and conditional dispatch for context-dependent parallelism (e.g., `/review` dispatches 3+ independent fixes via `/superpowers:dispatching-parallel-agents`). For true parallel spec execution, use separate terminals with worktree mode:
+Skills include explicit parallelization directives that tell Claude when to run operations concurrently — parallel tool calls for independent reads and searches, parallel Task agents for heavier analytical work like review lenses and pipeline scans, and conditional dispatch for context-dependent parallelism (e.g., `/review` dispatches 3+ independent fixes via `/dispatching-parallel-agents`). For true parallel spec execution, use separate terminals with worktree mode:
 
 ```
 # Terminal 1                          # Terminal 2                          # Terminal 3
@@ -257,7 +257,7 @@ The **open items ledger** (`docs/plans/*-ledger.md`) tracks all findings and ope
 
 ```
 INBOX item ──→ Brief ──→ Design Doc ──────→ Spec ──→ Code + Journey
-  /capture    /challenge  /superpowers:brainstorm  /specify  /build
+  /capture    /challenge  /brainstorm  /specify  /build
                                            ↓           ↓       ↓
                                     (deletes brief  Deferred  docs/journeys/
                                      + design doc)  Work
@@ -275,7 +275,7 @@ Open Items Ledger ── tracks findings across all phases ── resolved + del
 
 | Plugin / Tool | Source | Required for |
 |---------------|--------|-------------|
-| [Superpowers](https://github.com/obra/superpowers) | [`obra/superpowers-marketplace`](https://github.com/obra/superpowers-marketplace) | `/superpowers:brainstorm`, `/superpowers:write-plan`, `/superpowers:subagent-driven-development`, `/superpowers:executing-plans`, `/superpowers:using-git-worktrees`, `/superpowers:finishing-a-development-branch`, `/superpowers:dispatching-parallel-agents` |
+| [Superpowers](https://github.com/obra/superpowers) | [`obra/superpowers-marketplace`](https://github.com/obra/superpowers-marketplace) | `/brainstorm`, `/write-plan`, `/subagent-driven-development`, `/executing-plans`, `/using-git-worktrees`, `/finishing-a-development-branch`, `/dispatching-parallel-agents` |
 | code-simplifier | Built-in subagent | Code simplification in `/review` and `/build` |
 | playwright-cli | `npm install -g @playwright/cli@latest` | `/browse`, `/stories`, `/review qa` (optional — Chrome MCP is an alternative) |
 | Chrome MCP | Chrome extension + `claude --chrome` | `/browse` Chrome backend (optional — playwright-cli is the recommended default) |
