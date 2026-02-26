@@ -15,13 +15,20 @@ Present this summary after completing all review steps.
 | {criterion} | {met/partially met/not met} |
 (or: No spec — file/commit-based review.)
 
-### Verification
+### Verification (from /test)
 - Type check: {pass/fail}
 - Lint: {pass/fail}
 - Tests: {pass/fail}
 
-### QA Validation
-- **Status:** {ALL PASSED (N stories) | Skipped — no stories | Skipped — no dev server}
+### QA Validation (from /test)
+- **Status:** {ALL PASSED (N stories, M caveats) | PASSED WITH OBSERVATIONS (N stories, M caveats) | PARTIAL FAILURE (N passed, M failed) | Skipped — no stories | Skipped — no dev server | Not run}
+
+Possible QA statuses:
+- **ALL PASSED** — all stories passed with no caveats
+- **ALL PASSED (N stories, M caveats)** — all stories passed, some had caveats (informational, not blocking)
+- **PASSED WITH OBSERVATIONS** — all stories passed but at least one reported PASS_WITH_CAVEATS
+- **PARTIAL FAILURE** — some stories failed (see findings in QA report)
+- **Skipped** / **Not run** — QA did not execute
 
 ### Code Review Findings
 | Category | Finding | Severity | Action |
@@ -42,8 +49,9 @@ Present this summary after completing all review steps.
 > `/claude-tweaks:wrap-up` uses this section to decide whether accepted tradeoffs should be documented in CLAUDE.md, skills, or memory files. A tradeoff worth accepting once may be worth documenting as a project convention.
 
 ### Visual Review
-- **Status:** {Completed / Recommended / Skipped — no UI changes / Skipped — browser tools not configured}
-- {If completed: summary of visual/UX findings}
+- **Status:** {Completed (code + visual) | Completed (code + visual, QA-enriched) | Completed (code only — no browser) | Recommended | Skipped — no UI changes | Skipped — browser tools not configured}
+- {If completed: summary of visual/UX findings and ideas from Reimagine step}
+- {If completed with QA data: note QA data enrichment — caveats surfaced, page inventories consumed, findings confirmed/resolved}
 - {If recommended: `/claude-tweaks:review journey:{name}` or `/claude-tweaks:review visual {url}`}
 
 ### Code Simplification

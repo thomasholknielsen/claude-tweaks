@@ -1,11 +1,11 @@
 # Dev URL Detection
 
-Shared procedure for auto-detecting a running development server. Referenced by `/claude-tweaks:stories`, `/claude-tweaks:review`, and `/claude-tweaks:flow`.
+Shared procedure for auto-detecting a running development server. Referenced by `/claude-tweaks:stories`, `/claude-tweaks:test`, and `/claude-tweaks:flow`.
 
 ## When This Runs
 
 - `/claude-tweaks:stories` is invoked without a URL argument
-- `/claude-tweaks:review` enters automatic QA validation (Step 2.5) and needs a dev server
+- `/claude-tweaks:test` runs QA story validation and needs a dev server
 - `/claude-tweaks:flow` triggers automatic story generation after detecting UI changes
 
 ## Procedure

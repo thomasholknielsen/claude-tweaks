@@ -65,6 +65,63 @@ Gather pre-existing information before browsing.
    d. Log: "Update mode: found {N} existing stories across {M} files in {OUTPUT_DIR}."
 3. If no YAML files found, log: "No existing stories in {OUTPUT_DIR}. Generating all stories from scratch." Proceed with full generation.
 
+## Step 1.5: Source Analysis
+
+Identify and read component source files to extract behavioral contracts that are not visible from the rendered DOM alone — input constraints, validation schemas, state transitions, conditional rendering, error handling, and API patterns. This step produces a per-page SourceContract that feeds into story design (Step 3).
+
+For detailed extraction patterns and framework-specific heuristics, read `source-analysis.md` in this skill's directory.
+
+### Identify Component Files
+
+Use the URL-to-Source-File Mapping procedure from Step 2 to map each discovered page URL to its source files. If source files were already identified during a previous exploration pass (update mode), reuse the existing `SOURCE_FILES` data.
+
+> **Parallel execution:** Use parallel tool calls aggressively — all Read operations across identified component files are independent and should run concurrently.
+
+For each page with identified source files:
+
+a. Read the page-level component file (the route entry point).
+
+b. Extract `import` statements referencing local project files (paths starting with `./`, `../`, or `@/`). Resolve each import path relative to the current file.
+
+c. Read imported files up to **3 levels of import depth** from the page file (level 0 = page file, level 1 = direct imports, level 2 = imports of imports, level 3 = maximum). When the depth limit is reached, log: "Source analysis: import depth limit (3) reached for {page_url} — using signals collected so far."
+
+d. Skip non-behavioral files: `*.css`, `*.scss`, `*.module.css`, `*.test.*`, `*.spec.*`, `__tests__/`, `__mocks__/`.
+
+### Extract Behavioral Signals
+
+From each read source file (React/TSX only in v1), extract:
+
+- **Input constraints:** `min`, `max`, `minLength`, `maxLength`, `step`, `pattern`, `required`, `type` props on input elements and input-wrapping components (shadcn, MUI, Radix, Mantine, Chakra).
+- **Validation schemas:** Zod `.min()`, `.max()`, `.email()`, `.required()`; yup equivalents; Joi equivalents. Follow imports to separate schema files (`schemas/`, `validators/`, `lib/validations`).
+- **State variables:** `useState` hooks with names matching `is*`, `has*`, `loading*`, `saving*`, `error*`, `show*`. Also `useReducer` action types, TanStack Query `useMutation`/`useQuery`, `useSWR`, `useForm` from react-hook-form.
+- **Conditional rendering:** Ternary expressions (`{cond ? <A /> : <B />}`), logical AND expressions (`{cond && <A />}`), early returns (`if (loading) return <Spinner />`). Note whether each condition is user-triggerable.
+- **Error handling:** `ErrorBoundary` wrappers with fallback UIs, try/catch in event handlers, `.catch()` on API calls.
+- **API call patterns:** `fetch`, `axios`, `useMutation`, `useSWR` — capture endpoint, method, loading state, error state, success/error behavior.
+- **Toast/notification triggers:** `toast.success()`, `toast.error()`, notification library calls triggered by user actions.
+
+### Produce SourceContract
+
+For each page, assemble findings into a SourceContract:
+
+```
+SourceContract {
+  page_url: string
+  files: string[]
+  inputs: [{ name, type, min, max, minLength, maxLength, step, pattern, required, validation }]
+  states: [{ name, initialValue, affectsUI, description }]
+  conditionals: [{ condition, showsElement, userTriggerable }]
+  errorPaths: [{ trigger, handler, expectedBehavior }]
+  apiCalls: [{ endpoint, method, loadingState, errorState, successBehavior, errorBehavior }]
+  toasts: [{ trigger, message }]
+}
+```
+
+Use empty arrays `[]` for sections with no findings — never omit a field. Hold this data in memory for use in Step 3.
+
+### Graceful Degradation
+
+If the framework is not React/TSX, no source files were identified, or files cannot be read, return an empty SourceContract (all arrays empty) and continue. Source analysis enhances stories but is never a hard gate — story generation always works from DOM exploration alone.
+
 ## Step 2: Explore
 
 4. Create the output directory if it doesn't exist (use `mkdir` via the Bash tool — it creates parent directories on all platforms).
@@ -86,6 +143,30 @@ Gather pre-existing information before browsing.
     - Whether the page has forms (for negative story generation)
     - Whether the page requires authentication
 
+### URL-to-Source-File Mapping
+
+> **Parallel execution:** Use parallel tool calls aggressively — all Glob and Read operations across discovered pages are independent and should run concurrently.
+
+For each page visited during exploration, map its URL to the source files that render it:
+
+a. **Extract the route path** from the URL — strip the origin to get the route (e.g., `http://localhost:3000/admin/settings` becomes `/admin/settings`).
+
+b. **Detect the framework** by checking for directory markers:
+   - `app/` directory exists → **Next.js App Router**: glob `**/app/**/page.{tsx,jsx,ts,js}` matching the route segments. Account for route groups — parenthesized segments like `(admin)` in the path won't appear in the URL, so glob with `**` wildcards between segments.
+   - `pages/` directory exists → **Next.js Pages Router**: glob `**/pages/**/*.{tsx,jsx,ts,js}` matching the route, including `index.{tsx,jsx,ts,js}` for directory routes.
+   - `src/routes/` directory exists → **SvelteKit/Remix**: glob `**/src/routes/**/+page.svelte` or `**/src/routes/**/*.{tsx,jsx,ts,js}` matching the route segments.
+   - None of the above → **Generic fallback**: glob for files whose path contains the route segments (e.g., `**/*settings*.{tsx,jsx,ts,js}`).
+
+c. **Discover local imports** (one level deep): Read the matched page file and extract `import` statements that reference local project files (paths starting with `./`, `../`, or `@/` — not `node_modules` packages). Resolve each import path relative to the page file. Add those resolved paths to the source files list for the page.
+
+d. **Store the result** as `SOURCE_FILES` for that page URL — an array of relative paths (relative to project root, not absolute).
+
+**Gotchas:**
+- **Route groups:** Next.js App Router uses `(group)` syntax — the URL `/admin/settings` may map to `app/(admin)/admin/settings/page.tsx`. Use wildcard globs between route segments to match through parenthesized directories.
+- **Dynamic routes:** Segments like `[id]` or `[...slug]` won't match URL segments literally. Skip dynamic segments during matching and note uncertainty in the mapping.
+- **Monorepo subdirectories:** The app may live in `apps/web/` or similar. Check for common monorepo markers (turborepo.json, nx.json, pnpm-workspace.yaml) and adjust the base path for globbing.
+- **Mapping failures:** If no source files can be identified for a page, store an empty array `[]`. The `source_files` field must always be present.
+
 ## Step 3: Design Stories
 
 10. Based on the exploration, design user stories grouped by persona. Each story must have:
@@ -94,8 +175,20 @@ Gather pre-existing information before browsing.
     - **`url`** — the starting URL (the qa-agent auto-navigates here, so no "Navigate to X" step needed)
     - **`tags`** — categorize by type: `navigation`, `core`, `form`, `error-handling`, `smoke`, `critical`
     - **`priority`** — `high` for happy-path core flows, `medium` for secondary flows, `low` for edge cases
+    - **`source_files`** — array of relative file paths from the URL-to-Source-File Mapping (Step 2). Populate from the `SOURCE_FILES` data collected during exploration for the story's URL. Use an empty array `[]` if no mapping was found.
     - **`browser`** — (optional) `playwright`, `chrome`, or omit for `auto`. Only set `browser: chrome` on stories that genuinely need the user's real Chrome session.
     - **`steps`** — structured step array with actions, selectors, and assertions
+
+### Source-Aware Story Design
+
+The design step now receives both DOM exploration data (from Step 2) and source contracts (from Step 1.5). When a page has a non-empty SourceContract, use its signals to generate deeper stories:
+
+- **Inputs with constraints:** For each input that has `min`, `max`, `minLength`, or `maxLength` values, generate boundary-value stories: enter the minimum value, the maximum value, one below minimum (min-1), one above maximum (max+1), and empty. For `pattern` constraints, generate a story with a matching value and a non-matching value.
+- **State transitions:** For each state variable that affects UI (names matching `is*`, `has*`, `loading*`, `saving*`, `error*`, `show*`), generate stories that trigger the state change via user action and verify the intermediate UI — spinners, disabled buttons, skeleton loaders, success messages.
+- **Error paths:** For each identified error path (try/catch handlers, API error states, validation failures), generate a story that triggers the error condition and verifies the expected behavior — error messages, toasts, form field highlights, rollback of optimistic updates.
+- **Conditional rendering:** For each conditional where `userTriggerable` is true, generate stories that exercise both branches. For ternaries, verify both the true-branch element and the false-branch element. For logical AND expressions, verify the element appears when the condition is met and is absent otherwise.
+
+When a page has an empty SourceContract (unsupported framework, no source files found), generate stories from DOM exploration data only — the same behavior as before source analysis was added.
 
 ### Diff-Aware Design (when update mode is active)
 
@@ -103,18 +196,26 @@ Gather pre-existing information before browsing.
     - For each discovered page URL:
       - If a story with this URL already exists in EXISTING_STORIES -> mark as **EXISTING**.
       - If no story exists for this URL -> mark as **NEW**.
-    - For each EXISTING story, compare the selectors noted during exploration against the selectors in the existing story's steps:
-      - If a selector from the existing story was NOT found in the current DOM snapshot -> mark as **STALE** and add to STALE_SELECTORS list.
-    - **EXISTING** stories with no stale selectors: **SKIP** — do not regenerate.
-    - **STALE** stories (existing but selectors don't match): **REGENERATE** with updated selectors from current DOM.
+    - For each EXISTING story, check for staleness via two mechanisms:
+      - **Selector staleness:** Compare the selectors noted during exploration against the selectors in the existing story's steps. If a selector from the existing story was NOT found in the current DOM snapshot -> mark as **STALE** and add to STALE_SELECTORS list.
+      - **Source file staleness:** If the existing story has a non-empty `source_files` array, run `git diff --name-only` and check whether any of those files appear in the diff. If so -> mark as **STALE** and add to STALE_SOURCE_FILES list, even if all DOM selectors still match.
+      - **Behavioral contract staleness:** If the existing story has a non-empty `source_files` array and those files were not flagged by `git diff`, re-run source analysis (Step 1.5) on those files and compare the resulting SourceContract against the behavioral signals embedded in the existing story's steps. If a behavioral constraint has changed — for example, an input's `max` changed from 100 to 200, a validation rule was added or removed, a new error path was introduced, or a conditional rendering condition changed — mark as **STALE** even though the files did not appear in git diff (the diff may have been committed in a previous cycle). Add to STALE_SOURCE_FILES with reason: "behavioral contract changed: {description of change}."
+    - **EXISTING** stories with no stale selectors AND no stale source files AND no behavioral contract changes: **SKIP** — do not regenerate.
+    - **STALE** stories (selectors don't match OR source files modified OR behavioral contracts changed): **REGENERATE** with updated selectors from current DOM, refreshed source_files from the URL-to-Source-File Mapping, and updated SourceContract data from Step 1.5.
     - **NEW** pages: generate stories as normal.
 
 12. Log the diff summary:
-    - "Update mode: {N} existing stories unchanged, {M} stories regenerated (stale selectors), {K} new stories to generate."
+    - "Update mode: {N} existing stories unchanged, {M} stories regenerated (stale selectors/source files), {K} new stories to generate."
     - If STALE_SELECTORS is non-empty, emit a warning:
       ```
       WARNING: The following selectors no longer match the live DOM:
         - Story '{storyId}', step '{stepDescription}': selector '{selector}' — not found in DOM
+      ```
+    - If STALE_SOURCE_FILES is non-empty, emit a warning:
+      ```
+      WARNING: The following stories have modified source files or behavioral contracts (regenerated even though DOM selectors matched):
+        - Story '{storyId}': {filePath} modified
+        - Story '{storyId}': behavioral contract changed — {description of change}
       ```
 
 ### Negative Story Generation (when NEGATIVE=true)
@@ -200,6 +301,9 @@ stories:
     url: "https://example.com/starting-page"
     tags: [core, smoke]
     priority: high
+    source_files:                                  # relative paths to source files that render this page
+      - app/(dashboard)/starting-page/page.tsx
+      - app/(dashboard)/starting-page/components/hero.tsx
     browser: chrome                               # optional — only when Chrome is needed
     steps:
       - verify: "Key element is visible on the page"
@@ -291,27 +395,35 @@ Skip entirely if `refine=false`.
     - Summary of personas/areas covered
     - The output directory path
 
+    **Source analysis additions:**
+    - Number of pages with non-empty SourceContracts
+    - Number of source-aware stories generated (boundary-value, state transition, error path, conditional rendering)
+    - Pages where source analysis was skipped (unsupported framework, no source files found) with reason
+
     **Update mode additions:**
     - Number of existing stories unchanged
-    - Number of stories regenerated (with reasons: stale selectors)
+    - Number of stories regenerated (with reasons: stale selectors, modified source files, behavioral contract changes)
     - Number of new stories added
     - Stale selector warnings (full list with story IDs and selectors)
+    - Behavioral contract change warnings (full list with story IDs and change descriptions)
 
     **Negative additions:**
     - Number of negative stories generated
     - Categories covered (form validation, 404, auth, search, etc.)
-    - Note: "Filter negative stories in validation: `/claude-tweaks:review qa tag=negative`"
+    - Note: "Filter negative stories in validation: `/claude-tweaks:test qa tag=negative`"
 
     **Refine additions:**
     - Number of stories validated in refinement pass
     - Number corrected
     - Number with persistent failures (tagged `needs-review`)
 
-**Recommended next:** `/claude-tweaks:review qa` — validate all stories against the running app.
+**Recommended next:** `/claude-tweaks:test qa` — validate all stories against the running app.
 
-If update mode: also suggest `/claude-tweaks:review qa tag=smoke` to validate only smoke tests first.
+If update mode: also suggest `/claude-tweaks:test qa tag=smoke` to validate only smoke tests first.
 
-## Example
+## Examples
+
+### Example 1: DOM-only stories (no source files available)
 
 Input: `/claude-tweaks:stories https://news.ycombinator.com/`
 
@@ -323,6 +435,7 @@ stories:
     url: "https://news.ycombinator.com/"
     tags: [smoke, navigation]
     priority: high
+    source_files: []
     steps:
       - verify: "At least 10 posts are visible, each with a title and a link"
       - verify: "Each post shows a rank number, score, and comment count"
@@ -332,6 +445,7 @@ stories:
     url: "https://news.ycombinator.com/"
     tags: [navigation]
     priority: medium
+    source_files: []
     steps:
       - verify: "Front page loads with posts"
       - action: click
@@ -348,8 +462,95 @@ stories:
     url: "https://news.ycombinator.com/item?id=9999999999"
     tags: [negative, error-handling]
     priority: medium
+    source_files: []
     steps:
       - verify: "Page shows an error message or 'No such item' — not a blank screen or crash"
+```
+
+### Example 2: Source-aware stories (React app with source analysis)
+
+Input: `/claude-tweaks:stories http://localhost:3000`
+
+Source analysis found: `app/(dashboard)/settings/page.tsx` imports a `ProfileForm` component with `maxLength={50}` on the name input, a zod schema requiring email format, an `isSaving` state variable, and a `useMutation` with success/error toasts.
+
+Output file: `stories/myapp-admin.yaml`
+```yaml
+stories:
+  - id: settings-profile-update
+    name: "Update profile with valid data"
+    url: "http://localhost:3000/settings"
+    tags: [core, form]
+    priority: high
+    source_files:
+      - app/(dashboard)/settings/page.tsx
+      - app/(dashboard)/settings/components/profile-form.tsx
+      - lib/schemas/profile.ts
+    steps:
+      - verify: "Profile form is visible with name and email fields"
+      - action: fill
+        target: "Name input"
+        selector: "input#name"
+        value: "Alice Johnson"
+        verify: "Name field shows 'Alice Johnson'"
+      - action: fill
+        target: "Email input"
+        selector: "input#email"
+        value: "alice@example.com"
+        verify: "Email field shows 'alice@example.com'"
+      - action: click
+        target: "Save button"
+        selector: "button[type='submit']"
+        verify: "Save button shows a loading spinner (isSaving state), then a success toast appears: 'Profile updated'"
+
+  - id: settings-name-boundary-max
+    name: "Name input enforces maximum length of 50 characters"
+    url: "http://localhost:3000/settings"
+    tags: [form, core]
+    priority: medium
+    source_files:
+      - app/(dashboard)/settings/components/profile-form.tsx
+    steps:
+      - action: fill
+        target: "Name input"
+        selector: "input#name"
+        value: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        verify: "Input contains exactly 50 characters — the 51st character is not accepted or a validation error is shown"
+
+  - id: settings-email-validation
+    name: "Email field rejects invalid format"
+    url: "http://localhost:3000/settings"
+    tags: [form, error-handling]
+    priority: medium
+    source_files:
+      - app/(dashboard)/settings/components/profile-form.tsx
+      - lib/schemas/profile.ts
+    steps:
+      - action: fill
+        target: "Email input"
+        selector: "input#email"
+        value: "not-an-email"
+        verify: "Email field shows entered text"
+      - action: click
+        target: "Save button"
+        selector: "button[type='submit']"
+        verify: "Validation error appears near the email field indicating an invalid email format. Form is NOT submitted."
+
+  - id: settings-save-error-handling
+    name: "Profile save failure shows error toast"
+    url: "http://localhost:3000/settings"
+    tags: [error-handling, core]
+    priority: medium
+    source_files:
+      - app/(dashboard)/settings/components/profile-form.tsx
+    steps:
+      - action: fill
+        target: "Name input"
+        selector: "input#name"
+        value: "Alice Johnson"
+      - action: click
+        target: "Save button"
+        selector: "button[type='submit']"
+        verify: "If the save API call fails, an error toast appears (e.g. 'Failed to save profile') and the save button is re-enabled after the loading state clears"
 ```
 
 ## Guidelines
@@ -366,6 +567,7 @@ stories:
 - Don't generate stories for flows that require real credentials unless the user provides them
 - Only set `browser: chrome` on stories that genuinely need the user's real Chrome session
 - Negative stories: always prefix IDs with `neg-`, tag with `negative`, and assert on graceful failure behavior
+- Always populate `source_files` on every story — use the URL-to-Source-File Mapping from Step 2. If no source files can be identified, use an empty array `[]`. The field must always be present.
 - In update mode, never delete existing stories that weren't re-encountered
 - In update mode, preserve existing story IDs exactly
 - Refinement is capped at one correction round to avoid runaway token usage
@@ -381,13 +583,17 @@ stories:
 | Including "Navigate to URL" as a first step | The `url` field handles initial navigation automatically |
 | Skipping negative stories for forms with user input | Form validation negatives catch real security and UX issues |
 | Running more than one refinement correction round | Diminishing returns and high token cost — cap at one round |
+| Blocking story generation when source analysis fails | Source analysis enhances stories but must never be a hard gate — degrade gracefully to DOM-only |
+| Following imports beyond 3 levels of depth | Signal-to-noise ratio drops and analysis time increases — use what you have at the depth limit |
+| Generating source-aware stories for non-user-triggerable conditionals | Conditionals based on server config or feature flags cannot be exercised through the browser |
 
 ## Relationship to Other Skills
 
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:build` | Runs BEFORE /stories — recommends /stories when UI files change |
-| `/claude-tweaks:review` | QA mode (`/review qa`) and automatic QA validation (Step 2.5) validate the stories that /stories generates. Review references `dev-url-detection.md` for auto-detection. |
+| `/claude-tweaks:test` | `/test qa` and `/test all` validate the stories that /stories generates. /test references `dev-url-detection.md` for auto-detection. |
+| `/claude-tweaks:review` | /review gates on /test passing (which includes QA when stories exist). /review no longer runs QA itself. |
 | `/claude-tweaks:browse` | Used BY /stories to explore sites and validate generated stories |
-| `/claude-tweaks:flow` | Auto-triggers /stories between build and review when UI files change (unless `no-stories`). Uses `dev-url-detection.md` for URL resolution. |
+| `/claude-tweaks:flow` | Auto-triggers /stories between build and test when UI files change (unless `no-stories`). Uses `dev-url-detection.md` for URL resolution. |
 | `/claude-tweaks:setup` | Step 6 configures the browser backends that /stories depends on (via /browse) |

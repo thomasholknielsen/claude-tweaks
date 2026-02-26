@@ -31,6 +31,26 @@ Do NOT attempt to start the dev server yourself — the user knows their setup b
 
 ---
 
+## QA Data Loading (optional enrichment)
+
+Before starting the review steps, check whether QA data is available from a recent `/claude-tweaks:test qa` or `/claude-tweaks:test all` run. QA data enriches the structured review steps (Health Check, Analyze, Reimagine) but is not required — the full visual review works without it. Intuitive steps (First Impressions) are deliberately kept QA-free to preserve raw reactions.
+
+> **Parallel execution:** Use parallel tool calls aggressively — all Glob and Read operations below are independent and should run concurrently.
+
+1. **Find the latest QA run directory:** Glob for `screenshots/qa/*/report.json` and take the most recent by timestamp prefix.
+2. **Read `report.json`:** Extract `page_inventories`, `caveats`, `findings`, and `stories` (for screenshot directories).
+3. **Collect screenshots:** List screenshot files across story subdirectories in the QA run directory.
+
+If no QA run directory or `report.json` exists, set `QA_DATA_AVAILABLE = false` and proceed — all QA integration points below are skipped silently.
+
+If QA data is found, set `QA_DATA_AVAILABLE = true` and store:
+- `QA_PAGE_INVENTORIES` — structured page data (element counts, forms, navigation, accessibility, layout)
+- `QA_CAVEATS` — observations from PASS_WITH_CAVEATS stories
+- `QA_SCREENSHOTS` — paths to pre-captured screenshots
+- `QA_FINDINGS` — classified findings from failures (code-bug, stale-selector, ux-issue, flaky-env, story-bug)
+
+---
+
 ## Journey Mode
 
 When running in journey mode, the skill walks the full journey and applies the creative framework at each step, then assesses the overall arc.
@@ -255,6 +275,16 @@ If the page is broken or blank, report immediately — no point continuing a vis
 
 **Gate:** Page must be functional to proceed. If broken, stop and report.
 
+### QA-informed health context (when QA_DATA_AVAILABLE)
+
+Cross-reference QA data against the live health check:
+
+- **Console errors from QA:** Compare QA findings with category `code-bug` or `flaky-env` against current console errors. Note whether issues from the QA run persist, are resolved, or are new.
+- **Slow page loads:** If any caveat mentions page load time, note the QA-reported timing as a baseline for the live check.
+- **Pre-captured state:** If QA screenshots exist for the current page URL, note: "QA ran on this page — {N} steps executed, status: {PASS/FAIL/PASS_WITH_CAVEATS}." This provides continuity between mechanical QA and the visual review.
+
+Summarize relevant QA context in one or two sentences — do not repeat QA findings verbatim.
+
 ---
 
 ## Step 2: First Impressions
@@ -296,6 +326,16 @@ Experience the page from at least two of these perspectives. Pick the most relev
 | **Returning user** | "Where was that thing I used before?" | Navigation consistency, state persistence, discoverability |
 
 For each persona, actually walk through the flow. Don't just imagine it — click, type, navigate. Note what each persona would struggle with.
+
+### QA-informed persona selection (when QA_DATA_AVAILABLE)
+
+Use QA caveats to guide which personas will surface the most friction:
+
+- If caveats mention accessibility gaps (missing ARIA labels, heading hierarchy issues), prioritize the **Error-prone user** or consider adding a screen-reader-assisted perspective.
+- If caveats mention slow page loads, prioritize the **Distracted mobile user** — they'll feel the delay most acutely.
+- If caveats mention layout issues or viewport overflow, prioritize responsive testing across personas.
+
+QA caveats suggest which personas will surface the most friction — use them to guide persona rotation, not to skip personas.
 
 ### Interaction feel
 
@@ -358,6 +398,29 @@ Now shift to structured inspection. This is the analytical pass — systematic w
 
 > **Note:** This is a quick pass, not a WCAG compliance review. Flag obvious issues only.
 
+### QA Data Overlay (when QA_DATA_AVAILABLE)
+
+Use page inventory data to supplement — not replace — the visual inspection above. For the current page URL, check `QA_PAGE_INVENTORIES` for a matching entry:
+
+**Element counts as baseline:**
+- Compare the inventory's `interactive_elements` counts against what you see in the live snapshot. Significant discrepancies (elements present in QA but missing now, or vice versa) suggest recent UI changes worth investigating.
+- If `forms.fields_per_form` shows forms with 5+ fields, verify that inline validation and required field markers were caught in the Content & Microcopy check above.
+
+**Accessibility cross-reference:**
+- If `accessibility.missing_labels` > 0, QA confirms real missing labels. Note the count alongside what you observe visually.
+- If `accessibility.aria_landmarks` is 0, note: "QA confirms no ARIA landmarks on this page."
+- If `accessibility.heading_levels` skips levels, note: "QA confirms heading hierarchy gap."
+
+**Layout confirmation:**
+- If `layout.viewport_overflow` is `true` in the inventory, QA confirms horizontal overflow. Verify whether it persists at the current viewport size.
+
+**Caveats as inspection checklist:**
+- Review each QA caveat for the current page. Each caveat is a targeted observation — verify whether it persists and assess its visual impact. Caveats about console warnings, slow loads, and layout issues are especially relevant to the Analyze step.
+
+> **Note:** QA data is from a previous run and may be stale. Always verify against the live page. Use QA data as a checklist to ensure nothing is missed, not as a source of truth.
+
+> **Deduplication (full mode):** When running as part of a full review (code + visual), the UX Analysis lens (3h) has already produced systematic findings from QA data in the code review step. In the Analyze step, focus on what the live browser reveals that data analysis cannot: visual weight, interaction feel, animation quality, emotional tone. Reference UX Analysis findings where they confirm visual observations, but do not re-list them as new findings.
+
 ---
 
 ## Step 5: Reimagine
@@ -392,6 +455,17 @@ Alternative B: {another approach} — {the tradeoff}
 These aren't prescriptions — they're conversation starters. The goal is to expand the solution space, not narrow it.
 
 > **Constraint:** Keep this grounded. Ideas should be implementable in the current tech stack within a reasonable scope. "Rewrite in a different framework" is not helpful. "Add a skeleton loader to the list view" is.
+
+### QA-informed reimagining (when QA_DATA_AVAILABLE)
+
+QA findings and caveats can spark ideas that pure visual inspection might miss:
+
+- **Accessibility caveats** reveal where the experience is broken for some users. "Missing aria-label on 3 elements" isn't just a compliance issue — it's a design opportunity. What would the experience feel like if every interaction was narrated?
+- **Slow page loads** suggest a perception problem. The "best version" exercise above should consider: what would users see during the wait? A skeleton loader? An instant optimistic update? A progress bar with real information?
+- **Console warnings** often indicate technical shortcuts that degrade experience over time. These are signals of where the implementation diverges from the ideal.
+- **Page inventories** reveal structural opportunities. A page with 8 tabs and 20+ buttons may benefit from progressive disclosure. A form with 6 fields and no labels is a redesign candidate, not just an accessibility fix.
+
+Use QA data as creative fuel for the "best version" exercise, not as a bug list. The reimagine step asks "what would make this great?" — QA data tells you where "great" is furthest from the current state.
 
 ---
 
@@ -439,6 +513,15 @@ Present a structured report that balances issues, observations, and ideas.
 - Feedback: {clear/inconsistent/missing}
 - Transitions: {smooth/janky/none}
 - Recovery: {easy/possible/difficult}
+
+### QA Data Context (when QA data informed this review)
+- **QA run:** {RUN_DIR path}
+- **Stories covering this page:** {count}
+- **QA status for this page:** {PASS/PASS_WITH_CAVEATS/FAIL}
+- **Caveats surfaced:** {count} — {brief summary of relevant caveats}
+- **QA findings confirmed visually:** {list any QA findings that were also observed during visual review}
+- **QA findings resolved since QA run:** {list any QA findings that no longer reproduce}
+(or: No QA data available — review based on live browser inspection only.)
 
 ### Ideas
 | Idea | Impact | Effort | Description |

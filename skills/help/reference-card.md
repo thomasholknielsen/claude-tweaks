@@ -12,9 +12,9 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/challenge` | Debias assumptions before brainstorming | `quick`, INBOX item, topic |
 | `/specify` | Decompose design doc into agent-sized specs | design doc, topic |
 | `/build` | Implement a spec or design doc | spec #, doc path + `batched`, `worktree` |
-| `/test` | Run verification checks standalone | `types`, `lint`, `unit`, path, `affected` |
+| `/test` | Verification gate — types, lint, tests, QA stories | `types`, `lint`, `unit`, path, `affected`, `qa`, `qa affected`, `all` |
 | `/stories` | Generate or update QA story YAML files | URL (auto-detected if omitted) + `persona=`, `dir=`, `focus=`, `browser=`, `refine=`, `negative=` |
-| `/review` | Quality gate: auto QA + code + optional visual review | spec #, files + `full`/`visual`/`journey:{name}`/`discover`/`qa` |
+| `/review` | Analytical quality gate: code review, UX analysis (when QA data available), visual + creative ideas (default in /flow). Gates on /test. | spec #, files + `full`/`visual`/`journey:{name}`/`discover` |
 | `/wrap-up` | Reflect, capture learnings, clean up | spec # |
 
 ## Utility
@@ -23,7 +23,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 |---------|-------------|-------|
 | `/help` | Dashboard: commands + status + recommendations | `status`, `commands`, spec/topic |
 | `/tidy` | Batch backlog hygiene | — |
-| `/flow` | Automated pipeline: build → [stories →] review → wrap-up | spec #(s), doc path + `worktree` `no-stories` `[steps]` |
+| `/flow` | Automated pipeline: build → [stories →] test → review → wrap-up | spec #(s), doc path + `worktree` `no-stories` `[steps]` |
 | `/browse` | Unified browser automation (utility) | URL or task + `browser=`, `headless`, `vision` |
 
 ## Common Workflows
@@ -71,9 +71,10 @@ or standalone:
 
 ### QA pipeline (automatic in /flow)
 ```
-/flow 42                                → stories auto-generated if UI changed, auto-validated in review
+/flow 42                                → stories auto-generated if UI changed, validated in /test step
 /stories                                → auto-detects dev server, generates stories
-/review qa                              → validate stories manually
+/test qa                                → validate stories standalone
+/test all                               → full suite + QA stories
 ```
 
 ### Brownfield onboarding

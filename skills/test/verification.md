@@ -1,6 +1,6 @@
 # Shared Verification Procedure
 
-Canonical verification procedure used by `/claude-tweaks:build` (Common Step 5), `/claude-tweaks:review` (Step 3), and `/claude-tweaks:test` (Steps 1-3). This file is the single source of truth — all three skills reference it instead of duplicating the logic.
+Canonical verification procedure used by `/claude-tweaks:build` (Common Step 5) and `/claude-tweaks:test` (Step 1). This file is the single source of truth — both skills reference it instead of duplicating the logic.
 
 ## Step 1: Resolve Commands
 
@@ -25,7 +25,9 @@ Run all checks. Order matters — fail fast:
 
 ### Skip-if-recent (for /flow pipelines)
 
-When running inside a `/claude-tweaks:flow` pipeline and the previous step already ran verification successfully (indicated by `VERIFICATION_PASSED=true` in the pipeline context), **skip this procedure entirely** and note: "Verification skipped — passed in previous pipeline step." This prevents redundant type check + lint + test runs when `/flow` chains build → review.
+When running inside a `/claude-tweaks:flow` pipeline and the previous step already ran verification successfully (indicated by `VERIFICATION_PASSED=true` in the pipeline context), **skip this procedure entirely** and note: "Verification skipped — passed in previous pipeline step." This prevents redundant type check + lint + test runs when `/flow` chains build → test.
+
+**Note:** Skipping verification does not skip QA. When `/claude-tweaks:test` receives `VERIFICATION_PASSED=true` and QA stories exist, it skips this procedure but still runs QA story validation separately.
 
 ## Step 3: Report
 
@@ -55,5 +57,4 @@ Present results in a consistent format:
 The calling skill determines what happens on failure:
 
 - **`/build`** — fix failures and re-run verification
-- **`/review`** — **STOP** the review. Present failures. Fix before continuing.
-- **`/test`** — report results. Optionally offer to fix (see `/test` Step 4).
+- **`/test`** — report results. Optionally offer to fix (see `/test` Step 3).

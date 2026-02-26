@@ -23,12 +23,12 @@ specs/INBOX.md         docs/plans/*-brief.md   docs/plans/*-design.md  specs/NN-
 ```
 
 ```
-Code + Journey ──→ Story YAML     ──→ Review (auto-QA + code) ──→ Learnings Routed    ──→ Clean Slate
-src/ + journeys    stories/*.yaml     (in commit/output)            CLAUDE.md updates       (spec + plans + ledger deleted)
-  /build             /stories           /review                       /wrap-up
-             (auto in /flow          Step 2.5 auto-validates    ↕                       ↑
-              when UI changed)       stories when present   Visual findings         Open Items Ledger
-                                                            (browser review)        (tracks findings across phases)
+Code + Journey ──→ Story YAML     ──→ Test (mechanical gate)  ──→ Review (analytical)   ──→ Learnings Routed    ──→ Clean Slate
+src/ + journeys    stories/*.yaml     types + lint + tests + QA     code + visual review       CLAUDE.md updates       (spec + plans + ledger deleted)
+  /build             /stories           /test                         /review                     /wrap-up
+             (auto in /flow          Sets TEST_PASSED=true      Gates on TEST_PASSED        ↕                       ↑
+              when UI changed)       (QA when stories exist)    Visual findings          Open Items Ledger
+                                                                (browser review)         (tracks findings across phases)
 ```
 
 ## What Each Skill Reads and Writes
@@ -42,11 +42,11 @@ src/ + journeys    stories/*.yaml     (in commit/output)            CLAUDE.md up
 | `/brainstorm` | `docs/plans/*-brief.md` | `docs/plans/*-design.md` | — |
 | `/specify` | `*-design.md`, `*-brief.md`, `specs/INDEX.md` | `specs/NN-*.md`, `specs/INDEX.md` | `*-design.md`, `*-brief.md`, INBOX entry |
 | `/build` | `specs/NN-*.md`, `docs/plans/*.md` | Code, `docs/journeys/*.md`, plan files, ledger items. Worktree mode also produces transient worktree directories and feature branches. | — |
-| `/test` | CLAUDE.md (for commands) | — (output only) | — |
+| `/test` | CLAUDE.md (for commands), `stories/*.yaml` (in qa/all mode) | `TEST_PASSED=true`, QA report (when stories exist), `docs/plans/*-ledger.md` (QA findings and observations) | — |
+| `/test` (qa mode) | `stories/*.yaml` | `screenshots/qa/report.json`, `screenshots/qa/report.md`, `TEST_PASSED=true`, `docs/plans/*-ledger.md` (QA findings and observations) | — |
 | `/browse` | — | `screenshots/browse/` | — |
-| `/stories` | Existing `stories/*.yaml`, site via `/browse` | `stories/*.yaml` | — |
-| `/review` | Code (via git diff), `specs/NN-*.md`, `docs/journeys/*.md`, `stories/*.yaml` (auto Step 2.5), ledger | Review summary, ledger items, QA report (when stories exist) | — |
-| `/review` (qa mode) | `stories/*.yaml` | `screenshots/qa/report.json`, `screenshots/qa/report.md` | — |
+| `/stories` | Existing `stories/*.yaml`, site via `/browse`, component source files (for source analysis) | `stories/*.yaml` (with `source_files:` field) | — |
+| `/review` | Code (via git diff), `specs/NN-*.md`, `docs/journeys/*.md`, `TEST_PASSED` from /test, ledger (including QA entries with phase `test/qa`), QA screenshots + page inventories (for UX analysis lens) | Review summary, ledger items | — |
 | `/wrap-up` | `specs/NN-*.md`, review output, plan files, ledger | CLAUDE.md updates, skill updates, `DEFERRED.md` | Spec file, plan files, ledger |
 | `/tidy` | All artifacts | Cleanup actions | Stale artifacts |
 

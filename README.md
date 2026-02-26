@@ -56,10 +56,11 @@ This will:
 ## Workflow Lifecycle
 
 ```
-/setup → /codebase-onboarding → /capture → /challenge → /brainstorm → /specify → /build → [/stories] → /review → /wrap-up
-                                                                                       ╰──────── /flow automates ────────╯
-                                                                          /test ↕    /browse ↕    stories auto-generated when UI changes
-                                                                                                  review auto-validates stories (Step 2.5)
+/setup → /codebase-onboarding → /capture → /challenge → /brainstorm → /specify → /build → [/stories] → /test → /review → /wrap-up
+                                                                                       ╰────────────── /flow automates ──────────╯
+                                                                          /browse ↕    stories auto-generated when UI changes
+                                                                                       /test = "does it work?" (mechanical gate)
+                                                                                       /review = "is it good?" (analytical gate)
 ```
 
 ### Lifecycle Skills
@@ -72,9 +73,9 @@ This will:
 | 4 | `/claude-tweaks:challenge` | Debias a problem statement before brainstorming |
 | 5 | `/claude-tweaks:specify` | Decompose design doc into agent-sized specs with implicit dependency detection |
 | 6 | `/claude-tweaks:build` | Implement a spec end-to-end (subagent/batched execution, current-branch/worktree git strategy) |
-| 6b | `/claude-tweaks:test` | Standalone verification — types, lint, tests |
+| 6b | `/claude-tweaks:test` | Verification gate — types, lint, tests, QA story validation |
 | 6c | `/claude-tweaks:stories` | Generate or update QA story YAML files by browsing a site (auto-triggered by /flow on UI changes) |
-| 7 | `/claude-tweaks:review` | Quality gate — auto QA validation + code review + optional visual review |
+| 7 | `/claude-tweaks:review` | Analytical quality gate — code review + visual browser review with idea generation (automatic in /flow when browser available). Gates on /test passing. |
 | 8 | `/claude-tweaks:wrap-up` | Reflection, knowledge capture, artifact cleanup |
 
 ### Utility Skills
@@ -83,7 +84,7 @@ This will:
 |---------|---------|
 | `/claude-tweaks:help` | Quick reference, workflow status dashboard, recommendations |
 | `/claude-tweaks:tidy` | Batch backlog hygiene with cross-spec pattern detection |
-| `/claude-tweaks:flow` | Automated pipeline: build → [stories (auto on UI change) →] review → wrap-up with gates |
+| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review (full mode with visual + ideas when browser available) → wrap-up |
 | `/claude-tweaks:browse` | Unified browser automation — playwright-cli or Chrome MCP |
 
 ## Common Workflows
@@ -155,16 +156,17 @@ Two orthogonal choices: **execution strategy** (subagent/batched) and **git stra
 
 ### Review Modes
 
-Code review with optional visual inspection and QA validation. Six modes:
+Analytical code review with visual inspection, UX analysis, and creative idea generation. Five modes (QA validation moved to `/test`):
 
 | Mode | What it does |
 |------|-------------|
-| **code** (default) | Spec compliance, verification, code review, hindsight, simplification |
-| **full** | Code review + visual browser review |
+| **code** (default) | Test gate, spec compliance, code review, UX analysis (when QA data available), hindsight, simplification |
+| **full** (default in /flow) | Code review + UX analysis + visual browser review with QA-enriched idea generation |
 | **visual** | Browser review only — single page |
 | **journey** | Browser review only — walk a documented journey |
 | **discover** | Browser review only — scan and document all user journeys |
-| **qa** | Structured YAML story execution — parallel agents, dependency tiers, pass/fail report |
+
+When QA data is available (from `/test qa` or `/test all`), the visual review consumes page inventories, caveats, and screenshots to enrich its analysis and creative idea generation. `/flow` runs review in full mode by default when a browser backend is available.
 
 ### User Journeys
 
@@ -187,11 +189,11 @@ Each journey tracks its implementing source files via `files:` frontmatter. Duri
 
 ### QA Pipeline
 
-Stories are **auto-generated** when `/flow` detects UI file changes after build, and **auto-validated** by `/review` Step 2.5 when they exist. No manual URL entry — the dev server is auto-detected.
+Stories are **auto-generated** when `/flow` detects UI file changes after build, and **validated by `/test`** in the pipeline test step. No manual URL entry — the dev server is auto-detected. Stories link to source files (`source_files:` field) for change-aware scoping.
 
 ```
-/claude-tweaks:flow 42                                         → build → stories (auto if UI changed) → review (auto QA + code) → wrap-up
-/claude-tweaks:flow 42 no-stories                              → build → review → wrap-up (skip stories even if UI changed)
+/claude-tweaks:flow 42                                         → build → stories (auto if UI changed) → test (types + lint + tests + QA) → review → wrap-up
+/claude-tweaks:flow 42 no-stories                              → build → test → review → wrap-up (skip stories even if UI changed)
 ```
 
 Manual story generation and validation:
@@ -199,20 +201,33 @@ Manual story generation and validation:
 ```
 /claude-tweaks:stories                                         → auto-detect dev server, browse site, generate stories
 /claude-tweaks:stories http://localhost:3000                    → explicit URL, browse site, generate stories
-/claude-tweaks:review qa                                       → validate all stories against running app
-/claude-tweaks:review qa tag=smoke                             → validate smoke tests only
-/claude-tweaks:review qa retry=screenshots/qa/20260210_143022  → re-run only failed stories
+/claude-tweaks:test qa                                         → validate all stories against running app
+/claude-tweaks:test qa tag=smoke                               → validate smoke tests only
+/claude-tweaks:test qa affected                                → run only stories affected by uncommitted changes
+/claude-tweaks:test qa retry=screenshots/qa/20260210_143022    → re-run only failed stories
+/claude-tweaks:test all                                        → full suite (types + lint + tests) + QA stories
 ```
+
+**Source-aware generation:** `/stories` reads component source files to extract behavioral contracts — input constraints (min/max), validation schemas, state transitions, error paths — and generates deeper stories that exercise the full behavioral surface, not just what's visible on first render.
+
+**Enriched reporting:** QA reports classify findings into 5 categories (code-bug, stale-selector, ux-issue, flaky-env, story-bug) with severity and suggested fixes. Stories that pass mechanically but surface observations (missing ARIA labels, slow loads) get a `PASS_WITH_CAVEATS` status.
+
+**Self-healing selectors:** When a CSS selector in a story no longer matches, the qa-agent automatically recovers using snapshot matching and updates the story YAML — stale selectors become self-fixing rather than false negatives.
+
+**Parallel orchestration:** Auth cookies are captured once and injected into all sessions. Streaming slot-fill starts the next story as soon as any slot opens. A 20-story run can complete in ~4-5 minutes instead of ~21 minutes.
 
 ### Standalone Testing
 
-`/test` runs verification checks independently — useful for quick sanity checks, targeted testing, or reproducing CI failures:
+`/test` is the mechanical "does it work?" gate — types, lint, tests, and QA story validation:
 
 ```
-/claude-tweaks:test                    → full suite (types + lint + tests)
+/claude-tweaks:test                    → standard suite (types + lint + tests)
 /claude-tweaks:test types lint         → type checking and linting only
 /claude-tweaks:test affected           → tests affected by uncommitted changes
 /claude-tweaks:test src/api/           → tests scoped to a directory
+/claude-tweaks:test qa                 → QA story validation only
+/claude-tweaks:test qa affected        → QA stories affected by uncommitted changes
+/claude-tweaks:test all                → full suite + QA stories
 ```
 
 ### Batch Decisions
@@ -265,11 +280,11 @@ INBOX item ──→ Brief ──→ Design Doc ──────→ Spec ─�
                                     (deletes brief  Deferred  docs/journeys/
                                      + design doc)  Work
 
-Code + Journey ──→ Story YAML ──→ Review (auto-QA + code) ──→ Learnings routed ──→ Clean slate
-     /build         /stories          /review                    /wrap-up
-             (auto in /flow       Step 2.5 auto-validates   ↓
-              when UI changed)    stories when present   Deferred Work
-                                                        (deletes spec + plans + ledger)
+Code + Journey ──→ Story YAML ──→ Test (mechanical gate) ──→ Review (analytical gate) ──→ Learnings routed ──→ Clean slate
+     /build         /stories          /test                       /review                      /wrap-up
+             (auto in /flow       types + lint + tests + QA   gates on TEST_PASSED          ↓
+              when UI changed)    sets TEST_PASSED             code + visual review       Deferred Work
+                                                                                         (deletes spec + plans + ledger)
 
 Open Items Ledger ── tracks findings across all phases ── resolved + deleted by /wrap-up
 ```
@@ -280,7 +295,7 @@ Open Items Ledger ── tracks findings across all phases ── resolved + del
 |---------------|--------|-------------|
 | [Superpowers](https://github.com/obra/superpowers) | [`obra/superpowers-marketplace`](https://github.com/obra/superpowers-marketplace) | `/brainstorm`, `/write-plan`, `/subagent-driven-development`, `/executing-plans`, `/using-git-worktrees`, `/finishing-a-development-branch`, `/dispatching-parallel-agents` |
 | code-simplifier | Built-in subagent | Code simplification in `/review` and `/build` |
-| playwright-cli | `npm install -g @playwright/cli@latest` | `/browse`, `/stories`, `/review qa` (optional — Chrome MCP is an alternative) |
+| playwright-cli | `npm install -g @playwright/cli@latest` | `/browse`, `/stories`, `/test qa` (optional — Chrome MCP is an alternative) |
 | Chrome MCP | Chrome extension + `claude --chrome` | `/browse` Chrome backend (optional — playwright-cli is the recommended default) |
 
 ## Local development

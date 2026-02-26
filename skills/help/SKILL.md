@@ -53,9 +53,9 @@ These run in order — each skill feeds into the next.
 | 4 | `/claude-tweaks:challenge` | Debias a problem statement before brainstorming | `quick`, INBOX item, topic |
 | 5 | `/claude-tweaks:specify` | Decompose a design doc into agent-sized specs | design doc path, topic, INBOX ref |
 | 6 | `/claude-tweaks:build` | Implement a spec or design doc end-to-end | spec number, design doc path, topic + optional `batched`, `worktree` |
-| 6b | `/claude-tweaks:test` | Standalone verification — types, lint, tests | `types`, `lint`, `unit`, file path, `affected` |
+| 6b | `/claude-tweaks:test` | Verification gate — types, lint, tests, QA story validation | `types`, `lint`, `unit`, file path, `affected`, `qa`, `qa affected`, `all` |
 | 6c | `/claude-tweaks:stories` | Generate or update QA story YAML files by browsing a site | URL + `persona=`, `dir=`, `focus=`, `browser=`, `refine=`, `negative=` |
-| 7 | `/claude-tweaks:review` | Quality gate — auto QA validation + code review + optional visual review | spec number, file paths + `full`, `visual`, `journey:{name}`, `discover`, `qa` |
+| 7 | `/claude-tweaks:review` | Analytical quality gate — code review, UX analysis (when QA data available), visual browser review with idea generation (default in /flow when browser available). Gates on /test passing. | spec number, file paths + `full`, `visual`, `journey:{name}`, `discover` |
 | 8 | `/claude-tweaks:wrap-up` | Reflection, knowledge capture, artifact cleanup | spec number |
 
 For a concise one-page reference, read `reference-card.md` in this skill's directory.
@@ -66,7 +66,7 @@ For a concise one-page reference, read `reference-card.md` in this skill's direc
 |---------|---------|---------|
 | `/claude-tweaks:help` | This dashboard — commands, status, recommendations | `status`, `commands`, spec/topic |
 | `/claude-tweaks:tidy` | Periodic backlog hygiene | — |
-| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] review → wrap-up | spec number(s) (comma-separated for sequential), design doc path, or topic + `worktree` `no-stories` `[steps]` |
+| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → wrap-up | spec number(s) (comma-separated for sequential), design doc path, or topic + `worktree` `no-stories` `[steps]` |
 | `/claude-tweaks:browse` | Unified browser automation (utility) | URL or task description + `browser=`, `headless`, `vision` |
 
 ### Superpowers (External Plugin)
@@ -90,11 +90,11 @@ INBOX item ──→ Brief ──→ Design Doc ──→ Spec ──→ Code + 
                                     (deletes brief  Deferred  docs/journeys/
                                      + design doc)  Work
 
-Code + Journey ──→ Story YAML ──→ Review (auto-QA + code) ──→ Clean slate
-     /build         /stories          /review                    /wrap-up
-             (auto in /flow      (Step 2.5 auto-validates   ↓
-              when UI changed)    stories when they exist)  (deletes spec
-                                                             + plans)
+Code + Journey ──→ Story YAML ──→ Test (types + lint + tests + QA) ──→ Review (code + visual) ──→ Clean slate
+     /build         /stories          /test                                /review                    /wrap-up
+             (auto in /flow      (mechanical gate —              (analytical gate —            ↓
+              when UI changed)    sets TEST_PASSED)               gates on TEST_PASSED)       (deletes spec
+                                                                                               + plans)
 ```
 
 ---

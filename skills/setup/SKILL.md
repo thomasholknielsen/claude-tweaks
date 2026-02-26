@@ -49,7 +49,7 @@ Provides the `code-simplifier` subagent used by `/claude-tweaks:build` and `/cla
 
 Note: `code-simplifier` is a built-in subagent type (`subagent_type="code-simplifier:code-simplifier"` in the Task tool). No plugin installation needed — just verify it's available by checking the Task tool's agent type list.
 
-> **QA note:** Stories are auto-generated when `/flow` detects UI file changes, and auto-validated by `/review` Step 2.5 when they exist. Browser integration (below) is needed for story generation and validation.
+> **QA note:** Stories are auto-generated when `/flow` detects UI file changes, and validated by `/test qa` (or automatically in the `/flow` test step). Browser integration (below) is needed for story generation and validation.
 
 ### Optional: Claude Tweaks
 

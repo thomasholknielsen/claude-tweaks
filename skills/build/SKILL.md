@@ -465,7 +465,7 @@ After successful build, present:
 
 ### Recommended Next
 
-`/claude-tweaks:review {number}` — run the quality gate. Review auto-validates QA stories when they exist (Step 2.5) and flags affected journeys.
+`/claude-tweaks:review {number}` — run the quality gate (auto-triggers `/claude-tweaks:test` if no recent pass). `/claude-tweaks:test qa` validates QA stories when they exist.
 
 {Worktree mode: also suggest completing the branch via `/finishing-a-development-branch`.}
 ```
@@ -536,10 +536,10 @@ These apply in **subagent** execution strategy. In **batched** strategy, autonom
 | `/using-git-worktrees` | Invoked BY /claude-tweaks:build (worktree git strategy) to create an isolated workspace before execution |
 | `/finishing-a-development-branch` | Invoked BY /claude-tweaks:build (worktree git strategy) at handoff to merge, PR, or discard the feature branch |
 | `code-simplifier:code-simplifier` | Invoked BY /claude-tweaks:build after implementation, before verification |
-| `/claude-tweaks:stories` | Runs AFTER /claude-tweaks:build — auto-triggered by `/flow` when UI files change, or run manually. Stories are auto-validated by `/review` Step 2.5. |
-| `/claude-tweaks:review` | Runs AFTER /claude-tweaks:build — auto-validates QA stories when they exist (Step 2.5). In design mode, uses git diff instead of spec compliance. |
+| `/claude-tweaks:stories` | Runs AFTER /claude-tweaks:build — auto-triggered by `/flow` when UI files change, or run manually. Stories are validated by `/test qa`. |
+| `/claude-tweaks:test` | Runs AFTER /claude-tweaks:build (in pipeline: receives `VERIFICATION_PASSED=true`, skips types/lint/tests, runs QA if stories exist). Standalone: runs the same checks as /build Common Step 5. |
+| `/claude-tweaks:review` | Runs AFTER /claude-tweaks:test — gates on `TEST_PASSED=true`. In design mode, uses git diff instead of spec compliance. Standalone /review auto-triggers /test if no recent pass. |
+| `/claude-tweaks:review` (visual modes) | Tests the user journeys that /build creates — visual review modes are the bridge between build and visual QA |
 | `/claude-tweaks:wrap-up` | Runs AFTER /claude-tweaks:review — cleans up and captures learnings |
 | `/claude-tweaks:capture` | Design mode may create INBOX items for blocked work |
-| `/claude-tweaks:test` | Standalone verification — /test runs the same checks as /build Common Step 5 |
-| `/claude-tweaks:review` (visual modes) | Tests the user journeys that /build creates — visual review modes are the bridge between build and visual QA |
 | `/claude-tweaks:tidy` | Reviews specs from /claude-tweaks:build for staleness — periodic cleanup complement |
