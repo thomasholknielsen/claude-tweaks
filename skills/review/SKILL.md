@@ -140,6 +140,7 @@ Review changed files through these lenses. Skip lenses that don't apply to the t
 - Are project patterns followed (error handling, validation, logging)?
 - Are shared utilities used instead of reinventing (check existing packages)?
 - Are imports from the right packages (not duplicating types inline)?
+- Does the code follow patterns documented in `.claude/skills/*.md`? If code diverges from a skill, flag it in the findings table AND append a `review/skill` ledger entry — the code may be correct and the skill stale.
 
 ### 3b: Security
 
@@ -246,6 +247,7 @@ Evaluate:
 2. **Structural debt** — Did we introduce patterns we'll regret? Premature abstractions, wrong boundaries?
 3. **Missing consolidation** — Opportunities to merge, deduplicate, or simplify that are obvious now?
 4. **Convention drift** — Did we accidentally diverge from established project patterns?
+5. **Skill-worthy patterns** — Did the build establish reusable patterns that should be documented in a project skill? If yes, append a `review/skill` ledger entry. For patterns that don't fit any existing skill, use `[skill: NEW — {suggested-name}]`.
 
 Present all findings as a batch:
 
@@ -378,7 +380,7 @@ Present a structured summary covering spec compliance, test results (from `/test
 |-------|-------------|
 | `/claude-tweaks:build` | Produces the code and journey files that /claude-tweaks:review evaluates |
 | `/claude-tweaks:test` | /test is the mechanical "does it work?" gate. /review gates on `TEST_PASSED=true` — it never runs verification or QA itself. Standalone /review auto-triggers /test if no recent pass. |
-| `/claude-tweaks:wrap-up` | Runs after /claude-tweaks:review passes — focuses on reflection, cleanup, and knowledge capture |
+| `/claude-tweaks:wrap-up` | Runs after /claude-tweaks:review passes — focuses on reflection, cleanup, and knowledge capture. `review/skill` ledger entries from lens 3a and Step 4 feed into wrap-up's skill update analysis (Step 7). |
 | `/claude-tweaks:capture` | /claude-tweaks:review may create INBOX items for new ideas discovered during review |
 | `/claude-tweaks:codebase-onboarding` | Phase 7 delegates to `/review discover` for brownfield journey bootstrapping |
 | `/claude-tweaks:stories` | Generates the YAML stories that /test validates. /review consumes /test results (including QA) via `TEST_PASSED`. |

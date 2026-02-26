@@ -181,7 +181,7 @@ For each step in order:
      - **Detect browser backend:** Run backend detection from `/claude-tweaks:browse` (same detection as the stories step).
      - **Browser available:** Invoke `/claude-tweaks:review {spec-or-design-doc} full`. The visual review auto-detects the dev server URL using `dev-url-detection.md` from the `/claude-tweaks:stories` skill's directory. When QA data exists from the test step, the visual review consumes page inventories, caveats, and screenshots to enrich its analysis and idea generation.
      - **No browser available:** Invoke `/claude-tweaks:review {spec-or-design-doc}` (code mode). Note in the pipeline output: "Visual review skipped — no browser backend available. To enable, run `/claude-tweaks:setup` and choose browser integration."
-   - `review` → `wrap-up` receives the review summary and verdict
+   - `review` → `wrap-up` receives the review summary and verdict. Skill observations (`build/skill` and `review/skill` ledger entries) carry forward via the ledger file for wrap-up's skill update analysis (Step 7).
 5. **Ledger carries forward** — each step reads and appends to the open items ledger. Unlike conversation context (which may be compressed), the ledger is a file — it survives context window limits.
 
 ### Step 3: Present Pipeline Summary

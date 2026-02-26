@@ -151,11 +151,11 @@ Search `~/.claude/plans/` for related plans → **delete them**.
 
 Delete `docs/plans/*-ledger.md` for this work. All items have been resolved by the nothing-left-behind gate (Step 9.5). If the file doesn't exist (standalone wrap-up), skip this.
 
-## Steps 6-8: Assess Configuration Updates
+## Steps 6 + 8: Assess Configuration Updates
 
-> **Batch collection.** Steps 6-8 collect all potential updates in a single pass. No decisions are made here — everything is presented together in Step 10 for batch approval.
+> **Batch collection.** Steps 6 and 8 collect potential documentation and CLAUDE.md/rules updates in a single pass. No decisions are made here — everything is presented together in Step 10 for batch approval. Skill updates are handled separately in Step 7.
 
-> **Parallel execution:** Run all three scans (documentation, skills, CLAUDE.md/rules) as parallel tool calls — each checks independent sources and collects findings in the `[type] target — change` format.
+> **Parallel execution:** Run both scans (documentation, CLAUDE.md/rules) as parallel tool calls — each checks independent sources and collects findings in the `[type] target — change` format.
 
 ### 6: Documentation
 
@@ -166,15 +166,6 @@ Check if the work requires updates to project documentation:
 - ADRs for significant architectural decisions
 
 → Collect each needed update as: `[doc] {file} — {what to add/change}`
-
-### 7: Skills
-
-Compare implementation patterns against existing skills in `.claude/skills/`:
-1. **Deviations** — different patterns than documented?
-2. **Gaps** — new reusable patterns not yet documented?
-3. **Reflection findings** — route tagged insights to appropriate skills
-
-→ Collect each needed update as: `[skill] {skill name} — {what to update/create}`
 
 ### 8: CLAUDE.md and Rules
 
@@ -188,6 +179,92 @@ Check if the work introduced project-wide conventions:
 Before adding to CLAUDE.md, check the size budget — keep it concise. Move detailed content to skills or rules.
 
 → Collect each needed update as: `[claude.md] {section} — {what to add/change}` or `[rule] {path scope} — {convention}`
+
+---
+
+## Step 7: Skill Update Analysis
+
+Analyze whether project skills need updating based on what was built. This step runs standalone (not batched with Steps 6 + 8) because skill updates require reading and comparing full skill files — a different weight of analysis.
+
+### 7.1: Gather Inputs
+
+1. Read ledger entries with phase `build/skill` and `review/skill`
+2. Check reflection insights (Step 3) tagged for skill destinations
+3. List all skill files in `.claude/skills/`
+4. Identify **relevant skills** — those referenced by ledger entries, targeted by reflection insights, or in the domain of changed files
+5. Read relevant skill files in full
+
+If no ledger entries, no reflection insights targeting skills, and no relevant skills identified → state "No skill updates needed" and proceed to Step 8 (already complete from the parallel pass above).
+
+### 7.2: Analyze Each Relevant Skill
+
+Compare each relevant skill against what the build actually did. Check across 6 dimensions:
+
+| Check | Question |
+|-------|----------|
+| **Pattern accuracy** | Do the skill's Key Patterns still match how the codebase works? |
+| **Convention drift** | Do Project Conventions reflect current practice, or has the build diverged? |
+| **Missing patterns** | Did the build introduce patterns that belong in this skill but aren't documented? |
+| **Stale examples** | Do code examples still exist at the referenced file paths? |
+| **Anti-pattern gaps** | Did the build reveal new anti-patterns worth documenting? |
+| **Decision framework completeness** | Does the Decision Framework cover the choices made during this build? |
+
+For each needed change, produce a patch in `/claude-tweaks:codebase-onboarding`'s Update Mode format (read `skill-template.md` in the `/claude-tweaks:codebase-onboarding` skill's directory for the format):
+
+```
+### Edit {N}: {description}
+**Section:** {section name}
+**Action:** Replace / Add / Remove
+**Current:** `{current text or "N/A" for additions}`
+**Proposed:** `{new text}`
+**Reason:** {what changed — cite the specific build/review observation}
+```
+
+### 7.3: Identify New Skill Candidates
+
+Evaluate patterns from `[skill: NEW — {name}]` ledger entries and reflection insights that don't fit existing skills. A new skill is warranted only when **all three** criteria are met:
+
+1. **Reusability** — the pattern applies to 2+ future builds (not a one-off)
+2. **Complexity** — the pattern is non-obvious (simple conventions belong in CLAUDE.md)
+3. **Project-specific** — the pattern is specific to this project (not generic best practice)
+
+For approved candidates, note the skill name and scope — the actual skill file is created during Step 11 execution.
+
+### 7.4: Quality Check
+
+Verify each proposed update against the quality gates from `skill-template.md` in the `/claude-tweaks:codebase-onboarding` skill's directory:
+
+- [ ] Every code example is adapted from actual codebase patterns (not generic)
+- [ ] File paths referenced actually exist
+- [ ] Commands referenced actually work
+- [ ] Conventions described match what the codebase actually does
+- [ ] No generic advice that adds no project-specific value
+- [ ] Anti-patterns cite project-specific reasons, not textbook warnings
+
+Discard any proposed update that fails these gates. Note what was discarded and why.
+
+### 7.5: Present Skill Updates
+
+Present a dedicated batch decision table for skill updates — separate from the doc/CLAUDE.md table in Step 10:
+
+```
+### Skill Updates
+
+| # | Skill | Section | Change | Source |
+|---|-------|---------|--------|--------|
+| 1 | {skill name} | {section} | {change description} | {ledger entry or reflection insight} |
+| 2 | {skill name} | {section} | {change description} | {source} |
+| 3 | NEW: {name} | — | Create new skill | {source} |
+
+1. Apply all **(Recommended)**
+2. Override specific items (tell me which #s to change)
+```
+
+Below the table, show the full Update Mode patches for each row so the user can see exactly what will change.
+
+(Or: "No skill updates needed." if Steps 7.1-7.3 found nothing.)
+
+**Wait for resolution before proceeding to Step 9.**
 
 ## Step 9: Analyze Next Steps (spec-based only)
 
@@ -264,12 +341,15 @@ Overall: {X}% complete
 - [ ] Delete open items ledger
 - [ ] Leftover work: {recommendation}
 
-### Configuration Updates (from Steps 6-8)
+### Configuration Updates (from Steps 6 + 8)
 | # | Type | Target | Change |
 |---|------|--------|--------|
-| 1 | {doc/skill/claude.md/rule} | {target} | {what to add/change} |
+| 1 | {doc/claude.md/rule} | {target} | {what to add/change} |
 | 2 | ... | ... | ... |
 (or: No configuration updates needed.)
+
+### Skill Updates
+Resolved in Step 7.5 — {N} updates applied / 0 updates needed.
 
 ### Next Steps
 (spec-based only — from Step 9)
@@ -286,7 +366,7 @@ Present **one consolidated batch decision** covering both cleanup and configurat
 | 2 | cleanup | Update INDEX.md | Remove completed entry |
 | 3 | cleanup | Delete plans | docs/plans/{files} |
 | 4 | cleanup | Delete ledger | docs/plans/*-ledger.md |
-| 5 | config | {doc/skill/claude.md/rule} | {what to add/change} |
+| 5 | config | {doc/claude.md/rule} | {what to add/change} |
 | 6 | config | ... | ... |
 
 1. Apply all **(Recommended)**
@@ -302,7 +382,8 @@ If the user chooses to override, let them pick which items to skip or change.
 1. Delete or edit spec files
 2. Update INDEX.md
 3. Delete plans
-4. Update documentation, skills, CLAUDE.md, memory files
+4. Update documentation, CLAUDE.md, memory files (from Step 10)
+5. Apply skill updates and create new skills (from Step 7.5)
 
 Commit with a message summarizing the wrap-up actions.
 
@@ -325,16 +406,20 @@ Commit with a message summarizing the wrap-up actions.
 | Keeping design docs and plans after wrap-up | Consumed artifacts create stale references — the spec and code are the durable records |
 | Silently dropping insights with no obvious destination | Every insight gets an explicit decision — even "don't capture" requires a stated reason from the user |
 | Completing wrap-up with open ledger items | The nothing-left-behind gate exists to prevent dropped work — resolve every item before presenting the summary |
+| Auditing all skills instead of ledger-tagged ones | Step 7 scopes to skills referenced by `build/skill` and `review/skill` ledger entries — scanning the entire skill library wastes effort and produces noise |
+| Proposing generic skill updates without citing a build/review observation | Every skill update must trace back to a specific ledger entry or reflection insight — generic improvements are indistinguishable from hallucinated ones |
+| Mixing skill updates into the doc/CLAUDE.md batch table | Skill updates require full file reads and Update Mode patches — they get their own decision table in Step 7.5 |
 
 ## Relationship to Other Skills
 
 | Skill | Relationship |
 |-------|-------------|
-| `/claude-tweaks:review` | Must pass before /claude-tweaks:wrap-up — handles verification, code review, and simplification |
+| `/claude-tweaks:review` | Must pass before /claude-tweaks:wrap-up — handles verification, code review, and simplification. `review/skill` ledger entries from lens 3a and Step 4 feed into Step 7 skill analysis. |
+| `/claude-tweaks:review` (visual modes) | Visual complement — findings from visual review may feed into wrap-up's reflection lenses |
 | `/claude-tweaks:capture` | /claude-tweaks:wrap-up may create INBOX items for genuinely new ideas discovered during implementation |
 | `specs/DEFERRED.md` | /claude-tweaks:wrap-up routes leftover work here (with origin spec, files, trigger) |
 | `/claude-tweaks:help` | /claude-tweaks:wrap-up suggests running /claude-tweaks:help to see what's unblocked |
 | `/claude-tweaks:tidy` | /claude-tweaks:wrap-up cleans artifacts for a single spec — /claude-tweaks:tidy does periodic bulk cleanup |
-| `/claude-tweaks:build` | Runs BEFORE /claude-tweaks:review — produces the code and journeys that wrap-up reflects on |
+| `/claude-tweaks:build` | Runs BEFORE /claude-tweaks:review — produces the code and journeys that wrap-up reflects on. `build/skill` ledger entries from Step 4.5 feed into Step 7 skill analysis. |
 | `/finishing-a-development-branch` | When build used worktree git strategy, wrap-up should verify the feature branch was completed (merged, PR created, or discarded) before cleaning up artifacts |
-| `/claude-tweaks:review` (visual modes) | Visual complement — findings from visual review may feed into wrap-up's reflection lenses |
+| `/claude-tweaks:codebase-onboarding` | Step 7 references `skill-template.md` for Update Mode format and quality gates |

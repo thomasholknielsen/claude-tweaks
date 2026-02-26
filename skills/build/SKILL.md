@@ -339,6 +339,16 @@ Deviation: {what the spec said vs. what was built}
 - Design mode with no formal spec (no stated architecture to compare against)
 - The plan was trivial (< 3 tasks, single-file changes)
 
+#### Skill Observation
+
+While checking architectural alignment, also compare against relevant project skills:
+
+1. Identify 0-3 skill files in `.claude/skills/` covering patterns related to what was built
+2. Quick-scan their Key Patterns and Project Conventions sections only
+3. If the implementation diverges from or extends what the skill documents, append a ledger entry with phase `build/skill`
+4. Keep it light — one sentence per entry; `/claude-tweaks:wrap-up` does the deep analysis
+5. Skip if no `.claude/skills/` directory exists or the build is trivial
+
 ### Common Step 5: Final Verification
 
 After code simplification, run the shared verification procedure from `verification.md` in the `/claude-tweaks:test` skill's directory. This runs type checking, linting, and tests using the project's commands from CLAUDE.md.
@@ -540,6 +550,6 @@ These apply in **subagent** execution strategy. In **batched** strategy, autonom
 | `/claude-tweaks:test` | Runs AFTER /claude-tweaks:build (in pipeline: receives `VERIFICATION_PASSED=true`, skips types/lint/tests, runs QA if stories exist). Standalone: runs the same checks as /build Common Step 5. |
 | `/claude-tweaks:review` | Runs AFTER /claude-tweaks:test — gates on `TEST_PASSED=true`. In design mode, uses git diff instead of spec compliance. Standalone /review auto-triggers /test if no recent pass. |
 | `/claude-tweaks:review` (visual modes) | Tests the user journeys that /build creates — visual review modes are the bridge between build and visual QA |
-| `/claude-tweaks:wrap-up` | Runs AFTER /claude-tweaks:review — cleans up and captures learnings |
+| `/claude-tweaks:wrap-up` | Runs AFTER /claude-tweaks:review — cleans up and captures learnings. `build/skill` ledger entries from Step 4.5 feed into wrap-up's skill update analysis (Step 7). |
 | `/claude-tweaks:capture` | Design mode may create INBOX items for blocked work |
 | `/claude-tweaks:tidy` | Reviews specs from /claude-tweaks:build for staleness — periodic cleanup complement |
