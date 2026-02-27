@@ -2,7 +2,7 @@
 name: claude-tweaks:specify
 description: Use when converting a brainstorming design document into agent-sized work units (specs). Takes a design doc and decomposes it into self-contained specifications.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a recommended next step, not a navigation menu.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
 
 
 # Specify
@@ -154,6 +154,7 @@ Each spec follows a structured template with sections designed to give `/write-p
 - **Don't over-specify implementation** — the spec says *what* and *where*, the plan (created by `/write-plan` during `/claude-tweaks:build`) says *how*.
 - **Include gotchas from project memory** — search CLAUDE.md and memory files for relevant patterns, common mistakes, and lessons learned.
 - **Absorb the brainstorming brief** — if a `*-brief.md` exists for this topic, carry its assumptions, blind spots, and constraints into the relevant specs' Gotchas sections. These are hard-won insights from `/claude-tweaks:challenge` that should survive.
+- **Include known manual steps** — environment variables to provision, infrastructure changes to apply, third-party services to configure. If the design doc mentions infrastructure setup, API key provisioning, or deployment requirements, absorb them into the Manual Steps section.
 
 ---
 
@@ -221,7 +222,20 @@ Present a summary:
 - INBOX entry: {title} (promoted)
 ```
 
-**Recommended next:** `/claude-tweaks:build {first spec number}` — start building the highest-priority spec.
+### Actions Performed
+
+| Action | Detail | Ref |
+|--------|--------|-----|
+| Operational | Created spec `specs/{N}-{title}.md` | `{hash}` |
+| Operational | Updated `specs/INDEX.md` | `{hash}` |
+| Operational | Deleted design doc + brief | `{hash}` |
+
+### Next Actions
+
+1. `/claude-tweaks:build {N}` — build spec {N}: "{title}" (highest priority) **(Recommended)**
+{If multiple specs:}
+2. `/claude-tweaks:flow {N}` — automated pipeline for spec {N}
+3. `/claude-tweaks:help` — see all new specs in pipeline dashboard
 
 Commit with a message describing the specs created.
 

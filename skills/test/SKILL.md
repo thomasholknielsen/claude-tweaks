@@ -2,7 +2,7 @@
 name: claude-tweaks:test
 description: Use when you need to run verification checks (types, lint, tests) or validate QA stories — the mechanical "does it work?" gate.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a recommended next step, not a navigation menu.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
 
 
 # Test — Verification Gate
@@ -126,9 +126,12 @@ Present results using the format from `verification.md` Step 3 for standard chec
 
 ```
 All checks passed. Set TEST_PASSED=true.
-
-Recommended next: `/claude-tweaks:review {spec}` — run the quality gate.
 ```
+
+### Next Actions
+
+1. `/claude-tweaks:review {spec}` — code review quality gate **(Recommended)**
+2. `/claude-tweaks:review {spec} full` — code + visual review (if UI files changed and browser available)
 
 ### QA mode result
 
@@ -143,9 +146,20 @@ Recommended next: `/claude-tweaks:review {spec}` — run the quality gate.
 {Full QA report from qa-review.md}
 
 Set TEST_PASSED=true (if all passed or passed with observations).
-
-Recommended next: `/claude-tweaks:review {spec}` — run the quality gate.
 ```
+
+### Actions Performed
+
+{Only show when QA auto-recovered selectors or applied fixes. Omit when purely observational.}
+
+| Action | Detail | Ref |
+|--------|--------|-----|
+| Ledger fix | Auto-recovered selector (test/qa) — `{story file}` | — |
+
+### Next Actions
+
+1. `/claude-tweaks:review {spec}` — code review quality gate **(Recommended)**
+2. `/claude-tweaks:review {spec} full` — code + visual review (if browser available)
 
 PASS_WITH_CAVEATS counts as passed for the `TEST_PASSED` gate — caveats are informational, not blocking. When timing data is available in the QA results (per-story elapsed time and total wall-clock time), include the Timing section from the QA report.
 
@@ -170,9 +184,12 @@ After presenting QA results, write QA findings and observations to the open item
 {Full QA report from qa-review.md}
 
 Set TEST_PASSED=true (if all passed or passed with observations).
-
-Recommended next: `/claude-tweaks:review {spec}` — run the quality gate.
 ```
+
+### Next Actions
+
+1. `/claude-tweaks:review {spec}` — code review quality gate **(Recommended)**
+2. `/claude-tweaks:review {spec} full` — code + visual review (if browser available)
 
 ### Pipeline result (VERIFICATION_PASSED + no stories)
 

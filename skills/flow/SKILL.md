@@ -2,7 +2,7 @@
 name: claude-tweaks:flow
 description: Use when you want to run an automated build → test → review → wrap-up pipeline on a spec or design doc without stopping between steps.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a recommended next step, not a navigation menu.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
 
 
 # Flow — Automated Pipeline
@@ -134,10 +134,28 @@ When a gate fails, the pipeline stops immediately. Present:
 ### Open Items (at time of failure)
 {current ledger contents — so the user sees what's been tracked}
 
-### Recommended Next
+### Manual Steps Required (collected so far)
+| # | What | Where |
+|---|------|-------|
+| 1 | {description} | {source} |
+(or: No manual steps collected yet.)
 
-Fix the issues, then resume: `/claude-tweaks:flow {spec or design doc} {remaining steps}`
-Or run the failed step manually: `/claude-tweaks:{step} {spec or design doc}`
+> These were detected before the pipeline stopped. Address them alongside the fix.
+
+### Actions Performed
+
+{Include rows from completed phases before the failure. Omit when pipeline failed at the first step.}
+
+| Action | Detail | Ref |
+|--------|--------|-----|
+| {rows from completed phases} | ... | ... |
+
+### Next Actions
+
+1. `/claude-tweaks:flow {spec} {remaining steps}` — resume after fixing {failed step} **(Recommended)**
+2. `/claude-tweaks:{step} {spec}` — run {failed step} manually for more control
+{If test failed:}
+3. `/claude-tweaks:test` — re-verify after fixes
 ```
 
 ## Execution
@@ -164,7 +182,7 @@ Or run the failed step manually: `/claude-tweaks:{step} {spec or design doc}`
    | # | Phase | Item | Status | Resolution |
    |---|-------|------|--------|------------|
    ```
-   Status lifecycle: `open` → `fixed` / `deferred` / `accepted`. Each phase appends rows; wrap-up enforces resolution of every item before completing.
+   Status lifecycle: `open` → `fixed` / `deferred` / `accepted` / `acknowledged` (for `ops` phase items). Each phase appends rows; wrap-up enforces resolution of every item before completing.
 
 ### Step 2: Run Pipeline
 
@@ -213,9 +231,28 @@ On successful completion of all steps:
 - {summary of review findings, if any}
 - {summary of wrap-up actions taken}
 
-### Recommended Next
+### Manual Steps Required
+| # | What | Where |
+|---|------|-------|
+| 1 | {description} | {source} |
+(or: No manual steps — nothing to do outside the codebase.)
 
-`/claude-tweaks:flow {next spec}` — run the pipeline on the next spec. Or `/claude-tweaks:help` for full status.
+> Complete these after merging. The pipeline detected them but cannot execute them.
+
+### Actions Performed
+
+{Rolled-up table from all phases. When >15 rows, collapse to per-phase summaries.}
+
+| Action | Detail | Ref |
+|--------|--------|-----|
+| {rows from build, stories, review, wrap-up phases} | ... | ... |
+
+### Next Actions
+
+1. `/claude-tweaks:flow {next spec}` — full pipeline on spec {N}: "{title}" **(Recommended)**
+2. `/claude-tweaks:help` — full pipeline status
+{If unblocked specs:}
+3. `/claude-tweaks:build {N}` — spec {N} "{title}" now unblocked
 ```
 
 ---
@@ -249,6 +286,12 @@ After all specs complete (or one fails), present a consolidated summary:
 | {N} | passed | passed | PASS | done | Complete |
 | {N} | passed | passed | BLOCKED | — | Stopped at review |
 | {N} | — | — | — | — | Not started (previous spec failed) |
+
+### Manual Steps Required (all specs)
+| # | Spec | What | Where |
+|---|------|------|-------|
+| 1 | {N} | {description} | {source} |
+(or: No manual steps required.)
 
 ### Per-Spec Details
 (expand each spec's key outputs, failures, and review findings)
@@ -319,7 +362,7 @@ For each completed branch (in order):
 | {branch} | {N} | Merged with conflict resolution |
 | {branch} | {N} | Skipped (pipeline failed) |
 
-### Recommended Next
+### Next Actions
 - Failed specs: fix issues and re-run `/claude-tweaks:flow {spec} worktree {remaining steps}`
 - All merged: run `/claude-tweaks:help` for full pipeline status
 ```

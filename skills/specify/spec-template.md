@@ -78,6 +78,17 @@ blocked-by: [{spec numbers or empty}]
 - {e.g., "The status enum values are exactly: draft, published, archived"}
 - {e.g., "This mutation needs a transaction — it modifies two tables atomically"}
 - {e.g., "Import shared types from the contracts package, don't redeclare inline"}
+
+## Manual Steps
+
+{Operations a human must perform after this spec is built and merged. Things the pipeline cannot do — only detect.}
+
+- {e.g., "Set `STRIPE_SECRET_KEY` in production environment"}
+- {e.g., "Run `terraform apply` in `infra/payments/`"}
+- {e.g., "Register a webhook at the payment provider dashboard for `/api/webhooks/stripe`"}
+- {e.g., "Create feature flag `enable_meal_planning` in LaunchDarkly"}
+
+{If none: delete this section.}
 ```
 
 ## Why Each Section Matters for `/write-plan`
@@ -92,3 +103,4 @@ blocked-by: [{spec numbers or empty}]
 | **Data / API Surface** | Enables exact code generation — names, types, endpoints |
 | **Key Files** | Exact paths for the plan's "Files" section |
 | **Gotchas** | Injected as constraints into subagent prompts |
+| **Manual Steps** | Seeded into the ledger as `ops` phase items at build start — surfaced in the final summary so nothing is forgotten |

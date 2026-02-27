@@ -57,11 +57,44 @@ Possible QA statuses:
 ### Code Simplification
 - {summary of simplifier changes, or "No simplifications needed"}
 
+### Manual Steps Required
+| # | What | Where |
+|---|------|-------|
+| 1 | {description} | {source} |
+(or: No manual steps — nothing to do outside the codebase.)
+
+> These require action after merging. The pipeline detected them but cannot execute them.
+> **In `/flow` pipeline context:** Skip this section — flow's pipeline summary handles it.
+
 ### Verdict
 **{PASS}** or **{BLOCKED — issues need fixing}**
 
-### Recommended Next
+### Actions Performed
 
-- If **PASS**: `/claude-tweaks:wrap-up {number}` — capture learnings and clean up.
-- If **BLOCKED**: Resume `/claude-tweaks:build {number}` to address the gaps listed above.
+{Include when review fixed findings, simplified code, or resolved ledger items. Omit when review was purely observational.}
+
+| Action | Detail | Ref |
+|--------|--------|-----|
+| Bug fix | {finding fixed} — `{file}` | `{hash}` |
+| Simplified | {simplification} — `{file}` | `{hash}` |
+| Ledger fix | {item resolved} ({phase}) — `{file}` | `{hash}` |
+
+Generate from: git log since review start, findings with status `fixed`, ledger entries resolved during review.
+
+### Next Actions
+
+**When PASS:**
+
+| Signal | Option |
+|--------|--------|
+| Always | `/claude-tweaks:wrap-up {N}` — capture learnings and clean up **(Recommended)** |
+| Visual not done + journeys affected + browser | `/claude-tweaks:review journey:{name}` — walk affected journey before wrapping up |
+| Visual not done + UI changed + browser | `/claude-tweaks:review visual {url}` — visual pass before wrapping up |
+
+**When BLOCKED:**
+
+| Signal | Option |
+|--------|--------|
+| Always | `/claude-tweaks:build {N}` — fix gaps listed above **(Recommended)** |
+| Test failures | `/claude-tweaks:test` — re-verify after fixes |
 ```

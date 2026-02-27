@@ -244,6 +244,12 @@ Multi-item findings (code review, tidy, wrap-up insights) are presented as a sin
 2. Override specific items (tell me which #s to change)
 ```
 
+### Skill Handoffs
+
+Skills end with a `### Next Actions` block — 2-4 numbered options with full commands, pre-filled parameters, and one marked **(Recommended)**. Options are context-aware: if a build produced UI changes and journeys, the handoff offers both full (code + visual) and code-only review.
+
+When a skill performs autonomous work, it includes an `### Actions Performed` table showing every discrete action taken — implementations, bug fixes, simplifications, operational fixes, ledger resolutions — with commit references.
+
 ### Cross-Spec Intelligence
 
 The workflow learns from its own history:

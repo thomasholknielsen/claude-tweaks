@@ -2,7 +2,7 @@
 name: claude-tweaks:tidy
 description: Use when the backlog needs hygiene — review stale INBOX items, partially-complete specs, orphaned plans, and overall spec health
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a recommended next step, not a navigation menu.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
 
 
 # Tidy
@@ -230,7 +230,10 @@ Present all collected findings as a single report. Every item has a pre-filled r
 
 Items recommended as "Keep" are included for visibility but require no action. Only items with an active recommendation (delete, promote, fix, run) are executed.
 
-**Recommended next** (after execution): `/claude-tweaks:help` for full pipeline status.
+### Next Actions
+
+1. `/claude-tweaks:help` — full pipeline status **(Recommended)**
+2. `/claude-tweaks:build {N}` — build the highest-priority ready spec
 
 ---
 

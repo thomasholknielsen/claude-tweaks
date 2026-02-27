@@ -246,7 +246,10 @@ Present uncovered pages and gaps as a batch:
 
 Commit journey files with message: "Add {N} user journeys from discovery (brownfield)"
 
-**Recommended next:** `/claude-tweaks:review journey:{name}` — test a specific journey against its expectations.
+### Next Actions
+
+1. `/claude-tweaks:review journey:{name}` — test a specific journey against its expectations **(Recommended)**
+2. `/claude-tweaks:review visual {url}` — review a specific page
 
 ---
 
@@ -569,13 +572,14 @@ Present all findings — issues and ideas — in a single batch table with a Typ
 
 Group related cosmetic issues into a single row rather than listing each individually. Every idea goes to a durable destination. "Note for later" without a destination means "lose forever."
 
-### Recommended next
+### Next Actions
 
-**Recommended next** (adjust based on context):
-- Coming from full review mode → `/claude-tweaks:wrap-up {number}`
-- Not yet code-reviewed → `/claude-tweaks:review {number}`
-- "Fix now" items exist → address fixes first, then re-run this review
-- Standalone → `/claude-tweaks:capture` for ideas surfaced during the session
+| Signal | Option |
+|--------|--------|
+| Coming from full review mode | `/claude-tweaks:wrap-up {N}` — capture learnings and clean up **(Recommended)** |
+| Not yet code-reviewed | `/claude-tweaks:review {N}` — run code review before wrapping up |
+| "Fix now" items exist | Address fixes first, then re-run this review |
+| Standalone | `/claude-tweaks:capture` — save ideas surfaced during the session |
 
 ---
 

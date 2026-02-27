@@ -2,7 +2,7 @@
 
 ## What this is
 
-A Claude Code plugin (v3.9.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation and QA pipeline support. This is not a code application — it's a system of prompts organized as skills.
+A Claude Code plugin (v3.10.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation and QA pipeline support. This is not a code application — it's a system of prompts organized as skills.
 
 ## Stack
 
@@ -62,7 +62,8 @@ Every skill follows this structure:
 - **Decisions** — numbered options (1, 2, 3...) so users reply with a number
 - **Multi-item decisions** — batch table with pre-filled recommendations + "apply all / override". For 10+ items, lead with a severity/count summary before the full table so the user sees the scope before the details.
 - **One decision per message** — never present more than one "apply all / override" table in a single response. If a skill produces multiple decision tables, present them sequentially (one per message, wait for resolution before showing the next).
-- **Skill handoffs** — `**Recommended next:** \`/command\` — reason.` (never a navigation menu)
+- **Skill handoffs (Next Actions)** — End each skill with a `### Next Actions` block: 2-4 numbered options, full command with all parameters pre-filled, one-line description of what it does and produces, one marked `**(Recommended)**` based on context. Options are dynamically generated from available context (journeys, UI changes, worktree mode, QA stories, browser availability). Never a navigation menu, never generic commands without parameters.
+- **Actions Performed table** — When a skill performs autonomous actions beyond what the user explicitly requested, include a `### Actions Performed` table before Next Actions. Columns: `| Action | Detail | Ref |`. Action types: `Implemented`, `Bug fix`, `Simplified`, `Operational`, `Journey`, `Ledger fix`. Ref column shows short commit hash. Resolved ledger items show source phase in parentheses. Generated from git log, git diff, and ledger entries. Omit when no autonomous actions were performed.
 - **Hard gates** — BLOCKED/STOP conditions that prevent proceeding with degraded state
 
 ### Interaction style directive
@@ -70,7 +71,7 @@ Every skill follows this structure:
 All skills use this identical directive after the frontmatter:
 
 ```
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a recommended next step, not a navigation menu.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
 ```
 
 ### Parallel execution directives
@@ -105,7 +106,7 @@ claude --plugin-dir ./              # Local development — load plugin from cur
 
 ## Don'ts
 
-- Don't add "What's Next?" / "Pick an action" navigation menus at the end of skills — use `**Recommended next:**` statements
+- Don't add "What's Next?" / "Pick an action" navigation menus at the end of skills — use `### Next Actions` blocks with numbered options and pre-filled commands
 - Don't add per-item decision prompts for lists — use batch tables with "apply all / override"
 - Don't create skills without the standard structure (frontmatter, interaction directive, anti-patterns table, relationship table)
 - Don't add one-directional cross-references — always update both sides

@@ -2,7 +2,7 @@
 name: claude-tweaks:wrap-up
 description: Use when /claude-tweaks:review passes and you need to capture learnings, clean up specs/plans, update skills, and decide next steps. The lifecycle closure step.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a recommended next step, not a navigation menu.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
 
 
 # Wrap Up
@@ -283,7 +283,7 @@ Read the open items ledger (`docs/plans/*-ledger.md` for this work). If the ledg
 
 ### Bulk-resolve fast path
 
-If all ledger items already have a terminal status (`fixed`, `deferred`, or `accepted`), skip the interactive resolution — just report: "All {N} ledger items resolved. No open items." and proceed to Step 10. This avoids re-presenting items that were already resolved during earlier pipeline phases.
+If all ledger items already have a terminal status (`fixed`, `deferred`, `accepted`, or `acknowledged`), skip the interactive resolution — just report: "All {N} ledger items resolved. No open items." and proceed to Step 10. This avoids re-presenting items that were already resolved during earlier pipeline phases.
 
 ### Interactive resolution (when open items exist)
 
@@ -300,7 +300,7 @@ Present all items in a single table:
 | 4 | wrap-up | ... | open | — |
 ```
 
-**Gate:** Every item must have a terminal status (`fixed`, `deferred`, or `accepted`). If any item is still `open`:
+**Gate:** Every item must have a terminal status (`fixed`, `deferred`, `accepted`, or `acknowledged`). Items with phase `ops` use `acknowledged` — they represent human tasks the pipeline cannot resolve. If any item is still `open`:
 
 1. Assess whether it can be fixed now (most can — especially items flagged during this session)
 2. Present remaining open items:
@@ -318,6 +318,19 @@ Present all items in a single table:
 4. Defer remaining items to DEFERRED.md (with origin, files, trigger), update ledger status to `deferred`
 
 **No item may remain `open` when wrap-up completes.**
+
+### Ops acknowledgment (when ops items exist)
+
+Present all `ops` items for acknowledgment:
+
+| # | What | Where |
+|---|------|-------|
+| 1 | {description} | {source} |
+
+1. Acknowledge all **(Recommended)** — I've noted these and will handle them
+2. I have questions about specific items
+
+After acknowledgment, update status to `acknowledged`.
 
 ---
 
@@ -348,13 +361,36 @@ Overall: {X}% complete
 | 2 | ... | ... | ... |
 (or: No configuration updates needed.)
 
+### Manual Steps Required
+| # | What | Where | Status |
+|---|------|-------|--------|
+| 1 | {description} | {source} | Acknowledged |
+(or: No manual steps — nothing to do outside the codebase.)
+
+> Complete these after merging.
+
 ### Skill Updates
 Resolved in Step 7.5 — {N} updates applied / 0 updates needed.
 
-### Next Steps
-(spec-based only — from Step 9)
-- Newly unblocked: {specs}
-- Recommended next: {spec}
+### Actions Performed
+
+| Action | Detail | Ref |
+|--------|--------|-----|
+| Operational | Deleted spec `specs/{N}.md` | — |
+| Operational | Updated `specs/INDEX.md` | `{hash}` |
+| Operational | Deleted plans `docs/plans/{files}` | — |
+| Operational | Deleted ledger | — |
+| Ledger fix | {item} ({phase}) — {resolution} | `{hash}` |
+
+Generate from: cleanup actions in Step 11, config/skill updates applied, ledger items resolved in Step 9.5.
+
+### Next Actions
+
+| Signal | Option |
+|--------|--------|
+| Next spec exists (Step 9) | `/claude-tweaks:flow {N}` — full pipeline on spec {N}: "{title}" **(Recommended)** |
+| Newly unblocked specs | `/claude-tweaks:build {N}` — spec {N} "{title}" now unblocked |
+| Always | `/claude-tweaks:help` — full pipeline status |
 ```
 
 Present **one consolidated batch decision** covering both cleanup and configuration:
@@ -375,7 +411,7 @@ Present **one consolidated batch decision** covering both cleanup and configurat
 
 If the user chooses to override, let them pick which items to skip or change.
 
-**Recommended next:** `/claude-tweaks:build {next spec number}` — {next spec title}. Or run `/claude-tweaks:help` for full pipeline status.
+The Next Actions block in the template above replaces the old single-line handoff. Generate 2-4 numbered options based on context signals (next spec, unblocked specs, pipeline status).
 
 ## Step 11: Execute Approved Actions
 

@@ -2,7 +2,7 @@
 name: claude-tweaks:build
 description: Use when implementing a spec or design doc end-to-end. Accepts a spec number for full lifecycle tracking, or a design doc path to skip /claude-tweaks:specify and build directly from brainstorming output.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a recommended next step, not a navigation menu.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
 
 
 # Build
@@ -175,6 +175,12 @@ Search `docs/plans/` for a plan matching this spec (by number, topic, or date).
 #### If no plan exists:
 
 Proceed to Spec Step 3.
+
+### Spec Step 2.5: Seed Manual Steps
+
+If the spec has a "Manual Steps" section, write each item to the open items ledger with phase `ops` and status `open`. These represent human tasks the pipeline cannot resolve — they're carried through and surfaced in the final summary.
+
+If the ledger doesn't exist yet, create it at `docs/plans/YYYY-MM-DD-{feature}-ledger.md`.
 
 ### Spec Step 3: Create the Plan
 
@@ -361,6 +367,8 @@ After verification passes, check for operational tasks that are easy to forget. 
 
 > **Parallel execution:** Use parallel tool calls — all checks are independent Grep/Glob operations.
 
+#### Category A — Fix in code
+
 | Check | Detect | Action |
 |-------|--------|--------|
 | Schema changes | `git diff --name-only` includes schema/migration files | Run the project's schema push command (check CLAUDE.md). If no command is documented, append to ledger as `open`. |
@@ -368,7 +376,22 @@ After verification passes, check for operational tasks that are easy to forget. 
 | New environment variables | Grep changed files for new `process.env.*` or env access patterns | Check `.env.example` (or equivalent) includes the new variable. Add if missing. |
 | New package exports | `package.json` `exports` field changed | Run the package build to verify exports resolve correctly. |
 
-Append each finding to the open items ledger (`docs/plans/*-ledger.md` for this work). Resolve immediately — these are operational, not design decisions. Update status to `fixed` after each.
+Append each Category A finding to the open items ledger (`docs/plans/*-ledger.md` for this work). Resolve immediately — these are operational, not design decisions. Update status to `fixed` after each.
+
+#### Category B — Requires human action
+
+| Check | Detect | Ledger entry |
+|-------|--------|--------------|
+| New environment variables needing values | New `process.env.*`, `import.meta.env.*`, `os.environ`, `ENV[...]` patterns in changed files | "Set `{VAR_NAME}` in your environment — referenced in `{file}`" |
+| Infrastructure-as-code changes | Changed files matching `*.tf`, `*.tfvars`, `**/cdk/**`, `**/cloudformation/**`, `**/pulumi/**`, `serverless.yml` | "Apply infrastructure changes — `{files changed}`" |
+| Database migrations added | New files in common migration directories (`migrations/`, `prisma/migrations/`, `drizzle/`, `alembic/`) or schema push files | "Run database migration — `{migration file}`" |
+| CI/CD pipeline changes | Changed `.github/workflows/*`, `.gitlab-ci.yml`, `Jenkinsfile`, `.circleci/*` | "Review CI/CD pipeline changes — `{files changed}`" |
+| New secrets/API keys referenced | New `*_API_KEY`, `*_SECRET`, `*_TOKEN` patterns in env access | "Provision `{KEY_NAME}` from the relevant service" |
+| Docker/container config changes | Changed `Dockerfile*`, `docker-compose*`, `*.containerfile` | "Rebuild container images — `{files changed}`" |
+
+Append each Category B finding to the ledger with phase `ops` and status `open`. De-duplicate against existing `ops` ledger entries from Spec Step 2.5.
+
+Category B items are NOT resolved immediately — they carry through to the final summary. Their status stays `open` until acknowledged by the user in wrap-up (Step 9.5).
 
 If the ledger doesn't exist (standalone build without `/claude-tweaks:flow`), create it at `docs/plans/YYYY-MM-DD-{feature}-ledger.md`.
 
@@ -473,21 +496,38 @@ After successful build, present:
 ### Blocked items (if any)
 - {item} — blocked by {reason}
 
-### Recommended Next
+### Manual Steps Required
+| # | What | Where |
+|---|------|-------|
+| 1 | {description} | {spec section / detected in `{file}`} |
+(or: No manual steps — nothing to do outside the codebase.)
 
-`/claude-tweaks:review {number}` — run the quality gate (auto-triggers `/claude-tweaks:test` if no recent pass). `/claude-tweaks:test qa` validates QA stories when they exist.
+> Populated from ledger entries with phase `ops`. **In `/flow` pipeline context:** Skip this section — flow's pipeline summary handles it.
 
-{Worktree mode: also suggest completing the branch via `/finishing-a-development-branch`.}
+### Actions Performed
+
+| Action | Detail | Ref |
+|--------|--------|-----|
+| Implemented | {feature} — `{file}` | `{hash}` |
+| Bug fix | {what was fixed} — `{file}` | `{hash}` |
+| Simplified | {what} — `{file}` | `{hash}` |
+| Operational | {schema push, env update} | `{hash}` |
+| Journey | {created/updated} {name} — `{file}` | `{hash}` |
+| Ledger fix | {item} ({phase}) — `{file}` | `{hash}` |
+
+Generate from: `git log --oneline` since build start, `git diff --stat` against pre-build state, ledger entries with status `fixed`, journey files from Step 6, operational fixes from Step 5.5.
+
+### Next Actions
+
+Generate 2-4 numbered options based on context:
+
+| Signal | Option |
+|--------|--------|
+| UI changed + journeys exist + browser available | `/claude-tweaks:review {N} full` — code + visual review, walks {X} affected journeys **(Recommended)** |
+| No browser or no UI | `/claude-tweaks:review {N}` — code review **(Recommended)** |
+| QA stories exist (`stories/*.yaml`) | `/claude-tweaks:test qa` — validate {X} QA stories before review |
+| Worktree mode | `/finishing-a-development-branch` — merge, PR, or discard the feature branch |
 ```
-
-#### Worktree Handoff
-
-If the build used `worktree` git strategy, after presenting the summary above, delegate branch completion to `/finishing-a-development-branch`. This skill handles:
-- Merging the feature branch locally
-- Creating a PR
-- Keeping or discarding the worktree
-
-The user decides the outcome — `/build` does not auto-merge or auto-PR.
 
 ## Git Strategy
 

@@ -3,7 +3,7 @@ name: claude-tweaks:stories
 description: Use when generating or updating user story YAML files for UI testing — browses a site, discovers flows, creates structured stories with diff-aware updates, negative testing, and self-validation. Keywords - stories, generate, create, user journey, persona, QA, testing.
 allowed-tools: Bash
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a recommended next step, not a navigation menu.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
 
 
 # Stories
@@ -417,9 +417,21 @@ Skip entirely if `refine=false`.
     - Number corrected
     - Number with persistent failures (tagged `needs-review`)
 
-**Recommended next:** `/claude-tweaks:test qa` — validate all stories against the running app.
+### Actions Performed
 
-If update mode: also suggest `/claude-tweaks:test qa tag=smoke` to validate only smoke tests first.
+| Action | Detail | Ref |
+|--------|--------|-----|
+| {Generated/Updated/Deleted} | {story description} — `{yaml file}` | — |
+
+One row per story file written, updated, or deleted. Omit unchanged files.
+
+### Next Actions
+
+1. `/claude-tweaks:test qa` — validate all {N} stories against the running app **(Recommended)**
+{If smoke stories exist:}
+2. `/claude-tweaks:test qa tag=smoke` — quick pass on {N} smoke stories first
+{If update mode with affected stories:}
+3. `/claude-tweaks:test qa affected` — validate only changed stories
 
 ## Examples
 

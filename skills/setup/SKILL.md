@@ -2,7 +2,7 @@
 name: claude-tweaks:setup
 description: Use when bootstrapping the workflow system for a project — installs plugin dependencies, creates directory structure, and verifies readiness for the full lifecycle.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a recommended next step, not a navigation menu.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
 
 
 # Setup
@@ -266,7 +266,10 @@ Note that the user skipped browser integration. The workflow system works withou
 ### Ready to Go
 
 {All green:}
-**Recommended next:** `/claude-tweaks:capture` — add your first idea. Or run `/claude-tweaks:codebase-onboarding` to generate CLAUDE.md and skills for this project.
+### Next Actions
+
+1. `/claude-tweaks:codebase-onboarding` — generate CLAUDE.md and skills for this project **(Recommended)**
+2. `/claude-tweaks:capture` — add your first idea to the INBOX
 
 {Missing items → list what needs attention with numbered fix actions}
 ```

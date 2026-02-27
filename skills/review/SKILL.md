@@ -2,7 +2,7 @@
 name: claude-tweaks:review
 description: Use when a build is complete and you need analytical judgment on code quality, correctness, and simplicity before wrapping up. Gates on /claude-tweaks:test passing. The quality gate between implementation and lifecycle cleanup.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a recommended next step, not a navigation menu.
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
 
 
 # Review — Analytical Judgment Gate
@@ -123,6 +123,8 @@ Analyze `git diff` (or `git diff` against the base branch) to understand the sco
 - Lines added/removed
 - Whether schema, API surface, or infrastructure changed
 - Whether new dependencies were introduced
+
+If infrastructure or deployment changes are detected (Terraform, CDK, Docker, CI/CD, database migrations, new environment variables) that aren't already in the ledger as `ops` items, append them with phase `ops` and status `open`. This catches ops requirements introduced during review fixes that weren't present in the original build.
 
 This classification guides which review lenses to apply — a pure UI change doesn't need a database review.
 
@@ -346,7 +348,7 @@ When invoked with `visual`, `journey:`, or `discover`, run only the procedures f
 
 ## Step 7: Present Review Summary
 
-Present a structured summary covering spec compliance, test results (from `/test`), code review findings, browser review (if run), implementation hindsight, tradeoffs, simplification, and a verdict (PASS or BLOCKED). For the complete template, read `review-summary-template.md` in this skill's directory.
+Present a structured summary covering spec compliance, test results (from `/test`), code review findings, browser review (if run), implementation hindsight, tradeoffs, simplification, and a verdict (PASS or BLOCKED). The summary must include an Actions Performed table (when autonomous fixes were applied) and a Next Actions block (always). For the complete template and context-signal rules, read `review-summary-template.md` in this skill's directory.
 
 ## Important Notes
 
