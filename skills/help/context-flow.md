@@ -43,9 +43,9 @@ src/ + journeys    stories/*.yaml     types + lint + tests + QA     code + visua
 | `/specify` | `*-design.md`, `*-brief.md`, `specs/INDEX.md` | `specs/NN-*.md`, `specs/INDEX.md` | `*-design.md`, `*-brief.md`, INBOX entry |
 | `/build` | `specs/NN-*.md`, `docs/plans/*.md` | Code, `docs/journeys/*.md`, plan files, ledger items. Worktree mode also produces transient worktree directories and feature branches. | — |
 | `/test` | CLAUDE.md (for commands), `stories/*.yaml` (in qa/all mode) | `TEST_PASSED=true`, QA report (when stories exist), `docs/plans/*-ledger.md` (QA findings and observations) | — |
-| `/test` (qa mode) | `stories/*.yaml` | `screenshots/qa/report.json`, `screenshots/qa/report.md`, `TEST_PASSED=true`, `docs/plans/*-ledger.md` (QA findings and observations) | — |
+| `/test` (qa mode) | `stories/*.yaml`, `stories/auth.yml` (for auth profile resolution) | `screenshots/qa/report.json`, `screenshots/qa/report.md`, `TEST_PASSED=true`, `docs/plans/*-ledger.md` (QA findings and observations) | — |
 | `/browse` | — | `screenshots/browse/` | — |
-| `/stories` | Existing `stories/*.yaml`, site via `/browse`, component source files (for source analysis) | `stories/*.yaml` (with `source_files:` field) | — |
+| `/stories` | Existing `stories/*.yaml`, `stories/auth.yml` (for auth profiles), site via `/browse`, component source files (for source analysis) | `stories/*.yaml` (with `source_files:` field), `stories/auth.yml` (created on first auth detection) | — |
 | `/review` | Code (via git diff), `specs/NN-*.md`, `docs/journeys/*.md`, `TEST_PASSED` from /test, ledger (including QA entries with phase `test/qa`), QA screenshots + page inventories (for UX analysis lens) | Review summary, ledger items | — |
 | `/wrap-up` | `specs/NN-*.md`, review output, plan files, ledger, `.claude/skills/*.md` (relevant skills from ledger entries) | CLAUDE.md updates, skill updates, `DEFERRED.md` | Spec file, plan files, ledger |
 | `/tidy` | All artifacts | Cleanup actions | Stale artifacts |

@@ -97,23 +97,36 @@ Before dispatching any tier, check whether auth cookie injection is needed:
 
 15. **Check auth requirements:** Scan all stories in the run for `requires: [auth]` or a `setup.auth` block. If none require auth, skip to Phase 3.
 
-16. **Run auth once:** Launch a single Playwright session and execute the auth flow:
-    a. Read the auth config from the first story that has a `setup.auth` block (or the file-level setup auth block).
-    b. Open a dedicated session: `playwright-cli -s=auth-setup open <auth.url>`
-    c. Fill username/password fields (substitute `${VAR}` references from environment variables) and submit the form.
-    d. Wait for the auth flow to complete (page navigation or success indicator).
+16. **Resolve auth credentials:**
 
-17. **Capture cookies:** After successful login, extract all cookies from the auth session:
-    ```bash
-    playwright-cli -s=auth-setup evaluate "JSON.stringify(await page.context().cookies())"
-    ```
-    Store the resulting JSON string as `AUTH_COOKIES` for injection into story agents.
+    a. **Check for auth config:** Use the Glob tool to check for `{STORIES_DIR}/auth.yml`.
 
-18. **Close auth session:** `playwright-cli -s=auth-setup close`
+    b. **Config exists — resolve profiles:**
+       - Read and parse `{STORIES_DIR}/auth.yml`.
+       - For each story with `setup.auth` as a **string** (profile name): look up the named profile. If the profile exists, resolve its `url`, `username`, and `password` into the story's auth config. If the profile does not exist, log a warning: "Auth profile '{name}' not found in {STORIES_DIR}/auth.yml — falling back to per-story auth." and skip profile resolution for that story. If the story also has no inline `setup.auth` block, auth will be skipped for that story.
+       - For each story with `requires: [auth]` but no `setup.auth` block: resolve the `default` profile. If no `default` profile exists, log a warning: "No 'default' auth profile in {STORIES_DIR}/auth.yml — stories with `requires: [auth]` will attempt auth without credentials."
+       - For each story with `setup.auth` as an **object** (inline credentials): use the inline credentials as-is (backward compatible). Substitute `${VAR}` references from environment variables.
+       - Resolve relative URLs: if a profile's `url` does not start with `http`, prepend `APP_URL`.
 
-19. **Fallback on auth failure:** If the auth flow fails (login error, timeout, unexpected page state), log a warning and fall back to per-story auth — each story will handle its own `setup.auth` block independently, as before.
+    c. **Config missing — use inline credentials:**
+       - Read the auth config from the first story that has a `setup.auth` object (or the file-level setup auth block).
+       - Substitute `${VAR}` references from environment variables.
+       - This is the existing behavior.
 
-The captured `AUTH_COOKIES` are passed to each story agent that requires auth (see prompt templates in Phase 3). The qa-agent uses `page.context().addCookies()` to inject them before navigation and skips the story's `setup.auth` block when cookies are present.
+17. **Run auth once per unique profile:** For each unique set of resolved credentials (typically one `default` profile, but possibly multiple if stories reference different profiles):
+    a. Open a dedicated session: `playwright-cli -s=auth-{profile-name} open <auth.url>`
+    b. Fill username/password fields and submit the form.
+    c. Wait for the auth flow to complete (page navigation or success indicator).
+    d. Capture cookies:
+       ```bash
+       playwright-cli -s=auth-{profile-name} evaluate "JSON.stringify(await page.context().cookies())"
+       ```
+    e. Store cookies in `AUTH_COOKIES_MAP[profile-name]`. When only one profile is used, also set `AUTH_COOKIES` directly for backward compatibility.
+    f. Close the session: `playwright-cli -s=auth-{profile-name} close`
+
+18. **Fallback on auth failure:** If the auth flow fails (login error, timeout, unexpected page state), log a warning and fall back to per-story auth — each story will handle its own resolved auth credentials independently.
+
+The captured cookies (from `AUTH_COOKIES` or `AUTH_COOKIES_MAP`) are passed to each story agent that requires auth (see prompt templates in Phase 3). The qa-agent uses `page.context().addCookies()` to inject them before navigation and skips the story's `setup.auth` block when cookies are present.
 
 ## Phase 3: Spawn
 
@@ -163,7 +176,7 @@ The captured `AUTH_COOKIES` are passed to each story agent that requires auth (s
     - If the story has a `steps` array -> structured format
     - If the story has a `workflow` string -> legacy format
 
-22. For each Task call, use the appropriate prompt template. If `AUTH_COOKIES` was captured in Phase 2.5 and the story has `requires: [auth]` or a `setup.auth` block, include the `**Cookies:**` field in the prompt:
+22. For each Task call, use the appropriate prompt template. If auth cookies were captured in Phase 2.5 and the story requires auth, include the `**Cookies:**` field in the prompt. When multiple profiles are in use, select the cookies from `AUTH_COOKIES_MAP` matching the story's auth profile:
 
 **Structured format prompt:**
 ```
@@ -175,7 +188,7 @@ Execute this user story and report results:
 **Browser:** {resolved browser preference for this story}
 **Headed:** {HEADED}
 **Vision:** {VISION}
-**Cookies:** {AUTH_COOKIES JSON string, or omit if no cookies captured / story does not require auth}
+**Cookies:** {AUTH_COOKIES JSON string from the story's resolved auth profile, or omit if no cookies captured / story does not require auth}
 
 **Viewport:** {story.viewport or setup.viewport or omit}
 
@@ -211,7 +224,7 @@ Execute this user story and report results:
 **Browser:** {resolved browser preference for this story}
 **Headed:** {HEADED}
 **Vision:** {VISION}
-**Cookies:** {AUTH_COOKIES JSON string, or omit if no cookies captured / story does not require auth}
+**Cookies:** {AUTH_COOKIES JSON string from the story's resolved auth profile, or omit if no cookies captured / story does not require auth}
 
 **Workflow:**
 {story.workflow}

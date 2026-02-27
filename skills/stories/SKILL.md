@@ -143,6 +143,66 @@ If the framework is not React/TSX, no source files were identified, or files can
     - Whether the page has forms (for negative story generation)
     - Whether the page requires authentication
 
+### Auth Config Resolution
+
+If any discovered page requires authentication:
+
+1. Check for `{OUTPUT_DIR}/auth.yml` using the Glob tool.
+2. **Config exists:** Read the file, parse profiles. Log: "Auth config found: {N} profile(s) ({profile names})."
+3. **Config missing — discover credentials in the project:**
+
+   > **Parallel execution:** Use parallel tool calls aggressively — all Glob and Read operations below are independent and should run concurrently.
+
+   Search the project for existing credentials:
+   - **`.env` / `.env.local` / `.env.development`:** Grep for keys matching `USER`, `EMAIL`, `LOGIN`, `PASS`, `PASSWORD`, `SECRET` (case-insensitive)
+   - **Seed/fixture files:** Glob for `**/seed*`, `**/fixture*`, `**/*seed*.{ts,js,sql}`, `**/prisma/seed.*` — scan for email/password pairs
+   - **Docker Compose:** Read `docker-compose*.yml` — check `environment:` sections for credential variables
+   - **Test files:** Glob for `**/*.test.*`, `**/*.spec.*`, `**/e2e/**` — scan for login credentials or test user constants
+   - **README / docs:** Grep README files for "username", "password", "login", "credentials", "test account"
+
+   **If credentials found:** Present them for confirmation:
+   ```
+   Found credentials in the project:
+
+   | # | Source | Username | Password |
+   |---|--------|----------|----------|
+   | 1 | .env.local (TEST_USER / TEST_PASS) | admin@example.com | test1234 |
+   | 2 | prisma/seed.ts (line 42) | user@demo.com | password123 |
+
+   Use these for the default auth profile?
+   1. Use #1 (Recommended)
+   2. Use #2
+   3. Enter different credentials
+   ```
+
+   **If no credentials found:** Ask the user directly:
+   ```
+   No credentials found in the project. Enter credentials for the default auth profile:
+   - Login URL: {pre-filled from discovered login page}
+   - Username/email:
+   - Password:
+   ```
+
+   After resolving the default profile:
+   a. Ask: "Any additional profiles? (e.g., admin, customer, viewer). Enter profile names comma-separated, or press enter to skip."
+   b. For each additional profile, ask for URL (default: same as default), username, password.
+   c. Write `{OUTPUT_DIR}/auth.yml`:
+      ```yaml
+      # Auth profiles for QA stories (gitignored — do not commit)
+      profiles:
+        default:
+          url: /login
+          username: admin@example.com
+          password: test1234
+      ```
+   d. Check `.gitignore` for `{OUTPUT_DIR}/auth.yml`. If not present, offer to add it:
+      ```
+      Add {OUTPUT_DIR}/auth.yml to .gitignore? This file contains credentials and should not be committed.
+      1. Yes (Recommended)
+      2. No — I manage .gitignore manually
+      ```
+   e. Log: "Auth config created: {OUTPUT_DIR}/auth.yml ({N} profile(s)). Stories will reference profiles by name."
+
 ### URL-to-Source-File Mapping
 
 > **Parallel execution:** Use parallel tool calls aggressively — all Glob and Read operations across discovered pages are independent and should run concurrently.
@@ -259,6 +319,13 @@ When a page has an empty SourceContract (unsupported framework, no source files 
     - Extract these into a file-level `setup` block
     - Use `requires` labels to indicate prerequisites (e.g. `requires: [auth]`)
 
+    **Auth profile references:** When `{OUTPUT_DIR}/auth.yml` exists and the story requires authentication:
+    - Set `setup.auth` to the profile name as a string (e.g., `auth: default` or `auth: admin`)
+    - Use `default` unless the story's persona maps to a specific profile
+    - Do NOT inline credentials when a matching profile exists — profile references keep credentials out of story YAML
+
+    When no auth config exists, use `${ENV_VAR}` substitution in the inline `setup.auth` block (existing behavior).
+
 16. Identify `depends_on` relationships between stories:
     - If story B only makes sense after story A passes (e.g. "view cart" depends on "add to cart"), set `depends_on: add-to-cart` on story B
     - Keep dependency chains short — prefer independent stories where possible
@@ -280,10 +347,13 @@ When a page has an empty SourceContract (unsupported framework, no source files 
 # Optional file-level blocks
 setup:
   viewport: "1440x900"
-  auth:
-    url: "https://example.com/login"
-    username: "${AUTH_USER}"
-    password: "${AUTH_PASS}"
+  # Auth profile reference (when auth.yml exists in stories dir):
+  auth: default
+  # Or inline credentials (when no auth config):
+  # auth:
+  #   url: "https://example.com/login"
+  #   username: "${AUTH_USER}"
+  #   password: "${AUTH_PASS}"
   steps:
     - action: navigate
       target: "https://example.com/setup-page"
@@ -577,6 +647,7 @@ stories:
 - Set `priority: high` for happy-path core flows, `medium` for secondary paths, `low` for edge cases
 - Use `depends_on` sparingly — only when story B literally cannot run without story A succeeding first
 - Don't generate stories for flows that require real credentials unless the user provides them
+- When `{OUTPUT_DIR}/auth.yml` exists, always reference auth profiles by name instead of inlining credentials — this keeps secrets out of story YAML files
 - Only set `browser: chrome` on stories that genuinely need the user's real Chrome session
 - Negative stories: always prefix IDs with `neg-`, tag with `negative`, and assert on graceful failure behavior
 - Always populate `source_files` on every story — use the URL-to-Source-File Mapping from Step 2. If no source files can be identified, use an empty array `[]`. The field must always be present.
@@ -598,6 +669,7 @@ stories:
 | Blocking story generation when source analysis fails | Source analysis enhances stories but must never be a hard gate — degrade gracefully to DOM-only |
 | Following imports beyond 3 levels of depth | Signal-to-noise ratio drops and analysis time increases — use what you have at the depth limit |
 | Generating source-aware stories for non-user-triggerable conditionals | Conditionals based on server config or feature flags cannot be exercised through the browser |
+| Hardcoding credentials in story YAML when an auth config exists | Auth config keeps credentials in one gitignored file — inline credentials in story YAML risk accidental commits |
 
 ## Relationship to Other Skills
 

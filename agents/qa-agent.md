@@ -66,7 +66,7 @@ Extract from the prompt:
 - **Story name** — from `**Story:**`
 - **URL** — from `**URL:**`
 - **Browser** — from `**Browser:**` (optional, default `auto`)
-- **Cookies** — from `**Cookies:**` (JSON string, optional — pre-captured auth cookies from the orchestrator's Auth Pre-flight phase)
+- **Cookies** — from `**Cookies:**` (JSON string, optional — pre-captured auth cookies from the orchestrator's Auth Pre-flight phase, profile-specific when auth profiles are in use)
 - **Setup block** — from `**Setup:**` (YAML, optional)
 - **Teardown block** — from `**Teardown:**` (YAML, optional)
 - **Viewport** — from `**Viewport:**` (optional, e.g. `1440x900`)
@@ -91,7 +91,7 @@ e. **Cookie injection:** If the **Cookies** field is present and non-empty:
    - When cookies are successfully injected, set `COOKIES_INJECTED=true` for use in the next sub-step.
 f. If **Setup** block is present:
    - If it contains an `auth` block and `COOKIES_INJECTED=true`: **skip the auth setup** — the injected cookies already provide the authenticated session. Proceed directly to any non-auth setup steps.
-   - If it contains an `auth` block and cookies were NOT injected: navigate to `auth.url`, fill username/password fields (substitute `${VAR}` references from environment variables), and submit the form.
+   - If it contains an `auth` block and cookies were NOT injected: navigate to `auth.url`, fill username/password fields (substitute `${VAR}` references from environment variables if present — when auth was resolved from a profile, credentials are already literal values), and submit the form.
    - If it contains `steps`: execute each setup step using the structured step executor (see below). Setup step failures abort the story immediately.
 
 ### 3. Auto-Navigate

@@ -126,6 +126,7 @@ Check if `.gitignore` exists and whether it already covers workflow artifacts. S
 # claude-tweaks: transient artifacts
 screenshots/
 .claude/worktrees/
+stories/auth.yml
 ```
 
 If `stories/` exists or will be created, ask the user:

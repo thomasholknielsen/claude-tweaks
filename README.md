@@ -214,7 +214,9 @@ Manual story generation and validation:
 
 **Self-healing selectors:** When a CSS selector in a story no longer matches, the qa-agent automatically recovers using snapshot matching and updates the story YAML — stale selectors become self-fixing rather than false negatives.
 
-**Parallel orchestration:** Auth cookies are captured once and injected into all sessions. Streaming slot-fill starts the next story as soon as any slot opens. A 20-story run can complete in ~4-5 minutes instead of ~21 minutes.
+**Auth profiles:** Store login credentials in `stories/auth.yml` (gitignored) alongside your story files and reference them by name (`setup.auth: default`). When `/stories` detects auth pages, it searches the project for existing credentials (`.env` files, seed data, test fixtures) and presents them for confirmation — no manual entry needed if credentials already exist somewhere in the project. Supports multiple named profiles (default, admin, customer) for multi-persona testing.
+
+**Parallel orchestration:** Auth cookies are captured once per profile and injected into all sessions. Streaming slot-fill starts the next story as soon as any slot opens. A 20-story run can complete in ~4-5 minutes instead of ~21 minutes.
 
 ### Standalone Testing
 
