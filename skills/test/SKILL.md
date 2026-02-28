@@ -46,6 +46,7 @@ Mechanical pass/fail gate — types, lint, tests, QA story validation. Answers "
 | `qa story={name}` | QA — single story by name (substring match) |
 | `qa retry={path}` | QA — re-run only failed stories from a previous run |
 | `qa affected` | QA — run only stories whose `source_files` overlap with uncommitted changes |
+| `qa journey={name}` | QA — run only stories with `journey: {name}` (e.g., `qa journey=profile-settings`) |
 | `all` | Full suite (types + lint + tests) AND QA story validation |
 
 Multiple arguments can be combined: `/claude-tweaks:test types lint` runs both type checking and linting.
@@ -96,7 +97,8 @@ Run QA story validation only — types, lint, and tests are skipped.
    a. Auto-detect the dev server URL using the shared procedure from `dev-url-detection.md` in the `/claude-tweaks:stories` skill's directory (or use `DEV_URL` from pipeline context).
    b. If no dev server is reachable and none can be started — stop and report: "QA validation failed — no dev server available."
    c. Run the QA procedures from `qa-review.md` in the `/claude-tweaks:review` skill's directory.
-   d. Pass through any QA-specific arguments: `tag=`, `story=`, `retry=`, `affected`, etc.
+   d. Pass through any QA-specific arguments: `tag=`, `story=`, `retry=`, `affected`, `journey=`, etc.
+   e. **Journey filter:** When `journey={name}` is present, pass it to the QA procedures. This filters stories to only those with `journey: {name}` in their YAML — enabling journey-scoped test execution.
 
 #### Affected filtering (`qa affected`)
 
@@ -262,6 +264,6 @@ If the user chooses to fix:
 |-------|-------------|
 | `/claude-tweaks:build` | /build runs verification as Common Step 5, sets `VERIFICATION_PASSED=true`. In pipeline, /test skips types/lint/tests when this is set. |
 | `/claude-tweaks:review` | /review gates on `TEST_PASSED=true` from /test. /review never runs verification itself — that's /test's job. |
-| `/claude-tweaks:stories` | /stories generates the YAML stories that /test qa validates. Also provides `dev-url-detection.md` for URL resolution. |
+| `/claude-tweaks:stories` | /stories generates the YAML stories that /test qa validates. Stories with a `journey:` field can be filtered with `/test qa journey={name}`. Also provides `dev-url-detection.md` for URL resolution. |
 | `/claude-tweaks:flow` | /flow chains build → [stories →] test → review → wrap-up. /test is the mechanical gate between build/stories and review. |
 | `/claude-tweaks:help` | /help can recommend /test when code changes exist but no review is warranted |

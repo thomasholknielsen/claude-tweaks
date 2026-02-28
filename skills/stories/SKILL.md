@@ -34,6 +34,7 @@ Parse `$ARGUMENTS` to extract:
 - **BROWSER:** (optional) `browser=<value>` — browser backend preference. Default: `auto`. Values: `auto`, `playwright`, `chrome`.
 - **REFINE:** (optional) `refine=true|false` — validate sample stories and self-correct. Default: `true`.
 - **NEGATIVE:** (optional) `negative=true|false` — generate failure-path negative stories. Default: `true`.
+- **JOURNEY_FILTER:** (optional) `journey=<name>` — scope generation to pages covered by the named journey. When set, only generates stories for pages documented in that journey file (`docs/journeys/{name}.md`).
 
 **Keyword detection rules (applied to $ARGUMENTS):**
 - `refine=false` → REFINE = `false` (default is `true`)
@@ -42,6 +43,7 @@ Parse `$ARGUMENTS` to extract:
 - `dir=<path>` → OUTPUT_DIR = `<path>`
 - `persona=<name>` → PERSONA = `<name>`
 - `focus=<area>` → FOCUS = `<area>`
+- `journey=<name>` → JOURNEY_FILTER = `<name>`
 - Remaining non-keyword argument → URL
 
 ### URL Resolution
@@ -65,6 +67,66 @@ Gather pre-existing information before browsing.
    d. Log: "Update mode: found {N} existing stories across {M} files in {OUTPUT_DIR}."
 3. If no YAML files found, log: "No existing stories in {OUTPUT_DIR}. Generating all stories from scratch." Proceed with full generation.
 
+## Step 1.1: Journey Ingest
+
+Read journey files to bootstrap story design with known flows, personas, and source files. Journey data prevents redundant discovery — pages already documented in journeys are enriched (selectors, assertions) rather than rediscovered from scratch.
+
+> **Parallel execution:** Use parallel tool calls aggressively — all Glob and Read operations across journey files are independent and should run concurrently.
+
+### Discover Journeys
+
+1. Use the Glob tool to find all files matching `docs/journeys/*.md`.
+2. If no journey files exist, log: "No journey files found in docs/journeys/. Proceeding with full discovery mode." Skip the rest of Step 1.1.
+3. If JOURNEY_FILTER is set, filter to only the matching journey file (`docs/journeys/{JOURNEY_FILTER}.md`). If the file does not exist, log: "Journey '{JOURNEY_FILTER}' not found in docs/journeys/. Proceeding with full discovery." and skip the rest of Step 1.1.
+
+### Parse Journey Files
+
+For each journey file, read and extract:
+
+- **Journey name:** derived from the filename (e.g., `profile-settings.md` → `profile-settings`)
+- **Files:** from the YAML frontmatter `files:` array — the source files implementing this journey
+- **Persona:** from the `**Persona:**` field
+- **Goal:** from the `**Goal:**` field
+- **Entry point:** from the `**Entry point:**` field (URL or trigger)
+- **Success state:** from the `**Success state:**` field
+- **Steps:** parse each numbered step section to extract:
+  - Step name
+  - URL (from `**URL:**` field)
+  - Action (from `**Action:**` field)
+  - "Should feel" (from `**Should feel:**` field)
+  - "Should understand" (from `**Should understand:**` field)
+  - Red flags (from `**Red flags:**` field)
+
+### Build Journey Map
+
+Assemble findings into a JOURNEY_MAP:
+
+```
+JOURNEY_MAP = {
+  journey_name: {
+    persona: string
+    goal: string
+    entry_point: string
+    success_state: string
+    files: string[]
+    steps: [{ name, url, action, should_feel, should_understand, red_flags }]
+    step_urls: string[]   // all unique URLs extracted from steps
+  }
+}
+```
+
+Also build a JOURNEY_URL_INDEX — a reverse map from URL to journey name(s), so Step 2 can quickly look up whether a visited page belongs to a journey.
+
+4. Log: "Journey ingest: found {N} journey(s) covering {M} unique URLs."
+
+### Cross-reference with Existing Stories (update mode only)
+
+When update mode is active (Step 1 found existing YAML files):
+
+5. For each existing story WITHOUT a `journey:` field, check whether its URL matches any entry in JOURNEY_URL_INDEX.
+6. If a match is found, add to JOURNEY_LINK_SUGGESTIONS: `{ storyId, storyFile, storyUrl, suggestedJourney }`.
+7. These suggestions are presented in Step 6 (Report) as a batch decision — they are not auto-applied.
+
 ## Step 1.5: Source Analysis
 
 Identify and read component source files to extract behavioral contracts that are not visible from the rendered DOM alone — input constraints, validation schemas, state transitions, conditional rendering, error handling, and API patterns. This step produces a per-page SourceContract that feeds into story design (Step 3).
@@ -74,6 +136,8 @@ For detailed extraction patterns and framework-specific heuristics, read `source
 ### Identify Component Files
 
 Use the URL-to-Source-File Mapping procedure from Step 2 to map each discovered page URL to its source files. If source files were already identified during a previous exploration pass (update mode), reuse the existing `SOURCE_FILES` data.
+
+**Journey-seeded source files:** When a page URL appears in the JOURNEY_URL_INDEX (from Step 1.1), seed the SOURCE_FILES for that page with the journey's `files:` frontmatter array before running the URL-to-Source-File Mapping. The mapping procedure then extends (not replaces) this seed list with component-level files discovered from the route. De-duplicate the final list.
 
 > **Parallel execution:** Use parallel tool calls aggressively — all Read operations across identified component files are independent and should run concurrently.
 
@@ -142,6 +206,22 @@ If the framework is not React/TSX, no source files were identified, or files can
     - What success/failure looks like
     - Whether the page has forms (for negative story generation)
     - Whether the page requires authentication
+
+### Journey-Aware Exploration
+
+When JOURNEY_MAP is non-empty (Step 1.1 found journeys):
+
+For each page visited during exploration, check JOURNEY_URL_INDEX:
+
+- **Page matches a journey step URL:** This page is already documented. Browsing is **enrichment-only**:
+  - Capture CSS selectors, ARIA roles, and element identifiers (same as standard exploration)
+  - Verify the page structure matches the journey step description
+  - Do NOT re-discover what the page is for, what success/failure looks like, or what the user does here — use the journey step's `action`, `should_feel`, and `should_understand` fields for that context
+  - Log: "Page {url} matches journey '{journey_name}' step {N} — enrichment mode."
+
+- **Page does NOT match any journey step URL:** Full discovery (existing behavior). This page has no journey context and gets standard exploration.
+
+**Journey-guided navigation:** When a journey has step URLs that the standard exploration (items 7-8) would not naturally visit, add those URLs to the exploration queue. This ensures all journey-documented pages get enrichment passes. Journey enrichment pages are counted separately from the 5-8 page discovery cap — they are verification, not discovery.
 
 ### Auth Config Resolution
 
@@ -249,6 +329,27 @@ The design step now receives both DOM exploration data (from Step 2) and source 
 - **Conditional rendering:** For each conditional where `userTriggerable` is true, generate stories that exercise both branches. For ternaries, verify both the true-branch element and the false-branch element. For logical AND expressions, verify the element appears when the condition is met and is absent otherwise.
 
 When a page has an empty SourceContract (unsupported framework, no source files found), generate stories from DOM exploration data only — the same behavior as before source analysis was added.
+
+### Journey-Aware Story Design
+
+When JOURNEY_MAP is non-empty (Step 1.1 found journeys), use journey data to inform story design for pages with journey context:
+
+**a. Map journey steps to stories.** Each journey becomes a candidate for one or more stories. Prefer creating one story per journey that walks the full flow (entry point → success state) rather than one story per step — journeys are meant to be walked end-to-end. For journeys with many steps (6+), split into logical segments (e.g., "signup flow" and "first-project flow" from a longer onboarding journey).
+
+**b. Set the `journey:` field.** Stories derived from a journey MUST include `journey: {journey-name}` in the YAML output. This field references `docs/journeys/{journey-name}.md` and enables coverage tracking and filtered test execution.
+
+**c. Inherit source files.** When a story has `journey:` set, its `source_files` starts with the journey's `files:` frontmatter array, extended by component-level files from source analysis (Step 1.5) and URL-to-Source-File Mapping (Step 2). De-duplicate the merged list.
+
+**d. Use journey step descriptions for assertions.** Transform journey step expectations into concrete verify assertions:
+- `should_feel: "fast and effortless"` → verify assertions about page responsiveness, absence of loading spinners after action, minimal click count
+- `should_understand: "their profile is saved"` → verify assertions for success feedback (toast, status message, redirect to expected page)
+- `red_flags: "form clears on error"` → verify that form state is preserved after validation error
+
+**e. Preserve journey step ordering.** Story steps should follow the journey step order. If a journey has steps 1 through N, the generated story should walk them in that sequence.
+
+**f. Still generate negative stories.** Journey-aware pages still get negative story generation (when NEGATIVE=true). The journey's `red_flags` field provides additional negative scenarios beyond the standard form validation / 404 / auth negatives.
+
+**When a page has NO journey context** (its URL does not appear in JOURNEY_URL_INDEX), generate stories from DOM exploration + source analysis only — the same behavior as before journey integration.
 
 ### Diff-Aware Design (when update mode is active)
 
@@ -369,6 +470,7 @@ stories:
   - id: story-kebab-id
     name: "Descriptive name of the journey"
     url: "https://example.com/starting-page"
+    journey: profile-settings                      # optional — refs docs/journeys/profile-settings.md
     tags: [core, smoke]
     priority: high
     source_files:                                  # relative paths to source files that render this page
@@ -487,6 +589,55 @@ Skip entirely if `refine=false`.
     - Number corrected
     - Number with persistent failures (tagged `needs-review`)
 
+    **Journey coverage (when journeys exist):**
+
+    Present the journey-to-story coverage analysis:
+
+    ```
+    ### Journey Coverage
+
+    | Journey | Persona | Stories | Steps Covered | Status |
+    |---------|---------|---------|---------------|--------|
+    | {name} | {persona} | {N} | {covered}/{total} | Full / Partial / No stories |
+    ```
+
+    Status values:
+    - **Full** — every journey step URL has at least one story covering it
+    - **Partial** — some steps are covered; list uncovered step numbers
+    - **No stories** — no stories reference this journey
+
+    **Orphaned stories (no journey):**
+
+    List all stories that have no `journey:` field:
+
+    ```
+    ### Orphaned Stories
+
+    | Story ID | File | URL | Suggested Journey |
+    |----------|------|-----|-------------------|
+    | {id} | {yaml file} | {url} | {journey name} / -- (negative, no journey needed) / {name} (create new) |
+    ```
+
+    For negative stories (IDs starting with `neg-`), suggest "-- (negative, no journey needed)" unless the negative story tests a specific journey's red flag. For non-negative orphans whose URL matches a journey step URL, suggest the matching journey name. For orphans with no URL match, suggest "(create new)" if the flow is substantial enough to warrant a journey file.
+
+    **Journey link suggestions (update mode only):**
+
+    If JOURNEY_LINK_SUGGESTIONS is non-empty (from Step 1.1), present as a separate batch decision (in a separate message from the coverage table — one decision per message):
+
+    ```
+    ### Suggested Journey Links
+
+    Existing stories without a `journey:` field that match journey step URLs:
+
+    | # | Story ID | File | URL | Suggested Journey | Action |
+    |---|----------|------|-----|-------------------|--------|
+    | 1 | {id} | {file} | {url} | {journey} | Add `journey: {name}` |
+
+    1. Apply all suggestions **(Recommended)**
+    2. Override specific items (tell me which #s to skip)
+    3. Skip all — I'll link journeys manually
+    ```
+
 ### Actions Performed
 
 | Action | Detail | Ref |
@@ -502,6 +653,8 @@ One row per story file written, updated, or deleted. Omit unchanged files.
 2. `/claude-tweaks:test qa tag=smoke` — quick pass on {N} smoke stories first
 {If update mode with affected stories:}
 3. `/claude-tweaks:test qa affected` — validate only changed stories
+{If journeys exist and a specific journey has stories:}
+4. `/claude-tweaks:test qa journey={name}` — validate {N} stories for the {name} journey
 
 ## Examples
 
@@ -635,6 +788,50 @@ stories:
         verify: "If the save API call fails, an error toast appears (e.g. 'Failed to save profile') and the save button is re-enabled after the loading state clears"
 ```
 
+### Example 3: Journey-aware stories
+
+Input: `/claude-tweaks:stories http://localhost:3000`
+
+Journey file exists at `docs/journeys/profile-settings.md` with persona "Returning user who wants to update their profile", entry point `/settings`, and steps covering `/settings`, `/settings/password`, `/settings/notifications`. Journey frontmatter `files:` includes `app/(dashboard)/settings/page.tsx`, `lib/services/profile.ts`.
+
+Output file: `stories/myapp-user.yaml`
+```yaml
+stories:
+  - id: profile-settings-flow
+    name: "Complete profile settings journey — update profile, change password, configure notifications"
+    url: "http://localhost:3000/settings"
+    journey: profile-settings
+    tags: [core, smoke]
+    priority: high
+    source_files:
+      - app/(dashboard)/settings/page.tsx
+      - lib/services/profile.ts
+      - app/(dashboard)/settings/components/profile-form.tsx
+      - app/(dashboard)/settings/password/page.tsx
+      - app/(dashboard)/settings/notifications/page.tsx
+    steps:
+      - verify: "Profile settings page loads with name and email fields pre-filled"
+      - action: fill
+        target: "Name input"
+        selector: "input#name"
+        value: "Alice Johnson"
+        verify: "Name field shows 'Alice Johnson'"
+      - action: click
+        target: "Save button"
+        selector: "button[type='submit']"
+        verify: "Success toast appears confirming profile update"
+      - action: click
+        target: "Password tab"
+        selector: "[data-tab='password']"
+        verify: "Password change form is visible with current password and new password fields"
+      - action: click
+        target: "Notifications tab"
+        selector: "[data-tab='notifications']"
+        verify: "Notification preferences visible with toggles for email and push notifications"
+```
+
+Note: `source_files` merges the journey's `files:` frontmatter (`page.tsx`, `profile.ts`) with component-level files discovered during source analysis (`profile-form.tsx`, `password/page.tsx`, `notifications/page.tsx`). The `journey: profile-settings` field enables `/test qa journey=profile-settings` and coverage tracking.
+
 ## Guidelines
 
 - Keep stories focused — one journey per story, 3-8 steps each
@@ -654,6 +851,9 @@ stories:
 - In update mode, never delete existing stories that weren't re-encountered
 - In update mode, preserve existing story IDs exactly
 - Refinement is capped at one correction round to avoid runaway token usage
+- When journey files exist in `docs/journeys/`, always ingest them before browsing — journey data bootstraps story design and prevents redundant discovery
+- Always set `journey:` on stories derived from a journey file — this enables coverage tracking and filtered test execution via `/test qa journey={name}`
+- When a story has `journey:` set, seed `source_files` from the journey's `files:` frontmatter before extending with component-level files from source analysis
 
 ## Anti-Patterns
 
@@ -670,14 +870,16 @@ stories:
 | Following imports beyond 3 levels of depth | Signal-to-noise ratio drops and analysis time increases — use what you have at the depth limit |
 | Generating source-aware stories for non-user-triggerable conditionals | Conditionals based on server config or feature flags cannot be exercised through the browser |
 | Hardcoding credentials in story YAML when an auth config exists | Auth config keeps credentials in one gitignored file — inline credentials in story YAML risk accidental commits |
+| Browsing from scratch when journey files document the same pages | Journey files already contain URLs, personas, steps, and success states — ingest them in Step 1.1 and enrich with selectors and assertions rather than rediscovering everything |
+| Auto-linking existing stories to journeys without user confirmation | Journey link suggestions are recommendations presented in Step 6 — the user decides whether to add `journey:` fields to existing stories |
 
 ## Relationship to Other Skills
 
 | Skill | Relationship |
 |-------|-------------|
-| `/claude-tweaks:build` | Runs BEFORE /stories — recommends /stories when UI files change |
-| `/claude-tweaks:test` | `/test qa` and `/test all` validate the stories that /stories generates. /test references `dev-url-detection.md` for auto-detection. |
-| `/claude-tweaks:review` | /review gates on /test passing (which includes QA when stories exist). /review no longer runs QA itself. |
+| `/claude-tweaks:build` | Runs BEFORE /stories — recommends /stories when UI files change. /build creates journey files (`docs/journeys/*.md`) that /stories ingests in Step 1.1 for journey-aware story generation. Stories reference their source journey via the `journey:` field. |
+| `/claude-tweaks:test` | `/test qa` and `/test all` validate the stories that /stories generates. `/test qa journey={name}` filters to stories for a specific journey. /test references `dev-url-detection.md` for auto-detection. |
+| `/claude-tweaks:review` | /review gates on /test passing (which includes QA when stories exist). /review checks journey-to-story coverage in its code review — uncovered journey steps and orphaned stories are surfaced as informational findings. |
 | `/claude-tweaks:browse` | Used BY /stories to explore sites and validate generated stories |
 | `/claude-tweaks:flow` | Auto-triggers /stories between build and test when UI files change (unless `no-stories`). Uses `dev-url-detection.md` for URL resolution. |
 | `/claude-tweaks:setup` | Step 6 configures the browser backends that /stories depends on (via /browse) |

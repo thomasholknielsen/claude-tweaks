@@ -57,7 +57,7 @@ Flow always uses **subagent** execution strategy — its purpose is hands-off au
 After build completes, flow checks the build output for UI file changes (`.tsx`, `.jsx`, `.vue`, `.svelte`, `.html`, `.css`, or files in component/page directories). If UI files changed and `no-stories` was not specified:
 
 1. Auto-detect the dev server URL using `dev-url-detection.md` from the `/claude-tweaks:stories` skill's directory
-2. Run `/claude-tweaks:stories` with the detected URL
+2. Run `/claude-tweaks:stories` with the detected URL. When journey files exist in `docs/journeys/` (created by `/build` Common Step 6), the stories step ingests them before browsing — the `journey:` field is set on derived stories, source files are inherited from the journey's `files:` frontmatter, and browsing is enrichment rather than fresh discovery for journey-documented pages.
 3. Generated stories feed into `/claude-tweaks:test` (which validates them as part of the test step)
 
 If no UI files changed, or `no-stories` is set, the stories step is skipped.
@@ -386,7 +386,7 @@ For each completed branch (in order):
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:build` | First step in the default pipeline — runs in spec mode or design mode depending on flow input. Sets `VERIFICATION_PASSED=true`. |
-| `/claude-tweaks:stories` | Auto-triggered between build and test when UI files change (unless `no-stories`). Uses `dev-url-detection.md` for URL resolution. |
+| `/claude-tweaks:stories` | Auto-triggered between build and test when UI files change (unless `no-stories`). Ingests journey files from `/build` for journey-aware story generation. Uses `dev-url-detection.md` for URL resolution. |
 | `/claude-tweaks:test` | Mechanical gate between build/stories and review — types, lint, tests, QA. Receives `VERIFICATION_PASSED` from build (skips redundant checks). Sets `TEST_PASSED=true`. |
 | `/claude-tweaks:review` | Analytical gate — receives `TEST_PASSED=true` from test, produces verdict. Runs in **full** mode (code + visual) by default when browser available; code mode fallback otherwise. Never runs verification or QA itself. |
 | `/claude-tweaks:wrap-up` | Final step — receives review output, produces clean slate |

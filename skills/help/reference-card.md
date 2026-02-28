@@ -12,8 +12,8 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/challenge` | Debias assumptions before brainstorming | `quick`, INBOX item, topic |
 | `/specify` | Decompose design doc into agent-sized specs | design doc, topic |
 | `/build` | Implement a spec or design doc | spec #, doc path + `batched`, `worktree` |
-| `/test` | Verification gate — types, lint, tests, QA stories | `types`, `lint`, `unit`, path, `affected`, `qa`, `qa affected`, `all` |
-| `/stories` | Generate or update QA story YAML files | URL (auto-detected if omitted) + `persona=`, `dir=`, `focus=`, `browser=`, `refine=`, `negative=` |
+| `/test` | Verification gate — types, lint, tests, QA stories | `types`, `lint`, `unit`, path, `affected`, `qa`, `qa journey={name}`, `qa affected`, `all` |
+| `/stories` | Generate or update QA story YAML files (journey-aware) | URL (auto-detected if omitted) + `persona=`, `dir=`, `focus=`, `journey=`, `browser=`, `refine=`, `negative=` |
 | `/review` | Analytical quality gate: code review, UX analysis (when QA data available), visual + creative ideas (default in /flow). Gates on /test. | spec #, files + `full`/`visual`/`journey:{name}`/`discover` |
 | `/wrap-up` | Reflect, capture learnings, clean up | spec # |
 
@@ -71,9 +71,11 @@ or standalone:
 
 ### QA pipeline (automatic in /flow)
 ```
-/flow 42                                → stories auto-generated if UI changed, validated in /test step
-/stories                                → auto-detects dev server, generates stories
+/flow 42                                → stories auto-generated if UI changed (journey-aware), validated in /test step
+/stories                                → auto-detects dev server, ingests journeys, generates stories
+/stories journey=checkout               → generate/update stories scoped to the checkout journey
 /test qa                                → validate stories standalone
+/test qa journey=profile-settings       → validate only stories for the profile-settings journey
 /test all                               → full suite + QA stories
 ```
 

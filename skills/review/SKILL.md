@@ -183,13 +183,43 @@ Review changed files through these lenses. Skip lenses that don't apply to the t
 - No test pollution (shared mutable state)?
 - Mocks are minimal and at the right level?
 
+### 3g-cov: Journey-Story Coverage (when journeys and stories exist)
+
+Check coverage between journey files and story YAML files. This lens is informational — coverage gaps do not block the review.
+
+> **Parallel execution:** Use parallel tool calls aggressively — all Read operations on journey files and story YAML files are independent and should run concurrently.
+
+**Skip this lens when** no journey files exist in `docs/journeys/` or no story YAML files exist in the stories directory.
+
+1. Read all journey files from `docs/journeys/*.md`. Parse each for: journey name, step URLs, `files:` frontmatter.
+2. Read all story YAML files from `stories/*.yaml` (or the configured stories directory). Collect the `journey:` field from each story.
+3. Cross-reference:
+   - For each journey, find stories with `journey: {journey-name}`. Count stories and check which journey step URLs are covered.
+   - Identify **orphaned stories** — stories with no `journey:` field, or whose `journey:` value references a non-existent journey file.
+   - For orphaned stories, check their URL against journey step URLs to suggest potential links.
+
+4. Add findings to the code review findings table:
+
+   **Uncovered journey steps:**
+   ```
+   | {N} | Journey '{name}' has {M} uncovered steps ({step numbers}) | Medium | Coverage | docs/journeys/{name}.md | Run `/stories journey={name}` |
+   ```
+
+   **Orphaned stories with journey URL match:**
+   ```
+   | {N} | Story '{id}' matches journey '{name}' but has no `journey:` field | Low | Coverage | stories/{file}.yaml | Add `journey: {name}` |
+   ```
+
+   **Orphaned stories with no match** (informational, not added to findings table):
+   Log: "{N} orphaned stories with no journey match (negative stories or standalone flows)."
+
 ### 3h: UX Analysis (when QA data available)
 
 Run the UX analysis procedure from `ux-analysis.md` in this skill's directory. Only runs when QA screenshots and/or caveats exist from a recent `/claude-tweaks:test qa` or `/claude-tweaks:test all` run. When no QA data is available, skip this lens silently.
 
 ### 3g: Route Code Review Findings
 
-**Every finding from lenses 3a-3h must be explicitly resolved.** When lenses were dispatched as parallel Task agents, merge their results into a single table here: combine all findings, preserve their category labels, and de-duplicate — if two lenses flag the same issue, keep the entry with the higher severity. UX findings from lens 3h are merged into the batch table alongside code review findings with category "UX".
+**Every finding from lenses 3a-3h must be explicitly resolved.** When lenses were dispatched as parallel Task agents, merge their results into a single table here: combine all findings, preserve their category labels, and de-duplicate — if two lenses flag the same issue, keep the entry with the higher severity. UX findings from lens 3h and coverage findings from lens 3g-cov are merged into the batch table alongside code review findings with their respective categories ("UX", "Coverage").
 
 Unresolved QA ledger entries (status `open`, phase `test/qa`) are included in the code review findings table alongside code review findings. Use the category and severity from the ledger entry. This ensures QA failures flow through the same resolution process as code review findings — they must be explicitly fixed, deferred, or accepted before the review can pass.
 
@@ -385,7 +415,7 @@ Present a structured summary covering spec compliance, test results (from `/test
 | `/claude-tweaks:wrap-up` | Runs after /claude-tweaks:review passes — focuses on reflection, cleanup, and knowledge capture. `review/skill` ledger entries from lens 3a and Step 4 feed into wrap-up's skill update analysis (Step 7). |
 | `/claude-tweaks:capture` | /claude-tweaks:review may create INBOX items for new ideas discovered during review |
 | `/claude-tweaks:codebase-onboarding` | Phase 7 delegates to `/review discover` for brownfield journey bootstrapping |
-| `/claude-tweaks:stories` | Generates the YAML stories that /test validates. /review consumes /test results (including QA) via `TEST_PASSED`. |
+| `/claude-tweaks:stories` | Generates the YAML stories that /test validates. /review consumes /test results (including QA) via `TEST_PASSED`. /review also checks journey-to-story coverage in code review lens 3g-cov — uncovered journey steps and orphaned stories are surfaced as informational findings. |
 | `/claude-tweaks:browse` | Used by visual, journey, and discover modes for browser interaction |
 | `/claude-tweaks:setup` | Step 6 configures the browser backends that visual review depends on |
 | `specs/DEFERRED.md` | /claude-tweaks:review routes implementation-related deferrals here (with origin, files, trigger) |

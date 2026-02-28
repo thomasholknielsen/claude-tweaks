@@ -39,6 +39,7 @@ Parse from `$ARGUMENTS` after the `qa` keyword (keyword detection, case-insensit
 | TAG_FILTER | — | `tag=<tag>` | Only run stories with this tag |
 | PRIORITY_FILTER | — | `priority=<level>` | Only run stories at or above threshold (high > medium > low) |
 | RETRY_RUN_DIR | — | `retry=<path>` | Re-run only failed stories from a previous run |
+| JOURNEY_FILTER | — | `journey=<name>` | Only run stories with `journey: <name>` |
 | MAX_PARALLEL | `4` | `max_parallel=N` | Max concurrent Playwright agents per tier. Chrome is always 1. |
 | AGENT_TIMEOUT | `300000` | — | Agent timeout in milliseconds |
 | SCREENSHOTS_BASE | `screenshots/qa` | — | Base directory for screenshots |
@@ -62,6 +63,7 @@ Parse from `$ARGUMENTS` after the `qa` keyword (keyword detection, case-insensit
    - **Retry filter:** If RETRY_RUN_DIR was set, keep only stories whose `id` is in the failed IDs list
    - **Tag filter:** If TAG_FILTER is set, keep only stories that have a `tags` array containing the specified tag
    - **Priority filter:** If PRIORITY_FILTER is set, keep only stories at or above the threshold. Priority ranking: `high` > `medium` > `low`. Stories without `priority` are treated as `medium`.
+   - **Journey filter:** If JOURNEY_FILTER is set, keep only stories that have a `journey` field matching the specified name (exact match, case-insensitive). Stories without a `journey` field are excluded.
 9. If no stories remain after filtering, report and stop
 10. Generate `RUN_DIR`:
     ```bash
@@ -328,7 +330,8 @@ new_string: '    # auto-recovered from: #old-submit-btn\n    selector: "[data-te
   "filters": {
     "tag": "{TAG_FILTER or null}",
     "priority": "{PRIORITY_FILTER or null}",
-    "retry": "{RETRY_RUN_DIR or null}"
+    "retry": "{RETRY_RUN_DIR or null}",
+    "journey": "{JOURNEY_FILTER or null}"
   },
   "summary": {
     "total": N,
@@ -475,6 +478,16 @@ Auto-recovered {N} selector(s) in {M} story file(s). Story YAML files have been 
 **Parallelism factor:** {stories_run / (wall_clock / avg_story_time)}
 
 (Parallelism factor indicates effective concurrency: 1.0 means fully serial, 4.0 means four stories ran in parallel on average. Only stories with PASS, PASS_WITH_CAVEATS, or FAIL status are counted — SKIPPED stories are excluded.)
+
+## Journey Coverage
+
+(Only include when JOURNEY_FILTER was set or when stories with `journey:` fields are present)
+
+| Journey | Stories Run | Passed | Failed | Steps Covered | Status |
+|---------|-----------|--------|--------|---------------|--------|
+| {name} | {N} | {pass} | {fail} | {covered}/{total} | Full / Partial |
+
+(Steps Covered counts how many of the journey's documented step URLs had at least one story exercised against them in this run.)
 
 ## Screenshots
 All screenshots saved to: `{RUN_DIR}/`

@@ -174,6 +174,15 @@ Persistent markdown files in `docs/journeys/` that describe how personas accompl
 
 Each journey tracks its implementing source files via `files:` frontmatter. During `/review`, changed files are checked against all journeys — if a build touches files that an existing journey depends on, the review flags it for visual regression testing.
 
+### Journey-Story Integration
+
+Journeys and stories are connected: `/stories` reads existing journey files before browsing, using them as a skeleton for story design. Stories derived from journeys include a `journey:` field that enables:
+
+- **Filtered execution:** `/test qa journey=checkout` runs only stories for the checkout journey
+- **Coverage tracking:** `/stories` and `/review` report which journey steps have stories and which are uncovered, plus which stories are orphaned (no journey link)
+- **Source file inheritance:** Stories inherit source files from their journey's `files:` frontmatter, extended by component-level files from source analysis
+- **Reduced redundancy:** Journey-documented pages are enriched (capture selectors, verify structure) rather than fully re-discovered from scratch
+
 ### Browser Automation
 
 `/browse` provides unified browser automation that auto-detects the best available backend:
@@ -199,9 +208,11 @@ Stories are **auto-generated** when `/flow` detects UI file changes after build,
 Manual story generation and validation:
 
 ```
-/claude-tweaks:stories                                         → auto-detect dev server, browse site, generate stories
-/claude-tweaks:stories http://localhost:3000                    → explicit URL, browse site, generate stories
+/claude-tweaks:stories                                         → auto-detect dev server, ingest journeys, browse site, generate stories
+/claude-tweaks:stories http://localhost:3000                    → explicit URL, journey-aware generation
+/claude-tweaks:stories journey=checkout                         → generate/update stories scoped to the checkout journey
 /claude-tweaks:test qa                                         → validate all stories against running app
+/claude-tweaks:test qa journey=profile-settings                → validate only stories for the profile-settings journey
 /claude-tweaks:test qa tag=smoke                               → validate smoke tests only
 /claude-tweaks:test qa affected                                → run only stories affected by uncommitted changes
 /claude-tweaks:test qa retry=screenshots/qa/20260210_143022    → re-run only failed stories
