@@ -79,6 +79,14 @@ blocked-by: [{spec numbers or empty}]
 - {e.g., "This mutation needs a transaction — it modifies two tables atomically"}
 - {e.g., "Import shared types from the contracts package, don't redeclare inline"}
 
+## Decision Rationale (optional)
+
+{Absorbed from the design doc. Why this approach was chosen, what alternatives were rejected, and key tradeoffs accepted. Only included in the first spec of a decomposition — subsequent specs reference "See Spec {N} Decision Rationale."}
+
+## Assumptions (optional)
+
+{Absorbed from the brief. Validated assumptions, surfaced blind spots, and hard constraints that shaped this spec. Only included when the brief contains assumptions relevant to this specific spec.}
+
 ## Manual Steps
 
 {Operations a human must perform after this spec is built and merged. Things the pipeline cannot do — only detect.}

@@ -41,7 +41,7 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 | `<spec-or-design-doc>` | Yes | Spec number (e.g., `42`), comma-separated spec numbers (e.g., `42,45,48`), design doc path, or topic name |
 | `worktree` | No | Use worktree git strategy — isolated workspace on a feature branch. See "Parallel Development with Worktrees" below. |
 | `no-stories` | No | Skip automatic story generation even if UI files changed. By default, flow auto-generates stories when the build produces UI file changes. |
-| `[steps]` | No | Comma-separated list of steps to run. Default: `build,test,review,wrap-up` |
+| `[steps]` | No | Step argument(s). Single step = resume from that step onward. Comma-separated steps = run exactly those steps. Default (no steps): `build,test,review,wrap-up` |
 
 Flow always uses **subagent** execution strategy — its purpose is hands-off automation. The `batched` option (which pauses for human review) is not available in flow; use `/claude-tweaks:build batched` directly instead.
 
@@ -65,15 +65,18 @@ If no UI files changed, or `no-stories` is set, the stories step is skipped.
 ### Examples
 
 ```
-/claude-tweaks:flow 42                                              → spec mode: build, test, review, wrap-up (stories auto-generated if UI changed)
-/claude-tweaks:flow 42 worktree                                     → isolated worktree: build, test, review, wrap-up
-/claude-tweaks:flow 42 no-stories                                   → build, test, review, wrap-up (skip stories even if UI changed)
-/claude-tweaks:flow 42,45,48                                        → multi-spec: sequential pipelines in one terminal
+/claude-tweaks:flow 42                                              → full pipeline: build, test, review, wrap-up (stories auto-generated if UI changed)
+/claude-tweaks:flow 42 worktree                                     → isolated worktree: full pipeline
+/claude-tweaks:flow 42 no-stories                                   → full pipeline (skip stories even if UI changed)
+/claude-tweaks:flow 42,45,48                                        → multi-spec: sequential full pipelines in one terminal
 /claude-tweaks:flow 42,45,48 worktree                               → multi-spec sequential, each in its own worktree
-/claude-tweaks:flow docs/plans/2026-02-21-meal-planning-design.md   → design mode: build, test, review, wrap-up
+/claude-tweaks:flow docs/plans/2026-02-21-meal-planning-design.md   → design mode: full pipeline
 /claude-tweaks:flow meal planning                                   → auto-detect: spec or design mode
-/claude-tweaks:flow 42 build,test,review                            → spec mode: build, test, and review only
-/claude-tweaks:flow 42 review,wrap-up                               → review and wrap-up only (already built and tested)
+/claude-tweaks:flow 42 review                                       → resume from review: runs review + wrap-up
+/claude-tweaks:flow 42 test                                         → resume from test: runs test + review + wrap-up
+/claude-tweaks:flow 42 wrap-up                                      → resume from wrap-up only
+/claude-tweaks:flow 42 review,wrap-up                               → explicit subset: runs ONLY review and wrap-up
+/claude-tweaks:flow 42 build,test                                   → explicit subset: runs ONLY build and test
 ```
 
 ## Allowed Steps
@@ -90,10 +93,21 @@ Only automatable skills can be included in the pipeline:
 
 **Not allowed in flow:** `capture`, `challenge`, `specify`, `setup`, `codebase-onboarding`, `tidy`, `help`, `browse` — these require interactive decision-making or are utility skills.
 
-### Step Order
+### Step Arguments
 
-Steps must follow lifecycle order. Invalid orderings are rejected:
+Steps must follow lifecycle order. Invalid orderings are rejected.
 
+| Form | Meaning | Example |
+|------|---------|---------|
+| No steps | Full pipeline | `/flow 42` → build, test, review, wrap-up |
+| Single step | Resume from that step onward | `/flow 42 review` → review, wrap-up |
+| Multiple steps (comma-separated) | Run exactly those steps | `/flow 42 review,wrap-up` → review, wrap-up only |
+
+**Resume mode** (single step argument, no comma) assumes all prior steps completed successfully. The pipeline reads existing context (ledger, `TEST_PASSED`, etc.) from files rather than generating it. If prior context is missing (e.g., no ledger file when resuming from review), the pipeline creates fresh context as needed and notes: "No existing ledger found — creating fresh."
+
+**Explicit subset** (comma-separated steps) runs only the listed steps. Context from skipped prior steps is read from files if available.
+
+**Valid examples:**
 - `build,test,review,wrap-up` — valid (default; stories auto-inserted if UI changed)
 - `build,stories,test,review,wrap-up` — valid (stories always runs regardless of UI changes)
 - `build,test,review` — valid
@@ -104,7 +118,7 @@ Steps must follow lifecycle order. Invalid orderings are rejected:
 - `review,build` — **invalid** (out of order)
 - `wrap-up,review` — **invalid** (out of order)
 
-**Auto-insert `test`:** If `review` is in the step list but `test` is not, auto-insert `test` before `review` and note: "Auto-inserted `test` before `review` — review gates on test passing." This ensures backward compatibility with step lists like `build,review,wrap-up`.
+**Auto-insert `test`:** If `review` is in the step list but `test` is not, auto-insert `test` before `review` and note: "Auto-inserted `test` before `review` — review gates on test passing." This ensures backward compatibility.
 
 ## Gate Behavior
 
@@ -152,7 +166,7 @@ When a gate fails, the pipeline stops immediately. Present:
 
 ### Next Actions
 
-1. `/claude-tweaks:flow {spec} {remaining steps}` — resume after fixing {failed step} **(Recommended)**
+1. `/claude-tweaks:flow {spec} {failed-step}` — resume from {failed step} **(Recommended)**
 2. `/claude-tweaks:{step} {spec}` — run {failed step} manually for more control
 {If test failed:}
 3. `/claude-tweaks:test` — re-verify after fixes
@@ -171,18 +185,12 @@ When a gate fails, the pipeline stops immediately. Present:
    2. Current branch — commit directly, no isolation
    ```
    This is passed through to `/claude-tweaks:build` and controls isolation. Flow always uses `subagent` execution — no prompt needed for execution strategy.
+   If `auto` keyword is present, default to `worktree` without prompting. `auto` can be overridden with explicit `current-branch`.
 4. Validate step list is in lifecycle order. Auto-insert `test` before `review` if `test` is missing from the step list (with a note).
 4. If spec mode: check prerequisites are met (same as `/claude-tweaks:build` Spec Step 1)
 5. If design mode: verify the design doc file exists
 6. If validation fails → **stop before starting**
-8. **Create the open items ledger** at `docs/plans/YYYY-MM-DD-{feature}-ledger.md` — the `{feature}` name matches the execution plan that build will create. This file tracks findings and operational tasks across all pipeline phases. Format:
-   ```markdown
-   # Open Items — {spec title or design topic}
-
-   | # | Phase | Item | Status | Resolution |
-   |---|-------|------|--------|------------|
-   ```
-   Status lifecycle: `open` → `fixed` / `deferred` / `accepted` / `acknowledged` (for `ops` phase items). Each phase appends rows; wrap-up enforces resolution of every item before completing.
+8. **Create the open items ledger** using `/claude-tweaks:ledger`'s create operation. The `{feature}` name matches the execution plan that build will create. This file tracks findings and operational tasks across all pipeline phases. See `/claude-tweaks:ledger` for status lifecycle and phase taxonomy.
 
 ### Step 2: Run Pipeline
 
@@ -200,16 +208,11 @@ For each step in order:
      - **Browser available:** Invoke `/claude-tweaks:review {spec-or-design-doc} full`. The visual review auto-detects the dev server URL using `dev-url-detection.md` from the `/claude-tweaks:stories` skill's directory. When QA data exists from the test step, the visual review consumes page inventories, caveats, and screenshots to enrich its analysis and idea generation.
      - **No browser available:** Invoke `/claude-tweaks:review {spec-or-design-doc}` (code mode). Note in the pipeline output: "Visual review skipped — no browser backend available. To enable, run `/claude-tweaks:setup` and choose browser integration."
    - `review` → `wrap-up` receives the review summary and verdict. Skill observations (`build/skill` and `review/skill` ledger entries) carry forward via the ledger file for wrap-up's skill update analysis (Step 7).
-5. **Ledger carries forward** — each step reads and appends to the open items ledger. Unlike conversation context (which may be compressed), the ledger is a file — it survives context window limits.
+5. **Ledger carries forward** — each step reads and appends to the open items ledger (see `/claude-tweaks:ledger` for all operations). Unlike conversation context (which may be compressed), the ledger is a file — it survives context window limits.
 
 ### Step 3: Present Pipeline Summary
 
-**Nothing-left-behind gate:** Before presenting the summary, read the open items ledger. If any item has status `open`:
-1. Present the open items table
-2. For each open item, determine resolution: fix now, defer (DEFERRED.md with origin/trigger), or accept with stated reason
-3. Update the ledger — no item may remain `open`
-
-The pipeline cannot complete with unresolved items.
+**Nothing-left-behind gate:** Run the resolve gate from `/claude-tweaks:ledger`. If any item has status `open`, present it for resolution -- no item may remain `open`. The pipeline cannot complete with unresolved items.
 
 On successful completion of all steps:
 
@@ -396,3 +399,4 @@ For each completed branch (in order):
 | `/brainstorm` | Produces the design docs that flow consumes in design mode — skipping /specify |
 | `/using-git-worktrees` | Invoked BY flow (when `worktree` specified) to create isolated workspace for each spec |
 | `/finishing-a-development-branch` | Invoked BY flow (when `worktree` specified) at handoff to merge, PR, or discard each feature branch |
+| `/claude-tweaks:ledger` | Manages the open items ledger. /flow creates the ledger (Step 1), carries it across phases, and runs the resolve gate (Step 3). |

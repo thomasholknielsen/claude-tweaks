@@ -260,11 +260,15 @@ If any findings are "Fix now", make the changes, re-run `/claude-tweaks:test`, a
 
 > **Parallel execution (conditional):** When there are 3+ "Fix now" findings across different files with no shared file dependencies, dispatch fixes as parallel agents using the `/dispatching-parallel-agents` pattern — one agent per independent fix domain. Each agent gets: specific file scope, finding details, constraint to not modify other files. Returns summary of changes. After all agents complete, check for conflicts between agent changes, then re-run `/claude-tweaks:test`. When fixes overlap files or there are fewer than 3 findings, fix sequentially in the main thread.
 
-**Write all findings to the open items ledger** (`docs/plans/*-ledger.md` for this work). Status: `open` for "Fix now" items, `deferred` for items routed to DEFERRED.md, `accepted` for "Don't fix" items (with reason). After fixing, update status to `fixed`.
+**Write all findings to the open items ledger** (see `/claude-tweaks:ledger`). Use the appropriate `review/*` phase. Status: `open` for "Fix now" items, `deferred` for DEFERRED.md routes, `accepted` for "Don't fix" items (with reason). After fixing, update status to `fixed`.
 
 > **Routing bias:** Fix it now — always the recommended default, regardless of severity. Defer when the fix is understood but bigger and not relevant now. Capture to INBOX when the finding needs exploration before it can be acted on. The goal is to close gaps early, not accumulate a backlog.
 
-**Wait for resolution.** Present the code review findings table and wait for the user's response before proceeding to Step 4. Even if there are no "Fix now" items, present the table (or note "No findings") in one message, then present hindsight findings in the next message. Never combine Steps 3g and 4 into a single response.
+**Wait for resolution.** When code review findings exist, present the findings table and wait for the user's response before proceeding to Step 4.
+
+**Auto-advance on zero findings:** When there are zero code review findings AND zero unresolved QA ledger entries (`open` items with phase `test/qa`), auto-advance to Step 4 without waiting for user input. Present "No code review findings" as a note within the Step 4 hindsight message.
+
+**Small batch consolidation:** When total findings across Steps 3g and 4 combined are 5 or fewer items, consolidate into a single batch table with a "Type" column (`Code Review` / `Hindsight`) instead of two sequential tables. This saves one interaction. When more than 5 total, present sequentially (one per message) to keep each decision manageable.
 
 ---
 
@@ -305,7 +309,7 @@ Present all findings as a batch:
 
 If any findings are **"Change now"**, make the changes, re-run `/claude-tweaks:test`, and resume.
 
-**Write all hindsight findings to the open items ledger.** Status: `open` for "Change now" items; update to `fixed` after making changes.
+**Write all hindsight findings to the open items ledger** (see `/claude-tweaks:ledger`) with phase `review/hindsight`. Status: `open` for "Change now" items; update to `fixed` after making changes.
 
 If no hindsight findings, state "No changes needed — approach is sound" and proceed.
 
@@ -421,3 +425,4 @@ Present a structured summary covering spec compliance, test results (from `/test
 | `specs/DEFERRED.md` | /claude-tweaks:review routes implementation-related deferrals here (with origin, files, trigger) |
 | `/claude-tweaks:flow` | Invokes /review in **full** mode by default (code + visual). Flow handles browser detection and falls back to code mode when no browser backend is available. |
 | `/dispatching-parallel-agents` | Used BY /claude-tweaks:review (conditional) to dispatch 3+ independent fix-now findings as parallel agents |
+| `/claude-tweaks:ledger` | Manages the open items ledger. /review appends findings (Step 3g) and hindsight (Step 4) using `review/*` phases. |

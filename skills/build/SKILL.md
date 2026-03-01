@@ -52,6 +52,8 @@ Two orthogonal choices control how `/build` runs. Combine them freely:
 /claude-tweaks:build 42 worktree           → subagent + worktree feature branch
 /claude-tweaks:build 42 batched            → human-reviewed batches + current branch
 /claude-tweaks:build 42 batched worktree   → human-reviewed batches + worktree
+/claude-tweaks:build 42 auto                    → subagent + worktree, no confirmations
+/claude-tweaks:build 42 auto current-branch     → subagent + current-branch, no confirmations
 ```
 
 ### Default resolution
@@ -64,6 +66,7 @@ Two orthogonal choices control how `/build` runs. Combine them freely:
    git-strategy: current-branch
    ```
 3. Fallback — `subagent` + `current-branch`
+4. `auto` keyword — skip intermediate confirmation prompts. Defaults to `subagent` + `worktree` (overridable with explicit `current-branch`). Architecture alignment (Common Step 4.5) auto-routes "Beneficial" deviations (update spec silently). Only stops for genuinely ambiguous deviations or critical decisions.
 
 ### Execution strategy behavior
 
@@ -92,7 +95,7 @@ Two orthogonal choices control how `/build` runs. Combine them freely:
 
 ## Input
 
-`$ARGUMENTS` = spec number, design doc path, or topic name — optionally followed by execution strategy (`batched`) and/or git strategy (`worktree`).
+`$ARGUMENTS` = spec number, design doc path, or topic name — optionally followed by execution strategy (`batched`), git strategy (`worktree`), and/or `auto`.
 
 ### Resolve the input:
 
@@ -178,9 +181,7 @@ Proceed to Spec Step 3.
 
 ### Spec Step 2.5: Seed Manual Steps
 
-If the spec has a "Manual Steps" section, write each item to the open items ledger with phase `ops` and status `open`. These represent human tasks the pipeline cannot resolve — they're carried through and surfaced in the final summary.
-
-If the ledger doesn't exist yet, create it at `docs/plans/YYYY-MM-DD-{feature}-ledger.md`.
+If the spec has a "Manual Steps" section, write each manual step to the open items ledger (see `/claude-tweaks:ledger`) with phase `ops` and status `open`. These represent human tasks the pipeline cannot resolve — they're carried through and surfaced in the final summary. If the ledger doesn't exist, create it using the ledger skill's create operation.
 
 ### Spec Step 3: Create the Plan
 
@@ -274,7 +275,7 @@ If the execution skill (or `/write-plan` in Step 3) fails:
 
 | Failure | Recovery |
 |---------|----------|
-| **Not installed** (command not found) | Stop. Tell the user: "Superpowers plugin is required. Install: `/plugin marketplace add obra/superpowers-marketplace` then `/plugin install superpowers@superpowers-marketplace`" |
+| **Not installed** (command not found) | Stop. Tell the user: "Superpowers plugin is required. Install: `/plugin install superpowers@claude-plugins-official`" |
 | **Timeout or partial output** | Re-run the specific step that failed. If write-plan timed out, re-invoke it with the same context. If `subagent-driven-development` or `executing-plans` timed out mid-task, check which tasks completed (scan git log) and resume from the next incomplete task. |
 | **Malformed plan** (write-plan produced output that the execution skill can't parse) | Re-run `/write-plan` with the same context. If it fails again, fall back to manual planning: break the spec into 3-5 implementation tasks, present them to the user, and implement each task directly without the Superpowers execution chain. |
 | **Subagent failures** (individual tasks fail within `subagent-driven-development`) | Let the skill's built-in retry handle it first. If the task fails repeatedly, implement that task directly in the main thread and continue. |
@@ -318,7 +319,7 @@ If any part of the plan is blocked (missing infrastructure, unresolved dependenc
    - **Spec mode:** add to the spec file under a "Blocked / Future Work" section
    - **Design mode:** create an INBOX entry via `/claude-tweaks:capture`
 2. Note what unblocks them
-3. Append blocked items to the open items ledger with status `open`
+3. Append blocked items to the open items ledger (see `/claude-tweaks:ledger`) with phase `build/*` and status `open`
 4. These will be picked up by `/claude-tweaks:help` when scanning for actionable work
 
 ### Common Step 4.5: Architecture Alignment Check
@@ -340,6 +341,8 @@ Deviation: {what the spec said vs. what was built}
 ```
 
 "Beneficial" deviations still require action — update the spec and document why. Don't just "note it" — that loses the insight.
+
+**In `auto` mode:** "Beneficial" deviations are auto-routed — update the spec silently and document the improvement in the commit message. "Fix now" and "Update the spec" deviations still require user input even in `auto` mode.
 
 **Skip this step if:**
 - Design mode with no formal spec (no stated architecture to compare against)
@@ -376,7 +379,7 @@ After verification passes, check for operational tasks that are easy to forget. 
 | New environment variables | Grep changed files for new `process.env.*` or env access patterns | Check `.env.example` (or equivalent) includes the new variable. Add if missing. |
 | New package exports | `package.json` `exports` field changed | Run the package build to verify exports resolve correctly. |
 
-Append each Category A finding to the open items ledger (`docs/plans/*-ledger.md` for this work). Resolve immediately — these are operational, not design decisions. Update status to `fixed` after each.
+Append each Category A finding to the open items ledger (see `/claude-tweaks:ledger`) with the appropriate phase. Resolve immediately — update status to `fixed` after each.
 
 #### Category B — Requires human action
 
@@ -389,11 +392,9 @@ Append each Category A finding to the open items ledger (`docs/plans/*-ledger.md
 | New secrets/API keys referenced | New `*_API_KEY`, `*_SECRET`, `*_TOKEN` patterns in env access | "Provision `{KEY_NAME}` from the relevant service" |
 | Docker/container config changes | Changed `Dockerfile*`, `docker-compose*`, `*.containerfile` | "Rebuild container images — `{files changed}`" |
 
-Append each Category B finding to the ledger with phase `ops` and status `open`. De-duplicate against existing `ops` ledger entries from Spec Step 2.5.
+Append each Category B finding to the open items ledger (see `/claude-tweaks:ledger`) with phase `ops` and status `open`. De-duplicate against existing `ops` items.
 
-Category B items are NOT resolved immediately — they carry through to the final summary. Their status stays `open` until acknowledged by the user in wrap-up (Step 9.5).
-
-If the ledger doesn't exist (standalone build without `/claude-tweaks:flow`), create it at `docs/plans/YYYY-MM-DD-{feature}-ledger.md`.
+Category B items are NOT resolved immediately — they carry through to the final summary. Category B items stay `open` until acknowledged by the user in wrap-up (Step 9.5).
 
 ### Common Step 6: User Journey Capture
 
@@ -593,3 +594,4 @@ These apply in **subagent** execution strategy. In **batched** strategy, autonom
 | `/claude-tweaks:wrap-up` | Runs AFTER /claude-tweaks:review — cleans up and captures learnings. `build/skill` ledger entries from Step 4.5 feed into wrap-up's skill update analysis (Step 7). |
 | `/claude-tweaks:capture` | Design mode may create INBOX items for blocked work |
 | `/claude-tweaks:tidy` | Reviews specs from /claude-tweaks:build for staleness — periodic cleanup complement |
+| `/claude-tweaks:ledger` | Manages the open items ledger file. /build creates and appends items during Steps 2.5, 4, 4.5, and 5.5. |

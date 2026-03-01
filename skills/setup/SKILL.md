@@ -35,7 +35,7 @@ Check if installed — use the Glob tool to search for *superpowers* under the u
 
 If missing, install:
 ```bash
-claude plugins add obra/superpowers-marketplace
+/plugin install superpowers@claude-plugins-official
 ```
 
 ### Required: Code Simplifier

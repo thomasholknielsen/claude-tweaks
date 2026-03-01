@@ -178,6 +178,15 @@ Tier labels are project-specific. Common patterns:
 
 Adapt tiers to your project's roadmap structure.
 
+### Design Context Preservation
+
+Before deleting the design doc and brief, absorb key context into the specs so it survives:
+
+1. **Decision Rationale** — from the design doc, extract the "why" behind major decisions (approach choices, technology selections, rejected alternatives). Add as a `## Decision Rationale` section in the first spec of the decomposition.
+2. **Assumptions & Constraints** — from the brief (produced by `/claude-tweaks:challenge`), extract validated assumptions, surfaced blind spots, and hard constraints. Add as an `## Assumptions` section in each spec where the assumptions are relevant.
+
+This ensures specs are self-contained — a developer reading spec 73 understands *why* the approach was chosen without needing the deleted design doc.
+
 ## Step 5: Delete Consumed Artifacts
 
 The design doc and brainstorming brief have served their purpose. All decisions, rationale, assumptions, and constraints have been absorbed into the spec files.

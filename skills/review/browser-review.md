@@ -18,6 +18,16 @@ Use the `/claude-tweaks:browse` skill's operation mapping table for all browser 
 
 Journey mode is the richer review — it has defined personas, goals, and experiential expectations at every step. Page mode is useful for quick checks or pages that aren't part of a defined journey yet. Discover mode is for brownfield projects that need journey coverage bootstrapped.
 
+### Dev URL Resolution
+
+Before prompting for a URL, check the persisted config:
+
+1. Read `stories/auth.yml` — if `servers.default.url` exists, probe it
+2. If it responds → use it silently (no prompt needed)
+3. If it doesn't respond or no config exists → run the dev URL detection procedure from `dev-url-detection.md` in the `/claude-tweaks:stories` skill's directory (which will persist the result for future runs)
+
+This eliminates the "Enter URL" prompt on subsequent runs when the dev server is running at the same address.
+
 ### Ensure the app is running
 
 Before navigating, confirm the application is accessible. If the URL doesn't respond, ask the user:

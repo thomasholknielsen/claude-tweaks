@@ -1,14 +1,26 @@
 # Dev URL Detection
 
-Shared procedure for auto-detecting a running development server. Referenced by `/claude-tweaks:stories`, `/claude-tweaks:test`, and `/claude-tweaks:flow`.
+Shared procedure for auto-detecting a running development server. Checks persisted config first, then probes ports. Persists detected URLs for future runs. Referenced by `/claude-tweaks:stories`, `/claude-tweaks:test`, and `/claude-tweaks:flow`.
 
 ## When This Runs
 
 - `/claude-tweaks:stories` is invoked without a URL argument
 - `/claude-tweaks:test` runs QA story validation and needs a dev server
 - `/claude-tweaks:flow` triggers automatic story generation after detecting UI changes
+- `/claude-tweaks:review` needs a dev URL for visual, journey, or discover modes
 
 ## Procedure
+
+### Step 0: Check Persisted Config
+
+Before probing ports, check if a URL was previously detected and persisted:
+
+1. Read `stories/auth.yml` (or `{STORIES_DIR}/auth.yml`) using the Glob tool to check existence first
+2. If file exists and has a `servers.default.url` entry:
+   a. Probe the persisted URL with the same HTTP check used in Step 1
+   b. If it responds (2xx or 3xx) → use it. Set `APP_URL = {persisted URL}`. Log: "Using persisted dev URL: {url}". Skip Steps 1-2.
+   c. If it doesn't respond → log: "Persisted URL {url} not responding — probing ports..." and continue to Step 1
+3. If no file or no `servers` section → continue to Step 1
 
 ### Step 1: Probe Common Ports
 
@@ -63,6 +75,23 @@ This procedure sets two variables for the calling skill:
 |----------|-------|
 | `APP_URL` | The detected or user-provided URL (e.g., `http://localhost:3000`) |
 | `SERVER_STARTED` | `true` if this procedure started the server, `false` otherwise |
+
+### Step 4: Persist Result
+
+After resolving `APP_URL`, persist it for future runs:
+
+1. Read `stories/auth.yml` (or `{STORIES_DIR}/auth.yml`). If missing, create an empty YAML file.
+2. Set (or update) `servers.default.url` to the resolved `APP_URL`
+3. Set `servers.default.detected` to today's date
+4. If a start command was discovered in Step 2 (from CLAUDE.md or package.json), set `servers.default.start_command`
+5. Write back to `stories/auth.yml`, preserving existing `profiles` and other `servers` entries
+
+If the file was created for the first time, check `.gitignore` for `stories/auth.yml` (or `{STORIES_DIR}/auth.yml`). If not present, offer to add it:
+```
+Add stories/auth.yml to .gitignore? This file contains credentials and server config and should not be committed.
+1. Yes (Recommended)
+2. No — I manage .gitignore manually
+```
 
 ### Cleanup
 

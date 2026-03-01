@@ -167,7 +167,7 @@ PASS_WITH_CAVEATS counts as passed for the `TEST_PASSED` gate — caveats are in
 
 When selectors are auto-recovered during QA execution, the report includes a "Recovered Selectors" summary showing the original and recovered selector for each affected step. The story YAML files have already been updated by the orchestrator (qa-review.md Phase 4.5) — no manual YAML editing is needed. Auto-recovered selectors are classified as `stale-selector` with status `auto-fixed` in the findings table.
 
-After presenting QA results, write QA findings and observations to the open items ledger (see `qa-review.md` Phase 5.5 in the `/claude-tweaks:review` skill's directory). Findings from failures get status `open` and block the pipeline. Observations from PASS_WITH_CAVEATS stories get status `observation` with severity `Info` — they are informational and do not block the pipeline.
+After presenting QA results, write QA findings and observations to the open items ledger (see `/claude-tweaks:ledger`) with phase `test/qa`. See `qa-review.md` Phase 5.5 in the `/claude-tweaks:review` skill's directory for finding vs observation classification. Findings from failures get status `open` and block the pipeline. Observations from PASS_WITH_CAVEATS stories get status `observation` with severity `Info` — they are informational and do not block the pipeline.
 
 ### All mode result
 
@@ -234,7 +234,7 @@ If the user chooses to fix:
 - Re-run the failed checks to verify
 - Report the results
 
-**Do NOT auto-fix without asking.** Even simple fixes can mask deeper issues.
+**Auto-fix for lint/type-only failures:** When failures are exclusively lint errors or type errors (no test failures), auto-fix and re-verify without asking. State: "Auto-fixing {N} lint/type errors" and re-run the failed checks. If re-verification passes, proceed. If re-verification fails or new issues appear, stop and present the 3-option choice above. For test failures or mixed failure types (lint + test), always present the choice.
 
 **QA failures** are not auto-fixable — they indicate broken user-facing behavior that requires investigation. For QA failures:
 
@@ -250,7 +250,7 @@ If the user chooses to fix:
 | Pattern | Why It Fails |
 |---------|-------------|
 | Running the full suite when only types were requested | Respect the scope — the user asked for a targeted check |
-| Auto-fixing failures without asking | Simple failures can mask deeper issues — always ask first |
+| Auto-fixing test failures without asking | Test failures can mask deeper issues — lint/type auto-fix with re-verification is safe, but test failures need investigation |
 | Skipping CLAUDE.md command lookup | Projects have specific test commands — don't guess |
 | Running tests before type checking | Type errors often cause test failures — fail fast with the cheapest check |
 | Ignoring lint warnings | Warnings accumulate into a noisy codebase — surface them |
@@ -267,3 +267,4 @@ If the user chooses to fix:
 | `/claude-tweaks:stories` | /stories generates the YAML stories that /test qa validates. Stories with a `journey:` field can be filtered with `/test qa journey={name}`. Also provides `dev-url-detection.md` for URL resolution. |
 | `/claude-tweaks:flow` | /flow chains build → [stories →] test → review → wrap-up. /test is the mechanical gate between build/stories and review. |
 | `/claude-tweaks:help` | /help can recommend /test when code changes exist but no review is warranted |
+| `/claude-tweaks:ledger` | Manages the open items ledger. /test appends QA findings and observations with phase `test/qa`. |

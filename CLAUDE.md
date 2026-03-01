@@ -2,7 +2,7 @@
 
 ## What this is
 
-A Claude Code plugin (v3.12.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation and QA pipeline support. This is not a code application — it's a system of prompts organized as skills.
+A Claude Code plugin (v3.13.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation and QA pipeline support. This is not a code application — it's a system of prompts organized as skills.
 
 ## Stack
 
@@ -25,10 +25,10 @@ README.md                         → User-facing documentation
 LICENSE                           → MIT
 ```
 
-### Skill directories (14 total)
+### Skill directories (15 total)
 
 **Lifecycle:** setup, codebase-onboarding, capture, challenge, specify, build, test, stories, review, wrap-up
-**Utility:** help, tidy, flow, browse
+**Utility:** help, tidy, flow, browse, ledger
 
 ### Skills with sub-files
 

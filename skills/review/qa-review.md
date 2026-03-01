@@ -505,32 +505,13 @@ All screenshots saved to: `{RUN_DIR}/`
 
 ## Phase 5.5: Ledger Integration
 
-After reporting, write QA findings and observations to the open items ledger so they flow through `/claude-tweaks:review` and `/claude-tweaks:wrap-up`.
+After reporting, write findings and observations to the open items ledger (see `/claude-tweaks:ledger`) with phase `test/qa`. Findings from failures get status `open`. Observations from PASS_WITH_CAVEATS get status `observation`.
 
-30. **Locate the ledger:**
-    - Check for an existing ledger file matching `docs/plans/*-ledger.md` (e.g., from `/claude-tweaks:flow` or `/claude-tweaks:build`).
-    - If running inside a `/claude-tweaks:flow` pipeline, the ledger was created at pipeline start — use that file.
-    - If running standalone and no ledger exists, create `docs/plans/{YYYY-MM-DD}-qa-ledger.md` with the standard ledger table header:
-      ```markdown
-      # QA Open Items Ledger
+30. **Write finding entries:** For each item in the `findings[]` array (from the report), add an item to the ledger with phase `test/qa`, the finding description (including `[story: {story_id}, category: {category}]`), severity from the finding, and status `open`. These represent failures that must be resolved before the pipeline completes.
 
-      | # | Phase | Finding | Severity | Status | Resolution |
-      |---|-------|---------|----------|--------|------------|
-      ```
+31. **Write caveat entries:** For each item in the `caveats[]` array (from the report), add an item to the ledger with phase `test/qa`, the observation text (including `[story: {story_id}]`), severity `Info`, and status `observation`. These are informational and do not block the pipeline.
 
-31. **Write finding entries:** For each item in the `findings[]` array (from the report), append a row to the ledger table:
-    ```markdown
-    | {N} | test/qa | {finding} [story: {story_id}, category: {category}] | {severity} | open | — |
-    ```
-    These entries have status `open` and represent failures that must be resolved before the pipeline completes.
-
-32. **Write caveat entries:** For each item in the `caveats[]` array (from the report), append a row to the ledger table:
-    ```markdown
-    | {N} | test/qa | {observation} [story: {story_id}] | Info | observation | — |
-    ```
-    These entries have status `observation` and severity `Info`. They are informational and do not block the pipeline.
-
-33. **Dedup:** Before writing each entry, check whether a ledger entry for the same story ID and finding text already exists (from a previous QA run). If a matching entry exists, do not create a duplicate — leave the existing entry in place. Match by story ID and finding content, not by exact string comparison (minor wording differences across runs should still be detected as duplicates).
+32. **Dedup:** Before writing each entry, check whether a ledger entry for the same story ID and finding text already exists (from a previous QA run). If a matching entry exists, do not create a duplicate — leave the existing entry in place. Match by story ID and finding content, not by exact string comparison (minor wording differences across runs should still be detected as duplicates).
 
 ## Gate for /flow
 

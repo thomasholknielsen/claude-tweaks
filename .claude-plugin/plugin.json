@@ -1,7 +1,7 @@
 {
   "name": "claude-tweaks",
   "description": "A structured workflow system for Claude Code — from idea capture through build, review, and wrap-up. Includes browser automation and QA pipeline.",
-  "version": "3.12.0",
+  "version": "3.13.0",
   "author": {
     "name": "Thomas Holk Nielsen",
     "url": "https://github.com/thomasholknielsen"
@@ -9,5 +9,6 @@
   "repository": "https://github.com/thomasholknielsen/claude-tweaks",
   "license": "MIT",
   "keywords": ["workflow", "productivity", "specs", "planning", "code-review", "browser", "automation", "playwright", "testing", "qa"],
+  "dependsOn": ["superpowers@claude-plugins-official"],
   "agents": ["./agents/qa-agent.md"]
 }

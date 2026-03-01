@@ -228,7 +228,7 @@ For each page visited during exploration, check JOURNEY_URL_INDEX:
 If any discovered page requires authentication:
 
 1. Check for `{OUTPUT_DIR}/auth.yml` using the Glob tool.
-2. **Config exists:** Read the file, parse profiles. Log: "Auth config found: {N} profile(s) ({profile names})."
+2. **Config exists:** Read the file, parse profiles. Log: "QA config found: {N} profile(s) ({profile names})."
 3. **Config missing — discover credentials in the project:**
 
    > **Parallel execution:** Use parallel tool calls aggressively — all Glob and Read operations below are independent and should run concurrently.
@@ -268,20 +268,27 @@ If any discovered page requires authentication:
    b. For each additional profile, ask for URL (default: same as default), username, password.
    c. Write `{OUTPUT_DIR}/auth.yml`:
       ```yaml
-      # Auth profiles for QA stories (gitignored — do not commit)
+      # QA and browser config (gitignored — do not commit)
+      servers:
+        default:
+          url: http://localhost:3000
+          detected: 2026-02-28
+          start_command: npm run dev
       profiles:
         default:
           url: /login
           username: admin@example.com
           password: test1234
       ```
+
+      The `servers` section is auto-populated by the dev URL detection procedure (`dev-url-detection.md`). When a dev URL is detected or provided, it's persisted here so subsequent runs skip port probing. The `detected` date tracks freshness. The `start_command` is auto-populated from CLAUDE.md or package.json if available.
    d. Check `.gitignore` for `{OUTPUT_DIR}/auth.yml`. If not present, offer to add it:
       ```
       Add {OUTPUT_DIR}/auth.yml to .gitignore? This file contains credentials and should not be committed.
       1. Yes (Recommended)
       2. No — I manage .gitignore manually
       ```
-   e. Log: "Auth config created: {OUTPUT_DIR}/auth.yml ({N} profile(s)). Stories will reference profiles by name."
+   e. Log: "QA config created: {OUTPUT_DIR}/auth.yml ({N} profile(s)). Stories will reference profiles by name."
 
 ### URL-to-Source-File Mapping
 

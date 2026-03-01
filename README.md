@@ -36,8 +36,7 @@ Inside Claude Code:
 The workflow system depends on the **Superpowers** plugin for brainstorming, planning, and subagent-driven development.
 
 ```
-/plugin marketplace add obra/superpowers-marketplace
-/plugin install superpowers@superpowers-marketplace
+/plugin install superpowers@claude-plugins-official
 ```
 
 ### Step 3: Bootstrap a project
@@ -72,7 +71,7 @@ This will:
 | 3 | `/claude-tweaks:capture` | Brain-dump ideas into INBOX |
 | 4 | `/claude-tweaks:challenge` | Debias a problem statement before brainstorming |
 | 5 | `/claude-tweaks:specify` | Decompose design doc into agent-sized specs with implicit dependency detection |
-| 6 | `/claude-tweaks:build` | Implement a spec end-to-end (subagent/batched execution, current-branch/worktree git strategy) |
+| 6 | `/claude-tweaks:build` | Implement a spec end-to-end (subagent/batched execution, current-branch/worktree git strategy, `auto` mode) |
 | 6b | `/claude-tweaks:test` | Verification gate — types, lint, tests, QA story validation |
 | 6c | `/claude-tweaks:stories` | Generate or update QA story YAML files by browsing a site (auto-triggered by /flow on UI changes) |
 | 7 | `/claude-tweaks:review` | Analytical quality gate — code review + visual browser review with idea generation (automatic in /flow when browser available). Gates on /test passing. |
@@ -84,8 +83,9 @@ This will:
 |---------|---------|
 | `/claude-tweaks:help` | Quick reference, workflow status dashboard, recommendations |
 | `/claude-tweaks:tidy` | Batch backlog hygiene with cross-spec pattern detection |
-| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review (full mode with visual + ideas when browser available) → wrap-up |
+| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → wrap-up. Resume with `/flow 42 review`. |
 | `/claude-tweaks:browse` | Unified browser automation — playwright-cli or Chrome MCP |
+| `/claude-tweaks:ledger` | Open items tracking — create, query, resolve ledger entries across pipeline phases |
 
 ## Common Workflows
 
@@ -105,6 +105,13 @@ This will:
 
 ```
 /claude-tweaks:flow 42
+```
+
+Resume a pipeline from a specific step:
+
+```
+/claude-tweaks:flow 42 review              → resume from review onward (review + wrap-up)
+/claude-tweaks:flow 42 test                → resume from test onward (test + review + wrap-up)
 ```
 
 Or run multiple specs sequentially in one terminal:
@@ -152,6 +159,8 @@ Two orthogonal choices: **execution strategy** (subagent/batched) and **git stra
 /claude-tweaks:build 42 worktree           → subagent + worktree feature branch
 /claude-tweaks:build 42 batched            → human-reviewed batches + current branch
 /claude-tweaks:build 42 batched worktree   → human-reviewed batches + worktree
+/claude-tweaks:build 42 auto               → subagent + worktree, no confirmations
+/claude-tweaks:build 42 auto current-branch → subagent + current branch, no confirmations
 ```
 
 ### Review Modes
@@ -312,7 +321,7 @@ Open Items Ledger ── tracks findings across all phases ── resolved + del
 
 | Plugin / Tool | Source | Required for |
 |---------------|--------|-------------|
-| [Superpowers](https://github.com/obra/superpowers) | [`obra/superpowers-marketplace`](https://github.com/obra/superpowers-marketplace) | `/brainstorm`, `/write-plan`, `/subagent-driven-development`, `/executing-plans`, `/using-git-worktrees`, `/finishing-a-development-branch`, `/dispatching-parallel-agents` |
+| [Superpowers](https://github.com/obra/superpowers) | `claude-plugins-official` (built-in) | `/brainstorm`, `/write-plan`, `/subagent-driven-development`, `/executing-plans`, `/using-git-worktrees`, `/finishing-a-development-branch`, `/dispatching-parallel-agents` |
 | code-simplifier | Built-in subagent | Code simplification in `/review` and `/build` |
 | playwright-cli | `npm install -g @playwright/cli@latest` | `/browse`, `/stories`, `/test qa` (optional — Chrome MCP is an alternative) |
 | Chrome MCP | Chrome extension + `claude --chrome` | `/browse` Chrome backend (optional — playwright-cli is the recommended default) |

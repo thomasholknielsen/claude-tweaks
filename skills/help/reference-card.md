@@ -11,7 +11,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/capture` | Brain-dump idea into INBOX | idea text |
 | `/challenge` | Debias assumptions before brainstorming | `quick`, INBOX item, topic |
 | `/specify` | Decompose design doc into agent-sized specs | design doc, topic |
-| `/build` | Implement a spec or design doc | spec #, doc path + `batched`, `worktree` |
+| `/build` | Implement a spec or design doc | spec #, doc path + `auto`, `batched`, `worktree` |
 | `/test` | Verification gate — types, lint, tests, QA stories | `types`, `lint`, `unit`, path, `affected`, `qa`, `qa journey={name}`, `qa affected`, `all` |
 | `/stories` | Generate or update QA story YAML files (journey-aware) | URL (auto-detected if omitted) + `persona=`, `dir=`, `focus=`, `journey=`, `browser=`, `refine=`, `negative=` |
 | `/review` | Analytical quality gate: code review, UX analysis (when QA data available), visual + creative ideas (default in /flow). Gates on /test. | spec #, files + `full`/`visual`/`journey:{name}`/`discover` |
@@ -23,8 +23,9 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 |---------|-------------|-------|
 | `/help` | Dashboard: commands + status + recommendations | `status`, `commands`, spec/topic |
 | `/tidy` | Batch backlog hygiene | — |
-| `/flow` | Automated pipeline: build → [stories →] test → review → wrap-up | spec #(s), doc path + `worktree` `no-stories` `[steps]` |
+| `/flow` | Automated pipeline: build → [stories →] test → review → wrap-up | spec #(s), doc path + `auto` `worktree` `no-stories` `[step]` (single = resume) |
 | `/browse` | Unified browser automation (utility) | URL or task + `browser=`, `headless`, `vision` |
+| `/ledger` | Open items tracking — query, resolve ledger entries | *(none)*, `resolve`, `{feature-name}` |
 
 ## Common Workflows
 
@@ -42,6 +43,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 ### Fast pipeline (spec ready)
 ```
 /flow 42
+/flow 42 review              → resume from review onward
 ```
 
 ### Visual QA after build

@@ -52,7 +52,7 @@ These run in order — each skill feeds into the next.
 | 3 | `/claude-tweaks:capture` | Brain-dump ideas into INBOX | idea text |
 | 4 | `/claude-tweaks:challenge` | Debias a problem statement before brainstorming | `quick`, INBOX item, topic |
 | 5 | `/claude-tweaks:specify` | Decompose a design doc into agent-sized specs | design doc path, topic, INBOX ref |
-| 6 | `/claude-tweaks:build` | Implement a spec or design doc end-to-end | spec number, design doc path, topic + optional `batched`, `worktree` |
+| 6 | `/claude-tweaks:build` | Implement a spec or design doc end-to-end | spec number, design doc path, topic + optional `auto`, `batched`, `worktree` |
 | 6b | `/claude-tweaks:test` | Verification gate — types, lint, tests, QA story validation | `types`, `lint`, `unit`, file path, `affected`, `qa`, `qa journey={name}`, `qa affected`, `all` |
 | 6c | `/claude-tweaks:stories` | Generate or update QA story YAML files by browsing a site (journey-aware when journey files exist) | URL + `persona=`, `dir=`, `focus=`, `journey=`, `browser=`, `refine=`, `negative=` |
 | 7 | `/claude-tweaks:review` | Analytical quality gate — code review, UX analysis (when QA data available), visual browser review with idea generation (default in /flow when browser available). Gates on /test passing. | spec number, file paths + `full`, `visual`, `journey:{name}`, `discover` |
@@ -66,8 +66,9 @@ For a concise one-page reference, read `reference-card.md` in this skill's direc
 |---------|---------|---------|
 | `/claude-tweaks:help` | This dashboard — commands, status, recommendations | `status`, `commands`, spec/topic |
 | `/claude-tweaks:tidy` | Periodic backlog hygiene | — |
-| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → wrap-up | spec number(s) (comma-separated for sequential), design doc path, or topic + `worktree` `no-stories` `[steps]` |
+| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → wrap-up | spec number(s) (comma-separated for sequential), design doc path, or topic + `auto` `worktree` `no-stories` `[step]` (single step = resume from that step onward) |
 | `/claude-tweaks:browse` | Unified browser automation (utility) | URL or task description + `browser=`, `headless`, `vision` |
+| `/claude-tweaks:ledger` | Open items tracking — create, query, resolve ledger entries | *(none)* for status, `resolve` for nothing-left-behind gate, `{feature-name}` for specific ledger |
 
 ### Superpowers (External Plugin)
 
@@ -263,3 +264,4 @@ For a detailed explanation of how context flows between skills via artifacts, re
 | `/claude-tweaks:flow` | /claude-tweaks:help lists /claude-tweaks:flow as an automation option for ready specs |
 | `/claude-tweaks:browse` | Utility skill — /claude-tweaks:help lists it in the utility skills table |
 | `/claude-tweaks:stories` | Lifecycle skill — /claude-tweaks:help lists it between /test and /review |
+| `/claude-tweaks:ledger` | Utility skill — /claude-tweaks:help lists it in the utility skills table and scans for active ledgers with open items |

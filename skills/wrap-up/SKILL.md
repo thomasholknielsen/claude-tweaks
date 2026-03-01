@@ -111,6 +111,8 @@ Present all insights as a batch:
 2. Override specific items (tell me which #s to change)
 ```
 
+**Auto-apply when uniform:** When ALL reflection insights are "Implement now" (none are "Defer" or "Capture to INBOX"), auto-apply without presenting the decision table. State: "Implementing {N} reflection insights:" followed by a brief list of changes, then proceed. When any insight has mixed routing, present the full batch table as before.
+
 **Recommendation rules:**
 - **Implement now** — the strong default. If an insight leads to a concrete change (update CLAUDE.md, update a skill, add a rule, update memory), make the change during wrap-up. Most insights are small enough to implement immediately.
 - **Defer** (DEFERRED.md) — the insight leads to a known improvement but it's bigger and not relevant to the current work. Include origin, context, trigger.
@@ -119,7 +121,7 @@ Present all insights as a batch:
 
 If any insight is "Implement now", handle it before continuing wrap-up.
 
-**Write all actionable insights to the open items ledger** (`docs/plans/*-ledger.md` for this work). "Implement now" items get status `open` until implemented (then `fixed`); "Defer" items get status `deferred`.
+**Write all actionable insights to the open items ledger** (see `/claude-tweaks:ledger`) with phase `wrap-up/*`. "Implement now" items get status `open` until implemented (then `fixed`); "Defer" items get status `deferred`.
 
 > **Routing bias:** Implement it now — always the recommended default. Defer when the improvement is bigger and not relevant now. Capture to INBOX when the insight needs brainstorming. The goal is to close gaps while the context is fresh.
 
@@ -149,7 +151,7 @@ Search `~/.claude/plans/` for related plans → **delete them**.
 
 ### Open Items Ledger
 
-Delete `docs/plans/*-ledger.md` for this work. All items have been resolved by the nothing-left-behind gate (Step 9.5). If the file doesn't exist (standalone wrap-up), skip this.
+Delete the open items ledger using the ledger skill's delete operation (see `/claude-tweaks:ledger`). All items must have been resolved by the nothing-left-behind gate (Step 9.5).
 
 ## Steps 6 + 8: Assess Configuration Updates
 
@@ -279,7 +281,7 @@ Suggest running `/claude-tweaks:help` to see the full workflow status.
 
 ## Step 9.5: Nothing Left Behind (Gate)
 
-Read the open items ledger (`docs/plans/*-ledger.md` for this work). If the ledger doesn't exist (standalone wrap-up, or work predating the ledger), skip this gate.
+Run the resolve gate from `/claude-tweaks:ledger`. Read the open items ledger -- if any item has status `open`, present it for resolution. The pipeline cannot complete with unresolved items. If the ledger doesn't exist (standalone wrap-up, or work predating the ledger), skip this gate.
 
 ### Bulk-resolve fast path
 
@@ -459,3 +461,4 @@ Commit with a message summarizing the wrap-up actions.
 | `/claude-tweaks:build` | Runs BEFORE /claude-tweaks:review — produces the code and journeys that wrap-up reflects on. `build/skill` ledger entries from Step 4.5 feed into Step 7 skill analysis. |
 | `/finishing-a-development-branch` | When build used worktree git strategy, wrap-up should verify the feature branch was completed (merged, PR created, or discarded) before cleaning up artifacts |
 | `/claude-tweaks:codebase-onboarding` | Step 7 references `skill-template.md` for Update Mode format and quality gates |
+| `/claude-tweaks:ledger` | Manages the open items ledger. /wrap-up appends reflection insights (Step 3), runs the resolve gate (Step 9.5), and deletes the ledger (Step 5). |
