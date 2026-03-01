@@ -20,9 +20,6 @@
     "testing",
     "qa"
   ],
-  "dependsOn": [
-    "superpowers@claude-plugins-official"
-  ],
   "agents": [
     "./agents/qa-agent.md"
   ]
