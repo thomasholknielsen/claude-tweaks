@@ -38,7 +38,7 @@ LICENSE                           → MIT
 | browse | playwright-reference.md, chrome-reference.md | Full command references for each browser backend |
 | test | verification.md | Shared verification procedure (referenced by /build, /review, and /test) |
 | stories | dev-url-detection.md, source-analysis.md | Dev server auto-detection; source code extraction patterns for behavioral contracts |
-| review | review-summary-template.md, browser-review.md, qa-review.md, ux-analysis.md | Structured summary template; visual review procedures; QA review procedures; UX analysis procedure |
+| review | review-summary-template.md, browser-review.md, qa-review.md, ux-analysis.md, reconnaissance.md | Structured summary template; visual review procedures; QA review procedures; UX analysis procedure; contextual page reconnaissance |
 | specify | spec-template.md | Spec file template with field rationale |
 | help | reference-card.md, context-flow.md | Quick reference card; artifact flow documentation |
 

@@ -61,6 +61,32 @@ If QA data is found, set `QA_DATA_AVAILABLE = true` and store:
 
 ---
 
+## QA-Accelerated Mode
+
+When `QA_DATA_AVAILABLE = true`, the visual review shifts from comprehensive inspection to **verify + discover**. QA already performed mechanical checks (element counts, accessibility attributes, layout measurements, happy-path execution). The visual review focuses on what QA cannot assess: raw human reactions, visual feel, interaction quality, and creative ideas.
+
+Steps 1, 3, and 4 have QA-accelerated variants that are shorter. Steps 2 (First Impressions) and 5 (Reimagine) run at full depth regardless — Step 2 captures raw reactions that must be QA-free, and Step 5 is judgment-based. Step 6 (Report & Route) is unchanged.
+
+When `QA_DATA_AVAILABLE = false`, run all steps at full depth as documented below.
+
+---
+
+## Step 0: Reconnaissance
+
+Before the structured review steps, understand what the page IS to generate contextual review perspectives instead of applying generic checklists.
+
+Read `reconnaissance.md` in this skill's directory and run the full procedure. The output is a **Review Brief** containing: page classification (6 dimensions), selected review perspectives (6-10, trigger-scored), source code analysis (when accessible), and a central question framing the core tension.
+
+Carry the Review Brief through all subsequent steps. Each step consults the brief's **Step Enrichment Map** for perspectives that inform that step's analysis.
+
+**Gate:** If the page is broken or blank during reconnaissance browsing, abort and proceed directly to Step 1 (Health Check) — the health check will catch and report the failure.
+
+**In journey mode:** Pass the journey's persona and goal to the reconnaissance procedure. These override the Audience and Auth dimension inference and weight perspective selection toward journey-relevant perspectives.
+
+**In QA-accelerated mode:** Reconnaissance runs at full depth regardless — it is lightweight and classification quality does not depend on QA data.
+
+---
+
 ## Journey Mode
 
 When running in journey mode, the skill walks the full journey and applies the creative framework at each step, then assesses the overall arc.
@@ -74,52 +100,56 @@ Read `docs/journeys/{name}.md`. Extract:
 - **Success state** — this is how you know the journey worked
 - **Steps** — each step has a URL, action, "should feel", "should understand", and "red flags"
 
-### Walk each step
+### Walk each step (focused 4-check pass)
 
 For each step in the journey:
 
-1. **Navigate** to the step's URL
-2. **Health check** — console errors, failed requests, broken rendering (same as Step 1 below)
-3. **First impression** — apply the 5-second test from Step 2, but *calibrated against the journey's expectations*. The journey says this step "should feel like low commitment." Does it?
-4. **Use it as the persona** — don't rotate through multiple personas. Use the journey's defined persona. Perform the documented action. Notice what the persona would notice.
-5. **Test "should feel"** — this is the key test. Does the step deliver the emotional/experiential quality the journey defines? Be honest and specific about gaps.
-6. **Check "red flags"** — does the step exhibit any of the journey's documented red flags?
-7. **Assess the transition** — after completing this step, does the next step feel like a natural continuation? Or is there a jarring context switch, a confusing redirect, or a loss of momentum?
+1. **Navigate** to the step's URL and take a snapshot + screenshot
+2. **Health check** — console errors, failed network requests, broken rendering. If the step is broken, note it and continue to the next step.
+3. **Should-feel test** — the journey says this step should feel like "{should_feel}." Does it? Be honest and specific about gaps. This is the key per-step test.
+4. **Red-flag check** — does the step exhibit any of the journey's documented red flags?
+
+Note the transition quality between steps (jarring? smooth? lost momentum?) as a one-word annotation for use in the arc assessment. Do not perform full persona rotation, structured analysis, or reimagining at the per-step level — those are more valuable at the arc level where patterns across steps are visible.
 
 ### Assess the overall arc
 
-After walking all steps, step back and evaluate the journey as a whole:
+After walking all steps, step back and evaluate the journey as a whole. This is where deeper analysis happens — patterns across steps produce better signal than per-step checklists.
 
+**Journey coherence:**
 - **Momentum** — does the journey build toward the goal, or does it stall somewhere?
 - **Coherence** — does it feel like one experience, or stitched-together features?
 - **Payoff** — does the success state deliver on the promise of the entry point? Is the "aha moment" actually there?
 - **Length** — too many steps? Too few? Are there steps that could be eliminated or combined?
 - **Drop-off risk** — where in the journey would a user most likely give up? Why?
 
+**Interaction and visual quality (across the arc):**
+- **Consistency** — does the visual language, interaction speed, and feedback quality stay consistent across steps?
+- **Worst step** — which step has the biggest gap between "should feel" and "actually feels"? This is the primary candidate for improvement.
+- **Best step** — which step nails its "should feel"? What makes it work? Can that quality be replicated elsewhere?
+
 ### Journey mode report
 
-The report follows the same structure as the standard report (Step 6 below) but adds journey-specific sections:
+The report follows the same structure as the standard Report & Route (Step 6 below) but adds journey-specific sections before the findings table:
 
 ```markdown
 ### Journey Assessment: {journey name}
 **Persona:** {persona}
 **Goal:** {goal}
 
-| Step | Should Feel | Actually Feels | Verdict |
-|------|------------|----------------|---------|
-| {step name} | {from journey file} | {honest assessment} | {pass/gap/fail} |
+| Step | Should Feel | Actually Feels | Transition | Verdict |
+|------|------------|----------------|------------|---------|
+| {step name} | {from journey file} | {honest assessment} | {smooth/jarring/stalls} | {pass/gap/fail} |
 
 ### Journey Arc
 - Momentum: {builds well / stalls at step N / loses steam}
 - Coherence: {feels unified / disjointed between steps N and M}
 - Payoff: {delivers / underwhelming / missing}
 - Drop-off risk: {step N — because {reason}}
-
-### Journey-Level Ideas
-- {ideas that span multiple steps or address the arc, not just individual pages}
+- Worst step: {step N — biggest should-feel gap}
+- Best step: {step N — what makes it work}
 ```
 
-After the journey report, proceed to Step 7 (Route Findings) as normal.
+Journey-level findings merge into the Step 6 findings table alongside per-step findings.
 
 ### Update the journey file
 
@@ -265,20 +295,39 @@ Commit journey files with message: "Add {N} user journeys from discovery (brownf
 
 ## Page Mode
 
-When running in page mode (URL or description, no journey), run Steps 1-7 as documented below. This is the standard creative review flow.
+When running in page mode (URL or description, no journey), run Steps 1-6 as documented below. This is the standard creative review flow.
+
+> **Parallel execution (conditional):** When the review covers 3+ independent pages (different URLs with no shared state or navigation dependency), dispatch page reviews as parallel Task agents. Each agent receives: page URL, QA data for that page (if available), and returns findings in the standard `| # | Finding | Type | Source | Severity/Impact | Recommended |` format. Assemble results into a single findings table after all agents complete. When pages share state (e.g., form submission on page A affects page B) or there are fewer than 3 pages, review sequentially.
 
 ---
 
 ## Step 1: Health Check
 
+> **Review Brief:** Consult the Step Enrichment Map for reconnaissance-added health signals.
+
 Navigate to the target URL and verify the page is functional before investing in a deeper review.
 
-### Capture:
+**Gate:** Page must be functional to proceed. If broken, stop and report.
+
+### QA-accelerated (when QA_DATA_AVAILABLE):
+
+QA health data becomes the baseline. The visual check verifies no **new** issues since the QA run:
+
+1. Navigate to the target URL, take a browser snapshot and screenshot
+2. Check console errors — compare against `QA_FINDINGS` with category `code-bug` or `flaky-env`. Report only **new** errors not present in QA data.
+3. Check network requests — report only new failures
+4. Summarize in one sentence: "Health: {matches QA baseline | N new issues since QA run}"
+
+Skip the full "Check for obvious problems" checklist — QA already ran it.
+
+### Full inspection (when QA not available):
+
+#### Capture:
 - Take a browser snapshot (accessibility tree) for interaction context
 - Take a screenshot for visual reference
 - Note the page title, visible state, and any immediate errors
 
-### Check for obvious problems:
+#### Check for obvious problems:
 - Console errors (Playwright: `playwright-cli -s=<session> console` / Chrome: `mcp__claude_in_chrome__read_console_messages(tabId)`)
 - Failed network requests (Playwright: `playwright-cli -s=<session> network` / Chrome: `mcp__claude_in_chrome__read_network_requests(tabId)`)
 - Blank or broken page rendering
@@ -286,21 +335,11 @@ Navigate to the target URL and verify the page is functional before investing in
 
 If the page is broken or blank, report immediately — no point continuing a visual review on a non-functional page.
 
-**Gate:** Page must be functional to proceed. If broken, stop and report.
-
-### QA-informed health context (when QA_DATA_AVAILABLE)
-
-Cross-reference QA data against the live health check:
-
-- **Console errors from QA:** Compare QA findings with category `code-bug` or `flaky-env` against current console errors. Note whether issues from the QA run persist, are resolved, or are new.
-- **Slow page loads:** If any caveat mentions page load time, note the QA-reported timing as a baseline for the live check.
-- **Pre-captured state:** If QA screenshots exist for the current page URL, note: "QA ran on this page — {N} steps executed, status: {PASS/FAIL/PASS_WITH_CAVEATS}." This provides continuity between mechanical QA and the visual review.
-
-Summarize relevant QA context in one or two sentences — do not repeat QA findings verbatim.
-
 ---
 
 ## Step 2: First Impressions
+
+> **Review Brief:** Apply the reconnaissance-selected perspectives mapped to Step 2. Answer the Central Question from your gut reaction.
 
 This is the most important step. Before any structured analysis, just *look* and *react*.
 
@@ -324,9 +363,22 @@ Structured checklists catch known issue types. First impressions catch the thing
 
 ## Step 3: Use It
 
+> **Review Brief:** If reconnaissance selected personas based on page classification (e.g., Mobile Readiness selected Distracted Mobile User), prioritize those personas.
+
 Now interact with the page — but not as a QA tester checking boxes. Use it as a *person trying to accomplish something*.
 
-### Persona rotation
+### QA-accelerated (when QA_DATA_AVAILABLE):
+
+QA stories already executed happy paths as specific personas. Instead of rotating through 2+ personas from scratch:
+
+1. **Check QA coverage:** Review `QA_STORIES` to identify which persona-like behaviors QA already tested (form submissions, navigation flows, error states from failure stories).
+2. **Skip covered personas:** If QA executed a checkout flow successfully, the "first-time visitor" and "returning user" personas for that flow are partially covered. Do not re-walk what QA validated.
+3. **Focus on uncovered perspectives:** Pick the ONE persona QA is least likely to have covered. Typically: **Distracted mobile user** (QA runs at desktop viewport) or **Impatient power user** (QA follows scripted steps, not shortcuts). Walk the page from that single persona.
+4. **Interaction feel:** Still assess speed, feedback, transitions, flow, and recovery — these require human judgment that QA cannot provide.
+
+Skip the full persona rotation and "What to test" sections — the single-persona + interaction-feel pass is sufficient when QA covered the happy paths.
+
+### Full persona rotation (when QA not available):
 
 Experience the page from at least two of these perspectives. Pick the most relevant ones:
 
@@ -340,16 +392,6 @@ Experience the page from at least two of these perspectives. Pick the most relev
 
 For each persona, actually walk through the flow. Don't just imagine it — click, type, navigate. Note what each persona would struggle with.
 
-### QA-informed persona selection (when QA_DATA_AVAILABLE)
-
-Use QA caveats to guide which personas will surface the most friction:
-
-- If caveats mention accessibility gaps (missing ARIA labels, heading hierarchy issues), prioritize the **Error-prone user** or consider adding a screen-reader-assisted perspective.
-- If caveats mention slow page loads, prioritize the **Distracted mobile user** — they'll feel the delay most acutely.
-- If caveats mention layout issues or viewport overflow, prioritize responsive testing across personas.
-
-QA caveats suggest which personas will surface the most friction — use them to guide persona rotation, not to skip personas.
-
 ### Interaction feel
 
 Beyond "does it work," notice *how it feels*:
@@ -360,7 +402,7 @@ Beyond "does it work," notice *how it feels*:
 - **Flow** — Does one step lead naturally to the next, or do you have to figure out where to go?
 - **Recovery** — You made a mistake. Now what? Is there undo? Back? Cancel? Or are you stuck?
 
-### What to test
+### What to test (full inspection only)
 
 - Exercise the primary flow (happy path)
 - Try at least one edge case from each persona's perspective (empty input, very long text, rapid clicks, back button)
@@ -371,16 +413,41 @@ Beyond "does it work," notice *how it feels*:
 
 ## Step 4: Analyze
 
+> **Review Brief:** Focus the structured analysis on perspectives mapped to Step 4. Source analysis signals (component count, spacing patterns, auth conditionals) provide code-grounded anchors for visual observations.
+
 Now shift to structured inspection. This is the analytical pass — systematic where Steps 2-3 were intuitive.
 
-### Layout & Visual Structure
+### QA-accelerated analysis (when QA_DATA_AVAILABLE):
+
+QA page inventories already captured mechanical measurements. Skip the following checks that QA confirmed:
+- Element counts and form field counts (from `QA_PAGE_INVENTORIES`)
+- Missing ARIA labels count (from `accessibility.missing_labels`)
+- ARIA landmarks presence (from `accessibility.aria_landmarks`)
+- Heading hierarchy (from `accessibility.heading_levels`)
+- Viewport overflow (from `layout.viewport_overflow`)
+- Tab counts and breadcrumb presence (from `navigation`)
+
+**Focus only on visual qualities QA cannot assess:**
+- **Visual weight and balance** — is the layout coherent? Does content hierarchy make visual sense?
+- **Spacing and alignment feel** — not pixel counts, but whether spacing *feels* right
+- **Content and microcopy quality** — are labels descriptive? Do error messages explain AND guide? Is the tone human?
+- **Visual polish** — do hover/focus states feel right? Are interactive elements obviously clickable? Are fonts/icons crisp?
+- **Responsive feel** (if applicable) — resize to mobile (375x667) and check feel, not measurements QA already captured
+
+Note QA-confirmed issues briefly (e.g., "QA confirmed 3 missing ARIA labels") without re-analyzing them. Any QA issue that feels worse visually than its data suggests gets elevated.
+
+> **Deduplication (full mode):** When running as part of a full review (code + visual), the UX Analysis lens (3h) has already produced systematic findings from QA data in the code review step. In the Analyze step, focus on what the live browser reveals that data analysis cannot: visual weight, interaction feel, animation quality, emotional tone. Reference UX Analysis findings where they confirm visual observations, but do not re-list them as new findings.
+
+### Full structured analysis (when QA not available):
+
+#### Layout & Visual Structure
 - Is the page layout coherent and balanced?
 - Are elements aligned properly?
 - Is spacing consistent (margins, padding, gaps)?
 - Does content hierarchy make sense (headings, sections, groupings)?
 - Is the visual weight distributed intentionally (or does it feel lopsided)?
 
-### Content & Microcopy
+#### Content & Microcopy
 - **Labels and headings** — Are they descriptive or generic? Would a new user understand them?
 - **Button text** — Do buttons say what they'll do? ("Save changes" vs "Submit", "Delete account" vs "Delete")
 - **Error messages** — Do they explain what went wrong AND how to fix it?
@@ -388,14 +455,14 @@ Now shift to structured inspection. This is the analytical pass — systematic w
 - **Placeholder text** — Helpful examples or useless "Enter text here"?
 - **Tone** — Is the voice consistent? Does it match the brand? Does it feel human?
 
-### Visual Polish
+#### Visual Polish
 - Are interactive elements obviously clickable (buttons look like buttons)?
 - Do hover/focus states exist and feel right?
 - Are images/icons displaying at correct size and resolution?
 - Is the color scheme consistent?
 - Are fonts loading correctly?
 
-### Responsive Behavior (if applicable)
+#### Responsive Behavior (if applicable)
 - Resize the browser (Playwright: `playwright-cli -s=<session> resize <w> <h>` / Chrome: resize browser window) to common breakpoints:
   - Mobile: 375x667
   - Tablet: 768x1024
@@ -403,7 +470,7 @@ Now shift to structured inspection. This is the analytical pass — systematic w
 - Check for overflow, cramped layouts, or hidden content at each size
 - Only test responsive if the project is expected to support it — ask if unsure
 
-### Accessibility (quick check)
+#### Accessibility (quick check)
 - Can you tab through interactive elements in a logical order?
 - Are form inputs labeled (check the accessibility snapshot)?
 - Is there sufficient color contrast?
@@ -411,32 +478,11 @@ Now shift to structured inspection. This is the analytical pass — systematic w
 
 > **Note:** This is a quick pass, not a WCAG compliance review. Flag obvious issues only.
 
-### QA Data Overlay (when QA_DATA_AVAILABLE)
-
-Use page inventory data to supplement — not replace — the visual inspection above. For the current page URL, check `QA_PAGE_INVENTORIES` for a matching entry:
-
-**Element counts as baseline:**
-- Compare the inventory's `interactive_elements` counts against what you see in the live snapshot. Significant discrepancies (elements present in QA but missing now, or vice versa) suggest recent UI changes worth investigating.
-- If `forms.fields_per_form` shows forms with 5+ fields, verify that inline validation and required field markers were caught in the Content & Microcopy check above.
-
-**Accessibility cross-reference:**
-- If `accessibility.missing_labels` > 0, QA confirms real missing labels. Note the count alongside what you observe visually.
-- If `accessibility.aria_landmarks` is 0, note: "QA confirms no ARIA landmarks on this page."
-- If `accessibility.heading_levels` skips levels, note: "QA confirms heading hierarchy gap."
-
-**Layout confirmation:**
-- If `layout.viewport_overflow` is `true` in the inventory, QA confirms horizontal overflow. Verify whether it persists at the current viewport size.
-
-**Caveats as inspection checklist:**
-- Review each QA caveat for the current page. Each caveat is a targeted observation — verify whether it persists and assess its visual impact. Caveats about console warnings, slow loads, and layout issues are especially relevant to the Analyze step.
-
-> **Note:** QA data is from a previous run and may be stale. Always verify against the live page. Use QA data as a checklist to ensure nothing is missed, not as a source of truth.
-
-> **Deduplication (full mode):** When running as part of a full review (code + visual), the UX Analysis lens (3h) has already produced systematic findings from QA data in the code review step. In the Analyze step, focus on what the live browser reveals that data analysis cannot: visual weight, interaction feel, animation quality, emotional tone. Reference UX Analysis findings where they confirm visual observations, but do not re-list them as new findings.
-
 ---
 
 ## Step 5: Reimagine
+
+> **Review Brief:** Perspectives mapped to Step 5 are the primary reimagine targets. The Central Question frames what "great" means for this specific page.
 
 This is the creative step. Analysis found what's wrong. Now ask: **what would make this great?**
 
@@ -482,90 +528,46 @@ Use QA data as creative fuel for the "best version" exercise, not as a bug list.
 
 ---
 
-## Step 6: Report
+## Step 6: Report & Route
 
-Present a structured report that balances issues, observations, and ideas.
+Present findings from the review in a single structure that serves as both the report and the routing table.
+
+### Header
 
 ```markdown
 ## Visual Review: {page/feature description}
 
 **URL:** {url}
 **Browser:** {playwright-cli|Chrome MCP}
-
-### Page Health
-- Console errors: {count or "none"}
-- Failed requests: {count or "none"}
-- Page load: {fast/slow/broken}
-
-### First Impressions
-{The honest, unfiltered 5-second reaction from Step 2. Keep the raw tone — don't polish it into corporate feedback.}
-
-### What's Working Well
-{Specific things that are genuinely good. Not filler — real strengths that should be preserved and built on. Understanding what works is as important as finding what doesn't.}
-
-### Functional Issues
-| Issue | Severity | Description |
-|-------|----------|-------------|
-| {what's broken} | {critical/major/minor} | {what happened, what was expected} |
-(or: No functional issues found.)
-
-### Visual & Content Issues
-| Issue | Severity | Description |
-|-------|----------|-------------|
-| {what looks or reads wrong} | {major/minor/cosmetic} | {what it is, what it should be} |
-(or: No visual or content issues.)
-
-### UX Observations
-| Observation | Persona | Description |
-|-------------|---------|-------------|
-| {what was noticed} | {which persona surfaced it} | {details and why it matters} |
-(or: No UX concerns — flow feels smooth for all personas tested.)
-
-### Interaction Feel
-- Speed: {snappy/acceptable/sluggish}
-- Feedback: {clear/inconsistent/missing}
-- Transitions: {smooth/janky/none}
-- Recovery: {easy/possible/difficult}
-
-### QA Data Context (when QA data informed this review)
-- **QA run:** {RUN_DIR path}
-- **Stories covering this page:** {count}
-- **QA status for this page:** {PASS/PASS_WITH_CAVEATS/FAIL}
-- **Caveats surfaced:** {count} — {brief summary of relevant caveats}
-- **QA findings confirmed visually:** {list any QA findings that were also observed during visual review}
-- **QA findings resolved since QA run:** {list any QA findings that no longer reproduce}
-(or: No QA data available — review based on live browser inspection only.)
-
-### Ideas
-| Idea | Impact | Effort | Description |
-|------|--------|--------|-------------|
-| {what could be better} | {high/medium/low} | {small/medium/large} | {the vision — what it would feel like, not just what to change} |
-
-### Verdict
-**{CLEAN}** — No significant issues. Ideas are enhancements, not fixes.
-**{ISSUES FOUND}** — {count} issues need attention. Ideas included for when they're resolved.
-**{BROKEN}** — Page is non-functional, needs fixing before anything else.
+**Classification:** {Type} | {Auth} | {Stage} | {Data} | {Complexity} | {Audience}
+**Central Question:** {The central question from the Review Brief}
+**Health:** {functional / N console errors / N failed requests / broken}
+**First Impression:** {The honest 5-second reaction in 1-2 sentences. Keep the raw tone.}
+**Interaction Feel:** Speed: {snappy/acceptable/sluggish} | Feedback: {clear/inconsistent/missing} | Transitions: {smooth/janky/none}
+**QA context:** {QA run dir, stories covering this page, QA status — or "No QA data"}
 ```
 
----
+**Strengths** (before the findings table): When something is genuinely good, note it in one sentence: "Strengths: {1-2 specific things that work well and should be preserved}." Do not create a separate section — this anchors what to protect while fixing issues.
 
-## Step 7: Route Findings
+### Findings & Ideas
 
-Present all findings — issues and ideas — in a single batch table with a Type column to distinguish them.
+Present all findings and ideas in a single batch table:
 
 ```
-| # | Finding | Type | Severity/Impact | Recommended |
-|---|---------|------|-----------------|-------------|
-| 1 | {description} | Issue | Critical | Fix now |
-| 2 | {description} | Issue | Minor | Fix now |
-| 3 | {description} | Issue | Cosmetic | Fix now |
-| 4 | {description} | Idea | High | Fix now — add to current spec |
-| 5 | {description} | Idea | Medium | Defer — not relevant now |
-| 6 | {description} | Idea | Low | Capture to INBOX — needs brainstorming |
+| # | Finding | Type | Source | Severity/Impact | Recommended |
+|---|---------|------|--------|-----------------|-------------|
+| 1 | {description} | Issue | Health | Critical | Fix now |
+| 2 | {description} | Issue | Analyze | Minor | Fix now |
+| 3 | {description} | Issue | Persona | Cosmetic | Fix now |
+| 4 | {description} | Idea | Reimagine | High | Fix now — add to current spec |
+| 5 | {description} | Idea | Reimagine | Medium | Defer — not relevant now |
+| 6 | {description} | Idea | Reimagine | Low | Capture to INBOX — needs brainstorming |
 
 1. Apply all recommendations **(Recommended)**
 2. Override specific items (tell me which #s to change)
 ```
+
+The **Source** column traces each finding to its origin step (Health, First Impression, Persona, Analyze, Reimagine). This replaces the separate "Functional Issues," "Visual & Content Issues," and "UX Observations" report sections.
 
 **Recommendation rules for Issues:**
 - **All severities** — default "Fix now." Close the gap now.
@@ -581,6 +583,13 @@ Present all findings — issues and ideas — in a single batch table with a Typ
 > **Routing bias:** Fix it now — always the recommended default. Defer when the fix is bigger and not relevant now. Capture to INBOX when the issue/idea needs exploration. Cosmetic issues accumulate into a feeling of low quality — fix them while they're fresh.
 
 Group related cosmetic issues into a single row rather than listing each individually. Every idea goes to a durable destination. "Note for later" without a destination means "lose forever."
+
+### Verdict
+
+After the findings table:
+- **CLEAN** — No significant issues. Ideas are enhancements, not fixes.
+- **ISSUES FOUND** — {count} issues need attention.
+- **BROKEN** — Page is non-functional.
 
 ### Next Actions
 
@@ -602,4 +611,5 @@ Group related cosmetic issues into a single row rather than listing each individ
 - Journey files are living documents — update them when visual review reveals gaps or inaccuracies
 - Console errors and network failures are often the fastest signal — check them first in the health check
 - Resize testing is optional and should be skipped unless layout changes are in scope
-- The step order matters: reaction → experience → analysis → imagination. Don't rearrange.
+- The step order matters: reconnaissance → reaction → experience → analysis → imagination. Don't rearrange.
+- Reconnaissance (Step 0) is a fast pre-step — it classifies and moves on. The review steps are where depth happens. If reconnaissance takes more than 60 seconds, something is wrong.

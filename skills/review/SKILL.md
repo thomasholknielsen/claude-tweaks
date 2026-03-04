@@ -378,7 +378,7 @@ Run the complete visual review procedures from `browser-review.md` in this skill
 
 ### Visual/journey/discover mode: Standalone
 
-When invoked with `visual`, `journey:`, or `discover`, run only the procedures from `browser-review.md`. The visual review's own report and routing steps handle the output — skip the review summary (Step 7).
+When invoked with `visual`, `journey:`, or `discover`, run only the procedures from `browser-review.md`. The visual review's own Report & Route step handles the output — skip the review summary (Step 7).
 
 ## Step 7: Present Review Summary
 
