@@ -54,28 +54,45 @@ This will:
 
 ## Workflow Lifecycle
 
+```mermaid
+graph LR
+  subgraph Plan
+    capture["/capture"] --> challenge["/challenge"]
+    challenge --> brainstorm["/brainstorm"]
+    brainstorm --> specify["/specify"]
+  end
+
+  subgraph Ship ["Automated by /flow"]
+    build["/build"] -.-> stories["/stories"]
+    stories --> test["/test"]
+    test --> review["/review"]
+    review --> wrapup["/wrap-up"]
+  end
+
+  specify --> build
 ```
-/setup → /codebase-onboarding → /capture → /challenge → /brainstorm → /specify → /build → [/stories] → /test → /review → /wrap-up
-                                                                                       ╰────────────── /flow automates ──────────╯
-                                                                          /browse ↕    stories auto-generated when UI changes
-                                                                                       /test = "does it work?" (mechanical gate)
-                                                                                       /review = "is it good?" (analytical gate)
-```
+
+> `/setup` and `/codebase-onboarding` run once per project before entering the pipeline.
+> Dashed arrow = conditional (`/stories` only runs when UI files changed).
+
+- **/test** = "does it work?" — types, lint, tests, QA validation (mechanical gate)
+- **/review** = "is it good?" — code review, visual inspection, UX analysis (analytical gate)
+- **/flow** = run build through wrap-up in one command, fully automated
 
 ### Lifecycle Skills
 
-| # | Command | Purpose |
-|---|---------|---------|
-| 1 | `/claude-tweaks:setup` | Bootstrap workflow directories, dependencies, browser integration |
-| 2 | `/claude-tweaks:codebase-onboarding` | Generate CLAUDE.md, skills, and rules for a project |
-| 3 | `/claude-tweaks:capture` | Brain-dump ideas into INBOX |
-| 4 | `/claude-tweaks:challenge` | Debias a problem statement before brainstorming |
-| 5 | `/claude-tweaks:specify` | Decompose design doc into agent-sized specs with implicit dependency detection |
-| 6 | `/claude-tweaks:build` | Implement a spec end-to-end (subagent/batched execution, current-branch/worktree git strategy, `auto` mode) |
-| 6b | `/claude-tweaks:test` | Verification gate — types, lint, tests, QA story validation |
-| 6c | `/claude-tweaks:stories` | Generate or update QA story YAML files by browsing a site (auto-triggered by /flow on UI changes) |
-| 7 | `/claude-tweaks:review` | Analytical quality gate — code review + visual browser review with idea generation (automatic in /flow when browser available). Gates on /test passing. |
-| 8 | `/claude-tweaks:wrap-up` | Reflection, knowledge capture, artifact cleanup |
+| Phase | Command | Purpose |
+|-------|---------|---------|
+| Plan | `/claude-tweaks:setup` | Bootstrap workflow directories, dependencies, browser integration |
+| Plan | `/claude-tweaks:codebase-onboarding` | Generate CLAUDE.md, skills, and rules for a project |
+| Plan | `/claude-tweaks:capture` | Brain-dump ideas into INBOX |
+| Plan | `/claude-tweaks:challenge` | Debias a problem statement before brainstorming |
+| Plan | `/claude-tweaks:specify` | Decompose design doc into agent-sized specs with implicit dependency detection |
+| Build | `/claude-tweaks:build` | Implement a spec end-to-end (subagent/batched execution, current-branch/worktree git strategy, `auto` mode) |
+| Build | `/claude-tweaks:stories` | Generate or update QA story YAML files by browsing a site (auto-triggered by /flow on UI changes) |
+| Ship | `/claude-tweaks:test` | Verification gate — types, lint, tests, QA story validation |
+| Ship | `/claude-tweaks:review` | Analytical quality gate — code review + visual browser review with idea generation. Gates on /test passing. |
+| Ship | `/claude-tweaks:wrap-up` | Reflection, knowledge capture, artifact cleanup |
 
 ### Utility Skills
 
@@ -301,21 +318,25 @@ The **open items ledger** (`docs/plans/*-ledger.md`) tracks all findings and ope
 
 ## Artifact Lifecycle
 
-```
-INBOX item ──→ Brief ──→ Design Doc ──────→ Spec ──→ Code + Journey
-  /capture    /challenge  /brainstorm  /specify  /build
-                                           ↓           ↓       ↓
-                                    (deletes brief  Deferred  docs/journeys/
-                                     + design doc)  Work
+Each skill consumes upstream artifacts and produces downstream ones. Consumed artifacts are deleted — specs and code are the durable outputs.
 
-Code + Journey ──→ Story YAML ──→ Test (mechanical gate) ──→ Review (analytical gate) ──→ Learnings routed ──→ Clean slate
-     /build         /stories          /test                       /review                      /wrap-up
-             (auto in /flow       types + lint + tests + QA   gates on TEST_PASSED          ↓
-              when UI changed)    sets TEST_PASSED             code + visual review       Deferred Work
-                                                                                         (deletes spec + plans + ledger)
+```mermaid
+graph LR
+  inbox["INBOX item"] -->|/challenge| brief["Brief"]
+  brief -->|/brainstorm| design["Design Doc"]
+  design -->|/specify| spec["Spec"]
+  spec -->|/build| code["Code + Journeys"]
+  code -.->|/stories| yaml["Story YAML"]
+  yaml -->|/test| pass["TEST_PASSED"]
+  pass -->|/review| summary["Review Summary"]
+  summary -->|/wrap-up| done(("Done"))
 
-Open Items Ledger ── tracks findings across all phases ── resolved + deleted by /wrap-up
+  style done fill:#2ea043,color:#fff
 ```
+
+> `/specify` deletes Brief and Design Doc. `/wrap-up` deletes Spec, plans, and ledger — leaving a clean slate.
+
+The **open items ledger** (`docs/plans/*-ledger.md`) tracks findings across all phases as a file on disk — surviving context compression. `/wrap-up` resolves every item before completing.
 
 ## Dependencies
 

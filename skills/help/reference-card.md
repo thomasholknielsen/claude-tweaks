@@ -91,10 +91,22 @@ or standalone:
 ## Artifact Lifecycle
 
 ```
-INBOX → Brief → Design Doc → Spec → Code + Journey → Story YAML → QA Report → Review → Learnings → Clean Slate
+INBOX → Brief → Design Doc → Spec → Code → Stories → TEST_PASSED → Review → Done
 ```
 
-Each arrow means "consumed by the next skill." Consumed artifacts are deleted — specs and code are the durable outputs.
+| Skill | Creates | Deletes |
+|-------|---------|---------|
+| /capture | INBOX item | — |
+| /challenge | Brief | — |
+| /brainstorm | Design Doc | — |
+| /specify | Spec | Brief, Design Doc |
+| /build | Code + Journeys | — |
+| /stories | Story YAML files | — |
+| /test | TEST_PASSED flag | — |
+| /review | Review summary | — |
+| /wrap-up | Learnings (CLAUDE.md) | Spec, plans, ledger |
+
+Consumed artifacts are deleted — specs and code are the durable outputs.
 
 ## Key Principles
 
