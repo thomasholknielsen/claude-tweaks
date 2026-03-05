@@ -55,28 +55,30 @@ This will:
 ## Workflow Lifecycle
 
 ```mermaid
-graph TD
+graph LR
   subgraph Plan
-    capture["/claude-tweaks:capture"] --> challenge["/claude-tweaks:challenge"]
-    challenge --> brainstorm["/superpowers:brainstorm"]:::sp
-    brainstorm --> specify["/claude-tweaks:specify"]
+    direction TB
+    capture["capture"] --> challenge["challenge"]
+    challenge --> brainstorm["brainstorm"]:::sp
+    brainstorm --> specify["specify"]
   end
 
-  subgraph Ship ["Automated by /claude-tweaks:flow"]
-    build["/claude-tweaks:build"] -.-> stories["/claude-tweaks:stories"]
-    stories --> test["/claude-tweaks:test"]
-    test --> review["/claude-tweaks:review"]
-    review --> wrapup["/claude-tweaks:wrap-up"]
+  subgraph Pipeline ["Automated by /claude-tweaks:flow"]
+    direction TB
+    build["build"] -.-> stories["stories"]
+    stories --> test["test"]
+    test --> review["review"]
+    review --> wrapup["wrap-up"]
   end
 
   specify --> build
 
-  classDef sp fill:#e8e8e8,stroke:#999,color:#555
+  classDef sp fill:#f3f4f6,stroke:#9ca3af,color:#6b7280
 ```
 
-> **Legend:** Gray node = [Superpowers](https://github.com/obra/superpowers) plugin (installed separately).
+> All nodes are `/claude-tweaks:{name}` except **brainstorm** (gray) which is `/superpowers:brainstorm` from the [Superpowers](https://github.com/obra/superpowers) plugin.
 > `/claude-tweaks:setup` and `/claude-tweaks:codebase-onboarding` run once per project before entering the pipeline.
-> Dashed arrow = conditional (`/claude-tweaks:stories` only runs when UI files changed).
+> Dashed arrow = conditional — stories only runs when UI files changed.
 
 - **/claude-tweaks:test** = "does it work?" — types, lint, tests, QA validation (mechanical gate)
 - **/claude-tweaks:review** = "is it good?" — code review, visual inspection, UX analysis (analytical gate)
@@ -324,15 +326,23 @@ The **open items ledger** (`docs/plans/*-ledger.md`) tracks all findings and ope
 Each skill consumes upstream artifacts and produces downstream ones. Consumed artifacts are deleted — specs and code are the durable outputs.
 
 ```mermaid
-graph TD
-  inbox["INBOX item"] -->|"claude-tweaks:challenge"| brief["Brief"]
-  brief -->|"superpowers:brainstorm"| design["Design Doc"]
-  design -->|"claude-tweaks:specify"| spec["Spec"]
-  spec -->|"claude-tweaks:build"| code["Code + Journeys"]
-  code -.->|"claude-tweaks:stories"| yaml["Story YAML"]
-  yaml -->|"claude-tweaks:test"| pass["TEST_PASSED"]
-  pass -->|"claude-tweaks:review"| summary["Review Summary"]
-  summary -->|"claude-tweaks:wrap-up"| done(("Done"))
+graph LR
+  subgraph Plan
+    direction LR
+    inbox["INBOX"] -->|challenge| brief["Brief"]
+    brief -->|brainstorm| design["Design Doc"]
+    design -->|specify| spec["Spec"]
+  end
+
+  subgraph Pipeline
+    direction LR
+    code["Code"] -.->|stories| yaml["Stories"]
+    yaml -->|test| pass["Tested"]
+    pass -->|review| summary["Reviewed"]
+    summary -->|wrap-up| done(("Done"))
+  end
+
+  spec -->|build| code
 
   style done fill:#2ea043,color:#fff
 ```
