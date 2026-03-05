@@ -55,7 +55,7 @@ This will:
 ## Workflow Lifecycle
 
 ```mermaid
-graph LR
+graph TD
   subgraph Plan
     capture["/capture"] --> challenge["/challenge"]
     challenge --> brainstorm["/brainstorm"]
@@ -321,7 +321,7 @@ The **open items ledger** (`docs/plans/*-ledger.md`) tracks all findings and ope
 Each skill consumes upstream artifacts and produces downstream ones. Consumed artifacts are deleted — specs and code are the durable outputs.
 
 ```mermaid
-graph LR
+graph TD
   inbox["INBOX item"] -->|/challenge| brief["Brief"]
   brief -->|/brainstorm| design["Design Doc"]
   design -->|/specify| spec["Spec"]
