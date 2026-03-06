@@ -57,28 +57,21 @@ This will:
 ```mermaid
 graph LR
   subgraph Plan
-    direction TB
-    capture["capture"] --> challenge["challenge"]
-    challenge --> brainstorm["brainstorm"]:::sp
-    brainstorm --> specify["specify"]
+    capture --> challenge --> brainstorm:::sp --> specify
   end
 
-  subgraph Pipeline ["Automated by /claude-tweaks:flow"]
-    direction TB
-    build["build"] -.-> stories["stories"]
-    stories --> test["test"]
-    test --> review["review"]
-    review --> wrapup["wrap-up"]
+  subgraph Pipeline
+    build -.-> stories --> test --> review --> wrapup["wrap-up"]
   end
 
   specify --> build
 
-  classDef sp fill:#f3f4f6,stroke:#9ca3af,color:#6b7280
+  classDef sp fill:#ddd,stroke:#888,stroke-dasharray:5 5
 ```
 
-> All nodes are `/claude-tweaks:{name}` except **brainstorm** (gray) which is `/superpowers:brainstorm` from the [Superpowers](https://github.com/obra/superpowers) plugin.
-> `/claude-tweaks:setup` and `/claude-tweaks:codebase-onboarding` run once per project before entering the pipeline.
-> Dashed arrow = conditional — stories only runs when UI files changed.
+> All nodes are `/claude-tweaks:{name}` except **brainstorm** (dashed) which is `/superpowers:brainstorm` from the [Superpowers](https://github.com/obra/superpowers) plugin.
+> **Pipeline** = automated by `/claude-tweaks:flow`. Dashed arrow = conditional (stories only runs when UI files changed).
+> `/claude-tweaks:setup` and `/claude-tweaks:codebase-onboarding` run once per project, before entering the pipeline.
 
 - **/claude-tweaks:test** = "does it work?" — types, lint, tests, QA validation (mechanical gate)
 - **/claude-tweaks:review** = "is it good?" — code review, visual inspection, UX analysis (analytical gate)
@@ -327,22 +320,14 @@ Each skill consumes upstream artifacts and produces downstream ones. Consumed ar
 
 ```mermaid
 graph LR
-  subgraph Plan
-    direction LR
-    inbox["INBOX"] -->|challenge| brief["Brief"]
-    brief -->|brainstorm| design["Design Doc"]
-    design -->|specify| spec["Spec"]
-  end
-
-  subgraph Pipeline
-    direction LR
-    code["Code"] -.->|stories| yaml["Stories"]
-    yaml -->|test| pass["Tested"]
-    pass -->|review| summary["Reviewed"]
-    summary -->|wrap-up| done(("Done"))
-  end
-
-  spec -->|build| code
+  inbox["INBOX"] -->|challenge| brief["Brief"]
+  brief -->|brainstorm| design["Design Doc"]
+  design -->|specify| spec["Spec"]
+  spec -->|build| code["Code"]
+  code -.->|stories| yaml["Stories"]
+  yaml -->|test| pass["Tested"]
+  pass -->|review| summary["Reviewed"]
+  summary -->|wrap-up| done(("Done"))
 
   style done fill:#2ea043,color:#fff
 ```
