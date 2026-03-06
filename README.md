@@ -17,34 +17,35 @@ Claude Code is powerful but unstructured. claude-tweaks adds a complete developm
 
 ## How it works
 
-```mermaid
-graph TD
-  capture --> challenge
-  challenge --> brainstorm:::sp
-  brainstorm --> specify
-  specify --> build
-  build -.->|"if UI changed"| stories
-  stories --> test
-  test --> review
-  review --> wrapup["wrap-up"]
+```
+  SKILL                      ARTIFACT                 SUPERPOWERS USED
+  ─────                      ────────                 ────────────────
 
-  classDef sp fill:#e8e8e8,stroke:#999,stroke-dasharray:5 5
+  capture ──────────────►  INBOX item
+     │
+  challenge ────────────►  Brief
+     │
+     │                     Design Doc          ◄───  brainstorm
+     │
+  specify ──────────────►  Spec
+     │                     (deletes Brief + Design Doc)
+     │
+  ┈┈ /claude-tweaks:flow automates below (worktree mode optional) ┈┈
+     │
+  build ────────────────►  Code + Journeys    ◄───  subagent-driven-development
+     ┊  (if UI changed)                             executing-plans
+  stories ──────────────►  Story YAML                using-git-worktrees ⚙
+     │
+  test ─────────────────►  TEST_PASSED
+     │
+  review ───────────────►  Review Summary     ◄───  dispatching-parallel-agents
+     │
+  wrap-up ──────────────►  Done               ◄───  finishing-a-dev-branch ⚙
+                           (deletes Spec, plans, ledger)
 ```
 
-| Step | Skill | Produces | Cleans up | Superpowers used |
-|------|-------|----------|-----------|------------------|
-| 1 | `/claude-tweaks:capture` | INBOX item | | |
-| 2 | `/claude-tweaks:challenge` | Brief | | |
-| 3 | `/superpowers:brainstorm` | Design Doc | | |
-| 4 | `/claude-tweaks:specify` | Spec | Brief, Design Doc | `/superpowers:write-plan` |
-| | **Pipeline** — `/claude-tweaks:flow` automates steps 5-9. Add `worktree` for isolated feature branches. | | | |
-| 5 | `/claude-tweaks:build` | Code + Journeys | | `/superpowers:subagent-driven-development`, `/superpowers:executing-plans`, `/superpowers:using-git-worktrees` ⚙ |
-| 6 | `/claude-tweaks:stories` *(conditional)* | Story YAML | | |
-| 7 | `/claude-tweaks:test` | TEST_PASSED | | |
-| 8 | `/claude-tweaks:review` | Review Summary | | `/superpowers:dispatching-parallel-agents` |
-| 9 | `/claude-tweaks:wrap-up` | Learnings → CLAUDE.md | Spec, plans, ledger | `/superpowers:finishing-a-development-branch` ⚙ |
-
-> ⚙ = worktree mode only. Dashed arrow = conditional (stories runs only when UI files changed).
+> **Left column:** `/claude-tweaks:{name}` — **Right column:** `/superpowers:{name}` ([Superpowers plugin](https://github.com/obra/superpowers))
+> **⚙** = worktree mode only — **┊** = conditional step
 > `/claude-tweaks:init` runs once per project, before entering the pipeline.
 
 ## Skills
