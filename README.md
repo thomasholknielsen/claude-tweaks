@@ -42,7 +42,7 @@ The workflow system depends on the **Superpowers** plugin for brainstorming, pla
 ### Step 3: Bootstrap a project
 
 ```
-/claude-tweaks:setup
+/claude-tweaks:init
 ```
 
 This will:
@@ -50,28 +50,29 @@ This will:
 - Create `specs/`, `docs/plans/`, `docs/journeys/`, and starter files (`INBOX.md`, `INDEX.md`)
 - Check for `CLAUDE.md` and git
 - Optionally set up browser integration (playwright-cli and/or Chrome MCP)
-- Present a status report
+- Analyze the codebase and generate CLAUDE.md with adaptive philosophy, skills, and rules
+- Present a consolidated status report
 
 ## Workflow Lifecycle
 
+**Plan** — run these to go from idea to spec:
+
 ```mermaid
 graph LR
-  subgraph Plan
-    capture --> challenge --> brainstorm:::sp --> specify
-  end
-
-  subgraph Pipeline
-    build -.-> stories --> test --> review --> wrapup["wrap-up"]
-  end
-
-  specify --> build
-
+  capture --> challenge --> brainstorm:::sp --> specify
   classDef sp fill:#ddd,stroke:#888,stroke-dasharray:5 5
 ```
 
-> All nodes are `/claude-tweaks:{name}` except **brainstorm** (dashed) which is `/superpowers:brainstorm` from the [Superpowers](https://github.com/obra/superpowers) plugin.
-> **Pipeline** = automated by `/claude-tweaks:flow`. Dashed arrow = conditional (stories only runs when UI files changed).
-> `/claude-tweaks:setup` and `/claude-tweaks:codebase-onboarding` run once per project, before entering the pipeline.
+**Pipeline** — automated by `/claude-tweaks:flow` (spec in, clean slate out):
+
+```mermaid
+graph LR
+  build -.-> stories --> test --> review --> wrapup["wrap-up"]
+```
+
+> All nodes are `/claude-tweaks:{name}` except **brainstorm** (dashed) = `/superpowers:brainstorm` from the [Superpowers](https://github.com/obra/superpowers) plugin.
+> Dashed arrow = conditional (stories only runs when UI files changed).
+> `/claude-tweaks:init` runs once per project, before entering the pipeline.
 
 - **/claude-tweaks:test** = "does it work?" — types, lint, tests, QA validation (mechanical gate)
 - **/claude-tweaks:review** = "is it good?" — code review, visual inspection, UX analysis (analytical gate)
@@ -81,8 +82,7 @@ graph LR
 
 | Phase | Command | Purpose |
 |-------|---------|---------|
-| Plan | `/claude-tweaks:setup` | Bootstrap workflow directories, dependencies, browser integration |
-| Plan | `/claude-tweaks:codebase-onboarding` | Generate CLAUDE.md, skills, and rules for a project |
+| Plan | `/claude-tweaks:init` | Bootstrap structure, generate CLAUDE.md with adaptive philosophy, skills, and rules |
 | Plan | `/claude-tweaks:capture` | Brain-dump ideas into INBOX |
 | Plan | `/claude-tweaks:challenge` | Debias a problem statement before brainstorming |
 | Plan | `/claude-tweaks:specify` | Decompose design doc into agent-sized specs with implicit dependency detection |
@@ -194,7 +194,7 @@ When QA data is available (from `/claude-tweaks:test qa` or `/claude-tweaks:test
 
 ### User Journeys
 
-Persistent markdown files in `docs/journeys/` that describe how personas accomplish goals. Created automatically during `/claude-tweaks:build` for user-facing features, tested by `/claude-tweaks:review` visual modes, discovered in bulk via `/claude-tweaks:review discover` or `/claude-tweaks:codebase-onboarding`.
+Persistent markdown files in `docs/journeys/` that describe how personas accomplish goals. Created automatically during `/claude-tweaks:build` for user-facing features, tested by `/claude-tweaks:review` visual modes, discovered in bulk via `/claude-tweaks:review discover` or `/claude-tweaks:init`.
 
 Each journey tracks its implementing source files via `files:` frontmatter. During `/claude-tweaks:review`, changed files are checked against all journeys — if a build touches files that an existing journey depends on, the review flags it for visual regression testing.
 
