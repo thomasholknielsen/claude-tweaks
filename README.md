@@ -4,346 +4,152 @@ A structured workflow system for Claude Code — from idea capture through build
 
 ## What this does
 
-Claude Code is powerful but unstructured. Give it a vague request and it'll produce code — but without a system for capturing ideas, challenging assumptions, decomposing work, reviewing quality, and learning from what was built.
-
-claude-tweaks adds that system. It's a set of skills that guide Claude through a complete development lifecycle:
-
-- **Capture** ideas before they're lost
-- **Challenge** assumptions before committing to an approach
-- **Specify** work into agent-sized units with clear acceptance criteria
-- **Build** with automatic journey capture and architectural alignment
-- **Test** independently with targeted or full-suite verification
-- **Browse** web pages with unified automation (playwright-cli or Chrome MCP)
-- **Stories** — generate QA story YAML files by browsing your app
-- **Review** with batched code review findings, visual browser inspection, QA story validation, and simplification
-- **Wrap up** with reflection, knowledge routing, and artifact cleanup
-
-Every finding is explicitly routed — fixed now, deferred with context, or explicitly accepted. Nothing silently drops.
+Claude Code is powerful but unstructured. claude-tweaks adds a complete development lifecycle: capture ideas, challenge assumptions, decompose into specs, build with quality gates, and learn from what was built. Every finding is explicitly resolved — nothing silently drops.
 
 ## Installation
-
-### Step 1: Add the marketplace and install claude-tweaks
-
-Inside Claude Code:
 
 ```
 /plugin marketplace add thomasholknielsen/claude-tweaks-marketplace
 /plugin install claude-tweaks@claude-tweaks-marketplace
-```
-
-### Step 2: Install dependencies
-
-The workflow system depends on the **Superpowers** plugin for brainstorming, planning, and subagent-driven development.
-
-```
 /plugin install superpowers@claude-plugins-official
-```
-
-### Step 3: Bootstrap a project
-
-```
 /claude-tweaks:init
 ```
 
-This will:
-- Verify plugin dependencies (Superpowers, code-simplifier)
-- Create `specs/`, `docs/plans/`, `docs/journeys/`, and starter files (`INBOX.md`, `INDEX.md`)
-- Check for `CLAUDE.md` and git
-- Optionally set up browser integration (playwright-cli and/or Chrome MCP)
-- Analyze the codebase and generate CLAUDE.md with adaptive philosophy, skills, and rules
-- Present a consolidated status report
-
-## Workflow Lifecycle
-
-**Plan** — run these to go from idea to spec:
+## How it works
 
 ```mermaid
-graph LR
-  capture --> challenge --> brainstorm:::sp --> specify
-  classDef sp fill:#ddd,stroke:#888,stroke-dasharray:5 5
+graph TD
+  capture --> challenge
+  challenge --> brainstorm:::sp
+  brainstorm --> specify
+  specify --> build
+  build -.->|"if UI changed"| stories
+  stories --> test
+  test --> review
+  review --> wrapup["wrap-up"]
+
+  classDef sp fill:#e8e8e8,stroke:#999,stroke-dasharray:5 5
 ```
 
-**Pipeline** — automated by `/claude-tweaks:flow` (spec in, clean slate out):
+| Step | Skill | Produces | Cleans up | Superpowers used |
+|------|-------|----------|-----------|------------------|
+| 1 | `/claude-tweaks:capture` | INBOX item | | |
+| 2 | `/claude-tweaks:challenge` | Brief | | |
+| 3 | `/superpowers:brainstorm` | Design Doc | | |
+| 4 | `/claude-tweaks:specify` | Spec | Brief, Design Doc | `/superpowers:write-plan` |
+| | **Pipeline** — `/claude-tweaks:flow` automates steps 5-9. Add `worktree` for isolated feature branches. | | | |
+| 5 | `/claude-tweaks:build` | Code + Journeys | | `/superpowers:subagent-driven-development`, `/superpowers:executing-plans`, `/superpowers:using-git-worktrees` ⚙ |
+| 6 | `/claude-tweaks:stories` *(conditional)* | Story YAML | | |
+| 7 | `/claude-tweaks:test` | TEST_PASSED | | |
+| 8 | `/claude-tweaks:review` | Review Summary | | `/superpowers:dispatching-parallel-agents` |
+| 9 | `/claude-tweaks:wrap-up` | Learnings → CLAUDE.md | Spec, plans, ledger | `/superpowers:finishing-a-development-branch` ⚙ |
 
-```mermaid
-graph LR
-  build -.-> stories --> test --> review --> wrapup["wrap-up"]
-```
-
-> All nodes are `/claude-tweaks:{name}` except **brainstorm** (dashed) = `/superpowers:brainstorm` from the [Superpowers](https://github.com/obra/superpowers) plugin.
-> Dashed arrow = conditional (stories only runs when UI files changed).
+> ⚙ = worktree mode only. Dashed arrow = conditional (stories runs only when UI files changed).
 > `/claude-tweaks:init` runs once per project, before entering the pipeline.
 
-- **/claude-tweaks:test** = "does it work?" — types, lint, tests, QA validation (mechanical gate)
-- **/claude-tweaks:review** = "is it good?" — code review, visual inspection, UX analysis (analytical gate)
-- **/claude-tweaks:flow** = run build through wrap-up in one command, fully automated
+## Skills
 
-### Lifecycle Skills
+### Plan phase
 
-| Phase | Command | Purpose |
-|-------|---------|---------|
-| Plan | `/claude-tweaks:init` | Bootstrap structure, generate CLAUDE.md with adaptive philosophy, skills, and rules |
-| Plan | `/claude-tweaks:capture` | Brain-dump ideas into INBOX |
-| Plan | `/claude-tweaks:challenge` | Debias a problem statement before brainstorming |
-| Plan | `/claude-tweaks:specify` | Decompose design doc into agent-sized specs with implicit dependency detection |
-| Build | `/claude-tweaks:build` | Implement a spec end-to-end (subagent/batched execution, current-branch/worktree git strategy, `auto` mode) |
-| Build | `/claude-tweaks:stories` | Generate or update QA story YAML files by browsing a site (auto-triggered by `/claude-tweaks:flow` on UI changes) |
-| Ship | `/claude-tweaks:test` | Verification gate — types, lint, tests, QA story validation |
-| Ship | `/claude-tweaks:review` | Analytical quality gate — code review + visual browser review with idea generation. Gates on `/claude-tweaks:test` passing. |
-| Ship | `/claude-tweaks:wrap-up` | Reflection, knowledge capture, artifact cleanup |
+**`/claude-tweaks:init`** — One-time project bootstrap. Scans the codebase, generates a CLAUDE.md with project-specific conventions and philosophy, creates workflow directories (`specs/`, `docs/plans/`, `docs/journeys/`), sets up browser integration (playwright-cli and/or Chrome MCP), builds a documentation registry (`docs/REGISTRY.md`) mapping docs to code areas for automatic updates, and discovers existing user journeys.
 
-### Utility Skills
+**`/claude-tweaks:capture`** — Brain-dump an idea into `specs/INBOX.md`. Accepts free-text — no structure needed. Ideas are triaged later by `/claude-tweaks:tidy` or pulled into the pipeline by `/claude-tweaks:challenge`.
 
-| Command | Purpose |
-|---------|---------|
-| `/claude-tweaks:help` | Quick reference, workflow status dashboard, recommendations |
-| `/claude-tweaks:tidy` | Batch backlog hygiene with cross-spec pattern detection |
-| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → wrap-up. Resume with `/claude-tweaks:flow 42 review`. |
-| `/claude-tweaks:browse` | Unified browser automation — playwright-cli or Chrome MCP |
-| `/claude-tweaks:ledger` | Open items tracking — create, query, resolve ledger entries across pipeline phases |
+**`/claude-tweaks:challenge`** — Takes an INBOX item or topic and pressure-tests it before committing to an approach. Surfaces hidden assumptions, identifies risks, explores alternatives. Produces a Brief that feeds into brainstorming.
 
-## Common Workflows
+**`/superpowers:brainstorm`** *(Superpowers plugin)* — Generates solution approaches from the Brief. Explores multiple directions, evaluates tradeoffs, and produces a Design Doc with a recommended approach.
 
-### Feature from scratch (full pipeline)
+**`/claude-tweaks:specify`** — Decomposes a Design Doc into agent-sized specs with clear acceptance criteria. Each spec gets a numbered file in `specs/`. Detects implicit dependencies between specs (two specs touching the same files) and builds a file-to-spec map. Deletes the Brief and Design Doc after absorbing them. Uses `/superpowers:write-plan` to structure the execution plan.
+
+### Pipeline (automated by `/claude-tweaks:flow`)
+
+**`/claude-tweaks:build`** — Implements a spec end-to-end. Two orthogonal choices:
+
+| | **Current branch** | **Worktree** |
+|---|---|---|
+| **Subagent** (default) | Fast solo work | Isolated feature branch |
+| **Batched** | Hands-on review per chunk | Full control + full isolation |
+
+Uses `/superpowers:subagent-driven-development` and `/superpowers:executing-plans` for autonomous execution. In worktree mode, `/superpowers:using-git-worktrees` manages the isolated branch. Automatically creates user journey files (`docs/journeys/`) for user-facing features, updates docs matched by the documentation registry, and tracks deferred items in the open items ledger.
 
 ```
+/claude-tweaks:build 42                    → subagent + current branch (default)
+/claude-tweaks:build 42 worktree           → subagent + isolated feature branch
+/claude-tweaks:build 42 batched            → human-reviewed batches + current branch
+/claude-tweaks:build 42 auto               → subagent + worktree, no confirmations
+```
+
+**`/claude-tweaks:stories`** — Generates QA story YAML files by browsing your running app. Auto-detects the dev server, reads existing journey files as a skeleton, and extracts behavioral contracts from component source code (validation rules, state transitions, error paths) to generate tests that cover the full behavioral surface — not just what's visible on first render.
+
+Stories include `source_files:` and `journey:` fields for change-aware scoping and coverage tracking. Supports auth profiles (`stories/auth.yml`), self-healing CSS selectors, and parallel orchestration across browser sessions. Auto-triggered by `/claude-tweaks:flow` when UI files changed.
+
+**`/claude-tweaks:test`** — Mechanical "does it work?" gate. Runs types, lint, and tests from your project. In QA mode, validates story YAML files against the running app with enriched reporting — 5 finding categories (code-bug, stale-selector, ux-issue, flaky-env, story-bug), severity levels, and suggested fixes. Supports scoping by journey, tag, affected files, or retry of previous failures.
+
+```
+/claude-tweaks:test                        → standard suite (types + lint + tests)
+/claude-tweaks:test qa                     → QA story validation
+/claude-tweaks:test qa journey=checkout    → stories for one journey
+/claude-tweaks:test all                    → full suite + QA stories
+```
+
+**`/claude-tweaks:review`** — Analytical "is it good?" gate. Gates on `/claude-tweaks:test` passing. Runs multiple review lenses in parallel — spec compliance, code quality, UX analysis, hindsight, and simplification. Detects journey regressions when changed files overlap with existing journey `files:` frontmatter. Uses `/superpowers:dispatching-parallel-agents` to fix 3+ independent issues in parallel. Every finding must be explicitly resolved — fix now, defer, or accept with reason.
+
+| Mode | What it does |
+|------|-------------|
+| **code** (default) | Code review + UX analysis (when QA data available) + simplification |
+| **full** (default in /flow) | Code review + visual browser review + idea generation |
+| **visual** | Browser review only — single page |
+| **journey** | Browser review only — walk a documented journey |
+| **discover** | Scan and document all user journeys |
+
+**`/claude-tweaks:wrap-up`** — Reflection and cleanup. Routes learnings to CLAUDE.md and skill files, captures deferred work with triggers for re-activation, resolves every open ledger item. In worktree mode, uses `/superpowers:finishing-a-development-branch` to merge and clean up the feature branch. Deletes the spec, plan files, and ledger — leaving a clean slate.
+
+### Utility skills
+
+**`/claude-tweaks:flow`** — Automated pipeline: build → [stories →] test → review → wrap-up in one command. Add `worktree` for isolated branches, `no-stories` to skip QA generation. Resume from any step with `/claude-tweaks:flow 42 review`. Run multiple specs sequentially (`/claude-tweaks:flow 42,45,48`) or in parallel across terminals with worktree mode.
+
+**`/claude-tweaks:help`** — Dashboard with workflow status, command reference, and context-aware recommendations. Warns about dependency conflicts between in-progress specs.
+
+**`/claude-tweaks:tidy`** — Batch backlog hygiene. Triages INBOX items, scans review/wrap-up history for recurring patterns across specs, audits the documentation registry, and recommends project-level fixes.
+
+**`/claude-tweaks:browse`** — Unified browser automation. Auto-detects the best backend: playwright-cli (recommended, headless, parallel) or Chrome MCP (observable, real profile). Used internally by stories, test, and review.
+
+**`/claude-tweaks:ledger`** — Query and resolve the open items ledger (`docs/plans/*-ledger.md`) that tracks findings across all pipeline phases. The ledger is a file on disk — it survives context window compression so findings from one phase aren't lost before a later phase can act on them.
+
+## Common workflows
+
+```
+# Full pipeline — idea to clean slate
 /claude-tweaks:capture "users need meal planning"
 /claude-tweaks:challenge meal planning
 /superpowers:brainstorm
 /claude-tweaks:specify meal planning
-/claude-tweaks:build 73
-/claude-tweaks:review 73
-/claude-tweaks:wrap-up 73
-```
+/claude-tweaks:flow 73
 
-### Fast pipeline (spec ready, fully automated)
-
-```
+# Fast — spec already exists
 /claude-tweaks:flow 42
-```
 
-Resume a pipeline from a specific step:
+# Resume from a specific step
+/claude-tweaks:flow 42 review
 
-```
-/claude-tweaks:flow 42 review              → resume from review onward (review + wrap-up)
-/claude-tweaks:flow 42 test                → resume from test onward (test + review + wrap-up)
-```
+# Parallel specs in separate terminals (worktree mode)
+/claude-tweaks:flow 42 worktree       # Terminal 1
+/claude-tweaks:flow 45 worktree       # Terminal 2
+/claude-tweaks:flow 48 worktree       # Terminal 3
 
-Or run multiple specs sequentially in one terminal:
-
-```
-/claude-tweaks:flow 42,45,48
-```
-
-For true parallel execution, use separate terminals with worktree mode:
-
-```
-# Terminal 1                          # Terminal 2                          # Terminal 3
-/claude-tweaks:flow 42 worktree       /claude-tweaks:flow 45 worktree       /claude-tweaks:flow 48 worktree
-```
-
-### Visual QA session
-
-Run a full code + visual review:
-
-```
+# Visual QA
 /claude-tweaks:review 42 full
+/claude-tweaks:review journey:checkout-flow
+/claude-tweaks:review discover
 ```
-
-Or standalone visual modes:
-
-```
-/claude-tweaks:review journey:checkout-flow    → walk a documented journey
-/claude-tweaks:review visual http://localhost:3000/settings    → review a single page
-/claude-tweaks:review discover    → find and document all user journeys
-```
-
-## Key Features
-
-### Build Options
-
-Two orthogonal choices: **execution strategy** (subagent/batched) and **git strategy** (current-branch/worktree).
-
-| | **Current branch** | **Worktree** |
-|---|---|---|
-| **Subagent** (default) | Fast solo work. | Isolated automated build. |
-| **Batched** | Hands-on review, no isolation. | Full control + full isolation. |
-
-```
-/claude-tweaks:build 42                    → subagent + current branch (default)
-/claude-tweaks:build 42 worktree           → subagent + worktree feature branch
-/claude-tweaks:build 42 batched            → human-reviewed batches + current branch
-/claude-tweaks:build 42 batched worktree   → human-reviewed batches + worktree
-/claude-tweaks:build 42 auto               → subagent + worktree, no confirmations
-/claude-tweaks:build 42 auto current-branch → subagent + current branch, no confirmations
-```
-
-### Review Modes
-
-Analytical code review with visual inspection, UX analysis, and creative idea generation. Five modes (QA validation moved to `/claude-tweaks:test`):
-
-| Mode | What it does |
-|------|-------------|
-| **code** (default) | Test gate, spec compliance, code review, UX analysis (when QA data available), hindsight, simplification |
-| **full** (default in /flow) | Code review + UX analysis + visual browser review with QA-enriched idea generation |
-| **visual** | Browser review only — single page |
-| **journey** | Browser review only — walk a documented journey |
-| **discover** | Browser review only — scan and document all user journeys |
-
-When QA data is available (from `/claude-tweaks:test qa` or `/claude-tweaks:test all`), the visual review consumes page inventories, caveats, and screenshots to enrich its analysis and creative idea generation. `/claude-tweaks:flow` runs review in full mode by default when a browser backend is available.
-
-### User Journeys
-
-Persistent markdown files in `docs/journeys/` that describe how personas accomplish goals. Created automatically during `/claude-tweaks:build` for user-facing features, tested by `/claude-tweaks:review` visual modes, discovered in bulk via `/claude-tweaks:review discover` or `/claude-tweaks:init`.
-
-Each journey tracks its implementing source files via `files:` frontmatter. During `/claude-tweaks:review`, changed files are checked against all journeys — if a build touches files that an existing journey depends on, the review flags it for visual regression testing.
-
-### Journey-Story Integration
-
-Journeys and stories are connected: `/claude-tweaks:stories` reads existing journey files before browsing, using them as a skeleton for story design. Stories derived from journeys include a `journey:` field that enables:
-
-- **Filtered execution:** `/claude-tweaks:test qa journey=checkout` runs only stories for the checkout journey
-- **Coverage tracking:** `/claude-tweaks:stories` and `/claude-tweaks:review` report which journey steps have stories and which are uncovered, plus which stories are orphaned (no journey link)
-- **Source file inheritance:** Stories inherit source files from their journey's `files:` frontmatter, extended by component-level files from source analysis
-- **Reduced redundancy:** Journey-documented pages are enriched (capture selectors, verify structure) rather than fully re-discovered from scratch
-
-### Browser Automation
-
-`/claude-tweaks:browse` provides unified browser automation that auto-detects the best available backend:
-
-- **playwright-cli** (recommended) — headless CLI automation, parallel sessions, token-efficient
-- **Chrome MCP** (optional) — observable automation using your real Chrome with existing profile and cookies
-
-```
-/claude-tweaks:browse http://localhost:3000                    → auto-detect backend, explore site
-/claude-tweaks:browse screenshot http://example.com            → capture visual state
-/claude-tweaks:browse browser=chrome http://localhost:3000     → force Chrome backend
-```
-
-### QA Pipeline
-
-Stories are **auto-generated** when `/claude-tweaks:flow` detects UI file changes after build, and **validated by `/claude-tweaks:test`** in the pipeline test step. No manual URL entry — the dev server is auto-detected. Stories link to source files (`source_files:` field) for change-aware scoping.
-
-```
-/claude-tweaks:flow 42                                         → build → stories (auto if UI changed) → test (types + lint + tests + QA) → review → wrap-up
-/claude-tweaks:flow 42 no-stories                              → build → test → review → wrap-up (skip stories even if UI changed)
-```
-
-Manual story generation and validation:
-
-```
-/claude-tweaks:stories                                         → auto-detect dev server, ingest journeys, browse site, generate stories
-/claude-tweaks:stories http://localhost:3000                    → explicit URL, journey-aware generation
-/claude-tweaks:stories journey=checkout                         → generate/update stories scoped to the checkout journey
-/claude-tweaks:test qa                                         → validate all stories against running app
-/claude-tweaks:test qa journey=profile-settings                → validate only stories for the profile-settings journey
-/claude-tweaks:test qa tag=smoke                               → validate smoke tests only
-/claude-tweaks:test qa affected                                → run only stories affected by uncommitted changes
-/claude-tweaks:test qa retry=screenshots/qa/20260210_143022    → re-run only failed stories
-/claude-tweaks:test all                                        → full suite (types + lint + tests) + QA stories
-```
-
-**Source-aware generation:** `/claude-tweaks:stories` reads component source files to extract behavioral contracts — input constraints (min/max), validation schemas, state transitions, error paths — and generates deeper stories that exercise the full behavioral surface, not just what's visible on first render.
-
-**Enriched reporting:** QA reports classify findings into 5 categories (code-bug, stale-selector, ux-issue, flaky-env, story-bug) with severity and suggested fixes. Stories that pass mechanically but surface observations (missing ARIA labels, slow loads) get a `PASS_WITH_CAVEATS` status.
-
-**Self-healing selectors:** When a CSS selector in a story no longer matches, the qa-agent automatically recovers using snapshot matching and updates the story YAML — stale selectors become self-fixing rather than false negatives.
-
-**Auth profiles:** Store login credentials in `stories/auth.yml` (gitignored) alongside your story files and reference them by name (`setup.auth: default`). When `/claude-tweaks:stories` detects auth pages, it searches the project for existing credentials (`.env` files, seed data, test fixtures) and presents them for confirmation — no manual entry needed if credentials already exist somewhere in the project. Supports multiple named profiles (default, admin, customer) for multi-persona testing.
-
-**Parallel orchestration:** Auth cookies are captured once per profile and injected into all sessions. Streaming slot-fill starts the next story as soon as any slot opens. A 20-story run can complete in ~4-5 minutes instead of ~21 minutes.
-
-### Standalone Testing
-
-`/claude-tweaks:test` is the mechanical "does it work?" gate — types, lint, tests, and QA story validation:
-
-```
-/claude-tweaks:test                    → standard suite (types + lint + tests)
-/claude-tweaks:test types lint         → type checking and linting only
-/claude-tweaks:test affected           → tests affected by uncommitted changes
-/claude-tweaks:test src/api/           → tests scoped to a directory
-/claude-tweaks:test qa                 → QA story validation only
-/claude-tweaks:test qa affected        → QA stories affected by uncommitted changes
-/claude-tweaks:test all                → full suite + QA stories
-```
-
-### Batch Decisions
-
-Multi-item findings (code review, tidy, wrap-up insights) are presented as a single table with pre-filled recommendations:
-
-```
-| # | Finding              | Severity | Recommended        |
-|---|----------------------|----------|--------------------|
-| 1 | Missing validation   | High     | Fix now            |
-| 2 | Naming inconsistency | Low      | Don't fix — legacy |
-
-1. Apply all recommendations (Recommended)
-2. Override specific items (tell me which #s to change)
-```
-
-### Skill Handoffs
-
-Skills end with a `### Next Actions` block — 2-4 numbered options with full commands, pre-filled parameters, and one marked **(Recommended)**. Options are context-aware: if a build produced UI changes and journeys, the handoff offers both full (code + visual) and code-only review.
-
-When a skill performs autonomous work, it includes an `### Actions Performed` table showing every discrete action taken — implementations, bug fixes, simplifications, operational fixes, ledger resolutions — with commit references.
-
-### Cross-Spec Intelligence
-
-The workflow learns from its own history:
-
-- **Pattern detection** — `/claude-tweaks:tidy` scans recent review and wrap-up history for recurring findings across specs (repeated convention violations, responsibility-magnet files, rediscovered gotchas) and recommends project-level fixes
-- **Journey regression** — `/claude-tweaks:review` detects when a build's changed files overlap with existing journey `files:` frontmatter, flagging affected journeys for visual testing
-- **Dependency intelligence** — `/claude-tweaks:specify` builds a file->spec map from Key Files sections and detects implicit dependencies (two specs modifying the same files). `/claude-tweaks:help` uses this to warn before building specs that conflict with in-progress work
-
-### Context Flow
-
-Skills communicate through **durable artifacts on disk** — specs, briefs, design docs, journey files, review summaries. Each skill reads artifacts produced by upstream skills and writes artifacts consumed by downstream skills. Context survives across sessions, is inspectable as markdown files, and is explicitly consumed (not silently accumulated). For a detailed breakdown of what each skill reads and writes, see `skills/help/context-flow.md`.
-
-### Parallel Execution
-
-Skills include explicit parallelization directives that tell Claude when to run operations concurrently — parallel tool calls for independent reads and searches, parallel Task agents for heavier analytical work like review lenses and pipeline scans, and conditional dispatch for context-dependent parallelism (e.g., `/claude-tweaks:review` dispatches 3+ independent fixes via `/superpowers:dispatching-parallel-agents`). For true parallel spec execution, use separate terminals with worktree mode:
-
-```
-# Terminal 1                          # Terminal 2                          # Terminal 3
-/claude-tweaks:flow 42 worktree       /claude-tweaks:flow 45 worktree       /claude-tweaks:flow 48 worktree
-```
-
-### No Implicit Drops
-
-Every surfaced finding — code review issues, visual review observations, wrap-up insights, tidy items — must be explicitly resolved: fix now, defer with context, or accept with a stated reason. Nothing silently disappears.
-
-The **open items ledger** (`docs/plans/*-ledger.md`) tracks all findings and operational tasks across pipeline phases as a file on disk — surviving context compression. `/claude-tweaks:wrap-up` enforces a nothing-left-behind gate: every item must reach a terminal status before the pipeline completes.
-
-## Artifact Lifecycle
-
-Each skill consumes upstream artifacts and produces downstream ones. Consumed artifacts are deleted — specs and code are the durable outputs.
-
-```mermaid
-graph LR
-  inbox["INBOX"] -->|challenge| brief["Brief"]
-  brief -->|brainstorm| design["Design Doc"]
-  design -->|specify| spec["Spec"]
-  spec -->|build| code["Code"]
-  code -.->|stories| yaml["Stories"]
-  yaml -->|test| pass["Tested"]
-  pass -->|review| summary["Reviewed"]
-  summary -->|wrap-up| done(("Done"))
-
-  style done fill:#2ea043,color:#fff
-```
-
-> `/claude-tweaks:specify` deletes Brief and Design Doc. `/claude-tweaks:wrap-up` deletes Spec, plans, and ledger — leaving a clean slate.
-
-The **open items ledger** (`docs/plans/*-ledger.md`) tracks findings across all phases as a file on disk — surviving context compression. `/claude-tweaks:wrap-up` resolves every item before completing.
 
 ## Dependencies
 
-| Plugin / Tool | Source | Required for |
-|---------------|--------|-------------|
-| [Superpowers](https://github.com/obra/superpowers) | `claude-plugins-official` (built-in) | `/superpowers:brainstorm`, `/superpowers:write-plan`, `/superpowers:subagent-driven-development`, `/superpowers:executing-plans`, `/superpowers:using-git-worktrees`, `/superpowers:finishing-a-development-branch`, `/superpowers:dispatching-parallel-agents` |
-| code-simplifier | Built-in subagent | Code simplification in `/claude-tweaks:review` and `/claude-tweaks:build` |
-| playwright-cli | `npm install -g @playwright/cli@latest` | `/claude-tweaks:browse`, `/claude-tweaks:stories`, `/claude-tweaks:test qa` (optional — Chrome MCP is an alternative) |
-| Chrome MCP | Chrome extension + `claude --chrome` | `/claude-tweaks:browse` Chrome backend (optional — playwright-cli is the recommended default) |
+| Plugin / Tool | Source | Required |
+|---------------|--------|----------|
+| [Superpowers](https://github.com/obra/superpowers) | `/plugin install superpowers@claude-plugins-official` | Yes — brainstorming, planning, subagent execution, worktree management |
+| playwright-cli | `npm install -g @playwright/cli@latest` | Optional — browser automation for stories, test qa, review visual |
+| Chrome MCP | Chrome extension + `claude --chrome` | Optional — alternative browser backend using real Chrome profile |
 
 ## Local development
 
