@@ -16,7 +16,7 @@ When QA is triggered automatically (by `/claude-tweaks:test` in a `/claude-tweak
 
 1. Check `playwright-cli`: run `playwright-cli --version` and check if it succeeds
 2. Fall back to Chrome MCP: check if `mcp__claude_in_chrome__navigate` tool exists
-3. If neither: **stop** and suggest `/claude-tweaks:setup` (Step 6) or `/claude-tweaks:stories` to generate stories
+3. If neither: **stop** and suggest `/claude-tweaks:init` (Step 6) or `/claude-tweaks:stories` to generate stories
 
 ### Story Check
 

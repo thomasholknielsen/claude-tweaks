@@ -47,10 +47,10 @@ These run in order — each skill feeds into the next.
 
 | # | Command | Purpose | Accepts |
 |---|---------|---------|---------|
-| 1 | `/claude-tweaks:setup` | Bootstrap workflow directories and dependencies | — |
-| 2 | `/claude-tweaks:codebase-onboarding` | Generate CLAUDE.md, skills, and rules for a project | path, URL, `update` |
-| 3 | `/claude-tweaks:capture` | Brain-dump ideas into INBOX | idea text |
-| 4 | `/claude-tweaks:challenge` | Debias a problem statement before brainstorming | `quick`, INBOX item, topic |
+| 1 | `/claude-tweaks:init` | Bootstrap structure, generate CLAUDE.md, skills, and rules | path, URL, update |
+| 2 | `/claude-tweaks:capture` | Brain-dump ideas into INBOX | idea text |
+| 3 | `/claude-tweaks:challenge` | Debias a problem statement before brainstorming | `quick`, INBOX item, topic |
+| 4 | `/brainstorm` | Explore solutions for a debiased problem *(Superpowers)* | topic, brief |
 | 5 | `/claude-tweaks:specify` | Decompose a design doc into agent-sized specs | design doc path, topic, INBOX ref |
 | 6 | `/claude-tweaks:build` | Implement a spec or design doc end-to-end | spec number, design doc path, topic + optional `auto`, `batched`, `worktree` |
 | 6b | `/claude-tweaks:test` | Verification gate — types, lint, tests, QA story validation | `types`, `lint`, `unit`, file path, `affected`, `qa`, `qa journey={name}`, `qa affected`, `all` |
@@ -137,7 +137,7 @@ Scan the full workflow state across all pipeline stages.
 - Check YAML frontmatter for `status: not-started` with empty or satisfied `blocked-by`
 - Check which tier they're in (lower tier = higher priority)
 - Check if a plan already exists in `docs/plans/` (ready for immediate `/claude-tweaks:build`)
-- **Implicit dependency check:** Extract `Key Files` from each ready spec and each in-progress spec. If a ready spec shares files with an in-progress spec, flag it in the "Needs Attention" table — building it now risks merge conflicts or duplicated work. This supplements the explicit `blocked-by` field with file-level awareness.
+- **Implicit dependency check:** Extract `Key Files` from each ready spec and each in-progress (or other not-started) spec. If a ready spec shares Key Files with any non-completed spec, flag it in the "Needs Attention" table — building it now risks merge conflicts or duplicated work. This is the same algorithm that `/claude-tweaks:specify` runs at spec creation time, re-run here to catch conflicts from specs that started building since then.
 
 ### Stage 4: Specs In Progress
 
@@ -159,6 +159,8 @@ Scan the full workflow state across all pipeline stages.
 - INBOX has 10+ items → suggest `/claude-tweaks:tidy`
 - Plans older than 4 weeks with no matching spec progress → flag
 - More than 3 design docs unspecified → suggest a `/claude-tweaks:specify` session
+- Doc registry exists but has stale entries or gaps → suggest `/claude-tweaks:tidy` (Step 4.6 audits registry health)
+- No doc registry exists but `docs/` has files → suggest `/claude-tweaks:init update` to create registry
 
 ### Present Dashboard
 

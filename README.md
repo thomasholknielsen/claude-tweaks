@@ -120,6 +120,11 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 ## Common workflows
 
 ```
+# New repo — bootstrap and start capturing ideas
+/claude-tweaks:init
+/claude-tweaks:help                    # verify setup, see what's next
+/claude-tweaks:capture "first feature idea"
+
 # Full pipeline — idea to clean slate
 /claude-tweaks:capture "users need meal planning"
 /claude-tweaks:challenge meal planning
@@ -137,6 +142,9 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 /claude-tweaks:flow 42 worktree       # Terminal 1
 /claude-tweaks:flow 45 worktree       # Terminal 2
 /claude-tweaks:flow 48 worktree       # Terminal 3
+
+# Check pipeline status (navigation hub)
+/claude-tweaks:help                    # what's ready, what's blocked, what's next
 
 # Visual QA
 /claude-tweaks:review 42 full

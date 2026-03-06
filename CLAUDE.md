@@ -2,7 +2,7 @@
 
 ## What this is
 
-A Claude Code plugin (v3.13.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation and QA pipeline support. This is not a code application — it's a system of prompts organized as skills.
+A Claude Code plugin (v3.18.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation and QA pipeline support. This is not a code application — it's a system of prompts organized as skills.
 
 ## Stack
 
@@ -25,19 +25,19 @@ README.md                         → User-facing documentation
 LICENSE                           → MIT
 ```
 
-### Skill directories (15 total)
+### Skill directories (14 total)
 
-**Lifecycle:** setup, codebase-onboarding, capture, challenge, specify, build, test, stories, review, wrap-up
+**Lifecycle:** init, capture, challenge, specify, build, test, stories, review, wrap-up
 **Utility:** help, tidy, flow, browse, ledger
 
 ### Skills with sub-files
 
 | Skill | Sub-files | Purpose |
 |-------|-----------|---------|
-| codebase-onboarding | detection-tables.md, profile-templates.md, claude-md-template.md, skill-template.md, summary-templates.md | Lazy-loaded reference content for each phase |
+| init | detection-tables.md, profile-templates.md, claude-md-template.md, skill-template.md, summary-templates.md, docs-structure.md | Lazy-loaded reference content for each phase; doc registry format, tier detection, standard folder taxonomy |
 | browse | playwright-reference.md, chrome-reference.md | Full command references for each browser backend |
 | test | verification.md | Shared verification procedure (referenced by /build, /review, and /test) |
-| stories | dev-url-detection.md, source-analysis.md | Dev server auto-detection; source code extraction patterns for behavioral contracts |
+| stories | dev-url-detection.md, source-analysis.md, story-examples.md | Dev server auto-detection; source code extraction patterns for behavioral contracts; YAML story examples (DOM-only, source-aware, journey-aware) |
 | review | review-summary-template.md, browser-review.md, qa-review.md, ux-analysis.md, reconnaissance.md | Structured summary template; visual review procedures; QA review procedures; UX analysis procedure; contextual page reconnaissance |
 | specify | spec-template.md | Spec file template with field rationale |
 | help | reference-card.md, context-flow.md | Quick reference card; artifact flow documentation |

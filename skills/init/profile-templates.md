@@ -47,8 +47,12 @@ Synthesize Phase 1 findings into a structured profile:
 ### Existing AI Config
 - {what was found, or "None"}
 
+### Maturity Signals
+- **Classification:** {greenfield/pre-launch/early-production/established}
+- **Key signals:** {age, migrations, production infra, contributors, etc.}
+
 ### Skill Candidates
-{Prioritized list — see Phase 3}
+{Prioritized list — see Phase 4}
 ```
 
 Present as numbered options:

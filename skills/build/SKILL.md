@@ -241,6 +241,14 @@ If the user specified `worktree`:
 2. The skill handles: branch creation, dependency install, baseline test verification
 3. All subsequent work happens in the worktree
 
+**If worktree creation fails:**
+
+| Failure | Recovery |
+|---------|----------|
+| **Superpowers not installed** | Stop. Tell the user: "Superpowers plugin required for worktree mode. Install: `/plugin install superpowers@claude-plugins-official`" — or fall back to current-branch with confirmation. |
+| **Git state prevents worktree** (uncommitted changes, dirty index) | Stop. Present the git issue and suggest: `git stash` or commit first, then retry. |
+| **Branch already exists** | Offer: (1) Use existing worktree, (2) Remove and recreate, (3) Fall back to current-branch. |
+
 If the user did not specify `worktree`, skip this step.
 
 ### Common Step 2: Execute the Plan
@@ -303,11 +311,13 @@ This step:
 - Preserves all functionality — no behavioral changes
 - Focuses on files modified during this build session
 
-The code-simplifier catches patterns that individual task-focused subagents miss:
-- Unnecessary complexity introduced across multiple tasks
-- Inconsistent naming or patterns between tasks
-- Over-engineering that accumulated during implementation
+The code-simplifier reviews all files modified during the build and catches cross-task patterns that individual subagents miss — because each subagent only sees its own task:
+- Inconsistent naming or patterns between files modified by different tasks
 - Opportunities to consolidate similar code written by different subagents
+- Unnecessary complexity that accumulated across iterative implementation
+- Over-engineering introduced during trial-and-error
+
+**Scope:** Same as Step 5 — only files changed in the current work. "Cross-task" means across modified files, not across the entire codebase.
 
 If the simplifier makes changes, commit them separately.
 
@@ -469,6 +479,31 @@ git add docs/journeys/{journey-name}.md
 git commit -m "Add/update {journey name} journey"
 ```
 
+### Common Step 6.5: Documentation Sync
+
+After journey capture, check if the build's code changes affect documented areas.
+
+1. **Read registry** — Read `docs/REGISTRY.md`. If it doesn't exist, skip this step entirely.
+2. **Get changed files** — `git diff --name-only` since build start (same file list used by Step 6).
+3. **Match patterns** — For each registry entry, check if any changed file matches its Auto-detect glob patterns.
+4. **For each matched doc:**
+
+> **Parallel execution:** Use parallel tool calls — all Read operations on matched docs and their source files are independent.
+
+   a. Read the doc file
+   b. Read the relevant changed source files
+   c. Determine the update using the doc update patterns from `docs-structure.md` in the `/claude-tweaks:init` skill's directory. Each doc type has specific triggers and update actions:
+      - API endpoint added/changed/removed → add/update/remove rows in the endpoint table
+      - New env variable or config → add to prerequisites or env setup section
+      - New dependency or tool → update stack or prerequisites
+      - Broken file path references → fix paths to new locations
+      - Architectural change → flag for wrap-up (too big for inline)
+   d. **Update inline** when the change is clearly scoped (adding a table row, updating a command, fixing a path — < 5 minutes of editing). Commit separately:
+      `git commit -m "Update {doc} — {what changed}"`
+   e. **Defer to wrap-up** when the change is structural (doc needs reorganization, new section, or requires reading multiple files to understand impact). Append to ledger with phase `build/docs` and status `open`:
+      "{doc} may need updates — {what changed in code}. Review in wrap-up."
+5. **No matches** — skip silently. No output.
+
 ### Common Step 7: Handoff
 
 After successful build, present:
@@ -494,6 +529,11 @@ After successful build, present:
 - {created/updated journey name} — {summary of what changed}
 (or: No user-facing journeys affected.)
 
+### Documentation
+- Updated: {doc} ({what changed})
+- Flagged for wrap-up: {doc} ({reason})
+(or: No documentation changes needed.)
+
 ### Blocked items (if any)
 - {item} — blocked by {reason}
 
@@ -514,6 +554,7 @@ After successful build, present:
 | Simplified | {what} — `{file}` | `{hash}` |
 | Operational | {schema push, env update} | `{hash}` |
 | Journey | {created/updated} {name} — `{file}` | `{hash}` |
+| Doc update | {doc} — {what changed} | `{hash}` |
 | Ledger fix | {item} ({phase}) — `{file}` | `{hash}` |
 
 Generate from: `git log --oneline` since build start, `git diff --stat` against pre-build state, ledger entries with status `fixed`, journey files from Step 6, operational fixes from Step 5.5.
@@ -549,7 +590,7 @@ These rules apply in ALL modes. They exist because multiple processes may commit
 | **Stage specific files only** | Never `git add -A` or `git add .`. |
 | **Verify commits landed** | Always `git log --oneline -3` after committing. |
 
-If you encounter a merge conflict, resolve it — do not reset or discard.
+**Merge conflict resolution:** If you encounter a merge conflict, resolve it — do not reset or discard. Read both sides of the conflict, understand the intent of each change, and produce a merged result that preserves both. After resolving, run verification (Common Step 5) to confirm the resolution didn't break anything. If the conflict is too complex to resolve confidently, present both versions to the user and ask which to keep.
 
 ## Autonomy Rules
 
@@ -574,6 +615,7 @@ These apply in **subagent** execution strategy. In **batched** strategy, autonom
 | Asking the user whether to create a journey | Journey capture is automatic. The user didn't know they needed the spec either — that's why the workflow exists. |
 | Ignoring architectural deviations from the spec | Drift happens during implementation — catch it in Step 4.5 before it becomes tech debt. Every deviation must be explicitly classified. |
 | Using `batched` execution within `/flow` | Flow's purpose is hands-off automation — batched pauses for human review after every 3 tasks, contradicting flow's no-stopping design. Use `subagent` with `/flow`. |
+| Rewriting docs from scratch during build | Build doc updates are incremental — add/change what the build touched. Full rewrites belong in /wrap-up or /init. |
 
 ## Relationship to Other Skills
 
@@ -594,4 +636,5 @@ These apply in **subagent** execution strategy. In **batched** strategy, autonom
 | `/claude-tweaks:wrap-up` | Runs AFTER /claude-tweaks:review — cleans up and captures learnings. `build/skill` ledger entries from Step 4.5 feed into wrap-up's skill update analysis (Step 7). |
 | `/claude-tweaks:capture` | Design mode may create INBOX items for blocked work |
 | `/claude-tweaks:tidy` | Reviews specs from /claude-tweaks:build for staleness — periodic cleanup complement |
-| `/claude-tweaks:ledger` | Manages the open items ledger file. /build creates and appends items during Steps 2.5, 4, 4.5, and 5.5. |
+| `/claude-tweaks:init` | /init creates `docs/REGISTRY.md` (Phase 8.5) that /build consumes in Step 6.5 for documentation sync |
+| `/claude-tweaks:ledger` | Manages the open items ledger file. /build creates and appends items during Steps 2.5, 4, 4.5, 5.5, and 6.5. |

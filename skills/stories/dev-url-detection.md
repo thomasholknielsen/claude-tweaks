@@ -78,13 +78,23 @@ This procedure sets two variables for the calling skill:
 
 ### Step 4: Persist Result
 
-After resolving `APP_URL`, persist it for future runs:
+After resolving `APP_URL`, persist it for future runs. **This write is mandatory — do not skip it.**
 
-1. Read `stories/auth.yml` (or `{STORIES_DIR}/auth.yml`). If missing, create an empty YAML file.
-2. Set (or update) `servers.default.url` to the resolved `APP_URL`
-3. Set `servers.default.detected` to today's date
-4. If a start command was discovered in Step 2 (from CLAUDE.md or package.json), set `servers.default.start_command`
-5. Write back to `stories/auth.yml`, preserving existing `profiles` and other `servers` entries
+1. Use the Glob tool to check if `stories/auth.yml` (or `{STORIES_DIR}/auth.yml`) exists.
+2. **File exists:** Use the Read tool to load the current contents. Parse the YAML to preserve existing `profiles` and other `servers` entries.
+3. **File missing:** Start with this minimal structure:
+   ```yaml
+   # QA and browser config (gitignored — do not commit)
+   servers:
+     default:
+       url: http://localhost:3000
+       detected: 2026-03-04
+   ```
+4. Set (or update) `servers.default.url` to the resolved `APP_URL`.
+5. Set `servers.default.detected` to today's date.
+6. If a start command was discovered in Step 2 (from CLAUDE.md or package.json), set `servers.default.start_command`.
+7. **Use the Write tool (if creating) or Edit tool (if updating) to save the file now.** Do not defer this to a later step.
+8. **Verify:** Use the Glob tool to confirm `{STORIES_DIR}/auth.yml` exists after writing.
 
 If the file was created for the first time, check `.gitignore` for `stories/auth.yml` (or `{STORIES_DIR}/auth.yml`). If not present, offer to add it:
 ```

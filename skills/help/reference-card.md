@@ -6,8 +6,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 
 | Command | What it does | Takes |
 |---------|-------------|-------|
-| `/claude-tweaks:setup` | Bootstrap directories and dependencies | — |
-| `/claude-tweaks:codebase-onboarding` | Generate CLAUDE.md, skills, rules | path, URL, `update` |
+| `/claude-tweaks:init` | Bootstrap structure, generate CLAUDE.md, skills, rules | path, URL, update |
 | `/claude-tweaks:capture` | Brain-dump idea into INBOX | idea text |
 | `/claude-tweaks:challenge` | Debias assumptions before brainstorming | `quick`, INBOX item, topic |
 | `/superpowers:brainstorm` | Brainstorm solutions (Superpowers plugin) | topic |
@@ -84,8 +83,7 @@ or standalone:
 
 ### Brownfield onboarding
 ```
-/claude-tweaks:setup
-/claude-tweaks:codebase-onboarding
+/claude-tweaks:init
 /claude-tweaks:review discover
 ```
 

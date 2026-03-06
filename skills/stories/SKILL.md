@@ -266,7 +266,7 @@ If any discovered page requires authentication:
    After resolving the default profile:
    a. Ask: "Any additional profiles? (e.g., admin, customer, viewer). Enter profile names comma-separated, or press enter to skip."
    b. For each additional profile, ask for URL (default: same as default), username, password.
-   c. Write `{OUTPUT_DIR}/auth.yml`:
+   c. **Immediately use the Write tool** to create `{OUTPUT_DIR}/auth.yml` with the resolved credentials. Do not defer this — write the file now, before proceeding to any other step. Use this structure (substitute actual values from the resolved credentials and the detected dev URL):
       ```yaml
       # QA and browser config (gitignored — do not commit)
       servers:
@@ -281,14 +281,15 @@ If any discovered page requires authentication:
           password: test1234
       ```
 
-      The `servers` section is auto-populated by the dev URL detection procedure (`dev-url-detection.md`). When a dev URL is detected or provided, it's persisted here so subsequent runs skip port probing. The `detected` date tracks freshness. The `start_command` is auto-populated from CLAUDE.md or package.json if available.
-   d. Check `.gitignore` for `{OUTPUT_DIR}/auth.yml`. If not present, offer to add it:
+      The `servers` section is auto-populated by the dev URL detection procedure (`dev-url-detection.md`). When a dev URL is detected or provided, it's persisted here so subsequent runs skip port probing. The `detected` date tracks freshness. The `start_command` is auto-populated from CLAUDE.md or package.json if available. If `APP_URL` has already been resolved, populate `servers.default.url` with it. If a start command is known, populate `servers.default.start_command`.
+   d. **Verify the file was written:** Use the Glob tool to confirm `{OUTPUT_DIR}/auth.yml` exists. If the file does not exist, retry the Write tool once. If it still fails, **STOP** and report the error.
+   e. Check `.gitignore` for `{OUTPUT_DIR}/auth.yml`. If not present, offer to add it:
       ```
       Add {OUTPUT_DIR}/auth.yml to .gitignore? This file contains credentials and should not be committed.
       1. Yes (Recommended)
       2. No — I manage .gitignore manually
       ```
-   e. Log: "QA config created: {OUTPUT_DIR}/auth.yml ({N} profile(s)). Stories will reference profiles by name."
+   f. Log: "QA config created: {OUTPUT_DIR}/auth.yml ({N} profile(s)). Stories will reference profiles by name."
 
 ### URL-to-Source-File Mapping
 
@@ -665,179 +666,7 @@ One row per story file written, updated, or deleted. Omit unchanged files.
 
 ## Examples
 
-### Example 1: DOM-only stories (no source files available)
-
-Input: `/claude-tweaks:stories https://news.ycombinator.com/`
-
-Output file: `stories/hackernews-reader.yaml`
-```yaml
-stories:
-  - id: front-page-loads
-    name: "Front page loads with posts"
-    url: "https://news.ycombinator.com/"
-    tags: [smoke, navigation]
-    priority: high
-    source_files: []
-    steps:
-      - verify: "At least 10 posts are visible, each with a title and a link"
-      - verify: "Each post shows a rank number, score, and comment count"
-
-  - id: navigate-to-page-two
-    name: "Navigate to page two and back"
-    url: "https://news.ycombinator.com/"
-    tags: [navigation]
-    priority: medium
-    source_files: []
-    steps:
-      - verify: "Front page loads with posts"
-      - action: click
-        target: "More link at the bottom of the page"
-        selector: "a.morelink"
-        verify: "Page 2 loads with a new set of posts"
-      - action: press
-        target: "Browser back"
-        value: "Alt+ArrowLeft"
-        verify: "Page 1 loads again with the original posts"
-
-  - id: neg-404-handling
-    name: "Non-existent page shows error gracefully"
-    url: "https://news.ycombinator.com/item?id=9999999999"
-    tags: [negative, error-handling]
-    priority: medium
-    source_files: []
-    steps:
-      - verify: "Page shows an error message or 'No such item' — not a blank screen or crash"
-```
-
-### Example 2: Source-aware stories (React app with source analysis)
-
-Input: `/claude-tweaks:stories http://localhost:3000`
-
-Source analysis found: `app/(dashboard)/settings/page.tsx` imports a `ProfileForm` component with `maxLength={50}` on the name input, a zod schema requiring email format, an `isSaving` state variable, and a `useMutation` with success/error toasts.
-
-Output file: `stories/myapp-admin.yaml`
-```yaml
-stories:
-  - id: settings-profile-update
-    name: "Update profile with valid data"
-    url: "http://localhost:3000/settings"
-    tags: [core, form]
-    priority: high
-    source_files:
-      - app/(dashboard)/settings/page.tsx
-      - app/(dashboard)/settings/components/profile-form.tsx
-      - lib/schemas/profile.ts
-    steps:
-      - verify: "Profile form is visible with name and email fields"
-      - action: fill
-        target: "Name input"
-        selector: "input#name"
-        value: "Alice Johnson"
-        verify: "Name field shows 'Alice Johnson'"
-      - action: fill
-        target: "Email input"
-        selector: "input#email"
-        value: "alice@example.com"
-        verify: "Email field shows 'alice@example.com'"
-      - action: click
-        target: "Save button"
-        selector: "button[type='submit']"
-        verify: "Save button shows a loading spinner (isSaving state), then a success toast appears: 'Profile updated'"
-
-  - id: settings-name-boundary-max
-    name: "Name input enforces maximum length of 50 characters"
-    url: "http://localhost:3000/settings"
-    tags: [form, core]
-    priority: medium
-    source_files:
-      - app/(dashboard)/settings/components/profile-form.tsx
-    steps:
-      - action: fill
-        target: "Name input"
-        selector: "input#name"
-        value: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-        verify: "Input contains exactly 50 characters — the 51st character is not accepted or a validation error is shown"
-
-  - id: settings-email-validation
-    name: "Email field rejects invalid format"
-    url: "http://localhost:3000/settings"
-    tags: [form, error-handling]
-    priority: medium
-    source_files:
-      - app/(dashboard)/settings/components/profile-form.tsx
-      - lib/schemas/profile.ts
-    steps:
-      - action: fill
-        target: "Email input"
-        selector: "input#email"
-        value: "not-an-email"
-        verify: "Email field shows entered text"
-      - action: click
-        target: "Save button"
-        selector: "button[type='submit']"
-        verify: "Validation error appears near the email field indicating an invalid email format. Form is NOT submitted."
-
-  - id: settings-save-error-handling
-    name: "Profile save failure shows error toast"
-    url: "http://localhost:3000/settings"
-    tags: [error-handling, core]
-    priority: medium
-    source_files:
-      - app/(dashboard)/settings/components/profile-form.tsx
-    steps:
-      - action: fill
-        target: "Name input"
-        selector: "input#name"
-        value: "Alice Johnson"
-      - action: click
-        target: "Save button"
-        selector: "button[type='submit']"
-        verify: "If the save API call fails, an error toast appears (e.g. 'Failed to save profile') and the save button is re-enabled after the loading state clears"
-```
-
-### Example 3: Journey-aware stories
-
-Input: `/claude-tweaks:stories http://localhost:3000`
-
-Journey file exists at `docs/journeys/profile-settings.md` with persona "Returning user who wants to update their profile", entry point `/settings`, and steps covering `/settings`, `/settings/password`, `/settings/notifications`. Journey frontmatter `files:` includes `app/(dashboard)/settings/page.tsx`, `lib/services/profile.ts`.
-
-Output file: `stories/myapp-user.yaml`
-```yaml
-stories:
-  - id: profile-settings-flow
-    name: "Complete profile settings journey — update profile, change password, configure notifications"
-    url: "http://localhost:3000/settings"
-    journey: profile-settings
-    tags: [core, smoke]
-    priority: high
-    source_files:
-      - app/(dashboard)/settings/page.tsx
-      - lib/services/profile.ts
-      - app/(dashboard)/settings/components/profile-form.tsx
-      - app/(dashboard)/settings/password/page.tsx
-      - app/(dashboard)/settings/notifications/page.tsx
-    steps:
-      - verify: "Profile settings page loads with name and email fields pre-filled"
-      - action: fill
-        target: "Name input"
-        selector: "input#name"
-        value: "Alice Johnson"
-        verify: "Name field shows 'Alice Johnson'"
-      - action: click
-        target: "Save button"
-        selector: "button[type='submit']"
-        verify: "Success toast appears confirming profile update"
-      - action: click
-        target: "Password tab"
-        selector: "[data-tab='password']"
-        verify: "Password change form is visible with current password and new password fields"
-      - action: click
-        target: "Notifications tab"
-        selector: "[data-tab='notifications']"
-        verify: "Notification preferences visible with toggles for email and push notifications"
-```
-
-Note: `source_files` merges the journey's `files:` frontmatter (`page.tsx`, `profile.ts`) with component-level files discovered during source analysis (`profile-form.tsx`, `password/page.tsx`, `notifications/page.tsx`). The `journey: profile-settings` field enables `/test qa journey=profile-settings` and coverage tracking.
+For complete YAML examples covering DOM-only stories, source-aware stories (with boundary-value and error-path coverage), and journey-aware stories, read `story-examples.md` in this skill's directory.
 
 ## Guidelines
 
@@ -889,4 +718,4 @@ Note: `source_files` merges the journey's `files:` frontmatter (`page.tsx`, `pro
 | `/claude-tweaks:review` | /review gates on /test passing (which includes QA when stories exist). /review checks journey-to-story coverage in its code review — uncovered journey steps and orphaned stories are surfaced as informational findings. |
 | `/claude-tweaks:browse` | Used BY /stories to explore sites and validate generated stories |
 | `/claude-tweaks:flow` | Auto-triggers /stories between build and test when UI files change (unless `no-stories`). Uses `dev-url-detection.md` for URL resolution. |
-| `/claude-tweaks:setup` | Step 6 configures the browser backends that /stories depends on (via /browse) |
+| `/claude-tweaks:init` | Step 6 configures the browser backends that /stories depends on (via /browse) |

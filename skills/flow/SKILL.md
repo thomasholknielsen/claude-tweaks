@@ -91,7 +91,7 @@ Only automatable skills can be included in the pipeline:
 | `review` | `/claude-tweaks:review` | Code review, simplification, visual browser review with idea generation (when browser available) — produces a verdict. Gates on `TEST_PASSED`. |
 | `wrap-up` | `/claude-tweaks:wrap-up` | Reflection, cleanup, knowledge routing — produces actionable summary |
 
-**Not allowed in flow:** `capture`, `challenge`, `specify`, `setup`, `codebase-onboarding`, `tidy`, `help`, `browse` — these require interactive decision-making or are utility skills.
+**Not allowed in flow:** `capture`, `challenge`, `specify`, `init`, `tidy`, `help`, `browse` — these require interactive decision-making or are utility skills.
 
 ### Step Arguments
 
@@ -128,9 +128,11 @@ Each step has a gate that determines whether to proceed to the next step.
 |------|---------------|---------|-----------|
 | `build` | Final verification passes (type check + lint + tests) | Check for UI changes → auto-trigger stories if applicable → proceed | **STOP** — present verification failures |
 | `stories` (auto) | YAML files created + no parse errors | Proceed to test | **STOP** — present generation failures |
-| `test` | All checks pass — types, lint, tests, QA (when stories exist). Sets `TEST_PASSED=true`. | Proceed to review | **STOP** — present test/QA failures |
+| `test` | All checks pass — types, lint, tests, QA (when stories exist). `PASS_WITH_CAVEATS` counts as passed (caveats are informational). Sets `TEST_PASSED=true`. | Proceed to review | **STOP** — present test/QA failures |
 | `review` | Verdict is **PASS**. Gates on `TEST_PASSED=true`. Runs in full mode (code + visual) when browser available; falls back to code mode otherwise. | Proceed to next step | **STOP** — present **BLOCKED** verdict with findings |
 | `wrap-up` | Always passes | Pipeline complete | — |
+
+**Zero-test edge case:** If no test commands are configured in CLAUDE.md and no QA stories exist, the test gate passes vacuously — there is nothing to fail. Note in the pipeline output: "Test gate: no checks configured. Consider adding test commands to CLAUDE.md." This is a pass, not a skip.
 
 ### On Gate Failure
 
@@ -206,7 +208,7 @@ For each step in order:
    - `test` → `review` receives `TEST_PASSED=true` and QA results. Flow invokes `/claude-tweaks:review` in **full** mode (code + visual review) by default:
      - **Detect browser backend:** Run backend detection from `/claude-tweaks:browse` (same detection as the stories step).
      - **Browser available:** Invoke `/claude-tweaks:review {spec-or-design-doc} full`. The visual review auto-detects the dev server URL using `dev-url-detection.md` from the `/claude-tweaks:stories` skill's directory. When QA data exists from the test step, the visual review consumes page inventories, caveats, and screenshots to enrich its analysis and idea generation.
-     - **No browser available:** Invoke `/claude-tweaks:review {spec-or-design-doc}` (code mode). Note in the pipeline output: "Visual review skipped — no browser backend available. To enable, run `/claude-tweaks:setup` and choose browser integration."
+     - **No browser available:** Invoke `/claude-tweaks:review {spec-or-design-doc}` (code mode). Note in the pipeline output: "Visual review skipped — no browser backend available. To enable, run `/claude-tweaks:init` and choose browser integration."
    - `review` → `wrap-up` receives the review summary and verdict. Skill observations (`build/skill` and `review/skill` ledger entries) carry forward via the ledger file for wrap-up's skill update analysis (Step 7).
 5. **Ledger carries forward** — each step reads and appends to the open items ledger (see `/claude-tweaks:ledger` for all operations). Unlike conversation context (which may be compressed), the ledger is a file — it survives context window limits.
 

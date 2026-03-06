@@ -24,11 +24,11 @@ Periodic backlog hygiene to keep the spec system healthy. Run when the backlog f
 - Monthly hygiene pass
 - When `/claude-tweaks:help` flags issues
 
-## Steps 1-4.5: Scan Everything
+## Steps 1-4.6: Scan Everything
 
-> **No decisions during scanning.** Steps 1-4.5 silently collect all findings. Everything is presented as one batch in Step 6 for approval. This replaces the previous per-item decision model.
+> **No decisions during scanning.** Steps 1-4.6 silently collect all findings. Everything is presented as one batch in Step 6 for approval. This replaces the previous per-item decision model.
 
-> **Parallel execution:** Dispatch Steps 1 through 4.5 as parallel Task agents — each scan is independent (INBOX, Deferred, Specs, Design Docs, Plans, Git). Each agent returns findings in the `[type] item — detail — recommendation` format. Assemble all findings into the Step 6 report after all agents complete. Step 5 (Sizing Review) and Step 5.5 (Cross-Spec Pattern Detection) run after, since they depend on the spec scan results.
+> **Parallel execution:** Dispatch Steps 1, 1.5, 2, 3, 4, 4.5, and 4.6 as parallel Task agents — each scan is independent (INBOX, Deferred, Specs, Design Docs, Plans, Git, Doc Registry). Each agent returns findings in the `[type] item — detail — recommendation` format. After all agents complete, run Step 5 and Step 5.5 sequentially — they depend on Step 2's spec scan results. Assemble all findings into the Step 6 report.
 
 ### Step 1: Audit the INBOX
 
@@ -127,6 +127,19 @@ Scan `docs/plans/` for non-design plan files and `~/.claude/plans/`.
 
 Use `git branch -d` (safe delete, refuses if unmerged). Use `git worktree remove {path}` for worktrees.
 
+### Step 4.6: Audit Doc Registry
+
+Scan `docs/REGISTRY.md` for health issues. Skip if the file doesn't exist.
+
+| Issue | Recommendation |
+|-------|---------------|
+| Registry entry points to non-existent file | Delete entry |
+| Doc file exists in `docs/` but not in registry | Add entry (with Auto-detect patterns) |
+| Auto-detect pattern references non-existent directory | Update pattern |
+| Registry tier doesn't match project complexity | Update tier (suggest `/init update`) |
+
+→ Collect each as: `[registry] {issue} — {recommendation}`
+
 ## Step 5: Spec Sizing Review
 
 For specs not yet built, check sizing:
@@ -157,7 +170,19 @@ Scan recent git history for recurring findings across review summaries and wrap-
 
 → Collect each as: `[pattern] {description} — seen in {spec list} — {recommendation}`
 
-Patterns are informational — they surface systemic issues the user may want to address. They appear in the tidy report alongside actionable items but don't require immediate action.
+#### Project Health Summary
+
+When 3+ specs have been completed (check INDEX.md for completed entries or git log for wrap-up commits), include a brief project health summary in the tidy report:
+
+1. **Velocity** — count completed specs vs. in-progress vs. not-started
+2. **Recurring themes** — conventions worth codifying if they appear in 3+ specs' wrap-up reflections
+3. **Convention candidates** — suggest: "This pattern shows up in {N} specs — consider adding to CLAUDE.md: `{pattern}`"
+
+→ Collect each as: `[health] {observation} — {recommendation}`
+
+This gives the user a lightweight project retrospective during regular tidy hygiene — no separate skill needed.
+
+Patterns and health observations are informational — they surface systemic issues the user may want to address. They appear in the tidy report alongside actionable items but don't require immediate action.
 
 ---
 
@@ -308,10 +333,9 @@ Commit with a message summarizing the tidy-up.
 |-------|-------------|
 | `/claude-tweaks:capture` | Feeds the INBOX that /claude-tweaks:tidy audits |
 | `/claude-tweaks:specify` | /claude-tweaks:tidy flags unspecified design docs for /claude-tweaks:specify. /claude-tweaks:specify Step 6 removes promoted items from INBOX after creating the spec |
-| `/claude-tweaks:review` | /claude-tweaks:tidy flags specs that appear complete but lack review |
-| `/claude-tweaks:wrap-up` | /claude-tweaks:tidy flags reviewed specs that need wrap-up |
+| `/claude-tweaks:review` | /claude-tweaks:tidy flags specs that appear complete but lack review, and scans review summaries for cross-spec patterns (recurring findings, flagged files) |
+| `/claude-tweaks:wrap-up` | /claude-tweaks:tidy flags reviewed specs that need wrap-up, and scans wrap-up reflections for cross-spec patterns (recurring gotchas, deferred themes) |
 | `/claude-tweaks:help` | /claude-tweaks:help suggests /claude-tweaks:tidy when maintenance signals are detected |
-| `/claude-tweaks:review` | /claude-tweaks:tidy scans review summaries for cross-spec patterns (recurring findings, flagged files) |
-| `/claude-tweaks:wrap-up` | /claude-tweaks:tidy scans wrap-up reflections for cross-spec patterns (recurring gotchas, deferred themes) |
 | `specs/DEFERRED.md` | /claude-tweaks:tidy audits deferred items — promotes, merges, moves to INBOX, or deletes |
 | `/claude-tweaks:build` | /claude-tweaks:tidy cleans up leftover worktrees and `build/*` branches from previous builds |
+| `/claude-tweaks:init` | /claude-tweaks:tidy Step 4.6 audits doc registry health — flags stale entries, gaps, pattern drift. Suggests `/init update` for tier drift. |

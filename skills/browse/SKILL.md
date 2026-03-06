@@ -257,4 +257,4 @@ When the user replies with a "do N" pattern after receiving a Browse Report, mat
 | `/claude-tweaks:stories` | Uses /browse to explore sites and validate generated stories |
 | `/claude-tweaks:review` | Visual, journey, discover, and qa modes use /browse for browser interaction |
 | `/claude-tweaks:flow` | /flow can chain /stories and /review which use /browse transitively |
-| `/claude-tweaks:setup` | Step 6 configures the browser backends that /browse depends on |
+| `/claude-tweaks:init` | Step 6 configures the browser backends that /browse depends on |

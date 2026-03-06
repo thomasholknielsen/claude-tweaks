@@ -150,6 +150,8 @@ All checks passed. Set TEST_PASSED=true.
 Set TEST_PASSED=true (if all passed or passed with observations).
 ```
 
+> **Propagation rule:** `PASS_WITH_CAVEATS` sets `TEST_PASSED=true` — downstream gates (/review, /wrap-up) treat it identically to a clean pass. Caveats are carried as `observation` status ledger entries, visible in review findings but never blocking.
+
 ### Actions Performed
 
 {Only show when QA auto-recovered selectors or applied fixes. Omit when purely observational.}

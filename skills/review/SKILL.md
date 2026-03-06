@@ -86,6 +86,8 @@ If blocked, skip the rest of the review. Present the gap analysis so the user kn
 
 Verify that `/claude-tweaks:test` has passed before proceeding to analytical review. Reviewing code quality on code that doesn't work is wasted effort.
 
+`PASS_WITH_CAVEATS` counts as passed — caveats are informational observations (e.g., minor UX roughness, non-blocking warnings) and do not block review. QA caveats are included in the findings table (Step 3g) for visibility but have status `observation`, not `open`.
+
 ### In `/claude-tweaks:flow` pipeline:
 
 Check for `TEST_PASSED=true` in pipeline context. If present, proceed to Step 2.
@@ -217,9 +219,24 @@ Check coverage between journey files and story YAML files. This lens is informat
 
 Run the UX analysis procedure from `ux-analysis.md` in this skill's directory. Only runs when QA screenshots and/or caveats exist from a recent `/claude-tweaks:test qa` or `/claude-tweaks:test all` run. When no QA data is available, skip this lens silently.
 
+### 3i: Documentation Freshness (informational)
+
+**Skip when** `docs/REGISTRY.md` doesn't exist, or the diff is docs-only.
+
+1. Read `docs/REGISTRY.md`
+2. Match changed files against Auto-detect patterns
+3. For each matched registry entry, check if the doc was updated in this work's commits (look for doc update commits in `git log`)
+4. Flag unupdated docs as informational findings:
+
+   ```
+   | {N} | Doc `{file}` covers changed areas (`{pattern}`) but wasn't updated | Low | Docs | {file} | Review in wrap-up |
+   ```
+
+These findings are informational — they don't block the review. They ensure wrap-up doesn't miss doc updates that build skipped.
+
 ### 3g: Route Code Review Findings
 
-**Every finding from lenses 3a-3h must be explicitly resolved.** When lenses were dispatched as parallel Task agents, merge their results into a single table here: combine all findings, preserve their category labels, and de-duplicate — if two lenses flag the same issue, keep the entry with the higher severity. UX findings from lens 3h and coverage findings from lens 3g-cov are merged into the batch table alongside code review findings with their respective categories ("UX", "Coverage").
+**Every finding from lenses 3a-3i must be explicitly resolved.** When lenses were dispatched as parallel Task agents, merge their results into a single table here: combine all findings, preserve their category labels, and de-duplicate — if two lenses flag the same issue, keep the entry with the higher severity. UX findings from lens 3h, coverage findings from lens 3g-cov, and documentation findings from lens 3i are merged into the batch table alongside code review findings with their respective categories ("UX", "Coverage", "Docs").
 
 Unresolved QA ledger entries (status `open`, phase `test/qa`) are included in the code review findings table alongside code review findings. Use the category and severity from the ledger entry. This ensures QA failures flow through the same resolution process as code review findings — they must be explicitly fixed, deferred, or accepted before the review can pass.
 
@@ -369,7 +386,7 @@ A journey is **affected** if any file in its `files:` frontmatter was modified i
 
 ```
 Visual review skipped — no browser backend configured.
-To set up browser tools, run /claude-tweaks:setup and choose browser integration.
+To set up browser tools, run /claude-tweaks:init and choose browser integration.
 ```
 
 ### Full mode: Run visual review
@@ -383,6 +400,18 @@ When invoked with `visual`, `journey:`, or `discover`, run only the procedures f
 ## Step 7: Present Review Summary
 
 Present a structured summary covering spec compliance, test results (from `/test`), code review findings, browser review (if run), implementation hindsight, tradeoffs, simplification, and a verdict (PASS or BLOCKED). The summary must include an Actions Performed table (when autonomous fixes were applied) and a Next Actions block (always). For the complete template and context-signal rules, read `review-summary-template.md` in this skill's directory.
+
+### Key Learnings for Wrap-Up
+
+At the end of the summary, include a `### Key Learnings` section with 1-3 insights that emerged during this review — patterns discovered, conventions confirmed or challenged, techniques worth remembering. These feed directly into `/claude-tweaks:wrap-up` Step 3 (Reflection) so wrap-up doesn't have to re-derive them from scratch.
+
+```
+### Key Learnings
+1. {insight} — {why it matters for future work}
+2. {insight} — {why it matters}
+```
+
+If no notable learnings emerged, state: "No key learnings — straightforward review."
 
 ## Important Notes
 
@@ -418,11 +447,11 @@ Present a structured summary covering spec compliance, test results (from `/test
 | `/claude-tweaks:test` | /test is the mechanical "does it work?" gate. /review gates on `TEST_PASSED=true` — it never runs verification or QA itself. Standalone /review auto-triggers /test if no recent pass. |
 | `/claude-tweaks:wrap-up` | Runs after /claude-tweaks:review passes — focuses on reflection, cleanup, and knowledge capture. `review/skill` ledger entries from lens 3a and Step 4 feed into wrap-up's skill update analysis (Step 7). |
 | `/claude-tweaks:capture` | /claude-tweaks:review may create INBOX items for new ideas discovered during review |
-| `/claude-tweaks:codebase-onboarding` | Phase 7 delegates to `/review discover` for brownfield journey bootstrapping |
+| `/claude-tweaks:init` | Phase 7 delegates to `/review discover` for brownfield journey bootstrapping. Phase 0 configures the browser backends that visual review depends on. /init creates the doc registry that lens 3i uses for documentation freshness checks. |
 | `/claude-tweaks:stories` | Generates the YAML stories that /test validates. /review consumes /test results (including QA) via `TEST_PASSED`. /review also checks journey-to-story coverage in code review lens 3g-cov — uncovered journey steps and orphaned stories are surfaced as informational findings. |
 | `/claude-tweaks:browse` | Used by visual, journey, and discover modes for browser interaction |
-| `/claude-tweaks:setup` | Step 6 configures the browser backends that visual review depends on |
 | `specs/DEFERRED.md` | /claude-tweaks:review routes implementation-related deferrals here (with origin, files, trigger) |
 | `/claude-tweaks:flow` | Invokes /review in **full** mode by default (code + visual). Flow handles browser detection and falls back to code mode when no browser backend is available. |
 | `/dispatching-parallel-agents` | Used BY /claude-tweaks:review (conditional) to dispatch 3+ independent fix-now findings as parallel agents |
 | `/claude-tweaks:ledger` | Manages the open items ledger. /review appends findings (Step 3g) and hindsight (Step 4) using `review/*` phases. |
+| `/claude-tweaks:help` | /help flags specs awaiting review and recommends `/review` in its pipeline status scan |

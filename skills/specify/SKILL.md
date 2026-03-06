@@ -136,6 +136,8 @@ After decomposing into work units, before writing spec files, check each new wor
 
 Present any detected implicit dependencies as part of the Step 7 summary. These are flagged alongside the explicit `blocked-by` relationships from the tier/prerequisite analysis.
 
+> **Algorithm shared with /claude-tweaks:help:** Both /specify and /help use the same implicit dependency check — compare Key Files from the target spec against Key Files from all non-completed specs. /specify runs this at creation time; /help re-runs it at dashboard time to catch new conflicts from specs that started building after /specify ran.
+
 > **Why this matters:** Explicit `blocked-by` captures logical dependencies (spec B needs spec A's API). File-based overlap captures physical dependencies (both specs modify the same file). Missing the physical dependency leads to merge conflicts and duplicated work during concurrent builds.
 
 ## Step 3: Write the Spec Files
@@ -190,6 +192,8 @@ This ensures specs are self-contained — a developer reading spec 73 understand
 ## Step 5: Delete Consumed Artifacts
 
 The design doc and brainstorming brief have served their purpose. All decisions, rationale, assumptions, and constraints have been absorbed into the spec files.
+
+**Pre-delete verification:** Before deleting, scan the design doc for any content not yet absorbed into specs — architectural rationale, rejected alternatives, edge case notes, integration constraints. If anything was missed, add it to the relevant spec's Decision Rationale, Assumptions, or Gotchas section. `/build` only reads the spec and INDEX.md — it will not have access to the design doc.
 
 ```bash
 git rm docs/plans/YYYY-MM-DD-{topic}-design.md

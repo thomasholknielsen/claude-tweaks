@@ -52,8 +52,8 @@ The `{feature}` name matches the execution plan or spec topic. One ledger per pi
 | # | Phase | Item | Status | Resolution |
 |---|-------|------|--------|------------|
 | 1 | build/ops | Set `API_KEY` in environment — referenced in `src/api.ts` | open | — |
-| 2 | review/convention | Missing validation on `updateUser` input | fixed | Added zod schema — `abc1234` |
-| 3 | test/qa | Login story fails — selector `.login-btn` not found | open | — |
+| 2 | review | Missing validation on `updateUser` input | fixed | Added zod schema — `abc1234` |
+| 3 | test | Login story fails — selector `.login-btn` not found | open | — |
 ```
 
 ### Item Numbering
@@ -76,21 +76,21 @@ observation          (informational, non-blocking — e.g., QA caveats)
 
 ## Phase Taxonomy
 
-Each item is tagged with a phase indicating where it was discovered:
+Each item is tagged with a phase indicating where it was discovered. Phases use a flat `{skill}` or `{skill}/{qualifier}` format — the qualifier adds specificity when a skill produces multiple finding types, but is optional.
 
 | Phase | Source | Typical Items |
 |-------|--------|---------------|
-| `build/*` | `/claude-tweaks:build` Steps 4-5.5 | Architecture deviations, blocked work, shared constants |
-| `build/skill` | `/claude-tweaks:build` Step 4.5 | Skill update candidates from build observations |
-| `build/ops` | `/claude-tweaks:build` Step 5.5 | Operational requirements (migrations, env vars, infra) |
 | `ops` | `/claude-tweaks:build` Step 2.5 | Manual steps from spec (seeded before build) |
-| `test/qa` | `/claude-tweaks:test` QA mode | QA story failures and observations |
-| `review/*` | `/claude-tweaks:review` Step 3 | Code review findings (convention, security, error, perf, arch, test) |
-| `review/ux` | `/claude-tweaks:review` Step 3h | UX analysis findings |
-| `review/coverage` | `/claude-tweaks:review` Step 3g-cov | Journey-story coverage gaps |
-| `review/hindsight` | `/claude-tweaks:review` Step 4 | Implementation hindsight findings |
+| `build` | `/claude-tweaks:build` Steps 4-5.5 | Architecture deviations, blocked work, shared constants |
+| `build/ops` | `/claude-tweaks:build` Step 5.5 | Operational requirements (migrations, env vars, infra) |
+| `build/skill` | `/claude-tweaks:build` Step 4.5 | Skill update candidates from build observations |
+| `test` | `/claude-tweaks:test` QA mode | QA story failures and observations |
+| `review` | `/claude-tweaks:review` Step 3 | Code review findings (all categories) |
 | `review/skill` | `/claude-tweaks:review` Steps 3a, 4 | Skill update candidates from review |
-| `wrap-up/*` | `/claude-tweaks:wrap-up` Step 3 | Reflection insights |
+| `review/hindsight` | `/claude-tweaks:review` Step 4 | Implementation hindsight findings |
+| `wrap-up` | `/claude-tweaks:wrap-up` Step 3 | Reflection insights |
+
+> **Simplified from v3.16:** Previous phases like `review/convention`, `review/ux`, `review/coverage` are collapsed into `review`. Use the item description and category column to distinguish finding types — the phase just needs to identify the source skill. `build/*` is now just `build`. `test/qa` is now just `test`. `wrap-up/*` is now just `wrap-up`.
 
 ## Operations
 
@@ -141,7 +141,7 @@ Read the ledger and filter by criteria:
 
 | Query | Returns |
 |-------|---------|
-| By phase | All items matching a phase prefix (e.g., `review/*` matches `review/convention`, `review/skill`) |
+| By phase | All items matching a phase prefix (e.g., `review` matches `review`, `review/skill`, `review/hindsight`) |
 | By status | All items with a specific status (e.g., all `open` items) |
 | Open count | Number of items with status `open` |
 | Summary | Counts by status: `Open: N | Fixed: N | Deferred: N | Accepted: N | Acknowledged: N | Observation: N` |
@@ -223,10 +223,10 @@ Only delete when the resolve gate has passed — all items must have terminal st
 
 | Skill | Relationship |
 |-------|-------------|
-| `/claude-tweaks:build` | Creates the ledger (if needed) and appends items during Steps 2.5, 4, 4.5, and 5.5. Uses phases: `ops`, `build/*`, `build/skill`, `build/ops`. |
-| `/claude-tweaks:test` | Appends QA findings and observations during test execution. Uses phase: `test/qa`. |
-| `/claude-tweaks:review` | Appends code review findings (Step 3g), hindsight findings (Step 4), and reads/routes existing entries. Uses phases: `review/*`, `review/ux`, `review/coverage`, `review/hindsight`, `review/skill`. |
-| `/claude-tweaks:wrap-up` | Appends reflection insights (Step 3), runs the resolve gate (Step 9.5), and deletes the ledger (Step 5). Uses phases: `wrap-up/*`. |
+| `/claude-tweaks:build` | Creates the ledger (if needed) and appends items during Steps 2.5, 4, 4.5, and 5.5. Uses phases: `ops`, `build`, `build/skill`, `build/ops`. |
+| `/claude-tweaks:test` | Appends QA findings and observations during test execution. Uses phase: `test`. |
+| `/claude-tweaks:review` | Appends code review findings (Step 3g), hindsight findings (Step 4), and reads/routes existing entries. Uses phases: `review`, `review/hindsight`, `review/skill`. |
+| `/claude-tweaks:wrap-up` | Appends reflection insights (Step 3), runs the resolve gate (Step 9.5), and deletes the ledger (Step 5). Uses phase: `wrap-up`. |
 | `/claude-tweaks:flow` | Creates the ledger at pipeline start (Step 1), carries it forward across all phases, and runs the resolve gate before the final summary (Step 3). |
 | `/claude-tweaks:help` | Scans for active ledgers with open items and surfaces them in the status dashboard. |
 | `/claude-tweaks:tidy` | May scan ledger files during backlog hygiene to detect abandoned pipelines. |

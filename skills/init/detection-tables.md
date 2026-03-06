@@ -92,7 +92,7 @@ Detect:
 
 ## 1f: Pain Point Detection
 
-Look for signs of technical debt or friction:
+Look for signs of technical debt or friction. **Categorize each finding** as it's detected — the category determines where it goes (CLAUDE.md Don'ts vs INBOX):
 
 ```
 Detect:
@@ -108,6 +108,23 @@ Detect:
   both default and named exports in similar files)
 ```
 
+### Pain point categorization
+
+Each finding feeds into exactly one destination:
+
+| Category | Test | Destination | Example |
+|----------|------|-------------|---------|
+| **Convention conflict** | Two patterns exist, one should win | Don't | "Both fetch and axios — standardize on fetch" |
+| **Observed anti-pattern** | Pattern exists and is actively harmful | Don't | "47 `eslint-disable no-any` — don't use `any`" |
+| **Security concern** | Existing pattern creates risk | Don't | "Tokens stored in localStorage" |
+| **Missing infrastructure** | Something doesn't exist yet | INBOX | "No CI pipeline" |
+| **Missing practice** | A healthy practice is absent | INBOX | "No tests in `src/utils/`" |
+| **Stale dependency** | Key deps are behind | INBOX | "React 17 → 19 available" |
+| **Dead code / tech debt** | Cleanup opportunity | INBOX | "12 commented-out blocks in {files}" |
+| **Copy-paste / duplication** | Refactoring opportunity | INBOX | "3 near-duplicate handlers in {files}" |
+
+**The distinction:** Convention conflicts and anti-patterns describe _how things are done wrong today_ — they become guardrails. Missing infrastructure and improvement opportunities describe _work to do_ — they become backlog items with Phase 2 context baked in.
+
 ## 1g: Existing AI Configuration (Initial Mode only)
 
 Check for non-Claude AI config that might contain useful conventions to migrate:
@@ -121,3 +138,24 @@ Detect:
 ```
 
 If found, ask the user whether to **migrate and enhance** or **ignore**.
+
+## 1h: Project Maturity Detection
+
+Assess the project's maturity stage to inform the Philosophy section in CLAUDE.md. See the main SKILL.md Phase 2h for the full signal table, classification criteria, and user confirmation flow.
+
+**Quick reference — signals to gather:**
+
+| Signal | Detection method |
+|--------|-----------------|
+| Age | `git log --reverse --format="%ai" -1` |
+| Migration history | Glob for migration directories |
+| Production infrastructure | Glob for deploy configs, k8s, Terraform |
+| Monitoring/observability | Grep for Sentry, DataDog, NewRelic, OpenTelemetry |
+| Contributor count | `git shortlog -sn --no-merges \| wc -l` |
+| API versioning | Grep for `/v1/`, `/v2/`, `api-version` |
+| Published packages | npm publish config, PyPI, gem spec |
+| User data signals | User tables, analytics, GDPR tooling |
+| Environment count | Count `.env.*` variants |
+| Schema management | Check for `db:push` vs migration commands |
+
+All signals feed into the maturity classification (greenfield → pre-launch → early production → established) which determines the Philosophy section content.

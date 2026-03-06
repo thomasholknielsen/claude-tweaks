@@ -74,6 +74,10 @@ Review conversation and recent commits to identify what was implemented and whic
 | **3. Near-misses** | "What broke or almost broke?" — Unexpected test failures, type errors, cross-platform ripples | Don'ts, testing patterns, gotchas |
 | **4. Fresh start** | "If we started fresh?" — Would we choose the same approach? What would v2 look like? | Architectural alternatives, memory files |
 
+### Seed from Review Learnings
+
+Check the `/claude-tweaks:review` summary for the **Key Learnings** section. These are pre-identified insights from the review — use them as starting points for the four lenses below rather than re-deriving from scratch.
+
 ### Review Tradeoffs
 
 Check the `/claude-tweaks:review` summary for the **Tradeoffs Accepted** section. For each accepted tradeoff, assess whether it represents:
@@ -88,12 +92,13 @@ Collect all insights from the four lenses and the tradeoff review into a single 
 
 | Finding Type | Suggested Destination |
 |-------------|-----------|
-| "Never do X because Y" | CLAUDE.md Don'ts |
+| "Never do X because Y" (X exists in codebase) | CLAUDE.md Don'ts |
 | "When building Z, always do W" | Existing skill update |
 | "This reusable pattern emerged" | New skill candidate |
 | "Remaining specs should use X instead" | Spec amendments |
 | "A fundamentally better approach exists" | Skill update + Memory file |
 | "We chose X over Y because Z" (from review tradeoffs) | CLAUDE.md Convention or Memory file (if it's a recurring decision) |
+| "We should add X" (X doesn't exist yet) | INBOX — improvement work, not a convention |
 
 Present all insights as a batch:
 
@@ -161,24 +166,37 @@ Delete the open items ledger using the ledger skill's delete operation (see `/cl
 
 ### 6: Documentation
 
-Check if the work requires updates to project documentation:
-- Setup guides
-- Architecture references
-- API documentation
-- ADRs for significant architectural decisions
+> **Parallel execution:** Read `docs/REGISTRY.md` and all doc files referenced in it as parallel Read calls.
+
+Check if the work requires updates to project documentation, using the doc registry as a guide:
+
+1. **Registry-guided check** — Read `docs/REGISTRY.md`. For each entry:
+   - Match Auto-detect patterns against all files changed in this work (`git diff --name-only`)
+   - If matched: check if `/build` Step 6.5 already updated this doc (look for doc commits in git log)
+   - If not yet updated: read the doc, assess whether it needs changes
+2. **Non-registry docs** — Also check setup guides, architecture references, API documentation, and ADRs as before (catches docs not yet in the registry, or projects without a registry)
+3. **Registry maintenance** — Check if:
+   - New docs were created during this work (e.g., ADR for a significant decision) → propose adding to registry
+   - Existing docs were deleted or moved → propose removing/updating registry entries
+   - Auto-detect patterns need adjustment (directories renamed, new code areas)
 
 → Collect each needed update as: `[doc] {file} — {what to add/change}`
+→ Collect registry updates as: `[registry] {action} — {detail}`
+
+Registry updates are included in the Step 10 consolidated batch table alongside other config changes.
 
 ### 8: CLAUDE.md and Rules
 
+CLAUDE.md describes **how to work in this codebase** — patterns to follow, commands to run, conventions to respect, mistakes to avoid. Every update must describe something that exists and is actively used, not aspirational improvements.
+
 Check if the work introduced project-wide conventions:
-1. New commands or scripts
-2. New naming conventions or patterns
-3. New don'ts (anti-patterns discovered)
-4. Stack changes
+1. New commands or scripts (verify they exist and work)
+2. New naming conventions or patterns (observed, not aspirational)
+3. New don'ts — anti-patterns discovered during this build that are guardrails for existing patterns, not wishes for missing infrastructure
+4. Stack changes (new dependencies actually added)
 5. Path-scoped rules for `.claude/rules/`
 
-Before adding to CLAUDE.md, check the size budget — keep it concise. Move detailed content to skills or rules.
+Before adding to CLAUDE.md, check the size budget — keep it concise. Move detailed content to skills or rules. Route improvement ideas to INBOX, not CLAUDE.md.
 
 → Collect each needed update as: `[claude.md] {section} — {what to add/change}` or `[rule] {path scope} — {convention}`
 
@@ -211,7 +229,7 @@ Compare each relevant skill against what the build actually did. Check across 6 
 | **Anti-pattern gaps** | Did the build reveal new anti-patterns worth documenting? |
 | **Decision framework completeness** | Does the Decision Framework cover the choices made during this build? |
 
-For each needed change, produce a patch in `/claude-tweaks:codebase-onboarding`'s Update Mode format (read `skill-template.md` in the `/claude-tweaks:codebase-onboarding` skill's directory for the format):
+For each needed change, produce a patch in `/claude-tweaks:init`'s Update Mode format (read `skill-template.md` in the `/claude-tweaks:init` skill's directory for the format):
 
 ```
 ### Edit {N}: {description}
@@ -234,7 +252,7 @@ For approved candidates, note the skill name and scope — the actual skill file
 
 ### 7.4: Quality Check
 
-Verify each proposed update against the quality gates from `skill-template.md` in the `/claude-tweaks:codebase-onboarding` skill's directory:
+Verify each proposed update against the quality gates from `skill-template.md` in the `/claude-tweaks:init` skill's directory:
 
 - [ ] Every code example is adapted from actual codebase patterns (not generic)
 - [ ] File paths referenced actually exist
@@ -413,7 +431,15 @@ Present **one consolidated batch decision** covering both cleanup and configurat
 
 If the user chooses to override, let them pick which items to skip or change.
 
-The Next Actions block in the template above replaces the old single-line handoff. Generate 2-4 numbered options based on context signals (next spec, unblocked specs, pipeline status).
+After presenting the summary, output an explicit closure line:
+
+```
+Work archived. Spec {N}, its plans, and ledger have been deleted. The code and learnings remain.
+```
+
+This signals clearly that the lifecycle is complete — there's nothing left to do for this spec.
+
+The Next Actions block in the template above replaces the old single-line handoff. Generate 2-4 numbered options based on context signals (next spec, unblocked specs, pipeline status). Always include a "next unblocked spec" option when one exists, so the user doesn't have to run `/help` to find it.
 
 ## Step 11: Execute Approved Actions
 
@@ -432,6 +458,7 @@ Commit with a message summarizing the wrap-up actions.
 - Skills document reusable patterns, not one-off implementations
 - CLAUDE.md stays concise — use skills, rules, or reference docs for details
 - Reflection insights with no clear destination must still be explicitly resolved — the user confirms "don't capture" with a reason, rather than the skill silently dropping them
+- **Merge conflicts during wrap-up** (e.g., when merging a worktree feature branch back to main): resolve conflicts by understanding both sides' intent — read both versions, pick the correct merge. Never use `git reset` or `git checkout .` to discard changes. If the conflict involves spec or INDEX.md files being deleted by wrap-up but modified on main, prefer the deletion (the spec is complete).
 
 ## Anti-Patterns
 
@@ -460,5 +487,5 @@ Commit with a message summarizing the wrap-up actions.
 | `/claude-tweaks:tidy` | /claude-tweaks:wrap-up cleans artifacts for a single spec — /claude-tweaks:tidy does periodic bulk cleanup |
 | `/claude-tweaks:build` | Runs BEFORE /claude-tweaks:review — produces the code and journeys that wrap-up reflects on. `build/skill` ledger entries from Step 4.5 feed into Step 7 skill analysis. |
 | `/finishing-a-development-branch` | When build used worktree git strategy, wrap-up should verify the feature branch was completed (merged, PR created, or discarded) before cleaning up artifacts |
-| `/claude-tweaks:codebase-onboarding` | Step 7 references `skill-template.md` for Update Mode format and quality gates |
+| `/claude-tweaks:init` | Step 7 references `skill-template.md` for Update Mode format and quality gates. /wrap-up Step 6 maintains the doc registry created by /init Phase 8.5. |
 | `/claude-tweaks:ledger` | Manages the open items ledger. /wrap-up appends reflection insights (Step 3), runs the resolve gate (Step 9.5), and deletes the ledger (Step 5). |
