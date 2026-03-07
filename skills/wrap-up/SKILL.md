@@ -102,6 +102,17 @@ Search `~/.claude/plans/` for related plans → **delete them**.
 
 Delete the open items ledger using the ledger skill's delete operation (see `/claude-tweaks:ledger`). All items must have been resolved by the nothing-left-behind gate (Step 9.5).
 
+### Git Worktree (worktree strategy only)
+
+If the build used worktree git strategy, clean up the worktree directory:
+
+1. Run `git worktree list` to find worktrees associated with this spec's feature branch
+2. Verify the feature branch was completed (merged, PR created, or discarded) via `/finishing-a-development-branch` — if not, stop and flag: "Worktree feature branch `{branch}` has not been completed. Run `/finishing-a-development-branch` first."
+3. Remove the worktree: `git worktree remove {path}`
+4. If the branch was merged (not kept for PR), delete it: `git branch -d {branch}`
+
+If no worktree exists for this spec, skip this section silently.
+
 ## Steps 6 + 8: Assess Configuration Updates
 
 > **Batch collection.** Steps 6 and 8 collect potential documentation and CLAUDE.md/rules updates in a single pass. No decisions are made here — everything is presented together in Step 10 for batch approval. Skill updates are handled separately in Step 7.
@@ -316,6 +327,7 @@ Overall: {X}% complete
 - [ ] Update INDEX.md
 - [ ] Delete plans from docs/plans/
 - [ ] Delete open items ledger
+- [ ] Remove worktree and feature branch (if worktree strategy)
 - [ ] Leftover work: {recommendation}
 
 ### Configuration Updates (from Steps 6 + 8)
@@ -344,6 +356,7 @@ Resolved in Step 7.5 — {N} updates applied / 0 updates needed.
 | Operational | Updated `specs/INDEX.md` | `{hash}` |
 | Operational | Deleted plans `docs/plans/{files}` | — |
 | Operational | Deleted ledger | — |
+| Operational | Removed worktree `{path}`, deleted branch `{branch}` | — |
 | Ledger fix | {item} ({phase}) — {resolution} | `{hash}` |
 
 Generate from: cleanup actions in Step 11, config/skill updates applied, ledger items resolved in Step 9.5.
@@ -366,7 +379,8 @@ Present **one consolidated batch decision** covering both cleanup and configurat
 | 2 | cleanup | Update INDEX.md | Remove completed entry |
 | 3 | cleanup | Delete plans | docs/plans/{files} |
 | 4 | cleanup | Delete ledger | docs/plans/*-ledger.md |
-| 5 | config | {doc/claude.md/rule} | {what to add/change} |
+| 5 | cleanup | Remove worktree | `{path}` + branch `{branch}` |
+| 6 | config | {doc/claude.md/rule} | {what to add/change} |
 | 6 | config | ... | ... |
 
 1. Apply all **(Recommended)**
@@ -390,8 +404,9 @@ The Next Actions block in the template above replaces the old single-line handof
 1. Delete or edit spec files
 2. Update INDEX.md
 3. Delete plans
-4. Update documentation, CLAUDE.md, memory files (from Step 10)
-5. Apply skill updates and create new skills (from Step 7.5)
+4. Remove worktree and delete merged feature branch (if worktree strategy)
+5. Update documentation, CLAUDE.md, memory files (from Step 10)
+6. Apply skill updates and create new skills (from Step 7.5)
 
 Commit with a message summarizing the wrap-up actions.
 
@@ -431,6 +446,6 @@ Commit with a message summarizing the wrap-up actions.
 | `/claude-tweaks:help` | /claude-tweaks:wrap-up suggests running /claude-tweaks:help to see what's unblocked |
 | `/claude-tweaks:tidy` | /claude-tweaks:wrap-up cleans artifacts for a single spec — /claude-tweaks:tidy does periodic bulk cleanup |
 | `/claude-tweaks:build` | Runs BEFORE /claude-tweaks:review — produces the code and journeys that wrap-up reflects on. `build/skill` ledger entries from Step 4.5 feed into Step 7 skill analysis. |
-| `/finishing-a-development-branch` | When build used worktree git strategy, wrap-up should verify the feature branch was completed (merged, PR created, or discarded) before cleaning up artifacts |
+| `/finishing-a-development-branch` | When build used worktree git strategy, wrap-up verifies the feature branch was completed (merged, PR created, or discarded), then removes the worktree directory and deletes the merged branch (Step 5) |
 | `/claude-tweaks:init` | Step 7 references `skill-template.md` for Update Mode format and quality gates. /wrap-up Step 6 maintains the doc registry created by /init Phase 8.5. |
 | `/claude-tweaks:ledger` | Manages the open items ledger. /wrap-up appends reflection insights (Step 3), runs the resolve gate (Step 9.5), and deletes the ledger (Step 5). |
