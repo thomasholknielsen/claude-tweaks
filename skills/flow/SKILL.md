@@ -31,7 +31,7 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 ## Syntax
 
 ```
-/claude-tweaks:flow <spec-or-design-doc>[,spec2,spec3] [worktree] [no-stories] [step1,step2,step3]
+/claude-tweaks:flow <spec-or-design-doc>[,spec2,spec3] [current-branch] [no-stories] [step1,step2,step3]
 ```
 
 ### Arguments
@@ -39,7 +39,8 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 | Argument | Required | Description |
 |----------|----------|-------------|
 | `<spec-or-design-doc>` | Yes | Spec number (e.g., `42`), comma-separated spec numbers (e.g., `42,45,48`), design doc path, or topic name |
-| `worktree` | No | Use worktree git strategy — isolated workspace on a feature branch. See "Parallel Development with Worktrees" below. |
+| `worktree` | No | Use worktree git strategy — isolated workspace on a feature branch (this is the default for flow). See "Parallel Development with Worktrees" below. |
+| `current-branch` | No | Override the default and commit directly on the current branch instead of creating a worktree. |
 | `no-stories` | No | Skip automatic story generation even if UI files changed. By default, flow auto-generates stories when the build produces UI file changes. |
 | `[steps]` | No | Step argument(s). Single step = resume from that step onward. Comma-separated steps = run exactly those steps. Default (no steps): `build,test,review,wrap-up` |
 
@@ -65,11 +66,11 @@ If no UI files changed, or `no-stories` is set, the stories step is skipped.
 ### Examples
 
 ```
-/claude-tweaks:flow 42                                              → full pipeline: build, test, review, wrap-up (stories auto-generated if UI changed)
-/claude-tweaks:flow 42 worktree                                     → isolated worktree: full pipeline
-/claude-tweaks:flow 42 no-stories                                   → full pipeline (skip stories even if UI changed)
-/claude-tweaks:flow 42,45,48                                        → multi-spec: sequential full pipelines in one terminal
-/claude-tweaks:flow 42,45,48 worktree                               → multi-spec sequential, each in its own worktree
+/claude-tweaks:flow 42                                              → full pipeline in worktree (default): build, test, review, wrap-up
+/claude-tweaks:flow 42 current-branch                               → full pipeline on current branch (no isolation)
+/claude-tweaks:flow 42 no-stories                                   → full pipeline in worktree (skip stories even if UI changed)
+/claude-tweaks:flow 42,45,48                                        → multi-spec sequential, each in its own worktree
+/claude-tweaks:flow 42,45,48 current-branch                         → multi-spec sequential on current branch
 /claude-tweaks:flow docs/plans/2026-02-21-meal-planning-design.md   → design mode: full pipeline
 /claude-tweaks:flow meal planning                                   → auto-detect: spec or design mode
 /claude-tweaks:flow 42 review                                       → resume from review: runs review + wrap-up
@@ -180,14 +181,12 @@ When a gate fails, the pipeline stops immediately. Present:
 
 1. Parse `$ARGUMENTS` — extract spec number or design doc path, detect `worktree` and `no-stories` keywords, plus optional step list
 2. Determine mode: spec mode (number) or design mode (path/topic)
-3. If `worktree` keyword is present, set git strategy to `worktree`. If not provided as an argument, prompt the user:
-   ```
-   Git strategy for this pipeline:
-   1. Worktree **(Recommended)** — isolated workspace on a feature branch (safest for automated pipelines)
-   2. Current branch — commit directly, no isolation
-   ```
-   This is passed through to `/claude-tweaks:build` and controls isolation. Flow always uses `subagent` execution — no prompt needed for execution strategy.
-   If `auto` keyword is present, default to `worktree` without prompting. `auto` can be overridden with explicit `current-branch`.
+3. **Git strategy defaults to `worktree`** — flow is an automated pipeline and isolation is the safest default. Resolution order:
+   1. Explicit argument: `worktree` or `current-branch` in `$ARGUMENTS` — always wins
+   2. CLAUDE.md `git-strategy` setting — project-level default (see `/claude-tweaks:build` default resolution)
+   3. Fallback: `worktree` (unlike `/build` which defaults to `current-branch`, flow defaults to `worktree` because automated pipelines benefit from isolation)
+
+   Do NOT prompt the user for git strategy — resolve it silently from the above. This is passed through to `/claude-tweaks:build` and controls isolation. Flow always uses `subagent` execution — no prompt needed for execution strategy.
 4. Validate step list is in lifecycle order. Auto-insert `test` before `review` if `test` is missing from the step list (with a note).
 4. If spec mode: check prerequisites are met (same as `/claude-tweaks:build` Spec Step 1)
 5. If design mode: verify the design doc file exists

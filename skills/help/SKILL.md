@@ -85,10 +85,10 @@ For a concise one-page reference, read `reference-card.md` in this skill's direc
 
 | Command | Purpose | Used by |
 |---------|---------|---------|
-| `/brainstorm` | Explore solutions for a debiased problem | After `/claude-tweaks:challenge` |
-| `/write-plan` | Create TDD execution plan from a spec | `/claude-tweaks:build` |
-| `/subagent-driven-development` | Automated execution with review chain — no human in the loop | `/claude-tweaks:build` (subagent mode, default) |
-| `/executing-plans` | Human-reviewed execution in batches of 3 tasks | `/claude-tweaks:build` (batched mode) |
+| `/brainstorm` | Explore solutions for a debiased problem — stops after design doc, then `/claude-tweaks:specify` | After `/claude-tweaks:challenge` |
+| `/write-plan` | Create TDD execution plan from a spec — stops after saving plan, returns to `/build` | `/claude-tweaks:build` |
+| `/subagent-driven-development` | Automated execution with review chain — stops after final review, returns to `/build` | `/claude-tweaks:build` (subagent mode, default) |
+| `/executing-plans` | Human-reviewed execution in batches of 3 — stops after last batch, returns to `/build` | `/claude-tweaks:build` (batched mode) |
 | `/using-git-worktrees` | Create isolated workspace on a feature branch | `/claude-tweaks:build` and `/claude-tweaks:flow` (worktree mode) |
 | `/finishing-a-development-branch` | Merge, PR, or discard a feature branch | `/claude-tweaks:build` and `/claude-tweaks:flow` (worktree mode, at handoff) |
 | `/dispatching-parallel-agents` | Dispatch concurrent independent fixes | `/claude-tweaks:review` (conditional, 3+ independent fixes) |

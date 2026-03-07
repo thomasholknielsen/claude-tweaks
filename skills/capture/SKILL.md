@@ -57,8 +57,8 @@ After adding the entry, present a quick decision so the item doesn't silently si
 Added to INBOX: "{item title}"
 
 What should happen with this?
-1. Challenge first — Run /claude-tweaks:challenge to stress-test assumptions, then /brainstorm
-2. Brainstorm directly — Run /brainstorm to explore the idea now
+1. Challenge first — Run /claude-tweaks:challenge to stress-test assumptions, then /brainstorm, then /claude-tweaks:specify
+2. Brainstorm directly — Run /brainstorm to explore the idea now, then /claude-tweaks:specify
 3. Keep in INBOX — Not ready yet, will be reviewed during /claude-tweaks:tidy
 4. Merge into spec {N} — This belongs in an existing spec (if a related spec is obvious)
 ```

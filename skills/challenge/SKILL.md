@@ -188,7 +188,7 @@ After saving the brief:
 
 ### Next Actions
 
-1. `/brainstorm` — explore solutions for the reframed problem **(Recommended)**
+1. `/brainstorm` — explore solutions for the reframed problem **(Recommended)** — after brainstorm produces the design doc, run `/claude-tweaks:specify` next (not `/write-plan` — specify handles decomposition into agent-sized specs before planning)
 2. Re-examine — revisit a specific lens or adjust the reframing
 
 If the user wants to adjust the reframing or re-examine from a different lens, they can say so. Otherwise, proceed to brainstorming.

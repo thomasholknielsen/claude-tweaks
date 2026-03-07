@@ -185,7 +185,7 @@ If the spec has a "Manual Steps" section, write each manual step to the open ite
 
 ### Spec Step 3: Create the Plan
 
-Invoke the `/write-plan` skill.
+Invoke the `/write-plan` skill. After it saves the plan file, **stop the skill and return here** — do not let it present an execution choice or invoke an execution skill. `/build` controls execution strategy.
 
 Context to provide to `/write-plan`:
 - The full spec content (including Current State, Gotchas, and acceptance criteria)
@@ -214,7 +214,7 @@ Search `docs/plans/` for an execution plan matching this design doc (by topic or
 
 ### Design Step 3: Create the Plan
 
-Invoke the `/write-plan` skill.
+Invoke the `/write-plan` skill. After it saves the plan file, **stop the skill and return here** — do not let it present an execution choice or invoke an execution skill. `/build` controls execution strategy.
 
 Context to provide to `/write-plan`:
 - The full design doc content
@@ -257,7 +257,7 @@ Execution depends on the chosen execution strategy:
 
 **subagent** (default):
 
-Invoke `/subagent-driven-development`.
+Invoke `/subagent-driven-development`. After the final code review completes, **stop the skill and return here** — do not let it invoke `/finishing-a-development-branch`. `/build` handles post-execution steps (simplification, alignment, verification) before any branch finishing.
 
 This runs the full automated execution chain:
 1. Per task: **implementer** subagent builds the code
@@ -269,7 +269,7 @@ No human in the loop — the review chain is fully automated.
 
 **batched**:
 
-Invoke `/executing-plans`.
+Invoke `/executing-plans`. After the last batch completes, **stop the skill and return here** — do not let it invoke `/finishing-a-development-branch`. `/build` handles post-execution steps (simplification, alignment, verification) before any branch finishing.
 
 This runs execution in human-reviewed batches:
 1. Executes 3 tasks per batch

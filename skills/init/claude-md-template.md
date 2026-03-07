@@ -53,6 +53,17 @@ Generated from the maturity classification detected in Phase 2h. See "Generating
 
 {Commit convention, branch strategy, PR process}
 
+## Superpowers Integration
+
+When claude-tweaks skills invoke Superpowers skills, these overrides apply:
+
+- `/brainstorm`: Stop after committing the design doc. Do NOT auto-invoke `/write-plan` — return control to the calling skill.
+- `/write-plan`: Stop after saving the plan file. Do NOT present an execution choice or invoke an execution skill — return control to the calling skill.
+- `/subagent-driven-development`: Stop after the final code review. Do NOT invoke `/finishing-a-development-branch` — return control to the calling skill.
+- `/executing-plans`: Stop after the last batch completes. Do NOT invoke `/finishing-a-development-branch` — return control to the calling skill.
+
+Worktree directory: `.claude/worktrees/`
+
 ## Don't
 
 {Anti-patterns observed or inferred — things that would break the project's conventions.

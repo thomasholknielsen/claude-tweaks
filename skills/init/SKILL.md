@@ -41,8 +41,13 @@ If `$ARGUMENTS` is provided, treat it as:
 - A GitHub URL — clone it first, then analyze
 - A description of the project context (e.g., "Ruby on Rails monolith, team of 5")
 - `--update` or `update` — force Update mode even if the config looks minimal
+- `bootstrap` — run Phase 0 only (structure + deps), then stop
+- `config` — run Phases 0 + 2 + 3 + 5 (bootstrap + recon + CLAUDE.md)
+- `skills` — run Phases 0 + 2 + 3 + 4 + 6 (bootstrap + recon + skills)
+- `journeys` — run Phases 0 + 8 (bootstrap + journey discovery)
+- `docs` — run Phases 0 + 2 + 3 + 8.5 (bootstrap + doc registry)
 
-If no arguments, analyze the current working directory.
+If no arguments, analyze the current working directory. Phase 0 runs first, then a scope selection gate determines which remaining phases to run (see "Scope Selection Gate" below).
 
 ## Phases at a Glance
 
@@ -215,6 +220,63 @@ Browser integration lets Claude Code control a web browser for testing, QA story
 **Option 2:** Install playwright-cli (as above), plus set up Chrome MCP (Chrome extension + `claude --chrome`).
 
 **Option 3:** Note that browser features (`/claude-tweaks:browse`, `/claude-tweaks:stories`, `/claude-tweaks:review qa`) require a browser backend, but all other skills function normally.
+
+---
+
+## Scope Selection Gate
+
+After Phase 0 completes, present the scope selection — unless `$ARGUMENTS` already specified a goal-based scope (e.g., `bootstrap`, `config`, `skills`, `journeys`, `docs`), in which case skip this gate and run the corresponding phases.
+
+```
+Bootstrap complete. How much setup do you want?
+
+| Phase | What | Include? |
+|-------|------|----------|
+| 2 | Codebase reconnaissance | Yes |
+| 3 | Profile + classification | Yes |
+| 4 | Skill manifest | Yes |
+| 5 | CLAUDE.md | Yes |
+| 6 | Generate skills | Yes |
+| 7 | Rules | Yes |
+| 8 | Journey discovery | {Yes / Skip — no UI detected} |
+| 8.5 | Doc registry | Yes |
+
+1. Auto — run all included phases without stopping **(Recommended)**
+2. Interactive — pause for confirmation between phases
+3. Essentials — reconnaissance + CLAUDE.md only (phases 2, 3, 5)
+4. Done — just needed the bootstrap structure
+```
+
+**Option 1 (Auto):** Run all included phases end-to-end. Phase 3 still presents its classification confirmation gate (this is the only mandatory interaction in auto mode — the maturity/doc-tier decision affects all downstream output). Phase 4 still presents the skill selection. Phase 9 still presents the final summary for confirmation. All other phases run without pausing.
+
+**Option 2 (Interactive):** After each phase completes, present its output and ask:
+```
+Phase {N} complete. Continue to Phase {N+1} ({description})?
+1. Continue **(Recommended)**
+2. Skip Phase {N+1} — move to {N+2}
+3. Done — stop here
+```
+
+**Option 3 (Essentials):** Runs phases 2, 3, 5 only. Produces CLAUDE.md with proper philosophy and Don'ts. Defers skills, rules, journeys, and doc registry for later (suggest re-running `/init` or using goal-based arguments).
+
+**Option 4 (Done):** Stop after Phase 0. The user has the directory structure, starter files, and dependencies — they'll configure manually or run `/init` again later.
+
+### Phase dependencies
+
+When a phase is excluded (by interactive skip, essentials mode, or goal-based argument), handle its dependents:
+
+| If skipped | Impact | Handling |
+|------------|--------|----------|
+| Phase 2 (recon) | Phases 3-8.5 lose their input | Skip all dependent phases — cannot generate config without reconnaissance |
+| Phase 3 (profile) | Phases 4, 5, 8.5 lose maturity/tier classification | Skip dependent phases — philosophy and doc tier need classification |
+| Phase 4 (manifest) | Phase 6 has no skill list | Skip Phase 6 |
+| Phase 5 (CLAUDE.md) | No downstream dependency | Safe to skip |
+| Phase 6 (skills) | No downstream dependency | Safe to skip |
+| Phase 7 (rules) | No downstream dependency | Safe to skip |
+| Phase 8 (journeys) | No downstream dependency | Safe to skip |
+| Phase 8.5 (doc registry) | No downstream dependency | Safe to skip |
+
+When skipping a phase due to a missing dependency, note it: "Skipping Phase {N} ({name}) — requires Phase {dep} which was excluded."
 
 ---
 
