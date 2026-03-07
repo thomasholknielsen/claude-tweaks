@@ -95,7 +95,7 @@ Check and create the required directories (only create what's missing):
 specs/              → Spec files and INBOX
 docs/               → Documentation root (REGISTRY.md created in Phase 8.5)
 docs/plans/         → Design docs (from /brainstorm) and execution plans (from /write-plan)
-docs/journeys/      → User and developer journey files (created by /build, tested by /review visual modes)
+docs/journeys/      → User and developer journey files (created by /journeys, tested by /visual-review)
 .claude/skills/     → Skill files (should already exist if this skill is running)
 ```
 
@@ -610,7 +610,7 @@ Run `/review journey:{name}` to enrich with experiential details.
 
 ### Option 2: Hybrid discovery (codebase + browser)
 
-This delegates to `/review discover` — which runs the full 6-phase discovery process (codebase scan → journey candidates → browser walkthrough → write files → coverage report → handoff).
+This delegates to `/visual-review discover` — which runs the full 6-phase discovery process (codebase scan → journey candidates → browser walkthrough → write files → coverage report → handoff).
 
 Tell the user:
 ```
@@ -618,11 +618,11 @@ This will scan the codebase for routes and user flows, then open a browser to wa
 The app needs to be running. What's the dev server URL?
 ```
 
-Then invoke `/claude-tweaks:review discover`.
+Then invoke `/claude-tweaks:visual-review discover`.
 
 ### Option 3: Skip
 
-Note that the user skipped journey discovery. Suggest running `/review discover` later when they're ready.
+Note that the user skipped journey discovery. Suggest running `/visual-review discover` later when they're ready.
 
 ---
 
@@ -701,7 +701,8 @@ Execute only after user confirmation.
 |-------|-------------|
 | `/claude-tweaks:capture` | First skill to use after /claude-tweaks:init — add ideas to the INBOX |
 | `/claude-tweaks:help` | Shows workflow status — useful to verify /claude-tweaks:init worked. Surfaces doc staleness signals from the registry. |
-| `/claude-tweaks:review` | Phase 8 (hybrid mode) delegates to `/review discover` for browser-assisted journey discovery. /review lens 3i uses the doc registry to check documentation freshness. |
+| `/claude-tweaks:review` | /review lens 3i uses the doc registry to check documentation freshness. |
+| `/claude-tweaks:visual-review` | Phase 8 (hybrid mode) delegates to `/visual-review discover` for browser-assisted journey discovery. |
 | `/claude-tweaks:build` | /init creates `docs/REGISTRY.md` (Phase 8.5) that /build consumes in Step 6.5 for documentation sync |
 | `/claude-tweaks:wrap-up` | Captures learnings after features — keeps generated skills alive and accurate. Step 7 references `skill-template.md` from /claude-tweaks:init's directory. /wrap-up Step 6 maintains the doc registry created by /init. |
 | `/claude-tweaks:tidy` | /tidy Step 4.6 audits doc registry health — flags stale entries, gaps, pattern drift. Suggests `/init update` for tier drift. |

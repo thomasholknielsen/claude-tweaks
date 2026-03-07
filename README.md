@@ -41,9 +41,9 @@ Claude Code is powerful but unstructured. claude-tweaks adds a complete developm
   test ─────────────────►  TEST_PASSED
      │
   review ───────────────►  Review Summary     ◄───  dispatching-parallel-agents
-     │  calls: reflect
-     │         (hindsight),
-     │         simplify
+     │  calls: reflect,
+     │         simplify,
+     │         visual-review
      │
   wrap-up ──────────────►  Done               ◄───  finishing-a-dev-branch ⚙
      │  calls: reflect
@@ -100,15 +100,15 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 /claude-tweaks:test all                    → full suite + QA stories
 ```
 
-**`/claude-tweaks:review`** — Analytical "is it good?" gate. Gates on `/claude-tweaks:test` passing. Runs multiple review lenses in parallel — spec compliance, code quality, UX analysis. Delegates hindsight evaluation to `/claude-tweaks:reflect` and code cleanup to `/claude-tweaks:simplify`. Detects journey regressions when changed files overlap with existing journey `files:` frontmatter. Uses `/superpowers:dispatching-parallel-agents` to fix 3+ independent issues in parallel. Every finding must be explicitly resolved — fix now, defer, or accept with reason.
+**`/claude-tweaks:review`** — Analytical "is it good?" gate. Gates on `/claude-tweaks:test` passing. Runs multiple review lenses in parallel — spec compliance, code quality, UX analysis. Delegates hindsight to `/claude-tweaks:reflect`, code cleanup to `/claude-tweaks:simplify`, and visual review to `/claude-tweaks:visual-review`. Detects journey regressions when changed files overlap with existing journey `files:` frontmatter. Uses `/superpowers:dispatching-parallel-agents` to fix 3+ independent issues in parallel. Every finding must be explicitly resolved — fix now, defer, or accept with reason.
 
 | Mode | What it does |
 |------|-------------|
 | **code** (default) | Code review + UX analysis (when QA data available) + simplification |
-| **full** (default in /flow) | Code review + visual browser review + idea generation |
-| **visual** | Browser review only — single page |
-| **journey** | Browser review only — walk a documented journey |
-| **discover** | Scan and document all user journeys |
+| **full** (default in /flow) | Code review + visual browser review via `/visual-review` + idea generation |
+| **visual** | Delegates to `/visual-review` — single page |
+| **journey** | Delegates to `/visual-review` — walk a documented journey |
+| **discover** | Delegates to `/visual-review` — scan and document all user journeys |
 
 **`/claude-tweaks:wrap-up`** — Reflection and cleanup. Delegates structured reflection to `/claude-tweaks:reflect` (full mode) for knowledge capture. Routes learnings to CLAUDE.md and skill files, captures deferred work with triggers for re-activation, resolves every open ledger item. In worktree mode, uses `/superpowers:finishing-a-development-branch` to merge and clean up the feature branch. Deletes the spec, plan files, and ledger — leaving a clean slate.
 
@@ -119,6 +119,8 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 **`/claude-tweaks:simplify`** — Code simplification via the `code-simplifier:code-simplifier` subagent. Catches unnecessary complexity from iterative development, verbose debugging patterns, and cross-file inconsistencies. Used by `/build` (Common Step 3) and `/review` (Step 5). Works standalone against any file scope.
 
 **`/claude-tweaks:journeys`** — Creates or updates user journey documentation (`docs/journeys/`) for recently built features. Scans existing journeys for overlap, creates new journey files with persona-specific steps and "should feel" qualifiers, and updates existing journeys when builds modify their flows. Used by `/build` (Common Step 6). Works standalone.
+
+**`/claude-tweaks:visual-review`** — Browser-based UI inspection with structured review steps: reconnaissance, first impressions, persona-based interaction, structured analysis, and creative reimagination. Three modes: **page** (single URL), **journey** (walk a documented journey testing "should feel" expectations), **discover** (scan and document all journeys in a brownfield project). Handles its own browser detection with fallback chain. Used by `/review` (Step 6). Works standalone: `/claude-tweaks:visual-review http://localhost:3000`.
 
 ### Utility skills
 
@@ -163,8 +165,8 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 
 # Visual QA
 /claude-tweaks:review 42 full
-/claude-tweaks:review journey:checkout-flow
-/claude-tweaks:review discover
+/claude-tweaks:visual-review journey:checkout-flow
+/claude-tweaks:visual-review discover
 ```
 
 ## Dependencies

@@ -27,23 +27,21 @@ Post-build quality gate. `/claude-tweaks:test` answers "does it work?" — `/cla
 
 `/claude-tweaks:test` verifies that code works mechanically — types pass, lint is clean, tests are green, QA stories execute successfully. `/claude-tweaks:review` assumes all that has passed and asks a different question: is this code *good enough to ship?*
 
-This skill is the analytical quality gate — everything from spec compliance to human-judgment code review to visual browser inspection to code simplification lives here. Mechanical verification lives in `/claude-tweaks:test`.
+This skill is the analytical quality gate — spec compliance, human-judgment code review, and quality summary. Visual browser inspection is handled by `/claude-tweaks:visual-review`. Mechanical verification lives in `/claude-tweaks:test`.
 
 ## Review Modes
 
 | Mode | Syntax | What runs |
 |------|--------|-----------|
 | **code** (default) | `/claude-tweaks:review 42` | Steps 1-7: spec compliance, test gate, change analysis, code review, hindsight, simplification, summary |
-| **full** | `/claude-tweaks:review 42 full` | Code review (Steps 1-5) + visual browser review (Step 6) + summary (Step 7) |
-| **visual** | `/claude-tweaks:review visual {url}` | Browser review only — page mode |
-| **journey** | `/claude-tweaks:review journey:{name}` | Browser review only — walk a documented journey |
-| **discover** | `/claude-tweaks:review discover` | Browser review only — scan and document all user journeys |
+| **full** | `/claude-tweaks:review 42 full` | Code review (Steps 1-5) + visual browser review via `/claude-tweaks:visual-review` (Step 6) + summary (Step 7) |
+| **visual** | `/claude-tweaks:review visual {url}` | Delegates entirely to `/claude-tweaks:visual-review` — page mode |
+| **journey** | `/claude-tweaks:review journey:{name}` | Delegates entirely to `/claude-tweaks:visual-review` — journey mode |
+| **discover** | `/claude-tweaks:review discover` | Delegates entirely to `/claude-tweaks:visual-review` — discover mode |
 
-Code mode is the default. Append `full` to include a visual pass after code review. Use `visual`, `journey:`, or `discover` for browser-only reviews without code analysis.
+Code mode is the default. Append `full` to include a visual pass after code review. Use `visual`, `journey:`, or `discover` for browser-only reviews — these delegate entirely to `/claude-tweaks:visual-review`.
 
 When invoked by `/claude-tweaks:flow`, review runs in **full** mode by default (code + visual). Flow handles browser detection and falls back to code mode when no browser backend is available.
-
-For complete visual review procedures, read `browser-review.md` in this skill's directory. When QA data is available from a recent `/claude-tweaks:test qa` or `/claude-tweaks:test all` run, the visual review consumes page inventories, caveats, and screenshots to enrich its analysis and idea generation — see the QA Data Loading section in `browser-review.md`.
 
 ## Input
 
@@ -60,7 +58,7 @@ For complete visual review procedures, read `browser-review.md` in this skill's 
 7. **`qa`** — **Redirect:** QA validation has moved to `/claude-tweaks:test qa`. Run `/claude-tweaks:test qa` for story validation, or `/claude-tweaks:test all` for full verification + QA.
 8. **No arguments** — use `git diff` against the base branch or recent commits to identify changed files. Mode: code.
 
-In visual, journey, and discover modes, skip Steps 1-5 and 7 — run only the procedures from `browser-review.md` in this skill's directory.
+In visual, journey, and discover modes, delegate entirely to `/claude-tweaks:visual-review` — skip Steps 1-7.
 
 ## Step 1: Spec Compliance Check (spec-based only)
 
@@ -313,8 +311,8 @@ The simplify skill handles scope resolution, running the code-simplifier subagen
 
 **When this step runs:**
 - **Code mode:** Check for affected journeys and recommend — do not stop to ask (note in summary)
-- **Full mode:** Run the complete visual review from `browser-review.md` in this skill's directory
-- **Visual/journey/discover mode:** This is the *only* step — skip Steps 1-5 and 7
+- **Full mode:** Run `/claude-tweaks:visual-review` with the target URL and QA data (if available). Findings feed into the summary (Step 7).
+- **Visual/journey/discover mode:** Delegate entirely to `/claude-tweaks:visual-review` — skip Steps 1-5 and 7.
 
 ### Code mode: Check for affected journeys
 
@@ -333,25 +331,18 @@ A journey is **affected** if any file in its `files:` frontmatter was modified i
   ```
   | Journey | Overlapping Files | Command |
   |---------|------------------|---------|
-  | {name} | {file1}, {file2} | `/claude-tweaks:review journey:{name}` |
+  | {name} | {file1}, {file2} | `/claude-tweaks:visual-review journey:{name}` |
   ```
-- **No journeys but UI changed** → summary notes: "Visual review recommended: `/claude-tweaks:review visual {url}`."
+- **No journeys but UI changed** → summary notes: "Visual review recommended: `/claude-tweaks:visual-review {url}`."
 - **No UI impact** → skip silently.
 
-**When browser tools are unavailable:** If the changes touch UI but no browser backend is configured, don't silently skip. Instead, note it:
+**When browser tools are unavailable:** If the changes touch UI but no browser backend is detected, don't silently skip. Instead, note it:
 
 ```
 Visual review skipped — no browser backend configured.
-To set up browser tools, run /claude-tweaks:init and choose browser integration.
+Install playwright-cli: `npm install -g @anthropic-ai/cli-playwright@latest`
+Or run `/claude-tweaks:init` to configure browser integration.
 ```
-
-### Full mode: Run visual review
-
-Run the complete visual review procedures from `browser-review.md` in this skill's directory. Findings feed into the summary (Step 7).
-
-### Visual/journey/discover mode: Standalone
-
-When invoked with `visual`, `journey:`, or `discover`, run only the procedures from `browser-review.md`. The visual review's own Report & Route step handles the output — skip the review summary (Step 7).
 
 ## Step 7: Present Review Summary
 
@@ -389,10 +380,6 @@ If no notable learnings emerged, state: "No key learnings — straightforward re
 | Running review without a prior build | Review assumes code exists and was recently written — it is not a codebase-wide audit |
 | Listing code review findings without routing them | Every finding must be explicitly resolved: fix now, defer with context, or don't fix with stated reason. No implicit drops. |
 | Putting findings only in the summary table | The summary records resolutions, not unresolved observations. Route first (Step 3g), then summarize (Step 7). |
-| Skipping First Impressions in visual review | The whole point is raw reaction before structured analysis — don't make it analytical |
-| Starting the dev server without asking | Dev URL auto-detection offers to start — it doesn't force it |
-| Generic visual ideas ("improve the UX") | Ideas must be concrete and implementable in the current tech stack |
-| Running visual review without a running app | The browser can't inspect what isn't served — verify the URL responds first |
 | Running verification or QA directly in review | Mechanical checks belong in `/claude-tweaks:test` — review gates on test passing, it doesn't duplicate the work |
 
 ## Relationship to Other Skills
@@ -403,7 +390,8 @@ If no notable learnings emerged, state: "No key learnings — straightforward re
 | `/claude-tweaks:test` | /test is the mechanical "does it work?" gate. /review gates on `TEST_PASSED=true` — it never runs verification or QA itself. Standalone /review auto-triggers /test if no recent pass. |
 | `/claude-tweaks:wrap-up` | Runs after /claude-tweaks:review passes — focuses on reflection, cleanup, and knowledge capture. `review/skill` ledger entries from lens 3a and Step 4 feed into wrap-up's skill update analysis (Step 7). |
 | `/claude-tweaks:capture` | /claude-tweaks:review may create INBOX items for new ideas discovered during review |
-| `/claude-tweaks:init` | Phase 7 delegates to `/review discover` for brownfield journey bootstrapping. Phase 0 configures the browser backends that visual review depends on. /init creates the doc registry that lens 3i uses for documentation freshness checks. |
+| `/claude-tweaks:visual-review` | Invoked BY /review (Step 6) for browser-based visual inspection. In full mode, runs after code review. In visual/journey/discover modes, /review delegates entirely. |
+| `/claude-tweaks:init` | Phase 7 delegates to `/visual-review discover` for brownfield journey bootstrapping. Phase 0 configures the browser backends that visual review depends on. /init creates the doc registry that lens 3i uses for documentation freshness checks. |
 | `/claude-tweaks:stories` | Generates the YAML stories that /test validates. /review consumes /test results (including QA) via `TEST_PASSED`. /review also checks journey-to-story coverage in code review lens 3g-cov — uncovered journey steps and orphaned stories are surfaced as informational findings. |
 | `/claude-tweaks:browse` | Used by visual, journey, and discover modes for browser interaction |
 | `specs/DEFERRED.md` | /claude-tweaks:review routes implementation-related deferrals here (with origin, files, trigger) |

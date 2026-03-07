@@ -52,7 +52,7 @@ Possible QA statuses:
 - **Status:** {Completed (code + visual) | Completed (code + visual, QA-enriched) | Completed (code only — no browser) | Recommended | Skipped — no UI changes | Skipped — browser tools not configured}
 - {If completed: summary of visual/UX findings and ideas from Reimagine step}
 - {If completed with QA data: note QA data enrichment — caveats surfaced, page inventories consumed, findings confirmed/resolved}
-- {If recommended: `/claude-tweaks:review journey:{name}` or `/claude-tweaks:review visual {url}`}
+- {If recommended: `/claude-tweaks:visual-review journey:{name}` or `/claude-tweaks:visual-review {url}`}
 
 ### Code Simplification
 - {summary of simplifier changes, or "No simplifications needed"}
@@ -88,8 +88,8 @@ Generate from: git log since review start, findings with status `fixed`, ledger 
 | Signal | Option |
 |--------|--------|
 | Always | `/claude-tweaks:wrap-up {N}` — capture learnings and clean up **(Recommended)** |
-| Visual not done + journeys affected + browser | `/claude-tweaks:review journey:{name}` — walk affected journey before wrapping up |
-| Visual not done + UI changed + browser | `/claude-tweaks:review visual {url}` — visual pass before wrapping up |
+| Visual not done + journeys affected + browser | `/claude-tweaks:visual-review journey:{name}` — walk affected journey before wrapping up |
+| Visual not done + UI changed + browser | `/claude-tweaks:visual-review {url}` — visual pass before wrapping up |
 
 **When BLOCKED:**
 

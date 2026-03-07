@@ -288,8 +288,8 @@ Commit journey files with message: "Add {N} user journeys from discovery (brownf
 
 ### Next Actions
 
-1. `/claude-tweaks:review journey:{name}` — test a specific journey against its expectations **(Recommended)**
-2. `/claude-tweaks:review visual {url}` — review a specific page
+1. `/claude-tweaks:visual-review journey:{name}` — test a specific journey against its expectations **(Recommended)**
+2. `/claude-tweaks:visual-review {url}` — review a specific page
 
 ---
 

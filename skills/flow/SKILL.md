@@ -205,10 +205,9 @@ For each step in order:
    - `build` → check output for UI file changes (`.tsx`, `.jsx`, `.vue`, `.svelte`, `.html`, `.css`, component/page directories). If UI changed and `no-stories` not set → auto-detect dev URL via `dev-url-detection.md` and run `stories` step.
    - `stories` → `test` receives the stories directory
    - `build` → `test` receives `VERIFICATION_PASSED=true` (so test skips redundant types/lint/tests — see `verification.md` in the `/claude-tweaks:test` skill). Test still runs QA if stories exist.
-   - `test` → `review` receives `TEST_PASSED=true` and QA results. Flow invokes `/claude-tweaks:review` in **full** mode (code + visual review) by default:
-     - **Detect browser backend:** Run backend detection from `/claude-tweaks:browse` (same detection as the stories step).
-     - **Browser available:** Invoke `/claude-tweaks:review {spec-or-design-doc} full`. The visual review auto-detects the dev server URL using `dev-url-detection.md` from the `/claude-tweaks:stories` skill's directory. When QA data exists from the test step, the visual review consumes page inventories, caveats, and screenshots to enrich its analysis and idea generation.
-     - **No browser available:** Invoke `/claude-tweaks:review {spec-or-design-doc}` (code mode). Note in the pipeline output: "Visual review skipped — no browser backend available. To enable, run `/claude-tweaks:init` and choose browser integration."
+   - `test` → `review` receives `TEST_PASSED=true` and QA results. Flow invokes `/claude-tweaks:review` in **full** mode (code + visual review) by default. The review skill delegates visual review to `/claude-tweaks:visual-review`, which handles its own browser detection:
+     - **Browser available:** `/visual-review` runs the full visual review. It auto-detects the dev server URL and consumes QA data when available.
+     - **No browser available:** `/visual-review` reports the detection failure with install instructions. Review falls back to code mode. Flow notes in pipeline output: "Visual review skipped — no browser backend available."
    - `review` → `wrap-up` receives the review summary and verdict. Skill observations (`build/skill` and `review/skill` ledger entries) carry forward via the ledger file for wrap-up's skill update analysis (Step 7).
 5. **Ledger carries forward** — each step reads and appends to the open items ledger (see `/claude-tweaks:ledger` for all operations). Unlike conversation context (which may be compressed), the ledger is a file — it survives context window limits.
 
@@ -393,7 +392,8 @@ For each completed branch (in order):
 | `/claude-tweaks:build` | First step in the default pipeline — runs in spec mode or design mode depending on flow input. Sets `VERIFICATION_PASSED=true`. |
 | `/claude-tweaks:stories` | Auto-triggered between build and test when UI files change (unless `no-stories`). Ingests journey files from `/build` for journey-aware story generation. Uses `dev-url-detection.md` for URL resolution. |
 | `/claude-tweaks:test` | Mechanical gate between build/stories and review — types, lint, tests, QA. Receives `VERIFICATION_PASSED` from build (skips redundant checks). Sets `TEST_PASSED=true`. |
-| `/claude-tweaks:review` | Analytical gate — receives `TEST_PASSED=true` from test, produces verdict. Runs in **full** mode (code + visual) by default when browser available; code mode fallback otherwise. Never runs verification or QA itself. |
+| `/claude-tweaks:review` | Analytical gate — receives `TEST_PASSED=true` from test, produces verdict. Runs in **full** mode (code + visual) by default; delegates visual review to `/visual-review` which handles its own browser detection. Code mode fallback when no browser available. Never runs verification or QA itself. |
+| `/claude-tweaks:visual-review` | Invoked transitively by /review in full mode. Handles browser detection, dev URL resolution, and the full visual review procedure. |
 | `/claude-tweaks:wrap-up` | Final step — receives review output, produces clean slate |
 | `/claude-tweaks:help` | Shows pipeline status and recommends flow-ready specs |
 | `/claude-tweaks:specify` | Creates the specs that flow consumes |

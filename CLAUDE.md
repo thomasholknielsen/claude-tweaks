@@ -2,7 +2,7 @@
 
 ## What this is
 
-A Claude Code plugin (v3.19.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation and QA pipeline support. This is not a code application — it's a system of prompts organized as skills.
+A Claude Code plugin (v3.20.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation and QA pipeline support. This is not a code application — it's a system of prompts organized as skills.
 
 ## Stack
 
@@ -25,10 +25,10 @@ README.md                         → User-facing documentation
 LICENSE                           → MIT
 ```
 
-### Skill directories (17 total)
+### Skill directories (18 total)
 
 **Lifecycle:** init, capture, challenge, specify, build, test, stories, review, wrap-up
-**Component:** reflect, simplify, journeys
+**Component:** reflect, simplify, journeys, visual-review
 **Utility:** help, tidy, flow, browse, ledger
 
 ### Skills with sub-files
@@ -39,7 +39,8 @@ LICENSE                           → MIT
 | browse | playwright-reference.md, chrome-reference.md | Full command references for each browser backend |
 | test | verification.md | Shared verification procedure (referenced by /build, /review, and /test) |
 | stories | dev-url-detection.md, source-analysis.md, story-examples.md | Dev server auto-detection; source code extraction patterns for behavioral contracts; YAML story examples (DOM-only, source-aware, journey-aware) |
-| review | review-summary-template.md, browser-review.md, qa-review.md, ux-analysis.md, reconnaissance.md | Structured summary template; visual review procedures; QA review procedures; UX analysis procedure; contextual page reconnaissance |
+| review | review-summary-template.md, qa-review.md, ux-analysis.md | Structured summary template; QA review procedures; UX analysis procedure |
+| visual-review | browser-review.md, reconnaissance.md | Visual review procedures (page, journey, discover modes); contextual page reconnaissance |
 | specify | spec-template.md | Spec file template with field rationale |
 | help | reference-card.md, context-flow.md | Quick reference card; artifact flow documentation |
 

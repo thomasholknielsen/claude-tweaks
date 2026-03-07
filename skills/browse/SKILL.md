@@ -191,7 +191,7 @@ Use these templates for the "Recommended Next" section based on the task classif
 
 #### `screenshot`
 1. Compare with another page or viewport — `/claude-tweaks:browse screenshot {url} at {viewport}`
-2. Run a visual review — `/claude-tweaks:review visual {url}` **(Recommended)**
+2. Run a visual review — `/claude-tweaks:visual-review {url}` **(Recommended)**
 3. Generate user stories from this page — `/claude-tweaks:stories {url}`
 
 #### `scrape`
@@ -211,12 +211,12 @@ Use these templates for the "Recommended Next" section based on the task classif
 
 #### `explore`
 1. Generate user stories from discovered pages — `/claude-tweaks:stories {url}` **(Recommended)**
-2. Run a visual review on the site — `/claude-tweaks:review visual {url}`
+2. Run a visual review on the site — `/claude-tweaks:visual-review {url}`
 3. Screenshot key pages — `/claude-tweaks:browse screenshot all main pages on {url}`
 
 #### `interact`
 1. Verify state persists after reload — `/claude-tweaks:browse reload {url} and check state`
-2. Run a visual review — `/claude-tweaks:review visual {url}` **(Recommended)**
+2. Run a visual review — `/claude-tweaks:visual-review {url}` **(Recommended)**
 3. Generate stories covering this interaction — `/claude-tweaks:stories {url}`
 
 Adapt the specific URLs and targets to match the actual task context.
@@ -255,6 +255,7 @@ When the user replies with a "do N" pattern after receiving a Browse Report, mat
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:stories` | Uses /browse to explore sites and validate generated stories |
-| `/claude-tweaks:review` | Visual, journey, discover, and qa modes use /browse for browser interaction |
+| `/claude-tweaks:visual-review` | Uses /browse's operation mapping table for all browser commands |
+| `/claude-tweaks:review` | Delegates visual modes to /visual-review, which uses /browse transitively |
 | `/claude-tweaks:flow` | /flow can chain /stories and /review which use /browse transitively |
 | `/claude-tweaks:init` | Step 6 configures the browser backends that /browse depends on |

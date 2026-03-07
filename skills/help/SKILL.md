@@ -67,6 +67,7 @@ These are invoked by lifecycle skills but also work standalone.
 | `/claude-tweaks:reflect` | Structured evaluation — hindsight, surprises, near-misses, fresh start | `hindsight`, `full`, spec #, file paths | `/claude-tweaks:review` (Step 4), `/claude-tweaks:wrap-up` (Step 3) |
 | `/claude-tweaks:simplify` | Code simplification via code-simplifier subagent | file paths or auto-detect from git diff | `/claude-tweaks:build` (Step 3), `/claude-tweaks:review` (Step 5) |
 | `/claude-tweaks:journeys` | Create/update user journey documentation | spec #, file paths | `/claude-tweaks:build` (Step 6) |
+| `/claude-tweaks:visual-review` | Browser-based UI inspection, journey walks, journey discovery | URL, `journey:{name}`, `discover` | `/claude-tweaks:review` (Step 6) |
 
 For a concise one-page reference, read `reference-card.md` in this skill's directory.
 
@@ -280,3 +281,4 @@ For a detailed explanation of how context flows between skills via artifacts, re
 | `/claude-tweaks:reflect` | Component skill — /claude-tweaks:help lists it in the component skills table |
 | `/claude-tweaks:simplify` | Component skill — /claude-tweaks:help lists it in the component skills table |
 | `/claude-tweaks:journeys` | Component skill — /claude-tweaks:help lists it in the component skills table |
+| `/claude-tweaks:visual-review` | Component skill — /claude-tweaks:help lists it in the component skills table |

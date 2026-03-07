@@ -24,6 +24,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/claude-tweaks:reflect` | Structured evaluation: hindsight, surprises, near-misses | `hindsight`/`full`, spec #, file paths |
 | `/claude-tweaks:simplify` | Code simplification via code-simplifier subagent | file paths or auto from git diff |
 | `/claude-tweaks:journeys` | Create/update user journey documentation | spec #, file paths |
+| `/claude-tweaks:visual-review` | Browser-based UI inspection, journey walks, discovery | URL, `journey:{name}`, `discover` |
 
 ## Utility
 
@@ -60,7 +61,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 ```
 or standalone:
 ```
-/claude-tweaks:review journey:checkout-flow
+/claude-tweaks:visual-review journey:checkout-flow
 ```
 
 ### Verify before commit
@@ -92,7 +93,7 @@ or standalone:
 ### Brownfield onboarding
 ```
 /claude-tweaks:init
-/claude-tweaks:review discover
+/claude-tweaks:visual-review discover
 ```
 
 ## Artifact Lifecycle

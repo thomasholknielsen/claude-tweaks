@@ -141,7 +141,7 @@ When invoked directly (not by a parent skill), end with:
 ### Next Actions
 
 1. `/claude-tweaks:stories` — generate QA stories from journeys **(Recommended)**
-2. `/claude-tweaks:review journey:{name}` — visual review of a journey
+2. `/claude-tweaks:visual-review journey:{name}` — visual review of a journey
 3. `/claude-tweaks:test` — verify implementation
 ```
 
