@@ -17,6 +17,14 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/claude-tweaks:review` | Analytical quality gate: code review, UX analysis (when QA data available), visual + creative ideas (default in `/claude-tweaks:flow`). Gates on `/claude-tweaks:test`. | spec #, files + `full`/`visual`/`journey:{name}`/`discover` |
 | `/claude-tweaks:wrap-up` | Reflect, capture learnings, clean up | spec # |
 
+## Component (standalone or called by lifecycle skills)
+
+| Command | What it does | Takes |
+|---------|-------------|-------|
+| `/claude-tweaks:reflect` | Structured evaluation: hindsight, surprises, near-misses | `hindsight`/`full`, spec #, file paths |
+| `/claude-tweaks:simplify` | Code simplification via code-simplifier subagent | file paths or auto from git diff |
+| `/claude-tweaks:journeys` | Create/update user journey documentation | spec #, file paths |
+
 ## Utility
 
 | Command | What it does | Takes |
@@ -99,7 +107,8 @@ INBOX → Brief → Design Doc → Spec → Code → Stories → TEST_PASSED →
 | `/claude-tweaks:challenge` | Brief | — |
 | `/superpowers:brainstorm` | Design Doc | — |
 | `/claude-tweaks:specify` | Spec | Brief, Design Doc |
-| `/claude-tweaks:build` | Code + Journeys | — |
+| `/claude-tweaks:build` | Code (+ Journeys via /journeys) | — |
+| `/claude-tweaks:journeys` | Journey files | — |
 | `/claude-tweaks:stories` | Story YAML files | — |
 | `/claude-tweaks:test` | TEST_PASSED flag | — |
 | `/claude-tweaks:review` | Review summary | — |

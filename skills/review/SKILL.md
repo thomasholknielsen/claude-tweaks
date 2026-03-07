@@ -291,65 +291,21 @@ If any findings are "Fix now", make the changes, re-run `/claude-tweaks:test`, a
 
 ## Step 4: Implementation Hindsight (Decision Point)
 
-This is NOT a thought exercise — it's an **action gate**. After the code review, explicitly ask:
+Run `/claude-tweaks:reflect` in **hindsight** mode. Pass:
+- **Scope** — the changes analyzed in Steps 2-3
+- **Ledger phase** — `review/hindsight`
 
-> **"Given everything we've found, should we change something before shipping this?"**
+The reflect skill handles the full hindsight evaluation, finding presentation, routing, ledger writes, and re-verification after fixes. See `/claude-tweaks:reflect` for details.
 
-Evaluate:
-1. **Approach correctness** — Did we solve the right problem, or optimize for the wrong thing?
-2. **Structural debt** — Did we introduce patterns we'll regret? Premature abstractions, wrong boundaries?
-3. **Missing consolidation** — Opportunities to merge, deduplicate, or simplify that are obvious now?
-4. **Convention drift** — Did we accidentally diverge from established project patterns?
-5. **Skill-worthy patterns** — Did the build establish reusable patterns that should be documented in a project skill? If yes, append a `review/skill` ledger entry. For patterns that don't fit any existing skill, use `[skill: NEW — {suggested-name}]`.
-
-Present all findings as a batch:
-
-```
-### Implementation Hindsight
-
-| # | Finding | Recommended |
-|---|---------|-------------|
-| 1 | {description} | Change now |
-| 2 | {description} | Change now |
-| 3 | {description} | Defer — bigger scope, not relevant now |
-| 4 | {description} | Capture to INBOX — needs exploration |
-
-1. Apply all recommendations **(Recommended)**
-2. Override specific items (tell me which #s to change)
-```
-
-**Recommendation rules:**
-- **Change now** — the strong default. If the improvement is clear, make the change. Most hindsight findings are small enough to fix in a few minutes.
-- **Defer** (DEFERRED.md) — the improvement is understood but it's bigger and not relevant to the current work. Include origin, files, trigger.
-- **Capture to INBOX** — the finding is complex or uncertain and needs brainstorming/exploration before it can be acted on.
-- **Accept as-is** — only when the current approach is genuinely better, or the finding is a false positive. Not a valid option for genuine improvements.
-
-If any findings are **"Change now"**, make the changes, re-run `/claude-tweaks:test`, and resume.
-
-**Write all hindsight findings to the open items ledger** (see `/claude-tweaks:ledger`) with phase `review/hindsight`. Status: `open` for "Change now" items; update to `fixed` after making changes.
-
-If no hindsight findings, state "No changes needed — approach is sound" and proceed.
+If the reflect skill produces "Change now" fixes, re-run `/claude-tweaks:test` before proceeding.
 
 ---
 
 ## Step 5: Simplify Changed Code
 
-Run the **code-simplifier:code-simplifier** subagent on files modified during this work:
+Run `/claude-tweaks:simplify` on files modified during this work (use `git diff --name-only`).
 
-```
-Task tool with subagent_type="code-simplifier:code-simplifier"
-```
-
-**Scope:** Only files changed in the current work (use `git diff --name-only`). Do NOT simplify unrelated code.
-
-**What it catches:**
-- Unnecessary complexity from iterative development
-- Verbose patterns from trial-and-error debugging
-- Leftover defensive code from abandoned approaches
-- Inconsistent naming or structure across changed files
-- Dead paths, redundant conditionals, over-abstraction
-
-If the code-simplifier makes changes, re-run `/claude-tweaks:test` before proceeding.
+The simplify skill handles scope resolution, running the code-simplifier subagent, and re-verification after changes. See `/claude-tweaks:simplify` for details.
 
 ---
 
@@ -453,5 +409,7 @@ If no notable learnings emerged, state: "No key learnings — straightforward re
 | `specs/DEFERRED.md` | /claude-tweaks:review routes implementation-related deferrals here (with origin, files, trigger) |
 | `/claude-tweaks:flow` | Invokes /review in **full** mode by default (code + visual). Flow handles browser detection and falls back to code mode when no browser backend is available. |
 | `/dispatching-parallel-agents` | Used BY /claude-tweaks:review (conditional) to dispatch 3+ independent fix-now findings as parallel agents |
-| `/claude-tweaks:ledger` | Manages the open items ledger. /review appends findings (Step 3g) and hindsight (Step 4) using `review/*` phases. |
+| `/claude-tweaks:reflect` | Invoked BY /review (Step 4) in hindsight mode. Handles the implementation hindsight evaluation, finding routing, and ledger writes with phase `review/hindsight`. |
+| `/claude-tweaks:simplify` | Invoked BY /review (Step 5) on files modified during review. Handles code simplification and re-verification. |
+| `/claude-tweaks:ledger` | Manages the open items ledger. /review appends findings (Step 3g). Hindsight findings (Step 4) are written by /reflect using `review/*` phases. |
 | `/claude-tweaks:help` | /help flags specs awaiting review and recommends `/review` in its pipeline status scan |

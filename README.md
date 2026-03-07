@@ -33,14 +33,21 @@ Claude Code is powerful but unstructured. claude-tweaks adds a complete developm
   ┈┈ /claude-tweaks:flow automates below (worktree mode optional) ┈┈
      │
   build ────────────────►  Code + Journeys    ◄───  subagent-driven-development
-     ┊  (if UI changed)                             executing-plans
-  stories ──────────────►  Story YAML                using-git-worktrees ⚙
+     │  calls: simplify,                             executing-plans
+     │         journeys                              using-git-worktrees ⚙
+     ┊  (if UI changed)
+  stories ──────────────►  Story YAML
      │
   test ─────────────────►  TEST_PASSED
      │
   review ───────────────►  Review Summary     ◄───  dispatching-parallel-agents
+     │  calls: reflect
+     │         (hindsight),
+     │         simplify
      │
   wrap-up ──────────────►  Done               ◄───  finishing-a-dev-branch ⚙
+     │  calls: reflect
+     │         (full)
                            (deletes Spec, plans, ledger)
 ```
 
@@ -71,7 +78,7 @@ Claude Code is powerful but unstructured. claude-tweaks adds a complete developm
 | **Subagent** (default) | Fast solo work | Isolated feature branch |
 | **Batched** | Hands-on review per chunk | Full control + full isolation |
 
-Uses `/superpowers:subagent-driven-development` and `/superpowers:executing-plans` for autonomous execution. In worktree mode, `/superpowers:using-git-worktrees` manages the isolated branch. Automatically creates user journey files (`docs/journeys/`) for user-facing features, updates docs matched by the documentation registry, and tracks deferred items in the open items ledger.
+Uses `/superpowers:subagent-driven-development` and `/superpowers:executing-plans` for autonomous execution. In worktree mode, `/superpowers:using-git-worktrees` manages the isolated branch. Delegates code cleanup to `/claude-tweaks:simplify` and journey capture to `/claude-tweaks:journeys`. Updates docs matched by the documentation registry and tracks deferred items in the open items ledger.
 
 ```
 /claude-tweaks:build 42                    → subagent + current branch (default)
@@ -93,7 +100,7 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 /claude-tweaks:test all                    → full suite + QA stories
 ```
 
-**`/claude-tweaks:review`** — Analytical "is it good?" gate. Gates on `/claude-tweaks:test` passing. Runs multiple review lenses in parallel — spec compliance, code quality, UX analysis, hindsight, and simplification. Detects journey regressions when changed files overlap with existing journey `files:` frontmatter. Uses `/superpowers:dispatching-parallel-agents` to fix 3+ independent issues in parallel. Every finding must be explicitly resolved — fix now, defer, or accept with reason.
+**`/claude-tweaks:review`** — Analytical "is it good?" gate. Gates on `/claude-tweaks:test` passing. Runs multiple review lenses in parallel — spec compliance, code quality, UX analysis. Delegates hindsight evaluation to `/claude-tweaks:reflect` and code cleanup to `/claude-tweaks:simplify`. Detects journey regressions when changed files overlap with existing journey `files:` frontmatter. Uses `/superpowers:dispatching-parallel-agents` to fix 3+ independent issues in parallel. Every finding must be explicitly resolved — fix now, defer, or accept with reason.
 
 | Mode | What it does |
 |------|-------------|
@@ -103,7 +110,15 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 | **journey** | Browser review only — walk a documented journey |
 | **discover** | Scan and document all user journeys |
 
-**`/claude-tweaks:wrap-up`** — Reflection and cleanup. Routes learnings to CLAUDE.md and skill files, captures deferred work with triggers for re-activation, resolves every open ledger item. In worktree mode, uses `/superpowers:finishing-a-development-branch` to merge and clean up the feature branch. Deletes the spec, plan files, and ledger — leaving a clean slate.
+**`/claude-tweaks:wrap-up`** — Reflection and cleanup. Delegates structured reflection to `/claude-tweaks:reflect` (full mode) for knowledge capture. Routes learnings to CLAUDE.md and skill files, captures deferred work with triggers for re-activation, resolves every open ledger item. In worktree mode, uses `/superpowers:finishing-a-development-branch` to merge and clean up the feature branch. Deletes the spec, plan files, and ledger — leaving a clean slate.
+
+### Component skills (standalone or called by lifecycle skills)
+
+**`/claude-tweaks:reflect`** — Structured evaluation of recent work through four lenses: Surprises, Hindsight, Near-misses, and Fresh start. In **hindsight** mode (used by `/review` Step 4), focused on "should we change something before shipping?" In **full** mode (used by `/wrap-up` Step 3), broader knowledge capture. Works standalone against any recent changes.
+
+**`/claude-tweaks:simplify`** — Code simplification via the `code-simplifier:code-simplifier` subagent. Catches unnecessary complexity from iterative development, verbose debugging patterns, and cross-file inconsistencies. Used by `/build` (Common Step 3) and `/review` (Step 5). Works standalone against any file scope.
+
+**`/claude-tweaks:journeys`** — Creates or updates user journey documentation (`docs/journeys/`) for recently built features. Scans existing journeys for overlap, creates new journey files with persona-specific steps and "should feel" qualifiers, and updates existing journeys when builds modify their flows. Used by `/build` (Common Step 6). Works standalone.
 
 ### Utility skills
 

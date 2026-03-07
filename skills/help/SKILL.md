@@ -58,6 +58,16 @@ These run in order — each skill feeds into the next.
 | 7 | `/claude-tweaks:review` | Analytical quality gate — code review, UX analysis (when QA data available), visual browser review with idea generation (default in /flow when browser available). Gates on /test passing. | spec number, file paths + `full`, `visual`, `journey:{name}`, `discover` |
 | 8 | `/claude-tweaks:wrap-up` | Reflection, knowledge capture, artifact cleanup | spec number |
 
+### Component Skills
+
+These are invoked by lifecycle skills but also work standalone.
+
+| Command | Purpose | Accepts | Used by |
+|---------|---------|---------|---------|
+| `/claude-tweaks:reflect` | Structured evaluation — hindsight, surprises, near-misses, fresh start | `hindsight`, `full`, spec #, file paths | `/claude-tweaks:review` (Step 4), `/claude-tweaks:wrap-up` (Step 3) |
+| `/claude-tweaks:simplify` | Code simplification via code-simplifier subagent | file paths or auto-detect from git diff | `/claude-tweaks:build` (Step 3), `/claude-tweaks:review` (Step 5) |
+| `/claude-tweaks:journeys` | Create/update user journey documentation | spec #, file paths | `/claude-tweaks:build` (Step 6) |
+
 For a concise one-page reference, read `reference-card.md` in this skill's directory.
 
 ### Utility Skills
@@ -267,3 +277,6 @@ For a detailed explanation of how context flows between skills via artifacts, re
 | `/claude-tweaks:browse` | Utility skill — /claude-tweaks:help lists it in the utility skills table |
 | `/claude-tweaks:stories` | Lifecycle skill — /claude-tweaks:help lists it between /test and /review |
 | `/claude-tweaks:ledger` | Utility skill — /claude-tweaks:help lists it in the utility skills table and scans for active ledgers with open items |
+| `/claude-tweaks:reflect` | Component skill — /claude-tweaks:help lists it in the component skills table |
+| `/claude-tweaks:simplify` | Component skill — /claude-tweaks:help lists it in the component skills table |
+| `/claude-tweaks:journeys` | Component skill — /claude-tweaks:help lists it in the component skills table |

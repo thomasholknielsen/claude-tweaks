@@ -300,24 +300,13 @@ The implementer subagents will pick up project conventions from CLAUDE.md, `.cla
 
 ### Common Steps 3 + 4.5: Simplification and Alignment (Concurrent)
 
-> **Parallel execution:** After implementation completes, run code simplification (Task agent via code-simplifier:code-simplifier) and architecture alignment check (main thread) concurrently — they operate on independent concerns. Common Step 5 (Final Verification) gates after both complete.
+> **Parallel execution:** After implementation completes, run code simplification (`/claude-tweaks:simplify`) and architecture alignment check (main thread) concurrently — they operate on independent concerns. Common Step 5 (Final Verification) gates after both complete.
 
 ### Common Step 3: Code Simplification
 
-After all implementation tasks are complete, run the `code-simplifier:code-simplifier` agent on the recently modified code.
+After all implementation tasks are complete, run `/claude-tweaks:simplify` on the recently modified code (files changed during this build session).
 
-This step:
-- Simplifies and refines code for clarity, consistency, and maintainability
-- Preserves all functionality — no behavioral changes
-- Focuses on files modified during this build session
-
-The code-simplifier reviews all files modified during the build and catches cross-task patterns that individual subagents miss — because each subagent only sees its own task:
-- Inconsistent naming or patterns between files modified by different tasks
-- Opportunities to consolidate similar code written by different subagents
-- Unnecessary complexity that accumulated across iterative implementation
-- Over-engineering introduced during trial-and-error
-
-**Scope:** Same as Step 5 — only files changed in the current work. "Cross-task" means across modified files, not across the entire codebase.
+The simplify skill handles scope resolution, running the code-simplifier subagent, and re-verification after changes. See `/claude-tweaks:simplify` for details.
 
 If the simplifier makes changes, commit them separately.
 
@@ -408,76 +397,13 @@ Category B items are NOT resolved immediately — they carry through to the fina
 
 ### Common Step 6: User Journey Capture
 
-After verification passes, automatically create or update journey files for the features that were built. This is not optional and does not require user input — if you built a feature that any persona interacts with (end user, admin, developer, internal tooling user), document the journey.
+After verification passes, run `/claude-tweaks:journeys`. Pass:
+- **Changed files** — files modified during this build session
+- **Spec or design doc context** — what was built and why
 
-#### Determine affected journeys
+The journeys skill handles scanning existing journeys, creating new journey files, updating existing ones, and committing. See `/claude-tweaks:journeys` for details.
 
-Analyze what was built and identify the journeys it enables or modifies — for any persona (end users, admins, developers, internal tooling users):
-
-1. **Scan existing journeys** — read `docs/journeys/*.md` to see if any existing journey includes pages, flows, features, CLI commands, or APIs that were just built or changed
-2. **Identify new journeys** — if the feature introduces a new flow for any persona that doesn't map to an existing journey, a new journey file is needed
-3. **No interaction surface** — if the build has no flow impact for any persona (pure internal refactor, library-only changes with no behavioral shift), skip this step entirely
-
-#### Create new journey files
-
-For each new journey identified, create a file at `docs/journeys/{journey-name}.md`:
-
-```markdown
----
-files:
-  - {path/to/key-source-file.ts}
-  - {path/to/another-file.ts}
----
-
-# {Journey Name}
-
-**Persona:** {Who is this user? Be specific — not "user" but "first-time visitor with no account" or "developer setting up local environment"}
-**Goal:** {What are they trying to accomplish?}
-**Entry point:** {Where do they start? URL or trigger}
-**Success state:** {What does "done" look like? What should they feel at the end?}
-
-## Steps
-
-### 1. {Step name} — {Page or action}
-- **URL:** {path}
-- **Action:** {What the user does}
-- **Should feel:** {The emotional/experiential quality — "fast and effortless", "guided but not forced", "like an accomplishment"}
-- **Should understand:** {What the user should know after this step}
-- **Red flags:** {What would make this step fail experientially — not just functionally}
-
-### 2. {Next step}
-...
-
-## Origin
-- Created during build of {spec number or design doc}
-- Steps {N-M} built in this session
-- Related specs: {list}
-```
-
-Key principles for writing journeys:
-- **"Should feel" is the most important field.** It's what visual review tests against. Be specific — "low commitment" not "good."
-- **`files:` enables regression detection.** List the key source files that implement this journey's functionality — components, API routes, pages, services. `/review` uses this to detect when a future build changes files that an existing journey depends on. Don't list every file — just the ones whose changes would affect the journey's behavior.
-- **One journey per goal**, not per feature. A journey may span features from multiple specs.
-- **Include the entry point and success state.** These bookend the journey and define what "complete" means.
-- **Personas are specific people**, not roles. "Developer who just joined the team and is setting up for the first time" not "developer."
-
-#### Update existing journey files
-
-If the build modifies or extends an existing journey:
-
-1. Read the existing journey file
-2. Add, update, or reorder steps to reflect what was built
-3. Update the `files:` frontmatter — add new source files, remove files that are no longer relevant
-4. Update the Origin section to reference the current build
-5. Preserve existing "Should feel" and "Red flags" for steps that weren't changed — those are tested expectations
-
-#### Commit the journey files
-
-Commit journey files separately from the implementation code:
-```
-git add docs/journeys/{journey-name}.md
-git commit -m "Add/update {journey name} journey"
-```
+This is not optional and does not require user input — if you built a feature that any persona interacts with (end user, admin, developer, internal tooling user), the journeys skill documents it.
 
 ### Common Step 6.5: Documentation Sync
 
@@ -628,8 +554,9 @@ These apply in **subagent** execution strategy. In **batched** strategy, autonom
 | `/executing-plans` | Invoked BY /claude-tweaks:build (batched execution strategy) to execute the plan with human-reviewed batches |
 | `/using-git-worktrees` | Invoked BY /claude-tweaks:build (worktree git strategy) to create an isolated workspace before execution |
 | `/finishing-a-development-branch` | Invoked BY /claude-tweaks:build (worktree git strategy) at handoff to merge, PR, or discard the feature branch |
-| `code-simplifier:code-simplifier` | Invoked BY /claude-tweaks:build after implementation, before verification |
-| `/claude-tweaks:stories` | Runs AFTER /claude-tweaks:build — auto-triggered by `/flow` when UI files change, or run manually. /build creates journey files (`docs/journeys/*.md`) that /stories ingests for journey-aware story generation — stories reference their source journey via the `journey:` field. Stories are validated by `/test qa`. |
+| `/claude-tweaks:simplify` | Invoked BY /claude-tweaks:build after implementation (Common Step 3). Handles code simplification and re-verification. |
+| `/claude-tweaks:journeys` | Invoked BY /claude-tweaks:build after verification (Common Step 6). Creates/updates journey files for built features. |
+| `/claude-tweaks:stories` | Runs AFTER /claude-tweaks:build — auto-triggered by `/flow` when UI files change, or run manually. /build creates journey files via /journeys (`docs/journeys/*.md`) that /stories ingests for journey-aware story generation — stories reference their source journey via the `journey:` field. Stories are validated by `/test qa`. |
 | `/claude-tweaks:test` | Runs AFTER /claude-tweaks:build (in pipeline: receives `VERIFICATION_PASSED=true`, skips types/lint/tests, runs QA if stories exist). Standalone: runs the same checks as /build Common Step 5. |
 | `/claude-tweaks:review` | Runs AFTER /claude-tweaks:test — gates on `TEST_PASSED=true`. In design mode, uses git diff instead of spec compliance. Standalone /review auto-triggers /test if no recent pass. |
 | `/claude-tweaks:review` (visual modes) | Tests the user journeys that /build creates — visual review modes are the bridge between build and visual QA |

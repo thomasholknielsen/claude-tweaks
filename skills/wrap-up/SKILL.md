@@ -65,70 +65,14 @@ Review conversation and recent commits to identify what was implemented and whic
 
 ## Step 3: Reflect on Implementation
 
-### Four Reflection Lenses
+Run `/claude-tweaks:reflect` in **full** mode. Pass:
+- **Scope** — files changed during this work
+- **Ledger phase** — `wrap-up`
+- **Seed context** — review summary (Key Learnings section), tradeoffs accepted
 
-| Lens | Question | Surfaces |
-|------|----------|----------|
-| **1. Surprises** | "What surprised us?" — Unexpected constraints, library behavior, shape changes | Don'ts, skill updates |
-| **2. Hindsight** | "What would we do differently?" — Better patterns discovered midway, over/under-engineering | Skill updates, conventions, spec adjustments |
-| **3. Near-misses** | "What broke or almost broke?" — Unexpected test failures, type errors, cross-platform ripples | Don'ts, testing patterns, gotchas |
-| **4. Fresh start** | "If we started fresh?" — Would we choose the same approach? What would v2 look like? | Architectural alternatives, memory files |
+The reflect skill handles all four reflection lenses (Surprises, Hindsight, Near-misses, Fresh start), the tradeoff review, insight routing, and ledger writes. See `/claude-tweaks:reflect` for details.
 
-### Seed from Review Learnings
-
-Check the `/claude-tweaks:review` summary for the **Key Learnings** section. These are pre-identified insights from the review — use them as starting points for the four lenses below rather than re-deriving from scratch.
-
-### Review Tradeoffs
-
-Check the `/claude-tweaks:review` summary for the **Tradeoffs Accepted** section. For each accepted tradeoff, assess whether it represents:
-
-- A **project-wide pattern** worth documenting (e.g., "we always choose X over Y because Z") → route to CLAUDE.md or a skill
-- A **one-off decision** specific to this work → no action needed
-- A **known limitation** others should be aware of → route to Don'ts or memory
-
-### Route Insights (batch)
-
-Collect all insights from the four lenses and the tradeoff review into a single table. Use this routing guide to pre-fill recommended destinations:
-
-| Finding Type | Suggested Destination |
-|-------------|-----------|
-| "Never do X because Y" (X exists in codebase) | CLAUDE.md Don'ts |
-| "When building Z, always do W" | Existing skill update |
-| "This reusable pattern emerged" | New skill candidate |
-| "Remaining specs should use X instead" | Spec amendments |
-| "A fundamentally better approach exists" | Skill update + Memory file |
-| "We chose X over Y because Z" (from review tradeoffs) | CLAUDE.md Convention or Memory file (if it's a recurring decision) |
-| "We should add X" (X doesn't exist yet) | INBOX — improvement work, not a convention |
-
-Present all insights as a batch:
-
-```
-### Reflection Insights
-
-| # | Insight | Recommended Destination |
-|---|---------|------------------------|
-| 1 | {description} | Implement now → CLAUDE.md Don'ts |
-| 2 | {description} | Implement now → Skill: {name} |
-| 3 | {description} | Defer — bigger, not relevant now |
-| 4 | {description} | Capture to INBOX — needs brainstorming |
-
-1. Apply all recommendations **(Recommended)**
-2. Override specific items (tell me which #s to change)
-```
-
-**Auto-apply when uniform:** When ALL reflection insights are "Implement now" (none are "Defer" or "Capture to INBOX"), auto-apply without presenting the decision table. State: "Implementing {N} reflection insights:" followed by a brief list of changes, then proceed. When any insight has mixed routing, present the full batch table as before.
-
-**Recommendation rules:**
-- **Implement now** — the strong default. If an insight leads to a concrete change (update CLAUDE.md, update a skill, add a rule, update memory), make the change during wrap-up. Most insights are small enough to implement immediately.
-- **Defer** (DEFERRED.md) — the insight leads to a known improvement but it's bigger and not relevant to the current work. Include origin, context, trigger.
-- **Capture to INBOX** — the insight is complex or uncertain and needs brainstorming/exploration before it can be acted on.
-- **Don't capture** — only for insights that are genuinely not actionable (one-off observations, context-specific facts, things already documented elsewhere). Must state why.
-
-If any insight is "Implement now", handle it before continuing wrap-up.
-
-**Write all actionable insights to the open items ledger** (see `/claude-tweaks:ledger`) with phase `wrap-up/*`. "Implement now" items get status `open` until implemented (then `fixed`); "Defer" items get status `deferred`.
-
-> **Routing bias:** Implement it now — always the recommended default. Defer when the improvement is bigger and not relevant now. Capture to INBOX when the insight needs brainstorming. The goal is to close gaps while the context is fresh.
+If any insight is "Implement now", /reflect handles it before returning control. Proceed after all insights are resolved.
 
 ---
 
@@ -481,6 +425,7 @@ Commit with a message summarizing the wrap-up actions.
 |-------|-------------|
 | `/claude-tweaks:review` | Must pass before /claude-tweaks:wrap-up — handles verification, code review, and simplification. `review/skill` ledger entries from lens 3a and Step 4 feed into Step 7 skill analysis. |
 | `/claude-tweaks:review` (visual modes) | Visual complement — findings from visual review may feed into wrap-up's reflection lenses |
+| `/claude-tweaks:reflect` | Invoked BY /wrap-up (Step 3) in full mode. Handles all four reflection lenses, tradeoff review, insight routing, and ledger writes with phase `wrap-up`. |
 | `/claude-tweaks:capture` | /claude-tweaks:wrap-up may create INBOX items for genuinely new ideas discovered during implementation |
 | `specs/DEFERRED.md` | /claude-tweaks:wrap-up routes leftover work here (with origin spec, files, trigger) |
 | `/claude-tweaks:help` | /claude-tweaks:wrap-up suggests running /claude-tweaks:help to see what's unblocked |
