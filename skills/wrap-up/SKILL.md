@@ -107,7 +107,9 @@ Delete the open items ledger using the ledger skill's delete operation (see `/cl
 If the build used worktree git strategy, clean up the worktree directory:
 
 1. Run `git worktree list` to find worktrees associated with this spec's feature branch
-2. Verify the feature branch was completed (merged, PR created, or discarded) via `/finishing-a-development-branch` — if not, stop and flag: "Worktree feature branch `{branch}` has not been completed. Run `/finishing-a-development-branch` first."
+2. Verify the feature branch was completed (merged, PR created, or discarded) via `/finishing-a-development-branch`:
+   - **Already completed** → proceed to step 3
+   - **Not completed** → run `/finishing-a-development-branch` now (do not stop and ask the user to run it separately). Present the merge/PR/discard options as the skill normally would. After the branch is completed, proceed to step 3.
 3. Remove the worktree: `git worktree remove {path}`
 4. If the branch was merged (not kept for PR), delete it: `git branch -d {branch}`
 

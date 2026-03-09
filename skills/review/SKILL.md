@@ -314,26 +314,36 @@ The simplify skill handles scope resolution, running the code-simplifier subagen
 - **Full mode:** Run `/claude-tweaks:visual-review` with the target URL and QA data (if available). Findings feed into the summary (Step 7).
 - **Visual/journey/discover mode:** Delegate entirely to `/claude-tweaks:visual-review` — skip Steps 1-5 and 7.
 
-### Code mode: Check for affected journeys
+### Code mode: Check for UI changes and affected journeys
 
-Detect when this build's changes may affect existing user journeys — even journeys from previous specs.
+Detect when this build's changes are visual and may need browser review.
 
-1. Get the list of changed files: `git diff --name-only` (or against the base branch)
-2. Read all journey files in `docs/journeys/*.md`
-3. For each journey, check its `files:` frontmatter for overlap with the changed files list
-4. Also scan journey step URLs and content for references to changed routes or pages
+#### 1. Detect UI file changes
+
+Get the list of changed files: `git diff --name-only` (or against the base branch). A change is **UI-impacting** if any changed file matches:
+- File extensions: `.tsx`, `.jsx`, `.vue`, `.svelte`, `.html`, `.css`, `.scss`, `.less`, `.styled.ts`, `.styled.js`
+- Directory patterns: `components/`, `pages/`, `views/`, `layouts/`, `templates/`, `src/ui/`, `src/app/` (route files), `public/`
+- Content patterns: files importing CSS/style modules, files exporting React/Vue/Svelte components
+
+#### 2. Check for affected journeys
+
+1. Read all journey files in `docs/journeys/*.md`
+2. For each journey, check its `files:` frontmatter for overlap with the changed files list
+3. Also scan journey step URLs and content for references to changed routes or pages
 
 A journey is **affected** if any file in its `files:` frontmatter was modified in this build, OR if its steps reference routes/pages that correspond to changed files.
 
+#### 3. Recommend visual review
+
 **Do not stop to ask.** Note the visual review recommendation in the summary (Step 7) instead:
 
-- **Affected journeys found** → summary notes: "Visual review recommended — {N} journey(s) reference changed files:" followed by a table:
+- **UI changed + affected journeys found** → summary notes: "Visual review recommended — {N} journey(s) reference changed files:" followed by a table:
   ```
   | Journey | Overlapping Files | Command |
   |---------|------------------|---------|
   | {name} | {file1}, {file2} | `/claude-tweaks:visual-review journey:{name}` |
   ```
-- **No journeys but UI changed** → summary notes: "Visual review recommended: `/claude-tweaks:visual-review {url}`."
+- **UI changed + no journeys** → summary notes: "Visual review recommended — UI files changed but no journeys exist yet. Run `/claude-tweaks:visual-review {url}` for a page-level visual review."
 - **No UI impact** → skip silently.
 
 **When browser tools are unavailable:** If the changes touch UI but no browser backend is detected, don't silently skip. Instead, note it:

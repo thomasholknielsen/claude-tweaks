@@ -49,7 +49,7 @@ Possible QA statuses:
 > `/claude-tweaks:wrap-up` uses this section to decide whether accepted tradeoffs should be documented in CLAUDE.md, skills, or memory files. A tradeoff worth accepting once may be worth documenting as a project convention.
 
 ### Visual Review
-- **Status:** {Completed (code + visual) | Completed (code + visual, QA-enriched) | Completed (code only — no browser) | Recommended | Skipped — no UI changes | Skipped — browser tools not configured}
+- **Status:** {Completed (code + visual) | Completed (code + visual, QA-enriched) | Completed (code only — no browser) | Recommended — journeys affected | Recommended — UI changed (no journeys) | Skipped — no UI changes | Skipped — browser tools not configured}
 - {If completed: summary of visual/UX findings and ideas from Reimagine step}
 - {If completed with QA data: note QA data enrichment — caveats surfaced, page inventories consumed, findings confirmed/resolved}
 - {If recommended: `/claude-tweaks:visual-review journey:{name}` or `/claude-tweaks:visual-review {url}`}

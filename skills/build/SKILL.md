@@ -491,7 +491,7 @@ Generate 2-4 numbered options based on context:
 
 | Signal | Option |
 |--------|--------|
-| UI changed + journeys exist + browser available | `/claude-tweaks:review {N} full` — code + visual review, walks {X} affected journeys **(Recommended)** |
+| UI changed + browser available | `/claude-tweaks:review {N} full` — code + visual review **(Recommended)** |
 | No browser or no UI | `/claude-tweaks:review {N}` — code review **(Recommended)** |
 | QA stories exist (`stories/*.yaml`) | `/claude-tweaks:test qa` — validate {X} QA stories before review |
 | Worktree mode | `/finishing-a-development-branch` — merge, PR, or discard the feature branch |
@@ -536,7 +536,7 @@ These apply in **subagent** execution strategy. In **batched** strategy, autonom
 | Using `git reset` or `git checkout .` | Other processes may be committing concurrently — destroys their work |
 | Skipping code simplification | Iterative implementation accumulates unnecessary complexity across tasks |
 | Building a spec with unmet prerequisites | Downstream specs depend on upstream work — check the dependency graph first |
-| Skipping journey capture for features with an interaction surface | Journeys are what visual review tests against — no journey means no QA anchor. This applies to all personas: end users, admins, developers, internal tooling users. |
+| Skipping journey capture for features with an interaction surface | Journeys give visual review a structured path to walk — but visual review is valuable even without journeys (page-level inspection catches layout, styling, and interaction issues). This applies to all personas: end users, admins, developers, internal tooling users. |
 | Writing journeys with vague "should feel" | "Good" and "intuitive" are not testable. "Low commitment" and "like an accomplishment" are. |
 | Asking the user whether to create a journey | Journey capture is automatic. The user didn't know they needed the spec either — that's why the workflow exists. |
 | Ignoring architectural deviations from the spec | Drift happens during implementation — catch it in Step 4.5 before it becomes tech debt. Every deviation must be explicitly classified. |
