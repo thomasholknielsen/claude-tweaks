@@ -1,22 +1,36 @@
 # Browser Review Procedures
 
-Visual inspection, interactive testing, and creative assessment of the running application. This file contains the detailed procedures for the visual review modes of `/claude-tweaks:review`.
+Visual inspection, interactive testing, performance vitals, and creative assessment of the running application. This file contains the detailed procedures for the visual review modes of `/claude-tweaks:visual-review`.
 
 ## Prerequisites
 
-A browser backend must be available. Run the backend detection and resolution from the `/claude-tweaks:browse` skill (Backend Detection and Backend Resolution sections). If resolution fails, **stop** and report the error message from the browse skill's resolution table.
+`agent-browser` must be installed. The daemon auto-starts on port 4848 with the first command. If `agent-browser` is unavailable, **stop** and report the missing dependency per `SKILL.md` Step 1 (Browser Prerequisites). Recovery on crash: `agent-browser doctor`.
 
-Use the `/claude-tweaks:browse` skill's operation mapping table for all browser operations throughout this document. The browse skill is the single source of truth for all backend detection, resolution, and command mappings.
+Use the `/claude-tweaks:browse` skill's operation vocabulary and conventions for all browser operations throughout this document. Concrete commands live in `agent-browser-reference.md` in that skill's directory; `browse` is the single source of truth for the operation table.
+
+### Session naming
+
+Derive a kebab-case session name from the review target: `pricing-page-review`, `checkout-journey-review`, `discover-public-pages`. One session per page review or per journey walk.
+
+### Screenshot path convention
+
+All screenshots in this skill are annotated and written to:
+
+```
+screenshots/browse/<session>/<NN>_<description>.png
+```
+
+`<NN>` is a zero-padded sequence number per session (`01_landing`, `02_pricing`, ...). Annotated screenshots overlay numbered markers tied to the most recent `snapshot` refs — write findings using those overlay numbers, never spatial language like "the button on the right."
 
 ## Mode Resolution
 
 | Mode | Input | What happens |
 |------|-------|-------------|
-| **Journey mode** | `journey:{name}` | Walk a documented journey step by step. Each step is reviewed against its "should feel" / "red flags." The overall arc is assessed for coherence. |
-| **Page mode** | URL or description | Review a single page or flow. The full creative framework applies but without journey-level expectations to test against. |
-| **Discover mode** | `discover` | Explore the running app to identify and document user journeys that don't have journey files yet. Hybrid: codebase scan for routes/pages, then browser walkthrough to create journey files. |
+| **Journey mode** | `journey:{name}` | Walk a documented journey via a single `agent-browser batch` invocation. Each step is reviewed against its "should feel" / "red flags." Vitals captured per page. Overall arc assessed. |
+| **Page mode** | URL or description | Review a single page or flow. Full creative framework applies. Vitals captured for the page. |
+| **Discover mode** | `discover` | Explore the running app to identify and document undocumented user journeys. Codebase scan + browser walkthrough. Vitals captured per discovered page. |
 
-Journey mode is the richer review — it has defined personas, goals, and experiential expectations at every step. Page mode is useful for quick checks or pages that aren't part of a defined journey yet. Discover mode is for brownfield projects that need journey coverage bootstrapped.
+Journey mode is the richer review — it has defined personas, goals, and experiential expectations at every step. Page mode is for quick checks or pages that aren't part of a defined journey yet. Discover mode is for brownfield projects that need journey coverage bootstrapped.
 
 ### Dev URL Resolution
 
@@ -24,13 +38,14 @@ Before prompting for a URL, check the persisted config:
 
 1. Read `stories/auth.yml` — if `servers.default.url` exists, probe it
 2. If it responds → use it silently (no prompt needed)
-3. If it doesn't respond or no config exists → run the dev URL detection procedure from `dev-url-detection.md` in the `/claude-tweaks:stories` skill's directory (which will persist the result for future runs)
+3. If it doesn't respond or no config exists → run the dev URL detection procedure from `dev-url-detection.md` in the `/claude-tweaks:stories` skill's directory
 
 This eliminates the "Enter URL" prompt on subsequent runs when the dev server is running at the same address.
 
 ### Ensure the app is running
 
 Before navigating, confirm the application is accessible. If the URL doesn't respond, ask the user:
+
 ```
 The app doesn't seem to be running at {url}. Should I:
 1. Try a different URL
@@ -89,27 +104,56 @@ Carry the Review Brief through all subsequent steps. Each step consults the brie
 
 ## Journey Mode
 
-When running in journey mode, the skill walks the full journey and applies the creative framework at each step, then assesses the overall arc.
+When running in journey mode, the skill walks the full journey via a single batch invocation, applies the creative framework at each step, then assesses the overall arc.
 
 ### Load the journey
 
 Read `docs/journeys/{name}.md`. Extract:
-- **Persona** — this becomes the primary persona for the entire review (additional personas from Step 3 can supplement)
-- **Goal** — this is what "success" looks like
-- **Entry point** — this is where the review starts
-- **Success state** — this is how you know the journey worked
+- **Persona** — primary persona for the entire review (additional personas from Step 3 can supplement)
+- **Goal** — what "success" looks like
+- **Entry point** — where the review starts
+- **Success state** — how you know the journey worked
 - **Steps** — each step has a URL, action, "should feel", "should understand", and "red flags"
 
-### Walk each step (focused 4-check pass)
+### Assemble the batch invocation
 
-For each step in the journey:
+Walk the journey via a single `agent-browser batch` invocation that owns the session lifecycle for that walk. Bundle every step's `open`, `snapshot -i -c`, annotated `screenshot`, and `vitals` capture into one invocation. The batch ends with `close` only if no further interactive ops are needed.
 
-1. **Navigate** to the step's URL and take a snapshot + screenshot
-2. **Health check** — console errors, failed network requests, broken rendering. If the step is broken, note it and continue to the next step.
-3. **Should-feel test** — the journey says this step should feel like "{should_feel}." Does it? Be honest and specific about gaps. This is the key per-step test.
-4. **Red-flag check** — does the step exhibit any of the journey's documented red flags?
+**Worked example — three-step checkout journey:**
 
-Note the transition quality between steps (jarring? smooth? lost momentum?) as a one-word annotation for use in the arc assessment. Do not perform full persona rotation, structured analysis, or reimagining at the per-step level — those are more valuable at the arc level where patterns across steps are visible.
+```
+agent-browser batch --session checkout-journey-review \
+  "open https://app.example.com/cart" \
+  "snapshot -i -c" \
+  "screenshot --annotate --filename screenshots/browse/checkout-journey-review/01_cart.png" \
+  "vitals" \
+  "open https://app.example.com/checkout/shipping" \
+  "snapshot -i -c" \
+  "screenshot --annotate --filename screenshots/browse/checkout-journey-review/02_shipping.png" \
+  "vitals" \
+  "open https://app.example.com/checkout/payment" \
+  "snapshot -i -c" \
+  "screenshot --annotate --filename screenshots/browse/checkout-journey-review/03_payment.png" \
+  "vitals" \
+  "close"
+```
+
+The batch returns concatenated output: per-step snapshot trees (with element refs), screenshot file paths confirmed written, and Web Vitals values. Parse output by step boundary — each `open` starts a new step block.
+
+**When per-step interactions are needed** (click, fill, type that depend on refs from a fresh snapshot): split the walk. Run a batch up through the page that needs interaction, perform the interactive ops outside the batch in the same session, then start a follow-on batch for the remaining steps. One `batch` invocation = one session lifecycle slice — never mix session names within a batch.
+
+### Per-step review (against the batched output)
+
+For each step's block in the batched output:
+
+1. **Health check** — console errors, failed network requests, broken rendering visible in the snapshot. If the step is broken, capture a trace (see "Trace on failure" below) and continue to the next step.
+2. **Should-feel test** — the journey says this step should feel like "{should_feel}." Does the snapshot + annotated screenshot support that? Be honest and specific about gaps. This is the key per-step test.
+3. **Red-flag check** — does the step exhibit any of the journey's documented red flags?
+4. **Vitals check** — compare the step's Web Vitals against thresholds (LCP > 2.5s, CLS > 0.1, INP > 200ms). Vitals findings flow into the Step 6 table.
+
+Note transition quality between steps (jarring? smooth? lost momentum?) as a one-word annotation for the arc assessment. Reference annotated overlay numbers when describing visual issues — "primary CTA at element [3] competes visually with the secondary link at [5]" beats "the button on the right looks heavier than the link."
+
+Do not perform full persona rotation, structured analysis, or reimagining at the per-step level — those are more valuable at the arc level where patterns across steps are visible.
 
 ### Assess the overall arc
 
@@ -136,9 +180,9 @@ The report follows the same structure as the standard Report & Route (Step 6 bel
 **Persona:** {persona}
 **Goal:** {goal}
 
-| Step | Should Feel | Actually Feels | Transition | Verdict |
-|------|------------|----------------|------------|---------|
-| {step name} | {from journey file} | {honest assessment} | {smooth/jarring/stalls} | {pass/gap/fail} |
+| Step | Should Feel | Actually Feels | Vitals (LCP/CLS/INP) | Transition | Verdict |
+|------|------------|----------------|----------------------|------------|---------|
+| {step name} | {from journey file} | {honest assessment} | {values} | {smooth/jarring/stalls} | {pass/gap/fail} |
 
 ### Journey Arc
 - Momentum: {builds well / stalls at step N / loses steam}
@@ -154,6 +198,24 @@ Journey-level findings merge into the Step 6 findings table alongside per-step f
 ### Update the journey file
 
 If the browser review revealed that "should feel" descriptions are inaccurate, red flags are missing, or steps need reordering, **update the journey file**. The journey is a living document — each browser review refines it.
+
+### When a journey step fails — capture trace, attach path, close session
+
+When a journey step fails — assertion mismatch, page error, navigation timeout, broken render, unrecoverable interaction error — capture a trace **before** closing the session. The trace lets you diagnose the failure offline without re-running the journey.
+
+```
+agent-browser --session <session> trace save traces/<session>/<timestamp>.zip
+```
+
+`<timestamp>` should be ISO-like and filename-safe (`20260501-143022`). Then close the session:
+
+```
+agent-browser --session <session> close
+```
+
+In the failure report, attach the trace path verbatim so the user can open it with `agent-browser trace view <path>`. Do not omit the trace — failure reports without a trace path are not actionable. There is no automatic retention policy; users manage cleanup.
+
+If the failure is mid-batch, the batch invocation will return partial output up to the failure point. Run `trace save` and `close` as separate invocations after the batch returns; do not append them to the failed batch.
 
 ---
 
@@ -225,17 +287,16 @@ Include developer journeys when the project has CLI tools, APIs, or developer-fa
 
 ### Phase 3: Browser Walkthrough
 
-> **Parallel execution (conditional):** When multiple candidate journeys share no pages, walk them in parallel using separate browser tabs — each journey runs independently. Journeys that share pages must remain sequential to avoid state interference (e.g., login state, form data). A single journey's steps are always sequential.
+> **Parallel execution (conditional):** When multiple candidate journeys share no pages, dispatch each as a parallel Task agent — each agent runs its own session and `batch` invocation independently. Journeys that share state (login, form data) must remain sequential to avoid interference. A single journey's steps are always sequential within its batch.
 
-For each approved candidate, open the browser and walk the journey. This is where the codebase skeleton gets filled with experiential details.
+For each approved candidate, open a session and walk the candidate journey via a `batch` invocation that bundles `open`, `snapshot -i -c`, annotated `screenshot`, and `vitals` per page (same shape as the worked example in Journey Mode). This is where the codebase skeleton gets filled with experiential details.
 
-For each step in the candidate journey:
+For each step in the candidate journey (review the batched output):
 
-1. **Navigate** to the page
-2. **Apply the First Impressions test** (Step 2 below) — capture the raw "should feel" for this step
-3. **Interact as the persona** — perform the action, note friction, note delight
-4. **Discover adjacent steps** — the codebase scan may have missed steps. If a page leads naturally to another page not in the candidate, add it.
-5. **Write the "should feel" and "red flags"** — these come from actually experiencing the page, not guessing from code
+1. **Apply the First Impressions test** (Step 2 below) — capture the raw "should feel" for this step from the annotated screenshot
+2. **Note interaction needs as the persona** — when the candidate requires actual interaction (form fill, click flow), perform those ops in the live session outside the batch; restart the batch for subsequent pages
+3. **Discover adjacent steps** — the codebase scan may have missed steps. If a page leads naturally to another page not in the candidate, add it to the next batch slice.
+4. **Write the "should feel" and "red flags"** — these come from actually experiencing the page (snapshot + annotated screenshot + vitals), not guessing from code
 
 ### Phase 4: Write Journey Files
 
@@ -295,9 +356,28 @@ Commit journey files with message: "Add {N} user journeys from discovery (brownf
 
 ## Page Mode
 
-When running in page mode (URL or description, no journey), run Steps 1-6 as documented below. This is the standard creative review flow.
+When running in page mode (URL or description, no journey), run Steps 1-6 below. This is the standard creative review flow.
 
-> **Parallel execution (conditional):** When the review covers 3+ independent pages (different URLs with no shared state or navigation dependency), dispatch page reviews as parallel Task agents. Each agent receives: page URL, QA data for that page (if available), and returns findings in the standard `| # | Finding | Type | Source | Severity/Impact | Recommended |` format. Assemble results into a single findings table after all agents complete. When pages share state (e.g., form submission on page A affects page B) or there are fewer than 3 pages, review sequentially.
+Open the session, navigate to the URL, take a snapshot and an annotated screenshot, capture vitals — then proceed through the structured steps. A typical page-mode warm-up:
+
+```
+agent-browser --session <session> open <url>
+agent-browser --session <session> snapshot -i -c
+agent-browser --session <session> screenshot --annotate --filename screenshots/browse/<session>/01_landing.png
+agent-browser --session <session> vitals
+```
+
+Or as a single batch:
+
+```
+agent-browser batch --session <session> \
+  "open <url>" \
+  "snapshot -i -c" \
+  "screenshot --annotate --filename screenshots/browse/<session>/01_landing.png" \
+  "vitals"
+```
+
+> **Parallel execution (conditional):** When the review covers 3+ independent pages (different URLs with no shared state or navigation dependency), dispatch page reviews as parallel Task agents. Each agent owns its own session, runs its own batch, and returns findings in the standard `| # | Finding | Type | Source | Severity/Impact | Recommended |` format. Assemble results into a single findings table after all agents complete. When pages share state (form submission on page A affects page B) or there are fewer than 3 pages, review sequentially.
 
 ---
 
@@ -305,35 +385,49 @@ When running in page mode (URL or description, no journey), run Steps 1-6 as doc
 
 > **Review Brief:** Consult the Step Enrichment Map for reconnaissance-added health signals.
 
-Navigate to the target URL and verify the page is functional before investing in a deeper review.
+Verify the page is functional before investing in a deeper review.
 
-**Gate:** Page must be functional to proceed. If broken, stop and report.
+**Gate:** Page must be functional to proceed. If broken, capture a trace (see "Trace on failure" in Journey Mode), close the session, and report.
 
 ### QA-accelerated (when QA_DATA_AVAILABLE):
 
 QA health data becomes the baseline. The visual check verifies no **new** issues since the QA run:
 
-1. Navigate to the target URL, take a browser snapshot and screenshot
-2. Check console errors — compare against `QA_FINDINGS` with category `code-bug` or `flaky-env`. Report only **new** errors not present in QA data.
-3. Check network requests — report only new failures
-4. Summarize in one sentence: "Health: {matches QA baseline | N new issues since QA run}"
+1. The session's snapshot, annotated screenshot, and vitals are already captured (page mode warm-up or batch output).
+2. Check console errors and network failures from the snapshot — compare against `QA_FINDINGS` with category `code-bug` or `flaky-env`. Report only **new** errors not present in QA data.
+3. Summarize in one sentence: "Health: {matches QA baseline | N new issues since QA run}"
 
 Skip the full "Check for obvious problems" checklist — QA already ran it.
 
 ### Full inspection (when QA not available):
 
-#### Capture:
-- Take a browser snapshot (accessibility tree) for interaction context
-- Take a screenshot for visual reference
-- Note the page title, visible state, and any immediate errors
+#### Capture (already done in warm-up):
+- Snapshot (accessibility tree) for interaction context
+- Annotated screenshot for visual reference
+- Vitals (LCP, CLS, INP, TTFB, FCP)
+- Page title, visible state, immediate errors
 
 #### Check for obvious problems:
-- Console errors (Playwright: `playwright-cli -s=<session> console` / Chrome: `mcp__claude_in_chrome__read_console_messages(tabId)`)
-- Failed network requests (Playwright: `playwright-cli -s=<session> network` / Chrome: `mcp__claude_in_chrome__read_network_requests(tabId)`)
-- Blank or broken page rendering
+- Console errors visible in the snapshot output
+- Failed network requests visible in the snapshot output
+- Blank or broken page rendering (visible in screenshot)
 - Missing assets (images, fonts, styles)
 
-If the page is broken or blank, report immediately — no point continuing a visual review on a non-functional page.
+If the page is broken or blank, run `trace save`, then `close`, then report immediately — no point continuing a visual review on a non-functional page.
+
+### Vitals interpretation
+
+Read the vitals output captured during warm-up (or per-step in journey mode). Flag findings against these thresholds — they flow into the Step 6 findings table with **Source = Performance**:
+
+| Metric | Threshold | Severity | What to flag |
+|---|---|---|---|
+| LCP (Largest Contentful Paint) | > 2.5s | Major | Slow primary content render — hero image, main heading, large text block |
+| CLS (Cumulative Layout Shift) | > 0.1 | Major | Layout jumping during load — unsized images, late-injected banners, font swaps |
+| INP (Interaction to Next Paint) | > 200ms | Major | Sluggish interaction response — heavy event handlers, blocking JS |
+| TTFB (Time to First Byte) | > 800ms | Minor | Slow server response — backend or CDN issue |
+| FCP (First Contentful Paint) | > 1.8s | Minor | Slow paint of any content — render-blocking resources |
+
+Report values verbatim under a **Performance** heading in the report (e.g., `LCP 3.1s, CLS 0.04, INP 180ms, TTFB 410ms, FCP 1.4s`). Even values within thresholds are worth recording — they become the baseline for future reviews.
 
 ---
 
@@ -345,13 +439,15 @@ This is the most important step. Before any structured analysis, just *look* and
 
 ### The 5-second test
 
-Look at the page for 5 seconds (one snapshot, no scrolling or clicking yet). Then answer:
+Look at the annotated screenshot for 5 seconds (no scrolling or extra clicking yet). Then answer:
 
 - **What's the first thing your eye goes to?** Is that the right thing to notice first?
 - **What's the overall feeling?** Cluttered? Clean? Sparse? Overwhelming? Inviting? Cold?
 - **What's confusing?** Anything that makes you pause or wonder "what does this do?"
 - **What's missing?** Not bugs — expectations. What did you expect to see that isn't there?
 - **If you had to describe this page in one sentence to a friend, what would you say?**
+
+Reference annotated overlay numbers when calling out specific elements (e.g., "element [7] dominates the visual weight even though it's a tertiary action").
 
 ### Why this matters
 
@@ -374,7 +470,7 @@ QA stories already executed happy paths as specific personas. Instead of rotatin
 1. **Check QA coverage:** Review `QA_STORIES` to identify which persona-like behaviors QA already tested (form submissions, navigation flows, error states from failure stories).
 2. **Skip covered personas:** If QA executed a checkout flow successfully, the "first-time visitor" and "returning user" personas for that flow are partially covered. Do not re-walk what QA validated.
 3. **Focus on uncovered perspectives:** Pick the ONE persona QA is least likely to have covered. Typically: **Distracted mobile user** (QA runs at desktop viewport) or **Impatient power user** (QA follows scripted steps, not shortcuts). Walk the page from that single persona.
-4. **Interaction feel:** Still assess speed, feedback, transitions, flow, and recovery — these require human judgment that QA cannot provide.
+4. **Interaction feel:** Still assess speed (cross-reference INP from vitals), feedback, transitions, flow, and recovery — these require human judgment that QA cannot provide.
 
 Skip the full persona rotation and "What to test" sections — the single-persona + interaction-feel pass is sufficient when QA covered the happy paths.
 
@@ -390,13 +486,13 @@ Experience the page from at least two of these perspectives. Pick the most relev
 | **Error-prone user** | "I'll get this wrong" | Recovery paths, error messages, undo capability |
 | **Returning user** | "Where was that thing I used before?" | Navigation consistency, state persistence, discoverability |
 
-For each persona, actually walk through the flow. Don't just imagine it — click, type, navigate. Note what each persona would struggle with.
+For each persona, actually walk through the flow. Don't just imagine it — click, type, navigate using the session's interactive ops. Note what each persona would struggle with. After each material interaction, take a fresh annotated screenshot so the report can reference the new state with overlay numbers.
 
 ### Interaction feel
 
 Beyond "does it work," notice *how it feels*:
 
-- **Speed** — Does the app feel snappy or sluggish? Do actions respond immediately or is there a delay?
+- **Speed** — Does the app feel snappy or sluggish? Cross-check against the captured INP metric — values > 200ms confirm a "sluggish" gut reaction.
 - **Feedback** — When you click something, do you know it registered? Loading states, button state changes, progress indicators?
 - **Transitions** — Are there animations? Are they smooth or janky? Too slow? Too fast? Distracting?
 - **Flow** — Does one step lead naturally to the next, or do you have to figure out where to go?
@@ -406,8 +502,8 @@ Beyond "does it work," notice *how it feels*:
 
 - Exercise the primary flow (happy path)
 - Try at least one edge case from each persona's perspective (empty input, very long text, rapid clicks, back button)
-- Check what happens when things go wrong — error states, empty states, loading states
-- Check console for JavaScript errors triggered by interactions
+- Check what happens when things go wrong — error states, empty states, loading states. Capture an annotated screenshot of each notable state.
+- Watch the snapshot for JavaScript errors triggered by interactions
 
 ---
 
@@ -428,11 +524,12 @@ QA page inventories already captured mechanical measurements. Skip the following
 - Tab counts and breadcrumb presence (from `navigation`)
 
 **Focus only on visual qualities QA cannot assess:**
-- **Visual weight and balance** — is the layout coherent? Does content hierarchy make visual sense?
+- **Visual weight and balance** — is the layout coherent? Does content hierarchy make visual sense? Reference annotated overlay numbers.
 - **Spacing and alignment feel** — not pixel counts, but whether spacing *feels* right
 - **Content and microcopy quality** — are labels descriptive? Do error messages explain AND guide? Is the tone human?
 - **Visual polish** — do hover/focus states feel right? Are interactive elements obviously clickable? Are fonts/icons crisp?
-- **Responsive feel** (if applicable) — resize to mobile (375x667) and check feel, not measurements QA already captured
+- **Responsive feel** (if applicable) — set viewport to mobile and re-capture: `agent-browser --session <session> set viewport 375 667` then a fresh annotated screenshot. Check feel, not measurements QA already captured.
+- **Performance feel** — cross-reference Web Vitals captured in Step 1. Does the LCP/CLS/INP match the lived experience?
 
 Note QA-confirmed issues briefly (e.g., "QA confirmed 3 missing ARIA labels") without re-analyzing them. Any QA issue that feels worse visually than its data suggests gets elevated.
 
@@ -446,6 +543,8 @@ Note QA-confirmed issues briefly (e.g., "QA confirmed 3 missing ARIA labels") wi
 - Is spacing consistent (margins, padding, gaps)?
 - Does content hierarchy make sense (headings, sections, groupings)?
 - Is the visual weight distributed intentionally (or does it feel lopsided)?
+
+Reference annotated overlay numbers when calling out specific elements.
 
 #### Content & Microcopy
 - **Labels and headings** — Are they descriptive or generic? Would a new user understand them?
@@ -463,16 +562,27 @@ Note QA-confirmed issues briefly (e.g., "QA confirmed 3 missing ARIA labels") wi
 - Are fonts loading correctly?
 
 #### Responsive Behavior (if applicable)
-- Resize the browser (Playwright: `playwright-cli -s=<session> resize <w> <h>` / Chrome: resize browser window) to common breakpoints:
-  - Mobile: 375x667
-  - Tablet: 768x1024
-  - Desktop: 1280x800
-- Check for overflow, cramped layouts, or hidden content at each size
-- Only test responsive if the project is expected to support it — ask if unsure
+Set viewport to common breakpoints and re-capture an annotated screenshot at each:
+
+```
+agent-browser --session <session> set viewport 375 667    # Mobile
+agent-browser --session <session> screenshot --annotate --filename screenshots/browse/<session>/<NN>_mobile.png
+agent-browser --session <session> set viewport 768 1024   # Tablet
+agent-browser --session <session> screenshot --annotate --filename screenshots/browse/<session>/<NN>_tablet.png
+agent-browser --session <session> set viewport 1280 800   # Desktop
+agent-browser --session <session> screenshot --annotate --filename screenshots/browse/<session>/<NN>_desktop.png
+```
+
+Check for overflow, cramped layouts, or hidden content at each size. Only test responsive if the project is expected to support it — ask if unsure.
+
+#### Performance
+- Reference vitals captured in Step 1.
+- LCP > 2.5s, CLS > 0.1, INP > 200ms → flag as Major performance findings.
+- TTFB > 800ms, FCP > 1.8s → flag as Minor.
 
 #### Accessibility (quick check)
 - Can you tab through interactive elements in a logical order?
-- Are form inputs labeled (check the accessibility snapshot)?
+- Are form inputs labeled (check the snapshot)?
 - Is there sufficient color contrast?
 - Do images have alt text?
 
@@ -506,7 +616,7 @@ Think about well-known products that solve similar problems. What do they do wel
 For the most important finding from the reimagine exercise, sketch out 1-2 concrete alternatives:
 
 ```
-Current: {what it is now}
+Current: {what it is now} (annotated overlay [N])
 Alternative A: {a different approach} — {why it might be better}
 Alternative B: {another approach} — {the tradeoff}
 ```
@@ -517,14 +627,15 @@ These aren't prescriptions — they're conversation starters. The goal is to exp
 
 ### QA-informed reimagining (when QA_DATA_AVAILABLE)
 
-QA findings and caveats can spark ideas that pure visual inspection might miss:
+QA findings, caveats, and the captured vitals can spark ideas that pure visual inspection might miss:
 
 - **Accessibility caveats** reveal where the experience is broken for some users. "Missing aria-label on 3 elements" isn't just a compliance issue — it's a design opportunity. What would the experience feel like if every interaction was narrated?
-- **Slow page loads** suggest a perception problem. The "best version" exercise above should consider: what would users see during the wait? A skeleton loader? An instant optimistic update? A progress bar with real information?
+- **Slow LCP or FCP** suggests a perception problem. The "best version" exercise should consider: what would users see during the wait? A skeleton loader? An instant optimistic update? A progress bar with real information?
+- **High CLS** signals a stability problem. What would the page feel like if it never jumped during load?
 - **Console warnings** often indicate technical shortcuts that degrade experience over time. These are signals of where the implementation diverges from the ideal.
 - **Page inventories** reveal structural opportunities. A page with 8 tabs and 20+ buttons may benefit from progressive disclosure. A form with 6 fields and no labels is a redesign candidate, not just an accessibility fix.
 
-Use QA data as creative fuel for the "best version" exercise, not as a bug list. The reimagine step asks "what would make this great?" — QA data tells you where "great" is furthest from the current state.
+Use QA data and vitals as creative fuel for the "best version" exercise, not as a bug list. The reimagine step asks "what would make this great?" — those signals tell you where "great" is furthest from the current state.
 
 ---
 
@@ -538,12 +649,15 @@ Present findings from the review in a single structure that serves as both the r
 ## Visual Review: {page/feature description}
 
 **URL:** {url}
-**Browser:** {playwright-cli|Chrome MCP}
+**Session:** {session name}
 **Classification:** {Type} | {Auth} | {Stage} | {Data} | {Complexity} | {Audience}
 **Central Question:** {The central question from the Review Brief}
 **Health:** {functional / N console errors / N failed requests / broken}
+**Performance:** LCP {value} | CLS {value} | INP {value} | TTFB {value} | FCP {value}
 **First Impression:** {The honest 5-second reaction in 1-2 sentences. Keep the raw tone.}
 **Interaction Feel:** Speed: {snappy/acceptable/sluggish} | Feedback: {clear/inconsistent/missing} | Transitions: {smooth/janky/none}
+**Screenshots:** {paths under screenshots/browse/<session>/}
+**Trace (if failure):** {path under traces/<session>/ — omit if no failure}
 **QA context:** {QA run dir, stories covering this page, QA status — or "No QA data"}
 ```
 
@@ -551,23 +665,25 @@ Present findings from the review in a single structure that serves as both the r
 
 ### Findings & Ideas
 
-Present all findings and ideas in a single batch table:
+Present all findings and ideas in a single batch table. Findings reference annotated overlay numbers from the screenshots:
 
 ```
 | # | Finding | Type | Source | Severity/Impact | Recommended |
 |---|---------|------|--------|-----------------|-------------|
-| 1 | {description} | Issue | Health | Critical | Fix now |
-| 2 | {description} | Issue | Analyze | Minor | Fix now |
-| 3 | {description} | Issue | Persona | Cosmetic | Fix now |
-| 4 | {description} | Idea | Reimagine | High | Fix now — add to current spec |
-| 5 | {description} | Idea | Reimagine | Medium | Defer — not relevant now |
-| 6 | {description} | Idea | Reimagine | Low | Capture to INBOX — needs brainstorming |
+| 1 | {description with overlay refs e.g. "element [3] competes with [5]"} | Issue | Health | Critical | Fix now |
+| 2 | LCP 3.1s exceeds 2.5s threshold | Issue | Performance | Major | Fix now |
+| 3 | CLS 0.18 — hero image lacks dimensions | Issue | Performance | Major | Fix now |
+| 4 | {description} | Issue | Analyze | Minor | Fix now |
+| 5 | {description} | Issue | Persona | Cosmetic | Fix now |
+| 6 | {description} | Idea | Reimagine | High | Fix now — add to current spec |
+| 7 | {description} | Idea | Reimagine | Medium | Defer — not relevant now |
+| 8 | {description} | Idea | Reimagine | Low | Capture to INBOX — needs brainstorming |
 
 1. Apply all recommendations **(Recommended)**
 2. Override specific items (tell me which #s to change)
 ```
 
-The **Source** column traces each finding to its origin step (Health, First Impression, Persona, Analyze, Reimagine). This replaces the separate "Functional Issues," "Visual & Content Issues," and "UX Observations" report sections.
+The **Source** column traces each finding to its origin step (Health, Performance, First Impression, Persona, Analyze, Reimagine). This replaces the separate "Functional Issues," "Visual & Content Issues," and "UX Observations" report sections.
 
 **Recommendation rules for Issues:**
 - **All severities** — default "Fix now." Close the gap now.
@@ -589,7 +705,7 @@ Group related cosmetic issues into a single row rather than listing each individ
 After the findings table:
 - **CLEAN** — No significant issues. Ideas are enhancements, not fixes.
 - **ISSUES FOUND** — {count} issues need attention.
-- **BROKEN** — Page is non-functional.
+- **BROKEN** — Page is non-functional. (Trace path attached above.)
 
 ### Next Actions
 
@@ -604,12 +720,16 @@ After the findings table:
 
 ## Important Notes
 
-- This review requires browser integration — playwright-cli or Chrome MCP must be configured
-- Screenshots and snapshots are ephemeral — findings should be captured in the report, not as file references
+- This review requires `agent-browser` — install with `npm install -g agent-browser` if missing
+- Snapshots are ephemeral; annotated screenshots and traces are persistent — findings reference overlay numbers and screenshot/trace paths
+- Every reviewed page produces vitals — Web Vitals are a first-class finding category, never skip the `vitals` op
+- Always use annotated screenshots — bare screenshots lose the overlay numbering that makes findings precise
+- Journey walks use a single `batch` invocation per session lifecycle slice — never spread a journey across many one-off invocations
+- When a step fails, `trace save` first, then `close` — failure reports without a trace path are not actionable
 - The review is scoped to the current work — don't review the entire application (except in journey mode, where the full journey is in scope, and discover mode, which scans the whole app)
 - Journey mode auto-detects when invoked with no arguments by checking `docs/journeys/` against recent changes
 - Journey files are living documents — update them when visual review reveals gaps or inaccuracies
-- Console errors and network failures are often the fastest signal — check them first in the health check
-- Resize testing is optional and should be skipped unless layout changes are in scope
+- Console errors and network failures are often the fastest signal — check them in the snapshot output during health check
+- Resize testing is optional and should be skipped unless layout changes are in scope; use `set viewport` rather than env vars
 - The step order matters: reconnaissance → reaction → experience → analysis → imagination. Don't rearrange.
 - Reconnaissance (Step 0) is a fast pre-step — it classifies and moves on. The review steps are where depth happens. If reconnaissance takes more than 60 seconds, something is wrong.
