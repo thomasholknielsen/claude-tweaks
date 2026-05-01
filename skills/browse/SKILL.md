@@ -1,261 +1,125 @@
 ---
 name: claude-tweaks:browse
-description: Use for browser automation — auto-detects playwright-cli or Chrome MCP and routes accordingly. Supports headless parallel sessions (Playwright) and observable real-browser workflows (Chrome). Keywords - browse, browser, playwright, chrome, headless, screenshot, scrape, test, parallel, observable, automation.
+description: Use for browser automation via agent-browser — defines session naming, screenshot/trace paths, and operation vocabulary used by /stories, /visual-review, and /review. Keywords - browse, browser, agent-browser, headless, screenshot, scrape, automation.
 allowed-tools: Bash
 ---
 > **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
 
 
-# Browse
+# Browse — Browser Conventions
 
-Unified browser automation skill. Auto-detects and routes to the best available browser backend. Used by `/claude-tweaks:stories`, `/claude-tweaks:review`, and ad-hoc browser tasks.
+Conventions skill for browser automation. Defines session naming, screenshot/trace paths, lifecycle, and the abstract operation vocabulary that `/claude-tweaks:stories`, `/claude-tweaks:visual-review`, `/claude-tweaks:review`, and the `qa-agent` all speak. Concrete `agent-browser` syntax lives in `agent-browser-reference.md` in this skill's directory.
 
 ```
-                             [ /claude-tweaks:browse ] ← utility (no fixed position)
+                             [ /claude-tweaks:browse ] ← utility (no fixed lifecycle position)
                                         ↑
-   Used by: /claude-tweaks:stories, /claude-tweaks:review (visual + qa modes), ad-hoc tasks
+   Used by: /claude-tweaks:stories, /claude-tweaks:visual-review,
+            /claude-tweaks:review (visual + qa modes), qa-agent, ad-hoc tasks
 ```
 
 ## When to Use
 
-- You need to interact with a web page (navigate, click, fill, scrape, screenshot)
-- Another skill needs browser automation (`/claude-tweaks:stories`, `/claude-tweaks:review`)
-- The user says "browse," "screenshot," "scrape," "test the UI," or similar
-- You need to verify a deployment or check a running app
+- `/claude-tweaks:stories` is exploring a site or validating generated stories against the live DOM
+- `/claude-tweaks:visual-review` is walking pages or journeys for UI quality findings
+- `/claude-tweaks:review` is running its visual or QA modes
+- A consumer skill needs to dispatch parallel agents that each drive a browser
+- Ad-hoc browser ops — navigate, screenshot, scrape, fill a form, check a deployment
 
-## Input
+## Requirements
 
-`$ARGUMENTS` = URL or task description, optionally with backend preference.
+`agent-browser` must be installed:
 
-### Keyword detection rules (applied to $ARGUMENTS):
+```bash
+npm install -g agent-browser
+```
 
-- `browser=playwright` or `playwright` → BROWSER = `playwright`
-- `browser=chrome` or `chrome` → BROWSER = `chrome`
-- `headless` → HEADLESS = `true`
-- `vision` → VISION = `true`
-- Everything else → TASK (URL + description)
+The daemon auto-starts on the first `agent-browser` command (port 4848). Skills do not manage daemon lifecycle. Recovery on crash: `agent-browser doctor`.
 
-Default: BROWSER = `auto`, HEADLESS = `false`, VISION = `false`.
+## Conventions Defined Here
 
-## Backend Detection
+These are the contract every browser-touching skill follows.
 
-Run these checks at the start of every browser task:
+### Session naming
 
-1. **Playwright available?** — run `playwright-cli --version` and check if it succeeds
-2. **Chrome available?** — check if `mcp__claude_in_chrome__navigate` tool exists
+Kebab-case, derived from purpose. One session per parallel agent, one per QA story instance. Session names are visible in the dashboard and in trace paths, so make them descriptive.
 
-## Backend Resolution
+Examples: `checkout-flow`, `signup-neg-1`, `pricing-page-review`, `qa-cart-empty-state`.
 
-Given a **preference** (`auto`, `playwright`, or `chrome`) and detection results, resolve the backend:
+### Screenshot path
 
-| Preference   | Playwright? | Chrome? | Result                                                                 |
-| ------------ | ----------- | ------- | ---------------------------------------------------------------------- |
-| `auto`       | Yes         | Yes     | Use **Playwright** (default — parallel, token-efficient)               |
-| `auto`       | Yes         | No      | Use **Playwright**                                                     |
-| `auto`       | No          | Yes     | Use **Chrome**                                                         |
-| `auto`       | No          | No      | **Error:** "No browser backend available. Install playwright-cli: `npm install -g @playwright/cli@latest` — or use Chrome MCP: `claude --chrome`" |
-| `playwright` | Yes         | —       | Use **Playwright**                                                     |
-| `playwright` | No          | —       | **Error:** "playwright-cli not found. Run: `npm install -g @playwright/cli@latest`" |
-| `chrome`     | —           | Yes     | Use **Chrome**                                                         |
-| `chrome`     | —           | No      | **Error:** "Chrome MCP tools not available. Restart Claude Code with `claude --chrome`" |
+```
+screenshots/browse/<session>/<NN>_<description>.png
+```
 
-When the result is an **Error**, stop and report the message to the user. Do not proceed with browser actions.
+`<NN>` is a zero-padded sequence number; `<description>` is a short kebab-case label. Example: `screenshots/browse/checkout-flow/02_payment-error.png`.
+
+Minimum two screenshots per task: one after initial load, one at the final state. Annotated screenshots (numbered overlays matching snapshot refs) follow the same path convention.
+
+### Trace path
+
+```
+traces/<session>/<timestamp>.zip
+```
+
+Capture a trace before closing a session whenever a step fails. Failure reports must include the trace path. There is no automatic retention policy — users manage cleanup.
+
+### Lifecycle
+
+```
+open  →  ops (snapshot, find, click, fill, screenshot, vitals, …)  →  close
+```
+
+Daemon is implicit. Always close the session when the task is done — leaked sessions consume resources. On step failure: capture trace, then close.
+
+### Operation vocabulary
+
+Consumer skills speak abstract operation names (open, snapshot, find, click, fill, type, screenshot, vitals, trace, close, …). The translation to concrete `agent-browser` commands lives in `agent-browser-reference.md` in this skill's directory. Read that file before invoking commands you do not have memorized.
 
 ## Operation Mapping
 
-Use this table to translate abstract operations to concrete commands for each backend:
+Condensed pointer table. Full reference (batch, react, auth vault, vitals, trace, viewport/device flags) lives in `agent-browser-reference.md`.
 
-| Operation      | Playwright                                                           | Chrome                                            |
-| -------------- | -------------------------------------------------------------------- | ------------------------------------------------- |
-| **Open/Navigate** | `playwright-cli -s=<session> open <url>`                          | `mcp__claude_in_chrome__navigate(url)`            |
-| **Snapshot**    | `playwright-cli -s=<session> snapshot`                              | `mcp__claude_in_chrome__read_page(tabId)`         |
-| **Click**       | `playwright-cli -s=<session> click <ref>`                          | `mcp__claude_in_chrome__left_click(ref)`          |
-| **Fill**        | `playwright-cli -s=<session> fill <ref> "text"`                    | `mcp__claude_in_chrome__form_input(ref, value)`   |
-| **Type**        | `playwright-cli -s=<session> type "text"`                          | `mcp__claude_in_chrome__type(text)`               |
-| **Press**       | `playwright-cli -s=<session> press <key>`                          | _(use type or JavaScript)_                        |
-| **Screenshot**  | `playwright-cli -s=<session> screenshot --filename=<path>`         | `mcp__claude_in_chrome__screenshot()`             |
-| **Close**       | `playwright-cli -s=<session> close`                                | `mcp__claude_in_chrome__tab_close(tabId)`         |
-| **Console**     | `playwright-cli -s=<session> console`                              | `mcp__claude_in_chrome__read_console_messages(tabId)` |
-| **Tab list**    | `playwright-cli -s=<session> tab-list`                             | `mcp__claude_in_chrome__tab_list()`               |
-| **New tab**     | `playwright-cli -s=<session> tab-new [url]`                       | `mcp__claude_in_chrome__tab_create(url)`          |
-| **Go back**     | `playwright-cli -s=<session> go-back`                              | `mcp__claude_in_chrome__go_back()`                |
-| **Run JS**      | `playwright-cli -s=<session> run-code <code>`                     | `mcp__claude_in_chrome__javascript_exec(code)`    |
+| Operation | Command |
+|---|---|
+| open | `agent-browser --session <name> open <url>` |
+| snapshot (interactive, compact) | `agent-browser --session <name> snapshot -i -c` |
+| find by role + name | `agent-browser --session <name> find role <role> --name <name>` |
+| find by testid | `agent-browser --session <name> find testid <id>` |
+| click | `agent-browser --session <name> click <ref>` |
+| fill | `agent-browser --session <name> fill <ref> <value>` |
+| type | `agent-browser --session <name> type <ref> <text>` |
+| screenshot | `agent-browser --session <name> screenshot --filename <path>` |
+| annotated screenshot | `agent-browser --session <name> screenshot --annotate --filename <path>` |
+| vitals | `agent-browser --session <name> vitals` |
+| trace save | `agent-browser --session <name> trace save traces/<session>/<timestamp>.zip` |
+| close | `agent-browser --session <name> close` |
 
-For full command references, read `playwright-reference.md` or `chrome-reference.md` in this skill's directory.
+## Parallel Sessions
 
-### Chrome Limitations
+Each parallel agent gets its own `--session <unique-name>`. One browser instance per session. Memory cost scales with the number of concurrent sessions, not with the number of commands sent to a session — so reuse a session for sequential ops on the same page, and spin up a fresh session per parallel agent or per QA story instance.
 
-- **No `--filename` control on screenshots** — `mcp__claude_in_chrome__screenshot()` returns the image inline. Note "screenshot captured" instead of a file path.
-- **No parallel instances** — Chrome MCP shares a single extension controller. One task at a time.
-- **Always headed** — Chrome is always visible. `--headless` flag is irrelevant.
-- **Vision always on** — `PLAYWRIGHT_MCP_CAPS=vision` flag is irrelevant; Chrome inherently returns visual data.
-
-## Workflow
-
-### Step 1: Resolve Backend
-
-Run backend detection and resolution (see tables above). If error, stop and report.
-
-### Step 2: Open Session
-
-**Playwright:** Derive a short, descriptive kebab-case session name from the user's prompt. Always set the viewport via env var:
-```bash
-PLAYWRIGHT_MCP_VIEWPORT_SIZE=1440x900 playwright-cli -s=<session-name> open <url> --headed
-# or headless:
-PLAYWRIGHT_MCP_VIEWPORT_SIZE=1440x900 playwright-cli -s=<session-name> open <url>
-# or with vision:
-PLAYWRIGHT_MCP_VIEWPORT_SIZE=1440x900 PLAYWRIGHT_MCP_CAPS=vision playwright-cli -s=<session-name> open <url>
-```
-
-> **Cross-platform note:** The `VAR=value command` syntax is bash/zsh. On Windows PowerShell use `$env:VAR='value'; command`, on CMD use `set VAR=value && command`. Adapt the env var prefix to the user's shell when running Playwright commands.
-
-**Chrome:** Navigate directly:
-```
-mcp__claude_in_chrome__navigate(url)
-```
-
-### Step 3: Execute Task
-
-Use the operation mapping table to perform the requested actions. Get element references via snapshot before interacting.
-
-### Step 4: Capture Screenshots
-
-**Directory:** `screenshots/browse/{session-name}/`
-
-- Derive `{session-name}` from the Playwright session name or, for Chrome, from a slugified version of the task prompt.
-- File naming: `{NN}_{description}.png` where `{NN}` is a zero-padded sequence number and `{description}` is a short kebab-case label.
-  - Example: `00_initial-page.png`, `01_form-filled.png`, `02_results-loaded.png`
-
-**Minimum screenshots:**
-1. One at the **start** of the task (after initial page load)
-2. One at the **end** of the task (final state)
-
-Additional screenshots after significant interactions are encouraged.
-
-**Playwright:** `playwright-cli -s=<session> screenshot --filename=screenshots/browse/{session-name}/{NN}_{description}.png`
-
-**Chrome:** `mcp__claude_in_chrome__screenshot()` returns inline — note "screenshot captured" in the report.
-
-### Step 5: Close Session
-
-**Always close the session when done.**
-
-- **Playwright:** `playwright-cli -s=<session-name> close`
-- **Chrome:** `mcp__claude_in_chrome__tab_close(tabId)`
-
-### Step 6: Classify and Report
-
-After completing a task, classify it into exactly one category:
-
-| Classification | When to use | Report emphasis |
-|---------------|-------------|-----------------|
-| `screenshot` | Primary goal was capturing visual state | Image paths, visual comparison |
-| `scrape` | Extracting data or content from pages | Structured data, completeness |
-| `test` | Validating behavior or assertions | Pass/fail, assertions, errors |
-| `form` | Filling out or submitting forms | Field values, submission result |
-| `explore` | General browsing, discovery, navigation | Pages visited, site structure |
-| `interact` | Clicking, toggling, or manipulating UI state | State changes, before/after |
-
-If a task spans multiple categories, choose the one that best matches the user's **primary intent**.
-
-Present the report:
-
-```
-# Browse Report
-**Task:** {one-line summary of what was done}
-**Classification:** {screenshot|scrape|test|form|explore|interact}
-**URL:** {primary URL visited}
-**Backend:** {playwright-cli|Chrome MCP}
-**Screenshots:** {directory path, or "inline (Chrome)" if Chrome backend}
-
-## Summary
-{2-4 sentences describing what happened, tailored to the classification}
-
-## Actions Taken
-| # | Action | Target/URL | Result | Screenshot |
-|---|--------|-----------|--------|------------|
-| 1 | Navigate | {url} | Page loaded | `00_initial-page.png` |
-| 2 | {click/fill/type/etc} | {element or URL} | {outcome} | `01_description.png` |
-| ... | ... | ... | ... | ... |
-
-## Recommended Next
-1. {option} — `{command}`
-2. {option} — `{command}` **(Recommended)**
-3. {option} — `{command}`
-> Reply "do 1", "do 2", or "do 3" to proceed.
-```
-
-### Classification-Specific Recommendation Templates
-
-Use these templates for the "Recommended Next" section based on the task classification.
-
-#### `screenshot`
-1. Compare with another page or viewport — `/claude-tweaks:browse screenshot {url} at {viewport}`
-2. Run a visual review — `/claude-tweaks:visual-review {url}` **(Recommended)**
-3. Generate user stories from this page — `/claude-tweaks:stories {url}`
-
-#### `scrape`
-1. Save extracted data to a file — `write data to {filename}`
-2. Scrape additional pages — `/claude-tweaks:browse scrape {next-target}` **(Recommended)**
-3. Compare data with another source — `/claude-tweaks:browse scrape {comparison-url}`
-
-#### `test`
-1. Fix failures and re-test — `/claude-tweaks:browse test {url}`
-2. Generate regression stories — `/claude-tweaks:stories {url}` **(Recommended)**
-3. Run the full QA suite — `/claude-tweaks:review qa`
-
-#### `form`
-1. Submit with different data — `/claude-tweaks:browse fill {url} with {variation}`
-2. Test form validation (empty/invalid inputs) — `/claude-tweaks:browse test form validation on {url}` **(Recommended)**
-3. Generate form-focused stories — `/claude-tweaks:stories {url} focus=forms`
-
-#### `explore`
-1. Generate user stories from discovered pages — `/claude-tweaks:stories {url}` **(Recommended)**
-2. Run a visual review on the site — `/claude-tweaks:visual-review {url}`
-3. Screenshot key pages — `/claude-tweaks:browse screenshot all main pages on {url}`
-
-#### `interact`
-1. Verify state persists after reload — `/claude-tweaks:browse reload {url} and check state`
-2. Run a visual review — `/claude-tweaks:visual-review {url}` **(Recommended)**
-3. Generate stories covering this interaction — `/claude-tweaks:stories {url}`
-
-Adapt the specific URLs and targets to match the actual task context.
-
-## "do N" Handling
-
-> **Note:** This interaction pattern is unique to `/browse`. Other skills use numbered options (1, 2, 3) for decisions. The "do N" pattern exists here because browse reports offer follow-up *actions* (not choices), and users often want to chain multiple actions after exploring.
-
-When the user replies with a "do N" pattern after receiving a Browse Report, match it to the corresponding recommendation and execute it.
-
-**Supported patterns:**
-- `do 1` / `do 2` / `do 3` — execute a single recommendation by number
-- `do 1,3` / `do 1, 3` — execute multiple recommendations sequentially
-- `do all` — execute all three recommendations sequentially
-
-**Execution rules:**
-1. Look up the recommendation from the most recent Browse Report's "Recommended Next" section
-2. Execute the referenced command(s) as if the user had typed them directly
-3. After completing each command, produce a new Browse Report
-4. If executing multiple ("do all" or "do 1,3"), produce one report per command, sequentially
+> **Parallel execution:** Dispatch independent browser walks as parallel Task agents — each opens its own session, runs its ops, and returns a per-session result. Assemble results after all agents complete.
 
 ## Anti-Patterns
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Proceeding without checking backend availability | Commands will fail — always detect and resolve first |
-| Using Playwright MCP tools (`mcp__playwright__*`) | Standardized on playwright-cli — use CLI commands, not MCP tools. Even if Playwright MCP tools appear in your available tools list, **always use `playwright-cli` CLI commands instead**. The MCP tools are not part of this workflow. |
-| Skipping screenshots | Browse tasks must capture at minimum start and end state |
-| Running Chrome tasks in parallel | Chrome MCP shares a single controller — one task at a time |
-| Using generic session names | Session names should be descriptive kebab-case derived from the task |
-| Forgetting to close sessions | Leaked sessions consume resources — always close when done |
-| Presenting a "What's Next?" menu | Use "Recommended Next" with numbered options and "do N" handling |
+| Polling the dashboard programmatically | `http://localhost:4848` is a human debug surface — scraping it is brittle and unsupported |
+| Storing `@eN` snapshot refs in YAML or persisted artifacts | Refs are session-scoped and regenerate on every snapshot — resolve them at runtime via `find` |
+| Batching across sessions | One `agent-browser batch` invocation owns a single session's lifecycle — never mix session names in one batch |
+| Using CSS or XPath selectors with `find` | Schema v2 forbids CSS/XPath — use semantic locators only (role, name, text, testid, label, placeholder) |
+| Relying on env vars to set viewport size | Replaced by first-class `set viewport <w> <h>` and `set device "<name>"` flags — env-var workarounds are dead |
+| Generic session names (`test`, `session1`) | Names show up in dashboards and trace paths — derive from purpose |
+| Forgetting to close sessions | Leaked sessions consume memory — always `close` at the end of a run |
+| Skipping the trace on failure | Failure reports without a trace path are not actionable — capture before closing |
 
 ## Relationship to Other Skills
 
 | Skill | Relationship |
 |-------|-------------|
-| `/claude-tweaks:stories` | Uses /browse to explore sites and validate generated stories |
-| `/claude-tweaks:visual-review` | Uses /browse's operation mapping table for all browser commands |
-| `/claude-tweaks:review` | Delegates visual modes to /visual-review, which uses /browse transitively |
-| `/claude-tweaks:flow` | /flow can chain /stories and /review which use /browse transitively |
-| `/claude-tweaks:init` | Step 6 configures the browser backends that /browse depends on |
+| `/claude-tweaks:stories` | Consumes /browse conventions for session naming, screenshot paths, and the operation vocabulary used to resolve semantic locators at runtime |
+| `/claude-tweaks:visual-review` | Drives page and journey walks against /browse's lifecycle; uses annotated screenshots and `vitals` from the operation table |
+| `/claude-tweaks:review` | Delegates to /visual-review (visual mode) and qa-agent (QA mode) — both speak /browse's operation vocabulary transitively |
+| `qa-agent` (`agents/qa-agent.md`) | Each story instance opens a uniquely named session; uses the auth vault and trace-on-failure conventions defined here |
+| `/claude-tweaks:test` | Invokes qa-agent for QA story validation; trace paths from failed stories surface in /test reports |
+| `/claude-tweaks:init` | Detects `agent-browser` availability during setup and records the requirement that /browse depends on |
