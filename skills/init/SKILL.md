@@ -191,35 +191,23 @@ The workflow system relies on git for change tracking (`/claude-tweaks:review` u
 
 ### Step 0.7: Browser Integration
 
-Ask the user if they want to set up browser integration. This lets Claude Code interact with web pages — useful for testing UIs, running QA stories, scraping docs, and verifying deployments.
+Browser integration lets Claude Code interact with web pages — useful for testing UIs, running QA stories, scraping docs, and verifying deployments. The single supported backend is `agent-browser`.
 
-**Detect existing setup first:**
+**Detect existing setup:**
 
-```
-# Check for playwright-cli — run and check if it succeeds
-playwright-cli --version
+Run `agent-browser --version` via the Bash tool. If it succeeds, confirm the version and continue.
 
-# Check for Chrome MCP tools
-# Look for mcp__claude_in_chrome__navigate in available tools
-```
-
-If either backend is already available, report the status and skip to the next phase.
-
-**If no browser integration detected, offer:**
+**If `agent-browser` is not installed, print this note and continue:**
 
 ```
-Browser integration lets Claude Code control a web browser for testing, QA story validation, and scraping.
+Browser features (used by /claude-tweaks:stories, /claude-tweaks:visual-review, /claude-tweaks:review qa) require agent-browser.
 
-1. Install playwright-cli **(Recommended)** — Headless CLI automation. Parallel sessions, token-efficient.
-2. Both (playwright-cli + Chrome MCP) — Headless + observable Chrome with your real profile.
-3. Skip — Set up later. Browser features are optional.
+Install: npm install -g agent-browser
+
+Browser features are optional — all other skills work without them and degrade gracefully.
 ```
 
-**Option 1:** `npm install -g @playwright/cli@latest` then verify with `playwright-cli --version`.
-
-**Option 2:** Install playwright-cli (as above), plus set up Chrome MCP (Chrome extension + `claude --chrome`).
-
-**Option 3:** Note that browser features (`/claude-tweaks:browse`, `/claude-tweaks:stories`, `/claude-tweaks:review qa`) require a browser backend, but all other skills function normally.
+Do not block init on a missing browser. Do not prompt for backend choice — there is only one backend.
 
 ---
 
@@ -727,8 +715,8 @@ Execute only after user confirmation.
 | Modifying existing INBOX.md or INDEX.md content | Phase 0 is additive — it creates missing files but must not overwrite user content |
 | Skipping CLAUDE.md generation | Without CLAUDE.md, /claude-tweaks:review can't find verification commands |
 | Running init in a non-git directory without warning | /claude-tweaks:review and /claude-tweaks:wrap-up depend on git — the user should know about degraded behavior |
-| Installing browser tools without asking | Browser integration is optional — always let the user choose whether and how to set it up |
-| Forcing a restart mid-init for Chrome MCP | Note that a restart is needed but finish the remaining phases first |
+| Installing browser tools without asking | Browser integration is optional — surface the install command but never run `npm install` automatically |
+| Prompting for a browser backend choice | There is only one backend (`agent-browser`) — do not present a choice |
 | Generating generic skills not grounded in the codebase | Skills must encode observed patterns — generic advice adds noise, not value |
 | Rewriting CLAUDE.md in Update Mode | Update Mode produces patches, not rewrites — existing config embeds hard-won lessons |
 | Over-generating skills (15 mediocre > 5 excellent) | Each skill must earn its existence by encoding knowledge that would otherwise be lost |
@@ -768,6 +756,6 @@ Execute only after user confirmation.
 | `/claude-tweaks:build` | /init creates `docs/REGISTRY.md` (Phase 8.5) that /build consumes in Step 6.5 for documentation sync |
 | `/claude-tweaks:wrap-up` | Captures learnings after features — keeps generated skills alive and accurate. Step 7 references `skill-template.md` from /claude-tweaks:init's directory. /wrap-up Step 6 maintains the doc registry created by /init. |
 | `/claude-tweaks:tidy` | /tidy Step 4.6 audits doc registry health — flags stale entries, gaps, pattern drift. Suggests `/init update` for tier drift. |
-| `/claude-tweaks:browse` | Depends on the browser backends that /claude-tweaks:init configures in Phase 0 |
+| `/claude-tweaks:browse` | Depends on `agent-browser`, which /claude-tweaks:init detects (and surfaces install instructions for) in Phase 0 |
 | `/using-git-worktrees` | /claude-tweaks:init optionally configures the worktree directory that `using-git-worktrees` needs |
 | All workflow skills | Depend on the structure /claude-tweaks:init creates |
