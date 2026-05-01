@@ -37,36 +37,36 @@ Two orthogonal choices control how `/build` runs. Combine them freely:
 
 | Strategy | Behavior | Best for |
 |----------|----------|----------|
-| **current-branch** (default) | Commit directly on the current branch | Solo work, simple changes |
-| **worktree** | Isolated workspace via `using-git-worktrees` → build → `finishing-a-development-branch` | Parallel work, team projects, risky changes |
+| **worktree** (default) | Isolated workspace via `using-git-worktrees` → build → `finishing-a-development-branch` | Parallel work, team projects, risky changes, safe automation |
+| **current-branch** | Commit directly on the current branch | Quick local edits, no isolation needed |
 
 **The 2x2 matrix:**
 
-| | **Current branch** | **Worktree** |
+| | **Current branch** | **Worktree** (default) |
 |---|---|---|
-| **Subagent** | Default. Fast solo work. | Isolated automated build. |
+| **Subagent** | Fast solo work, no isolation. | Default. Isolated automated build. |
 | **Batched** | Hands-on review, no isolation. | Full control + full isolation. |
 
 ```
-/claude-tweaks:build 42                    → subagent + current branch (default)
-/claude-tweaks:build 42 worktree           → subagent + worktree feature branch
-/claude-tweaks:build 42 batched            → human-reviewed batches + current branch
-/claude-tweaks:build 42 batched worktree   → human-reviewed batches + worktree
+/claude-tweaks:build 42                         → subagent + worktree (default)
+/claude-tweaks:build 42 current-branch          → subagent + current branch (no isolation)
+/claude-tweaks:build 42 batched                 → human-reviewed batches + worktree
+/claude-tweaks:build 42 batched current-branch  → human-reviewed batches + current branch
 /claude-tweaks:build 42 auto                    → subagent + worktree, no confirmations
 /claude-tweaks:build 42 auto current-branch     → subagent + current-branch, no confirmations
 ```
 
 ### Default resolution
 
-1. Explicit arguments (`/claude-tweaks:build 42 batched worktree`) — always win
+1. Explicit arguments (`/claude-tweaks:build 42 batched current-branch`) — always win
 2. CLAUDE.md settings — project-level defaults:
    ```
    ## Build
    execution-strategy: subagent
-   git-strategy: current-branch
+   git-strategy: worktree
    ```
-3. Fallback — `subagent` + `current-branch`
-4. `auto` keyword — skip intermediate confirmation prompts. Defaults to `subagent` + `worktree` (overridable with explicit `current-branch`). Architecture alignment (Common Step 4.5) auto-routes "Beneficial" deviations (update spec silently). Only stops for genuinely ambiguous deviations or critical decisions.
+3. Fallback — `subagent` + `worktree`
+4. `auto` keyword — skip intermediate confirmation prompts. Uses defaults (`subagent` + `worktree`) unless overridden. Architecture alignment (Common Step 4.5) auto-routes "Beneficial" deviations (update spec silently). Only stops for genuinely ambiguous deviations or critical decisions.
 
 ### Execution strategy behavior
 
@@ -84,14 +84,14 @@ Two orthogonal choices control how `/build` runs. Combine them freely:
 
 ### Git strategy behavior
 
-**current-branch** (default):
-- Commits land directly on the current branch
-- No isolation — simple and fast
-
-**worktree**:
+**worktree** (default):
 - Before execution, invokes `/using-git-worktrees` to create an isolated workspace with dependency install and baseline test verification
 - All commits land in the worktree on a feature branch
 - At handoff, delegates to `/finishing-a-development-branch` (merge locally, create PR, keep, or discard)
+
+**current-branch**:
+- Commits land directly on the current branch
+- No isolation — simple and fast
 
 ## Input
 
@@ -122,8 +122,8 @@ Execution strategy:
 2. Batched — human reviews every 3 tasks
 
 Git strategy:
-1. Current branch **(Recommended)** — commit directly, no isolation
-2. Worktree — isolated workspace on a feature branch
+1. Worktree **(Recommended)** — isolated workspace on a feature branch
+2. Current branch — commit directly, no isolation
 ```
 
 Skip this prompt if both options were provided as arguments (e.g., `/build 42 batched worktree`). If only one was provided, prompt for the missing one only.
@@ -499,9 +499,9 @@ Generate 2-4 numbered options based on context:
 
 ## Git Strategy
 
-**current-branch** (default): Commit directly on the current branch. No isolation.
+**worktree** (default): Before any work begins, `/using-git-worktrees` creates an isolated workspace on a feature branch. All commits land in the worktree. At handoff, `/finishing-a-development-branch` handles merge, PR, or discard — do NOT auto-merge or auto-PR.
 
-**worktree**: Before any work begins, `/using-git-worktrees` creates an isolated workspace on a feature branch. All commits land in the worktree. At handoff, `/finishing-a-development-branch` handles merge, PR, or discard — do NOT auto-merge or auto-PR.
+**current-branch**: Commit directly on the current branch. No isolation.
 
 ## Git Rules — NON-NEGOTIABLE
 

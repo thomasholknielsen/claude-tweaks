@@ -73,17 +73,17 @@ Claude Code is powerful but unstructured. claude-tweaks adds a complete developm
 
 **`/claude-tweaks:build`** — Implements a spec end-to-end. Two orthogonal choices:
 
-| | **Current branch** | **Worktree** |
+| | **Current branch** | **Worktree** (default) |
 |---|---|---|
-| **Subagent** (default) | Fast solo work | Isolated feature branch |
+| **Subagent** (default) | Fast solo work, no isolation | Isolated feature branch |
 | **Batched** | Hands-on review per chunk | Full control + full isolation |
 
 Uses `/superpowers:subagent-driven-development` and `/superpowers:executing-plans` for autonomous execution. In worktree mode, `/superpowers:using-git-worktrees` manages the isolated branch. Delegates code cleanup to `/claude-tweaks:simplify` and journey capture to `/claude-tweaks:journeys`. Updates docs matched by the documentation registry and tracks deferred items in the open items ledger.
 
 ```
-/claude-tweaks:build 42                    → subagent + current branch (default)
-/claude-tweaks:build 42 worktree           → subagent + isolated feature branch
-/claude-tweaks:build 42 batched            → human-reviewed batches + current branch
+/claude-tweaks:build 42                    → subagent + worktree (default)
+/claude-tweaks:build 42 current-branch     → subagent + current branch (no isolation)
+/claude-tweaks:build 42 batched            → human-reviewed batches + worktree
 /claude-tweaks:build 42 auto               → subagent + worktree, no confirmations
 ```
 

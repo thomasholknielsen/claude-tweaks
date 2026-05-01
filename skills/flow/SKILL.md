@@ -181,10 +181,10 @@ When a gate fails, the pipeline stops immediately. Present:
 
 1. Parse `$ARGUMENTS` — extract spec number or design doc path, detect `worktree` and `no-stories` keywords, plus optional step list
 2. Determine mode: spec mode (number) or design mode (path/topic)
-3. **Git strategy defaults to `worktree`** — flow is an automated pipeline and isolation is the safest default. Resolution order:
+3. **Git strategy defaults to `worktree`** — same default as `/build`; flow never prompts. Resolution order:
    1. Explicit argument: `worktree` or `current-branch` in `$ARGUMENTS` — always wins
    2. CLAUDE.md `git-strategy` setting — project-level default (see `/claude-tweaks:build` default resolution)
-   3. Fallback: `worktree` (unlike `/build` which defaults to `current-branch`, flow defaults to `worktree` because automated pipelines benefit from isolation)
+   3. Fallback: `worktree`
 
    Do NOT prompt the user for git strategy — resolve it silently from the above. This is passed through to `/claude-tweaks:build` and controls isolation. Flow always uses `subagent` execution — no prompt needed for execution strategy.
 4. Validate step list is in lifecycle order. Auto-insert `test` before `review` if `test` is missing from the step list (with a note).
