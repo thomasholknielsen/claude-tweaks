@@ -7,7 +7,7 @@ description: Use when you want to visually review a running application in the b
 
 # Visual Review — Browser-Based UI Inspection
 
-Review a running application through the browser: first impressions, persona-based interaction, structured analysis, and creative reimagination. Part of the workflow lifecycle:
+Review a running application through the browser: first impressions, persona-based interaction, structured analysis, performance vitals, and creative reimagination. Part of the workflow lifecycle:
 
 ```
 /claude-tweaks:build → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
@@ -29,9 +29,9 @@ Review a running application through the browser: first impressions, persona-bas
 
 | Mode | Input | What happens |
 |------|-------|-------------|
-| **page** | URL or description | Review a single page or flow. Full creative framework. |
-| **journey** | `journey:{name}` | Walk a documented journey step by step. Each step reviewed against its "should feel" / "red flags." |
-| **discover** | `discover` | Explore the running app to identify and document undocumented user journeys. |
+| **page** | URL or description | Review a single page or flow. Full creative framework + vitals. |
+| **journey** | `journey:{name}` | Walk a documented journey step by step using a single batch invocation. Each step reviewed against its "should feel" / "red flags." Vitals captured per page. |
+| **discover** | `discover` | Explore the running app to identify and document undocumented user journeys. Vitals captured per discovered page. |
 
 ## Input
 
@@ -55,50 +55,26 @@ The parent skill passes:
 
 When invoked by `/review` in **full** mode, the visual review runs after code review steps complete. In standalone visual/journey/discover modes, the code review is skipped.
 
-## Step 1: Browser Detection
+## Step 1: Browser Prerequisites
 
-Detect and resolve the browser backend. This must succeed before any browser interaction.
+`agent-browser` must be installed. The daemon auto-starts on port 4848 on the first command — no setup required. Recovery on crash: `agent-browser doctor`.
 
-### Detection procedure
-
-> **Parallel execution:** Run both detection checks concurrently — they are independent.
-
-1. **playwright-cli** — run `playwright-cli --version` via Bash
-2. **Chrome MCP** — check if `mcp__claude_in_chrome__navigate` tool exists
-
-### Resolution
-
-| playwright-cli? | Chrome MCP? | Result |
-|-----------------|-------------|--------|
-| Yes | Yes | Use **playwright-cli** (preferred — parallel, headless, token-efficient) |
-| Yes | No | Use **playwright-cli** |
-| No | Yes | Use **Chrome MCP** |
-| No | No | **STOP** — report error (see below) |
-
-### When no backend is found
+If `agent-browser` is unavailable:
 
 ```
-No browser backend available.
+agent-browser is not installed.
 
-1. Install playwright-cli: `npm install -g @anthropic-ai/cli-playwright@latest`
-2. Use Chrome MCP: restart Claude Code with `claude --chrome`
-3. Skip visual review — proceed with code-only review
-
-> playwright-cli is recommended — it supports parallel sessions, headless mode, and file-based screenshots.
+1. Install: `npm install -g agent-browser`
+2. Skip visual review — proceed with code-only review
 ```
 
 Do not silently skip. Always report and offer options.
 
-### playwright-cli detection hardening
+Use the `/claude-tweaks:browse` skill's operation vocabulary and conventions (session naming, screenshot path, trace path) for all browser operations. Concrete commands live in `agent-browser-reference.md` in the `/claude-tweaks:browse` skill's directory.
 
-If `playwright-cli --version` fails, try these fallbacks before declaring unavailable:
+### Session naming for this skill
 
-1. `which playwright-cli` — confirms binary exists even if version flag fails
-2. `npx playwright-cli --version` — catches npx-only installations
-
-If any fallback succeeds, use playwright-cli.
-
-Use the `/claude-tweaks:browse` skill's operation mapping table for all browser operations. The browse skill is the single source of truth for command mappings between backends.
+Derive a kebab-case session name from the review target: `pricing-page-review`, `checkout-journey-review`, `discover-public-pages`. One session per page or per journey walk.
 
 ## Step 2: Dev URL Resolution
 
@@ -135,9 +111,69 @@ For the full review procedures, read `browser-review.md` in this skill's directo
 
 ### Mode-specific behavior
 
-- **Page mode** — run all steps on the target URL
-- **Journey mode** — walk the journey's steps with focused 4-check passes, then assess the overall arc
-- **Discover mode** — codebase scan → journey candidates → browser walkthrough → write journey files
+- **Page mode** — open a session, run all review steps on the target URL, capture vitals, capture annotated screenshots
+- **Journey mode** — walk the journey's steps via a single `agent-browser batch` invocation that bundles `open`, `snapshot`, `screenshot --annotate`, and per-step ops; capture vitals per page; assess the overall arc
+- **Discover mode** — codebase scan → journey candidates → browser walkthrough → write journey files; capture vitals per discovered page
+
+### Annotated screenshots
+
+Always use annotated screenshots for visual-review captures. Annotated screenshots overlay numbered markers that match `snapshot` refs, so findings can reference elements precisely (e.g., "primary CTA at element [3] competes visually with secondary link at [5]").
+
+```
+agent-browser --session <name> screenshot --annotate --filename screenshots/browse/<session>/<NN>_<description>.png
+```
+
+Write findings using the numbered overlays — never describe element position by spatial language ("the button on the right") when an overlay number exists.
+
+### Batch journey walks
+
+For journey mode, replace per-step `agent-browser` invocations with a single `batch` invocation that owns the session lifecycle for that walk:
+
+```
+agent-browser batch --session <session> \
+  "open <step-1-url>" \
+  "snapshot -i -c" \
+  "screenshot --annotate --filename screenshots/browse/<session>/01_<step-1>.png" \
+  "vitals" \
+  "open <step-2-url>" \
+  "snapshot -i -c" \
+  "screenshot --annotate --filename screenshots/browse/<session>/02_<step-2>.png" \
+  "vitals" \
+  ...
+  "close"
+```
+
+One `batch` invocation owns one session — never mix session names in the same batch. For per-step interactive ops (click, fill, type) that depend on resolving refs from a fresh snapshot, run those interactions outside the batch within the same session, then resume the batch for the next page.
+
+### Performance: vitals capture
+
+After each page is reviewed (page mode) or after each journey step's page settles (journey/discover modes), capture Web Vitals:
+
+```
+agent-browser --session <session> vitals
+```
+
+Capture: **LCP, CLS, INP, TTFB, FCP**. Include values verbatim in the review summary under a **Performance** heading. Flag the following thresholds as findings (Source = `Performance`):
+
+| Metric | Threshold | Severity |
+|---|---|---|
+| LCP | > 2.5s | Major |
+| CLS | > 0.1 | Major |
+| INP | > 200ms | Major |
+| TTFB | > 800ms | Minor |
+| FCP | > 1.8s | Minor |
+
+Performance findings flow into the Step 6 findings table alongside Health/Persona/Analyze/Reimagine findings.
+
+### Trace on failure
+
+When a journey step fails — assertion fails, page errors, navigation timeout, broken render — capture a trace **before** closing the session:
+
+```
+agent-browser --session <session> trace save traces/<session>/<timestamp>.zip
+```
+
+Include the trace path in the failure report. Then close the session. View later with `agent-browser trace view <path>`. There is no automatic retention policy — users manage cleanup.
 
 ## Standalone Next Actions
 
@@ -158,22 +194,26 @@ When invoked by `/review`, omit Next Actions — the parent handles flow control
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Silently skipping when no browser is found | Always report the detection failure and offer options — never skip without telling the user |
+| Silently skipping when `agent-browser` is unavailable | Always report the missing dependency and offer options — never skip without telling the user |
 | Skipping First Impressions in visual review | The whole point is raw reaction before structured analysis — don't make it analytical |
 | Starting the dev server without asking | Dev URL auto-detection offers to start — it doesn't force it |
 | Generic visual ideas ("improve the UX") | Ideas must be concrete and implementable in the current tech stack |
 | Running visual review without a running app | The browser can't inspect what isn't served — verify the URL responds first |
-| Using Playwright MCP tools (`mcp__playwright__*`) | Standardized on playwright-cli — use CLI commands, not MCP tools. playwright-cli is more token-efficient and supports parallel sessions. |
+| Describing elements by position instead of annotated overlay number | "The button on the right" is brittle; "element [3]" is precise. Always reference annotated screenshot overlays in findings |
+| Skipping `vitals` capture | Performance is a first-class finding category — every reviewed page must produce LCP/CLS/INP/TTFB/FCP values |
+| Closing the session before saving a trace on failure | Failure reports without a trace path are not actionable — `trace save` first, then `close` |
+| Per-step `agent-browser` invocations during journey walks | Use `batch` for journey walks — one process, one session lifecycle, fewer tokens and less latency |
+| Batching across sessions | One `agent-browser batch` invocation owns a single session — never mix session names |
 
 ## Relationship to Other Skills
 
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:review` | Invokes /visual-review in Step 6. In full mode (code + visual), visual review runs after code review. In standalone visual/journey/discover modes, /review delegates entirely to /visual-review. |
-| `/claude-tweaks:browse` | /visual-review uses /browse's operation mapping table for browser commands. /browse is the command reference, /visual-review is the review procedure. |
+| `/claude-tweaks:browse` | /visual-review uses /browse's conventions (session naming, screenshot path, trace path) and operation vocabulary. /browse is the conventions reference; /visual-review is the review procedure. Annotated screenshots, batch walks, vitals, and trace-on-failure all follow /browse's contract. |
 | `/claude-tweaks:stories` | Provides `dev-url-detection.md` for URL resolution. /visual-review may recommend running /stories after discovering pages. |
 | `/claude-tweaks:journeys` | /visual-review (journey mode) walks journeys created by /journeys. /visual-review (discover mode) creates new journey files. |
-| `/claude-tweaks:test` | QA data from /test enriches the visual review (page inventories, caveats, screenshots). |
-| `/claude-tweaks:flow` | /flow invokes /review in full mode, which delegates to /visual-review for the browser portion. Flow handles browser detection fallback to code-only mode. |
-| `/claude-tweaks:init` | Phase 0 configures browser backends. Phase 7 delegates to /visual-review discover for brownfield journey bootstrapping. |
-| `/claude-tweaks:capture` | /visual-review may recommend capturing ideas surfaced during the review |
+| `/claude-tweaks:test` | QA data from /test enriches the visual review (page inventories, caveats, screenshots). Trace-on-failure convention is shared with qa-agent. |
+| `/claude-tweaks:flow` | /flow invokes /review in full mode, which delegates to /visual-review for the browser portion. |
+| `/claude-tweaks:init` | Detects `agent-browser` availability during setup. Phase 7 delegates to /visual-review discover for brownfield journey bootstrapping. |
+| `/claude-tweaks:capture` | /visual-review may recommend capturing ideas surfaced during the review. |
