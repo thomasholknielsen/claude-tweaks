@@ -29,6 +29,7 @@ Periodic backlog hygiene to keep the spec system healthy. Run when the backlog f
 > **No decisions during scanning.** Steps 1-4.6 silently collect all findings. Everything is presented as one batch in Step 6 for approval. This replaces the previous per-item decision model.
 
 > **Parallel execution:** Dispatch Steps 1, 1.5, 2, 3, 4, 4.5, and 4.6 as parallel Task agents — each scan is independent (INBOX, Deferred, Specs, Design Docs, Plans, Git, Doc Registry). Each agent returns findings in the `[type] item — detail — recommendation` format. After all agents complete, run Step 5 and Step 5.5 sequentially — they depend on Step 2's spec scan results. Assemble all findings into the Step 6 report.
+> **Output contract:** Each scan agent must follow Template A from `skills/_shared/subagent-output-contract.md` (the `[type] item — detail — recommendation` format above is a tidy-specific variant of Template A). Inline the literal template in the agent's prompt.
 
 ### Step 1: Audit the INBOX
 

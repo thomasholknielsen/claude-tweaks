@@ -119,6 +119,7 @@ Code + Journey ──→ Story YAML ──→ Test (types + lint + tests + QA) �
 Scan the full workflow state across all pipeline stages.
 
 > **Parallel execution:** Dispatch Stages 1-7 as parallel Task agents — each stage scans an independent data source and returns counts, flags, and recommendations. The orchestrator assembles the dashboard after all agents complete.
+> **Output contract:** Each stage-scan agent must follow Template A from `skills/_shared/subagent-output-contract.md`. Inline the literal template in the agent's prompt.
 
 ### Stage 1: INBOX (`specs/INBOX.md`)
 

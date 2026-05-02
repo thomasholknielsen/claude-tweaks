@@ -117,6 +117,17 @@ INBOX → Brief → Design Doc → Spec → Code → Stories → TEST_PASSED →
 
 Consumed artifacts are deleted — specs and code are the durable outputs.
 
+## Token Saver (v4.2+)
+
+claude-tweaks v4.2 ships token-saving infrastructure that runs silently:
+
+- **Bash output filter** — `PostToolUse[Bash]` hook compacts noisy test/build/CI output (>16KB), preserves failure lines, writes raw output to `~/.claude-tweaks/logs/bash-{ts}.log`. The summary returned to Claude includes a `[full output: ...]` path you can `Read` for unfiltered detail.
+- **9-segment statusline** — `bin/claude-tweaks-statusline.js` renders `model | ctx% | effort | git | session | weekly | saved | spec | ledger`. Auto-hides empty segments. Semantic ANSI 8-color (red/yellow/green) with `NO_COLOR` respect. Wired up by `/claude-tweaks:init` Step 0.8.
+- **Telemetry ledger** — `~/.claude-tweaks/logs/filter.jsonl` accumulates filter events. `cat | jq` for stats; the statusline's `saved:` segment reads from it.
+- **Subagent output contract** — `skills/_shared/subagent-output-contract.md` defines Templates A/B/C for parallel-dispatched Task agents. Currently used by `/browse`, `/help`, `/review`, `/tidy`.
+
+To disable colors: `export NO_COLOR=1`. To inspect raw filtered output: `cat ~/.claude-tweaks/logs/bash-{ts}.log` (path appears in the filter footer).
+
 ## Key Principles
 
 - **Every finding is routed** — fix now, defer, or capture. Nothing drops silently.

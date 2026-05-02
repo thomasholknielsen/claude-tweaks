@@ -5,7 +5,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node -e \"try{require('child_process').execSync('agent-browser --version',{stdio:'ignore'})}catch(e){console.log('claude-tweaks: Browser features require agent-browser. Install: npm install -g agent-browser. Browser features are optional.')}\""
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/lib/deps.js\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/filter-bash-output.js\""
           }
         ]
       }

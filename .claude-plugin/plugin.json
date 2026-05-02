@@ -1,7 +1,7 @@
 {
   "name": "claude-tweaks",
   "description": "A structured workflow system for Claude Code — from idea capture through build, review, and wrap-up. Includes browser automation and QA pipeline.",
-  "version": "4.1.0",
+  "version": "4.2.0",
   "author": {
     "name": "Thomas Holk Nielsen",
     "url": "https://github.com/thomasholknielsen"
@@ -19,7 +19,9 @@
     "agent-browser",
     "semantic-locators",
     "testing",
-    "qa"
+    "qa",
+    "token-saver",
+    "statusline"
   ],
   "agents": [
     "./agents/qa-agent.md"

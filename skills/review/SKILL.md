@@ -135,6 +135,7 @@ Review changed files through these lenses. Skip lenses that don't apply to the t
 > **Parallel execution:** Before running any lens, gather all context upfront — read all changed files and their surrounding context (imports, tests, schemas) as parallel Read/Grep calls. Each lens needs the same files, so front-loading reads avoids redundant I/O.
 
 > **Parallel execution (conditional):** When the diff spans 10+ files, dispatch each applicable lens (3a-3f) as a parallel Task agent. Each agent receives the full file context and returns findings in the `| # | Finding | Severity | Category | Affected | Recommended |` format. When the diff is smaller, run lenses sequentially in the main thread — the overhead of agent dispatch isn't worth it.
+> **Output contract:** Each dispatched lens agent must follow Template A from `skills/_shared/subagent-output-contract.md`. Inline the literal template in the agent's prompt; on format violation, re-prompt once and accept what comes back.
 
 ### 3a: Convention Compliance
 
@@ -274,6 +275,7 @@ Items introduced by this build that are fixable now must be fixed now — even i
 If any findings are "Fix now", make the changes, re-run `/claude-tweaks:test`, and verify fixes didn't introduce new findings.
 
 > **Parallel execution (conditional):** When there are 3+ "Fix now" findings across different files with no shared file dependencies, dispatch fixes as parallel agents using the `/dispatching-parallel-agents` pattern — one agent per independent fix domain. Each agent gets: specific file scope, finding details, constraint to not modify other files. Returns summary of changes. After all agents complete, check for conflicts between agent changes, then re-run `/claude-tweaks:test`. When fixes overlap files or there are fewer than 3 findings, fix sequentially in the main thread.
+> **Output contract:** Each fix agent must return a Template B summary (file:line — what changed) per `skills/_shared/subagent-output-contract.md`. Inline the literal template in the agent's prompt.
 
 **Write all findings to the open items ledger** (see `/claude-tweaks:ledger`). Use the appropriate `review/*` phase. Status: `open` for "Fix now" items, `deferred` for DEFERRED.md routes, `accepted` for "Don't fix" items (with reason). After fixing, update status to `fixed`.
 
