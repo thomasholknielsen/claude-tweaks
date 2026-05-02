@@ -2,7 +2,7 @@
 
 ## What this is
 
-A Claude Code plugin (v4.0.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation and QA pipeline support. This is not a code application — it's a system of prompts organized as skills.
+A Claude Code plugin (v4.2.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation, QA pipeline support, and v4.2+ token-saving infrastructure (bash filter hook, statusline, subagent contract).
 
 ## Stack
 
@@ -19,8 +19,12 @@ A Claude Code plugin (v4.0.0) containing markdown skill files that guide Claude 
 .claude-plugin/plugin.json        → Plugin manifest (name, version, description)
 skills/{name}/SKILL.md            → Skill definition (frontmatter + body)
 skills/{name}/*.md                → Sub-files lazy-loaded by the skill
+skills/_shared/*.md               → Cross-skill shared content (subagent output contract)
 agents/{name}.md                  → Agent definitions (frontmatter + body)
-hooks/hooks.json                  → Hook definitions (SessionStart checks)
+hooks/hooks.json                  → Hook definitions (SessionStart, PostToolUse[Bash])
+bin/                              → Node executables (filter, statusline, deps check)
+bin/lib/                          → Shared Node helpers (paths, jsonl, color, deps)
+tests/                            → Node test files (node --test runner)
 README.md                         → User-facing documentation
 LICENSE                           → MIT
 ```
@@ -107,6 +111,10 @@ Use the exact blockquote prefix (`> **Parallel execution:**` or `> **Parallel ex
 claude --plugin-dir ./              # Local development — load plugin from current directory
 ```
 
+### Subagent output contract (v4.2+)
+
+Skills that dispatch parallel Task agents must reference `skills/_shared/subagent-output-contract.md` and inline the literal output template (Template A/B/C) in the `Task()` prompt. Agents only see what's in their prompt — references to sibling files don't reach them. Currently used by `/browse`, `/help`, `/review`, `/tidy`. When adding a new dispatch site, follow the same pattern.
+
 ## Don'ts
 
 - Don't add "What's Next?" / "Pick an action" navigation menus at the end of skills — use `### Next Actions` blocks with numbered options and pre-filled commands
@@ -117,3 +125,5 @@ claude --plugin-dir ./              # Local development — load plugin from cur
 - Don't put detailed reference content inline in a SKILL.md when it would make the file unwieldy — use a sub-file and reference it with "read `{filename}` in this skill's directory"
 - Don't forget to update README.md and `/help` when adding or changing skills
 - Don't use emojis in skill files — use `**(Recommended)**` bold text for emphasis instead
+- Don't write to `~/.claude-tweaks/` from skill content — that path is runtime state owned by the harness layer (filter logs, telemetry, usage cache)
+- Don't dispatch parallel Task agents without inlining a literal output template (Template A/B/C) from `skills/_shared/subagent-output-contract.md` in the agent prompt — references won't reach the agent
