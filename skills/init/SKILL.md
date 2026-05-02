@@ -209,6 +209,34 @@ Browser features are optional — all other skills work without them and degrade
 
 Do not block init on a missing browser. Do not prompt for backend choice — there is only one backend.
 
+### Step 0.8: Token-Saver Dependencies & Statusline
+
+claude-tweaks v4.2+ ships a bash-output filter, a 9-segment statusline, and a JSONL telemetry ledger. These require Node and (optionally) git for the branch segment.
+
+**Detect dependencies:**
+
+Run `node --version` and `git --version` via the Bash tool. For each missing dep, detect the platform's package manager and offer to install:
+
+| Platform | Detect | Prompt |
+|---|---|---|
+| macOS | `brew --version` | "Install {dep} via Homebrew? (y/N) — runs `brew install {dep}`" |
+| Windows | `winget --version` or `scoop --version` | "Install {dep} via winget/scoop? (y/N)" |
+| Linux | `apt --version` / `dnf --version` / `pacman --version` | Print the install command (we don't run sudo from init) |
+
+If a Node version manager (nvm/fnm/volta/n) is on PATH, **do not offer to install Node** — print: "Node managed by {manager} — install via your manager."
+
+**Wire up the statusline:**
+
+Read `~/.claude/settings.json` and look for `statusLine.command`:
+
+| Current state | Action |
+|---|---|
+| No `statusLine.command` set | Prompt: "Configure claude-tweaks statusline? (Y/n)". On yes, write `{ "statusLine": { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/bin/claude-tweaks-statusline.js" } }` (preserving existing settings via merge). Backup the file before write. |
+| Different command set | Print our command and tell the user to compose manually if they want both. Never overwrite. |
+| Already ours | No-op. |
+
+**Set `NO_COLOR=1` to disable color** if requested — universal env var, no claude-tweaks-specific override.
+
 ---
 
 ## Scope Selection Gate
