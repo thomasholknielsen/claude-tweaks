@@ -62,7 +62,35 @@ When claude-tweaks skills invoke Superpowers skills, these overrides apply:
 - `/subagent-driven-development`: Stop after the final code review. Do NOT invoke `/finishing-a-development-branch` — return control to the calling skill.
 - `/executing-plans`: Stop after the last batch completes. Do NOT invoke `/finishing-a-development-branch` — return control to the calling skill.
 
-Worktree directory: `.claude/worktrees/`
+## Project Defaults
+
+These settings let claude-tweaks skills skip prompts that would otherwise interrupt automation. Each setting is read by the skill that consumes it. Omit any setting to fall back to its skill-level default.
+
+```
+## Build
+execution-strategy: subagent       # subagent | batched
+git-strategy: current-branch       # current-branch | worktree
+
+## Flow
+git-strategy: worktree             # current-branch | worktree (overrides Build setting in /flow context)
+
+## Worktree
+directory: .worktrees              # path for project-local worktrees (used by /using-git-worktrees via /build and /flow)
+
+## Subagent
+markdown-mode: streamlined         # streamlined | full — streamlined skips formal reviewer subagents for markdown-only work, relying on implementer self-review + controller-level grep verification
+
+## Brainstorm
+section-confirmation: adaptive     # adaptive | per-section | batch — adaptive batches remaining sections after 2 consecutive "yes" replies; per-section asks after every section; batch presents the full design once
+
+## Pre-flight
+merge-check: true                  # when true, /build and /flow fetch origin and warn if main has commits ahead of the current branch before creating a worktree
+
+## Plan audit
+scope-keywords-required: false     # when true, /build refuses to start until the plan declares "Scope keywords:" — useful for cleanup/migration projects where untouched files are a real risk
+```
+
+The settings are observed by the orchestrating controller — individual Superpowers sub-skills don't formally consume them, but claude-tweaks reads them before invoking the sub-skill and applies the convention (e.g., passing `--directory .worktrees` or skipping reviewer dispatches).
 
 ## Don't
 
