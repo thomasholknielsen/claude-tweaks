@@ -1,47 +1,57 @@
 # Story Examples
 
+All examples use schema v2 — locators are semantic only: `{ role, name? }`, `{ testid }`, `{ text, exact? }`, `{ label }`, `{ placeholder }`. Raw selectors and `@eN` snapshot refs are forbidden in YAML. At runtime, locators resolve to session-scoped refs via `agent-browser --session <name> find <type> <args>` — see `agent-browser-reference.md` in the `/claude-tweaks:browse` skill directory for the full operation vocabulary.
+
 ### Example 1: DOM-only stories (no source files available)
 
 Input: `/claude-tweaks:stories https://news.ycombinator.com/`
 
 Output file: `stories/hackernews-reader.yaml`
 ```yaml
+schema_version: 2
+
 stories:
   - id: front-page-loads
-    name: "Front page loads with posts"
+    description: "Front page loads with posts"
     url: "https://news.ycombinator.com/"
     tags: [smoke, navigation]
     priority: high
     source_files: []
     steps:
-      - verify: "At least 10 posts are visible, each with a title and a link"
-      - verify: "Each post shows a rank number, score, and comment count"
+      - action: assert_visible
+        locator: { role: heading, name: "Hacker News" }
+        verify: "At least 10 posts are visible, each with a title and a link"
+      - action: assert_visible
+        locator: { text: "points" }
+        verify: "Each post shows a rank number, score, and comment count"
 
   - id: navigate-to-page-two
-    name: "Navigate to page two and back"
+    description: "Navigate to page two and back"
     url: "https://news.ycombinator.com/"
     tags: [navigation]
     priority: medium
     source_files: []
     steps:
-      - verify: "Front page loads with posts"
+      - action: assert_visible
+        locator: { role: heading, name: "Hacker News" }
+        verify: "Front page loads with posts"
       - action: click
-        target: "More link at the bottom of the page"
-        selector: "a.morelink"
+        locator: { role: link, name: "More" }
         verify: "Page 2 loads with a new set of posts"
       - action: press
-        target: "Browser back"
         value: "Alt+ArrowLeft"
         verify: "Page 1 loads again with the original posts"
 
   - id: neg-404-handling
-    name: "Non-existent page shows error gracefully"
+    description: "Non-existent page shows error gracefully"
     url: "https://news.ycombinator.com/item?id=9999999999"
     tags: [negative, error-handling]
     priority: medium
     source_files: []
     steps:
-      - verify: "Page shows an error message or 'No such item' — not a blank screen or crash"
+      - action: assert_visible
+        locator: { text: "No such item." }
+        verify: "Page shows an error message or 'No such item' — not a blank screen or crash"
 ```
 
 ### Example 2: Source-aware stories (React app with source analysis)
@@ -52,10 +62,13 @@ Source analysis found: `app/(dashboard)/settings/page.tsx` imports a `ProfileFor
 
 Output file: `stories/myapp-admin.yaml`
 ```yaml
+schema_version: 2
+
 stories:
   - id: settings-profile-update
-    name: "Update profile with valid data"
+    description: "Update profile with valid data"
     url: "http://localhost:3000/settings"
+    auth: { vault: "default-user" }
     tags: [core, form]
     priority: high
     source_files:
@@ -63,39 +76,42 @@ stories:
       - app/(dashboard)/settings/components/profile-form.tsx
       - lib/schemas/profile.ts
     steps:
-      - verify: "Profile form is visible with name and email fields"
+      - action: assert_visible
+        locator: { role: heading, name: "Profile settings" }
+        verify: "Profile form is visible with name and email fields"
       - action: fill
-        target: "Name input"
-        selector: "input#name"
+        locator: { label: "Name" }
         value: "Alice Johnson"
         verify: "Name field shows 'Alice Johnson'"
       - action: fill
-        target: "Email input"
-        selector: "input#email"
+        locator: { label: "Email" }
         value: "alice@example.com"
         verify: "Email field shows 'alice@example.com'"
       - action: click
-        target: "Save button"
-        selector: "button[type='submit']"
-        verify: "Save button shows a loading spinner (isSaving state), then a success toast appears: 'Profile updated'"
+        locator: { role: button, name: "Save" }
+        verify: "Save button shows a loading spinner (isSaving state), then a success toast appears"
+      - action: assert_visible
+        locator: { text: "Profile updated", exact: true }
+        verify: "Success toast appears confirming profile update"
 
   - id: settings-name-boundary-max
-    name: "Name input enforces maximum length of 50 characters"
+    description: "Name input enforces maximum length of 50 characters"
     url: "http://localhost:3000/settings"
+    auth: { vault: "default-user" }
     tags: [form, core]
     priority: medium
     source_files:
       - app/(dashboard)/settings/components/profile-form.tsx
     steps:
       - action: fill
-        target: "Name input"
-        selector: "input#name"
+        locator: { label: "Name" }
         value: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
         verify: "Input contains exactly 50 characters — the 51st character is not accepted or a validation error is shown"
 
   - id: settings-email-validation
-    name: "Email field rejects invalid format"
+    description: "Email field rejects invalid format"
     url: "http://localhost:3000/settings"
+    auth: { vault: "default-user" }
     tags: [form, error-handling]
     priority: medium
     source_files:
@@ -103,30 +119,30 @@ stories:
       - lib/schemas/profile.ts
     steps:
       - action: fill
-        target: "Email input"
-        selector: "input#email"
+        locator: { label: "Email" }
         value: "not-an-email"
         verify: "Email field shows entered text"
       - action: click
-        target: "Save button"
-        selector: "button[type='submit']"
+        locator: { role: button, name: "Save" }
         verify: "Validation error appears near the email field indicating an invalid email format. Form is NOT submitted."
+      - action: assert_visible
+        locator: { text: "Invalid email" }
+        verify: "Inline validation error message is visible near the email field"
 
   - id: settings-save-error-handling
-    name: "Profile save failure shows error toast"
+    description: "Profile save failure shows error toast"
     url: "http://localhost:3000/settings"
+    auth: { vault: "default-user" }
     tags: [error-handling, core]
     priority: medium
     source_files:
       - app/(dashboard)/settings/components/profile-form.tsx
     steps:
       - action: fill
-        target: "Name input"
-        selector: "input#name"
+        locator: { label: "Name" }
         value: "Alice Johnson"
       - action: click
-        target: "Save button"
-        selector: "button[type='submit']"
+        locator: { role: button, name: "Save" }
         verify: "If the save API call fails, an error toast appears (e.g. 'Failed to save profile') and the save button is re-enabled after the loading state clears"
 ```
 
@@ -138,11 +154,14 @@ Journey file exists at `docs/journeys/profile-settings.md` with persona "Returni
 
 Output file: `stories/myapp-user.yaml`
 ```yaml
+schema_version: 2
+
 stories:
   - id: profile-settings-flow
-    name: "Complete profile settings journey — update profile, change password, configure notifications"
+    description: "Complete profile settings journey — update profile, change password, configure notifications"
     url: "http://localhost:3000/settings"
     journey: profile-settings
+    auth: { vault: "default-user" }
     tags: [core, smoke]
     priority: high
     source_files:
@@ -152,24 +171,119 @@ stories:
       - app/(dashboard)/settings/password/page.tsx
       - app/(dashboard)/settings/notifications/page.tsx
     steps:
-      - verify: "Profile settings page loads with name and email fields pre-filled"
+      - action: assert_visible
+        locator: { role: heading, name: "Profile settings" }
+        verify: "Profile settings page loads with name and email fields pre-filled"
       - action: fill
-        target: "Name input"
-        selector: "input#name"
+        locator: { label: "Name" }
         value: "Alice Johnson"
         verify: "Name field shows 'Alice Johnson'"
       - action: click
-        target: "Save button"
-        selector: "button[type='submit']"
+        locator: { role: button, name: "Save" }
         verify: "Success toast appears confirming profile update"
       - action: click
-        target: "Password tab"
-        selector: "[data-tab='password']"
+        locator: { role: tab, name: "Password" }
         verify: "Password change form is visible with current password and new password fields"
+      - action: assert_visible
+        locator: { label: "Current password" }
       - action: click
-        target: "Notifications tab"
-        selector: "[data-tab='notifications']"
+        locator: { role: tab, name: "Notifications" }
         verify: "Notification preferences visible with toggles for email and push notifications"
+      - action: assert_visible
+        locator: { role: switch, name: "Email notifications" }
 ```
 
-Note: `source_files` merges the journey's `files:` frontmatter (`page.tsx`, `profile.ts`) with component-level files discovered during source analysis (`profile-form.tsx`, `password/page.tsx`, `notifications/page.tsx`). The `journey: profile-settings` field enables `/test qa journey=profile-settings` and coverage tracking.
+Note: `source_files` merges the journey's `files:` frontmatter (`page.tsx`, `profile.ts`) with component-level files discovered during source analysis (`profile-form.tsx`, `password/page.tsx`, `notifications/page.tsx`). The `journey: profile-settings` field enables `/test qa journey=profile-settings` and coverage tracking. The `auth: { vault: "default-user" }` field causes the runtime to invoke `agent-browser --session <story-id> auth use default-user` after `open` and before the first action — credentials never appear in the YAML.
+
+### Locator-type quick reference
+
+| Locator | Use when | Example |
+|---|---|---|
+| `{ testid: "..." }` | The element has a `data-testid` (or framework equivalent). Most stable. | `{ testid: "checkout-submit" }` |
+| `{ role: "...", name: "..." }` | The element has an unambiguous accessible name. Default for buttons, links, headings, tabs, switches. | `{ role: button, name: "Save" }` |
+| `{ label: "..." }` | Form inputs with associated `<label>` elements. | `{ label: "Email" }` |
+| `{ placeholder: "..." }` | Inputs without labels but with placeholder text. | `{ placeholder: "Search posts..." }` |
+| `{ text: "...", exact?: true }` | Last resort — unique visible text. Brittle to copy edits. | `{ text: "Order confirmed", exact: true }` |
+
+Locator preference order (Step 3 of `/claude-tweaks:stories`): `testid` > `role + name` > `label` > `placeholder` > `text`.
+
+## Legacy story format (v1) — migration example
+
+Pre-v4 stories used CSS selectors. When `/claude-tweaks:stories` reads a YAML file lacking `schema_version: 2` at the top, it presents the v1 detection prompt and offers to regenerate.
+
+### v1 input (CSS selectors — schema_version omitted)
+
+```yaml
+stories:
+  - id: checkout-flow
+    name: "Complete checkout"
+    url: "https://shop.example.com/cart"
+    steps:
+      - action: click
+        target: "Add to cart button"
+        selector: "button#add-to-cart"
+        verify: "Cart count increases"
+      - action: fill
+        target: "Email input"
+        selector: "input[name=email]"
+        value: "user@example.com"
+      - action: click
+        target: "Place order"
+        selector: "button[type='submit']"
+        verify: "Order confirmation appears"
+        verify_selector: ".confirmation-message"
+```
+
+### Detection prompt the user sees
+
+The literal prompt from the v1 detection section of `skills/stories/SKILL.md`:
+
+> v1 stories detected (N stories, CSS selectors). v4 of claude-tweaks uses semantic locators (role/text/testid). Regenerate?
+>
+> 1. Regenerate all (preserves story names, descriptions, intent — re-derives locators from live DOM) **(Recommended)**
+> 2. Show me the changes first
+> 3. Cancel
+
+If the user picks option 2, they see a per-story diff before confirming:
+
+```
+Story 'checkout-flow' — 3 step(s) need migration
+| Step | Old (v1 CSS)              | Inferred semantic locator (v2)         |
+|------|---------------------------|----------------------------------------|
+| 1    | button#add-to-cart        | { role: button, name: "Add to cart" } |
+| 2    | input[name=email]         | { testid: "email-input" }              |
+| 3    | .confirmation-message     | { text: "Order confirmed" }            |
+```
+
+Followed by: "Proceed with regeneration? 1. Yes (Recommended)  2. Cancel".
+
+### Regenerated v2 equivalent
+
+After choice 1 (or choice 2 confirmed), the file is rewritten with `schema_version: 2`, semantic locators inferred from the live accessibility-tree snapshot, and an `auth:` field if the project's Auth Vault has a matching entry:
+
+```yaml
+schema_version: 2
+
+stories:
+  - id: checkout-flow
+    description: "Complete checkout"
+    url: "https://shop.example.com/cart"
+    auth: { vault: "default-user" }
+    tags: [core, smoke]
+    priority: high
+    source_files: []
+    steps:
+      - action: click
+        locator: { role: button, name: "Add to cart" }
+        verify: "Cart count increases"
+      - action: fill
+        locator: { testid: "email-input" }
+        value: "user@example.com"
+      - action: click
+        locator: { role: button, name: "Place order" }
+        verify: "Order confirmation appears"
+      - action: assert_visible
+        locator: { text: "Order confirmed", exact: true }
+```
+
+Story `id`, `description` (from v1 `name`), `url`, `journey`, `priority`, `tags`, and `source_files` are preserved exactly. Only the locators change — CSS selectors are replaced with their semantic equivalents resolved against the live DOM at regeneration time. If a v1 selector cannot be confidently mapped, that step's row in the diff shows `(needs manual review)` and the regenerated story is tagged `needs-review`.

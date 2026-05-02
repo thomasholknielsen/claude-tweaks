@@ -2,7 +2,7 @@
 
 ## What this is
 
-A Claude Code plugin (v3.20.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation and QA pipeline support. This is not a code application — it's a system of prompts organized as skills.
+A Claude Code plugin (v4.0.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation and QA pipeline support. This is not a code application — it's a system of prompts organized as skills.
 
 ## Stack
 
@@ -10,7 +10,7 @@ A Claude Code plugin (v3.20.0) containing markdown skill files that guide Claude
 |-------|-----------|
 | Runtime | Claude Code plugin system |
 | Content | Markdown (SKILL.md files with YAML frontmatter) |
-| Dependencies | Superpowers plugin (`/brainstorm`, `/write-plan`, `/subagent-driven-development`, `/executing-plans`, `/using-git-worktrees`, `/finishing-a-development-branch`, `/dispatching-parallel-agents`), code-simplifier (built-in subagent), playwright-cli (optional) |
+| Dependencies | Superpowers plugin (`/brainstorm`, `/write-plan`, `/subagent-driven-development`, `/executing-plans`, `/using-git-worktrees`, `/finishing-a-development-branch`, `/dispatching-parallel-agents`), code-simplifier (built-in subagent), agent-browser (optional) |
 | Distribution | Plugin marketplace via `thomasholknielsen/claude-tweaks-marketplace` |
 
 ## Structure
@@ -36,7 +36,7 @@ LICENSE                           → MIT
 | Skill | Sub-files | Purpose |
 |-------|-----------|---------|
 | init | detection-tables.md, profile-templates.md, claude-md-template.md, skill-template.md, summary-templates.md, docs-structure.md | Lazy-loaded reference content for each phase; doc registry format, tier detection, standard folder taxonomy |
-| browse | playwright-reference.md, chrome-reference.md | Full command references for each browser backend |
+| browse | agent-browser-reference.md | Operation vocabulary and advanced commands (batch, find, snapshot, vitals, trace, auth, react) used by consumer skills |
 | test | verification.md | Shared verification procedure (referenced by /build, /review, and /test) |
 | stories | dev-url-detection.md, source-analysis.md, story-examples.md | Dev server auto-detection; source code extraction patterns for behavioral contracts; YAML story examples (DOM-only, source-aware, journey-aware) |
 | review | review-summary-template.md, qa-review.md, ux-analysis.md | Structured summary template; QA review procedures; UX analysis procedure |
@@ -67,6 +67,7 @@ Every skill follows this structure:
 - **Skill handoffs (Next Actions)** — End each skill with a `### Next Actions` block: 2-4 numbered options, full command with all parameters pre-filled, one-line description of what it does and produces, one marked `**(Recommended)**` based on context. Options are dynamically generated from available context (journeys, UI changes, worktree mode, QA stories, browser availability). Never a navigation menu, never generic commands without parameters.
 - **Actions Performed table** — When a skill performs autonomous actions beyond what the user explicitly requested, include a `### Actions Performed` table before Next Actions. Columns: `| Action | Detail | Ref |`. Action types: `Implemented`, `Bug fix`, `Simplified`, `Operational`, `Journey`, `Ledger fix`. Ref column shows short commit hash. Resolved ledger items show source phase in parentheses. Generated from git log, git diff, and ledger entries. Omit when no autonomous actions were performed.
 - **Hard gates** — BLOCKED/STOP conditions that prevent proceeding with degraded state
+- **Adaptive section batching** — when a skill presents multi-section material that requires sequential approval (e.g., design walkthroughs, multi-part summaries), if the user accepts 2 consecutive sections without modification, batch all remaining sections into a single approval gate. The default `Brainstorm / section-confirmation: adaptive` setting makes this the standard behavior; override with `per-section` (always ask) or `batch` (always present once).
 
 ### Interaction style directive
 

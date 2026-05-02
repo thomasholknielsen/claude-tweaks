@@ -346,11 +346,11 @@ A journey is **affected** if any file in its `files:` frontmatter was modified i
 - **UI changed + no journeys** → summary notes: "Visual review recommended — UI files changed but no journeys exist yet. Run `/claude-tweaks:visual-review {url}` for a page-level visual review."
 - **No UI impact** → skip silently.
 
-**When browser tools are unavailable:** If the changes touch UI but no browser backend is detected, don't silently skip. Instead, note it:
+**When browser tools are unavailable:** If the changes touch UI but `agent-browser` is not detected, don't silently skip. Instead, note it:
 
 ```
-Visual review skipped — no browser backend configured.
-Install playwright-cli: `npm install -g @anthropic-ai/cli-playwright@latest`
+Visual review skipped — agent-browser not installed.
+Install: `npm install -g agent-browser`
 Or run `/claude-tweaks:init` to configure browser integration.
 ```
 

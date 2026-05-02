@@ -42,6 +42,7 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 | `worktree` | No | Use worktree git strategy — isolated workspace on a feature branch (this is the default for flow). See "Parallel Development with Worktrees" below. |
 | `current-branch` | No | Override the default and commit directly on the current branch instead of creating a worktree. |
 | `no-stories` | No | Skip automatic story generation even if UI files changed. By default, flow auto-generates stories when the build produces UI file changes. |
+| `auto` | No | Silence borderline prompts. The merge-check (Step 2.5) and scope-check (Step 2.6) auto-choose "continue and acknowledge in ledger" instead of asking. Hard scope gates (e.g., uncommitted changes) still surface. Passed through to `/build`, which already supports `auto`. |
 | `[steps]` | No | Step argument(s). Single step = resume from that step onward. Comma-separated steps = run exactly those steps. Default (no steps): `build,test,review,wrap-up` |
 
 Flow always uses **subagent** execution strategy — its purpose is hands-off automation. The `batched` option (which pauses for human review) is not available in flow; use `/claude-tweaks:build batched` directly instead.
@@ -78,6 +79,8 @@ If no UI files changed, or `no-stories` is set, the stories step is skipped.
 /claude-tweaks:flow 42 wrap-up                                      → resume from wrap-up only
 /claude-tweaks:flow 42 review,wrap-up                               → explicit subset: runs ONLY review and wrap-up
 /claude-tweaks:flow 42 build,test                                   → explicit subset: runs ONLY build and test
+/claude-tweaks:flow 42 auto                                         → silence merge-check and scope-check prompts
+/claude-tweaks:flow docs/plans/migration-design.md auto             → design mode + silence borderline prompts
 ```
 
 ## Allowed Steps
@@ -179,8 +182,34 @@ When a gate fails, the pipeline stops immediately. Present:
 
 ### Step 1: Validate Input
 
-1. Parse `$ARGUMENTS` — extract spec number or design doc path, detect `worktree` and `no-stories` keywords, plus optional step list
+1. Parse `$ARGUMENTS` — extract spec number or design doc path, detect `worktree`, `current-branch`, `no-stories`, and `auto` keywords, plus optional step list
 2. Determine mode: spec mode (number) or design mode (path/topic)
+2.5. **Pre-flight merge check** — read the `Pre-flight / merge-check` CLAUDE.md setting (default: `true`). When enabled and worktree strategy resolves to `worktree`:
+   ```bash
+   git fetch origin main 2>/dev/null
+   ahead=$(git rev-list --count HEAD..origin/main 2>/dev/null)
+   ```
+   If `ahead > 0`, surface the divergence (`git log --oneline HEAD..origin/main | head -5`) and offer: (1) Rebase first **(Recommended)**, (2) Continue and acknowledge in ledger. In `auto` mode, automatically choose option 2 and add an `ops` ledger entry.
+
+2.6. **Scope check** — `/flow`'s "When NOT to Use" lists "first time complex spec" as a reason to run steps individually. Apply this as a heuristic before starting:
+   - **Plan size:** count file references in the plan's "Files:" sections. Threshold: 10+ files.
+   - **Major version bump:** scan the design doc / plan for "v{N}.0.0" or "vMAJOR" patterns. Threshold: any major version bump.
+   - **Design doc length:** count lines in the design doc. Threshold: 300+ lines.
+
+   If any threshold is hit, surface a warning before pipeline start:
+   ```
+   This work hits /flow's complexity heuristics:
+   - Plan touches {N} files (threshold: 10+)
+   - Design includes major version bump to v{N}.0.0
+   - Design doc is {L} lines (threshold: 300+)
+
+   /flow is designed for hands-off automation; complex changes benefit from /specify decomposition into reviewable sub-specs first.
+
+   1. Decompose with /specify first **(Recommended)** — produces sub-specs each ≤10 files, run /flow on each
+   2. Proceed with /flow anyway — accept that a single review failure halfway means a large diff to untangle
+   3. Cancel
+   ```
+   In `auto` mode, automatically choose option 2 and add an `ops` ledger entry noting the scope warning was bypassed.
 3. **Git strategy defaults to `worktree`** — same default as `/build`; flow never prompts. Resolution order:
    1. Explicit argument: `worktree` or `current-branch` in `$ARGUMENTS` — always wins
    2. CLAUDE.md `git-strategy` setting — project-level default (see `/claude-tweaks:build` default resolution)

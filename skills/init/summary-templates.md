@@ -19,8 +19,7 @@
 | `specs/INDEX.md` | {created/exists} |
 | Git repo | {yes/no — warning if no} |
 | Worktree directory | {configured/skipped} |
-| Browser: playwright-cli | {installed/not installed/skipped} |
-| Browser: Chrome MCP | {available/not available/skipped} |
+| Browser: agent-browser | {installed (vX.Y.Z) / not installed — install hint surfaced} |
 
 ### Project Classification (Phase 3)
 | Dimension | Confirmed |
