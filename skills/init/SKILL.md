@@ -225,32 +225,44 @@ Run `node --version` and `git --version` via the Bash tool. For each missing dep
 
 If a Node version manager (nvm/fnm/volta/n) is on PATH, **do not offer to install Node** — print: "Node managed by {manager} — install via your manager."
 
-**Wire up the statusline:**
+**Wire up the statusline (wrapper approach):**
+
+We can't write a literal env-var placeholder into settings.json from a slash command — Claude Code expands placeholders at skill-load time, so the agent never sees the literal string. The fix: install a tiny wrapper script at a **stable user-space path** that resolves the latest cached plugin version at runtime. settings.json points to the wrapper; plugin upgrades require no settings.json edits.
+
+**Step A — Install the wrapper:**
+
+Run the installer via Bash:
+
+```
+node "<plugin>/bin/install-statusline-wrapper.js"
+```
+
+The installer creates `~/.claude-tweaks/bin/statusline.js` (a small Node script that scans `~/.claude/plugins/cache/claude-tweaks-marketplace/claude-tweaks/` for the highest-version subdir and execs its `bin/claude-tweaks-statusline.js`). It prints the absolute wrapper path on stdout — capture that path; you'll need it in Step B.
+
+**Step B — Wire settings.json:**
 
 Read `~/.claude/settings.json` and look for `statusLine.command`:
 
 | Current state | Action |
 |---|---|
-| No `statusLine.command` set | Prompt: "Configure claude-tweaks statusline? (Y/n)". On yes, **write the literal string below into settings.json — do NOT expand `${CLAUDE_PLUGIN_ROOT}`**. Backup the file before write. |
-| Old hardcoded-version path (matches `node .*claude-tweaks/\d+\.\d+\.\d+/bin/claude-tweaks-statusline\.js`) | **Migrate.** Rewrite the command to the env-var form below — future plugin updates won't need this fix anymore. Backup before write. |
-| Already env-var form (matches `${CLAUDE_PLUGIN_ROOT}/bin/claude-tweaks-statusline.js`) | No-op. |
-| Different command (not claude-tweaks) | Print our command and tell the user to compose manually if they want both. Never overwrite. |
+| No `statusLine.command` set | Prompt: "Configure claude-tweaks statusline? (Y/n)". On yes, write the wrapper path from Step A into the JSON below. Backup `settings.json` before write. |
+| Old hardcoded-version path (matches `claude-tweaks-marketplace/claude-tweaks/\d+\.\d+\.\d+/bin/claude-tweaks-statusline\.js`) | **Migrate.** Replace with the wrapper path from Step A. Future plugin upgrades won't need /init to touch settings.json again. Backup before write. |
+| Already pointing to `.claude-tweaks/bin/statusline.js` | No-op (already migrated). |
+| Different command (not claude-tweaks) | Print the wrapper path and tell the user to compose manually if they want both. Never overwrite. |
 
-**The exact literal string to write** (preserve `${CLAUDE_PLUGIN_ROOT}` as a literal — Claude Code substitutes it at runtime to the active plugin's root, the same way it does for `hooks/hooks.json`):
+**Settings JSON to write** (replace `<wrapper_path>` with the absolute path the installer printed in Step A — typically `/Users/{user}/.claude-tweaks/bin/statusline.js` on macOS, `C:\Users\{user}\.claude-tweaks\bin\statusline.js` on Windows):
 
 ```json
 {
   "statusLine": {
     "type": "command",
-    "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/claude-tweaks-statusline.js\"",
+    "command": "node \"<wrapper_path>\"",
     "padding": 0
   }
 }
 ```
 
-> **Critical:** Do NOT expand `${CLAUDE_PLUGIN_ROOT}` to its current absolute path. Writing the literal placeholder is what makes the statusline survive plugin upgrades. If the path you're about to write contains a version number like `4.2.0` or `4.3.0`, you have expanded it — undo and write the literal `${CLAUDE_PLUGIN_ROOT}` instead.
-
-When migrating from a versioned path, announce: "Migrating to `${CLAUDE_PLUGIN_ROOT}` — future plugin upgrades won't need /init to bump the path again."
+When migrating from a versioned path, announce: "Migrating to wrapper at `<wrapper_path>` — future plugin upgrades won't need /init to bump this again. The wrapper resolves the latest cached version on every render."
 
 **Set `NO_COLOR=1` to disable color** if requested — universal env var, no claude-tweaks-specific override.
 
