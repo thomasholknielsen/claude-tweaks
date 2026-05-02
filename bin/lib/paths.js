@@ -14,12 +14,6 @@ function logsDir() {
   return dir;
 }
 
-function cacheDir() {
-  const dir = path.join(dataDir(), 'cache');
-  fs.mkdirSync(dir, { recursive: true });
-  return dir;
-}
-
 function bashLogPath(ts) {
   return path.join(logsDir(), `bash-${ts}.log`);
 }
@@ -28,15 +22,9 @@ function filterEventsPath() {
   return path.join(logsDir(), 'filter.jsonl');
 }
 
-function usageCachePath() {
-  return path.join(cacheDir(), 'usage.json');
-}
-
 module.exports = {
   dataDir,
   logsDir,
-  cacheDir,
   bashLogPath,
   filterEventsPath,
-  usageCachePath,
 };

@@ -7,8 +7,6 @@ const jsonl = require('./lib/jsonl');
 const color = require('./lib/color');
 
 const SEPARATOR = '  ';
-const STALE_USAGE_MS = 30 * 60 * 1000;
-const REFRESH_INTERVAL_MS = 60 * 1000;
 
 function readStdin() {
   return new Promise((resolve) => {
@@ -42,22 +40,33 @@ function colorByPct(pct, text) {
 }
 
 function renderModel(input) {
-  const name = input.model_display_name || input.model_id;
-  return name ? String(name) : null;
+  const m = input.model;
+  if (!m) return null;
+  if (typeof m === 'string') return m;
+  return m.display_name || m.id || null;
 }
 
 function renderContext(input) {
-  const used = input.context_used;
-  const total = input.context_window_size;
-  if (typeof used !== 'number' || typeof total !== 'number' || total === 0) return null;
-  const pct = Math.round((used / total) * 100);
-  return colorByPct(pct, `ctx: ${pct}%`);
+  const cw = input.context_window;
+  if (!cw) return null;
+  let pct = cw.used_percentage;
+  if (typeof pct !== 'number') {
+    const used = cw.total_input_tokens;
+    const total = cw.context_window_size;
+    if (typeof used === 'number' && typeof total === 'number' && total > 0) {
+      pct = (used / total) * 100;
+    } else {
+      return null;
+    }
+  }
+  const rounded = Math.round(pct);
+  return colorByPct(pct, `ctx: ${rounded}%`);
 }
 
 function renderEffort(input) {
-  const e = input.thinking_effort;
-  if (!e || e === 'default' || e === 'unset') return null;
-  return `eff: ${e}`;
+  const level = input.effort && input.effort.level;
+  if (!level || level === 'default' || level === 'unset') return null;
+  return `eff: ${level}`;
 }
 
 function renderGit() {
@@ -72,24 +81,15 @@ function renderGit() {
   }
 }
 
-function readUsageCache() {
-  try {
-    const data = JSON.parse(fs.readFileSync(paths.usageCachePath(), 'utf8'));
-    if (!data.fetched_at) return null;
-    const age = Date.now() - data.fetched_at;
-    if (age > STALE_USAGE_MS) return null;
-    return data;
-  } catch {
-    return null;
-  }
-}
-
-function renderUsage(label, data, now) {
-  if (!data || typeof data.pct !== 'number') return null;
-  const pct = data.pct;
-  const remaining = data.reset_at ? Math.max(0, data.reset_at - Math.floor(now / 1000)) : null;
+function renderRateLimit(label, period, now) {
+  if (!period) return null;
+  const pct = period.used_percentage;
+  if (typeof pct !== 'number') return null;
+  const reset = period.resets_at;
+  const remaining = reset ? Math.max(0, reset - Math.floor(now / 1000)) : null;
   const dur = remaining ? formatDuration(remaining) : null;
-  const text = dur ? `${label}: ${pct}% (${dur})` : `${label}: ${pct}%`;
+  const rounded = Math.round(pct);
+  const text = dur ? `${label}: ${rounded}% (${dur})` : `${label}: ${rounded}%`;
   return colorByPct(pct, text);
 }
 
@@ -158,12 +158,6 @@ function findOpenLedger(cwd) {
   }
 }
 
-function maybeRefreshUsage(cache) {
-  if (!cache || Date.now() - cache.fetched_at > REFRESH_INTERVAL_MS) {
-    /* future: fork async refresh process here. v4.2 leaves cache static. */
-  }
-}
-
 async function main() {
   const raw = await readStdin();
   let input = {};
@@ -173,19 +167,18 @@ async function main() {
     /* empty input is fine */
   }
 
-  const cwd = input.cwd || process.cwd();
+  const cwd = (input.workspace && input.workspace.current_dir) || input.cwd || process.cwd();
   const sessionStartMs = input.session_start_ms || Date.now() - 6 * 60 * 60 * 1000;
-  const usage = readUsageCache();
-  maybeRefreshUsage(usage);
   const now = Date.now();
+  const rateLimits = input.rate_limits || {};
 
   const segments = [
     renderModel(input),
     renderContext(input),
     renderEffort(input),
     renderGit(),
-    renderUsage('sess', usage?.session, now),
-    renderUsage('week', usage?.weekly, now),
+    renderRateLimit('sess', rateLimits.five_hour, now),
+    renderRateLimit('week', rateLimits.seven_day, now),
     renderSavings(sessionStartMs),
     findActiveSpec(cwd),
     findOpenLedger(cwd),
@@ -202,7 +195,7 @@ module.exports = {
   renderModel,
   renderContext,
   renderEffort,
-  renderUsage,
+  renderRateLimit,
   renderSavings,
   findActiveSpec,
   findOpenLedger,

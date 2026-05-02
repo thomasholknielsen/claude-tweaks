@@ -16,43 +16,65 @@ function runStatusline(input, env = {}) {
   });
 }
 
-test('renderModel returns display name', () => {
-  assert.strictEqual(sl.renderModel({ model_display_name: 'Sonnet 4.6' }), 'Sonnet 4.6');
+test('renderModel: nested display_name', () => {
+  assert.strictEqual(sl.renderModel({ model: { display_name: 'Sonnet 4.6', id: 'claude-sonnet-4-6' } }), 'Sonnet 4.6');
+});
+
+test('renderModel: falls back to id when display_name absent', () => {
+  assert.strictEqual(sl.renderModel({ model: { id: 'claude-sonnet-4-6' } }), 'claude-sonnet-4-6');
+});
+
+test('renderModel: accepts plain string model', () => {
+  assert.strictEqual(sl.renderModel({ model: 'Sonnet 4.6' }), 'Sonnet 4.6');
 });
 
 test('renderModel returns null when missing', () => {
   assert.strictEqual(sl.renderModel({}), null);
 });
 
-test('renderContext computes percentage', () => {
-  const r = sl.renderContext({ context_used: 36000, context_window_size: 200000 });
+test('renderContext: uses used_percentage when provided', () => {
+  const r = sl.renderContext({ context_window: { used_percentage: 18 } });
   assert.ok(r.includes('ctx: 18%'));
 });
 
-test('renderContext returns null on missing fields', () => {
+test('renderContext: falls back to token math when percentage absent', () => {
+  const r = sl.renderContext({
+    context_window: { total_input_tokens: 36000, context_window_size: 200000 },
+  });
+  assert.ok(r.includes('ctx: 18%'));
+});
+
+test('renderContext returns null on missing context_window', () => {
   assert.strictEqual(sl.renderContext({}), null);
 });
 
-test('renderEffort hides on default/unset', () => {
-  assert.strictEqual(sl.renderEffort({ thinking_effort: 'default' }), null);
+test('renderEffort: hides on default/unset/missing', () => {
   assert.strictEqual(sl.renderEffort({}), null);
-  assert.strictEqual(sl.renderEffort({ thinking_effort: 'high' }), 'eff: high');
+  assert.strictEqual(sl.renderEffort({ effort: { level: 'default' } }), null);
+  assert.strictEqual(sl.renderEffort({ effort: { level: null } }), null);
+  assert.strictEqual(sl.renderEffort({ effort: { level: 'high' } }), 'eff: high');
 });
 
-test('renderUsage formats minute/hour/day reset', () => {
+test('renderRateLimit: formats reset countdown at minute/hour/day scales', () => {
   const now = 1_700_000_000_000;
   const sec = Math.floor(now / 1000);
-  const min45 = sl.renderUsage('sess', { pct: 50, reset_at: sec + 45 * 60 }, now);
-  const hr3 = sl.renderUsage('sess', { pct: 50, reset_at: sec + 3 * 3600 }, now);
-  const d4 = sl.renderUsage('week', { pct: 50, reset_at: sec + 4 * 86400 }, now);
+  const min45 = sl.renderRateLimit('sess', { used_percentage: 50, resets_at: sec + 45 * 60 }, now);
+  const hr3 = sl.renderRateLimit('sess', { used_percentage: 50, resets_at: sec + 3 * 3600 }, now);
+  const d4 = sl.renderRateLimit('week', { used_percentage: 50, resets_at: sec + 4 * 86400 }, now);
   assert.match(min45, /sess: 50% \(45m\)/);
   assert.match(hr3, /sess: 50% \(3h\)/);
   assert.match(d4, /week: 50% \(4d\)/);
 });
 
-test('renderUsage returns null when data missing', () => {
-  assert.strictEqual(sl.renderUsage('sess', null, Date.now()), null);
-  assert.strictEqual(sl.renderUsage('sess', {}, Date.now()), null);
+test('renderRateLimit returns null when data missing', () => {
+  assert.strictEqual(sl.renderRateLimit('sess', null, Date.now()), null);
+  assert.strictEqual(sl.renderRateLimit('sess', {}, Date.now()), null);
+});
+
+test('renderRateLimit omits parenthetical when reset is missing', () => {
+  const now = 1_700_000_000_000;
+  const r = sl.renderRateLimit('sess', { used_percentage: 42 }, now);
+  assert.strictEqual(r, 'sess: 42%');
 });
 
 test('formatK suffix scaling', () => {
@@ -70,13 +92,14 @@ test('formatDuration scales correctly', () => {
 });
 
 test('colorByPct adds ANSI red at >=90%', () => {
-  process.env.NO_COLOR = '';
+  const orig = process.env.NO_COLOR;
   delete process.env.NO_COLOR;
   const r = sl.colorByPct(95, 'ctx: 95%');
   assert.ok(r.includes('\x1b[31m'));
+  if (orig !== undefined) process.env.NO_COLOR = orig;
 });
 
-test('colorByPct skips colors when NO_COLOR set', (t) => {
+test('colorByPct skips colors when NO_COLOR set', () => {
   const orig = process.env.NO_COLOR;
   process.env.NO_COLOR = '1';
   const r = sl.colorByPct(95, 'ctx: 95%');
@@ -85,31 +108,61 @@ test('colorByPct skips colors when NO_COLOR set', (t) => {
   else process.env.NO_COLOR = orig;
 });
 
-test('end-to-end: minimal input renders model + context', () => {
+test('end-to-end: real Claude Code schema renders model + context', () => {
   const out = runStatusline(
-    { model_display_name: 'sonnet 4.6', context_used: 40000, context_window_size: 200000 },
+    {
+      model: { id: 'claude-sonnet-4-6', display_name: 'Sonnet 4.6' },
+      context_window: { used_percentage: 18, context_window_size: 200000 },
+    },
     { NO_COLOR: '1' },
   );
-  assert.ok(out.includes('sonnet 4.6'));
-  assert.ok(out.includes('ctx: 20%'));
+  assert.ok(out.includes('Sonnet 4.6'), `missing model: ${out}`);
+  assert.ok(out.includes('ctx: 18%'), `missing ctx: ${out}`);
 });
 
-test('end-to-end: empty input outputs nothing breaking', () => {
+test('end-to-end: rate_limits flow through to sess/week segments', () => {
+  const sec = Math.floor(Date.now() / 1000);
+  const out = runStatusline(
+    {
+      model: { display_name: 'Sonnet 4.6' },
+      rate_limits: {
+        five_hour: { used_percentage: 42, resets_at: sec + 3 * 3600 },
+        seven_day: { used_percentage: 71, resets_at: sec + 4 * 86400 },
+      },
+    },
+    { NO_COLOR: '1' },
+  );
+  assert.ok(out.includes('sess: 42%'), `missing sess: ${out}`);
+  assert.ok(out.includes('week: 71%'), `missing week: ${out}`);
+});
+
+test('end-to-end: effort segment renders when level is set', () => {
+  const out = runStatusline(
+    { model: { display_name: 'Sonnet 4.6' }, effort: { level: 'high' } },
+    { NO_COLOR: '1' },
+  );
+  assert.ok(out.includes('eff: high'), `missing eff: ${out}`);
+});
+
+test('end-to-end: empty input does not crash', () => {
   const out = runStatusline({}, { NO_COLOR: '1' });
   assert.ok(typeof out === 'string');
 });
 
-test('end-to-end: NO_COLOR strips ANSI codes', () => {
+test('end-to-end: NO_COLOR strips ANSI codes even at high context', () => {
   const out = runStatusline(
-    { model_display_name: 'sonnet 4.6', context_used: 190000, context_window_size: 200000 },
+    { model: { display_name: 'Sonnet 4.6' }, context_window: { used_percentage: 95 } },
     { NO_COLOR: '1' },
   );
   assert.doesNotMatch(out, /\x1b\[/);
 });
 
-test('end-to-end: render under 100ms', () => {
+test('end-to-end: render under 500ms', () => {
   const start = Date.now();
-  runStatusline({ model_display_name: 'sonnet 4.6', context_used: 36000, context_window_size: 200000 }, { NO_COLOR: '1' });
+  runStatusline(
+    { model: { display_name: 'Sonnet 4.6' }, context_window: { used_percentage: 18 } },
+    { NO_COLOR: '1' },
+  );
   const elapsed = Date.now() - start;
   assert.ok(elapsed < 500, `statusline too slow: ${elapsed}ms`);
 });
