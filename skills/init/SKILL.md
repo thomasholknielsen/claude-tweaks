@@ -231,9 +231,26 @@ Read `~/.claude/settings.json` and look for `statusLine.command`:
 
 | Current state | Action |
 |---|---|
-| No `statusLine.command` set | Prompt: "Configure claude-tweaks statusline? (Y/n)". On yes, write `{ "statusLine": { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/bin/claude-tweaks-statusline.js" } }` (preserving existing settings via merge). Backup the file before write. |
-| Different command set | Print our command and tell the user to compose manually if they want both. Never overwrite. |
-| Already ours | No-op. |
+| No `statusLine.command` set | Prompt: "Configure claude-tweaks statusline? (Y/n)". On yes, **write the literal string below into settings.json — do NOT expand `${CLAUDE_PLUGIN_ROOT}`**. Backup the file before write. |
+| Old hardcoded-version path (matches `node .*claude-tweaks/\d+\.\d+\.\d+/bin/claude-tweaks-statusline\.js`) | **Migrate.** Rewrite the command to the env-var form below — future plugin updates won't need this fix anymore. Backup before write. |
+| Already env-var form (matches `${CLAUDE_PLUGIN_ROOT}/bin/claude-tweaks-statusline.js`) | No-op. |
+| Different command (not claude-tweaks) | Print our command and tell the user to compose manually if they want both. Never overwrite. |
+
+**The exact literal string to write** (preserve `${CLAUDE_PLUGIN_ROOT}` as a literal — Claude Code substitutes it at runtime to the active plugin's root, the same way it does for `hooks/hooks.json`):
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/claude-tweaks-statusline.js\"",
+    "padding": 0
+  }
+}
+```
+
+> **Critical:** Do NOT expand `${CLAUDE_PLUGIN_ROOT}` to its current absolute path. Writing the literal placeholder is what makes the statusline survive plugin upgrades. If the path you're about to write contains a version number like `4.2.0` or `4.3.0`, you have expanded it — undo and write the literal `${CLAUDE_PLUGIN_ROOT}` instead.
+
+When migrating from a versioned path, announce: "Migrating to `${CLAUDE_PLUGIN_ROOT}` — future plugin upgrades won't need /init to bump the path again."
 
 **Set `NO_COLOR=1` to disable color** if requested — universal env var, no claude-tweaks-specific override.
 
