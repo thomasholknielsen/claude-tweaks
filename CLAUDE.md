@@ -8,9 +8,10 @@ A Claude Code plugin (v4.2.0) containing markdown skill files that guide Claude 
 
 | Layer | Technology |
 |-------|-----------|
-| Runtime | Claude Code plugin system |
-| Content | Markdown (SKILL.md files with YAML frontmatter) |
-| Dependencies | Superpowers plugin (`/brainstorm`, `/write-plan`, `/subagent-driven-development`, `/executing-plans`, `/using-git-worktrees`, `/finishing-a-development-branch`, `/dispatching-parallel-agents`), code-simplifier (built-in subagent), agent-browser (optional) |
+| Runtime | Claude Code plugin system + Node 18+ (for v4.2 token-saver: filter hook, statusline) |
+| Content | Markdown (SKILL.md files with YAML frontmatter); Node modules under `bin/` |
+| Dependencies | Superpowers plugin (`/brainstorm`, `/write-plan`, `/subagent-driven-development`, `/executing-plans`, `/using-git-worktrees`, `/finishing-a-development-branch`, `/dispatching-parallel-agents`), code-simplifier (built-in subagent), agent-browser (optional), git CLI (optional — required only for the statusline git segment) |
+| Test runner | `node --test tests/` (built-in, no external deps) |
 | Distribution | Plugin marketplace via `thomasholknielsen/claude-tweaks-marketplace` |
 
 ## Structure
