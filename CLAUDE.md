@@ -109,6 +109,7 @@ Use the exact blockquote prefix (`> **Parallel execution:**` or `> **Parallel ex
 
 ```bash
 claude --plugin-dir ./              # Local development — load plugin from current directory
+node --test tests/                  # Run Node tests (filter + statusline) — v4.2+
 ```
 
 ### Subagent output contract (v4.2+)
