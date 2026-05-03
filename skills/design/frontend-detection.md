@@ -64,59 +64,21 @@ A backend project that touches only `.ts`/`.js` files outside `/components/`, `/
 - **Type-only files** (`.d.ts`) — do not match. Correct — they don't render.
 - **CSS-in-JS via `.ts`** — do not match unless the path contains a trigger segment. This is a known false-negative, accepted in Phase 1 — Phase 2's `surface:` frontmatter is the explicit override.
 
-## Layer 2 — Frontmatter spec (read in Phase 1, written in Phase 2)
+## Layer 2 — Frontmatter spec (read by wrapper, written by `/specify`)
 
-Spec files in `specs/*.md` may declare two design-related frontmatter fields. Phase 1 reads them when present; Phase 2 will write them via `/specify`.
+Spec files in `specs/*.md` may declare two design-related frontmatter fields: `surface:` and `design-intent:`. Phase 2's `/specify` writes both on every new spec. Phase 2's wrapper reads `surface:` for Layer 2 detection; `design-intent:` is read but not yet acted on (Phase 3 activates intent dispatch).
 
-### `surface:` field
+**The canonical definition of these fields lives in the spec template** at `skills/specify/spec-template.md` (see the "Frontmatter reference (canonical spec)" section). Both the wrapper (which reads the fields) and `/specify` (which writes them) reference that single source of truth — do not duplicate the value enumerations across multiple files.
 
-Declares which surface the spec touches.
+For Layer 2 detection:
 
-```yaml
----
-surface: frontend  # frontend | backend | infra | mixed
----
-```
+| `surface:` value | Wrapper behavior |
+|------------------|------------------|
+| `frontend` or `mixed` | Detection passes Layer 2 — proceed (Layer 3 sniff still runs to filter file list) |
+| `backend` or `infra` | Skip — return `{skipped: "non-frontend spec (surface declared)"}` |
+| *(missing)* | Fall through to Layer 3 sniff — pre-Phase-2 specs lack this field |
 
-| Value | Wrapper behavior |
-|-------|------------------|
-| `frontend` | Detection passes Layer 2 — proceed (Layer 3 sniff still runs to filter file list) |
-| `mixed` | Detection passes Layer 2 — proceed (the spec touches both surfaces; sniff filters to UI files) |
-| `backend` | Skip — return `{skipped: "non-frontend spec (surface declared)"}` |
-| `infra` | Skip — return `{skipped: "non-frontend spec (surface declared)"}` |
-| *(missing)* | Fall through to Layer 3 sniff — Phase 1 specs do not have this field |
-
-**Forward-compat note:** Phase 2's `/specify` enhancement will write this field on every new spec. For existing specs (created before Phase 2), the field will be absent and Layer 3 sniff handles them correctly. There is no need to backfill historical specs.
-
-### `design-intent:` field
-
-Declares the spec's creative direction. Used by Phase 3's intent-driven dispatch.
-
-```yaml
----
-design-intent: bold  # bold | quiet | minimal | delightful | onboarding | none
-# or comma-separated: design-intent: delightful, onboarding
----
-```
-
-| Value | Phase 3 dispatch (forward-compat) |
-|-------|----------------------------------|
-| `bold` | `/impeccable bolder` is eligible |
-| `quiet` | `/impeccable quieter` is eligible |
-| `minimal` | `/impeccable distill` is eligible |
-| `delightful` | `/impeccable delight` is eligible |
-| `onboarding` | `/impeccable onboard` is eligible |
-| `none` | No intent-driven commands run |
-| *(missing)* | Treat as `none` |
-
-Phase 1 does not read `design-intent:` — only `surface:`. The field is documented here so Phase 2's spec template can reference a single canonical spec.
-
-### Why two fields, not one
-
-`surface:` answers "is this even frontend work?" — gates the entire wrapper.
-`design-intent:` answers "what creative direction does this spec want?" — gates only intent-driven commands.
-
-Keeping them separate means a frontend spec with no creative intent (`surface: frontend`, no `design-intent:` field) still runs auto-fit + issue-driven commands but skips the intent-driven creative commands that would otherwise need explicit user direction.
+`design-intent:` is not read in Layer 2 — it gates Phase 3's intent-driven command dispatch in `polish` mode. The full enumeration lives in the spec template's frontmatter reference section.
 
 ## Detection precedence summary
 

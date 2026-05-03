@@ -48,6 +48,7 @@ Mechanical pass/fail gate — types, lint, tests, QA story validation. Answers "
 | `qa affected` | QA — run only stories whose `source_files` overlap with uncommitted changes |
 | `qa journey={name}` | QA — run only stories with `journey: {name}` (e.g., `qa journey=profile-settings`) |
 | `all` | Full suite (types + lint + tests) AND QA story validation |
+| `skip-qa` | Run types/lint/tests only. Skip QA story validation **even when stories exist**. The Design CLI gate (Step 1.5) still runs since it is not QA. |
 
 Multiple arguments can be combined: `/claude-tweaks:test types lint` runs both type checking and linting.
 
@@ -65,7 +66,9 @@ When running inside a `/claude-tweaks:flow` pipeline, `/test` reads context from
 
 - `VERIFICATION_PASSED=true` + no stories → skip verification, report "passed in build, no QA stories", set `TEST_PASSED=true`
 - `VERIFICATION_PASSED=true` + stories exist → skip verification, auto-run QA, set `TEST_PASSED=true` on pass
-- No `VERIFICATION_PASSED` → run full suite (and QA if stories exist when mode is `all`)
+- `VERIFICATION_PASSED=true` + `skip-qa` argument → skip verification AND skip QA, set `TEST_PASSED=true` (used by `/flow`'s polish-phase re-verify gate)
+- No `VERIFICATION_PASSED` + `skip-qa` → run types/lint/tests but skip QA story validation
+- No `VERIFICATION_PASSED` (default) → run full suite (and QA if stories exist when mode is `all`)
 
 ## Step 1: Resolve Scope and Execute
 
@@ -119,6 +122,23 @@ Run the full standard suite (types + lint + tests) AND QA story validation. Equi
 1. Run the shared verification procedure from `verification.md` (types, lint, tests).
 2. If verification passes and stories exist, run QA mode (see above).
 3. If verification fails, stop — do not run QA on broken code.
+
+### Skip-QA mode (`skip-qa`)
+
+Run types/lint/tests only — skip QA story validation entirely, even when stories exist. Used by `/flow`'s polish-phase re-verify gate to avoid re-running browser QA after stylistic-only changes.
+
+1. Run the shared verification procedure from `verification.md` (types, lint, tests).
+2. **Do not** run QA, regardless of whether stories exist or `STORIES_DIR` is set.
+3. The Design CLI gate (Step 1.5) still runs — `skip-qa` skips QA stories, not the deterministic CLI check.
+
+**Composability:** `skip-qa` can be combined with targeted scope arguments (e.g., `/test types skip-qa` runs only type checking; `skip-qa` is redundant in that case but harmless).
+
+When invoked with `skip-qa` and verification passes, set `TEST_PASSED=true` and report:
+
+```
+Verification: passed (types + lint + tests). QA: skipped (skip-qa).
+Set TEST_PASSED=true.
+```
 
 ## Step 1.5: Design CLI Gate (Impeccable)
 
@@ -299,7 +319,9 @@ If the user chooses to fix:
 | Auto-fixing QA failures | QA failures indicate broken user-facing behavior — they need investigation, not automated patches |
 | Skipping QA when stories exist in pipeline | Stories exist to be validated — if `VERIFICATION_PASSED` is set and stories exist, QA must run |
 | Treating Design CLI skip as a test failure | The wrapper skips for legitimate reasons (backend project, Impeccable not installed, kill-switch disabled). None are test failures — only `result: fail` from the wrapper is a gate failure. |
-| Auto-fixing Design CLI findings | Design findings require human judgment — surface them, do not auto-modify code. The Phase 1 wrapper is read-only by design. |
+| Auto-fixing Design CLI findings | Design findings require human judgment — surface them, do not auto-modify code. The Phase 1 wrapper's `test` mode is read-only by design (the Phase 2 `polish` mode is the code-modifying counterpart, invoked separately by `/flow`). |
+| Using `skip-qa` outside the re-verify context | The flag exists for `/flow`'s re-verify gate after polish modifications — it skips browser QA after stylistic changes. Standalone use is allowed but rarely useful; prefer the default suite which includes QA when stories exist. |
+| Skipping the Design CLI gate when `skip-qa` is set | `skip-qa` only skips QA story validation. The Design CLI is a deterministic anti-pattern check — orthogonal to QA — and must still run. |
 
 ## Relationship to Other Skills
 
@@ -308,7 +330,7 @@ If the user chooses to fix:
 | `/claude-tweaks:build` | /build runs verification as Common Step 5, sets `VERIFICATION_PASSED=true`. In pipeline, /test skips types/lint/tests when this is set. |
 | `/claude-tweaks:review` | /review gates on `TEST_PASSED=true` from /test. /review never runs verification itself — that's /test's job. |
 | `/claude-tweaks:stories` | /stories generates the YAML stories that /test qa validates. Stories with a `journey:` field can be filtered with `/test qa journey={name}`. Also provides `dev-url-detection.md` for URL resolution. |
-| `/claude-tweaks:flow` | /flow chains build → [stories →] test → review → wrap-up. /test is the mechanical gate between build/stories and review. |
+| `/claude-tweaks:flow` | /flow chains build → [stories →] test → review → polish → re-verify → wrap-up. /test is the mechanical gate between build/stories and review. The polish-phase re-verify gate invokes `/test skip-qa` to verify polish modifications without re-running browser QA. |
 | `/claude-tweaks:help` | /help can recommend /test when code changes exist but no review is warranted |
 | `/claude-tweaks:ledger` | Manages the open items ledger. /test appends QA findings and observations with phase `test/qa`. |
 | `/claude-tweaks:design` | /test invokes `/claude-tweaks:design test <files>` as Step 1.5 after the standard suite. Errors fail the gate; warnings and skips do not. The wrapper handles its own detection and availability checks. |

@@ -306,6 +306,32 @@ Scope keywords match {N} file(s) not in the plan:
 
 **Skip this step entirely when** the plan has fewer than 3 file references (trivial plans don't benefit from audit) AND no `Scope keywords:` field is present.
 
+### Common Step 1.7: Design Pre-Build (Impeccable references)
+
+Before dispatching implementation, invoke the design wrapper to lazy-load Impeccable's reference files plus any project-specific design context (`docs/design/PRODUCT.md`, `docs/design/DESIGN.md` from `/impeccable teach`). The wrapper handles its own detection (non-frontend specs skip cleanly) and availability checks (no Impeccable installed → skip cleanly).
+
+**Skip this step entirely when:**
+- The build is in design mode with no spec to inspect (the wrapper needs spec context for surface detection — pure design-mode builds proceed without pre-load)
+- The plan is trivial (< 3 file references, no UI files in the plan)
+
+**Invocation:**
+
+Invoke `/claude-tweaks:design pre-build <spec>`. Pass the spec number for spec mode, or the design doc path as a fallback.
+
+**Result handling:**
+
+| Wrapper return | Build behavior |
+|----------------|----------------|
+| `{result: "ok", loaded: [...], context_size: <n>}` | Inject the loaded reference paths and contents into the implementer subagent's prompt as additional context. When `context_size` exceeds the implementer's budget (rough threshold: 8000 tokens), summarize the references rather than passing them whole. |
+| `{skipped: ...}` (non-frontend, no Impeccable, kill-switch disabled) | Note the skip in the build log and proceed without lazy-loaded design references. **Skip is not a failure.** |
+| `{deferred: ...}` (should not happen for `pre-build` in Phase 2 — only `survey` is deferred) | Treat as skip and proceed. |
+
+**Why skips don't fail:** Lazy-loaded design references are *enrichment* for the build subagent, not a hard prerequisite. A backend spec, a project without Impeccable installed, or a project with `design-integration: disabled` should still build cleanly without the references.
+
+**Where the loaded references go:**
+- **Subagent execution strategy** — the loaded reference text is appended to the implementer subagent's system prompt for each task that touches a UI file (paths matched against the spec's Key Files entries with frontend extensions/path patterns).
+- **Batched execution strategy** — the loaded references are summarized and surfaced in the batch handoff message so the human reviewer sees what design context is in play.
+
 ### Common Step 2: Execute the Plan
 
 Execution depends on the chosen execution strategy:
@@ -620,3 +646,4 @@ These apply in **subagent** execution strategy. In **batched** strategy, autonom
 | `/claude-tweaks:tidy` | Reviews specs from /claude-tweaks:build for staleness — periodic cleanup complement |
 | `/claude-tweaks:init` | /init creates `docs/REGISTRY.md` (Phase 8.5) that /build consumes in Step 6.5 for documentation sync |
 | `/claude-tweaks:ledger` | Manages the open items ledger file. /build creates and appends items during Steps 2.5, 4, 4.5, 5.5, and 6.5. |
+| `/claude-tweaks:design` | /build invokes `/claude-tweaks:design pre-build <spec>` as Common Step 1.7 to lazy-load Impeccable reference files and project design context (`docs/design/PRODUCT.md`, `DESIGN.md`) into the implementer subagent. Skips cleanly on non-frontend specs or when Impeccable is not installed. |

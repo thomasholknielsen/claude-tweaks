@@ -15,6 +15,16 @@ v4.0.0 is a breaking release. Two changes affect existing users:
 
 Run `/claude-tweaks:init` against your existing project to refresh the configuration after upgrading.
 
+### What's new in v4.5 — Impeccable Integration (in progress)
+
+v4.5.0 ships in three internal phases:
+
+- **Phase 1 (shipped)** — wrapper skeleton + read-only integration. The `/claude-tweaks:design` skill exposes 6 mode signatures; `test` (CLI gate) and `review` (advisory critique + audit) are active. `/init` Step 0.9 walks the user through Impeccable plugin install, CLI install, and `/impeccable teach` setup. `/test` Step 1.5 is the deterministic CLI gate; `/review` Step 6.5 surfaces "Design Quality" findings advisorily.
+- **Phase 2 (this release)** — code-modifying integration. `/build` Common Step 1.7 lazy-loads Impeccable reference files into the implementer subagent's context (`pre-build` mode). `/specify` accepts polymorphic input (topic name → invokes `/superpowers:brainstorm`; design doc path → existing behavior), runs the Impeccable `shape` pre-step on frontend design docs, asks the design-intent question, and writes `surface:` + `design-intent:` frontmatter on every generated spec. `/flow` adds a new `polish` phase between review and wrap-up that dispatches Impeccable's auto-fit + issue-driven commands; a re-verify gate (`/test skip-qa`, one-cycle cap) catches polish-broke-verification cases. New `no-polish` flag on `/flow` and new `skip-qa` flag on `/test` are the user-facing controls.
+- **Phase 3 (planned)** — creative surfacing. Intent-driven dispatch in polish (reads `design-intent:` frontmatter), Creative Opportunities blocks in `/visual-review` and `/flow` pipeline summary (sourced from the activated `survey` mode).
+
+All Phase 2 changes are gated by Phase 1's 3-layer detection — non-frontend specs and projects without Impeccable installed skip cleanly. The integration is opt-in via `/init` Step 0.9.
+
 ### What's new in v4.2 — Token Saver
 
 Three additions that reduce token consumption with no behavior change to skills:
@@ -58,24 +68,33 @@ Quality-of-life improvements that emerged from doing the v4.0 migration. Non-bre
   challenge ────────────►  Brief
      │
      │                     Design Doc          ◄───  brainstorm
+     │                     (specify can invoke brainstorm directly on topic input — v4.5.0-phase2)
      │
-  specify ──────────────►  Spec
+  specify ──────────────►  Spec               (writes surface: + design-intent: frontmatter)
+     │  calls: design shape (frontend only — appends Impeccable shape output to design doc)
      │                     (deletes Brief + Design Doc)
      │
   ┈┈ /claude-tweaks:flow automates below (worktree mode optional) ┈┈
      │
   build ────────────────►  Code + Journeys    ◄───  subagent-driven-development
-     │  calls: simplify,                             executing-plans
+     │  calls: design pre-build (lazy-load Impeccable references)
+     │         simplify,                             executing-plans
      │         journeys                              using-git-worktrees ⚙
      ┊  (if UI changed)
   stories ──────────────►  Story YAML
      │
   test ─────────────────►  TEST_PASSED
+     │  calls: design test (Impeccable detect — deterministic CLI gate)
      │
   review ───────────────►  Review Summary     ◄───  dispatching-parallel-agents
-     │  calls: reflect,
+     │  calls: design review (Impeccable critique + audit — advisory)
+     │         reflect,
      │         simplify,
      │         visual-review
+     │
+  polish ───────────────►  Polished Code      (frontend specs only, v4.5.0-phase2)
+     │  calls: design polish (Impeccable polish/clarify/harden + issue-driven)
+     │         test skip-qa  (re-verify gate, 1-cycle cap)
      │
   wrap-up ──────────────►  Done               ◄───  finishing-a-dev-branch ⚙
      │  calls: reflect
@@ -99,7 +118,9 @@ Quality-of-life improvements that emerged from doing the v4.0 migration. Non-bre
 
 **`/superpowers:brainstorm`** *(Superpowers plugin)* — Generates solution approaches from the Brief. Explores multiple directions, evaluates tradeoffs, and produces a Design Doc with a recommended approach.
 
-**`/claude-tweaks:specify`** — Decomposes a Design Doc into agent-sized specs with clear acceptance criteria. Each spec gets a numbered file in `specs/`. Detects implicit dependencies between specs (two specs touching the same files) and builds a file-to-spec map. Deletes the Brief and Design Doc after absorbing them. Uses `/superpowers:write-plan` to structure the execution plan.
+**`/claude-tweaks:specify`** — Decomposes a Design Doc into agent-sized specs with clear acceptance criteria. Each spec gets a numbered file in `specs/` with `surface:` and `design-intent:` frontmatter (v4.5.0-phase2). Detects implicit dependencies between specs (two specs touching the same files) and builds a file-to-spec map. Deletes the Brief and Design Doc after absorbing them. Uses `/superpowers:write-plan` to structure the execution plan.
+
+**Polymorphic input (v4.5.0-phase2):** `/specify` accepts either a design doc path (read directly) or a topic name (invokes `/superpowers:brainstorm` to produce the design doc, then continues into decomposition). When given a frontend design doc, `/specify` runs the Impeccable `shape` pre-step and asks a design-intent question (bold / quiet / minimal / delightful / onboarding / none) to populate the new frontmatter fields.
 
 ### Pipeline (automated by `/claude-tweaks:flow`)
 
@@ -156,7 +177,9 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 
 ### Utility skills
 
-**`/claude-tweaks:flow`** — Automated pipeline: build → [stories →] test → review → wrap-up in one command. Add `worktree` for isolated branches, `no-stories` to skip QA generation. Resume from any step with `/claude-tweaks:flow 42 review`. Run multiple specs sequentially (`/claude-tweaks:flow 42,45,48`) or in parallel across terminals with worktree mode.
+**`/claude-tweaks:flow`** — Automated pipeline: build → [stories →] test → review → polish → wrap-up in one command. Add `worktree` for isolated branches, `no-stories` to skip QA generation, `no-polish` to skip the polish phase entirely. Resume from any step with `/claude-tweaks:flow 42 review`. Run multiple specs sequentially (`/claude-tweaks:flow 42,45,48`) or in parallel across terminals with worktree mode.
+
+**Polish phase (v4.5.0-phase2):** After review verdict PASS on a frontend spec, `/flow` invokes `/claude-tweaks:design polish <spec>` to dispatch Impeccable's auto-fit commands (`polish` / `clarify` / `harden`) plus issue-driven commands (`typeset` / `layout` / `adapt` / `optimize` when audit flagged matching findings). When polish modifies code, a re-verify gate runs `/test skip-qa` (types + lint + tests, no QA) with a one-cycle cap — a re-verify failure stops the pipeline with a "Polish broke verification" failure card. Backend specs and projects without Impeccable installed skip polish cleanly.
 
 **`/claude-tweaks:help`** — Dashboard with workflow status, command reference, and context-aware recommendations. Warns about dependency conflicts between in-progress specs.
 
@@ -166,7 +189,17 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 
 **`/claude-tweaks:ledger`** — Query and resolve the open items ledger (`docs/plans/*-ledger.md`) that tracks findings across all pipeline phases. The ledger is a file on disk — it survives context window compression so findings from one phase aren't lost before a later phase can act on them.
 
-**`/claude-tweaks:design`** *(v4.5.0-phase1)* — Wrapper for the [Impeccable](https://github.com/pbakaus/impeccable) frontend-design plugin. Invoked by `/test` (deterministic CLI gate via `npx impeccable detect`) and `/review` (LLM `critique` + `audit` for advisory design findings). Handles 3-layer detection (kill-switch / spec frontmatter / file-extension sniff) so non-frontend specs skip cleanly. All Phase 1 modes are read-only — code-modifying behavior (`polish`, `pre-build`, `survey`, `shape`) ships in Phase 2/3 as `{deferred}` stubs today. Set up by `/init` Step 0.9.
+**`/claude-tweaks:design`** *(v4.5.0-phase2)* — Wrapper for the [Impeccable](https://github.com/pbakaus/impeccable) frontend-design plugin. Five active modes:
+
+- **`test`** — invoked by `/test` for the deterministic CLI gate (`npx impeccable detect`)
+- **`review`** — invoked by `/review` for LLM `critique` + `audit` (advisory findings; writes audit cache for `polish`)
+- **`shape`** — invoked by `/specify` on frontend design docs (runs `/impeccable shape`, output appended to design doc)
+- **`pre-build`** — invoked by `/build` to lazy-load Impeccable references + project design context (`docs/design/PRODUCT.md`, `DESIGN.md` from `/impeccable teach`) into the implementer subagent
+- **`polish`** — invoked by `/flow`'s polish phase to dispatch auto-fit (`polish` / `clarify` / `harden`) + issue-driven (`typeset` / `layout` / `adapt` / `optimize`) commands. **First wrapper mode that modifies code** — `/flow` follows up with the re-verify gate.
+
+The `survey` mode remains a `{deferred}` stub until Phase 3 (creative surfacing for `/visual-review` and `/flow` summary). Intent-driven dispatch (`bolder`, `delight`, etc. from spec frontmatter) is also Phase 3.
+
+Handles 3-layer detection (kill-switch / spec frontmatter / file-extension sniff) so non-frontend specs skip cleanly. Set up by `/init` Step 0.9.
 
 ## Common workflows
 
