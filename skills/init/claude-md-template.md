@@ -53,18 +53,21 @@ Generated from the maturity classification detected in Phase 2h. See "Generating
 
 {Commit convention, branch strategy, PR process}
 
-## Superpowers Integration
+## claude-tweaks Pipeline
 
-When claude-tweaks skills invoke Superpowers skills, these overrides apply:
+**Artifacts:** design doc (one file, phases = `## Phase N` sections) → spec (one per work unit, via `/claude-tweaks:specify`) → `/claude-tweaks:flow`. No phase-plan files; skip `/write-plan`.
 
-- `/brainstorm`: Stop after committing the design doc. Do NOT auto-invoke `/write-plan` — return control to the calling skill.
-- `/write-plan`: Stop after saving the plan file. Do NOT present an execution choice or invoke an execution skill — return control to the calling skill.
-- `/subagent-driven-development`: Stop after the final code review. Do NOT invoke `/finishing-a-development-branch` — return control to the calling skill.
-- `/executing-plans`: Stop after the last batch completes. Do NOT invoke `/finishing-a-development-branch` — return control to the calling skill.
+**Entry point:** `/claude-tweaks:specify` — accepts a topic (calls `/brainstorm`), design-doc path, or INBOX ref.
 
-## Project Defaults
+**`/flow`:** specs only (rejects design docs). Size is not a stop signal — gate blocks on structural coupling (cross-task deps, scope leak).
 
-These settings let claude-tweaks skills skip prompts that would otherwise interrupt automation. Each setting is read by the skill that consumes it. Omit any setting to fall back to its skill-level default.
+**`auto-mode: default-off`** by default — flip to `default-on` to make `/flow` and `/build` run in auto. Under auto, do NOT insert mid-pipeline reality-checks, path-selection prompts, or context concerns. Surface failures via ledger/failure card. See `_shared/auto-mode-contract.md` in the claude-tweaks plugin.
+
+**Superpowers overrides:** `/brainstorm` stops after the design doc — route to `/specify`, never `/write-plan`. `/subagent-driven-development` and `/executing-plans` don't auto-invoke `/finishing-a-development-branch`.
+
+## Project Defaults (optional)
+
+Override skill-level defaults here. Omit any setting to use its default. Full setting reference in each skill's SKILL.md.
 
 ```
 ## Build
@@ -72,25 +75,26 @@ execution-strategy: subagent       # subagent | batched
 git-strategy: current-branch       # current-branch | worktree
 
 ## Flow
-git-strategy: worktree             # current-branch | worktree (overrides Build setting in /flow context)
+git-strategy: worktree             # overrides Build setting in /flow context
 
 ## Worktree
-directory: .worktrees              # path for project-local worktrees (used by /using-git-worktrees via /build and /flow)
+directory: .worktrees
 
 ## Subagent
-markdown-mode: streamlined         # streamlined | full — streamlined skips formal reviewer subagents for markdown-only work, relying on implementer self-review + controller-level grep verification
+markdown-mode: streamlined         # streamlined | full
 
 ## Brainstorm
-section-confirmation: adaptive     # adaptive | per-section | batch — adaptive batches remaining sections after 2 consecutive "yes" replies; per-section asks after every section; batch presents the full design once
+section-confirmation: adaptive     # adaptive | per-section | batch
 
 ## Pre-flight
-merge-check: true                  # when true, /build and /flow fetch origin and warn if main has commits ahead of the current branch before creating a worktree
+merge-check: true
 
 ## Plan audit
-scope-keywords-required: false     # when true, /build refuses to start until the plan declares "Scope keywords:" — useful for cleanup/migration projects where untouched files are a real risk
-```
+scope-keywords-required: false
 
-The settings are observed by the orchestrating controller — individual Superpowers sub-skills don't formally consume them, but claude-tweaks reads them before invoking the sub-skill and applies the convention (e.g., passing `--directory .worktrees` or skipping reviewer dispatches).
+## Auto-mode
+auto-mode: default-off             # default-on | default-off
+```
 
 ## Don't
 

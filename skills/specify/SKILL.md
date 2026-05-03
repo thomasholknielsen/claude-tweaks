@@ -20,10 +20,42 @@ Convert a brainstorming design document into self-contained, agent-sized work un
 - An INBOX item has been brainstormed and is ready for specification
 - `/claude-tweaks:help` flags unspecified design docs
 - You need to break a large feature into agent-sized work units
+- **`/claude-tweaks:flow` rejected a design doc** — `/flow` only accepts specs; route through `/specify` first (this is the granularity contract enforcement path)
+- You want to decompose a single phase from a multi-phase design doc — use the optional `phase-N` argument
+
+## The Granularity Contract
+
+The plugin enforces a 2-tier artifact taxonomy:
+
+| Tier | Artifact | Producer | Consumer |
+|---|---|---|---|
+| Strategic | Design doc (one file, multi-phase OK as `## Phase N` sections) | `/brainstorm` (superpowers, unchanged) — produces a single design doc by convention | `/claude-tweaks:specify` |
+| Executional | Spec (one file per agent-sized work unit) | `/claude-tweaks:specify` | `/claude-tweaks:flow`, `/claude-tweaks:build` |
+
+**Routing reality:** `/claude-tweaks:specify` IS the canonical entry point — its polymorphic input means the user can pass a bare topic and `/specify` invokes `/brainstorm` internally to produce the design doc, then decomposes it. Direct `/brainstorm` invocations are exploratory; the user routes the resulting design doc back to `/specify` manually instead of running `writing-plans`.
+
+**Why writing-plans is bypassed:** superpowers' `writing-plans` produces multi-phase plan files (`*-P1.md`, `*-P2.md`, …) that exceed `/flow`'s envelope. The path that broke `/flow` was `/brainstorm → writing-plans → /flow` — three artifact tiers with the middle tier being agent-too-big. The new path is `/brainstorm → /specify → /flow` — two artifact tiers where `/specify` produces specs sized for `/flow`'s shape gate.
+
+**Enforcement:** the contract holds at two enforcement points — `/specify`'s phase-aware decomposition (this skill) and `/flow`'s Step 2.7 design-doc rejection. `/brainstorm` is unchanged; the contract relies on the user (or a skill caller) routing to `/specify` rather than `writing-plans`.
 
 ## Input
 
-`$ARGUMENTS` = path to a design doc, a topic name, or an INBOX item reference. **Phase 2:** input is polymorphic — when given a bare topic with no existing design doc, `/specify` invokes superpowers `/brainstorm` directly to produce one, then continues into shape + intent + decompose without a separate user step.
+`$ARGUMENTS` = `<design-doc-or-topic> [phase-N]`
+
+The first argument is a path to a design doc, a topic name, or an INBOX item reference. The optional second argument `phase-N` (where N is a phase number from the design doc's `## Phase N` sections) scopes decomposition to one phase only — useful when running phases incrementally or in parallel.
+
+**Phase 2:** input is polymorphic — when given a bare topic with no existing design doc, `/specify` invokes superpowers `/brainstorm` directly to produce one, then continues into shape + intent + decompose without a separate user step.
+
+**Phase target examples:**
+
+```
+/claude-tweaks:specify docs/plans/food-graph-design.md           → decompose ALL phases (or whole doc if no phases)
+/claude-tweaks:specify docs/plans/food-graph-design.md phase-2   → decompose phase 2 only
+/claude-tweaks:specify food graph                                → resolve to design doc, decompose all
+/claude-tweaks:specify food graph phase-3                        → resolve to design doc, decompose phase 3 only
+```
+
+**Phase detection:** scan the design doc for `^## Phase \d+` headings. If 0 found and no `phase-N` was given, treat the whole doc as one phase. If 1+ found and no `phase-N` was given, decompose all phases sequentially. If `phase-N` was given but the section doesn't exist, stop and present the available phases as numbered options.
 
 ### Resolve the input:
 
@@ -262,18 +294,30 @@ Before deleting the design doc and brief, absorb key context into the specs so i
 
 This ensures specs are self-contained — a developer reading spec 73 understands *why* the approach was chosen without needing the deleted design doc.
 
-## Step 5: Delete Consumed Artifacts
+## Step 5: Delete Consumed Artifacts (only when fully decomposed)
 
-The design doc and brainstorming brief have served their purpose. All decisions, rationale, assumptions, and constraints have been absorbed into the spec files.
+The design doc and brainstorming brief have served their purpose **once every phase has been decomposed into specs**. Behavior depends on the phase target:
 
-**Pre-delete verification:** Before deleting, scan the design doc for any content not yet absorbed into specs — architectural rationale, rejected alternatives, edge case notes, integration constraints. If anything was missed, add it to the relevant spec's Decision Rationale, Assumptions, or Gotchas section. `/build` only reads the spec and INDEX.md — it will not have access to the design doc.
+| Decomposition mode | Delete design doc? |
+|---|---|
+| No `phase-N` argument; doc has 0 phase sections (single-phase) | Yes — fully consumed |
+| No `phase-N` argument; doc has N phase sections; all decomposed in this run | Yes — fully consumed |
+| `phase-N` argument; only that phase decomposed | **No** — design doc retained for remaining phases. Add a `## Phase N: Specified` marker after the phase heading instead, listing the spec numbers it produced. |
+| `phase-N` argument; this was the last un-specified phase | Yes — fully consumed (run delete after marker bookkeeping confirms all phases marked) |
+
+**Pre-delete verification:** Before deleting (when applicable), scan the design doc for any content not yet absorbed into specs — architectural rationale, rejected alternatives, edge case notes, integration constraints. If anything was missed, add it to the relevant spec's Decision Rationale, Assumptions, or Gotchas section. `/build` only reads the spec and INDEX.md — it will not have access to the design doc.
 
 ```bash
+# Full decomposition (all phases or single-phase):
 git rm docs/plans/YYYY-MM-DD-{topic}-design.md
 git rm docs/plans/YYYY-MM-DD-{topic}-brief.md  # if it exists
+
+# Partial decomposition (phase-N only): commit the marker, keep the doc
+git add docs/plans/YYYY-MM-DD-{topic}-design.md
+git commit -m "docs(specs): mark phase-{N} specified in design doc"
 ```
 
-Do NOT keep these around. They create dangling references and stale artifacts. The specs are the durable record.
+When fully consumed, do NOT keep these around. They create dangling references and stale artifacts. The specs are the durable record.
 
 ## Step 6: Clean Up INBOX
 
@@ -318,10 +362,16 @@ Present a summary:
 
 ### Next Actions
 
-1. `/claude-tweaks:build {N}` — build spec {N}: "{title}" (highest priority) **(Recommended)**
-{If multiple specs:}
-2. `/claude-tweaks:flow {N}` — automated pipeline for spec {N}
-3. `/claude-tweaks:help` — see all new specs in pipeline dashboard
+Self-routing — render based on what was produced:
+
+| Situation | Next Actions block |
+|---|---|
+| Single spec produced | 1. `/claude-tweaks:flow {N}` — automated pipeline for spec {N}: "{title}" **(Recommended)**<br>2. `/claude-tweaks:build {N}` — build only (no test/review/wrap-up)<br>3. `/claude-tweaks:help` — pipeline dashboard |
+| Multiple specs produced from a single phase / single-phase doc | 1. `/claude-tweaks:flow {N1},{N2},...,{Nk}` — sequential pipeline, all specs **(Recommended)**<br>2. `/claude-tweaks:flow {N1}` — pipeline just the highest-priority spec<br>3. `/claude-tweaks:help` — pipeline dashboard |
+| Phase-N decomposition with remaining phases in design doc | 1. `/claude-tweaks:flow {N1},{N2},...` — pipeline this phase's specs **(Recommended)**<br>2. `/claude-tweaks:specify {doc} phase-{N+1}` — decompose next phase<br>3. `/claude-tweaks:help` — pipeline dashboard |
+| All phases decomposed in one run (large multi-phase decomposition) | 1. `/claude-tweaks:flow {first-phase-spec-ids}` — pipeline phase 1 specs first **(Recommended)**<br>2. `/claude-tweaks:flow {all-spec-ids}` — pipeline everything sequentially (long-running)<br>3. `/claude-tweaks:help` — see the full dependency graph before deciding |
+
+Always recommend `/flow` over `/build` — `/flow` is the canonical path through the pipeline, and the new shape gate (Step 2.6 in `/flow`) accepts well-structured specs of any size.
 
 Commit with a message describing the specs created.
 
@@ -339,6 +389,10 @@ Commit with a message describing the specs created.
 | Skipping the shape pre-step on frontend specs without offering | Shape is a value-add for UX/UI planning — surface it as a recommended option, let the user opt out explicitly |
 | Writing specs without `surface:` frontmatter (Phase 2+) | Wrapper Layer 2 detection falls through to file-extension sniff, which is less reliable. Always write `surface:` per the canonical reference in `spec-template.md`. |
 | Treating "topic with slash" as a path | Ambiguous input must be disambiguated explicitly — present the numbered choice, do not assume one interpretation |
+| Deleting the design doc after a partial (`phase-N`) decomposition | Other phases still need it. Delete only after every phase has been marked specified. See Step 5's table. |
+| Producing a "phase plan" file alongside or instead of specs | Phase plans are dead artifacts. The granularity contract has 2 tiers: design doc (one file, phases as sections) → specs (one file each). Anything else is a contract violation. |
+| Routing the user to `/build` over `/flow` | `/flow` is the canonical pipeline path. The shape gate now accepts well-structured specs of any size. Recommend `/flow` first, `/build` only as the "build without pipeline" escape hatch. |
+| Skipping `/specify` between `/brainstorm` and `/flow` | Removed in v4.5.2 — `/flow` rejects design docs at Step 2.7. The granularity contract is now enforced. |
 
 ## Relationship to Other Skills
 

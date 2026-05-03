@@ -1,6 +1,6 @@
 ---
 name: claude-tweaks:flow
-description: Use when you want to run an automated build → test → review → polish → wrap-up pipeline on a spec or design doc without stopping between steps.
+description: Use when you want to run an automated build → test → review → polish → wrap-up pipeline on a spec without stopping between steps. Accepts specs only — design docs must be decomposed via /claude-tweaks:specify first.
 ---
 > **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
 
@@ -19,13 +19,14 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 ## When to Use
 
 - A spec is ready to build and you want to go from code to clean-slate in one command
-- A brainstorming session just produced a design doc and you want to skip `/specify` and go straight through the pipeline
+- A brainstorming session produced a design doc, `/specify` decomposed it into specs, and you want to run those specs through the pipeline
 - You trust the pipeline to catch issues at gates rather than stopping for manual checkpoints
 - You want to batch a build + test + review + wrap-up session
 
 ### When NOT to Use
 
-- First time building a complex spec (run steps individually for more control)
+- The input is a design doc, not a spec — run `/claude-tweaks:specify {doc}` first
+- The plan has tangled cross-task dependencies — flow's shape gate (Step 2.6) will hard-fail anyway; tighten via `/specify` first
 - When you expect significant review findings that need discussion
 
 ## Syntax
@@ -38,12 +39,12 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `<spec-or-design-doc>` | Yes | Spec number (e.g., `42`), comma-separated spec numbers (e.g., `42,45,48`), design doc path, or topic name |
+| `<spec>` | Yes | Spec number (e.g., `42`) or comma-separated spec numbers (e.g., `42,45,48`). **Design docs are not accepted** — run `/claude-tweaks:specify {design-doc}` first to decompose into specs. See Step 2.7. |
 | `worktree` | No | Use worktree git strategy — isolated workspace on a feature branch (this is the default for flow). See "Parallel Development with Worktrees" below. |
 | `current-branch` | No | Override the default and commit directly on the current branch instead of creating a worktree. |
 | `no-stories` | No | Skip automatic story generation even if UI files changed. By default, flow auto-generates stories when the build produces UI file changes. |
 | `no-polish` | No | Skip the polish phase (and its re-verify gate) entirely. Use when iterating fast on backend specs, when polish is not desired (one-off scripts, infrastructure-only changes), or when the user has already manually invoked Impeccable polish. The wrapper would skip polish anyway on non-frontend specs (detection layer 2); `no-polish` is the explicit user-facing escape hatch. |
-| `auto` | No | Silence two specific borderline prompts: the merge-check (Step 2.5) and scope-check (Step 2.6) auto-choose "continue and acknowledge in ledger" instead of asking. **`auto` does NOT silence:** hard scope gates (uncommitted changes), the resolve gate (Step 3 / wrap-up Step 9.5 — per-item user input on open ledger items is mandatory), or any write to `specs/INBOX.md` / `specs/DEFERRED.md` (each entry requires explicit user approval). Passed through to `/build`, which already supports `auto`. |
+| `auto` | No | Session intent flag — pipeline runs hands-off. Silences merge-check (Step 2.5), shape-check (Step 2.6), all path-selection prompts mid-pipeline, and explicitly forbids the model from inserting its own reality-checks or context-window concerns. Failures surface via the ledger and the failure card, never via mid-pipeline questions. **Full contract:** see `_shared/auto-mode-contract.md` — that file is the single source of truth for what `auto` silences AND what it does NOT silence (resolve gate, INBOX/DEFERRED writes, hard validation failures all remain mandatory). Also settable as `auto-mode: default-on` in CLAUDE.md (project default). Passed through to `/build`. |
 | `[steps]` | No | Step argument(s). Single step = resume from that step onward. Comma-separated steps = run exactly those steps. Default (no steps): `build,test,review,polish,wrap-up` (re-verify is bundled with polish). |
 
 Flow always uses **subagent** execution strategy — its purpose is hands-off automation. The `batched` option (which pauses for human review) is not available in flow; use `/claude-tweaks:build batched` directly instead.
@@ -52,8 +53,8 @@ Flow always uses **subagent** execution strategy — its purpose is hands-off au
 
 1. **Single spec number** (e.g., `42`) → **Spec mode** — build uses spec tracking, review checks spec compliance
 2. **Multiple spec numbers** (e.g., `42,45,48`) → **Multi-spec mode** — runs each spec sequentially in one terminal (see Multi-Spec Sequential Flow below). For true parallel execution, use separate terminals with `worktree` mode.
-3. **Design doc path** (e.g., `docs/plans/*-design.md`) → **Design mode** — build reads the design doc directly, review uses git diff instead of spec compliance
-4. **Topic name** (e.g., `meal planning`) → search for a matching spec AND design doc. If both exist, prefer spec mode. If only a design doc exists, use design mode.
+3. **Topic name** (e.g., `meal planning`) → search `specs/` for a matching spec. If found, use spec mode. If only a design doc exists at `docs/plans/*-design.md`, **stop and route to `/claude-tweaks:specify`** (see Step 2.7) — design docs are no longer executable directly by `/flow`.
+4. **Design doc path** → **rejected** at Step 2.7 with a routing message to `/claude-tweaks:specify`. Design-mode flow was removed because it bypassed the granularity contract — design docs describe multi-phase programs, not agent-sized work units.
 
 ### Automatic story generation
 
@@ -74,8 +75,8 @@ If no UI files changed, or `no-stories` is set, the stories step is skipped.
 /claude-tweaks:flow 42 no-polish                                    → full pipeline without polish phase: build, test, review, wrap-up
 /claude-tweaks:flow 42,45,48                                        → multi-spec sequential, each in its own worktree
 /claude-tweaks:flow 42,45,48 current-branch                         → multi-spec sequential on current branch
-/claude-tweaks:flow docs/plans/2026-02-21-meal-planning-design.md   → design mode: full pipeline
-/claude-tweaks:flow meal planning                                   → auto-detect: spec or design mode
+/claude-tweaks:flow docs/plans/2026-02-21-meal-planning-design.md   → REJECTED — run /specify first; flow only accepts specs
+/claude-tweaks:flow meal planning                                   → resolve to spec by name (rejected if only design doc exists)
 /claude-tweaks:flow 42 review                                       → resume from review: runs review + polish + wrap-up
 /claude-tweaks:flow 42 polish                                       → resume from polish: runs polish + re-verify + wrap-up
 /claude-tweaks:flow 42 test                                         → resume from test: runs test + review + polish + wrap-up
@@ -83,7 +84,7 @@ If no UI files changed, or `no-stories` is set, the stories step is skipped.
 /claude-tweaks:flow 42 review,wrap-up                               → explicit subset: runs ONLY review and wrap-up (no polish)
 /claude-tweaks:flow 42 build,test                                   → explicit subset: runs ONLY build and test
 /claude-tweaks:flow 42 auto                                         → silence merge-check and scope-check prompts
-/claude-tweaks:flow docs/plans/migration-design.md auto             → design mode + silence borderline prompts
+/claude-tweaks:flow docs/plans/migration-design.md auto             → REJECTED — `auto` does not silence the design-doc rejection (see Step 2.7)
 ```
 
 ## Allowed Steps
@@ -255,8 +256,8 @@ When the re-verify gate fails after polish modified code, the failure card uses 
 
 ### Step 1: Validate Input
 
-1. Parse `$ARGUMENTS` — extract spec number or design doc path, detect `worktree`, `current-branch`, `no-stories`, `no-polish`, and `auto` keywords, plus optional step list
-2. Determine mode: spec mode (number) or design mode (path/topic)
+1. Parse `$ARGUMENTS` — extract spec number(s) or topic name, detect `worktree`, `current-branch`, `no-stories`, `no-polish`, and `auto` keywords, plus optional step list. Also read CLAUDE.md `auto-mode: default-on` setting; merge with the argument (argument wins when both set).
+2. Determine spec mode (number) or topic-resolution mode (name). A path argument is held until Step 2.7 where it's checked against the design-doc rejection rule.
 2.5. **Pre-flight merge check** — read the `Pre-flight / merge-check` CLAUDE.md setting (default: `true`). When enabled and worktree strategy resolves to `worktree`:
    ```bash
    git fetch origin main 2>/dev/null
@@ -264,25 +265,44 @@ When the re-verify gate fails after polish modified code, the failure card uses 
    ```
    If `ahead > 0`, surface the divergence (`git log --oneline HEAD..origin/main | head -5`) and offer: (1) Rebase first **(Recommended)**, (2) Continue and acknowledge in ledger. In `auto` mode, automatically choose option 2 and add an `ops` ledger entry.
 
-2.6. **Scope check** — `/flow`'s "When NOT to Use" lists "first time complex spec" as a reason to run steps individually. Apply this as a heuristic before starting:
-   - **Plan size:** count file references in the plan's "Files:" sections. Threshold: 10+ files.
-   - **Major version bump:** scan the design doc / plan for "v{N}.0.0" or "vMAJOR" patterns. Threshold: any major version bump.
-   - **Design doc length:** count lines in the design doc. Threshold: 300+ lines.
+2.6. **Shape check** — replaces the previous size-based scope check. Plan size (line count, file count, task count) is **not** a stop signal — a clean 50-task spec is mechanically simpler than a tangled 5-task spec. What matters is structural coupling between tasks. Apply these structural signals before starting:
 
-   If any threshold is hit, surface a warning before pipeline start:
+   **Hard fails** (block the pipeline; surface to user):
+
+   | Signal | Detection | Why it blocks |
+   |---|---|---|
+   | Cross-task dependency chains > 3 deep | Trace `depends-on:` / "after Task N" / "uses Task N output" references | Tasks aren't independently executable; subagent-driven execution requires loose coupling |
+   | Task references files outside its declared "Files:" block | For each task, compare in-task file mentions against its declared file list | Spec leaks scope — tasks will collide on files the plan didn't anticipate |
+   | A single task touches > 5 files | Count files in each task's "Files:" block | Task is itself too large; should be sub-decomposed before dispatch |
+   | Plan has no "Files:" or "Tasks:" structure at all | Look for canonical headings | Input is a design doc, not an executable spec — see Step 2.7 |
+
+   **Soft warnings** (proceed by default; note in ledger):
+
+   | Signal | Threshold | Note added to ledger |
+   |---|---|---|
+   | Task count > 30 | Count `^### Task \d` / `^## Task \d` headings | "Large dispatch count: {N} subagents — may benefit from `/specify` split if review fails" |
+   | Plan describes a major version bump | Scan for `v{N}.0.0` or `vMAJOR` in the design context | "Major version bump — review will scrutinize backward-compat implications" |
+
+   **Behavior:**
+
+   - **Hard fail** → present the specific signal, recommend `/claude-tweaks:specify {plan-path}` to tighten, offer (1) tighten via /specify **(Recommended)**, (2) proceed anyway and accept tangled-task risk, (3) cancel. Under `auto`, choose option 2 and add an `ops` ledger entry naming the specific signal hit.
+   - **Soft warning** → proceed by default. Add an `ops` ledger entry with the warning text. Do NOT prompt the user. Under `auto` or in default mode, behavior is identical (silent proceed with ledger note).
+
+   **Anti-pattern:** Stopping the pipeline because the plan is "big." Size is not a coupling signal. See `_shared/auto-mode-contract.md` — the model is forbidden under `auto` from inserting size-driven reality-checks beyond what this step prescribes.
+
+2.7. **Reject design docs** — a design doc is strategic (multi-phase, scopes the program); a spec is executional (agent-sized, /flow-runnable). `/flow` accepts specs only.
+
+   Detection: if the input is a design doc (filename matches `*-design.md` OR file contains `## Phase` / `## Phases` section headings OR file lacks both "Files:" and "Tasks:" canonical structure):
    ```
-   This work hits /flow's complexity heuristics:
-   - Plan touches {N} files (threshold: 10+)
-   - Design includes major version bump to v{N}.0.0
-   - Design doc is {L} lines (threshold: 300+)
+   Input is a design doc, not a spec. /flow executes specs.
 
-   /flow is designed for hands-off automation; complex changes benefit from /specify decomposition into reviewable sub-specs first.
-
-   1. Decompose with /specify first **(Recommended)** — produces sub-specs each ≤10 files, run /flow on each
-   2. Proceed with /flow anyway — accept that a single review failure halfway means a large diff to untangle
-   3. Cancel
+   Decompose first:
+     /claude-tweaks:specify {input-path}                — produces all phase specs
+     /claude-tweaks:specify {input-path} phase-{N}      — produces specs for one phase
+   Then /flow on the produced specs:
+     /claude-tweaks:flow {N},{M},{P}                    — sequential execution
    ```
-   In `auto` mode, automatically choose option 2 and add an `ops` ledger entry noting the scope warning was bypassed.
+   Stop the pipeline with this message. **Do not** silently proceed — the design-mode escape hatch was the source of the wrong-granularity bug. Under `auto`, this rejection still fires (it's a hard validation failure, not a UX preference — see `_shared/auto-mode-contract.md`).
 3. **Git strategy defaults to `worktree`** — same default as `/build`; flow never prompts. Resolution order:
    1. Explicit argument: `worktree` or `current-branch` in `$ARGUMENTS` — always wins
    2. CLAUDE.md `git-strategy` setting — project-level default (see `/claude-tweaks:build` default resolution)
@@ -294,7 +314,7 @@ When the re-verify gate fails after polish modified code, the failure card uses 
    - **`re-verify` is bundled with `polish`:** If a user includes the literal `re-verify` in the step list, treat it as a no-op and note: "`re-verify` is bundled with `polish` — no separate step needed." `re-verify` runs automatically when `polish` modifies code.
    - **`no-polish` overrides explicit polish:** If `no-polish` is set and `polish` is in the step list (explicitly or via the default), drop `polish` from the resolved step list and note: "`no-polish` set — skipping polish phase."
 5. If spec mode: check prerequisites are met (same as `/claude-tweaks:build` Spec Step 1)
-6. If design mode: verify the design doc file exists
+6. If a path was given in the argument: confirm it's a spec, not a design doc (Step 2.7 enforces). If a topic name was given: resolve to a spec; if only a design doc exists for that topic, stop and present the routing message.
 7. If validation fails → **stop before starting**
 8. **Create the open items ledger** using `/claude-tweaks:ledger`'s create operation. The `{feature}` name matches the execution plan that build will create. This file tracks findings and operational tasks across all pipeline phases. See `/claude-tweaks:ledger` for status lifecycle and phase taxonomy.
 
@@ -368,7 +388,7 @@ On successful completion of all steps:
 ```markdown
 ## Flow: Pipeline Complete
 
-### {Spec {number}: {title} | Design: {design doc topic}}
+### Spec {number}: {title}
 
 | Step | Outcome |
 |------|---------|
@@ -541,7 +561,8 @@ For each completed branch (in order):
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Using flow for first-time complex specs | You lose the ability to course-correct between steps — run manually first |
+| Stopping the pipeline because the spec is "big" | Size is not a coupling signal. A clean 50-task spec runs through fine. The shape gate (Step 2.6) blocks on **structural** signals (cross-task deps, scope leak), not size. Under `auto`, the model is forbidden from inserting size-driven reality-checks beyond Step 2.6 — see `_shared/auto-mode-contract.md`. |
+| Inserting model-side reality-checks under `auto` | The user said `auto`. Concerns belong in the ledger or the failure card, not as blocking prompts. See `_shared/auto-mode-contract.md` for the full anti-list. |
 | Ignoring gate failures and restarting | Gates exist to catch real problems — investigate before retrying |
 | Running flow on specs with unmet prerequisites | The pipeline will fail at build — check dependencies first |
 | Using flow for interactive skills | Capture, challenge, and specify need human decisions — they can't be automated |
@@ -562,7 +583,7 @@ For each completed branch (in order):
 
 | Skill | Relationship |
 |-------|-------------|
-| `/claude-tweaks:build` | First step in the default pipeline — runs in spec mode or design mode depending on flow input. Sets `VERIFICATION_PASSED=true`. |
+| `/claude-tweaks:build` | First step in the default pipeline — runs in spec mode (flow only passes specs since v4.5.2; design-mode bypass was removed). Sets `VERIFICATION_PASSED=true`. |
 | `/claude-tweaks:stories` | Auto-triggered between build and test when UI files change (unless `no-stories`). Ingests journey files from `/build` for journey-aware story generation. Uses `dev-url-detection.md` for URL resolution. |
 | `/claude-tweaks:test` | Mechanical gate between build/stories and review — types, lint, tests, QA. Receives `VERIFICATION_PASSED` from build (skips redundant checks). Sets `TEST_PASSED=true`. |
 | `/claude-tweaks:review` | Analytical gate — receives `TEST_PASSED=true` from test, produces verdict. Runs in **full** mode (code + visual) by default; delegates visual review to `/visual-review` which handles its own browser detection. Code mode fallback when no browser available. Never runs verification or QA itself. |
@@ -571,7 +592,7 @@ For each completed branch (in order):
 | `/claude-tweaks:help` | Shows pipeline status and recommends flow-ready specs |
 | `/claude-tweaks:specify` | Creates the specs that flow consumes |
 | `/claude-tweaks:browse` | Used transitively — /stories and /review visual modes use /browse for browser interaction |
-| `/brainstorm` | Produces the design docs that flow consumes in design mode — skipping /specify |
+| `/brainstorm` | Produces design docs that `/claude-tweaks:specify` decomposes into the specs flow consumes. Flow no longer accepts design docs directly — the granularity contract requires `/specify` between brainstorming and execution. |
 | `/using-git-worktrees` | Invoked BY flow (when `worktree` specified) to create isolated workspace for each spec |
 | `/finishing-a-development-branch` | Invoked BY flow (when `worktree` specified) at handoff to merge, PR, or discard each feature branch |
 | `/claude-tweaks:ledger` | Manages the open items ledger. /flow creates the ledger (Step 1), carries it across phases, and runs the resolve gate (Step 3). |
