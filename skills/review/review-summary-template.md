@@ -54,6 +54,18 @@ Possible QA statuses:
 - {If completed with QA data: note QA data enrichment — caveats surfaced, page inventories consumed, findings confirmed/resolved}
 - {If recommended: `/claude-tweaks:visual-review journey:{name}` or `/claude-tweaks:visual-review {url}`}
 
+### Design Quality (from /claude-tweaks:design review)
+
+{Include when the design wrapper returned `result: advisory` with findings. Omit when the wrapper skipped (non-frontend, no Impeccable, kill-switch disabled).}
+
+| File | Source | Severity | Category | Finding | Suggestion |
+|------|--------|----------|----------|---------|------------|
+| {file} | {critique/audit} | {info/warning/error} | {category} | {message} | {suggestion if present} |
+
+> Findings are advisory — they inform the verdict but were not auto-applied. To action them inline, route through Step 3g's resolution flow with category `Design Quality`. The Phase 1 design wrapper is read-only by design — code-modifying behavior ships in Phase 2's polish phase.
+
+(or, when skipped: "Design Quality skipped — {skip reason from wrapper}.")
+
 ### Code Simplification
 - {summary of simplifier changes, or "No simplifications needed"}
 

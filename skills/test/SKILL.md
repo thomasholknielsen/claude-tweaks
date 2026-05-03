@@ -120,6 +120,45 @@ Run the full standard suite (types + lint + tests) AND QA story validation. Equi
 2. If verification passes and stories exist, run QA mode (see above).
 3. If verification fails, stop — do not run QA on broken code.
 
+## Step 1.5: Design CLI Gate (Impeccable)
+
+After types/lint/tests pass (or if they were skipped via `VERIFICATION_PASSED`), invoke the design wrapper to run the deterministic Impeccable CLI check on changed frontend files. This catches design anti-patterns (default-AI gradients, hard-coded pixel values, etc.) without LLM cost.
+
+**Skip this step entirely when:**
+- The mode is `qa` (QA-only run; design gate has no opinion on QA stories)
+- The user-supplied scope was a single check type (`types`, `lint`, `unit`, `integration`, `e2e`) — these targeted runs do not include the design gate
+
+**Invocation:**
+
+Invoke `/claude-tweaks:design test <changed-files>`. Resolve `<changed-files>` from `git diff --name-only` (the wrapper handles its own filtering and detection).
+
+**Result handling:**
+
+| Wrapper return | Test gate behavior |
+|----------------|-------------------|
+| `{result: "pass", findings: [...]}` (zero findings or warnings only) | Proceed. Surface warnings in the test output as informational. |
+| `{result: "fail", findings: [...]}` (any `severity: error`) | **Fail the test gate.** Surface the findings table in the test report. Do NOT auto-fix — design findings require human judgment. |
+| `{skipped: ...}` (non-frontend, no Impeccable, kill-switch disabled, malformed CLI output) | Note the skip in test output and proceed. **Skip is not a failure.** |
+| `{deferred: ...}` (should not happen for `test` mode in any phase) | Treat as skip and proceed. |
+
+**Why skips don't fail:** The wrapper skips for legitimate reasons (backend project, Impeccable not installed, integration disabled). None of these are test failures. The CLI gate is a value-add on frontend projects — its absence must never block a passing test suite.
+
+**Reporting:** Include a "Design CLI" row in the verification results table:
+
+```markdown
+| Design CLI | {pass/fail/skipped} | {Xs} | {N findings: Y errors, Z warnings} or {skip reason} |
+```
+
+If errors are present, append a Design Findings section before the standard test-failure section:
+
+```markdown
+### Design Findings (Impeccable CLI)
+
+| File | Line | Rule | Severity | Message |
+|------|------|------|----------|---------|
+| {file} | {line} | {rule} | error | {message} |
+```
+
 ## Step 2: Report
 
 Present results using the format from `verification.md` Step 3 for standard checks. For QA and pipeline results, extend the format:
@@ -259,6 +298,8 @@ If the user chooses to fix:
 | Running QA on broken code | Verification must pass before QA is meaningful — types/lint/tests gate QA in `all` mode |
 | Auto-fixing QA failures | QA failures indicate broken user-facing behavior — they need investigation, not automated patches |
 | Skipping QA when stories exist in pipeline | Stories exist to be validated — if `VERIFICATION_PASSED` is set and stories exist, QA must run |
+| Treating Design CLI skip as a test failure | The wrapper skips for legitimate reasons (backend project, Impeccable not installed, kill-switch disabled). None are test failures — only `result: fail` from the wrapper is a gate failure. |
+| Auto-fixing Design CLI findings | Design findings require human judgment — surface them, do not auto-modify code. The Phase 1 wrapper is read-only by design. |
 
 ## Relationship to Other Skills
 
@@ -270,3 +311,4 @@ If the user chooses to fix:
 | `/claude-tweaks:flow` | /flow chains build → [stories →] test → review → wrap-up. /test is the mechanical gate between build/stories and review. |
 | `/claude-tweaks:help` | /help can recommend /test when code changes exist but no review is warranted |
 | `/claude-tweaks:ledger` | Manages the open items ledger. /test appends QA findings and observations with phase `test/qa`. |
+| `/claude-tweaks:design` | /test invokes `/claude-tweaks:design test <files>` as Step 1.5 after the standard suite. Errors fail the gate; warnings and skips do not. The wrapper handles its own detection and availability checks. |

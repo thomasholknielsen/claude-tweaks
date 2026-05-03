@@ -166,6 +166,8 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 
 **`/claude-tweaks:ledger`** — Query and resolve the open items ledger (`docs/plans/*-ledger.md`) that tracks findings across all pipeline phases. The ledger is a file on disk — it survives context window compression so findings from one phase aren't lost before a later phase can act on them.
 
+**`/claude-tweaks:design`** *(v4.5.0-phase1)* — Wrapper for the [Impeccable](https://github.com/pbakaus/impeccable) frontend-design plugin. Invoked by `/test` (deterministic CLI gate via `npx impeccable detect`) and `/review` (LLM `critique` + `audit` for advisory design findings). Handles 3-layer detection (kill-switch / spec frontmatter / file-extension sniff) so non-frontend specs skip cleanly. All Phase 1 modes are read-only — code-modifying behavior (`polish`, `pre-build`, `survey`, `shape`) ships in Phase 2/3 as `{deferred}` stubs today. Set up by `/init` Step 0.9.
+
 ## Common workflows
 
 ```

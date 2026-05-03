@@ -356,6 +356,29 @@ Install: `npm install -g agent-browser`
 Or run `/claude-tweaks:init` to configure browser integration.
 ```
 
+## Step 6.5: Design Quality Pass (Impeccable)
+
+Invoke `/claude-tweaks:design review <spec>` to run Impeccable's `critique` + `audit` commands on the changed UI files. Findings are advisory in Phase 1 — they inform the verdict and surface in the review summary, but are not auto-applied.
+
+**Skip this step entirely when:**
+- Mode is `visual`, `journey`, or `discover` (these delegate entirely to `/visual-review` and skip the analytical review steps)
+
+**Invocation:**
+
+Pass the spec number (or paths) used for this review run. The wrapper resolves changed UI files via its own detection and runs `/impeccable critique` + `/impeccable audit`.
+
+**Result handling:**
+
+| Wrapper return | Review behavior |
+|----------------|-----------------|
+| `{result: "advisory", findings: [...]}` | Include findings in the summary as a "Design Quality" section (see Step 7's template). Findings are advisory — they inform the verdict, but no auto-fixes. |
+| `{skipped: ...}` (non-frontend, no Impeccable, kill-switch disabled, no UI files in diff) | Omit the "Design Quality" section from the summary. Note the skip reason in the summary footer. |
+| `{deferred: ...}` (should not happen for `review` mode in any phase) | Treat as skip and omit the section. |
+
+**Why findings are advisory:** Impeccable critiques are LLM-generated and opinionated. The user judges which findings to action. Phase 1 deliberately keeps the wrapper's `review` mode read-only — code-modifying behavior lives in the `polish` mode (Phase 2). For Phase 1, surfacing findings is the value-add; the user routes them to fixes, deferrals, or accepted decisions through the existing Step 3g resolution flow if they choose.
+
+**Routing into Step 3g (optional):** When the user wants to action design findings inline, treat each as an additional row in the Code Review Findings table with category `Design Quality`. This keeps the resolution mechanics consistent with code-review findings (fix now / defer / accept). When the user opts not to action them inline, they remain in the Design Quality summary section as informational.
+
 ## Step 7: Present Review Summary
 
 Present a structured summary covering spec compliance, test results (from `/test`), code review findings, browser review (if run), implementation hindsight, tradeoffs, simplification, and a verdict (PASS or BLOCKED). The summary must include an Actions Performed table (when autonomous fixes were applied) and a Next Actions block (always). For the complete template and context-signal rules, read `review-summary-template.md` in this skill's directory.
@@ -393,6 +416,8 @@ If no notable learnings emerged, state: "No key learnings — straightforward re
 | Listing code review findings without routing them | Every finding must be explicitly resolved: fix now, defer with context, or don't fix with stated reason. No implicit drops. |
 | Putting findings only in the summary table | The summary records resolutions, not unresolved observations. Route first (Step 3g), then summarize (Step 7). |
 | Running verification or QA directly in review | Mechanical checks belong in `/claude-tweaks:test` — review gates on test passing, it doesn't duplicate the work |
+| Treating Design Quality findings as authoritative | LLM critiques are opinionated — findings are advisory. The user judges which to action. Phase 1 deliberately keeps the design wrapper read-only. |
+| Auto-fixing Design Quality findings in Step 6.5 | Phase 1's design wrapper is read-only — code-modifying behavior ships in Phase 2's polish phase. Findings route through Step 3g if the user wants to action them. |
 
 ## Relationship to Other Skills
 
@@ -413,3 +438,4 @@ If no notable learnings emerged, state: "No key learnings — straightforward re
 | `/claude-tweaks:simplify` | Invoked BY /review (Step 5) on files modified during review. Handles code simplification and re-verification. |
 | `/claude-tweaks:ledger` | Manages the open items ledger. /review appends findings (Step 3g). Hindsight findings (Step 4) are written by /reflect using `review/*` phases. |
 | `/claude-tweaks:help` | /help flags specs awaiting review and recommends `/review` in its pipeline status scan |
+| `/claude-tweaks:design` | /review invokes `/claude-tweaks:design review <spec>` as Step 6.5 to run Impeccable's `critique` + `audit` commands. Findings are advisory, surfaced in the "Design Quality" section of the review summary. The wrapper handles its own detection and availability checks; skips are silent (section omitted). |

@@ -266,6 +266,70 @@ When migrating from a versioned path, announce: "Migrating to wrapper at `<wrapp
 
 **Set `NO_COLOR=1` to disable color** if requested — universal env var, no claude-tweaks-specific override.
 
+### Step 0.9: Impeccable Design Integration (Optional)
+
+claude-tweaks v4.5+ integrates [Impeccable](https://github.com/pbakaus/impeccable) — a frontend-design plugin that ships LLM commands (`critique`, `audit`, `polish`, `bolder`, `delight`, etc.) and a deterministic Node CLI (`impeccable detect`) for catching design anti-patterns. The integration is opt-in and only runs on frontend projects.
+
+**Detect frontend signals from Phase 2 reconnaissance** (or run a quick sniff of the project root if Phase 0 is being run before Phase 2): look for any of `.tsx`, `.jsx`, `.vue`, `.svelte`, `.html`, `.css` files, or directories `components/`, `pages/`, `app/`, `routes/`, `views/`, `ui/`. If none are detected, skip this step entirely — the project is not frontend-facing.
+
+**If frontend is detected, present:**
+
+```
+Detected frontend project. Set up Impeccable design integration?
+
+Impeccable provides design-quality commands invoked by /test (deterministic CLI gate)
+and /review (LLM critique + audit). All findings are advisory in v4.5 — code is
+never auto-modified.
+
+1. Full integration **(Recommended)** — install plugin + CLI, run `/impeccable teach` (writes design context files)
+2. Plugin only — install plugin + CLI, skip `teach` (run later via `/impeccable teach`)
+3. Skip — disable design integration (re-enable later by re-running `/init`)
+```
+
+**For options 1 or 2:**
+
+1. **Install the plugin.** Surface the install command — claude-tweaks does not programmatically install plugins:
+
+   ```
+   /plugin install impeccable@<marketplace>
+   ```
+
+   Verify by checking that `/impeccable` resolves to a skill in the next session (the harness reloads skills after install). If verification fails, note that the plugin install must complete before downstream features work.
+
+2. **Install the CLI.** Offer the global install with `npx` fallback:
+
+   ```bash
+   npm install -g impeccable
+   ```
+
+   Verify with `npx impeccable --version`. If npm/npx are unavailable, surface the install command and let the user proceed manually.
+
+3. **For option 1 only — run `/impeccable teach`.** This generates project-specific design context files (typically `docs/design/PRODUCT.md` and `docs/design/DESIGN.md`, but actual paths are determined by Impeccable). Skip on option 2.
+
+4. **Write the kill-switch flag to CLAUDE.md.** Add (or update) a `## Design integration` section near the existing project-level config sections:
+
+   ```markdown
+   ## Design integration
+
+   design-integration: enabled
+   ```
+
+   Use the appropriate value:
+
+   | Choice | Flag value |
+   |--------|-----------|
+   | Option 1 (Full) | `enabled` |
+   | Option 2 (Plugin only) | `plugin-only` |
+   | Option 3 (Skip) | `disabled` |
+
+   The `/claude-tweaks:design` wrapper reads this flag as Layer 1 of its detection logic. Missing flag is treated identically to `disabled` — design integration only activates when explicitly enabled by `/init`.
+
+**For option 3:** Write `design-integration: disabled` to CLAUDE.md and continue. The wrapper short-circuits universally — no CLI calls, no LLM invocations, no token cost.
+
+**Re-run behavior:** When `/init` is re-run on a project where `design-integration: enabled`, offer to re-run `/impeccable teach` to refresh the design context files (the codebase may have evolved since the last run). When the flag is `plugin-only` or `disabled`, offer the upgrade path back to full integration.
+
+**Failure handling:** If the plugin or CLI install fails, do not abort `/init` — surface the failure and continue with `design-integration: disabled` until the user resolves it. The wrapper's availability checks gracefully skip when dependencies are absent.
+
 ---
 
 ## Scope Selection Gate
@@ -814,5 +878,6 @@ Execute only after user confirmation.
 | `/claude-tweaks:wrap-up` | Captures learnings after features — keeps generated skills alive and accurate. Step 7 references `skill-template.md` from /claude-tweaks:init's directory. /wrap-up Step 6 maintains the doc registry created by /init. |
 | `/claude-tweaks:tidy` | /tidy Step 4.6 audits doc registry health — flags stale entries, gaps, pattern drift. Suggests `/init update` for tier drift. |
 | `/claude-tweaks:browse` | Depends on `agent-browser`, which /claude-tweaks:init detects (and surfaces install instructions for) in Phase 0 |
+| `/claude-tweaks:design` | Phase 0.9 sets up Impeccable design integration (install plugin + CLI, optionally run `teach`) and writes the `design-integration` kill-switch flag to CLAUDE.md that the wrapper reads as Layer 1 of its detection logic. |
 | `/using-git-worktrees` | /claude-tweaks:init optionally configures the worktree directory that `using-git-worktrees` needs |
 | All workflow skills | Depend on the structure /claude-tweaks:init creates |
