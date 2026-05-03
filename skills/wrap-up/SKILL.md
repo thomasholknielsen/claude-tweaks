@@ -123,6 +123,18 @@ Search `~/.claude/plans/` for related plans → **delete them**.
 
 Delete the open items ledger using the ledger skill's delete operation (see `/claude-tweaks:ledger`). All items must have been resolved by the nothing-left-behind gate (Step 9.5).
 
+### Design wrapper caches (v4.5.0)
+
+Delete the per-spec caches written by `/claude-tweaks:design` alongside the ledger:
+
+- `docs/plans/YYYY-MM-DD-{feature}-audit.json` — written by `review` mode; consumed by `polish`. Stale after the spec ships.
+- `docs/plans/YYYY-MM-DD-{feature}-recommendations.json` — written by `survey` mode (via `/flow` pipeline summary). Used to detect declines on re-runs; obsolete once the spec is wrapped up.
+- `docs/plans/YYYY-MM-DD-{feature}-declined.json` — written by `/flow` decline detection. Obsolete once the spec is wrapped up.
+
+Resolve each path using the same date+feature prefix as the ledger filename. Glob `docs/plans/*-audit.json`, `*-recommendations.json`, and `*-declined.json` matching the spec slug as a fallback when the ledger filename is unavailable. Missing files are not errors — they mean the spec did not exercise the corresponding mode.
+
+Cleanup is silent — no user prompt. The caches are pipeline state, not user-authored content. Resolves the Phase 2 carry-over open item flagged in `skills/design/SKILL.md` (audit cache cleanup); recommendations + declined caches use the same pattern.
+
 ### Git Worktree (worktree strategy only)
 
 If the build used worktree git strategy, clean up the worktree directory:
@@ -325,6 +337,7 @@ Overall: {X}% complete
 - [ ] Update INDEX.md
 - [ ] Delete plans from docs/plans/
 - [ ] Delete open items ledger
+- [ ] Delete design wrapper caches (audit / recommendations / declined) from docs/plans/
 - [ ] Remove worktree and feature branch (if worktree strategy)
 - [ ] Leftover work: {recommendation}
 
@@ -354,6 +367,7 @@ Resolved in Step 7.5 — {N} updates applied / 0 updates needed.
 | Operational | Updated `specs/INDEX.md` | `{hash}` |
 | Operational | Deleted plans `docs/plans/{files}` | — |
 | Operational | Deleted ledger | — |
+| Operational | Deleted design wrapper caches (`*-audit.json`, `*-recommendations.json`, `*-declined.json`) | — |
 | Operational | Removed worktree `{path}`, deleted branch `{branch}` | — |
 | Ledger fix | {item} ({phase}) — {resolution} | `{hash}` |
 
@@ -447,3 +461,4 @@ Commit with a message summarizing the wrap-up actions.
 | `/finishing-a-development-branch` | When build used worktree git strategy, wrap-up verifies the feature branch was completed (merged, PR created, or discarded), then removes the worktree directory and deletes the merged branch (Step 5) |
 | `/claude-tweaks:init` | Step 7 references `skill-template.md` for Update Mode format and quality gates. /wrap-up Step 6 maintains the doc registry created by /init Phase 8.5. |
 | `/claude-tweaks:ledger` | Manages the open items ledger. /wrap-up appends reflection insights (Step 3), runs the resolve gate (Step 9.5), and deletes the ledger (Step 5). |
+| `/claude-tweaks:design` | /wrap-up Step 5 cleans up the design wrapper's per-spec caches (`*-audit.json`, `*-recommendations.json`, `*-declined.json` in `docs/plans/`) alongside the ledger — consistent with the artifact-cleanup pattern for pipeline state. |

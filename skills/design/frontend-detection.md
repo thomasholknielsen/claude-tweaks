@@ -66,7 +66,7 @@ A backend project that touches only `.ts`/`.js` files outside `/components/`, `/
 
 ## Layer 2 — Frontmatter spec (read by wrapper, written by `/specify`)
 
-Spec files in `specs/*.md` may declare two design-related frontmatter fields: `surface:` and `design-intent:`. Phase 2's `/specify` writes both on every new spec. Phase 2's wrapper reads `surface:` for Layer 2 detection; `design-intent:` is read but not yet acted on (Phase 3 activates intent dispatch).
+Spec files in `specs/*.md` may declare two design-related frontmatter fields: `surface:` and `design-intent:`. `/specify` writes both on every new spec. The wrapper reads `surface:` for Layer 2 detection and `design-intent:` for `polish` mode's intent-driven dispatch (active in v4.5.0).
 
 **The canonical definition of these fields lives in the spec template** at `skills/specify/spec-template.md` (see the "Frontmatter reference (canonical spec)" section). Both the wrapper (which reads the fields) and `/specify` (which writes them) reference that single source of truth — do not duplicate the value enumerations across multiple files.
 
@@ -78,7 +78,7 @@ For Layer 2 detection:
 | `backend` or `infra` | Skip — return `{skipped: "non-frontend spec (surface declared)"}` |
 | *(missing)* | Fall through to Layer 3 sniff — pre-Phase-2 specs lack this field |
 
-`design-intent:` is not read in Layer 2 — it gates Phase 3's intent-driven command dispatch in `polish` mode. The full enumeration lives in the spec template's frontmatter reference section.
+`design-intent:` is not read in Layer 2 — it gates intent-driven command dispatch in `polish` mode (active in v4.5.0). The full enumeration lives in the spec template's frontmatter reference section.
 
 ## Detection precedence summary
 

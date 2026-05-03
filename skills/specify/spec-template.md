@@ -139,7 +139,7 @@ surface: frontend  # frontend | backend | infra | mixed
 
 ### `design-intent:` field
 
-Declares the spec's creative direction. Used by Phase 3's intent-driven dispatch in `polish` mode. Phase 2 reads but does not act on the field; Phase 3 will dispatch the matching command.
+Declares the spec's creative direction. Used by `polish` mode's intent-driven dispatch (active in v4.5.0). The wrapper reads the field and invokes the matching command(s) on the changed UI files.
 
 ```yaml
 design-intent: bold  # bold | quiet | minimal | delightful | onboarding | none
@@ -147,13 +147,13 @@ design-intent: bold  # bold | quiet | minimal | delightful | onboarding | none
 design-intent: delightful, onboarding
 ```
 
-| Value | Meaning | Phase 3 dispatch (forward-compat) |
-|-------|---------|-----------------------------------|
-| `bold` | Eye-catching, confident — wants visual weight and presence | `/impeccable bolder <files>` becomes eligible |
-| `quiet` | Restrained, refined — wants to recede and let content lead | `/impeccable quieter <files>` becomes eligible |
-| `minimal` | Strip to essence — wants reduction, not addition | `/impeccable distill <files>` becomes eligible (intent-only — avoids conflict with `/simplify`) |
-| `delightful` | Personality, micro-interactions — wants to surprise the user | `/impeccable delight <files>` becomes eligible |
-| `onboarding` | First-run flows, empty states — wants to teach the user the surface | `/impeccable onboard <files>` becomes eligible |
+| Value | Meaning | Polish-phase dispatch (active) |
+|-------|---------|--------------------------------|
+| `bold` | Eye-catching, confident — wants visual weight and presence | `/impeccable bolder <files>` |
+| `quiet` | Restrained, refined — wants to recede and let content lead | `/impeccable quieter <files>` |
+| `minimal` | Strip to essence — wants reduction, not addition | `/impeccable distill <files>` (intent-only — avoids conflict with `/simplify`) |
+| `delightful` | Personality, micro-interactions — wants to surprise the user | `/impeccable delight <files>` then `/impeccable animate <files>` (fixed pairing) |
+| `onboarding` | First-run flows, empty states — wants to teach the user the surface | `/impeccable onboard <files>` |
 | `none` | No specific creative direction — auto-fit + issue-driven only | No intent-driven commands run |
 | *(missing)* | Treated as `none` | Same as `none` |
 

@@ -345,6 +345,24 @@ If the marker is already set (re-verify already ran in this flow), this is a pro
 
 **Nothing-left-behind gate:** Run the resolve gate from `/claude-tweaks:ledger`. If any item has status `open`, present it for resolution -- no item may remain `open`. The pipeline cannot complete with unresolved items.
 
+**Creative Opportunities survey (v4.5.0).** Before rendering the summary, invoke `/claude-tweaks:design survey <changed-files>` against the full diff produced by the pipeline. The wrapper analyzes the diff heuristically (no screenshots are passed — `/flow` does not maintain its own browser session) and returns ranked recommendations for creative commands the user might want to run manually. Render the recommendations as a Creative Opportunities block (template below) before the Next Actions block.
+
+Handle the wrapper return:
+
+| Return shape | Action |
+|--------------|--------|
+| `{result: "ok", recommendations: [...]}` non-empty | Render the Creative Opportunities block from the template. Write the wrapper's `recommendations` cache (the wrapper does this itself — `docs/plans/...-recommendations.json`). |
+| `{result: "ok", recommendations: []}` | Omit the block. Survey ran but matched nothing — not a failure. |
+| `{skipped: ...}` | Omit the block. Skip reasons are non-frontend, no Impeccable, integration disabled — none of these warrant surfacing in the summary. |
+
+**Decline detection (Phase 3).** Before invoking survey, read the prior `docs/plans/...-recommendations.json` cache (if it exists) for this spec. After the new pipeline diff is final (post-polish, post-re-verify), compare the prior recommendations against the diff:
+
+- For each prior recommendation, check whether its expected file changes appear in the new diff. The expected change is "the suggested command was invoked and modified the recommended page" — heuristic: file paths that the recommendation's `page` substring matches AND have a polish-style diff signature (touched between the previous and current pipeline run).
+- For prior recommendations whose expected changes did NOT appear, increment `decline_count` for that `(command, page)` in `docs/plans/...-declined.json`. Initialize the entry if absent.
+- The wrapper's survey call (next step) reads this declined cache and suppresses observations whose `decline_count >= 2`.
+
+Decline detection runs only when a prior recommendations cache exists for the same spec. First-run flows have no prior recommendations to compare against — skip detection silently. Reset path for the user: `/claude-tweaks:design reset-recommendations <spec>` deletes the declined cache.
+
 On successful completion of all steps:
 
 ```markdown
@@ -381,6 +399,19 @@ On successful completion of all steps:
 | Action | Detail | Ref |
 |--------|--------|-----|
 | {rows from build, stories, review, polish, wrap-up phases} | ... | ... |
+
+### Creative Opportunities
+
+The polish phase ran the auto-fit + issue-driven + intent-driven commands. These could enhance the result further:
+
+| Command | Why it might help |
+|---------|------------------|
+| `/impeccable colorize dashboard` | Heavy monochrome — strategic accent color recommended |
+| `/impeccable animate settings` | Toggle interactions are static |
+
+Each is a one-shot manual command; flow does not run these automatically.
+
+> Render this block only when `survey` returned `recommendations` non-empty. When the wrapper reports `suppressed > 0`, append: `> N suggestion(s) hidden — previously declined for this spec. Reset with /claude-tweaks:design reset-recommendations <spec>.` Omit the entire section when the wrapper returned `recommendations: []` or `{skipped}`.
 
 ### Next Actions
 
@@ -523,6 +554,9 @@ For each completed branch (in order):
 | Treating polish skip as a flow failure | Polish skips are normal — non-frontend specs, no Impeccable, `no-polish` flag, no audit findings + no auto-fit changes needed all skip cleanly. The pipeline continues to wrap-up. |
 | Running re-verify without `skip-qa` | Browser QA is irrelevant after stylistic-only polish — re-verify uses `/test skip-qa` to keep the cycle fast. The Design CLI gate still runs (it is not QA). |
 | Using `no-polish` on a frontend spec by reflex | Polish is the value-add for frontend specs — only set `no-polish` when iterating fast or when the user has manually run Impeccable polish before flow. |
+| Auto-running creative commands surfaced in the Creative Opportunities block | The block is recommendations only. Flow never executes Impeccable creative commands from survey output — the user invokes them manually if a suggestion resonates. |
+| Rendering the Creative Opportunities block when survey returned empty or skipped | Survey is heuristic. An empty result means "nothing matched the criteria," not "design is complete." Rendering an empty block falsely implies completeness. Omit the block entirely. |
+| Skipping decline detection on re-runs of the same spec | The declined-recommendations cache is what keeps the Creative Opportunities block from becoming noise across iterations. Read the prior recommendations cache, compare against the new diff, increment declines for un-invoked recommendations before invoking survey. |
 
 ## Relationship to Other Skills
 
@@ -541,4 +575,4 @@ For each completed branch (in order):
 | `/using-git-worktrees` | Invoked BY flow (when `worktree` specified) to create isolated workspace for each spec |
 | `/finishing-a-development-branch` | Invoked BY flow (when `worktree` specified) at handoff to merge, PR, or discard each feature branch |
 | `/claude-tweaks:ledger` | Manages the open items ledger. /flow creates the ledger (Step 1), carries it across phases, and runs the resolve gate (Step 3). |
-| `/claude-tweaks:design` | /flow invokes `/claude-tweaks:design polish <spec>` (Phase 2 polish phase) after review verdict PASS. The wrapper handles its own detection (non-frontend skips); when polish modifies code, /flow follows up with `/test skip-qa` (re-verify gate, one-cycle cap). The `no-polish` argument removes the polish phase entirely. |
+| `/claude-tweaks:design` | /flow invokes `/claude-tweaks:design polish <spec>` after review verdict PASS (auto-fit + issue-driven + intent-driven dispatch — v4.5.0). The wrapper handles its own detection (non-frontend skips); when polish modifies code, /flow follows up with `/test skip-qa` (re-verify gate, one-cycle cap). The `no-polish` argument removes the polish phase entirely. /flow's pipeline summary also invokes `/claude-tweaks:design survey <full-diff>` to render the Creative Opportunities block (anchor 3 of v4.5.0's creative surfacing system); /flow handles decline detection by comparing the prior recommendations cache against the new diff before each survey call. |

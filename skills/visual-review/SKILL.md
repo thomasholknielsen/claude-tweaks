@@ -175,6 +175,41 @@ agent-browser --session <session> trace save traces/<session>/<timestamp>.zip
 
 Include the trace path in the failure report. Then close the session. View later with `agent-browser trace view <path>`. There is no automatic retention policy — users manage cleanup.
 
+## Step 4: Creative Opportunities Survey
+
+After the visual review report is assembled (per `browser-review.md` Step 6: Report & Route), invoke the `/claude-tweaks:design` wrapper's `survey` mode to surface ranked Creative Opportunities — recommendations for which Impeccable creative commands (`bolder` / `delight` / `animate` / `colorize` / `extract` / `onboard` / `quieter` / `distill` / `overdrive`) might enhance the reviewed pages.
+
+```
+/claude-tweaks:design survey <changed-files> --screenshots <captured-paths>
+```
+
+Pass:
+- The file list scoped to the review (from `git diff --name-only` or the spec's file list).
+- The annotated screenshot paths captured during review (`screenshots/browse/<session>/*.png`) — the wrapper analyzes each per the criteria table in `command-map.md`.
+
+Handle the wrapper's return:
+
+| Return shape | Action |
+|--------------|--------|
+| `{result: "ok", recommendations: [...]}` with non-empty list | Render the Creative Opportunities block (template below) appended to the review report. |
+| `{result: "ok", recommendations: []}` | Omit the block entirely — no opportunities surfaced is a valid outcome, not a failure. |
+| `{skipped: ...}` | Omit the block. Note the skip reason inline only when it would surprise the user (e.g., "Creative survey skipped — Impeccable plugin not installed"). |
+
+### Creative Opportunities block template
+
+```markdown
+### Creative Opportunities (from /visual-review)
+
+| Page | Observation | Suggested command |
+|------|------------|-------------------|
+| /pricing | Hero feels generic — pure black on white, no personality | `/impeccable bolder pricing` |
+| /empty-cart | Empty state shows only "No items" text | `/impeccable delight empty-cart` |
+
+> These are recommendations only. Run any command manually if you want to apply it.
+```
+
+When the wrapper reports `suppressed > 0` in its return, append a small note below the table: `> N suggestion(s) hidden — previously declined for this spec. Reset with /claude-tweaks:design reset-recommendations <spec>.`
+
 ## Standalone Next Actions
 
 When invoked directly (not by a parent skill), end with:
@@ -204,6 +239,8 @@ When invoked by `/review`, omit Next Actions — the parent handles flow control
 | Closing the session before saving a trace on failure | Failure reports without a trace path are not actionable — `trace save` first, then `close` |
 | Per-step `agent-browser` invocations during journey walks | Use `batch` for journey walks — one process, one session lifecycle, fewer tokens and less latency |
 | Batching across sessions | One `agent-browser batch` invocation owns a single session — never mix session names |
+| Auto-running commands suggested by the Creative Opportunities block | The block is recommendations only. The user invokes any command manually. /visual-review never executes Impeccable creative commands directly. |
+| Rendering the Creative Opportunities block when the wrapper returned `recommendations: []` or `{skipped}` | An empty result is a valid outcome — omit the block entirely. Surfacing "no opportunities found" as positive signal is misleading because survey is heuristic, not exhaustive. |
 
 ## Relationship to Other Skills
 
@@ -217,3 +254,4 @@ When invoked by `/review`, omit Next Actions — the parent handles flow control
 | `/claude-tweaks:flow` | /flow invokes /review in full mode, which delegates to /visual-review for the browser portion. |
 | `/claude-tweaks:init` | Detects `agent-browser` availability during setup. Phase 7 delegates to /visual-review discover for brownfield journey bootstrapping. |
 | `/claude-tweaks:capture` | /visual-review may recommend capturing ideas surfaced during the review. |
+| `/claude-tweaks:design` | After the review report is assembled, /visual-review invokes `/claude-tweaks:design survey` with the captured screenshot paths and renders the resulting Creative Opportunities block in the report (anchor 2 of v4.5.0's creative surfacing system). The wrapper handles its own detection (non-frontend skips); the block is omitted when the wrapper returns no recommendations. |
