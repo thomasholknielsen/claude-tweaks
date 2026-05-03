@@ -149,11 +149,11 @@ design-intent: delightful, onboarding
 
 | Value | Meaning | Polish-phase dispatch (active) |
 |-------|---------|--------------------------------|
-| `bold` | Eye-catching, confident — wants visual weight and presence | `/impeccable bolder <files>` |
-| `quiet` | Restrained, refined — wants to recede and let content lead | `/impeccable quieter <files>` |
-| `minimal` | Strip to essence — wants reduction, not addition | `/impeccable distill <files>` (intent-only — avoids conflict with `/simplify`) |
-| `delightful` | Personality, micro-interactions — wants to surprise the user | `/impeccable delight <files>` then `/impeccable animate <files>` (fixed pairing) |
-| `onboarding` | First-run flows, empty states — wants to teach the user the surface | `/impeccable onboard <files>` |
+| `bold` | Eye-catching, confident — wants visual weight and presence | `/impeccable:impeccable bolder <files>` |
+| `quiet` | Restrained, refined — wants to recede and let content lead | `/impeccable:impeccable quieter <files>` |
+| `minimal` | Strip to essence — wants reduction, not addition | `/impeccable:impeccable distill <files>` (intent-only — avoids conflict with `/simplify`) |
+| `delightful` | Personality, micro-interactions — wants to surprise the user | `/impeccable:impeccable delight <files>` then `/impeccable:impeccable animate <files>` (fixed pairing) |
+| `onboarding` | First-run flows, empty states — wants to teach the user the surface | `/impeccable:impeccable onboard <files>` |
 | `none` | No specific creative direction — auto-fit + issue-driven only | No intent-driven commands run |
 | *(missing)* | Treated as `none` | Same as `none` |
 

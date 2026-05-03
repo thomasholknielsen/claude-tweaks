@@ -406,8 +406,8 @@ The polish phase ran the auto-fit + issue-driven + intent-driven commands. These
 
 | Command | Why it might help |
 |---------|------------------|
-| `/impeccable colorize dashboard` | Heavy monochrome — strategic accent color recommended |
-| `/impeccable animate settings` | Toggle interactions are static |
+| `/impeccable:impeccable colorize dashboard` | Heavy monochrome — strategic accent color recommended |
+| `/impeccable:impeccable animate settings` | Toggle interactions are static |
 
 Each is a one-shot manual command; flow does not run these automatically.
 

@@ -365,7 +365,7 @@ Invoke `/claude-tweaks:design review <spec>` to run Impeccable's `critique` + `a
 
 **Invocation:**
 
-Pass the spec number (or paths) used for this review run. The wrapper resolves changed UI files via its own detection and runs `/impeccable critique` + `/impeccable audit`.
+Pass the spec number (or paths) used for this review run. The wrapper resolves changed UI files via its own detection and runs `/impeccable:impeccable critique` + `/impeccable:impeccable audit`.
 
 **Result handling:**
 

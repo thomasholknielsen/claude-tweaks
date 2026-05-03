@@ -45,8 +45,8 @@ Reference table for every Impeccable command, categorized by how the wrapper dis
 
 The wrapper's `review` mode (Phase 1) invokes exactly two commands:
 
-1. `/impeccable critique <files>` — qualitative critique pass
-2. `/impeccable audit <files>` — heuristic audit pass
+1. `/impeccable:impeccable critique <files>` — qualitative critique pass
+2. `/impeccable:impeccable audit <files>` — heuristic audit pass
 
 Both run on the changed UI files resolved by the preconditions (Layer 3 sniff). Outputs are merged into a normalized findings list and returned to `/review` as `result: advisory`. Phase 2 adds a side effect — the audit findings are also written to `docs/plans/...-audit.json` for later consumption by `polish` mode.
 
@@ -68,9 +68,9 @@ Run unconditionally on the changed UI files:
 
 | Command | Purpose |
 |---------|---------|
-| `/impeccable polish <files>` | Final design system alignment |
-| `/impeccable clarify <files>` | UX copy improvement |
-| `/impeccable harden <files>` | Error handling, i18n, edge cases |
+| `/impeccable:impeccable polish <files>` | Final design system alignment |
+| `/impeccable:impeccable clarify <files>` | UX copy improvement |
+| `/impeccable:impeccable harden <files>` | Error handling, i18n, edge cases |
 
 These three are deterministic enough that running them on every frontend polish phase is net-positive. They never depend on audit signal.
 
@@ -80,10 +80,10 @@ Read the audit findings cache written by `review` mode (`docs/plans/...-audit.js
 
 | Audit category keyword (substring match) | Command dispatched |
 |------------------------------------------|---------------------|
-| `typography`, `font`, `text-hierarchy`, `headings` | `/impeccable typeset <files>` |
-| `spacing`, `layout`, `grid`, `padding`, `margin`, `whitespace` | `/impeccable layout <files>` |
-| `responsive`, `breakpoint`, `mobile`, `tablet`, `viewport`, `adaptive` | `/impeccable adapt <files>` |
-| `performance`, `bundle`, `render`, `slow`, `lazy-load`, `lcp`, `cls` | `/impeccable optimize <files>` |
+| `typography`, `font`, `text-hierarchy`, `headings` | `/impeccable:impeccable typeset <files>` |
+| `spacing`, `layout`, `grid`, `padding`, `margin`, `whitespace` | `/impeccable:impeccable layout <files>` |
+| `responsive`, `breakpoint`, `mobile`, `tablet`, `viewport`, `adaptive` | `/impeccable:impeccable adapt <files>` |
+| `performance`, `bundle`, `render`, `slow`, `lazy-load`, `lcp`, `cls` | `/impeccable:impeccable optimize <files>` |
 
 When multiple findings match the same category, the wrapper dispatches the command **once** with the union of affected files (de-duplicated). When findings span multiple categories, dispatch each command separately.
 
@@ -93,11 +93,11 @@ Read `design-intent:` from spec frontmatter (written by Phase 2's `/specify`). F
 
 | `design-intent:` value | Commands invoked (Phase 3) |
 |------------------------|----------------------------|
-| `bold` | `/impeccable bolder <files>` |
-| `quiet` | `/impeccable quieter <files>` |
-| `minimal` | `/impeccable distill <files>` (intent-only — avoids conflict with `/simplify`) |
-| `delightful` | `/impeccable delight <files>` + `/impeccable animate <files>` |
-| `onboarding` | `/impeccable onboard <files>` |
+| `bold` | `/impeccable:impeccable bolder <files>` |
+| `quiet` | `/impeccable:impeccable quieter <files>` |
+| `minimal` | `/impeccable:impeccable distill <files>` (intent-only — avoids conflict with `/simplify`) |
+| `delightful` | `/impeccable:impeccable delight <files>` + `/impeccable:impeccable animate <files>` |
+| `onboarding` | `/impeccable:impeccable onboard <files>` |
 | `none` (or missing) | No intent commands run |
 
 **Multi-intent ordering.** When multiple intents dispatch, run them in the order declared by the user. The pairing for `delightful` (`delight` first, then `animate`) is fixed — `delight` adds personality content (empty states, microcopy), `animate` adds motion to the interactions; reversing them risks animating placeholder content. The intent dispatches share the polish phase's single re-verify cap (one re-verify cycle per `/flow` run regardless of how many intent commands ran).

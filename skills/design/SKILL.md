@@ -26,9 +26,9 @@ Wrapper skill that encapsulates the Impeccable design-quality plugin behind a st
 ## When to Use
 
 - `/claude-tweaks:test` invokes `test` mode after the standard verification suite — runs `npx impeccable detect` as a frontend anti-pattern gate
-- `/claude-tweaks:review` invokes `review` mode during code review — runs `/impeccable critique` + `/impeccable audit` and surfaces findings advisorily
+- `/claude-tweaks:review` invokes `review` mode during code review — runs `/impeccable:impeccable critique` + `/impeccable:impeccable audit` and surfaces findings advisorily
 - `/claude-tweaks:build` invokes `pre-build` mode before implementation — lazy-loads design references into the build subagent's context
-- `/claude-tweaks:specify` invokes `shape` mode before decomposition — runs `/impeccable shape <topic>` and appends the output to the design doc
+- `/claude-tweaks:specify` invokes `shape` mode before decomposition — runs `/impeccable:impeccable shape <topic>` and appends the output to the design doc
 - `/claude-tweaks:flow` invokes `polish` mode after review passes — dispatches auto-fit + issue-driven + intent-driven Impeccable commands; modifies code
 - `/claude-tweaks:visual-review` invokes `survey` mode after browser review — produces a Creative Opportunities recommendations block from the captured screenshots
 - `/claude-tweaks:flow` invokes `survey` mode in the pipeline summary — produces a Creative Opportunities block from the full diff
@@ -41,10 +41,10 @@ Wrapper skill that encapsulates the Impeccable design-quality plugin behind a st
 
 | Mode | Target | Behavior |
 |------|--------|----------|
-| `shape <topic>` | Topic name | Invokes `/impeccable shape <topic>`; returns the output for the caller to append to the design doc |
-| `pre-build <spec>` | Spec number or path | Lazy-loads relevant Impeccable reference files plus project's `docs/design/PRODUCT.md` + `DESIGN.md` (when present); returns the loaded file paths and an approximate context size |
+| `shape <topic>` | Topic name | Invokes `/impeccable:impeccable shape <topic>`; returns the output for the caller to append to the design doc |
+| `pre-build <spec>` | Spec number or path | Lazy-loads relevant Impeccable reference files plus project's root `PRODUCT.md` + `DESIGN.md` (when present); returns the loaded file paths and an approximate context size |
 | `test <files>` | Space-separated file list | Runs `npx impeccable detect --fast --json` on the files; returns pass/fail |
-| `review <spec>` | Spec number or path | Invokes `/impeccable critique` + `/impeccable audit` on changed UI files; returns advisory findings; writes findings cache for `polish` mode to read |
+| `review <spec>` | Spec number or path | Invokes `/impeccable:impeccable critique` + `/impeccable:impeccable audit` on changed UI files; returns advisory findings; writes findings cache for `polish` mode to read |
 | `polish <spec>` | Spec number or path | Dispatches auto-fit (`polish`/`clarify`/`harden`) + issue-driven (`typeset`/`layout`/`adapt`/`optimize`) + intent-driven (per `design-intent:` frontmatter) commands per `command-map.md`; modifies code |
 | `survey <files>` | Space-separated file list, or `--screenshots <paths>` when invoked from `/visual-review` | Analyzes the diff (and screenshots when provided) and returns ranked Creative Opportunities recommendations; suppresses recommendations the user previously declined for the same spec; read-only |
 | `reset-recommendations <spec>` | Spec number or path | Deletes the declined-recommendations cache for the spec; the next `survey` call surfaces all matching recommendations again |
@@ -101,8 +101,8 @@ For the dispatched mode, verify the dependency is available:
 | Mode | Required | Verify by |
 |------|----------|-----------|
 | `test` | Impeccable CLI | Run `npx impeccable --version` via Bash. Exit 0 with version string → available. Non-zero or no output → unavailable. |
-| `review` | Impeccable plugin (LLM commands) | Check whether `/impeccable` skill resolves. Look for `/impeccable*` in the available skills list provided by the harness. If none resolve, treat as unavailable. |
-| `shape` | Impeccable plugin (LLM commands) | Same as `review` — checks for `/impeccable*` skill resolution. |
+| `review` | Impeccable plugin (LLM commands) | Check whether `/impeccable:impeccable` skill resolves. Look for `/impeccable:impeccable*` in the available skills list provided by the harness. If none resolve, treat as unavailable. |
+| `shape` | Impeccable plugin (LLM commands) | Same as `review` — checks for `/impeccable:impeccable*` skill resolution. |
 | `pre-build` | Impeccable plugin (reference files) | Same as `review`. The reference files ship with the plugin; if the plugin resolves, the references are available. |
 | `polish` | Impeccable plugin (LLM commands) | Same as `review` — `polish`/`clarify`/`harden` and the issue-driven commands all live in the plugin. |
 
@@ -118,7 +118,7 @@ On unavailable:
 Install hints (use the appropriate one for the mode):
 
 - **CLI:** `npm install -g impeccable` (verify with `npx impeccable --version`)
-- **Plugin:** `/plugin install impeccable@<marketplace>` (verify by checking `/impeccable` skill resolves)
+- **Plugin:** `/plugin install impeccable@<marketplace>` (verify by checking `/impeccable:impeccable` skill resolves)
 
 **De-dupe:** Track availability-skip warnings via an in-memory marker for the session. If the same mode skips twice for the same reason in a session, surface only the first skip in the response and keep the rest silent. The marker is per-process (in-memory) — there is no on-disk state.
 
@@ -154,8 +154,8 @@ Warnings are included in the findings list but do not cause `result: fail`. Call
 2. Resolve the changed UI files. If `<spec>` was passed and the spec lists scoped files, intersect with `git diff --name-only`. Otherwise use the full diff filtered to frontend extensions/paths (Layer 3 rules).
 3. If zero files remain after filtering, return `{skipped: "no UI files changed"}`.
 4. Invoke the Impeccable LLM commands via the Skill tool:
-   - `/impeccable critique <files>` — qualitative critique
-   - `/impeccable audit <files>` — heuristic audit pass
+   - `/impeccable:impeccable critique <files>` — qualitative critique
+   - `/impeccable:impeccable audit <files>` — heuristic audit pass
 5. Collect both outputs. Parse each into a normalized findings list:
 
 ```json
@@ -200,7 +200,7 @@ Warnings are included in the findings list but do not cause `result: fail`. Call
 
 1. Run preconditions, **skipping Layer 2** (no spec exists yet — the caller is `/specify` working from a design doc, not a numbered spec). Layer 1 (kill-switch) and the availability check still apply. Layer 3 sniff is optional — `/specify` already determined frontend before invoking; the wrapper trusts that determination here.
 2. On any skip, return the skip object — the caller continues without the shape pre-step.
-3. Invoke the Impeccable LLM command via the Skill tool: `/impeccable shape <topic>`.
+3. Invoke the Impeccable LLM command via the Skill tool: `/impeccable:impeccable shape <topic>`.
 4. Capture the full output text. Do not parse — the caller (`/specify`) will append it verbatim to the design doc.
 5. Return:
 
@@ -208,7 +208,7 @@ Warnings are included in the findings list but do not cause `result: fail`. Call
 {
   "mode": "shape",
   "result": "ok",
-  "output": "<full text from /impeccable shape>"
+  "output": "<full text from /impeccable:impeccable shape>"
 }
 ```
 
@@ -223,11 +223,11 @@ Shape mode is read-only with respect to source code (it produces planning text, 
    - **Add `responsive-design.md`** when the spec mentions breakpoints, mobile, tablet, responsive, or viewport
    - **Add `interaction-design.md`** when the spec mentions hover/focus states, keyboard navigation, or interactive controls
    - **Add `ux-writing.md`** when the spec mentions copy, microcopy, error messages, empty states, or labels
-3. Reference files live inside the Impeccable plugin's skill directory. The wrapper does not bundle them — it lazy-loads them into the build subagent's context via the Skill tool's read of `/impeccable` (the plugin exposes them; consult the Impeccable plugin's own SKILL.md for the canonical paths). When a reference cannot be located, note the miss and continue with what was loaded.
+3. Reference files live inside the Impeccable plugin's skill directory. The wrapper does not bundle them — it lazy-loads them into the build subagent's context via the Skill tool's read of `/impeccable:impeccable` (the plugin exposes them; consult the Impeccable plugin's own SKILL.md for the canonical paths). When a reference cannot be located, note the miss and continue with what was loaded.
 4. **Project design context (lazy-load when present):**
-   - **Assumed paths (per Phase 1's `/init` Step 0.9 documentation):** `docs/design/PRODUCT.md` and `docs/design/DESIGN.md`. These are produced by `/impeccable teach`.
-   - **Fallback discovery (TODO — verify against actual `/impeccable teach` output):** Glob `docs/design/*.md` to catch alternative locations. The Phase 1 implementation report flagged that the `teach` output paths could not be verified against a running Impeccable installation; the assumed paths are documented but the wrapper falls back to glob discovery so a path mismatch does not silently break `pre-build`.
-   - Read each discovered file and include it in the loaded set. Missing project files are not errors — they mean `/impeccable teach` was not run or wrote elsewhere.
+   - **Canonical paths:** `PRODUCT.md` and `DESIGN.md` at the project root. These are written by `/impeccable:impeccable teach` (PRODUCT) and `/impeccable:impeccable document` (DESIGN). Confirmed against Impeccable's official documentation (https://impeccable.style/).
+   - **Fallback discovery:** If neither file is present at root, glob `docs/design/*.md` and `docs/PRODUCT.md`, `docs/DESIGN.md` as a defensive secondary location. Missing files are not errors — they mean `/impeccable:impeccable teach` and `document` have not been run yet.
+   - Read each discovered file and include it in the loaded set.
 5. Return the loaded paths and an approximate context size:
 
 ```json
@@ -257,22 +257,22 @@ The `context_size` is a rough estimate (`bytes / 4`) — used by `/build` to dec
    - If no cache file is found, proceed without issue-driven dispatch — only auto-fit commands run.
    - If the cache exists but is older than the most recent commit on the spec's branch, treat as stale and skip issue-driven dispatch (the audit no longer reflects current code).
 5. **Auto-fit dispatch (always invoked when frontend):** Invoke each via the Skill tool, in order:
-   - `/impeccable polish <files>` — final design system alignment
-   - `/impeccable clarify <files>` — UX copy improvement
-   - `/impeccable harden <files>` — error handling, i18n, edge cases
+   - `/impeccable:impeccable polish <files>` — final design system alignment
+   - `/impeccable:impeccable clarify <files>` — UX copy improvement
+   - `/impeccable:impeccable harden <files>` — error handling, i18n, edge cases
    - **File-target convention (TODO):** The Phase 1 implementation report flagged uncertainty about whether these commands accept a list of files or require a single target. The wrapper passes the file list as a single space-separated argument; if a command rejects multi-file input, the wrapper falls back to looping per file (record this once per session in the in-memory marker; do not surface the looping as a finding).
 6. **Issue-driven dispatch (only when audit flagged matching category):** Read the audit findings from Step 4. For each category match, invoke the corresponding command per `command-map.md`:
-   - "typography hierarchy weak" / typography-flagged findings → `/impeccable typeset <files>`
-   - "spacing inconsistent" / spatial-flagged findings → `/impeccable layout <files>`
-   - "responsive issues" / responsive-flagged findings → `/impeccable adapt <files>`
-   - "performance regressions" / performance-flagged findings → `/impeccable optimize <files>`
+   - "typography hierarchy weak" / typography-flagged findings → `/impeccable:impeccable typeset <files>`
+   - "spacing inconsistent" / spatial-flagged findings → `/impeccable:impeccable layout <files>`
+   - "responsive issues" / responsive-flagged findings → `/impeccable:impeccable adapt <files>`
+   - "performance regressions" / performance-flagged findings → `/impeccable:impeccable optimize <files>`
    - Match by checking the audit finding's `category` or `rule` field (case-insensitive substring match against the category keywords). When the audit produces multiple matches for the same category, dispatch the command once with the union of affected files.
 7. **Intent-driven dispatch (active):** Read the spec's `design-intent:` frontmatter (the canonical field definition lives in `skills/specify/spec-template.md`; the dispatch table is in `command-map.md` Step 3). For each declared intent value, invoke the matching command via the Skill tool on the same scoped file list used by Steps 5–6:
-   - `bold` → `/impeccable bolder <files>`
-   - `quiet` → `/impeccable quieter <files>`
-   - `minimal` → `/impeccable distill <files>` (intent-only — never auto-runs from `/simplify`)
-   - `delightful` → `/impeccable delight <files>` then `/impeccable animate <files>` (in that fixed order — `delight` adds personality content, `animate` adds motion to existing interactions; reversing them risks animating placeholder content)
-   - `onboarding` → `/impeccable onboard <files>`
+   - `bold` → `/impeccable:impeccable bolder <files>`
+   - `quiet` → `/impeccable:impeccable quieter <files>`
+   - `minimal` → `/impeccable:impeccable distill <files>` (intent-only — never auto-runs from `/simplify`)
+   - `delightful` → `/impeccable:impeccable delight <files>` then `/impeccable:impeccable animate <files>` (in that fixed order — `delight` adds personality content, `animate` adds motion to existing interactions; reversing them risks animating placeholder content)
+   - `onboarding` → `/impeccable:impeccable onboard <files>`
    - `none` (or missing field) → skip intent-driven dispatch entirely
 
    **Multi-intent ordering.** When the user declared comma-separated intents (e.g., `design-intent: bold, delightful`), invoke commands in the order declared. The fixed `delight` → `animate` pairing for `delightful` is preserved even when interleaved with other intents — treat `delightful` as a single dispatch unit that produces two commands. The wrapper does not run a re-verify cycle between intent commands; the polish phase as a whole shares a single re-verify cycle (capped by `/flow`'s polish phase, see flow's polish-phase decision tree).
@@ -287,11 +287,11 @@ The `context_size` is a rough estimate (`bytes / 4`) — used by `/build` to dec
   "mode": "polish",
   "result": "ok",
   "commands_invoked": [
-    { "command": "/impeccable polish", "files": ["..."], "category": "auto-fit" },
-    { "command": "/impeccable typeset", "files": ["..."], "category": "issue-driven", "trigger": "audit:typography" },
-    { "command": "/impeccable bolder", "files": ["..."], "category": "intent-driven", "trigger": "intent:bold" },
-    { "command": "/impeccable delight", "files": ["..."], "category": "intent-driven", "trigger": "intent:delightful" },
-    { "command": "/impeccable animate", "files": ["..."], "category": "intent-driven", "trigger": "intent:delightful" }
+    { "command": "/impeccable:impeccable polish", "files": ["..."], "category": "auto-fit" },
+    { "command": "/impeccable:impeccable typeset", "files": ["..."], "category": "issue-driven", "trigger": "audit:typography" },
+    { "command": "/impeccable:impeccable bolder", "files": ["..."], "category": "intent-driven", "trigger": "intent:bold" },
+    { "command": "/impeccable:impeccable delight", "files": ["..."], "category": "intent-driven", "trigger": "intent:delightful" },
+    { "command": "/impeccable:impeccable animate", "files": ["..."], "category": "intent-driven", "trigger": "intent:delightful" }
   ],
   "files_modified": [ "<path>", ... ]
 }
@@ -340,7 +340,7 @@ Survey produces ranked Creative Opportunities recommendations — read-only. It 
    {
      "spec": "<spec id or path>",
      "declined": [
-       { "command": "/impeccable bolder", "page": "/pricing", "decline_count": 2, "first_surfaced": "<ISO>", "last_surfaced": "<ISO>" }
+       { "command": "/impeccable:impeccable bolder", "page": "/pricing", "decline_count": 2, "first_surfaced": "<ISO>", "last_surfaced": "<ISO>" }
      ]
    }
    ```
@@ -356,7 +356,7 @@ Survey produces ranked Creative Opportunities recommendations — read-only. It 
      "spec": "<spec id or path>",
      "written_at": "<ISO timestamp>",
      "recommendations": [
-       { "command": "/impeccable bolder", "page": "/pricing", "rationale": "..." }
+       { "command": "/impeccable:impeccable bolder", "page": "/pricing", "rationale": "..." }
      ]
    }
    ```
@@ -371,7 +371,7 @@ Survey produces ranked Creative Opportunities recommendations — read-only. It 
      "result": "ok",
      "context": "visual-review" | "flow-summary" | "manual",
      "recommendations": [
-       { "page": "/pricing", "observation": "Hero feels generic — pure black on white", "command": "/impeccable bolder pricing", "rationale": "..." }
+       { "page": "/pricing", "observation": "Hero feels generic — pure black on white", "command": "/impeccable:impeccable bolder pricing", "rationale": "..." }
      ],
      "suppressed": <int>
    }
@@ -467,7 +467,7 @@ No follow-up — the diff did not match any creative-opportunity criteria. The c
 | Pattern | Why It Fails |
 |---------|-------------|
 | Running CLI gate on backend specs | Wastes time scanning irrelevant files — detection layer must skip before invocation |
-| Treating `/impeccable critique` as authoritative | LLM critiques are opinionated — findings are advisory, surfaced for user judgment, never auto-applied |
+| Treating `/impeccable:impeccable critique` as authoritative | LLM critiques are opinionated — findings are advisory, surfaced for user judgment, never auto-applied |
 | Hard-failing the test gate when the CLI is missing | Blocks users who haven't installed Impeccable — availability check returns skip, not fail |
 | Running `polish` when the audit cache is absent | Issue-driven dispatch needs audit signal — degrade to auto-fit-only rather than guessing categories |
 | Polish modifying logic that breaks tests | Re-verify gate (in `/flow`) catches this; one-cycle cap prevents oscillation. Polish must keep changes scoped to design system alignment, not behavior. |
@@ -477,7 +477,7 @@ No follow-up — the diff did not match any creative-opportunity criteria. The c
 | Surfacing recommendations the user already declined twice | Annoying noise — the declined-recommendations cache suppresses after 2 declines. Reset via `/claude-tweaks:design reset-recommendations <spec>`. |
 | Caching availability check results across sessions on disk | Availability marker is in-memory per session — never written to `~/.claude-tweaks/` (runtime state owned by harness) |
 | Writing audit / recommendations / declined caches to `~/.claude-tweaks/` | Per CLAUDE.md, that path is harness-owned. All three caches live alongside the ledger at `docs/plans/YYYY-MM-DD-{feature}-{audit\|recommendations\|declined}.json`. |
-| Calling `/impeccable` commands without first checking availability | If the plugin isn't installed, the Skill tool will error — always run the availability check first and skip cleanly |
+| Calling `/impeccable:impeccable` commands without first checking availability | If the plugin isn't installed, the Skill tool will error — always run the availability check first and skip cleanly |
 | Treating the `surface:` field as required | `/specify` writes it on new specs, but legacy specs still have it absent — Layer 3 sniff handles them correctly. Demanding presence breaks every existing spec. |
 | Reading `pre-build` context as a hard gate | Lazy-loaded references are *enrichment* for the build subagent. Skipping (no Impeccable installed, non-frontend) must not block the build. |
 

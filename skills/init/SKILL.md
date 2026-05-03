@@ -268,7 +268,7 @@ When migrating from a versioned path, announce: "Migrating to wrapper at `<wrapp
 
 ### Step 0.9: Impeccable Design Integration (Optional)
 
-claude-tweaks v4.5+ integrates [Impeccable](https://github.com/pbakaus/impeccable) — a frontend-design plugin that ships LLM commands (`critique`, `audit`, `polish`, `bolder`, `delight`, etc.) and a deterministic Node CLI (`impeccable detect`) for catching design anti-patterns. The integration is opt-in and only runs on frontend projects.
+claude-tweaks v4.5+ integrates [Impeccable](https://impeccable.style/) — a frontend-design plugin that ships LLM commands (`critique`, `audit`, `polish`, `bolder`, `delight`, etc.) and a deterministic Node CLI (`impeccable detect`) for catching design anti-patterns. The integration is opt-in and only runs on frontend projects.
 
 **Detect frontend signals from Phase 2 reconnaissance** (or run a quick sniff of the project root if Phase 0 is being run before Phase 2): look for any of `.tsx`, `.jsx`, `.vue`, `.svelte`, `.html`, `.css` files, or directories `components/`, `pages/`, `app/`, `routes/`, `views/`, `ui/`. If none are detected, skip this step entirely — the project is not frontend-facing.
 
@@ -277,58 +277,61 @@ claude-tweaks v4.5+ integrates [Impeccable](https://github.com/pbakaus/impeccabl
 ```
 Detected frontend project. Set up Impeccable design integration?
 
-Impeccable provides design-quality commands invoked by /test (deterministic CLI gate)
-and /review (LLM critique + audit). All findings are advisory in v4.5 — code is
-never auto-modified.
+Impeccable provides design-quality commands invoked by /test (deterministic CLI
+gate) and /review (LLM critique + audit). All findings are advisory in v4.5 —
+code is never auto-modified.
 
-1. Full integration **(Recommended)** — install plugin + CLI, run `/impeccable teach` (writes design context files)
-2. Plugin only — install plugin + CLI, skip `teach` (run later via `/impeccable teach`)
-3. Skip — disable design integration (re-enable later by re-running `/init`)
+1. Full integration **(Recommended)** — install plugin, run teach + document
+2. Plugin only — install plugin, skip the design-context interview (run later)
+3. Skip — disable design integration
 ```
 
-**For options 1 or 2:**
+**For options 1 or 2 — install the plugin.** Surface this exact three-command sequence (claude-tweaks does not programmatically install plugins):
 
-1. **Install the plugin.** Surface the install command — claude-tweaks does not programmatically install plugins:
+```
+/plugin marketplace add pbakaus/impeccable
+/plugin install impeccable@impeccable
+/reload-plugins
+```
 
-   ```
-   /plugin install impeccable@<marketplace>
-   ```
+The Impeccable CLI (`impeccable detect`) ships with the plugin and is invoked via `npx` — no separate install needed.
 
-   Verify by checking that `/impeccable` resolves to a skill in the next session (the harness reloads skills after install). If verification fails, note that the plugin install must complete before downstream features work.
+Verify by checking that `/impeccable:impeccable` resolves to a skill in the next session. If it does not, the plugin install must complete before downstream features work.
 
-2. **Install the CLI.** Offer the global install with `npx` fallback:
+**For option 1 only — generate design context files.** Run the teach interview (interactive, ~5 minutes) and then generate the spec-compliant design document:
 
-   ```bash
-   npm install -g impeccable
-   ```
+```
+/impeccable:impeccable teach
+/impeccable:impeccable document
+```
 
-   Verify with `npx impeccable --version`. If npm/npx are unavailable, surface the install command and let the user proceed manually.
+This writes `PRODUCT.md` (strategic context: audience, brand voice, anti-references) and `DESIGN.md` (visual system: colors, typography, components) at the project root. These are the files the design wrapper reads.
 
-3. **For option 1 only — run `/impeccable teach`.** This generates project-specific design context files (typically `docs/design/PRODUCT.md` and `docs/design/DESIGN.md`, but actual paths are determined by Impeccable). Skip on option 2.
+**Write the kill-switch flag to CLAUDE.md.** Add (or update) a `## Design integration` section near the existing project-level config sections:
 
-4. **Write the kill-switch flag to CLAUDE.md.** Add (or update) a `## Design integration` section near the existing project-level config sections:
+```markdown
+## Design integration
 
-   ```markdown
-   ## Design integration
+design-integration: enabled
+```
 
-   design-integration: enabled
-   ```
+Use the appropriate value:
 
-   Use the appropriate value:
+| Choice | Flag value |
+|--------|-----------|
+| Option 1 (Full) | `enabled` |
+| Option 2 (Plugin only) | `plugin-only` |
+| Option 3 (Skip) | `disabled` |
 
-   | Choice | Flag value |
-   |--------|-----------|
-   | Option 1 (Full) | `enabled` |
-   | Option 2 (Plugin only) | `plugin-only` |
-   | Option 3 (Skip) | `disabled` |
-
-   The `/claude-tweaks:design` wrapper reads this flag as Layer 1 of its detection logic. Missing flag is treated identically to `disabled` — design integration only activates when explicitly enabled by `/init`.
+The `/claude-tweaks:design` wrapper reads this flag as Layer 1 of its detection logic. Missing flag is treated identically to `disabled` — design integration only activates when explicitly enabled by `/init`.
 
 **For option 3:** Write `design-integration: disabled` to CLAUDE.md and continue. The wrapper short-circuits universally — no CLI calls, no LLM invocations, no token cost.
 
-**Re-run behavior:** When `/init` is re-run on a project where `design-integration: enabled`, offer to re-run `/impeccable teach` to refresh the design context files (the codebase may have evolved since the last run). When the flag is `plugin-only` or `disabled`, offer the upgrade path back to full integration.
+**Optional companion (not part of the integration).** Impeccable also publishes a Chrome extension at https://chromewebstore.google.com/detail/impeccable/bdkgmiklpdmaojlpflclinlofgjfpabf that overlays the same 25-rule detector on any webpage during normal browsing. It does not connect to the slash commands and is not tracked by the `design-integration` flag — install it separately if you want ad-hoc audits while browsing your dev server, staging, or any third-party site. Skip otherwise.
 
-**Failure handling:** If the plugin or CLI install fails, do not abort `/init` — surface the failure and continue with `design-integration: disabled` until the user resolves it. The wrapper's availability checks gracefully skip when dependencies are absent.
+**Re-run behavior:** When `/init` is re-run on a project where `design-integration: enabled`, offer to re-run `/impeccable:impeccable teach` + `document` to refresh `PRODUCT.md` / `DESIGN.md` (the codebase may have evolved since the last run). When the flag is `plugin-only` or `disabled`, offer the upgrade path back to full integration.
+
+**Failure handling:** If the plugin install fails, do not abort `/init` — surface the failure and continue with `design-integration: disabled` until the user resolves it. The wrapper's availability checks gracefully skip when dependencies are absent.
 
 ---
 

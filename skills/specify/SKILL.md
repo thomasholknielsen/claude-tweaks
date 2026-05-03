@@ -169,13 +169,13 @@ If no frontend signals are detected, skip Steps 2.5b and 2.5c entirely. Set `sur
 Offer the shape pre-step:
 
 ```
-Frontend design detected. Run /impeccable shape to plan UX/UI before decomposition? (Recommended: yes)
+Frontend design detected. Run /impeccable:impeccable shape to plan UX/UI before decomposition? (Recommended: yes)
 
-1. Yes — run /impeccable shape and append output to design doc **(Recommended)**
+1. Yes — run /impeccable:impeccable shape and append output to design doc **(Recommended)**
 2. Skip — proceed directly to decomposition
 ```
 
-On option 1: invoke `/claude-tweaks:design shape <topic>` via the Skill tool. The wrapper runs `/impeccable shape <topic>` and returns `{result: "ok", output: "..."}`. Append the returned output verbatim to the design doc under a `## Shape (Impeccable)` section. This enriches the design doc with UX/UI planning that the decomposed specs and downstream `/build` can reference.
+On option 1: invoke `/claude-tweaks:design shape <topic>` via the Skill tool. The wrapper runs `/impeccable:impeccable shape <topic>` and returns `{result: "ok", output: "..."}`. Append the returned output verbatim to the design doc under a `## Shape (Impeccable)` section. This enriches the design doc with UX/UI planning that the decomposed specs and downstream `/build` can reference.
 
 On `{skipped}` (Impeccable not installed, design integration disabled): note the skip and proceed to Step 2.5c.
 

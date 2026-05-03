@@ -202,8 +202,8 @@ Handle the wrapper's return:
 
 | Page | Observation | Suggested command |
 |------|------------|-------------------|
-| /pricing | Hero feels generic — pure black on white, no personality | `/impeccable bolder pricing` |
-| /empty-cart | Empty state shows only "No items" text | `/impeccable delight empty-cart` |
+| /pricing | Hero feels generic — pure black on white, no personality | `/impeccable:impeccable bolder pricing` |
+| /empty-cart | Empty state shows only "No items" text | `/impeccable:impeccable delight empty-cart` |
 
 > These are recommendations only. Run any command manually if you want to apply it.
 ```

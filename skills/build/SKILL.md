@@ -308,7 +308,7 @@ Scope keywords match {N} file(s) not in the plan:
 
 ### Common Step 1.7: Design Pre-Build (Impeccable references)
 
-Before dispatching implementation, invoke the design wrapper to lazy-load Impeccable's reference files plus any project-specific design context (`docs/design/PRODUCT.md`, `docs/design/DESIGN.md` from `/impeccable teach`). The wrapper handles its own detection (non-frontend specs skip cleanly) and availability checks (no Impeccable installed → skip cleanly).
+Before dispatching implementation, invoke the design wrapper to lazy-load Impeccable's reference files plus any project-specific design context (root `PRODUCT.md` from `/impeccable:impeccable teach`, root `DESIGN.md` from `/impeccable:impeccable document`). The wrapper handles its own detection (non-frontend specs skip cleanly) and availability checks (no Impeccable installed → skip cleanly).
 
 **Skip this step entirely when:**
 - The build is in design mode with no spec to inspect (the wrapper needs spec context for surface detection — pure design-mode builds proceed without pre-load)
@@ -646,4 +646,4 @@ These apply in **subagent** execution strategy. In **batched** strategy, autonom
 | `/claude-tweaks:tidy` | Reviews specs from /claude-tweaks:build for staleness — periodic cleanup complement |
 | `/claude-tweaks:init` | /init creates `docs/REGISTRY.md` (Phase 8.5) that /build consumes in Step 6.5 for documentation sync |
 | `/claude-tweaks:ledger` | Manages the open items ledger file. /build creates and appends items during Steps 2.5, 4, 4.5, 5.5, and 6.5. |
-| `/claude-tweaks:design` | /build invokes `/claude-tweaks:design pre-build <spec>` as Common Step 1.7 to lazy-load Impeccable reference files and project design context (`docs/design/PRODUCT.md`, `DESIGN.md`) into the implementer subagent. Skips cleanly on non-frontend specs or when Impeccable is not installed. |
+| `/claude-tweaks:design` | /build invokes `/claude-tweaks:design pre-build <spec>` as Common Step 1.7 to lazy-load Impeccable reference files and project design context (root `PRODUCT.md`, root `DESIGN.md`) into the implementer subagent. Skips cleanly on non-frontend specs or when Impeccable is not installed. |
