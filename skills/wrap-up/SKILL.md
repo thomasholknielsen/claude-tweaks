@@ -78,11 +78,32 @@ If any insight is "Implement now", /reflect handles it before returning control.
 
 ## Step 4: Analyze Leftover Work (spec-based only)
 
-For any unfinished sections, determine placement:
-1. Merge into an existing spec — work fits naturally into another spec's scope
-2. Add to `specs/DEFERRED.md` — work needs its own context (include origin spec, files, trigger)
-3. Create a new INBOX item — genuinely new idea discovered during implementation
-4. Drop entirely — no longer relevant
+Same fix-exhaust-first discipline as the resolve gate (Step 9.5): attempt to complete unfinished spec sections in this pipeline before proposing routing. Only sections that genuinely cannot be completed in the current work context get presented for routing.
+
+A section qualifies for "finish now" if **all** of these hold:
+- Localized changes (typically ≤5 files)
+- No dependency on functionality not yet built in this pipeline
+- No required user product/design decisions
+- No required external state
+
+Finish qualifying sections silently, commit, then present only the residue.
+
+For each unfinished section that genuinely cannot be finished, present a numbered table and **wait for explicit per-item user input**:
+
+```
+| # | Section | Status | Why not finish now | Choices |
+|---|---------|--------|--------------------|---------| 
+| 1 | {section} | partial | {specific blocker} | 1: merge to spec X / 2: DEFERRED.md / 3: INBOX / 4: drop / 5: finish now |
+```
+
+Routing options:
+1. **Merge into an existing spec** — work fits naturally into another spec's scope
+2. **Add to `specs/DEFERRED.md`** — work needs its own context (include origin spec, files, trigger)
+3. **Create a new INBOX item** — genuinely new idea discovered during implementation, not part of this spec's planned scope
+4. **Drop entirely** — no longer relevant
+5. **Finish now** — agent attempts completion in this pipeline (returns to fix-exhaust)
+
+Wait for per-item response. Do not bulk-route. Both `specs/DEFERRED.md` and `specs/INBOX.md` are valid destinations and the user picks per item — but no entry is written to either file without explicit per-item confirmation. Rough guidance: DEFERRED.md fits sections with a clear trigger; INBOX.md fits captured ideas without a specific trigger yet.
 
 ---
 
@@ -256,45 +277,20 @@ Suggest running `/claude-tweaks:help` to see the full workflow status.
 
 ## Step 9.5: Nothing Left Behind (Gate)
 
-Run the resolve gate from `/claude-tweaks:ledger`. Read the open items ledger -- if any item has status `open`, present it for resolution. The pipeline cannot complete with unresolved items. If the ledger doesn't exist (standalone wrap-up, or work predating the ledger), skip this gate.
+Run the resolve gate from `/claude-tweaks:ledger` (see ledger skill for the three-phase procedure: Phase 1 fix-exhaust silently → Phase 2 present remainder for per-item user decision → Phase 3 apply). If the ledger doesn't exist (standalone wrap-up, or work predating the ledger), skip this gate.
 
-### Bulk-resolve fast path
+**Hard requirements:**
 
-If all ledger items already have a terminal status (`fixed`, `deferred`, `accepted`, or `acknowledged`), skip the interactive resolution — just report: "All {N} ledger items resolved. No open items." and proceed to Step 10. This avoids re-presenting items that were already resolved during earlier pipeline phases.
+- Phase 1 must run before any user-facing output. The agent fixes everything that qualifies for fix-now, commits, then presents only the genuine residue.
+- Phase 2 always requires explicit per-item user input. Never bulk-resolve. Never assume "obvious" defers. Never offer a "Fix all (Recommended)" or "Defer all" shortcut — those bias the user toward whichever bulk action is easier to type.
+- `auto` mode does NOT silence this gate.
+- Both `specs/DEFERRED.md` and `specs/INBOX.md` are valid routing destinations, but every individual entry requires an explicit per-item user choice — neither file is ever written autonomously.
 
-### Interactive resolution (when open items exist)
+### Bulk-resolve fast path (terminal-status only)
 
-Present all items in a single table:
+If every ledger item already has terminal status (`fixed`, `deferred`, `accepted`, `acknowledged`, `observation`) at gate entry, report: "All {N} ledger items resolved. No open items." and proceed to Step 10.
 
-```
-### Open Items Resolution
-
-| # | Phase | Item | Status | Resolution |
-|---|-------|------|--------|------------|
-| 1 | build | ... | fixed | Commit abc123 |
-| 2 | review | ... | fixed | Commit def456 |
-| 3 | review | ... | deferred | DEFERRED.md — pre-existing pattern |
-| 4 | wrap-up | ... | open | — |
-```
-
-**Gate:** Every item must have a terminal status (`fixed`, `deferred`, `accepted`, or `acknowledged`). Items with phase `ops` use `acknowledged` — they represent human tasks the pipeline cannot resolve. If any item is still `open`:
-
-1. Assess whether it can be fixed now (most can — especially items flagged during this session)
-2. Present remaining open items:
-   ```
-   These items are still open:
-
-   | # | Item | Recommended |
-   |---|------|-------------|
-   | 4 | ... | Fix now — {N} lines, {reason} |
-
-   1. Fix all **(Recommended)**
-   2. I'll tell you which to defer
-   ```
-3. Fix approved items, update ledger status to `fixed`
-4. Defer remaining items to DEFERRED.md (with origin, files, trigger), update ledger status to `deferred`
-
-**No item may remain `open` when wrap-up completes.**
+This fast path applies **only when zero items are `open` at gate entry**. It is never a justification to skip Phase 2 — items that arrive `open` always go through Phase 1 → Phase 2 → Phase 3.
 
 ### Ops acknowledgment (when ops items exist)
 

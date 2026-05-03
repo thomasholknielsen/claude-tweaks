@@ -42,7 +42,7 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 | `worktree` | No | Use worktree git strategy — isolated workspace on a feature branch (this is the default for flow). See "Parallel Development with Worktrees" below. |
 | `current-branch` | No | Override the default and commit directly on the current branch instead of creating a worktree. |
 | `no-stories` | No | Skip automatic story generation even if UI files changed. By default, flow auto-generates stories when the build produces UI file changes. |
-| `auto` | No | Silence borderline prompts. The merge-check (Step 2.5) and scope-check (Step 2.6) auto-choose "continue and acknowledge in ledger" instead of asking. Hard scope gates (e.g., uncommitted changes) still surface. Passed through to `/build`, which already supports `auto`. |
+| `auto` | No | Silence two specific borderline prompts: the merge-check (Step 2.5) and scope-check (Step 2.6) auto-choose "continue and acknowledge in ledger" instead of asking. **`auto` does NOT silence:** hard scope gates (uncommitted changes), the resolve gate (Step 3 / wrap-up Step 9.5 — per-item user input on open ledger items is mandatory), or any write to `specs/INBOX.md` / `specs/DEFERRED.md` (each entry requires explicit user approval). Passed through to `/build`, which already supports `auto`. |
 | `[steps]` | No | Step argument(s). Single step = resume from that step onward. Comma-separated steps = run exactly those steps. Default (no steps): `build,test,review,wrap-up` |
 
 Flow always uses **subagent** execution strategy — its purpose is hands-off automation. The `batched` option (which pauses for human review) is not available in flow; use `/claude-tweaks:build batched` directly instead.
@@ -411,6 +411,8 @@ For each completed branch (in order):
 | Using flow for interactive skills | Capture, challenge, and specify need human decisions — they can't be automated |
 | Using `batched` execution in flow | Flow's purpose is hands-off automation — batched pauses for human review, contradicting flow's no-stopping design. Use `/claude-tweaks:build batched` directly. |
 | Ignoring open ledger items at pipeline end | The nothing-left-behind gate prevents dropped work — every item must be explicitly resolved |
+| Treating `auto` as authorization to bulk-resolve the ledger | `auto` only silences merge-check and scope-check. The resolve gate's Phase 2 always requires per-item user input — items must be approved by the user one at a time |
+| Writing to `specs/INBOX.md` or `specs/DEFERRED.md` from inside flow without explicit per-item user approval | Both files are valid destinations, but each entry requires the user's explicit choice on that specific item. Pipeline phases never write to either file autonomously, even when an item looks like an obvious candidate |
 | Skipping test in the pipeline | Test is the mechanical gate — review depends on `TEST_PASSED`. Omitting test means review runs on potentially broken code. |
 
 ## Relationship to Other Skills
