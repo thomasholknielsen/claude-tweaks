@@ -239,92 +239,23 @@ Proceed to **Common Step 2**.
 
 ### Common Step 1: Set Up Worktree (worktree strategy only)
 
-If the user specified `worktree`:
+If the user specified `worktree`, set up the isolated workspace via `/superpowers:using-git-worktrees` after a pre-flight merge check and (when in auto mode) pre-authorizing the consent prompt.
 
-1. **Pre-flight merge check** — read the `Pre-flight / merge-check` CLAUDE.md setting (default: `true`). When enabled:
-   ```bash
-   git fetch origin main 2>/dev/null
-   ahead=$(git rev-list --count HEAD..origin/main 2>/dev/null)
-   ```
-   If `ahead > 0`, surface the divergence before creating the worktree:
-   ```
-   Main has {N} commit(s) since your local copy:
-
-   {git log --oneline HEAD..origin/main | head -5}
-
-   Long-running worktrees diverge from main and create merge conflicts later. Options:
-   1. Rebase main into local first, then create worktree **(Recommended)**
-   2. Continue with current state — accept the conflict at branch finish
-   ```
-   In `auto` mode, automatically choose option 2 and add a ledger entry with phase `ops` and status `acknowledged` documenting the divergence (so wrap-up surfaces it as a manual step).
-2. Invoke `/superpowers:using-git-worktrees` to create an isolated workspace
-3. The skill handles: branch creation, dependency install, baseline test verification
-4. All subsequent work happens in the worktree
-
-**Consent prompt (v5.1.0+):** `/superpowers:using-git-worktrees` now asks the user before creating a worktree (fixes superpowers #991). In `auto` mode, the consent is **pre-authorized** — the user passed `worktree` (or it's the default for `/flow`) which is an explicit opt-in. Answer affirmatively without surfacing the prompt to the user. Log entry:
-```
-AUTO {time} — Common Step 1: worktree consent pre-authorized by auto mode. Worktree created at {path}.
-```
-In interactive mode, surface the consent prompt as the skill normally would.
-
-**If worktree creation fails:**
-
-| Failure | Recovery |
-|---------|----------|
-| **Superpowers not installed** | Stop. Tell the user: "Superpowers plugin required for worktree mode. Install: `/plugin install superpowers@claude-plugins-official`" — or fall back to current-branch with confirmation. |
-| **Git state prevents worktree** (uncommitted changes, dirty index) | Stop. Present the git issue and suggest: `git stash` or commit first, then retry. |
-| **Branch already exists** | Offer: (1) Use existing worktree, (2) Remove and recreate, (3) Fall back to current-branch. |
+For the full procedure (pre-flight merge check with auto-mode behavior, consent prompt handling, and worktree-creation failure recovery table), read `worktree-setup.md` in this skill's directory.
 
 If the user did not specify `worktree`, skip this step.
 
 ### Common Step 1.5: Plan Audit
 
-Before dispatching any execution work, audit the plan against the actual repo. This catches the failure mode where the plan's "Files" sections omit a relevant file and the omission isn't noticed until a late cross-reference audit.
+Audit the plan against the actual repo before dispatching execution. Two checks:
+- **Check A (always):** verify every path in the plan's Files: sections exists (or its parent directory exists for Create).
+- **Check B (conditional):** when the plan declares `Scope keywords:`, grep the repo for each keyword and list any matched files not in the plan.
 
-Run two checks:
+**Auto mode:** apply the `scope-creep` policy from `config.yml` (default `add-to-plan`). **Interactive mode:** present a numbered prompt with "Add to plan / Continue without / Stop."
 
-**Check A — Plan files exist** (always runs):
+**Skip this step entirely when** the plan has fewer than 3 file references AND no `Scope keywords:` field is present.
 
-For each path mentioned in the plan's "Files:" sections (under "Create:", "Modify:", "Delete:"), verify it exists (for Modify/Delete) or that its parent directory exists (for Create). List any missing paths.
-
-**Check B — Scope-keyword sweep** (runs when the plan or design doc declares `Scope keywords:`):
-
-When the plan or design doc has a `Scope keywords:` line listing patterns (e.g., `Scope keywords: playwright-cli, claude_in_chrome, PLAYWRIGHT_MCP`), grep the repo for each keyword and list any files containing matches that aren't in the plan's file list.
-
-```bash
-# Example for a removal/migration plan
-grep -rln -E "playwright-cli|claude_in_chrome|PLAYWRIGHT_MCP" skills/ agents/ hooks/ README.md .claude-plugin/ CLAUDE.md docs/ 2>/dev/null
-```
-
-Read the project's `Plan audit / scope-keywords-required` CLAUDE.md setting:
-- `scope-keywords-required: false` (default) — Check B is informational; surface missing-from-plan files as a warning, proceed.
-- `scope-keywords-required: true` — Check B is gating; if any matched files aren't in the plan AND the plan/design has no `Scope keywords:` field, refuse to start. Tells the user: "This project requires scope keywords. Add `Scope keywords: <pattern1, pattern2>` to the plan or design doc and re-run."
-
-**On Check A failure:** Stop. Present the missing paths. The plan needs revision before execution starts.
-
-**On Check B finding files outside the plan:**
-
-**Auto mode (pipeline run dir exists):** read `scope-creep` from `config.yml` (default `add-to-plan` per Manifesto). Apply:
-
-| Policy | Action | Log entry |
-|---|---|---|
-| `add-to-plan` (default) | Auto-add matched files to the plan as new tasks. Commit the plan update. | `AUTO {time} — Step 1.5: scope-creep — added {N} files to plan ({list}). Reversibility: high (commit {hash}).` |
-| `stop-and-ask` | Stop. Present the list inline. (Falls through to interactive prompt below.) | `KEPT-PROMPT {time} — Step 1.5: scope-creep matched {N} files, policy is stop-and-ask. Surfaced inline.` |
-| `drop` | Note the matched files in `decisions.md` as `STAGED` for Review Console; proceed without adding to plan. | `STAGED {time} — Step 1.5: scope-creep matched {N} files, policy is drop. Files: {list}. Surface at Review Console.` |
-
-**Interactive mode (or `stop-and-ask` policy):** Present the list and ask:
-
-```
-Scope keywords match {N} file(s) not in the plan:
-- {file 1}
-- {file 2}
-
-1. Add to plan and continue **(Recommended)** — I'll add these as new tasks to the plan
-2. Continue without — I've checked, these are intentionally excluded
-3. Stop — let me revise the plan manually
-```
-
-**Skip this step entirely when** the plan has fewer than 3 file references (trivial plans don't benefit from audit) AND no `Scope keywords:` field is present.
+For the full procedure (Check A failure handling, Check B scope-keyword sweep command, `scope-keywords-required` setting, auto-mode policy table, interactive prompt), read `plan-audit.md` in this skill's directory.
 
 ### Common Step 1.7: Design Pre-Build (Impeccable references)
 

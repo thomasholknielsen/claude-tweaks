@@ -80,6 +80,21 @@ Compare the Phase 0u inventory against Phase 1 findings. Classify every finding:
 - **Stale:** {N} references to things that changed or no longer exist
 - **Drifted:** {N} documented patterns the codebase has moved away from
 - **Gaps:** {N} codebase patterns with no config coverage
+- **Contract Drift:** {N} claude-tweaks contract sections missing from CLAUDE.md
+
+### Contract Drift (claude-tweaks version sync)
+
+CLAUDE.md sections required by the current claude-tweaks contract that are missing or outdated. Patches come verbatim from `claude-md-template.md` — no judgment calls.
+
+| Missing Marker | Contract Version | Patch Source |
+|---|---|---|
+| `## claude-tweaks Pipeline` section | v4.0+ | `claude-md-template.md` Initial Mode → Pipeline section |
+| `auto-mode:` flag in Project Defaults | v4.5+ | `claude-md-template.md` Project Defaults block |
+| Bookend architecture paragraph | v4.6+ | `claude-md-template.md` Pipeline section (paragraph) |
+| `## Auto-mode policy` block (7 levers) | v4.6+ | `claude-md-template.md` Auto-mode policy block |
+| Pipeline run directory reference | v4.6+ | `claude-md-template.md` Pipeline section (sentence) |
+
+Present as batch — `1. Apply all contract patches  2. Choose per-item  3. Skip` — since patch bodies are template-sourced.
 
 ### Stale (fix or remove)
 

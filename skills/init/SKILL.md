@@ -426,6 +426,7 @@ Build an inventory of what's currently configured before scanning the codebase:
 - Commands: {lists these scripts}
 - Conventions: {count} bullets
 - Don'ts: {count} items
+- Contract markers: {pipeline-section | auto-mode-flag | bookend | auto-mode-policy | run-dir} — {present/missing for each}
 - Last meaningful edit: {git log for CLAUDE.md — when, what changed}
 
 ### Skills ({count})
@@ -445,6 +446,24 @@ Then proceed to Phase 2 as normal — but carry this inventory forward. Every Ph
 - **Stale** — existing config references something that has changed or no longer exists
 - **Drifted** — existing config describes a pattern but the codebase has moved away from it
 - **Gap** — codebase has this pattern but no config covers it
+
+### Phase 1u.5: claude-tweaks Contract Drift
+
+Existing CLAUDE.md files may pre-date claude-tweaks contract changes (auto-mode, bookend architecture, etc.). Detect missing contract sections so Update Mode can offer pre-filled patches.
+
+> **Parallel execution:** Use parallel tool calls aggressively — all marker checks below are independent and should run concurrently.
+
+| Marker | Grep target | Contract version | Patch source |
+|---|---|---|---|
+| `## claude-tweaks Pipeline` section | `^## claude-tweaks Pipeline` in CLAUDE.md | v4.0+ | `claude-md-template.md` Initial Mode template |
+| Auto-mode flag (`auto-mode: default-off` / `default-on`) | `auto-mode:` in CLAUDE.md | v4.5+ | `claude-md-template.md` Project Defaults block |
+| Bookend architecture paragraph | `Bookend architecture` in CLAUDE.md | v4.6+ | `claude-md-template.md` Pipeline section |
+| `## Auto-mode policy` block (7 levers) | `^## Auto-mode policy` in CLAUDE.md | v4.6+ | `claude-md-template.md` Auto-mode policy block |
+| Pipeline run directory reference | `pipelines/{run-id}` in CLAUDE.md | v4.6+ | `claude-md-template.md` Pipeline section |
+
+For each missing marker, record a **Contract Drift** entry with the suggested patch — the body comes verbatim from `claude-md-template.md`, so no creative writing required. Carry these forward into the Drift Report (Phase 3) under a dedicated "Contract Drift" section so the user can approve them as a batch alongside other CLAUDE.md patches.
+
+If all markers are present, record "Contract: up to date (v4.6+)" in the inventory and skip ahead.
 
 ---
 

@@ -78,47 +78,13 @@ If any insight is "Implement now", /reflect handles it before returning control.
 
 ## Step 4: Analyze Leftover Work (spec-based only)
 
-Same fix-exhaust-first discipline as the resolve gate (Step 9.5): attempt to complete unfinished spec sections in this pipeline before proposing routing. Only sections that genuinely cannot be completed in the current work context get presented for routing.
+Attempt to complete unfinished spec sections silently in this pipeline (fix-exhaust first — same discipline as Step 9.5). Only sections that genuinely cannot be completed in the current work context get presented for routing.
 
-A section qualifies for "finish now" if **all** of these hold:
-- Localized changes (typically ≤5 files)
-- No dependency on functionality not yet built in this pipeline
-- No required user product/design decisions
-- No required external state
+**Auto mode:** stage routing proposals to `staged/wrap-up-leftover-{N}.md` per the `leftover-default` policy from `config.yml` (default `defer`). Surfaces at the Review Console.
 
-Finish qualifying sections silently, commit, then present only the residue.
+**Interactive mode:** present each residue section in a numbered table with 5 routing options (merge / DEFERRED / INBOX / drop / finish now). Per-item user input required — never bulk-route.
 
-### Auto mode (policy lookup)
-
-When the pipeline run directory exists (`PIPELINE_RUN_DIR` env var or matching dir in `.claude-tweaks/pipelines/`), read `leftover-default` from `config.yml`. Per the Manifesto default (`defer`), each residue section:
-
-1. **Auto-stage** a routing proposal to `staged/wrap-up-leftover-{N}.md` describing the section, the recommended destination (per policy), and the trigger context
-2. **Log entry** to `decisions.md`:
-   ```
-   STAGED 15:02:18 — Step 4: section "{name}" cannot finish now ({blocker}). Recommended: {leftover-default} → {destination}. Stage path: staged/wrap-up-leftover-{N}.md.
-   ```
-3. Do NOT write to `specs/DEFERRED.md` or `specs/INBOX.md` autonomously — those writes happen at the Wrap-Up Review Console (Step 9.6) after explicit user approval
-
-The Review Console surfaces each staged leftover as a row in the "Pending review" table. User approval there triggers the actual file writes.
-
-### Interactive mode (per-item user input)
-
-For each unfinished section that genuinely cannot be finished, present a numbered table and **wait for explicit per-item user input**:
-
-```
-| # | Section | Status | Why not finish now | Choices |
-|---|---------|--------|--------------------|---------| 
-| 1 | {section} | partial | {specific blocker} | 1: merge to spec X / 2: DEFERRED.md / 3: INBOX / 4: drop / 5: finish now |
-```
-
-Routing options:
-1. **Merge into an existing spec** — work fits naturally into another spec's scope
-2. **Add to `specs/DEFERRED.md`** — work needs its own context (include origin spec, files, trigger)
-3. **Create a new INBOX item** — genuinely new idea discovered during implementation, not part of this spec's planned scope
-4. **Drop entirely** — no longer relevant
-5. **Finish now** — agent attempts completion in this pipeline (returns to fix-exhaust)
-
-Wait for per-item response. Do not bulk-route. Both `specs/DEFERRED.md` and `specs/INBOX.md` are valid destinations and the user picks per item — but no entry is written to either file without explicit per-item confirmation. Rough guidance: DEFERRED.md fits sections with a clear trigger; INBOX.md fits captured ideas without a specific trigger yet.
+For the fix-exhaust qualification criteria, auto-mode stage entry format, interactive routing table, and per-item routing semantics, read `leftover-routing.md` in this skill's directory.
 
 ---
 
@@ -368,95 +334,11 @@ After acknowledgment, update status to `acknowledged`.
 
 ## Step 9.6: Wrap-Up Review Console (back-loaded review)
 
-The Review Console is the **second bookend** of the pipeline (see `_shared/auto-mode-contract.md`). One consolidated batch table surfaces everything that was auto-decided or staged during the pipeline, plus skill update proposals and leftover-work routing — all the friction that used to live mid-flow now lands here.
+The Review Console is the **second bookend** of the pipeline (see `_shared/auto-mode-contract.md`). Runs in `auto` or `hybrid` mode when a pipeline run directory exists. Skipped in `interactive` mode and in standalone wrap-up. Reads `decisions.md`, `staged/`, and `config.yml` from the run directory, then presents one consolidated batch table with four sections (Auto-applied / Pending review / Skill updates / Configuration updates) and three actions (Approve all / Override / Stop).
 
-**When to run:**
+Empty-console fast path: if `decisions.md` has zero entries AND `staged/` is empty AND no skill/config updates exist, skip the console entirely and proceed to Step 10.
 
-- **`auto` or `hybrid` mode** — always run if a pipeline run directory exists for this work
-- **`interactive` mode** — skip; decisions were resolved in-flow
-
-**Locate the pipeline run directory:**
-
-1. Resolve via `PIPELINE_RUN_DIR` env var if set by `/flow`
-2. Else find the most recent directory in `.claude-tweaks/pipelines/` whose `spec-slug` matches the current spec
-3. Else skip the console (standalone wrap-up, or pre-v4.6 pipeline)
-
-**Read inputs:**
-
-1. `decisions.md` — auto-decision log
-2. `staged/` directory — patches and proposals awaiting decisions
-3. `config.yml` — the Manifesto answers (for context)
-
-**Present the console:**
-
-```markdown
-### Wrap-Up Review Console
-
-The pipeline auto-resolved {N} decisions and staged {M} items for your review. One batch decision below resolves everything.
-
-#### Auto-applied (already in commits — override = revert)
-
-| # | Skill | What | Where | Status |
-|---|---|---|---|---|
-| 1 | /review | Applied 3 severity:low formatting fixes | commit `def5678` | Applied |
-| 2 | /test | Auto-fixed 4 lint failures | commit `ghi9012` | Applied |
-| 3 | /build | Scope-creep: added src/utils/cache.ts to plan | commit `abc1234` | Applied |
-| 4 | /stories | Applied 2 journey link suggestions | stories/login.yml, stories/logout.yml | Applied |
-| 5 | /wrap-up | Routed 2 unfinished sections to DEFERRED queue | (pending — Step 4) | Proposed |
-
-#### Pending review (staged — apply, skip, or modify per item)
-
-| # | Skill | What | Detail | Patch |
-|---|---|---|---|---|
-| 6 | /review | 2 severity:medium findings | Unhandled rejection in src/api.ts:180; missing null check in src/auth/session.ts:42 | `staged/review-2.patch`, `staged/review-3.patch` |
-| 7 | /stories | Legacy v1 stories detected (3 files) | stories/checkout.yml, stories/profile.yml, stories/settings.yml | Migration command: `/claude-tweaks:stories migrate` |
-| 8 | /wrap-up | Skill restructure proposed | Split `auth/SKILL.md` into `auth/` + `session-management/` | `staged/wrap-up-skill-restructure.md` |
-
-#### Skill updates (from Step 7.5)
-
-| # | Skill | Section | Change |
-|---|---|---|---|
-| 9 | auth | Anti-Patterns | Add: "Don't share session tokens via querystring" |
-| 10 | NEW | session-management | Create new skill for session lifecycle patterns |
-
-#### Configuration updates (from Steps 6 + 8)
-
-| # | Type | Target | Change |
-|---|---|---|---|
-| 11 | doc | docs/api.md | Document new /auth/refresh endpoint |
-| 12 | claude.md | Commands | Add `npm run lint:fix` to test workflow |
-
----
-
-1. **Approve all** — apply pending items 6-8, accept auto-applied 1-5, apply skill + config updates 9-12 **(Recommended)**
-2. **Override specific items** — reply with #s to skip/modify (e.g., "skip 6, modify 8, revert 2")
-3. **Stop and re-engage** — pause the pipeline; I'll resume after manual review
-
-Below each table, show the full patch / diff for each pending item so the user can see exactly what will change.
-```
-
-**On approval (option 1):**
-
-1. Apply all staged patches in `staged/` (run `git apply` or equivalent for each)
-2. Apply skill updates and create new skills (from Step 7.5)
-3. Apply config updates (docs, CLAUDE.md, rules)
-4. Commit with a wrap-up message
-5. Proceed to Step 10 (Consolidated Summary)
-
-**On override (option 2):**
-
-1. Parse the user's overrides
-2. For each item: apply, skip (delete from staged/), or modify (re-edit the staged patch then apply)
-3. Auto-applied items the user wants reverted: `git revert {commit}` (one revert commit per item, to keep history clean)
-4. Commit, then proceed to Step 10
-
-**On stop (option 3):** halt before applying. Leave the run directory intact. User resumes with `/claude-tweaks:wrap-up resume` (re-reads the same run directory and re-presents the console).
-
-**Empty-console fast path:** if `decisions.md` has zero entries AND `staged/` is empty AND there are no skill or config updates, skip the console entirely. Log "Review Console: nothing to review" and proceed to Step 10.
-
-**Hard requirement:** the console MUST present every entry from `decisions.md` (auto-applied + staged + kept-prompt) and every file in `staged/`. Silently dropping any item is forbidden.
-
-**Sort order within each section:** reversibility:low first (highest-stakes revert), then reversibility:med, then reversibility:high. Within the same reversibility, severity:high first.
+For the run-directory resolution sequence, the full console template with all four section tables, approval/override/stop semantics, and the sort-order requirement, read `review-console.md` in this skill's directory.
 
 ---
 

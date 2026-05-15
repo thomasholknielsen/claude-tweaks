@@ -222,35 +222,9 @@ When a gate fails, the pipeline stops immediately. Present:
 
 ### Polish-broke-verification failure card (specific shape)
 
-When the re-verify gate fails after polish modified code, the failure card uses this specific shape:
+When the re-verify gate fails after polish modified code, use the specific failure-card shape that includes a "Polish modifications" section (`git diff --stat` for the polish commit) and revert-oriented Next Actions — the user needs polish-commit context to triage. For the full template, read `polish-failure.md` in this skill's directory.
 
-```markdown
-## Flow: Pipeline Stopped — Polish broke verification
-
-### Completed
-- build: passed
-- stories: {outcome}
-- test: passed
-- review: PASS
-- polish: invoked {N} commands ({list}), modified {M} files
-
-### Failed at: re-verify (post-polish)
-{verification failures from /test skip-qa output — types/lint/test errors}
-
-### Polish modifications
-{git diff --stat output for the polish commit(s)}
-
-### Open Items (at time of failure)
-{current ledger contents}
-
-### Next Actions
-
-1. Inspect the polish modifications: `git diff {polish-commit-range}` **(Recommended)**
-2. Revert the polish commit and resume without polish: `git revert {polish-commit}` then `/claude-tweaks:flow {spec} no-polish wrap-up`
-3. Fix the verification failure manually, then resume: `/claude-tweaks:flow {spec} polish`
-
-> The re-verify cycle cap is 1 per flow run. Resuming with `/flow {spec} polish` starts a fresh cycle.
-```
+All other gate failures (build, stories, test, review) use the generic "On Gate Failure" template above.
 
 ## Execution
 
@@ -324,99 +298,11 @@ When the re-verify gate fails after polish modified code, the failure card uses 
 
 ### Step 1.6: Pipeline Config Manifesto (front-loaded policy)
 
-The Manifesto is the **first bookend** of the pipeline (see `_shared/auto-mode-contract.md`). One structured table collects every policy lever the pipeline needs. After it's resolved, downstream skills look up policy here — they do not re-ask the user.
+In `auto` or `hybrid` mode, present the Pipeline Config Manifesto — one structured table that pre-fills every policy lever (scope-creep, overlap, design-intent, leftover-routing, auto-fix-threshold, review-severity-floor, tidy-aggressiveness) with recommendations from project policy + sensible defaults. The user approves all (default) or overrides specific items. Saved to `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/config.yml`. Skipped in `interactive` mode.
 
-**When to run:**
+**This is the first bookend** of the pipeline (see `_shared/auto-mode-contract.md`). After approval, no downstream skill asks the user about these levers — they read `config.yml` and apply.
 
-- **`auto` mode** — mandatory. Present the Manifesto, get approval, then proceed.
-- **`hybrid` mode** — mandatory. Same Manifesto; policies set here are honored, but skills still prompt for non-floor decisions.
-- **`interactive` mode** — skipped. Old behavior (skills present each decision in-flow).
-
-**Compute recommendations** by walking the precedence chain (see `_shared/auto-mode-contract.md`):
-
-1. Explicit CLI args from `$ARGUMENTS` (e.g., `no-polish` sets `polish: skip`)
-2. Pipeline-config file from a previous run that's still active in this session (rare; usually skipped)
-3. Project policy from `.claude-tweaks/policy.yml` (if exists) or CLAUDE.md `auto-mode:` keys
-4. Hardcoded sensible defaults (last resort)
-
-For each lever, record both the recommended value AND its source so the user can see why each value was suggested.
-
-**Present the Manifesto:**
-
-```markdown
-### Pipeline Config Manifesto
-
-I've pre-filled recommended defaults based on {project policy + sensible defaults}.
-Approve to lock these in for this pipeline run. You won't be asked about them again mid-flow.
-
-| # | Lever | Recommendation | Source | What it controls |
-|---|---|---|---|---|
-| 1 | Mode | {auto / hybrid} | {arg / policy / default} | Whether mid-flow stops are silenced |
-| 2 | Scope-creep policy | {add-to-plan} | {default} | /build Step 1.5 when files outside plan are referenced |
-| 3 | Overlap policy | {companion} | {default} | /specify Step 1 when specs overlap |
-| 4 | Design intent | {none} | {default} | /specify Step 2.5c creative direction (none/bold/quiet/minimal/delightful/onboarding) |
-| 5 | Leftover routing default | {defer} | {default} | /wrap-up Step 4 when sections cannot finish (defer/inbox/drop) |
-| 6 | Auto-fix threshold | {lint+type} | {default} | /test Step 1 fix-mode scope (lint-only/lint+type/lint+type+test) |
-| 7 | Review severity floor | {low} | {default} | /review Step 3g auto-apply cutoff (none/low/medium) |
-| 8 | Tidy aggressiveness | {conservative} | {default} | /tidy auto-apply scope (conservative/moderate/aggressive) |
-
-1. Approve all recommendations **(Recommended)**
-2. Override specific items — reply with the # and the new value (e.g., "3=skip, 4=bold")
-3. Cancel pipeline
-```
-
-**Source values:**
-
-| Source | Meaning |
-|---|---|
-| `arg` | Set by an explicit CLI argument in `$ARGUMENTS` |
-| `policy` | From `.claude-tweaks/policy.yml` or CLAUDE.md `auto-mode:` keys |
-| `default` | Hardcoded sensible default |
-
-**Recommendation defaults** (when no arg and no policy):
-
-| Lever | Default | Why |
-|---|---|---|
-| Mode | `auto` | User invoked `/flow auto`; only here if they did |
-| Scope-creep | `add-to-plan` | Safest: never silently drop work the user mentioned |
-| Overlap | `companion` | Safest: never overwrite or silently extend; create a new spec |
-| Design intent | `none` | No creative direction unless user opts in |
-| Leftover routing | `defer` | Reversible; user reviews at Wrap-Up Review Console |
-| Auto-fix threshold | `lint+type` | Mechanical fixes only; semantic test failures need judgment |
-| Review severity floor | `low` | Auto LOW (nits), stage MED, prompt HIGH |
-| Tidy aggressiveness | `conservative` | Keep + unambiguous Delete only |
-
-**On approval (option 1):** write the chosen values to `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/config.yml`:
-
-```yaml
-mode: auto
-scope-creep: add-to-plan
-overlap: companion
-design-intent: none
-leftover-default: defer
-auto-fix-threshold: lint+type
-review-severity-floor: low
-tidy-aggressiveness: conservative
-spec: 42
-created: 2026-05-15T14:32:07
-```
-
-Initialize `decisions.md` in the same directory with the config snapshot header (see `_shared/auto-decision-log.md`). Create the `staged/` subdirectory.
-
-**On override (option 2):** parse the user's overrides, apply them to the recommendation set, write the final config to `config.yml`. Do not loop — the user gives all overrides in one reply.
-
-**On cancel (option 3):** abort the pipeline. Do not create the run directory.
-
-**Path conventions:**
-
-- Run directory: `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`
-- `ISO-timestamp` is `YYYY-MM-DDTHHMMSS` (no colons; portable across filesystems)
-- `spec-slug` is the spec number, comma-joined spec numbers, or topic slug
-- Collisions never happen — multiple parallel agents in the same checkout each get their own run directory
-- The run directory and its path are exposed to downstream skills via the `PIPELINE_RUN_DIR` env var (set in the skill chain)
-- After successful pipeline closure, `/wrap-up` moves the directory to `.claude-tweaks/pipelines/archive/`
-
-**Manifesto is the only mid-pipeline policy stop.** After this, no skill asks the user about scope-creep, overlap, design-intent, etc. They read `config.yml` and apply.
+For the complete Manifesto content (presentation template, recommendation defaults, source values, approval flow, path conventions), read `manifesto.md` in this skill's directory.
 
 ### Step 2: Run Pipeline
 
@@ -545,45 +431,9 @@ Each is a one-shot manual command; flow does not run these automatically.
 
 ## Multi-Spec Sequential Flow
 
-When multiple spec numbers are provided (e.g., `42,45,48`), flow runs each spec's pipeline **sequentially** in one terminal.
+When multiple spec numbers are provided (e.g., `42,45,48`), flow runs each spec's pipeline **sequentially** in one terminal. Each spec completes its full pipeline (build → test → review → polish → wrap-up) before the next begins; a gate failure in one spec stops the remaining specs.
 
-### Validation
-
-Before starting, validate the spec list:
-
-1. **Parse** — split on commas, resolve each to a spec file
-2. **Prerequisites** — check that each spec's `blocked-by` is satisfied. Reject any spec with unmet prerequisites.
-
-### Execution
-
-Run each spec's full pipeline in order (spec 42 → spec 45 → spec 48). Each spec completes its pipeline (build → test → review → wrap-up) before the next begins. A gate failure in one spec stops the remaining specs — present what completed and what remains.
-
-If `worktree` is specified, each spec gets its own worktree via `/superpowers:using-git-worktrees`. The worktree is finished via `/superpowers:finishing-a-development-branch` before the next spec begins.
-
-### Multi-Spec Summary
-
-After all specs complete (or one fails), present a consolidated summary:
-
-```markdown
-## Flow: Multi-Spec Pipeline Complete
-
-| Spec | Build | Test | Review | Polish | Wrap-Up | Outcome |
-|------|-------|------|--------|--------|---------|---------|
-| {N} | passed | passed | PASS | applied + re-verified | done | Complete |
-| {N} | passed | passed | PASS | skipped (no-polish) | done | Complete (no polish) |
-| {N} | passed | passed | BLOCKED | — | — | Stopped at review |
-| {N} | passed | passed | PASS | re-verify failed | — | Stopped at re-verify |
-| {N} | — | — | — | — | — | Not started (previous spec failed) |
-
-### Manual Steps Required (all specs)
-| # | Spec | What | Where |
-|---|------|------|-------|
-| 1 | {N} | {description} | {source} |
-(or: No manual steps required.)
-
-### Per-Spec Details
-(expand each spec's key outputs, failures, and review findings)
-```
+For the full validation rules, execution order, and consolidated Multi-Spec Summary template, read `multi-spec.md` in this skill's directory.
 
 ---
 
@@ -598,62 +448,7 @@ For true parallel execution, run separate terminals with `worktree` mode — eac
 
 Each terminal creates its own worktree and feature branch. There is no file overlap risk because each worktree is a full, isolated copy.
 
-### When to use worktree mode
-
-- **Parallel work** — multiple specs building simultaneously in separate terminals
-- **Team projects** — isolated branches ready for PR review
-- **Risky changes** — experiment without affecting the main working tree
-
-### When to use current-branch mode
-
-- **Solo work** — simple, sequential, fast
-- **Quick specs** — low risk, no isolation needed
-- **Single terminal** — no need for parallel execution
-
-### Merge Reconciliation (after parallel worktree runs)
-
-After all terminals complete, merge the feature branches back. Run this once from the main working tree:
-
-#### Merge Order
-
-1. Sort completed branches by diff size (smallest first — run `git diff --stat main..{branch}` and read the summary line at the end of its output)
-2. Merge branches sequentially into the base branch
-
-#### Merge Procedure
-
-For each completed branch (in order):
-
-1. `git merge {branch}` into the base branch
-2. **If merge succeeds** — continue to the next branch
-3. **If merge conflicts** — present the conflicts:
-   ```
-   Merge conflict merging {branch}:
-
-   Conflicting files:
-   - {file1}
-   - {file2}
-
-   1. Resolve conflicts now **(Recommended)** — I'll resolve based on both specs' intent
-   2. Skip this branch — merge remaining branches first, come back to this one
-   3. Abort all remaining merges — I'll handle merges manually
-   ```
-4. After all merges, update `specs/INDEX.md` to reflect completed specs
-
-#### Post-Merge Summary
-
-```markdown
-### Merge Results
-
-| Branch | Spec | Merge Status |
-|--------|------|-------------|
-| {branch} | {N} | Merged cleanly |
-| {branch} | {N} | Merged with conflict resolution |
-| {branch} | {N} | Skipped (pipeline failed) |
-
-### Next Actions
-- Failed specs: fix issues and re-run `/claude-tweaks:flow {spec} worktree {remaining steps}`
-- All merged: run `/claude-tweaks:help` for full pipeline status
-```
+For mode-selection guidance (worktree vs current-branch), the merge reconciliation procedure (merge order, conflict handling, conflict resolution prompt), and the post-merge summary template, read `worktree-merge.md` in this skill's directory.
 
 ---
 
