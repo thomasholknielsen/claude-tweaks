@@ -19,29 +19,99 @@ Walk the precedence chain (see `_shared/auto-mode-contract.md`):
 
 For each lever, record both the recommended value AND its source so the user can see why each value was suggested.
 
+## Compute per-spec preview
+
+Before rendering the Manifesto, derive a per-spec preview by reading each spec's frontmatter and inferring what will run:
+
+| Field | Source | How to derive |
+|---|---|---|
+| Surface | Spec frontmatter `surface:` (or detect from spec's Key Files extensions) | `frontend` if `.tsx/.jsx/.vue/.svelte/.css` files present; else `backend` / `infra` per frontmatter or content |
+| Polish | `surface` × spec `design-intent:` × `no-polish` arg | `run` if frontend + design-intent != none + no-polish not set; `skip ({reason})` otherwise |
+| Stories | UI files in plan + `no-stories` arg | `auto-detect` if UI files in plan + no-stories not set; `skip` otherwise |
+| QA | `stories/*.yaml` exists for this spec's surface | `run` if matching stories; `skip` if none |
+| Friction note | Lever recommendations × spec content | One-line warning when an approved lever still introduces prompts for this spec (e.g., review-severity-floor `low` + a frontend spec with prior HIGH findings) |
+
+Suppress the preview table entirely when only one spec is run and all four columns are `skip` or `none` — present a single-line summary instead.
+
+## Determine lever suppressions
+
+A lever is **suppressed** (hidden from the Manifesto) when no skill in the resolved step list consumes it. Suppression rules:
+
+| Lever | Suppressed when |
+|---|---|
+| **Overlap** (3) | `/specify` not in the pipeline (always suppressed for `/flow` — specs already exist) |
+| **Design intent** (4) | All specs have `design-intent:` locked in frontmatter, OR all specs are non-frontend (polish auto-skips regardless) |
+| **Tidy aggressiveness** (8) | `/tidy` not in the step list (it is not part of default `/flow`) |
+| **Auto-fix threshold** (6) | `/test` not in the step list |
+| **Review severity floor** (7) | `/review` not in the step list |
+| **Leftover routing** (5) | `/wrap-up` not in the step list |
+
+Always visible: **Mode** (1), **Scope-creep** (2) — they affect every pipeline.
+
+When a lever is suppressed, mention it once in the Suppressed footer below the table so the user knows it was considered and dropped.
+
 ## Present the Manifesto
 
 ```markdown
 ### Pipeline Config Manifesto
 
-I've pre-filled recommended defaults based on {project policy + sensible defaults}.
-Approve to lock these in for this pipeline run. You won't be asked about them again mid-flow.
+{Pipeline-shape preamble — one of:
+  - Multi-spec: "Sequential run: 157 → 159 → 160 ({worktree | current-branch})"
+  - Single-spec: "Single spec: 42 ({worktree | current-branch})"}
 
-| # | Lever | Recommendation | Source | What it controls |
+#### Pipeline preview
+
+| Spec | Surface | Polish | Stories | QA | Friction note |
+|---|---|---|---|---|---|
+| 157 | infra | skip (design-intent:none) | skip (no UI) | skip (no stories) | — |
+| 159 | infra | skip | skip | skip | — |
+| 160 | infra | skip | skip | skip | — |
+
+**Expected friction under these defaults:** {one of:
+  - "none — auto runs end-to-end."
+  - "occasional prompts: {synthesize from per-spec friction notes — e.g., 'review may surface HIGH findings on spec 42'}"}
+
+#### Policy levers
+
+I've pre-filled recommendations from project policy + sensible defaults. The Recommendation is **bold** inside the Options column so override is "spot the not-bold one."
+
+| # | Lever | Recommended | Options | Effect if approved |
 |---|---|---|---|---|
-| 1 | Mode | {auto / hybrid} | {arg / policy / default} | Whether mid-flow stops are silenced |
-| 2 | Scope-creep policy | {add-to-plan} | {default} | /build Step 1.5 when files outside plan are referenced |
-| 3 | Overlap policy | {companion} | {default} | /specify Step 1 when specs overlap |
-| 4 | Design intent | {none} | {default} | /specify Step 2.5c creative direction (none/bold/quiet/minimal/delightful/onboarding) |
-| 5 | Leftover routing default | {defer} | {default} | /wrap-up Step 4 when sections cannot finish (defer/inbox/drop) |
-| 6 | Auto-fix threshold | {lint+type} | {default} | /test Step 1 fix-mode scope (lint-only/lint+type/lint+type+test) |
-| 7 | Review severity floor | {low} | {default} | /review Step 3g auto-apply cutoff (none/low/medium) |
-| 8 | Tidy aggressiveness | {conservative} | {default} | /tidy auto-apply scope (conservative/moderate/aggressive) |
+| 1 | Mode | **auto** | **auto** / hybrid / interactive | Pipeline runs hands-off; failures surface via ledger / failure card |
+| 2 | Scope-creep | **add-to-plan** | **add-to-plan** / stop-and-ask / drop | Files outside plan auto-added; nothing dropped silently |
+| 5 | Leftover routing | **defer** | **defer** / inbox / drop | Unfinished sections → DEFERRED.md (reversible at Review Console) |
+| 6 | Auto-fix threshold | **lint+type** | lint-only / **lint+type** / lint+type+test | Lint + type errors auto-fixed; test failures still surface |
+| 7 | Review severity floor | **low** | none / **low** / medium | LOW findings auto-applied; MED staged; HIGH still prompts |
 
-1. Approve all recommendations **(Recommended)**
-2. Override specific items — reply with the # and the new value (e.g., "3=skip, 4=bold")
-3. Cancel pipeline
+**Suppressed (not applicable to this run):** 3 (overlap — `/specify` not in pipeline), 4 (design intent — locked by frontmatter on all 3 specs), 8 (tidy — not in default `/flow`).
+
+---
+
+1. **Approve all** **(Recommended)**
+2. **Override** — reply with `#=value` pairs (e.g., `2=stop-and-ask, 7=medium`). See "Override semantics" below for what each option means.
+3. **Cancel pipeline**
+
+#### Override semantics (read before overriding)
+
+| Lever | Option | What changes |
+|---|---|---|
+| Mode | `hybrid` | Same as auto but skills still prompt when reversibility/confidence/severity floors fail |
+| Mode | `interactive` | Skips the Manifesto pipeline-wide; every skill presents decisions in-flow as today |
+| Scope-creep | `stop-and-ask` | Pipeline pauses inline when files outside plan are referenced |
+| Scope-creep | `drop` | Files outside plan are noted in `decisions.md` but not added |
+| Leftover routing | `inbox` | Unfinished sections route to `specs/INBOX.md` instead of DEFERRED.md |
+| Leftover routing | `drop` | Unfinished sections are noted in `decisions.md` but no INBOX/DEFERRED write |
+| Auto-fix threshold | `lint-only` | Type errors surface as prompts; tests always surface |
+| Auto-fix threshold | `lint+type+test` | Mechanical test failures also auto-fixed (rare; risky — semantic changes hidden) |
+| Review severity floor | `none` | All findings auto-applied (lowest friction, highest revert load) |
+| Review severity floor | `medium` | LOW + MED auto-applied; only HIGH prompts |
 ```
+
+### Rendering rules for the preview
+
+- **All-skip single-spec run:** replace the preview table with one line — e.g., `Preview: spec 42 (infra) — pipeline runs without polish / stories / QA. No friction expected.`
+- **Mixed-surface multi-spec run:** keep the table; per-spec rows make the contrast visible (one frontend, two backend, etc.).
+- **Friction note column:** only populate when a recommended lever value will introduce a mid-flow prompt for *this* spec under the *recommended* values. If "Approve all" runs silently for that spec, leave the column as `—`.
 
 ## Source values
 
@@ -50,6 +120,7 @@ Approve to lock these in for this pipeline run. You won't be asked about them ag
 | `arg` | Set by an explicit CLI argument in `$ARGUMENTS` |
 | `policy` | From `.claude-tweaks/policy.yml` or CLAUDE.md `auto-mode:` keys |
 | `default` | Hardcoded sensible default |
+| `frontmatter` | Locked by spec frontmatter (e.g., `design-intent:` set on every spec in the run) |
 
 ## Recommendation defaults (when no arg and no policy)
 
@@ -81,9 +152,11 @@ spec: 42
 created: 2026-05-15T14:32:07
 ```
 
+Suppressed levers are still written to `config.yml` with their default values — suppression is a UI affordance, not a semantic skip. Downstream skills always have a value to read.
+
 Initialize `decisions.md` in the same directory with the config snapshot header (see `_shared/auto-decision-log.md`). Create the `staged/` subdirectory.
 
-**On override (option 2):** parse the user's overrides, apply them to the recommendation set, write the final config to `config.yml`. Do not loop — the user gives all overrides in one reply.
+**On override (option 2):** parse the user's `#=value` pairs, apply them to the recommendation set, validate each value against the lever's option vocabulary (reject typos with an inline retry), write the final config to `config.yml`. Do not loop on the Manifesto itself — the user gives all overrides in one reply. If validation fails on any pair, present a single retry line listing the invalid pairs only (`Invalid: 2=foo (must be add-to-plan / stop-and-ask / drop)`).
 
 **On cancel (option 3):** abort the pipeline. Do not create the run directory.
 
