@@ -15,12 +15,30 @@ v4.0.0 is a breaking release. Two changes affect existing users:
 
 Run `/claude-tweaks:init` against your existing project to refresh the configuration after upgrading.
 
+### What's new in v4.6 — Bookend Architecture + Auto-Mode Contract
+
+The pipeline now has at most **two user-facing stops in `auto` mode**, regardless of how many decisions it makes:
+
+- **Pipeline Config Manifesto** at the start (`/flow` Step 1.6) — one structured table pre-fills every policy lever (scope-creep, overlap, design-intent, leftover-routing, auto-fix-threshold, review-severity-floor, tidy-aggressiveness) with recommended defaults. Hit "Approve all recommendations" or override specific items.
+- **Wrap-Up Review Console** at the end (`/wrap-up` Step 9.6) — one consolidated batch surfacing every auto-decided item, every staged item, skill updates, and config changes. Hit "Approve all" or override specific items.
+- **Mid-flow** — pure automation. Every decision is logged to `.claude-tweaks/pipelines/{run-id}/decisions.md` with status (AUTO / STAGED / KEPT-PROMPT), rationale, and reversibility. The Review Console reads this log.
+
+New shared files:
+- `skills/_shared/auto-mode-contract.md` — single source of truth for what `auto` silences AND what it does not (ledger resolve Phase 2, INBOX/DEFERRED writes, `/challenge` lenses, governance gates, HARD-GATEs). Defines reversibility/confidence/severity floors and decision precedence.
+- `skills/_shared/auto-decision-log.md` — audit-trail spec. Every auto-resolution logs a one-liner. The user reviews the log at wrap-up rather than upfront.
+
+Per-pipeline state lives in `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/` (config.yml + decisions.md + staged/) — collision-safe for parallel agents in the same checkout.
+
+Per-skill rewrites: `/review` Step 3g (severity-based routing), `/tidy` (aggressiveness-based routing), `/init` Phase 3 (confidence-gated), `/build` Common Step 1.5 (scope-creep policy), `/specify` Step 1 + 2.5b + 2.5c (overlap + shape + design-intent policies), `/stories` Step 1 + 6 (legacy + journey-link auto), `/test` Step 3 (auto-fix-threshold), `/visual-review` Step 1 + 2 (auto-skip + log), `/capture` (`--route` arg), `/reflect` Step 3 (auto-route safety findings + stage rest), `/wrap-up` Step 4 + 7.5 (policy lookup + stage).
+
+**Strict rule:** skills MUST NOT invent new mid-flow stops in `auto`. Mid-flow stops are reserved for HARD-GATEs and the explicit "not silenced" list.
+
 ### What's new in v4.5 — Impeccable Integration (feature-complete)
 
 v4.5.0 shipped the integration in three internal phases. All three are now in place; v4.5.0 is the GA release of the full feature.
 
 - **Phase 1** — wrapper skeleton + read-only integration. The `/claude-tweaks:design` skill exposes 6 mode signatures; `test` (CLI gate) and `review` (advisory critique + audit) are active. `/init` Step 0.9 walks the user through Impeccable plugin install, CLI install, and `/impeccable teach` setup. `/test` Step 1.5 is the deterministic CLI gate; `/review` Step 6.5 surfaces "Design Quality" findings advisorily.
-- **Phase 2** — code-modifying integration. `/build` Common Step 1.7 lazy-loads Impeccable reference files into the implementer subagent's context (`pre-build` mode). `/specify` accepts polymorphic input (topic name → invokes `/superpowers:brainstorm`; design doc path → existing behavior), runs the Impeccable `shape` pre-step on frontend design docs, asks the design-intent question, and writes `surface:` + `design-intent:` frontmatter on every generated spec. `/flow` adds a `polish` phase between review and wrap-up that dispatches Impeccable's auto-fit + issue-driven commands; a re-verify gate (`/test skip-qa`, one-cycle cap) catches polish-broke-verification cases. New `no-polish` flag on `/flow` and `skip-qa` flag on `/test` are the user-facing controls.
+- **Phase 2** — code-modifying integration. `/build` Common Step 1.7 lazy-loads Impeccable reference files into the implementer subagent's context (`pre-build` mode). `/specify` accepts polymorphic input (topic name → invokes `/superpowers:brainstorming`; design doc path → existing behavior), runs the Impeccable `shape` pre-step on frontend design docs, asks the design-intent question, and writes `surface:` + `design-intent:` frontmatter on every generated spec. `/flow` adds a `polish` phase between review and wrap-up that dispatches Impeccable's auto-fit + issue-driven commands; a re-verify gate (`/test skip-qa`, one-cycle cap) catches polish-broke-verification cases. New `no-polish` flag on `/flow` and `skip-qa` flag on `/test` are the user-facing controls.
 - **Phase 3** — creative surfacing system. Intent-driven dispatch lights up in `polish` mode (reads `design-intent:` frontmatter and dispatches `bolder`, `quieter`, `distill`, `delight`+`animate`, `onboard` per the value). The `survey` mode goes active and produces ranked Creative Opportunities recommendations rendered as **three independent anchors** so creative commands cannot get buried:
   - **Anchor 1 — `polish` mode intent dispatch.** Auto-runs the matching creative command(s) when intent is declared (no decline tracking — explicit frontmatter is consent).
   - **Anchor 2 — `/visual-review` Creative Opportunities block.** Survey runs against captured screenshots; recommendations rendered after the findings table. Read-only.
@@ -124,11 +142,11 @@ Quality-of-life improvements that emerged from doing the v4.0 migration. Non-bre
 
 **`/claude-tweaks:challenge`** — Takes an INBOX item or topic and pressure-tests it before committing to an approach. Surfaces hidden assumptions, identifies risks, explores alternatives. Produces a Brief that feeds into brainstorming.
 
-**`/superpowers:brainstorm`** *(Superpowers plugin)* — Generates solution approaches from the Brief. Explores multiple directions, evaluates tradeoffs, and produces a Design Doc with a recommended approach.
+**`/superpowers:brainstorming`** *(Superpowers plugin)* — Generates solution approaches from the Brief. Explores multiple directions, evaluates tradeoffs, and produces a Design Doc with a recommended approach.
 
-**`/claude-tweaks:specify`** — Decomposes a Design Doc into agent-sized specs with clear acceptance criteria. Each spec gets a numbered file in `specs/` with `surface:` and `design-intent:` frontmatter (v4.5.0). Detects implicit dependencies between specs (two specs touching the same files) and builds a file-to-spec map. Deletes the Brief and Design Doc after absorbing them. Uses `/superpowers:write-plan` to structure the execution plan.
+**`/claude-tweaks:specify`** — Decomposes a Design Doc into agent-sized specs with clear acceptance criteria. Each spec gets a numbered file in `specs/` with `surface:` and `design-intent:` frontmatter (v4.5.0). Detects implicit dependencies between specs (two specs touching the same files) and builds a file-to-spec map. Deletes the Brief and Design Doc after absorbing them. Uses `/superpowers:writing-plans` to structure the execution plan.
 
-**Polymorphic input (v4.5.0):** `/specify` accepts either a design doc path (read directly) or a topic name (invokes `/superpowers:brainstorm` to produce the design doc, then continues into decomposition). When given a frontend design doc, `/specify` runs the Impeccable `shape` pre-step and asks a design-intent question (bold / quiet / minimal / delightful / onboarding / none) to populate the new frontmatter fields.
+**Polymorphic input (v4.5.0):** `/specify` accepts either a design doc path (read directly) or a topic name (invokes `/superpowers:brainstorming` to produce the design doc, then continues into decomposition). When given a frontend design doc, `/specify` runs the Impeccable `shape` pre-step and asks a design-intent question (bold / quiet / minimal / delightful / onboarding / none) to populate the new frontmatter fields.
 
 ### Pipeline (automated by `/claude-tweaks:flow`)
 
@@ -223,7 +241,7 @@ Handles 3-layer detection (kill-switch / spec frontmatter / file-extension sniff
 # Full pipeline — idea to clean slate
 /claude-tweaks:capture "users need meal planning"
 /claude-tweaks:challenge meal planning
-/superpowers:brainstorm
+/superpowers:brainstorming
 /claude-tweaks:specify meal planning
 /claude-tweaks:flow 73
 

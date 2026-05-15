@@ -10,7 +10,7 @@ description: Use when initializing the workflow system for a project — bootstr
 Bootstrap the workflow system for a project AND generate intelligent configuration from codebase analysis. Handles everything from directory creation to CLAUDE.md generation, skills, rules, and journey discovery — in one command.
 
 ```
-[ /claude-tweaks:init ] → /claude-tweaks:capture → /claude-tweaks:challenge → /brainstorm → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+[ /claude-tweaks:init ] → /claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
   ^^^^ YOU ARE HERE ^^^^
 ```
 
@@ -75,7 +75,7 @@ Fast, idempotent structural setup. Creates directories, starter files, and verif
 
 #### Required: Superpowers
 
-Provides `/brainstorm`, `/write-plan`, `/subagent-driven-development`, `/executing-plans`, `/using-git-worktrees`, `/finishing-a-development-branch`, and `/dispatching-parallel-agents`.
+Provides `/superpowers:brainstorming`, `/superpowers:writing-plans`, `/superpowers:subagent-driven-development`, `/superpowers:executing-plans`, `/superpowers:using-git-worktrees`, `/superpowers:finishing-a-development-branch`, and `/superpowers:dispatching-parallel-agents`.
 
 ```
 Check if installed — use the Glob tool to search for *superpowers* under the user's ~/.claude/plugins/ directory.
@@ -97,11 +97,13 @@ Note: `code-simplifier` is a built-in subagent type (`subagent_type="code-simpli
 Check and create the required directories (only create what's missing):
 
 ```
-specs/              → Spec files and INBOX
-docs/               → Documentation root (REGISTRY.md created in Phase 8.5)
-docs/plans/         → Design docs (from /brainstorm) and execution plans (from /write-plan)
-docs/journeys/      → User and developer journey files (created by /journeys, tested by /visual-review)
-.claude/skills/     → Skill files (should already exist if this skill is running)
+specs/                      → Spec files and INBOX
+docs/                       → Documentation root (REGISTRY.md created in Phase 8.5)
+docs/superpowers/specs/     → Design docs (from /superpowers:brainstorming)
+docs/superpowers/plans/     → Execution plans (from /superpowers:writing-plans)
+docs/plans/                 → Claude-tweaks pipeline state (briefs, ledger, audit/recommendations caches)
+docs/journeys/              → User and developer journey files (created by /journeys, tested by /visual-review)
+.claude/skills/             → Skill files (should already exist if this skill is running)
 ```
 
 ### Step 0.3: Create Starter Files
@@ -160,7 +162,7 @@ Check if `.gitignore` exists and whether it already covers workflow artifacts. S
 ```gitignore
 # claude-tweaks: transient artifacts
 screenshots/
-.claude/worktrees/
+.worktrees/
 stories/auth.yml
 ```
 
@@ -183,11 +185,11 @@ The workflow system relies on git for change tracking (`/claude-tweaks:review` u
 
 ### Step 0.6: Worktree Configuration
 
-`/claude-tweaks:build worktree` and `/claude-tweaks:flow worktree` use `/using-git-worktrees` to create isolated workspaces. The standard worktree directory is `.claude/worktrees/` in the project root.
+`/claude-tweaks:build worktree` and `/claude-tweaks:flow worktree` use `/superpowers:using-git-worktrees` to create isolated workspaces. The standard worktree directory is `.worktrees/` in the project root — this matches superpowers v5.1.0's preferred path and is the only directory `/superpowers:finishing-a-development-branch` will clean up.
 
-1. Check if `.claude/worktrees/` exists in the project root
+1. Check if `.worktrees/` exists in the project root
 2. If it doesn't exist, create it and verify it's in `.gitignore` (suggest adding if not)
-3. If a legacy worktree directory exists (`.worktrees/` or `worktrees/`), suggest migrating to `.claude/worktrees/` for consistency
+3. If a legacy `.claude/worktrees/` directory exists, suggest migrating to `.worktrees/` so superpowers's cleanup step owns the path
 
 ### Step 0.7: Browser Integration
 
@@ -359,7 +361,7 @@ Bootstrap complete. How much setup do you want?
 4. Done — just needed the bootstrap structure
 ```
 
-**Option 1 (Auto):** Run all included phases end-to-end. Phase 3 still presents its classification confirmation gate (this is the only mandatory interaction in auto mode — the maturity/doc-tier decision affects all downstream output). Phase 4 still presents the skill selection. Phase 9 still presents the final summary for confirmation. All other phases run without pausing.
+**Option 1 (Auto):** Run all included phases end-to-end. Phase 3 auto-confirms classification when detection confidence is `high` and signals are consistent (otherwise presents the confirmation gate as a KEPT-PROMPT). Phase 4 still presents the skill selection (governance decision — never silenceable). Phase 9 still presents the final summary for confirmation (governance decision). All other phases run without pausing.
 
 **Option 2 (Interactive):** After each phase completes, present its output and ask:
 ```
@@ -507,6 +509,24 @@ After presenting the Stack Profile (or Drift Report), present the unified Projec
 
 **Determine doc tier** using the heuristics from `docs-structure.md` in this skill's directory, combining Phase 2 reconnaissance findings with the detected maturity.
 
+**Compute detection confidence:** for each dimension (maturity, doc-tier), rate the signal strength as `high` (≥3 strong consistent signals), `med` (1-2 consistent signals, no contradictions), or `low` (contradictory or sparse signals).
+
+### Auto mode (confidence-gated)
+
+When `auto` mode is set AND both dimensions classify with confidence `high` AND signals are internally consistent:
+
+1. Auto-confirm the detected classification
+2. Log:
+   ```
+   AUTO {time} — Phase 3: classification auto-confirmed. Maturity: {value} (confidence: high). Doc tier: {value} (confidence: high). Proceed to Phase 4.
+   ```
+3. Print a one-line summary (not a prompt): "Classified as {maturity}, doc tier {N}. Proceeding."
+4. Skip to Phase 4
+
+Auto-confirm is forbidden when either dimension is `med` or `low` confidence, OR when signals contradict (e.g., greenfield code + production-grade infra). In those cases, fall through to the confirmation gate (KEPT-PROMPT).
+
+### Confirmation gate (interactive mode OR auto with low confidence)
+
 **Present for confirmation:**
 
 ```
@@ -514,10 +534,10 @@ After presenting the Stack Profile (or Drift Report), present the unified Projec
 
 Based on codebase analysis:
 
-| Dimension | Detected | Rationale |
-|-----------|----------|-----------|
-| Maturity | {greenfield/pre-launch/early-production/established} | {key signals: age, infra, users, migrations} |
-| Doc tier | {1/2/3} | {key signals: project size, API surfaces, team size} |
+| Dimension | Detected | Confidence | Rationale |
+|-----------|----------|-----------|-----------|
+| Maturity | {greenfield/pre-launch/early-production/established} | {high/med/low} | {key signals: age, infra, users, migrations} |
+| Doc tier | {1/2/3} | {high/med/low} | {key signals: project size, API surfaces, team size} |
 
 ### Philosophy (derived from maturity)
 - Change philosophy: {e.g., "Move fast, refactor freely" / "Expand-contract, safe migrations"}
@@ -882,5 +902,5 @@ Execute only after user confirmation.
 | `/claude-tweaks:tidy` | /tidy Step 4.6 audits doc registry health — flags stale entries, gaps, pattern drift. Suggests `/init update` for tier drift. |
 | `/claude-tweaks:browse` | Depends on `agent-browser`, which /claude-tweaks:init detects (and surfaces install instructions for) in Phase 0 |
 | `/claude-tweaks:design` | Phase 0.9 sets up Impeccable design integration (install plugin + CLI, optionally run `teach`) and writes the `design-integration` kill-switch flag to CLAUDE.md that the wrapper reads as Layer 1 of its detection logic. |
-| `/using-git-worktrees` | /claude-tweaks:init optionally configures the worktree directory that `using-git-worktrees` needs |
+| `/superpowers:using-git-worktrees` | /claude-tweaks:init optionally configures the worktree directory that `using-git-worktrees` needs |
 | All workflow skills | Depend on the structure /claude-tweaks:init creates |

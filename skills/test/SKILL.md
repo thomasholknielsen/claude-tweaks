@@ -281,7 +281,24 @@ On overall pass (including PASSED WITH OBSERVATIONS), set `TEST_PASSED=true` in 
 
 ## Step 3: Fix Mode (Optional)
 
-If tests fail and the failures look straightforward (type errors, lint violations, simple test failures), offer to fix them:
+If tests fail and the failures look straightforward (type errors, lint violations, simple test failures):
+
+### Auto mode (threshold-based fixing)
+
+When a pipeline run directory exists, read `auto-fix-threshold` from `config.yml` (default `lint+type`). Route by failure type:
+
+| Failure type | `lint-only` | `lint+type` (default) | `lint+type+test` |
+|---|---|---|---|
+| Lint failure | Auto-fix | Auto-fix | Auto-fix |
+| Type failure | Stage as patch | Auto-fix | Auto-fix |
+| Test failure (semantic) | Stage as patch | Stage as patch | Auto-fix (high risk — only when explicitly enabled) |
+| QA failure | Stage as patch | Stage as patch | Stage as patch (never auto-fixed) |
+
+**Auto-fix flow:** make the changes, re-run the failed checks. On re-verification pass, log `AUTO {time} — Step 3: auto-fixed {N} {type} failures. Commit: {hash}.` and proceed. On re-verification fail or new issues, downgrade to STAGED and surface at Review Console.
+
+**Stage flow:** write the proposed fix to `staged/test-fix-{n}.patch` and log `STAGED {time} — Step 3: {N} {type} failures staged for review. Stage path: staged/test-fix-{n}.patch.`. The test gate fails until the user resolves at the Review Console.
+
+### Interactive mode
 
 ```
 {N} failure(s) found.
@@ -295,7 +312,7 @@ If the user chooses to fix:
 - Re-run the failed checks to verify
 - Report the results
 
-**Auto-fix for lint/type-only failures:** When failures are exclusively lint errors or type errors (no test failures), auto-fix and re-verify without asking. State: "Auto-fixing {N} lint/type errors" and re-run the failed checks. If re-verification passes, proceed. If re-verification fails or new issues appear, stop and present the 3-option choice above. For test failures or mixed failure types (lint + test), always present the choice.
+**Auto-fix for lint/type-only failures (interactive default):** When failures are exclusively lint errors or type errors (no test failures), auto-fix and re-verify without asking. State: "Auto-fixing {N} lint/type errors" and re-run the failed checks. If re-verification passes, proceed. If re-verification fails or new issues appear, stop and present the 3-option choice above. For test failures or mixed failure types (lint + test), always present the choice.
 
 **QA failures** are not auto-fixable — they indicate broken user-facing behavior that requires investigation. For QA failures:
 

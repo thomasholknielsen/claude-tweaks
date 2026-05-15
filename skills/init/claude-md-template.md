@@ -55,15 +55,15 @@ Generated from the maturity classification detected in Phase 2h. See "Generating
 
 ## claude-tweaks Pipeline
 
-**Artifacts:** design doc (one file, phases = `## Phase N` sections) → spec (one per work unit, via `/claude-tweaks:specify`) → `/claude-tweaks:flow`. No phase-plan files; skip `/write-plan`.
+**Artifacts:** design doc (one file, phases = `## Phase N` sections) → spec (one per work unit, via `/claude-tweaks:specify`) → `/claude-tweaks:flow`. No phase-plan files; skip `/superpowers:writing-plans`.
 
-**Entry point:** `/claude-tweaks:specify` — accepts a topic (calls `/brainstorm`), design-doc path, or INBOX ref.
+**Entry point:** `/claude-tweaks:specify` — accepts a topic (calls `/superpowers:brainstorming`), design-doc path, or INBOX ref.
 
 **`/flow`:** specs only (rejects design docs). Size is not a stop signal — gate blocks on structural coupling (cross-task deps, scope leak).
 
 **`auto-mode: default-off`** by default — flip to `default-on` to make `/flow` and `/build` run in auto. Under auto, do NOT insert mid-pipeline reality-checks, path-selection prompts, or context concerns. Surface failures via ledger/failure card. See `_shared/auto-mode-contract.md` in the claude-tweaks plugin.
 
-**Superpowers overrides:** `/brainstorm` stops after the design doc — route to `/specify`, never `/write-plan`. `/subagent-driven-development` and `/executing-plans` don't auto-invoke `/finishing-a-development-branch`.
+**Superpowers overrides:** `/superpowers:brainstorming` stops after the design doc — route to `/specify`, never `/superpowers:writing-plans`. `/superpowers:subagent-driven-development` and `/superpowers:executing-plans` don't auto-invoke `/superpowers:finishing-a-development-branch`.
 
 ## Project Defaults (optional)
 

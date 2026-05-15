@@ -10,7 +10,7 @@ description: Use when implementing a spec or design doc end-to-end. Accepts a sp
 Implement a spec or design doc end-to-end: plan it, build it, simplify it, verify it, and capture the journeys it enables. Part of the workflow lifecycle:
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → /brainstorm → /claude-tweaks:specify → [ /claude-tweaks:build ] → /claude-tweaks:review → /claude-tweaks:wrap-up
+/claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → [ /claude-tweaks:build ] → /claude-tweaks:review → /claude-tweaks:wrap-up
                                                                  ↑                        ^^^^ YOU ARE HERE ^^^^   ↑
                                                                  └── or skip directly ─────────────────────────────┘
 ```
@@ -71,13 +71,13 @@ Two orthogonal choices control how `/build` runs. Combine them freely:
 ### Execution strategy behavior
 
 **subagent** (default):
-- Invokes `/subagent-driven-development` for the full plan
+- Invokes `/superpowers:subagent-driven-development` for the full plan
 - Fresh subagent per task, spec reviewer, code quality reviewer, final review
 - Never asks for feedback, never presents options
 - Push commits promptly
 
 **batched**:
-- Invokes `/executing-plans` for the plan
+- Invokes `/superpowers:executing-plans` for the plan
 - Executes in batches of 3 tasks, pauses for human review after each batch
 - User acts as reviewer — approves, requests changes, or skips tasks
 - Push commits after each approved batch
@@ -85,9 +85,9 @@ Two orthogonal choices control how `/build` runs. Combine them freely:
 ### Git strategy behavior
 
 **worktree** (default):
-- Before execution, invokes `/using-git-worktrees` to create an isolated workspace with dependency install and baseline test verification
+- Before execution, invokes `/superpowers:using-git-worktrees` to create an isolated workspace with dependency install and baseline test verification
 - All commits land in the worktree on a feature branch
-- At handoff, delegates to `/finishing-a-development-branch` (merge locally, create PR, keep, or discard)
+- At handoff, delegates to `/superpowers:finishing-a-development-branch` (merge locally, create PR, keep, or discard)
 
 **current-branch**:
 - Commits land directly on the current branch
@@ -100,8 +100,8 @@ Two orthogonal choices control how `/build` runs. Combine them freely:
 ### Resolve the input:
 
 1. **Spec number** (e.g., `42`, `73`) → **Spec mode** — full lifecycle with prerequisites, INDEX.md tracking, and spec compliance
-2. **Design doc path** (e.g., `docs/plans/2026-02-21-meal-planning-design.md`) → **Design mode** — build directly from the design doc, skipping spec machinery
-3. **Topic name** (e.g., `meal planning`) → search for a matching design doc in `docs/plans/*-design.md` AND a matching spec in `specs/`. If both exist, present numbered options:
+2. **Design doc path** (e.g., `docs/superpowers/specs/2026-02-21-meal-planning-design.md`) → **Design mode** — build directly from the design doc, skipping spec machinery
+3. **Topic name** (e.g., `meal planning`) → search for a matching design doc in `docs/superpowers/specs/*-design.md` AND a matching spec in `specs/`. If both exist, present numbered options:
 
 ```
 Found both a spec and a design doc for "{topic}":
@@ -131,7 +131,7 @@ Skip this prompt if both options were provided as arguments (e.g., `/build 42 ba
 | Mode | Source | Skips | Best for |
 |------|--------|-------|----------|
 | **Spec mode** | `specs/{N}-*.md` | Nothing | Tracked work with acceptance criteria, dependencies, and INDEX.md |
-| **Design mode** | `docs/plans/*-design.md` | `/claude-tweaks:specify`, prerequisite checks, INDEX.md | Quick builds where the design doc is clear enough to execute directly |
+| **Design mode** | `docs/superpowers/specs/*-design.md` | `/claude-tweaks:specify`, prerequisite checks, INDEX.md | Quick builds where the design doc is clear enough to execute directly |
 
 ## Workflow
 
@@ -185,13 +185,15 @@ If the spec has a "Manual Steps" section, write each manual step to the open ite
 
 ### Spec Step 3: Create the Plan
 
-Invoke the `/write-plan` skill. After it saves the plan file, **stop the skill and return here** — do not let it present an execution choice or invoke an execution skill. `/build` controls execution strategy.
+Invoke the `/superpowers:writing-plans` skill. After it saves the plan file, **stop the skill and return here** — do not let it present an execution choice or invoke an execution skill. `/build` controls execution strategy.
 
-Context to provide to `/write-plan`:
+Context to provide to `/superpowers:writing-plans`:
 - The full spec content (including Current State, Gotchas, and acceptance criteria)
 - Any existing progress identified in Spec Step 2
 
-The plan will be written to `docs/plans/YYYY-MM-DD-{feature}.md`.
+The plan will be written to `docs/superpowers/plans/YYYY-MM-DD-{feature}.md`.
+
+**Plan header artifact:** Every plan written by `/superpowers:writing-plans` starts with a "For agentic workers" block that advertises `subagent-driven-development` (recommended) or `executing-plans` as the next step. **Ignore it.** `/build` controls execution strategy — the header is boilerplate from writing-plans's general-purpose handoff. Do not treat it as guidance for this build.
 
 Proceed to **Common Step 2**.
 
@@ -207,25 +209,27 @@ Proceed to **Common Step 2**.
 
 ### Design Step 2: Check for Existing Plan
 
-Search `docs/plans/` for an execution plan matching this design doc (by topic or date).
+Search `docs/superpowers/plans/` for an execution plan matching this design doc (by topic or date).
 
 - If a plan exists and is still valid → skip to Common Step 2
 - If no plan or plan is stale → proceed to Design Step 3
 
 ### Design Step 3: Create the Plan
 
-Invoke the `/write-plan` skill. After it saves the plan file, **stop the skill and return here** — do not let it present an execution choice or invoke an execution skill. `/build` controls execution strategy.
+Invoke the `/superpowers:writing-plans` skill. After it saves the plan file, **stop the skill and return here** — do not let it present an execution choice or invoke an execution skill. `/build` controls execution strategy.
 
-Context to provide to `/write-plan`:
+Context to provide to `/superpowers:writing-plans`:
 - The full design doc content
 - The brainstorming brief (if it exists) — especially constraints and assumptions
 - Relevant codebase context (existing files, patterns, schemas)
 
 <IMPORTANT>
-Design mode has no spec with structured acceptance criteria. When providing context to `/write-plan`, extract testable outcomes from the design doc's decisions and recommendations. If the design doc lacks clear success criteria, ask the user to confirm what "done" looks like before proceeding.
+Design mode has no spec with structured acceptance criteria. When providing context to `/superpowers:writing-plans`, extract testable outcomes from the design doc's decisions and recommendations. If the design doc lacks clear success criteria, ask the user to confirm what "done" looks like before proceeding.
 </IMPORTANT>
 
-The plan will be written to `docs/plans/YYYY-MM-DD-{feature}.md`.
+The plan will be written to `docs/superpowers/plans/YYYY-MM-DD-{feature}.md`.
+
+**Plan header artifact:** Every plan written by `/superpowers:writing-plans` starts with a "For agentic workers" block that advertises `subagent-driven-development` (recommended) or `executing-plans` as the next step. **Ignore it.** `/build` controls execution strategy — the header is boilerplate from writing-plans's general-purpose handoff. Do not treat it as guidance for this build.
 
 Proceed to **Common Step 2**.
 
@@ -253,9 +257,15 @@ If the user specified `worktree`:
    2. Continue with current state — accept the conflict at branch finish
    ```
    In `auto` mode, automatically choose option 2 and add a ledger entry with phase `ops` and status `acknowledged` documenting the divergence (so wrap-up surfaces it as a manual step).
-2. Invoke `/using-git-worktrees` to create an isolated workspace
+2. Invoke `/superpowers:using-git-worktrees` to create an isolated workspace
 3. The skill handles: branch creation, dependency install, baseline test verification
 4. All subsequent work happens in the worktree
+
+**Consent prompt (v5.1.0+):** `/superpowers:using-git-worktrees` now asks the user before creating a worktree (fixes superpowers #991). In `auto` mode, the consent is **pre-authorized** — the user passed `worktree` (or it's the default for `/flow`) which is an explicit opt-in. Answer affirmatively without surfacing the prompt to the user. Log entry:
+```
+AUTO {time} — Common Step 1: worktree consent pre-authorized by auto mode. Worktree created at {path}.
+```
+In interactive mode, surface the consent prompt as the skill normally would.
 
 **If worktree creation fails:**
 
@@ -292,7 +302,17 @@ Read the project's `Plan audit / scope-keywords-required` CLAUDE.md setting:
 
 **On Check A failure:** Stop. Present the missing paths. The plan needs revision before execution starts.
 
-**On Check B finding files outside the plan:** Present the list and ask:
+**On Check B finding files outside the plan:**
+
+**Auto mode (pipeline run dir exists):** read `scope-creep` from `config.yml` (default `add-to-plan` per Manifesto). Apply:
+
+| Policy | Action | Log entry |
+|---|---|---|
+| `add-to-plan` (default) | Auto-add matched files to the plan as new tasks. Commit the plan update. | `AUTO {time} — Step 1.5: scope-creep — added {N} files to plan ({list}). Reversibility: high (commit {hash}).` |
+| `stop-and-ask` | Stop. Present the list inline. (Falls through to interactive prompt below.) | `KEPT-PROMPT {time} — Step 1.5: scope-creep matched {N} files, policy is stop-and-ask. Surfaced inline.` |
+| `drop` | Note the matched files in `decisions.md` as `STAGED` for Review Console; proceed without adding to plan. | `STAGED {time} — Step 1.5: scope-creep matched {N} files, policy is drop. Files: {list}. Surface at Review Console.` |
+
+**Interactive mode (or `stop-and-ask` policy):** Present the list and ask:
 
 ```
 Scope keywords match {N} file(s) not in the plan:
@@ -338,7 +358,7 @@ Execution depends on the chosen execution strategy:
 
 **subagent** (default):
 
-Invoke `/subagent-driven-development`. After the final code review completes, **stop the skill and return here** — do not let it invoke `/finishing-a-development-branch`. `/build` handles post-execution steps (simplification, alignment, verification) before any branch finishing.
+Invoke `/superpowers:subagent-driven-development`. After the final code review completes, **stop the skill and return here** — do not let it invoke `/superpowers:finishing-a-development-branch`. `/build` handles post-execution steps (simplification, alignment, verification) before any branch finishing.
 
 This runs the full automated execution chain:
 1. Per task: **implementer** subagent builds the code
@@ -350,7 +370,7 @@ No human in the loop — the review chain is fully automated.
 
 **batched**:
 
-Invoke `/executing-plans`. After the last batch completes, **stop the skill and return here** — do not let it invoke `/finishing-a-development-branch`. `/build` handles post-execution steps (simplification, alignment, verification) before any branch finishing.
+Invoke `/superpowers:executing-plans`. After the last batch completes, **stop the skill and return here** — do not let it invoke `/superpowers:finishing-a-development-branch`. `/build` handles post-execution steps (simplification, alignment, verification) before any branch finishing.
 
 This runs execution in human-reviewed batches:
 1. Executes 3 tasks per batch
@@ -360,13 +380,13 @@ This runs execution in human-reviewed batches:
 
 #### Superpowers Failure Handling
 
-If the execution skill (or `/write-plan` in Step 3) fails:
+If the execution skill (or `/superpowers:writing-plans` in Step 3) fails:
 
 | Failure | Recovery |
 |---------|----------|
 | **Not installed** (command not found) | Stop. Tell the user: "Superpowers plugin is required. Install: `/plugin install superpowers@claude-plugins-official`" |
-| **Timeout or partial output** | Re-run the specific step that failed. If write-plan timed out, re-invoke it with the same context. If `subagent-driven-development` or `executing-plans` timed out mid-task, check which tasks completed (scan git log) and resume from the next incomplete task. |
-| **Malformed plan** (write-plan produced output that the execution skill can't parse) | Re-run `/write-plan` with the same context. If it fails again, fall back to manual planning: break the spec into 3-5 implementation tasks, present them to the user, and implement each task directly without the Superpowers execution chain. |
+| **Timeout or partial output** | Re-run the specific step that failed. If `/superpowers:writing-plans` timed out, re-invoke it with the same context. If `subagent-driven-development` or `executing-plans` timed out mid-task, check which tasks completed (scan git log) and resume from the next incomplete task. |
+| **Malformed plan** (`/superpowers:writing-plans` produced output that the execution skill can't parse) | Re-run `/superpowers:writing-plans` with the same context. If it fails again, fall back to manual planning: break the spec into 3-5 implementation tasks, present them to the user, and implement each task directly without the Superpowers execution chain. |
 | **Subagent failures** (individual tasks fail within `subagent-driven-development`) | Let the skill's built-in retry handle it first. If the task fails repeatedly, implement that task directly in the main thread and continue. |
 | **Batch rejection** (user rejects a batch in `executing-plans`) | Review the feedback, adjust the failing tasks, and re-run the rejected batch. If the user rejects the same batch twice, implement those tasks directly in the main thread. |
 
@@ -575,12 +595,12 @@ Generate 2-4 numbered options based on context:
 | UI changed + browser available | `/claude-tweaks:review {N} full` — code + visual review **(Recommended)** |
 | No browser or no UI | `/claude-tweaks:review {N}` — code review **(Recommended)** |
 | QA stories exist (`stories/*.yaml`) | `/claude-tweaks:test qa` — validate {X} QA stories before review |
-| Worktree mode | `/finishing-a-development-branch` — merge, PR, or discard the feature branch |
+| Worktree mode | `/superpowers:finishing-a-development-branch` — merge, PR, or discard the feature branch |
 ```
 
 ## Git Strategy
 
-**worktree** (default): Before any work begins, `/using-git-worktrees` creates an isolated workspace on a feature branch. All commits land in the worktree. At handoff, `/finishing-a-development-branch` handles merge, PR, or discard — do NOT auto-merge or auto-PR.
+**worktree** (default): Before any work begins, `/superpowers:using-git-worktrees` creates an isolated workspace on a feature branch. All commits land in the worktree. At handoff, `/superpowers:finishing-a-development-branch` handles merge, PR, or discard — do NOT auto-merge or auto-PR.
 
 **current-branch**: Commit directly on the current branch. No isolation.
 
@@ -629,12 +649,12 @@ These apply in **subagent** execution strategy. In **batched** strategy, autonom
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:specify` | Runs BEFORE /claude-tweaks:build in spec mode — creates the spec. Can be skipped using design mode. |
-| `/brainstorm` | Produces the design doc that design mode consumes directly |
-| `/write-plan` | Invoked BY /claude-tweaks:build to create the execution plan |
-| `/subagent-driven-development` | Invoked BY /claude-tweaks:build (subagent execution strategy) to execute the plan with automated review chain |
-| `/executing-plans` | Invoked BY /claude-tweaks:build (batched execution strategy) to execute the plan with human-reviewed batches |
-| `/using-git-worktrees` | Invoked BY /claude-tweaks:build (worktree git strategy) to create an isolated workspace before execution |
-| `/finishing-a-development-branch` | Invoked BY /claude-tweaks:build (worktree git strategy) at handoff to merge, PR, or discard the feature branch |
+| `/superpowers:brainstorming` | Produces the design doc that design mode consumes directly |
+| `/superpowers:writing-plans` | Invoked BY /claude-tweaks:build to create the execution plan |
+| `/superpowers:subagent-driven-development` | Invoked BY /claude-tweaks:build (subagent execution strategy) to execute the plan with automated review chain |
+| `/superpowers:executing-plans` | Invoked BY /claude-tweaks:build (batched execution strategy) to execute the plan with human-reviewed batches |
+| `/superpowers:using-git-worktrees` | Invoked BY /claude-tweaks:build (worktree git strategy) to create an isolated workspace before execution |
+| `/superpowers:finishing-a-development-branch` | Invoked BY /claude-tweaks:build (worktree git strategy) at handoff to merge, PR, or discard the feature branch |
 | `/claude-tweaks:simplify` | Invoked BY /claude-tweaks:build after implementation (Common Step 3). Handles code simplification and re-verification. |
 | `/claude-tweaks:journeys` | Invoked BY /claude-tweaks:build after verification (Common Step 6). Creates/updates journey files for built features. |
 | `/claude-tweaks:stories` | Runs AFTER /claude-tweaks:build — auto-triggered by `/flow` when UI files change, or run manually. /build creates journey files via /journeys (`docs/journeys/*.md`) that /stories ingests for journey-aware story generation — stories reference their source journey via the `journey:` field. Stories are validated by `/test qa`. |

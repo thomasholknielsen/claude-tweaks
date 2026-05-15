@@ -61,6 +61,14 @@ When invoked by `/review` in **full** mode, the visual review runs after code re
 
 If `agent-browser` is unavailable:
 
+**Auto mode:** auto-skip. Log:
+```
+STAGED {time} — Step 1: agent-browser not installed. Visual review skipped. Install hint surfaced at Review Console.
+```
+Write `staged/visual-review-skipped.md` describing the skip and the install command. Surface at Review Console. The review proceeds in code-only mode without further interruption.
+
+**Interactive mode:**
+
 ```
 agent-browser is not installed.
 
@@ -68,7 +76,7 @@ agent-browser is not installed.
 2. Skip visual review — proceed with code-only review
 ```
 
-Do not silently skip. Always report and offer options.
+Do not silently skip in interactive mode. Always report and offer options.
 
 Use the `/claude-tweaks:browse` skill's operation vocabulary and conventions (session naming, screenshot path, trace path) for all browser operations. Concrete commands live in `agent-browser-reference.md` in the `/claude-tweaks:browse` skill's directory.
 
@@ -87,6 +95,14 @@ Before prompting for a URL, check the persisted config:
 ### Ensure the app is running
 
 Before navigating, confirm the application is accessible. If the URL doesn't respond:
+
+**Auto mode:** auto-skip visual review entirely (do not retry, do not ask). Log:
+```
+STAGED {time} — Step 2: dev URL {url} unreachable. Visual review skipped. Surface at Review Console with hint: start dev server and re-run /visual-review.
+```
+Write `staged/visual-review-dev-url.md` capturing the URL attempted and the request to retry. The review proceeds in code-only mode.
+
+**Interactive mode:**
 
 ```
 The app doesn't seem to be running at {url}. Should I:

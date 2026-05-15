@@ -10,7 +10,7 @@ description: Use when the backlog needs hygiene — review stale INBOX items, pa
 Periodic backlog hygiene to keep the spec system healthy. Run when the backlog feels cluttered, before a brainstorming session, or on a regular cadence.
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → /brainstorm → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+/claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
                                                                           ↑
                                                [ /claude-tweaks:tidy ] (maintenance loop)
                                             ^^^^ YOU ARE HERE ^^^^
@@ -76,7 +76,7 @@ Check dependency health: circular dependencies, specs blocked by unstarted specs
 
 ### Step 3: Audit Design Docs and Briefs
 
-Scan `docs/plans/*-design.md` and `docs/plans/*-brief.md`.
+Scan `docs/superpowers/specs/*-design.md` and `docs/plans/*-brief.md`.
 
 **Design doc classification:**
 
@@ -100,7 +100,7 @@ Scan `docs/plans/*-design.md` and `docs/plans/*-brief.md`.
 
 ### Step 4: Audit Execution Plans
 
-Scan `docs/plans/` for non-design plan files and `~/.claude/plans/`.
+Scan `docs/superpowers/plans/` for execution plan files and `~/.claude/plans/`.
 
 | Status | Recommendation |
 |--------|---------------|
@@ -205,11 +205,39 @@ The lifecycle is: INBOX → brainstorm → design doc → specify → spec file.
 
 ### Merge means integrate, not append
 
-When merging an INBOX or deferred item into an existing spec, the merged content must be indistinguishable from original spec content. Add new deliverables to the Deliverables checklist, new assertions to Acceptance Criteria, new architectural notes to Technical Approach, and new caveats to Gotchas. Do NOT create a "Merged Scope" appendix section at the bottom of the spec — that creates second-class content that `/write-plan` may miss or treat differently.
+When merging an INBOX or deferred item into an existing spec, the merged content must be indistinguishable from original spec content. Add new deliverables to the Deliverables checklist, new assertions to Acceptance Criteria, new architectural notes to Technical Approach, and new caveats to Gotchas. Do NOT create a "Merged Scope" appendix section at the bottom of the spec — that creates second-class content that `/superpowers:writing-plans` may miss or treat differently.
 
 ---
 
 ## Step 6: Present Tidy Report and Approve
+
+### Auto mode (aggressiveness-based routing)
+
+When a pipeline run directory exists (`PIPELINE_RUN_DIR` env var or matching dir in `.claude-tweaks/pipelines/`), read `tidy-aggressiveness` from `config.yml` (default `conservative`).
+
+For each finding, route by recommendation type:
+
+| Recommendation | `conservative` (default) | `moderate` | `aggressive` |
+|---|---|---|---|
+| **Keep** | Auto (no-op) | Auto (no-op) | Auto (no-op) |
+| **Delete** (stale temp files, broken symlinks, marked-as-specified design docs, merged worktrees/branches, orphaned plans whose related spec is complete) | Auto-apply | Auto-apply | Auto-apply |
+| **Delete** (any case requiring judgment — old plans whose spec status is unclear, design docs with no specs) | Stage | Auto-apply | Auto-apply |
+| **Merge** (INBOX item overlaps existing spec) | Stage | Auto-apply | Auto-apply |
+| **Promote** (ready for brainstorm pipeline) | Stage | Stage | Auto-apply |
+| **Run `/review {N}`** (spec appears complete) | Stage | Stage | Stage — never auto-run a downstream skill |
+| **Fix now** (circular dependencies, registry entries pointing to non-existent files) | Stage | Stage | Stage — fixing requires judgment about which side to keep |
+| **Re-evaluate scope** (spec 4+ weeks in progress) | Stage | Stage | Stage — never auto-edit specs |
+| **Add rule to CLAUDE.md** (cross-spec patterns) | Stage | Stage | Stage — CLAUDE.md never edited autonomously |
+
+**Log entries:**
+```
+AUTO 11:14:32 — Step 6: deleted stale INBOX entry "{title}" (5 weeks old). Reversibility: med (commit {hash}).
+STAGED 11:14:35 — Step 6: merge proposal for INBOX "{title}" into spec 42. Stage path: staged/tidy-merge-1.md.
+```
+
+Auto-applied items are committed. Staged items surface at the Wrap-Up Review Console for batch approval (`/wrap-up` Step 9.6) when `/tidy` runs as part of a pipeline. When `/tidy` runs standalone in `auto` mode, present staged items at the end of the report as a Pending Review section before completing.
+
+### Interactive mode (batch approval)
 
 Present all collected findings as a single report. Every item has a pre-filled recommendation from the scanning steps.
 
@@ -325,7 +353,7 @@ Commit with a message summarizing the tidy-up.
 | Keeping everything "just in case" | Stale items create noise and slow down `/claude-tweaks:help` |
 | Presenting items one-at-a-time for individual decisions | Scan silently, present one batch report, let the user approve all or override specific items. Per-item prompts scale badly. |
 | Removing INBOX items marked as "Promote" | Promoted items stay in INBOX until a spec file exists. The INBOX entry is the tracking artifact — removing it drops the item on the floor. |
-| Appending a "Merged Scope" section to a spec | Merged content must be integrated into existing Deliverables, Acceptance Criteria, and Technical Approach. Appendix sections create second-class content that `/write-plan` may miss. |
+| Appending a "Merged Scope" section to a spec | Merged content must be integrated into existing Deliverables, Acceptance Criteria, and Technical Approach. Appendix sections create second-class content that `/superpowers:writing-plans` may miss. |
 | Committing without running verification | Always verify every action landed (Step 7.5) before committing. Partial execution creates orphaned or lost items. |
 
 ## Relationship to Other Skills

@@ -10,7 +10,7 @@ A Claude Code plugin (v4.2.0) containing markdown skill files that guide Claude 
 |-------|-----------|
 | Runtime | Claude Code plugin system + Node 18+ (for v4.2 token-saver: filter hook, statusline) |
 | Content | Markdown (SKILL.md files with YAML frontmatter); Node modules under `bin/` |
-| Dependencies | Superpowers plugin (`/brainstorm`, `/write-plan`, `/subagent-driven-development`, `/executing-plans`, `/using-git-worktrees`, `/finishing-a-development-branch`, `/dispatching-parallel-agents`), code-simplifier (built-in subagent), agent-browser (optional), git CLI (optional — required only for the statusline git segment) |
+| Dependencies | Superpowers plugin (`/superpowers:brainstorming`, `/superpowers:writing-plans`, `/superpowers:subagent-driven-development`, `/superpowers:executing-plans`, `/superpowers:using-git-worktrees`, `/superpowers:finishing-a-development-branch`, `/superpowers:dispatching-parallel-agents`), code-simplifier (built-in subagent), agent-browser (optional), git CLI (optional — required only for the statusline git segment) |
 | Test runner | `node --test tests/` (built-in, no external deps) |
 | Distribution | Plugin marketplace via `thomasholknielsen/claude-tweaks-marketplace` |
 
@@ -94,6 +94,8 @@ Skills use three standardized blockquote forms to signal when operations should 
 
 Use the exact blockquote prefix (`> **Parallel execution:**` or `> **Parallel execution (conditional):**`) so directives are visually consistent and greppable across skills.
 
+Forms B and C always pair with the **Subagent Contract** (`skills/_shared/subagent-output-contract.md`) — minimal input, one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED` as the agent's first line, then Templates A/B/C for output. Each dispatch picks a model tier (`Fast | Standard | Capable`); default to the cheapest that fits the work.
+
 ### Versioning
 
 - Version lives in `.claude-plugin/plugin.json`
@@ -113,9 +115,21 @@ claude --plugin-dir ./              # Local development — load plugin from cur
 node --test tests/                  # Run Node tests (filter + statusline) — v4.2+
 ```
 
-### Subagent output contract (v4.2+)
+### Subagent Contract (v4.2+)
 
-Skills that dispatch parallel Task agents must reference `skills/_shared/subagent-output-contract.md` and inline the literal output template (Template A/B/C) in the `Task()` prompt. Agents only see what's in their prompt — references to sibling files don't reach them. Currently used by `/browse`, `/help`, `/review`, `/tidy`. When adding a new dispatch site, follow the same pattern.
+Skills that dispatch parallel Task agents must reference `skills/_shared/subagent-output-contract.md` and follow its full contract: minimal **input** (scope + paths + literal output template — no conversation history), a **status line** (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`) as the agent's first reply line, an **output template** (Template A/B/C) inlined verbatim in the dispatch prompt, and **model tier selection** (`Fast | Standard | Capable`) appropriate to the work. Agents only see what's in their prompt — references to sibling files don't reach them. Currently used by `/browse`, `/help`, `/review`, `/tidy`. When adding a new dispatch site, follow the full pattern, not just the output template.
+
+### Auto-Mode Contract + Bookend Architecture (v4.6+)
+
+claude-tweaks pipelines have at most two stops in `auto` mode: a **Pipeline Config Manifesto** at the start (one structured `AskUserQuestion` collecting all policy levers) and a **Wrap-Up Review Console** at the end (one batch table consolidating everything auto-decided or staged). Everything in between is policy-driven automation logged to the auto-decision log.
+
+**Single source of truth:** `skills/_shared/auto-mode-contract.md` — defines mode states, decision precedence (CLI arg > pipeline config > project policy > skill default), reversibility/confidence/severity floors, the HARD-GATE exemption list, and what `auto` never silences (ledger resolve Phase 2, INBOX/DEFERRED writes, `/challenge` lenses, governance gates).
+
+**Audit trail:** `skills/_shared/auto-decision-log.md` — every auto-resolution writes a one-line entry to `.claude-tweaks/pipelines/{run-id}/decisions.md` with status (`AUTO` / `STAGED` / `KEPT-PROMPT`), rationale, and reversibility. The Review Console reads this log.
+
+**Strict rule:** skills MUST NOT invent new mid-flow stops in `auto` mode. If a decision is decision-worthy, stage it (log it, don't act) and surface at the Review Console. Mid-flow stops are reserved for HARD-GATEs (test failures, spec compliance, structural coupling, plan validation) and the explicit "not silenced" list in the contract.
+
+**Per-pipeline run directory** (collision-safe across parallel agents): `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/` contains `config.yml` (Manifesto answers), `decisions.md` (audit log), and `staged/` (proposals awaiting Review Console). Skills locate the active run via `PIPELINE_RUN_DIR` env var or by selecting the most recent matching run. **Project policy** lives in CLAUDE.md or `.claude-tweaks/policy.yml` — read as defaults by the Manifesto, overridable per-run.
 
 ## Don'ts
 
@@ -129,3 +143,5 @@ Skills that dispatch parallel Task agents must reference `skills/_shared/subagen
 - Don't use emojis in skill files — use `**(Recommended)**` bold text for emphasis instead
 - Don't write to `~/.claude-tweaks/` from skill content — that path is runtime state owned by the harness layer (filter logs, telemetry, usage cache)
 - Don't dispatch parallel Task agents without inlining a literal output template (Template A/B/C) from `skills/_shared/subagent-output-contract.md` in the agent prompt — references won't reach the agent
+- Don't invent new mid-flow stops in `auto` mode — if a decision is decision-worthy, stage it to the auto-decision log and surface at the Wrap-Up Review Console. Mid-flow stops are reserved for HARD-GATEs and the explicit "not silenced" list in `_shared/auto-mode-contract.md`
+- Don't auto-resolve a decision without writing to the auto-decision log — silent automation without an audit trail is forbidden

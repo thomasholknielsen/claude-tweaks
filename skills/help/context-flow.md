@@ -15,8 +15,8 @@ This design means:
 
 ```
 INBOX item          ──→ Brief               ──→ Design Doc          ──→ Spec              ──→ Code + Journey
-specs/INBOX.md         docs/plans/*-brief.md   docs/plans/*-design.md  specs/NN-*.md         src/ + docs/journeys/
-  /capture               /challenge              /brainstorm            /specify              /build
+specs/INBOX.md         docs/plans/*-brief.md   docs/superpowers/specs/*-design.md  specs/NN-*.md         src/ + docs/journeys/
+  /capture               /challenge              /superpowers:brainstorming            /specify              /build
                                                                          ↓                     ↓
                                                                    (deletes brief           Deferred items
                                                                     + design doc)           specs/DEFERRED.md
@@ -39,7 +39,7 @@ src/ + journeys    stories/*.yaml     types + lint + tests + QA     code + visua
 | `/init` | `~/.claude/plugins/`, entire codebase, CLAUDE.md, config files, git state | `specs/`, `docs/plans/`, `docs/journeys/`, `specs/INBOX.md`, `specs/DEFERRED.md`, `specs/INDEX.md`, CLAUDE.md, `.claude/skills/*.md`, `.claude/rules/`, `docs/journeys/*.md` | — |
 | `/capture` | — | `specs/INBOX.md` (append) | — |
 | `/challenge` | `specs/INBOX.md` | `docs/plans/*-brief.md` | — |
-| `/brainstorm` | `docs/plans/*-brief.md` | `docs/plans/*-design.md` | — |
+| `/superpowers:brainstorming` | `docs/plans/*-brief.md` | `docs/superpowers/specs/*-design.md` | — |
 | `/specify` | `*-design.md`, `*-brief.md`, `specs/INDEX.md` | `specs/NN-*.md`, `specs/INDEX.md` | `*-design.md`, `*-brief.md`, INBOX entry |
 | `/build` | `specs/NN-*.md`, `docs/plans/*.md` | Code, plan files, ledger items. Invokes `/journeys` for journey files and `/simplify` for code cleanup. Worktree mode also produces transient worktree directories and feature branches. | — |
 | `/journeys` | Changed files (from parent or git diff), `docs/journeys/*.md` | `docs/journeys/*.md` | — |

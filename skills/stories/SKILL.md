@@ -103,7 +103,15 @@ This replaces the cookie-injection path used in earlier versions and removes the
 
 ## v1 detection (legacy story migration)
 
-When `/stories` reads a YAML file lacking `schema_version: 2` at the top, present:
+When `/stories` reads a YAML file lacking `schema_version: 2` at the top:
+
+**Auto mode:** auto-skip migration. Stage as a Review Console item — never regenerate stories autonomously (a migration changes test assertions, which is high-stakes). Log:
+```
+STAGED {time} — Step 1: legacy v1 stories detected ({N} files). Stage path: staged/stories-legacy-migration.md.
+```
+The staged file lists the v1 stories with the proposed migration command: `/claude-tweaks:stories migrate`. Surface at Review Console. Stories continue to run as-is for the rest of the pipeline (best-effort; v1 selectors may fail in QA).
+
+**Interactive mode:** present:
 
 > v1 stories detected (N stories, CSS selectors). v4 of claude-tweaks uses semantic locators (role/text/testid). Regenerate?
 >
@@ -574,6 +582,17 @@ stories:
 
 23. Close all browser sessions when done writing.
 
+## Step 4.5: Story Self-Review
+
+After writing, look at the YAML with fresh eyes. Fix issues inline — this is the cheap pass before Step 5's DOM-validation pass.
+
+1. **Selector quality** — every locator should be semantic (`role`, `label`, `text`) or testid, never a brittle structural path (`div > div:nth-child(3) > button`). Brittle locators caught here are saved from breaking in CI.
+2. **Assertion specificity** — every step asserts something concrete. "Page loads" is too vague; "URL contains `/dashboard` and `text:Welcome` is visible" is actionable.
+3. **Persona coherence** — each story's actions are consistent with its persona's permissions. Don't have a logged-out persona clicking a settings link that requires auth.
+4. **Source-aware integrity** — when stories are source-aware (Step 1.5 ran), the asserted outcomes match what the SourceContract said the code does. A story that asserts a behavior the source doesn't implement is a placeholder story.
+
+If REFINE=true, Step 5 will catch DOM-level issues this pass missed. If REFINE=false, this is your only check — fix anything you find.
+
 ## Step 5: Refine (when REFINE=true)
 
 Skip entirely if `refine=false`.
@@ -689,7 +708,14 @@ Skip entirely if `refine=false`.
 
     **Journey link suggestions (update mode only):**
 
-    If JOURNEY_LINK_SUGGESTIONS is non-empty (from Step 1.1), present as a separate batch decision (in a separate message from the coverage table — one decision per message):
+    If JOURNEY_LINK_SUGGESTIONS is non-empty (from Step 1.1):
+
+    **Auto mode:** auto-apply all suggestions (mechanical URL-to-journey mapping). The journey field is reversible (a single-line YAML field). Log:
+    ```
+    AUTO {time} — Step 6: applied {N} journey link suggestions to existing stories. Files: {list}.
+    ```
+
+    **Interactive mode:** present as a separate batch decision (in a separate message from the coverage table — one decision per message):
 
     ```
     ### Suggested Journey Links

@@ -9,7 +9,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/claude-tweaks:init` | Bootstrap structure, generate CLAUDE.md, skills, rules | path, URL, update |
 | `/claude-tweaks:capture` | Brain-dump idea into INBOX | idea text |
 | `/claude-tweaks:challenge` | Debias assumptions before brainstorming | `quick`, INBOX item, topic |
-| `/superpowers:brainstorm` | Brainstorm solutions (Superpowers plugin) | topic |
+| `/superpowers:brainstorming` | Brainstorm solutions (Superpowers plugin) | topic |
 | `/claude-tweaks:specify` | Decompose design doc into agent-sized specs | design doc, topic |
 | `/claude-tweaks:build` | Implement a spec or design doc | spec #, doc path + `auto`, `batched`, `worktree` |
 | `/claude-tweaks:stories` | Generate or update QA story YAML files (journey-aware) | URL (auto-detected if omitted) + `persona=`, `dir=`, `focus=`, `journey=`, `browser=`, `refine=`, `negative=` |
@@ -43,7 +43,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 ```
 /claude-tweaks:capture "users need meal planning"
 /claude-tweaks:challenge meal planning
-/superpowers:brainstorm
+/superpowers:brainstorming
 /claude-tweaks:specify meal planning
 /claude-tweaks:build 73
 /claude-tweaks:review 73
@@ -107,7 +107,7 @@ INBOX → Brief → Design Doc → Spec → Code → Stories → TEST_PASSED →
 |-------|---------|---------|
 | `/claude-tweaks:capture` | INBOX item | — |
 | `/claude-tweaks:challenge` | Brief | — |
-| `/superpowers:brainstorm` | Design Doc | — |
+| `/superpowers:brainstorming` | Design Doc | — |
 | `/claude-tweaks:specify` | Spec | Brief, Design Doc |
 | `/claude-tweaks:build` | Code (+ Journeys via /journeys) | — |
 | `/claude-tweaks:journeys` | Journey files | — |

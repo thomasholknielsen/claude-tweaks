@@ -111,6 +111,15 @@ If the work modifies or extends an existing journey:
 4. Update the Origin section to reference the current build
 5. Preserve existing "Should feel" and "Red flags" for steps that weren't changed — those are tested expectations
 
+## Step 3.5: Journey Self-Review
+
+Before committing, look at the journey file(s) with fresh eyes. Fix issues inline — no subagent.
+
+1. **Persona check** — is the persona named and consistent across steps? "User" is a placeholder; replace with the actual role (`new visitor`, `paid subscriber`, `admin`).
+2. **Step shape** — does each step have an action, a result, and either a page URL or a verbatim UI signal? Steps that just describe the page ("On the dashboard...") with no action don't belong.
+3. **Origin coverage** — every `files:` entry should be reachable through the documented steps. If a changed file isn't visited by any step, either add the missing step or drop the file from `files:`.
+4. **Outcome clarity** — what does success look like for this journey? If the journey ends in ambiguity ("user is logged in" without where they land), tighten it.
+
 ## Step 4: Commit
 
 Commit journey files separately from implementation code:

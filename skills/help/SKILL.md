@@ -10,7 +10,7 @@ description: Use when you need a quick reference for available commands, want to
 One-stop reference and status dashboard for the workflow system. Combines command help, pipeline scanning, and next-step recommendations.
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → /brainstorm → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+/claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
     ↑                                                                                                                                            |
     └──────────────────────────────────── [ /claude-tweaks:help ] (dashboard + reference) ←──────────────────────────────────────────────────────┘
                                             ^^^^ YOU ARE HERE ^^^^
@@ -50,7 +50,7 @@ These run in order — each skill feeds into the next.
 | 1 | `/claude-tweaks:init` | Bootstrap structure, generate CLAUDE.md, skills, and rules | path, URL, update |
 | 2 | `/claude-tweaks:capture` | Brain-dump ideas into INBOX | idea text |
 | 3 | `/claude-tweaks:challenge` | Debias a problem statement before brainstorming | `quick`, INBOX item, topic |
-| 4 | `/brainstorm` | Explore solutions for a debiased problem *(Superpowers)* | topic, brief |
+| 4 | `/superpowers:brainstorming` | Explore solutions for a debiased problem *(Superpowers)* | topic, brief |
 | 5 | `/claude-tweaks:specify` | Decompose a design doc into agent-sized specs | design doc path, topic, INBOX ref |
 | 6 | `/claude-tweaks:build` | Implement a spec or design doc end-to-end | spec number, design doc path, topic + optional `auto`, `batched`, `worktree` |
 | 6b | `/claude-tweaks:test` | Verification gate — types, lint, tests, QA story validation | `types`, `lint`, `unit`, file path, `affected`, `qa`, `qa journey={name}`, `qa affected`, `all` |
@@ -85,19 +85,19 @@ For a concise one-page reference, read `reference-card.md` in this skill's direc
 
 | Command | Purpose | Used by |
 |---------|---------|---------|
-| `/brainstorm` | Explore solutions for a debiased problem — stops after design doc, then `/claude-tweaks:specify` | After `/claude-tweaks:challenge` |
-| `/write-plan` | Create TDD execution plan from a spec — stops after saving plan, returns to `/build` | `/claude-tweaks:build` |
-| `/subagent-driven-development` | Automated execution with review chain — stops after final review, returns to `/build` | `/claude-tweaks:build` (subagent mode, default) |
-| `/executing-plans` | Human-reviewed execution in batches of 3 — stops after last batch, returns to `/build` | `/claude-tweaks:build` (batched mode) |
-| `/using-git-worktrees` | Create isolated workspace on a feature branch | `/claude-tweaks:build` and `/claude-tweaks:flow` (worktree mode) |
-| `/finishing-a-development-branch` | Merge, PR, or discard a feature branch | `/claude-tweaks:build` and `/claude-tweaks:flow` (worktree mode, at handoff) |
-| `/dispatching-parallel-agents` | Dispatch concurrent independent fixes | `/claude-tweaks:review` (conditional, 3+ independent fixes) |
+| `/superpowers:brainstorming` | Explore solutions for a debiased problem — stops after design doc, then `/claude-tweaks:specify` | After `/claude-tweaks:challenge` |
+| `/superpowers:writing-plans` | Create TDD execution plan from a spec — stops after saving plan, returns to `/build` | `/claude-tweaks:build` |
+| `/superpowers:subagent-driven-development` | Automated execution with review chain — stops after final review, returns to `/build` | `/claude-tweaks:build` (subagent mode, default) |
+| `/superpowers:executing-plans` | Human-reviewed execution in batches of 3 — stops after last batch, returns to `/build` | `/claude-tweaks:build` (batched mode) |
+| `/superpowers:using-git-worktrees` | Create isolated workspace on a feature branch | `/claude-tweaks:build` and `/claude-tweaks:flow` (worktree mode) |
+| `/superpowers:finishing-a-development-branch` | Merge, PR, or discard a feature branch | `/claude-tweaks:build` and `/claude-tweaks:flow` (worktree mode, at handoff) |
+| `/superpowers:dispatching-parallel-agents` | Dispatch concurrent independent fixes | `/claude-tweaks:review` (conditional, 3+ independent fixes) |
 
 ### Artifact Lifecycle
 
 ```
 INBOX item ──→ Brief ──→ Design Doc ──→ Spec ──→ Code + Journey
-  /capture    /challenge  /brainstorm     /specify  /build
+  /capture    /challenge  /superpowers:brainstorming     /specify  /build
                                            ↓           ↓       ↓
                                     (deletes brief  Deferred  docs/journeys/
                                      + design doc)  Work
@@ -109,6 +109,28 @@ Code + Journey ──→ Story YAML ──→ Test (types + lint + tests + QA) �
               ingests journeys                                    checks journey-story coverage)        + plans)
               for story design)
 ```
+
+### Bookend Architecture (v4.6+) — auto mode interaction model
+
+In `auto` mode, the pipeline has exactly two user-facing stops, regardless of how many decisions it makes:
+
+```
+┌──────────────────────────┐                                  ┌────────────────────────┐
+│  [BEGIN]                 │                                  │  [END]                 │
+│  Pipeline Config         │  ─── pure automation against ───►│  Wrap-Up Review        │
+│  Manifesto (/flow Step   │      policy, log every           │  Console (/wrap-up     │
+│  1.6 — one approve-      │      decision to decisions.md    │  Step 9.6 — one batch  │
+│  recommendations table)  │                                  │  approve / override)   │
+└──────────────────────────┘                                  └────────────────────────┘
+```
+
+- **Begin stop:** one table with all policy levers (scope-creep, overlap, design-intent, leftover-routing, auto-fix-threshold, review-severity-floor, tidy-aggressiveness). Hit "1. Approve all" or override specific items.
+- **Mid-flow:** zero stops. Skills read policy from `.claude-tweaks/pipelines/{run-id}/config.yml` and log every auto-decision to `decisions.md`.
+- **End stop:** one consolidated batch surfacing auto-applied items, staged items pending review, skill updates, config updates, and the ledger resolve gate. Hit "1. Approve all" or override specific items.
+
+**Strict rule:** skills never invent new mid-flow stops in `auto`. Mid-flow stops are reserved for HARD-GATEs (`/review` Step 1 spec compliance, `/review` Step 1.5 test gate, `/flow` Step 2.6 structural coupling, `/flow` Step 2.7 design-doc rejection, `/build` Design Step 3 plan validation) and the explicit "not silenced" list in `skills/_shared/auto-mode-contract.md` (ledger resolve Phase 2, INBOX/DEFERRED writes, `/challenge` lenses, governance gates).
+
+In `interactive` mode (default when no `auto` arg), skills present each decision in-flow as today.
 
 ---
 
@@ -125,7 +147,7 @@ Scan the full workflow state across all pipeline stages.
 
 - Count total items
 - Flag stale items (> 4 weeks old)
-- Flag items tagged as `**Promoted:**` — these are awaiting `/brainstorm` and should appear as brainstorm candidates in the recommendation
+- Flag items tagged as `**Promoted:**` — these are awaiting `/superpowers:brainstorming` and should appear as brainstorm candidates in the recommendation
 - Identify items marked as related to existing specs
 - Flag items with baked-in assumptions (solution-oriented phrasing) → candidates for `/claude-tweaks:challenge`
 
@@ -138,7 +160,7 @@ Scan the full workflow state across all pipeline stages.
 - Flag items with no clear trigger (missing context)
 - Flag items older than 4 weeks with unmet triggers
 
-### Stage 2: Design Docs (`docs/plans/*-design.md`)
+### Stage 2: Design Docs (`docs/superpowers/specs/*-design.md`)
 
 - Find design docs that haven't been specified yet (no `> Status: Specified` header)
 - These are brainstorming outputs waiting for `/claude-tweaks:specify`
@@ -183,7 +205,7 @@ Scan the full workflow state across all pipeline stages.
 | Stage | Count | Action |
 |-------|-------|--------|
 | INBOX items | {N} ({M} stale) | `/claude-tweaks:capture` to add, `/claude-tweaks:tidy` if stale |
-| INBOX items promoted | {N} | `/brainstorm {topic}` (or `/claude-tweaks:challenge` first if assumptions present) |
+| INBOX items promoted | {N} | `/superpowers:brainstorming {topic}` (or `/claude-tweaks:challenge` first if assumptions present) |
 | INBOX items needing debiasing | {N} | `/claude-tweaks:challenge {topic}` |
 | Deferred items ready | {N} | Trigger met — promote to spec or merge |
 | Deferred items waiting | {N} | Triggers not yet met |
@@ -218,9 +240,9 @@ Scan the full workflow state across all pipeline stages.
 4. **Design docs unspecified** — specify before building (don't let designs go stale)
 5. **Deferred items with met triggers** — promote before starting new work
 6. **Specs ready to build** — pick the highest-priority spec with met prerequisites
-7. **Promoted INBOX items** — items tagged `**Promoted:**` are ready for `/brainstorm` (or `/claude-tweaks:challenge` first if they have baked-in assumptions). These have already been triaged and prioritized over unpromoted items.
+7. **Promoted INBOX items** — items tagged `**Promoted:**` are ready for `/superpowers:brainstorming` (or `/claude-tweaks:challenge` first if they have baked-in assumptions). These have already been triaged and prioritized over unpromoted items.
 8. **INBOX review** — if inbox is stale or has 10+ items, suggest `/claude-tweaks:tidy` before new brainstorming
-9. **Challenge + Brainstorming** — if pipeline is empty and no promoted items exist, suggest promoting an INBOX item; if it has baked-in assumptions, run `/claude-tweaks:challenge` first, then `/brainstorm`
+9. **Challenge + Brainstorming** — if pipeline is empty and no promoted items exist, suggest promoting an INBOX item; if it has baked-in assumptions, run `/claude-tweaks:challenge` first, then `/superpowers:brainstorming`
 10. **Nothing to do** — if everything is clean, say so
 
 ### Tie-Breaking

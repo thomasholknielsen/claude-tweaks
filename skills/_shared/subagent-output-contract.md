@@ -1,12 +1,72 @@
-# Subagent Output Contract
+# Subagent Contract
 
-Canonical output formats for parallel-dispatched subagents. Referenced from every Form B / Form C parallel-execution site across skills.
+Canonical input/output rules for parallel-dispatched subagents. Referenced from every Form B / Form C parallel-execution site across skills.
 
 This file is the single source of truth. Skills include the relevant template **literally** in their `Task()` prompts — agents only see what's in their prompt, they cannot read sibling files.
 
 ## Why this exists
 
-Subagent output gets re-injected into the main thread's context. Three agents each returning 800 tokens of prose is 2400 tokens of overhead before the main thread does anything. Structured templates cut that by 60-80% while improving the consistency of findings.
+Three forces compound when dispatching parallel agents:
+
+1. **Input bloat** — passing the conversation history or "all relevant context" to N agents multiplies token cost by N. Each agent should get a clean room.
+2. **Output bloat** — three agents each returning 800 tokens of prose is 2400 tokens of overhead before the main thread does anything. Structured templates cut that by 60-80%.
+3. **Model mismatch** — dispatching every agent at the strongest available model wastes cost and latency. Most subagent jobs are mechanical.
+
+The contract addresses all three: **input discipline** (below), **output templates** (Templates A/B/C), and **model selection** (per-dispatch tier guidance).
+
+## Input Discipline
+
+A dispatched agent is a clean room. Don't pass the conversation. Pass exactly:
+
+1. **The task scope** — one sentence: "Audit `src/auth.ts` for the OWASP top 10."
+2. **The file/path the agent should read** — explicit paths, not "the relevant code."
+3. **The output template** — literally, inline. Agents only see what's in their prompt; they cannot read sibling files.
+4. **Constraints that prevent overreach** — "Do not modify other files." "Read-only."
+
+Do NOT pass: prior messages, the user's original phrasing, your own findings so far, or "background context for completeness." Each of those compounds across N agents.
+
+When in doubt, give less context. If the agent comes back with `NEEDS_CONTEXT`, give it more on the re-dispatch.
+
+## Implementer Status Protocol
+
+Every dispatched agent reports one of four statuses as the first line of its reply (before the output template):
+
+| Status | Meaning | Dispatcher response |
+|---|---|---|
+| `DONE` | Task complete, no concerns | Accept output; proceed. |
+| `DONE_WITH_CONCERNS` | Task complete, but the agent flagged doubts | Read the concerns. If correctness/scope → address before proceeding. If observational ("this file is getting large") → note and proceed. |
+| `NEEDS_CONTEXT` | Information was missing from the dispatch | Provide what was missing; re-dispatch. |
+| `BLOCKED` | Cannot complete the task | Diagnose: more context (re-dispatch), more capable model (upgrade), smaller scope (split), or wrong plan (escalate). Never force-retry with no changes. |
+
+For review-style agents (Template A) the status line is followed by the findings table. For search-style (B) and scout-style (C), the status replaces any "no findings" sentinel.
+
+```
+DONE
+| Severity | Path:Line | Finding | Evidence |
+|---|---|---|---|
+| ...
+```
+
+```
+BLOCKED
+Reason: couldn't locate the auth middleware referenced in the task scope.
+Tried: grep -r "authMiddleware" src/, grep -r "requireAuth" src/
+Need: actual file path of the auth middleware, or confirmation it doesn't exist.
+```
+
+## Model Selection
+
+Match the model to the work. Specify the tier in the `Task()` dispatch.
+
+| Tier | When to use | Examples |
+|---|---|---|
+| **Fast** (Haiku) | Mechanical: file location, pattern grep, structured extraction, single-file checks | `/journeys` per-journey extraction, `/stories` per-flow probe, `/test` parallel scouts, `/review` lens 3a (convention check), lens 3f (test quality on isolated files) |
+| **Standard** (Sonnet) | Integration: multi-file analysis, cross-cutting findings, format-sensitive transforms | `/review` lenses 3b-3e (security, errors, perf, architecture), `/browse` agents, `/tidy` reviewers |
+| **Capable** (Opus) | Judgment-heavy: design synthesis, UX analysis, ambiguous calibration, plan-quality review | `/review` lens 3h (UX analysis), `/reflect` per-lens reflection, final-review dispatch |
+
+Default to the cheapest model that can do the job. Upgrade explicitly when the agent comes back `BLOCKED` for reasoning reasons (not for context reasons).
+
+When dispatching, name the tier in the prompt: `[Use: Fast model — this is a mechanical extraction task]`. The dispatcher (you) selects the actual model.
 
 ## Template A — Review-style (returns findings)
 
@@ -86,7 +146,7 @@ In a Form B blockquote:
 
 ```
 > **Parallel execution:** Dispatch {scope} as parallel Task agents — each runs independently and returns findings in Template A format. Assemble results after all agents complete.
-> **Output contract:** Each agent must follow Template A from `skills/_shared/subagent-output-contract.md`. Inline the template literally in the dispatch prompt; reject and re-prompt on format violations.
+> **Contract:** Each agent follows the Subagent Contract — minimal input (scope + path + output template, no conversation), one of {DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED} as its first line, then Template A. Pick the cheapest model tier that fits ({Fast | Standard | Capable}). Inline the template literally; reject and re-prompt on format violations.
 ```
 
 In the actual `Task()` call, the prompt body must contain the literal template — not a reference to it.

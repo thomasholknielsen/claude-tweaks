@@ -1,6 +1,6 @@
 # Spec Template
 
-The spec must be detailed enough for `/write-plan` to produce a TDD execution plan without additional context. `/write-plan` assumes zero codebase familiarity — the spec provides the anchoring.
+The spec must be detailed enough for `/superpowers:writing-plans` to produce a TDD execution plan without additional context. `/superpowers:writing-plans` assumes zero codebase familiarity — the spec provides the anchoring.
 
 ```markdown
 ---
@@ -23,7 +23,7 @@ design-intent: {bold | quiet | minimal | delightful | onboarding | none}
 
 ## Non-Goals
 
-{Explicit boundaries. What this spec does NOT cover. Prevents `/write-plan` from scope-creeping beyond the work unit boundary.}
+{Explicit boundaries. What this spec does NOT cover. Prevents `/superpowers:writing-plans` from scope-creeping beyond the work unit boundary.}
 
 - {Thing that might seem in scope but isn't}
 - {Related work that belongs in a different spec}
@@ -36,7 +36,7 @@ design-intent: {bold | quiet | minimal | delightful | onboarding | none}
 
 ## Current State
 
-{What already exists in the codebase that this work builds on. Not a code dump — pointers that give `/write-plan` its starting points.}
+{What already exists in the codebase that this work builds on. Not a code dump — pointers that give `/superpowers:writing-plans` its starting points.}
 
 - Data: `{path}` — {what tables/models exist}
 - API: `{path}` — {what endpoints exist}
@@ -51,7 +51,7 @@ design-intent: {bold | quiet | minimal | delightful | onboarding | none}
 
 ## Acceptance Criteria
 
-1. {Specific, testable criterion that `/write-plan` can convert to a TDD step}
+1. {Specific, testable criterion that `/superpowers:writing-plans` can convert to a TDD step}
 2. {Specific, testable criterion}
 3. ...
 
@@ -61,7 +61,7 @@ design-intent: {bold | quiet | minimal | delightful | onboarding | none}
 
 ### Data / API Surface
 
-{If this spec involves data model or API changes, define the contract surface. Table/model names, field types, endpoint signatures, validation schemas. Not full implementation — just enough for `/write-plan` to generate exact code.}
+{If this spec involves data model or API changes, define the contract surface. Table/model names, field types, endpoint signatures, validation schemas. Not full implementation — just enough for `/superpowers:writing-plans` to generate exact code.}
 
 ### Key Files
 
@@ -74,7 +74,7 @@ design-intent: {bold | quiet | minimal | delightful | onboarding | none}
 
 ## Gotchas
 
-{Things learned during brainstorming, from past experience, or from project memory that `/write-plan` won't know. These prevent common subagent mistakes.}
+{Things learned during brainstorming, from past experience, or from project memory that `/superpowers:writing-plans` won't know. These prevent common subagent mistakes.}
 
 - {e.g., "Use upsert, not delete+insert for this operation"}
 - {e.g., "The status enum values are exactly: draft, published, archived"}
@@ -101,9 +101,23 @@ design-intent: {bold | quiet | minimal | delightful | onboarding | none}
 {If none: delete this section.}
 ```
 
-## Why Each Section Matters for `/write-plan`
+## No Placeholders
 
-| Section | What `/write-plan` does with it |
+Every spec section must contain content that `/superpowers:writing-plans` can act on without guessing. These are **spec failures, never write them**:
+
+- `TBD`, `TODO`, `(to be filled in)`, incomplete sections, or vague requirements
+- "Works correctly", "handles edge cases", "with appropriate validation" — without naming the specific behavior, the specific edge cases, or the specific validation rule
+- "Similar to spec N" (cross-reference if the rationale carries; otherwise repeat the substance — the engineer may be reading specs out of order)
+- Acceptance criteria that can't be converted to a TDD test (`"feels fast"` ≠ `"p95 < 200ms on the journey defined in spec 41"`)
+- "Standard error handling" — name the error class, the user-facing message, the log format
+- Types, models, endpoints, or files referenced anywhere in the spec that aren't defined in `Data / API Surface` or `Key Files`
+- Gotchas that say "be careful" without saying what to do (`"watch out for races"` ≠ `"use upsert, not delete+insert"`)
+
+If you would need `/superpowers:writing-plans` to guess, the spec is incomplete — finish it before handing off. Vagueness here compounds into plan failures downstream.
+
+## Why Each Section Matters for `/superpowers:writing-plans`
+
+| Section | What `/superpowers:writing-plans` does with it |
 |---------|-------------------------------|
 | **Overview** | Sets the goal and context for the plan header |
 | **Non-Goals** | Prevents scope creep in task decomposition |

@@ -135,7 +135,25 @@ Review changed files through these lenses. Skip lenses that don't apply to the t
 > **Parallel execution:** Before running any lens, gather all context upfront — read all changed files and their surrounding context (imports, tests, schemas) as parallel Read/Grep calls. Each lens needs the same files, so front-loading reads avoids redundant I/O.
 
 > **Parallel execution (conditional):** When the diff spans 10+ files, dispatch each applicable lens (3a-3f) as a parallel Task agent. Each agent receives the full file context and returns findings in the `| # | Finding | Severity | Category | Affected | Recommended |` format. When the diff is smaller, run lenses sequentially in the main thread — the overhead of agent dispatch isn't worth it.
-> **Output contract:** Each dispatched lens agent must follow Template A from `skills/_shared/subagent-output-contract.md`. Inline the literal template in the agent's prompt; on format violation, re-prompt once and accept what comes back.
+> **Contract:** Each dispatched lens agent follows the Subagent Contract from `skills/_shared/subagent-output-contract.md` — minimal input (just the file paths and lens scope, no conversation), one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED` as first line, then Template A findings. Pick model tier per lens: 3a/3f → Fast (Haiku), 3b-3e → Standard (Sonnet), 3h (UX synthesis) → Capable (Opus). Inline the template literally; re-prompt once on format violation.
+
+### Reviewer Calibration (applies to every lens)
+
+Only flag issues that would cause **real problems** for users, security, correctness, or maintainability. Each lens prompt must include this calibration:
+
+> **Calibration:** Flag issues where:
+> - the user will hit a bug, broken state, or unsafe behavior
+> - the code will fail under realistic load, edge cases, or future maintenance
+> - a project convention is violated in a way that compounds (not isolated stylistic choices)
+>
+> Do NOT flag:
+> - alternate naming you'd prefer ("`fetchUser` would read better as `getUser`")
+> - formatting, whitespace, or import ordering quibbles
+> - "could be DRYer" without a concrete second caller that proves the duplication is real
+> - hypothetical edge cases the spec didn't require ("what if the input is a 4GB string?")
+> - missing comments on self-explanatory code
+>
+> When in doubt: would a calibrated senior engineer block a PR on this finding alone? If no, drop it. Noise findings dilute the signal of real issues, and every finding has a resolution cost downstream (the "every finding must be explicitly resolved" rule applies even to nits).
 
 ### 3a: Convention Compliance
 
@@ -239,6 +257,26 @@ These findings are informational — they don't block the review. They ensure wr
 
 Unresolved QA ledger entries (status `open`, phase `test/qa`) are included in the code review findings table alongside code review findings. Use the category and severity from the ledger entry. This ensures QA failures flow through the same resolution process as code review findings — they must be explicitly fixed, deferred, or accepted before the review can pass.
 
+### Auto mode (severity-based routing)
+
+When a pipeline run directory exists (`PIPELINE_RUN_DIR` env var or matching dir in `.claude-tweaks/pipelines/`), read `review-severity-floor` from `config.yml` (default `low`).
+
+For each finding, route by severity per the contract (`_shared/auto-mode-contract.md`):
+
+| Severity | Default action under `review-severity-floor: low` | Log entry |
+|---|---|---|
+| **Critical** | Stage as patch + `KEPT-PROMPT` — surface inline ALSO. Critical findings always interrupt. | `KEPT-PROMPT {time} — Step 3g: critical finding {category} at {file:line}. Surfaced inline.` |
+| **High** | Stage as patch in `staged/review-{n}.patch`. Surface at Review Console. | `STAGED {time} — Step 3g: high-severity finding {category} at {file:line}. Stage path: staged/review-{n}.patch.` |
+| **Medium** | Stage as patch in `staged/review-{n}.patch`. Surface at Review Console. | `STAGED {time} — Step 3g: medium-severity finding {category} at {file:line}. Stage path: staged/review-{n}.patch.` |
+| **Low** | Auto-apply the fix. Commit. | `AUTO {time} — Step 3g: applied low-severity {category} fix at {file:line}. Commit: {hash}.` |
+
+When `review-severity-floor: medium`: auto-apply Low AND Medium; stage High; prompt Critical.
+When `review-severity-floor: none`: stage everything; never auto-apply.
+
+After routing, append all findings to the ledger as usual (status `open` for staged, `fixed` for auto-applied). The Review Console at `/wrap-up` Step 9.6 surfaces staged items for batch approval.
+
+### Interactive mode (per-batch user input)
+
 Present all findings as a single batch table with recommended actions pre-filled:
 
 ```
@@ -264,7 +302,7 @@ Present all findings as a single batch table with recommended actions pre-filled
 
 **When "Fix now" isn't possible**, route to the right destination:
 - **Defer** (DEFERRED.md) — the fix is understood but it's bigger and not relevant to the current work. Include origin spec, affected files, and trigger for when to revisit.
-- **Capture to INBOX** — the finding is complex or uncertain and needs brainstorming/exploration before it can be acted on. This enters the full capture → challenge → `/brainstorm` pipeline.
+- **Capture to INBOX** — the finding is complex or uncertain and needs brainstorming/exploration before it can be acted on. This enters the full capture → challenge → `/superpowers:brainstorming` pipeline.
 
 **Deferral gate:** An item may only be deferred if it meets ALL of these:
 - Pre-existing (not introduced by this build), OR requires design discussion that can't be resolved in the current session
@@ -274,14 +312,14 @@ Items introduced by this build that are fixable now must be fixed now — even i
 
 If any findings are "Fix now", make the changes, re-run `/claude-tweaks:test`, and verify fixes didn't introduce new findings.
 
-> **Parallel execution (conditional):** When there are 3+ "Fix now" findings across different files with no shared file dependencies, dispatch fixes as parallel agents using the `/dispatching-parallel-agents` pattern — one agent per independent fix domain. Each agent gets: specific file scope, finding details, constraint to not modify other files. Returns summary of changes. After all agents complete, check for conflicts between agent changes, then re-run `/claude-tweaks:test`. When fixes overlap files or there are fewer than 3 findings, fix sequentially in the main thread.
+> **Parallel execution (conditional):** When there are 3+ "Fix now" findings across different files with no shared file dependencies, dispatch fixes as parallel agents using the `/superpowers:dispatching-parallel-agents` pattern — one agent per independent fix domain. Each agent gets: specific file scope, finding details, constraint to not modify other files. Returns summary of changes. After all agents complete, check for conflicts between agent changes, then re-run `/claude-tweaks:test`. When fixes overlap files or there are fewer than 3 findings, fix sequentially in the main thread.
 > **Output contract:** Each fix agent must return a Template B summary (file:line — what changed) per `skills/_shared/subagent-output-contract.md`. Inline the literal template in the agent's prompt.
 
 **Write all findings to the open items ledger** (see `/claude-tweaks:ledger`). Use the appropriate `review/*` phase. Status: `open` for "Fix now" items, `deferred` for DEFERRED.md routes, `accepted` for "Don't fix" items (with reason). After fixing, update status to `fixed`.
 
 > **Routing bias:** Fix it now — always the recommended default, regardless of severity. Defer when the fix is understood but bigger and not relevant now. Capture to INBOX when the finding needs exploration before it can be acted on. The goal is to close gaps early, not accumulate a backlog.
 
-**Wait for resolution.** When code review findings exist, present the findings table and wait for the user's response before proceeding to Step 4.
+**Wait for resolution** (interactive mode only). When code review findings exist, present the findings table and wait for the user's response before proceeding to Step 4. In `auto` mode, findings are auto-routed per the severity table above and the skill proceeds without waiting.
 
 **Auto-advance on zero findings:** When there are zero code review findings AND zero unresolved QA ledger entries (`open` items with phase `test/qa`), auto-advance to Step 4 without waiting for user input. Present "No code review findings" as a note within the Step 4 hindsight message.
 
@@ -433,7 +471,7 @@ If no notable learnings emerged, state: "No key learnings — straightforward re
 | `/claude-tweaks:browse` | Used by visual, journey, and discover modes for browser interaction |
 | `specs/DEFERRED.md` | /claude-tweaks:review routes implementation-related deferrals here (with origin, files, trigger) |
 | `/claude-tweaks:flow` | Invokes /review in **full** mode by default (code + visual). Flow handles browser detection and falls back to code mode when no browser backend is available. |
-| `/dispatching-parallel-agents` | Used BY /claude-tweaks:review (conditional) to dispatch 3+ independent fix-now findings as parallel agents |
+| `/superpowers:dispatching-parallel-agents` | Used BY /claude-tweaks:review (conditional) to dispatch 3+ independent fix-now findings as parallel agents |
 | `/claude-tweaks:reflect` | Invoked BY /review (Step 4) in hindsight mode. Handles the implementation hindsight evaluation, finding routing, and ledger writes with phase `review/hindsight`. |
 | `/claude-tweaks:simplify` | Invoked BY /review (Step 5) on files modified during review. Handles code simplification and re-verification. |
 | `/claude-tweaks:ledger` | Manages the open items ledger. /review appends findings (Step 3g). Hindsight findings (Step 4) are written by /reflect using `review/*` phases. |
