@@ -63,6 +63,10 @@ Generated from the maturity classification detected in Phase 2h. See "Generating
 
 **`auto-mode: default-off`** by default — flip to `default-on` to make `/flow` and `/build` run in auto. Under auto, do NOT insert mid-pipeline reality-checks, path-selection prompts, or context concerns. Surface failures via ledger/failure card. See `_shared/auto-mode-contract.md` in the claude-tweaks plugin.
 
+**Bookend architecture (v4.6+):** in auto mode the pipeline has exactly two stops — the Pipeline Config Manifesto at the start (`/flow` Step 1.6 — one "Approve all recommendations" table) and the Wrap-Up Review Console at the end (`/wrap-up` Step 9.6 — one consolidated batch). Mid-flow decisions are looked up from `.claude-tweaks/pipelines/{run-id}/config.yml` and logged to `decisions.md` in the same directory. Skills MUST NOT invent new mid-flow stops in auto. See `_shared/auto-mode-contract.md` and `_shared/auto-decision-log.md`.
+
+**Project policy defaults** in this CLAUDE.md (under `## Auto-mode policy`) pre-fill the Manifesto so the user can hit "Approve all" with no overrides — see the section below.
+
 **Superpowers overrides:** `/superpowers:brainstorming` stops after the design doc — route to `/specify`, never `/superpowers:writing-plans`. `/superpowers:subagent-driven-development` and `/superpowers:executing-plans` don't auto-invoke `/superpowers:finishing-a-development-branch`.
 
 ## Project Defaults (optional)
@@ -94,6 +98,18 @@ scope-keywords-required: false
 
 ## Auto-mode
 auto-mode: default-off             # default-on | default-off
+
+## Auto-mode policy (pre-fills Pipeline Config Manifesto — v4.6+)
+# Each lever has a sensible default. Override only what the project actually
+# wants different. The Manifesto reads these as recommendations; the user can
+# still override per-run.
+scope-creep: add-to-plan           # add-to-plan | stop-and-ask | drop
+overlap: companion                 # companion | extend | skip | replace
+design-intent: none                # none | bold | quiet | minimal | delightful | onboarding
+leftover-default: defer            # defer | inbox | drop
+auto-fix-threshold: lint+type      # lint-only | lint+type | lint+type+test
+review-severity-floor: low         # none | low | medium  (auto-apply cutoff)
+tidy-aggressiveness: conservative  # conservative | moderate | aggressive
 ```
 
 ## Don't

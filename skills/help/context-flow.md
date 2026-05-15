@@ -60,6 +60,20 @@ The open items ledger (`docs/plans/YYYY-MM-DD-{feature}-ledger.md`) is a transac
 
 Unlike conversation context, the ledger survives context window compression — it's a file, not a message. This prevents findings from one phase being lost before a later phase can act on them.
 
+## Pipeline Run Directory (v4.6+, auto/hybrid mode)
+
+In auto/hybrid mode, each `/flow` invocation creates a per-run directory at `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`:
+
+| File | Written by | Read by |
+|---|---|---|
+| `config.yml` | `/flow` Step 1.6 (Pipeline Config Manifesto) | Every downstream skill — policy lookup for scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness |
+| `decisions.md` | Every skill that auto-resolves a decision (per `_shared/auto-decision-log.md`) | `/wrap-up` Step 9.6 (Wrap-Up Review Console) |
+| `staged/*.patch` and `staged/*.md` | Skills that defer decision-worthy items | `/wrap-up` Step 9.6 |
+
+The directory is **collision-safe** across parallel agents (multiple `/flow` runs in the same checkout each get their own `{ISO-timestamp}-{spec-slug}` directory). Downstream skills locate the active run via the `PIPELINE_RUN_DIR` env var or by selecting the most recent matching directory.
+
+After successful pipeline closure, `/wrap-up` Step 5 moves the directory to `.claude-tweaks/pipelines/archive/{run-id}/` — preserving the audit trail without polluting the active workspace.
+
 ## Within-Session Context
 
 When skills run in sequence within the same session (via `/flow` or manual chaining), conversation context supplements the artifact flow:

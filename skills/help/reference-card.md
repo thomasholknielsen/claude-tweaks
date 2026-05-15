@@ -118,6 +118,36 @@ INBOX → Brief → Design Doc → Spec → Code → Stories → TEST_PASSED →
 
 Consumed artifacts are deleted — specs and code are the durable outputs.
 
+## Bookend Architecture (v4.6+)
+
+In `auto` mode (`/flow … auto` or `auto-mode: default-on` in CLAUDE.md), the pipeline has **two user-facing stops** and everything else is logged automation:
+
+| Stop | Where | What |
+|---|---|---|
+| **Pipeline Config Manifesto** | `/flow` Step 1.6 | One table pre-fills every policy lever (scope-creep, overlap, design-intent, leftover-routing, auto-fix-threshold, review-severity-floor, tidy-aggressiveness). Hit "1. Approve all recommendations" or override specific items. |
+| **Wrap-Up Review Console** | `/wrap-up` Step 9.6 | One consolidated batch: auto-applied items + pending-review items + skill updates + config changes. Hit "1. Approve all" or override. |
+
+**Mid-flow:** skills look up policy from `.claude-tweaks/pipelines/{run-id}/config.yml` and log every auto-decision to `decisions.md`. Skills MUST NOT invent new mid-flow stops in auto.
+
+**Per-pipeline run directory** (collision-safe across parallel agents):
+```
+.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/
+├── config.yml        ← Manifesto answers
+├── decisions.md      ← Auto-decision log (AUTO / STAGED / KEPT-PROMPT)
+└── staged/           ← Patches awaiting Review Console
+```
+
+**Project policy defaults** live in CLAUDE.md under `## Auto-mode policy` — the Manifesto pre-fills from there so the user can hit "Approve all" with zero overrides on a properly-configured project.
+
+**Doctrine preserved (still per-item user input, even in auto):**
+- Ledger resolve gate Phase 2 (open items)
+- `specs/INBOX.md` / `specs/DEFERRED.md` writes
+- `/challenge` lenses
+- `/init` Phase 4 / 8 / 9 governance gates
+- All HARD-GATE / BLOCKED / STOP conditions
+
+Reference: `skills/_shared/auto-mode-contract.md` + `skills/_shared/auto-decision-log.md`.
+
 ## Token Saver (v4.2+)
 
 claude-tweaks v4.2 ships token-saving infrastructure that runs silently:

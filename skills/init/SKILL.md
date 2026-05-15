@@ -164,7 +164,10 @@ Check if `.gitignore` exists and whether it already covers workflow artifacts. S
 screenshots/
 .worktrees/
 stories/auth.yml
+.claude-tweaks/
 ```
+
+The `.claude-tweaks/` directory holds per-pipeline run state (`pipelines/{ISO-timestamp}-{spec-slug}/config.yml`, `decisions.md`, `staged/`) plus the bash filter logs and statusline cache. None of it should be committed — the auto-decision log is for the user's calibration of project policy, not git history.
 
 If `stories/` exists or will be created, ask the user:
 
