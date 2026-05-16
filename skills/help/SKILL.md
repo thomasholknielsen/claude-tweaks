@@ -54,7 +54,7 @@ These run in order — each skill feeds into the next.
 | 5 | `/claude-tweaks:specify` | Decompose a design doc into agent-sized specs | design doc path, topic, INBOX ref |
 | 6 | `/claude-tweaks:build` | Implement a spec or design doc end-to-end | spec number, design doc path, topic + optional `auto`, `batched`, `worktree` |
 | 6b | `/claude-tweaks:test` | Verification gate — types, lint, tests, QA story validation | `types`, `lint`, `unit`, file path, `affected`, `qa`, `qa journey={name}`, `qa affected`, `all` |
-| 6c | `/claude-tweaks:stories` | Generate or update QA story YAML files by browsing a site (journey-aware when journey files exist) | URL + `persona=`, `dir=`, `focus=`, `journey=`, `browser=`, `refine=`, `negative=` |
+| 6c | `/claude-tweaks:stories` | Generate or update QA story YAML files by browsing a site (journey-aware when journey files exist) | URL + `persona=`, `dir=`, `journey=`, `browser=`, `refine=`, `negative=` |
 | 7 | `/claude-tweaks:review` | Analytical quality gate — code review, UX analysis (when QA data available), visual browser review with idea generation (default in /flow when browser available). Gates on /test passing. | spec number, file paths + `full`, `visual`, `journey:{name}`, `discover` |
 | 8 | `/claude-tweaks:wrap-up` | Reflection, knowledge capture, artifact cleanup | spec number |
 
@@ -79,7 +79,7 @@ For a concise one-page reference, read `reference-card.md` in this skill's direc
 | `/claude-tweaks:tidy` | Periodic backlog hygiene | — |
 | `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → wrap-up | spec number(s) (comma-separated for sequential), design doc path, or topic + `auto` `worktree` `no-stories` `[step]` (single step = resume from that step onward) |
 | `/claude-tweaks:browse` | Unified browser automation (utility) | URL or task description + `browser=`, `headless`, `vision` |
-| `/claude-tweaks:research` | Deep web research with citation-audited reports | topic + `quick`, `standard`, `deep`, `ultradeep`, `output=`, `focus=` |
+| `/claude-tweaks:research` | Deep web research with citation-audited reports | topic + `quick`, `standard`, `deep`, `ultradeep`, `output=` |
 | `/claude-tweaks:ledger` | Open items tracking — create, query, resolve ledger entries | *(none)* for status, `resolve` for nothing-left-behind gate, `{feature-name}` for specific ledger |
 
 ### Superpowers (External Plugin)

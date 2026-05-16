@@ -16,7 +16,7 @@ The upstream tree as vendored at this commit contains:
 
 - `SKILL.md` (replaced by our claude-tweaks-conventions version — see Modifications below)
 - `reference/` — 6 markdown files: `methodology.md`, `report-assembly.md`, `quality-gates.md`, `html-generation.md`, `continuation.md`, `weasyprint_guidelines.md`
-- `scripts/` — Python tooling: `research_engine.py`, `validate_report.py`, `verify_citations.py`, `source_evaluator.py`, `citation_manager.py`, `md_to_html.py`, `verify_html.py`
+- `scripts/` — Python tooling: `citation_manager.py`, `evidence_store.py`, `extract_claims.py`, `md_to_html.py`, `research_engine.py`, `source_evaluator.py`, `validate_report.py`, `verify_citations.py`, `verify_claim_support.py`, `verify_html.py`
 - `schemas/` — JSON Schemas used by the Python pipeline: `claim.schema.json`, `evidence.schema.json`, `run_manifest.schema.json`, `source.schema.json`
 - `templates/` — `report_template.md`, `mckinsey_report_template.html`
 - `tests/` — upstream fixtures (untouched)
