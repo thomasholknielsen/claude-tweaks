@@ -1,108 +1,92 @@
 ---
-name: deep-research
-description: Use when the user needs multi-source research with citation tracking, evidence persistence, and structured report generation. Triggers on "deep research", "comprehensive analysis", "research report", "compare X vs Y", "analyze trends", or "state of the art". Not for simple lookups, debugging, or questions answerable with 1-2 searches.
+name: claude-tweaks:research
+description: Use when conducting in-depth web research — multi-source synthesis, citation-audited reports with 4 runtime modes from quick (~2-5 min) to ultradeep (~20-45 min, multi-persona red-team). Keywords - research, deep research, web research, sources, citations, literature review.
 ---
+> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
 
-# Deep Research
 
-## Core Purpose
+# Research — Deep Web Research with Citation-Audited Reports
 
-Deliver citation-tracked research reports through a structured pipeline with evidence persistence, source identity management, claim-level verification, and progressive context management.
-
-**Autonomy Principle:** Operate independently. Infer assumptions from context. Only stop for critical errors or incomprehensible queries. Surface high-materiality assumptions explicitly in the Introduction and Methodology rather than silently defaulting.
-
----
-
-## Decision Tree
+ChatGPT-Deep-Research-style multi-source web research. An 8-phase pipeline decomposes the topic, dispatches parallel searchers, validates citations, and synthesizes a structured report. Vendored from [199-biotechnologies/claude-deep-research-skill](https://github.com/199-biotechnologies/claude-deep-research-skill) (MIT) — see `UPSTREAM.md`.
 
 ```
-Request Analysis
-+-- Simple lookup? --> STOP: Use WebSearch
-+-- Debugging? --> STOP: Use standard tools
-+-- Complex analysis needed? --> CONTINUE
-
-Mode Selection
-+-- Initial exploration --> quick (3 phases, 2-5 min)
-+-- Standard research --> standard (6 phases, 5-10 min) [DEFAULT]
-+-- Critical decision --> deep (8 phases, 10-20 min)
-+-- Comprehensive review --> ultradeep (8+ phases, 20-45 min)
+                             [ /claude-tweaks:research ] ← utility (no fixed lifecycle position)
+                                        ↑
+   Used by: /claude-tweaks:capture (research INBOX items),
+            /claude-tweaks:challenge (back debiasing lenses),
+            /claude-tweaks:specify (prior-art lookup),
+            ad-hoc research tasks
 ```
 
-**Default assumptions:** Technical query = technical audience. Comparison = balanced perspective. Trend = recent 1-2 years.
+## When to Use
 
----
+- Research a topic in depth before committing to a design direction.
+- Audit prior art / state-of-the-art before authoring a spec.
+- Debias an INBOX item with evidence from multiple sources.
+- Gather citations for a user journey, RFC, or technical decision.
+- Generate a structured report (markdown + HTML + PDF) with audited citations.
 
-## Workflow Overview
+## Input Resolution
 
-| Phase | Name | Quick | Std | Deep | Ultra |
-|-------|------|-------|-----|------|-------|
-| 1 | SCOPE | Y | Y | Y | Y |
-| 2 | PLAN | - | Y | Y | Y |
-| 3 | RETRIEVE | Y | Y | Y | Y |
-| 4 | TRIANGULATE | - | Y | Y | Y |
-| 4.5 | OUTLINE REFINEMENT | - | Y | Y | Y |
-| 5 | SYNTHESIZE | - | Y | Y | Y |
-| 6 | CRITIQUE | - | - | Y | Y |
-| 7 | REFINE | - | - | Y | Y |
-| 8 | PACKAGE | Y | Y | Y | Y |
+- `$ARGUMENTS` is the research topic. If empty, ask the user for it before proceeding.
+- Mode is selected via a single `AskUserQuestion` with 4 options. **`standard` is the recommended default** — it balances depth and runtime.
+- Power-user flags (parsed from `$ARGUMENTS`):
+  - `--mode=<quick|standard|deep|ultradeep>` — skip the mode prompt.
+  - `--output=<path>` — override the default output root (defaults to `.claude-tweaks/research/`).
 
-**Note:** Phases 3-5 operate as an evidence loop per section (retrieve → evidence store → refine outline → draft → verify claims → delta-retrieve if needed), not as strict sequential gates.
+## Mode Picker
 
----
+If no `--mode=` flag is present, ask exactly this question:
 
-## Execution
+```
+? Mode for "<topic>":
+  1. quick      (~2-5 min,    5+ sources)
+  2. standard   (~5-10 min,  10+ sources)   ← recommended
+  3. deep       (~10-20 min, 15+ sources)
+  4. ultradeep  (~20-45 min, red-team pass + multi-persona critique)
+```
 
-**On invocation, load relevant reference files:**
+Reply with the user's selection. Then proceed.
 
-1. **Phase 1-7:** Load [methodology.md](./reference/methodology.md) for detailed phase instructions
-2. **Phase 8 (Report):** Load [report-assembly.md](./reference/report-assembly.md) for progressive generation
-3. **HTML/PDF output:** Load [html-generation.md](./reference/html-generation.md)
-4. **Quality checks:** Load [quality-gates.md](./reference/quality-gates.md)
-5. **Long reports (>18K words):** Load [continuation.md](./reference/continuation.md)
+## Workflow
 
-**Templates:**
-- Report structure: [report_template.md](./templates/report_template.md)
-- HTML styling: [mckinsey_report_template.html](./templates/mckinsey_report_template.html)
+1. **Read the methodology.** Open `reference/methodology.md` in this skill's directory for the canonical 8-phase pipeline (decompose → parallel search → citation registry → evidence-mapped outline → section drafting → counter-review → validation → report assembly).
+2. **Construct the output directory.** Path is `{cwd}/.claude-tweaks/research/[YYYY-MM-DD]-[topic-slug]/` unless `--output=` overrides. Create it before invoking the engine.
+3. **Invoke the engine.** Run `scripts/research_engine.py` with the topic, mode, and output dir. The engine handles phase orchestration, parallel search dispatch, citation tracking via `sources.json`, validate-fix-retry (max 3 cycles) using `scripts/validate_report.py` + `scripts/verify_citations.py`, and HTML/PDF assembly via `scripts/md_to_html.py`.
+4. **Surface progress.** As each phase completes, echo a single status line ("Phase N/8: <name> — <status>").
+5. **On finish, write the Next Actions block** with the produced report path.
 
-**Scripts:**
-- `python scripts/validate_report.py --report [path]`
-- `python scripts/verify_citations.py --report [path]`
-- `python scripts/md_to_html.py [markdown_path]`
+## Dependency posture
 
----
+- **Zero-config baseline.** Built-in `WebSearch` is the fallback retrieval provider. The skill runs end-to-end without any external installs.
+- **Enhanced.** Install `search-cli` (Homebrew: `brew tap 199-biotechnologies/tap && brew install search-cli`) for parallel multi-provider retrieval across Brave / Serper / Exa / Jina / Firecrawl. Configure provider API keys via `search config set keys.<provider> <KEY>`.
+- **Optional.** Python 3 + `requirements.txt` for the upstream validators, citation manager, and HTML/PDF generation. Install with `pip install -r skills/research/requirements.txt`.
 
-## Output Contract
+## Anti-Patterns
 
-**Required sections:**
-- Executive Summary (200-400 words)
-- Introduction (scope, methodology, assumptions)
-- Main Analysis (4-8 findings, 600-2,000 words each, cited)
-- Synthesis & Insights (patterns, implications)
-- Limitations & Caveats
-- Recommendations
-- Bibliography (COMPLETE - every citation, no placeholders)
-- Methodology Appendix
+| Pattern | Why It Fails |
+|---------|--------------|
+| Invoking `deep` or `ultradeep` on a fuzzy single-word topic | Burns 20+ minutes on under-scoped queries. Add 1 clarifying sentence to the topic, or use `quick`/`standard` first to refine the scope before going deep. |
+| Treating the `WebSearch` fallback as failure | The skill is designed to run zero-config. Install `search-cli` only when source breadth is genuinely insufficient — not by default. |
+| Editing reports in place after generation | Reports are dated immutable artifacts. Re-run the skill with the updated topic; the new report gets a fresh dated directory. |
+| Skipping the mode prompt by guessing | The 4 modes differ in runtime by ~10×. Always ask unless `--mode=` is passed; this is the one decision that genuinely matters. |
+| Retrofitting Manifesto / Review Console wrapping | `/research` is a single-skill utility, not a pipeline. The v4.6 bookend architecture does not apply. See `UPSTREAM.md`. |
 
-**Output files (all to `.claude-tweaks/research/[YYYYMMDD]-[topic-slug]/`):**
-- Markdown (primary source of truth)
-- `sources.jsonl` — stable source registry with canonical IDs
-- `evidence.jsonl` — append-only evidence store with quotes and locators
-- `claims.jsonl` — atomic claim ledger with support status
-- `run_manifest.json` — query, mode, assumptions, provider config
-- HTML (McKinsey style, auto-opened)
-- PDF (professional print, auto-opened)
+## Relationship to Other Skills
 
-**Quality standards:**
-- 10+ sources, 3+ per major claim (cluster-independent, not just count)
-- All factual claims cited immediately [N] with evidence backing in `evidence.jsonl`
-- Claim-support verification mandatory: no unsupported factual claims pass delivery
-- No placeholders, no fabricated citations
-- Prose-first (>=80%), bullets sparingly
+| Skill | Relationship |
+|-------|--------------|
+| `/claude-tweaks:capture` | Research findings can be promoted into INBOX items via the Next Actions block; `/capture` references `/research` as a way to enrich a captured idea before specifying. |
+| `/claude-tweaks:challenge` | `/challenge` invokes `/research` to back debiasing lenses with evidence; this skill's reports can be cited as challenge sources. |
+| `/claude-tweaks:specify` | `/specify` uses `/research` outputs for prior-art sections; this skill's Next Actions block offers a direct "cite findings in a new spec" path. |
+| `/claude-tweaks:browse` | Both are utility skills (no fixed lifecycle position). `/browse` covers interactive browser automation; `/research` covers autonomous multi-source research. |
+| `UPSTREAM.md` (in this skill's directory) | Captures the vendoring contract — pinned commit, modifications, update runbook, auto-mode posture rationale. |
 
----
+### Next Actions
 
-## When to Use / NOT Use
+After the report completes, present these options:
 
-**Use:** Comprehensive analysis, technology comparisons, state-of-the-art reviews, multi-perspective investigation, market analysis.
-
-**Do NOT use:** Simple lookups, debugging, 1-2 search answers, quick time-sensitive queries.
+1. **Promote findings into INBOX** — `/claude-tweaks:capture <findings-summary>` **(Recommended when topic was exploratory)**.
+2. **Use findings to debias a problem** — `/claude-tweaks:challenge <inbox-item>`.
+3. **Cite findings in a new spec** — `/claude-tweaks:specify <spec-name>`.
+4. **Re-run in deeper mode** — `/claude-tweaks:research --mode=deep <topic>` (only if current mode left obvious gaps).
