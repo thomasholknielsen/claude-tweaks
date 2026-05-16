@@ -124,3 +124,4 @@ Each parallel agent gets its own `--session <unique-name>`. One browser instance
 | `qa-agent` (`agents/qa-agent.md`) | Each story instance opens a uniquely named session; uses the auth vault and trace-on-failure conventions defined here |
 | `/claude-tweaks:test` | Invokes qa-agent for QA story validation; trace paths from failed stories surface in /test reports |
 | `/claude-tweaks:init` | Detects `agent-browser` availability during setup and records the requirement that /browse depends on |
+| `/claude-tweaks:research` | Both utility skills (no fixed lifecycle position). `/browse` is interactive browser automation; `/research` is autonomous multi-source web research. |

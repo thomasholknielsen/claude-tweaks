@@ -126,3 +126,4 @@ Periodically (or when inbox gets long), use `/claude-tweaks:tidy` to batch-revie
 | `/claude-tweaks:review` | May create INBOX items for new ideas discovered during review |
 | `/claude-tweaks:wrap-up` | May create INBOX items for genuinely new ideas; leftover work goes to DEFERRED.md |
 | `specs/DEFERRED.md` | Structured deferral for build/review work — carries origin, files, and triggers that INBOX doesn't |
+| `/claude-tweaks:research` | Research findings can be captured as INBOX items; invoke `/research` when an INBOX idea needs evidence before specifying. |

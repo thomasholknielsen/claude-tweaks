@@ -230,3 +230,4 @@ If the user wants to adjust the reframing or re-examine from a different lens, t
 | `/superpowers:brainstorming` | Consumes the Brainstorming Brief — explores *within* the debiased frame |
 | `/claude-tweaks:specify` | Downstream — converts brainstorming output into specs |
 | `/claude-tweaks:help` | Flags INBOX items with baked-in assumptions as candidates for /claude-tweaks:challenge |
+| `/claude-tweaks:research` | Back debiasing lenses with evidence — `/research` produces citation-audited reports that can ground a challenge. |
