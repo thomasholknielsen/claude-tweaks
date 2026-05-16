@@ -34,11 +34,42 @@ The upstream `SKILL.md` is replaced wholesale with a claude-tweaks-style skill f
 
 Patched files and the exact diffs are captured below. Re-apply mechanically when pulling a new upstream commit.
 
-**`scripts/research_engine.py`** — [diff to be filled in during Task 4 by the implementing engineer; capture exact line numbers and before/after snippets]
+**`scripts/research_engine.py`** — line 134:
 
-**`reference/report-assembly.md`** — every occurrence of `~/Documents` → `.claude-tweaks/research`.
+```diff
+-        self.output_dir = Path.home() / ".claude" / "research_output"
++        self.output_dir = Path.cwd() / ".claude-tweaks" / "research"
+```
 
-**`reference/continuation.md`** — every occurrence of `~/Documents` → `.claude-tweaks/research`.
+Note: the upstream code uses `pathlib.Path` throughout; the patch stays consistent with that convention. The upstream path was `~/.claude/research_output/` (not `~/Documents/` as the section heading implies — the heading reflects the reference-doc path, not the engine path).
+
+**`reference/report-assembly.md`** — three occurrences patched:
+
+```diff
+-# Create folder: ~/Documents/[TopicName]_Research_[YYYYMMDD]/
+-mkdir -p ~/Documents/[folder_name]
++# Create folder: .claude-tweaks/research/[YYYYMMDD]-[topic-slug]/
++mkdir -p .claude-tweaks/research/[folder_name]
+```
+
+```diff
+-- Location: `~/Documents/[TopicName]_Research_[YYYYMMDD]/`
++- Location: `.claude-tweaks/research/[YYYYMMDD]-[topic-slug]/`
+```
+
+```diff
+-**3. Also save copy to:** `~/.claude/research_output/` (internal tracking)
++**3. Also save copy to:** `.claude-tweaks/research/` (internal tracking)
+```
+
+**`reference/continuation.md`** — two occurrences of `~/.claude/research_output/` → `.claude-tweaks/research/` (continuation state location and continuation agent prompt instruction).
+
+**`SKILL.md`** — one occurrence patched (output files section):
+
+```diff
+-**Output files (all to `~/Documents/[Topic]_Research_[YYYYMMDD]/`):**
++**Output files (all to `.claude-tweaks/research/[YYYYMMDD]-[topic-slug]/`):**
+```
 
 ### 3. Mode picker via `AskUserQuestion`
 

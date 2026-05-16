@@ -83,7 +83,7 @@ Mode Selection
 - Bibliography (COMPLETE - every citation, no placeholders)
 - Methodology Appendix
 
-**Output files (all to `~/Documents/[Topic]_Research_[YYYYMMDD]/`):**
+**Output files (all to `.claude-tweaks/research/[YYYYMMDD]-[topic-slug]/`):**
 - Markdown (primary source of truth)
 - `sources.jsonl` — stable source registry with canonical IDs
 - `evidence.jsonl` — append-only evidence store with quotes and locators
