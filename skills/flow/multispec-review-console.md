@@ -90,11 +90,19 @@ Pipeline complete for specs 157, 159, 160. The pipeline auto-resolved {N} decisi
 | 11 | 157 | doc | docs/api.md | Document new /auth/refresh endpoint |
 | 12 | 159 | claude.md | Commands | Add `npm run lint:fix` to test workflow |
 
-#### Not run (if multi-spec aborted early)
+#### Not run / Failed (if any spec didn't complete cleanly)
 
-| Spec | Status | Reason |
-|---|---|---|
-| (only populate when one or more specs were skipped due to a HARD-GATE failure earlier in the run) |
+| Spec | Status | Reason | Worktree |
+|---|---|---|---|
+| 159 | failed | test gate (3 type errors) — see `spec-159/decisions.md` | `.worktrees/spec-159` preserved |
+| 160 | not-run | previous spec failed (159); `keep-going` not set | — |
+
+Status values:
+- **failed** — spec hit a HARD-GATE but the run continued (only happens under `keep-going`). Worktree is preserved for inspection.
+- **not-run** — spec was skipped because an earlier spec failed and `keep-going` was not set. No worktree was created.
+- **incomplete** — spec started but did not reach `/wrap-up` Step 10 for a reason other than HARD-GATE (rare; e.g., subagent crash).
+
+Populate this footer from `manifest.yml` — any spec with `status: failed`, `not-run`, or `incomplete` gets a row.
 
 ---
 
