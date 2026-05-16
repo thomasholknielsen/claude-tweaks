@@ -4,8 +4,24 @@ The Review Console is the **second bookend** of the pipeline (see `_shared/auto-
 
 ## When to run
 
-- **`auto` or `hybrid` mode** — always run if a pipeline run directory exists for this work
+- **`auto` or `hybrid` mode** — run if a pipeline run directory exists for this work AND `MULTISPEC_REVIEW_DEFER` is unset
+- **`auto` or `hybrid` mode with `MULTISPEC_REVIEW_DEFER=1`** — **skip**. The consolidated multi-spec Review Console at `/flow` end-of-run will read this spec's `decisions.md` + `staged/` and surface everything in one place. See `flow/multispec-review-console.md` in the `/claude-tweaks:flow` skill's directory.
 - **`interactive` mode** — skip; decisions were resolved in-flow
+
+## Multi-spec defer protocol
+
+When `MULTISPEC_REVIEW_DEFER=1` is set (by `/flow` multi-spec orchestration):
+
+1. Do NOT present the console
+2. Do NOT apply or revert any staged items — leave `staged/` and `decisions.md` untouched in the per-spec subdirectory
+3. Append a final entry to this spec's `decisions.md`:
+   ```
+   AUTO {time} — Step 9.6: Review Console deferred to multi-spec consolidated console. Per-spec staged items: {count}. Auto-decisions: {count}. Parent run dir: {MULTISPEC_PARENT_DIR}.
+   ```
+4. Proceed to Step 10 (Consolidated Summary) — the per-spec summary still renders, but its "Review Console" row reads `deferred — see multi-spec consolidated console`
+5. Skip the run-directory archival in Step 5 — the parent `/flow` orchestration owns archival of the multi-spec parent dir after its consolidated console completes
+
+This is the *only* condition under which `/wrap-up` skips Step 9.6 when a run directory exists. Single-spec auto/hybrid always runs the per-spec console.
 
 ## Locate the pipeline run directory
 

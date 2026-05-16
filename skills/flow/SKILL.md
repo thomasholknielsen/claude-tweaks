@@ -433,7 +433,9 @@ Each is a one-shot manual command; flow does not run these automatically.
 
 When multiple spec numbers are provided (e.g., `42,45,48`), flow runs each spec's pipeline **sequentially** in one terminal. Each spec completes its full pipeline (build → test → review → polish → wrap-up) before the next begins; a gate failure in one spec stops the remaining specs.
 
-For the full validation rules, execution order, and consolidated Multi-Spec Summary template, read `multi-spec.md` in this skill's directory.
+**Bookend architecture for multi-spec (v4.6.3+):** in `auto` or `hybrid` mode, per-spec Wrap-Up Review Consoles are **deferred** — `/flow` sets `MULTISPEC_REVIEW_DEFER=1` when invoking each spec's `/wrap-up`. After the last spec completes, `/flow` runs **one consolidated Review Console** that reads every per-spec `decisions.md` + `staged/` and surfaces all approvals in one batch. This preserves the bookend promise (Manifesto at start, one Review Console at end) regardless of N. See `multispec-review-console.md`.
+
+For the full validation rules, run directory layout (per-spec sub-namespacing under one parent dir), environment variables passed to each per-spec invocation, and consolidated Multi-Spec Summary template, read `multi-spec.md` in this skill's directory.
 
 ---
 

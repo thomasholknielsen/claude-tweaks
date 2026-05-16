@@ -120,9 +120,10 @@ Cleanup is silent — no user prompt. The caches are pipeline state, not user-au
 
 If a pipeline run directory exists for this work (`PIPELINE_RUN_DIR` env var or matching dir in `.claude-tweaks/pipelines/`):
 
-1. Verify the Review Console (Step 9.6) ran and applied/dismissed all staged items
-2. Move the run directory to `.claude-tweaks/pipelines/archive/{run-id}/` — this preserves the audit trail (`decisions.md`, `config.yml`, and any skipped staged items) for future reference
-3. Skipped staged items remain in the archive; they are NOT silently dropped
+1. **Multi-spec defer check:** if `MULTISPEC_REVIEW_DEFER=1` is set, **skip this section entirely**. The parent `/flow` orchestration owns archival of the multi-spec parent dir after its consolidated Review Console completes. The per-spec subdirectory stays in place under the parent.
+2. Verify the Review Console (Step 9.6) ran and applied/dismissed all staged items
+3. Move the run directory to `.claude-tweaks/pipelines/archive/{run-id}/` — this preserves the audit trail (`decisions.md`, `config.yml`, and any skipped staged items) for future reference
+4. Skipped staged items remain in the archive; they are NOT silently dropped
 
 Do NOT delete the run directory outright — the auto-decision log is project history (for the user's calibration of project policy), not pipeline state.
 
@@ -336,9 +337,11 @@ After acknowledgment, update status to `acknowledged`.
 
 The Review Console is the **second bookend** of the pipeline (see `_shared/auto-mode-contract.md`). Runs in `auto` or `hybrid` mode when a pipeline run directory exists. Skipped in `interactive` mode and in standalone wrap-up. Reads `decisions.md`, `staged/`, and `config.yml` from the run directory, then presents one consolidated batch table with four sections (Auto-applied / Pending review / Skill updates / Configuration updates) and three actions (Approve all / Override / Stop).
 
+**Multi-spec defer:** when `MULTISPEC_REVIEW_DEFER=1` is set by `/flow` multi-spec orchestration, skip the per-spec console — the consolidated end-of-run console at `/flow` handles all approvals across every spec in the run. Leave `staged/` and `decisions.md` untouched, append a "deferred" log entry, and proceed to Step 10.
+
 Empty-console fast path: if `decisions.md` has zero entries AND `staged/` is empty AND no skill/config updates exist, skip the console entirely and proceed to Step 10.
 
-For the run-directory resolution sequence, the full console template with all four section tables, approval/override/stop semantics, and the sort-order requirement, read `review-console.md` in this skill's directory.
+For the run-directory resolution sequence, the multi-spec defer protocol, the full console template with all four section tables, approval/override/stop semantics, and the sort-order requirement, read `review-console.md` in this skill's directory.
 
 ---
 
