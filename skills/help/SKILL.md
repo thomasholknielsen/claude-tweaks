@@ -79,6 +79,7 @@ For a concise one-page reference, read `reference-card.md` in this skill's direc
 | `/claude-tweaks:tidy` | Periodic backlog hygiene | — |
 | `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → wrap-up | spec number(s) (comma-separated for sequential), design doc path, or topic + `auto` `worktree` `no-stories` `[step]` (single step = resume from that step onward) |
 | `/claude-tweaks:browse` | Unified browser automation (utility) | URL or task description + `browser=`, `headless`, `vision` |
+| `/claude-tweaks:research` | Deep web research with citation-audited reports | topic + `quick`, `standard`, `deep`, `ultradeep`, `output=`, `focus=` |
 | `/claude-tweaks:ledger` | Open items tracking — create, query, resolve ledger entries | *(none)* for status, `resolve` for nothing-left-behind gate, `{feature-name}` for specific ledger |
 
 ### Superpowers (External Plugin)

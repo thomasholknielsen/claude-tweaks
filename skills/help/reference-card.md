@@ -35,6 +35,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → wrap-up | spec #(s), doc path + `auto` `worktree` `no-stories` `[step]` (single = resume) |
 | `/claude-tweaks:browse` | Unified browser automation (utility) | URL or task + `browser=`, `headless`, `vision` |
 | `/claude-tweaks:ledger` | Open items tracking — query, resolve ledger entries | *(none)*, `resolve`, `{feature-name}` |
+| `/claude-tweaks:research` | Deep web research with citation-audited reports — 4 runtime modes from quick to ultradeep. | topic + `quick`, `standard`, `deep`, `ultradeep`, `output=`, `focus=` |
 | `/claude-tweaks:version` | Print the installed plugin version | *(none)*, `plain`, `full` |
 
 ## Common Workflows
