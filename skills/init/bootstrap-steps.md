@@ -2,6 +2,86 @@
 
 Loaded by `/init` Phase 0 when the corresponding tool/feature is being set up. Each step is independent — read only the section(s) needed for the step currently executing. In Update Mode most of these are no-ops (already configured); the SKILL.md decides whether to load this file at all.
 
+## Step 0.3 — Starter files (detailed content)
+
+Create these files **only if missing** — never overwrite existing content. Each file is idempotent and safe to skip on Update Mode runs.
+
+**`specs/INBOX.md`:**
+
+```markdown
+# INBOX
+
+Ideas and features captured for future specification. Use `/claude-tweaks:capture` to add items, `/claude-tweaks:tidy` to review.
+
+<!-- Add new entries at the bottom using /claude-tweaks:capture -->
+```
+
+**`specs/DEFERRED.md`:**
+
+```markdown
+# Deferred Work
+
+Work deferred from builds and reviews with context for when to pick it up. Items here came from active implementation — they have origin specs, file references, and timing triggers.
+
+Unlike INBOX (raw ideas), deferred items have rich context and specific triggers for when they should be revisited.
+
+<!-- Items are added by /claude-tweaks:build, /claude-tweaks:review, and /claude-tweaks:wrap-up -->
+```
+
+**`specs/INDEX.md`:**
+
+```markdown
+# Spec Index
+
+Tiered roadmap of work units. Use `/claude-tweaks:specify` to add specs, `/claude-tweaks:help` to see what's ready to build.
+
+## Tier 1 — Critical Path
+
+| Spec | Title | Status | Blocked By |
+|------|-------|--------|------------|
+| — | — | — | — |
+
+## Tier 2 — High Value
+
+| Spec | Title | Status | Blocked By |
+|------|-------|--------|------------|
+| — | — | — | — |
+
+## Tier 3 — Differentiators
+
+| Spec | Title | Status | Blocked By |
+|------|-------|--------|------------|
+| — | — | — | — |
+```
+
+---
+
+## Step 0.4 — .gitignore suggestions (detailed content)
+
+Check whether `.gitignore` exists and already covers workflow artifacts. Suggest entries for transient files that shouldn't be committed:
+
+```gitignore
+# claude-tweaks: transient artifacts
+screenshots/
+.worktrees/
+stories/auth.yml
+.claude-tweaks/
+```
+
+The `.claude-tweaks/` directory holds per-pipeline run state (`pipelines/{ISO-timestamp}-{spec-slug}/config.yml`, `decisions.md`, `staged/`) plus the bash filter logs and statusline cache. None of it should be committed — the auto-decision log is for the user's calibration of project policy, not git history.
+
+If `stories/` exists or will be created, ask the user:
+
+```
+Should story YAML files be committed to version control?
+1. Yes — stories are part of the project's test suite **(Recommended)**
+2. No — add stories/ to .gitignore
+```
+
+Do not modify `.gitignore` without asking — the user may have opinions about what to track.
+
+---
+
 ## Step 0.7 — Browser / agent-browser (detailed procedure)
 
 Browser integration lets Claude Code interact with web pages — useful for testing UIs, running QA stories, scraping docs, and verifying deployments. The single supported backend is `agent-browser`.

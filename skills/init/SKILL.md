@@ -108,76 +108,11 @@ docs/journeys/              → User and developer journey files (created by /jo
 
 ### Step 0.3: Create Starter Files
 
-Create these files **only if missing** — never overwrite existing content:
-
-**`specs/INBOX.md`:**
-```markdown
-# INBOX
-
-Ideas and features captured for future specification. Use `/claude-tweaks:capture` to add items, `/claude-tweaks:tidy` to review.
-
-<!-- Add new entries at the bottom using /claude-tweaks:capture -->
-```
-
-**`specs/DEFERRED.md`:**
-```markdown
-# Deferred Work
-
-Work deferred from builds and reviews with context for when to pick it up. Items here came from active implementation — they have origin specs, file references, and timing triggers.
-
-Unlike INBOX (raw ideas), deferred items have rich context and specific triggers for when they should be revisited.
-
-<!-- Items are added by /claude-tweaks:build, /claude-tweaks:review, and /claude-tweaks:wrap-up -->
-```
-
-**`specs/INDEX.md`:**
-```markdown
-# Spec Index
-
-Tiered roadmap of work units. Use `/claude-tweaks:specify` to add specs, `/claude-tweaks:help` to see what's ready to build.
-
-## Tier 1 — Critical Path
-
-| Spec | Title | Status | Blocked By |
-|------|-------|--------|------------|
-| — | — | — | — |
-
-## Tier 2 — High Value
-
-| Spec | Title | Status | Blocked By |
-|------|-------|--------|------------|
-| — | — | — | — |
-
-## Tier 3 — Differentiators
-
-| Spec | Title | Status | Blocked By |
-|------|-------|--------|------------|
-| — | — | — | — |
-```
+Create `specs/INBOX.md`, `specs/DEFERRED.md`, and `specs/INDEX.md` **only if missing** — never overwrite existing content. For the canonical starter content (boilerplate headers, tier tables), read `bootstrap-steps.md` (Step 0.3) in this skill's directory.
 
 ### Step 0.4: Suggest .gitignore Entries
 
-Check if `.gitignore` exists and whether it already covers workflow artifacts. Suggest entries for transient files that shouldn't be committed:
-
-```gitignore
-# claude-tweaks: transient artifacts
-screenshots/
-.worktrees/
-stories/auth.yml
-.claude-tweaks/
-```
-
-The `.claude-tweaks/` directory holds per-pipeline run state (`pipelines/{ISO-timestamp}-{spec-slug}/config.yml`, `decisions.md`, `staged/`) plus the bash filter logs and statusline cache. None of it should be committed — the auto-decision log is for the user's calibration of project policy, not git history.
-
-If `stories/` exists or will be created, ask the user:
-
-```
-Should story YAML files be committed to version control?
-1. Yes — stories are part of the project's test suite (Recommended)
-2. No — add stories/ to .gitignore
-```
-
-Do not modify `.gitignore` without asking — the user may have opinions about what to track.
+Suggest entries for transient workflow artifacts (`screenshots/`, `.worktrees/`, `stories/auth.yml`, `.claude-tweaks/`) — do not modify `.gitignore` without asking. If `stories/` exists or will be created, ask the user whether story YAML files should be committed (default: yes). For the full suggested block and the stories prompt, read `bootstrap-steps.md` (Step 0.4) in this skill's directory.
 
 ### Step 0.5: Verify Git
 
@@ -250,18 +185,7 @@ AUTO {ISO-time} — Scope Gate: auto-selected option 1 (Auto, run all phases). R
 This gate is reversible (the user can re-run `/init` with different arguments or cancel mid-phase), so it qualifies for auto-resolution under the auto-mode contract. The interactive prompt below applies only when `auto-mode: default-off` or when no policy has been set.
 
 ```
-Bootstrap complete. How much setup do you want?
-
-| Phase | What | Include? |
-|-------|------|----------|
-| 2 | Codebase reconnaissance | Yes |
-| 3 | Profile + classification | Yes |
-| 4 | Skill manifest | Yes |
-| 5 | CLAUDE.md | Yes |
-| 6 | Generate skills | Yes |
-| 7 | Rules | Yes |
-| 8 | Journey discovery | {Yes / Skip — no UI detected} |
-| 8.5 | Doc registry | Yes |
+Bootstrap complete. How much setup do you want? (See "Phases at a Glance" above for the full table; Phase 8 is auto-marked "Skip — no UI detected" when reconnaissance finds no user-facing surface.)
 
 1. Auto — run all included phases without stopping **(Recommended)**
 2. Interactive — pause for confirmation between phases
@@ -401,7 +325,7 @@ After Phase 1u (inventory) and Phase 1u.5 (contract drift) complete, evaluate th
 
 2. Log to `decisions.md`:
    ```
-   AUTO {ISO-time} — Phase 1u.6: early-exit (drift=0, gaps<3). Reason: Update Mode fast path per SKILL.md:912.
+   AUTO {ISO-time} — Phase 1u.6: early-exit (drift=0, gaps<3). Reason: Update Mode fast path per the Phase 1u.6 early-exit gate. Reversibility: high.
    ```
 
 3. Skip directly to Phase 9 (Summary). Phase 9's summary template adapts: "Update Mode — no patches needed" instead of the full patch list.
@@ -552,32 +476,7 @@ Wait for confirmation. The user may know things the code doesn't reveal (e.g., "
 
 ### Skill Categories
 
-Map detected stack to skill categories:
-
-| Detected Pattern | Skill to Generate |
-|---|---|
-| ORM + migrations | `data-access` — schema patterns, query conventions, migration workflow |
-| API layer (REST/GraphQL/tRPC) | `api` — route structure, middleware, error responses, auth patterns |
-| Testing framework | `testing` — test structure, mocking patterns, what to test, running tests |
-| Web framework | `{framework}` — routing, SSR/CSR patterns, state, data fetching |
-| Mobile framework | `mobile` — navigation, platform-specific, offline patterns |
-| CI/CD pipeline | `ci-cd` — pipeline structure, when to modify, environment promotion |
-| Infrastructure as Code | `infrastructure` — resource patterns, module structure, env separation |
-| Auth system | `security` — auth flow, session handling, RBAC/ABAC, token patterns |
-| Styling system | `ui` — component patterns, theme, design tokens |
-| State management | `state` — what goes where, cache vs UI state, sync patterns |
-| Queue/messaging | `async-processing` — message patterns, idempotency, retry |
-| Error handling (custom) | `error-handling` — error class hierarchy, when to use which |
-| Logging (structured) | `logging` — log levels, structured fields, what to log |
-| Monorepo tooling | `monorepo` — workspace commands, dependency management, build order |
-| Feature flags | `feature-flags` — flag lifecycle, naming, rollout patterns |
-| Search | `search` — indexing, query building, relevance tuning |
-| Forms + validation | `forms` — form patterns, validation schemas, error display |
-| i18n | `i18n` — translation workflow, key naming, locale handling |
-| Payments | `payments` — checkout flow, webhook handling, subscription lifecycle |
-| Email | `email` — template patterns, transactional vs marketing, delivery |
-
-Only generate skills for patterns that **actually exist** in the codebase. Mark aspirational skills (e.g., testing for a project with no tests) as `[aspirational]`.
+Map detected stack to skill categories using the canonical Detected-Pattern → Skill table in `skill-categories.md` in this skill's directory. Only generate skills for patterns that **actually exist and are actively used** in the codebase. Mark aspirational skills as `[aspirational]` — they become INBOX items, not SKILL.md files.
 
 ### Present the Manifest
 
@@ -845,16 +744,8 @@ Execute only after user confirmation.
 - **This skill is idempotent** — safe to re-run. Phase 0 only creates what's missing. Phases 1-8 detect whether to generate fresh or patch existing config.
 - **One session is not enough** — the initial skill set will be ~70% right. Expect to refine skills after the first week of actual use. Tell the user this explicitly.
 - **Re-run periodically** — run in Update Mode after major refactors, stack upgrades, or when skills start feeling stale. A quarterly cadence works for active projects.
-- **Skills are living documents** — they should evolve as the team's understanding of the project deepens. Use `/claude-tweaks:wrap-up` after completing features to review and update skills.
-- **Don't over-generate** — 5 excellent skills beat 15 mediocre ones. Each skill should earn its existence by encoding knowledge that would otherwise be lost or forgotten.
-- **Existing docs are gold** — README, CONTRIBUTING, ADRs, wiki pages, onboarding docs — mine these for conventions the code alone doesn't reveal.
-- **Ask the team** — if the user can answer questions about team preferences (PR process, deployment flow, naming debates), incorporate those answers. Code archaeology alone misses social conventions.
-- **CLAUDE.md describes how to work here, not what's missing** — every entry should help someone working in the codebase right now. Improvement opportunities go to INBOX with Phase 2 context, so they flow through the normal pipeline.
-- **The Don'ts section is the highest-ROI output** — a well-crafted Don'ts list prevents more mistakes than any amount of positive guidance. But Don'ts are guardrails for existing patterns — never aspirational entries for things that don't exist yet.
-- **The Philosophy section is the second-highest-ROI output** — it calibrates how aggressively Claude approaches changes, schema management, and backward compatibility.
-- **Preserve what works** — in Update Mode, bias toward patching over rewriting. Existing config often embeds hard-won lessons that aren't visible in the code.
-- **Depth over breadth** — a deep skill for the project's most complex domain (usually data access or the API layer) is worth more than shallow skills for 10 domains.
-- **Update Mode should be fast** — the value is in catching drift quickly. If the audit finds <3 issues, present them inline instead of going through the full phase ceremony.
+- **Update Mode should be fast** — Phase 1u.6's early-exit gate skips Phases 2-8.5 when drift is zero and preliminary gaps are < 3. Re-run with `--full` to force the complete pass.
+- **Don't over-generate** — 5 excellent skills beat 15 mediocre ones. The Anti-Patterns section above covers the specific failure modes (aspirational Don'ts, generic skills, improvements-in-CLAUDE.md). Read those before adding to either output.
 
 ## Relationship to Other Skills
 

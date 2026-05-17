@@ -40,7 +40,7 @@ LICENSE                           → MIT
 
 | Skill | Sub-files | Purpose |
 |-------|-----------|---------|
-| init | detection-tables.md, profile-templates.md, claude-md-template.md, skill-template.md, summary-templates.md, docs-structure.md, bootstrap-steps.md | Lazy-loaded reference content for each phase; doc registry format, tier detection, standard folder taxonomy; Phase 0 bootstrap procedures (browser, statusline, Impeccable) that are no-ops on most Update Mode runs |
+| init | detection-tables.md, profile-templates.md, claude-md-template.md, skill-template.md, skill-categories.md, summary-templates.md, docs-structure.md, bootstrap-steps.md | Lazy-loaded reference content for each phase; doc registry format, tier detection, standard folder taxonomy; Phase 0 bootstrap procedures (starter files, gitignore, browser, statusline, Impeccable — most are no-ops on Update Mode runs); Phase 4 detected-pattern → skill mapping table |
 | browse | agent-browser-reference.md | Operation vocabulary and advanced commands (batch, find, snapshot, vitals, trace, auth, react) used by consumer skills |
 | build | plan-audit.md, worktree-setup.md, operational-checklist.md | Plan audit procedure (scope-creep detection, structural-coupling check); worktree setup with `/superpowers:using-git-worktrees` consent flow; Common Step 5.5 Category A + B operational tables and ledger format |
 | test | verification.md, qa-review.md | Shared verification procedure (referenced by /build, /review, and /test); QA story validation procedures (5-phase runner that /test invokes for `qa` and `all` modes) |
