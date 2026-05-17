@@ -194,91 +194,11 @@ Present any detected implicit dependencies as part of the Step 7 summary. These 
 
 > **Why this matters:** Explicit `blocked-by` captures logical dependencies (spec B needs spec A's API). File-based overlap captures physical dependencies (both specs modify the same file). Missing the physical dependency leads to merge conflicts and duplicated work during concurrent builds.
 
-## Step 2.5: Design Pre-Steps (Phase 2 — frontend specs only)
+## Step 2.5: Design Pre-Steps (frontend specs only)
 
-Before writing spec files, run two pre-steps when the design doc covers a frontend surface. These pre-steps capture design context (`shape`) and creative direction (`design-intent:`) so the resulting specs carry both forward to `/build` and `/flow`'s polish phase.
+Before writing spec files, run frontend detection and two design pre-steps when the design doc covers a frontend surface — these capture design context (`shape`) and creative direction (`design-intent:`) so the resulting specs carry both forward to `/build` and `/flow`'s polish phase. For the frontend-detection sniff rules, the shape pre-step auto/interactive behavior, and the design-intent question + answer-mapping table, read `design-pre-steps.md` in this skill's directory.
 
-### Step 2.5a: Frontend detection
-
-Sniff the design doc contents for frontend signals using the same rules as `/claude-tweaks:design`'s Layer 3:
-- File-extension references (e.g., `.tsx`, `.jsx`, `.vue`, `.svelte`, `.html`, `.css`)
-- Path references containing `/components/`, `/pages/`, `/app/`, `/routes/`, `/views/`, `/ui/`
-- Explicit "UI", "frontend", "component", "page", "screen" terminology
-
-For the canonical sniff rules, read `frontend-detection.md` in the `/claude-tweaks:design` skill's directory.
-
-If no frontend signals are detected, skip Steps 2.5b and 2.5c entirely. Set `surface: backend` (or `infra` when the design clearly targets infra) on each generated spec; do not write `design-intent:` for non-frontend specs (or write `design-intent: none`).
-
-### Step 2.5b: Shape pre-step (frontend only)
-
-**Auto mode:** auto-run the shape pre-step for frontend specs (detection is deterministic from Step 2.5a). Log entry:
-```
-AUTO {time} — Step 2.5b: auto-ran /claude-tweaks:design shape for frontend spec. Output appended to design doc.
-```
-On `{skipped}` (Impeccable not installed, design integration disabled): note the skip in the log and proceed to Step 2.5c.
-
-**Interactive mode:** offer the shape pre-step:
-
-```
-Frontend design detected. Run /impeccable:impeccable shape to plan UX/UI before decomposition? (Recommended: yes)
-
-1. Yes — run /impeccable:impeccable shape and append output to design doc **(Recommended)**
-2. Skip — proceed directly to decomposition
-```
-
-On option 1: invoke `/claude-tweaks:design shape <topic>` via the Skill tool. The wrapper runs `/impeccable:impeccable shape <topic>` and returns `{result: "ok", output: "..."}`. Append the returned output verbatim to the design doc under a `## Shape (Impeccable)` section. This enriches the design doc with UX/UI planning that the decomposed specs and downstream `/build` can reference.
-
-On `{skipped}` (Impeccable not installed, design integration disabled): note the skip and proceed to Step 2.5c.
-
-### Step 2.5c: Design-intent question (frontend only)
-
-This sets the `design-intent:` frontmatter field that Phase 3's `polish` mode will read for intent-driven dispatch.
-
-**Auto mode:** read `design-intent` from `config.yml`. Apply per the Manifesto value:
-
-- If value is one of `bold` / `quiet` / `minimal` / `delightful` / `onboarding` → write to `design-intent:` frontmatter directly. Log:
-  ```
-  AUTO {time} — Step 2.5c: applied design-intent={value} from pipeline config.
-  ```
-- If value is `none` → write `design-intent: none` and skip the question. Log:
-  ```
-  AUTO {time} — Step 2.5c: design-intent=none per pipeline config (no creative direction).
-  ```
-- If value is unset (no pipeline run dir or no `design-intent` key) → fall back to KEPT-PROMPT (ask the user inline). This is in the "not silenced" list when explicitly left open. Log:
-  ```
-  KEPT-PROMPT {time} — Step 2.5c: design-intent not set in policy; surfaced inline.
-  ```
-
-**Interactive mode (or KEPT-PROMPT fallback):** ask the user the design-intent question.
-
-```
-Design vibe for this spec? (sets design-intent frontmatter)
-
-1. Bold — eye-catching, confident
-2. Quiet — restrained, refined
-3. Minimal — strip to essence
-4. Delightful — personality, micro-interactions
-5. Onboarding — first-run flows, empty states
-6. None — no specific creative direction
-```
-
-The user can answer with multiple numbers (e.g., `1,4` for bold + delightful). Map the answers:
-
-| User answer | `design-intent:` value |
-|-------------|------------------------|
-| `1` | `bold` |
-| `2` | `quiet` |
-| `3` | `minimal` |
-| `4` | `delightful` |
-| `5` | `onboarding` |
-| `6` (or no answer) | `none` |
-| `1,4` (multiple) | `bold, delightful` (comma-separated) |
-
-Record the chosen value(s); Step 3 writes them into each generated spec's frontmatter.
-
-**For multi-spec decompositions:** ask the question once per design doc and apply the same intent across all generated specs. If the user wants different intents per spec, they can edit individual spec files after Step 3.
-
-For the canonical enumeration of `design-intent:` values, read the "Frontmatter reference (canonical spec)" section of `spec-template.md` in this skill's directory.
+For non-frontend design docs (no frontend signals detected), skip this step entirely — set `surface: backend` (or `infra`) on each generated spec; do not write `design-intent:`.
 
 ## Step 3: Write the Spec Files
 
@@ -430,7 +350,7 @@ Commit with a message describing the specs created.
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Specifying without a design doc or codebase scan | Specs need brainstorming output AND Current State context — without either, `/superpowers:writing-plans` operates on unchallenged assumptions or blind exploration. Polymorphic input fixes the design-doc case by invoking `/superpowers:brainstorming` on topic input. |
+| Specifying without a codebase scan | Specs need Current State context — without it, `/superpowers:writing-plans` operates on blind assumptions. Step 1's Landscape reads include git log + existing files. The design-doc half of this anti-pattern is no longer possible: polymorphic input invokes `/superpowers:brainstorming` automatically when the input is a bare topic with no existing design doc. |
 | Specs that touch every layer | A single spec spanning data + API + UI + infra is too large for agent-sized execution |
 | Vague acceptance criteria | "Works correctly" can't be verified — `/superpowers:writing-plans` needs specific, testable assertions |
 | Keeping the design doc after specifying | Creates dangling references — the spec is the durable record, the design doc is consumed. Partial (`phase-N`) decomposition is the only exception (see Step 5's table). |
@@ -445,7 +365,7 @@ Commit with a message describing the specs created.
 
 | Skill | Relationship |
 |-------|-------------|
-| `/superpowers:brainstorming` | Runs BEFORE /claude-tweaks:specify — produces the design doc that /claude-tweaks:specify consumes and deletes |
+| `/superpowers:brainstorming` | Bidirectional: when a design doc already exists, it runs BEFORE /specify and produces the input that /specify consumes and deletes. When the user passes a bare topic (polymorphic input), /specify invokes brainstorming internally to produce the design doc, then decomposes it. |
 | `/superpowers:writing-plans` | Consumes specs AFTER /claude-tweaks:specify — the spec must provide enough context for `/superpowers:writing-plans` to produce a TDD execution plan |
 | `/superpowers:subagent-driven-development` | Executes specs AFTER /claude-tweaks:specify — uses the plan from `/superpowers:writing-plans` (via `/claude-tweaks:build` subagent execution strategy) |
 | `/superpowers:executing-plans` | Executes specs AFTER /claude-tweaks:specify — uses the plan from `/superpowers:writing-plans` (via `/claude-tweaks:build` batched execution strategy) |
@@ -454,7 +374,6 @@ Commit with a message describing the specs created.
 | `/claude-tweaks:tidy` | Reviews specs created by /claude-tweaks:specify for staleness. /claude-tweaks:tidy tags INBOX items as `**Promoted:**` — /claude-tweaks:specify Step 6 removes them from INBOX after creating the spec |
 | `/claude-tweaks:help` | Shows which specs from /claude-tweaks:specify are ready for /claude-tweaks:build — also uses Key Files for implicit dependency detection |
 | `/claude-tweaks:design` | /specify invokes `/claude-tweaks:design shape <topic>` (Step 2.5b) on frontend design docs to enrich the design doc with UX/UI planning. /specify writes `surface:` and `design-intent:` frontmatter (Step 2.5c + Step 3) on every generated spec; the design wrapper reads `surface:` for Layer 2 detection and reads `design-intent:` for `polish` mode's intent-driven dispatch (active in v4.5.0). |
-| superpowers `/superpowers:brainstorming` | Invoked BY /specify (Phase 2 — polymorphic input) when given a topic name with no existing design doc. Produces the design doc that /specify then decomposes. |
 | `/claude-tweaks:research` | Prior-art lookup before authoring a spec — `/research` reports can be cited directly in spec "Background" / "Prior art" sections. |
 | `/claude-tweaks:challenge` | Runs BEFORE /specify on INBOX items — produces a debiased brief whose assumptions, blind spots, and constraints /specify absorbs into spec Gotchas sections during Step 1 |
 | `/claude-tweaks:flow` | Invoked BY /flow when a design doc is passed to /flow Step 2.7 — flow rejects design docs and routes through /specify to enforce the granularity contract before pipeline entry |

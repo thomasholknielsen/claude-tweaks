@@ -45,9 +45,9 @@ LICENSE                           → MIT
 | build | plan-audit.md, worktree-setup.md, operational-checklist.md | Plan audit procedure (scope-creep detection, structural-coupling check); worktree setup with `/superpowers:using-git-worktrees` consent flow; Common Step 5.5 Category A + B operational tables and ledger format |
 | test | verification.md, qa-review.md | Shared verification procedure (referenced by /build, /review, and /test); QA story validation procedures (5-phase runner that /test invokes for `qa` and `all` modes) |
 | stories | dev-url-detection.md, source-analysis.md, story-examples.md, migration.md | Dev server auto-detection; source code extraction patterns for behavioral contracts; YAML story examples (DOM-only, source-aware, journey-aware) plus canonical locator-type/preference-order reference; v1→v2 and legacy auth.yml migration procedures (loaded only when detected) |
-| review | review-summary-template.md, ux-analysis.md | Structured summary template; UX analysis procedure |
-| visual-review | browser-review.md, reconnaissance.md | Visual review procedures (page, journey, discover modes); contextual page reconnaissance |
-| specify | spec-template.md | Spec file template with field rationale |
+| review | review-summary-template.md, ux-analysis.md, step3-routing.md | Structured summary template; UX analysis procedure; Step 3 routing (severity-based auto routing, interactive batch table, parallel-fix dispatch) — lazy-loaded only when findings exist |
+| visual-review | browser-review.md, reconnaissance.md, journey-mode.md, discover-mode.md | Shared visual-review prerequisites + Page Mode steps; contextual page reconnaissance; mode-specific procedures lazy-loaded only when the resolved mode matches |
+| specify | spec-template.md, design-pre-steps.md | Spec file template with field rationale; Step 2.5 frontend-detection + shape pre-step + design-intent question (lazy-loaded only for frontend specs) |
 | wrap-up | leftover-routing.md, review-console.md, cleanup-procedures.md | Leftover routing rules for unfinished work; Review Console consolidation template; Step 5 cleanup procedures (design wrapper caches, pipeline run dir archival, worktree teardown) |
 | tidy | triage-tables.md | Design doc + brief classification tables for Step 3 |
 | ledger | resolve-gate.md | Three-phase nothing-left-behind resolve gate (fix-exhaust → per-item user input → apply) referenced by /wrap-up Step 8.5 and /flow Step 5 |
