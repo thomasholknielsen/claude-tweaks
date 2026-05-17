@@ -38,7 +38,7 @@ Before prompting for a URL, check the persisted config:
 
 1. Read `stories/auth.yml` — if `servers.default.url` exists, probe it
 2. If it responds → use it silently (no prompt needed)
-3. If it doesn't respond or no config exists → run the dev URL detection procedure from `dev-url-detection.md` in the `/claude-tweaks:stories` skill's directory
+3. If it doesn't respond or no config exists → run the dev URL detection procedure from `dev-url-detection.md` in `skills/_shared/`
 
 This eliminates the "Enter URL" prompt on subsequent runs when the dev server is running at the same address.
 

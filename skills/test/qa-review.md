@@ -12,7 +12,7 @@ Use the `/claude-tweaks:browse` skill's operation vocabulary for all browser ope
 
 ### URL Resolution
 
-When QA is triggered automatically (by `/claude-tweaks:test` in a `/claude-tweaks:flow` pipeline, or via `/claude-tweaks:test qa`), the dev server URL is auto-detected using the shared procedure from `dev-url-detection.md` in the `/claude-tweaks:stories` skill's directory. Stories may also contain their own URLs.
+When QA is triggered automatically (by `/claude-tweaks:test` in a `/claude-tweaks:flow` pipeline, or via `/claude-tweaks:test qa`), the dev server URL is auto-detected using the shared procedure from `dev-url-detection.md` in `skills/_shared/`. Stories may also contain their own URLs.
 
 ### Browser Check
 

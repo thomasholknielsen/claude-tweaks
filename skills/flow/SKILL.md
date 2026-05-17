@@ -11,9 +11,8 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 
 ```
 /claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:design polish → /claude-tweaks:wrap-up
-                                                                          ↑                                    ╰─────────────────────────────────────────────────────────────────────────────────────────────────╯
-                                                                          └── or skip /specify ────────────────╯ [ /claude-tweaks:flow ] automates this (polish + re-verify run when frontend)
-                                                                                                  ^^^^ YOU ARE HERE ^^^^
+                                                                                                                ╰────────────────────────────────────── [ /claude-tweaks:flow ] automates this stretch ──────────────────────────────╯
+                                                                                                                ^^^^ YOU ARE HERE ^^^^   (polish + re-verify run only when frontend)
 ```
 
 ## When to Use
@@ -63,7 +62,7 @@ Flow always uses **subagent** execution strategy — its purpose is hands-off au
 
 After build completes, flow checks the build output for UI file changes (`.tsx`, `.jsx`, `.vue`, `.svelte`, `.html`, `.css`, or files in component/page directories). If UI files changed and `no-stories` was not specified:
 
-1. Auto-detect the dev server URL using `dev-url-detection.md` from the `/claude-tweaks:stories` skill's directory
+1. Auto-detect the dev server URL using `dev-url-detection.md` in `skills/_shared/`
 2. Run `/claude-tweaks:stories` with the detected URL. When journey files exist in `docs/journeys/` (created by `/build` Common Step 6), the stories step ingests them before browsing — the `journey:` field is set on derived stories, source files are inherited from the journey's `files:` frontmatter, and browsing is enrichment rather than fresh discovery for journey-documented pages.
 3. Generated stories feed into `/claude-tweaks:test` (which validates them as part of the test step)
 
@@ -278,7 +277,7 @@ For each step in order:
 2. **Execute** the full skill as documented in its own SKILL.md
 3. **Check the gate** — if the step fails its gate, stop the pipeline
 4. **Pass context forward** — each step's output feeds into the next:
-   - `build` → check output for UI file changes (`.tsx`, `.jsx`, `.vue`, `.svelte`, `.html`, `.css`, component/page directories). If UI changed and `no-stories` not set → auto-detect dev URL via `dev-url-detection.md` and run `stories` step.
+   - `build` → check output for UI file changes (`.tsx`, `.jsx`, `.vue`, `.svelte`, `.html`, `.css`, component/page directories). If UI changed and `no-stories` not set → auto-detect dev URL via `dev-url-detection.md` in `skills/_shared/` and run `stories` step.
    - `stories` → `test` receives the stories directory
    - `build` → `test` receives `VERIFICATION_PASSED=true` (so test skips redundant types/lint/tests — see `verification.md` in the `/claude-tweaks:test` skill). Test still runs QA if stories exist.
    - `test` → `review` receives `TEST_PASSED=true` and QA results. Flow invokes `/claude-tweaks:review` in **full** mode (code + visual review) by default. The review skill delegates visual review to `/claude-tweaks:visual-review`, which handles its own browser detection:
@@ -441,7 +440,7 @@ For mode-selection guidance (worktree vs current-branch), the merge reconciliati
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:build` | First step in the default pipeline — runs in spec mode (flow only passes specs since v4.5.2; design-mode bypass was removed). Sets `VERIFICATION_PASSED=true`. |
-| `/claude-tweaks:stories` | Auto-triggered between build and test when UI files change (unless `no-stories`). Ingests journey files from `/build` for journey-aware story generation. Uses `dev-url-detection.md` for URL resolution. |
+| `/claude-tweaks:stories` | Auto-triggered between build and test when UI files change (unless `no-stories`). Ingests journey files from `/build` for journey-aware story generation. Both skills consume `dev-url-detection.md` from `skills/_shared/` for URL resolution. |
 | `/claude-tweaks:test` | Mechanical gate between build/stories and review — types, lint, tests, QA. Receives `VERIFICATION_PASSED` from build (skips redundant checks). Sets `TEST_PASSED=true`. |
 | `/claude-tweaks:review` | Analytical gate — receives `TEST_PASSED=true` from test, produces verdict. Runs in **full** mode (code + visual) by default; delegates visual review to `/visual-review` which handles its own browser detection. Code mode fallback when no browser available. Never runs verification or QA itself. |
 | `/claude-tweaks:visual-review` | Invoked transitively by /review in full mode. Handles browser detection, dev URL resolution, and the full visual review procedure. |

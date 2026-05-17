@@ -26,7 +26,7 @@ Browse a website, understand its structure and flows, and generate user story YA
 
 Parse `$ARGUMENTS` to extract:
 
-- **URL:** (required, auto-detected if omitted) the site to browse and generate stories for. When no URL is provided, auto-detect using `dev-url-detection.md` in this skill's directory.
+- **URL:** (required, auto-detected if omitted) the site to browse and generate stories for. When no URL is provided, auto-detect using `dev-url-detection.md` in `skills/_shared/`.
 - **PERSONA:** (optional) `persona=<name>` — the type of user to generate stories for (e.g. "customer", "admin", "developer"). If not specified, infer appropriate personas from the site's structure.
 - **OUTPUT_DIR:** (optional) `dir=<path>` — directory to write stories to. Default: `stories/`
 - **FOCUS:** (optional) `focus=<area>` — specific area or flow to focus on (e.g. "checkout", "settings", "onboarding")
@@ -45,7 +45,7 @@ Parse `$ARGUMENTS` to extract:
 
 ### URL Resolution
 
-If no URL is provided in `$ARGUMENTS`, run the dev URL detection procedure from `dev-url-detection.md` in this skill's directory. This probes common ports, checks project configuration, and resolves `APP_URL` automatically. If no server can be detected or started, stop and ask the user for a URL.
+If no URL is provided in `$ARGUMENTS`, run the dev URL detection procedure from `dev-url-detection.md` in `skills/_shared/`. This probes common ports, checks project configuration, and resolves `APP_URL` automatically. If no server can be detected or started, stop and ask the user for a URL.
 
 **Auto-detected behavior:**
 - **Update mode:** If `{OUTPUT_DIR}/*.yaml` files already exist, automatically enter diff-aware mode. No keyword needed — the skill detects existing stories and only generates new or changed ones.
@@ -710,11 +710,11 @@ For complete YAML examples covering DOM-only stories, source-aware stories (with
 |-------|-------------|
 | `/claude-tweaks:browse` | /stories speaks /browse's operation vocabulary (open, snapshot, find, click, fill, screenshot, trace, close) and follows /browse's session-naming, screenshot-path, and trace-path conventions. The concrete `agent-browser` syntax lives in `agent-browser-reference.md` in the /browse directory. |
 | `/claude-tweaks:visual-review` | /visual-review can share a session with /stories when run back-to-back against the same URL. /visual-review's annotated screenshots reference the same accessibility-tree refs that /stories' locators resolve to. |
-| `/claude-tweaks:test` | `/test qa` and `/test all` validate the stories that /stories generates via the `qa-agent`. `/test qa journey={name}` filters to stories for a specific journey. Failed stories surface trace paths captured during /stories refinement. /test references `dev-url-detection.md` for auto-detection. |
+| `/claude-tweaks:test` | `/test qa` and `/test all` validate the stories that /stories generates via the `qa-agent`. `/test qa journey={name}` filters to stories for a specific journey. Failed stories surface trace paths captured during /stories refinement. Both skills consume `dev-url-detection.md` from `skills/_shared/` for auto-detection. |
 | `/claude-tweaks:review` | /review gates on /test passing (which includes QA when stories exist). /review checks journey-to-story coverage in its code review — uncovered journey steps and orphaned stories are surfaced as informational findings. |
 | `/claude-tweaks:journeys` | /journeys creates journey files (`docs/journeys/*.md`) that /stories ingests in Step 1.1 for journey-aware story generation. Stories reference their source journey via the `journey:` field. |
 | `/claude-tweaks:build` | Runs BEFORE /stories — recommends /stories when UI files change. /build may create journey files via /journeys that /stories then ingests. |
-| `/claude-tweaks:flow` | Auto-triggers /stories between build and test when UI files change (unless `no-stories`). Uses `dev-url-detection.md` for URL resolution. |
+| `/claude-tweaks:flow` | Auto-triggers /stories between build and test when UI files change (unless `no-stories`). Both consume `dev-url-detection.md` from `skills/_shared/` for URL resolution. |
 | `/claude-tweaks:init` | Detects `agent-browser` availability during setup; without it /stories' browse-exploration and refinement steps cannot run (degrades gracefully — generates from journey/source-analysis data only). |
 | `qa-agent` (`agents/qa-agent.md`) | Runtime executor for /stories' YAML — opens an agent-browser session per story, uses Auth Vault for `auth: { vault: ... }` references, and captures trace-on-failure. /stories' refinement step prefigures this same execution path. |
 | `/claude-tweaks:help` | /help recommends /stories when UI files change and no stories exist; /stories' Next Actions block routes back to `/test qa` which /help surfaces as next-up |

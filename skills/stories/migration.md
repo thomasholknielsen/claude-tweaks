@@ -58,4 +58,4 @@ agent-browser auth set admin <username-from-admin-profile> <password-from-admin-
 
 The LLM does not run these — the user runs them in their own shell so credentials never traverse the conversation. After the user confirms, generated stories use `auth: { vault: "<name>" }` instead of `setup.auth: <profile>`.
 
-The `dev-url-detection.md` procedure still tracks server config (url, detected date, start_command). When a dev URL is resolved, persist it under `{OUTPUT_DIR}/servers.yml` (servers-only file, no credentials) — this file is safe to commit and shared between runs.
+The `dev-url-detection.md` procedure in `skills/_shared/` still tracks server config (url, detected date, start_command). When a dev URL is resolved, persist it under `{OUTPUT_DIR}/servers.yml` (servers-only file, no credentials) — this file is safe to commit and shared between runs.

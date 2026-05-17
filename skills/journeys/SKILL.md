@@ -59,47 +59,7 @@ Analyze what was built and identify journeys it enables or modifies — for any 
 
 ## Step 2: Create New Journey Files
 
-For each new journey identified, create a file at `docs/journeys/{journey-name}.md`:
-
-```markdown
----
-files:
-  - {path/to/key-source-file.ts}
-  - {path/to/another-file.ts}
----
-
-# {Journey Name}
-
-**Persona:** {Who is this user? Be specific — not "user" but "first-time visitor with no account" or "developer setting up local environment"}
-**Goal:** {What are they trying to accomplish?}
-**Entry point:** {Where do they start? URL or trigger}
-**Success state:** {What does "done" look like? What should they feel at the end?}
-
-## Steps
-
-### 1. {Step name} — {Page or action}
-- **URL:** {path}
-- **Action:** {What the user does}
-- **Should feel:** {The emotional/experiential quality — "fast and effortless", "guided but not forced", "like an accomplishment"}
-- **Should understand:** {What the user should know after this step}
-- **Red flags:** {What would make this step fail experientially — not just functionally}
-
-### 2. {Next step}
-...
-
-## Origin
-- Created during build of {spec number or design doc}
-- Steps {N-M} built in this session
-- Related specs: {list}
-```
-
-### Key Principles
-
-- **"Should feel" is the most important field.** It's what visual review tests against. Be specific — "low commitment" not "good."
-- **`files:` enables regression detection.** List the key source files that implement this journey's functionality — components, API routes, pages, services. `/review` uses this to detect when a future build changes files that an existing journey depends on. Don't list every file — just the ones whose changes would affect the journey's behavior.
-- **One journey per goal**, not per feature. A journey may span features from multiple specs.
-- **Include the entry point and success state.** These bookend the journey and define what "complete" means.
-- **Personas are specific people**, not roles. "Developer who just joined the team and is setting up for the first time" not "developer."
+For each new journey identified, create a file at `docs/journeys/{journey-name}.md` using the template + key principles in `journey-template.md` in this skill's directory. The template covers frontmatter, persona/goal/entry-point/success-state framing, the per-step structure (URL / Action / Should feel / Should understand / Red flags), and the Origin trailer.
 
 ## Step 3: Update Existing Journey Files
 
@@ -120,7 +80,17 @@ Before committing, look at the journey file(s) with fresh eyes. Fix issues inlin
 3. **Origin coverage** — every `files:` entry should be reachable through the documented steps. If a changed file isn't visited by any step, either add the missing step or drop the file from `files:`.
 4. **Outcome clarity** — what does success look like for this journey? If the journey ends in ambiguity ("user is logged in" without where they land), tighten it.
 
-**Decision gate:** make one fix attempt per issue. If issues remain after one fix attempt, **BLOCKED** — return control to the caller with the unresolved issues:
+**Decision gate:** make one fix attempt per issue. Issues that remain after one fix attempt route by mode:
+
+**Auto mode** (pipeline run directory exists): stage unresolved issues to `staged/journeys-{n}.md` and continue — journey files are documentation, not code, so a stale persona or vague success state must not block the pipeline. The Wrap-Up Review Console surfaces the staged file for batch approval. Log:
+
+```
+STAGED {time} — Step 3.5: {N} journey self-review issues remain after one fix attempt. Stage path: staged/journeys-{n}.md. Reversibility: high.
+```
+
+Only BLOCK when the journey file is structurally invalid (missing required frontmatter, missing `## Steps` heading, no steps at all) — those are degraded output the caller must address before continuing.
+
+**Interactive mode:** BLOCKED — return control to the caller with the unresolved issues:
 
 ```
 BLOCKED
@@ -139,22 +109,7 @@ Commit journey files separately from implementation code.
 
 ### Working Directory Discipline
 
-When invoked from `/claude-tweaks:build` inside a worktree, CWD does not propagate reliably between tool calls — a stray `git commit` can land on the parent repo's branch instead of the worktree. Before any `git add` or `git commit`:
-
-- If `$WORKTREE` is set by the caller, use the `git -C "$WORKTREE" …` form for every git command
-- Otherwise, run `pwd` and `git rev-parse --show-toplevel` and verify both match the expected worktree
-- If `pwd` (or `git rev-parse --show-toplevel`) does not match the expected worktree, **BLOCKED** — return to the caller with the mismatch; do not commit from the wrong directory
-
-```
-BLOCKED
-Reason: working directory mismatch — refusing to commit from the wrong worktree.
-Expected: {expected worktree path}
-Actual pwd: {actual pwd}
-git rev-parse --show-toplevel: {actual toplevel}
-Next: caller resolves the worktree context before retrying /journeys.
-```
-
-See `_shared/subagent-output-contract.md` "Working Directory Discipline" for the canonical rule.
+Before any `git add` or `git commit`, apply the Working Directory Discipline rule from `_shared/subagent-output-contract.md` — if `$WORKTREE` is set, use `git -C "$WORKTREE" …` for every git command; otherwise verify `pwd` + `git rev-parse --show-toplevel` match the expected worktree before proceeding. On mismatch, return **BLOCKED** to the caller; do not commit from the wrong directory.
 
 ### Commit commands
 

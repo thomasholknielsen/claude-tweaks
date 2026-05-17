@@ -97,7 +97,7 @@ Run QA story validation only — types, lint, and tests are skipped.
    No user stories found in `{STORIES_DIR}/*.yaml`. Generate stories with `/claude-tweaks:stories` or create YAML files manually. Use `dir=<path>` to specify a custom directory.
    ```
 3. **Stories found:**
-   a. Auto-detect the dev server URL using the shared procedure from `dev-url-detection.md` in the `/claude-tweaks:stories` skill's directory (or use `DEV_URL` from pipeline context).
+   a. Auto-detect the dev server URL using the shared procedure from `dev-url-detection.md` in `skills/_shared/` (or use `DEV_URL` from pipeline context).
    b. If no dev server is reachable and none can be started — stop and report: "QA validation failed — no dev server available."
    c. Run the QA procedures from `qa-review.md` in this skill's directory.
    d. Pass through any QA-specific arguments: `tag=`, `story=`, `retry=`, `affected`, `journey=`, etc.
@@ -324,12 +324,12 @@ If the user chooses to fix:
 |-------|-------------|
 | `/claude-tweaks:build` | /build runs verification as Common Step 5, sets `VERIFICATION_PASSED=true`. In pipeline, /test skips types/lint/tests when this is set. |
 | `/claude-tweaks:review` | /review gates on `TEST_PASSED=true` from /test. /review never runs verification itself — that's /test's job. |
-| `/claude-tweaks:stories` | /stories generates the YAML stories that /test qa validates. Stories with a `journey:` field can be filtered with `/test qa journey={name}`. Also provides `dev-url-detection.md` for URL resolution. |
+| `/claude-tweaks:stories` | /stories generates the YAML stories that /test qa validates. Stories with a `journey:` field can be filtered with `/test qa journey={name}`. Both skills consume `dev-url-detection.md` from `skills/_shared/` for URL resolution. |
 | `/claude-tweaks:flow` | /flow chains build → [stories →] test → review → polish → re-verify → wrap-up. /test is the mechanical gate between build/stories and review. The polish-phase re-verify gate invokes `/test skip-qa` to verify polish modifications without re-running browser QA. |
 | `/claude-tweaks:help` | /help can recommend /test when code changes exist but no review is warranted |
 | `/claude-tweaks:ledger` | Manages the open items ledger. /test appends QA findings and observations with phase `test/qa`. |
 | `/claude-tweaks:design` | /test invokes `/claude-tweaks:design test <files>` as Step 1.5 after the standard suite. Errors fail the gate; warnings and skips do not. The wrapper handles its own detection and availability checks. |
-| `/claude-tweaks:browse` | /browse may invoke /test indirectly when story validation requires browser-driven QA — both share `dev-url-detection.md` from /stories. |
+| `/claude-tweaks:browse` | /browse may invoke /test indirectly when story validation requires browser-driven QA — both share `dev-url-detection.md` from `skills/_shared/`. |
 | `/claude-tweaks:journeys` | /journeys feeds journey files into /stories which /test qa consumes; `journey={name}` filter lets /test run only the QA stories tied to a single journey. |
 | `/claude-tweaks:reflect` | /reflect may surface implementation findings that reference /test verification gaps; /test does not invoke /reflect, but reflection insights can call for new test coverage. |
 | `/claude-tweaks:simplify` | /simplify runs before /test in /build's Common Step 4.5; /test verifies that simplification did not break behavior. |

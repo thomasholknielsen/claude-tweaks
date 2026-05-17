@@ -1,54 +1,55 @@
 # Command Map — Impeccable Commands by Category
 
-Reference table for every Impeccable command, categorized by how the wrapper dispatches it. Phase 3 activates **intent-driven dispatch** in `polish` mode and the **survey** mode (creative surfacing for `/visual-review` and `/flow` summary). Earlier phases shipped auto-fit (review/polish/pre-spec) and issue-driven dispatch.
+Reference table for every Impeccable command, categorized by how the wrapper dispatches it. Five dispatch categories (auto-fit / issue-driven / intent-driven / manual-only / never), all active.
 
 ## Categories
 
-| Category | Meaning | Phase that activates it |
-|----------|---------|------------------------|
-| **Auto-fit (pre-spec)** | Run automatically before a spec is decomposed, when frontend is detected | Phase 2 — active (`/specify` shape pre-step) |
-| **Auto-fit (polish phase)** | Run automatically in the polish phase whenever frontend is detected | Phase 2 — active (`/flow` polish) |
-| **Auto-fit (review phase)** | Run automatically during review whenever frontend is detected | Phase 1 — active (`/review`) |
-| **Issue-driven** | Run only when the audit pass flagged a matching issue | Phase 2 — active (`/flow` polish) |
-| **Intent-driven** | Run only when the spec's `design-intent:` frontmatter declares a matching intent | **Phase 3 — active now** (`/flow` polish) |
-| **Never (in flow)** | Available only as standalone manual commands; never auto-invoked by the wrapper | All phases |
+| Category | Meaning |
+|----------|---------|
+| **Auto-fit (pre-spec)** | Run automatically before a spec is decomposed, when frontend is detected (`/specify` shape pre-step) |
+| **Auto-fit (polish phase)** | Run automatically in the polish phase whenever frontend is detected (`/flow` polish) |
+| **Auto-fit (review phase)** | Run automatically during review whenever frontend is detected (`/review`) |
+| **Issue-driven** | Run only when the audit pass flagged a matching issue (`/flow` polish) |
+| **Intent-driven** | Run only when the spec's `design-intent:` frontmatter declares a matching intent (`/flow` polish) |
+| **Manual-only** | Surfaced as `survey` recommendations; never auto-dispatched. Aggressive creative drift makes them user-discretion. |
+| **Never (in flow)** | Available only as standalone manual commands; never auto-invoked by the wrapper |
 
 ## Full command map
 
 | Impeccable command | Category | When wrapper invokes |
 |--------------------|----------|----------------------|
-| `shape` | Auto-fit (pre-spec) | Phase 2 — `/specify` shape pre-step (`shape` mode) |
-| `polish` | Auto-fit (polish phase) | Phase 2 — `/flow` polish, always when frontend |
-| `clarify` | Auto-fit (polish phase) | Phase 2 — `/flow` polish, always when frontend |
-| `harden` | Auto-fit (polish phase) | Phase 2 — `/flow` polish, always when frontend |
-| `critique` | Auto-fit (review phase) | **Phase 1** — `/review` (`review` mode) |
-| `audit` | Auto-fit (review phase) | **Phase 1** — `/review` (`review` mode) |
-| `typeset` | Issue-driven | Phase 2 — only when `audit` flagged a matching typography issue |
-| `layout` | Issue-driven | Phase 2 — only when `audit` flagged a matching layout issue |
-| `adapt` | Issue-driven | Phase 2 — only when `audit` flagged a matching responsive issue |
-| `optimize` | Issue-driven | Phase 2 — only when `audit` flagged a matching performance issue |
-| `bolder` | Intent-driven | **Phase 3 — active** when `design-intent: bold` is declared |
-| `quieter` | Intent-driven | **Phase 3 — active** when `design-intent: quiet` is declared |
-| `distill` | Intent-driven | **Phase 3 — active** when `design-intent: minimal` is declared (intent-only to avoid conflict with `/simplify`) |
-| `delight` | Intent-driven | **Phase 3 — active** when `design-intent: delightful` is declared (paired with `animate`) |
-| `animate` | Intent-driven | **Phase 3 — active** when `design-intent: delightful` is declared (paired with `delight`) |
-| `onboard` | Intent-driven | **Phase 3 — active** when `design-intent: onboarding` is declared |
-| `colorize` | Manual-only (Phase 3 scope) | Not auto-dispatched — surfaced as a `survey` recommendation only |
-| `overdrive` | Manual-only (Phase 3 scope) | Not auto-dispatched — surfaced as a `survey` recommendation only |
-| `extract` | Manual-only (Phase 3 scope) | Not auto-dispatched — surfaced as a `survey` recommendation only |
+| `shape` | Auto-fit (pre-spec) | `/specify` shape pre-step (`shape` mode) |
+| `polish` | Auto-fit (polish phase) | `/flow` polish, always when frontend |
+| `clarify` | Auto-fit (polish phase) | `/flow` polish, always when frontend |
+| `harden` | Auto-fit (polish phase) | `/flow` polish, always when frontend |
+| `critique` | Auto-fit (review phase) | `/review` (`review` mode) |
+| `audit` | Auto-fit (review phase) | `/review` (`review` mode) |
+| `typeset` | Issue-driven | Only when `audit` flagged a matching typography issue |
+| `layout` | Issue-driven | Only when `audit` flagged a matching layout issue |
+| `adapt` | Issue-driven | Only when `audit` flagged a matching responsive issue |
+| `optimize` | Issue-driven | Only when `audit` flagged a matching performance issue |
+| `bolder` | Intent-driven | When `design-intent: bold` is declared |
+| `quieter` | Intent-driven | When `design-intent: quiet` is declared |
+| `distill` | Intent-driven | When `design-intent: minimal` is declared (intent-only to avoid conflict with `/simplify`) |
+| `delight` | Intent-driven | When `design-intent: delightful` is declared (paired with `animate`) |
+| `animate` | Intent-driven | When `design-intent: delightful` is declared (paired with `delight`) |
+| `onboard` | Intent-driven | When `design-intent: onboarding` is declared |
+| `colorize` | Manual-only | Not auto-dispatched — surfaced as a `survey` recommendation only |
+| `overdrive` | Manual-only | Not auto-dispatched — surfaced as a `survey` recommendation only |
+| `extract` | Manual-only | Not auto-dispatched — surfaced as a `survey` recommendation only |
 | `craft` | Never (in flow) | Manual standalone only |
 | `teach` | Never (in flow) | Runs once via `/init` Impeccable setup phase; never auto from `/flow` |
 | `document` | Never (in flow) | Manual standalone only |
 | `live` | Never (in flow) | Manual standalone only |
 
-## Phase 1 dispatch — what the wrapper actually invokes
+## Review dispatch — what the wrapper invokes in `review` mode
 
-The wrapper's `review` mode (Phase 1) invokes exactly two commands:
+The wrapper's `review` mode invokes exactly two commands:
 
 1. `/impeccable:impeccable critique <files>` — qualitative critique pass
 2. `/impeccable:impeccable audit <files>` — heuristic audit pass
 
-Both run on the changed UI files resolved by the preconditions (Layer 3 sniff). Outputs are merged into a normalized findings list and returned to `/review` as `result: advisory`. Phase 2 adds a side effect — the audit findings are also written to `docs/plans/...-audit.json` for later consumption by `polish` mode.
+Both run on the changed UI files resolved by the preconditions (Layer 3 sniff). Outputs are merged into a normalized findings list and returned to `/review` as `result: advisory`. The audit findings are also written to `docs/plans/...-audit.json` for later consumption by `polish` mode.
 
 The wrapper's `test` mode (Phase 1) invokes the deterministic CLI:
 
@@ -58,9 +59,9 @@ npx impeccable detect --fast --json <files>
 
 The CLI is not part of the LLM command map — it's a separate Node binary. See `impeccable-cli.md` for invocation details.
 
-## Phase 2 dispatch — auto-fit + issue-driven (polish mode)
+## Polish-mode dispatch — auto-fit + issue-driven + intent-driven
 
-The `polish` mode (active in Phase 2) is the first wrapper mode that modifies code. Its dispatch logic:
+The `polish` mode is the only wrapper mode that modifies code. Its dispatch logic:
 
 ### Step 1 — Auto-fit (always invoked when frontend)
 
@@ -87,12 +88,12 @@ Read the audit findings cache written by `review` mode (`docs/plans/...-audit.js
 
 When multiple findings match the same category, the wrapper dispatches the command **once** with the union of affected files (de-duplicated). When findings span multiple categories, dispatch each command separately.
 
-### Step 3 — Intent-driven (Phase 3 — active)
+### Step 3 — Intent-driven
 
-Read `design-intent:` from spec frontmatter (written by Phase 2's `/specify`). For each declared intent value, dispatch the matching command(s) on the changed UI files. Multiple intents (comma-separated, e.g., `design-intent: bold, delightful`) trigger multiple dispatches. The value `none` or missing skips intent dispatch entirely.
+Read `design-intent:` from spec frontmatter (written by `/specify`). For each declared intent value, dispatch the matching command(s) on the changed UI files. Multiple intents (comma-separated, e.g., `design-intent: bold, delightful`) trigger multiple dispatches. The value `none` or missing skips intent dispatch entirely.
 
-| `design-intent:` value | Commands invoked (Phase 3) |
-|------------------------|----------------------------|
+| `design-intent:` value | Commands invoked |
+|------------------------|------------------|
 | `bold` | `/impeccable:impeccable bolder <files>` |
 | `quiet` | `/impeccable:impeccable quieter <files>` |
 | `minimal` | `/impeccable:impeccable distill <files>` (intent-only — avoids conflict with `/simplify`) |
@@ -102,9 +103,9 @@ Read `design-intent:` from spec frontmatter (written by Phase 2's `/specify`). F
 
 **Multi-intent ordering.** When multiple intents dispatch, run them in the order declared by the user. The pairing for `delightful` (`delight` first, then `animate`) is fixed — `delight` adds personality content (empty states, microcopy), `animate` adds motion to the interactions; reversing them risks animating placeholder content. The intent dispatches share the polish phase's single re-verify cap (one re-verify cycle per `/flow` run regardless of how many intent commands ran).
 
-**Manual-only commands (Phase 3 scope decision).** `colorize`, `extract`, and `overdrive` are not intent-driven in this phase. They remain manual-only and are surfaced as `survey`-mode recommendations when their "would help" criteria match. This keeps the auto-dispatch surface conservative — the three excluded commands produce the most aggressive creative drift (overdrive especially), so they require explicit user invocation rather than frontmatter consent. Add to the intent-driven set later if user demand surfaces.
+**Manual-only commands.** `colorize`, `extract`, and `overdrive` are not intent-driven. They remain manual-only and are surfaced as `survey`-mode recommendations when their "would help" criteria match. This keeps the auto-dispatch surface conservative — the three excluded commands produce the most aggressive creative drift (overdrive especially), so they require explicit user invocation rather than frontmatter consent.
 
-## Survey mode (Phase 3 — active)
+## Survey mode
 
 `survey` mode inspects rendered screenshots (when invoked from `/visual-review`) or the full diff (when invoked from `/flow`'s pipeline summary) to **recommend** which creative commands the user might want to run manually. It never invokes commands directly — pure read-only output.
 
