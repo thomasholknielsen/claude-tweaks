@@ -94,13 +94,9 @@ agent-browser --session <story-id> auth use <vault-name>
 
 This replaces the cookie-injection path used in earlier versions and removes the need for `auth.yml` profile files in new projects. Stories generated against an existing project that already has `{OUTPUT_DIR}/auth.yml` continue to work — Step 2's auth resolution detects the legacy file and offers to migrate vault entries from it.
 
-## v1 detection (legacy story migration)
-
-**Trigger:** `/stories` reads a YAML file lacking `schema_version: 2` at the top.
-
-When detected: read `migration.md` in this skill's directory for the full migration procedure (auto-mode staging, interactive prompt, per-story diff, and regeneration rules). Do NOT silently parse legacy v1 files — they use CSS selectors which schema v2 forbids.
-
 ## Step 1: Ingest
+
+**Legacy v1 detection:** If any existing YAML lacks `schema_version: 2` at the top, read `migration.md` in this skill's directory for the full migration procedure (auto-mode staging, interactive prompt, per-story diff, regeneration rules) BEFORE continuing. Do NOT silently parse legacy v1 files — they use CSS selectors which schema v2 forbids.
 
 Gather pre-existing information before browsing.
 
@@ -201,45 +197,7 @@ d. Skip non-behavioral files: `*.css`, `*.scss`, `*.module.css`, `*.test.*`, `*.
 
 ### Extract Behavioral Signals
 
-From each read source file (React/TSX only in v1), extract:
-
-- **Input constraints:** `min`, `max`, `minLength`, `maxLength`, `step`, `pattern`, `required`, `type` props on input elements and input-wrapping components (shadcn, MUI, Radix, Mantine, Chakra).
-- **Validation schemas:** Zod `.min()`, `.max()`, `.email()`, `.required()`; yup equivalents; Joi equivalents. Follow imports to separate schema files (`schemas/`, `validators/`, `lib/validations`).
-- **State variables:** `useState` hooks with names matching `is*`, `has*`, `loading*`, `saving*`, `error*`, `show*`. Also `useReducer` action types, TanStack Query `useMutation`/`useQuery`, `useSWR`, `useForm` from react-hook-form.
-- **Conditional rendering:** Ternary expressions (`{cond ? <A /> : <B />}`), logical AND expressions (`{cond && <A />}`), early returns (`if (loading) return <Spinner />`). Note whether each condition is user-triggerable.
-- **Error handling:** `ErrorBoundary` wrappers with fallback UIs, try/catch in event handlers, `.catch()` on API calls.
-- **API call patterns:** `fetch`, `axios`, `useMutation`, `useSWR` — capture endpoint, method, loading state, error state, success/error behavior.
-- **Toast/notification triggers:** `toast.success()`, `toast.error()`, notification library calls triggered by user actions.
-
-### Produce SourceContract
-
-For each page, assemble findings into a SourceContract:
-
-```
-SourceContract {
-  page_url: string
-  files: string[]
-  inputs: [{ name, type, min, max, minLength, maxLength, step, pattern, required, validation }]
-  states: [{ name, initialValue, affectsUI, description }]
-  conditionals: [{ condition, showsElement, userTriggerable }]
-  errorPaths: [{ trigger, handler, expectedBehavior }]
-  apiCalls: [{ endpoint, method, loadingState, errorState, successBehavior, errorBehavior }]
-  toasts: [{ trigger, message }]
-}
-```
-
-Use empty arrays `[]` for sections with no findings — never omit a field. Hold this data in memory for use in Step 3.
-
-### React Runtime Introspection (opt-in)
-
-If the source files include `.tsx` or `.jsx`, after opening the page in agent-browser (Step 2), enrich the SourceContract with runtime react introspection:
-
-- Run `agent-browser --session <name> react tree` once per page to capture the component hierarchy. Store the result on the SourceContract as `componentTree`.
-- For specific elements that resolve to a snapshot ref `@eN` via `agent-browser --session <name> find <type> <args>`, run `agent-browser --session <name> react inspect <ref>` to extract props, state, and the source file path. Use this to verify behavioral contracts against runtime values (e.g., a validation schema's constraints reflected in the live `aria-describedby` text).
-
-Skip silently for non-React apps (no `.tsx`/`.jsx` source files seen). Do not attempt this when source files are `.vue`, `.svelte`, plain HTML, or server-rendered templates.
-
-For full extraction patterns, including the react introspection workflow, read `source-analysis.md` in this skill's directory.
+From each read source file (React/TSX only in v1), extract input constraints, validation schemas, user-triggerable state variables, conditional rendering, error paths, API call patterns, and toast/notification triggers. For the framework-specific extraction patterns (Zod / yup / Joi schemas, JSX input props, `useState`/`useReducer` heuristics, TanStack Query usage, ternary vs logical-AND vs early-return conditionals), the full SourceContract schema, and the React runtime introspection workflow (`agent-browser react tree` + `react inspect`), read `source-analysis.md` in this skill's directory.
 
 ### Graceful Degradation
 
@@ -282,11 +240,11 @@ For each page visited during exploration, check JOURNEY_URL_INDEX:
 
 ### Auth Resolution (Auth Vault)
 
-If any discovered page requires authentication, resolve a vault entry per the Auth Vault section above. The LLM never sees passwords — they are stored encrypted by `agent-browser` locally.
+If any discovered page requires authentication, resolve a vault entry per the Auth Vault section above. Procedure:
 
-1. **List existing vaults:** Run `agent-browser auth list` (one-line check). Each row is a vault name plus a username.
-2. **At least one vault matches the project (e.g., `default`, `default-user`, the project's slug, or an admin/customer name):** Use the matching vault name. Log: "Auth vault found: {N} vault(s) ({vault names}). Stories will reference vaults via `auth: { vault: \"<name>\" }`."
-3. **No matching vault — guide the user to set one up:** Do NOT ask the LLM for credentials and do NOT search the project for credentials. Print the exact one-time command for the user to run in their own shell:
+1. **List existing vaults:** Run `agent-browser auth list`. Each row is a vault name plus a username.
+2. **Vault matches the project** (e.g., `default`, `default-user`, project slug, admin/customer name): use that name. Stories reference it via `auth: { vault: "<name>" }`.
+3. **No matching vault:** print the one-time command for the user to run in their own shell — do NOT search the project for credentials and do NOT ask the LLM:
    ```
    No matching auth vault found. To create one (the LLM will never see the password):
 
@@ -296,8 +254,8 @@ If any discovered page requires authentication, resolve a vault entry per the Au
 
    When done, reply "ready" and I'll continue. To skip auth-gated stories for now, reply "skip".
    ```
-   On `ready`: re-run `agent-browser auth list`, confirm the new vault, and continue. On `skip`: tag stories that require auth as `needs-auth-vault` and skip them in Step 5 refinement.
-4. **Multiple vaults exist (e.g., `default-user`, `admin-user`):** Map each story's persona to the matching vault. If a persona has no obvious match, use `default-user` and note in the story comment.
+   On `ready`: re-run `agent-browser auth list`, confirm, continue. On `skip`: tag stories needing auth as `needs-auth-vault` and skip them in Step 5 refinement.
+4. **Multiple vaults exist** (e.g., `default-user`, `admin-user`): map each story's persona to the matching vault; fall back to `default-user` with a comment when no clean match.
 
 ### Legacy `auth.yml` detection
 
@@ -331,7 +289,7 @@ d. **Store the result** as `SOURCE_FILES` for that page URL — an array of rela
 
 ## Step 3: Design Stories
 
-10. Based on the exploration, design user stories grouped by persona. Each story must have:
+1. Based on the exploration, design user stories grouped by persona. Each story must have:
     - **`id`** — a stable kebab-case identifier (e.g. `front-page-loads`, `checkout-flow-completes`)
     - **`description`** — a human-readable description of the journey (also accepted as `name` for back-compat)
     - **`url`** — the starting URL (the qa-agent auto-navigates here, so no "Navigate to X" step needed)
@@ -375,7 +333,7 @@ When JOURNEY_MAP is non-empty (Step 1.1 found journeys), use journey data to inf
 
 ### Diff-Aware Design (when update mode is active)
 
-11. Compare discovered pages against EXISTING_STORIES:
+2. Compare discovered pages against EXISTING_STORIES:
     - For each discovered page URL:
       - If a story with this URL already exists in EXISTING_STORIES -> mark as **EXISTING**.
       - If no story exists for this URL -> mark as **NEW**.
@@ -387,7 +345,7 @@ When JOURNEY_MAP is non-empty (Step 1.1 found journeys), use journey data to inf
     - **STALE** stories (locators unresolvable OR source files modified OR behavioral contracts changed): **REGENERATE** with updated locators from the current snapshot, refreshed source_files from the URL-to-Source-File Mapping, and updated SourceContract data from Step 1.5.
     - **NEW** pages: generate stories as normal.
 
-12. Log the diff summary:
+3. Log the diff summary:
     - "Update mode: {N} existing stories unchanged, {M} stories regenerated (stale locators/source files), {K} new stories to generate."
     - If STALE_LOCATORS is non-empty, emit a warning:
       ```
@@ -404,7 +362,7 @@ When JOURNEY_MAP is non-empty (Step 1.1 found journeys), use journey data to inf
 
 ### Negative Story Generation (when NEGATIVE=true)
 
-13. For each page discovered during exploration that has interactive elements, generate failure-path stories:
+4. For each page discovered during exploration that has interactive elements, generate failure-path stories:
 
     **Form validation negatives** (for pages with forms):
     - Submit every discovered form with all required fields empty.
@@ -429,7 +387,7 @@ When JOURNEY_MAP is non-empty (Step 1.1 found journeys), use journey data to inf
     - Search with special characters and injection strings.
     - Search with extremely long query strings.
 
-14. Negative story conventions:
+5. Negative story conventions:
     - IDs prefixed with `neg-` (e.g. `neg-empty-form-submit`, `neg-404-handling`, `neg-search-injection`).
     - Tagged with `negative` in addition to other relevant tags (e.g. `[negative, form]`, `[negative, error-handling]`).
     - Priority: `medium` by default. Security-related negatives (injection, XSS) get `priority: high`.
@@ -438,7 +396,7 @@ When JOURNEY_MAP is non-empty (Step 1.1 found journeys), use journey data to inf
 
 ### Standard Design (all modes)
 
-15. For stories that share common prerequisites:
+6. For stories that share common prerequisites:
     - Identify shared setup steps (e.g. authentication, navigation to a section)
     - Extract these into a file-level `setup` block
     - Use `requires` labels to indicate prerequisites (e.g. `requires: [auth]`)
@@ -447,22 +405,22 @@ When JOURNEY_MAP is non-empty (Step 1.1 found journeys), use journey data to inf
 
     When the project's auth came from a legacy `auth.yml` and the user opted not to migrate (Step 2 Auth Resolution), continue to use the legacy `setup.auth: <profile>` reference. Do not invent vault names that do not exist.
 
-16. Identify `depends_on` relationships between stories:
+7. Identify `depends_on` relationships between stories:
     - If story B only makes sense after story A passes (e.g. "view cart" depends on "add to cart"), set `depends_on: add-to-cart` on story B
     - Keep dependency chains short — prefer independent stories where possible
 
-17. Story categories to consider:
+8. Story categories to consider:
     - **Navigation flows** — can the user find their way around?
     - **Core workflows** — the main thing each persona does (purchase, configure, create)
     - **Form interactions** — search, login, signup, data entry
     - **State transitions** — adding to cart, changing settings, submitting forms
     - **Error handling** — what happens with bad input, missing pages, unauthorized access
 
-18. If PERSONA was specified, focus stories on that persona. If not, generate stories for the most obvious personas the site serves.
+9. If PERSONA was specified, focus stories on that persona. If not, generate stories for the most obvious personas the site serves.
 
 ## Step 4: Write
 
-19. Write one YAML file per persona or logical grouping. Every file starts with `schema_version: 2` at the top. Use this exact format:
+1. Write one YAML file per persona or logical grouping. Every file starts with `schema_version: 2` at the top. Use this exact format:
 
 ```yaml
 schema_version: 2
@@ -512,7 +470,7 @@ stories:
 
 ### Update Mode Write Rules
 
-20. When update mode is active (existing stories detected in Step 1):
+2. When update mode is active (existing stories detected in Step 1):
     - **EXISTING stories (unchanged):** Do NOT rewrite. Leave as-is in the YAML file.
     - **STALE stories (regenerated):** Read the existing YAML file. Replace only the regenerated stories, preserving unchanged stories in the same file. Preserve file-level `setup` and `teardown` blocks unless exploration found they need updating.
     - **NEW stories:** If a file for the same persona/grouping already exists, append the new stories to that file's `stories` array. If no file exists for this grouping, create a new file.
@@ -521,15 +479,15 @@ stories:
 
 ### Negative Story Write Rules
 
-21. When NEGATIVE is true:
+3. When NEGATIVE is true:
     - Place negative stories AFTER all positive stories in the `stories` array.
     - If there are more than 5 negative stories for a single persona/grouping, write them to a separate file: `{OUTPUT_DIR}/{site-name}-{persona}-negative.yaml`.
     - In update mode, existing negative stories (IDs starting with `neg-`) are included in the diff comparison — they get the same stale-selector treatment as positive stories.
 
-22. File naming: `{OUTPUT_DIR}/{site-name}-{persona-or-area}.yaml`
+4. File naming: `{OUTPUT_DIR}/{site-name}-{persona-or-area}.yaml`
     - Examples: `stories/myapp-customer.yaml`, `stories/myapp-admin.yaml`, `stories/myapp-customer-negative.yaml`
 
-23. Close all browser sessions when done writing.
+5. Close all browser sessions when done writing.
 
 ## Step 4.5: Story Self-Review
 
@@ -548,14 +506,14 @@ Skip entirely if `refine=false`.
 
 ### 5a. Quick Validation Pass
 
-24. Select a sample of stories to validate from the stories just written or regenerated (not unchanged existing stories):
+1. Select a sample of stories to validate from the stories just written or regenerated (not unchanged existing stories):
     - All `priority: high` stories.
     - Up to 3 randomly selected `priority: medium` stories.
     - Skip `priority: low` stories in the validation sample.
     - Maximum 10 stories total.
     - When NEGATIVE is also active, include a mix of positive and negative stories.
 
-25. For each selected story, validate against the live app using agent-browser:
+2. For each selected story, validate against the live app using agent-browser:
     a. `agent-browser --session <story-id> open <story.url>` (kebab-case session, derived from the story id).
     b. If the story declares `auth: { vault: "<name>" }`: `agent-browser --session <story-id> auth use <name>`.
     c. `agent-browser --session <story-id> snapshot -i -c` to get the accessibility tree.
@@ -566,36 +524,36 @@ Skip entirely if `refine=false`.
     e. **On any step failure:** capture trace before closing — `agent-browser --session <story-id> trace save traces/<story-id>/<timestamp>.zip`. Attach the trace path to the failure record. Then close the session.
     f. **On success:** `agent-browser --session <story-id> close`.
 
-26. Collect all validation failures into a FAILURES list. Each failure record includes the trace path when one was captured.
+3. Collect all validation failures into a FAILURES list. Each failure record includes the trace path when one was captured.
 
 ### 5b. Self-Correction Round
 
-27. If FAILURES is empty:
+4. If FAILURES is empty:
     - Log: "Refinement: All {N} sampled stories validated successfully. No corrections needed."
     - Skip to Step 6.
 
-28. If FAILURES is non-empty:
+5. If FAILURES is non-empty:
     - For each failed story:
       a. Log the failure details: "Story '{storyId}' failed validation — Step {stepIndex}: {issue}. Trace: {tracePath}"
       b. Re-open the story's URL in a fresh session and run `agent-browser --session <story-id> snapshot -i -c` to capture the current accessibility tree.
       c. Regenerate ONLY the failed story with corrected semantic locators, actions, and assertions based on the live snapshot. For ambiguous locators, prefer adding `name` (for `role`-only locators), switching to `testid` if available, or scoping by an enclosing `role: region` / `role: form`.
       d. Rewrite the corrected story into the YAML file, replacing the draft version.
 
-29. Log the correction summary: "Refinement: {N} stories validated, {M} corrected. Trace files captured for {K} initial failures: traces/<story-id>/<timestamp>.zip."
+6. Log the correction summary: "Refinement: {N} stories validated, {M} corrected. Trace files captured for {K} initial failures: traces/<story-id>/<timestamp>.zip."
 
 ### 5c. Persistent Failure Handling
 
-30. If any stories still fail after the correction round:
+7. If any stories still fail after the correction round:
     - Do NOT delete them. Keep them in the YAML.
     - Add a YAML comment above the story: `# REFINEMENT_WARNING: This story failed automated validation. Manual review recommended. Trace: traces/<story-id>/<timestamp>.zip`
     - Add tag `needs-review` to the story's tags array.
     - Log: "Refinement: {K} stories still failing after correction — tagged 'needs-review' for manual review. See trace files for inspection: `agent-browser trace view <path>`."
 
-31. Maximum one correction round. Do not loop further. (Token budget: agent-browser's token-efficient snapshot+find pattern reduces context cost vs. earlier CSS-selector validation, but the cap stays in place to avoid infinite loops on genuinely broken pages.)
+8. Maximum one correction round. Do not loop further. (agent-browser's token-efficient snapshot+find pattern reduces context cost vs. earlier CSS-selector validation, but the cap stays in place to avoid infinite loops on genuinely broken pages.)
 
 ## Step 6: Report and Handoff
 
-32. Report what was generated:
+1. Report what was generated:
     - Number of story files created or updated
     - Number of stories per file
     - Summary of personas/areas covered
@@ -690,13 +648,12 @@ One row per story file written, updated, or deleted. Omit unchanged files.
 
 ### Next Actions
 
+Emit 2-4 numbered options based on context — include the smoke option only when at least one story is tagged `smoke`; include the `affected` option only when update mode regenerated stories; include the journey option only when a journey was the dominant story source. One option marked **(Recommended)**.
+
 1. `/claude-tweaks:test qa` — validate all {N} stories against the running app **(Recommended)**
-{If smoke stories exist:}
-2. `/claude-tweaks:test qa tag=smoke` — quick pass on {N} smoke stories first
-{If update mode with affected stories:}
-3. `/claude-tweaks:test qa affected` — validate only changed stories
-{If journeys exist and a specific journey has stories:}
-4. `/claude-tweaks:test qa journey={name}` — validate {N} stories for the {name} journey
+2. `/claude-tweaks:test qa tag=smoke` — quick pass on {N} smoke stories first (when smoke stories exist)
+3. `/claude-tweaks:test qa affected` — validate only changed stories (when update mode regenerated stories)
+4. `/claude-tweaks:test qa journey={name}` — validate {N} stories for the {name} journey (when journeys exist)
 
 ## Examples
 
@@ -738,7 +695,7 @@ For complete YAML examples covering DOM-only stories, source-aware stories (with
 | Deleting existing stories in update mode | Existing stories may cover flows the exploration didn't re-encounter |
 | Vague verify assertions ("page looks right") | QA agents need concrete, testable assertions |
 | Including "Navigate to URL" as a first step | The `url` field handles initial navigation automatically |
-| Skipping negative stories for forms with user input | Form validation negatives catch real security and UX issues |
+| Skipping form-page negative coverage when NEGATIVE=true | When negative generation is enabled, forms with user input should always get validation-failure stories — they catch real security and UX issues. (Choosing `negative=false` is an explicit opt-out, not an anti-pattern.) |
 | Running more than one refinement correction round | Diminishing returns and high token cost — cap at one round |
 | Closing a session on step failure without capturing trace first | Failure records without a trace path are not actionable — always run `agent-browser --session <name> trace save` before `close` on failure |
 | Blocking story generation when source analysis fails | Source analysis enhances stories but must never be a hard gate — degrade gracefully to DOM-only |
