@@ -168,7 +168,7 @@ Analyze whether project skills need updating based on what was built. This step 
 
 ### 7.1: Gather Inputs
 
-1. Read ledger entries with phase `build/skill` and `review/skill`
+1. Read ledger entries with phase `build/skill` (from /build Step 4.5) or `review/skill` (from /review lens 3a convention check), plus any ledger entry whose body contains a `[skill: …]` tag (from /reflect hindsight findings under phases `review/hindsight`, `wrap-up`, or `reflect`)
 2. Check reflection insights (Step 3) tagged for skill destinations
 3. List all skill files in `.claude/skills/`
 4. Identify **relevant skills** — those referenced by ledger entries, targeted by reflection insights, or in the domain of changed files
@@ -384,7 +384,10 @@ Generate from: cleanup actions in Step 10, config/skill updates applied, ledger 
 | Always | `/claude-tweaks:help` — full pipeline status |
 ```
 
-Present **one consolidated batch decision** covering both cleanup and configuration:
+**Conditional batch decision** — only present when the Wrap-Up Review Console (Step 8.6) did NOT run:
+
+- **Step 8.6 ran** (`auto` or `hybrid` mode with a pipeline run directory) → cleanup + config items were already approved at the Review Console. Skip this batch table and proceed to Step 10 execution. Rendering a second batch table here duplicates the Review Console and violates the "one decision per message" + bookend ("at most two stops in auto") promises.
+- **Step 8.6 was skipped** (interactive mode, standalone wrap-up, or empty-console fast path) → present the batch decision below.
 
 ```
 | # | Type | Action | Details |
@@ -452,14 +455,14 @@ Commit with a message summarizing the wrap-up actions.
 
 | Skill | Relationship |
 |-------|-------------|
-| `/claude-tweaks:review` | Must pass before /claude-tweaks:wrap-up — handles verification, code review, and simplification. `review/skill` ledger entries from lens 3a and Step 4 feed into Step 7 skill analysis. |
+| `/claude-tweaks:review` | Must pass before /claude-tweaks:wrap-up — handles verification, code review, and simplification. Skill-routed ledger entries from lens 3a (phase `review/skill`) and /reflect hindsight findings tagged `[skill: …]` (phase `review/hindsight`) feed into Step 7 skill analysis. |
 | `/claude-tweaks:review` (visual modes) | Visual complement — findings from visual review may feed into wrap-up's reflection lenses |
 | `/claude-tweaks:reflect` | Invoked BY /wrap-up (Step 3) in full mode. Handles all four reflection lenses, tradeoff review, insight routing, and ledger writes with phase `wrap-up`. |
 | `/claude-tweaks:capture` | /claude-tweaks:wrap-up may create INBOX items for genuinely new ideas discovered during implementation |
 | `specs/DEFERRED.md` | /claude-tweaks:wrap-up routes leftover work here (with origin spec, files, trigger) |
 | `/claude-tweaks:help` | /claude-tweaks:wrap-up suggests running /claude-tweaks:help to see what's unblocked |
 | `/claude-tweaks:tidy` | /claude-tweaks:wrap-up cleans artifacts for a single spec — /claude-tweaks:tidy does periodic bulk cleanup |
-| `/claude-tweaks:build` | Runs BEFORE /claude-tweaks:review — produces the code and journeys that wrap-up reflects on. `build/skill` ledger entries from Step 4.5 feed into Step 7 skill analysis. |
+| `/claude-tweaks:build` | Runs BEFORE /claude-tweaks:review — produces the code and journeys that wrap-up reflects on. `build/skill` ledger entries from Step 4.5 feed into Step 7 skill analysis (alongside `[skill: …]`-tagged entries from any other phase). |
 | `/superpowers:finishing-a-development-branch` | When build used worktree git strategy, wrap-up verifies the feature branch was completed (merged, PR created, or discarded), then removes the worktree directory and deletes the merged branch (Step 5) |
 | `/claude-tweaks:init` | Step 7 references `skill-template.md` for Update Mode format and quality gates. /wrap-up Step 6 maintains the doc registry created by /init Phase 8.5. |
 | `/claude-tweaks:ledger` | Manages the open items ledger. /wrap-up appends reflection insights (Step 3), runs the resolve gate (Step 8.5), and deletes the ledger (Step 5). |

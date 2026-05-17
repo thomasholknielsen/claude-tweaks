@@ -149,7 +149,7 @@ auto-fix-threshold: lint+type
 review-severity-floor: low
 tidy-aggressiveness: conservative
 spec: 42
-created: 2026-05-15T14:32:07
+created: 2026-05-15T143207
 ```
 
 Suppressed levers are still written to `config.yml` with their default values — suppression is a UI affordance, not a semantic skip. Downstream skills always have a value to read.

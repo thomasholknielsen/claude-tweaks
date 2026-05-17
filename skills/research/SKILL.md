@@ -29,7 +29,7 @@ ChatGPT-Deep-Research-style multi-source web research. An 8-phase pipeline decom
 ## Input
 
 - `$ARGUMENTS` is the research topic. If empty, ask the user for it before proceeding.
-- Mode is selected via a single `AskUserQuestion` with 4 options. **`standard` is the recommended default** — it balances depth and runtime.
+- Mode is selected via a single numbered-options prompt (see Mode Picker below). **`standard` is the recommended default** — it balances depth and runtime.
 - Power-user flags (parsed from `$ARGUMENTS`):
   - `--mode=<quick|standard|deep|ultradeep>` — skip the mode prompt.
   - `--output=<path>` — override the default output root (defaults to `.claude-tweaks/research/`).

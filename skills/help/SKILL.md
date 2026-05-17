@@ -77,10 +77,12 @@ For a concise one-page reference, read `reference-card.md` in this skill's direc
 |---------|---------|---------|
 | `/claude-tweaks:help` | This dashboard — commands, status, recommendations | `status`, `commands`, spec/topic |
 | `/claude-tweaks:tidy` | Periodic backlog hygiene | — |
-| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → wrap-up | spec number(s) (comma-separated for sequential), design doc path, or topic + `auto` `worktree` `no-stories` `[step]` (single step = resume from that step onward) |
+| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → design polish → wrap-up | spec number(s) (comma-separated for sequential), design doc path, or topic + `auto` `worktree`/`current-branch` `no-stories` `no-polish` `keep-going` `[step]` (single step = resume from that step onward) |
 | `/claude-tweaks:browse` | Unified browser automation (utility) | URL or task description + `browser=`, `headless`, `vision` |
+| `/claude-tweaks:design` | Wrapper that lets lifecycle skills (`/build`, `/test`, `/review`, `/visual-review`, `/flow`) invoke Impeccable design-quality commands (`pre-build`, `test`, `review`, `survey`, `polish`, `shape`, `reset-recommendations`) | mode + spec/files + flags |
 | `/claude-tweaks:research` | Deep web research with citation-audited reports | topic + `quick`, `standard`, `deep`, `ultradeep`, `output=` |
 | `/claude-tweaks:ledger` | Open items tracking — create, query, resolve ledger entries | *(none)* for status, `resolve` for nothing-left-behind gate, `{feature-name}` for specific ledger |
+| `/claude-tweaks:version` | Print the installed plugin version | *(none)*, `plain`, `full` |
 
 ### Superpowers (External Plugin)
 
@@ -103,11 +105,11 @@ INBOX item ──→ Brief ──→ Design Doc ──→ Spec ──→ Code + 
                                     (deletes brief  Deferred  docs/journeys/
                                      + design doc)  Work
 
-Code + Journey ──→ Story YAML ──→ Test (types + lint + tests + QA) ──→ Review (code + visual + coverage) ──→ Clean slate
-     /build         /stories          /test                                /review                          /wrap-up
-             (auto in /flow      (mechanical gate —              (analytical gate —                    ↓
-              when UI changed;    sets TEST_PASSED)               gates on TEST_PASSED;               (deletes spec
-              ingests journeys                                    checks journey-story coverage)        + plans)
+Code + Journey ──→ Story YAML ──→ Test (types + lint + tests + QA) ──→ Review (code + visual + coverage) ──→ Polish (frontend specs) ──→ Clean slate
+     /build         /stories          /test                                /review                            /design polish              /wrap-up
+             (auto in /flow      (mechanical gate —              (analytical gate —                    (Impeccable polish —          ↓
+              when UI changed;    sets TEST_PASSED)               gates on TEST_PASSED;                 skipped on backend            (deletes spec
+              ingests journeys                                    checks journey-story coverage)        or `no-polish` arg)            + plans)
               for story design)
 ```
 
@@ -327,4 +329,6 @@ For a detailed explanation of how context flows between skills via artifacts, re
 | `/claude-tweaks:visual-review` | Component skill — /claude-tweaks:help lists it in the component skills table |
 | `/claude-tweaks:init` | /init configures the workflow system that /help reports on — /help reads the same artifact paths /init bootstraps (INBOX, DEFERRED, specs, plans, docs registry) |
 | `/claude-tweaks:version` | /version prints the installed plugin version; /help surfaces version-aware command syntax and points at /version for the canonical answer |
+| `/claude-tweaks:design` | Utility wrapper — /help lists it in the utility skills table. /design is invoked by /build (Common Step 1.7 pre-build), /test (Step 1.5 CLI gate), /review (Step 6.5 advisory pass), /flow (polish phase), and /visual-review; standalone usage is rare. |
+| `/claude-tweaks:research` | Utility skill — /help lists it in the utility skills table. /research has no fixed lifecycle position; /help may surface it as an option when an INBOX item or pending spec would benefit from prior-art research. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling to /help (e.g., if a future status scan ever auto-resolves recommendations) |

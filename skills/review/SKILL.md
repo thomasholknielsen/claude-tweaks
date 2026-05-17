@@ -465,7 +465,7 @@ If no notable learnings emerged, state: "No key learnings — straightforward re
 |-------|-------------|
 | `/claude-tweaks:build` | Produces the code and journey files that /claude-tweaks:review evaluates |
 | `/claude-tweaks:test` | /test is the mechanical "does it work?" gate. /review gates on `TEST_PASSED=true` — it never runs verification or QA itself. Standalone /review auto-triggers /test if no recent pass. |
-| `/claude-tweaks:wrap-up` | Runs after /claude-tweaks:review passes — focuses on reflection, cleanup, and knowledge capture. `review/skill` ledger entries from lens 3a and Step 4 feed into wrap-up's skill update analysis (Step 7). |
+| `/claude-tweaks:wrap-up` | Runs after /claude-tweaks:review passes — focuses on reflection, cleanup, and knowledge capture. Skill-routed entries from lens 3a (phase `review/skill`) and from /reflect hindsight findings tagged `[skill: …]` (phase `review/hindsight`) feed into wrap-up's skill update analysis (Step 7). |
 | `/claude-tweaks:capture` | /claude-tweaks:review may create INBOX items for new ideas discovered during review |
 | `/claude-tweaks:visual-review` | Invoked BY /review (Step 6) for browser-based visual inspection. In full mode, runs after code review. In visual/journey/discover modes, /review delegates entirely. |
 | `/claude-tweaks:init` | Phase 7 delegates to `/visual-review discover` for brownfield journey bootstrapping. Phase 0 configures the browser backends that visual review depends on. /init creates the doc registry that lens 3i uses for documentation freshness checks. |

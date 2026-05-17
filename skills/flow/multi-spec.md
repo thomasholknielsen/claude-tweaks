@@ -97,7 +97,7 @@ Multi-spec runs use a parent run directory with per-spec subdirectories so the c
 
 ```yaml
 multispec:
-  parent: .claude-tweaks/pipelines/2026-05-16T14:32:07-157-159-160/
+  parent: .claude-tweaks/pipelines/2026-05-16T143207-157-159-160/
   specs:
     - id: 157
       status: complete    # pending | running | complete | failed | not-run

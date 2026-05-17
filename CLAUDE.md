@@ -43,9 +43,9 @@ LICENSE                           → MIT
 | init | detection-tables.md, profile-templates.md, claude-md-template.md, skill-template.md, summary-templates.md, docs-structure.md, bootstrap-steps.md | Lazy-loaded reference content for each phase; doc registry format, tier detection, standard folder taxonomy; Phase 0 bootstrap procedures (browser, statusline, Impeccable) that are no-ops on most Update Mode runs |
 | browse | agent-browser-reference.md | Operation vocabulary and advanced commands (batch, find, snapshot, vitals, trace, auth, react) used by consumer skills |
 | build | plan-audit.md, worktree-setup.md, operational-checklist.md | Plan audit procedure (scope-creep detection, structural-coupling check); worktree setup with `/superpowers:using-git-worktrees` consent flow; Common Step 5.5 Category A + B operational tables and ledger format |
-| test | verification.md | Shared verification procedure (referenced by /build, /review, and /test) |
+| test | verification.md, qa-review.md | Shared verification procedure (referenced by /build, /review, and /test); QA story validation procedures (5-phase runner that /test invokes for `qa` and `all` modes) |
 | stories | dev-url-detection.md, source-analysis.md, story-examples.md, migration.md | Dev server auto-detection; source code extraction patterns for behavioral contracts; YAML story examples (DOM-only, source-aware, journey-aware) plus canonical locator-type/preference-order reference; v1→v2 and legacy auth.yml migration procedures (loaded only when detected) |
-| review | review-summary-template.md, qa-review.md, ux-analysis.md | Structured summary template; QA review procedures; UX analysis procedure |
+| review | review-summary-template.md, ux-analysis.md | Structured summary template; UX analysis procedure |
 | visual-review | browser-review.md, reconnaissance.md | Visual review procedures (page, journey, discover modes); contextual page reconnaissance |
 | specify | spec-template.md | Spec file template with field rationale |
 | wrap-up | leftover-routing.md, review-console.md, cleanup-procedures.md | Leftover routing rules for unfinished work; Review Console consolidation template; Step 5 cleanup procedures (design wrapper caches, pipeline run dir archival, worktree teardown) |
@@ -134,7 +134,7 @@ Skills that dispatch parallel Task agents must reference `skills/_shared/subagen
 
 ### Auto-Mode Contract + Bookend Architecture (v4.6+)
 
-claude-tweaks pipelines have at most two stops in `auto` mode: a **Pipeline Config Manifesto** at the start (one structured `AskUserQuestion` collecting all policy levers) and a **Wrap-Up Review Console** at the end (one batch table consolidating everything auto-decided or staged). Everything in between is policy-driven automation logged to the auto-decision log.
+claude-tweaks pipelines have at most two stops in `auto` mode: a **Pipeline Config Manifesto** at the start (one structured numbered-options block collecting all policy levers in a single message) and a **Wrap-Up Review Console** at the end (one batch table consolidating everything auto-decided or staged). Everything in between is policy-driven automation logged to the auto-decision log.
 
 **Single source of truth:** `skills/_shared/auto-mode-contract.md` — defines mode states, decision precedence (CLI arg > pipeline config > project policy > skill default), reversibility/confidence/severity floors, the HARD-GATE exemption list, and what `auto` never silences (ledger resolve Phase 2, INBOX/DEFERRED writes, `/challenge` lenses, governance gates).
 

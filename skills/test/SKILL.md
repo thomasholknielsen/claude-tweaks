@@ -99,7 +99,7 @@ Run QA story validation only — types, lint, and tests are skipped.
 3. **Stories found:**
    a. Auto-detect the dev server URL using the shared procedure from `dev-url-detection.md` in the `/claude-tweaks:stories` skill's directory (or use `DEV_URL` from pipeline context).
    b. If no dev server is reachable and none can be started — stop and report: "QA validation failed — no dev server available."
-   c. Run the QA procedures from `qa-review.md` in the `/claude-tweaks:review` skill's directory.
+   c. Run the QA procedures from `qa-review.md` in this skill's directory.
    d. Pass through any QA-specific arguments: `tag=`, `story=`, `retry=`, `affected`, `journey=`, etc.
    e. **Journey filter:** When `journey={name}` is present, pass it to the QA procedures. This filters stories to only those with `journey: {name}` in their YAML — enabling journey-scoped test execution.
 
@@ -218,7 +218,7 @@ PASS_WITH_CAVEATS counts as passed for the `TEST_PASSED` gate — caveats are in
 
 When selectors are auto-recovered during QA execution, the report includes a "Recovered Selectors" summary showing the original and recovered selector for each affected step. The story YAML files have already been updated by the orchestrator (qa-review.md Phase 4.5) — no manual YAML editing is needed. Auto-recovered selectors are classified as `stale-selector` with status `auto-fixed` in the findings table.
 
-After presenting QA results, write QA findings and observations to the open items ledger (see `/claude-tweaks:ledger`) with phase `test/qa`. See `qa-review.md` Phase 5.5 in the `/claude-tweaks:review` skill's directory for finding vs observation classification. Findings from failures get status `open` and block the pipeline. Observations from PASS_WITH_CAVEATS stories get status `observation` with severity `Info` — they are informational and do not block the pipeline.
+After presenting QA results, write QA findings and observations to the open items ledger (see `/claude-tweaks:ledger`) with phase `test/qa`. See `qa-review.md` Phase 5.5 in this skill's directory for finding vs observation classification. Findings from failures get status `open` and block the pipeline. Observations from PASS_WITH_CAVEATS stories get status `observation` with severity `Info` — they are informational and do not block the pipeline.
 
 ### All mode result
 
@@ -268,18 +268,11 @@ On overall pass (including PASSED WITH OBSERVATIONS), set `TEST_PASSED=true` in 
 
 If tests fail and the failures look straightforward (type errors, lint violations, simple test failures):
 
-### Auto mode (threshold-based fixing)
+### Auto mode
 
-When a pipeline run directory exists, read `auto-fix-threshold` from `config.yml` (default `lint+type`). Route by failure type:
+When a pipeline run directory exists, apply the `/test` row from the silences table in `_shared/auto-mode-contract.md`. Read `auto-fix-threshold` from `config.yml` (default `lint+type`) and route by failure type: lint always auto-fixes; type failures auto-fix at `lint+type` and above (staged at `lint-only`); test failures stage by default and auto-fix only when the user has explicitly opted into `lint+type+test` in the Manifesto (rare, semantic-changes-hidden risk). QA failures never auto-fix — they always stage.
 
-| Failure type | `lint-only` | `lint+type` (default) | `lint+type+test` |
-|---|---|---|---|
-| Lint failure | Auto-fix | Auto-fix | Auto-fix |
-| Type failure | Stage as patch | Auto-fix | Auto-fix |
-| Test failure (semantic) | Stage as patch | Stage as patch | Auto-fix (high risk — only when explicitly enabled) |
-| QA failure | Stage as patch | Stage as patch | Stage as patch (never auto-fixed) |
-
-**Auto-fix flow:** make the changes, re-run the failed checks. On re-verification pass, log `AUTO {time} — Step 3: auto-fixed {N} {type} failures. Commit: {hash}.` and proceed. On re-verification fail or new issues, downgrade to STAGED and surface at Review Console.
+**Auto-fix flow:** make the changes, re-run the failed checks. On re-verification pass, log `AUTO {time} — Step 3: auto-fixed {N} {type} failures. Reversibility: high; commit: {hash}.` and proceed. On re-verification fail or new issues, downgrade to STAGED and surface at Review Console.
 
 **Stage flow:** write the proposed fix to `staged/test-fix-{n}.patch` and log `STAGED {time} — Step 3: {N} {type} failures staged for review. Stage path: staged/test-fix-{n}.patch.`. The test gate fails until the user resolves at the Review Console.
 

@@ -546,10 +546,11 @@ After successful build, present:
 | Ledger fix | {item} ({phase}) — `{file}` | `{hash}` |
 
 Generate from: `git log --oneline` since build start, `git diff --stat` against pre-build state, ledger entries with status `fixed`, journey files from Step 6, operational fixes from Step 5.5.
+```
 
 ### Next Actions
 
-Generate 2-4 numbered options based on context:
+Generate 2-4 numbered options based on context (these are emitted by the skill, not the template):
 
 | Signal | Option |
 |--------|--------|
@@ -557,7 +558,6 @@ Generate 2-4 numbered options based on context:
 | No browser or no UI | `/claude-tweaks:review {N}` — code review **(Recommended)** |
 | QA stories exist (`stories/*.yaml`) | `/claude-tweaks:test qa` — validate {X} QA stories before review |
 | Worktree mode | `/superpowers:finishing-a-development-branch` — merge, PR, or discard the feature branch |
-```
 
 ## Git Strategy
 
@@ -623,12 +623,11 @@ These apply in **subagent** execution strategy. In **batched** strategy, autonom
 | `/claude-tweaks:review` | Runs AFTER /claude-tweaks:test — gates on `TEST_PASSED=true`. In design mode, uses git diff instead of spec compliance. Standalone /review auto-triggers /test if no recent pass. |
 | `/claude-tweaks:review` (visual modes) | Tests the user journeys that /build creates — visual review modes are the bridge between build and visual QA |
 | `/claude-tweaks:wrap-up` | Runs AFTER /claude-tweaks:review — cleans up and captures learnings. `build/skill` ledger entries from Step 4.5 feed into wrap-up's skill update analysis (Step 7). |
-| `/claude-tweaks:capture` | Design mode may create INBOX items for blocked work |
+| `/claude-tweaks:capture` | Design mode may create INBOX items for blocked work (Step 4); after build, /build calls /capture to file follow-up ideas ("while I'm here" observations) before they're lost — INBOX entries instead of inflating the current spec |
 | `/claude-tweaks:tidy` | Reviews specs from /claude-tweaks:build for staleness — periodic cleanup complement |
 | `/claude-tweaks:init` | /init creates `docs/REGISTRY.md` (Phase 8.5) that /build consumes in Step 6.5 for documentation sync |
 | `/claude-tweaks:ledger` | Manages the open items ledger file. /build creates and appends items during Steps 2.5, 4, 4.5, 5.5, and 6.5. |
 | `/claude-tweaks:design` | /build invokes `/claude-tweaks:design pre-build <spec>` as Common Step 1.7 to lazy-load Impeccable reference files and project design context (root `PRODUCT.md`, root `DESIGN.md`) into the implementer subagent. Skips cleanly on non-frontend specs or when Impeccable is not installed. |
-| `/claude-tweaks:capture` | After build, /build calls /capture to file follow-up ideas (blocked work in design mode, "while I'm here" observations) before they're lost — INBOX entries instead of inflating the current spec |
 | `/claude-tweaks:flow` | Invoked BY /flow as the implementation step — flow constrains /build to `subagent` execution (batched pauses contradict flow's hands-off contract) and passes the pipeline run directory via `PIPELINE_RUN_DIR` so /build's auto-mode decisions land in the shared decision log |
 | `/claude-tweaks:help` | /help recommends specific specs to /build based on dependency graph + INDEX.md status; /build's spec resolution rules mirror /help's selection logic |
 | `/claude-tweaks:reflect` | /reflect is invoked BY /wrap-up after /build completes; reflection insights tagged for skills/CLAUDE.md feed back into /build's future runs via updated project conventions |

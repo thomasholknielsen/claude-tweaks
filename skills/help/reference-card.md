@@ -32,7 +32,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 |---------|-------------|-------|
 | `/claude-tweaks:help` | Dashboard: commands + status + recommendations | `status`, `commands`, spec/topic |
 | `/claude-tweaks:tidy` | Batch backlog hygiene | — |
-| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → wrap-up | spec #(s), doc path + `auto` `worktree` `no-stories` `[step]` (single = resume) |
+| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → polish → wrap-up | spec #(s), doc path + `auto` `worktree`/`current-branch` `no-stories` `no-polish` `keep-going` `[step]` (single = resume) |
 | `/claude-tweaks:browse` | Unified browser automation (utility) | URL or task + `browser=`, `headless`, `vision` |
 | `/claude-tweaks:design` | Wrapper that lets lifecycle skills (/review, /visual-review) invoke Impeccable design-quality commands (`critique`, `audit`, `survey`, `polish`) | mode + spec/files + flags |
 | `/claude-tweaks:ledger` | Open items tracking — query, resolve ledger entries | *(none)*, `resolve`, `{feature-name}` |
@@ -102,7 +102,7 @@ or standalone:
 ## Artifact Lifecycle
 
 ```
-INBOX → Brief → Design Doc → Spec → Code → Stories → TEST_PASSED → Review → Done
+INBOX → Brief → Design Doc → Spec → Code → Stories → TEST_PASSED → Review → Polish (frontend) → Done
 ```
 
 | Skill | Creates | Deletes |

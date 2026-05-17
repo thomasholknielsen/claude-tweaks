@@ -88,7 +88,7 @@ This is an **action gate** — findings lead to changes, not just observations.
 | 4 | **Convention drift** | Did we accidentally diverge from established project patterns? |
 | 5 | **Skill-worthy patterns** | Did the work establish reusable patterns that should be documented in a project skill? |
 
-For skill-worthy patterns: if yes, note the pattern — append a ledger entry with phase `review/skill` (when invoked by review) or `wrap-up` (when invoked by wrap-up or standalone). For patterns that don't fit any existing skill, use `[skill: NEW — {suggested-name}]`.
+For skill-worthy patterns: if yes, note the pattern. Use the phase from Step 4's routing table below (`review/hindsight` when invoked by /review, `wrap-up` when invoked by /wrap-up, `reflect` when standalone). Tag the entry body with `[skill: existing-skill-name]` for findings that target a specific skill, or `[skill: NEW — {suggested-name}]` for patterns that don't fit any existing skill. `/wrap-up` Step 7 picks these up by scanning ledger entry bodies for the `[skill: …]` tag — phase doesn't have to be `*/skill` for the entry to be skill-routed.
 
 ### Full Mode (4 lenses + tradeoff review)
 
