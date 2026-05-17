@@ -30,11 +30,11 @@ README.md                         → User-facing documentation
 LICENSE                           → MIT
 ```
 
-### Skill directories (19 total)
+### Skill directories (20 total)
 
 **Lifecycle:** init, capture, challenge, specify, build, test, stories, review, wrap-up
 **Component:** reflect, simplify, journeys, visual-review
-**Utility:** help, tidy, flow, browse, ledger, version
+**Utility:** help, tidy, flow, browse, ledger, version, research
 
 ### Skills with sub-files
 
@@ -48,6 +48,7 @@ LICENSE                           → MIT
 | visual-review | browser-review.md, reconnaissance.md | Visual review procedures (page, journey, discover modes); contextual page reconnaissance |
 | specify | spec-template.md | Spec file template with field rationale |
 | help | reference-card.md, context-flow.md | Quick reference card; artifact flow documentation |
+| research | reference/ (6 sub-files), scripts/ (Python pipeline), schemas/, templates/, UPSTREAM.md, LICENSE-UPSTREAM | 8-phase research pipeline vendored from 199-biotechnologies/claude-deep-research-skill (MIT); methodology, quality gates, citation validation, HTML/PDF assembly. See `skills/research/UPSTREAM.md` for vendoring contract and update runbook. |
 
 ## Conventions
 
@@ -143,5 +144,6 @@ claude-tweaks pipelines have at most two stops in `auto` mode: a **Pipeline Conf
 - Don't use emojis in skill files — use `**(Recommended)**` bold text for emphasis instead
 - Don't write to `~/.claude-tweaks/` from skill content — that path is runtime state owned by the harness layer (filter logs, telemetry, usage cache)
 - Don't dispatch parallel Task agents without inlining a literal output template (Template A/B/C) from `skills/_shared/subagent-output-contract.md` in the agent prompt — references won't reach the agent
+- Don't dispatch agents that run `git` or `node --test` without anchoring the working directory in the prompt — see "Working Directory Discipline" in `skills/_shared/subagent-output-contract.md`. CWD does not propagate reliably; without an explicit `cd "$WORKTREE"` or `git -C "$WORKTREE"` and a `pwd` + `git rev-parse --show-toplevel` check before commit, commits and test runs can land in the wrong checkout
 - Don't invent new mid-flow stops in `auto` mode — if a decision is decision-worthy, stage it to the auto-decision log and surface at the Wrap-Up Review Console. Mid-flow stops are reserved for HARD-GATEs and the explicit "not silenced" list in `_shared/auto-mode-contract.md`
 - Don't auto-resolve a decision without writing to the auto-decision log — silent automation without an audit trail is forbidden

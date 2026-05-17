@@ -27,6 +27,19 @@ Do NOT pass: prior messages, the user's original phrasing, your own findings so 
 
 When in doubt, give less context. If the agent comes back with `NEEDS_CONTEXT`, give it more on the re-dispatch.
 
+## Working Directory Discipline
+
+Agents do not inherit the dispatcher's CWD reliably. When a dispatch will run `git`, `node --test`, or any path-sensitive command, **anchor the working directory explicitly** in the prompt. Both forms work; pick one and use it consistently:
+
+- **Explicit cd**: every shell step begins with `cd "/absolute/path/to/worktree" && ...`
+- **`git -C` form**: every git command is `git -C "/absolute/path/to/worktree" <subcommand>`
+
+Before any commit step, the implementer must echo `pwd` and `git rev-parse --show-toplevel` and verify both match the expected worktree. A mismatch means the commit is about to land on the wrong branch — `BLOCKED` is the correct response.
+
+**Why this matters:** When the dispatcher is itself inside a worktree (e.g., running from `.claude/worktrees/<name>/`), a dispatched agent can resolve a different CWD and commit to the parent repo's checked-out branch instead of the worktree branch. The branches diverge silently — the dispatcher's `git status` looks fine, but the commit went to `main`. The same risk applies to reviewer agents that run `node --test` from the parent repo where the new test files don't exist and report false failures.
+
+When the dispatch is for a verification or test-running agent (no commits), the working directory still matters: results depend on which files are visible.
+
 ## Implementer Status Protocol
 
 Every dispatched agent reports one of four statuses as the first line of its reply (before the output template):
