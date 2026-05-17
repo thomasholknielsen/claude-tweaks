@@ -92,7 +92,7 @@ Each item is tagged with a phase indicating where it was discovered. Phases use 
 | `wrap-up` | `/claude-tweaks:reflect` (full mode, via /wrap-up) | Reflection insights |
 | `reflect` | `/claude-tweaks:reflect` (standalone) | Standalone reflection findings |
 
-> **Simplified from v3.16:** Previous phases like `review/convention`, `review/ux`, `review/coverage` are collapsed into `review`. Use the item description and category column to distinguish finding types — the phase just needs to identify the source skill. `build/*` is now just `build`. `test/qa` is now just `test`. `wrap-up/*` is now just `wrap-up`.
+> **Phase taxonomy:** Use the item description and category column to distinguish finding types within a phase. Sub-phases (`build/ops`, `build/skill`, `review/skill`, `review/hindsight`, `test/qa`) carry semantic meaning that downstream skills filter on — keep them distinct. Lens-specific review sub-phases (e.g., `review/convention`, `review/ux`, `review/coverage`) collapse into `review`; the lens is recorded in the entry body, not the phase.
 
 ### Required for `ops`-phase items (`ops`, `build/ops`)
 
@@ -231,6 +231,7 @@ Only delete when the resolve gate has passed — all items must have terminal st
 | `/claude-tweaks:flow` | Creates the ledger at pipeline start (Step 1), carries it forward across all phases, and runs the resolve gate before the final summary (Step 5). |
 | `/claude-tweaks:help` | Scans for active ledgers with open items and surfaces them in the status dashboard. |
 | `/claude-tweaks:tidy` | May scan ledger files during backlog hygiene to detect abandoned pipelines. /tidy reciprocally relies on /ledger's status taxonomy to detect stale entries. |
+| `_shared/auto-mode-contract.md` | The resolve gate (Phase 8.5 in /wrap-up, Phase 5 in /flow) is on the contract's "not silenced" list — even under `auto`, per-item user input is required. Bulk-route shortcuts are forbidden. |
 
 ### Next Actions
 

@@ -28,7 +28,7 @@ Periodic backlog hygiene to keep the spec system healthy. Run when the backlog f
 
 > **No decisions during scanning.** Steps 1-4.6 silently collect all findings. Everything is presented as one batch in Step 6 for approval. This replaces the previous per-item decision model.
 
-> **Parallel execution:** Dispatch Steps 1, 1.5, 2, 4, 4.5, and 4.6 as parallel Task agents — each scan is independent (INBOX, Deferred, Specs, Plans, Git, Doc Registry). Each agent returns findings in the `[type] item — detail — recommendation` format. Step 3 (Design Docs + Briefs) runs sequentially in the main thread because its classification depends on the lazy-loaded `triage-tables.md` content — subagents cannot reach sibling sub-files per the CLAUDE.md Subagent Contract. After parallel scans + Step 3 complete, run Step 5 and Step 5.5 sequentially — they depend on Step 2's spec scan results. Assemble all findings into the Step 6 report.
+> **Parallel execution:** Dispatch Steps 1, 1.5, 2, 3, 4, 4.5, and 4.6 as parallel Task agents — each scan is independent (INBOX, Deferred, Specs, Design Docs + Briefs, Plans, Git, Doc Registry). Each agent returns findings in the `[type] item — detail — recommendation` format. Step 3's classification tables are inlined directly into its agent prompt (see Step 3 below) so subagents have everything they need. After parallel scans complete, run Step 5 and Step 5.5 sequentially — they depend on Step 2's spec scan results. Assemble all findings into the Step 6 report.
 >
 > **Model tier:** Fast (Haiku) — each scan is a mechanical read of a single data source (INBOX file, DEFERRED file, spec directory, design-doc directory, plan directory, `git worktree list` + branches, REGISTRY). No cross-cutting analysis at the per-scan level; Step 5/5.5 do the synthesis sequentially in the main thread.
 >
@@ -95,7 +95,25 @@ Check dependency health: circular dependencies, specs blocked by unstarted specs
 
 ### Step 3: Audit Design Docs and Briefs
 
-Scan `docs/superpowers/specs/*-design.md` and `docs/plans/*-brief.md`. Classify each using the design-doc and brief classification tables in `triage-tables.md` in this skill's directory.
+Scan `docs/superpowers/specs/*-design.md` and `docs/plans/*-brief.md`. Classify each using the tables below.
+
+**Design doc classification** — for each file in `docs/superpowers/specs/*-design.md`:
+
+| Status | Recommendation |
+|--------|---------------|
+| Marked as specified, derived specs complete | Delete |
+| No status, matches existing specs | Mark as specified |
+| No status, no matching specs | Run `/claude-tweaks:specify` |
+| Very old (4+ weeks), no specs | Delete |
+
+**Brief classification** — for each file in `docs/plans/*-brief.md`:
+
+| Status | Recommendation |
+|--------|---------------|
+| Matching design doc exists | Keep |
+| No matching design doc, specs exist | Delete |
+| No matching design doc, no specs | Delete |
+| Very old (4+ weeks), no design doc | Delete |
 
 → Collect each as: `[doc] {filename} — {recommendation}`
 

@@ -71,6 +71,7 @@ That's the entire skill — no decisions, no findings, no follow-up gates.
 |-------|-------------|
 | `/claude-tweaks:help` | /help shows the full reference card; /version is the minimal "just the version" complement |
 | `/claude-tweaks:init` | /init may print the version during bootstrap; /version is its standalone equivalent |
+| `_shared/auto-mode-contract.md` | `/version` is a pure read — no decisions, no staged actions, no auto-mode interaction. Listed for completeness; the contract does not modify behavior. |
 
 ### Next Actions
 

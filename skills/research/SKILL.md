@@ -81,6 +81,7 @@ Reply with the user's selection. Then proceed.
 | `/claude-tweaks:specify` | `/specify` uses `/research` outputs for prior-art sections; this skill's Next Actions block offers a direct "cite findings in a new spec" path. |
 | `/claude-tweaks:browse` | Both are utility skills (no fixed lifecycle position). `/browse` covers interactive browser automation; `/research` covers autonomous multi-source research. |
 | `UPSTREAM.md` (in this skill's directory) | Captures the vendoring contract — pinned commit, modifications, update runbook, auto-mode posture rationale. |
+| `_shared/auto-mode-contract.md` | `/research` opts out of the bookend architecture (no Manifesto, no Review Console). The contract still applies trivially — credentials prompts and BLOCKED states are honored. See UPSTREAM.md for the opt-out rationale. |
 
 ### Next Actions
 

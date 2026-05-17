@@ -34,7 +34,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/claude-tweaks:tidy` | Batch backlog hygiene | — |
 | `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → polish → wrap-up | spec #(s), doc path + `auto` `worktree`/`current-branch` `no-stories` `no-polish` `keep-going` `[step]` (single = resume) |
 | `/claude-tweaks:browse` | Unified browser automation (utility) | URL or task + `browser=`, `headless`, `vision` |
-| `/claude-tweaks:design` | Wrapper that lets lifecycle skills (/review, /visual-review) invoke Impeccable design-quality commands (`critique`, `audit`, `survey`, `polish`) | mode + spec/files + flags |
+| `/claude-tweaks:design` | Wrapper that lets lifecycle skills invoke Impeccable design-quality commands. Modes: `pre-build`, `test`, `review`, `shape`, `polish`, `survey`, `reset-recommendations` | mode + spec/files + flags |
 | `/claude-tweaks:ledger` | Open items tracking — query, resolve ledger entries | *(none)*, `resolve`, `{feature-name}` |
 | `/claude-tweaks:research` | Deep web research with citation-audited reports — 4 runtime modes from quick to ultradeep. | topic + `quick`, `standard`, `deep`, `ultradeep`, `output=` |
 | `/claude-tweaks:version` | Print the installed plugin version | *(none)*, `plain`, `full` |

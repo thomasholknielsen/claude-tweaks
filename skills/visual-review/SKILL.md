@@ -77,7 +77,7 @@ Session naming, screenshot paths, and the full operation vocabulary follow the `
 
 ## Step 2: Dev URL Resolution
 
-This skill resolves the dev URL silently when possible (using `stories/auth.yml` and the dev URL detection procedure). For the full resolution procedure, read `browser-review.md` in this skill's directory (Dev URL Resolution + Ensure the app is running). The auto-mode behavior below extends that procedure with policy-driven skip semantics.
+This skill resolves the dev URL silently when possible. The canonical resolution procedure lives in `dev-url-detection.md` in `skills/_shared/` (probes `stories/servers.yml` first, then falls back to detection heuristics). The auto-mode behavior below extends that procedure with policy-driven skip semantics.
 
 If the resolved URL doesn't respond:
 
