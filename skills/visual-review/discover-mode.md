@@ -68,6 +68,8 @@ Include developer journeys when the project has CLI tools, APIs, or developer-fa
 
 ## Phase 3: Browser Walkthrough
 
+**Dispatcher column mapping (discover-mode use):** When assembling agent output for Phase 4 (journey file creation) and Phase 5 (coverage report), map the agent's `| Severity | Path:Line | Finding | Evidence |` columns as follows: Severity = recommendation urgency (`info` for documented page, `low` for nice-to-have journey, `medium` for canonical journey worth writing, `high` for broken/missing critical flow), Path:Line = the discovered route/page (`/checkout/payment`, `/admin/users/{id}`), Finding = the candidate journey + persona (`Returning user creates a new project`), Evidence = the screenshot path + key observations (`screenshots/browse/discover-public-pages/03_payment.png; LCP 1.8s; primary CTA at [3]`). The dispatcher merges all agents' tables into Phase 4 (journey file creation) and Phase 5 (coverage report).
+
 > **Parallel execution (conditional):** When multiple candidate journeys share no pages, dispatch each as a parallel Task agent — each agent runs its own session and `batch` invocation independently. Journeys that share state (login, form data) must remain sequential to avoid interference. A single journey's steps are always sequential within its batch.
 >
 > **Model tier:** Standard (Sonnet) — discover-mode journey walkers do multi-step navigation, snapshot interpretation, and "should feel" inference from live experience. Upgrade to Capable (Opus) only when the candidate journey hinges on subjective UX synthesis that Standard would flatten.
@@ -88,7 +90,7 @@ Include developer journeys when the project has CLI tools, APIs, or developer-fa
 > Do not add narration, headers, or summaries before or after the table.
 > ```
 >
-> Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the table. For discover-mode use, map columns as: Severity = recommendation urgency (`info` for documented page, `low` for nice-to-have journey, `medium` for canonical journey worth writing, `high` for broken/missing critical flow), Path:Line = the discovered route/page (`/checkout/payment`, `/admin/users/{id}`), Finding = the candidate journey + persona (`Returning user creates a new project`), Evidence = the screenshot path + key observations (`screenshots/browse/discover-public-pages/03_payment.png; LCP 1.8s; primary CTA at [3]`). The dispatcher merges all agents' tables into Phase 4 (journey file creation) and Phase 5 (coverage report).
+> Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the table.
 
 For each approved candidate, open a session and walk the candidate journey via a `batch` invocation that bundles `open`, `snapshot -i -c`, annotated `screenshot`, and `vitals` per page (same shape as the worked example in `journey-mode.md`). This is where the codebase skeleton gets filled with experiential details.
 

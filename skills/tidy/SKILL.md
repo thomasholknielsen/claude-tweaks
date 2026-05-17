@@ -50,159 +50,23 @@ Periodic backlog hygiene to keep the spec system healthy. Run when the backlog f
 >
 > Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the table. For /tidy use, map columns as: Severity = recommendation urgency (`info` for Keep, `low` for routine cleanup, `medium` for Promote/Merge/Defer, `high` for stale-Delete or registry break), Path:Line = the artifact (`specs/INBOX.md:42`, `specs/DEFERRED.md`, `docs/REGISTRY.md`, worktree path), Finding = `[type] item — short detail` (e.g., `[inbox] "Build redis cache" — 5 weeks old`), Evidence = the recommendation (`Delete — stale` / `Promote — ready for brainstorm` / `Merge → Spec 42`). The dispatcher merges all agents' tables into the Step 6 report.
 
-### Step 1: Audit the INBOX
+### Scan steps (data sources + collection format)
 
-Read `specs/INBOX.md` and classify each entry:
+Read `scan-procedures.md` in this skill's directory for the full classification tables, age thresholds, and per-step rules. The dispatcher inlines the relevant section into each agent's prompt so subagents have everything they need.
 
-| Age | Classification | Default Recommendation |
-|-----|---------------|----------------------|
-| < 2 weeks | Fresh | Keep |
-| 2-4 weeks | Review | Keep (unless clearly stale) |
-| > 4 weeks | Stale | Delete or Promote |
+| Step | Data source | Output prefix |
+|------|-------------|--------------|
+| 1 | `specs/INBOX.md` | `[inbox]` |
+| 1.5 | `specs/DEFERRED.md` | `[deferred]` |
+| 2 | `specs/INDEX.md` + spec files | `[spec]`, `[dependency]` |
+| 3 | `docs/superpowers/specs/*-design.md`, `docs/plans/*-brief.md` | `[doc]` |
+| 4 | `docs/superpowers/plans/`, `~/.claude/plans/` | `[plan]` |
+| 4.5 | `git worktree list`, `git branch --list "build/*"` | `[git]` |
+| 4.6 | `docs/REGISTRY.md` | `[registry]` |
+| 5 (sequential, after Step 2) | Specs not yet built | (sizing flags appended to `[spec]` rows) |
+| 5.5 (sequential, after Steps 2-4.6) | Recent git history of review/wrap-up commits | `[pattern]`, `[health]` |
 
-→ Collect each as: `[inbox] {title} — {age} — {recommendation}`
-
-### Step 1.5: Audit Deferred Work
-
-Read `specs/DEFERRED.md` and classify each entry:
-
-| Trigger Status | Default Recommendation |
-|---------------|----------------------|
-| Trigger met (referenced spec complete) | Promote to spec or merge |
-| Trigger not met, < 4 weeks | Keep |
-| Trigger not met, > 4 weeks | Re-evaluate or delete |
-| No clear trigger | Move to INBOX or delete |
-
-→ Collect each as: `[deferred] {title} — from spec {N} — {recommendation}`
-
-### Step 2: Audit Existing Specs
-
-Read `specs/INDEX.md` and all spec files. For each spec, do a lightweight scan:
-- Search for key files, endpoints, tests mentioned in the spec
-- Estimate completion: `not started`, `in progress (~X%)`, `mostly done (~90%+)`, `appears complete`
-
-Flag specs that need attention:
-- **Appears complete, not reviewed** → recommend `/claude-tweaks:review {N}`
-- **Appears complete, reviewed but not wrapped up** → recommend `/claude-tweaks:wrap-up {N}`
-- **In progress for 4+ weeks** → recommend resuming `/claude-tweaks:build` or re-evaluating scope
-- **Unmet prerequisites that are themselves stale** → recommend re-prioritizing the blocking spec
-- **Overlaps significantly with another spec** → recommend merging
-
-Check dependency health: circular dependencies, specs blocked by unstarted specs, orphan specs.
-
-→ Collect each as: `[spec] Spec {N}: {title} — {issue} — {recommendation}`
-→ Collect each as: `[dependency] {issue} — {recommendation}`
-
-### Step 3: Audit Design Docs and Briefs
-
-Scan `docs/superpowers/specs/*-design.md` and `docs/plans/*-brief.md`. Classify each using the tables below.
-
-**Design doc classification** — for each file in `docs/superpowers/specs/*-design.md`:
-
-| Status | Recommendation |
-|--------|---------------|
-| Marked as specified, derived specs complete | Delete |
-| No status, matches existing specs | Mark as specified |
-| No status, no matching specs | Run `/claude-tweaks:specify` |
-| Very old (4+ weeks), no specs | Delete |
-
-**Brief classification** — for each file in `docs/plans/*-brief.md`:
-
-| Status | Recommendation |
-|--------|---------------|
-| Matching design doc exists | Keep |
-| No matching design doc, specs exist | Delete |
-| No matching design doc, no specs | Delete |
-| Very old (4+ weeks), no design doc | Delete |
-
-→ Collect each as: `[doc] {filename} — {recommendation}`
-
-### Step 4: Audit Execution Plans
-
-Scan `docs/superpowers/plans/` for execution plan files and `~/.claude/plans/`.
-
-| Status | Recommendation |
-|--------|---------------|
-| Related spec is complete | Delete |
-| Related spec is in progress | Keep |
-| No related spec found | Delete (orphan) |
-| Very old, spec not started | Delete |
-
-→ Collect each as: `[plan] {filename} — {recommendation}`
-
-### Step 4.5: Audit Git Worktrees and Build Branches
-
-**Worktrees:** Run `git worktree list`. Any worktree beyond the main working tree is a candidate.
-
-**Build branches:** Run `git branch --list "build/*"`.
-
-| Status | Recommendation |
-|--------|---------------|
-| Related spec complete + changes merged | Remove/delete |
-| Related spec in progress | Keep |
-| No related spec found | Remove/delete (orphan) |
-| Unmerged changes | Keep (flag for attention) |
-
-→ Collect each as: `[git] {worktree/branch} — {recommendation}`
-
-Use `git branch -d` (safe delete, refuses if unmerged). Use `git worktree remove {path}` for worktrees.
-
-### Step 4.6: Audit Doc Registry
-
-Scan `docs/REGISTRY.md` for health issues. Skip if the file doesn't exist.
-
-| Issue | Recommendation |
-|-------|---------------|
-| Registry entry points to non-existent file | Delete entry |
-| Doc file exists in `docs/` but not in registry | Add entry (with Auto-detect patterns) |
-| Auto-detect pattern references non-existent directory | Update pattern |
-| Registry tier doesn't match project complexity | Update tier (suggest `/init update`) |
-
-→ Collect each as: `[registry] {issue} — {recommendation}`
-
-## Step 5: Spec Sizing Review
-
-For specs not yet built, check sizing:
-
-- **Too large** (10+ tasks): recommend splitting
-- **Too small** (1-2 trivial tasks): recommend merging with a related spec
-- **Too vague** (no concrete deliverables or acceptance criteria): recommend re-specifying
-
-### Step 5.5: Cross-Spec Pattern Detection
-
-Scan recent git history for recurring findings across review summaries and wrap-up reflections. Patterns that appear in 2+ specs signal systemic issues worth addressing at the project level rather than per-spec.
-
-#### How to scan
-
-1. Search recent commits for review and wrap-up artifacts:
-   - `git log --all --oneline --grep="review" --grep="wrap-up" --since="4 weeks ago"` (or check `docs/plans/*-review-summary*` and recent wrap-up commits)
-2. Read the review summaries and wrap-up reflections referenced in those commits
-3. Extract findings by category (Security, Convention, Performance, Error Handling, Architecture, Test Quality)
-
-#### What to look for
-
-| Signal | Example | Recommendation |
-|--------|---------|---------------|
-| Same finding category in 3+ reviews | "Convention: import from shared package" in specs 41, 43, 45 | Add rule to CLAUDE.md or `.claude/rules/` |
-| Same file flagged across specs | `src/utils/validate.ts` modified and reviewed in 4 specs | Refactor — this file may be a responsibility magnet |
-| Same gotcha rediscovered | "Use upsert not delete+insert" in 3 spec Gotchas | Add to CLAUDE.md as a project convention |
-| Recurring deferred items with similar themes | "Add error boundary" deferred in 3 specs | Promote to its own spec — it's not going away |
-
-→ Collect each as: `[pattern] {description} — seen in {spec list} — {recommendation}`
-
-#### Project Health Summary
-
-When 3+ specs have been completed (check INDEX.md for completed entries or git log for wrap-up commits), include a brief project health summary in the tidy report:
-
-1. **Velocity** — count completed specs vs. in-progress vs. not-started
-2. **Recurring themes** — conventions worth codifying if they appear in 3+ specs' wrap-up reflections
-3. **Convention candidates** — suggest: "This pattern shows up in {N} specs — consider adding to CLAUDE.md: `{pattern}`"
-
-→ Collect each as: `[health] {observation} — {recommendation}`
-
-This gives the user a lightweight project retrospective during regular tidy hygiene — no separate skill needed.
-
-Patterns and health observations are informational — they surface systemic issues the user may want to address. They appear in the tidy report alongside actionable items but don't require immediate action.
+Steps 5 and 5.5 require Step 2's spec scan results, so run them sequentially in the main thread after the parallel scans complete.
 
 ---
 
@@ -248,13 +112,13 @@ For each finding, route by recommendation type:
 | **Re-evaluate scope** (spec 4+ weeks in progress) | Stage | Stage | Stage — never auto-edit specs |
 | **Add rule to CLAUDE.md** (cross-spec patterns) | Stage | Stage | Stage — CLAUDE.md never edited autonomously |
 
-**Log entries:**
+**Log entries:** Write each auto-resolution to `{run-dir}/decisions.md` per `_shared/auto-decision-log.md`. Example entries:
 ```
 AUTO 11:14:32 — Step 6: deleted stale INBOX entry "{title}" (5 weeks old). Reversibility: med (commit {hash}).
 STAGED 11:14:35 — Step 6: merge proposal for INBOX "{title}" into spec 42. Stage path: staged/tidy-merge-1.md.
 ```
 
-Auto-applied items are committed. Staged items surface at the Wrap-Up Review Console for batch approval (`/wrap-up` Step 8.6) when `/tidy` runs as part of a pipeline. When `/tidy` runs standalone in `auto` mode, present staged items at the end of the report as a Pending Review section before completing.
+Auto-applied items are committed. Staged items surface at the Wrap-Up Review Console for batch approval (`/wrap-up` Step 8.6) when `/tidy` runs as part of a pipeline. When `/tidy` runs standalone in `auto` mode (no pipeline run directory), use `tidy-aggressiveness` from CLAUDE.md (project policy) as the routing key, skip the decision log (no run to attach to), and present staged items at the end of the report as a Pending Review section before completing.
 
 ### Interactive mode (batch approval)
 
@@ -369,6 +233,8 @@ Commit with a message summarizing the tidy-up.
 | Removing INBOX items marked as "Promote" | Promoted items stay in INBOX until a spec file exists. The INBOX entry is the tracking artifact — removing it drops the item on the floor. |
 | Appending a "Merged Scope" section to a spec | Merged content must be integrated into existing Deliverables, Acceptance Criteria, and Technical Approach. Appendix sections create second-class content that `/superpowers:writing-plans` may miss. |
 | Committing without running verification | Always verify every action landed (Step 7.5) before committing. Partial execution creates orphaned or lost items. |
+| Auto-running downstream skills like `/review` or `/build` | /tidy never invokes downstream skills autonomously. Recommendations like `Run /review {N}` are staged for the user — they require human judgment about timing and scope. |
+| Escalating `git branch -d` to `git branch -D` when delete refuses | `-d` refusing means the branch has unmerged work. Surface as `unmerged — manual review required`; never destructive-delete autonomously. |
 
 ## Relationship to Other Skills
 

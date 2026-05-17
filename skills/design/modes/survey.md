@@ -77,7 +77,9 @@ Shape:
 }
 ```
 
-The next `/flow` run on the same spec compares the new diff against this cache to detect declines (a recommended command was not invoked → its expected file changes do not appear in the new diff → increment `decline_count` in the declined cache). Decline-detection logic lives in `/flow`'s pipeline summary execution (it has the diff context to compare).
+The next `/flow` run on the same spec compares the new diff against this cache to detect declines (a recommended command was not invoked → its expected file changes do not appear in the new diff → increment `decline_count` in the declined cache).
+
+**Ownership:** the decline-detection algorithm lives in `/flow` (see `flow/survey.md` "Decline detection"). `/flow` is the only writer of `docs/plans/...-declined.json`. This wrapper is a read-only consumer — it reads the declined cache and uses it to filter observations in Step 4, and surfaces `suppressed` as an integer count back to the caller. It never writes the declined cache itself, even when invoked directly by a user.
 
 ## Output to caller
 

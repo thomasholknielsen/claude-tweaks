@@ -22,6 +22,8 @@ Handle the wrapper return:
 
 ## Decline detection
 
+**`/flow` owns the decline-detection algorithm.** The `/claude-tweaks:design survey` wrapper is a read-only consumer: it reads the declined cache that `/flow` writes (and the `suppressed_count` the wrapper surfaces back is just the count of entries `survey` chose to drop based on that cache). `/flow` is the only writer of `docs/plans/...-declined.json` because it is the only caller that has both the prior recommendations cache AND the new pipeline diff to compare against.
+
 **Decline detection (Phase 3).** Before invoking survey, read the prior `docs/plans/...-recommendations.json` cache (if it exists) for this spec. After the new pipeline diff is final (post-polish, post-re-verify), compare the prior recommendations against the diff:
 
 - For each prior recommendation, check whether its expected file changes appear in the new diff. The expected change is "the suggested command was invoked and modified the recommended page" — heuristic: file paths that the recommendation's `page` substring matches AND have a polish-style diff signature (touched between the previous and current pipeline run).

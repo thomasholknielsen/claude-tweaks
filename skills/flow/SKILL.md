@@ -74,111 +74,19 @@ If no UI files changed, or `no-stories` is set, the stories step is skipped.
 /claude-tweaks:flow 42                                              → full pipeline in worktree (default): build, test, review, polish, wrap-up
 /claude-tweaks:flow 42 current-branch                               → full pipeline on current branch (no isolation)
 /claude-tweaks:flow 42 no-stories                                   → full pipeline in worktree (skip stories even if UI changed)
-/claude-tweaks:flow 42 no-polish                                    → full pipeline without polish phase: build, test, review, wrap-up
+/claude-tweaks:flow 42 no-polish                                    → full pipeline without polish phase
 /claude-tweaks:flow 42,45,48                                        → multi-spec sequential, each in its own worktree
-/claude-tweaks:flow 42,45,48 current-branch                         → multi-spec sequential on current branch
 /claude-tweaks:flow 42,45,48 keep-going                             → multi-spec, continue past HARD-GATE failures (independent specs only)
-/claude-tweaks:flow docs/superpowers/specs/2026-02-21-meal-planning-design.md   → REJECTED — run /specify first; flow only accepts specs
-/claude-tweaks:flow meal planning                                   → resolve to spec by name (rejected if only design doc exists)
-/claude-tweaks:flow 42 review                                       → resume from review: runs review + polish + wrap-up
-/claude-tweaks:flow 42 polish                                       → resume from polish: runs polish + re-verify + wrap-up
-/claude-tweaks:flow 42 test                                         → resume from test: runs test + review + polish + wrap-up
-/claude-tweaks:flow 42 wrap-up                                      → resume from wrap-up only
-/claude-tweaks:flow 42 review,wrap-up                               → explicit subset: runs ONLY review and wrap-up (no polish)
-/claude-tweaks:flow 42 build,test                                   → explicit subset: runs ONLY build and test
 /claude-tweaks:flow 42 auto                                         → silence merge-check and scope-check prompts
-/claude-tweaks:flow docs/superpowers/specs/migration-design.md auto             → REJECTED — `auto` does not silence the design-doc rejection (see Step 2.7)
+/claude-tweaks:flow meal planning                                   → resolve to spec by name (rejected if only design doc exists)
+/claude-tweaks:flow docs/superpowers/specs/migration-design.md      → REJECTED — run /specify first; flow only accepts specs (auto does not silence this)
 ```
 
-## Allowed Steps
+For resume-from-step and explicit-subset variants (`/flow 42 review`, `/flow 42 review,wrap-up`, etc.), see `steps-and-gates.md` ("Step Arguments" section) for the full enumeration.
 
-Only automatable skills can be included in the pipeline:
+## Allowed Steps, Step Arguments, and Gate Behavior
 
-| Step | Skill invoked | Why it's automatable |
-|------|--------------|---------------------|
-| `build` | `/claude-tweaks:build` | Fully autonomous — plans, implements, simplifies, verifies. Always uses `subagent` execution. Passes `worktree` through if specified. |
-| `stories` | `/claude-tweaks:stories` | Autonomous — browses app, generates YAML stories. Auto-triggered when build produces UI file changes (unless `no-stories`). |
-| `test` | `/claude-tweaks:test` | Mechanical pass/fail gate — types, lint, tests, QA story validation. Sets `TEST_PASSED=true` on pass. |
-| `review` | `/claude-tweaks:review` | Code review, simplification, visual browser review with idea generation (when browser available) — produces a verdict. Gates on `TEST_PASSED`. |
-| `polish` | `/claude-tweaks:design polish <spec>` | **(Phase 2)** Invokes Impeccable polish + clarify + harden (auto-fit) plus issue-driven commands when audit findings exist. Modifies code. Always followed by re-verify (`/test skip-qa`). Gates on review verdict PASS. Skipped on non-frontend specs (wrapper detection). |
-| `wrap-up` | `/claude-tweaks:wrap-up` | Reflection, cleanup, knowledge routing — produces actionable summary |
-
-**Not allowed in flow:** `capture`, `challenge`, `specify`, `init`, `tidy`, `help`, `browse` — these require interactive decision-making or are utility skills.
-
-`re-verify` is **bundled** with `polish` — it is not a separately addressable step. When `polish` runs and modifies code, the re-verify gate runs automatically afterward (`/test skip-qa`, one-cycle cap). Including `re-verify` in a step list is a no-op; treat it as already implied by `polish`.
-
-### Step Arguments
-
-Steps must follow lifecycle order. Invalid orderings are rejected.
-
-| Form | Meaning | Example |
-|------|---------|---------|
-| No steps | Full pipeline | `/flow 42` → build, test, review, polish, wrap-up |
-| Single step | Resume from that step onward | `/flow 42 review` → review, polish, wrap-up |
-| Multiple steps (comma-separated) | Run exactly those steps | `/flow 42 review,wrap-up` → review, wrap-up only (skips polish) |
-
-**Resume mode** (single step argument, no comma) assumes all prior steps completed successfully. The pipeline reads existing context (ledger, `TEST_PASSED`, etc.) from files rather than generating it. If prior context is missing (e.g., no ledger file when resuming from review), the pipeline creates fresh context as needed and notes: "No existing ledger found — creating fresh."
-
-**Explicit subset** (comma-separated steps) runs only the listed steps. Context from skipped prior steps is read from files if available.
-
-**Valid examples:**
-- `build,test,review,polish,wrap-up` — valid (default; stories auto-inserted if UI changed)
-- `build,stories,test,review,polish,wrap-up` — valid (stories always runs regardless of UI changes)
-- `build,test,review,wrap-up` — valid (skips polish — equivalent to `no-polish`)
-- `build,test,review` — valid
-- `build,test` — valid
-- `test,review,polish,wrap-up` — valid (assumes build is already done)
-- `review,polish,wrap-up` — valid (assumes build and test are done)
-- `polish,wrap-up` — valid (assumes build, test, and review are done — useful when iterating on polish manually)
-- `wrap-up` — valid (assumes build, test, review, and polish are done)
-- `review,build` — **invalid** (out of order)
-- `wrap-up,review` — **invalid** (out of order)
-
-**Auto-insert `test`:** If `review` is in the step list but `test` is not, auto-insert `test` before `review` and note: "Auto-inserted `test` before `review` — review gates on test passing." This ensures backward compatibility.
-
-**Polish bundled with re-verify:** If `polish` is in the step list, the re-verify gate runs automatically when polish modifies code. Users do not need to add a separate `re-verify` step. If a user includes the literal `re-verify` in the step list, treat it as a no-op (already bundled with polish) and note: "`re-verify` is bundled with `polish` — no separate step needed."
-
-**`no-polish` argument behavior:** When `no-polish` is set, the polish phase (and its re-verify gate) is removed from the pipeline. The default pipeline becomes `build,test,review,wrap-up` (the pre-Phase-2 default). `no-polish` overrides any explicit `polish` in the step list — the user's explicit step request wins on the rest of the pipeline, but polish is unconditionally dropped.
-
-## Gate Behavior
-
-Each step has a gate that determines whether to proceed to the next step.
-
-| Step | Gate condition | On pass | On failure |
-|------|---------------|---------|-----------|
-| `build` | Final verification passes (type check + lint + tests) | Check for UI changes → auto-trigger stories if applicable → proceed | **STOP** — present verification failures |
-| `stories` (auto) | YAML files created + no parse errors | Proceed to test | **STOP** — present generation failures |
-| `test` | All checks pass — types, lint, tests, QA (when stories exist). `PASS_WITH_CAVEATS` counts as passed (caveats are informational). Sets `TEST_PASSED=true`. | Proceed to review | **STOP** — present test/QA failures |
-| `review` | Verdict is **PASS**. Gates on `TEST_PASSED=true`. Runs in full mode (code + visual) when browser available; falls back to code mode otherwise. | Proceed to polish (or wrap-up if `no-polish`) | **STOP** — present **BLOCKED** verdict with findings |
-| `polish` (Phase 2) | Wrapper returns `{result: "ok"}`. Acceptable returns include `commands_invoked: []` (no auto-fit applicable, no audit findings — no work to do) and `{skipped: ...}` (non-frontend, no Impeccable, integration disabled). | If `commands_invoked` non-empty → run re-verify gate. If `commands_invoked` empty or skip → proceed directly to wrap-up. | **STOP** — wrapper returned an error (rare; usually means Impeccable plugin crashed mid-dispatch). Present the error. |
-| `re-verify` (bundled with polish) | `/test skip-qa` passes (types + lint + tests). | Proceed to wrap-up | **STOP** — present "Polish broke verification" failure card. One-cycle cap — no automatic retry. |
-| `wrap-up` | Always passes | Pipeline complete | — |
-
-**Zero-test edge case:** If no test commands are configured in CLAUDE.md and no QA stories exist, the test gate passes vacuously — there is nothing to fail. Note in the pipeline output: "Test gate: no checks configured. Consider adding test commands to CLAUDE.md." This is a pass, not a skip.
-
-**Polish phase decision tree:**
-
-```
-Polish phase entry (after review PASS, no-polish not set)
-    │
-    ▼
-Invoke /claude-tweaks:design polish <spec>
-    │
-    ├─ {skipped: ...}                  → Note skip in summary, proceed to wrap-up (no re-verify)
-    │
-    ├─ {result: "ok", commands_invoked: []}
-    │                                   → Note "polish: no work to do", proceed to wrap-up (no re-verify)
-    │
-    └─ {result: "ok", commands_invoked: [...], files_modified: [...]}
-                                        → Run re-verify gate (`/test skip-qa`)
-                                              │
-                                              ├─ Pass  → Proceed to wrap-up
-                                              └─ Fail  → STOP — "Polish broke verification" card
-```
-
-**Re-verify one-cycle cap:** The re-verify gate runs at most once per flow run. The pipeline tracks this with an in-memory marker (`re_verify_ran: true` in pipeline state — same in-memory marker pattern as `/claude-tweaks:design`'s availability skip de-dupe). If polish modifies code and re-verify fails, the pipeline stops; it does not retry polish. The user resolves the failure (typically by reverting the polish commit or fixing the underlying issue) and resumes with `/claude-tweaks:flow {spec} polish` to re-attempt polish + re-verify in a fresh flow run (which resets the marker).
-
-**Why the cap exists:** Without it, polish could oscillate (polish modifies code → re-verify fails → user fixes → re-runs polish → polish modifies again → re-verify fails again). The single-cycle cap makes the failure mode predictable: one polish attempt, one re-verify attempt, success or stop.
+For the full Allowed Steps reference (which skills are pipeline-eligible), Step Arguments rules (resume vs explicit subset, auto-inserts, `no-polish` semantics), Gate Behavior table, and the canonical polish-phase decision tree, read `steps-and-gates.md` in this skill's directory.
 
 ### On Gate Failure
 
@@ -225,7 +133,35 @@ When a gate fails, the pipeline stops immediately. Present:
 
 ### Polish-broke-verification failure card (specific shape)
 
-When the re-verify gate fails after polish modified code, use the specific failure-card shape that includes a "Polish modifications" section (`git diff --stat` for the polish commit) and revert-oriented Next Actions — the user needs polish-commit context to triage. For the full template, read `polish-failure.md` in this skill's directory.
+When the re-verify gate fails after polish modified code, use this specific failure-card shape (instead of the generic "On Gate Failure" template above). The polish-modifications section is the critical differentiator — the user needs `git diff` context for the polish commit to triage.
+
+```markdown
+## Flow: Pipeline Stopped — Polish broke verification
+
+### Completed
+- build: passed
+- stories: {outcome}
+- test: passed
+- review: PASS
+- polish: invoked {N} commands ({list}), modified {M} files
+
+### Failed at: re-verify (post-polish)
+{verification failures from /test skip-qa output — types/lint/test errors}
+
+### Polish modifications
+{git diff --stat output for the polish commit(s)}
+
+### Open Items (at time of failure)
+{current ledger contents}
+
+### Next Actions
+
+1. Inspect the polish modifications: `git diff {polish-commit-range}` **(Recommended)**
+2. Revert the polish commit and resume without polish: `git revert {polish-commit}` then `/claude-tweaks:flow {spec} no-polish wrap-up`
+3. Fix the verification failure manually, then resume: `/claude-tweaks:flow {spec} polish`
+
+> The re-verify cycle cap is 1 per flow run. Resuming with `/flow {spec} polish` starts a fresh cycle.
+```
 
 All other gate failures (build, stories, test, review) use the generic "On Gate Failure" template above.
 
@@ -241,10 +177,7 @@ All other gate failures (build, stories, test, review) use the generic "On Gate 
    3. Fallback: `worktree`
 
    Do NOT prompt the user for git strategy — resolve it silently from the above. This is passed through to `/claude-tweaks:build` and controls isolation. Flow always uses `subagent` execution — no prompt needed for execution strategy.
-4. Validate step list is in lifecycle order. Apply auto-inserts:
-   - **`test` before `review`:** If `review` is in the step list but `test` is not, auto-insert `test` before `review` and note: "Auto-inserted `test` before `review` — review gates on test passing."
-   - **`re-verify` is bundled with `polish`:** If a user includes the literal `re-verify` in the step list, treat it as a no-op and note: "`re-verify` is bundled with `polish` — no separate step needed." `re-verify` runs automatically when `polish` modifies code.
-   - **`no-polish` overrides explicit polish:** If `no-polish` is set and `polish` is in the step list (explicitly or via the default), drop `polish` from the resolved step list and note: "`no-polish` set — skipping polish phase."
+4. Validate step list is in lifecycle order and apply the auto-inserts and override rules from `steps-and-gates.md` ("Step Arguments" section): auto-insert `test` before `review`, treat literal `re-verify` as a no-op, and drop `polish` when `no-polish` is set.
 5. If spec mode: check prerequisites are met (same as `/claude-tweaks:build` Spec Step 1)
 6. If a path was given in the argument: confirm it's a spec, not a design doc (Step 2.7 enforces). If a topic name was given: resolve to a spec; if only a design doc exists for that topic, stop and present the routing message.
 7. If validation fails → **stop before starting**
@@ -288,29 +221,14 @@ For each step in order:
    - `polish` (or `re-verify`) → `wrap-up` receives the review summary, polish results, and verdict. Skill observations (`build/skill` and `review/skill` ledger entries) carry forward via the ledger file for wrap-up's skill update analysis (Step 7).
 5. **Ledger carries forward** — each step reads and appends to the open items ledger (see `/claude-tweaks:ledger` for all operations). Unlike conversation context (which may be compressed), the ledger is a file — it survives context window limits.
 
-#### Polish phase execution (Phase 2)
+#### Polish + re-verify execution (Phase 2)
 
-When the polish step runs (review verdict is PASS, `no-polish` not set, polish in step list):
+Follow the polish-phase decision tree in `steps-and-gates.md`. Mechanics specific to /flow:
 
-1. Invoke `/claude-tweaks:design polish <spec>` via the Skill tool.
-2. Inspect the wrapper's return value:
-   - **`{skipped: ...}`** — the wrapper detected non-frontend, missing Impeccable, or kill-switch disabled. Note the skip reason in the pipeline summary's polish row. Proceed to wrap-up. **Do not** run re-verify — there are no polish modifications to verify.
-   - **`{result: "ok", commands_invoked: [], files_modified: []}`** — the wrapper ran preconditions but had no work to do (no audit findings, no auto-fit changes were needed, or zero files in scope). Note "polish: no changes" in the summary. Proceed to wrap-up. **Do not** run re-verify.
-   - **`{result: "ok", commands_invoked: [...], files_modified: [...]}`** — the wrapper invoked auto-fit + issue-driven commands and modified code. Record the commands invoked and files modified in the polish-row of the pipeline summary. **Run re-verify next.**
-   - **Wrapper error / unhandled exception** — stop the pipeline with a "Polish wrapper error" failure card. Do not assume the modifications are partial-and-recoverable; surface the error and let the user inspect.
-3. After polish, append a ledger entry per command invoked (phase: `design`, status: `fixed` for auto-fit successes, `observation` for any reported issues from a sub-command). The ledger entries flow through to wrap-up's skill update analysis.
-
-#### Re-verify execution (Phase 2)
-
-When polish modified code (`files_modified` non-empty) and the re-verify cycle has not yet run in this flow:
-
-1. Set the in-memory marker `re_verify_ran: true` (per-process pipeline state, not on-disk).
-2. Invoke `/claude-tweaks:test skip-qa` via the Skill tool. The wrapper runs types + lint + tests, skips QA story validation (browser QA is unnecessary after stylistic-only polish), but still runs the Design CLI gate (Step 1.5) since CLI is not QA.
-3. Inspect the result:
-   - **Pass** → proceed to wrap-up. Note "re-verify: passed" in the polish row.
-   - **Fail** → stop the pipeline with the "Polish broke verification" failure card (see "On Gate Failure" below for format). The user resolves the failure (typically by inspecting the polish commit, reverting if needed, and addressing the regression) and resumes with `/claude-tweaks:flow {spec} polish` in a new flow run.
-
-If the marker is already set (re-verify already ran in this flow), this is a programming error — the gate should never run twice. Surface a "re-verify cycle cap exceeded" error and stop the pipeline. This is defensive — the polish-phase decision tree should never re-enter re-verify, but the marker exists to enforce that invariant.
+- Invoke `/claude-tweaks:design polish <spec>` via the Skill tool. Wrapper errors stop the pipeline with a "Polish wrapper error" failure card — do not assume partial-and-recoverable.
+- Append a ledger entry per command invoked (phase: `design`, status: `fixed` for auto-fit successes, `observation` for reported issues). Ledger entries flow through to wrap-up's skill update analysis.
+- When polish modified code, set the in-memory `re_verify_ran: true` marker and invoke `/claude-tweaks:test skip-qa`. The wrapper runs types + lint + tests, skips QA story validation (irrelevant after stylistic-only polish), but still runs the Design CLI gate (CLI is not QA).
+- One-cycle cap: if the marker is already set, surface "re-verify cycle cap exceeded" and stop — defensive against the decision tree re-entering re-verify.
 
 ### Step 5: Present Pipeline Summary
 

@@ -30,10 +30,12 @@ One-stop reference and status dashboard for the workflow system. Combines comman
 
 | Argument | Behavior |
 |----------|----------|
-| *(none)* | Full dashboard: cheat sheet + status scan + recommendation |
-| `status` | Pipeline status scan only (skip cheat sheet) |
-| `commands` | Quick reference cheat sheet only (skip scan) |
+| *(none)* | Cheat sheet + status scan + recommendation |
+| `status` | Pipeline status scan only |
+| `commands` | Quick reference cheat sheet only — read `reference-card.md` in this skill's directory and present its contents |
 | *spec number or topic* | Targeted status for that specific spec/topic |
+
+> Default (no arg) is the cheat-sheet-first dashboard. The status scan (Section 2) is moderately expensive — when the user just wants command syntax, the `commands` arg avoids it.
 
 ---
 
@@ -41,99 +43,7 @@ One-stop reference and status dashboard for the workflow system. Combines comman
 
 *(Skip if `$ARGUMENTS` = `status`)*
 
-### Lifecycle Skills
-
-These run in order — each skill feeds into the next.
-
-| # | Command | Purpose | Accepts |
-|---|---------|---------|---------|
-| 1 | `/claude-tweaks:init` | Bootstrap structure, generate CLAUDE.md, skills, and rules | path, URL, update |
-| 2 | `/claude-tweaks:capture` | Brain-dump ideas into INBOX | idea text |
-| 3 | `/claude-tweaks:challenge` | Debias a problem statement before brainstorming | `quick`, INBOX item, topic |
-| 4 | `/superpowers:brainstorming` | Explore solutions for a debiased problem *(Superpowers)* | topic, brief |
-| 5 | `/claude-tweaks:specify` | Decompose a design doc into agent-sized specs | design doc path, topic, INBOX ref |
-| 6 | `/claude-tweaks:build` | Implement a spec or design doc end-to-end | spec number, design doc path, topic + optional `auto`, `batched`, `worktree` |
-| 6b | `/claude-tweaks:test` | Verification gate — types, lint, tests, QA story validation | `types`, `lint`, `unit`, file path, `affected`, `qa`, `qa journey={name}`, `qa affected`, `all` |
-| 6c | `/claude-tweaks:stories` | Generate or update QA story YAML files by browsing a site (journey-aware when journey files exist) | URL + `persona=`, `dir=`, `journey=`, `browser=`, `refine=`, `negative=` |
-| 7 | `/claude-tweaks:review` | Analytical quality gate — code review, UX analysis (when QA data available), visual browser review with idea generation (default in /flow when browser available). Gates on /test passing. | spec number, file paths + `full`, `visual`, `journey:{name}`, `discover` |
-| 8 | `/claude-tweaks:wrap-up` | Reflection, knowledge capture, artifact cleanup | spec number |
-
-### Component Skills
-
-These are invoked by lifecycle skills but also work standalone.
-
-| Command | Purpose | Accepts | Used by |
-|---------|---------|---------|---------|
-| `/claude-tweaks:reflect` | Structured evaluation — hindsight, surprises, near-misses, fresh start | `hindsight`, `full`, spec #, file paths | `/claude-tweaks:review` (Step 4), `/claude-tweaks:wrap-up` (Step 3) |
-| `/claude-tweaks:simplify` | Code simplification via code-simplifier subagent | file paths or auto-detect from git diff | `/claude-tweaks:build` (Step 3), `/claude-tweaks:review` (Step 5) |
-| `/claude-tweaks:journeys` | Create/update user journey documentation | spec #, file paths | `/claude-tweaks:build` (Step 6) |
-| `/claude-tweaks:visual-review` | Browser-based UI inspection, journey walks, journey discovery | URL, `journey:{name}`, `discover` | `/claude-tweaks:review` (Step 6) |
-
-For a concise one-page reference, read `reference-card.md` in this skill's directory.
-
-### Utility Skills
-
-| Command | Purpose | Accepts |
-|---------|---------|---------|
-| `/claude-tweaks:help` | This dashboard — commands, status, recommendations | `status`, `commands`, spec/topic |
-| `/claude-tweaks:tidy` | Periodic backlog hygiene | — |
-| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → design polish → wrap-up | spec number(s) (comma-separated for sequential), design doc path, or topic + `auto` `worktree`/`current-branch` `no-stories` `no-polish` `keep-going` `[step]` (single step = resume from that step onward) |
-| `/claude-tweaks:browse` | Unified browser automation (utility) | URL or task description + `browser=`, `headless`, `vision` |
-| `/claude-tweaks:design` | Wrapper that lets lifecycle skills (`/build`, `/test`, `/review`, `/visual-review`, `/flow`) invoke Impeccable design-quality commands (`pre-build`, `test`, `review`, `survey`, `polish`, `shape`, `reset-recommendations`) | mode + spec/files + flags |
-| `/claude-tweaks:research` | Deep web research with citation-audited reports | topic + `quick`, `standard`, `deep`, `ultradeep`, `output=` |
-| `/claude-tweaks:ledger` | Open items tracking — create, query, resolve ledger entries | *(none)* for status, `resolve` for nothing-left-behind gate, `{feature-name}` for specific ledger |
-| `/claude-tweaks:version` | Print the installed plugin version | *(none)*, `plain`, `full` |
-
-### Superpowers (External Plugin)
-
-| Command | Purpose | Used by |
-|---------|---------|---------|
-| `/superpowers:brainstorming` | Explore solutions for a debiased problem — stops after design doc, then `/claude-tweaks:specify` | After `/claude-tweaks:challenge` |
-| `/superpowers:writing-plans` | Create TDD execution plan from a spec — stops after saving plan, returns to `/build` | `/claude-tweaks:build` |
-| `/superpowers:subagent-driven-development` | Automated execution with review chain — stops after final review, returns to `/build` | `/claude-tweaks:build` (subagent mode, default) |
-| `/superpowers:executing-plans` | Human-reviewed execution in batches of 3 — stops after last batch, returns to `/build` | `/claude-tweaks:build` (batched mode) |
-| `/superpowers:using-git-worktrees` | Create isolated workspace on a feature branch | `/claude-tweaks:build` and `/claude-tweaks:flow` (worktree mode) |
-| `/superpowers:finishing-a-development-branch` | Merge, PR, or discard a feature branch | `/claude-tweaks:build` and `/claude-tweaks:flow` (worktree mode, at handoff) |
-| `/superpowers:dispatching-parallel-agents` | Dispatch concurrent independent fixes | `/claude-tweaks:review` (conditional, 3+ independent fixes) |
-
-### Artifact Lifecycle
-
-```
-INBOX item ──→ Brief ──→ Design Doc ──→ Spec ──→ Code + Journey
-  /capture    /challenge  /superpowers:brainstorming     /specify  /build
-                                           ↓           ↓       ↓
-                                    (deletes brief  Deferred  docs/journeys/
-                                     + design doc)  Work
-
-Code + Journey ──→ Story YAML ──→ Test (types + lint + tests + QA) ──→ Review (code + visual + coverage) ──→ Polish (frontend specs) ──→ Clean slate
-     /build         /stories          /test                                /review                            /design polish              /wrap-up
-             (auto in /flow      (mechanical gate —              (analytical gate —                    (Impeccable polish —          ↓
-              when UI changed;    sets TEST_PASSED)               gates on TEST_PASSED;                 skipped on backend            (deletes spec
-              ingests journeys                                    checks journey-story coverage)        or `no-polish` arg)            + plans)
-              for story design)
-```
-
-### Bookend Architecture (v4.6+) — auto mode interaction model
-
-In `auto` mode, the pipeline has exactly two user-facing stops, regardless of how many decisions it makes:
-
-```
-┌──────────────────────────┐                                  ┌────────────────────────┐
-│  [BEGIN]                 │                                  │  [END]                 │
-│  Pipeline Config         │  ─── pure automation against ───►│  Wrap-Up Review        │
-│  Manifesto (/flow Step   │      policy, log every           │  Console (/wrap-up     │
-│  3 — one approve-        │      decision to decisions.md    │  Step 8.6 — one batch  │
-│  recommendations table)  │                                  │  approve / override)   │
-└──────────────────────────┘                                  └────────────────────────┘
-```
-
-- **Begin stop:** one table with all policy levers (scope-creep, overlap, design-intent, leftover-routing, auto-fix-threshold, review-severity-floor, tidy-aggressiveness). Hit "1. Approve all" or override specific items.
-- **Mid-flow:** zero stops. Skills read policy from `.claude-tweaks/pipelines/{run-id}/config.yml` and log every auto-decision to `decisions.md`.
-- **End stop:** one consolidated batch surfacing auto-applied items, staged items pending review, skill updates, config updates, and the ledger resolve gate. Hit "1. Approve all" or override specific items.
-
-**Strict rule:** skills never invent new mid-flow stops in `auto`. Mid-flow stops are reserved for HARD-GATEs (`/review` Step 1 spec compliance, `/review` Step 1.5 test gate, `/flow` Step 2.6 structural coupling, `/flow` Step 2.7 design-doc rejection, `/build` Design Step 3 plan validation) and the explicit "not silenced" list in `skills/_shared/auto-mode-contract.md` (ledger resolve Phase 2, INBOX/DEFERRED writes, `/challenge` lenses, governance gates).
-
-In `interactive` mode (default when no `auto` arg), skills present each decision in-flow as today.
+For the canonical cheat sheet — lifecycle, component, and utility commands; common workflows; artifact lifecycle; bookend architecture summary — read `reference-card.md` in this skill's directory and present its contents. The reference card is the single source of truth for the command catalog; do not maintain a separate copy here.
 
 ---
 
@@ -141,112 +51,7 @@ In `interactive` mode (default when no `auto` arg), skills present each decision
 
 *(Skip if `$ARGUMENTS` = `commands`)*
 
-Scan the full workflow state across all pipeline stages.
-
-> **Parallel execution:** Dispatch Stages 1-7 as parallel Task agents — each stage scans an independent data source and returns counts, flags, and recommendations. The orchestrator assembles the dashboard after all agents complete.
->
-> **Model tier:** Fast (Haiku) — each stage scan is a mechanical read/grep over a single data source (INBOX, DEFERRED, design docs, specs, plans, registry). No synthesis required at the per-stage level; the orchestrator assembles the dashboard.
->
-> **Output template (each agent must follow exactly):**
->
-> ```markdown
-> OUTPUT FORMAT (required):
-> Return ONLY a markdown table, no preamble:
->
-> | Severity | Path:Line | Finding | Evidence |
-> |---|---|---|---|
-> | critical | src/auth.ts:42 | Missing token expiry check | uses `<` not `<=` |
-> | medium | src/api.ts:180 | Unhandled rejection | line 184: `await fetch(...)` no try/catch |
->
-> Severity scale: critical / high / medium / low / info
-> If no findings: return literal text "No findings."
-> Do not add narration, headers, or summaries before or after the table.
-> ```
->
-> Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the table. For status-scan use, map columns as: Severity = recommendation urgency (`info` for nothing-to-do, `low` for routine, `medium` for needs-attention, `high` for blocking), Path:Line = the artifact (`specs/INBOX.md:42`, `docs/journeys/checkout.md`, etc.), Finding = the count or flag (`14 items, 3 stale`), Evidence = the specific items or signals.
-
-### Stage 1: INBOX (`specs/INBOX.md`)
-
-- Count total items
-- Flag stale items (> 4 weeks old)
-- Flag items tagged as `**Promoted:**` — these are awaiting `/superpowers:brainstorming` and should appear as brainstorm candidates in the recommendation
-- Identify items marked as related to existing specs
-- Flag items with baked-in assumptions (solution-oriented phrasing) → candidates for `/claude-tweaks:challenge`
-
-### Stage 1.5: Deferred Work (`specs/DEFERRED.md`)
-
-- Count total deferred items
-- Check triggers against current state:
-  - Completed specs referenced in triggers → these items are now actionable
-  - In-progress specs referenced → flag for awareness
-- Flag items with no clear trigger (missing context)
-- Flag items older than 4 weeks with unmet triggers
-
-### Stage 2: Design Docs (`docs/superpowers/specs/*-design.md`)
-
-- Find design docs that haven't been specified yet (no `> Status: Specified` header)
-- These are brainstorming outputs waiting for `/claude-tweaks:specify`
-
-### Stage 3: Specs Ready to Build (`specs/INDEX.md` + `specs/*.md`)
-
-- Find specs where all prerequisites are met (blocking specs are complete)
-- Check YAML frontmatter for `status: not-started` with empty or satisfied `blocked-by`
-- Check which tier they're in (lower tier = higher priority)
-- Check if a plan already exists in `docs/plans/` (ready for immediate `/claude-tweaks:build`)
-- **Implicit dependency check:** Extract `Key Files` from each ready spec and each in-progress (or other not-started) spec. If a ready spec shares Key Files with any non-completed spec, flag it in the "Needs Attention" table — building it now risks merge conflicts or duplicated work. This is the same algorithm that `/claude-tweaks:specify` runs at spec creation time, re-run here to catch conflicts from specs that started building since then.
-
-### Stage 4: Specs In Progress
-
-- Check recent git commits for spec references
-- Check frontmatter for `status: in-progress`
-- These may need `/claude-tweaks:build` resumed or `/claude-tweaks:review` run
-
-### Stage 5: Specs Awaiting Review
-
-- Find specs that appear fully implemented but haven't been reviewed yet
-- These need `/claude-tweaks:review` before `/claude-tweaks:wrap-up`
-
-### Stage 6: Specs Awaiting Wrap-Up
-
-- Find specs that have been reviewed (review commits/artifacts exist) but not wrapped up
-
-### Stage 7: Maintenance Signals
-
-- INBOX has 10+ items → suggest `/claude-tweaks:tidy`
-- Plans older than 4 weeks with no matching spec progress → flag
-- More than 3 design docs unspecified → suggest a `/claude-tweaks:specify` session
-- Doc registry exists but has stale entries or gaps → suggest `/claude-tweaks:tidy` (Step 4.6 audits registry health)
-- No doc registry exists but `docs/` has files → suggest `/claude-tweaks:init update` to create registry
-
-### Present Dashboard
-
-```markdown
-## Workflow Status
-
-### Pipeline
-| Stage | Count | Action |
-|-------|-------|--------|
-| INBOX items | {N} ({M} stale) | `/claude-tweaks:capture` to add, `/claude-tweaks:tidy` if stale |
-| INBOX items promoted | {N} | `/superpowers:brainstorming {topic}` (or `/claude-tweaks:challenge` first if assumptions present) |
-| INBOX items needing debiasing | {N} | `/claude-tweaks:challenge {topic}` |
-| Deferred items ready | {N} | Trigger met — promote to spec or merge |
-| Deferred items waiting | {N} | Triggers not yet met |
-| Design docs unspecified | {N} | `/claude-tweaks:specify {topic}` |
-| Specs ready to build | {N} | `/claude-tweaks:build {number}` |
-| Specs in progress | {N} | Resume `/claude-tweaks:build` or check status |
-| Specs awaiting review | {N} | `/claude-tweaks:review {number}` |
-| Specs awaiting wrap-up | {N} | `/claude-tweaks:wrap-up {number}` |
-
-### Ready to Build (priority order)
-| Spec | Title | Tier | Has Plan? |
-|------|-------|------|-----------|
-| {N} | {title} | {tier} | {yes/no} |
-
-### Needs Attention
-| Item | Issue | Suggested Action |
-|------|-------|-----------------|
-| {item} | {issue} | {action} |
-```
+Read `status-scan.md` in this skill's directory for the full parallel-dispatch procedure (Stages 1-7, dispatch contract, agent template, and dashboard rendering). The orchestrator dispatches the seven stages in parallel and assembles the dashboard after all agents complete.
 
 ---
 

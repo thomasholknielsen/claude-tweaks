@@ -26,26 +26,12 @@ Implement a spec or design doc end-to-end: plan it, build it, simplify it, verif
 
 Two orthogonal choices control how `/build` runs. Combine them freely:
 
-**Execution strategy** — how work gets done and reviewed:
-
-| Strategy | Superpowers skill | Review model | Best for |
-|----------|------------------|--------------|----------|
-| **subagent** (default) | `subagent-driven-development` | Automated review chain — spec reviewer, code quality reviewer, final review. No human in the loop. | Solo work, trusted pipeline |
-| **batched** | `executing-plans` | Human reviews in batches of 3 tasks. Pauses after each batch. | Complex specs, unfamiliar code, hands-on review |
-
-**Git strategy** — where work happens:
-
-| Strategy | Behavior | Best for |
-|----------|----------|----------|
-| **worktree** (default) | Isolated workspace via `using-git-worktrees` → build → `finishing-a-development-branch` | Parallel work, team projects, risky changes, safe automation |
-| **current-branch** | Commit directly on the current branch | Quick local edits, no isolation needed |
-
-**The 2x2 matrix:**
-
-| | **Current branch** | **Worktree** (default) |
-|---|---|---|
-| **Subagent** | Fast solo work, no isolation. | Default. Isolated automated build. |
-| **Batched** | Hands-on review, no isolation. | Full control + full isolation. |
+| Axis | Option | Behavior | Best for |
+|------|--------|----------|----------|
+| **Execution** | `subagent` (default) | Invokes `/superpowers:subagent-driven-development`. Fresh subagent per task; automated spec reviewer + code quality reviewer + final review. No human in the loop. Push commits promptly. | Solo work, trusted pipeline |
+| **Execution** | `batched` | Invokes `/superpowers:executing-plans`. Executes 3 tasks per batch, pauses for human review after each batch. User approves, requests changes, or skips tasks. Push after each approved batch. | Complex specs, unfamiliar code, hands-on review |
+| **Git** | `worktree` (default) | Before execution, invokes `/superpowers:using-git-worktrees` to create an isolated workspace with dependency install and baseline test verification. All commits land in the worktree on a feature branch. At handoff, delegates to `/superpowers:finishing-a-development-branch` (merge, PR, keep, or discard). | Parallel work, team projects, risky changes, safe automation |
+| **Git** | `current-branch` | Commits land directly on the current branch. No isolation — simple and fast. | Quick local edits, no isolation needed |
 
 ```
 /claude-tweaks:build 42                         → subagent + worktree (default)
@@ -67,31 +53,6 @@ Two orthogonal choices control how `/build` runs. Combine them freely:
    ```
 3. Fallback — `subagent` + `worktree`
 4. `auto` keyword — skip intermediate confirmation prompts. Uses defaults (`subagent` + `worktree`) unless overridden. Architecture alignment (Common Step 4.5) auto-routes "Beneficial" deviations (update spec silently). Only stops for genuinely ambiguous deviations or critical decisions.
-
-### Execution strategy behavior
-
-**subagent** (default):
-- Invokes `/superpowers:subagent-driven-development` for the full plan
-- Fresh subagent per task, spec reviewer, code quality reviewer, final review
-- Never asks for feedback, never presents options
-- Push commits promptly
-
-**batched**:
-- Invokes `/superpowers:executing-plans` for the plan
-- Executes in batches of 3 tasks, pauses for human review after each batch
-- User acts as reviewer — approves, requests changes, or skips tasks
-- Push commits after each approved batch
-
-### Git strategy behavior
-
-**worktree** (default):
-- Before execution, invokes `/superpowers:using-git-worktrees` to create an isolated workspace with dependency install and baseline test verification
-- All commits land in the worktree on a feature branch
-- At handoff, delegates to `/superpowers:finishing-a-development-branch` (merge locally, create PR, keep, or discard)
-
-**current-branch**:
-- Commits land directly on the current branch
-- No isolation — simple and fast
 
 ## Input
 
@@ -278,80 +239,23 @@ Audit the plan against the actual repo before dispatching execution. Two checks:
 
 For the full procedure (Check A failure handling, Check B scope-keyword sweep command, `scope-keywords-required` setting, auto-mode policy table, interactive prompt), read `plan-audit.md` in this skill's directory.
 
-### Common Step 1.7: Design Pre-Build (Impeccable references)
+### Common Step 1.7: Design Pre-Build (frontend specs)
 
-Before dispatching implementation, invoke the design wrapper to lazy-load Impeccable's reference files plus any project-specific design context (root `PRODUCT.md` from `/impeccable:impeccable teach`, root `DESIGN.md` from `/impeccable:impeccable document`). The wrapper handles its own detection (non-frontend specs skip cleanly) and availability checks (no Impeccable installed → skip cleanly).
-
-**Skip this step entirely when:**
-- The build is in design mode with no spec to inspect (the wrapper needs spec context for surface detection — pure design-mode builds proceed without pre-load)
-- The plan is trivial (< 3 file references, no UI files in the plan)
-
-**Invocation:**
-
-Invoke `/claude-tweaks:design pre-build <spec>`. Pass the spec number for spec mode, or the design doc path as a fallback.
-
-**Result handling:**
-
-| Wrapper return | Build behavior |
-|----------------|----------------|
-| `{result: "ok", loaded: [...], context_size: <n>}` | Inject the loaded reference paths and contents into the implementer subagent's prompt as additional context. When `context_size` exceeds the implementer's budget (rough threshold: 8000 tokens), summarize the references rather than passing them whole. |
-| `{skipped: ...}` | Note the skip in the build log and proceed without lazy-loaded design references. |
-| `{deferred: ...}` (should not happen for `pre-build`) | Treat as skip and proceed. |
-
-See `_shared/design-wrapper-handling.md` for the canonical return-shape contract and the "why skips don't fail" rationale.
-
-**Where the loaded references go:**
-- **Subagent execution strategy** — the loaded reference text is appended to the implementer subagent's system prompt for each task that touches a UI file (paths matched against the spec's Key Files entries with frontend extensions/path patterns).
-- **Batched execution strategy** — the loaded references are summarized and surfaced in the batch handoff message so the human reviewer sees what design context is in play.
+For frontend specs (when `surface` ∈ `web | mobile | desktop`), invoke `/claude-tweaks:design pre-build <spec>` to lazy-load relevant design references into the implementer subagent's context. For the full skip conditions, invocation rules, result handling, and where loaded references go, see `design-prebuild.md` in this skill's directory.
 
 ### Common Step 2: Execute the Plan
 
-Execution depends on the chosen execution strategy.
+Execution depends on the chosen execution strategy (see Build Options).
 
 > **Working Directory Discipline:** Before any commit (and before dispatching subagents that run `git` or `node --test`), anchor the working directory explicitly — `pwd` + `git rev-parse --show-toplevel` must match the worktree path (or the project root in `current-branch` strategy). When dispatching subagents, require them to use `cd "$WORKTREE" && …` or `git -C "$WORKTREE" …`. See the Working Directory Discipline section of `_shared/subagent-output-contract.md` for the full pattern.
 
-**subagent** (default):
+**subagent** (default): Invoke `/superpowers:subagent-driven-development`. After the final code review completes, **stop the skill and return here** — do not let it invoke `/superpowers:finishing-a-development-branch`. `/build` handles post-execution steps (simplification, alignment, verification) before any branch finishing.
 
-Invoke `/superpowers:subagent-driven-development`. After the final code review completes, **stop the skill and return here** — do not let it invoke `/superpowers:finishing-a-development-branch`. `/build` handles post-execution steps (simplification, alignment, verification) before any branch finishing.
-
-This runs the full automated execution chain:
-1. Per task: **implementer** subagent builds the code
-2. Per task: **spec reviewer** subagent verifies it matches requirements
-3. Per task: **code quality reviewer** subagent evaluates implementation excellence
-4. After all tasks: **final overall code review**
-
-No human in the loop — the review chain is fully automated.
-
-**batched**:
-
-Invoke `/superpowers:executing-plans`. After the last batch completes, **stop the skill and return here** — do not let it invoke `/superpowers:finishing-a-development-branch`. `/build` handles post-execution steps (simplification, alignment, verification) before any branch finishing.
-
-This runs execution in human-reviewed batches:
-1. Executes 3 tasks per batch
-2. Pauses after each batch for human review
-3. User reviews the batch output and approves, requests changes, or skips tasks
-4. Continues to the next batch after approval
+**batched**: Invoke `/superpowers:executing-plans`. After the last batch completes, **stop the skill and return here** — do not let it invoke `/superpowers:finishing-a-development-branch`. `/build` handles post-execution steps before any branch finishing.
 
 #### Superpowers Failure Handling
 
-If the execution skill (or `/superpowers:writing-plans` in Step 3) fails:
-
-| Failure | Recovery |
-|---------|----------|
-| **Not installed** (command not found) | Stop. Tell the user: "Superpowers plugin is required. Install: `/plugin install superpowers@claude-plugins-official`" |
-| **Timeout or partial output** | Re-run the specific step that failed. If `/superpowers:writing-plans` timed out, re-invoke it with the same context. If `subagent-driven-development` or `executing-plans` timed out mid-task, check which tasks completed (scan git log) and resume from the next incomplete task. |
-| **Malformed plan** (`/superpowers:writing-plans` produced output that the execution skill can't parse) | Re-run `/superpowers:writing-plans` with the same context. If it fails again, fall back to manual planning: break the spec into 3-5 implementation tasks, present them to the user, and implement each task directly without the Superpowers execution chain. |
-| **Subagent failures** (individual tasks fail within `subagent-driven-development`) | Let the skill's built-in retry handle it first. If the task fails repeatedly, implement that task directly in the main thread and continue. |
-| **Batch rejection** (user rejects a batch in `executing-plans`) | Review the feedback, adjust the failing tasks, and re-run the rejected batch. If the user rejects the same batch twice, implement those tasks directly in the main thread. |
-
-#### Project-Specific Context
-
-The implementer subagents will pick up project conventions from CLAUDE.md, `.claude/rules/`, and loaded skills. Ensure your CLAUDE.md documents:
-- Import conventions (shared types packages, etc.)
-- Error handling patterns
-- Logging conventions
-- Validation approach
-- Naming conventions
+If the execution skill (or `/superpowers:writing-plans` in Step 3) fails, read `failure-recovery.md` in this skill's directory for the full recovery table (not-installed, timeout/partial output, malformed plan, subagent failures, batch rejection) and the project-specific context CLAUDE.md should document for implementer subagents.
 
 ### Common Steps 3 + 4.5: Simplification and Alignment (Concurrent)
 
@@ -378,54 +282,9 @@ If any part of the plan is blocked (missing infrastructure, unresolved dependenc
 
 ### Common Step 4.5: Architecture Alignment Check
 
-Compare what was actually built to what the spec or design doc said to build. Implementation often drifts from the plan — sometimes for good reasons, sometimes not. Catch it here before verification locks it in.
+Compare what was actually built to what the spec or design doc said. For the full diff procedure, mismatch categorization (Beneficial / Fix now / Update the spec), the batch decision table format (interactive vs. auto-mode handling), and the Skill Observation sub-step, read `architecture-alignment.md` in this skill's directory.
 
-**Check:**
-1. Read the spec (or design doc) and identify its stated architectural approach — the "how" decisions: patterns chosen, boundaries defined, data flow described
-2. Compare against the actual implementation — scan the files created/modified for structural alignment
-3. Note any deviations
-
-**Classify every deviation, then present ONE batch decision table** (per CLAUDE.md "Multi-item decisions" convention). Pre-fill a recommended classification per row and offer "apply all / override."
-
-For each deviation, the three valid classifications are:
-
-| Classification | Meaning | Effect on the spec | Effect on the implementation |
-|---|---|---|---|
-| **Beneficial** | The deviation is an improvement on the spec's intent | Update spec to match reality; document why in commit message so /wrap-up can reflect | Keep as-built |
-| **Fix now** | The deviation contradicts the spec's intent | Spec unchanged | Revert/fix the implementation to match the spec |
-| **Update the spec** | The spec was wrong or incomplete; reality is correct | Update spec to match reality | Keep as-built |
-
-**Interactive mode — single batch table:**
-
-```
-Architecture deviations — {N} found. Recommended classifications pre-filled:
-
-| # | Deviation | What the spec said | What was built | Recommended |
-|---|-----------|--------------------|----------------|-------------|
-| 1 | {short label} | {spec text} | {actual} | {Beneficial / Fix now / Update the spec} |
-| 2 | ... | ... | ... | ... |
-
-1. Apply all **(Recommended)**
-2. Override specific rows (tell me which #s to reclassify and to what)
-```
-
-After resolution, apply each row's classification per the table above. "Beneficial" still requires action — never just "note it"; that loses the insight.
-
-**In `auto` mode:** auto-apply rows classified as "Beneficial" (update spec silently, commit-message insight). Rows classified "Fix now" or "Update the spec" are staged to `staged/build-deviation-{N}.md` and surfaced at the Wrap-Up Review Console — per `_shared/auto-mode-contract.md`, `auto` does not silence destructive or spec-altering decisions. Log every auto-applied and staged row to the auto-decision log.
-
-**Skip this step if:**
-- Design mode with no formal spec (no stated architecture to compare against)
-- The plan was trivial (< 3 tasks, single-file changes)
-
-#### Skill Observation
-
-While checking architectural alignment, also compare against relevant project skills:
-
-1. Identify 0-3 skill files in `.claude/skills/` covering patterns related to what was built
-2. Quick-scan their Key Patterns and Project Conventions sections only
-3. If the implementation diverges from or extends what the skill documents, append a ledger entry with phase `build/skill`
-4. Keep it light — one sentence per entry; `/claude-tweaks:wrap-up` does the deep analysis
-5. Skip if no `.claude/skills/` directory exists or the build is trivial
+**Skip this step if:** design mode with no formal spec, or the plan was trivial (< 3 tasks, single-file changes).
 
 ### Common Step 5: Final Verification
 

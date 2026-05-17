@@ -113,22 +113,7 @@ The schema above reflects what Phase 1 was built against. The CLI may evolve. De
 
 Malformed output is treated as a skip, not a fail — same rationale as availability check.
 
-## Sample invocations
-
-### Minimal (single file, no findings)
-
-```bash
-$ npx impeccable detect --fast --json src/components/Header.tsx
-{"files_scanned":1,"findings":[]}
-```
-
-Wrapper returns:
-
-```json
-{ "mode": "test", "result": "pass", "files_scanned": 1, "findings": [] }
-```
-
-### Multiple files, mixed findings
+## Sample invocation (canonical)
 
 ```bash
 $ npx impeccable detect --fast --json src/components/Hero.tsx src/components/Card.tsx
@@ -152,22 +137,7 @@ Wrapper returns:
 }
 ```
 
-The error sets `result: fail`. The warning is included in the findings list but does not promote the result.
-
-### Warning-only
-
-```bash
-$ npx impeccable detect --fast --json src/components/Card.tsx
-{"files_scanned":1,"findings":[
-  {"file":"src/components/Card.tsx","rule":"fixed-pixel-padding","severity":"warning","line":12,"message":"..."}
-]}
-```
-
-Wrapper returns:
-
-```json
-{ "mode": "test", "result": "pass", "files_scanned": 1, "findings": [ ... one warning ... ] }
-```
+**Result rules:** Any `severity: error` sets `result: fail`. Otherwise `result: pass`. Warnings appear in the findings list but never promote the result. Empty `findings: []` is a pass.
 
 ## Open items (tracked in parent design doc)
 

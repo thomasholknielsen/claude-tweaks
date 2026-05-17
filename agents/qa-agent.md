@@ -209,7 +209,7 @@ agent-browser --session <story-id> close
 
 Return the structured report as detailed in the "Report" section below. If `recovered_locators` is non-empty, include it. If a trace was captured, append a `TRACE:` line.
 
-**Important:** The agent does NOT update story YAML files directly. Recovered locators are buffered in the report; the orchestrator (`qa-review.md`, Phase 4.5) applies them after all agents in a tier complete to avoid file write conflicts between parallel agents.
+**Important:** The agent does NOT update story YAML files directly. Recovered locators are buffered in the report; the orchestrator (`qa-reporting.md`, Phase 4.5) applies them after all agents in a tier complete to avoid file write conflicts between parallel agents.
 
 ## Workflow — Legacy Format
 

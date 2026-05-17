@@ -99,7 +99,7 @@ Run QA story validation only — types, lint, and tests are skipped.
 3. **Stories found:**
    a. Auto-detect the dev server URL using the shared procedure from `dev-url-detection.md` in `skills/_shared/` (or use `DEV_URL` from pipeline context).
    b. If no dev server is reachable and none can be started — stop and report: "QA validation failed — no dev server available."
-   c. Run the QA procedures from `qa-review.md` in this skill's directory.
+   c. Run the QA procedures from `qa-procedures.md` in this skill's directory (which references `qa-prompts.md` for Phase 3 dispatch and `qa-reporting.md` for Phases 4-5.5).
    d. Pass through any QA-specific arguments: `tag=`, `story=`, `retry=`, `affected`, `journey=`, etc.
    e. **Journey filter:** When `journey={name}` is present, pass it to the QA procedures. This filters stories to only those with `journey: {name}` in their YAML — enabling journey-scoped test execution.
 
@@ -197,9 +197,9 @@ All checks passed. Set TEST_PASSED=true.
 **Stories:** {total} total | {pass} pass | {pass_with_caveats} pass (caveats) | {fail} fail | {skip} skipped
 **Findings:** {N findings} | **Observations:** {M caveats}
 
-{Findings table from qa-review.md — only if findings exist}
-{Observations table from qa-review.md — only if caveats exist}
-{Full QA report from qa-review.md}
+{Findings table from qa-reporting.md — only if findings exist}
+{Observations table from qa-reporting.md — only if caveats exist}
+{Full QA report from qa-reporting.md}
 
 Set TEST_PASSED=true (if all passed or passed with observations).
 ```
@@ -216,9 +216,9 @@ Set TEST_PASSED=true (if all passed or passed with observations).
 
 PASS_WITH_CAVEATS counts as passed for the `TEST_PASSED` gate — caveats are informational, not blocking. When timing data is available in the QA results (per-story elapsed time and total wall-clock time), include the Timing section from the QA report.
 
-When selectors are auto-recovered during QA execution, the report includes a "Recovered Selectors" summary showing the original and recovered selector for each affected step. The story YAML files have already been updated by the orchestrator (qa-review.md Phase 4.5) — no manual YAML editing is needed. Auto-recovered selectors are classified as `stale-selector` with status `auto-fixed` in the findings table.
+When selectors are auto-recovered during QA execution, the report includes a "Recovered Selectors" summary showing the original and recovered selector for each affected step. The story YAML files have already been updated by the orchestrator (`qa-reporting.md` Phase 4.5) — no manual YAML editing is needed. Auto-recovered selectors are classified as `stale-selector` with status `auto-fixed` in the findings table.
 
-After presenting QA results, write QA findings and observations to the open items ledger (see `/claude-tweaks:ledger`) with phase `test/qa`. See `qa-review.md` Phase 5.5 in this skill's directory for finding vs observation classification. Findings from failures get status `open` and block the pipeline. Observations from PASS_WITH_CAVEATS stories get status `observation` with severity `Info` — they are informational and do not block the pipeline.
+After presenting QA results, write QA findings and observations to the open items ledger (see `/claude-tweaks:ledger`) with phase `test/qa`. See `qa-reporting.md` Phase 5.5 in this skill's directory for finding vs observation classification. Findings from failures get status `open` and block the pipeline. Observations from PASS_WITH_CAVEATS stories get status `observation` with severity `Info` — they are informational and do not block the pipeline.
 
 ### All mode result
 
@@ -232,9 +232,9 @@ After presenting QA results, write QA findings and observations to the open item
 **Stories:** {total} total | {pass} pass | {pass_with_caveats} pass (caveats) | {fail} fail | {skip} skipped
 **Findings:** {N findings} | **Observations:** {M caveats}
 
-{Findings table from qa-review.md — only if findings exist}
-{Observations table from qa-review.md — only if caveats exist}
-{Full QA report from qa-review.md}
+{Findings table from qa-reporting.md — only if findings exist}
+{Observations table from qa-reporting.md — only if caveats exist}
+{Full QA report from qa-reporting.md}
 
 Set TEST_PASSED=true (if all passed or passed with observations).
 ```

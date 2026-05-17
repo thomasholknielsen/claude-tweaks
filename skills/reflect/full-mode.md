@@ -1,0 +1,82 @@
+# Full Mode
+
+Knowledge-capture procedures for full mode (invoked by `/claude-tweaks:wrap-up` Step 3, or standalone with no mode keyword).
+
+Full mode is a superset of hindsight — see `hindsight-mode.md` for the shared baseline (the Approach lens below covers the same five evaluations).
+
+## Step 2: Run Lenses — Full Mode (4 lenses + tradeoff review)
+
+Runs all four reflection lenses plus a tradeoff review.
+
+| Lens | Question | Surfaces |
+|------|----------|----------|
+| **1. Surprises** | "What surprised us?" — Unexpected constraints, library behavior, shape changes | Don'ts, skill updates |
+| **2. Approach** | "What would we do differently?" — Better patterns discovered midway, over/under-engineering. Same evaluations as hindsight mode (Approach, Structure, Consolidation, Convention, Skills) — see `hindsight-mode.md`. | Skill updates, conventions, spec adjustments |
+| **3. Near-misses** | "What broke or almost broke?" — Unexpected test failures, type errors, cross-platform ripples | Don'ts, testing patterns, gotchas |
+| **4. Fresh start** | "If we started fresh?" — Would we choose the same approach? What would v2 look like? | Architectural alternatives, memory files |
+
+### Seed from Review Learnings (pipeline context)
+
+When invoked by `/wrap-up`, check the `/claude-tweaks:review` summary for the **Key Learnings** section. Use these as starting points for the four lenses rather than re-deriving from scratch.
+
+### Tradeoff Review
+
+Check the `/claude-tweaks:review` summary for the **Tradeoffs Accepted** section. For each accepted tradeoff, assess whether it represents:
+
+- A **project-wide pattern** worth documenting (e.g., "we always choose X over Y because Z") -> route to CLAUDE.md or a skill
+- A **one-off decision** specific to this work -> no action needed
+- A **known limitation** others should be aware of -> route to Don'ts or memory
+
+## Step 3: Route Findings — Full Mode
+
+### Auto mode (policy-driven routing)
+
+Auto-mode routing is shared across both modes — see the auto-routing table in SKILL.md Step 3. Every auto-resolution writes an entry per `_shared/auto-decision-log.md` (the canonical entry schema lives there).
+
+### Interactive mode (batch user routing)
+
+Collect all insights from the four lenses and the tradeoff review into a single table:
+
+```
+### Reflection Insights
+
+| # | Insight | Recommended Destination |
+|---|---------|------------------------|
+| 1 | {description} | Implement now -> CLAUDE.md Don'ts |
+| 2 | {description} | Implement now -> Skill: {name} |
+| 3 | {description} | Defer — bigger, not relevant now |
+| 4 | {description} | Capture to INBOX — needs brainstorming |
+
+1. Apply all recommendations **(Recommended)**
+2. Override specific items (tell me which #s to change)
+```
+
+**Routing guide:**
+
+| Finding Type | Suggested Destination |
+|-------------|-----------|
+| "Never do X because Y" (X exists in codebase) | CLAUDE.md Don'ts |
+| "When building Z, always do W" | Existing skill update |
+| "This reusable pattern emerged" | New skill candidate |
+| "Remaining specs should use X instead" | Spec amendments |
+| "A fundamentally better approach exists" | Skill update + Memory file |
+| "We chose X over Y because Z" (from review tradeoffs) | CLAUDE.md Convention or Memory file (if it's a recurring decision) |
+| "We should add X" (X doesn't exist yet) | INBOX — improvement work, not a convention |
+
+**Recommendation rules:**
+- **Implement now** — the strong default. If an insight leads to a concrete change (update CLAUDE.md, update a skill, add a rule, update memory), make the change.
+- **Defer** (DEFERRED.md) — the insight leads to a known improvement but it's bigger and not relevant to the current work. Include origin, context, trigger.
+- **Capture to INBOX** — the insight is complex or uncertain and needs brainstorming/exploration before it can be acted on.
+- **Don't capture** — only for insights that are genuinely not actionable (one-off observations, context-specific facts, things already documented elsewhere). Must state why.
+
+**Auto-apply when uniform:** When ALL insights are "Implement now" (none are "Defer" or "Capture to INBOX"), auto-apply without presenting the decision table. State: "Implementing {N} reflection insights:" followed by a brief list of changes, then proceed. When any insight has mixed routing, present the full batch table. *(Verified-permitted per `_shared/auto-mode-contract.md` — this is a reversibility-high, uniform-batch optimization, not a HARD-GATE bypass or a "not silenced" exemption.)*
+
+**Audit-log requirement (non-negotiable):** every auto-applied insight MUST write an `AUTO` entry to `{run-dir}/decisions.md` per `_shared/auto-decision-log.md` (canonical entry schema). Append under `## /reflect` heading, one line per insight following the schema — e.g.:
+
+```
+- AUTO {HH:MM:SS} — Step 3 full-mode auto-apply: insight "{summary}" → {destination}. Reason: uniform-implement-now batch. Reversibility: high.
+```
+
+Resolve `{run-dir}` via `PIPELINE_RUN_DIR` env var or most-recent matching run under `.claude-tweaks/pipelines/`. If no run directory exists, fall back to interactive mode (present the batch table) — auto-apply is forbidden without an audit trail.
+
+If any insight is "Implement now", handle it before returning control to the parent or presenting Next Actions.

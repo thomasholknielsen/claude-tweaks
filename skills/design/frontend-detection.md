@@ -70,15 +70,9 @@ Spec files in `specs/*.md` may declare two design-related frontmatter fields: `s
 
 **The canonical definition of these fields lives in the spec template** at `skills/specify/spec-template.md` (see the "Frontmatter reference (canonical spec)" section). Both the wrapper (which reads the fields) and `/specify` (which writes them) reference that single source of truth — do not duplicate the value enumerations across multiple files.
 
-For Layer 2 detection:
+For Layer 2 detection, see `surface:` values in `skills/specify/spec-template.md` (canonical source). Wrapper behavior: `frontend` or `mixed` → pass Layer 2 (Layer 3 sniff still runs to filter the file list); `backend` or `infra` → skip with `{skipped: "non-frontend spec (surface declared)"}`; missing → fall through to Layer 3 sniff.
 
-| `surface:` value | Wrapper behavior |
-|------------------|------------------|
-| `frontend` or `mixed` | Detection passes Layer 2 — proceed (Layer 3 sniff still runs to filter file list) |
-| `backend` or `infra` | Skip — return `{skipped: "non-frontend spec (surface declared)"}` |
-| *(missing)* | Fall through to Layer 3 sniff — pre-Phase-2 specs lack this field |
-
-`design-intent:` is not read in Layer 2 — it gates intent-driven command dispatch in `polish` mode (active in v4.5.0). The full enumeration lives in the spec template's frontmatter reference section.
+`design-intent:` is not read in Layer 2 — it gates intent-driven command dispatch in `polish` mode. See the spec template's frontmatter reference for its enumeration.
 
 ## Detection precedence summary
 

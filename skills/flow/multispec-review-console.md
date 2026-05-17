@@ -6,28 +6,7 @@ This preserves the bookend architecture (Manifesto at start, one Review Console 
 
 ## Run directory layout (multi-spec)
 
-`/flow` creates the standard top-level run directory at start, but namespaces each spec's outputs into a subdirectory:
-
-```
-.claude-tweaks/pipelines/{ISO-timestamp}-{spec-1}-{spec-2}-{spec-3}/
-├── config.yml          ← Manifesto answers (one for the whole run)
-├── manifest.yml        ← Multi-spec metadata (spec IDs, order, statuses)
-├── spec-157/
-│   ├── decisions.md
-│   └── staged/
-├── spec-159/
-│   ├── decisions.md
-│   └── staged/
-└── spec-160/
-    ├── decisions.md
-    └── staged/
-```
-
-When invoking each per-spec pipeline, `/flow` sets:
-
-- `PIPELINE_RUN_DIR=.../spec-{N}/` — the spec's namespaced directory (so per-spec skills write decisions and staged items there)
-- `MULTISPEC_REVIEW_DEFER=1` — signals to `/wrap-up` Step 8.6 to skip the per-spec console
-- `MULTISPEC_PARENT_DIR=.../{ISO-timestamp}-{spec-1}-...-{spec-N}/` — pointer to the parent run dir (used by the consolidated console)
+For the canonical run-directory layout, `manifest.yml` schema, and the environment variables `/flow` exports to each per-spec invocation (`PIPELINE_RUN_DIR`, `MULTISPEC_REVIEW_DEFER`, `MULTISPEC_PARENT_DIR`, `MULTISPEC_KEEP_GOING`), see `multi-spec.md` in this skill's directory.
 
 The single-spec path is unchanged: `PIPELINE_RUN_DIR` points to a top-level run dir, `MULTISPEC_REVIEW_DEFER` is unset.
 

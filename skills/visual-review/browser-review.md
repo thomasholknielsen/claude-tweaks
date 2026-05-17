@@ -131,6 +131,8 @@ agent-browser batch --session <session> \
   "vitals"
 ```
 
+**Dispatcher column mapping (page-review use):** When assembling agent output into the Step 6 Report & Route table, map the agent's `| Severity | Path:Line | Finding | Evidence |` columns as follows: Severity = severity/impact (`critical` for broken page or failed health check, `high`/`medium` for major UX or perf issues, `low` for cosmetic, `info` for ideas), Path:Line = the page URL + overlay ref (`/pricing#[3]`, `/checkout#[7]`), Finding = the issue or idea (`Primary CTA at [3] competes visually with [5]` / `LCP 3.1s exceeds 2.5s threshold`), Evidence = the screenshot path + raw measurement (`screenshots/browse/pricing-review/02_above-fold.png; LCP 3.1s; persona: distracted mobile`). The dispatcher merges all agents' tables into the Step 6 Report & Route table, filling Source from the lens that produced each finding (Health / Performance / First Impression / Persona / Analyze / Reimagine).
+
 > **Parallel execution (conditional):** When the review covers 3+ independent pages (different URLs with no shared state or navigation dependency), dispatch page reviews as parallel Task agents. Each agent owns its own session, runs its own batch, and returns findings in the standard `| # | Finding | Type | Source | Severity/Impact | Recommended |` format. Assemble results into a single findings table after all agents complete. When pages share state (form submission on page A affects page B) or there are fewer than 3 pages, review sequentially.
 >
 > **Model tier:** Standard (Sonnet) — per-page review agents run Steps 1-5 (health, first impressions, persona walk, structured analysis, reimagine) which require integration across snapshot, screenshot, vitals, and source context. Upgrade to Capable (Opus) only when the page's "reimagine" pass is the primary deliverable and creative synthesis dominates the work.
@@ -151,7 +153,7 @@ agent-browser batch --session <session> \
 > Do not add narration, headers, or summaries before or after the table.
 > ```
 >
-> Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the table. For page-review use, map columns as: Severity = severity/impact (`critical` for broken page or failed health check, `high`/`medium` for major UX or perf issues, `low` for cosmetic, `info` for ideas), Path:Line = the page URL + overlay ref (`/pricing#[3]`, `/checkout#[7]`), Finding = the issue or idea (`Primary CTA at [3] competes visually with [5]` / `LCP 3.1s exceeds 2.5s threshold`), Evidence = the screenshot path + raw measurement (`screenshots/browse/pricing-review/02_above-fold.png; LCP 3.1s; persona: distracted mobile`). The dispatcher merges all agents' tables into the Step 6 Report & Route table, filling Source from the lens that produced each finding (Health / Performance / First Impression / Persona / Analyze / Reimagine).
+> Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the table.
 
 ---
 
@@ -163,15 +165,7 @@ Verify the page is functional before investing in a deeper review.
 
 **Gate:** Page must be functional to proceed. If broken, capture a trace (see "Trace on failure" in Journey Mode), close the session, and report.
 
-### QA-accelerated (when QA_DATA_AVAILABLE):
-
-QA health data becomes the baseline. The visual check verifies no **new** issues since the QA run:
-
-1. The session's snapshot, annotated screenshot, and vitals are already captured (page mode warm-up or batch output).
-2. Check console errors and network failures from the snapshot — compare against `QA_FINDINGS` with category `code-bug` or `flaky-env`. Report only **new** errors not present in QA data.
-3. Summarize in one sentence: "Health: {matches QA baseline | N new issues since QA run}"
-
-Skip the full "Check for obvious problems" checklist — QA already ran it.
+> When `QA_DATA_AVAILABLE = true`, use the QA-accelerated path — see `qa-accelerated.md` in this skill's directory.
 
 ### Full inspection (when QA not available):
 
@@ -237,16 +231,7 @@ Structured checklists catch known issue types. First impressions catch the thing
 
 Now interact with the page — but not as a QA tester checking boxes. Use it as a *person trying to accomplish something*.
 
-### QA-accelerated (when QA_DATA_AVAILABLE):
-
-QA stories already executed happy paths as specific personas. Instead of rotating through 2+ personas from scratch:
-
-1. **Check QA coverage:** Review `QA_STORIES` to identify which persona-like behaviors QA already tested (form submissions, navigation flows, error states from failure stories).
-2. **Skip covered personas:** If QA executed a checkout flow successfully, the "first-time visitor" and "returning user" personas for that flow are partially covered. Do not re-walk what QA validated.
-3. **Focus on uncovered perspectives:** Pick the ONE persona QA is least likely to have covered. Typically: **Distracted mobile user** (QA runs at desktop viewport) or **Impatient power user** (QA follows scripted steps, not shortcuts). Walk the page from that single persona.
-4. **Interaction feel:** Still assess speed (cross-reference INP from vitals), feedback, transitions, flow, and recovery — these require human judgment that QA cannot provide.
-
-Skip the full persona rotation and "What to test" sections — the single-persona + interaction-feel pass is sufficient when QA covered the happy paths.
+> When `QA_DATA_AVAILABLE = true`, use the QA-accelerated path — see `qa-accelerated.md` in this skill's directory.
 
 ### Full persona rotation (when QA not available):
 
@@ -287,27 +272,7 @@ Beyond "does it work," notice *how it feels*:
 
 Now shift to structured inspection. This is the analytical pass — systematic where Steps 2-3 were intuitive.
 
-### QA-accelerated analysis (when QA_DATA_AVAILABLE):
-
-QA page inventories already captured mechanical measurements. Skip the following checks that QA confirmed:
-- Element counts and form field counts (from `QA_PAGE_INVENTORIES`)
-- Missing ARIA labels count (from `accessibility.missing_labels`)
-- ARIA landmarks presence (from `accessibility.aria_landmarks`)
-- Heading hierarchy (from `accessibility.heading_levels`)
-- Viewport overflow (from `layout.viewport_overflow`)
-- Tab counts and breadcrumb presence (from `navigation`)
-
-**Focus only on visual qualities QA cannot assess:**
-- **Visual weight and balance** — is the layout coherent? Does content hierarchy make visual sense? Reference annotated overlay numbers.
-- **Spacing and alignment feel** — not pixel counts, but whether spacing *feels* right
-- **Content and microcopy quality** — are labels descriptive? Do error messages explain AND guide? Is the tone human?
-- **Visual polish** — do hover/focus states feel right? Are interactive elements obviously clickable? Are fonts/icons crisp?
-- **Responsive feel** (if applicable) — set viewport to mobile and re-capture: `agent-browser --session <session> set viewport 375 667` then a fresh annotated screenshot. Check feel, not measurements QA already captured.
-- **Performance feel** — cross-reference Web Vitals captured in Step 1. Does the LCP/CLS/INP match the lived experience?
-
-Note QA-confirmed issues briefly (e.g., "QA confirmed 3 missing ARIA labels") without re-analyzing them. Any QA issue that feels worse visually than its data suggests gets elevated.
-
-> **Deduplication (full mode):** When running as part of a full review (code + visual), the UX Analysis lens (3h) has already produced systematic findings from QA data in the code review step. In the Analyze step, focus on what the live browser reveals that data analysis cannot: visual weight, interaction feel, animation quality, emotional tone. Reference UX Analysis findings where they confirm visual observations, but do not re-list them as new findings.
+> When `QA_DATA_AVAILABLE = true`, use the QA-accelerated path — see `qa-accelerated.md` in this skill's directory.
 
 ### Full structured analysis (when QA not available):
 
