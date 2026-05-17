@@ -144,7 +144,7 @@ Each parallel agent gets its own `--session <unique-name>`. One browser instance
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:stories` | Consumes /browse conventions for session naming, screenshot paths, and the operation vocabulary used to resolve semantic locators at runtime |
-| `/claude-tweaks:visual-review` | Drives page and journey walks against /browse's lifecycle; uses annotated screenshots and `vitals` from the operation table |
+| `/claude-tweaks:visual-review` | Drives page, journey, and discover walks against `/browse`'s lifecycle; uses annotated screenshots and `vitals` from the operation table. `/visual-review` is the review procedure; `/browse` is the conventions reference for session naming, screenshot paths, trace paths, and the operation vocabulary. |
 | `/claude-tweaks:review` | Delegates to /visual-review (visual mode) and qa-agent (QA mode) — both speak /browse's operation vocabulary transitively |
 | `qa-agent` (`agents/qa-agent.md`) | Each story instance opens a uniquely named session; uses the auth vault and trace-on-failure conventions defined here |
 | `/claude-tweaks:test` | Invokes qa-agent for QA story validation; trace paths from failed stories surface in /test reports |
@@ -152,7 +152,6 @@ Each parallel agent gets its own `--session <unique-name>`. One browser instance
 | `/claude-tweaks:research` | Both utility skills (no fixed lifecycle position). `/browse` is interactive browser automation; `/research` is autonomous multi-source web research. |
 | `/claude-tweaks:flow` | `/flow` invokes `/review` in full mode by default, which transitively drives `/visual-review` and `/browse` for the browser portion. Browser availability detected at `/flow` startup determines whether visual review runs. |
 | `/claude-tweaks:help` | `/help` lists `/browse` in the utility skills table and surfaces availability when scanning for browser-dependent recommendations. |
-| `/claude-tweaks:visual-review` | Drives page, journey, and discover walks against `/browse`'s lifecycle. `/visual-review` is the review procedure; `/browse` is the conventions reference for session naming, screenshot paths, trace paths, and the operation vocabulary. |
 
 ### Next Actions
 

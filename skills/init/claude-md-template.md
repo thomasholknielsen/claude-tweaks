@@ -112,7 +112,7 @@ review-severity-floor: low         # none | low | medium  (auto-apply cutoff)
 tidy-aggressiveness: conservative  # conservative | moderate | aggressive
 ```
 
-## Don't
+## Don'ts
 
 {Anti-patterns observed or inferred — things that would break the project's conventions.
 This section is the highest-ROI output. See "Mining Don'ts" below.}

@@ -72,9 +72,9 @@ No further prompt. Proceed directly to the routed skill or commit.
 
 ### Routing prompt (when `--route` not provided)
 
-`/capture` is in the "not silenced" list — routing decisions are user judgment when not pre-declared. In auto mode without `--route`, default to `inbox` (most conservative — the item stays parked for periodic review). Log:
+In auto mode, apply the silences-table row for /capture from `_shared/auto-mode-contract.md`: if `--route` was passed, honor it; otherwise default to `inbox` (the most conservative route — the item stays parked for periodic review at `/tidy`, no INBOX/DEFERRED write that wouldn't have happened anyway). Log:
 ```
-AUTO {time} — Routing: defaulted to inbox (no --route provided, auto mode).
+AUTO {time} — Routing: defaulted to inbox (no --route provided). Reversibility: high (entry stays in INBOX; user can re-route via /tidy at any time).
 ```
 
 In interactive mode (or when explicitly opted in), present:
@@ -141,5 +141,5 @@ Periodically (or when inbox gets long), use `/claude-tweaks:tidy` to batch-revie
 
 1. `/claude-tweaks:capture {next idea}` — capture another idea while you're in brainstorming flow **(Recommended)**
 2. `/claude-tweaks:tidy` — review and triage INBOX (promote, merge, or drop stale items)
-3. `/claude-tweaks:specify INBOX-{N}` — promote this idea straight to a spec
-4. `/claude-tweaks:challenge INBOX-{N}` — debias and stress-test assumptions before specifying
+3. `/claude-tweaks:specify "{title}"` — promote this idea straight to a spec (uses the entry's title — INBOX entries are addressed by title, not numeric index)
+4. `/claude-tweaks:challenge "{title}"` — debias and stress-test assumptions before specifying

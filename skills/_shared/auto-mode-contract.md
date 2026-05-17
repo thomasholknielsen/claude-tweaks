@@ -170,7 +170,6 @@ When any floor fails, the skill MUST stage the decision (log it, don't act) and 
 | Final pipeline failure cards | A failure is information the user needs — don't suppress |
 | Code modifications outside the skill's documented scope | If a skill is asked to do X and would modify Y to make X work, that's a scope expansion the user must authorize |
 | Resolution of merge conflicts in worktree finishing | Conflict resolution requires intent the model cannot infer |
-| Capture routing (when `--route` not set) | User is in brainstorming mindset; routing is their judgment unless pre-declared |
 | Design intent (when manifesto value is `none` AND skill detects creative work) | Creative direction is user-only when explicitly left open |
 
 ## Forbidden under auto

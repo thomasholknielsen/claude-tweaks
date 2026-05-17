@@ -232,15 +232,15 @@ For each proposed change:
 1. Classify as **additive** (new examples, new anti-patterns, new section appended) or **restructural** (changing existing wording, moving content, renaming sections, splitting/merging skills)
 2. **Additive + reversibility:high + confidence:high** → auto-apply now. Commit. Log entry:
    ```
-   AUTO 14:52:24 — Step 7.5: applied additive update to {skill}/SKILL.md ({section}). Commit: {hash}.
+   AUTO 14:52:24 — Step 7.5: applied additive update to {skill}/SKILL.md ({section}). Reversibility: high; commit: {hash}.
    ```
 3. **Restructural OR confidence:med-low** → stage as `staged/wrap-up-skill-{N}.md` containing the Update Mode patch. Log entry:
    ```
-   STAGED 14:52:31 — Step 7.5: skill update proposed for {skill}/SKILL.md ({section}). Stage path: staged/wrap-up-skill-{N}.md.
+   STAGED 14:52:31 — Step 7.5: skill update proposed for {skill}/SKILL.md ({section}). Reversibility: high (stage path: staged/wrap-up-skill-{N}.md).
    ```
 4. **New skill candidates** (Step 7.3) → always stage (creating a new skill is a structural decision). Log entry:
    ```
-   STAGED 14:52:38 — Step 7.5: new skill candidate "{name}". Stage path: staged/wrap-up-skill-new-{name}.md.
+   STAGED 14:52:38 — Step 7.5: new skill candidate "{name}". Reversibility: high (stage path: staged/wrap-up-skill-new-{name}.md).
    ```
 
 Staged items surface at the Wrap-Up Review Console (Step 8.6) as rows in the "Skill updates" section. Do not present a separate batch decision here.
@@ -296,16 +296,20 @@ This fast path applies **only when zero items are `open` at gate entry**. It is 
 
 ### Ops acknowledgment (when ops items exist)
 
-Present all `ops` items for acknowledgment:
+Ops items represent infrastructure changes the user needs to action post-merge — bulk-acknowledging them risks the user not reading them. Present each item, and require explicit confirmation rather than offering a `(Recommended)` shortcut:
+
+```
+The following ops items need acknowledgment. Reply "acknowledged" once you've read each one and noted what needs to happen post-merge:
 
 | # | What | Where |
 |---|------|-------|
 | 1 | {description} | {source} |
 
-1. Acknowledge all **(Recommended)** — I've noted these and will handle them
+1. Acknowledge all — type "acknowledged" to confirm you've read every item
 2. I have questions about specific items
+```
 
-After acknowledgment, update status to `acknowledged`.
+After explicit acknowledgment, update status to `acknowledged`.
 
 ---
 

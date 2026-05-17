@@ -86,13 +86,7 @@ If the simplifier made changes, run the shared verification procedure from `veri
 
 ### Working Directory Discipline
 
-When invoked from `/claude-tweaks:build` inside a worktree, CWD does not propagate reliably between tool calls. Before running any verification command:
-
-- If `$WORKTREE` is set by the caller, use `git -C "$WORKTREE" …` form for git commands, and prefix shell verification commands with `cd "$WORKTREE" && …`
-- Otherwise, run `pwd` and `git rev-parse --show-toplevel` first and confirm both match the expected worktree before invoking verification
-- If `pwd` does not match the expected worktree, BLOCKED — return to caller with the mismatch; do not run verification from the wrong directory
-
-See `_shared/subagent-output-contract.md` "Working Directory Discipline" for the canonical rule.
+Before running any verification command, apply the Working Directory Discipline rule from `_shared/subagent-output-contract.md` — if `$WORKTREE` is set, use `git -C "$WORKTREE" …` for git commands and prefix shell verification with `cd "$WORKTREE" && …`; otherwise verify `pwd` + `git rev-parse --show-toplevel` match the expected worktree before proceeding. On mismatch, return **BLOCKED** to the caller; never verify from the wrong directory.
 
 ### If verification fails
 

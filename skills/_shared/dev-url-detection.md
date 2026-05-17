@@ -92,7 +92,7 @@ Server URLs are written to `stories/servers.yml` (safe to commit). Credentials, 
    servers:
      default:
        url: http://localhost:3000
-       detected: 2026-03-04
+       detected: {YYYY-MM-DD — today's date when this run resolves}
    ```
 4. Set (or update) `servers.default.url` to the resolved `APP_URL`.
 5. Set `servers.default.detected` to today's date.

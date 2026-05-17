@@ -46,10 +46,10 @@ Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`. The version field is th
 | `plain` | `{version}` |
 | `full` | Three lines: `claude-tweaks v{version}`, then `{description}`, then `{repository}` |
 
-Example `full` output:
+Example `full` output (substitute the live values from `plugin.json` at render time — the literal version below is illustrative only):
 
 ```
-claude-tweaks v4.7.0
+claude-tweaks v{version}
 A Claude Code plugin with structured development lifecycle skills.
 https://github.com/thomasholknielsen/claude-tweaks
 ```

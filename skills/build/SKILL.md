@@ -216,7 +216,7 @@ Context to provide to `/superpowers:writing-plans`:
 
 The plan will be written to `docs/superpowers/plans/YYYY-MM-DD-{feature}.md`.
 
-**Plan header artifact:** Every plan written by `/superpowers:writing-plans` starts with a "For agentic workers" block that advertises `subagent-driven-development` (recommended) or `executing-plans` as the next step. **Ignore it.** `/build` controls execution strategy — the header is boilerplate from writing-plans's general-purpose handoff. Do not treat it as guidance for this build.
+**Plan header artifact:** Every plan written by `/superpowers:writing-plans` starts with a "For agentic workers" block that advertises `subagent-driven-development` (recommended) or `executing-plans` as the next step. **Ignore it.** `/build` controls execution strategy — the header is boilerplate from writing-plans's general-purpose handoff. Do not treat it as guidance for this build. (Same rule applies in Design Step 3 below.)
 
 Proceed to **Common Step 2**.
 
@@ -250,9 +250,7 @@ Context to provide to `/superpowers:writing-plans`:
 Design mode has no spec with structured acceptance criteria. When providing context to `/superpowers:writing-plans`, extract testable outcomes from the design doc's decisions and recommendations. If the design doc lacks clear success criteria, ask the user to confirm what "done" looks like before proceeding.
 </IMPORTANT>
 
-The plan will be written to `docs/superpowers/plans/YYYY-MM-DD-{feature}.md`.
-
-**Plan header artifact:** Every plan written by `/superpowers:writing-plans` starts with a "For agentic workers" block that advertises `subagent-driven-development` (recommended) or `executing-plans` as the next step. **Ignore it.** `/build` controls execution strategy — the header is boilerplate from writing-plans's general-purpose handoff. Do not treat it as guidance for this build.
+The plan will be written to `docs/superpowers/plans/YYYY-MM-DD-{feature}.md`. Same plan-header artifact rule as Spec Step 3 applies (ignore the "For agentic workers" boilerplate).
 
 Proceed to **Common Step 2**.
 
