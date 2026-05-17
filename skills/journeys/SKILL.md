@@ -90,7 +90,7 @@ STAGED {time} — Step 3.5: {N} journey self-review issues remain after one fix 
 
 Only BLOCK when the journey file is structurally invalid (missing required frontmatter, missing `## Steps` heading, no steps at all) — those are degraded output the caller must address before continuing.
 
-**Interactive mode:** BLOCKED — return control to the caller with the unresolved issues:
+**Interactive mode:** return control to the caller with status `BLOCKED` and the unresolved issues:
 
 ```
 BLOCKED
@@ -100,6 +100,8 @@ Unresolved:
 - {issue 2, ...}
 Next: caller decides whether to escalate, defer, or accept.
 ```
+
+> The `BLOCKED` status word here matches the Subagent Contract's `BLOCKED` (one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`). When `/journeys` is invoked from a parent skill (e.g., `/build`), the parent treats `BLOCKED` exactly like any other subagent BLOCKED — diagnose and re-dispatch with more context, or escalate. When invoked directly by a user, render the same block — the user is the "caller" who decides next steps.
 
 Do NOT loop on fix attempts or silently ship a journey with known self-review issues.
 
@@ -156,6 +158,7 @@ When invoked by a parent, omit Next Actions — the parent handles flow control.
 |---------|-------------|
 | Skipping journey capture for features with an interaction surface | Journeys are what visual review tests against — no journey means no QA anchor. This applies to all personas: end users, admins, developers, internal tooling users. |
 | Writing journeys with vague "should feel" | "Good" and "intuitive" are not testable. "Low commitment" and "like an accomplishment" are. |
+| Writing a journey with no `## Steps` heading | Step 3.5 self-review BLOCKs on structurally-invalid journey files — missing `## Steps` is the most common cause. Always render the heading even if the step list is short. |
 | Asking the user whether to create a journey | Journey capture is automatic. The user didn't know they needed the spec either — that's why the workflow exists. |
 | Listing every source file in `files:` | Only list files whose changes would affect the journey's behavior — key components, API routes, pages. |
 | One journey per feature instead of per goal | A journey may span features from multiple specs — organize by user goal, not implementation boundary. |

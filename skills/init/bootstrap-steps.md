@@ -2,6 +2,43 @@
 
 Loaded by `/init` Phase 0 when the corresponding tool/feature is being set up. Each step is independent — read only the section(s) needed for the step currently executing. In Update Mode most of these are no-ops (already configured); the SKILL.md decides whether to load this file at all.
 
+## Step 0.1 — Check Plugin Dependencies (detailed procedure)
+
+### Required: Superpowers
+
+Provides `/superpowers:brainstorming`, `/superpowers:writing-plans`, `/superpowers:subagent-driven-development`, `/superpowers:executing-plans`, `/superpowers:using-git-worktrees`, `/superpowers:finishing-a-development-branch`, and `/superpowers:dispatching-parallel-agents`.
+
+Detect: use the Glob tool to search for `*superpowers*` under the user's `~/.claude/plugins/` directory.
+
+If missing, install:
+```bash
+/plugin install superpowers@claude-plugins-official
+```
+
+### Required: Code Simplifier
+
+Provides the `code-simplifier` subagent used by `/claude-tweaks:build` and `/claude-tweaks:review`.
+
+Note: `code-simplifier` is a built-in subagent type (`subagent_type="code-simplifier:code-simplifier"` in the Task tool). No plugin installation needed — verify it's available by checking the Task tool's agent type list.
+
+---
+
+## Step 0.2 — Create Directory Structure (detailed procedure)
+
+Check and create the required directories (only create what's missing):
+
+```
+specs/                      → Spec files and INBOX
+docs/                       → Documentation root (REGISTRY.md created in Phase 8.5)
+docs/superpowers/specs/     → Design docs (from /superpowers:brainstorming)
+docs/superpowers/plans/     → Execution plans (from /superpowers:writing-plans)
+docs/plans/                 → Claude-tweaks pipeline state (briefs, ledger, audit/recommendations caches)
+docs/journeys/              → User and developer journey files (created by /journeys, tested by /visual-review)
+.claude/skills/             → Skill files (should already exist if this skill is running)
+```
+
+---
+
 ## Step 0.3 — Starter files (detailed content)
 
 Create these files **only if missing** — never overwrite existing content. Each file is idempotent and safe to skip on Update Mode runs.
@@ -79,6 +116,25 @@ Should story YAML files be committed to version control?
 ```
 
 Do not modify `.gitignore` without asking — the user may have opinions about what to track.
+
+---
+
+## Step 0.5 — Verify Git (detailed procedure)
+
+The workflow system relies on git for change tracking (`/claude-tweaks:review` uses `git diff`, `/claude-tweaks:wrap-up` checks recent commits).
+
+- Check that the current directory is a git repo (`git rev-parse --is-inside-work-tree`).
+- If not, warn the user — the workflow will partially work but `/claude-tweaks:review` and `/claude-tweaks:wrap-up` will be degraded. Do not auto-run `git init` — the user may have an intentional non-git checkout.
+
+---
+
+## Step 0.6 — Worktree Configuration (detailed procedure)
+
+`/claude-tweaks:build worktree` and `/claude-tweaks:flow worktree` use `/superpowers:using-git-worktrees` to create isolated workspaces. The standard worktree directory is `.worktrees/` in the project root — this matches superpowers v5.1.0's preferred path and is the only directory `/superpowers:finishing-a-development-branch` will clean up.
+
+1. Check if `.worktrees/` exists in the project root.
+2. If it doesn't exist, create it and verify it's in `.gitignore` (suggest adding if not).
+3. If a legacy `.claude/worktrees/` directory exists, suggest migrating to `.worktrees/` so superpowers's cleanup step owns the path.
 
 ---
 

@@ -23,6 +23,26 @@ Quick capture for ideas that aren't ready for full specification. Part of the wo
 
 > **INBOX vs DEFERRED:** Use `/claude-tweaks:capture` for new ideas and half-formed features. Work deferred from an active build/review goes to `specs/DEFERRED.md` instead — it carries origin context, file references, and timing triggers that INBOX entries don't have.
 
+## Input
+
+`$ARGUMENTS` is parsed as `<idea text> [--route=<value>]`:
+
+| Argument | Behavior |
+|----------|----------|
+| Free-text idea | The body of the INBOX entry (title is derived from the first phrase or supplied via `--title=`). |
+| `--route=challenge` / `--route=brainstorm` / `--route=inbox` / `--route=merge:N` | Skip the post-capture routing prompt; apply the route directly. |
+| `--title="..."` | Override the auto-derived title. |
+
+When `$ARGUMENTS` is empty, prompt the user for the idea body.
+
+## Workflow
+
+| Step | What |
+|------|------|
+| 1 | Append entry to `specs/INBOX.md` per the Entry Format below. |
+| 2 | Route per `--route` arg, or via the Routing Prompt below. |
+| 3 | Commit (when this is a standalone invocation; component-skill callers commit themselves). |
+
 ## File Location
 
 `specs/INBOX.md` — single file, append-only during capture.

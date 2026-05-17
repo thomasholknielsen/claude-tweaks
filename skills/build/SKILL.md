@@ -73,31 +73,18 @@ Found both a spec and a design doc for "{topic}":
 
 ### Prompt for build options
 
-After resolving the input, if execution strategy and/or git strategy were not provided as arguments, prompt the user.
-
-Per CLAUDE.md "One decision per message" rule, present the two prompts as **two consecutive messages** — resolve execution strategy first, then ask about git strategy in the next message. Do not combine them into one prompt.
-
-**Message 1 — Execution strategy** (skip if `subagent` or `batched` was passed as an argument):
+When execution strategy AND git strategy are both missing from arguments, ask once — the two choices are correlated (the 2x2 above already enumerates the combinations), so they are one decision:
 
 ```
 How should this build run?
 
-Execution strategy:
-1. Subagent **(Recommended)** — fully automated review chain, no stopping
-2. Batched — human reviews every 3 tasks
+1. Subagent + worktree **(Recommended)** — automated review chain, isolated workspace
+2. Subagent + current-branch — automated review chain, no isolation
+3. Batched + worktree — human reviews every 3 tasks, isolated workspace
+4. Batched + current-branch — human reviews every 3 tasks, no isolation
 ```
 
-Wait for the user's answer. Then send Message 2.
-
-**Message 2 — Git strategy** (skip if `worktree` or `current-branch` was passed as an argument):
-
-```
-Git strategy:
-1. Worktree **(Recommended)** — isolated workspace on a feature branch
-2. Current branch — commit directly, no isolation
-```
-
-Skip both prompts if both options were provided as arguments (e.g., `/build 42 batched worktree`). If only one was provided, send only the message for the missing one.
+When only ONE was provided as an argument (e.g., `/build 42 batched`), ask just for the missing one with a simple 2-option prompt. Skip the prompt entirely if both were provided.
 
 | Mode | Source | Skips | Best for |
 |------|--------|-------|----------|

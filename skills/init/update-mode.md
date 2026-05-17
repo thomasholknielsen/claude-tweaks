@@ -1,0 +1,101 @@
+# Update Mode — Audit Procedures
+
+Loaded by `/init` Phase 1 when existing config is detected. Covers the Update Mode inventory (Phase 1u), contract-drift detection (Phase 1u.5), the early-exit fast path (Phase 1u.6), and the Phase 4 scoring approach for gaps.
+
+## Phase 1u: Audit Existing Configuration
+
+Build an inventory of what's currently configured before scanning the codebase:
+
+```markdown
+## Existing Configuration Inventory
+
+### CLAUDE.md
+- Lines: {count}
+- Stack table: {lists these technologies}
+- Commands: {lists these scripts}
+- Conventions: {count} bullets
+- Don'ts: {count} items
+- Contract markers: {pipeline-section | auto-mode-flag | bookend | auto-mode-policy | run-dir} — {present/missing for each}
+- Last meaningful edit: {git log for CLAUDE.md — when, what changed}
+
+### Skills ({count})
+| Skill | Description trigger | Key file paths referenced |
+|-------|-------------------|--------------------------|
+| {name} | {from description field} | {paths mentioned in body} |
+
+### Rules ({count})
+| Rule | Scoped to | Content summary |
+|------|-----------|-----------------|
+| {name} | {paths} | {1-line summary} |
+```
+
+Then proceed to Phase 2 as normal — but carry this inventory forward. Every Phase 2 finding will be compared against the inventory to classify it as:
+
+- **Covered** — existing config accurately describes this
+- **Stale** — existing config references something that has changed or no longer exists
+- **Drifted** — existing config describes a pattern but the codebase has moved away from it
+- **Gap** — codebase has this pattern but no config covers it
+
+## Phase 1u.5: claude-tweaks Contract Drift
+
+Existing CLAUDE.md files may pre-date claude-tweaks contract changes (auto-mode, bookend architecture, etc.). Detect missing contract sections so Update Mode can offer pre-filled patches.
+
+> **Parallel execution:** Use parallel tool calls aggressively — all marker checks below are independent and should run concurrently.
+
+| Marker | Grep target | Contract version | Patch source |
+|---|---|---|---|
+| `## claude-tweaks Pipeline` section | `^## claude-tweaks Pipeline` in CLAUDE.md | v4.0+ | `claude-md-template.md` Initial Mode template |
+| Auto-mode flag (`auto-mode: default-off` / `default-on`) | `auto-mode:` in CLAUDE.md | v4.5+ | `claude-md-template.md` Project Defaults block |
+| Bookend architecture paragraph | `Bookend architecture` in CLAUDE.md | v4.6+ | `claude-md-template.md` Pipeline section |
+| `## Auto-mode policy` block (7 levers) | `^## Auto-mode policy` in CLAUDE.md | v4.6+ | `claude-md-template.md` Auto-mode policy block |
+| Pipeline run directory reference | `pipelines/{run-id}` in CLAUDE.md | v4.6+ | `claude-md-template.md` Pipeline section |
+
+For each missing marker, record a **Contract Drift** entry with the suggested patch — the body comes verbatim from `claude-md-template.md`, so no creative writing required. Carry these forward into the Drift Report (Phase 3) under a dedicated "Contract Drift" section so the user can approve them as a batch alongside other CLAUDE.md patches.
+
+If all markers are present, record "Contract: up to date (v4.6+)" in the inventory and skip ahead.
+
+## Phase 1u.6: Update Mode Early-Exit Gate
+
+After Phase 1u (inventory) and Phase 1u.5 (contract drift) complete, evaluate the audit signal before committing to the full phase ceremony. Update Mode's value is in catching drift quickly — when there's almost nothing to catch, the ceremony costs more than it produces.
+
+**Compute the audit totals from Phase 1u + 1u.5 so far:**
+
+| Metric | Source |
+|--------|--------|
+| **Total drift count** | Contract Drift entries from 1u.5 + any stale/drifted entries from the 1u inventory pass |
+| **Gap count** | Codebase patterns that have no existing config (initially zero — full Gap count is computed in Phase 3; this gate uses the preliminary signal from the inventory pass) |
+
+**Early-exit criteria:**
+
+- Total drift count = 0 **AND** preliminary gap signal < 3 → **early-exit fast path**
+
+**On early-exit:**
+
+1. Present the audit findings inline (one block, not a full phase summary):
+
+   ```
+   ### Update Mode — Quick Audit
+
+   Config is current. No drift detected. {N} preliminary gap signals (below threshold).
+
+   {if N > 0: list the N items briefly with file paths}
+
+   Skipping Phases 2-8.5 (full reconnaissance) — re-run `/init update --full` to force the complete pass.
+   ```
+
+2. Log to `decisions.md`:
+   ```
+   AUTO {ISO-time} — Phase 1u.6: early-exit (drift=0, gaps<3). Reason: Update Mode fast path per the Phase 1u.6 early-exit gate. Reversibility: high.
+   ```
+
+3. Skip directly to Phase 9 (Summary). Phase 9's summary template adapts: "Update Mode — no patches needed" instead of the full patch list.
+
+**On full pass (criteria not met):** drift > 0 OR preliminary gap signal >= 3 → continue to Phase 2 (Codebase Reconnaissance) as normal.
+
+The gate is automatic — no user prompt. The user always sees the audit findings, just without the ceremony when there's nothing to act on.
+
+## Phase 4 in Update Mode: Score the Gaps
+
+Update Mode runs Phase 4 only against **gaps** — patterns the codebase has that no existing config covers. Existing skills that need updating are handled as patches in Phase 6, not new skills.
+
+Apply the standard Phase 4 scoring procedure (Frequency + Complexity + Danger; see `phase-4-scoring.md` in this skill's directory) to gap candidates only. Existing skills that were classified as **Drifted** in Phase 3 do not go through scoring — their patches are surfaced in the Drift Report's "Drifted" section.

@@ -120,18 +120,26 @@ When a pipeline run directory exists, read `overlap` from `config.yml` (default 
 | `extend` | Stage as `staged/specify-overlap-{N}.md` containing the proposed additions to spec {N}. NEVER auto-modify an existing spec — that's not reversible enough. | `STAGED {time} — Step 1: overlap "{section}" ↔ Spec {N} requires extending an existing spec. Stage path: staged/specify-overlap-{N}.md.` |
 | `replace` | Stage as `staged/specify-overlap-{N}.md`. Replacement is destructive; the user must approve at the Review Console. | `STAGED {time} — Step 1: overlap "{section}" ↔ Spec {N} proposed as replacement. Stage path: staged/specify-overlap-{N}.md.` |
 
-### Interactive mode (per-item user input)
+### Interactive mode (batch per-overlap decisions)
+
+Collect ALL overlaps first, then present as one batch table. Per CLAUDE.md, never present per-item prompts when 2+ items can batch — that scales badly when a design doc overlaps with multiple existing specs.
 
 ```
-OVERLAP: "{design doc section}" ↔ Spec {N}: "{spec title}"
-Coverage: {Already exists / Partial overlap}
-1. Skip — Spec {N} already covers this, don't duplicate
-2. Extend spec {N} — Add the new scope to the existing spec
-3. Companion spec — Create a new spec with a dependency on spec {N}
-4. Replace — The design doc supersedes spec {N}, rewrite it
+Overlap analysis — {M} overlap(s) found:
+
+| # | Section | Existing spec | Coverage | Recommended | Override? |
+|---|---------|--------------|----------|-------------|-----------|
+| 1 | "{section A}" | Spec {N}: "{title}" | Already exists | Skip | (1) skip / (2) extend / (3) companion / (4) replace |
+| 2 | "{section B}" | Spec {N}: "{title}" | Partial overlap | Companion (Recommended) | (1) skip / (2) extend / (3) companion / (4) replace |
+| ...|
+
+1. Apply all recommended **(Recommended)**
+2. Override specific items (tell me which #s to change and to what)
 ```
 
-This ensures overlap handling is an explicit user decision when interactive, and policy-driven when auto. For **Gap** items, proceed directly to Step 2 (decompose into work units).
+The recommendation column pre-fills based on coverage type: `Already exists` → Skip; `Partial overlap` → Companion. The user can hit "1" to accept all in one decision, or call out specific overrides. Policy-driven equivalent in auto mode (above).
+
+For **Gap** items, proceed directly to Step 2 (decompose into work units).
 
 ## Step 2: Decompose into Work Units
 

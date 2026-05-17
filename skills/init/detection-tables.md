@@ -141,21 +141,32 @@ If found, ask the user whether to **migrate and enhance** or **ignore**.
 
 ## 2h: Project Maturity Detection
 
-Assess the project's maturity stage to inform the Philosophy section in CLAUDE.md. See the main SKILL.md Phase 2h for the full signal table, classification criteria, and user confirmation flow.
+Assess the project's maturity stage to inform the Philosophy section in CLAUDE.md. This determines the change philosophy — how aggressively to break, rebuild, and modernize vs. preserve, migrate, and maintain.
 
-**Quick reference — signals to gather:**
+**Gather signals:**
 
-| Signal | Detection method |
-|--------|-----------------|
-| Age | `git log --reverse --format="%ai" -1` |
-| Migration history | Glob for migration directories |
-| Production infrastructure | Glob for deploy configs, k8s, Terraform |
-| Monitoring/observability | Grep for Sentry, DataDog, NewRelic, OpenTelemetry |
-| Contributor count | `git shortlog -sn --no-merges \| wc -l` |
-| API versioning | Grep for `/v1/`, `/v2/`, `api-version` |
-| Published packages | npm publish config, PyPI, gem spec |
-| User data signals | User tables, analytics, GDPR tooling |
-| Environment count | Count `.env.*` variants |
-| Schema management | Check for `db:push` vs migration commands |
+> **Parallel execution:** Use parallel tool calls aggressively — all detection operations below are independent and should run concurrently.
 
-All signals feed into the maturity classification (greenfield → pre-launch → early production → established) which determines the Philosophy section content.
+| Signal | How to detect | Greenfield indicator | Brownfield indicator |
+|--------|---------------|---------------------|---------------------|
+| **Age** | `git log --reverse --format="%ai" -1` | < 3 months | > 6 months |
+| **Migration history** | Glob for migration directories (prisma/migrations, db/migrate, alembic/, etc.) | None found | Multiple migrations |
+| **Production infrastructure** | Glob for k8s/, terraform/, .github/workflows/*deploy*, Dockerfile, docker-compose.yml | None found | Production deploy configs |
+| **Monitoring/observability** | Grep for Sentry, DataDog, New Relic, Application Insights, OpenTelemetry | None found | Monitoring configured |
+| **Contributor count** | `git shortlog -sn --no-merges \| wc -l` | 1-2 contributors | 3+ contributors |
+| **API versioning** | Grep for `/v1/`, `/v2/`, `api-version`, version headers | No versioning | Versioned APIs |
+| **Published packages** | Check for npm publish config, PyPI setup, gem spec, crate publish | Not published | Published/consumed |
+| **User data signals** | Check for user tables with data, analytics, GDPR tooling, data exports | No user data patterns | User data management |
+| **Environment count** | Count distinct environment configs (.env.production, .env.staging, etc.) | 0-1 environments | 2+ environments |
+| **Schema management** | Check for `db:push` vs migration commands in scripts | Push-based or none | Migration-based |
+
+**Classify the project:**
+
+| Classification | Criteria | Change philosophy |
+|---------------|----------|-------------------|
+| **Greenfield** | < 3 months old, no migrations, no production infra, 1-2 contributors, no users | Break freely: rename columns, change types, restructure schemas, delete and rebuild |
+| **Pre-launch** | Has structure but no production deploy, no user data, no monitoring | Break freely but with growing caution — foundations are solidifying |
+| **Early production** | Has production infra and monitoring, but few users, limited migration history | Prefer correct solutions but be mindful of live data — migrations over push |
+| **Established** | Multiple environments, migration history, published APIs, monitoring, user data | Expand-contract, safe migrations, backward compatibility, careful deprecation |
+
+All signals feed into the maturity classification (greenfield → pre-launch → early production → established) which determines the Philosophy section content. Phase 3 is the single confirmation gate where the user confirms or overrides this classification.

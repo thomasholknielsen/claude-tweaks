@@ -1,4 +1,4 @@
-# Phase 3: Profile and Drift Report Templates
+# Phase 3 / Phase 4: Profile, Drift Report, and Skill Manifest Templates
 
 ## Initial Mode: Stack Profile
 
@@ -136,3 +136,40 @@ Patterns found in the codebase with no corresponding config:
 Ask: **"Here's what I found. Which items should I fix? All stale + drifted? Specific ones?"**
 
 Wait for confirmation before proceeding.
+
+## Phase 4: Skill Manifest
+
+Use this template when presenting scored skill candidates (see `phase-4-scoring.md` for the scoring rubric):
+
+```markdown
+## Skill Manifest
+
+### Priority 1 (score 6+) — Generate now
+| Skill | Freq | Cmplx | Danger | Score | Rationale |
+|-------|------|-------|--------|-------|-----------|
+| data-access | 3 | 3 | 3 | 9 | Heavy DB usage, complex query patterns, migration risk |
+| ... | ... | ... | ... | ... | ... |
+
+### Priority 2 (score 4-5) — Generate if time permits
+| ... |
+
+### Priority 3 (score 3) — Defer
+| ... |
+
+### Not needed
+- {technology} — too standard, no project-specific patterns to encode
+
+### Meta-skills to consider
+- `/claude-tweaks:wrap-up` — captures learnings after completing features (keeps skills alive)
+- `/claude-tweaks:review` — validates implementation quality against project conventions
+```
+
+Present as numbered options:
+
+```
+Which skills should I generate?
+1. All Priority 1 skills **(Recommended)**
+2. All Priority 1 + Priority 2
+3. Let me pick specific ones (list the numbers)
+4. None for now — I'll generate them later
+```

@@ -201,15 +201,7 @@ After saving the brief, hand off to brainstorming. If the user wants to adjust t
 
 1. `/superpowers:brainstorming` — explore solutions for the reframed problem **(Recommended)** — after brainstorm produces the design doc, run `/claude-tweaks:specify` next (not `/superpowers:writing-plans` — specify handles decomposition into agent-sized specs before planning)
 2. Re-examine — revisit a specific lens or adjust the reframing
-
-## Key Principles
-
-- **One question per message** — Give the user space to think
-- **No solutions** — Your job is to reframe, not to solve. Solutions come during brainstorming.
-- **Be direct but respectful** — "I notice your question assumes X — is that actually true?" not "Have you considered that maybe..."
-- **Name the biases** — When you spot a cognitive bias, name it explicitly. The user asked for this — don't sugarcoat.
-- **The user is smart** — They asked for this skill because they know they have blind spots. Treat them as a capable thinker who needs a mirror, not a lecture.
-- **Stop when the frame shifts** — If a lens produces a genuine "aha" moment, don't mechanically continue through the remaining lenses. Follow the energy.
+3. Save and resume later — keep the brief on disk; pick up at brainstorming when ready
 
 ## Anti-Patterns
 

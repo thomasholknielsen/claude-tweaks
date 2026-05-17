@@ -21,10 +21,6 @@ This skill works for both greenfield and brownfield projects, operating in two m
 | **Initial** | No `.claude/` directory or CLAUDE.md | Full bootstrap + reconnaissance → generate everything from scratch |
 | **Update** | Existing `.claude/` config found | Skip bootstrap (idempotent) + diff-based audit → propose targeted patches |
 
-<HARD-GATE>
-Do NOT generate generic skills. Every skill you produce must be grounded in patterns you actually observed in the codebase. If the project doesn't use WebSockets, don't create a realtime skill. If it has no tests, create a testing skill that describes what testing *should* look like for this specific stack — but mark it as aspirational.
-</HARD-GATE>
-
 ## When to Use
 
 - First time using the workflow system on a project
@@ -73,61 +69,27 @@ Fast, idempotent structural setup. Creates directories, starter files, and verif
 
 ### Step 0.1: Check Plugin Dependencies
 
-#### Required: Superpowers
-
-Provides `/superpowers:brainstorming`, `/superpowers:writing-plans`, `/superpowers:subagent-driven-development`, `/superpowers:executing-plans`, `/superpowers:using-git-worktrees`, `/superpowers:finishing-a-development-branch`, and `/superpowers:dispatching-parallel-agents`.
-
-```
-Check if installed — use the Glob tool to search for *superpowers* under the user's ~/.claude/plugins/ directory.
-```
-
-If missing, install:
-```bash
-/plugin install superpowers@claude-plugins-official
-```
-
-#### Required: Code Simplifier
-
-Provides the `code-simplifier` subagent used by `/claude-tweaks:build` and `/claude-tweaks:review`.
-
-Note: `code-simplifier` is a built-in subagent type (`subagent_type="code-simplifier:code-simplifier"` in the Task tool). No plugin installation needed — just verify it's available by checking the Task tool's agent type list.
+Verify required dependencies are installed: **Superpowers** plugin (provides `/superpowers:brainstorming`, `/superpowers:writing-plans`, `/superpowers:subagent-driven-development`, `/superpowers:executing-plans`, `/superpowers:using-git-worktrees`, `/superpowers:finishing-a-development-branch`, `/superpowers:dispatching-parallel-agents`) and the built-in **code-simplifier** subagent. Read `bootstrap-steps.md` (Step 0.1) in this skill's directory for the detection commands and install hint.
 
 ### Step 0.2: Create Directory Structure
 
-Check and create the required directories (only create what's missing):
-
-```
-specs/                      → Spec files and INBOX
-docs/                       → Documentation root (REGISTRY.md created in Phase 8.5)
-docs/superpowers/specs/     → Design docs (from /superpowers:brainstorming)
-docs/superpowers/plans/     → Execution plans (from /superpowers:writing-plans)
-docs/plans/                 → Claude-tweaks pipeline state (briefs, ledger, audit/recommendations caches)
-docs/journeys/              → User and developer journey files (created by /journeys, tested by /visual-review)
-.claude/skills/             → Skill files (should already exist if this skill is running)
-```
+Create the required directories (only create what's missing): `specs/`, `docs/`, `docs/superpowers/specs/`, `docs/superpowers/plans/`, `docs/plans/`, `docs/journeys/`, `.claude/skills/`. Read `bootstrap-steps.md` (Step 0.2) in this skill's directory for the full directory taxonomy and per-directory rationale.
 
 ### Step 0.3: Create Starter Files
 
-Create `specs/INBOX.md`, `specs/DEFERRED.md`, and `specs/INDEX.md` **only if missing** — never overwrite existing content. For the canonical starter content (boilerplate headers, tier tables), read `bootstrap-steps.md` (Step 0.3) in this skill's directory.
+Create `specs/INBOX.md`, `specs/DEFERRED.md`, and `specs/INDEX.md` **only if missing** — never overwrite existing content. Read `bootstrap-steps.md` (Step 0.3) in this skill's directory for the canonical starter content (boilerplate headers, tier tables).
 
 ### Step 0.4: Suggest .gitignore Entries
 
-Suggest entries for transient workflow artifacts (`screenshots/`, `.worktrees/`, `stories/auth.yml`, `.claude-tweaks/`) — do not modify `.gitignore` without asking. If `stories/` exists or will be created, ask the user whether story YAML files should be committed (default: yes). For the full suggested block and the stories prompt, read `bootstrap-steps.md` (Step 0.4) in this skill's directory.
+Suggest entries for transient workflow artifacts (`screenshots/`, `.worktrees/`, `stories/auth.yml`, `.claude-tweaks/`) — do not modify `.gitignore` without asking. If `stories/` exists or will be created, ask the user whether story YAML files should be committed (default: yes). Read `bootstrap-steps.md` (Step 0.4) in this skill's directory for the full suggested block and the stories prompt.
 
 ### Step 0.5: Verify Git
 
-The workflow system relies on git for change tracking (`/claude-tweaks:review` uses `git diff`, `/claude-tweaks:wrap-up` checks recent commits).
-
-- Check that the current directory is a git repo
-- If not, warn the user — the workflow will partially work but `/claude-tweaks:review` and `/claude-tweaks:wrap-up` will be degraded
+The workflow system relies on git for change tracking. Check that the current directory is a git repo — if not, warn the user that `/claude-tweaks:review` and `/claude-tweaks:wrap-up` will be degraded. Read `bootstrap-steps.md` (Step 0.5) in this skill's directory for the full procedure.
 
 ### Step 0.6: Worktree Configuration
 
-`/claude-tweaks:build worktree` and `/claude-tweaks:flow worktree` use `/superpowers:using-git-worktrees` to create isolated workspaces. The standard worktree directory is `.worktrees/` in the project root — this matches superpowers v5.1.0's preferred path and is the only directory `/superpowers:finishing-a-development-branch` will clean up.
-
-1. Check if `.worktrees/` exists in the project root
-2. If it doesn't exist, create it and verify it's in `.gitignore` (suggest adding if not)
-3. If a legacy `.claude/worktrees/` directory exists, suggest migrating to `.worktrees/` so superpowers's cleanup step owns the path
+Ensure `.worktrees/` exists in the project root (matches superpowers v5.1.0's preferred path, the only directory `/superpowers:finishing-a-development-branch` will clean up). If a legacy `.claude/worktrees/` exists, suggest migrating. Read `bootstrap-steps.md` (Step 0.6) in this skill's directory for the full procedure.
 
 ### Step 0.7: Browser Integration
 
@@ -242,97 +204,13 @@ Check:
 
 ### If config exists → **Update Mode** (proceed to Phase 1u)
 
-### Phase 1u: Audit Existing Configuration
+Update Mode runs three sub-phases before deciding whether to continue with the full reconnaissance:
 
-Build an inventory of what's currently configured before scanning the codebase:
+- **Phase 1u** — inventory existing CLAUDE.md, skills, and rules; classify findings as covered / stale / drifted / gap
+- **Phase 1u.5** — detect claude-tweaks contract drift (missing pipeline section, auto-mode flag, bookend paragraph, auto-mode policy block, run-dir reference)
+- **Phase 1u.6** — early-exit gate: if drift = 0 AND preliminary gaps < 3, skip to Phase 9 with a quick-audit summary; otherwise continue to Phase 2
 
-```markdown
-## Existing Configuration Inventory
-
-### CLAUDE.md
-- Lines: {count}
-- Stack table: {lists these technologies}
-- Commands: {lists these scripts}
-- Conventions: {count} bullets
-- Don'ts: {count} items
-- Contract markers: {pipeline-section | auto-mode-flag | bookend | auto-mode-policy | run-dir} — {present/missing for each}
-- Last meaningful edit: {git log for CLAUDE.md — when, what changed}
-
-### Skills ({count})
-| Skill | Description trigger | Key file paths referenced |
-|-------|-------------------|--------------------------|
-| {name} | {from description field} | {paths mentioned in body} |
-
-### Rules ({count})
-| Rule | Scoped to | Content summary |
-|------|-----------|-----------------|
-| {name} | {paths} | {1-line summary} |
-```
-
-Then proceed to Phase 2 as normal — but carry this inventory forward. Every Phase 2 finding will be compared against the inventory to classify it as:
-
-- **Covered** — existing config accurately describes this
-- **Stale** — existing config references something that has changed or no longer exists
-- **Drifted** — existing config describes a pattern but the codebase has moved away from it
-- **Gap** — codebase has this pattern but no config covers it
-
-### Phase 1u.5: claude-tweaks Contract Drift
-
-Existing CLAUDE.md files may pre-date claude-tweaks contract changes (auto-mode, bookend architecture, etc.). Detect missing contract sections so Update Mode can offer pre-filled patches.
-
-> **Parallel execution:** Use parallel tool calls aggressively — all marker checks below are independent and should run concurrently.
-
-| Marker | Grep target | Contract version | Patch source |
-|---|---|---|---|
-| `## claude-tweaks Pipeline` section | `^## claude-tweaks Pipeline` in CLAUDE.md | v4.0+ | `claude-md-template.md` Initial Mode template |
-| Auto-mode flag (`auto-mode: default-off` / `default-on`) | `auto-mode:` in CLAUDE.md | v4.5+ | `claude-md-template.md` Project Defaults block |
-| Bookend architecture paragraph | `Bookend architecture` in CLAUDE.md | v4.6+ | `claude-md-template.md` Pipeline section |
-| `## Auto-mode policy` block (7 levers) | `^## Auto-mode policy` in CLAUDE.md | v4.6+ | `claude-md-template.md` Auto-mode policy block |
-| Pipeline run directory reference | `pipelines/{run-id}` in CLAUDE.md | v4.6+ | `claude-md-template.md` Pipeline section |
-
-For each missing marker, record a **Contract Drift** entry with the suggested patch — the body comes verbatim from `claude-md-template.md`, so no creative writing required. Carry these forward into the Drift Report (Phase 3) under a dedicated "Contract Drift" section so the user can approve them as a batch alongside other CLAUDE.md patches.
-
-If all markers are present, record "Contract: up to date (v4.6+)" in the inventory and skip ahead.
-
-### Phase 1u.6: Update Mode Early-Exit Gate
-
-After Phase 1u (inventory) and Phase 1u.5 (contract drift) complete, evaluate the audit signal before committing to the full phase ceremony. Update Mode's value is in catching drift quickly — when there's almost nothing to catch, the ceremony costs more than it produces.
-
-**Compute the audit totals from Phase 1u + 1u.5 so far:**
-
-| Metric | Source |
-|--------|--------|
-| **Total drift count** | Contract Drift entries from 1u.5 + any stale/drifted entries from the 1u inventory pass |
-| **Gap count** | Codebase patterns that have no existing config (initially zero — full Gap count is computed in Phase 3; this gate uses the preliminary signal from the inventory pass) |
-
-**Early-exit criteria:**
-
-- Total drift count = 0 **AND** preliminary gap signal < 3 → **early-exit fast path**
-
-**On early-exit:**
-
-1. Present the audit findings inline (one block, not a full phase summary):
-
-   ```
-   ### Update Mode — Quick Audit
-
-   Config is current. No drift detected. {N} preliminary gap signals (below threshold).
-
-   {if N > 0: list the N items briefly with file paths}
-
-   Skipping Phases 2-8.5 (full reconnaissance) — re-run `/init update --full` to force the complete pass.
-   ```
-
-2. Log to `decisions.md`:
-   ```
-   AUTO {ISO-time} — Phase 1u.6: early-exit (drift=0, gaps<3). Reason: Update Mode fast path per the Phase 1u.6 early-exit gate. Reversibility: high.
-   ```
-
-3. Skip directly to Phase 9 (Summary). Phase 9's summary template adapts: "Update Mode — no patches needed" instead of the full patch list.
-
-**On full pass (criteria not met):** drift > 0 OR preliminary gap signal >= 3 → continue to Phase 2 (Codebase Reconnaissance) as normal.
-
-The gate is automatic — no user prompt. The user always sees the audit findings, just without the ceremony when there's nothing to act on.
+Update Mode procedures live in `update-mode.md` — load only when Phase 1 detects existing config. That file contains the inventory template, the contract-drift marker table, and the early-exit decision logic.
 
 ---
 
@@ -356,35 +234,9 @@ Steps 2b–2g cover stack detection, architecture detection, convention detectio
 
 ### 2h: Project Maturity Detection
 
-Assess the project's maturity stage to inform the Philosophy section in CLAUDE.md. This determines the change philosophy — how aggressively to break, rebuild, and modernize vs. preserve, migrate, and maintain.
+Assess the project's maturity stage (greenfield / pre-launch / early-production / established) to inform the Philosophy section in CLAUDE.md. Gather signals in parallel and classify the project.
 
-**Gather signals:**
-
-> **Parallel execution:** Use parallel tool calls aggressively — all detection operations below are independent and should run concurrently.
-
-| Signal | How to detect | Greenfield indicator | Brownfield indicator |
-|--------|---------------|---------------------|---------------------|
-| **Age** | `git log --reverse --format="%ai" -1` | < 3 months | > 6 months |
-| **Migration history** | Glob for migration directories (prisma/migrations, db/migrate, alembic/, etc.) | None found | Multiple migrations |
-| **Production infrastructure** | Glob for k8s/, terraform/, .github/workflows/*deploy*, Dockerfile, docker-compose.yml | None found | Production deploy configs |
-| **Monitoring/observability** | Grep for Sentry, DataDog, New Relic, Application Insights, OpenTelemetry | None found | Monitoring configured |
-| **Contributor count** | `git shortlog -sn --no-merges \| wc -l` | 1-2 contributors | 3+ contributors |
-| **API versioning** | Grep for `/v1/`, `/v2/`, `api-version`, version headers | No versioning | Versioned APIs |
-| **Published packages** | Check for npm publish config, PyPI setup, gem spec, crate publish | Not published | Published/consumed |
-| **User data signals** | Check for user tables with data, analytics, GDPR tooling, data exports | No user data patterns | User data management |
-| **Environment count** | Count distinct environment configs (.env.production, .env.staging, etc.) | 0-1 environments | 2+ environments |
-| **Schema management** | Check for `db:push` vs migration commands in scripts | Push-based or none | Migration-based |
-
-**Classify the project:**
-
-| Classification | Criteria | Change philosophy |
-|---------------|----------|-------------------|
-| **Greenfield** | < 3 months old, no migrations, no production infra, 1-2 contributors, no users | Break freely: rename columns, change types, restructure schemas, delete and rebuild |
-| **Pre-launch** | Has structure but no production deploy, no user data, no monitoring | Break freely but with growing caution — foundations are solidifying |
-| **Early production** | Has production infra and monitoring, but few users, limited migration history | Prefer correct solutions but be mindful of live data — migrations over push |
-| **Established** | Multiple environments, migration history, published APIs, monitoring, user data | Expand-contract, safe migrations, backward compatibility, careful deprecation |
-
-Carry the classification forward to Phase 3, where it is presented alongside the doc tier for unified confirmation. Do NOT present the classification for confirmation here — Phase 3 is the single confirmation gate for all project classifications.
+See **Phase 2h Maturity Detection** in `detection-tables.md` (this skill's directory) for the full signal table and classification criteria. Carry the classification forward to Phase 3, where it is presented alongside the doc tier for unified confirmation. Do NOT present the classification for confirmation here — Phase 3 is the single confirmation gate for all project classifications.
 
 ---
 
@@ -396,56 +248,17 @@ For the complete profile and drift report templates, read `profile-templates.md`
 
 ### Project Classification (confirmation gate)
 
-After presenting the Stack Profile (or Drift Report), present the unified Project Classification for confirmation. This is the single gate where the user confirms or overrides all downstream decisions about philosophy and doc structure.
+After presenting the Stack Profile (or Drift Report), present the unified Project Classification gate. This is the single gate where the user confirms or overrides all downstream decisions about philosophy and doc structure.
 
-**Determine doc tier** using the heuristics from `docs-structure.md` in this skill's directory, combining Phase 2 reconnaissance findings with the detected maturity.
+**Decision logic:**
 
-**Compute detection confidence:** for each dimension (maturity, doc-tier), rate the signal strength as `high` (≥3 strong consistent signals), `med` (1-2 consistent signals, no contradictions), or `low` (contradictory or sparse signals).
+- Compute detection confidence (`high` / `med` / `low`) for both maturity and doc-tier dimensions.
+- **Auto-confirm** only when `auto` mode is set AND both dimensions are `high` confidence AND signals are internally consistent. Log to `decisions.md` and proceed.
+- **Confirmation gate** in all other cases — interactive mode, or `auto` with `med`/`low` confidence, or contradictory signals (e.g., greenfield code + production-grade infra).
 
-### Auto mode (confidence-gated)
+For the confidence rubric, auto-confirm log format, and full confirmation-gate template (table + philosophy + doc structure + numbered options), read `phase-3-classification.md` in this skill's directory.
 
-When `auto` mode is set AND both dimensions classify with confidence `high` AND signals are internally consistent:
-
-1. Auto-confirm the detected classification
-2. Log:
-   ```
-   AUTO {time} — Phase 3: classification auto-confirmed. Maturity: {value} (confidence: high). Doc tier: {value} (confidence: high). Proceed to Phase 4.
-   ```
-3. Print a one-line summary (not a prompt): "Classified as {maturity}, doc tier {N}. Proceeding."
-4. Skip to Phase 4
-
-Auto-confirm is forbidden when either dimension is `med` or `low` confidence, OR when signals contradict (e.g., greenfield code + production-grade infra). In those cases, fall through to the confirmation gate (KEPT-PROMPT).
-
-### Confirmation gate (interactive mode OR auto with low confidence)
-
-**Present for confirmation:**
-
-```
-### Project Classification
-
-Based on codebase analysis:
-
-| Dimension | Detected | Confidence | Rationale |
-|-----------|----------|-----------|-----------|
-| Maturity | {greenfield/pre-launch/early-production/established} | {high/med/low} | {key signals: age, infra, users, migrations} |
-| Doc tier | {1/2/3} | {high/med/low} | {key signals: project size, API surfaces, team size} |
-
-### Philosophy (derived from maturity)
-- Change philosophy: {e.g., "Move fast, refactor freely" / "Expand-contract, safe migrations"}
-- Schema management: {e.g., "Push directly" / "Migrations with rollback plans"}
-- Backward compatibility: {e.g., "Not required" / "Required for published interfaces"}
-- Dependencies: {e.g., "Latest versions, update aggressively" / "Pin versions, upgrade deliberately"}
-
-### Doc Structure (derived from tier)
-- {list of docs that will be proposed in Phase 8.5, based on tier + what exists}
-
-1. Confirm **(Recommended)**
-2. Override maturity (changes philosophy)
-3. Override doc tier (changes structure)
-4. Override both
-```
-
-Wait for confirmation. The user may know things the code doesn't reveal (e.g., "this is 6 months old but we haven't launched yet — treat it as pre-launch"). Carry the confirmed maturity and doc tier forward to Phase 5 (CLAUDE.md Philosophy) and Phase 8.5 (Doc Registry).
+Carry the confirmed maturity and doc tier forward to Phase 5 (CLAUDE.md Philosophy) and Phase 8.5 (Doc Registry).
 
 ---
 
@@ -455,84 +268,11 @@ Wait for confirmation. The user may know things the code doesn't reveal (e.g., "
 
 **Update Mode:** Score only the **gaps**. Existing skills that need updating are handled as patches, not new skills.
 
-### Scoring
+> **Parallel execution:** Use parallel tool calls aggressively — scoring of independent skill candidates is read-only (re-checking grep/glob signals from Phase 2) and should run concurrently. If the candidate list is large enough to warrant dispatching, use parallel Task agents per the Subagent Contract (`_shared/subagent-output-contract.md`).
 
-**Frequency** (how often will this skill be invoked?):
-- 3 = Daily/every session (e.g., data-access for a DB-heavy app)
-- 2 = Weekly/regular (e.g., migrations, testing patterns)
-- 1 = Occasional (e.g., deployment, CI config changes)
+Apply the **Frequency + Complexity + Danger** rubric (max 9). Generate skills scoring 6+ first. Skills not selected (Priority 2-3 or aspirational) become INBOX items with their scoring rationale and Phase 2 evidence — no reconnaissance is wasted.
 
-**Complexity** (how much project-specific knowledge does the pattern require?):
-- 3 = High — many project-specific conventions, easy to get wrong
-- 2 = Medium — some project conventions, some general knowledge
-- 1 = Low — mostly standard, little project-specific knowledge needed
-
-**Danger** (how bad is it if you get this wrong without a skill?):
-- 3 = Data loss, security holes, broken prod (e.g., migrations, auth, deployment)
-- 2 = Bugs, test failures, CI breakage (e.g., testing conventions, API patterns)
-- 1 = Style issues, minor friction (e.g., naming, import style)
-
-**Priority = Frequency + Complexity + Danger** (max 9). Generate skills scoring 6+ first.
-
-### Skill Categories
-
-Map detected stack to skill categories using the canonical Detected-Pattern → Skill table in `skill-categories.md` in this skill's directory. Only generate skills for patterns that **actually exist and are actively used** in the codebase. Mark aspirational skills as `[aspirational]` — they become INBOX items, not SKILL.md files.
-
-### Present the Manifest
-
-```markdown
-## Skill Manifest
-
-### Priority 1 (score 6+) — Generate now
-| Skill | Freq | Cmplx | Danger | Score | Rationale |
-|-------|------|-------|--------|-------|-----------|
-| data-access | 3 | 3 | 3 | 9 | Heavy DB usage, complex query patterns, migration risk |
-| ... | ... | ... | ... | ... | ... |
-
-### Priority 2 (score 4-5) — Generate if time permits
-| ... |
-
-### Priority 3 (score 3) — Defer
-| ... |
-
-### Not needed
-- {technology} — too standard, no project-specific patterns to encode
-
-### Meta-skills to consider
-- `/claude-tweaks:wrap-up` — captures learnings after completing features (keeps skills alive)
-- `/claude-tweaks:review` — validates implementation quality against project conventions
-```
-
-Present as numbered options:
-
-```
-Which skills should I generate?
-1. All Priority 1 skills **(Recommended)**
-2. All Priority 1 + Priority 2
-3. Let me pick specific ones (list the numbers)
-4. None for now — I'll generate them later
-```
-
-### Deferred Skills → INBOX
-
-Skills not selected for generation (Priority 2-3, or aspirational skills marked `[aspirational]`) are captured as INBOX items with their scoring rationale and Phase 2 evidence:
-
-```markdown
-### Create data-access skill (Priority 2, score 5)
-Freq: 2, Complexity: 2, Danger: 1.
-Detected: Prisma ORM with 12 models, query patterns in `src/lib/db/`,
-custom transaction wrapper in `src/lib/db/transaction.ts`.
-Convention: repository pattern with co-located queries.
-```
-
-```markdown
-### Create testing skill [aspirational]
-No tests exist yet. Framework detected: Vitest (in devDependencies, unused).
-Test config: `vitest.config.ts` exists but `src/**/*.test.*` returns 0 files.
-When tests are added, this skill should encode: {patterns from similar stacks}.
-```
-
-This ensures no reconnaissance is wasted — the Phase 2 context is preserved for when the user is ready to create these skills.
+For the full scoring rubric (with examples), the skill-category mapping reference, and the INBOX deferred-skill format, read `phase-4-scoring.md` in this skill's directory. For the Skill Manifest presentation template and the selection prompt, read `profile-templates.md` (Phase 4 section).
 
 ---
 
@@ -714,6 +454,24 @@ Present a consolidated summary of all work done across Phase 0 (bootstrap) and P
 
 For the complete summary templates for both modes, read `summary-templates.md` in this skill's directory.
 
+### Actions Performed
+
+After writing files, surface what was created. Generate the table from the actual artifacts produced this run (only include rows for actions that actually occurred):
+
+| Action | Detail | Ref |
+|--------|--------|-----|
+| Bootstrap | Created `specs/`, `docs/`, `docs/journeys/`, `.worktrees/`, etc. (only missing dirs) | Phase 0.2 |
+| Starter files | Wrote `specs/INBOX.md`, `specs/DEFERRED.md`, `specs/INDEX.md` (only if missing) | Phase 0.3 |
+| Statusline | Installed wrapper at `~/.claude-tweaks/bin/statusline.js`; wired `~/.claude/settings.json` | Phase 0.8 |
+| Design integration | Set `design-integration: {enabled/plugin-only/disabled}` in CLAUDE.md | Phase 0.9 |
+| Classification | Confirmed maturity `{value}`, doc tier `{N}` | Phase 3 |
+| CLAUDE.md | Wrote {N} lines (Initial) / Applied {N} patches (Update) | Phase 5 |
+| Skills | Generated {N} SKILL.md files: `{list}` | Phase 6 |
+| Rules | Created {N} path-scoped rules in `.claude/rules/` | Phase 7 |
+| Journeys | Wrote {N} skeleton journey files (or delegated to `/visual-review discover`) | Phase 8 |
+| Doc registry | Created `docs/REGISTRY.md` with {N} entries | Phase 8.5 |
+| INBOX | Added {N} items (deferred skills, pain points, doc work, skeleton enrichment) | Phases 4-8.5 |
+
 Execute only after user confirmation.
 
 ---
@@ -727,6 +485,7 @@ Execute only after user confirmation.
 | Running init in a non-git directory without warning | /claude-tweaks:review and /claude-tweaks:wrap-up depend on git — the user should know about degraded behavior |
 | Installing browser tools without asking | Browser integration is optional — surface the install command but never run `npm install` automatically |
 | Prompting for a browser backend choice | There is only one backend (`agent-browser`) — do not present a choice |
+| Generating generic skills (e.g., `auth.md`, `api-routes.md`) | These are not real conventions — they're feature names. Real skills must encode rules, anti-patterns, or "Why this is done this way" insights grounded in patterns actually observed in the codebase. If the project doesn't use WebSockets, don't create a realtime skill. If it has no tests, capture testing as an aspirational INBOX item, not a SKILL.md file. |
 | Generating generic skills not grounded in the codebase | Skills must encode observed patterns — generic advice adds noise, not value |
 | Rewriting CLAUDE.md in Update Mode | Update Mode produces patches, not rewrites — existing config embeds hard-won lessons |
 | Over-generating skills (15 mediocre > 5 excellent) | Each skill must earn its existence by encoding knowledge that would otherwise be lost |
@@ -768,7 +527,18 @@ Execute only after user confirmation.
 
 ### Next Actions
 
-1. `/claude-tweaks:capture {idea}` — capture the first idea or feature into INBOX for triage **(Recommended)**
+Pick the recommended action based on which signals fired during this run. Resolve signals top-to-bottom; the first matching row is the recommendation.
+
+| Signal | Recommended Next Action |
+|--------|------------------------|
+| Update Mode ran AND total drift count > 0 | `/claude-tweaks:tidy` — clean up drifted/stale config and INBOX items before resuming feature work **(Recommended)** |
+| INBOX has items written this run (deferred skills, pain points, doc work, skeleton enrichment) | `/claude-tweaks:tidy` — triage what /init just captured **(Recommended)** |
+| Initial Mode ran AND INBOX is empty | `/claude-tweaks:capture {idea}` — capture the first idea or feature into INBOX for triage **(Recommended)** |
+| Everything is clean (Update Mode early-exit OR Initial Mode with nothing routed to INBOX) | `/claude-tweaks:help` — see the full lifecycle overview and current pipeline status **(Recommended)** |
+
+Always-available options (offer alongside the recommendation):
+
+1. `/claude-tweaks:capture {idea}` — capture an idea into INBOX for triage
 2. `/claude-tweaks:specify {first feature topic}` — jump straight to specifying the first lifecycle feature
-3. `/claude-tweaks:tidy` — review INBOX and DEFERRED items, especially after re-running /init in Update Mode
+3. `/claude-tweaks:tidy` — review INBOX and DEFERRED items
 4. `/claude-tweaks:help` — see the full lifecycle overview and current pipeline status
