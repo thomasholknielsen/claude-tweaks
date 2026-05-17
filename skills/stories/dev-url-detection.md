@@ -15,12 +15,14 @@ Shared procedure for auto-detecting a running development server. Checks persist
 
 Before probing ports, check if a URL was previously detected and persisted:
 
-1. Read `stories/auth.yml` (or `{STORIES_DIR}/auth.yml`) using the Glob tool to check existence first
+1. Read `stories/servers.yml` (or `{STORIES_DIR}/servers.yml`) using the Glob tool to check existence first
 2. If file exists and has a `servers.default.url` entry:
    a. Probe the persisted URL with the same HTTP check used in Step 1
    b. If it responds (2xx or 3xx) → use it. Set `APP_URL = {persisted URL}`. Log: "Using persisted dev URL: {url}". Skip Steps 1-2.
    c. If it doesn't respond → log: "Persisted URL {url} not responding — probing ports..." and continue to Step 1
 3. If no file or no `servers` section → continue to Step 1
+
+> **File split:** `stories/servers.yml` holds server URLs only — safe to commit and share between runs. Credentials live in the encrypted Auth Vault (set via `agent-browser auth set`), or in `stories/auth.yml` for legacy projects. `stories/auth.yml` must be gitignored; `stories/servers.yml` must not.
 
 ### Step 1: Probe Common Ports
 
@@ -80,11 +82,13 @@ This procedure sets two variables for the calling skill:
 
 After resolving `APP_URL`, persist it for future runs. **This write is mandatory — do not skip it.**
 
-1. Use the Glob tool to check if `stories/auth.yml` (or `{STORIES_DIR}/auth.yml`) exists.
-2. **File exists:** Use the Read tool to load the current contents. Parse the YAML to preserve existing `profiles` and other `servers` entries.
+Server URLs are written to `stories/servers.yml` (safe to commit). Credentials, if any, live in the encrypted Auth Vault or in legacy `stories/auth.yml` — never mix the two files.
+
+1. Use the Glob tool to check if `stories/servers.yml` (or `{STORIES_DIR}/servers.yml`) exists.
+2. **File exists:** Use the Read tool to load the current contents. Parse the YAML to preserve existing `servers` entries.
 3. **File missing:** Start with this minimal structure:
    ```yaml
-   # QA and browser config (gitignored — do not commit)
+   # Dev server config (safe to commit — server URLs only, no credentials)
    servers:
      default:
        url: http://localhost:3000
@@ -94,11 +98,13 @@ After resolving `APP_URL`, persist it for future runs. **This write is mandatory
 5. Set `servers.default.detected` to today's date.
 6. If a start command was discovered in Step 2 (from CLAUDE.md or package.json), set `servers.default.start_command`.
 7. **Use the Write tool (if creating) or Edit tool (if updating) to save the file now.** Do not defer this to a later step.
-8. **Verify:** Use the Glob tool to confirm `{STORIES_DIR}/auth.yml` exists after writing.
+8. **Verify:** Use the Glob tool to confirm `{STORIES_DIR}/servers.yml` exists after writing.
 
-If the file was created for the first time, check `.gitignore` for `stories/auth.yml` (or `{STORIES_DIR}/auth.yml`). If not present, offer to add it:
+`stories/servers.yml` is safe to commit — it contains no credentials. Do NOT add it to `.gitignore`.
+
+If a legacy `stories/auth.yml` exists (older projects stored credentials there), ensure it is gitignored. Check `.gitignore` for `stories/auth.yml` (or `{STORIES_DIR}/auth.yml`). If not present, offer to add it:
 ```
-Add stories/auth.yml to .gitignore? This file contains credentials and server config and should not be committed.
+Add stories/auth.yml to .gitignore? This file contains credentials and must not be committed.
 1. Yes (Recommended)
 2. No — I manage .gitignore manually
 ```

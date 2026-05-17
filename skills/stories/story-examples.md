@@ -236,7 +236,7 @@ stories:
 
 ### Detection prompt the user sees
 
-The literal prompt from the v1 detection section of `skills/stories/SKILL.md`:
+The literal prompt from `skills/stories/migration.md` (loaded by `/stories` when v1 is detected):
 
 > v1 stories detected (N stories, CSS selectors). v4 of claude-tweaks uses semantic locators (role/text/testid). Regenerate?
 >

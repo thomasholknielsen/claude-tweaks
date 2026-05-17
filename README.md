@@ -15,6 +15,17 @@ v4.0.0 is a breaking release. Two changes affect existing users:
 
 Run `/claude-tweaks:init` against your existing project to refresh the configuration after upgrading.
 
+### What's new in v4.7 — Deep web research
+
+`/claude-tweaks:research` adds citation-audited deep web research to the plugin. Four runtime modes trade depth for time:
+
+- **quick** (~2-5 min) — fast scan, ~5-10 sources
+- **standard** (~5-15 min) — balanced default
+- **deep** (~15-30 min) — comprehensive synthesis with broader source pool
+- **ultradeep** (~20-45 min) — multi-persona red-team with adversarial review
+
+Vendored from [199-biotechnologies/claude-deep-research-skill](https://github.com/199-biotechnologies/claude-deep-research-skill) (MIT). See `skills/research/UPSTREAM.md` for the vendoring contract, pinned commit, modifications, and update runbook. Reports land under `.claude-tweaks/research/`.
+
 ### What's new in v4.6 — Bookend Architecture + Auto-Mode Contract
 
 The pipeline now has at most **two user-facing stops in `auto` mode**, regardless of how many decisions it makes:

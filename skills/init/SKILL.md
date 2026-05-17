@@ -10,7 +10,7 @@ description: Use when initializing the workflow system for a project — bootstr
 Bootstrap the workflow system for a project AND generate intelligent configuration from codebase analysis. Handles everything from directory creation to CLAUDE.md generation, skills, rules, and journey discovery — in one command.
 
 ```
-[ /claude-tweaks:init ] → /claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
+[ /claude-tweaks:init ] → /claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:stories → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
   ^^^^ YOU ARE HERE ^^^^
 ```
 
@@ -34,7 +34,7 @@ Do NOT generate generic skills. Every skill you produce must be grounded in patt
 - When `/claude-tweaks:help` or `/claude-tweaks:build` fails because something is missing
 - The user says "set up the workflow," "get me started," "set up Claude Code for this repo," or "update my Claude config"
 
-## Inputs
+## Input
 
 If `$ARGUMENTS` is provided, treat it as:
 - A path to a repository (e.g., `~/projects/their-app`) — `cd` there first
@@ -196,153 +196,58 @@ The workflow system relies on git for change tracking (`/claude-tweaks:review` u
 
 ### Step 0.7: Browser Integration
 
-Browser integration lets Claude Code interact with web pages — useful for testing UIs, running QA stories, scraping docs, and verifying deployments. The single supported backend is `agent-browser`.
+Browser integration lets Claude Code interact with web pages — used by `/claude-tweaks:stories`, `/claude-tweaks:visual-review`, and `/claude-tweaks:review qa`. The single supported backend is `agent-browser`.
 
-**Detect existing setup:**
+**Fires when:** every run. Detect `agent-browser --version`; if missing, surface the install command and continue (never block init, never auto-install, never prompt for backend choice).
 
-Run `agent-browser --version` via the Bash tool. If it succeeds, confirm the version and continue.
-
-**If `agent-browser` is not installed, print this note and continue:**
-
-```
-Browser features (used by /claude-tweaks:stories, /claude-tweaks:visual-review, /claude-tweaks:review qa) require agent-browser.
-
-Install: npm install -g agent-browser
-
-Browser features are optional — all other skills work without them and degrade gracefully.
-```
-
-Do not block init on a missing browser. Do not prompt for backend choice — there is only one backend.
+Read `bootstrap-steps.md` in this skill's directory for the full procedure (detection command, the exact install-note text to print, and the no-block contract).
 
 ### Step 0.8: Token-Saver Dependencies & Statusline
 
 claude-tweaks v4.2+ ships a bash-output filter, a 9-segment statusline, and a JSONL telemetry ledger. These require Node and (optionally) git for the branch segment.
 
-**Detect dependencies:**
+**Fires when:** every run. Two user-facing decisions:
 
-Run `node --version` and `git --version` via the Bash tool. For each missing dep, detect the platform's package manager and offer to install:
+1. **Missing deps (Node/git)** — if a dep is missing, prompt to install via the detected package manager (Homebrew on macOS, winget/scoop on Windows; Linux prints the command rather than running sudo). If a Node version manager (nvm/fnm/volta/n) is on PATH, **do not offer to install Node**.
+2. **Statusline wiring** — install the wrapper at `~/.claude-tweaks/bin/statusline.js` (resolves the latest cached plugin version at runtime), then prompt before writing `statusLine.command` to `~/.claude/settings.json`. If a hardcoded-version path is already present, offer to migrate to the wrapper. If a non-claude-tweaks command is present, never overwrite — just print the wrapper path and let the user compose manually.
 
-| Platform | Detect | Prompt |
-|---|---|---|
-| macOS | `brew --version` | "Install {dep} via Homebrew? (y/N) — runs `brew install {dep}`" |
-| Windows | `winget --version` or `scoop --version` | "Install {dep} via winget/scoop? (y/N)" |
-| Linux | `apt --version` / `dnf --version` / `pacman --version` | Print the install command (we don't run sudo from init) |
-
-If a Node version manager (nvm/fnm/volta/n) is on PATH, **do not offer to install Node** — print: "Node managed by {manager} — install via your manager."
-
-**Wire up the statusline (wrapper approach):**
-
-We can't write a literal env-var placeholder into settings.json from a slash command — Claude Code expands placeholders at skill-load time, so the agent never sees the literal string. The fix: install a tiny wrapper script at a **stable user-space path** that resolves the latest cached plugin version at runtime. settings.json points to the wrapper; plugin upgrades require no settings.json edits.
-
-**Step A — Install the wrapper:**
-
-Run the installer via Bash:
-
-```
-node "<plugin>/bin/install-statusline-wrapper.js"
-```
-
-The installer creates `~/.claude-tweaks/bin/statusline.js` (a small Node script that scans `~/.claude/plugins/cache/claude-tweaks-marketplace/claude-tweaks/` for the highest-version subdir and execs its `bin/claude-tweaks-statusline.js`). It prints the absolute wrapper path on stdout — capture that path; you'll need it in Step B.
-
-**Step B — Wire settings.json:**
-
-Read `~/.claude/settings.json` and look for `statusLine.command`:
-
-| Current state | Action |
-|---|---|
-| No `statusLine.command` set | Prompt: "Configure claude-tweaks statusline? (Y/n)". On yes, write the wrapper path from Step A into the JSON below. Backup `settings.json` before write. |
-| Old hardcoded-version path (matches `claude-tweaks-marketplace/claude-tweaks/\d+\.\d+\.\d+/bin/claude-tweaks-statusline\.js`) | **Migrate.** Replace with the wrapper path from Step A. Future plugin upgrades won't need /init to touch settings.json again. Backup before write. |
-| Already pointing to `.claude-tweaks/bin/statusline.js` | No-op (already migrated). |
-| Different command (not claude-tweaks) | Print the wrapper path and tell the user to compose manually if they want both. Never overwrite. |
-
-**Settings JSON to write** (replace `<wrapper_path>` with the absolute path the installer printed in Step A — typically `/Users/{user}/.claude-tweaks/bin/statusline.js` on macOS, `C:\Users\{user}\.claude-tweaks\bin\statusline.js` on Windows):
-
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "node \"<wrapper_path>\"",
-    "padding": 0
-  }
-}
-```
-
-When migrating from a versioned path, announce: "Migrating to wrapper at `<wrapper_path>` — future plugin upgrades won't need /init to bump this again. The wrapper resolves the latest cached version on every render."
-
-**Set `NO_COLOR=1` to disable color** if requested — universal env var, no claude-tweaks-specific override.
+Read `bootstrap-steps.md` in this skill's directory for the full procedure (detection commands, package-manager prompts table, wrapper installer invocation, settings.json migration matrix, exact JSON to write, and `NO_COLOR=1` opt-out).
 
 ### Step 0.9: Impeccable Design Integration (Optional)
 
-claude-tweaks v4.5+ integrates [Impeccable](https://impeccable.style/) — a frontend-design plugin that ships LLM commands (`critique`, `audit`, `polish`, `bolder`, `delight`, etc.) and a deterministic Node CLI (`impeccable detect`) for catching design anti-patterns. The integration is opt-in and only runs on frontend projects.
+claude-tweaks v4.5+ integrates [Impeccable](https://impeccable.style/) — a frontend-design plugin (LLM commands + deterministic `impeccable detect` CLI). Opt-in, frontend-only.
 
-**Detect frontend signals from Phase 2 reconnaissance** (or run a quick sniff of the project root if Phase 0 is being run before Phase 2): look for any of `.tsx`, `.jsx`, `.vue`, `.svelte`, `.html`, `.css` files, or directories `components/`, `pages/`, `app/`, `routes/`, `views/`, `ui/`. If none are detected, skip this step entirely — the project is not frontend-facing.
+**Fires when:** Phase 2 reconnaissance (or a quick sniff of the project root) detects frontend signals — `.tsx/.jsx/.vue/.svelte/.html/.css` files, or `components/`, `pages/`, `app/`, `routes/`, `views/`, `ui/` directories. If no frontend, skip entirely.
 
-**If frontend is detected, present:**
+**User-facing decision** when frontend is detected:
 
 ```
 Detected frontend project. Set up Impeccable design integration?
-
-Impeccable provides design-quality commands invoked by /test (deterministic CLI
-gate) and /review (LLM critique + audit). All findings are advisory in v4.5 —
-code is never auto-modified.
 
 1. Full integration **(Recommended)** — install plugin, run teach + document
 2. Plugin only — install plugin, skip the design-context interview (run later)
 3. Skip — disable design integration
 ```
 
-**For options 1 or 2 — install the plugin.** Surface this exact three-command sequence (claude-tweaks does not programmatically install plugins):
+Each choice writes a `design-integration` flag to CLAUDE.md (`enabled` / `plugin-only` / `disabled`) that the `/claude-tweaks:design` wrapper reads as Layer 1 of its detection logic. Missing flag is treated as `disabled` — design integration only activates when explicitly enabled by `/init`.
 
-```
-/plugin marketplace add pbakaus/impeccable
-/plugin install impeccable@impeccable
-/reload-plugins
-```
+**Re-run behavior:** if already `enabled`, offer to re-run `teach + document` to refresh `PRODUCT.md` / `DESIGN.md`; if `plugin-only` or `disabled`, offer the upgrade path back to full integration.
 
-The Impeccable CLI (`impeccable detect`) ships with the plugin and is invoked via `npx` — no separate install needed.
-
-Verify by checking that `/impeccable:impeccable` resolves to a skill in the next session. If it does not, the plugin install must complete before downstream features work.
-
-**For option 1 only — generate design context files.** Run the teach interview (interactive, ~5 minutes) and then generate the spec-compliant design document:
-
-```
-/impeccable:impeccable teach
-/impeccable:impeccable document
-```
-
-This writes `PRODUCT.md` (strategic context: audience, brand voice, anti-references) and `DESIGN.md` (visual system: colors, typography, components) at the project root. These are the files the design wrapper reads.
-
-**Write the kill-switch flag to CLAUDE.md.** Add (or update) a `## Design integration` section near the existing project-level config sections:
-
-```markdown
-## Design integration
-
-design-integration: enabled
-```
-
-Use the appropriate value:
-
-| Choice | Flag value |
-|--------|-----------|
-| Option 1 (Full) | `enabled` |
-| Option 2 (Plugin only) | `plugin-only` |
-| Option 3 (Skip) | `disabled` |
-
-The `/claude-tweaks:design` wrapper reads this flag as Layer 1 of its detection logic. Missing flag is treated identically to `disabled` — design integration only activates when explicitly enabled by `/init`.
-
-**For option 3:** Write `design-integration: disabled` to CLAUDE.md and continue. The wrapper short-circuits universally — no CLI calls, no LLM invocations, no token cost.
-
-**Optional companion (not part of the integration).** Impeccable also publishes a Chrome extension at https://chromewebstore.google.com/detail/impeccable/bdkgmiklpdmaojlpflclinlofgjfpabf that overlays the same 25-rule detector on any webpage during normal browsing. It does not connect to the slash commands and is not tracked by the `design-integration` flag — install it separately if you want ad-hoc audits while browsing your dev server, staging, or any third-party site. Skip otherwise.
-
-**Re-run behavior:** When `/init` is re-run on a project where `design-integration: enabled`, offer to re-run `/impeccable:impeccable teach` + `document` to refresh `PRODUCT.md` / `DESIGN.md` (the codebase may have evolved since the last run). When the flag is `plugin-only` or `disabled`, offer the upgrade path back to full integration.
-
-**Failure handling:** If the plugin install fails, do not abort `/init` — surface the failure and continue with `design-integration: disabled` until the user resolves it. The wrapper's availability checks gracefully skip when dependencies are absent.
+Read `bootstrap-steps.md` in this skill's directory for the full procedure (frontend-detection list, the three-command plugin install sequence, the `teach` + `document` invocation, the flag-value table, the optional Chrome extension note, and failure handling that keeps `/init` from aborting on plugin-install failure).
 
 ---
 
 ## Scope Selection Gate
 
 After Phase 0 completes, present the scope selection — unless `$ARGUMENTS` already specified a goal-based scope (e.g., `bootstrap`, `config`, `skills`, `journeys`, `docs`), in which case skip this gate and run the corresponding phases.
+
+**Auto-mode default:** If `auto-mode: default-on` is set in CLAUDE.md (or `.claude-tweaks/policy.yml`) and no explicit scope override was passed via `$ARGUMENTS`, default to option 1 (Auto, run all included phases) without prompting. Log an entry to the active pipeline run's `decisions.md`:
+
+```
+AUTO {ISO-time} — Scope Gate: auto-selected option 1 (Auto, run all phases). Reason: auto-mode default.
+```
+
+This gate is reversible (the user can re-run `/init` with different arguments or cancel mid-phase), so it qualifies for auto-resolution under the auto-mode contract. The interactive prompt below applies only when `auto-mode: default-off` or when no policy has been set.
 
 ```
 Bootstrap complete. How much setup do you want?
@@ -464,6 +369,46 @@ Existing CLAUDE.md files may pre-date claude-tweaks contract changes (auto-mode,
 For each missing marker, record a **Contract Drift** entry with the suggested patch — the body comes verbatim from `claude-md-template.md`, so no creative writing required. Carry these forward into the Drift Report (Phase 3) under a dedicated "Contract Drift" section so the user can approve them as a batch alongside other CLAUDE.md patches.
 
 If all markers are present, record "Contract: up to date (v4.6+)" in the inventory and skip ahead.
+
+### Phase 1u.6: Update Mode Early-Exit Gate
+
+After Phase 1u (inventory) and Phase 1u.5 (contract drift) complete, evaluate the audit signal before committing to the full phase ceremony. Update Mode's value is in catching drift quickly — when there's almost nothing to catch, the ceremony costs more than it produces.
+
+**Compute the audit totals from Phase 1u + 1u.5 so far:**
+
+| Metric | Source |
+|--------|--------|
+| **Total drift count** | Contract Drift entries from 1u.5 + any stale/drifted entries from the 1u inventory pass |
+| **Gap count** | Codebase patterns that have no existing config (initially zero — full Gap count is computed in Phase 3; this gate uses the preliminary signal from the inventory pass) |
+
+**Early-exit criteria:**
+
+- Total drift count = 0 **AND** preliminary gap signal < 3 → **early-exit fast path**
+
+**On early-exit:**
+
+1. Present the audit findings inline (one block, not a full phase summary):
+
+   ```
+   ### Update Mode — Quick Audit
+
+   Config is current. No drift detected. {N} preliminary gap signals (below threshold).
+
+   {if N > 0: list the N items briefly with file paths}
+
+   Skipping Phases 2-8.5 (full reconnaissance) — re-run `/init update --full` to force the complete pass.
+   ```
+
+2. Log to `decisions.md`:
+   ```
+   AUTO {ISO-time} — Phase 1u.6: early-exit (drift=0, gaps<3). Reason: Update Mode fast path per SKILL.md:912.
+   ```
+
+3. Skip directly to Phase 9 (Summary). Phase 9's summary template adapts: "Update Mode — no patches needed" instead of the full patch list.
+
+**On full pass (criteria not met):** drift > 0 OR preliminary gap signal >= 3 → continue to Phase 2 (Codebase Reconnaissance) as normal.
+
+The gate is automatic — no user prompt. The user always sees the audit findings, just without the ceremony when there's nothing to act on.
 
 ---
 
@@ -648,7 +593,7 @@ Only generate skills for patterns that **actually exist** in the codebase. Mark 
 ### Priority 2 (score 4-5) — Generate if time permits
 | ... |
 
-### Priority 3 (score 2-3) — Defer
+### Priority 3 (score 3) — Defer
 | ... |
 
 ### Not needed
@@ -925,4 +870,14 @@ Execute only after user confirmation.
 | `/claude-tweaks:browse` | Depends on `agent-browser`, which /claude-tweaks:init detects (and surfaces install instructions for) in Phase 0 |
 | `/claude-tweaks:design` | Phase 0.9 sets up Impeccable design integration (install plugin + CLI, optionally run `teach`) and writes the `design-integration` kill-switch flag to CLAUDE.md that the wrapper reads as Layer 1 of its detection logic. |
 | `/superpowers:using-git-worktrees` | /claude-tweaks:init optionally configures the worktree directory that `using-git-worktrees` needs |
+| `/claude-tweaks:stories` | /init Phase 8 (journey discovery) feeds /stories — discovered journeys become input for story generation |
+| `/claude-tweaks:version` | /version reads the same `plugin.json` that /init may print during bootstrap |
+| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. Phase 3 classification auto-confirm follows the contract's confidence-gated pattern. |
 | All workflow skills | Depend on the structure /claude-tweaks:init creates |
+
+### Next Actions
+
+1. `/claude-tweaks:capture {idea}` — capture the first idea or feature into INBOX for triage **(Recommended)**
+2. `/claude-tweaks:specify {first feature topic}` — jump straight to specifying the first lifecycle feature
+3. `/claude-tweaks:tidy` — review INBOX and DEFERRED items, especially after re-running /init in Update Mode
+4. `/claude-tweaks:help` — see the full lifecycle overview and current pipeline status

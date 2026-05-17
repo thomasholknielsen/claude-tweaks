@@ -38,9 +38,9 @@ Pipeline config snapshot:
 - AUTO 14:33:48 — Common Step 1 (worktree consent): pre-authorized by `auto` arg. Worktree created at `.worktrees/spec-42`.
 
 ## /review
-- AUTO 14:41:02 — Step 3g: applied 3 severity:low findings (formatting nits). Files: src/auth/login.ts:42, src/auth/logout.ts:18, src/auth/session.ts:91. Reversibility: high (commit `def5678`).
-- STAGED 14:41:15 — Step 3g: 2 severity:medium findings. Patches at `staged/review-2.patch`, `staged/review-3.patch`. Surface at Review Console.
-- KEPT-PROMPT 14:41:22 — Step 3g: 1 severity:high finding (potential race condition in src/auth/session.ts:140). Required user input — surfaced inline.
+- AUTO 14:41:02 — Step 3 Routing: applied 3 severity:low findings (formatting nits). Files: src/auth/login.ts:42, src/auth/logout.ts:18, src/auth/session.ts:91. Reversibility: high (commit `def5678`).
+- STAGED 14:41:15 — Step 3 Routing: 2 severity:medium findings. Patches at `staged/review-2.patch`, `staged/review-3.patch`. Surface at Review Console.
+- KEPT-PROMPT 14:41:22 — Step 3 Routing: 1 severity:high finding (potential race condition in src/auth/session.ts:140). Required user input — surfaced inline.
 
 ## /test
 - AUTO 14:48:31 — Step 1 fix mode: auto-fixed 4 lint failures (per `auto-fix-threshold: lint+type`). Commit `ghi9012`. Reversibility: high.
@@ -98,7 +98,7 @@ The Review Console reads the log file for the current pipeline run:
 2. Read `{run-dir}/decisions.md`
 3. Group entries by status: AUTO / STAGED / KEPT-PROMPT
 4. List staged artifacts from `{run-dir}/staged/`
-5. Present in the Review Console (see `/wrap-up` Step 9.6)
+5. Present in the Review Console (see `/wrap-up` Step 8.6)
 
 ## Archival on completion
 

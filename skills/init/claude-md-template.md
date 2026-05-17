@@ -1,4 +1,4 @@
-# Phase 4: CLAUDE.md Template and Guidelines
+# Phase 5: CLAUDE.md Template and Guidelines
 
 ## Core Principle
 
@@ -63,7 +63,7 @@ Generated from the maturity classification detected in Phase 2h. See "Generating
 
 **`auto-mode: default-off`** by default — flip to `default-on` to make `/flow` and `/build` run in auto. Under auto, do NOT insert mid-pipeline reality-checks, path-selection prompts, or context concerns. Surface failures via ledger/failure card. See `_shared/auto-mode-contract.md` in the claude-tweaks plugin.
 
-**Bookend architecture (v4.6+):** in auto mode the pipeline has exactly two stops — the Pipeline Config Manifesto at the start (`/flow` Step 1.6 — one "Approve all recommendations" table) and the Wrap-Up Review Console at the end (`/wrap-up` Step 9.6 — one consolidated batch). Mid-flow decisions are looked up from `.claude-tweaks/pipelines/{run-id}/config.yml` and logged to `decisions.md` in the same directory. Skills MUST NOT invent new mid-flow stops in auto. See `_shared/auto-mode-contract.md` and `_shared/auto-decision-log.md`.
+**Bookend architecture (v4.6+):** in auto mode the pipeline has exactly two stops — the Pipeline Config Manifesto at the start (`/flow` Step 3 — one "Approve all recommendations" table) and the Wrap-Up Review Console at the end (`/wrap-up` Step 8.6 — one consolidated batch). Mid-flow decisions are looked up from `.claude-tweaks/pipelines/{run-id}/config.yml` and logged to `decisions.md` in the same directory. Skills MUST NOT invent new mid-flow stops in auto. See `_shared/auto-mode-contract.md` and `_shared/auto-decision-log.md`.
 
 **Project policy defaults** in this CLAUDE.md (under `## Auto-mode policy`) pre-fill the Manifesto so the user can hit "Approve all" with no overrides — see the section below.
 

@@ -110,7 +110,23 @@ Read `design-intent:` from spec frontmatter (written by Phase 2's `/specify`). F
 
 The recommendation set spans both intent-driven commands (`bolder`, `quieter`, `distill`, `delight`, `animate`, `onboard`) and the manual-only commands (`colorize`, `extract`, `overdrive`). Survey is the surfacing channel for the manual-only set — without it, those commands would have no automatic discoverability.
 
-Output feeds the "Creative Opportunities" blocks in `/visual-review` and `/flow` pipeline summary. Recommendations the user previously declined for the same spec are suppressed via the declined-recommendations cache (see SKILL.md `survey` mode).
+Output feeds the "Creative Opportunities" blocks in `/visual-review` and `/flow` pipeline summary. Recommendations the user previously declined for the same spec are suppressed via the declined-recommendations cache (see `modes/survey.md`).
+
+### Survey "would help" criteria → command mapping
+
+Each observation maps to one creative command:
+
+| Observation | Suggested command | Rationale snippet |
+|-------------|-------------------|-------------------|
+| Page reads as generic — pure black on white, no visual personality | `bolder` | Typography/color hierarchy lacks confidence |
+| Visual weight imbalanced — multiple competing high-contrast elements | `quieter` | Reduce noise so the primary action wins |
+| Component clutter — many small UI elements doing redundant work | `distill` | Strip to essence; intent-only avoids `/simplify` overlap |
+| Empty state shows only "No items" or similar bare text | `delight` | Empty states are personality opportunities |
+| Page has interactive controls (toggles, hovers) but no transitions | `animate` | Static interactions feel unpolished |
+| Heavy monochrome — no strategic accent color | `colorize` | Strategic color anchors attention |
+| First-run flow with no guidance or progressive disclosure | `onboard` | First-run UX is a teaching surface |
+| Long-form content with weak hierarchy — wall of text, no pull-quotes | `extract` | Surface key content from prose |
+| Existing strong design that could push further (intentional polish) | `overdrive` | Aggressive creative push — user-discretion |
 
 ## Why this categorization exists
 

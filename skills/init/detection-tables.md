@@ -1,8 +1,8 @@
-# Phase 1: Detection Tables
+# Phase 2: Detection Tables
 
 Reference tables for codebase reconnaissance. Each detection step runs in parallel using glob/grep operations.
 
-## 1b: Stack Detection
+## 2b: Stack Detection
 
 Analyze package manifests, lock files, and config files to build a stack profile.
 
@@ -30,7 +30,7 @@ Analyze package manifests, lock files, and config files to build a stack profile
 
 For each detected technology, note the **version** (from lock file or config).
 
-## 1c: Architecture Detection
+## 2c: Architecture Detection
 
 ```
 Detect:
@@ -53,7 +53,7 @@ Detect:
 - Email (SendGrid, Resend, Postmark, SES, Mailgun — check for templates)
 ```
 
-## 1d: Convention Detection
+## 2d: Convention Detection
 
 Scan for patterns the team actually follows (not what they aspire to). Sample **at least 5 files** per pattern to distinguish one-off deviations from real conventions.
 
@@ -75,7 +75,7 @@ Detect:
 - Import style: absolute vs relative, path aliases, barrel re-exports
 ```
 
-## 1e: Workflow Detection
+## 2e: Workflow Detection
 
 ```
 Detect:
@@ -90,7 +90,7 @@ Detect:
 - Release process (semantic-release, changesets, manual tags)
 ```
 
-## 1f: Pain Point Detection
+## 2f: Pain Point Detection
 
 Look for signs of technical debt or friction. **Categorize each finding** as it's detected — the category determines where it goes (CLAUDE.md Don'ts vs INBOX):
 
@@ -125,7 +125,7 @@ Each finding feeds into exactly one destination:
 
 **The distinction:** Convention conflicts and anti-patterns describe _how things are done wrong today_ — they become guardrails. Missing infrastructure and improvement opportunities describe _work to do_ — they become backlog items with Phase 2 context baked in.
 
-## 1g: Existing AI Configuration (Initial Mode only)
+## 2g: Existing AI Configuration (Initial Mode only)
 
 Check for non-Claude AI config that might contain useful conventions to migrate:
 
@@ -139,7 +139,7 @@ Detect:
 
 If found, ask the user whether to **migrate and enhance** or **ignore**.
 
-## 1h: Project Maturity Detection
+## 2h: Project Maturity Detection
 
 Assess the project's maturity stage to inform the Philosophy section in CLAUDE.md. See the main SKILL.md Phase 2h for the full signal table, classification criteria, and user confirmation flow.
 

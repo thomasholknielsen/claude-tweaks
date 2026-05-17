@@ -26,7 +26,7 @@ The pipeline has at most two stops in `auto` mode, regardless of how many decisi
 └─────────────────────────────┘                                  └─────────────────────────┘
 ```
 
-- **Begin stop** — one structured `AskUserQuestion` at pipeline start collects all policy levers (scope-creep, overlap, design-intent, leftover-routing, auto-fix-threshold). Saved to `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}.yml`.
+- **Begin stop** — one structured `AskUserQuestion` at pipeline start collects all policy levers (scope-creep, overlap, design-intent, leftover-routing, auto-fix-threshold). Saved to `config.yml` inside the run directory at `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`.
 - **Mid-flow** — skills look up policy and execute. Every auto-decision lands in the auto-decision log.
 - **End stop** — `/wrap-up` Review Console presents one consolidated batch table covering everything that was auto-decided or staged.
 
@@ -45,7 +45,7 @@ The pipeline has at most two stops in `auto` mode, regardless of how many decisi
 When multiple sources can dictate a choice, highest wins:
 
 1. **Explicit CLI arg** — `/flow 42 auto no-polish` always wins for that invocation
-2. **Pipeline config** — answers from the Config Manifesto (`.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}.yml`)
+2. **Pipeline config** — answers from the Config Manifesto (`config.yml` in the run directory at `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`)
 3. **Project policy** — defaults in `CLAUDE.md` (e.g., `scope-creep: add-to-plan`)
 4. **Skill default** — the skill's fallback behavior when nothing above is set
 
@@ -91,10 +91,10 @@ Every auto-resolution is logged. This is non-negotiable — silent automation wi
 
 See `auto-decision-log.md` for the full schema. Summary:
 
-- Path: `docs/plans/{YYYY-MM-DD}-auto-decisions.md` (one per day, append-only)
+- Path: `.claude-tweaks/pipelines/{run-id}/decisions.md` (per-run, append-only)
 - Format: per-skill section with timestamped entries
 - Read by: `/wrap-up` Review Console
-- Each entry: action, rationale, reversibility, status (`auto-applied` | `staged` | `kept-prompt`)
+- Each entry: action, rationale, reversibility, status (`AUTO` | `STAGED` | `KEPT-PROMPT`)
 
 ## Reversibility / confidence / severity floors
 
@@ -111,9 +111,9 @@ When any floor fails, the skill MUST stage the decision (log it, don't act) and 
 ### Always-reversible (auto-OK)
 
 - File edits in worktree (`git revert`)
-- Patch files staged in `.claude-tweaks/staged/` (apply later, never silently)
+- Patch files staged in `.claude-tweaks/pipelines/{run-id}/staged/` (apply later, never silently)
 - Auto-decision log entries (delete to undo)
-- Cache writes under `docs/plans/*.json` (regeneration is cheap)
+- Cache writes under `.claude-tweaks/pipelines/{run-id}/cache/*.json` (regeneration is cheap)
 - Ledger appends with status `observation` or `open`
 
 ### Never-reversible (auto-FORBIDDEN, regardless of mode)
@@ -137,7 +137,7 @@ When any floor fails, the skill MUST stage the decision (log it, don't act) and 
 | Overlap handling (`/specify` Step 1) | Skip / extend / companion / replace | Apply policy from manifesto (default `companion`) |
 | Impeccable shape (`/specify` Step 2.5b) | Run / skip | Auto-run for frontend specs; skip for others |
 | Design intent (`/specify` Step 2.5c) | 6-way creative direction | Apply manifesto value (default `none` — no intent applied) |
-| Code review findings (`/review` Step 3g) | Apply all / override | Severity:low → auto-apply; severity:medium → stage for review; severity:high → kept-prompt |
+| Code review findings (`/review` Step 3 Routing) | Apply all / override | Severity:low → `AUTO`; severity:medium → `STAGED`; severity:high → `KEPT-PROMPT` |
 | Tidy cleanup (`/tidy`) | Per-item decision | Auto-apply Keep and unambiguous Delete; stage Merge/Promote/ambiguous |
 | Test fix mode (`/test` Step 1) | Auto-fix / show / skip | Auto-fix lint and type-only failures (per `auto-fix-threshold` policy); stage test failures |
 | Visual-review prereqs (`/visual-review` Step 1) | Install / skip | Auto-skip if not installed; surface in report |
@@ -149,7 +149,7 @@ When any floor fails, the skill MUST stage the decision (log it, don't act) and 
 | Reflect insight routing | Per-item decision | Auto-route: defer (default), inbox (tangential), fix-now (only safety regressions) |
 | Wrap-up Step 4 leftover routing | Per-item decision | Apply `leftover-default` policy from manifesto (default `defer`) |
 | Wrap-up Step 7.5 skill updates | Apply all / override | Auto-apply purely additive changes (new examples, anti-patterns); stage restructures |
-| Wrap-up Step 9.6 per-spec Review Consoles under multi-spec `/flow` | One console per spec at each wrap-up (N consoles for N specs) | **Consolidated into one** end-of-run Review Console at `/flow`. Per-spec wrap-ups skip Step 9.6 when `MULTISPEC_REVIEW_DEFER=1` is set; the parent `/flow` runs a single console reading every per-spec `decisions.md` + `staged/` after the last spec completes. Preserves the bookend promise (one start stop, one end stop) regardless of N. See `flow/multispec-review-console.md`. |
+| Wrap-up Step 8.6 per-spec Review Consoles under multi-spec `/flow` | One console per spec at each wrap-up (N consoles for N specs) | **Consolidated into one** end-of-run Review Console at `/flow`. Per-spec wrap-ups skip Step 8.6 when `MULTISPEC_REVIEW_DEFER=1` is set; the parent `/flow` runs a single console reading every per-spec `decisions.md` + `staged/` after the last spec completes. Preserves the bookend promise (one start stop, one end stop) regardless of N. See `flow/multispec-review-console.md`. |
 | Mid-pipeline reality-checks inserted by the model | Free-form prompt | **NOT ALLOWED** — see Anti-Patterns |
 | "Are you sure?" before authorized reversible operations | Confirmation prompt | Proceed silently |
 | Cost / wall-clock estimates as stop questions | Free-form prompt | **NOT ALLOWED** — surface in summary, not as a blocking question |
@@ -189,17 +189,13 @@ If the skill genuinely needs information not in the Config Manifesto, it logs `N
 
 ## Per-skill compliance
 
-Each skill with at least one stop must declare its auto behavior in its SKILL.md. The declaration form:
+The canonical per-stop behavior table is the "What `auto` silences" / "What `auto` does NOT silence" pair above. Each pipeline-participating skill MUST:
 
-```
-## Auto-mode behavior
+1. Reference this file in its Relationship table (e.g., `\| _shared/auto-mode-contract.md \| Single source of truth for auto-mode behavior \|`).
+2. When implementing an auto branch, follow the "Skill integration pattern" below (read pipeline config → project policy → skill default → log entry).
+3. Resist the urge to redeclare semantics inline. If a skill needs a per-stop quick reference, link to the relevant row in the silences table rather than duplicating it.
 
-| Stop | Auto behavior | Log entry |
-|---|---|---|
-| {step name} | {auto-apply / stage / hard-gate / not-silenceable} | {what gets written to the auto-decision log} |
-```
-
-Skills without stops omit the section.
+Per-skill `## Auto-mode behavior` tables in SKILL.md are deprecated as of v4.7.0 — the silences table is the single source of truth. Drift between two copies (skill-local and contract-canonical) was the failure mode they were meant to prevent and instead enabled.
 
 ## Skill integration pattern
 
@@ -211,13 +207,13 @@ When a skill has a historical mid-flow stop, rewrite it like this:
 **Interactive mode:** present numbered options and wait.
 
 **Auto mode:**
-1. Read pipeline config from `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}.yml` for `{policy-key}` → if set, apply.
+1. Read pipeline config from `{run-dir}/config.yml` (resolve `{run-dir}` via `PIPELINE_RUN_DIR` env var or most-recent matching run under `.claude-tweaks/pipelines/`) for `{policy-key}` → if set, apply.
 2. Else read project policy from CLAUDE.md → if set, apply.
 3. Else apply skill default: `{skill-default-value}`.
-4. Log to auto-decision log:
-   `[{skill}] {step name} — auto-applied {value}. Reason: {policy-source}. Reversibility: {high|med|low}.`
+4. Log to auto-decision log (append under `## /{skill}` heading in `{run-dir}/decisions.md`):
+   `- AUTO {HH:MM:SS} — {step name}: applied {value}. Reason: {policy-source}. Reversibility: {high|med|low}.`
 5. If reversibility != high OR confidence != high OR severity > low → stage instead:
-   `[{skill}] {step name} — staged for review. Detail: {what was found}.`
+   `- STAGED {HH:MM:SS} — {step name}: {what was found}. Stage path: staged/{slug}.{ext}.`
    Surface at the Wrap-Up Review Console.
 ```
 

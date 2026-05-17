@@ -75,6 +75,16 @@ Note: the upstream code uses `pathlib.Path` throughout; the patch stays consiste
 
 Upstream infers mode from natural-language phrasing ("deep research in ultradeep mode: X"). Our `SKILL.md` instead asks one structured question with 4 options (`standard` recommended).
 
+## Style deviations from claude-tweaks house style
+
+The vendored research skill content is preserved verbatim from upstream, including:
+
+- **Emoji usage** in `templates/report_template.md`, `reference/methodology.md`, `scripts/validate_report.py`, and `scripts/verify_html.py` (status markers like ✅ / ❌ / ⚠️ for PASS/FAIL/WARNING output, GOOD/BAD examples in the report template, and DO/DON'T lists in methodology). claude-tweaks-authored SKILL.md files do NOT use emojis (CLAUDE.md "Don'ts"), but vendored content stays as-is to keep upstream diffs manageable.
+- **Voice and section conventions** in `reference/*.md` — long-form prose, heading hierarchy, and instructional style follow upstream's documentation conventions rather than the claude-tweaks SKILL.md template (frontmatter / interaction directive / Anti-Patterns / Relationship tables). Only the top-level `SKILL.md` is rewritten to claude-tweaks conventions; everything under `reference/`, `scripts/`, `schemas/`, and `templates/` stays upstream-shaped.
+- **No Anti-Patterns / Relationship tables** in vendored sub-files — those are SKILL.md-level conventions. Sub-files document the pipeline, not the skill's lifecycle position.
+
+When updating the vendored content (see "Updating from upstream" below), do NOT strip emojis, refactor for claude-tweaks voice, or impose Anti-Patterns / Relationship tables on vendored files — preserve upstream exactly so future merges stay mechanical.
+
 ## Auto-mode posture
 
 `/research` is a single-skill utility, not a multi-phase pipeline. The v4.6 bookend architecture (Manifesto + Review Console) does NOT apply. The auto-mode contract applies trivially — no decision-worthy mid-flow stops, nothing to log. Do not retrofit Manifesto integration.

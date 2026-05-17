@@ -1,4 +1,4 @@
-# Pipeline Config Manifesto — Step 1.6
+# Pipeline Config Manifesto — Step 3
 
 The Manifesto is the **first bookend** of the pipeline (see `_shared/auto-mode-contract.md`). One structured table collects every policy lever the pipeline needs. After it's resolved, downstream skills look up policy here — they do not re-ask the user.
 

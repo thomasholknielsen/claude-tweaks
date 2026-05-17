@@ -1,19 +1,18 @@
 ---
 name: claude-tweaks:stories
 description: Use when generating or updating user story YAML files for UI testing — browses a site with agent-browser, discovers flows, creates structured stories using semantic locators (schema v2) with diff-aware updates, negative testing, source-aware contracts, journey awareness, and self-validation. Keywords - stories, generate, create, user journey, persona, QA, testing, semantic-locators.
-allowed-tools: Bash
 ---
 > **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
 
 
-# Stories
+# Stories — Generate or update user-story YAML for UI testing
 
 Browse a website, understand its structure and flows, and generate user story YAML files for UI testing. Stories describe journeys for any persona — customers, admins, developers, operators.
 
 ```
-/claude-tweaks:capture → ... → /claude-tweaks:build → [ /claude-tweaks:stories ] → /claude-tweaks:review → /claude-tweaks:wrap-up
-                                                       ^^^^ YOU ARE HERE ^^^^
-                                                       (conditional — only when UI files change)
+/claude-tweaks:init → /claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → [ /claude-tweaks:stories ] → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
+                                                                                                                                 ^^^^ YOU ARE HERE ^^^^
+                                                                                                                                 (conditional — only when UI files change)
 ```
 
 ## When to Use
@@ -73,15 +72,9 @@ stories:
         locator: { text: "Order confirmed", exact: true }
 ```
 
-Locator types (always semantic, never CSS or XPath):
+Locators are always semantic (one of: ARIA role, `data-testid`, visible text, form label, input placeholder) — never CSS, XPath, or `@eN` snapshot refs. At runtime, locators resolve to session-scoped `@eN` refs via `agent-browser --session <name> find <type> <args>`; refs are NEVER stored in the YAML — they regenerate each snapshot. See `agent-browser-reference.md` in the `/claude-tweaks:browse` skill directory for the full operation vocabulary.
 
-- `{ role, name? }` — ARIA role with optional accessible name
-- `{ testid }` — `data-testid` or framework equivalent
-- `{ text, exact? }` — visible text content
-- `{ label }` — associated form label
-- `{ placeholder }` — input placeholder
-
-At runtime, locators resolve to session-scoped `@eN` refs via `agent-browser --session <name> find <type> <args>`. Refs are NEVER stored in the YAML — they regenerate each snapshot. See `agent-browser-reference.md` in the `/claude-tweaks:browse` skill directory for the full operation vocabulary.
+See locator types and preference order in `story-examples.md`.
 
 ## Auth Vault
 
@@ -103,36 +96,9 @@ This replaces the cookie-injection path used in earlier versions and removes the
 
 ## v1 detection (legacy story migration)
 
-When `/stories` reads a YAML file lacking `schema_version: 2` at the top:
+**Trigger:** `/stories` reads a YAML file lacking `schema_version: 2` at the top.
 
-**Auto mode:** auto-skip migration. Stage as a Review Console item — never regenerate stories autonomously (a migration changes test assertions, which is high-stakes). Log:
-```
-STAGED {time} — Step 1: legacy v1 stories detected ({N} files). Stage path: staged/stories-legacy-migration.md.
-```
-The staged file lists the v1 stories with the proposed migration command: `/claude-tweaks:stories migrate`. Surface at Review Console. Stories continue to run as-is for the rest of the pipeline (best-effort; v1 selectors may fail in QA).
-
-**Interactive mode:** present:
-
-> v1 stories detected (N stories, CSS selectors). v4 of claude-tweaks uses semantic locators (role/text/testid). Regenerate?
->
-> 1. Regenerate all (preserves story names, descriptions, intent — re-derives locators from live DOM) **(Recommended)**
-> 2. Show me the changes first
-> 3. Cancel
-
-- **Choice 1:** invoke the standard `/stories <url>` flow with each existing story's `id`, `name`/`description`, `journey`, `priority`, `tags`, and `source_files` passed as scaffolding so the AI preserves intent and only replaces locators. The browse-exploration step (Step 2) and source analysis (Step 1.5) run normally; locator selection in Step 3 reads the new accessibility-tree snapshot via `agent-browser snapshot -i -c` instead of capturing CSS selectors.
-- **Choice 2:** dump a per-story diff for review (one row per step):
-  ```
-  Story 'checkout-flow' — 3 step(s) need migration
-  | Step | Old (v1 CSS)              | Inferred semantic locator (v2)         |
-  |------|---------------------------|----------------------------------------|
-  | 1    | button#add-to-cart        | { role: button, name: "Add to cart" } |
-  | 2    | input[name=email]         | { testid: "email-input" }              |
-  | 3    | .confirmation-message     | { text: "Order confirmed" }            |
-  ```
-  After review, prompt: "Proceed with regeneration? 1. Yes (Recommended)  2. Cancel". Inference uses the live DOM snapshot; if the old selector cannot be confidently mapped, the row shows `(needs manual review)` and that story is tagged `needs-review` after regeneration.
-- **Choice 3:** stop. Stories stay in v1 and are not used by the rest of the workflow.
-
-After regeneration, write `schema_version: 2` at the top of every regenerated YAML file.
+When detected: read `migration.md` in this skill's directory for the full migration procedure (auto-mode staging, interactive prompt, per-story diff, and regeneration rules). Do NOT silently parse legacy v1 files — they use CSS selectors which schema v2 forbids.
 
 ## Step 1: Ingest
 
@@ -281,24 +247,18 @@ If the framework is not React/TSX, no source files were identified, or files can
 
 ## Step 2: Explore
 
-4. Create the output directory if it doesn't exist (use `mkdir` via the Bash tool — it creates parent directories on all platforms).
-5. Use the `/claude-tweaks:browse` skill to open the site. The concrete command is `agent-browser --session <session-name> open <url>` (see `agent-browser-reference.md` in the `/browse` skill directory). Choose `<session-name>` per the kebab-case convention (e.g., `stories-explore`, `stories-checkout`). Consider `agent-browser batch --session <name>` to bundle open + initial snapshot + reconnaissance screenshot in one process invocation when exploring multiple pages.
-6. Capture an accessibility-tree snapshot via `agent-browser --session <name> snapshot -i -c` to understand the page structure. The snapshot returns elements with role, accessible name, text, label, placeholder, and `data-testid` — these are the only attributes used to build v2 locators.
-7. Identify the main navigation, key pages, and interactive elements from the snapshot.
-8. Follow links to discover major sections (limit to 5-8 pages to stay efficient).
+1. Create the output directory if it doesn't exist (use `mkdir -p` via the Bash tool — `-p` creates parent directories and silently no-ops if the directory already exists; plain `mkdir` does NOT create parents on macOS/Linux).
+2. Use the `/claude-tweaks:browse` skill to open the site. The concrete command is `agent-browser --session <session-name> open <url>` (see `agent-browser-reference.md` in the `/browse` skill directory). Choose `<session-name>` per the kebab-case convention (e.g., `stories-explore`, `stories-checkout`). Consider `agent-browser batch --session <name>` to bundle open + initial snapshot + reconnaissance screenshot in one process invocation when exploring multiple pages.
+3. Capture an accessibility-tree snapshot via `agent-browser --session <name> snapshot -i -c` to understand the page structure. The snapshot returns elements with role, accessible name, text, label, placeholder, and `data-testid` — these are the only attributes used to build v2 locators.
+4. Identify the main navigation, key pages, and interactive elements from the snapshot.
+5. Follow links to discover major sections (limit to 5-8 pages to stay efficient).
 
 ### Per-Page Data Capture
 
-9. For each page visited, note:
+6. For each page visited, note:
     - What the page is for
     - Key interactive elements (forms, buttons, links, menus)
-    - **Semantic locator candidates** for each interactive element. From the snapshot, prefer in order:
-      1. `{ testid: "..." }` when `data-testid` is present
-      2. `{ role: "...", name: "..." }` when accessible name is unambiguous
-      3. `{ label: "..." }` for form fields with associated labels
-      4. `{ placeholder: "..." }` for inputs without labels
-      5. `{ text: "...", exact: true }` for unique visible text (last resort — text shifts with copy edits)
-      Do NOT capture CSS classes, IDs, or XPath. Schema v2 forbids them.
+    - **Semantic locator candidates** for each interactive element. See locator types and preference order in `story-examples.md`. Do NOT capture CSS classes, IDs, or XPath — schema v2 forbids them.
     - What a user would do here
     - What success/failure looks like
     - Whether the page has forms (for negative story generation)
@@ -318,7 +278,7 @@ For each page visited during exploration, check JOURNEY_URL_INDEX:
 
 - **Page does NOT match any journey step URL:** Full discovery (existing behavior). This page has no journey context and gets standard exploration.
 
-**Journey-guided navigation:** When a journey has step URLs that the standard exploration (items 7-8) would not naturally visit, add those URLs to the exploration queue. This ensures all journey-documented pages get enrichment passes. Journey enrichment pages are counted separately from the 5-8 page discovery cap — they are verification, not discovery.
+**Journey-guided navigation:** When a journey has step URLs that the standard exploration (items 4-5) would not naturally visit, add those URLs to the exploration queue. This ensures all journey-documented pages get enrichment passes. Journey enrichment pages are counted separately from the 5-8 page discovery cap — they are verification, not discovery.
 
 ### Auth Resolution (Auth Vault)
 
@@ -339,22 +299,11 @@ If any discovered page requires authentication, resolve a vault entry per the Au
    On `ready`: re-run `agent-browser auth list`, confirm the new vault, and continue. On `skip`: tag stories that require auth as `needs-auth-vault` and skip them in Step 5 refinement.
 4. **Multiple vaults exist (e.g., `default-user`, `admin-user`):** Map each story's persona to the matching vault. If a persona has no obvious match, use `default-user` and note in the story comment.
 
-**Legacy `auth.yml` migration (existing projects):** If `{OUTPUT_DIR}/auth.yml` exists from a v3 install, present:
+### Legacy `auth.yml` detection
 
-> Legacy `{OUTPUT_DIR}/auth.yml` detected ({N} profile(s)). v4 stores credentials in the Auth Vault. Migrate?
->
-> 1. Print the `agent-browser auth set` commands for me to run, one per profile **(Recommended)**
-> 2. Keep `auth.yml` for now (stories will continue using profile references — supported but deprecated)
-> 3. Delete `auth.yml` (only safe after vault entries exist)
+**Trigger:** `{OUTPUT_DIR}/auth.yml` exists from a v3 install.
 
-On choice 1, print commands like:
-```
-agent-browser auth set default <username-from-default-profile> <password-from-default-profile>
-agent-browser auth set admin <username-from-admin-profile> <password-from-admin-profile>
-```
-The LLM does not run these — the user runs them in their own shell so credentials never traverse the conversation. After the user confirms, generated stories use `auth: { vault: "<name>" }` instead of `setup.auth: <profile>`.
-
-The `dev-url-detection.md` procedure still tracks server config (url, detected date, start_command). When a dev URL is resolved, persist it under `{OUTPUT_DIR}/servers.yml` (servers-only file, no credentials) — this file is safe to commit and shared between runs.
+When detected: read `migration.md` in this skill's directory for the split procedure (credentials → Auth Vault, server URLs → `servers.yml`).
 
 ### URL-to-Source-File Mapping
 
@@ -431,7 +380,7 @@ When JOURNEY_MAP is non-empty (Step 1.1 found journeys), use journey data to inf
       - If a story with this URL already exists in EXISTING_STORIES -> mark as **EXISTING**.
       - If no story exists for this URL -> mark as **NEW**.
     - For each EXISTING story, check for staleness via two mechanisms:
-      - **Locator staleness:** For each existing semantic locator (`{ role, name }`, `{ testid }`, `{ text }`, `{ label }`, `{ placeholder }`), run `agent-browser --session <name> find <type> <args>` against the current snapshot. If find returns 0 matches -> mark as **STALE** and add to STALE_LOCATORS list. If find returns >1 matches -> mark as **STALE_AMBIGUOUS** (locator needs disambiguation).
+      - **Locator staleness:** For each existing semantic locator (see types in `story-examples.md`), run `agent-browser --session <name> find <type> <args>` against the current snapshot. If find returns 0 matches -> mark as **STALE** and add to STALE_LOCATORS list. If find returns >1 matches -> mark as **STALE_AMBIGUOUS** (locator needs disambiguation).
       - **Source file staleness:** If the existing story has a non-empty `source_files` array, run `git diff --name-only` and check whether any of those files appear in the diff. If so -> mark as **STALE** and add to STALE_SOURCE_FILES list, even if all locators still resolve.
       - **Behavioral contract staleness:** If the existing story has a non-empty `source_files` array and those files were not flagged by `git diff`, re-run source analysis (Step 1.5) on those files and compare the resulting SourceContract against the behavioral signals embedded in the existing story's steps. If a behavioral constraint has changed — for example, an input's `max` changed from 100 to 200, a validation rule was added or removed, a new error path was introduced, or a conditional rendering condition changed — mark as **STALE** even though the files did not appear in git diff (the diff may have been committed in a previous cycle). Add to STALE_SOURCE_FILES with reason: "behavioral contract changed: {description of change}."
     - **EXISTING** stories with no stale locators AND no stale source files AND no behavioral contract changes: **SKIP** — do not regenerate.
@@ -559,7 +508,7 @@ stories:
         locator: { text: "Order confirmed", exact: true }
 ```
 
-**Locator types** are the only legal values for `locator:` — `{ role, name? }`, `{ testid }`, `{ text, exact? }`, `{ label }`, `{ placeholder }`. CSS selectors, XPath, and snapshot refs (`@eN`) are forbidden in YAML. See the Story schema (v2) section above and `agent-browser-reference.md` in the `/browse` skill directory for the complete reference.
+**Locators** in `locator:` must be semantic. CSS selectors, XPath, and snapshot refs (`@eN`) are forbidden in YAML. See locator types and preference order in `story-examples.md`.
 
 ### Update Mode Write Rules
 
@@ -758,8 +707,7 @@ For complete YAML examples covering DOM-only stories, source-aware stories (with
 - Keep stories focused — one journey per story, 3-8 steps each
 - Always assign an `id` (kebab-case, stable across regeneration) and a `description`
 - Use concrete element names and text found during exploration, not generic descriptions
-- **Locators are semantic only** — `{ role, name? }`, `{ testid }`, `{ text, exact? }`, `{ label }`, `{ placeholder }`. Never CSS, never XPath, never `@eN` snapshot refs. Refs are session-scoped and resolved at runtime via `agent-browser find`.
-- Prefer locator types in this order: `testid` > `role + name` > `label` > `placeholder` > `text`. Text is brittle to copy edits — use it last.
+- **Locators are semantic only** — never CSS, never XPath, never `@eN` snapshot refs. Refs are session-scoped and resolved at runtime via `agent-browser find`. See locator types and preference order in `story-examples.md`.
 - The `url` field handles initial navigation — do NOT include "Navigate to URL" as a first step
 - Prefer verifiable assertions ("Verify at least 3 items visible") over vague ones ("Verify page looks right")
 - Tag stories appropriately: `smoke` for quick health checks, `critical` for business-critical flows
@@ -783,7 +731,7 @@ For complete YAML examples covering DOM-only stories, source-aware stories (with
 | Pattern | Why It Fails |
 |---------|-------------|
 | Generating stories without browsing the site first | Stories must be grounded in actual page structure and the live accessibility-tree snapshot |
-| Using CSS selectors, XPath, IDs, or class names in v2 schema | Schema v2 is semantic-only — locators must be `{ role, name? }`, `{ testid }`, `{ text, exact? }`, `{ label }`, or `{ placeholder }`. CSS is brittle and forbidden. |
+| Using CSS selectors, XPath, IDs, or class names in v2 schema | Schema v2 is semantic-only — see locator types in `story-examples.md`. CSS is brittle and forbidden. |
 | Storing `@eN` snapshot refs in story YAML | Refs are session-scoped and regenerate every snapshot — they are runtime-only. Always store the semantic locator and resolve to a ref at execution time via `agent-browser find`. |
 | Skipping the v1 detection prompt and silently parsing legacy files | v1 stories use CSS selectors that schema v2 forbids — silent parsing produces broken stories. Always run the v1 detection / regeneration UX when `schema_version: 2` is missing. |
 | Inlining credentials in story YAML | Use `auth: { vault: "<name>" }` referencing an Auth Vault entry. The LLM never sees passwords. Inline credentials risk accidental commits. |
@@ -812,3 +760,5 @@ For complete YAML examples covering DOM-only stories, source-aware stories (with
 | `/claude-tweaks:flow` | Auto-triggers /stories between build and test when UI files change (unless `no-stories`). Uses `dev-url-detection.md` for URL resolution. |
 | `/claude-tweaks:init` | Detects `agent-browser` availability during setup; without it /stories' browse-exploration and refinement steps cannot run (degrades gracefully — generates from journey/source-analysis data only). |
 | `qa-agent` (`agents/qa-agent.md`) | Runtime executor for /stories' YAML — opens an agent-browser session per story, uses Auth Vault for `auth: { vault: ... }` references, and captures trace-on-failure. /stories' refinement step prefigures this same execution path. |
+| `/claude-tweaks:help` | /help recommends /stories when UI files change and no stories exist; /stories' Next Actions block routes back to `/test qa` which /help surfaces as next-up |
+| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |

@@ -29,7 +29,26 @@ Periodic backlog hygiene to keep the spec system healthy. Run when the backlog f
 > **No decisions during scanning.** Steps 1-4.6 silently collect all findings. Everything is presented as one batch in Step 6 for approval. This replaces the previous per-item decision model.
 
 > **Parallel execution:** Dispatch Steps 1, 1.5, 2, 3, 4, 4.5, and 4.6 as parallel Task agents — each scan is independent (INBOX, Deferred, Specs, Design Docs, Plans, Git, Doc Registry). Each agent returns findings in the `[type] item — detail — recommendation` format. After all agents complete, run Step 5 and Step 5.5 sequentially — they depend on Step 2's spec scan results. Assemble all findings into the Step 6 report.
-> **Output contract:** Each scan agent must follow Template A from `skills/_shared/subagent-output-contract.md` (the `[type] item — detail — recommendation` format above is a tidy-specific variant of Template A). Inline the literal template in the agent's prompt.
+>
+> **Model tier:** Fast (Haiku) — each scan is a mechanical read of a single data source (INBOX file, DEFERRED file, spec directory, design-doc directory, plan directory, `git worktree list` + branches, REGISTRY). No cross-cutting analysis at the per-scan level; Step 5/5.5 do the synthesis sequentially in the main thread.
+>
+> **Output template (each agent must follow exactly):**
+>
+> ```markdown
+> OUTPUT FORMAT (required):
+> Return ONLY a markdown table, no preamble:
+>
+> | Severity | Path:Line | Finding | Evidence |
+> |---|---|---|---|
+> | critical | src/auth.ts:42 | Missing token expiry check | uses `<` not `<=` |
+> | medium | src/api.ts:180 | Unhandled rejection | line 184: `await fetch(...)` no try/catch |
+>
+> Severity scale: critical / high / medium / low / info
+> If no findings: return literal text "No findings."
+> Do not add narration, headers, or summaries before or after the table.
+> ```
+>
+> Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the table. For /tidy use, map columns as: Severity = recommendation urgency (`info` for Keep, `low` for routine cleanup, `medium` for Promote/Merge/Defer, `high` for stale-Delete or registry break), Path:Line = the artifact (`specs/INBOX.md:42`, `specs/DEFERRED.md`, `docs/REGISTRY.md`, worktree path), Finding = `[type] item — short detail` (e.g., `[inbox] "Build redis cache" — 5 weeks old`), Evidence = the recommendation (`Delete — stale` / `Promote — ready for brainstorm` / `Merge → Spec 42`). The dispatcher merges all agents' tables into the Step 6 report.
 
 ### Step 1: Audit the INBOX
 
@@ -76,25 +95,7 @@ Check dependency health: circular dependencies, specs blocked by unstarted specs
 
 ### Step 3: Audit Design Docs and Briefs
 
-Scan `docs/superpowers/specs/*-design.md` and `docs/plans/*-brief.md`.
-
-**Design doc classification:**
-
-| Status | Recommendation |
-|--------|---------------|
-| Marked as specified, derived specs complete | Delete |
-| No status, matches existing specs | Mark as specified |
-| No status, no matching specs | Run `/claude-tweaks:specify` |
-| Very old (4+ weeks), no specs | Delete |
-
-**Brief classification:**
-
-| Status | Recommendation |
-|--------|---------------|
-| Matching design doc exists | Keep |
-| No matching design doc, specs exist | Delete |
-| No matching design doc, no specs | Delete |
-| Very old (4+ weeks), no design doc | Delete |
+Scan `docs/superpowers/specs/*-design.md` and `docs/plans/*-brief.md`. Classify each using the design-doc and brief classification tables in `triage-tables.md` in this skill's directory.
 
 → Collect each as: `[doc] {filename} — {recommendation}`
 
@@ -213,7 +214,7 @@ When merging an INBOX or deferred item into an existing spec, the merged content
 
 ### Auto mode (aggressiveness-based routing)
 
-When a pipeline run directory exists (`PIPELINE_RUN_DIR` env var or matching dir in `.claude-tweaks/pipelines/`), read `tidy-aggressiveness` from `config.yml` (default `conservative`).
+When a pipeline run directory exists (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet), read `tidy-aggressiveness` from `config.yml` (default `conservative`).
 
 For each finding, route by recommendation type:
 
@@ -235,7 +236,7 @@ AUTO 11:14:32 — Step 6: deleted stale INBOX entry "{title}" (5 weeks old). Rev
 STAGED 11:14:35 — Step 6: merge proposal for INBOX "{title}" into spec 42. Stage path: staged/tidy-merge-1.md.
 ```
 
-Auto-applied items are committed. Staged items surface at the Wrap-Up Review Console for batch approval (`/wrap-up` Step 9.6) when `/tidy` runs as part of a pipeline. When `/tidy` runs standalone in `auto` mode, present staged items at the end of the report as a Pending Review section before completing.
+Auto-applied items are committed. Staged items surface at the Wrap-Up Review Console for batch approval (`/wrap-up` Step 8.6) when `/tidy` runs as part of a pipeline. When `/tidy` runs standalone in `auto` mode, present staged items at the end of the report as a Pending Review section before completing.
 
 ### Interactive mode (batch approval)
 
@@ -283,11 +284,6 @@ Present all collected findings as a single report. Every item has a pre-filled r
 ```
 
 Items recommended as "Keep" are included for visibility but require no action. Only items with an active recommendation (delete, promote, fix, run) are executed.
-
-### Next Actions
-
-1. `/claude-tweaks:help` — full pipeline status **(Recommended)**
-2. `/claude-tweaks:build {N}` — build the highest-priority ready spec
 
 ---
 
@@ -368,3 +364,12 @@ Commit with a message summarizing the tidy-up.
 | `specs/DEFERRED.md` | /claude-tweaks:tidy audits deferred items — promotes, merges, moves to INBOX, or deletes |
 | `/claude-tweaks:build` | /claude-tweaks:tidy cleans up leftover worktrees and `build/*` branches from previous builds |
 | `/claude-tweaks:init` | /claude-tweaks:tidy Step 4.6 audits doc registry health — flags stale entries, gaps, pattern drift. Suggests `/init update` for tier drift. |
+| `/claude-tweaks:ledger` | /ledger creates the per-feature ledger files /tidy scans for stale or orphaned open items during periodic hygiene. /tidy may surface ledgers whose related spec is complete but whose items were never resolved. |
+| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. The aggressiveness-routing table in Step 6 (conservative / moderate / aggressive) implements the contract's reversibility/confidence floors for tidy actions. |
+
+### Next Actions
+
+1. `/claude-tweaks:help` — full pipeline status with refreshed counts after the cleanup **(Recommended)**
+2. `/claude-tweaks:build {N}` — build the highest-priority ready spec surfaced by the tidy report
+3. `/claude-tweaks:specify {topic}` — specify an unspecified design doc surfaced by the audit
+4. `/claude-tweaks:review {N}` — review a spec the audit flagged as "appears complete, not reviewed"

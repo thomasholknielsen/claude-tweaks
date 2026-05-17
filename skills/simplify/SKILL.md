@@ -84,7 +84,41 @@ Task tool with subagent_type="code-simplifier:code-simplifier"
 
 If the simplifier made changes, run the shared verification procedure from `verification.md` in the `/claude-tweaks:test` skill's directory. This runs type checking, linting, and tests.
 
-If verification fails, fix the issue — the simplification may have introduced a regression.
+### Working Directory Discipline
+
+When invoked from `/claude-tweaks:build` inside a worktree, CWD does not propagate reliably between tool calls. Before running any verification command:
+
+- If `$WORKTREE` is set by the caller, use `git -C "$WORKTREE" …` form for git commands, and prefix shell verification commands with `cd "$WORKTREE" && …`
+- Otherwise, run `pwd` and `git rev-parse --show-toplevel` first and confirm both match the expected worktree before invoking verification
+- If `pwd` does not match the expected worktree, BLOCKED — return to caller with the mismatch; do not run verification from the wrong directory
+
+See `_shared/subagent-output-contract.md` "Working Directory Discipline" for the canonical rule.
+
+### If verification fails
+
+Verification failure is a **BLOCKED gate** — never silently retry or self-fix. Choose one branch:
+
+**(a) BLOCKED — default, and the only option in interactive mode:**
+Return control to the caller with the failing check. Do NOT attempt a fix in-place.
+
+```
+BLOCKED
+Reason: verification failed after simplification.
+Failing check: {typecheck | lint | tests}
+Output: {one-line summary of the failure, or path to the failure log}
+Next: caller decides whether to revert the simplification, fix the regression, or stage for review.
+```
+
+**(b) Stage and continue — only in `auto` mode AND when reversibility is high:**
+Write a stage entry to `{run-dir}/staged/simplify-{n}.md` naming the failing check and the file(s) involved, then log to the auto-decision log:
+
+```
+- STAGED {HH:MM:SS} — Step 3 verify: {check} failed after simplifying {files}. Stage path: staged/simplify-{n}.md.
+```
+
+Surface at the Wrap-Up Review Console. Continue only if the simplification can be safely reverted via `git revert` at the console; if not, fall back to BLOCKED.
+
+Silent self-fixing is forbidden — see `_shared/auto-mode-contract.md`.
 
 ## Step 4: Report
 
@@ -137,4 +171,7 @@ When invoked by a parent, omit Next Actions — the parent handles flow control.
 | `/claude-tweaks:build` | Invokes /simplify after implementation (Common Step 3). Passes files changed during build. |
 | `/claude-tweaks:review` | Invokes /simplify after review fixes (Step 5). Passes files changed during review. |
 | `/claude-tweaks:test` | /simplify uses the shared verification procedure from /test's `verification.md`. |
+| `/claude-tweaks:design` | /design may invoke /simplify after design-quality fixes land. |
+| `/claude-tweaks:help` | /help references /simplify in the workflow diagram and reference card. |
 | `code-simplifier:code-simplifier` | The subagent that does the actual simplification work. /simplify is the skill wrapper that handles scope, verification, and reporting. |
+| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |

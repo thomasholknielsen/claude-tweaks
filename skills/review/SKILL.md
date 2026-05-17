@@ -10,8 +10,8 @@ description: Use when a build is complete and you need analytical judgment on co
 Post-build quality gate. `/claude-tweaks:test` answers "does it work?" — `/claude-tweaks:review` answers "is it good?" Reviews, refines, and approves the code before handing off to wrap-up. Part of the workflow lifecycle:
 
 ```
-/claude-tweaks:capture → ... → /claude-tweaks:build → [ /claude-tweaks:stories ] → /claude-tweaks:test → [ /claude-tweaks:review ] → /claude-tweaks:wrap-up
-                                                                                                          ^^^^ YOU ARE HERE ^^^^
+/claude-tweaks:init → /claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:stories → /claude-tweaks:test → [ /claude-tweaks:review ] → /claude-tweaks:wrap-up
+                                                                                                                                                                                ^^^^ YOU ARE HERE ^^^^
 ```
 
 ## When to Use
@@ -84,7 +84,7 @@ If blocked, skip the rest of the review. Present the gap analysis so the user kn
 
 Verify that `/claude-tweaks:test` has passed before proceeding to analytical review. Reviewing code quality on code that doesn't work is wasted effort.
 
-`PASS_WITH_CAVEATS` counts as passed — caveats are informational observations (e.g., minor UX roughness, non-blocking warnings) and do not block review. QA caveats are included in the findings table (Step 3g) for visibility but have status `observation`, not `open`.
+`PASS_WITH_CAVEATS` counts as passed — caveats are informational observations (e.g., minor UX roughness, non-blocking warnings) and do not block review. QA caveats are included in the findings table (Step 3 Routing) for visibility but have status `observation`, not `open`.
 
 ### In `/claude-tweaks:flow` pipeline:
 
@@ -102,7 +102,7 @@ Check for a recent `/claude-tweaks:test` pass. A pass is "recent" if no code cha
 After confirming `TEST_PASSED`, read the open items ledger (`docs/plans/*-ledger.md`) and filter for entries with phase `test/qa`:
 
 - If any QA ledger entries have status `open` (failures that were not resolved), include them in the test gate report alongside the `TEST_PASSED` status. These represent QA failures that `/test` surfaced and that still need resolution.
-- If all QA entries have status `observation` or `fixed`, note: "QA observations present — see findings table in Step 3g."
+- If all QA entries have status `observation` or `fixed`, note: "QA observations present — see findings table in Step 3 Routing."
 
 ### Gate:
 
@@ -135,7 +135,26 @@ Review changed files through these lenses. Skip lenses that don't apply to the t
 > **Parallel execution:** Before running any lens, gather all context upfront — read all changed files and their surrounding context (imports, tests, schemas) as parallel Read/Grep calls. Each lens needs the same files, so front-loading reads avoids redundant I/O.
 
 > **Parallel execution (conditional):** When the diff spans 10+ files, dispatch each applicable lens (3a-3f) as a parallel Task agent. Each agent receives the full file context and returns findings in the `| # | Finding | Severity | Category | Affected | Recommended |` format. When the diff is smaller, run lenses sequentially in the main thread — the overhead of agent dispatch isn't worth it.
-> **Contract:** Each dispatched lens agent follows the Subagent Contract from `skills/_shared/subagent-output-contract.md` — minimal input (just the file paths and lens scope, no conversation), one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED` as first line, then Template A findings. Pick model tier per lens: 3a/3f → Fast (Haiku), 3b-3e → Standard (Sonnet), 3h (UX synthesis) → Capable (Opus). Inline the template literally; re-prompt once on format violation.
+>
+> **Model tier (per lens):** 3a (Convention) and 3f (Test Quality) → Fast (Haiku) — mechanical convention checks on isolated files. 3b-3e (Security, Errors, Performance, Architecture) → Standard (Sonnet) — multi-file analysis and cross-cutting findings. 3h (UX Analysis) → Capable (Opus) — judgment-heavy synthesis.
+>
+> **Output template (each agent must follow exactly):**
+>
+> ```markdown
+> OUTPUT FORMAT (required):
+> Return ONLY a markdown table, no preamble:
+>
+> | Severity | Path:Line | Finding | Evidence |
+> |---|---|---|---|
+> | critical | src/auth.ts:42 | Missing token expiry check | uses `<` not `<=` |
+> | medium | src/api.ts:180 | Unhandled rejection | line 184: `await fetch(...)` no try/catch |
+>
+> Severity scale: critical / high / medium / low / info
+> If no findings: return literal text "No findings."
+> Do not add narration, headers, or summaries before or after the table.
+> ```
+>
+> Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the table. The dispatcher merges findings into the Step 3 Routing table — Severity maps directly, Path:Line maps to the Affected column, Finding maps to the Finding column, and the dispatcher fills the Category column from the lens that produced it. Re-prompt once on format violation.
 
 ### Reviewer Calibration (applies to every lens)
 
@@ -251,7 +270,7 @@ Run the UX analysis procedure from `ux-analysis.md` in this skill's directory. O
 
 These findings are informational — they don't block the review. They ensure wrap-up doesn't miss doc updates that build skipped.
 
-### 3g: Route Code Review Findings
+### Step 3 Routing — Code Review Findings
 
 **Every finding from lenses 3a-3i must be explicitly resolved.** When lenses were dispatched as parallel Task agents, merge their results into a single table here: combine all findings, preserve their category labels, and de-duplicate — if two lenses flag the same issue, keep the entry with the higher severity. UX findings from lens 3h, coverage findings from lens 3g-cov, and documentation findings from lens 3i are merged into the batch table alongside code review findings with their respective categories ("UX", "Coverage", "Docs").
 
@@ -259,21 +278,21 @@ Unresolved QA ledger entries (status `open`, phase `test/qa`) are included in th
 
 ### Auto mode (severity-based routing)
 
-When a pipeline run directory exists (`PIPELINE_RUN_DIR` env var or matching dir in `.claude-tweaks/pipelines/`), read `review-severity-floor` from `config.yml` (default `low`).
+When a pipeline run directory exists (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet), read `review-severity-floor` from `config.yml` (default `low`).
 
 For each finding, route by severity per the contract (`_shared/auto-mode-contract.md`):
 
 | Severity | Default action under `review-severity-floor: low` | Log entry |
 |---|---|---|
-| **Critical** | Stage as patch + `KEPT-PROMPT` — surface inline ALSO. Critical findings always interrupt. | `KEPT-PROMPT {time} — Step 3g: critical finding {category} at {file:line}. Surfaced inline.` |
-| **High** | Stage as patch in `staged/review-{n}.patch`. Surface at Review Console. | `STAGED {time} — Step 3g: high-severity finding {category} at {file:line}. Stage path: staged/review-{n}.patch.` |
-| **Medium** | Stage as patch in `staged/review-{n}.patch`. Surface at Review Console. | `STAGED {time} — Step 3g: medium-severity finding {category} at {file:line}. Stage path: staged/review-{n}.patch.` |
-| **Low** | Auto-apply the fix. Commit. | `AUTO {time} — Step 3g: applied low-severity {category} fix at {file:line}. Commit: {hash}.` |
+| **Critical** | Stage as patch + `KEPT-PROMPT` — surface inline ALSO. Critical findings always interrupt. | `KEPT-PROMPT {time} — Step 3 Routing: critical finding {category} at {file:line}. Surfaced inline.` |
+| **High** | Stage as patch in `staged/review-{n}.patch`. Surface at Review Console. | `STAGED {time} — Step 3 Routing: high-severity finding {category} at {file:line}. Stage path: staged/review-{n}.patch.` |
+| **Medium** | Stage as patch in `staged/review-{n}.patch`. Surface at Review Console. | `STAGED {time} — Step 3 Routing: medium-severity finding {category} at {file:line}. Stage path: staged/review-{n}.patch.` |
+| **Low** | Auto-apply the fix. Commit. | `AUTO {time} — Step 3 Routing: applied low-severity {category} fix at {file:line}. Commit: {hash}.` |
 
 When `review-severity-floor: medium`: auto-apply Low AND Medium; stage High; prompt Critical.
 When `review-severity-floor: none`: stage everything; never auto-apply.
 
-After routing, append all findings to the ledger as usual (status `open` for staged, `fixed` for auto-applied). The Review Console at `/wrap-up` Step 9.6 surfaces staged items for batch approval.
+After routing, append all findings to the ledger as usual (status `open` for staged, `fixed` for auto-applied). The Review Console at `/wrap-up` Step 8.6 surfaces staged items for batch approval.
 
 ### Interactive mode (per-batch user input)
 
@@ -313,7 +332,22 @@ Items introduced by this build that are fixable now must be fixed now — even i
 If any findings are "Fix now", make the changes, re-run `/claude-tweaks:test`, and verify fixes didn't introduce new findings.
 
 > **Parallel execution (conditional):** When there are 3+ "Fix now" findings across different files with no shared file dependencies, dispatch fixes as parallel agents using the `/superpowers:dispatching-parallel-agents` pattern — one agent per independent fix domain. Each agent gets: specific file scope, finding details, constraint to not modify other files. Returns summary of changes. After all agents complete, check for conflicts between agent changes, then re-run `/claude-tweaks:test`. When fixes overlap files or there are fewer than 3 findings, fix sequentially in the main thread.
-> **Output contract:** Each fix agent must return a Template B summary (file:line — what changed) per `skills/_shared/subagent-output-contract.md`. Inline the literal template in the agent's prompt.
+>
+> **Model tier:** Standard (Sonnet) — fix agents make targeted code edits constrained to their assigned files. Upgrade to Capable (Opus) only when the fix requires architectural redesign rather than localized correction.
+>
+> **Output template (each agent must follow exactly):**
+>
+> ```markdown
+> OUTPUT FORMAT (required):
+> Return ONLY bullet lines, one per match:
+>
+> - {path}:{line} — {one-line context}
+>
+> If no matches: return literal text "No matches."
+> Do not add narration or grouping headers.
+> ```
+>
+> Each fix agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`. Each bullet describes one change made (e.g., `- src/auth.ts:42 — added `<=` boundary check; covered by existing test at line 88`). The dispatcher inspects the bullets for cross-file conflicts before re-running `/claude-tweaks:test`.
 
 **Write all findings to the open items ledger** (see `/claude-tweaks:ledger`). Use the appropriate `review/*` phase. Status: `open` for "Fix now" items, `deferred` for DEFERRED.md routes, `accepted` for "Don't fix" items (with reason). After fixing, update status to `fixed`.
 
@@ -323,7 +357,7 @@ If any findings are "Fix now", make the changes, re-run `/claude-tweaks:test`, a
 
 **Auto-advance on zero findings:** When there are zero code review findings AND zero unresolved QA ledger entries (`open` items with phase `test/qa`), auto-advance to Step 4 without waiting for user input. Present "No code review findings" as a note within the Step 4 hindsight message.
 
-**Small batch consolidation:** When total findings across Steps 3g and 4 combined are 5 or fewer items, consolidate into a single batch table with a "Type" column (`Code Review` / `Hindsight`) instead of two sequential tables. This saves one interaction. When more than 5 total, present sequentially (one per message) to keep each decision manageable.
+**Small batch consolidation:** When total findings across Step 3 Routing and Step 4 combined are 5 or fewer items, consolidate into a single batch table with a "Type" column (`Code Review` / `Hindsight`) instead of two sequential tables. This saves one interaction. When more than 5 total, present sequentially (one per message) to keep each decision manageable.
 
 ---
 
@@ -350,49 +384,17 @@ The simplify skill handles scope resolution, running the code-simplifier subagen
 ## Step 6: Visual Review
 
 **When this step runs:**
-- **Code mode:** Check for affected journeys and recommend — do not stop to ask (note in summary)
-- **Full mode:** Run `/claude-tweaks:visual-review` with the target URL and QA data (if available). Findings feed into the summary (Step 7).
+- **Code mode:** Delegate to `/claude-tweaks:visual-review` in recommendation-only mode — it detects UI changes + affected journeys and surfaces a recommendation. Do not stop to ask; note any recommendation in the summary (Step 7).
+- **Full mode:** Invoke `/claude-tweaks:visual-review` with the target URL/journey and QA data (if available). The visual review owns UI/journey detection and the procedure. Findings feed into the summary (Step 7) as the "UI / Visual" lens with their own severity classifications, routed through the same Step 3 Routing resolution mechanics (fix now / defer / accept) when actionable.
 - **Visual/journey/discover mode:** Delegate entirely to `/claude-tweaks:visual-review` — skip Steps 1-5 and 7.
 
-### Code mode: Check for UI changes and affected journeys
-
-Detect when this build's changes are visual and may need browser review.
-
-#### 1. Detect UI file changes
-
-Get the list of changed files: `git diff --name-only` (or against the base branch). A change is **UI-impacting** if any changed file matches:
-- File extensions: `.tsx`, `.jsx`, `.vue`, `.svelte`, `.html`, `.css`, `.scss`, `.less`, `.styled.ts`, `.styled.js`
-- Directory patterns: `components/`, `pages/`, `views/`, `layouts/`, `templates/`, `src/ui/`, `src/app/` (route files), `public/`
-- Content patterns: files importing CSS/style modules, files exporting React/Vue/Svelte components
-
-#### 2. Check for affected journeys
-
-1. Read all journey files in `docs/journeys/*.md`
-2. For each journey, check its `files:` frontmatter for overlap with the changed files list
-3. Also scan journey step URLs and content for references to changed routes or pages
-
-A journey is **affected** if any file in its `files:` frontmatter was modified in this build, OR if its steps reference routes/pages that correspond to changed files.
-
-#### 3. Recommend visual review
-
-**Do not stop to ask.** Note the visual review recommendation in the summary (Step 7) instead:
-
-- **UI changed + affected journeys found** → summary notes: "Visual review recommended — {N} journey(s) reference changed files:" followed by a table:
-  ```
-  | Journey | Overlapping Files | Command |
-  |---------|------------------|---------|
-  | {name} | {file1}, {file2} | `/claude-tweaks:visual-review journey:{name}` |
-  ```
-- **UI changed + no journeys** → summary notes: "Visual review recommended — UI files changed but no journeys exist yet. Run `/claude-tweaks:visual-review {url}` for a page-level visual review."
-- **No UI impact** → skip silently.
-
-**When browser tools are unavailable:** If the changes touch UI but `agent-browser` is not detected, don't silently skip. Instead, note it:
+Invocation:
 
 ```
-Visual review skipped — agent-browser not installed.
-Install: `npm install -g agent-browser`
-Or run `/claude-tweaks:init` to configure browser integration.
+/claude-tweaks:visual-review {affected-journey-or-url}
 ```
+
+`/visual-review` owns the mechanics — UI file detection, affected-journey lookup, browser prerequisite checks, dev URL resolution, the page/journey/discover procedures, and the missing-browser skip path. This skill consumes its report; it does not re-implement detection here.
 
 ## Step 6.5: Design Quality Pass (Impeccable)
 
@@ -413,9 +415,9 @@ Pass the spec number (or paths) used for this review run. The wrapper resolves c
 | `{skipped: ...}` (non-frontend, no Impeccable, kill-switch disabled, no UI files in diff) | Omit the "Design Quality" section from the summary. Note the skip reason in the summary footer. |
 | `{deferred: ...}` (should not happen for `review` mode in any phase) | Treat as skip and omit the section. |
 
-**Why findings are advisory:** Impeccable critiques are LLM-generated and opinionated. The user judges which findings to action. Phase 1 deliberately keeps the wrapper's `review` mode read-only — code-modifying behavior lives in the `polish` mode (Phase 2). For Phase 1, surfacing findings is the value-add; the user routes them to fixes, deferrals, or accepted decisions through the existing Step 3g resolution flow if they choose.
+**Why findings are advisory:** Impeccable critiques are LLM-generated and opinionated. The user judges which findings to action. Phase 1 deliberately keeps the wrapper's `review` mode read-only — code-modifying behavior lives in the `polish` mode (Phase 2). For Phase 1, surfacing findings is the value-add; the user routes them to fixes, deferrals, or accepted decisions through the existing Step 3 Routing resolution flow if they choose.
 
-**Routing into Step 3g (optional):** When the user wants to action design findings inline, treat each as an additional row in the Code Review Findings table with category `Design Quality`. This keeps the resolution mechanics consistent with code-review findings (fix now / defer / accept). When the user opts not to action them inline, they remain in the Design Quality summary section as informational.
+**Routing into Step 3 Routing (optional):** When the user wants to action design findings inline, treat each as an additional row in the Code Review Findings table with category `Design Quality`. This keeps the resolution mechanics consistent with code-review findings (fix now / defer / accept). When the user opts not to action them inline, they remain in the Design Quality summary section as informational.
 
 ## Step 7: Present Review Summary
 
@@ -452,10 +454,10 @@ If no notable learnings emerged, state: "No key learnings — straightforward re
 | Accepting all Implementation Hindsight findings as-is | The action gate exists for a reason — "change now" items must be fixed |
 | Running review without a prior build | Review assumes code exists and was recently written — it is not a codebase-wide audit |
 | Listing code review findings without routing them | Every finding must be explicitly resolved: fix now, defer with context, or don't fix with stated reason. No implicit drops. |
-| Putting findings only in the summary table | The summary records resolutions, not unresolved observations. Route first (Step 3g), then summarize (Step 7). |
+| Putting findings only in the summary table | The summary records resolutions, not unresolved observations. Route first (Step 3 Routing), then summarize (Step 7). |
 | Running verification or QA directly in review | Mechanical checks belong in `/claude-tweaks:test` — review gates on test passing, it doesn't duplicate the work |
 | Treating Design Quality findings as authoritative | LLM critiques are opinionated — findings are advisory. The user judges which to action. Phase 1 deliberately keeps the design wrapper read-only. |
-| Auto-fixing Design Quality findings in Step 6.5 | Phase 1's design wrapper is read-only — code-modifying behavior ships in Phase 2's polish phase. Findings route through Step 3g if the user wants to action them. |
+| Auto-fixing Design Quality findings in Step 6.5 | Phase 1's design wrapper is read-only — code-modifying behavior ships in Phase 2's polish phase. Findings route through Step 3 Routing if the user wants to action them. |
 
 ## Relationship to Other Skills
 
@@ -474,6 +476,9 @@ If no notable learnings emerged, state: "No key learnings — straightforward re
 | `/superpowers:dispatching-parallel-agents` | Used BY /claude-tweaks:review (conditional) to dispatch 3+ independent fix-now findings as parallel agents |
 | `/claude-tweaks:reflect` | Invoked BY /review (Step 4) in hindsight mode. Handles the implementation hindsight evaluation, finding routing, and ledger writes with phase `review/hindsight`. |
 | `/claude-tweaks:simplify` | Invoked BY /review (Step 5) on files modified during review. Handles code simplification and re-verification. |
-| `/claude-tweaks:ledger` | Manages the open items ledger. /review appends findings (Step 3g). Hindsight findings (Step 4) are written by /reflect using `review/*` phases. |
+| `/claude-tweaks:ledger` | Manages the open items ledger. /review appends findings (Step 3 Routing). Hindsight findings (Step 4) are written by /reflect using `review/*` phases. |
 | `/claude-tweaks:help` | /help flags specs awaiting review and recommends `/review` in its pipeline status scan |
 | `/claude-tweaks:design` | /review invokes `/claude-tweaks:design review <spec>` as Step 6.5 to run Impeccable's `critique` + `audit` commands. Findings are advisory, surfaced in the "Design Quality" section of the review summary. The wrapper handles its own detection and availability checks; skips are silent (section omitted). |
+| `/claude-tweaks:journeys` | /journeys produces the journey files /review consults in Step 6 to recommend visual review for affected journeys and in lens 3g-cov for journey-to-story coverage. /review surfaces uncovered journey steps and orphaned stories as informational findings. |
+| `/claude-tweaks:tidy` | /tidy reads /review summaries to detect cross-spec patterns (Step 5.5) — recurring finding categories, frequently flagged files, repeated gotchas — and recommends adding rules to CLAUDE.md when patterns appear in 3+ specs. /tidy also flags specs that appear complete but lack a /review run. |
+| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. The severity-routing table in "Step 3 Routing — Code Review Findings" implements the contract's reversibility/confidence/severity floors. |

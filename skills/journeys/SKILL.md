@@ -120,11 +120,50 @@ Before committing, look at the journey file(s) with fresh eyes. Fix issues inlin
 3. **Origin coverage** — every `files:` entry should be reachable through the documented steps. If a changed file isn't visited by any step, either add the missing step or drop the file from `files:`.
 4. **Outcome clarity** — what does success look like for this journey? If the journey ends in ambiguity ("user is logged in" without where they land), tighten it.
 
-## Step 4: Commit
-
-Commit journey files separately from implementation code:
+**Decision gate:** make one fix attempt per issue. If issues remain after one fix attempt, **BLOCKED** — return control to the caller with the unresolved issues:
 
 ```
+BLOCKED
+Reason: journey self-review issues remain after one fix attempt.
+Unresolved:
+- {issue 1, file:line if applicable}
+- {issue 2, ...}
+Next: caller decides whether to escalate, defer, or accept.
+```
+
+Do NOT loop on fix attempts or silently ship a journey with known self-review issues.
+
+## Step 4: Commit
+
+Commit journey files separately from implementation code.
+
+### Working Directory Discipline
+
+When invoked from `/claude-tweaks:build` inside a worktree, CWD does not propagate reliably between tool calls — a stray `git commit` can land on the parent repo's branch instead of the worktree. Before any `git add` or `git commit`:
+
+- If `$WORKTREE` is set by the caller, use the `git -C "$WORKTREE" …` form for every git command
+- Otherwise, run `pwd` and `git rev-parse --show-toplevel` and verify both match the expected worktree
+- If `pwd` (or `git rev-parse --show-toplevel`) does not match the expected worktree, **BLOCKED** — return to the caller with the mismatch; do not commit from the wrong directory
+
+```
+BLOCKED
+Reason: working directory mismatch — refusing to commit from the wrong worktree.
+Expected: {expected worktree path}
+Actual pwd: {actual pwd}
+git rev-parse --show-toplevel: {actual toplevel}
+Next: caller resolves the worktree context before retrying /journeys.
+```
+
+See `_shared/subagent-output-contract.md` "Working Directory Discipline" for the canonical rule.
+
+### Commit commands
+
+```
+# Preferred when $WORKTREE is set:
+git -C "$WORKTREE" add docs/journeys/{journey-name}.md
+git -C "$WORKTREE" commit -m "Add/update {journey name} journey"
+
+# Otherwise (after pwd verification above):
 git add docs/journeys/{journey-name}.md
 git commit -m "Add/update {journey name} journey"
 ```
@@ -176,3 +215,6 @@ When invoked by a parent, omit Next Actions — the parent handles flow control.
 | `/claude-tweaks:stories` | Generates QA story YAML files from journey documentation. Stories reference their source journey via the `journey:` field. |
 | `/claude-tweaks:test` | Validates QA stories derived from journeys. Supports `journey={name}` filter for journey-scoped test execution. |
 | `/claude-tweaks:flow` | /flow's build step invokes /journeys transitively through /build. |
+| `/claude-tweaks:visual-review` | Visual review walks documented journeys (`journey:{name}` mode) and tests against each step's "should feel" expectations. |
+| `/claude-tweaks:help` | /help references /journeys in the workflow diagram and reference card. |
+| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |

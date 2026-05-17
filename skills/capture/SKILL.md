@@ -5,13 +5,13 @@ description: Use when capturing ideas that need specification later — brain du
 > **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
 
 
-# Capture
+# Capture — Quickly note an idea for later specification
 
 Quick capture for ideas that aren't ready for full specification. Part of the workflow lifecycle:
 
 ```
-[ /claude-tweaks:capture ] → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
-  ^^^^ YOU ARE HERE ^^^^
+/claude-tweaks:init → [ /claude-tweaks:capture ] → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:stories → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
+                        ^^^^ YOU ARE HERE ^^^^
 ```
 
 ## When to Use
@@ -89,6 +89,8 @@ What should happen with this?
 4. Merge into spec {N} — This belongs in an existing spec (if a related spec is obvious)
 ```
 
+> **Option 4 visibility:** Only show option 4 when a spec name in `specs/` matches the topic keywords from the INBOX item. Without a candidate match, option 4 is omitted entirely — manual disambiguation against an unspecified spec number is worse than no option at all.
+
 This ensures every captured idea has an explicit next step — either immediate action or a conscious decision to park it.
 
 **Good entries:**
@@ -108,12 +110,14 @@ Periodically (or when inbox gets long), use `/claude-tweaks:tidy` to batch-revie
 
 ## Anti-Patterns
 
-- Using inbox for stuff that already has a spec (add to that spec instead)
-- Writing full specs in the inbox (just create the spec directly)
-- Never reviewing the inbox (becomes a graveyard — use `/claude-tweaks:tidy` periodically)
-- Adding implementation details (inbox = what, not how)
-- Skipping `/superpowers:brainstorming` and going straight to specs (brainstorming catches assumptions)
-- Putting notes about existing specs in INBOX (annotate the spec file instead)
+| Pattern | Why It Fails |
+|---------|-------------|
+| Using INBOX for ideas that already have a spec | Duplicates intent across two files — annotate the spec directly instead so the durable record stays the source of truth |
+| Writing full specs in INBOX | INBOX is for half-formed ideas; a fully-formed spec belongs in `specs/` where `/build` and `/flow` can act on it |
+| Never reviewing INBOX | Without periodic triage via `/claude-tweaks:tidy`, INBOX becomes a graveyard and captured ideas lose context over time |
+| Adding implementation details to an INBOX entry | INBOX captures *what* and *why* — *how* is brainstorming + spec territory and changes faster than the idea itself |
+| Skipping `/superpowers:brainstorming` and jumping straight to specs | Brainstorming surfaces assumptions and constraints that specs need; without it, specs encode unchallenged premises |
+| Putting notes about existing specs in INBOX | Notes drift from the spec they describe — annotate the spec file directly so the note moves with the work |
 
 ## Relationship to Other Skills
 
@@ -125,5 +129,17 @@ Periodically (or when inbox gets long), use `/claude-tweaks:tidy` to batch-revie
 | `/claude-tweaks:tidy` | Reviews INBOX for stale items — promotes, merges, or deletes |
 | `/claude-tweaks:review` | May create INBOX items for new ideas discovered during review |
 | `/claude-tweaks:wrap-up` | May create INBOX items for genuinely new ideas; leftover work goes to DEFERRED.md |
+| `/claude-tweaks:build` | Calls /capture during Common Step 4 (design mode) to file blocked items and follow-up ideas before they slip |
+| `/claude-tweaks:init` | After bootstrap, /init suggests /capture as the entry point for parking ideas that surface during setup but aren't ready to specify |
+| `/claude-tweaks:reflect` | Routes "tangential idea" insights to INBOX via /capture; keeps the reflection log focused on actionable learnings |
+| `/claude-tweaks:visual-review` | UI ideas surfaced during visual review (creative improvements, follow-ups) land in INBOX via /capture instead of inflating the current spec |
 | `specs/DEFERRED.md` | Structured deferral for build/review work — carries origin, files, and triggers that INBOX doesn't |
 | `/claude-tweaks:research` | Research findings can be captured as INBOX items; invoke `/research` when an INBOX idea needs evidence before specifying. |
+| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
+
+### Next Actions
+
+1. `/claude-tweaks:capture {next idea}` — capture another idea while you're in brainstorming flow **(Recommended)**
+2. `/claude-tweaks:tidy` — review and triage INBOX (promote, merge, or drop stale items)
+3. `/claude-tweaks:specify INBOX-{N}` — promote this idea straight to a spec
+4. `/claude-tweaks:challenge INBOX-{N}` — debias and stress-test assumptions before specifying

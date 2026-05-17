@@ -5,13 +5,13 @@ description: Use when converting a brainstorming design document into agent-size
 > **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
 
 
-# Specify
+# Specify — Decompose a design doc into agent-sized work units
 
 Convert a brainstorming design document into self-contained, agent-sized work units in `specs/`. Part of the workflow lifecycle:
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → [ /claude-tweaks:specify ] → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
-                                                                      ^^^^ YOU ARE HERE ^^^^
+/claude-tweaks:init → /claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → [ /claude-tweaks:specify ] → /claude-tweaks:build → /claude-tweaks:stories → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
+                                                                                                        ^^^^ YOU ARE HERE ^^^^
 ```
 
 ## When to Use
@@ -32,7 +32,7 @@ The plugin enforces a 2-tier artifact taxonomy:
 | Strategic | Design doc (one file, multi-phase OK as `## Phase N` sections) | `/superpowers:brainstorming` (superpowers, unchanged) — produces a single design doc by convention | `/claude-tweaks:specify` |
 | Executional | Spec (one file per agent-sized work unit) | `/claude-tweaks:specify` | `/claude-tweaks:flow`, `/claude-tweaks:build` |
 
-**Routing reality:** `/claude-tweaks:specify` IS the canonical entry point — its polymorphic input means the user can pass a bare topic and `/specify` invokes `/superpowers:brainstorming` internally to produce the design doc, then decomposes it. Direct `/superpowers:brainstorming` invocations are exploratory; the user routes the resulting design doc back to `/specify` manually instead of running `writing-plans`.
+**Routing reality:** `/claude-tweaks:specify` IS the canonical entry point — its **polymorphic input** (canonical definition) means the user can pass a design doc path, a topic, or an INBOX reference. When given a bare topic with no existing design doc, `/specify` invokes `/superpowers:brainstorming` internally to produce one, then decomposes it. Direct `/superpowers:brainstorming` invocations are exploratory; the user routes the resulting design doc back to `/specify` manually instead of running `writing-plans`.
 
 **Why writing-plans is bypassed:** superpowers' `writing-plans` produces multi-phase plan files (`*-P1.md`, `*-P2.md`, …) that exceed `/flow`'s envelope. The path that broke `/flow` was `/superpowers:brainstorming → writing-plans → /flow` — three artifact tiers with the middle tier being agent-too-big. The new path is `/superpowers:brainstorming → /specify → /flow` — two artifact tiers where `/specify` produces specs sized for `/flow`'s shape gate.
 
@@ -44,7 +44,7 @@ The plugin enforces a 2-tier artifact taxonomy:
 
 The first argument is a path to a design doc, a topic name, or an INBOX item reference. The optional second argument `phase-N` (where N is a phase number from the design doc's `## Phase N` sections) scopes decomposition to one phase only — useful when running phases incrementally or in parallel.
 
-**Phase 2:** input is polymorphic — when given a bare topic with no existing design doc, `/specify` invokes superpowers `/superpowers:brainstorming` directly to produce one, then continues into shape + intent + decompose without a separate user step.
+Input is polymorphic — see the canonical definition in the Granularity Contract section above. The resolution steps below handle each input shape.
 
 **Phase target examples:**
 
@@ -61,7 +61,7 @@ The first argument is a path to a design doc, a topic name, or an INBOX item ref
 
 1. **Design doc path** (e.g., `docs/superpowers/specs/2026-02-21-meal-planning-design.md`) — read it directly. Disambiguation rule: a string containing `/` or ending in `.md` is treated as a path.
 2. **Topic name** (e.g., `meal planning`) — search `docs/superpowers/specs/*-design.md` for a matching design doc. If found, read it directly.
-3. **Topic name with no matching design doc** (Phase 2 — new behavior) — invoke superpowers `/superpowers:brainstorming` via the Skill tool with the topic as input. The brainstorming session produces a design doc at `docs/superpowers/specs/YYYY-MM-DD-{topic}-design.md` (or wherever superpowers writes it). Wait for `/superpowers:brainstorming` to complete, then continue with the produced design doc as the input. **Do not** prompt the user to "run brainstorm first" — that defeats the polymorphic input contract.
+3. **Topic name with no matching design doc** — invoke superpowers `/superpowers:brainstorming` via the Skill tool with the topic as input (this is the polymorphic-input branch defined above). The brainstorming session produces a design doc at `docs/superpowers/specs/YYYY-MM-DD-{topic}-design.md` (or wherever superpowers writes it). Wait for `/superpowers:brainstorming` to complete, then continue with the produced design doc as the input. **Do not** prompt the user to "run brainstorm first" — that defeats the contract.
 4. **INBOX reference** (e.g., `"Voice shopping list"`) — find the entry in `specs/INBOX.md`, then check if a design doc exists for it. If found, read it. If not found, treat as a topic name (Step 3 — invoke `/superpowers:brainstorming`).
 
 **Ambiguous input handling:** A topic name that *could* also be interpreted as a path (e.g., a topic with a `/` in it like "auth/login flow") is ambiguous. Stop and ask:
@@ -296,7 +296,7 @@ Each spec follows a structured template with sections designed to give `/superpo
 - **Don't over-specify implementation** — the spec says *what* and *where*, the plan (created by `/superpowers:writing-plans` during `/claude-tweaks:build`) says *how*.
 - **Include gotchas from project memory** — search CLAUDE.md and memory files for relevant patterns, common mistakes, and lessons learned.
 - **Absorb the brainstorming brief** — if a `*-brief.md` exists for this topic, carry its assumptions, blind spots, and constraints into the relevant specs' Gotchas sections. These are hard-won insights from `/claude-tweaks:challenge` that should survive.
-- **Include known manual steps** — environment variables to provision, infrastructure changes to apply, third-party services to configure. If the design doc mentions infrastructure setup, API key provisioning, or deployment requirements, absorb them into the Manual Steps section.
+- **Include known manual steps — but only ones that survive the triage.** The Manual Steps section is reserved for items that have no CLI, require human judgment, or require out-of-band signoff. Infrastructure setup, env var provisioning, and API key creation with CLIs (`terraform`, `gh secret set`, `vercel env add`, `stripe`, `ldcli`, etc.) do NOT belong here — `/build` Step 2.5 auto-classifies and executes them. See `spec-template.md` Manual Steps section for the triage criteria and the `reason-not-auto` qualifier.
 - **Write design frontmatter (Phase 2+)** — every generated spec must include `surface:` (from Step 2.5a detection) and, when frontend, `design-intent:` (from Step 2.5c question). For backend/infra specs, write `surface: backend` (or `infra`) and either omit `design-intent:` or set it to `none`. The canonical field reference lives in `spec-template.md`'s "Frontmatter reference (canonical spec)" section.
 
 ---
@@ -368,6 +368,8 @@ If the work originated from an INBOX item:
 
 Before the summary, look at every spec you wrote with fresh eyes. Fix issues inline — no subagent, no separate review pass.
 
+> **Parallel execution (conditional):** When N ≥ 3 specs are produced, run scope and ambiguity checks across all specs concurrently using parallel Read + Grep calls.
+
 1. **Placeholder scan** — search for the failure patterns in `spec-template.md`'s "No Placeholders" section. Any `TBD`, vague acceptance criteria, undefined types, "standard error handling", or "similar to spec N" — fix them now.
 2. **Internal consistency** — across the specs in this decomposition, do referenced types, model names, and endpoint signatures match? A function called `clearLayers()` in spec 42 but `clearFullLayers()` in spec 43 is a bug.
 3. **Scope check** — is each spec genuinely a single work unit (3-8 tasks)? If one is doing two things, split it now. If two are doing the same thing, merge them.
@@ -428,20 +430,16 @@ Commit with a message describing the specs created.
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Specifying without a design doc | Specs need brainstorming output — without it, assumptions go unchallenged. Phase 2's polymorphic input fixes this by invoking `/superpowers:brainstorming` automatically on topic input. |
+| Specifying without a design doc or codebase scan | Specs need brainstorming output AND Current State context — without either, `/superpowers:writing-plans` operates on unchallenged assumptions or blind exploration. Polymorphic input fixes the design-doc case by invoking `/superpowers:brainstorming` on topic input. |
 | Specs that touch every layer | A single spec spanning data + API + UI + infra is too large for agent-sized execution |
 | Vague acceptance criteria | "Works correctly" can't be verified — `/superpowers:writing-plans` needs specific, testable assertions |
-| Keeping the design doc after specifying | Creates dangling references — the spec is the durable record, the design doc is consumed |
-| Skipping the codebase scan | Specs without Current State context force `/superpowers:writing-plans` into blind exploration |
+| Keeping the design doc after specifying | Creates dangling references — the spec is the durable record, the design doc is consumed. Partial (`phase-N`) decomposition is the only exception (see Step 5's table). |
 | Silently deciding how to handle overlapping specs | Overlap handling (extend vs. companion vs. replace) is a user decision — present numbered options, don't assume |
-| Asking the design-intent question on backend specs | Annoying and irrelevant — Step 2.5c only fires when frontend signals are detected in Step 2.5a |
-| Skipping the shape pre-step on frontend specs without offering | Shape is a value-add for UX/UI planning — surface it as a recommended option, let the user opt out explicitly |
-| Writing specs without `surface:` frontmatter (Phase 2+) | Wrapper Layer 2 detection falls through to file-extension sniff, which is less reliable. Always write `surface:` per the canonical reference in `spec-template.md`. |
+| Mis-targeting design pre-steps | Asking design-intent on backend specs is irrelevant; skipping the shape pre-step on frontend specs without offering loses UX value. Step 2.5a's frontend detection gates both — respect it. |
+| Writing specs without `surface:` frontmatter | Wrapper Layer 2 detection falls through to file-extension sniff, which is less reliable. Always write `surface:` per the canonical reference in `spec-template.md`. |
 | Treating "topic with slash" as a path | Ambiguous input must be disambiguated explicitly — present the numbered choice, do not assume one interpretation |
-| Deleting the design doc after a partial (`phase-N`) decomposition | Other phases still need it. Delete only after every phase has been marked specified. See Step 5's table. |
 | Producing a "phase plan" file alongside or instead of specs | Phase plans are dead artifacts. The granularity contract has 2 tiers: design doc (one file, phases as sections) → specs (one file each). Anything else is a contract violation. |
-| Routing the user to `/build` over `/flow` | `/flow` is the canonical pipeline path. The shape gate now accepts well-structured specs of any size. Recommend `/flow` first, `/build` only as the "build without pipeline" escape hatch. |
-| Skipping `/specify` between `/superpowers:brainstorming` and `/flow` | Removed in v4.5.2 — `/flow` rejects design docs at Step 2.7. The granularity contract is now enforced. |
+| Bypassing `/specify` on the way to `/flow` | `/flow` is the canonical pipeline path and rejects design docs at Step 2.7 (granularity contract enforcement). Always route through `/specify` first; recommend `/flow` over `/build` when presenting Next Actions. |
 
 ## Relationship to Other Skills
 
@@ -458,3 +456,6 @@ Commit with a message describing the specs created.
 | `/claude-tweaks:design` | /specify invokes `/claude-tweaks:design shape <topic>` (Step 2.5b) on frontend design docs to enrich the design doc with UX/UI planning. /specify writes `surface:` and `design-intent:` frontmatter (Step 2.5c + Step 3) on every generated spec; the design wrapper reads `surface:` for Layer 2 detection and reads `design-intent:` for `polish` mode's intent-driven dispatch (active in v4.5.0). |
 | superpowers `/superpowers:brainstorming` | Invoked BY /specify (Phase 2 — polymorphic input) when given a topic name with no existing design doc. Produces the design doc that /specify then decomposes. |
 | `/claude-tweaks:research` | Prior-art lookup before authoring a spec — `/research` reports can be cited directly in spec "Background" / "Prior art" sections. |
+| `/claude-tweaks:challenge` | Runs BEFORE /specify on INBOX items — produces a debiased brief whose assumptions, blind spots, and constraints /specify absorbs into spec Gotchas sections during Step 1 |
+| `/claude-tweaks:flow` | Invoked BY /flow when a design doc is passed to /flow Step 2.7 — flow rejects design docs and routes through /specify to enforce the granularity contract before pipeline entry |
+| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |

@@ -46,6 +46,14 @@ function renderModel(input) {
   return m.display_name || m.id || null;
 }
 
+function renderProject(input) {
+  const ws = input.workspace || {};
+  const dir = ws.project_dir || ws.current_dir || input.cwd;
+  if (!dir || typeof dir !== 'string') return null;
+  const name = path.basename(dir);
+  return name || null;
+}
+
 function renderContext(input) {
   const cw = input.context_window;
   if (!cw) return null;
@@ -173,6 +181,7 @@ async function main() {
   const rateLimits = input.rate_limits || {};
 
   const segments = [
+    renderProject(input),
     renderModel(input),
     renderContext(input),
     renderEffort(input),
@@ -193,6 +202,7 @@ if (require.main === module) {
 
 module.exports = {
   renderModel,
+  renderProject,
   renderContext,
   renderEffort,
   renderRateLimit,

@@ -7,14 +7,15 @@ description: Use when you need to create, update, query, or resolve open items i
 
 # Ledger — Open Items Tracking
 
-Manage the open items ledger that tracks findings, operational tasks, and observations across pipeline phases. The ledger is a markdown file that carries state between skills and survives context window compression.
+Manage the open items ledger that tracks findings, operational tasks, and observations across pipeline phases. The ledger is a markdown file that carries state between skills and survives context window compression. Utility skill — no fixed lifecycle position; called from build / test / review / wrap-up / flow, or standalone for inspection.
 
 ```
-/claude-tweaks:build → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
-       ↓                      ↓                       ↓                       ↓
-   [ creates / appends ]  [ appends ]           [ appends ]           [ resolves all ]
-                                                                             ↓
-                                                                  [ /claude-tweaks:ledger ] ← manages the file
+/claude-tweaks:capture → ... → /claude-tweaks:build → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
+                                       │                     │                       │                       │
+                                       └─ creates/appends ───┴─ appends ─────────────┴─ appends ─────────────┴─ resolves all
+                                                                       ▼
+                                                          [ /claude-tweaks:ledger ] ← manages the file
+                                                          ^^^^ YOU ARE HERE (called from above; standalone for inspection) ^^^^
 ```
 
 ## When to Use
@@ -51,7 +52,7 @@ The `{feature}` name matches the execution plan or spec topic. One ledger per pi
 
 | # | Phase | Item | Status | Resolution |
 |---|-------|------|--------|------------|
-| 1 | build/ops | Set `API_KEY` in environment — referenced in `src/api.ts` | open | — |
+| 1 | build/ops | Set `API_KEY` in environment — referenced in `src/api.ts` (reason-not-auto: auth-not-configured — `gh secret set` requires `gh auth login` first) | open | — |
 | 2 | review | Missing validation on `updateUser` input | fixed | Added zod schema — `abc1234` |
 | 3 | test | Login story fails — selector `.login-btn` not found | open | — |
 ```
@@ -80,18 +81,31 @@ Each item is tagged with a phase indicating where it was discovered. Phases use 
 
 | Phase | Source | Typical Items |
 |-------|--------|---------------|
-| `ops` | `/claude-tweaks:build` Step 2.5 | Manual steps from spec (seeded before build) |
-| `build` | `/claude-tweaks:build` Steps 4-5.5 | Architecture deviations, blocked work, shared constants |
-| `build/ops` | `/claude-tweaks:build` Step 5.5 | Operational requirements (migrations, env vars, infra) |
-| `build/skill` | `/claude-tweaks:build` Step 4.5 | Skill update candidates from build observations |
-| `test` | `/claude-tweaks:test` QA mode | QA story failures and observations |
-| `review` | `/claude-tweaks:review` Step 3 | Code review findings (all categories) |
-| `review/skill` | `/claude-tweaks:review` Steps 3a, 4 | Skill update candidates from review |
-| `review/hindsight` | `/claude-tweaks:reflect` (hindsight mode, via /review Step 4) | Implementation hindsight findings |
-| `wrap-up` | `/claude-tweaks:reflect` (full mode, via /wrap-up Step 3) | Reflection insights |
+| `ops` | `/claude-tweaks:build` | Manual steps from spec that survived auto-classification triage (only items with a `reason-not-auto` qualifier — see below) |
+| `build` | `/claude-tweaks:build` | Architecture deviations, blocked work, shared constants |
+| `build/ops` | `/claude-tweaks:build` | Operational requirements that survived the platform probe — auto-executable items do not appear here |
+| `build/skill` | `/claude-tweaks:build` | Skill update candidates from build observations |
+| `test` | `/claude-tweaks:test` (QA mode) | QA story failures and observations |
+| `review` | `/claude-tweaks:review` | Code review findings (all categories) |
+| `review/skill` | `/claude-tweaks:review` | Skill update candidates from review |
+| `review/hindsight` | `/claude-tweaks:reflect` (hindsight mode, via /review) | Implementation hindsight findings |
+| `wrap-up` | `/claude-tweaks:reflect` (full mode, via /wrap-up) | Reflection insights |
 | `reflect` | `/claude-tweaks:reflect` (standalone) | Standalone reflection findings |
 
 > **Simplified from v3.16:** Previous phases like `review/convention`, `review/ux`, `review/coverage` are collapsed into `review`. Use the item description and category column to distinguish finding types — the phase just needs to identify the source skill. `build/*` is now just `build`. `test/qa` is now just `test`. `wrap-up/*` is now just `wrap-up`.
+
+### Required for `ops`-phase items (`ops`, `build/ops`)
+
+All `ops`-phase items must embed a `(reason-not-auto: {value})` qualifier in the Item description. This forces the writer to justify why the pipeline cannot resolve the item rather than reflexively routing "outside the codebase" tasks to manual.
+
+| Value | When to use |
+|-------|------------|
+| `no-cli` | Dashboard-only, physical, or vendor-side — no programmatic interface exists |
+| `requires-judgment` | A name, value, or copy decision someone must make at execution time |
+| `requires-signoff` | Security, legal, change-management, or product approval gates the action |
+| `auth-not-configured` | A CLI exists but credentials aren't set up on this machine. After the user runs the login command, the item should be re-triaged — it often becomes auto-executable. |
+
+Items without a `reason-not-auto` qualifier are classification errors (the spec writer or the build skill missed the triage). If you encounter one, propose the correct classification rather than appending as-is — most "outside the codebase" tasks have a CLI and should not land here.
 
 ## Operations
 
@@ -149,71 +163,17 @@ Read the ledger and filter by criteria:
 
 ### Resolve Gate (Nothing-Left-Behind)
 
-The critical gate that prevents dropped work. Called by `/claude-tweaks:wrap-up` Step 9.5 and `/claude-tweaks:flow` Step 3.
+The critical gate that prevents dropped work. Called by `/claude-tweaks:wrap-up` Step 8.5 and `/claude-tweaks:flow` Step 5.
 
-The gate runs in three phases. The agent does Phase 1 silently; Phases 2 and 3 always require explicit per-item user input.
+The gate runs in three phases:
 
-**Phase 1 — Exhaust fixes (agent, silent)**
+1. **Phase 1 — Exhaust fixes (agent, silent)** — for each `open` item, fix it now if it qualifies (localized change, no pending dependencies, no user decisions, no external state, no scope blow-up). Default is fix; defer is the exception.
+2. **Phase 2 — Present remainder (per-item user input required)** — only items the agent could not fix remain. Present them in a numbered table; the user picks per-item from six choices (Fix anyway / Defer / INBOX / Accept / Acknowledge / Drop). Wait for explicit per-item input — never bulk-route, never offer "apply all" as a default.
+3. **Phase 3 — Apply user decisions** — write each user-chosen disposition (DEFERRED.md, INBOX.md, ledger status update) only after the user has spoken for that specific item.
 
-For each item with status `open`, attempt to fix it now. **The default is fix; defer is the exception.** An item qualifies for fix-now if **all** of these hold:
+**`auto` mode does NOT silence this gate.** Per-item user input is mandatory regardless of mode. The pipeline cannot complete with unresolved items — this is a hard gate.
 
-- Change is localized — typically ≤5 files, no spans across unrelated systems
-- Fix does not require functionality not yet built in this pipeline
-- Fix does not require user product/design decisions
-- Fix does not require external state (third-party data, prod traffic, approvals)
-- Fix does not materially expand pipeline scope (does not trigger long rebuilds, does not break >10 unrelated tests)
-
-If the item qualifies, fix it, commit it, update status to `fixed` with the commit hash. Do this BEFORE presenting anything to the user.
-
-**Bad reasons to skip a fix** (do NOT use these to keep an item open):
-
-- *"Out of scope of this plan / spec"* — if the file is in this build's diff, it is in scope
-- *"Following plan verbatim"* — when plan code conflicts with `.claude/rules/` or CLAUDE.md don'ts, fix the violation; the plan was written before review-time context
-- *"A future plan (P2/P3/...) might want X"* — speculative; only defer for *known* downstream needs
-- *"Bundle of small items"* — items get classified individually, never as a group
-- *"Premature without consumer signal"* — clear bugs and convention violations get fixed now
-- *"Plan-prescribed routing"* — if the plan said "X moves to P6," that's plan documentation, not a ledger event; remove the item entirely instead of deferring
-
-**Phase 2 — Present remainder (per-item user input required)**
-
-After Phase 1, only items the agent could not fix remain `open`. Present them:
-
-```
-### Unresolved Open Items
-
-| # | Phase | Item | Why not fixed now |
-|---|-------|------|-------------------|
-| {N} | {phase} | {description} | {specific blocker — must be one of the legitimate-defer reasons} |
-
-For each item, reply with `{#}: {choice}` (or `all: {choice}` if uniform):
-1. Fix anyway — address it now even though it expands scope
-2. Defer to `specs/DEFERRED.md` — has a trigger condition for when to revisit
-3. Send to `specs/INBOX.md` — captured for later evaluation, no specific trigger yet
-4. Accept — intentional, with stated reason
-5. Acknowledge — ops items requiring action outside the codebase
-6. Drop — no longer relevant
-```
-
-Both `specs/DEFERRED.md` and `specs/INBOX.md` are valid destinations — the user picks per item. Rough guidance to surface alongside each row if helpful (not a rule):
-- **DEFERRED.md** when the item has a clear trigger ("revisit after P5 ships," "when consumer X exists")
-- **INBOX.md** when the item is a captured idea without a specific trigger yet — to be triaged later
-
-**Wait for the user's reply.** Do NOT pre-classify items, do NOT pick "obviously correct" resolutions, do NOT auto-route to "apply all" — every remaining item gets an explicit per-item user response. The user may reply `all: 2` (or `all: 3`) to bulk-route, but the request must come from them, not be the default offered.
-
-**Phase 3 — Apply user decisions**
-
-For each item, apply the user-chosen disposition. **Each write to `DEFERRED.md` or `INBOX.md` requires the user's explicit choice for that specific item — never bulk-write without their per-item input.**
-
-- `Fix anyway` → return to Phase 1 for that item, fix, commit, mark `fixed`
-- `Defer to DEFERRED.md` → append entry with origin (this pipeline), affected files, and the user-stated trigger. Update ledger status to `deferred`
-- `Send to INBOX.md` → append entry with origin (this pipeline) and short context. Update ledger status to `deferred` (with note `→ INBOX.md` in Resolution column)
-- `Accept` → record the user's stated reason in Resolution column. Update status to `accepted`
-- `Acknowledge` → record as `acknowledged` (ops items only)
-- `Drop` → mark as `accepted` with reason "dropped per user — no longer relevant"
-
-**`auto` mode does NOT silence this gate.** Pipeline `auto` flags only suppress the merge-check (flow Step 2.5) and scope-check (flow Step 2.6) prompts. Per-item user input on the resolve gate is mandatory regardless of mode.
-
-**The pipeline cannot complete with unresolved items.** This is a hard gate.
+For the full procedure (fix-qualification criteria, bad-reasons-to-skip list, presentation template, per-disposition write semantics), read `resolve-gate.md` in this skill's directory.
 
 ### Delete
 
@@ -238,11 +198,6 @@ Only delete when the resolve gate has passed — all items must have terminal st
 1. Find the active ledger (most recent `docs/plans/*-ledger.md`)
 2. Run the resolve gate procedure
 3. Present results
-
-### Next Actions
-
-1. `/claude-tweaks:wrap-up {spec}` — wrap up the current work **(Recommended)**
-2. `/claude-tweaks:help` — check overall pipeline status
 
 ## Anti-Patterns
 
@@ -270,9 +225,15 @@ Only delete when the resolve gate has passed — all items must have terminal st
 |-------|-------------|
 | `/claude-tweaks:build` | Creates the ledger (if needed) and appends items during Steps 2.5, 4, 4.5, and 5.5. Uses phases: `ops`, `build`, `build/skill`, `build/ops`. |
 | `/claude-tweaks:test` | Appends QA findings and observations during test execution. Uses phase: `test`. |
-| `/claude-tweaks:review` | Appends code review findings (Step 3g) and reads/routes existing entries. Uses phases: `review`, `review/skill`. Hindsight findings (Step 4) are written by /reflect. |
+| `/claude-tweaks:review` | Appends code review findings (Step 3 Routing) and reads/routes existing entries. Uses phases: `review`, `review/skill`. Hindsight findings (Step 4) are written by /reflect. |
 | `/claude-tweaks:reflect` | Appends hindsight findings (via /review, phase `review/hindsight`), reflection insights (via /wrap-up, phase `wrap-up`), or standalone findings (phase `reflect`). |
-| `/claude-tweaks:wrap-up` | Runs the resolve gate (Step 9.5) and deletes the ledger (Step 5). Reflection insights are written by /reflect (Step 3). |
-| `/claude-tweaks:flow` | Creates the ledger at pipeline start (Step 1), carries it forward across all phases, and runs the resolve gate before the final summary (Step 3). |
+| `/claude-tweaks:wrap-up` | Runs the resolve gate (Step 8.5) and deletes the ledger (Step 5). Reflection insights are written by /reflect (Step 3). |
+| `/claude-tweaks:flow` | Creates the ledger at pipeline start (Step 1), carries it forward across all phases, and runs the resolve gate before the final summary (Step 5). |
 | `/claude-tweaks:help` | Scans for active ledgers with open items and surfaces them in the status dashboard. |
-| `/claude-tweaks:tidy` | May scan ledger files during backlog hygiene to detect abandoned pipelines. |
+| `/claude-tweaks:tidy` | May scan ledger files during backlog hygiene to detect abandoned pipelines. /tidy reciprocally relies on /ledger's status taxonomy to detect stale entries. |
+
+### Next Actions
+
+1. `/claude-tweaks:wrap-up {spec}` — wrap up the current work once all items are resolved **(Recommended)**
+2. `/claude-tweaks:ledger resolve` — re-run the nothing-left-behind gate if items remain `open`
+3. `/claude-tweaks:help` — check overall pipeline status

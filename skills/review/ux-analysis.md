@@ -70,7 +70,7 @@ The screenshot review produces observations, not a separate report. Observations
 
 ## Output Format
 
-Produce findings in the standard format for Step 3g integration. Each finding includes a concrete, implementable recommendation — not generic advice.
+Produce findings in the standard format for Step 3 Routing integration. Each finding includes a concrete, implementable recommendation — not generic advice.
 
 ```
 | # | Finding | Severity | Category | Affected | Recommended |
@@ -87,4 +87,4 @@ Produce findings in the standard format for Step 3g integration. Each finding in
 - **Medium** — usability gaps (too many tabs without search, missing breadcrumbs on deep pages, large forms without validation)
 - **Low** — consistency observations (cross-page pattern mismatches), minor polish (spacing, visual hierarchy)
 
-UX findings are routed through the same fix/defer/capture mechanism as code review findings in Step 3g. They appear in the batch table with category "UX" alongside findings from lenses 3a-3f.
+UX findings are routed through the same fix/defer/capture mechanism as code review findings in Step 3 Routing. They appear in the batch table with category "UX" alongside findings from lenses 3a-3f.

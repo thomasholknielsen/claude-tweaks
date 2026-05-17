@@ -1,6 +1,6 @@
 # Multi-Spec Consolidated Review Console
 
-For multi-spec `/flow` runs in `auto` or `hybrid` mode, the per-spec Wrap-Up Review Consoles (`/wrap-up` Step 9.6) are **deferred** so the user is not interrupted between specs. After the final spec's wrap-up completes, `/flow` runs **one consolidated Review Console** that aggregates decisions and staged items from every spec in the run.
+For multi-spec `/flow` runs in `auto` or `hybrid` mode, the per-spec Wrap-Up Review Consoles (`/wrap-up` Step 8.6) are **deferred** so the user is not interrupted between specs. After the final spec's wrap-up completes, `/flow` runs **one consolidated Review Console** that aggregates decisions and staged items from every spec in the run.
 
 This preserves the bookend architecture (Manifesto at start, one Review Console at end) even when N > 1 specs run sequentially.
 
@@ -26,7 +26,7 @@ This preserves the bookend architecture (Manifesto at start, one Review Console 
 When invoking each per-spec pipeline, `/flow` sets:
 
 - `PIPELINE_RUN_DIR=.../spec-{N}/` — the spec's namespaced directory (so per-spec skills write decisions and staged items there)
-- `MULTISPEC_REVIEW_DEFER=1` — signals to `/wrap-up` Step 9.6 to skip the per-spec console
+- `MULTISPEC_REVIEW_DEFER=1` — signals to `/wrap-up` Step 8.6 to skip the per-spec console
 - `MULTISPEC_PARENT_DIR=.../{ISO-timestamp}-{spec-1}-...-{spec-N}/` — pointer to the parent run dir (used by the consolidated console)
 
 The single-spec path is unchanged: `PIPELINE_RUN_DIR` points to a top-level run dir, `MULTISPEC_REVIEW_DEFER` is unset.

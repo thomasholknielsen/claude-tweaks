@@ -17,7 +17,7 @@ If CLAUDE.md doesn't document verification commands, scan `package.json` scripts
 
 Run all checks. Order matters — fail fast:
 
-> **Parallel execution:** Run type checking and linting as parallel Bash calls — they are independent. Run tests after both pass (tests are slower and type/lint failures often cause test failures too).
+> **Parallel execution:** Use parallel tool calls aggressively — type checking and linting are independent and should run concurrently as parallel Bash calls. Run tests after both pass (tests are slower and type/lint failures often cause test failures too).
 
 1. Type checking (fastest feedback)
 2. Linting

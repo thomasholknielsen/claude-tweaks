@@ -44,16 +44,17 @@ Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`. The version field is th
 |------|--------|
 | Default | `claude-tweaks v{version}` |
 | `plain` | `{version}` |
-| `full` | `claude-tweaks v{version}\n{description}\n{repository}` |
+| `full` | Three lines: `claude-tweaks v{version}`, then `{description}`, then `{repository}` |
+
+Example `full` output:
+
+```
+claude-tweaks v4.7.0
+A Claude Code plugin with structured development lifecycle skills.
+https://github.com/thomasholknielsen/claude-tweaks
+```
 
 That's the entire skill — no decisions, no findings, no follow-up gates.
-
-### Step 3: Next Actions
-
-Suggest 1-2 context-relevant follow-ups:
-
-1. `/claude-tweaks:help` — full pipeline status and command reference **(Recommended when version was the only thing you needed)**
-2. `https://github.com/thomasholknielsen/claude-tweaks/releases` — release notes for this and prior versions
 
 ## Anti-Patterns
 
@@ -70,3 +71,8 @@ Suggest 1-2 context-relevant follow-ups:
 |-------|-------------|
 | `/claude-tweaks:help` | /help shows the full reference card; /version is the minimal "just the version" complement |
 | `/claude-tweaks:init` | /init may print the version during bootstrap; /version is its standalone equivalent |
+
+### Next Actions
+
+1. `/claude-tweaks:help` — full pipeline status and command reference **(Recommended when version was the only thing you needed)**
+2. `https://github.com/thomasholknielsen/claude-tweaks/releases` — release notes for this and prior versions

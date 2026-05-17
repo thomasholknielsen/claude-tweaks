@@ -91,12 +91,25 @@ design-intent: {bold | quiet | minimal | delightful | onboarding | none}
 
 ## Manual Steps
 
-{Operations a human must perform after this spec is built and merged. Things the pipeline cannot do — only detect.}
+Operations that **cannot be automated by a capable CLI user** — not things that merely live outside the codebase. `/build` Step 2.5 probes each item at execution time; items with a CLI/API and credentials are run inline, not seeded as manual.
 
-- {e.g., "Set `STRIPE_SECRET_KEY` in production environment"}
-- {e.g., "Run `terraform apply` in `infra/payments/`"}
-- {e.g., "Register a webhook at the payment provider dashboard for `/api/webhooks/stripe`"}
-- {e.g., "Create feature flag `enable_meal_planning` in LaunchDarkly"}
+Only list an item here if at least one is true:
+- **No CLI/API exists** — dashboard-only action, physical task, or vendor-side
+- **Requires human judgment** — a name, value, or copy decision someone must make at execution time
+- **Requires out-of-band signoff** — security review, legal approval, change-management ticket
+
+State the reason in each entry using the `reason-not-auto` qualifier (see `/claude-tweaks:ledger` Required-for-ops section).
+
+**Do not list** items like these — they have CLIs and will be auto-executed by `/build` Step 2.5:
+- ~~"Set `STRIPE_SECRET_KEY` in production"~~ → `gh secret set` / `vercel env add` / `fly secrets set`
+- ~~"Run `terraform apply`"~~ → shell command
+- ~~"Register a Stripe webhook"~~ → `stripe webhooks create`
+- ~~"Create a LaunchDarkly flag"~~ → `ldcli flags create`
+
+Examples that **do belong here**:
+- "Approve renewed Stripe terms of service in the dashboard (reason-not-auto: no-cli)"
+- "Choose final display name for the meal-planning feature before launch copy is locked (reason-not-auto: requires-judgment)"
+- "Get security review signoff on the new third-party data flow (reason-not-auto: requires-signoff)"
 
 {If none: delete this section.}
 ```
@@ -127,7 +140,7 @@ If you would need `/superpowers:writing-plans` to guess, the spec is incomplete 
 | **Data / API Surface** | Enables exact code generation — names, types, endpoints |
 | **Key Files** | Exact paths for the plan's "Files" section |
 | **Gotchas** | Injected as constraints into subagent prompts |
-| **Manual Steps** | Seeded into the ledger as `ops` phase items at build start — surfaced in the final summary so nothing is forgotten |
+| **Manual Steps** | Classified at build start (Step 2.5) — auto-executable items run inline; only items that fail the triage (no-cli, requires-judgment, requires-signoff, auth-not-configured) seed the ledger as `ops` |
 
 ## Frontmatter reference (canonical spec)
 

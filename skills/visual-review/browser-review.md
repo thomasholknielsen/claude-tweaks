@@ -26,11 +26,11 @@ screenshots/browse/<session>/<NN>_<description>.png
 
 | Mode | Input | What happens |
 |------|-------|-------------|
-| **Journey mode** | `journey:{name}` | Walk a documented journey via a single `agent-browser batch` invocation. Each step is reviewed against its "should feel" / "red flags." Vitals captured per page. Overall arc assessed. |
 | **Page mode** | URL or description | Review a single page or flow. Full creative framework applies. Vitals captured for the page. |
+| **Journey mode** | `journey:{name}` | Walk a documented journey via a single `agent-browser batch` invocation. Each step is reviewed against its "should feel" / "red flags." Vitals captured per page. Overall arc assessed. |
 | **Discover mode** | `discover` | Explore the running app to identify and document undocumented user journeys. Codebase scan + browser walkthrough. Vitals captured per discovered page. |
 
-Journey mode is the richer review — it has defined personas, goals, and experiential expectations at every step. Page mode is for quick checks or pages that aren't part of a defined journey yet. Discover mode is for brownfield projects that need journey coverage bootstrapped.
+Page mode is for quick checks or pages that aren't part of a defined journey yet. Journey mode is the richer review — it has defined personas, goals, and experiential expectations at every step. Discover mode is for brownfield projects that need journey coverage bootstrapped.
 
 ### Dev URL Resolution
 
@@ -288,6 +288,26 @@ Include developer journeys when the project has CLI tools, APIs, or developer-fa
 ### Phase 3: Browser Walkthrough
 
 > **Parallel execution (conditional):** When multiple candidate journeys share no pages, dispatch each as a parallel Task agent — each agent runs its own session and `batch` invocation independently. Journeys that share state (login, form data) must remain sequential to avoid interference. A single journey's steps are always sequential within its batch.
+>
+> **Model tier:** Standard (Sonnet) — discover-mode journey walkers do multi-step navigation, snapshot interpretation, and "should feel" inference from live experience. Upgrade to Capable (Opus) only when the candidate journey hinges on subjective UX synthesis that Standard would flatten.
+>
+> **Output template (each agent must follow exactly):**
+>
+> ```markdown
+> OUTPUT FORMAT (required):
+> Return ONLY a markdown table, no preamble:
+>
+> | Severity | Path:Line | Finding | Evidence |
+> |---|---|---|---|
+> | critical | src/auth.ts:42 | Missing token expiry check | uses `<` not `<=` |
+> | medium | src/api.ts:180 | Unhandled rejection | line 184: `await fetch(...)` no try/catch |
+>
+> Severity scale: critical / high / medium / low / info
+> If no findings: return literal text "No findings."
+> Do not add narration, headers, or summaries before or after the table.
+> ```
+>
+> Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the table. For discover-mode use, map columns as: Severity = recommendation urgency (`info` for documented page, `low` for nice-to-have journey, `medium` for canonical journey worth writing, `high` for broken/missing critical flow), Path:Line = the discovered route/page (`/checkout/payment`, `/admin/users/{id}`), Finding = the candidate journey + persona (`Returning user creates a new project`), Evidence = the screenshot path + key observations (`screenshots/browse/discover-public-pages/03_payment.png; LCP 1.8s; primary CTA at [3]`). The dispatcher merges all agents' tables into Phase 4 (journey file creation) and Phase 5 (coverage report).
 
 For each approved candidate, open a session and walk the candidate journey via a `batch` invocation that bundles `open`, `snapshot -i -c`, annotated `screenshot`, and `vitals` per page (same shape as the worked example in Journey Mode). This is where the codebase skeleton gets filled with experiential details.
 
@@ -378,6 +398,26 @@ agent-browser batch --session <session> \
 ```
 
 > **Parallel execution (conditional):** When the review covers 3+ independent pages (different URLs with no shared state or navigation dependency), dispatch page reviews as parallel Task agents. Each agent owns its own session, runs its own batch, and returns findings in the standard `| # | Finding | Type | Source | Severity/Impact | Recommended |` format. Assemble results into a single findings table after all agents complete. When pages share state (form submission on page A affects page B) or there are fewer than 3 pages, review sequentially.
+>
+> **Model tier:** Standard (Sonnet) — per-page review agents run Steps 1-5 (health, first impressions, persona walk, structured analysis, reimagine) which require integration across snapshot, screenshot, vitals, and source context. Upgrade to Capable (Opus) only when the page's "reimagine" pass is the primary deliverable and creative synthesis dominates the work.
+>
+> **Output template (each agent must follow exactly):**
+>
+> ```markdown
+> OUTPUT FORMAT (required):
+> Return ONLY a markdown table, no preamble:
+>
+> | Severity | Path:Line | Finding | Evidence |
+> |---|---|---|---|
+> | critical | src/auth.ts:42 | Missing token expiry check | uses `<` not `<=` |
+> | medium | src/api.ts:180 | Unhandled rejection | line 184: `await fetch(...)` no try/catch |
+>
+> Severity scale: critical / high / medium / low / info
+> If no findings: return literal text "No findings."
+> Do not add narration, headers, or summaries before or after the table.
+> ```
+>
+> Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the table. For page-review use, map columns as: Severity = severity/impact (`critical` for broken page or failed health check, `high`/`medium` for major UX or perf issues, `low` for cosmetic, `info` for ideas), Path:Line = the page URL + overlay ref (`/pricing#[3]`, `/checkout#[7]`), Finding = the issue or idea (`Primary CTA at [3] competes visually with [5]` / `LCP 3.1s exceeds 2.5s threshold`), Evidence = the screenshot path + raw measurement (`screenshots/browse/pricing-review/02_above-fold.png; LCP 3.1s; persona: distracted mobile`). The dispatcher merges all agents' tables into the Step 6 Report & Route table, filling Source from the lens that produced each finding (Health / Performance / First Impression / Persona / Analyze / Reimagine).
 
 ---
 

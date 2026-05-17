@@ -59,7 +59,7 @@ Run these before dispatching to any active mode (`test`, `review`, `shape`, `pre
 
 - `shape` runs preconditions but skips Layer 2 — there is no spec yet (the caller is `/specify` working on a design doc, not a numbered spec). Layer 1 + availability still apply.
 - `pre-build` runs all three detection layers and the LLM availability check — it touches Impeccable references but does not modify code.
-- `polish` runs all three detection layers and the LLM availability check; on a successful precondition pass, it consumes audit findings written by `review` mode (see `polish <spec>` mode reference).
+- `polish` runs all three detection layers and the LLM availability check; on a successful precondition pass, it consumes audit findings written by `review` mode (see `modes/polish.md`).
 - `survey` runs Layer 1 (kill-switch) and Layer 3 (file-extension sniff). Layer 2 applies only when a `<spec>` is resolvable from the file list (caller may pass it explicitly). Survey does not require Impeccable's LLM commands or CLI — it is a heuristic analysis local to the wrapper that *recommends* Impeccable commands. The availability check is informational only (an unavailable Impeccable surfaces in the recommendations as "install Impeccable to apply").
 - `reset-recommendations` runs no preconditions — it is a cache-management utility, not a mode that invokes Impeccable.
 
@@ -124,274 +124,37 @@ Install hints (use the appropriate one for the mode):
 
 ## Mode behaviors
 
-### `test <files>` — Active
+Each mode's full procedure (steps, decision tables, output format) lives in its own sub-file. Read only the one you need.
 
-1. Run preconditions (detection + availability). On any skip, return the skip object.
-2. Resolve target files. If `<files>` was passed, use that list. Otherwise run `git diff --name-only` to collect uncommitted changes (staged + unstaged).
-3. Filter to files that match frontend trigger extensions/paths (use the same rules as Layer 3 detection).
-4. If zero files remain after filtering, return `{skipped: "no frontend files in scope"}`.
-5. Invoke the CLI exactly as documented in `impeccable-cli.md` in this skill's directory: `npx impeccable detect --fast --json <files>`.
-6. Parse the JSON output per `impeccable-cli.md`'s schema rules.
-7. Compute pass/fail:
-   - **pass** — zero findings, or all findings are `severity: warning`
-   - **fail** — any finding with `severity: error`
-8. Return:
+### Mode: `test <files>` — Active
 
-```json
-{
-  "mode": "test",
-  "result": "pass" | "fail",
-  "files_scanned": <int>,
-  "findings": [ { "file": "...", "rule": "...", "severity": "...", "line": <int>, "message": "..." }, ... ]
-}
-```
+Runs `npx impeccable detect --fast --json` as a frontend anti-pattern gate. Errors fail the gate; warnings do not. Read `modes/test.md` in this skill's directory for the full procedure.
 
-Warnings are included in the findings list but do not cause `result: fail`. Callers may surface warnings informationally.
+### Mode: `review <spec>` — Active
 
-### `review <spec>` — Active
+Invokes `/impeccable:impeccable critique` + `/impeccable:impeccable audit` and writes an audit cache for `polish` mode to consume. Returns advisory findings. Read `modes/review.md` in this skill's directory for the full procedure.
 
-1. Run preconditions (detection + availability). On any skip, return the skip object.
-2. Resolve the changed UI files. If `<spec>` was passed and the spec lists scoped files, intersect with `git diff --name-only`. Otherwise use the full diff filtered to frontend extensions/paths (Layer 3 rules).
-3. If zero files remain after filtering, return `{skipped: "no UI files changed"}`.
-4. Invoke the Impeccable LLM commands via the Skill tool:
-   - `/impeccable:impeccable critique <files>` — qualitative critique
-   - `/impeccable:impeccable audit <files>` — heuristic audit pass
-5. Collect both outputs. Parse each into a normalized findings list:
+### Mode: `shape <topic>` — Active
 
-```json
-{
-  "source": "critique" | "audit",
-  "file": "...",
-  "category": "...",
-  "severity": "info" | "warning" | "error",
-  "message": "...",
-  "suggestion": "..."  // when present in source output
-}
-```
+Invokes `/impeccable:impeccable shape <topic>` and returns the output verbatim for `/specify` to append to the design doc. Read-only with respect to source code. Read `modes/shape.md` in this skill's directory for the full procedure.
 
-6. **Write findings cache for `polish` mode (Phase 2 addition):** Persist the audit findings (only — not critique) to a JSON file alongside the ledger: `docs/plans/YYYY-MM-DD-{feature}-audit.json`. The matching ledger filename is `docs/plans/YYYY-MM-DD-{feature}-ledger.md`; the audit cache uses the same date and feature slug with `-audit.json` suffix. This keeps the cache co-located with other pipeline state (the ledger is already in `docs/plans/`) and avoids writing to `~/.claude-tweaks/` (harness-owned runtime state per CLAUDE.md).
+### Mode: `pre-build <spec>` — Active
 
-   ```json
-   {
-     "spec": "<spec id or path>",
-     "written_at": "<ISO timestamp>",
-     "findings": [ { "source": "audit", "file": "...", "category": "...", "severity": "...", "message": "...", "suggestion": "..." }, ... ]
-   }
-   ```
+Lazy-loads Impeccable reference files plus the project's `PRODUCT.md` + `DESIGN.md` (when present) into the build subagent's context. Does not modify code — read-only enrichment. Read `modes/pre-build.md` in this skill's directory for the full procedure.
 
-   When the ledger does not exist (review invoked outside a flow context), derive the cache path from the spec slug: `docs/plans/audit-{spec-slug}.json`. Cache entries are stale after one flow run; they get overwritten on the next `review` invocation for the same spec. The cache file (along with the `*-recommendations.json` and `*-declined.json` siblings written by `survey` and `/flow`) is cleaned up by `/wrap-up` Step 5 alongside the ledger — see `/claude-tweaks:wrap-up`.
-
-   If the cache write fails (disk full, permission denied), surface the failure as a one-time skip and continue — `polish` mode degrades to auto-fit-only when the cache is absent.
-
-7. Return:
-
-```json
-{
-  "mode": "review",
-  "result": "advisory",
-  "files_scanned": <int>,
-  "findings": [ ... combined critique + audit findings ... ]
-}
-```
-
-`result: advisory` signals to the caller that findings inform the review verdict but do not auto-modify code. The `polish` mode (Phase 2, invoked separately by `/flow`) is the code-modifying counterpart that consumes the cached audit findings to drive issue-driven dispatch.
-
-### `shape <topic>` — Active
-
-1. Run preconditions, **skipping Layer 2** (no spec exists yet — the caller is `/specify` working from a design doc, not a numbered spec). Layer 1 (kill-switch) and the availability check still apply. Layer 3 sniff is optional — `/specify` already determined frontend before invoking; the wrapper trusts that determination here.
-2. On any skip, return the skip object — the caller continues without the shape pre-step.
-3. Invoke the Impeccable LLM command via the Skill tool: `/impeccable:impeccable shape <topic>`.
-4. Capture the full output text. Do not parse — the caller (`/specify`) will append it verbatim to the design doc.
-5. Return:
-
-```json
-{
-  "mode": "shape",
-  "result": "ok",
-  "output": "<full text from /impeccable:impeccable shape>"
-}
-```
-
-Shape mode is read-only with respect to source code (it produces planning text, not code changes).
-
-### `pre-build <spec>` — Active
-
-1. Run preconditions (detection + availability). On any skip, return the skip object — `/build` proceeds without lazy-loaded references (skip is informational, not a gate failure).
-2. Read the spec file (when `<spec>` is a number, resolve via `specs/{N}-*.md`; when a path, read directly). Inspect the spec's contents to choose which Impeccable reference files to load:
-   - **Always load** when frontend: `typography.md`, `color-and-contrast.md`, `spatial-design.md`
-   - **Add `motion-design.md`** when the spec mentions animations, transitions, micro-interactions, motion, or hover effects
-   - **Add `responsive-design.md`** when the spec mentions breakpoints, mobile, tablet, responsive, or viewport
-   - **Add `interaction-design.md`** when the spec mentions hover/focus states, keyboard navigation, or interactive controls
-   - **Add `ux-writing.md`** when the spec mentions copy, microcopy, error messages, empty states, or labels
-3. Reference files live inside the Impeccable plugin's skill directory. The wrapper does not bundle them — it lazy-loads them into the build subagent's context via the Skill tool's read of `/impeccable:impeccable` (the plugin exposes them; consult the Impeccable plugin's own SKILL.md for the canonical paths). When a reference cannot be located, note the miss and continue with what was loaded.
-4. **Project design context (lazy-load when present):**
-   - **Canonical paths:** `PRODUCT.md` and `DESIGN.md` at the project root. These are written by `/impeccable:impeccable teach` (PRODUCT) and `/impeccable:impeccable document` (DESIGN). Confirmed against Impeccable's official documentation (https://impeccable.style/).
-   - **Fallback discovery:** If neither file is present at root, glob `docs/design/*.md` and `docs/PRODUCT.md`, `docs/DESIGN.md` as a defensive secondary location. Missing files are not errors — they mean `/impeccable:impeccable teach` and `document` have not been run yet.
-   - Read each discovered file and include it in the loaded set.
-5. Return the loaded paths and an approximate context size:
-
-```json
-{
-  "mode": "pre-build",
-  "result": "ok",
-  "loaded": [ "<path1>", "<path2>", ... ],
-  "context_size": <approx tokens, sum of file sizes / 4>,
-  "missed": [ "<path that was expected but not found>" ]
-}
-```
-
-The `context_size` is a rough estimate (`bytes / 4`) — used by `/build` to decide whether to summarize the references before injecting into the subagent prompt versus passing them whole.
-
-`pre-build` does not modify code. The loaded references are read-only context for the implementer subagent.
-
-### `polish <spec>` — Active
+### Mode: `polish <spec>` — Active
 
 > **Scope (v4.5.0):** Auto-fit + issue-driven + intent-driven dispatch. Intent-driven reads the spec's `design-intent:` frontmatter and dispatches matching creative commands per `command-map.md`'s Intent-driven category.
 
-1. Run preconditions (detection + availability). On any skip, return the skip object — `/flow` notes the skip and proceeds to wrap-up without invoking re-verify.
-2. Resolve changed files. If `<spec>` was passed and lists scoped files, intersect with `git diff --name-only`. Otherwise use the full diff filtered to frontend extensions/paths.
-3. If zero files remain after filtering, return `{skipped: "no UI files changed"}`.
-4. **Read prior audit findings.** The `review` mode (Phase 2 addition) writes findings to a per-spec cache alongside the ledger: `docs/plans/YYYY-MM-DD-{feature}-audit.json` (or `docs/plans/audit-{spec-slug}.json` when invoked outside a flow context). Resolve the cache path:
-   - If a ledger file exists for this spec, derive the date+feature prefix from the ledger filename and use the matching `-audit.json` sibling.
-   - Otherwise, glob `docs/plans/*-audit.json` and `docs/plans/audit-*.json`, pick the most recently modified file matching the spec slug.
-   - If no cache file is found, proceed without issue-driven dispatch — only auto-fit commands run.
-   - If the cache exists but is older than the most recent commit on the spec's branch, treat as stale and skip issue-driven dispatch (the audit no longer reflects current code).
-5. **Auto-fit dispatch (always invoked when frontend):** Invoke each via the Skill tool, in order:
-   - `/impeccable:impeccable polish <files>` — final design system alignment
-   - `/impeccable:impeccable clarify <files>` — UX copy improvement
-   - `/impeccable:impeccable harden <files>` — error handling, i18n, edge cases
-   - **File-target convention (TODO):** The Phase 1 implementation report flagged uncertainty about whether these commands accept a list of files or require a single target. The wrapper passes the file list as a single space-separated argument; if a command rejects multi-file input, the wrapper falls back to looping per file (record this once per session in the in-memory marker; do not surface the looping as a finding).
-6. **Issue-driven dispatch (only when audit flagged matching category):** Read the audit findings from Step 4. For each category match, invoke the corresponding command per `command-map.md`:
-   - "typography hierarchy weak" / typography-flagged findings → `/impeccable:impeccable typeset <files>`
-   - "spacing inconsistent" / spatial-flagged findings → `/impeccable:impeccable layout <files>`
-   - "responsive issues" / responsive-flagged findings → `/impeccable:impeccable adapt <files>`
-   - "performance regressions" / performance-flagged findings → `/impeccable:impeccable optimize <files>`
-   - Match by checking the audit finding's `category` or `rule` field (case-insensitive substring match against the category keywords). When the audit produces multiple matches for the same category, dispatch the command once with the union of affected files.
-7. **Intent-driven dispatch (active):** Read the spec's `design-intent:` frontmatter (the canonical field definition lives in `skills/specify/spec-template.md`; the dispatch table is in `command-map.md` Step 3). For each declared intent value, invoke the matching command via the Skill tool on the same scoped file list used by Steps 5–6:
-   - `bold` → `/impeccable:impeccable bolder <files>`
-   - `quiet` → `/impeccable:impeccable quieter <files>`
-   - `minimal` → `/impeccable:impeccable distill <files>` (intent-only — never auto-runs from `/simplify`)
-   - `delightful` → `/impeccable:impeccable delight <files>` then `/impeccable:impeccable animate <files>` (in that fixed order — `delight` adds personality content, `animate` adds motion to existing interactions; reversing them risks animating placeholder content)
-   - `onboarding` → `/impeccable:impeccable onboard <files>`
-   - `none` (or missing field) → skip intent-driven dispatch entirely
+Dispatches auto-fit (`polish`/`clarify`/`harden`) + issue-driven (`typeset`/`layout`/`adapt`/`optimize`) + intent-driven (`bolder`/`quieter`/`distill`/`delight`+`animate`/`onboard`) commands. **First wrapper mode that modifies code** — callers must follow up with re-verification. See `command-map.md` in this skill's directory for the dispatch tables (auto-fit list, issue-driven category matching, intent-driven mapping). Read `modes/polish.md` in this skill's directory for the full procedure.
 
-   **Multi-intent ordering.** When the user declared comma-separated intents (e.g., `design-intent: bold, delightful`), invoke commands in the order declared. The fixed `delight` → `animate` pairing for `delightful` is preserved even when interleaved with other intents — treat `delightful` as a single dispatch unit that produces two commands. The wrapper does not run a re-verify cycle between intent commands; the polish phase as a whole shares a single re-verify cycle (capped by `/flow`'s polish phase, see flow's polish-phase decision tree).
+### Mode: `survey <files>` — Active
 
-   **Manual-only commands.** `colorize`, `extract`, and `overdrive` are not intent-driven in this phase. They surface only via `survey` mode recommendations (see `command-map.md`). Do not auto-dispatch them from `polish`.
+Read-only. Produces ranked Creative Opportunities recommendations from screenshots (`/visual-review`) or the full diff (`/flow`). Never invokes Impeccable commands — only suggests them. See `command-map.md` in this skill's directory for the "would help" criteria → command mapping. Read `modes/survey.md` in this skill's directory for the full procedure.
 
-   **No declined-recommendation suppression in polish.** Declined-recommendation tracking applies to `survey` mode only — `polish` always honors the explicit `design-intent:` declaration. The user changes intent dispatch behavior by editing the spec frontmatter, not by declining recommendations.
-8. Return:
+### Mode: `reset-recommendations <spec>` — Active utility
 
-```json
-{
-  "mode": "polish",
-  "result": "ok",
-  "commands_invoked": [
-    { "command": "/impeccable:impeccable polish", "files": ["..."], "category": "auto-fit" },
-    { "command": "/impeccable:impeccable typeset", "files": ["..."], "category": "issue-driven", "trigger": "audit:typography" },
-    { "command": "/impeccable:impeccable bolder", "files": ["..."], "category": "intent-driven", "trigger": "intent:bold" },
-    { "command": "/impeccable:impeccable delight", "files": ["..."], "category": "intent-driven", "trigger": "intent:delightful" },
-    { "command": "/impeccable:impeccable animate", "files": ["..."], "category": "intent-driven", "trigger": "intent:delightful" }
-  ],
-  "files_modified": [ "<path>", ... ]
-}
-```
-
-Or, when no commands ran (skip from preconditions, or zero files in scope, or no findings + no auto-fit applicable):
-
-```json
-{
-  "mode": "polish",
-  "result": "ok",
-  "commands_invoked": [],
-  "files_modified": [],
-  "note": "Auto-fit ran with zero net changes" | "No frontend files in scope"
-}
-```
-
-`polish` is the **first wrapper mode that modifies code.** Callers (`/flow` polish phase) must follow up with re-verification (types/lint/tests) when `files_modified` is non-empty.
-
-### `survey <files>` — Active
-
-Survey produces ranked Creative Opportunities recommendations — read-only. It never invokes Impeccable commands; it only suggests them. Callers (`/visual-review`, `/flow`) render the recommendations in their respective output blocks.
-
-1. Run preconditions (Layer 1 + Layer 3; Layer 2 only when a spec is resolvable from the file list). On any skip, return the skip object — the caller omits the Creative Opportunities block.
-2. **Resolve invocation context.** The caller signals which surface produced the call:
-   - **From `/visual-review`** — caller passes `--screenshots <paths>` plus the file list. Survey analyzes each screenshot for opportunities matching creative-command "would help" criteria (per the criteria table below). Per-screenshot analysis is an LLM-grade observation, not a heuristic.
-   - **From `/flow` pipeline summary** — caller passes the full diff file list (no screenshots). Survey applies heuristic per-file checks (e.g., file with motion-related imports but zero `transition`/`animate` references → animate could help; page component with no error/empty-state JSX → delight could help).
-   - **From a user invocation directly** — same as the `/flow` path (heuristic, no screenshots) unless `--screenshots` is provided.
-3. **Apply the "would help" criteria** to produce raw observations. Each observation maps to one creative command:
-
-   | Observation | Suggested command | Rationale snippet |
-   |-------------|-------------------|-------------------|
-   | Page reads as generic — pure black on white, no visual personality | `bolder` | Typography/color hierarchy lacks confidence |
-   | Visual weight imbalanced — multiple competing high-contrast elements | `quieter` | Reduce noise so the primary action wins |
-   | Component clutter — many small UI elements doing redundant work | `distill` | Strip to essence; intent-only avoids `/simplify` overlap |
-   | Empty state shows only "No items" or similar bare text | `delight` | Empty states are personality opportunities |
-   | Page has interactive controls (toggles, hovers) but no transitions | `animate` | Static interactions feel unpolished |
-   | Heavy monochrome — no strategic accent color | `colorize` | Strategic color anchors attention |
-   | First-run flow with no guidance or progressive disclosure | `onboard` | First-run UX is a teaching surface |
-   | Long-form content with weak hierarchy — wall of text, no pull-quotes | `extract` | Surface key content from prose |
-   | Existing strong design that could push further (intentional polish) | `overdrive` | Aggressive creative push — user-discretion |
-
-4. **Suppress declined recommendations.** Read the per-spec declined-recommendations cache from `docs/plans/YYYY-MM-DD-{feature}-declined.json` (path resolution mirrors the audit cache from `review` mode — see Step 4 of `polish` mode). The cache shape:
-
-   ```json
-   {
-     "spec": "<spec id or path>",
-     "declined": [
-       { "command": "/impeccable:impeccable bolder", "page": "/pricing", "decline_count": 2, "first_surfaced": "<ISO>", "last_surfaced": "<ISO>" }
-     ]
-   }
-   ```
-
-   Suppress any observation whose `(command, page)` pair has `decline_count >= 2`. Increment in-place when a previously-recommended `(command, page)` from the recommendations cache (see Step 6) is being re-surfaced for the same spec — but DO NOT increment within a single survey call (the increment happens at the next `/flow` run when comparing prior recommendations to the new diff).
-
-5. **Rank** the surviving observations by signal strength: per-screenshot LLM-graded observations rank above heuristic ones; among heuristics, file-pattern matches with multiple supporting signals (e.g., motion-imports AND zero transitions) rank above single-signal matches. Cap output at 5 recommendations to avoid noise.
-
-6. **Write the recommendations cache** at `docs/plans/YYYY-MM-DD-{feature}-recommendations.json` (mirrors the audit cache co-location — keeps survey state out of `~/.claude-tweaks/` per CLAUDE.md). Shape:
-
-   ```json
-   {
-     "spec": "<spec id or path>",
-     "written_at": "<ISO timestamp>",
-     "recommendations": [
-       { "command": "/impeccable:impeccable bolder", "page": "/pricing", "rationale": "..." }
-     ]
-   }
-   ```
-
-   The next `/flow` run on the same spec compares the new diff against this cache to detect declines (a recommended command was not invoked → its expected file changes do not appear in the new diff → increment `decline_count` in the declined cache). Decline-detection logic lives in `/flow`'s pipeline summary execution (it has the diff context to compare).
-
-7. Return:
-
-   ```json
-   {
-     "mode": "survey",
-     "result": "ok",
-     "context": "visual-review" | "flow-summary" | "manual",
-     "recommendations": [
-       { "page": "/pricing", "observation": "Hero feels generic — pure black on white", "command": "/impeccable:impeccable bolder pricing", "rationale": "..." }
-     ],
-     "suppressed": <int>
-   }
-   ```
-
-   `suppressed` is the count of observations dropped due to the declined cache — surfaced informationally so callers can mention "N suggestions hidden (previously declined)" if useful. When `recommendations` is empty, the caller omits the Creative Opportunities block entirely.
-
-#### `reset-recommendations <spec>` — Active utility
-
-Deletes the declined-recommendations cache for the given spec so the next `survey` call surfaces all matching recommendations again. Operates on `docs/plans/YYYY-MM-DD-{feature}-declined.json` (resolved the same way as the audit cache).
-
-1. Resolve the cache path from the spec input. If the file does not exist, return `{result: "ok", note: "No declined recommendations to reset"}`.
-2. Delete the file.
-3. Return:
-
-   ```json
-   { "mode": "reset-recommendations", "result": "ok", "deleted": "docs/plans/YYYY-MM-DD-{feature}-declined.json" }
-   ```
-
-This is the user escape hatch when survey suppresses something they want to see again. The recommendations cache (`-recommendations.json`) is left in place — only the declined counter is cleared.
+Cache-management utility. Deletes the declined-recommendations cache for a spec so the next `survey` call surfaces all matching recommendations again. The recommendations cache (`-recommendations.json`) is left in place — only the declined counter is cleared. Read `modes/reset-recommendations.md` in this skill's directory for the full procedure.
 
 ## Output contract
 
@@ -408,11 +171,12 @@ Callers must handle both. Skips are not failures — they are valid outcomes tha
 
 Lazy-load these only when needed for the active mode:
 
-- `command-map.md` — Auto-fit / Issue-driven / Intent-driven / Never categorization for all 23 Impeccable commands, including the active intent-driven and survey-recommendation dispatch tables.
+- `modes/{name}.md` — Per-mode full procedure (steps, decision rules, output format). One file per mode: `test`, `review`, `shape`, `pre-build`, `polish`, `survey`, `reset-recommendations`.
+- `command-map.md` — Single source of truth for dispatch tables: auto-fit / issue-driven / intent-driven categorization for all 23 Impeccable commands, plus the survey "would help" criteria → command mapping.
 - `frontend-detection.md` — Trigger extensions and path patterns for Layer 3 sniff; pointer to the canonical `surface:` and `design-intent:` frontmatter spec (which lives in `skills/specify/spec-template.md`).
 - `impeccable-cli.md` — Exact CLI invocation, JSON output schema, parsing rules.
 
-## Next Actions
+### Next Actions
 
 When invoked directly by a user (rather than by a lifecycle skill), surface 1-3 context-relevant follow-ups based on what the wrapper returned:
 
@@ -493,7 +257,8 @@ No follow-up — the diff did not match any creative-opportunity criteria. The c
 | `/claude-tweaks:specify` | Invokes `shape` mode as a pre-decomposition step on frontend design docs. Also asks the design-intent question and writes `surface:` + `design-intent:` frontmatter on every generated spec — the frontmatter `polish` mode reads for intent-driven dispatch. |
 | `/claude-tweaks:visual-review` | Invokes `survey` mode after browser review steps complete, passing screenshot paths via `--screenshots`. Renders the Creative Opportunities block in the visual review report. |
 | `/claude-tweaks:wrap-up` | Cleans up the wrapper's audit / recommendations / declined caches alongside the ledger during artifact cleanup. |
-| `/claude-tweaks:simplify` | Runs before `polish` mode in `/flow` (different phases — simplify is in build, polish is post-review) — `distill` is intent-only to avoid double-stripping with `/simplify`. |
-| `/claude-tweaks:ledger` | No direct interaction — the wrapper writes its own caches (audit, recommendations, declined) as separate files from the ledger. Polish-phase actions surface in `/flow`'s pipeline summary via the actions-performed table. |
+| `/claude-tweaks:simplify` | Runs before `polish` mode in `/flow` (different phases — simplify is in build, polish is post-review) — `distill` is intent-only to avoid double-stripping with `/simplify`. /simplify reciprocally avoids the `distill` overlap by deferring distillation to /design polish when intent declares it. |
+| `/claude-tweaks:ledger` | No direct interaction — the wrapper writes its own caches (audit, recommendations, declined) as separate files from the ledger. Polish-phase actions surface in `/flow`'s pipeline summary via the actions-performed table. /ledger reciprocally treats design-cache files as separate from the ledger lifecycle (cleanup is handled by /wrap-up Step 5, not by /ledger itself). |
+| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. The wrapper's mode-dispatch decisions follow the contract's reversibility/severity floors (polish modifies code → never auto-applied without explicit caller intent; survey is read-only by design). |
 | superpowers `/superpowers:brainstorming` | Invoked by `/specify` when given a topic input — produces the design doc that `shape` mode then enriches. The wrapper does not invoke `/superpowers:brainstorming` directly. |
 | Impeccable plugin | All wrapper modes (except `survey` and `reset-recommendations`) invoke commands or the CLI from this plugin. Availability checks gate every dispatching mode. |

@@ -1,7 +1,6 @@
 ---
 name: claude-tweaks:browse
 description: Use for browser automation via agent-browser — defines session naming, screenshot/trace paths, and operation vocabulary used by /stories, /visual-review, and /review. Keywords - browse, browser, agent-browser, headless, screenshot, scrape, automation.
-allowed-tools: Bash
 ---
 > **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
 
@@ -27,13 +26,7 @@ Conventions skill for browser automation. Defines session naming, screenshot/tra
 
 ## Requirements
 
-`agent-browser` must be installed:
-
-```bash
-npm install -g agent-browser
-```
-
-The daemon auto-starts on the first `agent-browser` command (port 4848). Skills do not manage daemon lifecycle. Recovery on crash: `agent-browser doctor`.
+`agent-browser` must be installed. See `_shared/browser-detection.md` for the detect / install / verify procedure, daemon lifecycle (auto-starts on port 4848), and recovery (`agent-browser doctor`).
 
 ## Conventions Defined Here
 
@@ -69,7 +62,7 @@ Capture a trace before closing a session whenever a step fails. Failure reports 
 open  →  ops (snapshot, find, click, fill, screenshot, vitals, …)  →  close
 ```
 
-Daemon is implicit. Always close the session when the task is done — leaked sessions consume resources. On step failure: capture trace, then close.
+Daemon is implicit. Always close the session when the task is done — leaked sessions consume resources. On step failure: capture trace, then close. List sessions with `agent-browser session list` if you suspect leaks.
 
 ### Operation vocabulary
 
@@ -99,7 +92,40 @@ Condensed pointer table. Full reference (batch, react, auth vault, vitals, trace
 Each parallel agent gets its own `--session <unique-name>`. One browser instance per session. Memory cost scales with the number of concurrent sessions, not with the number of commands sent to a session — so reuse a session for sequential ops on the same page, and spin up a fresh session per parallel agent or per QA story instance.
 
 > **Parallel execution:** Dispatch independent browser walks as parallel Task agents — each opens its own session, runs its ops, and returns a per-session result. Assemble results after all agents complete.
-> **Output contract:** Each browser-walk agent must follow Template B (locations) from `skills/_shared/subagent-output-contract.md` for navigation findings, or Template A (findings) when reporting issues. Inline the literal template in the agent's prompt.
+>
+> **Model tier:** Standard (Sonnet) — browser-walk agents do multi-step navigation and structured observation, which exceeds Fast-tier mechanical extraction. Upgrade to Capable (Opus) only if the walk requires synthesis of subjective UX judgment.
+>
+> **Output template (each agent must follow exactly):**
+>
+> Use Template A when the walk reports issues / findings:
+>
+> ```markdown
+> OUTPUT FORMAT (required):
+> Return ONLY a markdown table, no preamble:
+>
+> | Severity | Path:Line | Finding | Evidence |
+> |---|---|---|---|
+> | critical | src/auth.ts:42 | Missing token expiry check | uses `<` not `<=` |
+> | medium | src/api.ts:180 | Unhandled rejection | line 184: `await fetch(...)` no try/catch |
+>
+> Severity scale: critical / high / medium / low / info
+> If no findings: return literal text "No findings."
+> Do not add narration, headers, or summaries before or after the table.
+> ```
+>
+> Use Template B when the walk reports navigation locations / references:
+>
+> ```markdown
+> OUTPUT FORMAT (required):
+> Return ONLY bullet lines, one per match:
+>
+> - {path}:{line} — {one-line context}
+>
+> If no matches: return literal text "No matches."
+> Do not add narration or grouping headers.
+> ```
+>
+> Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the chosen template.
 
 ## Anti-Patterns
 
@@ -109,7 +135,6 @@ Each parallel agent gets its own `--session <unique-name>`. One browser instance
 | Storing `@eN` snapshot refs in YAML or persisted artifacts | Refs are session-scoped and regenerate on every snapshot — resolve them at runtime via `find` |
 | Batching across sessions | One `agent-browser batch` invocation owns a single session's lifecycle — never mix session names in one batch |
 | Using CSS or XPath selectors with `find` | Schema v2 forbids CSS/XPath — use semantic locators only (role, name, text, testid, label, placeholder) |
-| Relying on env vars to set viewport size | Replaced by first-class `set viewport <w> <h>` and `set device "<name>"` flags — env-var workarounds are dead |
 | Generic session names (`test`, `session1`) | Names show up in dashboards and trace paths — derive from purpose |
 | Forgetting to close sessions | Leaked sessions consume memory — always `close` at the end of a run |
 | Skipping the trace on failure | Failure reports without a trace path are not actionable — capture before closing |
@@ -125,3 +150,13 @@ Each parallel agent gets its own `--session <unique-name>`. One browser instance
 | `/claude-tweaks:test` | Invokes qa-agent for QA story validation; trace paths from failed stories surface in /test reports |
 | `/claude-tweaks:init` | Detects `agent-browser` availability during setup and records the requirement that /browse depends on |
 | `/claude-tweaks:research` | Both utility skills (no fixed lifecycle position). `/browse` is interactive browser automation; `/research` is autonomous multi-source web research. |
+| `/claude-tweaks:flow` | `/flow` invokes `/review` in full mode by default, which transitively drives `/visual-review` and `/browse` for the browser portion. Browser availability detected at `/flow` startup determines whether visual review runs. |
+| `/claude-tweaks:help` | `/help` lists `/browse` in the utility skills table and surfaces availability when scanning for browser-dependent recommendations. |
+| `/claude-tweaks:visual-review` | Drives page, journey, and discover walks against `/browse`'s lifecycle. `/visual-review` is the review procedure; `/browse` is the conventions reference for session naming, screenshot paths, trace paths, and the operation vocabulary. |
+
+### Next Actions
+
+1. `/claude-tweaks:visual-review {url}` — run a structured visual review against the page or journey just driven **(Recommended)**
+2. `/claude-tweaks:stories` — generate or refresh QA story YAML files from the live DOM
+3. `/claude-tweaks:review {spec} full` — full review pipeline including code, visual, and QA passes
+4. `/claude-tweaks:capture "{idea}"` — save an idea surfaced while exploring the browser

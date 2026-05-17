@@ -119,7 +119,7 @@ For each per-spec invocation, `/flow` exports four environment variables:
 | Variable | Value | Purpose |
 |---|---|---|
 | `PIPELINE_RUN_DIR` | `{parent}/spec-{N}/` | Per-spec namespaced dir — skills write `decisions.md` and `staged/` items here |
-| `MULTISPEC_REVIEW_DEFER` | `1` | Signals `/wrap-up` Step 9.6 to skip the per-spec console — the consolidated end-of-run console handles all approvals |
+| `MULTISPEC_REVIEW_DEFER` | `1` | Signals `/wrap-up` Step 8.6 to skip the per-spec console — the consolidated end-of-run console handles all approvals |
 | `MULTISPEC_PARENT_DIR` | `{parent}/` | Pointer to the parent run dir — read by the consolidated console at end-of-run |
 | `MULTISPEC_KEEP_GOING` | `1` (when `keep-going` arg set) | Signals per-spec pipelines to continue the multi-spec run after this spec's HARD-GATE failure |
 

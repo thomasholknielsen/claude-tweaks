@@ -1,8 +1,8 @@
-# Phase 2: Profile and Drift Report Templates
+# Phase 3: Profile and Drift Report Templates
 
 ## Initial Mode: Stack Profile
 
-Synthesize Phase 1 findings into a structured profile:
+Synthesize Phase 2 findings into a structured profile:
 
 ```markdown
 ## Stack Profile: {project name}
@@ -70,7 +70,7 @@ Wait for confirmation before proceeding.
 
 ## Update Mode: Drift Report
 
-Compare the Phase 0u inventory against Phase 1 findings. Classify every finding:
+Compare the Phase 1u inventory against Phase 2 findings. Classify every finding:
 
 ```markdown
 ## Configuration Health Report

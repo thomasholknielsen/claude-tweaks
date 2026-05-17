@@ -32,8 +32,10 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 ## Syntax
 
 ```
-/claude-tweaks:flow <spec-or-design-doc>[,spec2,spec3] [current-branch] [no-stories] [no-polish] [step1,step2,step3]
+/claude-tweaks:flow <spec>[,spec2,spec3] [worktree | current-branch] [no-stories] [no-polish] [auto] [keep-going] [step1,step2,step3]
 ```
+
+All bracketed tokens are optional and order-independent. `worktree` is the default git strategy when neither `worktree` nor `current-branch` is set. `keep-going` applies to multi-spec runs only. Design doc paths are rejected at Step 2.7 — run `/claude-tweaks:specify` first.
 
 ### Arguments
 
@@ -233,55 +235,7 @@ All other gate failures (build, stories, test, review) use the generic "On Gate 
 ### Step 1: Validate Input
 
 1. Parse `$ARGUMENTS` — extract spec number(s) or topic name, detect `worktree`, `current-branch`, `no-stories`, `no-polish`, and `auto` keywords, plus optional step list. Also read CLAUDE.md `auto-mode: default-on` setting; merge with the argument (argument wins when both set).
-2. Determine spec mode (number) or topic-resolution mode (name). A path argument is held until Step 2.7 where it's checked against the design-doc rejection rule.
-2.5. **Pre-flight merge check** — read the `Pre-flight / merge-check` CLAUDE.md setting (default: `true`). When enabled and worktree strategy resolves to `worktree`:
-   ```bash
-   git fetch origin main 2>/dev/null
-   ahead=$(git rev-list --count HEAD..origin/main 2>/dev/null)
-   ```
-   If `ahead > 0`, surface the divergence (`git log --oneline HEAD..origin/main | head -5`) and offer: (1) Rebase first **(Recommended)**, (2) Continue and acknowledge in ledger. In `auto` mode, automatically choose option 2 and add an `ops` ledger entry; also log:
-   ```
-   AUTO {time} — Step 2.5: pre-flight merge-check — main is {N} ahead. Continued and added ops ledger entry. Reversibility: low (divergence persists).
-   ```
-
-2.6. **Shape check** — replaces the previous size-based scope check. Plan size (line count, file count, task count) is **not** a stop signal — a clean 50-task spec is mechanically simpler than a tangled 5-task spec. What matters is structural coupling between tasks. Apply these structural signals before starting:
-
-   **Hard fails** (block the pipeline; surface to user):
-
-   | Signal | Detection | Why it blocks |
-   |---|---|---|
-   | Cross-task dependency chains > 3 deep | Trace `depends-on:` / "after Task N" / "uses Task N output" references | Tasks aren't independently executable; subagent-driven execution requires loose coupling |
-   | Task references files outside its declared "Files:" block | For each task, compare in-task file mentions against its declared file list | Spec leaks scope — tasks will collide on files the plan didn't anticipate |
-   | A single task touches > 5 files | Count files in each task's "Files:" block | Task is itself too large; should be sub-decomposed before dispatch |
-   | Plan has no "Files:" or "Tasks:" structure at all | Look for canonical headings | Input is a design doc, not an executable spec — see Step 2.7 |
-
-   **Soft warnings** (proceed by default; note in ledger):
-
-   | Signal | Threshold | Note added to ledger |
-   |---|---|---|
-   | Task count > 30 | Count `^### Task \d` / `^## Task \d` headings | "Large dispatch count: {N} subagents — may benefit from `/specify` split if review fails" |
-   | Plan describes a major version bump | Scan for `v{N}.0.0` or `vMAJOR` in the design context | "Major version bump — review will scrutinize backward-compat implications" |
-
-   **Behavior:**
-
-   - **Hard fail** → present the specific signal, recommend `/claude-tweaks:specify {plan-path}` to tighten, offer (1) tighten via /specify **(Recommended)**, (2) proceed anyway and accept tangled-task risk, (3) cancel. Under `auto`, choose option 2 and add an `ops` ledger entry naming the specific signal hit.
-   - **Soft warning** → proceed by default. Add an `ops` ledger entry with the warning text. Do NOT prompt the user. Under `auto` or in default mode, behavior is identical (silent proceed with ledger note).
-
-   **Anti-pattern:** Stopping the pipeline because the plan is "big." Size is not a coupling signal. See `_shared/auto-mode-contract.md` — the model is forbidden under `auto` from inserting size-driven reality-checks beyond what this step prescribes.
-
-2.7. **Reject design docs** — a design doc is strategic (multi-phase, scopes the program); a spec is executional (agent-sized, /flow-runnable). `/flow` accepts specs only.
-
-   Detection: if the input is a design doc (filename matches `*-design.md` OR file contains `## Phase` / `## Phases` section headings OR file lacks both "Files:" and "Tasks:" canonical structure):
-   ```
-   Input is a design doc, not a spec. /flow executes specs.
-
-   Decompose first:
-     /claude-tweaks:specify {input-path}                — produces all phase specs
-     /claude-tweaks:specify {input-path} phase-{N}      — produces specs for one phase
-   Then /flow on the produced specs:
-     /claude-tweaks:flow {N},{M},{P}                    — sequential execution
-   ```
-   Stop the pipeline with this message. **Do not** silently proceed — the design-mode escape hatch was the source of the wrong-granularity bug. Under `auto`, this rejection still fires (it's a hard validation failure, not a UX preference — see `_shared/auto-mode-contract.md`).
+2. Determine spec mode (number) or topic-resolution mode (name). A path argument is held until Step 2.7 (pre-flight) where it's checked against the design-doc rejection rule.
 3. **Git strategy defaults to `worktree`** — same default as `/build`; flow never prompts. Resolution order:
    1. Explicit argument: `worktree` or `current-branch` in `$ARGUMENTS` — always wins
    2. CLAUDE.md `git-strategy` setting — project-level default (see `/claude-tweaks:build` default resolution)
@@ -296,9 +250,19 @@ All other gate failures (build, stories, test, review) use the generic "On Gate 
 6. If a path was given in the argument: confirm it's a spec, not a design doc (Step 2.7 enforces). If a topic name was given: resolve to a spec; if only a design doc exists for that topic, stop and present the routing message.
 7. If validation fails → **stop before starting**
 8. **Create the open items ledger** using `/claude-tweaks:ledger`'s create operation. The `{feature}` name matches the execution plan that build will create. This file tracks findings and operational tasks across all pipeline phases. See `/claude-tweaks:ledger` for status lifecycle and phase taxonomy.
-9. **Pipeline Config Manifesto** — see Step 1.6 below. This is the bookend "begin stop" that locks in policy for the rest of the pipeline.
 
-### Step 1.6: Pipeline Config Manifesto (front-loaded policy)
+### Step 2: Pre-flight Checks
+
+Three checks before pipeline starts. Each can return OK / WARNING / BLOCKED.
+- 2.5 — Merge check (uncommitted changes, branch ahead/behind)
+- 2.6 — Shape check (structural coupling, hard-fail on cross-task deps)
+- 2.7 — Design-doc rejection (granularity contract — specs only, not design docs)
+
+Any hard fail or rejection stops the pipeline before the Config Manifesto runs. Read `validation.md` in this skill's directory for the detailed procedure for each substep.
+
+### Step 3: Pipeline Config Manifesto (front-loaded policy)
+
+This is the bookend "begin stop" that locks in policy for the rest of the pipeline. Runs after pre-flight passes so policy levers are not collected if the pipeline would not have started.
 
 In `auto` or `hybrid` mode, present the Pipeline Config Manifesto — one structured table that pre-fills every policy lever (scope-creep, overlap, design-intent, leftover-routing, auto-fix-threshold, review-severity-floor, tidy-aggressiveness) with recommendations from project policy + sensible defaults. The user approves all (default) or overrides specific items. Saved to `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/config.yml`. Skipped in `interactive` mode.
 
@@ -306,7 +270,7 @@ In `auto` or `hybrid` mode, present the Pipeline Config Manifesto — one struct
 
 For the complete Manifesto content (presentation template, recommendation defaults, source values, approval flow, path conventions), read `manifesto.md` in this skill's directory.
 
-### Step 2: Run Pipeline
+### Step 4: Run Pipeline
 
 For each step in order:
 
@@ -349,27 +313,13 @@ When polish modified code (`files_modified` non-empty) and the re-verify cycle h
 
 If the marker is already set (re-verify already ran in this flow), this is a programming error — the gate should never run twice. Surface a "re-verify cycle cap exceeded" error and stop the pipeline. This is defensive — the polish-phase decision tree should never re-enter re-verify, but the marker exists to enforce that invariant.
 
-### Step 3: Present Pipeline Summary
+### Step 5: Present Pipeline Summary
 
 **Nothing-left-behind gate:** Run the resolve gate from `/claude-tweaks:ledger`. If any item has status `open`, present it for resolution -- no item may remain `open`. The pipeline cannot complete with unresolved items.
 
-**Creative Opportunities survey (v4.5.0).** Before rendering the summary, invoke `/claude-tweaks:design survey <changed-files>` against the full diff produced by the pipeline. The wrapper analyzes the diff heuristically (no screenshots are passed — `/flow` does not maintain its own browser session) and returns ranked recommendations for creative commands the user might want to run manually. Render the recommendations as a Creative Opportunities block (template below) before the Next Actions block.
+**Creative Opportunities survey (v4.5.0).** Before rendering the summary, run decline detection (compares prior recommendations cache against the new diff to suppress repeatedly-declined items), then invoke `/claude-tweaks:design survey <changed-files>`. Returned recommendations render as a Creative Opportunities block (template below) before Next Actions; empty or `{skipped}` returns omit the block.
 
-Handle the wrapper return:
-
-| Return shape | Action |
-|--------------|--------|
-| `{result: "ok", recommendations: [...]}` non-empty | Render the Creative Opportunities block from the template. Write the wrapper's `recommendations` cache (the wrapper does this itself — `docs/plans/...-recommendations.json`). |
-| `{result: "ok", recommendations: []}` | Omit the block. Survey ran but matched nothing — not a failure. |
-| `{skipped: ...}` | Omit the block. Skip reasons are non-frontend, no Impeccable, integration disabled — none of these warrant surfacing in the summary. |
-
-**Decline detection (Phase 3).** Before invoking survey, read the prior `docs/plans/...-recommendations.json` cache (if it exists) for this spec. After the new pipeline diff is final (post-polish, post-re-verify), compare the prior recommendations against the diff:
-
-- For each prior recommendation, check whether its expected file changes appear in the new diff. The expected change is "the suggested command was invoked and modified the recommended page" — heuristic: file paths that the recommendation's `page` substring matches AND have a polish-style diff signature (touched between the previous and current pipeline run).
-- For prior recommendations whose expected changes did NOT appear, increment `decline_count` for that `(command, page)` in `docs/plans/...-declined.json`. Initialize the entry if absent.
-- The wrapper's survey call (next step) reads this declined cache and suppresses observations whose `decline_count >= 2`.
-
-Decline detection runs only when a prior recommendations cache exists for the same spec. First-run flows have no prior recommendations to compare against — skip detection silently. Reset path for the user: `/claude-tweaks:design reset-recommendations <spec>` deletes the declined cache.
+For the full survey procedure (wrapper return handling) and decline detection algorithm (cache comparison, decline_count semantics, reset path), read `survey.md` in this skill's directory.
 
 On successful completion of all steps:
 
@@ -502,5 +452,7 @@ For mode-selection guidance (worktree vs current-branch), the merge reconciliati
 | `/superpowers:brainstorming` | Produces design docs that `/claude-tweaks:specify` decomposes into the specs flow consumes. Flow no longer accepts design docs directly — the granularity contract requires `/specify` between brainstorming and execution. |
 | `/superpowers:using-git-worktrees` | Invoked BY flow (when `worktree` specified) to create isolated workspace for each spec |
 | `/superpowers:finishing-a-development-branch` | Invoked BY flow (when `worktree` specified) at handoff to merge, PR, or discard each feature branch |
-| `/claude-tweaks:ledger` | Manages the open items ledger. /flow creates the ledger (Step 1), carries it across phases, and runs the resolve gate (Step 3). |
+| `/claude-tweaks:ledger` | Manages the open items ledger. /flow creates the ledger (Step 1), carries it across phases, and runs the resolve gate (Step 5). |
 | `/claude-tweaks:design` | /flow invokes `/claude-tweaks:design polish <spec>` after review verdict PASS (auto-fit + issue-driven + intent-driven dispatch — v4.5.0). The wrapper handles its own detection (non-frontend skips); when polish modifies code, /flow follows up with `/test skip-qa` (re-verify gate, one-cycle cap). The `no-polish` argument removes the polish phase entirely. /flow's pipeline summary also invokes `/claude-tweaks:design survey <full-diff>` to render the Creative Opportunities block (anchor 3 of v4.5.0's creative surfacing system); /flow handles decline detection by comparing the prior recommendations cache against the new diff before each survey call. |
+| `/claude-tweaks:journeys` | /journeys produces journey files that /flow's auto-stories step (post-build) ingests so derived stories carry `journey:` field and inherited source files. |
+| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling in /flow. Governs the bookend architecture (Step 3 Manifesto = begin stop, /wrap-up Review Console = end stop), what `auto` silences, and what it never silences. |

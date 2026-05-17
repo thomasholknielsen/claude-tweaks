@@ -120,7 +120,7 @@ In `auto` mode, the pipeline has exactly two user-facing stops, regardless of ho
 │  [BEGIN]                 │                                  │  [END]                 │
 │  Pipeline Config         │  ─── pure automation against ───►│  Wrap-Up Review        │
 │  Manifesto (/flow Step   │      policy, log every           │  Console (/wrap-up     │
-│  1.6 — one approve-      │      decision to decisions.md    │  Step 9.6 — one batch  │
+│  3 — one approve-        │      decision to decisions.md    │  Step 8.6 — one batch  │
 │  recommendations table)  │                                  │  approve / override)   │
 └──────────────────────────┘                                  └────────────────────────┘
 ```
@@ -142,7 +142,26 @@ In `interactive` mode (default when no `auto` arg), skills present each decision
 Scan the full workflow state across all pipeline stages.
 
 > **Parallel execution:** Dispatch Stages 1-7 as parallel Task agents — each stage scans an independent data source and returns counts, flags, and recommendations. The orchestrator assembles the dashboard after all agents complete.
-> **Output contract:** Each stage-scan agent must follow Template A from `skills/_shared/subagent-output-contract.md`. Inline the literal template in the agent's prompt.
+>
+> **Model tier:** Fast (Haiku) — each stage scan is a mechanical read/grep over a single data source (INBOX, DEFERRED, design docs, specs, plans, registry). No synthesis required at the per-stage level; the orchestrator assembles the dashboard.
+>
+> **Output template (each agent must follow exactly):**
+>
+> ```markdown
+> OUTPUT FORMAT (required):
+> Return ONLY a markdown table, no preamble:
+>
+> | Severity | Path:Line | Finding | Evidence |
+> |---|---|---|---|
+> | critical | src/auth.ts:42 | Missing token expiry check | uses `<` not `<=` |
+> | medium | src/api.ts:180 | Unhandled rejection | line 184: `await fetch(...)` no try/catch |
+>
+> Severity scale: critical / high / medium / low / info
+> If no findings: return literal text "No findings."
+> Do not add narration, headers, or summaries before or after the table.
+> ```
+>
+> Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the table. For status-scan use, map columns as: Severity = recommendation urgency (`info` for nothing-to-do, `low` for routine, `medium` for needs-attention, `high` for blocking), Path:Line = the artifact (`specs/INBOX.md:42`, `docs/journeys/checkout.md`, etc.), Finding = the count or flag (`14 items, 3 stale`), Evidence = the specific items or signals.
 
 ### Stage 1: INBOX (`specs/INBOX.md`)
 
@@ -306,3 +325,6 @@ For a detailed explanation of how context flows between skills via artifacts, re
 | `/claude-tweaks:simplify` | Component skill — /claude-tweaks:help lists it in the component skills table |
 | `/claude-tweaks:journeys` | Component skill — /claude-tweaks:help lists it in the component skills table |
 | `/claude-tweaks:visual-review` | Component skill — /claude-tweaks:help lists it in the component skills table |
+| `/claude-tweaks:init` | /init configures the workflow system that /help reports on — /help reads the same artifact paths /init bootstraps (INBOX, DEFERRED, specs, plans, docs registry) |
+| `/claude-tweaks:version` | /version prints the installed plugin version; /help surfaces version-aware command syntax and points at /version for the canonical answer |
+| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling to /help (e.g., if a future status scan ever auto-resolves recommendations) |

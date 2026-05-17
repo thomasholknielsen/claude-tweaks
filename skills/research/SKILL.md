@@ -26,7 +26,7 @@ ChatGPT-Deep-Research-style multi-source web research. An 8-phase pipeline decom
 - Gather citations for a user journey, RFC, or technical decision.
 - Generate a structured report (markdown + HTML + PDF) with audited citations.
 
-## Input Resolution
+## Input
 
 - `$ARGUMENTS` is the research topic. If empty, ask the user for it before proceeding.
 - Mode is selected via a single `AskUserQuestion` with 4 options. **`standard` is the recommended default** — it balances depth and runtime.

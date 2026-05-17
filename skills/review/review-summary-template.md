@@ -62,7 +62,7 @@ Possible QA statuses:
 |------|--------|----------|----------|---------|------------|
 | {file} | {critique/audit} | {info/warning/error} | {category} | {message} | {suggestion if present} |
 
-> Findings are advisory — they inform the verdict but were not auto-applied. To action them inline, route through Step 3g's resolution flow with category `Design Quality`. The Phase 1 design wrapper is read-only by design — code-modifying behavior ships in Phase 2's polish phase.
+> Findings are advisory — they inform the verdict but were not auto-applied. To action them inline, route through Step 3 Routing's resolution flow with category `Design Quality`. The Phase 1 design wrapper is read-only by design — code-modifying behavior ships in Phase 2's polish phase.
 
 (or, when skipped: "Design Quality skipped — {skip reason from wrapper}.")
 

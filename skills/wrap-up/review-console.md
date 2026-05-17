@@ -1,4 +1,4 @@
-# Step 9.6 — Wrap-Up Review Console
+# Step 8.6 — Wrap-Up Review Console
 
 The Review Console is the **second bookend** of the pipeline (see `_shared/auto-mode-contract.md`). One consolidated batch table surfaces everything that was auto-decided or staged during the pipeline, plus skill update proposals and leftover-work routing — all the friction that used to live mid-flow now lands here.
 
@@ -16,18 +16,16 @@ When `MULTISPEC_REVIEW_DEFER=1` is set (by `/flow` multi-spec orchestration):
 2. Do NOT apply or revert any staged items — leave `staged/` and `decisions.md` untouched in the per-spec subdirectory
 3. Append a final entry to this spec's `decisions.md`:
    ```
-   AUTO {time} — Step 9.6: Review Console deferred to multi-spec consolidated console. Per-spec staged items: {count}. Auto-decisions: {count}. Parent run dir: {MULTISPEC_PARENT_DIR}.
+   AUTO {time} — Step 8.6: Review Console deferred to multi-spec consolidated console. Per-spec staged items: {count}. Auto-decisions: {count}. Parent run dir: {MULTISPEC_PARENT_DIR}.
    ```
 4. Proceed to Step 10 (Consolidated Summary) — the per-spec summary still renders, but its "Review Console" row reads `deferred — see multi-spec consolidated console`
 5. Skip the run-directory archival in Step 5 — the parent `/flow` orchestration owns archival of the multi-spec parent dir after its consolidated console completes
 
-This is the *only* condition under which `/wrap-up` skips Step 9.6 when a run directory exists. Single-spec auto/hybrid always runs the per-spec console.
+This is the *only* condition under which `/wrap-up` skips Step 8.6 when a run directory exists. Single-spec auto/hybrid always runs the per-spec console.
 
 ## Locate the pipeline run directory
 
-1. Resolve via `PIPELINE_RUN_DIR` env var if set by `/flow`
-2. Else find the most recent directory in `.claude-tweaks/pipelines/` whose `spec-slug` matches the current spec
-3. Else skip the console (standalone wrap-up, or pre-v4.6 pipeline)
+See `_shared/pipeline-run-dir.md` for the resolution order and bash snippet. If resolution returns empty (no env var, no matching directory), skip the console entirely (standalone wrap-up, or pre-v4.6 pipeline).
 
 ## Read inputs
 

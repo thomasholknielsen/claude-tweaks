@@ -5,14 +5,14 @@ description: Use when implementing a spec or design doc end-to-end. Accepts a sp
 > **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
 
 
-# Build
+# Build — Implement a spec end-to-end with worktree, plan audit, and lifecycle tracking
 
 Implement a spec or design doc end-to-end: plan it, build it, simplify it, verify it, and capture the journeys it enables. Part of the workflow lifecycle:
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → [ /claude-tweaks:build ] → /claude-tweaks:review → /claude-tweaks:wrap-up
-                                                                 ↑                        ^^^^ YOU ARE HERE ^^^^   ↑
-                                                                 └── or skip directly ─────────────────────────────┘
+/claude-tweaks:init → /claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → [ /claude-tweaks:build ] → /claude-tweaks:stories → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
+                                                                                       ↑                                          ^^^^ YOU ARE HERE ^^^^   ↑
+                                                                                       └── or skip directly ──────────────────────────────────────────────┘
 ```
 
 ## When to Use
@@ -112,7 +112,11 @@ Found both a spec and a design doc for "{topic}":
 
 ### Prompt for build options
 
-After resolving the input, if execution strategy and git strategy were not provided as arguments, prompt the user:
+After resolving the input, if execution strategy and/or git strategy were not provided as arguments, prompt the user.
+
+Per CLAUDE.md "One decision per message" rule, present the two prompts as **two consecutive messages** — resolve execution strategy first, then ask about git strategy in the next message. Do not combine them into one prompt.
+
+**Message 1 — Execution strategy** (skip if `subagent` or `batched` was passed as an argument):
 
 ```
 How should this build run?
@@ -120,13 +124,19 @@ How should this build run?
 Execution strategy:
 1. Subagent **(Recommended)** — fully automated review chain, no stopping
 2. Batched — human reviews every 3 tasks
+```
 
+Wait for the user's answer. Then send Message 2.
+
+**Message 2 — Git strategy** (skip if `worktree` or `current-branch` was passed as an argument):
+
+```
 Git strategy:
 1. Worktree **(Recommended)** — isolated workspace on a feature branch
 2. Current branch — commit directly, no isolation
 ```
 
-Skip this prompt if both options were provided as arguments (e.g., `/build 42 batched worktree`). If only one was provided, prompt for the missing one only.
+Skip both prompts if both options were provided as arguments (e.g., `/build 42 batched worktree`). If only one was provided, send only the message for the missing one.
 
 | Mode | Source | Skips | Best for |
 |------|--------|-------|----------|
@@ -179,9 +189,22 @@ Search `docs/plans/` for a plan matching this spec (by number, topic, or date).
 
 Proceed to Spec Step 3.
 
-### Spec Step 2.5: Seed Manual Steps
+### Spec Step 2.5: Classify and Seed Manual Steps
 
-If the spec has a "Manual Steps" section, write each manual step to the open items ledger (see `/claude-tweaks:ledger`) with phase `ops` and status `open`. These represent human tasks the pipeline cannot resolve — they're carried through and surfaced in the final summary. If the ledger doesn't exist, create it using the ledger skill's create operation.
+If the spec has a "Manual Steps" section, classify each item before deciding what to do with it. "Outside the codebase" is not the same as "human-only" — many such tasks have CLIs and should be executed inline rather than dumped to the ledger.
+
+For each item, probe in this order:
+
+1. **CLI/API check** — infer the relevant tool from the item text, then probe: `which terraform`, `which vercel`, `which gh`, `which fly`, `which wrangler`, `which stripe`, `which ldcli`, `which aws`, `which gcloud`, etc.
+2. **Credential check** — if a tool exists, are creds present? Use `{tool} auth status` (or equivalent: `gh auth status`, `vercel whoami`, `fly auth whoami`, expected env var, config file at the documented path).
+3. **Triage:**
+   - **Auto-executable** (tool + creds present) — execute now via Bash. In `auto` mode, log command, exit code, and one-line outcome to `decisions.md`. In interactive mode, surface the command and result inline. Do NOT seed the ledger.
+   - **Auth-gap** (tool present, creds missing) — in interactive mode, surface the one-time `{tool} login` command and wait; on success, fall through to auto-execute. In `auto` mode, seed as `ops` with `(reason-not-auto: auth-not-configured)` so the user can resolve at the wrap-up Review Console.
+   - **Truly manual** (no CLI, requires human judgment, requires signoff) — seed as `ops` with the matching `(reason-not-auto: …)` qualifier from `/claude-tweaks:ledger` Required-for-ops section.
+
+If the ledger doesn't exist, create it using the ledger skill's create operation.
+
+**Anti-pattern:** Seeding the entire Manual Steps section verbatim into `ops` without probing. The spec writer cannot know which CLIs are installed on the executing machine — that classification must happen here, at execution time, where probes can actually run.
 
 ### Spec Step 3: Create the Plan
 
@@ -285,7 +308,16 @@ Invoke `/claude-tweaks:design pre-build <spec>`. Pass the spec number for spec m
 
 ### Common Step 2: Execute the Plan
 
-Execution depends on the chosen execution strategy:
+Execution depends on the chosen execution strategy.
+
+> **Working Directory Discipline:** Before any commit (and before dispatching subagents that run `git` or `node --test`), explicitly anchor the working directory. CWD does not propagate reliably to subagents — without this check, commits and test runs can land in the wrong checkout. The minimum gate before every commit is:
+>
+> ```bash
+> pwd
+> git rev-parse --show-toplevel
+> ```
+>
+> Both should match the worktree path (or, in `current-branch` strategy, the project root). When dispatching subagents, pass the worktree path explicitly and require them to run `cd "$WORKTREE"` (or use `git -C "$WORKTREE"`) plus the same `pwd` + `git rev-parse --show-toplevel` check before any commit. See "Working Directory Discipline" in `skills/_shared/subagent-output-contract.md` for the full pattern.
 
 **subagent** (default):
 
@@ -362,18 +394,33 @@ Compare what was actually built to what the spec or design doc said to build. Im
 2. Compare against the actual implementation — scan the files created/modified for structural alignment
 3. Note any deviations
 
-**For each deviation found, classify and route:**
+**Classify every deviation, then present ONE batch decision table** (per CLAUDE.md "Multi-item decisions" convention). Pre-fill a recommended classification per row and offer "apply all / override."
+
+For each deviation, the three valid classifications are:
+
+| Classification | Meaning | Effect on the spec | Effect on the implementation |
+|---|---|---|---|
+| **Beneficial** | The deviation is an improvement on the spec's intent | Update spec to match reality; document why in commit message so /wrap-up can reflect | Keep as-built |
+| **Fix now** | The deviation contradicts the spec's intent | Spec unchanged | Revert/fix the implementation to match the spec |
+| **Update the spec** | The spec was wrong or incomplete; reality is correct | Update spec to match reality | Keep as-built |
+
+**Interactive mode — single batch table:**
 
 ```
-Deviation: {what the spec said vs. what was built}
-1. Beneficial — The deviation is an improvement. Update the spec to match reality AND capture the insight (why the deviation was better) in the commit message so /wrap-up can reflect on it.
-2. Fix now — The deviation contradicts the spec's intent. Correct the implementation.
-3. Update the spec — The spec was wrong or incomplete. Update the spec to match reality.
+Architecture deviations — {N} found. Recommended classifications pre-filled:
+
+| # | Deviation | What the spec said | What was built | Recommended |
+|---|-----------|--------------------|----------------|-------------|
+| 1 | {short label} | {spec text} | {actual} | {Beneficial / Fix now / Update the spec} |
+| 2 | ... | ... | ... | ... |
+
+1. Apply all **(Recommended)**
+2. Override specific rows (tell me which #s to reclassify and to what)
 ```
 
-"Beneficial" deviations still require action — update the spec and document why. Don't just "note it" — that loses the insight.
+After resolution, apply each row's classification per the table above. "Beneficial" still requires action — never just "note it"; that loses the insight.
 
-**In `auto` mode:** "Beneficial" deviations are auto-routed — update the spec silently and document the improvement in the commit message. "Fix now" and "Update the spec" deviations still require user input even in `auto` mode.
+**In `auto` mode:** auto-apply rows classified as "Beneficial" (update spec silently, commit-message insight). Rows classified "Fix now" or "Update the spec" are staged to `staged/build-deviation-{N}.md` and surfaced at the Wrap-Up Review Console — per `_shared/auto-mode-contract.md`, `auto` does not silence destructive or spec-altering decisions. Log every auto-applied and staged row to the auto-decision log.
 
 **Skip this step if:**
 - Design mode with no formal spec (no stated architecture to compare against)
@@ -399,33 +446,16 @@ If anything fails, fix it and commit the fix.
 
 After verification passes, check for operational tasks that are easy to forget. These are not code quality issues — they're deployment and environment concerns that slip through code review.
 
+**Triggers:**
+
+- **Category A** — `git diff` touches schema/migration files, shared constants, env access patterns (`process.env.*`, `import.meta.env.*`, `os.environ`, `ENV[...]`), or `package.json` `exports` field.
+- **Category B** — repo signals indicate a deployment platform or infrastructure-as-code (`vercel.json`, `fly.toml`, `wrangler.toml`, `*.tf`, `.github/workflows/`, `prisma/migrations/`, `Dockerfile*`, etc.) modified in this build's diff.
+
+**Skip this step entirely when** the diff matches no Category A or B trigger.
+
+When at least one trigger matches, read `operational-checklist.md` in this skill's directory for the full check tables (Category A in-code fixes, Category B platform probes), the probe-then-classify procedure, and the ledger format for auto-executed / auth-gap / truly-manual items.
+
 > **Parallel execution:** Use parallel tool calls — all checks are independent Grep/Glob operations.
-
-#### Category A — Fix in code
-
-| Check | Detect | Action |
-|-------|--------|--------|
-| Schema changes | `git diff --name-only` includes schema/migration files | Run the project's schema push command (check CLAUDE.md). If no command is documented, append to ledger as `open`. |
-| Shared constant value changed | `git diff` shows a constant's value changed in a shared package | Grep all test files for the old literal value. Update any hardcoded assertions to import the constant instead. |
-| New environment variables | Grep changed files for new `process.env.*` or env access patterns | Check `.env.example` (or equivalent) includes the new variable. Add if missing. |
-| New package exports | `package.json` `exports` field changed | Run the package build to verify exports resolve correctly. |
-
-Append each Category A finding to the open items ledger (see `/claude-tweaks:ledger`) with the appropriate phase. Resolve immediately — update status to `fixed` after each.
-
-#### Category B — Requires human action
-
-| Check | Detect | Ledger entry |
-|-------|--------|--------------|
-| New environment variables needing values | New `process.env.*`, `import.meta.env.*`, `os.environ`, `ENV[...]` patterns in changed files | "Set `{VAR_NAME}` in your environment — referenced in `{file}`" |
-| Infrastructure-as-code changes | Changed files matching `*.tf`, `*.tfvars`, `**/cdk/**`, `**/cloudformation/**`, `**/pulumi/**`, `serverless.yml` | "Apply infrastructure changes — `{files changed}`" |
-| Database migrations added | New files in common migration directories (`migrations/`, `prisma/migrations/`, `drizzle/`, `alembic/`) or schema push files | "Run database migration — `{migration file}`" |
-| CI/CD pipeline changes | Changed `.github/workflows/*`, `.gitlab-ci.yml`, `Jenkinsfile`, `.circleci/*` | "Review CI/CD pipeline changes — `{files changed}`" |
-| New secrets/API keys referenced | New `*_API_KEY`, `*_SECRET`, `*_TOKEN` patterns in env access | "Provision `{KEY_NAME}` from the relevant service" |
-| Docker/container config changes | Changed `Dockerfile*`, `docker-compose*`, `*.containerfile` | "Rebuild container images — `{files changed}`" |
-
-Append each Category B finding to the open items ledger (see `/claude-tweaks:ledger`) with phase `ops` and status `open`. De-duplicate against existing `ops` items.
-
-Category B items are NOT resolved immediately — they carry through to the final summary. Category B items stay `open` until acknowledged by the user in wrap-up (Step 9.5).
 
 ### Common Step 6: User Journey Capture
 
@@ -598,3 +628,8 @@ These apply in **subagent** execution strategy. In **batched** strategy, autonom
 | `/claude-tweaks:init` | /init creates `docs/REGISTRY.md` (Phase 8.5) that /build consumes in Step 6.5 for documentation sync |
 | `/claude-tweaks:ledger` | Manages the open items ledger file. /build creates and appends items during Steps 2.5, 4, 4.5, 5.5, and 6.5. |
 | `/claude-tweaks:design` | /build invokes `/claude-tweaks:design pre-build <spec>` as Common Step 1.7 to lazy-load Impeccable reference files and project design context (root `PRODUCT.md`, root `DESIGN.md`) into the implementer subagent. Skips cleanly on non-frontend specs or when Impeccable is not installed. |
+| `/claude-tweaks:capture` | After build, /build calls /capture to file follow-up ideas (blocked work in design mode, "while I'm here" observations) before they're lost — INBOX entries instead of inflating the current spec |
+| `/claude-tweaks:flow` | Invoked BY /flow as the implementation step — flow constrains /build to `subagent` execution (batched pauses contradict flow's hands-off contract) and passes the pipeline run directory via `PIPELINE_RUN_DIR` so /build's auto-mode decisions land in the shared decision log |
+| `/claude-tweaks:help` | /help recommends specific specs to /build based on dependency graph + INDEX.md status; /build's spec resolution rules mirror /help's selection logic |
+| `/claude-tweaks:reflect` | /reflect is invoked BY /wrap-up after /build completes; reflection insights tagged for skills/CLAUDE.md feed back into /build's future runs via updated project conventions |
+| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |

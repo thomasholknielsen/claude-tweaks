@@ -10,8 +10,8 @@ description: Use when you need to challenge assumptions and remove bias from a p
 Pre-brainstorming debiasing to ensure you're solving the right problem before investing time exploring solutions. Part of the workflow lifecycle:
 
 ```
-/claude-tweaks:capture → [ /claude-tweaks:challenge ] → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:review → /claude-tweaks:wrap-up
-                           ^^^^ YOU ARE HERE ^^^^
+/claude-tweaks:init → /claude-tweaks:capture → [ /claude-tweaks:challenge ] → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:stories → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
+                                                 ^^^^ YOU ARE HERE ^^^^
 ```
 
 ## Overview
@@ -55,6 +55,10 @@ Not every INBOX item needs debiasing. Skip when:
 - The problem is clear and well-scoped (e.g., "Add dark mode toggle to settings page")
 - The item is a straightforward technical task with no ambiguity
 - The user has already explored the problem space thoroughly
+
+## Auto-mode
+
+`/claude-tweaks:challenge` lenses are explicitly NOT silenced in `auto` mode (see `_shared/auto-mode-contract.md`). The lenses' value IS the user engagement they force — auto-routing them defeats the entire purpose of debiasing.
 
 ## The Debiasing Lenses
 
@@ -191,16 +195,12 @@ Look at the saved brief with fresh eyes. Fix issues inline — no subagent, no s
 3. **Reframe coherence** — does the reframed problem statement still match what the user originally wanted to do? Major reframes are fine; *unrecognizable* reframes mean the lenses overcorrected. If so, soften back toward the original.
 4. **Open question quality** — every open question should be answerable. "What should we do?" is too vague; "Should we support multi-tenant from day one, or single-tenant first?" is actionable. Rewrite vague ones.
 
-### Handoff to /superpowers:brainstorming
-
-After saving the brief:
-
 ### Next Actions
+
+After saving the brief, hand off to brainstorming. If the user wants to adjust the reframing or re-examine from a different lens, they can say so — otherwise, proceed.
 
 1. `/superpowers:brainstorming` — explore solutions for the reframed problem **(Recommended)** — after brainstorm produces the design doc, run `/claude-tweaks:specify` next (not `/superpowers:writing-plans` — specify handles decomposition into agent-sized specs before planning)
 2. Re-examine — revisit a specific lens or adjust the reframing
-
-If the user wants to adjust the reframing or re-examine from a different lens, they can say so. Otherwise, proceed to brainstorming.
 
 ## Key Principles
 
@@ -231,3 +231,4 @@ If the user wants to adjust the reframing or re-examine from a different lens, t
 | `/claude-tweaks:specify` | Downstream — converts brainstorming output into specs |
 | `/claude-tweaks:help` | Flags INBOX items with baked-in assumptions as candidates for /claude-tweaks:challenge |
 | `/claude-tweaks:research` | Back debiasing lenses with evidence — `/research` produces citation-audited reports that can ground a challenge. |
+| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — `/challenge` lenses are on the "not silenced" list. |

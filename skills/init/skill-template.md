@@ -1,4 +1,4 @@
-# Phase 5: Skill Generation Template and Guidelines
+# Phase 6: Skill Generation Template and Guidelines
 
 ## Initial Mode: SKILL.md Template
 

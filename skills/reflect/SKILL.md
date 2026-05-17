@@ -12,10 +12,9 @@ Step back from implementation and evaluate what was built through structured len
 ```
 /claude-tweaks:build → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
                                                      │                        │
-                                             [ /claude-tweaks:reflect ]       │
-                                              (hindsight mode)                │
-                                                                      [ /claude-tweaks:reflect ]
-                                                                       (full mode)
+                                                     └──────── /claude-tweaks:reflect ────────┘
+                                                       component called from review (Step 4, hindsight mode)
+                                                       and wrap-up (Step 3, full mode)
 ```
 
 ## When to Use
@@ -31,7 +30,7 @@ Step back from implementation and evaluate what was built through structured len
 | Mode | Lenses | Invoked by | Best for |
 |------|--------|------------|----------|
 | **hindsight** | Approach, Structure, Consolidation, Convention, Skills | `/claude-tweaks:review` Step 4 | Pre-ship "should we change something?" gate |
-| **full** | All four lenses (Surprises, Hindsight, Near-misses, Fresh start) + Tradeoff review | `/claude-tweaks:wrap-up` Step 3 | Post-review knowledge capture |
+| **full** | All four lenses (Surprises, Approach, Near-misses, Fresh start) + Tradeoff review | `/claude-tweaks:wrap-up` Step 3 | Post-review knowledge capture |
 | *(default)* | **full** when standalone | Direct invocation | General-purpose reflection |
 
 ## Input
@@ -93,12 +92,12 @@ For skill-worthy patterns: if yes, note the pattern — append a ledger entry wi
 
 ### Full Mode (4 lenses + tradeoff review)
 
-Runs all four reflection lenses plus a tradeoff review. The Hindsight lens below covers the same ground as hindsight mode — full mode is a superset.
+Runs all four reflection lenses plus a tradeoff review. The Approach lens below covers the same ground as hindsight mode — full mode is a superset.
 
 | Lens | Question | Surfaces |
 |------|----------|----------|
 | **1. Surprises** | "What surprised us?" — Unexpected constraints, library behavior, shape changes | Don'ts, skill updates |
-| **2. Hindsight** | "What would we do differently?" — Better patterns discovered midway, over/under-engineering | Skill updates, conventions, spec adjustments |
+| **2. Approach** | "What would we do differently?" — Better patterns discovered midway, over/under-engineering. Same evaluations as hindsight mode (Approach, Structure, Consolidation, Convention, Skills). | Skill updates, conventions, spec adjustments |
 | **3. Near-misses** | "What broke or almost broke?" — Unexpected test failures, type errors, cross-platform ripples | Don'ts, testing patterns, gotchas |
 | **4. Fresh start** | "If we started fresh?" — Would we choose the same approach? What would v2 look like? | Architectural alternatives, memory files |
 
@@ -117,6 +116,8 @@ Check the `/claude-tweaks:review` summary for the **Tradeoffs Accepted** section
 ## Step 3: Route Findings
 
 ### Auto mode (policy-driven routing)
+
+> **Canonical reference:** `_shared/auto-mode-contract.md` defines what `auto` may and may not silence — read it before adding or changing any auto-mode handling here. Every auto-resolution MUST write an entry to the auto-decision log per `_shared/auto-decision-log.md` (path: `{run-dir}/decisions.md`). Silent automation without an audit trail is forbidden.
 
 When a pipeline run directory exists, route findings by category without prompting:
 
@@ -197,6 +198,14 @@ Collect all insights from the four lenses and the tradeoff review into a single 
 
 **Auto-apply when uniform:** When ALL insights are "Implement now" (none are "Defer" or "Capture to INBOX"), auto-apply without presenting the decision table. State: "Implementing {N} reflection insights:" followed by a brief list of changes, then proceed. When any insight has mixed routing, present the full batch table.
 
+**Audit-log requirement (non-negotiable):** every auto-applied insight MUST write an `AUTO` entry to `{run-dir}/decisions.md` per `_shared/auto-decision-log.md`. Append under `## /reflect` heading, one line per insight:
+
+```
+- AUTO {HH:MM:SS} — Step 3 full-mode auto-apply: insight "{summary}" → {destination}. Reason: uniform-implement-now batch. Reversibility: high.
+```
+
+Resolve `{run-dir}` via `PIPELINE_RUN_DIR` env var or most-recent matching run under `.claude-tweaks/pipelines/`. If no run directory exists, fall back to interactive mode (present the batch table) — auto-apply is forbidden without an audit trail.
+
 If any insight is "Implement now", handle it before returning control to the parent or presenting Next Actions.
 
 ## Step 4: Ledger Integration
@@ -245,4 +254,6 @@ When invoked by a parent, omit Next Actions — the parent handles flow control.
 | `/claude-tweaks:test` | /reflect may trigger re-verification after "Change now" fixes |
 | `/claude-tweaks:ledger` | /reflect writes findings to the ledger using the phase provided by the parent (or `reflect` when standalone) |
 | `/claude-tweaks:capture` | /reflect may create INBOX items for complex insights needing brainstorming |
+| `/claude-tweaks:help` | /help references /reflect in the workflow diagram and reference card. |
 | `specs/DEFERRED.md` | /reflect routes deferred improvements here (with origin, files, trigger) |
+| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |

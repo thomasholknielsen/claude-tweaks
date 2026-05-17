@@ -32,6 +32,22 @@ test('renderModel returns null when missing', () => {
   assert.strictEqual(sl.renderModel({}), null);
 });
 
+test('renderProject: uses workspace.project_dir basename', () => {
+  assert.strictEqual(sl.renderProject({ workspace: { project_dir: '/Users/x/Code/claude-tweaks' } }), 'claude-tweaks');
+});
+
+test('renderProject: falls back to current_dir when project_dir missing', () => {
+  assert.strictEqual(sl.renderProject({ workspace: { current_dir: '/Users/x/Code/other-proj' } }), 'other-proj');
+});
+
+test('renderProject: falls back to input.cwd when workspace missing', () => {
+  assert.strictEqual(sl.renderProject({ cwd: '/Users/x/Code/fallback' }), 'fallback');
+});
+
+test('renderProject returns null when no directory available', () => {
+  assert.strictEqual(sl.renderProject({}), null);
+});
+
 test('renderContext: uses used_percentage when provided', () => {
   const r = sl.renderContext({ context_window: { used_percentage: 18 } });
   assert.ok(r.includes('ctx: 18%'));
@@ -118,6 +134,18 @@ test('end-to-end: real Claude Code schema renders model + context', () => {
   );
   assert.ok(out.includes('Sonnet 4.6'), `missing model: ${out}`);
   assert.ok(out.includes('ctx: 18%'), `missing ctx: ${out}`);
+});
+
+test('end-to-end: project segment renders before model', () => {
+  const out = runStatusline(
+    {
+      workspace: { project_dir: '/Users/x/Code/claude-tweaks' },
+      model: { display_name: 'Sonnet 4.6' },
+    },
+    { NO_COLOR: '1' },
+  );
+  assert.ok(out.startsWith('claude-tweaks'), `expected project first: ${out}`);
+  assert.ok(out.includes('Sonnet 4.6'), `missing model: ${out}`);
 });
 
 test('end-to-end: rate_limits flow through to sess/week segments', () => {

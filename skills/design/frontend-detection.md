@@ -62,7 +62,7 @@ A backend project that touches only `.ts`/`.js` files outside `/components/`, `/
 - **Storybook files** (`.stories.tsx`, `.stories.ts`) — the `.tsx` matches; `.ts` only matches if path contains a trigger segment. Both are correct treatment (frontend if component-adjacent).
 - **Test files** (`.test.tsx`, `.spec.tsx`) — match via `.tsx` extension. This is correct — test files describe UI behavior.
 - **Type-only files** (`.d.ts`) — do not match. Correct — they don't render.
-- **CSS-in-JS via `.ts`** — do not match unless the path contains a trigger segment. This is a known false-negative, accepted in Phase 1 — Phase 2's `surface:` frontmatter is the explicit override.
+- **CSS-in-JS via `.ts`** — do not match unless the path contains a trigger segment. This is a known false-negative; the `surface:` frontmatter is the explicit override.
 
 ## Layer 2 — Frontmatter spec (read by wrapper, written by `/specify`)
 

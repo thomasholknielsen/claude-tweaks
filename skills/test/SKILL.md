@@ -10,8 +10,8 @@ description: Use when you need to run verification checks (types, lint, tests) o
 Mechanical pass/fail gate — types, lint, tests, QA story validation. Answers "does it work?" without analytical judgment. Part of the workflow lifecycle:
 
 ```
-/claude-tweaks:capture → ... → /claude-tweaks:build → [ /claude-tweaks:stories ] → [ /claude-tweaks:test ] → /claude-tweaks:review → /claude-tweaks:wrap-up
-                                                                                     ^^^^ YOU ARE HERE ^^^^
+/claude-tweaks:init → /claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:stories → [ /claude-tweaks:test ] → /claude-tweaks:review → /claude-tweaks:wrap-up
+                                                                                                                                                        ^^^^ YOU ARE HERE ^^^^
 ```
 
 ## When to Use
@@ -189,11 +189,6 @@ Present results using the format from `verification.md` Step 3 for standard chec
 All checks passed. Set TEST_PASSED=true.
 ```
 
-### Next Actions
-
-1. `/claude-tweaks:review {spec}` — code review quality gate **(Recommended)**
-2. `/claude-tweaks:review {spec} full` — code + visual review (if UI files changed and browser available)
-
 ### QA mode result
 
 ```
@@ -219,11 +214,6 @@ Set TEST_PASSED=true (if all passed or passed with observations).
 |--------|--------|-----|
 | Ledger fix | Auto-recovered selector (test/qa) — `{story file}` | — |
 
-### Next Actions
-
-1. `/claude-tweaks:review {spec}` — code review quality gate **(Recommended)**
-2. `/claude-tweaks:review {spec} full` — code + visual review (if browser available)
-
 PASS_WITH_CAVEATS counts as passed for the `TEST_PASSED` gate — caveats are informational, not blocking. When timing data is available in the QA results (per-story elapsed time and total wall-clock time), include the Timing section from the QA report.
 
 When selectors are auto-recovered during QA execution, the report includes a "Recovered Selectors" summary showing the original and recovered selector for each affected step. The story YAML files have already been updated by the orchestrator (qa-review.md Phase 4.5) — no manual YAML editing is needed. Auto-recovered selectors are classified as `stale-selector` with status `auto-fixed` in the findings table.
@@ -248,11 +238,6 @@ After presenting QA results, write QA findings and observations to the open item
 
 Set TEST_PASSED=true (if all passed or passed with observations).
 ```
-
-### Next Actions
-
-1. `/claude-tweaks:review {spec}` — code review quality gate **(Recommended)**
-2. `/claude-tweaks:review {spec} full` — code + visual review (if browser available)
 
 ### Pipeline result (VERIFICATION_PASSED + no stories)
 
@@ -302,7 +287,7 @@ When a pipeline run directory exists, read `auto-fix-threshold` from `config.yml
 
 ```
 {N} failure(s) found.
-1. Fix automatically — I'll address these failures now
+1. Fix automatically — I'll address these failures now **(Recommended when failures are mechanical: lint/type/simple test failures)**
 2. Show details only — I'll investigate but not change code
 3. Skip — I'll fix these manually
 ```
@@ -318,7 +303,7 @@ If the user chooses to fix:
 
 ```
 {N} QA story failure(s) found. QA failures require investigation — they cannot be auto-fixed.
-1. Show failure details — I'll investigate the root cause
+1. Show failure details — I'll investigate the root cause **(Recommended)**
 2. Re-run failed stories — `/claude-tweaks:test qa retry={RUN_DIR}`
 3. Skip — I'll investigate manually
 ```
@@ -351,3 +336,27 @@ If the user chooses to fix:
 | `/claude-tweaks:help` | /help can recommend /test when code changes exist but no review is warranted |
 | `/claude-tweaks:ledger` | Manages the open items ledger. /test appends QA findings and observations with phase `test/qa`. |
 | `/claude-tweaks:design` | /test invokes `/claude-tweaks:design test <files>` as Step 1.5 after the standard suite. Errors fail the gate; warnings and skips do not. The wrapper handles its own detection and availability checks. |
+| `/claude-tweaks:browse` | /browse may invoke /test indirectly when story validation requires browser-driven QA — both share `dev-url-detection.md` from /stories. |
+| `/claude-tweaks:journeys` | /journeys feeds journey files into /stories which /test qa consumes; `journey={name}` filter lets /test run only the QA stories tied to a single journey. |
+| `/claude-tweaks:reflect` | /reflect may surface implementation findings that reference /test verification gaps; /test does not invoke /reflect, but reflection insights can call for new test coverage. |
+| `/claude-tweaks:simplify` | /simplify runs before /test in /build's Common Step 4.5; /test verifies that simplification did not break behavior. |
+| `/claude-tweaks:visual-review` | /visual-review consumes QA data produced by /test qa (when stories exist); both contribute to the /review verdict surface. |
+| `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. Step 3 Fix Mode follows the contract's auto-fix-threshold + reversibility-floor pattern. |
+
+### Next Actions
+
+Pick the row matching the mode just completed:
+
+| Mode + outcome | Recommended next |
+|---|---|
+| Standard / All / QA passed (or PASS_WITH_CAVEATS) | `/claude-tweaks:review {spec}` — code review quality gate **(Recommended)** |
+| Standard / All passed AND UI files changed AND browser available | `/claude-tweaks:review {spec} full` — code + visual review |
+| Verification failed (types/lint/tests) | Fix the failures, then re-run `/claude-tweaks:test` |
+| QA failed | Investigate failures (Fix Mode option 1), then `/claude-tweaks:test qa retry={RUN_DIR}` |
+
+Canonical option set:
+
+1. `/claude-tweaks:review {spec}` — code review quality gate **(Recommended when verification passed)**
+2. `/claude-tweaks:review {spec} full` — code + visual review (if UI files changed and browser available)
+3. `/claude-tweaks:test` — re-run after fixing failures (when verification failed)
+4. `/claude-tweaks:test qa retry={RUN_DIR}` — re-run failed QA stories only
