@@ -109,7 +109,7 @@ Commit journey files separately from implementation code.
 
 ### Working Directory Discipline
 
-Before any `git add` or `git commit`, apply the Working Directory Discipline rule from `_shared/subagent-output-contract.md` — if `$WORKTREE` is set, use `git -C "$WORKTREE" …` for every git command; otherwise verify `pwd` + `git rev-parse --show-toplevel` match the expected worktree before proceeding. On mismatch, return **BLOCKED** to the caller; do not commit from the wrong directory.
+Apply the Working Directory Discipline rule from `_shared/subagent-output-contract.md` before any `git` command. On mismatch, return **BLOCKED** to the caller; do not commit from the wrong directory. Also follow `_shared/git-discipline.md` for the Git Rules.
 
 ### Commit commands
 

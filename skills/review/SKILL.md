@@ -328,10 +328,12 @@ Pass the spec number (or paths) used for this review run. The wrapper resolves c
 | Wrapper return | Review behavior |
 |----------------|-----------------|
 | `{result: "advisory", findings: [...]}` | Include findings in the summary as a "Design Quality" section (see Step 7's template). Findings are advisory — they inform the verdict, but no auto-fixes. |
-| `{skipped: ...}` (non-frontend, no Impeccable, kill-switch disabled, no UI files in diff) | Omit the "Design Quality" section from the summary. Note the skip reason in the summary footer. |
-| `{deferred: ...}` (should not happen for `review` mode in any phase) | Treat as skip and omit the section. |
+| `{skipped: ...}` | Omit the "Design Quality" section from the summary. Note the skip reason in the summary footer. |
+| `{deferred: ...}` (should not happen for `review` mode) | Treat as skip and omit the section. |
 
-**Why findings are advisory:** Impeccable critiques are LLM-generated and opinionated. The user judges which findings to action. Phase 1 deliberately keeps the wrapper's `review` mode read-only — code-modifying behavior lives in the `polish` mode (Phase 2). For Phase 1, surfacing findings is the value-add; the user routes them to fixes, deferrals, or accepted decisions through the existing Step 3 Routing resolution flow if they choose.
+See `_shared/design-wrapper-handling.md` for the canonical return-shape contract and the "why skips don't fail" rationale.
+
+**Why findings are advisory (review-specific):** Impeccable critiques are LLM-generated and opinionated. The user judges which findings to action. The wrapper's `review` mode is read-only — code-modifying behavior lives in `polish` (invoked separately). Surfacing findings is the value-add; the user routes them to fixes, deferrals, or accepted decisions through Step 3 Routing if they choose.
 
 **Routing into Step 3 Routing (optional):** When the user wants to action design findings inline, treat each as an additional row in the Code Review Findings table with category `Design Quality`. This keeps the resolution mechanics consistent with code-review findings (fix now / defer / accept). When the user opts not to action them inline, they remain in the Design Quality summary section as informational.
 

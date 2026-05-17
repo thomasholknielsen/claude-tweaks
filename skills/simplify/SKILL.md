@@ -86,7 +86,7 @@ If the simplifier made changes, run the shared verification procedure from `veri
 
 ### Working Directory Discipline
 
-Before running any verification command, apply the Working Directory Discipline rule from `_shared/subagent-output-contract.md` — if `$WORKTREE` is set, use `git -C "$WORKTREE" …` for git commands and prefix shell verification with `cd "$WORKTREE" && …`; otherwise verify `pwd` + `git rev-parse --show-toplevel` match the expected worktree before proceeding. On mismatch, return **BLOCKED** to the caller; never verify from the wrong directory.
+Apply the Working Directory Discipline rule from `_shared/subagent-output-contract.md` before any verification command. On mismatch, return **BLOCKED** to the caller; never verify from the wrong directory.
 
 ### If verification fails
 

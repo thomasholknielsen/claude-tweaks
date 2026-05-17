@@ -45,8 +45,7 @@ documentation; translate to the concrete command at invocation.
 
 ## Viewport and device
 
-Replaces the `PLAYWRIGHT_MCP_VIEWPORT_SIZE` env var. Cross-platform — no Windows
-PowerShell/CMD workaround needed.
+First-class flags for viewport and device emulation. Cross-platform — no shell-specific workarounds needed.
 
 | Operation | Command |
 |---|---|
@@ -117,4 +116,4 @@ field. See `skills/stories/SKILL.md` for the schema.
 | Storing `@eN` refs in story files | Refs are session-scoped — they regenerate each snapshot |
 | Batching across sessions | One `batch` invocation = one session's lifecycle |
 | Using CSS selectors with `find` | `/stories` schema v2 forbids CSS — use semantic locators only |
-| Skipping `set viewport` and relying on env vars | Replaced by first-class flags; env-var workarounds belong to the deleted Playwright path |
+| Skipping `set viewport` and relying on env vars | Use the first-class `set viewport`/`set device` commands — env-var workarounds are not supported |

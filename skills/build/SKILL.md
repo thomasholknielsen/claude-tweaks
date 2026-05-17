@@ -295,10 +295,10 @@ Invoke `/claude-tweaks:design pre-build <spec>`. Pass the spec number for spec m
 | Wrapper return | Build behavior |
 |----------------|----------------|
 | `{result: "ok", loaded: [...], context_size: <n>}` | Inject the loaded reference paths and contents into the implementer subagent's prompt as additional context. When `context_size` exceeds the implementer's budget (rough threshold: 8000 tokens), summarize the references rather than passing them whole. |
-| `{skipped: ...}` (non-frontend, no Impeccable, kill-switch disabled) | Note the skip in the build log and proceed without lazy-loaded design references. **Skip is not a failure.** |
-| `{deferred: ...}` (should not happen for `pre-build` in Phase 2 — only `survey` is deferred) | Treat as skip and proceed. |
+| `{skipped: ...}` | Note the skip in the build log and proceed without lazy-loaded design references. |
+| `{deferred: ...}` (should not happen for `pre-build`) | Treat as skip and proceed. |
 
-**Why skips don't fail:** Lazy-loaded design references are *enrichment* for the build subagent, not a hard prerequisite. A backend spec, a project without Impeccable installed, or a project with `design-integration: disabled` should still build cleanly without the references.
+See `_shared/design-wrapper-handling.md` for the canonical return-shape contract and the "why skips don't fail" rationale.
 
 **Where the loaded references go:**
 - **Subagent execution strategy** — the loaded reference text is appended to the implementer subagent's system prompt for each task that touches a UI file (paths matched against the spec's Key Files entries with frontend extensions/path patterns).
@@ -308,14 +308,7 @@ Invoke `/claude-tweaks:design pre-build <spec>`. Pass the spec number for spec m
 
 Execution depends on the chosen execution strategy.
 
-> **Working Directory Discipline:** Before any commit (and before dispatching subagents that run `git` or `node --test`), explicitly anchor the working directory. CWD does not propagate reliably to subagents — without this check, commits and test runs can land in the wrong checkout. The minimum gate before every commit is:
->
-> ```bash
-> pwd
-> git rev-parse --show-toplevel
-> ```
->
-> Both should match the worktree path (or, in `current-branch` strategy, the project root). When dispatching subagents, pass the worktree path explicitly and require them to run `cd "$WORKTREE"` (or use `git -C "$WORKTREE"`) plus the same `pwd` + `git rev-parse --show-toplevel` check before any commit. See "Working Directory Discipline" in `skills/_shared/subagent-output-contract.md` for the full pattern.
+> **Working Directory Discipline:** Before any commit (and before dispatching subagents that run `git` or `node --test`), anchor the working directory explicitly — `pwd` + `git rev-parse --show-toplevel` must match the worktree path (or the project root in `current-branch` strategy). When dispatching subagents, require them to use `cd "$WORKTREE" && …` or `git -C "$WORKTREE" …`. See the Working Directory Discipline section of `_shared/subagent-output-contract.md` for the full pattern.
 
 **subagent** (default):
 
@@ -563,20 +556,9 @@ Generate 2-4 numbered options based on context (these are emitted by the skill, 
 
 **current-branch**: Commit directly on the current branch. No isolation.
 
-## Git Rules — NON-NEGOTIABLE
+## Git Rules
 
-These rules apply in ALL modes. They exist because multiple processes may commit to the same branch simultaneously.
-
-| Rule | Reason |
-|------|--------|
-| **NEVER `git reset`** | Other processes may be committing. A reset wipes their work. |
-| **NEVER `git checkout .` or `git restore .`** | Same reason — destroys concurrent work. |
-| **NEVER force push** | Rewrites shared history. |
-| **Push commits promptly** | Local-only commits are vulnerable to loss. |
-| **Stage specific files only** | Never `git add -A` or `git add .`. |
-| **Verify commits landed** | Always `git log --oneline -3` after committing. |
-
-**Merge conflict resolution:** If you encounter a merge conflict, resolve it — do not reset or discard. Read both sides of the conflict, understand the intent of each change, and produce a merged result that preserves both. After resolving, run verification (Common Step 5) to confirm the resolution didn't break anything. If the conflict is too complex to resolve confidently, present both versions to the user and ask which to keep.
+These rules apply in ALL modes. See `_shared/git-discipline.md` for the canonical Git Rules table (never reset, never force push, stage specific files only, verify commits landed, etc.) and the merge conflict resolution procedure. After resolving a merge conflict, run verification (Common Step 5) to confirm the resolution didn't break anything.
 
 ## Autonomy Rules
 

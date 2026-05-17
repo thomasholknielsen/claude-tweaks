@@ -158,10 +158,10 @@ Invoke `/claude-tweaks:design test <changed-files>`. Resolve `<changed-files>` f
 |----------------|-------------------|
 | `{result: "pass", findings: [...]}` (zero findings or warnings only) | Proceed. Surface warnings in the test output as informational. |
 | `{result: "fail", findings: [...]}` (any `severity: error`) | **Fail the test gate.** Surface the findings table in the test report. Do NOT auto-fix — design findings require human judgment. |
-| `{skipped: ...}` (non-frontend, no Impeccable, kill-switch disabled, malformed CLI output) | Note the skip in test output and proceed. **Skip is not a failure.** |
-| `{deferred: ...}` (should not happen for `test` mode in any phase) | Treat as skip and proceed. |
+| `{skipped: ...}` | Note the skip in test output and proceed. |
+| `{deferred: ...}` (should not happen for `test` mode) | Treat as skip and proceed. |
 
-**Why skips don't fail:** The wrapper skips for legitimate reasons (backend project, Impeccable not installed, integration disabled). None of these are test failures. The CLI gate is a value-add on frontend projects — its absence must never block a passing test suite.
+See `_shared/design-wrapper-handling.md` for the canonical return-shape contract and the "why skips don't fail" rationale.
 
 **Reporting:** Include a "Design CLI" row in the verification results table:
 
