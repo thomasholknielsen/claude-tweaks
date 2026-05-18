@@ -163,3 +163,7 @@ In a Form B blockquote:
 ```
 
 In the actual `Task()` call, the prompt body must contain the literal template — not a reference to it.
+
+## Related primitives
+
+- `skills/_shared/multi-agent-coordination.md` — inter-agent coordination patterns (Reproduction, Debate, Multi-persona red-team, Layered MoA) that compose with these templates.
