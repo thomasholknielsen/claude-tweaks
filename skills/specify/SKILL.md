@@ -204,6 +204,38 @@ Before writing spec files, run frontend detection and two design pre-steps when 
 
 For non-frontend design docs (no frontend signals detected), skip this step entirely — set `surface: backend` (or `infra`) on each generated spec; do not write `design-intent:`.
 
+## Step 2.5d: Diagram Suggestion (all specs, companion plugin)
+
+Soft-hook for the [`cathrynlavery/diagram-design`](https://github.com/cathrynlavery/diagram-design) companion plugin. **Unlike Step 2.5, this runs for every surface** — architecture, ER, sequence, and state diagrams help backend and infra specs equally.
+
+Read the flag from CLAUDE.md (Step 1 of `_shared/diagram-integration-check.md`). When the flag is `disabled` or missing, skip this step silently.
+
+When `enabled`, scan the design doc text + decomposed spec titles for structural signals. Use this detection table:
+
+| Signal in design doc | Diagram type (suggest) |
+|----------------------|------------------------|
+| Phrases like "state machine", "states:", "transitions from … to …", named status enums (3+ values) | `state` |
+| Schema definitions, `entity`, `references`, `foreign key`, ORM relations between 2+ tables | `er` |
+| 3+ services / actors / queues exchanging messages or HTTP calls | `sequence` |
+| 3+ named branches in a decision (`If A then B; if C then D; otherwise E`) | `flowchart` |
+| 3+ system components / boxes in a layout (microservices, layers, gateways) | `architecture` |
+| Parent-child taxonomy with 2+ levels (categories → subcategories → items) | `tree` |
+
+Emit at most **two** recommendations per design doc — the two strongest matches. Skip emission entirely if no signal matches (trivial specs and refactors should not trigger the hook).
+
+For each emitted recommendation, format per Step 3 of `_shared/diagram-integration-check.md`:
+
+```
+**Diagram suggestion:** This design doc describes a state machine for orders
+(pending → paid → shipped → delivered → refunded). Consider a state diagram —
+the `diagram-design` plugin will generate one if you ask Claude to draw it.
+Suggested output path: `docs/diagrams/{spec-slug}-state.html`.
+```
+
+Place these recommendations in the Step 9 summary under a `### Diagram suggestions` block. They are advisory — they do not block decomposition, do not write spec frontmatter, and do not invoke any tool. The user decides whether to act in the next conversation turn (the `diagram-design` plugin's skill auto-triggers from its description when asked).
+
+**Auto mode:** the diagram suggestion is always advisory — `auto` mode emits the recommendation without prompting, logs `STAGED {time} — Step 2.5d: diagram-suggestion ({type}) for {spec/slug}. Reversibility: high.` to the decision log, and continues. No mid-flow stop.
+
 ## Step 3: Write the Spec Files
 
 For each work unit, assign the next available spec number (check `specs/INDEX.md`) and create `specs/NN-title.md`.
@@ -332,6 +364,9 @@ Present a summary:
 - Design doc: `docs/superpowers/specs/{filename}` (absorbed into specs)
 - Brainstorming brief: `docs/plans/{filename}` (absorbed into spec Gotchas) — if it existed
 - INBOX entry: {title} (promoted)
+
+### Diagram suggestions (optional — render only when Step 2.5d emitted any)
+- {one or two `**Diagram suggestion:** …` blocks per the format in `_shared/diagram-integration-check.md`}
 ```
 
 ### Actions Performed
@@ -389,6 +424,8 @@ Always recommend `/flow` over `/build` — `/flow` is the canonical path through
 | `/claude-tweaks:tidy` | Reviews specs created by /claude-tweaks:specify for staleness. /claude-tweaks:tidy tags INBOX items as `**Promoted:**` — /claude-tweaks:specify Step 8 removes them from INBOX after creating the spec |
 | `/claude-tweaks:help` | Shows which specs from /claude-tweaks:specify are ready for /claude-tweaks:build — also uses Key Files for implicit dependency detection |
 | `/claude-tweaks:design` | /specify invokes `/claude-tweaks:design shape <topic>` (Step 2.5b) on frontend design docs to enrich the design doc with UX/UI planning. /specify writes `surface:` and `design-intent:` frontmatter (Step 2.5c + Step 3) on every generated spec; the design wrapper reads `surface:` for Layer 2 detection and reads `design-intent:` for `polish` mode's intent-driven dispatch (active in v4.5.0). |
+| `_shared/diagram-integration-check.md` | Step 2.5d reads this for the flag check and signal→type mapping. Soft-hook only — emits a recommendation, never invokes the companion plugin. |
+| `cathrynlavery/diagram-design` (companion) | Step 2.5d emits "consider a diagram here" recommendations for ALL specs (not gated to frontend) when the design doc describes state machines, schemas, multi-actor flows, decision branches, hierarchies, or architectures. Gated by `diagram-integration: enabled` in CLAUDE.md (written by `/init` Phase 0.95). |
 | `/claude-tweaks:research` | Prior-art lookup before authoring a spec — `/research` reports can be cited directly in spec "Background" / "Prior art" sections. |
 | `/claude-tweaks:challenge` | Runs BEFORE /specify on INBOX items — produces a debiased brief whose assumptions, blind spots, and constraints /specify absorbs into spec Gotchas sections during Step 1 |
 | `/claude-tweaks:flow` | Invoked BY /flow when a design doc is passed to /flow Step 2.7 — flow rejects design docs and routes through /specify to enforce the granularity contract before pipeline entry |

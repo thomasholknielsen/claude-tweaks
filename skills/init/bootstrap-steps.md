@@ -277,3 +277,60 @@ The `/claude-tweaks:design` wrapper reads this flag as Layer 1 of its detection 
 **Re-run behavior:** When `/init` is re-run on a project where `design-integration: enabled`, offer to re-run `/impeccable:impeccable teach` + `document` to refresh `PRODUCT.md` / `DESIGN.md` (the codebase may have evolved since the last run). When the flag is `plugin-only` or `disabled`, offer the upgrade path back to full integration.
 
 **Failure handling:** If the plugin install fails, do not abort `/init` — surface the failure and continue with `design-integration: disabled` until the user resolves it. The wrapper's availability checks gracefully skip when dependencies are absent.
+
+---
+
+## Step 0.95 — Diagram Design (Recommended Companion)
+
+claude-tweaks recommends [`cathrynlavery/diagram-design`](https://github.com/cathrynlavery/diagram-design) — a single-skill Claude Code plugin (MIT, no CLI, no setup) that generates 14 types of editorial HTML+SVG diagrams (architecture, flowchart, sequence, state, ER, timeline, swimlane, quadrant, nested, tree, org chart, layer stack, venn, pyramid). Soft-hook nudges in `/specify`, `/build`, and `/review` surface "consider a diagram here" recommendations when a spec describes flows or structures that benefit from a visual.
+
+Unlike Impeccable's frontend gate, this recommendation is **offered for every project** — architecture, ER, sequence, and state diagrams help backend and infra specs equally.
+
+**Present:**
+
+```
+Set up diagram-design plugin (recommended companion)?
+
+A separately-installed sibling plugin that generates 14 types of editorial
+HTML+SVG diagrams. claude-tweaks doesn't bundle it — when installed, our
+/specify, /build, and /review surface "consider a diagram here" nudges at
+moments where a visual usually helps (architecture descriptions, multi-actor
+flows, state machines, hierarchies).
+
+1. Install **(Recommended)** — writes diagram-integration: enabled
+2. Skip — writes diagram-integration: disabled (silences future nudges)
+```
+
+**For option 1 — install the plugin.** Surface this exact three-command sequence (claude-tweaks does not programmatically install plugins):
+
+```
+/plugin marketplace add cathrynlavery/diagram-design
+/plugin install diagram-design@diagram-design
+/reload-plugins
+```
+
+The plugin is self-contained — no CLI, no Node/Python, no `teach` interview to run. It auto-triggers from its skill description when the conversation calls for a diagram.
+
+Verify by checking that `diagram-design` resolves to a skill in the next session. The plugin has no slash commands — verification is descriptive only ("present in the skill list").
+
+**Write the flag to CLAUDE.md.** Extend (or create) the existing `## Design integration` section with a second line:
+
+```markdown
+## Design integration
+
+design-integration: enabled
+diagram-integration: enabled
+```
+
+Use the appropriate value:
+
+| Choice | Flag value |
+|--------|-----------|
+| Option 1 (Install) | `enabled` |
+| Option 2 (Skip) | `disabled` |
+
+The soft-hook nudges in `/specify`, `/build`, and `/review` read this flag and short-circuit when set to `disabled` (or absent). Missing flag is treated identically to `disabled` — diagram-design nudges only activate when explicitly enabled by `/init`.
+
+**Re-run behavior:** When `/init` is re-run on a project where `diagram-integration: enabled`, this step is a no-op (there's no `teach` to refresh). When the flag is `disabled`, offer the upgrade path back to `enabled`. When the flag is **missing** (pre-v4.7 projects), present the first-run prompt — same as a fresh init.
+
+**Failure handling:** If the plugin install fails, do not abort `/init` — surface the failure and continue with `diagram-integration: disabled` until the user resolves it. The soft-hook nudges check the flag, not the plugin's presence, so a failed install just means the user sees no nudges (graceful degradation).

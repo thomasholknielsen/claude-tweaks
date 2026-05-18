@@ -15,9 +15,9 @@ v4.0.0 is a breaking release. Two changes affect existing users:
 
 Run `/claude-tweaks:init` against your existing project to refresh the configuration after upgrading.
 
-### What's new in v4.7 — Deep web research
+### What's new in v4.7 — Deep web research + Diagram Design companion
 
-`/claude-tweaks:research` adds citation-audited deep web research to the plugin. Four runtime modes trade depth for time:
+**`/claude-tweaks:research`** adds citation-audited deep web research to the plugin. Four runtime modes trade depth for time:
 
 - **quick** (~2-5 min, 5+ sources) — fast scan
 - **standard** (~5-10 min, 10+ sources) — balanced default
@@ -25,6 +25,14 @@ Run `/claude-tweaks:init` against your existing project to refresh the configura
 - **ultradeep** (~20-45 min) — multi-persona red-team with adversarial review
 
 Vendored from [199-biotechnologies/claude-deep-research-skill](https://github.com/199-biotechnologies/claude-deep-research-skill) (MIT). See `skills/research/UPSTREAM.md` for the vendoring contract, pinned commit, modifications, and update runbook. Reports land under `.claude-tweaks/research/`.
+
+**Diagram Design companion plugin** — a soft-hook integration with [`cathrynlavery/diagram-design`](https://github.com/cathrynlavery/diagram-design) (MIT, separately installed). Unlike Impeccable (wrapped via `/claude-tweaks:design`) or research (vendored), diagram-design has no callable surface — it's a pure-skill plugin that auto-triggers from its YAML description. claude-tweaks adds *contextual nudges* at three lifecycle moments:
+
+- **`/specify` Step 2.5d** (new, all surfaces) — when the design doc describes state machines, schemas, multi-actor flows, decision trees, or layered architecture, the spec summary surfaces "consider a {type} diagram" with a suggested output path (`docs/diagrams/{slug}.html`). Un-gated from frontend — backend specs get architecture / ER / state diagrams too. Caps at 2 suggestions per spec.
+- **`/journeys` Step 3.6** (new) — when a journey crosses 2+ personas, has 3+ named decision branches, or sequences 2+ external services, suggests the matching diagram type (swimlane / flowchart / sequence) before commit.
+- **`/review` Lens 3i-diagram** (extension) — when the diff added structural complexity but `docs/diagrams/` has no matching file, emits one informational Lens 3i finding ("Visual documentation gap"). Mirrors the existing "doc-update missed" pattern.
+
+All three hooks are gated by `diagram-integration: enabled` in CLAUDE.md, written by `/init` Phase 0.95 (always offered — not frontend-gated). Disabled / missing flag = silent no-op everywhere. claude-tweaks never invokes the plugin directly; the user accepts conversationally and diagram-design's skill auto-triggers. Shared procedure lives at `skills/_shared/diagram-integration-check.md` — flag-read, signal→type mapping (10 types), canonical phrasing, output convention.
 
 ### What's new in v4.6 — Bookend Architecture + Auto-Mode Contract
 

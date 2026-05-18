@@ -105,6 +105,34 @@ Next: caller decides whether to escalate, defer, or accept.
 
 Do NOT loop on fix attempts or silently ship a journey with known self-review issues.
 
+## Step 3.6: Diagram Suggestion (companion plugin)
+
+Soft-hook for the [`cathrynlavery/diagram-design`](https://github.com/cathrynlavery/diagram-design) companion plugin. Read the flag from CLAUDE.md (Step 1 of `_shared/diagram-integration-check.md`). When the flag is `disabled` or missing, skip this step silently.
+
+When the flag is `enabled`, scan the journey file(s) just written/updated and detect the strongest signal:
+
+| Journey contains | Signal |
+|------------------|--------|
+| 2+ named personas or roles handing off between steps | `multi-persona` (suggests `swimlane`) |
+| 3+ branches with named conditions (`If …`, "When the user is …", success-vs-error paths) | `decision-tree` (suggests `flowchart`) |
+| 2+ external services / APIs the user passes through in sequence | `multi-actor` (suggests `sequence`) |
+| None of the above | Skip — emit no recommendation |
+
+Emit at most one recommendation per journey, formatted per Step 3 of `_shared/diagram-integration-check.md`. Place the block above the "Step 4: Commit" output, prefixed `### Diagram suggestion`.
+
+Example output:
+
+```
+### Diagram suggestion
+
+**Diagram suggestion:** This journey (`checkout-flow`) crosses 2 personas
+(shopper → support agent). Consider a swimlane diagram — the `diagram-design`
+plugin will generate one if you ask Claude to draw it. Suggested output path:
+`docs/diagrams/checkout-flow-swimlane.html`.
+```
+
+The user (or Claude on the user's behalf) decides whether to act — the plugin auto-triggers from its skill description if asked.
+
 ## Step 4: Commit
 
 Commit journey files separately from implementation code.
@@ -179,3 +207,5 @@ This skill is a **component skill** — invoked by `/claude-tweaks:build` (Commo
 | `/claude-tweaks:help` | /help references /journeys in the workflow diagram and reference card. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
 | `_shared/auto-decision-log.md` | Canonical schema and path for the auto-decision log written in Step 3.5 (`{run-dir}/decisions.md` under `## /journeys`). |
+| `_shared/diagram-integration-check.md` | Step 3.6 reads this for the flag check and signal→type mapping. Soft-hook only — emits a recommendation, never invokes the companion plugin. |
+| `cathrynlavery/diagram-design` (companion) | Step 3.6 emits "consider a diagram here" recommendations when journey signals match (multi-persona → swimlane, decision branches → flowchart, multi-actor → sequence). Gated by `diagram-integration: enabled` in CLAUDE.md (written by `/init` Phase 0.95). |
