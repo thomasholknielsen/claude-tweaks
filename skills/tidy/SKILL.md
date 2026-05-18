@@ -90,7 +90,7 @@ Every recommendation in the tidy report uses one of these actions. Each action i
 
 ### Why "Promote" keeps the item in INBOX
 
-The lifecycle is: INBOX → brainstorm → design doc → specify → spec file. "Promote" means the item is ready to enter that pipeline, but until a spec file exists, the INBOX entry is the only tracking artifact. Removing it creates a gap where the item exists nowhere — decided on but with no durable record. The INBOX entry stays as a pointer until `/claude-tweaks:specify` creates the spec, at which point `/claude-tweaks:specify` Step 6 removes it from INBOX.
+The lifecycle is: INBOX → brainstorm → design doc → specify → spec file. "Promote" means the item is ready to enter that pipeline, but until a spec file exists, the INBOX entry is the only tracking artifact. Removing it creates a gap where the item exists nowhere — decided on but with no durable record. The INBOX entry stays as a pointer until `/claude-tweaks:specify` creates the spec, at which point `/claude-tweaks:specify` Step 8 removes it from INBOX.
 
 ### Merge means integrate, not append
 
@@ -204,7 +204,7 @@ Commit with a message summarizing the tidy-up.
 
 ## Component-Skill Contract
 
-`/claude-tweaks:tidy` is a **standalone-only** maintenance skill — it is not invoked by any parent skill in the workflow. There is no `PIPELINE_RUN_DIR` signal expected as a caller-side argument (the run dir is only resolved internally for the auto-mode aggressiveness routing in Step 6). The `### Next Actions` block always renders. If a future parent skill ever wraps `/tidy` (e.g., a scheduled hygiene pass inside `/flow`), the parent must update this contract; until then, treat parent invocation as not applicable.
+`/claude-tweaks:tidy` is a **standalone-only** maintenance skill — it is not invoked by any parent skill in the workflow. There is no `PIPELINE_RUN_DIR` signal expected as a caller-side argument (the run dir is only resolved internally for the auto-mode aggressiveness routing in Step 6). The `## Next Actions` block always renders. If a future parent skill ever wraps `/tidy` (e.g., a scheduled hygiene pass inside `/flow`), the parent must update this contract; until then, treat parent invocation as not applicable.
 
 ## Anti-Patterns
 
@@ -225,7 +225,7 @@ Commit with a message summarizing the tidy-up.
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:capture` | Feeds the INBOX that /claude-tweaks:tidy audits |
-| `/claude-tweaks:specify` | /claude-tweaks:tidy flags unspecified design docs for /claude-tweaks:specify. /claude-tweaks:specify Step 6 removes promoted items from INBOX after creating the spec |
+| `/claude-tweaks:specify` | /claude-tweaks:tidy flags unspecified design docs for /claude-tweaks:specify. /claude-tweaks:specify Step 8 removes promoted items from INBOX after creating the spec |
 | `/claude-tweaks:review` | /claude-tweaks:tidy flags specs that appear complete but lack review, and scans review summaries for cross-spec patterns (recurring findings, flagged files) |
 | `/claude-tweaks:wrap-up` | /claude-tweaks:tidy flags reviewed specs that need wrap-up, and scans wrap-up reflections for cross-spec patterns (recurring gotchas, deferred themes) |
 | `/claude-tweaks:help` | /claude-tweaks:help suggests /claude-tweaks:tidy when maintenance signals are detected |
@@ -235,7 +235,7 @@ Commit with a message summarizing the tidy-up.
 | `/claude-tweaks:ledger` | /ledger creates the per-feature ledger files /tidy scans for stale or orphaned open items during periodic hygiene. /tidy may surface ledgers whose related spec is complete but whose items were never resolved. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. The aggressiveness-routing table in Step 6 (conservative / moderate / aggressive) implements the contract's reversibility/confidence floors for tidy actions. |
 
-### Next Actions
+## Next Actions
 
 1. `/claude-tweaks:help` — full pipeline status with refreshed counts after the cleanup **(Recommended)**
 2. `/claude-tweaks:build {N}` — build the highest-priority ready spec surfaced by the tidy report

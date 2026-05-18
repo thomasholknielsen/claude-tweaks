@@ -52,7 +52,7 @@ Two orthogonal choices control how `/build` runs. Combine them freely:
    git-strategy: worktree
    ```
 3. Fallback — `subagent` + `worktree`
-4. `auto` keyword — skip intermediate confirmation prompts. Uses defaults (`subagent` + `worktree`) unless overridden. Architecture alignment (Common Step 4.5) auto-routes "Beneficial" deviations (update spec silently). Only stops for genuinely ambiguous deviations or critical decisions.
+4. `auto` keyword — skip intermediate confirmation prompts. Uses defaults (`subagent` + `worktree`) unless overridden. Architecture alignment (Common Step 4.5) auto-routes "Beneficial" deviations (update spec silently). Decisions that warrant human judgment are staged to the Wrap-Up Review Console (Step 8.6) rather than stopping the pipeline mid-flow — see `_shared/auto-mode-contract.md` for the silences inventory and the HARD-GATE exemption list.
 
 ## Input
 
@@ -308,84 +308,11 @@ This is not optional and does not require user input — if you built a feature 
 
 ### Common Step 6.5: Documentation Sync
 
-After journey capture, check if the build's code changes affect documented areas.
-
-1. **Read registry** — Read `docs/REGISTRY.md`. If it doesn't exist, skip this step entirely.
-2. **Get changed files** — `git diff --name-only` since build start (same file list used by Step 6).
-3. **Match patterns** — For each registry entry, check if any changed file matches its Auto-detect glob patterns.
-4. **For each matched doc:**
-
-> **Parallel execution:** Use parallel tool calls — all Read operations on matched docs and their source files are independent.
-
-   a. Read the doc file
-   b. Read the relevant changed source files
-   c. Determine the update using the doc update patterns from `docs-structure.md` in the `/claude-tweaks:init` skill's directory. Each doc type has specific triggers and update actions:
-      - API endpoint added/changed/removed → add/update/remove rows in the endpoint table
-      - New env variable or config → add to prerequisites or env setup section
-      - New dependency or tool → update stack or prerequisites
-      - Broken file path references → fix paths to new locations
-      - Architectural change → flag for wrap-up (too big for inline)
-   d. **Update inline** when the change is clearly scoped (adding a table row, updating a command, fixing a path — < 5 minutes of editing). Commit separately:
-      `git commit -m "Update {doc} — {what changed}"`
-   e. **Defer to wrap-up** when the change is structural (doc needs reorganization, new section, or requires reading multiple files to understand impact). Append to ledger with phase `build/docs` and status `open`:
-      "{doc} may need updates — {what changed in code}. Review in wrap-up."
-5. **No matches** — skip silently. No output.
+If `docs/REGISTRY.md` exists, read `docs-sync.md` in this skill's directory for the full procedure (read registry, match changed files against registered patterns, update inline or defer to wrap-up per doc type). If `docs/REGISTRY.md` does not exist, skip this step entirely.
 
 ### Common Step 7: Handoff
 
-After successful build, present:
-
-```markdown
-## Build Complete: {spec number and title OR design doc topic}
-
-### Mode
-{Spec mode (spec {number}) | Design mode ({design doc filename})}
-
-### Verification
-- Type check: {pass/fail}
-- Lint: {pass/fail}
-- Tests: {pass/fail}
-
-### What was built
-- {summary of implemented features}
-
-### Code simplification
-- {summary of simplifications made, or "No changes needed"}
-
-### User Journeys
-- {created/updated journey name} — {summary of what changed}
-(or: No user-facing journeys affected.)
-
-### Documentation
-- Updated: {doc} ({what changed})
-- Flagged for wrap-up: {doc} ({reason})
-(or: No documentation changes needed.)
-
-### Blocked items (if any)
-- {item} — blocked by {reason}
-
-### Manual Steps Required
-| # | What | Where |
-|---|------|-------|
-| 1 | {description} | {spec section / detected in `{file}`} |
-(or: No manual steps — nothing to do outside the codebase.)
-
-> Populated from ledger entries with phase `ops`. **In `/flow` pipeline context:** Skip this section — flow's pipeline summary handles it.
-
-### Actions Performed
-
-| Action | Detail | Ref |
-|--------|--------|-----|
-| Implemented | {feature} — `{file}` | `{hash}` |
-| Bug fix | {what was fixed} — `{file}` | `{hash}` |
-| Simplified | {what} — `{file}` | `{hash}` |
-| Operational | {schema push, env update} | `{hash}` |
-| Journey | {created/updated} {name} — `{file}` | `{hash}` |
-| Doc update | {doc} — {what changed} | `{hash}` |
-| Ledger fix | {item} ({phase}) — `{file}` | `{hash}` |
-
-Generate from: `git log --oneline` since build start, `git diff --stat` against pre-build state, ledger entries with status `fixed`, journey files from Step 6, operational fixes from Step 5.5.
-```
+After successful build, read `handoff-template.md` in this skill's directory and render the handoff using that template. The template covers verification status, what was built, simplification summary, journeys, documentation changes, blocked items, manual steps, and the Actions Performed table.
 
 ### Next Actions
 

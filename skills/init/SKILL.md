@@ -450,7 +450,7 @@ Execute only after user confirmation.
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. Phase 3 classification auto-confirm follows the contract's confidence-gated pattern. |
 | All workflow skills | Depend on the structure /claude-tweaks:init creates |
 
-### Next Actions
+## Next Actions
 
 Pick the recommended action based on which signals fired during this run. Resolve signals top-to-bottom; the first matching row is the recommendation.
 

@@ -202,7 +202,7 @@ Only delete when the resolve gate has passed — all items must have terminal st
 
 ## Component-Skill Contract
 
-`/claude-tweaks:ledger` is invoked by `/claude-tweaks:build`, `/claude-tweaks:test`, `/claude-tweaks:review`, `/claude-tweaks:wrap-up`, and `/claude-tweaks:flow` for ledger create / add-item / update / query / resolve / delete operations. Parent invocation is signaled by the argument shape — `create {feature}`, `add {phase} "{item}"`, `update {n} {status}`, `query`, `resolve`, `delete` are the component-invocation API; the standalone `(none)` / `{feature-name}` / `resolve` forms are the user-facing entrypoints. When invoked as a component (any operation argument), do not render a `### Next Actions` block — the parent owns the handoff. When invoked standalone or with `resolve`, render Next Actions as documented. The resolve gate Phase 2 is on the "What `auto` does NOT silence" list regardless of caller.
+`/claude-tweaks:ledger` is invoked by `/claude-tweaks:build`, `/claude-tweaks:test`, `/claude-tweaks:review`, `/claude-tweaks:wrap-up`, and `/claude-tweaks:flow` for ledger create / add-item / update / query / resolve / delete operations. Parent invocation is signaled by the argument shape — `create {feature}`, `add {phase} "{item}"`, `update {n} {status}`, `query`, `resolve`, `delete` are the component-invocation API; the standalone `(none)` / `{feature-name}` / `resolve` forms are the user-facing entrypoints. When invoked as a component (any operation argument), do not render a `## Next Actions` block — the parent owns the handoff. When invoked standalone or with `resolve`, render Next Actions as documented. The resolve gate Phase 2 is on the "What `auto` does NOT silence" list regardless of caller.
 
 ## Resolve Gate (canonical reference)
 
@@ -226,14 +226,14 @@ Read `resolve-gate.md` in this skill's directory for the three-phase nothing-lef
 | Modifying the ledger file format | The table format is consumed by multiple skills — structural changes break parsing |
 | Using the ledger for feature tracking | The ledger tracks findings and tasks within a single pipeline run — use specs/INDEX.md for feature-level tracking |
 | Skipping the resolve gate | The nothing-left-behind gate is non-negotiable — no pipeline completes with open items |
-| Treating `auto` mode as authorization to bypass the resolve gate | `auto` only silences flow's merge-check and scope-check prompts. The resolve gate always requires per-item user input |
+| Treating `auto` mode as authorization to bypass the resolve gate | The resolve gate always requires per-item user input on Phase 2; `auto` never silences it. For the full list of what `auto` does and does not silence, see `_shared/auto-mode-contract.md` |
 
 ## Relationship to Other Skills
 
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:build` | Creates the ledger (if needed) and appends items during Steps 2.5, 4, 4.5, and 5.5. Uses phases: `ops`, `build`, `build/skill`, `build/ops`. |
-| `/claude-tweaks:test` | Appends QA findings and observations during test execution. Uses phase: `test`. |
+| `/claude-tweaks:test` | Appends QA findings and observations during test execution. Uses phases: `test`, `test/qa`. |
 | `/claude-tweaks:review` | Appends code review findings (Step 3 Routing) and reads/routes existing entries. Uses phases: `review`, `review/skill`. Hindsight findings (Step 4) are written by /reflect. |
 | `/claude-tweaks:reflect` | Appends hindsight findings (via /review, phase `review/hindsight`), reflection insights (via /wrap-up, phase `wrap-up`), or standalone findings (phase `reflect`). |
 | `/claude-tweaks:wrap-up` | Runs the resolve gate (Step 8.5) and deletes the ledger (Step 5). Reflection insights are written by /reflect (Step 3). |
@@ -242,7 +242,7 @@ Read `resolve-gate.md` in this skill's directory for the three-phase nothing-lef
 | `/claude-tweaks:tidy` | May scan ledger files during backlog hygiene to detect abandoned pipelines. /tidy reciprocally relies on /ledger's status taxonomy to detect stale entries. |
 | `_shared/auto-mode-contract.md` | The resolve gate (Phase 8.5 in /wrap-up, Phase 5 in /flow) is on the contract's "not silenced" list — even under `auto`, per-item user input is required. Bulk-route shortcuts are forbidden. |
 
-### Next Actions
+## Next Actions
 
 1. `/claude-tweaks:wrap-up {spec}` — wrap up the current work once all items are resolved **(Recommended)**
 2. `/claude-tweaks:ledger resolve` — re-run the nothing-left-behind gate if items remain `open`

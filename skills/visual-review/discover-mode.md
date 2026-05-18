@@ -104,7 +104,7 @@ For each step in the candidate journey (review the batched output):
 
 ## Phase 4: Write Journey Files
 
-For each walked journey, create a file at `docs/journeys/{journey-name}.md` using the standard journey format (see `/build` Common Step 6 for the template).
+For each walked journey, create a file at `docs/journeys/{journey-name}.md` using the standard journey format (see `journey-template.md` in the `/claude-tweaks:journeys` skill's directory for the template).
 
 Key differences from build-created journeys:
 - **Origin section** says "Created during journey discovery (brownfield)" instead of referencing a spec

@@ -130,7 +130,11 @@ Periodically (or when inbox gets long), use `/claude-tweaks:tidy` to batch-revie
 
 ## Component-Skill Contract
 
-This skill is a **component skill** — invoked by `/claude-tweaks:build` (Common Step 4, design-mode follow-up capture), `/claude-tweaks:visual-review` (capture UI ideas surfaced during review), `/claude-tweaks:reflect` (route tangential ideas to INBOX), and `/claude-tweaks:wrap-up` (capture genuinely new ideas during cleanup). Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set in the environment (the parent runs under `/flow`'s pipeline directory) — no `--source` flag exists or is required. When invoked from within a parent's workflow, omit the `### Next Actions` block — the parent owns the handoff. When invoked directly by a user (no `PIPELINE_RUN_DIR`), render Next Actions as shown below.
+This skill is a **component skill** — directly invoked by `/claude-tweaks:build` (Common Step 4, design-mode follow-up capture). `/claude-tweaks:visual-review`, `/claude-tweaks:reflect`, and `/claude-tweaks:wrap-up` write to `specs/INBOX.md` directly without going through this skill, so they are NOT capture parents — they only recommend `/capture` in Next Actions for the user's next session.
+
+Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set in the environment (`/build` running inside `/flow`). When invoked from within a parent's workflow, omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user (no `PIPELINE_RUN_DIR`), render Next Actions as shown below.
+
+**Side effect of `$PIPELINE_RUN_DIR`-based detection:** if a user invokes `/capture` directly while an active `/flow` pipeline is running, Next Actions are suppressed because the env var is set. This is intentional — pipeline-mid-flow handoff suggestions would conflict with the orchestrator's flow. Users who want full Next Actions during a pipeline can unset `$PIPELINE_RUN_DIR` for the invocation.
 
 ## Anti-Patterns
 
@@ -161,7 +165,7 @@ This skill is a **component skill** — invoked by `/claude-tweaks:build` (Commo
 | `/claude-tweaks:research` | Research findings can be captured as INBOX items; invoke `/research` when an INBOX idea needs evidence before specifying. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
 
-### Next Actions
+## Next Actions
 
 When invoked by a parent skill, omit this block — the parent owns the handoff. When invoked directly by a user:
 

@@ -44,7 +44,10 @@ Stage-by-stage scan procedure run by `/claude-tweaks:help` (default invocation, 
 
 ## Stage 2: Design Docs (`docs/superpowers/specs/*-design.md`)
 
-- Find design docs that haven't been specified yet (no `> Status: Specified` header)
+- Find design docs that still exist (full decomposition deletes the doc, so any surviving doc is either un-decomposed or partially decomposed)
+- For each surviving doc, check whether it has `## Phase N:` headings:
+  - No phase headings → never decomposed, waiting for `/claude-tweaks:specify`
+  - Has phase headings but at least one lacks a matching `## Phase N: Specified` marker → partially decomposed, the unmarked phases are still waiting for `/claude-tweaks:specify`
 - These are brainstorming outputs waiting for `/claude-tweaks:specify`
 
 ## Stage 3: Specs Ready to Build (`specs/INDEX.md` + `specs/*.md`)

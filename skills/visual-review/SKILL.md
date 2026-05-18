@@ -161,7 +161,7 @@ When invoked by `/review`, omit Next Actions — the parent handles flow control
 
 ## Component-Skill Contract
 
-This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step 6) in `full` mode. Parent invocation is signaled by the pipeline context arguments documented under Mode Resolution above (mode + QA data + spec context). When invoked by a parent, omit the `### Next Actions` block — the parent owns the handoff. When invoked directly by a user, render Next Actions as shown above.
+This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step 6) in `full` mode. Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (the parent is running inside an active pipeline run). When invoked by a parent, omit the `### Next Actions` block — the parent owns the handoff. When invoked directly by a user (no `$PIPELINE_RUN_DIR`), render Next Actions as shown above.
 
 ## Anti-Patterns
 
@@ -191,7 +191,7 @@ This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step
 | `/claude-tweaks:journeys` | /visual-review (journey mode) walks journeys created by /journeys. /visual-review (discover mode) creates new journey files. |
 | `/claude-tweaks:test` | QA data from /test enriches the visual review (page inventories, caveats, screenshots). Trace-on-failure convention is shared with qa-agent. |
 | `/claude-tweaks:flow` | /flow invokes /review in full mode, which delegates to /visual-review for the browser portion. |
-| `/claude-tweaks:init` | Detects `agent-browser` availability during setup. Phase 7 delegates to /visual-review discover for brownfield journey bootstrapping. |
+| `/claude-tweaks:init` | Detects `agent-browser` availability during setup. Phase 8 delegates to /visual-review discover for brownfield journey bootstrapping. |
 | `/claude-tweaks:capture` | /visual-review may recommend capturing ideas surfaced during the review. |
 | `/claude-tweaks:design` | After the review report is assembled, /visual-review invokes `/claude-tweaks:design survey` with the captured screenshot paths and renders the resulting Creative Opportunities block in the report (anchor 2 of v4.5.0's creative surfacing system). The wrapper handles its own detection (non-frontend skips); the block is omitted when the wrapper returns no recommendations. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. The "Auto mode" branches in Step 1 (browser prereqs) and Step 2 (dev URL) implement the contract's auto-skip + stage-at-Review-Console pattern. |

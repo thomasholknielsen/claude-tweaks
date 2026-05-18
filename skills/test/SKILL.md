@@ -299,7 +299,7 @@ If the user chooses to fix:
 
 ## Component-Skill Contract
 
-`/claude-tweaks:test` is invoked by `/claude-tweaks:flow` between build and review, and by `/claude-tweaks:review` Step 1.5 as the test gate. Parent invocation is signaled by the `PIPELINE_RUN_DIR` env var or by the caller setting `TEST_PASSED` in the calling context. When `PIPELINE_RUN_DIR` is set, omit the `### Next Actions` block — the parent owns the handoff. When invoked directly by a user, render Next Actions as documented. The skip-qa flag and qa-mode args are user-facing; parents pass `skip-qa` during the `/flow` polish re-verify gate and never invoke qa mode themselves (qa runs at its own pipeline stage).
+`/claude-tweaks:test` is invoked by `/claude-tweaks:flow` between build and review, and by `/claude-tweaks:review` Step 1.5 as the test gate. Parent invocation is signaled by the `PIPELINE_RUN_DIR` env var or by the caller setting `TEST_PASSED` in the calling context. When `PIPELINE_RUN_DIR` is set, omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user, render Next Actions as documented. The skip-qa flag and qa-mode args are user-facing; parents pass `skip-qa` during the `/flow` polish re-verify gate and never invoke qa mode themselves (qa runs at its own pipeline stage).
 
 ## Anti-Patterns
 
@@ -332,11 +332,11 @@ If the user chooses to fix:
 | `/claude-tweaks:browse` | /browse may invoke /test indirectly when story validation requires browser-driven QA — both share `dev-url-detection.md` from `skills/_shared/`. |
 | `/claude-tweaks:journeys` | /journeys feeds journey files into /stories which /test qa consumes; `journey={name}` filter lets /test run only the QA stories tied to a single journey. |
 | `/claude-tweaks:reflect` | /reflect may surface implementation findings that reference /test verification gaps; /test does not invoke /reflect, but reflection insights can call for new test coverage. |
-| `/claude-tweaks:simplify` | /simplify runs before /test in /build's Common Step 4.5; /test verifies that simplification did not break behavior. |
+| `/claude-tweaks:simplify` | /simplify runs before /test in /build's Common Step 3; /test verifies that simplification did not break behavior. |
 | `/claude-tweaks:visual-review` | /visual-review consumes QA data produced by /test qa (when stories exist); both contribute to the /review verdict surface. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. Step 3 Fix Mode follows the contract's auto-fix-threshold + reversibility-floor pattern. |
 
-### Next Actions
+## Next Actions
 
 Pick the row matching the mode just completed:
 

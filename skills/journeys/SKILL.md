@@ -154,7 +154,7 @@ When invoked by a parent, omit Next Actions — the parent handles flow control.
 
 ## Component-Skill Contract
 
-This skill is a **component skill** — invoked by `/claude-tweaks:build` (Common Step 6). Parent invocation is signaled by the pipeline context arguments documented under Input above (changed files + spec/design context). When invoked by a parent, omit the `### Next Actions` block — the parent owns the handoff. When invoked directly by a user, render Next Actions as shown above.
+This skill is a **component skill** — invoked by `/claude-tweaks:build` (Common Step 6). Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (the parent is running inside an active pipeline run). When invoked by a parent, omit the `### Next Actions` block — the parent owns the handoff. When invoked directly by a user (no `$PIPELINE_RUN_DIR`), render Next Actions as shown above.
 
 ## Anti-Patterns
 

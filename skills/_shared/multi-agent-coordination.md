@@ -280,7 +280,7 @@ Read N candidate responses below. Identify what each captures that the others mi
 
 MoA never stages — the aggregator's output is the answer. The decision log entry is informational only.
 
-## Anti-patterns
+## Anti-Patterns
 
 | Anti-pattern | Why it fails |
 |---|---|

@@ -108,7 +108,7 @@ Stores credentials encrypted, locally. The LLM never sees passwords.
 Stories reference a vault by name via the story-level `auth: { vault: "<name>" }`
 field. See `skills/stories/SKILL.md` for the schema.
 
-## Anti-patterns
+## Anti-Patterns
 
 | Pattern | Why it fails |
 |---|---|

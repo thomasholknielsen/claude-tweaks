@@ -4,7 +4,7 @@ The critical gate that prevents dropped work. Called by `/claude-tweaks:wrap-up`
 
 The gate runs in three phases. The agent does Phase 1 silently; Phases 2 and 3 always require explicit per-item user input.
 
-**`auto` mode does NOT silence this gate.** Pipeline `auto` flags only suppress the merge-check (flow Step 2.5) and scope-check (flow Step 2.6) prompts. Per-item user input on the resolve gate is mandatory regardless of mode.
+**`auto` mode does NOT silence this gate.** Per-item user input on the resolve gate is mandatory regardless of mode. For the full list of what `auto` silences (and what it does not), see `_shared/auto-mode-contract.md`.
 
 **The pipeline cannot complete with unresolved items.** This is a hard gate.
 

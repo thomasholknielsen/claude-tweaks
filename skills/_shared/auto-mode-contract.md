@@ -26,7 +26,7 @@ The pipeline has at most two stops in `auto` mode, regardless of how many decisi
 └─────────────────────────────┘                                  └─────────────────────────┘
 ```
 
-- **Begin stop** — one structured numbered-options block at pipeline start collects all policy levers (scope-creep, overlap, design-intent, leftover-routing, auto-fix-threshold, review-severity-floor, tidy-aggressiveness). Saved to `config.yml` inside the run directory at `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`.
+- **Begin stop** — one structured numbered-options block at pipeline start collects all policy levers (scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness). Saved to `config.yml` inside the run directory at `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`.
 - **One message, not many.** The begin stop is a single message with every lever pre-filled and an Approve all / Override / Cancel choice. Never a chain of per-lever questions — if you need to ask twice, you've already broken the bookend.
 - **Mid-flow** — skills look up policy and execute. Every auto-decision lands in the auto-decision log.
 - **End stop** — `/wrap-up` Review Console presents one consolidated batch table covering everything that was auto-decided or staged.

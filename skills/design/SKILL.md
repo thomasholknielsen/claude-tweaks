@@ -174,9 +174,28 @@ Lazy-load these only when needed for the active mode:
 - `frontend-detection.md` — Trigger extensions and path patterns for Layer 3 sniff; pointer to the canonical `surface:` and `design-intent:` frontmatter spec (which lives in `skills/specify/spec-template.md`).
 - `impeccable-cli.md` — Exact CLI invocation, JSON output schema, parsing rules.
 
+## Next Actions
+
+When invoked directly by a user (not from a lifecycle skill), surface 1-2 follow-ups keyed off the wrapper's return shape. When invoked from a caller skill, omit this block — callers consume the return value themselves.
+
+| Return | Recommended | Alternative |
+|--------|-------------|-------------|
+| `test` pass / `review` advisory | `/claude-tweaks:review {spec}` (after test mode) or `/claude-tweaks:wrap-up {spec}` (after review) | — |
+| `test` fail | Fix the flagged anti-patterns, re-run `/claude-tweaks:test` | `npx impeccable detect <file>` for more detail |
+| `shape` ok | Append `output` to the design doc, continue `/claude-tweaks:specify` | — |
+| `pre-build` ok | `/claude-tweaks:build {spec}` — references loaded | — |
+| `polish` ok + `commands_invoked` non-empty | `/claude-tweaks:test skip-qa` — re-verify after polish | `git diff` to inspect changes |
+| `polish` ok + `commands_invoked: []` | `/claude-tweaks:wrap-up {spec}` — no changes, proceed | — |
+| `survey` ok + recommendations | Run any resonating command manually | `reset-recommendations {spec}` if previously suppressed should re-appear |
+| `survey` ok + `recommendations: []` | No follow-up — caller omits the Creative Opportunities block | — |
+| `reset-recommendations` ok | Re-run `/claude-tweaks:flow {spec}` or `/claude-tweaks:visual-review` — survey will re-surface | — |
+| `{skipped: "Impeccable not installed"}` | `/claude-tweaks:init` to set up integration (Step 0.9) | — |
+| `{skipped: "design integration disabled"}` | Re-run `/claude-tweaks:init` to re-enable | — |
+| `{skipped: "non-frontend"}` | No action — the wrapper correctly skipped | — |
+
 ## Component-Skill Contract
 
-This skill is a **component skill** (utility wrapper) — invoked by `/claude-tweaks:test`, `/claude-tweaks:review`, `/claude-tweaks:build`, `/claude-tweaks:flow`, `/claude-tweaks:specify`, and `/claude-tweaks:visual-review`. Parent invocation is signaled by direct `$ARGUMENTS` containing a mode + target (callers invoke `/claude-tweaks:design <mode> <target>`); the wrapper distinguishes caller-vs-direct by whether the caller consumes the return value structurally. When invoked from a caller skill, omit the `### Next Actions` block (callers consume the return shape themselves). When invoked directly by a user, render the return-shape-keyed Next Actions table at the end of this skill.
+This skill is a **component skill** (utility wrapper) — invoked by `/claude-tweaks:test`, `/claude-tweaks:review`, `/claude-tweaks:build`, `/claude-tweaks:flow`, `/claude-tweaks:specify`, and `/claude-tweaks:visual-review`. Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (the parent is running inside an active pipeline run). When invoked from a caller skill, omit the `## Next Actions` block (callers consume the return shape themselves). When invoked directly by a user (no `$PIPELINE_RUN_DIR`), render the Next Actions table above.
 
 ## Anti-Patterns
 
@@ -214,22 +233,3 @@ This skill is a **component skill** (utility wrapper) — invoked by `/claude-tw
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. The wrapper's mode-dispatch decisions follow the contract's reversibility/severity floors (polish modifies code → never auto-applied without explicit caller intent; survey is read-only by design). |
 | superpowers `/superpowers:brainstorming` | Invoked by `/specify` when given a topic input — produces the design doc that `shape` mode then enriches. The wrapper does not invoke `/superpowers:brainstorming` directly. |
 | Impeccable plugin | All wrapper modes (except `survey` and `reset-recommendations`) invoke commands or the CLI from this plugin. Availability checks gate every dispatching mode. |
-
-### Next Actions
-
-When invoked directly by a user (not from a lifecycle skill), surface 1-2 follow-ups keyed off the wrapper's return shape. When invoked from a caller skill, omit this block — callers consume the return value themselves.
-
-| Return | Recommended | Alternative |
-|--------|-------------|-------------|
-| `test` pass / `review` advisory | `/claude-tweaks:review {spec}` (after test mode) or `/claude-tweaks:wrap-up {spec}` (after review) | — |
-| `test` fail | Fix the flagged anti-patterns, re-run `/claude-tweaks:test` | `npx impeccable detect <file>` for more detail |
-| `shape` ok | Append `output` to the design doc, continue `/claude-tweaks:specify` | — |
-| `pre-build` ok | `/claude-tweaks:build {spec}` — references loaded | — |
-| `polish` ok + `commands_invoked` non-empty | `/claude-tweaks:test skip-qa` — re-verify after polish | `git diff` to inspect changes |
-| `polish` ok + `commands_invoked: []` | `/claude-tweaks:wrap-up {spec}` — no changes, proceed | — |
-| `survey` ok + recommendations | Run any resonating command manually | `reset-recommendations {spec}` if previously suppressed should re-appear |
-| `survey` ok + `recommendations: []` | No follow-up — caller omits the Creative Opportunities block | — |
-| `reset-recommendations` ok | Re-run `/claude-tweaks:flow {spec}` or `/claude-tweaks:visual-review` — survey will re-surface | — |
-| `{skipped: "Impeccable not installed"}` | `/claude-tweaks:init` to set up integration (Step 0.9) | — |
-| `{skipped: "design integration disabled"}` | Re-run `/claude-tweaks:init` to re-enable | — |
-| `{skipped: "non-frontend"}` | No action — the wrapper correctly skipped | — |

@@ -125,7 +125,7 @@ Within each section: reversibility:low first (highest-stakes revert), then rever
 - The `Spec` column is mandatory in every table — the user must be able to trace any row to its originating spec for context.
 - The `Not run` footer is mandatory when any spec was skipped due to a HARD-GATE earlier in the pipeline — those specs' contexts are explicit, not buried.
 
-## Anti-patterns
+## Anti-Patterns
 
 | Pattern | Why it fails |
 |---|---|

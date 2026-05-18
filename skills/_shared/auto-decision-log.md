@@ -112,7 +112,7 @@ The archive preserves the decision log, the staged directory (if any items were 
 
 `/tidy` may compact archive entries older than 30 days into `.claude-tweaks/pipelines/archive/index-{YYYY-MM}.md` (planned — not yet implemented).
 
-## Anti-patterns
+## Anti-Patterns
 
 | Anti-pattern | Why it fails |
 |---|---|

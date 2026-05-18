@@ -93,7 +93,13 @@ Instructions:
   - Stop executing remaining steps.
 - On success, close the session at the end: `agent-browser --session {story.id} close`.
 - Report each step as PASS or FAIL with a brief explanation.
-- Use this exact format for your final summary line:
+- **Status line (required, line 1 of your reply):** emit exactly one of `DONE` | `DONE_WITH_CONCERNS` | `NEEDS_CONTEXT` | `BLOCKED`. Mapping:
+  - `PASS` → `DONE`
+  - `PASS_WITH_CAVEATS` → `DONE_WITH_CONCERNS`
+  - `FAIL` → `DONE` (the test failed, but your execution completed normally — the failure is the result, not an agent error)
+  - Cannot open the browser, server unreachable, or other infrastructure failure that prevents step execution → `BLOCKED`
+  - Required input missing (auth vault not configured, env var not set, locator references something that doesn't exist in the prompt) → `NEEDS_CONTEXT`
+- Use this exact format for your final summary line (after the status line):
   RESULT: {PASS|PASS_WITH_CAVEATS|FAIL} | ID: {story.id} | Steps: {passed}/{total}
 - If a trace was captured, append a second line:
   TRACE: {trace path}
@@ -125,7 +131,13 @@ Instructions:
 - Take an annotated screenshot after each significant step into {SCREENSHOT_PATH}.
 - On any failure: `agent-browser --session <session> trace save {TRACES_BASE}/<session>/<timestamp>.zip`, then `close`. Include the trace path in the report.
 - On success: `agent-browser --session <session> close` at the end.
-- Use this exact format for your final summary line:
+- **Status line (required, line 1 of your reply):** emit exactly one of `DONE` | `DONE_WITH_CONCERNS` | `NEEDS_CONTEXT` | `BLOCKED`. Mapping:
+  - `PASS` → `DONE`
+  - `PASS_WITH_CAVEATS` → `DONE_WITH_CONCERNS`
+  - `FAIL` → `DONE` (test failed, but execution completed normally)
+  - Browser cannot open, server unreachable, or other infrastructure failure → `BLOCKED`
+  - Missing auth vault, missing required env var, or workflow refers to undefined state → `NEEDS_CONTEXT`
+- Use this exact format for your final summary line (after the status line):
   RESULT: {PASS|PASS_WITH_CAVEATS|FAIL} | ID: {story.id or "legacy-" + slugified-name} | Steps: {passed}/{total}
 - If a trace was captured, append a second line:
   TRACE: {trace path}

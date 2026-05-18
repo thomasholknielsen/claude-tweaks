@@ -142,7 +142,7 @@ Do not add explanation.
 
 Cap at one retry. If still malformed, accept what you got and move on (do not loop).
 
-## Anti-patterns
+## Anti-Patterns
 
 | Anti-pattern | Why it fails |
 |---|---|

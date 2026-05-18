@@ -92,7 +92,7 @@ Reply with the user's selection. Then proceed.
 | `UPSTREAM.md` (in this skill's directory) | Captures the vendoring contract — pinned commit, modifications, update runbook, auto-mode posture rationale. |
 | `_shared/auto-mode-contract.md` | `/research` opts out of the bookend architecture (no Manifesto, no Review Console). The contract still applies trivially — credentials prompts and BLOCKED states are honored. See UPSTREAM.md for the opt-out rationale. |
 
-### Next Actions
+## Next Actions
 
 After the report completes, present these options:
 

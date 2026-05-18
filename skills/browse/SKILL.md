@@ -127,6 +127,13 @@ Each parallel agent gets its own `--session <unique-name>`. One browser instance
 >
 > Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the chosen template.
 
+## Next Actions
+
+1. `/claude-tweaks:visual-review {url}` — run a structured visual review against the page or journey just driven **(Recommended)**
+2. `/claude-tweaks:stories` — generate or refresh QA story YAML files from the live DOM
+3. `/claude-tweaks:review {spec} full` — full review pipeline including code, visual, and QA passes
+4. `/claude-tweaks:capture "{idea}"` — save an idea surfaced while exploring the browser
+
 ## Component-Skill Contract
 
 `/claude-tweaks:browse` is a conventions skill — it documents the operation vocabulary for `agent-browser` and is consumed transitively by `/claude-tweaks:stories`, `/claude-tweaks:visual-review`, `/claude-tweaks:review`, and the registered `qa-agent`. Those callers either inline the relevant operation text directly in their own dispatch prompts (parallel-session pattern) or call `agent-browser` commands by name; they do not "invoke" /browse as a workflow step. As a result, the `### Next Actions` block renders only when a user invokes `/browse` directly — when a parent skill is using these conventions as a knowledge dependency, no parent handoff exists to defer to and no Next Actions render in the parent's context. Detection: there is no `PIPELINE_RUN_DIR` signal because /browse never runs as a pipeline stage.
@@ -156,10 +163,3 @@ Each parallel agent gets its own `--session <unique-name>`. One browser instance
 | `/claude-tweaks:research` | Both utility skills (no fixed lifecycle position). `/browse` is interactive browser automation; `/research` is autonomous multi-source web research. |
 | `/claude-tweaks:flow` | `/flow` invokes `/review` in full mode by default, which transitively drives `/visual-review` and `/browse` for the browser portion. Browser availability detected at `/flow` startup determines whether visual review runs. |
 | `/claude-tweaks:help` | `/help` lists `/browse` in the utility skills table and surfaces availability when scanning for browser-dependent recommendations. |
-
-### Next Actions
-
-1. `/claude-tweaks:visual-review {url}` — run a structured visual review against the page or journey just driven **(Recommended)**
-2. `/claude-tweaks:stories` — generate or refresh QA story YAML files from the live DOM
-3. `/claude-tweaks:review {spec} full` — full review pipeline including code, visual, and QA passes
-4. `/claude-tweaks:capture "{idea}"` — save an idea surfaced while exploring the browser

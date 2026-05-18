@@ -164,11 +164,7 @@ When invoked by a parent, omit Next Actions — the parent handles flow control.
 
 ## Component-Skill Contract
 
-This skill is a **component skill** — invoked by `/claude-tweaks:build` (Common Step 3) and `/claude-tweaks:review` (Step 5). Parent invocation is signaled by **either** of:
-- `$PIPELINE_RUN_DIR` is set (the parent skill is running inside an active pipeline run); or
-- the file scope comes from a parent's `git diff --name-only` snapshot (passed inline by the parent), as opposed to user-typed paths in `$ARGUMENTS`.
-
-When invoked by a parent, omit the `### Next Actions` block — the parent owns the handoff. When invoked directly by a user, render Next Actions as shown above.
+This skill is a **component skill** — invoked by `/claude-tweaks:build` (Common Step 3) and `/claude-tweaks:review` (Step 5). Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (the parent is running inside an active pipeline run). When invoked by a parent, omit the `### Next Actions` block — the parent owns the handoff. When invoked directly by a user (no `$PIPELINE_RUN_DIR`, regardless of whether file paths were typed in `$ARGUMENTS` or passed inline), render Next Actions as shown above.
 
 ## Anti-Patterns
 

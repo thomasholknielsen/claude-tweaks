@@ -96,20 +96,18 @@ This replaces the cookie-injection path used in earlier versions and removes the
 
 ## Step 1: Ingest
 
-**Legacy v1 detection:** If any existing YAML lacks `schema_version: 2` at the top, read `migration.md` in this skill's directory for the full migration procedure (auto-mode staging, interactive prompt, per-story diff, regeneration rules) BEFORE continuing. Do NOT silently parse legacy v1 files — they use CSS selectors which schema v2 forbids.
-
 Gather pre-existing information before browsing.
 
 ### Diff-Aware Ingestion (auto-detected)
 
 1. Use the Glob tool to check for existing YAML files in OUTPUT_DIR matching `{OUTPUT_DIR}/*.yaml` AND `{OUTPUT_DIR}/*.yml` (both extensions — projects may use either).
-2. If YAML files exist, enter **update mode**:
-   a. Read each YAML file. Check the top of each file for `schema_version: 2`. If any file lacks it, run the v1 detection / regeneration UX described in the "v1 detection" section above before continuing — DO NOT silently parse legacy files. Resolve the v1 prompt before proceeding.
-   b. Parse the `stories` array.
-   c. Build an EXISTING_STORIES map: `{ storyId -> { url, locators[], steps[], sourceFile } }` — extract all semantic locators from each story's steps.
-   d. Build an EXISTING_URLS set: all unique `url` values across existing stories.
-   e. Log: "Update mode: found {N} existing stories across {M} files in {OUTPUT_DIR}."
-3. If no YAML files found, log: "No existing stories in {OUTPUT_DIR}. Generating all stories from scratch." Proceed with full generation.
+2. **Legacy v1 detection (runs first when files exist).** If any YAML files were found, read the top of each and check for `schema_version: 2`. If any file lacks the marker, stop here and read `migration.md` in this skill's directory for the full migration procedure (auto-mode staging, interactive prompt, per-story diff, regeneration rules). Resolve the v1 prompt BEFORE doing any further processing. Do NOT silently parse legacy v1 files — they use CSS selectors which schema v2 forbids.
+3. **Update mode (after v1 detection clears).** If all existing YAML files are schema v2, enter update mode:
+   a. Parse the `stories` array from each file.
+   b. Build an EXISTING_STORIES map: `{ storyId -> { url, locators[], steps[], sourceFile } }` — extract all semantic locators from each story's steps.
+   c. Build an EXISTING_URLS set: all unique `url` values across existing stories.
+   d. Log: "Update mode: found {N} existing stories across {M} files in {OUTPUT_DIR}."
+4. If no YAML files were found, log: "No existing stories in {OUTPUT_DIR}. Generating all stories from scratch." Proceed with full generation.
 
 ## Step 1.1: Journey Ingest (conditional)
 

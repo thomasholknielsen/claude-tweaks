@@ -126,7 +126,7 @@ In `auto` mode (`/flow … auto` or `auto-mode: default-on` in CLAUDE.md), the p
 
 | Stop | Where | What |
 |---|---|---|
-| **Pipeline Config Manifesto** | `/flow` Step 3 | One table pre-fills every policy lever (scope-creep, overlap, design-intent, leftover-routing, auto-fix-threshold, review-severity-floor, tidy-aggressiveness). Hit "1. Approve all recommendations" or override specific items. |
+| **Pipeline Config Manifesto** | `/flow` Step 3 | One table pre-fills every policy lever (scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness). Hit "1. Approve all recommendations" or override specific items. |
 | **Wrap-Up Review Console** | `/wrap-up` Step 8.6 | One consolidated batch: auto-applied items + pending-review items + skill updates + config changes. Hit "1. Approve all" or override. |
 
 **Mid-flow:** skills look up policy from `.claude-tweaks/pipelines/{run-id}/config.yml` and log every auto-decision to `decisions.md`. Skills MUST NOT invent new mid-flow stops in auto.

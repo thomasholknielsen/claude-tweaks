@@ -123,7 +123,7 @@ Any hard fail or rejection stops the pipeline before the Config Manifesto runs. 
 
 This is the bookend "begin stop" that locks in policy for the rest of the pipeline. Runs after pre-flight passes so policy levers are not collected if the pipeline would not have started.
 
-In `auto` or `hybrid` mode, present the Pipeline Config Manifesto — one structured table that pre-fills every policy lever (scope-creep, overlap, design-intent, leftover-routing, auto-fix-threshold, review-severity-floor, tidy-aggressiveness) with recommendations from project policy + sensible defaults. The user approves all (default) or overrides specific items. Saved to `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/config.yml`. Skipped in `interactive` mode.
+In `auto` or `hybrid` mode, present the Pipeline Config Manifesto — one structured table that pre-fills every policy lever (scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness) with recommendations from project policy + sensible defaults. The user approves all (default) or overrides specific items. Saved to `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/config.yml`. Skipped in `interactive` mode.
 
 **This is the first bookend** of the pipeline (see `_shared/auto-mode-contract.md`). After approval, no downstream skill asks the user about these levers — they read `config.yml` and apply.
 
