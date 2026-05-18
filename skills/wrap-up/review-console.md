@@ -58,6 +58,27 @@ The pipeline auto-resolved {N} decisions and staged {M} items for your review. O
 | 7 | /stories | Legacy v1 stories detected (3 files) | stories/checkout.yml, stories/profile.yml, stories/settings.yml | Migration command: `/claude-tweaks:stories migrate` |
 | 8 | /wrap-up | Skill restructure proposed | Split `auth/SKILL.md` into `auth/` + `session-management/` | `staged/wrap-up-skill-restructure.md` |
 
+#### Low-confidence findings (not reproduced)
+
+Render this section only when `decisions.md` contains STAGED entries with the unconfirmed-finding rationale (single-source per-lens findings, or findings downgraded by cross-lens debate). Omit the section entirely when empty.
+
+| # | Path:Line | Finding | Severity | Lens |
+|---|---|---|---|---|
+| 9 | src/auth.ts:42 | Possible null check missing | medium | error-handling |
+| 10 | src/api.ts:180 | Race condition on token refresh | high | security |
+
+> These findings were surfaced by exactly one reviewer agent (or downgraded by a debate that converged negative). The signal is real but unreplicated; the user decides whether to apply, ignore, or escalate.
+
+#### Contested findings (debate inconclusive)
+
+Render this section only when `decisions.md` contains STAGED entries from cross-lens debate with mixed/partial verdicts. Omit the section entirely when empty.
+
+| # | Path:Line | Lens A verdict | Lens B verdict |
+|---|---|---|---|
+| 11 | src/auth.ts:42 | agree (security) | partial (architecture) |
+
+> Two reviewer lenses disagreed on this region and one debate round did not converge. Both verdicts are staged at `staged/review-contested-{N}.md` with reasoning side-by-side. Pick one — or accept both as informational — from the action prompt below.
+
 #### Skill updates (from Step 7.5)
 
 | # | Skill | Section | Change |

@@ -315,13 +315,13 @@ After explicit acknowledgment, update status to `acknowledged`.
 
 ## Step 8.6: Wrap-Up Review Console (back-loaded review)
 
-The Review Console is the **second bookend** of the pipeline (see `_shared/auto-mode-contract.md`). Runs in `auto` or `hybrid` mode when a pipeline run directory exists. Skipped in `interactive` mode and in standalone wrap-up. Reads `decisions.md`, `staged/`, and `config.yml` from the run directory, then presents one consolidated batch table with four sections (Auto-applied / Pending review / Skill updates / Configuration updates) and three actions (Approve all / Override / Stop).
+The Review Console is the **second bookend** of the pipeline (see `_shared/auto-mode-contract.md`). Runs in `auto` or `hybrid` mode when a pipeline run directory exists. Skipped in `interactive` mode and in standalone wrap-up. Reads `decisions.md`, `staged/`, and `config.yml` from the run directory, then presents one consolidated batch table with up to six sections (Auto-applied / Pending review / Low-confidence findings / Contested findings / Skill updates / Configuration updates) and three actions (Approve all / Override / Stop). The two coordination-derived sections (Low-confidence findings, Contested findings) render only when non-empty.
 
 **Multi-spec defer:** when `MULTISPEC_REVIEW_DEFER=1` is set by `/flow` multi-spec orchestration, skip the per-spec console — the consolidated end-of-run console at `/flow` handles all approvals across every spec in the run. Leave `staged/` and `decisions.md` untouched, append a "deferred" log entry, and proceed to Step 9.
 
 Empty-console fast path: if `decisions.md` has zero entries AND `staged/` is empty AND no skill/config updates exist, skip the console entirely and proceed to Step 9.
 
-For the run-directory resolution sequence, the multi-spec defer protocol, the full console template with all four section tables, approval/override/stop semantics, and the sort-order requirement, read `review-console.md` in this skill's directory.
+For the run-directory resolution sequence, the multi-spec defer protocol, the full console template with all six section tables (including the conditionally-rendered Low-confidence and Contested findings sections), approval/override/stop semantics, and the sort-order requirement, read `review-console.md` in this skill's directory.
 
 ---
 

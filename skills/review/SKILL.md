@@ -134,7 +134,11 @@ Review changed files through these lenses. Skip lenses that don't apply to the t
 
 > **Parallel execution:** Before running any lens, gather all context upfront — read all changed files and their surrounding context (imports, tests, schemas) as parallel Read/Grep calls. Each lens needs the same files, so front-loading reads avoids redundant I/O.
 
-> **Parallel execution (conditional):** When the diff spans 10+ files, dispatch each applicable lens (3a-3f) as a parallel Task agent. Each agent receives the full file context and returns findings in the `| # | Finding | Severity | Category | Affected | Recommended |` format. When the diff is smaller, run lenses sequentially in the main thread — the overhead of agent dispatch isn't worth it.
+> **Parallel execution (conditional):** When the diff spans 10+ files, dispatch each applicable lens (3a-3f) as a **reproduction pair** — 2 identical agents per lens (12-18 Task agents total depending on which lenses apply). When the diff is smaller, run each lens as a 2-agent reproduction pair sequentially in the main thread.
+>
+> **Reproduction dispatch (Mode 1 — per lens):** For each lens, dispatch 2 agents in one batch with **byte-identical prompts** (same scope, same Template-A contract, same model tier). Independent runs — no agent sees the other's output. After both return, apply `categoriseReproduction(agentA.findings, agentB.findings)` from `bin/lib/coordination.js`:
+> - Findings present in both agents' outputs (path exact, line ±2, matching severity bucket) → emit as `confirmed`. Write to `decisions.md`: `AUTO {HH:MM:SS} — Reproduction: lens "{lens}" finding {path}:{line} reproduced. Confirmed. Reversibility: high.`
+> - Findings present in only one agent's output → emit as `unconfirmed`. Write: `STAGED {HH:MM:SS} — Reproduction: lens "{lens}" finding {path}:{line} not reproduced. Staged to Review Console as low-confidence. Reversibility: high.` Unconfirmed findings do **not** enter Step 3 Routing — they route directly to the Wrap-Up Console's Low-confidence subsection.
 >
 > **Model tier (per lens):** 3a (Convention) and 3f (Test Quality) → Fast (Haiku) — mechanical convention checks on isolated files. 3b-3e (Security, Errors, Performance, Architecture) → Standard (Sonnet) — multi-file analysis and cross-cutting findings. 3h (UX Analysis) → Capable (Opus) — judgment-heavy synthesis.
 >
@@ -267,11 +271,42 @@ Run the UX analysis procedure from `ux-analysis.md` in this skill's directory. O
 
 These findings are informational — they don't block the review. They ensure wrap-up doesn't miss doc updates that build skipped.
 
+### Step 3.5: Cross-Lens Debate
+
+After per-lens reproduction completes, scan for contradictions across lenses before routing. Two lenses that reviewed the same region with contradicting verdicts (one flagged, the other did not, or both flagged with mismatched severity) get exactly one debate round to converge or escalate to `contested`.
+
+1. **Detect overlap.** Collect each lens's `confirmed` and `unconfirmed` findings. Call `detectCrossLensOverlap(findingsByLens)` from `bin/lib/coordination.js`. It returns pairs `{lensA, lensB, findingA, findingB}` for findings on the same `path` within ±5 lines from *different* lenses.
+
+2. **Filter to contradictions.** From each overlap pair, keep only those where the verdicts contradict — one lens flagged, the other had agents that reviewed the same region without flagging at matching severity. Lenses that agreed (both flagged with matching severity bucket, or both clear) produce no debate.
+
+3. **Dispatch debate (Mode 2 — 2 agents, 1 round, parallel).** For each contradiction, dispatch 2 agents using the original lens-agents' identity (re-dispatch the affected lens's reviewer with the *stripped opposing finding* as input — no model identity, no reasoning chain, just finding text + evidence). Both judges return `agree | disagree | partial` plus one paragraph of reasoning. Inline this template literally in each `Task()` prompt:
+>
+>    ```
+>    Two lenses disagreed on this region. Review the conflicting findings below and return:
+>    1. Verdict: agree / disagree / partial
+>    2. One paragraph of reasoning.
+>
+>    Contested region: {path}:{line}
+>    Finding A (lens: {lensA}): {finding text}
+>    Finding B (lens: {lensB}): {finding text}
+>
+>    [Use: Capable model — debate agent. Independent run; do not see the other judge's reasoning.]
+>    ```
+
+4. **Resolve.** Apply `resolveDebate(verdictA, verdictB)` from `bin/lib/coordination.js`:
+   - Both `agree` → finding upgraded to `confirmed`. Write `AUTO {HH:MM:SS} — Debate: cross-lens disagreement on {path}:{line} converged positive after 1 round. Reversibility: high.`
+   - Both `disagree` → finding downgraded to `unconfirmed` (lands in Low-confidence subsection). Write `AUTO {HH:MM:SS} — Debate: cross-lens disagreement on {path}:{line} converged negative after 1 round. Reversibility: high.`
+   - Mixed / partial → finding becomes `contested`. Write `STAGED {HH:MM:SS} — Debate: cross-lens disagreement on {path}:{line} inconclusive ({verdicts}). Both verdicts staged. Reversibility: high.` Stage the side-by-side verdicts to `staged/review-contested-{N}.md`.
+
+5. **Skip debate** when no overlap is detected, or when only one lens covered a region. Avoid running debate on every `Path:Line` where any two lenses touched — that explodes the token budget for no value.
+
+After Step 3.5, every finding has a final bucket — `confirmed`, `unconfirmed`, or `contested`. Only `confirmed` findings flow into Step 3 Routing. `unconfirmed` and `contested` are already staged to the Wrap-Up Console.
+
 ### Step 3 Routing — Code Review Findings
 
 When all lenses returned "No findings.", skip this block and auto-advance to Step 4 (see "Auto-advance on zero findings" below).
 
-When findings exist, read `step3-routing.md` in this skill's directory for the full procedure: severity-based auto routing (with the contract floors), the interactive batch table, recommendation rules, the deferral gate, and the parallel-fix dispatch contract (3+ independent fixes via `/superpowers:dispatching-parallel-agents`).
+When `confirmed` findings exist, read `step3-routing.md` in this skill's directory for the full procedure: severity-based auto routing (with the contract floors), the interactive batch table, recommendation rules, the deferral gate, and the parallel-fix dispatch contract (3+ independent fixes via `/superpowers:dispatching-parallel-agents`). `unconfirmed` and `contested` findings do not enter Step 3 Routing — they route directly to the Wrap-Up Console (Low-confidence and Contested subsections, respectively).
 
 **Auto-advance on zero findings:** When there are zero code review findings AND zero unresolved QA ledger entries (`open` items with phase `test/qa`), auto-advance to Step 4 without waiting for user input. Present "No code review findings" as a note within the Step 4 hindsight message.
 

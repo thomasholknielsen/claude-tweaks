@@ -217,3 +217,132 @@ test('MoA: aggregator instruction template is inlined verbatim', () => {
   // Also verify the markdown doc carries the same verbatim text.
   assert.ok(PRIMITIVE_DOC.includes(expected), 'primitive doc must contain the aggregator instruction verbatim');
 });
+
+// ============================================================
+// /review integration tests (Spec 02)
+// ============================================================
+
+test('/review reproduction integration: per-lens reproduction → confirmed/unconfirmed categorisation on fixture lens outputs', () => {
+  // Fixture: 2 agents for the "security" lens. Both flag finding X at src/auth.ts:42.
+  // Agent A also flags finding Y at src/api.ts:100; agent B does not.
+  const agentA = [
+    { path: 'src/auth.ts', line: 42, severity: 'high', text: 'missing expiry check' },
+    { path: 'src/api.ts', line: 100, severity: 'medium', text: 'unhandled rejection' },
+  ];
+  const agentB = [{ path: 'src/auth.ts', line: 43, severity: 'critical', text: 'missing expiry check' }];
+  const { confirmed, unconfirmed } = c.categoriseReproduction(agentA, agentB);
+
+  // Reproduction match: src/auth.ts:42 (A) and src/auth.ts:43 (B) — line ±2, critical+high share bucket
+  assert.strictEqual(confirmed.length, 1);
+  assert.strictEqual(confirmed[0].path, 'src/auth.ts');
+
+  // One-side-only: src/api.ts:100 in A only
+  assert.strictEqual(unconfirmed.length, 1);
+  assert.strictEqual(unconfirmed[0].path, 'src/api.ts');
+  assert.strictEqual(unconfirmed[0].source, 'A');
+
+  // Decision-log entry schema
+  const lensName = 'security';
+  const confirmedEntry =
+    `- AUTO 14:32:08 — Reproduction: lens "${lensName}" finding ${confirmed[0].path}:${confirmed[0].line} reproduced. Confirmed. Reversibility: high.`;
+  assert.match(
+    confirmedEntry,
+    /^- AUTO \d{2}:\d{2}:\d{2} — Reproduction: lens ".+" finding .+:.+ reproduced\. Confirmed\. Reversibility: high\.$/,
+  );
+  const unconfirmedEntry =
+    `- STAGED 14:32:11 — Reproduction: lens "${lensName}" finding ${unconfirmed[0].path}:${unconfirmed[0].line} not reproduced. Staged to Review Console as low-confidence. Reversibility: high.`;
+  assert.match(
+    unconfirmedEntry,
+    /^- STAGED \d{2}:\d{2}:\d{2} — Reproduction: lens ".+" finding .+:.+ not reproduced\. Staged to Review Console as low-confidence\. Reversibility: high\.$/,
+  );
+});
+
+test('/review debate integration: cross-lens overlap with contradicting verdicts → debate dispatched → confirmed/unconfirmed/contested resolution per verdict combination', () => {
+  // Two lenses both touch src/auth.ts near line 42 with contradicting verdicts.
+  const findingsByLens = {
+    security: [{ path: 'src/auth.ts', line: 42, severity: 'high', text: 'token issue' }],
+    architecture: [{ path: 'src/auth.ts', line: 45, severity: 'low', text: 'minor concern' }],
+  };
+  const overlaps = c.detectCrossLensOverlap(findingsByLens);
+  assert.strictEqual(overlaps.length, 1, 'one overlap pair expected');
+  assert.strictEqual(overlaps[0].lensA, 'security');
+  assert.strictEqual(overlaps[0].lensB, 'architecture');
+
+  // Debate dispatched as a 2-agent, 1-round pair
+  const dispatch = c.buildDebateDispatch(overlaps[0].findingA);
+  assert.strictEqual(dispatch.agentCount, 2);
+  assert.strictEqual(dispatch.rounds, 1);
+
+  // Verdict resolution across all three outcomes
+  assert.strictEqual(c.resolveDebate('agree', 'agree'), 'confirmed');
+  assert.strictEqual(c.resolveDebate('disagree', 'disagree'), 'unconfirmed');
+  assert.strictEqual(c.resolveDebate('agree', 'partial'), 'contested');
+
+  const confirmedEntry = `- AUTO 14:41:02 — Debate: cross-lens disagreement on src/auth.ts:42 converged positive after 1 round. Reversibility: high.`;
+  assert.match(
+    confirmedEntry,
+    /^- AUTO \d{2}:\d{2}:\d{2} — Debate: cross-lens disagreement on .+ converged positive after 1 round\. Reversibility: high\.$/,
+  );
+  const unconfirmedEntry = `- AUTO 14:41:05 — Debate: cross-lens disagreement on src/auth.ts:42 converged negative after 1 round. Reversibility: high.`;
+  assert.match(
+    unconfirmedEntry,
+    /^- AUTO \d{2}:\d{2}:\d{2} — Debate: cross-lens disagreement on .+ converged negative after 1 round\. Reversibility: high\.$/,
+  );
+  const contestedEntry = `- STAGED 14:41:08 — Debate: cross-lens disagreement on src/auth.ts:42 inconclusive (agree, partial). Both verdicts staged. Reversibility: high.`;
+  assert.match(
+    contestedEntry,
+    /^- STAGED \d{2}:\d{2}:\d{2} — Debate: cross-lens disagreement on .+ inconclusive \(.+\)\. Both verdicts staged\. Reversibility: high\.$/,
+  );
+});
+
+test('/review summary assembly: confirmed flow to summary; unconfirmed + contested flow to Wrap-Up Console subsections', () => {
+  // Per-lens reproduction outcomes
+  const lensSecurity = c.categoriseReproduction(
+    [{ path: 'src/auth.ts', line: 42, severity: 'high', text: 'X' }],
+    [{ path: 'src/auth.ts', line: 43, severity: 'critical', text: 'X' }],
+  );
+  const lensArchitecture = c.categoriseReproduction(
+    [{ path: 'src/api.ts', line: 200, severity: 'medium', text: 'Y' }],
+    [],
+  );
+
+  // Cross-lens overlap on a third file with contested debate outcome
+  const overlapVerdict = c.resolveDebate('agree', 'partial');
+
+  // Three-bucket assembly
+  const buckets = {
+    confirmed: [...lensSecurity.confirmed, ...lensArchitecture.confirmed],
+    unconfirmed: [...lensSecurity.unconfirmed, ...lensArchitecture.unconfirmed],
+    contested: overlapVerdict === 'contested' ? [{ path: 'src/storage.ts', line: 10 }] : [],
+  };
+
+  // Confirmed flows into the review summary's severity table
+  assert.strictEqual(buckets.confirmed.length, 1);
+  assert.strictEqual(buckets.confirmed[0].path, 'src/auth.ts');
+
+  // Unconfirmed flows into the Low-confidence Console subsection
+  assert.strictEqual(buckets.unconfirmed.length, 1);
+  assert.strictEqual(buckets.unconfirmed[0].path, 'src/api.ts');
+
+  // Contested flows into the Contested Console subsection
+  assert.strictEqual(buckets.contested.length, 1);
+
+  // No silent drops: total in equals total out
+  const totalIn = 1 /* security reproduced */ + 1 /* architecture A only */ + 1 /* contested overlap */;
+  const totalOut = buckets.confirmed.length + buckets.unconfirmed.length + buckets.contested.length;
+  assert.strictEqual(totalOut, totalIn, 'no silent drops — every finding ends up in exactly one bucket');
+
+  // Verify the wrap-up Review Console template documents the two new subsections.
+  const REVIEW_CONSOLE = fs.readFileSync(
+    path.join(__dirname, '..', 'skills', 'wrap-up', 'review-console.md'),
+    'utf8',
+  );
+  assert.ok(
+    REVIEW_CONSOLE.includes('Low-confidence findings (not reproduced)'),
+    'review-console.md must document the Low-confidence subsection',
+  );
+  assert.ok(
+    REVIEW_CONSOLE.includes('Contested findings (debate inconclusive)'),
+    'review-console.md must document the Contested subsection',
+  );
+});

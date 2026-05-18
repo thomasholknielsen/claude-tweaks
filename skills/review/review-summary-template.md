@@ -30,11 +30,13 @@ Possible QA statuses:
 - **PARTIAL FAILURE** — some stories failed (see findings in QA report)
 - **Skipped** / **Not run** — QA did not execute
 
-### Code Review Findings
+### Code Review Findings (confirmed)
 | Category | Finding | Severity | Action |
 |----------|---------|----------|--------|
 | {convention/security/error/perf/arch/test} | {finding} | {low/medium/high} | {fixed/captured/accepted} |
 (or: No findings — code is clean.)
+
+> This table lists only `confirmed` findings — findings reproduced by both agents in the per-lens reproduction pair, or upgraded to `confirmed` after a cross-lens debate round (Step 3.5). Findings flagged `unconfirmed` (single-source or debate converged negative) and `contested` (debate inconclusive) are staged to the Wrap-Up Review Console — they are not silently dropped. Override or apply each in batch from the Console.
 
 ### Implementation Hindsight
 - {finding} → {change now / capture to INBOX / accept as-is — not an improvement because {reason}}
