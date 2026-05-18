@@ -58,11 +58,11 @@ Not every INBOX item needs debiasing. Skip when:
 
 ## Auto-mode
 
-`/claude-tweaks:challenge` lenses are explicitly NOT silenced in `auto` mode (see `_shared/auto-mode-contract.md`). The lenses' value IS the user engagement they force — auto-routing them defeats the entire purpose of debiasing.
+`/claude-tweaks:challenge`'s **Listen** (Step 1) and **Reflect-back** (Step 2) steps are NOT silenced in `auto` mode (see `_shared/auto-mode-contract.md`) — they're the user-engagement entry points where the problem statement is supplied and confirmed. After Reflect-back, lens proposers and the aggregator run autonomously per Mode 4 (Layered MoA) of the multi-agent coordination primitive — there is no per-lens user prompt cycle.
 
 ## The Debiasing Lenses
 
-Work through these lenses **in order**. Each lens builds on the previous. Do NOT rush through them — spend real time on each one before moving on. Use `AskUserQuestion` to engage the user at each step.
+The seven lenses below define the debiasing perspectives. Under the MoA process (see Process section below), each applicable lens becomes a **parallel proposer** that reads the problem statement once and surfaces what its lens uniquely reveals. The proposer prompts inline the lens question verbatim from each section. Lenses are not run sequentially in dialog with the user; they run in parallel, and a single aggregator round synthesises their outputs into the Brainstorming Brief.
 
 ### Lens 1: Surface Hidden Assumptions
 
@@ -140,13 +140,75 @@ Ask: *"Is this even the right question to ask?"*
 
 ## Process
 
-1. **Listen** — Let the user explain their problem fully. Do not interrupt with lenses yet.
-2. **Reflect back** — Summarize what you heard in 2-3 sentences. Ask if that's accurate.
-3. **Work through lenses** — One at a time. Ask one question per message. Wait for the user's response before moving to the next lens.
-   - **Quick mode:** Run only Lens 1 (Surface Hidden Assumptions) and Lens 7 (The Meta-Question). Skip Lenses 2-6 entirely. This is a sanity check, not a full debiasing session.
-   - **Full mode:** Run all applicable lenses. Skip irrelevant ones — if a lens clearly doesn't apply, acknowledge it briefly and move on. Not every problem needs all 7 lenses.
-4. **Stop when the frame shifts** — If a lens produces a genuine "aha" moment, don't mechanically continue through remaining lenses. Follow the energy.
-5. **Synthesize** — After the lenses, produce the Brainstorming Brief (see Output below).
+The process is a layered Mixture of Agents (Mode 4 from `skills/_shared/multi-agent-coordination.md`) — parallel lens proposers, then one sequential aggregator. Listen + Reflect-back are the only user-engagement steps; everything after Step 2 runs autonomously.
+
+1. **Listen** — Let the user explain their problem fully. Do not interrupt. (User-engagement step — protected in `auto` mode per `_shared/auto-mode-contract.md`.)
+
+2. **Reflect back** — Summarize what you heard in 2-3 sentences. Ask if that's accurate. If the user disagrees, fix the summary via dialog before dispatching proposers — do not pre-dispatch and then dialog. (Also protected in `auto` mode.)
+
+3. **Dispatch proposers (parallel).** Dispatch one proposer per applicable lens via the Subagent Contract.
+
+> **Parallel execution:** Dispatch the applicable lens proposers as parallel Task agents — each runs independently and returns a free-form 2-4 paragraph debiasing perspective. Assemble outputs after all agents complete.
+>
+> **Contract:** Each agent follows the Subagent Contract — minimal input (problem statement + reflected summary + INBOX context + the lens question), one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED` as its first reply line. Tier: **Standard** (Sonnet). Read-only — proposers debias the framing, they do not act on the problem.
+>
+> **Mode 4 proposer prompt skeleton (inline verbatim per proposer, replacing `{Lens N}` with the matching section above):**
+>
+> ```
+> Task scope: Apply the {Lens N name} lens to the problem statement below.
+> Lens instruction: {full content of the Lens N section, verbatim}
+> Output: A debiasing perspective focused on this lens only. Surface assumptions, blind spots, or framings that this lens uniquely reveals. Do not write a brief — that's the aggregator's job. Format: free-form 2-4 paragraphs.
+> Constraint: Read-only. Do not act on the problem; only debias the framing.
+>
+> Original problem statement: {problem from Step 1}
+> Reflected summary: {summary from Step 2}
+> INBOX context (if applicable): {INBOX entry}
+>
+> [Use: Standard model — MoA proposer.]
+> ```
+
+   - **Full mode:** Dispatch all 7 lens proposers in parallel. The aggregator will deweight any irrelevant proposer outputs during synthesis — do NOT pre-filter lenses for "relevance," dispatch all 7.
+   - **Quick mode:** Dispatch 2 lens proposers in parallel — Lens 1 (Surface Hidden Assumptions) and Lens 7 (The Meta-Question). Aggregation still runs.
+
+4. **Dispatch aggregator (sequential).** Exactly 1 aggregator agent receives all proposer outputs verbatim. Inline the verbatim Mode 4 aggregator instruction template:
+>
+> ```
+> Task scope: Read N candidate debiasing perspectives below. Identify what each captures that the others miss. Produce a single output that incorporates the strongest elements of each. Do not list which proposer contributed which idea. Do not produce an analysis of the proposers.
+>
+> Original problem statement: {problem from Step 1}
+> Reflected summary: {summary from Step 2}
+> INBOX context (if applicable): {INBOX entry}
+>
+> Proposer outputs (N total):
+> --- Proposer 1 ({Lens 1 name}) ---
+> {proposer 1 output verbatim}
+> --- Proposer 2 ({Lens 2 name}) ---
+> {proposer 2 output verbatim}
+> ... (repeat for all proposers)
+>
+> Output: The Brainstorming Brief with these exact sections (in this order):
+> ## Brainstorming Brief: {topic}
+> ### Original Framing
+> ### Reframed Problem
+> ### Key Assumptions Surfaced
+> ### Blind Spots Identified
+> ### Constraints to Carry Forward
+> ### Open Questions for Brainstorming
+>
+> Constraint: Read-only synthesis. Do not write to disk — return the brief content; the dispatcher saves it.
+>
+> [Use: Capable model — MoA aggregator. Synthesis is judgment-heavy.]
+> ```
+
+   Aggregator tier: **Capable** (Opus). Do not downgrade to Standard — synthesis quality is the entire reason `/challenge` exists, and the Subagent Contract recommends Capable for "design synthesis, UX analysis, ambiguous calibration."
+
+5. **Save the brief.** Write the aggregator's output to `docs/plans/{YYYY-MM-DD}-{topic}-brief.md` using the schema in the Output section below (no schema drift). Append exactly ONE `AUTO` entry to `decisions.md` per MoA invocation:
+   ```
+   - AUTO {HH:MM:SS} — MoA: applied {N} proposers + 1 aggregator on {topic|INBOX item N}. Aggregator tier: Capable.
+   ```
+   Do NOT log per-proposer dispatches separately — the MoA invocation is a single coordination event.
+
+After Step 5, run the Brief Self-Review pass (unchanged — see below).
 
 ---
 

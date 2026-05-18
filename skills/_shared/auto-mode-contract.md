@@ -163,7 +163,7 @@ When any floor fails, the skill MUST stage the decision (log it, don't act) and 
 | Ledger resolve gate Phase 2 (every open item, per-item) | Items represent unfinished work — silently dropping them is the bug `auto` is *not* allowed to introduce |
 | `specs/INBOX.md` writes | Each entry needs explicit user approval — INBOX is the user's queue, not the model's |
 | `specs/DEFERRED.md` writes | Same — deferral is a user decision |
-| `/challenge` lenses | The *purpose* is mid-flow user engagement. Auto would defeat the skill. |
+| `/challenge`'s Listen + Reflect-back steps | The user-engagement entry points where the problem statement is supplied and confirmed. After Reflect-back, lens proposers + the aggregator run autonomously per Mode 4 (Layered MoA) — those are not user-prompt cycles. |
 | `/init` Phase 4 (skill manifest), Phase 8 (Impeccable), Phase 9 (final confirmation), scope-selection gate | Project-shape governance decisions are user-only |
 | HARD-GATE / BLOCKED / STOP conditions | `/review` Step 1 spec compliance, `/review` Step 1.5 test gate, `/flow` Step 2.6 hard fails, `/flow` Step 2.7 design-doc rejection, `/build` Design Step 3 plan validation, `/build` Common Step 1.5 plan audit hard-fails. These prevent degraded output. |
 | Hard validation failures (uncommitted changes, missing prereqs, malformed input) | Correctness gates. Bypassing them produces broken pipelines. |
