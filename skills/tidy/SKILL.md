@@ -24,6 +24,10 @@ Periodic backlog hygiene to keep the spec system healthy. Run when the backlog f
 - Monthly hygiene pass
 - When `/claude-tweaks:help` flags issues
 
+## Input
+
+`$ARGUMENTS` is not used by /tidy. The skill scans `specs/INBOX.md`, `specs/DEFERRED.md`, `specs/`, design docs, plans, worktrees, and the doc registry from their canonical locations; an aggressiveness override (when needed) is read from the active pipeline run's `config.yml` (Manifesto `tidy-aggressiveness` lever), not from arguments.
+
 ## Steps 1-4.6: Scan Everything
 
 > **No decisions during scanning.** Steps 1-4.6 silently collect all findings. Everything is presented as one batch in Step 6 for approval. This replaces the previous per-item decision model.
@@ -173,38 +177,12 @@ Items recommended as "Keep" are included for visibility but require no action. O
 
 ## Step 7: Execute Approved Actions
 
-Execute each approved action per the Action Vocabulary. Every action must be atomic — complete all its execution steps or none.
+Execute each approved action per the Action Vocabulary table — that table is the canonical reference for per-action execution rules (remove from source / write to DEFERRED.md / integrate into target spec / tag with `**Promoted:**`). Every action must be atomic: complete all its execution steps or none.
 
-### Deletes
+Cross-action housekeeping (apply once per run after all actions execute):
 
-Remove entries from their source file (`specs/INBOX.md`, `specs/DEFERRED.md`, design docs, plans, worktrees, branches).
-
-### Defers
-
-1. Add entry to `specs/DEFERRED.md` with `**Deferred:** {date} | **From:** {source} | **Trigger:** {condition}`
-2. Remove from source file
-
-### Merges
-
-1. Read the target spec file
-2. Integrate the merged scope into the spec's existing structure:
-   - Add new items to the **Deliverables** checklist
-   - Add new assertions to **Acceptance Criteria**
-   - Update **Technical Approach** if the merge adds architectural decisions
-   - Add to **Gotchas** if the merged item has caveats
-3. Update the spec's `Last Updated` date
-4. Remove from source file (INBOX or DEFERRED)
-
-### Promotes
-
-Tag the INBOX entry with `**Promoted:** {date} — awaiting brainstorm`. Do NOT remove from INBOX.
-
-For deferred items being promoted: move the entry to INBOX with the `**Promoted:**` tag, then remove from DEFERRED.md.
-
-### Other actions
-
-- Update `specs/INDEX.md` if specs were merged, split, or removed
-- Remove worktrees with `git worktree remove {path}`, delete branches with `git branch -d {name}`
+- Update `specs/INDEX.md` if any specs were merged, split, or removed.
+- Remove worktrees with `git -C "{REPO_ROOT}" worktree remove {path}`; delete branches with `git -C "{REPO_ROOT}" branch -d {name}` (see Step 4.5 working-directory discipline).
 
 ## Step 7.5: Verify Execution
 

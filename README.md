@@ -19,9 +19,9 @@ Run `/claude-tweaks:init` against your existing project to refresh the configura
 
 `/claude-tweaks:research` adds citation-audited deep web research to the plugin. Four runtime modes trade depth for time:
 
-- **quick** (~2-5 min) — fast scan, ~5-10 sources
-- **standard** (~5-15 min) — balanced default
-- **deep** (~15-30 min) — comprehensive synthesis with broader source pool
+- **quick** (~2-5 min, 5+ sources) — fast scan
+- **standard** (~5-10 min, 10+ sources) — balanced default
+- **deep** (~10-20 min, 15+ sources) — comprehensive synthesis with broader source pool
 - **ultradeep** (~20-45 min) — multi-persona red-team with adversarial review
 
 Vendored from [199-biotechnologies/claude-deep-research-skill](https://github.com/199-biotechnologies/claude-deep-research-skill) (MIT). See `skills/research/UPSTREAM.md` for the vendoring contract, pinned commit, modifications, and update runbook. Reports land under `.claude-tweaks/research/`.
@@ -30,8 +30,8 @@ Vendored from [199-biotechnologies/claude-deep-research-skill](https://github.co
 
 The pipeline now has at most **two user-facing stops in `auto` mode**, regardless of how many decisions it makes:
 
-- **Pipeline Config Manifesto** at the start (`/flow` Step 1.6) — one structured table pre-fills every policy lever (scope-creep, overlap, design-intent, leftover-routing, auto-fix-threshold, review-severity-floor, tidy-aggressiveness) with recommended defaults. Hit "Approve all recommendations" or override specific items.
-- **Wrap-Up Review Console** at the end (`/wrap-up` Step 9.6) — one consolidated batch surfacing every auto-decided item, every staged item, skill updates, and config changes. Hit "Approve all" or override specific items.
+- **Pipeline Config Manifesto** at the start (`/flow` Step 3) — one structured table pre-fills every policy lever (scope-creep, overlap, design-intent, leftover-routing, auto-fix-threshold, review-severity-floor, tidy-aggressiveness) with recommended defaults. Hit "Approve all recommendations" or override specific items.
+- **Wrap-Up Review Console** at the end (`/wrap-up` Step 8.6) — one consolidated batch surfacing every auto-decided item, every staged item, skill updates, and config changes. Hit "Approve all" or override specific items.
 - **Mid-flow** — pure automation. Every decision is logged to `.claude-tweaks/pipelines/{run-id}/decisions.md` with status (AUTO / STAGED / KEPT-PROMPT), rationale, and reversibility. The Review Console reads this log.
 
 New shared files:
@@ -229,6 +229,8 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 **`/claude-tweaks:research`** — Deep web research with citation-audited reports. Four runtime modes from quick (~2-5 min) to ultradeep (~20-45 min, multi-persona red-team). Built on [199-biotechnologies/claude-deep-research-skill](https://github.com/199-biotechnologies/claude-deep-research-skill) (MIT) — see `skills/research/UPSTREAM.md`.
 
 **`/claude-tweaks:ledger`** — Query and resolve the open items ledger (`docs/plans/*-ledger.md`) that tracks findings across all pipeline phases. The ledger is a file on disk — it survives context window compression so findings from one phase aren't lost before a later phase can act on them.
+
+**`/claude-tweaks:version`** — Reports the installed claude-tweaks plugin version (read from `.claude-plugin/plugin.json`). Useful for verifying the marketplace install picked up the right version.
 
 **`/claude-tweaks:design`** *(v4.5.0)* — Wrapper for the [Impeccable](https://github.com/pbakaus/impeccable) frontend-design plugin. Six active modes:
 

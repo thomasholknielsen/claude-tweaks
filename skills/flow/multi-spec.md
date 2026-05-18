@@ -8,6 +8,9 @@ Before starting, validate the spec list:
 
 1. **Parse** — split on commas, resolve each to a spec file
 2. **Prerequisites** — check that each spec's `blocked-by` is satisfied. Reject any spec with unmet prerequisites.
+
+> **Parallel execution:** Use parallel tool calls aggressively — frontmatter reads across N specs (step 3 below) are independent and should run concurrently.
+
 3. **Frontmatter pre-flight** — for each spec, read frontmatter in one parallel pass and collect `depends-on:`, `Files:`, `surface:`, `design-intent:`. These feed the ordering check, conflict detection, and Pipeline Preview.
 4. **Dependency-aware ordering** — see "Dependency-aware ordering" below. Topologically sort and reconcile with the user's order.
 5. **Conflict detection** — see "Cross-spec conflict detection" below. Warn on overlapping `Files:` declarations.

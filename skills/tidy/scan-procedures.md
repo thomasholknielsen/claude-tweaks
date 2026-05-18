@@ -88,9 +88,11 @@ Scan `docs/superpowers/plans/` for execution plan files and `~/.claude/plans/`.
 
 ## Step 4.5: Audit Git Worktrees and Build Branches
 
-**Worktrees:** Run `git worktree list`. Any worktree beyond the main working tree is a candidate.
+**Working-directory discipline:** every `git` command in this step (and in any dispatched parallel agent) MUST be anchored with `git -C "{REPO_ROOT}"` (or run after `cd "{REPO_ROOT}"`). `{REPO_ROOT}` resolves via `git rev-parse --show-toplevel` in the dispatcher before any agent fires. See `_shared/git-discipline.md` and the Working Directory Discipline section in `_shared/subagent-output-contract.md`. CWD does not propagate reliably across parallel agents — without the anchor, branch deletions and worktree removals can land in the wrong checkout.
 
-**Build branches:** Run `git branch --list "build/*"`.
+**Worktrees:** Run `git -C "{REPO_ROOT}" worktree list`. Any worktree beyond the main working tree is a candidate.
+
+**Build branches:** Run `git -C "{REPO_ROOT}" branch --list "build/*"`.
 
 | Status | Recommendation |
 |--------|---------------|
@@ -101,7 +103,7 @@ Scan `docs/superpowers/plans/` for execution plan files and `~/.claude/plans/`.
 
 → Collect each as: `[git] {worktree/branch} — {recommendation}`
 
-Use `git branch -d` (safe delete, refuses if unmerged). Use `git worktree remove {path}` for worktrees. If `-d` refuses, surface the branch as **`unmerged — manual review required`** rather than escalating to `-D` — destructive deletes are never autonomous in /tidy.
+Use `git -C "{REPO_ROOT}" branch -d {branch}` (safe delete, refuses if unmerged). Use `git -C "{REPO_ROOT}" worktree remove {path}` for worktrees. If `-d` refuses, surface the branch as **`unmerged — manual review required`** rather than escalating to `-D` — destructive deletes are never autonomous in /tidy.
 
 ## Step 4.6: Audit Doc Registry
 

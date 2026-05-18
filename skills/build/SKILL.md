@@ -96,7 +96,7 @@ When only ONE was provided as an argument (e.g., `/build 42 batched`), ask just 
 ```
 Resolve input
     ↓
-Spec mode? ──yes──→ [Spec Steps 1-3]
+Spec mode? ──yes──→ [Spec Steps 1, 2, 2.5 (Manual Steps classification), 3]
     │                       ↓
     no (design mode)        │
     ↓                       │
@@ -387,14 +387,22 @@ Generate from: `git log --oneline` since build start, `git diff --stat` against 
 
 ### Next Actions
 
-Generate 2-4 numbered options based on context (these are emitted by the skill, not the template):
+Generate 2-4 numbered options based on context. Example rendering (the signal-to-option table below is the lookup the generator uses to populate the numbered list):
+
+```
+1. /claude-tweaks:review 42 full — code + visual review **(Recommended)**
+2. /claude-tweaks:test qa — validate 7 QA stories before review
+3. /superpowers:finishing-a-development-branch — merge, PR, or discard the feature branch
+```
+
+Signal-to-option lookup:
 
 | Signal | Option |
 |--------|--------|
 | UI changed + browser available | `/claude-tweaks:review {N} full` — code + visual review **(Recommended)** |
 | No browser or no UI | `/claude-tweaks:review {N}` — code review **(Recommended)** |
-| QA stories exist (`stories/*.yaml`) | `/claude-tweaks:test qa` — validate {X} QA stories before review |
-| Worktree mode | `/superpowers:finishing-a-development-branch` — merge, PR, or discard the feature branch |
+| QA stories exist (`stories/*.yaml` or `stories/*.yml`) | `/claude-tweaks:test qa` — validate {X} QA stories before review |
+| Worktree mode | `/superpowers:finishing-a-development-branch` — merge, PR, or discard the feature branch **(Recommended in worktree mode)** |
 
 ## Git Strategy
 
@@ -415,6 +423,10 @@ These apply in **subagent** execution strategy. In **batched** strategy, autonom
 - **Do not present options** — pick the best one and implement it.
 - **If ambiguous**, choose the simpler approach and note the alternative in a code comment.
 
+## Component-Skill Contract
+
+`/claude-tweaks:build` is invoked by `/claude-tweaks:flow` as the implementation stage of the pipeline. Parent invocation is signaled by the `PIPELINE_RUN_DIR` env var (set by `/flow` when it spawns this skill — also resolvable via the most-recent matching run under `.claude-tweaks/pipelines/`). When `PIPELINE_RUN_DIR` is set, omit the `### Next Actions` block at the end of Step 7 — the parent `/flow` owns the handoff and renders its own Pipeline Summary + Next Actions. When invoked directly by a user (no `PIPELINE_RUN_DIR`), render Next Actions as documented in Step 7. The Manual Steps section likewise defers its rendering to the parent's summary when invoked under `/flow` (see Step 5.5).
+
 ## Anti-Patterns
 
 | Pattern | Why It Fails |
@@ -424,7 +436,7 @@ These apply in **subagent** execution strategy. In **batched** strategy, autonom
 | Using `git reset` or `git checkout .` | Other processes may be committing concurrently — destroys their work |
 | Skipping code simplification | Iterative implementation accumulates unnecessary complexity across tasks |
 | Building a spec with unmet prerequisites | Downstream specs depend on upstream work — check the dependency graph first |
-| Skipping journey capture for features with an interaction surface | Journeys give visual review a structured path to walk — but visual review is valuable even without journeys (page-level inspection catches layout, styling, and interaction issues). This applies to all personas: end users, admins, developers, internal tooling users. |
+| Skipping journey capture for features with an interaction surface | Journeys give visual review a structured path to walk and feed `/stories` for QA generation. This applies to all personas: end users, admins, developers, internal tooling users. |
 | Writing journeys with vague "should feel" | "Good" and "intuitive" are not testable. "Low commitment" and "like an accomplishment" are. |
 | Asking the user whether to create a journey | Journey capture is automatic. The user didn't know they needed the spec either — that's why the workflow exists. |
 | Ignoring architectural deviations from the spec | Drift happens during implementation — catch it in Step 4.5 before it becomes tech debt. Every deviation must be explicitly classified. |

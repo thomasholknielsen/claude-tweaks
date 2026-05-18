@@ -43,7 +43,7 @@ One-stop reference and status dashboard for the workflow system. Combines comman
 
 *(Skip if `$ARGUMENTS` = `status`)*
 
-For the canonical cheat sheet — lifecycle, component, and utility commands; common workflows; artifact lifecycle; bookend architecture summary — read `reference-card.md` in this skill's directory and present its contents. The reference card is the single source of truth for the command catalog; do not maintain a separate copy here.
+For the canonical cheat sheet — lifecycle, component, and utility commands; common workflows; artifact lifecycle; bookend architecture summary — read `reference-card.md` in this skill's directory. **Rendering rule:** present the Lifecycle / Component / Utility command tables verbatim. Collapse the Common Workflows section to a list of workflow headings (e.g., "New repo bootstrap", "Full pipeline", "Resume from step") unless the user explicitly asked for "examples" or "workflows" in `$ARGUMENTS` — in that case, render the workflows verbatim too. Always keep the Artifact Lifecycle and Bookend Architecture summary verbatim. The reference card is the single source of truth for the command catalog; do not maintain a separate copy here.
 
 ---
 

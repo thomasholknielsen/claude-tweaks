@@ -169,7 +169,7 @@ Callers must handle both. Skips are not failures — they are valid outcomes tha
 
 Lazy-load these only when needed for the active mode:
 
-- `modes/{name}.md` — Per-mode full procedure (steps, decision rules, output format). One file per mode: `test`, `review`, `shape`, `pre-build`, `polish`, `survey`, `reset-recommendations`.
+- `modes/{name}.md` — One file per mode (`test`, `review`, `shape`, `pre-build`, `polish`, `survey`), plus a procedure file for the `reset-recommendations` cache utility. Per-mode full procedure (steps, decision rules, output format).
 - `command-map.md` — Single source of truth for dispatch tables: auto-fit / issue-driven / intent-driven categorization for all 23 Impeccable commands, plus the survey "would help" criteria → command mapping.
 - `frontend-detection.md` — Trigger extensions and path patterns for Layer 3 sniff; pointer to the canonical `surface:` and `design-intent:` frontmatter spec (which lives in `skills/specify/spec-template.md`).
 - `impeccable-cli.md` — Exact CLI invocation, JSON output schema, parsing rules.

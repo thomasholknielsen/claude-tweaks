@@ -95,7 +95,8 @@ The qualifier adds specificity when a skill produces multiple finding types, but
 | `build` | `/claude-tweaks:build` | Architecture deviations, blocked work, shared constants |
 | `build/ops` | `/claude-tweaks:build` | Operational requirements that survived the platform probe — auto-executable items do not appear here |
 | `build/skill` | `/claude-tweaks:build` | Skill update candidates from build observations |
-| `test` | `/claude-tweaks:test` (QA mode) | QA story failures and observations |
+| `test` | `/claude-tweaks:test` | Standard verification failures (types / lint / tests) |
+| `test/qa` | `/claude-tweaks:test` (QA mode) | QA story failures and observations from `qa-reporting.md` Phase 5.5 |
 | `review` | `/claude-tweaks:review` | Code review findings (all categories) |
 | `review/skill` | `/claude-tweaks:review` | Skill update candidates from review |
 | `review/hindsight` | `/claude-tweaks:reflect` (hindsight mode, via /review) | Implementation hindsight findings |
@@ -173,21 +174,11 @@ Read the ledger and filter by criteria:
 
 ### Resolve Gate (Nothing-Left-Behind)
 
-The critical gate that prevents dropped work. Called by `/claude-tweaks:wrap-up` Step 8.5 and `/claude-tweaks:flow` Step 5.
-
-The gate runs in three phases:
-
-1. **Phase 1 — Exhaust fixes (agent, silent)** — for each `open` item, fix it now if it qualifies (localized change, no pending dependencies, no user decisions, no external state, no scope blow-up). Default is fix; defer is the exception.
-2. **Phase 2 — Present remainder (per-item user input required)** — only items the agent could not fix remain. Present them in a numbered table; the user picks per-item from six choices (Fix anyway / Defer / INBOX / Accept / Acknowledge / Drop). Wait for explicit per-item input — never bulk-route, never offer "apply all" as a default.
-3. **Phase 3 — Apply user decisions** — write each user-chosen disposition (DEFERRED.md, INBOX.md, ledger status update) only after the user has spoken for that specific item.
-
-**`auto` mode does NOT silence this gate.** Per-item user input is mandatory regardless of mode. The pipeline cannot complete with unresolved items — this is a hard gate.
-
-For the full procedure (fix-qualification criteria, bad-reasons-to-skip list, presentation template, per-disposition write semantics), read `resolve-gate.md` in this skill's directory.
+The critical gate that prevents dropped work — three phases (Phase 1 fix-exhaust → Phase 2 per-item user input → Phase 3 apply). Full procedure lives in `resolve-gate.md` in this skill's directory (also referenced from the "Resolve Gate (canonical reference)" section below). Called by `/claude-tweaks:wrap-up` Step 8.5 and `/claude-tweaks:flow` Step 5.
 
 ### Delete
 
-Delete the ledger file after all items are resolved. Called by `/claude-tweaks:wrap-up` Step 5.
+Delete the ledger file after all items are resolved. Called by `/claude-tweaks:wrap-up` Step 10 (planned in Step 5).
 
 Only delete when the resolve gate has passed — all items must have terminal statuses.
 
@@ -208,6 +199,14 @@ Only delete when the resolve gate has passed — all items must have terminal st
 1. Find the active ledger (most recent `docs/plans/*-ledger.md`)
 2. Run the resolve gate procedure
 3. Present results
+
+## Component-Skill Contract
+
+`/claude-tweaks:ledger` is invoked by `/claude-tweaks:build`, `/claude-tweaks:test`, `/claude-tweaks:review`, `/claude-tweaks:wrap-up`, and `/claude-tweaks:flow` for ledger create / add-item / update / query / resolve / delete operations. Parent invocation is signaled by the argument shape — `create {feature}`, `add {phase} "{item}"`, `update {n} {status}`, `query`, `resolve`, `delete` are the component-invocation API; the standalone `(none)` / `{feature-name}` / `resolve` forms are the user-facing entrypoints. When invoked as a component (any operation argument), do not render a `### Next Actions` block — the parent owns the handoff. When invoked standalone or with `resolve`, render Next Actions as documented. The resolve gate Phase 2 is on the "What `auto` does NOT silence" list regardless of caller.
+
+## Resolve Gate (canonical reference)
+
+Read `resolve-gate.md` in this skill's directory for the three-phase nothing-left-behind procedure (Phase 1 fix-exhaust → Phase 2 per-item user input → Phase 3 apply). Phase 2 is on the "What `auto` does NOT silence" list in `_shared/auto-mode-contract.md`. Called by `/claude-tweaks:wrap-up` Step 8.5 and `/claude-tweaks:flow` Step 5.
 
 ## Anti-Patterns
 

@@ -8,6 +8,7 @@ QA collection, recoveries, reporting, and ledger writes — Phases 4, 4.5, 5, 5.
     - Steps completed vs total (from the `Steps: X/Y` portion)
     - Caveats array (from the `REPORT_JSON` comment's `caveats` field — may be empty)
     - Recovered selectors array (from the `REPORT_JSON` comment's `recovered_selectors` field — may be empty)
+    - Page inventories array (from the `REPORT_JSON` comment's `page_inventories` field — one entry per unique URL visited, may be empty)
     - Trace path (from the `TRACE:` line, if present — only for failures)
     - The full agent report text
     - Elapsed time (from the timing data recorded in Phase 3, step 20)
@@ -119,6 +120,17 @@ After ALL agents in a tier complete (not during execution — to avoid file writ
       "target": "target description"
     }
   ],
+  "page_inventories": [
+    {
+      "story_id": "story-id",
+      "url": "absolute URL",
+      "element_counts": { "buttons": N, "inputs": N, "links": N, "headings": N },
+      "forms": [{ "id_or_label": "form name", "field_count": N }],
+      "nav_landmarks": ["nav role/label"],
+      "accessibility": { "missing_alts": N, "missing_labels": N },
+      "viewport": { "width": W, "height": H }
+    }
+  ],
   "stories": [
     {
       "id": "story-id",
@@ -137,7 +149,7 @@ After ALL agents in a tier complete (not during execution — to avoid file writ
 }
 ```
 
-The `summary.passed` count includes both PASS and PASS_WITH_CAVEATS stories (since caveats are informational). The `summary.pass_with_caveats` count is the subset of passed stories that had caveats. The `findings` array contains classified failure findings and caveat-derived ux-issue findings. Each failure finding includes the `trace` path captured by the qa-agent before closing the session — open the trace with `agent-browser trace view <path>`. The `caveats` array contains raw observations from PASS_WITH_CAVEATS stories. The `recovered_selectors` array contains all locator recoveries across all stories — each entry includes the source file and step index so the YAML update can be traced.
+The `summary.passed` count includes both PASS and PASS_WITH_CAVEATS stories (since caveats are informational). The `summary.pass_with_caveats` count is the subset of passed stories that had caveats. The `findings` array contains classified failure findings and caveat-derived ux-issue findings. Each failure finding includes the `trace` path captured by the qa-agent before closing the session — open the trace with `agent-browser trace view <path>`. The `caveats` array contains raw observations from PASS_WITH_CAVEATS stories. The `recovered_selectors` array contains all locator recoveries across all stories — each entry includes the source file and step index so the YAML update can be traced. The `page_inventories` array contains structured snapshot data per unique URL — consumed by `/review` lens 3h (UX analysis, `ux-analysis.md`) and `/visual-review` (`browser-review.md` Step 2) to ground page-level recommendations in observed structure.
 
 **`{RUN_DIR}/report.md`** — human-readable (same format as the report below).
 

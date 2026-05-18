@@ -26,7 +26,8 @@ The pipeline has at most two stops in `auto` mode, regardless of how many decisi
 └─────────────────────────────┘                                  └─────────────────────────┘
 ```
 
-- **Begin stop** — one structured numbered-options block at pipeline start (a single message with all levers pre-filled and an Approve all / Override / Cancel choice — not a chain of per-lever questions) collects all policy levers (scope-creep, overlap, design-intent, leftover-routing, auto-fix-threshold). Saved to `config.yml` inside the run directory at `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`.
+- **Begin stop** — one structured numbered-options block at pipeline start collects all policy levers (scope-creep, overlap, design-intent, leftover-routing, auto-fix-threshold, review-severity-floor, tidy-aggressiveness). Saved to `config.yml` inside the run directory at `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`.
+- **One message, not many.** The begin stop is a single message with every lever pre-filled and an Approve all / Override / Cancel choice. Never a chain of per-lever questions — if you need to ask twice, you've already broken the bookend.
 - **Mid-flow** — skills look up policy and execute. Every auto-decision lands in the auto-decision log.
 - **End stop** — `/wrap-up` Review Console presents one consolidated batch table covering everything that was auto-decided or staged.
 
@@ -139,7 +140,7 @@ When any floor fails, the skill MUST stage the decision (log it, don't act) and 
 | Design intent (`/specify` Step 2.5c) | 6-way creative direction | Apply manifesto value (default `none` — no intent applied) |
 | Code review findings (`/review` Step 3 Routing) | Apply all / override | Severity:low → `AUTO`; severity:medium → `STAGED`; severity:high → `KEPT-PROMPT` |
 | Tidy cleanup (`/tidy`) | Per-item decision | Auto-apply Keep and unambiguous Delete; stage Merge/Promote/ambiguous |
-| Test fix mode (`/test` Step 1) | Auto-fix / show / skip | Auto-fix lint and type-only failures (per `auto-fix-threshold` policy); stage test failures |
+| Test fix mode (`/test` Step 3) | Auto-fix / show / skip | Auto-fix lint and type-only failures (per `auto-fix-threshold` policy); stage test failures |
 | Visual-review prereqs (`/visual-review` Step 1) | Install / skip | Auto-skip if not installed; surface in report |
 | Visual-review dev URL (`/visual-review` Step 2) | Try other / wait | Auto-skip with "dev URL unreachable" log entry; do not retry |
 | Stories v1 detection (`/stories` Step 1) | Regenerate all / diff / cancel | Auto-skip migration; stage as "legacy stories detected" |

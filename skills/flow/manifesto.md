@@ -75,6 +75,8 @@ When a lever is suppressed, mention it once in the Suppressed footer below the t
 
 I've pre-filled recommendations from project policy + sensible defaults. The Recommendation is **bold** inside the Options column so override is "spot the not-bold one."
 
+**Canonical lever numbering** (stable across all `/flow` runs): 1=Mode, 2=Scope-creep, 3=Overlap, 4=Design intent, 5=Leftover routing, 6=Auto-fix threshold, 7=Review severity floor, 8=Tidy aggressiveness. The table below shows only the levers active for this run; the **Suppressed** line below names which numbers are unselectable.
+
 | # | Lever | Recommended | Options | Effect if approved |
 |---|---|---|---|---|
 | 1 | Mode | **auto** | **auto** / hybrid / interactive | Pipeline runs hands-off; failures surface via ledger / failure card |
@@ -83,12 +85,12 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | 6 | Auto-fix threshold | **lint+type** | lint-only / **lint+type** / lint+type+test | Lint + type errors auto-fixed; test failures still surface |
 | 7 | Review severity floor | **low** | none / **low** / medium | LOW findings auto-applied; MED staged; HIGH still prompts |
 
-**Suppressed (not applicable to this run):** 3 (overlap — `/specify` not in pipeline), 4 (design intent — locked by frontmatter on all 3 specs), 8 (tidy — not in default `/flow`).
+**Suppressed (not applicable to this run):** 3 (overlap — `/specify` not in pipeline), 4 (design intent — locked by frontmatter on all 3 specs), 8 (tidy — not in default `/flow`). **Valid overrides for this run:** 1, 2, 5, 6, 7.
 
 ---
 
 1. **Approve all** **(Recommended)**
-2. **Override** — reply with `#=value` pairs (e.g., `2=stop-and-ask, 7=medium`). See "Override semantics" below for what each option means.
+2. **Override** — reply with one or more `#=value` pairs from the valid-overrides list (e.g., `2=stop-and-ask, 7=medium`). At least one pair is required; a bare "2" with no pairs is invalid and will re-prompt for the pair(s). See "Override semantics" below for what each option means.
 3. **Cancel pipeline**
 
 #### Override semantics (read before overriding)

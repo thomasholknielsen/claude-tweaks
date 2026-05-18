@@ -86,7 +86,7 @@ Render this section only when `decisions.md` contains STAGED entries from cross-
 | 9 | auth | Anti-Patterns | Add: "Don't share session tokens via querystring" |
 | 10 | NEW | session-management | Create new skill for session lifecycle patterns |
 
-#### Configuration updates (from Steps 6 + 8)
+#### Configuration updates (from Steps 6 + 7.5)
 
 | # | Type | Target | Change |
 |---|---|---|---|

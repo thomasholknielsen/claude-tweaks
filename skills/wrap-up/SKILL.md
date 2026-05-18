@@ -78,45 +78,26 @@ If any insight is "Implement now", /reflect handles it before returning control.
 
 ## Step 4: Analyze Leftover Work (spec-based only)
 
-Attempt to complete unfinished spec sections silently in this pipeline (fix-exhaust first — same discipline as Step 8.5). Only sections that genuinely cannot be completed in the current work context get presented for routing.
-
-**Auto mode:** stage routing proposals to `staged/wrap-up-leftover-{N}.md` per the `leftover-default` policy from `config.yml` (default `defer`). Surfaces at the Review Console.
-
-**Interactive mode:** present each residue section in a numbered table with 5 routing options (merge / DEFERRED / INBOX / drop / finish now). Per-item user input required — never bulk-route.
-
-For the fix-exhaust qualification criteria, auto-mode stage entry format, interactive routing table, and per-item routing semantics, read `leftover-routing.md` in this skill's directory.
+Identify unfinished spec sections that cannot be completed in the current work context, then route them per `leftover-routing.md` in this skill's directory — which owns the fix-exhaust qualification criteria, the auto-mode stage entry format, the interactive routing table (5 routing options), and the per-item routing semantics.
 
 ---
 
-## Step 5: Clean Up Artifacts
+## Step 5: Plan Cleanup Actions
 
-Five cleanups run sequentially. The first three (Execution Plans, Auto-Generated Plans, Open Items Ledger) are simple file deletions and stay inline below. The remaining three (Design wrapper caches, Pipeline run directory, Git Worktree) have non-trivial procedures — read `cleanup-procedures.md` in this skill's directory.
+This step **plans** the cleanup — it does not execute. Actual deletions and archival run in Step 10 *after* the nothing-left-behind gate (Step 8.5) and the Review Console / batch decision (Step 8.6 or Step 9) approve them.
 
-### Execution Plans
+Enumerate the cleanups that will be applied:
 
-Search `docs/superpowers/plans/` for plan files related to this spec → **delete them**.
+| # | Cleanup | Procedure | Condition |
+|---|---------|-----------|-----------|
+| 1 | Execution plans | Delete plan files in `docs/superpowers/plans/` related to this spec. (Design docs `*-design.md` in `docs/superpowers/specs/` should already be gone — `/specify` deletes them. If any remain, delete now.) | spec-based work |
+| 2 | Auto-generated plans | Delete related plans in `~/.claude/plans/` | spec-based work |
+| 3 | Open items ledger | Delete using `/ledger`'s delete operation — only after Step 8.5 confirms zero open items | ledger exists |
+| 4 | Design wrapper caches | Delete `*-audit.json`, `*-recommendations.json`, `*-declined.json` in `docs/plans/` (Section A of `cleanup-procedures.md`) | design wrapper active |
+| 5 | Pipeline run directory | Archive (not delete) to `.claude-tweaks/pipelines/archive/{run-id}/` (Section B of `cleanup-procedures.md`). Honors `MULTISPEC_REVIEW_DEFER=1` (skip — parent `/flow` owns archival). | run dir exists |
+| 6 | Git worktree | Complete feature branch via `/superpowers:finishing-a-development-branch`, then remove worktree + delete merged branch (Section C of `cleanup-procedures.md`) | worktree strategy |
 
-Note: Design docs (`*-design.md`) in `docs/superpowers/specs/` should already have been deleted by `/claude-tweaks:specify`. If any are found, delete them now.
-
-### Auto-Generated Plans
-
-Search `~/.claude/plans/` for related plans → **delete them**.
-
-### Open Items Ledger
-
-Delete the open items ledger using the ledger skill's delete operation (see `/claude-tweaks:ledger`). All items must have been resolved by the nothing-left-behind gate (Step 8.5).
-
-### Design wrapper caches
-
-Silently delete per-spec `*-audit.json`, `*-recommendations.json`, and `*-declined.json` files written by `/claude-tweaks:design` in `docs/plans/`. For the cache list, fallback glob, and missing-file handling, read `cleanup-procedures.md` (Section A) in this skill's directory.
-
-### Pipeline run directory
-
-If a pipeline run directory exists for this work (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet), archive it to `.claude-tweaks/pipelines/archive/{run-id}/` (not delete — the auto-decision log is project history). Honors `MULTISPEC_REVIEW_DEFER=1` (skip — parent `/flow` owns archival). For the full procedure, read `cleanup-procedures.md` (Section B) in this skill's directory.
-
-### Git Worktree (worktree strategy only)
-
-If the build used worktree strategy, complete the feature branch via `/superpowers:finishing-a-development-branch` (invoked inline if not yet run), then remove the worktree and delete merged branches. For the full procedure, read `cleanup-procedures.md` (Section C) in this skill's directory.
+For the non-trivial procedures (caches, run-dir, worktree), read `cleanup-procedures.md` in this skill's directory. Carry the planned list forward into Step 9's summary and Step 10's execution.
 
 ## Step 6: Assess Configuration Updates
 
@@ -299,17 +280,17 @@ This fast path applies **only when zero items are `open` at gate entry**. It is 
 Ops items represent infrastructure changes the user needs to action post-merge — bulk-acknowledging them risks the user not reading them. Present each item, and require explicit confirmation rather than offering a `(Recommended)` shortcut:
 
 ```
-The following ops items need acknowledgment. Reply "acknowledged" once you've read each one and noted what needs to happen post-merge:
+The following ops items need acknowledgment. These represent infrastructure changes you need to action post-merge — read each one before choosing:
 
 | # | What | Where |
 |---|------|-------|
 | 1 | {description} | {source} |
 
-1. Acknowledge all — type "acknowledged" to confirm you've read every item
-2. I have questions about specific items
+1. I've read every item — acknowledge all
+2. I have questions about specific items — show details
 ```
 
-After explicit acknowledgment, update status to `acknowledged`.
+After choice 1, update status to `acknowledged` for every item. After choice 2, surface each item with full detail and ask per item.
 
 ---
 
@@ -338,12 +319,14 @@ For the run-directory resolution sequence, the multi-spec defer protocol, the fu
 - {section}: {status}
 Overall: {X}% complete
 
-### Cleanup Actions
+### Cleanup Actions (planned in Step 5; executed in Step 10)
+Render only rows that apply — skip those whose condition is false (e.g., no worktree, no design caches).
 - [ ] Delete spec (if 100%) or update status
 - [ ] Update INDEX.md
 - [ ] Delete plans from docs/plans/
 - [ ] Delete open items ledger
 - [ ] Delete design wrapper caches (audit / recommendations / declined) from docs/plans/
+- [ ] Archive pipeline run directory to .claude-tweaks/pipelines/archive/
 - [ ] Remove worktree and feature branch (if worktree strategy)
 - [ ] Leftover work: {recommendation}
 
@@ -400,9 +383,11 @@ Generate from: cleanup actions in Step 10, config/skill updates applied, ledger 
 | 2 | cleanup | Update INDEX.md | Remove completed entry |
 | 3 | cleanup | Delete plans | docs/plans/{files} |
 | 4 | cleanup | Delete ledger | docs/plans/*-ledger.md |
-| 5 | cleanup | Remove worktree | `{path}` + branch `{branch}` |
-| 6 | config | {doc/claude.md/rule} | {what to add/change} |
-| 7 | config | ... | ... |
+| 5 | cleanup | Delete design caches | docs/plans/*-audit.json, *-recommendations.json, *-declined.json (if design wrapper active) |
+| 6 | cleanup | Archive run directory | .claude-tweaks/pipelines/archive/{run-id}/ (if run dir exists) |
+| 7 | cleanup | Remove worktree | `{path}` + branch `{branch}` (if worktree strategy) |
+| 8 | config | {doc/claude.md/rule} | {what to add/change} |
+| 9 | config | ... | ... |
 
 1. Apply all **(Recommended)**
 2. Override specific items (tell me which #s to change)
@@ -422,12 +407,16 @@ The Next Actions block in the template above replaces the old single-line handof
 
 ## Step 10: Execute Approved Actions
 
-1. Delete or edit spec files
-2. Update INDEX.md
-3. Delete plans
-4. Remove worktree and delete merged feature branch (if worktree strategy)
-5. Update documentation, CLAUDE.md, memory files (from Step 9)
-6. Apply skill updates and create new skills (from Step 7.5)
+Execute the full cleanup planned in Step 5 plus the configuration / skill updates approved at the Review Console (Step 8.6) or batch decision (Step 9):
+
+1. **Spec lifecycle** — delete the spec file (if 100% complete) or update its status; update `specs/INDEX.md` (remove completed entries)
+2. **Execution plans** — delete files in `docs/superpowers/plans/` and `~/.claude/plans/` related to this spec
+3. **Open items ledger** — delete the ledger file (Step 8.5 must have confirmed zero open items)
+4. **Design wrapper caches** — delete `*-audit.json`, `*-recommendations.json`, `*-declined.json` in `docs/plans/` (Section A of `cleanup-procedures.md`)
+5. **Pipeline run directory** — archive to `.claude-tweaks/pipelines/archive/{run-id}/` (Section B of `cleanup-procedures.md`). Skip when `MULTISPEC_REVIEW_DEFER=1` is set.
+6. **Git worktree** (worktree strategy only) — complete the feature branch via `/superpowers:finishing-a-development-branch`, remove the worktree, delete the merged feature branch (Section C of `cleanup-procedures.md`)
+7. **Documentation, CLAUDE.md, rules** — apply the registry / doc / rule edits collected in Step 6 and approved at the Console or batch
+8. **Skill updates** — apply patches and create new skills (Step 7.5 staged or approved items)
 
 Commit with a message summarizing the wrap-up actions.
 
@@ -467,9 +456,9 @@ Commit with a message summarizing the wrap-up actions.
 | `/claude-tweaks:help` | /claude-tweaks:wrap-up suggests running /claude-tweaks:help to see what's unblocked |
 | `/claude-tweaks:tidy` | /claude-tweaks:wrap-up cleans artifacts for a single spec — /claude-tweaks:tidy does periodic bulk cleanup |
 | `/claude-tweaks:build` | Runs BEFORE /claude-tweaks:review — produces the code and journeys that wrap-up reflects on. `build/skill` ledger entries from Step 4.5 feed into Step 7 skill analysis (alongside `[skill: …]`-tagged entries from any other phase). |
-| `/superpowers:finishing-a-development-branch` | When build used worktree git strategy, wrap-up verifies the feature branch was completed (merged, PR created, or discarded), then removes the worktree directory and deletes the merged branch (Step 5) |
+| `/superpowers:finishing-a-development-branch` | When build used worktree git strategy, wrap-up Step 10 verifies the feature branch was completed (merged, PR created, or discarded), then removes the worktree directory and deletes the merged branch |
 | `/claude-tweaks:init` | Step 7 references `skill-template.md` for Update Mode format and quality gates. /wrap-up Step 6 maintains the doc registry created by /init Phase 8.5. |
-| `/claude-tweaks:ledger` | Manages the open items ledger. /wrap-up appends reflection insights (Step 3), runs the resolve gate (Step 8.5), and deletes the ledger (Step 5). |
-| `/claude-tweaks:design` | /wrap-up Step 5 cleans up the design wrapper's per-spec caches (`*-audit.json`, `*-recommendations.json`, `*-declined.json` in `docs/plans/`) alongside the ledger — consistent with the artifact-cleanup pattern for pipeline state. |
-| `/claude-tweaks:flow` | Invoked BY /flow as the pipeline's final step — flow waits for /wrap-up's Review Console (Step 8.6) before archiving the run directory. In multi-spec runs flow sets `MULTISPEC_REVIEW_DEFER=1` so per-spec wrap-ups defer their consoles to flow's consolidated end-of-run console. |
+| `/claude-tweaks:ledger` | Manages the open items ledger. /wrap-up appends reflection insights (Step 3), runs the resolve gate (Step 8.5), plans deletion in Step 5, and executes deletion in Step 10. |
+| `/claude-tweaks:design` | /wrap-up plans cleanup of the design wrapper's per-spec caches (`*-audit.json`, `*-recommendations.json`, `*-declined.json` in `docs/plans/`) in Step 5 and executes the deletion in Step 10 alongside the ledger. |
+| `/claude-tweaks:flow` | Invoked BY /flow as the pipeline's final step; flow waits for /wrap-up's Review Console (Step 8.6) before archiving the run directory. Multi-spec runs set `MULTISPEC_REVIEW_DEFER=1` so per-spec wrap-ups defer to flow's consolidated console. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |

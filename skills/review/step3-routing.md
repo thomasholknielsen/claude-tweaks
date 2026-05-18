@@ -48,7 +48,7 @@ Present all findings as a single batch table with recommended actions pre-filled
 2. Override specific items (tell me which #s to change)
 ```
 
-**Recommendation rules:**
+**Recommendation rules** (interactive mode — severity-to-route mapping in `auto` mode is the table at the top of this file):
 
 - **Critical** (security vulnerabilities, data loss risks) — always "Fix now". Non-negotiable.
 - **High** (broken behavior, missing validation) — default "Fix now".

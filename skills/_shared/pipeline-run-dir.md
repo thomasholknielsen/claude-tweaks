@@ -20,7 +20,7 @@ fi
 [ -d "$RUN_DIR" ] || RUN_DIR=""  # empty = fall back to interactive mode
 ```
 
-Skills should set `SPEC_SLUG` from their input (spec number, topic slug, or `git branch --show-current` as a last-resort match).
+Skills should set `SPEC_SLUG` from their input (spec number, topic slug, or `git branch --show-current` as a last-resort match — only after a worktree exists; `/flow` and `/build` create the worktree before any path-sensitive command, so this fallback is safe at the time the resolution runs).
 
 ## See also
 

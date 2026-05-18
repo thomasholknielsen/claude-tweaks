@@ -150,7 +150,7 @@ Assess the project's maturity stage to inform the Philosophy section in CLAUDE.m
 | Signal | How to detect | Greenfield indicator | Brownfield indicator |
 |--------|---------------|---------------------|---------------------|
 | **Age** | `git log --reverse --format="%ai" -1` | < 3 months | > 6 months |
-| **Migration history** | Glob for migration directories (prisma/migrations, db/migrate, alembic/, etc.) | None found | Multiple migrations |
+| **Migration history** | Glob for migration directories (prisma/migrations, db/migrate, alembic/versions, migrations/, etc.) | None found | Multiple migrations |
 | **Production infrastructure** | Glob for k8s/, terraform/, .github/workflows/*deploy*, Dockerfile, docker-compose.yml | None found | Production deploy configs |
 | **Monitoring/observability** | Grep for Sentry, DataDog, New Relic, Application Insights, OpenTelemetry | None found | Monitoring configured |
 | **Contributor count** | `git shortlog -sn --no-merges \| wc -l` | 1-2 contributors | 3+ contributors |

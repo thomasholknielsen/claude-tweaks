@@ -44,7 +44,7 @@ All bracketed tokens are optional and order-independent. `worktree` is the defau
 | `worktree` | No | Use worktree git strategy — isolated workspace on a feature branch (this is the default for flow). See "Parallel Development with Worktrees" below. |
 | `current-branch` | No | Override the default and commit directly on the current branch instead of creating a worktree. |
 | `no-stories` | No | Skip automatic story generation even if UI files changed. By default, flow auto-generates stories when the build produces UI file changes. |
-| `no-polish` | No | Skip the polish phase (and its re-verify gate) entirely. Use when iterating fast on backend specs, when polish is not desired (one-off scripts, infrastructure-only changes), or when the user has already manually invoked Impeccable polish. The wrapper would skip polish anyway on non-frontend specs (detection layer 2); `no-polish` is the explicit user-facing escape hatch. |
+| `no-polish` | No | Skip the polish phase (and its re-verify gate) entirely. Overrides any explicit `polish` in the step list. Use when iterating fast on backend specs, when polish is not desired (one-off scripts, infrastructure-only changes), or when the user has already manually invoked Impeccable polish. The wrapper would skip polish anyway on non-frontend specs (detection layer 2); `no-polish` is the explicit user-facing escape hatch. |
 | `auto` | No | Session intent flag — pipeline runs hands-off. Silences merge-check (Step 2.5), shape-check (Step 2.6), all path-selection prompts mid-pipeline, and explicitly forbids the model from inserting its own reality-checks or context-window concerns. Failures surface via the ledger and the failure card, never via mid-pipeline questions. **Full contract:** see `_shared/auto-mode-contract.md` — that file is the single source of truth for what `auto` silences AND what it does NOT silence (resolve gate, INBOX/DEFERRED writes, hard validation failures all remain mandatory). Also settable as `auto-mode: default-on` in CLAUDE.md (project default). Passed through to `/build`. |
 | `keep-going` | No | **Multi-spec only.** Continue the run after a HARD-GATE failure in one spec — remaining specs still run. Failed specs surface in the consolidated Review Console's "Not run / Failed" footer with their worktree paths preserved for inspection. Use when specs are genuinely independent (no `depends-on:` edges). The default is to stop on first failure because spec N+1 may build on spec N's correctness — `keep-going` inverts that safety, so it's opt-in. See `multi-spec.md`. |
 | `[steps]` | No | Step argument(s). Single step = resume from that step onward. Comma-separated steps = run exactly those steps. Default (no steps): `build,test,review,polish,wrap-up` (re-verify is bundled with polish). |
@@ -77,7 +77,7 @@ If no UI files changed, or `no-stories` is set, the stories step is skipped.
 /claude-tweaks:flow 42 no-polish                                    → full pipeline without polish phase
 /claude-tweaks:flow 42,45,48                                        → multi-spec sequential, each in its own worktree
 /claude-tweaks:flow 42,45,48 keep-going                             → multi-spec, continue past HARD-GATE failures (independent specs only)
-/claude-tweaks:flow 42 auto                                         → silence merge-check and scope-check prompts
+/claude-tweaks:flow 42 auto                                         → silence per the auto-mode contract (see _shared/auto-mode-contract.md for the full silences list)
 /claude-tweaks:flow meal planning                                   → resolve to spec by name (rejected if only design doc exists)
 /claude-tweaks:flow docs/superpowers/specs/migration-design.md      → REJECTED — run /specify first; flow only accepts specs (auto does not silence this)
 ```
@@ -90,80 +90,7 @@ For the full Allowed Steps reference (which skills are pipeline-eligible), Step 
 
 ### On Gate Failure
 
-When a gate fails, the pipeline stops immediately. Present:
-
-```markdown
-## Flow: Pipeline Stopped
-
-### Completed
-- {step}: {outcome}
-
-### Failed at: {step}
-{failure details from the step's output}
-
-### Open Items (at time of failure)
-{current ledger contents — so the user sees what's been tracked}
-
-### Manual Steps Required (collected so far)
-| # | What | Where |
-|---|------|-------|
-| 1 | {description} | {source} |
-(or: No manual steps collected yet.)
-
-> These were detected before the pipeline stopped. Address them alongside the fix.
-
-### Actions Performed
-
-{Include rows from completed phases before the failure. Omit when pipeline failed at the first step.}
-
-| Action | Detail | Ref |
-|--------|--------|-----|
-| {rows from completed phases} | ... | ... |
-
-### Next Actions
-
-1. `/claude-tweaks:flow {spec} {failed-step}` — resume from {failed step} **(Recommended)**
-2. `/claude-tweaks:{step} {spec}` — run {failed step} manually for more control
-{If test failed:}
-3. `/claude-tweaks:test` — re-verify after fixes
-{If re-verify failed (polish broke verification):}
-3. `git diff` — inspect the polish modifications that broke verification
-4. `git revert HEAD` — revert the polish commit if it's not salvageable, then retry with `/claude-tweaks:flow {spec} no-polish` to skip polish entirely on the next run
-```
-
-### Polish-broke-verification failure card (specific shape)
-
-When the re-verify gate fails after polish modified code, use this specific failure-card shape (instead of the generic "On Gate Failure" template above). The polish-modifications section is the critical differentiator — the user needs `git diff` context for the polish commit to triage.
-
-```markdown
-## Flow: Pipeline Stopped — Polish broke verification
-
-### Completed
-- build: passed
-- stories: {outcome}
-- test: passed
-- review: PASS
-- polish: invoked {N} commands ({list}), modified {M} files
-
-### Failed at: re-verify (post-polish)
-{verification failures from /test skip-qa output — types/lint/test errors}
-
-### Polish modifications
-{git diff --stat output for the polish commit(s)}
-
-### Open Items (at time of failure)
-{current ledger contents}
-
-### Next Actions
-
-1. Inspect the polish modifications: `git diff {polish-commit-range}` **(Recommended)**
-2. Revert the polish commit and resume without polish: `git revert {polish-commit}` then `/claude-tweaks:flow {spec} no-polish wrap-up`
-3. Fix the verification failure manually, then resume: `/claude-tweaks:flow {spec} polish`
-
-> The re-verify cycle cap is 1 per flow run. Resuming with `/flow {spec} polish` starts a fresh cycle.
-```
-
-All other gate failures (build, stories, test, review) use the generic "On Gate Failure" template above.
+When a gate fails, the pipeline stops immediately and renders a failure card. Two card shapes exist (generic vs. "polish broke verification"); both templates and the picker live in `failure-cards.md` in this skill's directory. Load `failure-cards.md` only when a gate has actually failed — the success path uses Step 5's Pipeline Summary instead.
 
 ## Execution
 
@@ -216,12 +143,12 @@ For each step in order:
    - `test` → `review` receives `TEST_PASSED=true` and QA results. Flow invokes `/claude-tweaks:review` in **full** mode (code + visual review) by default. The review skill delegates visual review to `/claude-tweaks:visual-review`, which handles its own browser detection:
      - **Browser available:** `/visual-review` runs the full visual review. It auto-detects the dev server URL and consumes QA data when available.
      - **No browser available:** `/visual-review` reports the detection failure with install instructions. Review falls back to code mode. Flow notes in pipeline output: "Visual review skipped — no browser backend available."
-   - `review` → `polish` (Phase 2 — when `no-polish` not set) — invoke `/claude-tweaks:design polish <spec>` via the Skill tool. See "Polish phase execution" below for the dispatch logic.
-   - `polish` → `re-verify` (Phase 2 — only when polish modified code) — invoke `/claude-tweaks:test skip-qa`. See "Re-verify execution" below.
+   - `review` → `polish` (when `no-polish` not set) — invoke `/claude-tweaks:design polish <spec>` via the Skill tool. See "Polish phase execution" below for the dispatch logic.
+   - `polish` → `re-verify` (only when polish modified code) — invoke `/claude-tweaks:test skip-qa`. See "Re-verify execution" below.
    - `polish` (or `re-verify`) → `wrap-up` receives the review summary, polish results, and verdict. Skill observations (`build/skill` and `review/skill` ledger entries) carry forward via the ledger file for wrap-up's skill update analysis (Step 7).
 5. **Ledger carries forward** — each step reads and appends to the open items ledger (see `/claude-tweaks:ledger` for all operations). Unlike conversation context (which may be compressed), the ledger is a file — it survives context window limits.
 
-#### Polish + re-verify execution (Phase 2)
+#### Polish + re-verify execution
 
 Follow the polish-phase decision tree in `steps-and-gates.md`. Mechanics specific to /flow:
 
@@ -342,7 +269,7 @@ For mode-selection guidance (worktree vs current-branch), the merge reconciliati
 | Using flow for interactive skills | Capture, challenge, and specify need human decisions — they can't be automated |
 | Using `batched` execution in flow | Flow's purpose is hands-off automation — batched pauses for human review, contradicting flow's no-stopping design. Use `/claude-tweaks:build batched` directly. |
 | Ignoring open ledger items at pipeline end | The nothing-left-behind gate prevents dropped work — every item must be explicitly resolved |
-| Treating `auto` as authorization to bulk-resolve the ledger | `auto` only silences merge-check and scope-check. The resolve gate's Phase 2 always requires per-item user input — items must be approved by the user one at a time |
+| Treating `auto` as authorization to bulk-resolve the ledger | `auto` silences per the contract in `_shared/auto-mode-contract.md`. The resolve gate's Phase 2 is on the "What `auto` does NOT silence" list — every item requires explicit per-item user input |
 | Writing to `specs/INBOX.md` or `specs/DEFERRED.md` from inside flow without explicit per-item user approval | Both files are valid destinations, but each entry requires the user's explicit choice on that specific item. Pipeline phases never write to either file autonomously, even when an item looks like an obvious candidate |
 | Skipping test in the pipeline | Test is the mechanical gate — review depends on `TEST_PASSED`. Omitting test means review runs on potentially broken code. |
 | Retrying polish after re-verify failure within the same flow run | The one-cycle cap exists to prevent oscillation (polish → fail → fix → polish → fail → ...). Surface the failure, let the user inspect, and require a fresh `/flow {spec} polish` to retry. |

@@ -104,7 +104,7 @@ Next: caller decides whether to revert the simplification, fix the regression, o
 ```
 
 **(b) Stage and continue — only in `auto` mode AND when reversibility is high:**
-Write a stage entry to `{run-dir}/staged/simplify-{n}.md` naming the failing check and the file(s) involved, then log to the auto-decision log:
+Write a stage entry to `{run-dir}/staged/simplify-{n}.md` naming the failing check and the file(s) involved, then append to the auto-decision log under the `## /simplify` heading in `{run-dir}/decisions.md` (per `_shared/auto-decision-log.md`):
 
 ```
 - STAGED {HH:MM:SS} — Step 3 verify: {check} failed after simplifying {files}. Stage path: staged/simplify-{n}.md.
@@ -173,3 +173,4 @@ This skill is a **component skill** — invoked by `/claude-tweaks:build` (Commo
 | `/claude-tweaks:help` | /help references /simplify in the workflow diagram and reference card. |
 | `code-simplifier:code-simplifier` | The subagent that does the actual simplification work. /simplify is the skill wrapper that handles scope, verification, and reporting. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
+| `_shared/subagent-output-contract.md` | The Working-Directory Discipline rule referenced by Step 3 verify lives here (CWD anchoring before `git` / `node --test`). |

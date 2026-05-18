@@ -91,13 +91,13 @@ design-intent: {bold | quiet | minimal | delightful | onboarding | none}
 
 ## Open Questions (optional)
 
-{Populated by /specify Step 6.4 multi-persona red-team. Each row is a question raised by a persona during red-team review. When empty, this section is omitted from the spec entirely — do not emit an empty header.}
+{Populated by /specify Step 5 multi-persona red-team. Each row is a question raised by a persona during red-team review. When empty, this section is omitted from the spec entirely — do not emit an empty header.}
 
 | Persona | Finding | Suggested Resolution |
 |---------|---------|---------------------|
 | {Implementer | Maintainer | Skeptical Reviewer} | {finding text} | {resolution or "—"} |
 
-{Resolve each row during Step 6.5 Self-Review: edit the spec to remove the ambiguity, or explicitly accept the finding inline. When all rows are resolved, delete the section.}
+{Resolve each row during Step 6 Self-Review: edit the spec to remove the ambiguity, or explicitly accept the finding inline. When all rows are resolved, delete the section.}
 
 ## Manual Steps
 
@@ -150,7 +150,7 @@ If you would need `/superpowers:writing-plans` to guess, the spec is incomplete 
 | **Data / API Surface** | Enables exact code generation — names, types, endpoints |
 | **Key Files** | Exact paths for the plan's "Files" section |
 | **Gotchas** | Injected as constraints into subagent prompts |
-| **Open Questions** | Reviewed during Step 6.5 Self-Review — must be resolved (clarified or accepted) before the spec is handed to `/superpowers:writing-plans`. The section is appended by Step 6.4 multi-persona red-team and is optional (omitted when red-team finds no general-location ambiguities). |
+| **Open Questions** | Reviewed during Step 6 Self-Review — must be resolved (clarified or accepted) before the spec is handed to `/superpowers:writing-plans`. The section is appended by Step 5 multi-persona red-team and is optional (omitted when red-team finds no general-location ambiguities). |
 | **Manual Steps** | Classified at build start (Step 2.5) — auto-executable items run inline; only items that fail the triage (no-cli, requires-judgment, requires-signoff, auth-not-configured) seed the ledger as `ops` |
 
 ## Frontmatter reference (canonical spec)

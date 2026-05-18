@@ -130,7 +130,7 @@ Periodically (or when inbox gets long), use `/claude-tweaks:tidy` to batch-revie
 
 ## Component-Skill Contract
 
-This skill is a **component skill** — invoked by `/claude-tweaks:build` (Common Step 4, design-mode follow-up capture), `/claude-tweaks:visual-review` (capture UI ideas surfaced during review), `/claude-tweaks:reflect` (route tangential ideas to INBOX), and `/claude-tweaks:wrap-up` (capture genuinely new ideas during cleanup). Parent invocation is signaled when `$ARGUMENTS` includes a `--source={parent-skill}` flag or the call is dispatched from another skill's workflow (the parent passes the entry content directly). When invoked by a parent, omit the `### Next Actions` block — the parent owns the handoff. When invoked directly by a user, render Next Actions as shown below.
+This skill is a **component skill** — invoked by `/claude-tweaks:build` (Common Step 4, design-mode follow-up capture), `/claude-tweaks:visual-review` (capture UI ideas surfaced during review), `/claude-tweaks:reflect` (route tangential ideas to INBOX), and `/claude-tweaks:wrap-up` (capture genuinely new ideas during cleanup). Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set in the environment (the parent runs under `/flow`'s pipeline directory) — no `--source` flag exists or is required. When invoked from within a parent's workflow, omit the `### Next Actions` block — the parent owns the handoff. When invoked directly by a user (no `PIPELINE_RUN_DIR`), render Next Actions as shown below.
 
 ## Anti-Patterns
 

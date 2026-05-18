@@ -12,7 +12,7 @@ These apply in ALL modes. They exist because multiple processes may commit to th
 |------|--------|
 | **NEVER `git reset`** | Other processes may be committing. A reset wipes their work. |
 | **NEVER `git checkout .` or `git restore .`** | Same reason — destroys concurrent work. |
-| **NEVER force push** | Rewrites shared history. |
+| **NEVER force push** | Rewrites shared history. If an alternative to plain `--force` is truly unavoidable, use `--force-with-lease` so the push aborts on unexpected remote movement instead of clobbering it. |
 | **Push commits promptly** | Local-only commits are vulnerable to loss. |
 | **Stage specific files only** | Never `git add -A` or `git add .`. |
 | **Verify commits landed** | Always `git log --oneline -3` after committing. |

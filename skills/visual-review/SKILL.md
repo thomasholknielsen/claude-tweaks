@@ -107,7 +107,7 @@ Select the procedure block matching the resolved mode:
 - **Journey mode** — read `browser-review.md` "Journey Mode" section (loads the journey, assembles the batch, walks per-step, assesses the arc), then Step 6 for the report.
 - **Discover mode** — read `browser-review.md` "Discover Mode" section (Phases 1-6: codebase scan → candidates → browser walkthrough → write journey files → coverage report → handoff).
 
-Reconnaissance (Step 0) runs before the main steps in every mode — read `reconnaissance.md` in this skill's directory for the procedure.
+Reconnaissance (Step 0) runs before the main steps in **page** and **journey** modes — read `reconnaissance.md` in this skill's directory for the procedure. Discover mode finds the pages itself (Phase 1 codebase scan, Phase 2 candidate selection), so per-page reconnaissance does not apply — see `discover-mode.md`.
 
 ## Step 4: Creative Opportunities Survey
 
@@ -154,7 +154,7 @@ When invoked directly (not by a parent skill), end with:
 1. `/claude-tweaks:review {spec}` — full code review **(Recommended)**
 2. `/claude-tweaks:visual-review journey:{name}` — walk a specific journey
 3. `/claude-tweaks:stories` — generate QA stories from what was reviewed
-4. `/claude-tweaks:capture` — save ideas surfaced during the review
+4. `/claude-tweaks:capture {idea}` — save ideas surfaced during the review
 ```
 
 When invoked by `/review`, omit Next Actions — the parent handles flow control and summary.

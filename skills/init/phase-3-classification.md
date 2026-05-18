@@ -21,10 +21,11 @@ For each dimension (maturity, doc-tier), rate the signal strength:
 When `auto` mode is set AND both dimensions classify with confidence `high` AND signals are internally consistent:
 
 1. Auto-confirm the detected classification
-2. Log to the active pipeline's `decisions.md`:
+2. Log to the active pipeline's `decisions.md` **only when one exists**:
    ```
    AUTO {time} — Phase 3: classification auto-confirmed. Maturity: {value} (confidence: high). Doc tier: {value} (confidence: high). Proceed to Phase 4.
    ```
+   `/init` is the project bootstrap and typically runs without an upstream `/flow`. If `PIPELINE_RUN_DIR` is unset and no recent run matches, suppress the log entry (the decision is still made, just not externally journaled) — `/init` does not bootstrap a run directory of its own. The one-line summary in step 3 below stands in for the audit trail.
 3. Print a one-line summary (not a prompt): "Classified as {maturity}, doc tier {N}. Proceeding."
 4. Skip to Phase 4
 

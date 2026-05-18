@@ -1,6 +1,6 @@
 # Reconnaissance Procedure
 
-Contextual pre-analysis for the visual review. Runs before Step 1 (Health Check) to understand what the page IS before evaluating whether it's GOOD. Produces a **Review Brief** that enriches Steps 1-5 with page-specific perspectives.
+Contextual pre-analysis for the visual review. Runs as Step 0 (before Step 1 Health Check) in page and journey modes to understand what the page IS before evaluating whether it's GOOD. Produces a **Review Brief** that enriches Steps 1-5 with page-specific perspectives.
 
 ## When This Runs
 

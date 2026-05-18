@@ -94,7 +94,7 @@ The CLI emits a single JSON object on stdout. Expected shape:
 
 ### Schema version compatibility
 
-The schema above reflects what Phase 1 was built against. The CLI may evolve. Defensive parsing rules:
+The schema above reflects what the wrapper was built against. The CLI may evolve. Defensive parsing rules:
 
 1. **Unknown top-level fields** → ignore (do not fail).
 2. **Unknown finding fields** → ignore (do not fail).
@@ -141,5 +141,5 @@ Wrapper returns:
 
 ## Open items (tracked in parent design doc)
 
-- **Schema stability** — the CLI may change output between releases. Phase 1's defensive parsing handles unknown/missing fields, but breaking changes (e.g., renamed `severity` values) would require pinning a CLI version. Re-validate sample output after every Impeccable major version bump.
-- **Log path** — Phase 1 does not log invocations. The parent design proposes `~/.claude-tweaks/logs/design.jsonl` for token-cost instrumentation. That path is harness-owned (skill content must not write there); add only when the harness gains a logger for this purpose.
+- **Schema stability** — the CLI may change output between releases. The wrapper's defensive parsing handles unknown/missing fields, but breaking changes (e.g., renamed `severity` values) would require pinning a CLI version. Re-validate sample output after every Impeccable major version bump.
+- **Log path** — the wrapper does not currently log invocations. The parent design proposes `~/.claude-tweaks/logs/design.jsonl` for token-cost instrumentation. That path is harness-owned (skill content must not write there); add only when the harness gains a logger for this purpose.

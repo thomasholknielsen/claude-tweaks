@@ -1,6 +1,6 @@
 # Wrap-Up Cleanup Procedures
 
-Loaded by `/claude-tweaks:wrap-up` Step 5. Each procedure is independent; all run sequentially.
+Loaded by `/claude-tweaks:wrap-up`. Step 5 references this file to enumerate the planned cleanup; Step 10 references it again to execute the actual deletions.
 
 This file contains three cleanup procedures executed in order:
 
@@ -8,7 +8,7 @@ This file contains three cleanup procedures executed in order:
 - **B. Pipeline run directory** — archive on success, leave for inspection on failure (multi-spec defer aware).
 - **C. Worktree** — merge handoff to `/superpowers:finishing-a-development-branch`, worktree removal, branch deletion.
 
-Two unrelated cleanups (Execution Plans and Open Items Ledger) are simple enough to remain inline in SKILL.md Step 5; they execute before this file's procedures run.
+The other cleanups (Execution Plans, Open Items Ledger) are simple enough to live inline in Step 10's enumeration; they execute alongside this file's procedures after the Review Console / batch decision approves them.
 
 ---
 

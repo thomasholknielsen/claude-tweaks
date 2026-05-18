@@ -27,7 +27,7 @@ Read the project's `Plan audit / scope-keywords-required` CLAUDE.md setting:
 
 ### Auto mode (pipeline run dir exists)
 
-Read `scope-creep` from `config.yml` (default `add-to-plan` per Manifesto). Apply:
+Read `scope-creep` from `config.yml` (resolve the run dir via `_shared/pipeline-run-dir.md`; default `add-to-plan` per Manifesto). Apply:
 
 | Policy | Action | Log entry |
 |---|---|---|

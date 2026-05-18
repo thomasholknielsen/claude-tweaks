@@ -49,10 +49,12 @@ Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`. The version field is th
 Example `full` output (all three values come from `plugin.json` at render time — never hardcode them in this skill):
 
 ```
-claude-tweaks v{version}
-{description}
-{repository}
+claude-tweaks v4.7.0
+A structured workflow system for Claude Code — from idea capture through build, review, and wrap-up. Includes browser automation and QA pipeline.
+https://github.com/thomasholknielsen/claude-tweaks
 ```
+
+(The `{version}` / `{description}` / `{repository}` placeholders above are illustrative — actual output substitutes the live values from `plugin.json`.)
 
 That's the entire skill — no decisions, no findings, no follow-up gates.
 

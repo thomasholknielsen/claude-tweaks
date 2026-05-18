@@ -20,9 +20,7 @@ Pre-brainstorming debiasing to ensure you're solving the right problem before in
 
 The user is about to invest significant time brainstorming and specifying a feature or change. Before that happens, surface the blind spots in how the problem is framed — not by telling them they're wrong, but by opening up the problem space they've unconsciously narrowed.
 
-<HARD-GATE>
-Do NOT accept the user's problem statement at face value. Do NOT jump to solutions. Do NOT brainstorm within their existing frame. Your entire purpose is to challenge the frame itself before any brainstorming begins.
-</HARD-GATE>
+> **HARD-GATE:** Do NOT accept the user's problem statement at face value. Do NOT jump to solutions. Do NOT brainstorm within their existing frame. Your entire purpose is to challenge the frame itself before any brainstorming begins.
 
 ## Input
 
@@ -30,8 +28,10 @@ Do NOT accept the user's problem statement at face value. Do NOT jump to solutio
 
 ### Mode detection:
 
-- **`quick` keyword present** (e.g., `/challenge quick meal planning`) → **Quick mode** — run only Lens 1 (Surface Hidden Assumptions) and Lens 7 (The Meta-Question). Two interactions instead of seven.
-- **No `quick` keyword** → **Full mode** — run all applicable lenses (default).
+| Trigger | Mode | Lenses run |
+|---|---|---|
+| `quick` keyword in `$ARGUMENTS` (e.g., `/challenge quick meal planning`) | Quick | Lens 1 (Surface Hidden Assumptions) + Lens 7 (The Meta-Question) — two interactions instead of seven |
+| No `quick` keyword | Full | All applicable lenses (default) |
 
 ### Resolve the input:
 
@@ -160,6 +160,8 @@ The process is a layered Mixture of Agents (Mode 4 from `skills/_shared/multi-ag
 > Output: A debiasing perspective focused on this lens only. Surface assumptions, blind spots, or framings that this lens uniquely reveals. Do not write a brief — that's the aggregator's job. Format: free-form 2-4 paragraphs.
 > Constraint: Read-only. Do not act on the problem; only debias the framing.
 >
+> Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED.
+>
 > Original problem statement: {problem from Step 1}
 > Reflected summary: {summary from Step 2}
 > INBOX context (if applicable): {INBOX entry}
@@ -175,6 +177,8 @@ The process is a layered Mixture of Agents (Mode 4 from `skills/_shared/multi-ag
 > ```
 > Task scope: Read N candidate debiasing perspectives below. Identify what each captures that the others miss. Produce a single output that incorporates the strongest elements of each. Do not list which proposer contributed which idea. Do not produce an analysis of the proposers.
 >
+> Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED.
+>
 > Original problem statement: {problem from Step 1}
 > Reflected summary: {summary from Step 2}
 > INBOX context (if applicable): {INBOX entry}
@@ -186,14 +190,7 @@ The process is a layered Mixture of Agents (Mode 4 from `skills/_shared/multi-ag
 > {proposer 2 output verbatim}
 > ... (repeat for all proposers)
 >
-> Output: The Brainstorming Brief with these exact sections (in this order):
-> ## Brainstorming Brief: {topic}
-> ### Original Framing
-> ### Reframed Problem
-> ### Key Assumptions Surfaced
-> ### Blind Spots Identified
-> ### Constraints to Carry Forward
-> ### Open Questions for Brainstorming
+> Output: The Brainstorming Brief — use the exact section list and ordering documented in the "Output: Brainstorming Brief" section below in this SKILL.md (single source of truth — copy that section's headings verbatim into the proposer output).
 >
 > Constraint: Read-only synthesis. Do not write to disk — return the brief content; the dispatcher saves it.
 >
@@ -246,7 +243,7 @@ Save the brief to `docs/plans/{YYYY-MM-DD}-{topic}-brief.md` so it survives acro
 
 - **Read by** `/superpowers:brainstorming` as input context
 - **Read by** `/claude-tweaks:specify` when writing specs (ensures assumptions and constraints reach the spec's Gotchas section)
-- **Deleted by** `/claude-tweaks:specify` Step 5 (alongside the design doc — both are consumed artifacts)
+- **Deleted by** `/claude-tweaks:specify` Step 7 (alongside the design doc — both are consumed artifacts)
 
 ### Brief Self-Review
 
@@ -257,17 +254,9 @@ Look at the saved brief with fresh eyes. Fix issues inline — no subagent, no s
 3. **Reframe coherence** — does the reframed problem statement still match what the user originally wanted to do? Major reframes are fine; *unrecognizable* reframes mean the lenses overcorrected. If so, soften back toward the original.
 4. **Open question quality** — every open question should be answerable. "What should we do?" is too vague; "Should we support multi-tenant from day one, or single-tenant first?" is actionable. Rewrite vague ones.
 
-### Next Actions
-
-When invoked by a parent skill (e.g., `/claude-tweaks:capture` with `--route=challenge`), omit this block — the parent owns the handoff. When invoked directly by a user, after saving the brief, hand off to brainstorming. If the user wants to adjust the reframing or re-examine from a different lens, they can say so — otherwise, proceed.
-
-1. `/superpowers:brainstorming` — explore solutions for the reframed problem **(Recommended)** — after brainstorm produces the design doc, run `/claude-tweaks:specify` next (not `/superpowers:writing-plans` — specify handles decomposition into agent-sized specs before planning)
-2. Re-examine — revisit a specific lens or adjust the reframing
-3. Save and resume later — keep the brief on disk; pick up at brainstorming when ready
-
 ## Component-Skill Contract
 
-This skill is a **component skill** — invoked by `/claude-tweaks:capture` when an INBOX item is routed via `--route=challenge`. Parent invocation is signaled by `$ARGUMENTS` referencing an INBOX item or by a parent-passed topic. When invoked by a parent, omit the `### Next Actions` block — the parent owns the handoff (the parent typically dispatches to `/superpowers:brainstorming` next). When invoked directly by a user, render Next Actions as shown above.
+This skill is a **component skill** — invoked by `/claude-tweaks:capture` when an INBOX item is routed via `--route=challenge`. Parent invocation is signaled by `$ARGUMENTS` referencing an INBOX item or by a parent-passed topic. When invoked by a parent, omit the `### Next Actions` block at the end of this skill — the parent owns the handoff (the parent typically dispatches to `/superpowers:brainstorming` next). When invoked directly by a user, render Next Actions as documented at the end of this file.
 
 ## Anti-Patterns
 
@@ -290,3 +279,13 @@ This skill is a **component skill** — invoked by `/claude-tweaks:capture` when
 | `/claude-tweaks:help` | Flags INBOX items with baked-in assumptions as candidates for /claude-tweaks:challenge |
 | `/claude-tweaks:research` | Back debiasing lenses with evidence — `/research` produces citation-audited reports that can ground a challenge. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — `/challenge` lenses are on the "not silenced" list. |
+| `_shared/multi-agent-coordination.md` | Canonical primitive for Layered MoA (Mode 4) — N parallel lens proposers + one sequential aggregator. Hard limits live in the primitive. |
+| `_shared/subagent-output-contract.md` | Per-lens proposer agents emit Template A; the aggregator follows the status-line and model-tier conventions (Capable tier). |
+
+### Next Actions
+
+After saving the brief, hand off to brainstorming. If the user wants to adjust the reframing or re-examine from a different lens, they can say so — otherwise, proceed.
+
+1. `/superpowers:brainstorming` — explore solutions for the reframed problem **(Recommended)** — after brainstorm produces the design doc, run `/claude-tweaks:specify` next (not `/superpowers:writing-plans` — specify handles decomposition into agent-sized specs before planning)
+2. Re-examine — revisit a specific lens or adjust the reframing
+3. Save and resume later — keep the brief on disk; pick up at brainstorming when ready

@@ -109,13 +109,7 @@ When Phase 2 reconnaissance detects frontend signals, present the three-option I
 
 After Phase 0 completes, present the scope selection — unless `$ARGUMENTS` already specified a goal-based scope (e.g., `bootstrap`, `config`, `skills`, `journeys`, `docs`), in which case skip this gate and run the corresponding phases.
 
-**Auto-mode default:** If `auto-mode: default-on` is set in CLAUDE.md (or `.claude-tweaks/policy.yml`) and no explicit scope override was passed via `$ARGUMENTS`, default to option 1 (Auto, run all included phases) without prompting. Log an entry to the active pipeline run's `decisions.md`:
-
-```
-AUTO {ISO-time} — Scope Gate: auto-selected option 1 (Auto, run all phases). Reason: auto-mode default.
-```
-
-This gate is reversible (the user can re-run `/init` with different arguments or cancel mid-phase), so it qualifies for auto-resolution under the auto-mode contract. The interactive prompt below applies only when `auto-mode: default-off` or when no policy has been set.
+**Not silenced by `auto`.** The scope-selection gate is on the "What `auto` does NOT silence" list in `_shared/auto-mode-contract.md` — it is a project-shape governance decision that requires explicit user input regardless of `auto` state. The prompt below always renders unless `$ARGUMENTS` already specified a scope.
 
 ```
 Bootstrap complete. How much setup do you want? (See "Phases at a Glance" above for the full table; Phase 8 is auto-marked "Skip — no UI detected" when reconnaissance finds no user-facing surface.)
@@ -375,19 +369,7 @@ Create the documentation registry that maps project docs to the code areas they 
 
 **Use the confirmed doc tier** from Phase 3 — do not re-detect.
 
-For the complete registry format, tier definitions, standard folder taxonomy, common Auto-detect patterns, and creation procedure, read `docs-structure.md` in this skill's directory.
-
-**Quick summary of the procedure:**
-
-1. Inventory existing doc files (excluding workflow artifacts)
-2. Map Auto-detect patterns using the project's actual directory structure
-3. Quick-assess existing docs against Phase 2 findings — classify each as accurate, stale, thin, or misplaced
-4. Identify missing docs based on confirmed tier
-5. Present batch table — register existing docs as-is (init does not modify them)
-6. Create `docs/REGISTRY.md` with approved entries
-7. Capture doc work as INBOX items — stale, thin, misplaced, and missing docs become INBOX entries with Phase 2 context baked in, ready for the normal pipeline
-
-**Update Mode:** Diff existing registry against current codebase. Flag stale entries (deleted docs), gap entries (new docs not in registry), pattern drift (renamed directories), and tier drift (project outgrew its tier).
+For the complete procedure (registry format, tier definitions, standard folder taxonomy, common Auto-detect patterns, inventory → assess → batch table → create → INBOX-capture flow, and Update-Mode diff logic), read `docs-structure.md` in this skill's directory.
 
 ---
 
@@ -478,10 +460,5 @@ Pick the recommended action based on which signals fired during this run. Resolv
 | INBOX has items written this run (deferred skills, pain points, doc work, skeleton enrichment) | `/claude-tweaks:tidy` — triage what /init just captured **(Recommended)** |
 | Initial Mode ran AND INBOX is empty | `/claude-tweaks:capture {idea}` — capture the first idea or feature into INBOX for triage **(Recommended)** |
 | Everything is clean (Update Mode early-exit OR Initial Mode with nothing routed to INBOX) | `/claude-tweaks:help` — see the full lifecycle overview and current pipeline status **(Recommended)** |
-
-Always-available options (offer alongside the recommendation):
-
-1. `/claude-tweaks:capture {idea}` — capture an idea into INBOX for triage
-2. `/claude-tweaks:specify {first feature topic}` — jump straight to specifying the first lifecycle feature
-3. `/claude-tweaks:tidy` — review INBOX and DEFERRED items
-4. `/claude-tweaks:help` — see the full lifecycle overview and current pipeline status
+| Always (any state) | `/claude-tweaks:specify {first feature topic}` — jump straight to specifying the first lifecycle feature |
+| Always (any state) | `/claude-tweaks:tidy` — review INBOX and DEFERRED items |

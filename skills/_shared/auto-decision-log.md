@@ -110,7 +110,7 @@ On successful pipeline closure, `/wrap-up` moves the run directory to:
 
 The archive preserves the decision log, the staged directory (if any items were skipped at review), and the config snapshot. Users can review past pipelines or feed patterns back into project policy.
 
-`/tidy` may compact archive entries older than 30 days into `.claude-tweaks/pipelines/archive/index-{YYYY-MM}.md` (not implemented in v4.6.0).
+`/tidy` may compact archive entries older than 30 days into `.claude-tweaks/pipelines/archive/index-{YYYY-MM}.md` (planned — not yet implemented).
 
 ## Anti-patterns
 

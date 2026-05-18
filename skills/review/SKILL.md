@@ -132,9 +132,11 @@ This classification guides which review lenses to apply — a pure UI change doe
 
 Review changed files through these lenses. Skip lenses that don't apply to the type of change (e.g., skip "Performance" for a docs-only change).
 
+> **Working Directory Discipline (applies to every Task() dispatch in Step 3 and Step 3.5):** Resolve `WORKTREE = $(git rev-parse --show-toplevel)` once in the dispatcher. Anchor every git command in the agent prompt as `git -C "$WORKTREE" …`, and prefix any path-sensitive shell command with `cd "$WORKTREE" && …`. CWD does not propagate reliably to parallel agents; without the anchor, reproductions and debate agents can read the wrong checkout. See `_shared/git-discipline.md` and the Working Directory Discipline section in `_shared/subagent-output-contract.md`.
+
 > **Parallel execution:** Before running any lens, gather all context upfront — read all changed files and their surrounding context (imports, tests, schemas) as parallel Read/Grep calls. Each lens needs the same files, so front-loading reads avoids redundant I/O.
 
-> **Parallel execution (conditional):** When the diff spans 10+ files, dispatch each applicable lens (3a-3f) as a **reproduction pair** — 2 identical agents per lens (12-18 Task agents total depending on which lenses apply). When the diff is smaller, run each lens as a 2-agent reproduction pair sequentially in the main thread.
+> **Parallel execution (conditional):** When the diff spans 10+ files, dispatch each applicable lens (3a-3f) as a **reproduction pair** — 2 identical agents per lens (up to 12 Task agents total: 6 reproduction lenses × 2). When the diff is smaller, run each lens as a 2-agent reproduction pair sequentially in the main thread. Lenses 3g-cov, 3h, and 3i are not dispatched as reproduction pairs — they run as single agents (3h) or main-thread procedures (3g-cov, 3i).
 >
 > **Reproduction dispatch (Mode 1 — per lens):** For each lens, dispatch 2 agents in one batch with **byte-identical prompts** (same scope, same Template-A contract, same model tier). Independent runs — no agent sees the other's output. After both return, apply `categoriseReproduction(agentA.findings, agentB.findings)` from `bin/lib/coordination.js`:
 > - Findings present in both agents' outputs (path exact, line ±2, matching severity bucket) → emit as `confirmed`. Write to `decisions.md`: `AUTO {HH:MM:SS} — Reproduction: lens "{lens}" finding {path}:{line} reproduced. Confirmed. Reversibility: high.`
@@ -304,11 +306,7 @@ After Step 3.5, every finding has a final bucket — `confirmed`, `unconfirmed`,
 
 ### Step 3 Routing — Code Review Findings
 
-When all lenses returned "No findings.", skip this block and auto-advance to Step 4 (see "Auto-advance on zero findings" below).
-
-When `confirmed` findings exist, read `step3-routing.md` in this skill's directory for the full procedure: severity-based auto routing (with the contract floors), the interactive batch table, recommendation rules, the deferral gate, and the parallel-fix dispatch contract (3+ independent fixes via `/superpowers:dispatching-parallel-agents`). `unconfirmed` and `contested` findings do not enter Step 3 Routing — they route directly to the Wrap-Up Console (Low-confidence and Contested subsections, respectively).
-
-**Auto-advance on zero findings:** When there are zero code review findings AND zero unresolved QA ledger entries (`open` items with phase `test/qa`), auto-advance to Step 4 without waiting for user input. Present "No code review findings" as a note within the Step 4 hindsight message.
+Routing logic lives entirely in `step3-routing.md` in this skill's directory: severity-based auto routing (with the contract floors), the interactive batch table, recommendation rules, the deferral gate, the parallel-fix dispatch contract (3+ independent fixes via `/superpowers:dispatching-parallel-agents`), and the auto-advance-on-zero-findings rule. `unconfirmed` and `contested` findings bypass Step 3 Routing — they route directly to the Wrap-Up Console (Low-confidence and Contested subsections, respectively).
 
 ---
 
@@ -397,6 +395,10 @@ If no notable learnings emerged, state: "No key learnings — straightforward re
 - Skip review lenses that don't apply to the type of change
 - This skill reviews the *current work* — it is not a codebase-wide audit
 
+## Component-Skill Contract
+
+`/claude-tweaks:review` is invoked by `/claude-tweaks:flow` as the analytical-quality gate between test and wrap-up. Parent invocation is signaled by the `PIPELINE_RUN_DIR` env var. When `PIPELINE_RUN_DIR` is set, omit the `### Next Actions` block at the end of Step 7 — the parent `/flow` owns the handoff and renders its own Pipeline Summary + Next Actions. When invoked directly by a user (no `PIPELINE_RUN_DIR`), render Next Actions as documented. /review itself invokes `/claude-tweaks:reflect` (Step 4), `/claude-tweaks:simplify` (Step 5), `/claude-tweaks:visual-review` (Step 6), and `/claude-tweaks:design` (Step 6.5) — each is a component skill governed by its own contract (Next-Actions omitted when invoked from here).
+
 ## Anti-Patterns
 
 | Pattern | Why It Fails |
@@ -435,3 +437,5 @@ If no notable learnings emerged, state: "No key learnings — straightforward re
 | `/claude-tweaks:journeys` | /journeys produces the journey files /review consults in Step 6 to recommend visual review for affected journeys and in lens 3g-cov for journey-to-story coverage. /review surfaces uncovered journey steps and orphaned stories as informational findings. |
 | `/claude-tweaks:tidy` | /tidy reads /review summaries to detect cross-spec patterns (Step 5.5) — recurring finding categories, frequently flagged files, repeated gotchas — and recommends adding rules to CLAUDE.md when patterns appear in 3+ specs. /tidy also flags specs that appear complete but lack a /review run. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. The severity-routing table in "Step 3 Routing — Code Review Findings" implements the contract's reversibility/confidence/severity floors. |
+| `_shared/multi-agent-coordination.md` | Canonical primitive for Reproduction (Mode 1, Step 3 per-lens dispatch) and Debate (Mode 2, Step 3.5 cross-lens contradiction resolution). The deterministic comparison + resolve helpers live in `bin/lib/coordination.js`. |
+| `_shared/subagent-output-contract.md` | Per-lens reviewer agents emit Template A; debate agents inline a custom verdict template. The status line and model-tier conventions follow this contract. |

@@ -5,7 +5,7 @@ description: Use when generating or updating user story YAML files for UI testin
 > **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
 
 
-# Stories — Generate or update user-story YAML for UI testing
+# Stories — Generate, refine, and update user-story YAML (semantic locators, journey + source aware)
 
 Browse a website, understand its structure and flows, and generate user story YAML files for UI testing. Stories describe journeys for any persona — customers, admins, developers, operators.
 
@@ -48,7 +48,7 @@ Parse `$ARGUMENTS` to extract:
 If no URL is provided in `$ARGUMENTS`, run the dev URL detection procedure from `dev-url-detection.md` in `skills/_shared/`. This probes common ports, checks project configuration, and resolves `APP_URL` automatically. If no server can be detected or started, stop and ask the user for a URL.
 
 **Auto-detected behavior:**
-- **Update mode:** If `{OUTPUT_DIR}/*.yaml` files already exist, automatically enter diff-aware mode. No keyword needed — the skill detects existing stories and only generates new or changed ones.
+- **Update mode:** If `{OUTPUT_DIR}/*.yaml` or `{OUTPUT_DIR}/*.yml` files already exist, automatically enter diff-aware mode. No keyword needed — the skill detects existing stories and only generates new or changed ones.
 - **v1 detection:** If any existing YAML lacks `schema_version: 2` at the top, the v1 detection / regeneration UX (see below) runs before update-mode comparison.
 
 ## Story schema (v2)
@@ -102,7 +102,7 @@ Gather pre-existing information before browsing.
 
 ### Diff-Aware Ingestion (auto-detected)
 
-1. Use the Glob tool to check for existing YAML files in OUTPUT_DIR matching `{OUTPUT_DIR}/*.yaml`.
+1. Use the Glob tool to check for existing YAML files in OUTPUT_DIR matching `{OUTPUT_DIR}/*.yaml` AND `{OUTPUT_DIR}/*.yml` (both extensions — projects may use either).
 2. If YAML files exist, enter **update mode**:
    a. Read each YAML file. Check the top of each file for `schema_version: 2`. If any file lacks it, run the v1 detection / regeneration UX described in the "v1 detection" section above before continuing — DO NOT silently parse legacy files. Resolve the v1 prompt before proceeding.
    b. Parse the `stories` array.
@@ -111,65 +111,12 @@ Gather pre-existing information before browsing.
    e. Log: "Update mode: found {N} existing stories across {M} files in {OUTPUT_DIR}."
 3. If no YAML files found, log: "No existing stories in {OUTPUT_DIR}. Generating all stories from scratch." Proceed with full generation.
 
-## Step 1.1: Journey Ingest
+## Step 1.1: Journey Ingest (conditional)
 
-Read journey files to bootstrap story design with known flows, personas, and source files. Journey data prevents redundant discovery — pages already documented in journeys are enriched (selectors, assertions) rather than rediscovered from scratch.
+Use the Glob tool to check whether any `docs/journeys/*.md` files exist.
 
-> **Parallel execution:** Use parallel tool calls aggressively — all Glob and Read operations across journey files are independent and should run concurrently.
-
-### Discover Journeys
-
-1. Use the Glob tool to find all files matching `docs/journeys/*.md`.
-2. If no journey files exist, log: "No journey files found in docs/journeys/. Proceeding with full discovery mode." Skip the rest of Step 1.1.
-3. If JOURNEY_FILTER is set, filter to only the matching journey file (`docs/journeys/{JOURNEY_FILTER}.md`). If the file does not exist, log: "Journey '{JOURNEY_FILTER}' not found in docs/journeys/. Proceeding with full discovery." and skip the rest of Step 1.1.
-
-### Parse Journey Files
-
-For each journey file, read and extract:
-
-- **Journey name:** derived from the filename (e.g., `profile-settings.md` → `profile-settings`)
-- **Files:** from the YAML frontmatter `files:` array — the source files implementing this journey
-- **Persona:** from the `**Persona:**` field
-- **Goal:** from the `**Goal:**` field
-- **Entry point:** from the `**Entry point:**` field (URL or trigger)
-- **Success state:** from the `**Success state:**` field
-- **Steps:** parse each numbered step section to extract:
-  - Step name
-  - URL (from `**URL:**` field)
-  - Action (from `**Action:**` field)
-  - "Should feel" (from `**Should feel:**` field)
-  - "Should understand" (from `**Should understand:**` field)
-  - Red flags (from `**Red flags:**` field)
-
-### Build Journey Map
-
-Assemble findings into a JOURNEY_MAP:
-
-```
-JOURNEY_MAP = {
-  journey_name: {
-    persona: string
-    goal: string
-    entry_point: string
-    success_state: string
-    files: string[]
-    steps: [{ name, url, action, should_feel, should_understand, red_flags }]
-    step_urls: string[]   // all unique URLs extracted from steps
-  }
-}
-```
-
-Also build a JOURNEY_URL_INDEX — a reverse map from URL to journey name(s), so Step 2 can quickly look up whether a visited page belongs to a journey.
-
-4. Log: "Journey ingest: found {N} journey(s) covering {M} unique URLs."
-
-### Cross-reference with Existing Stories (update mode only)
-
-When update mode is active (Step 1 found existing YAML files):
-
-5. For each existing story WITHOUT a `journey:` field, check whether its URL matches any entry in JOURNEY_URL_INDEX.
-6. If a match is found, add to JOURNEY_LINK_SUGGESTIONS: `{ storyId, storyFile, storyUrl, suggestedJourney }`.
-7. These suggestions are presented in Step 6 (Report) as a batch decision — they are not auto-applied.
+- **None found:** log "No journey files found in docs/journeys/. Proceeding with full discovery mode." and skip to Step 1.5.
+- **At least one found:** read `journey-ingest.md` in this skill's directory for the full ingest procedure (discover, parse, build JOURNEY_MAP + JOURNEY_URL_INDEX, cross-reference with existing stories). Populates JOURNEY_MAP and JOURNEY_URL_INDEX for Step 2; populates JOURNEY_LINK_SUGGESTIONS in update mode.
 
 ## Step 1.5: Source Analysis
 
@@ -212,30 +159,11 @@ For each page visited during exploration, check JOURNEY_URL_INDEX:
 
 **Journey-guided navigation:** When a journey has step URLs that the standard exploration (items 4-5) would not naturally visit, add those URLs to the exploration queue. This ensures all journey-documented pages get enrichment passes. Journey enrichment pages are counted separately from the 5-8 page discovery cap — they are verification, not discovery.
 
-### Auth Resolution (Auth Vault)
+### Auth Resolution (conditional)
 
-If any discovered page requires authentication, resolve a vault entry per the Auth Vault section above. Procedure:
+If no discovered page requires authentication and no legacy `{OUTPUT_DIR}/auth.yml` exists, skip this section entirely.
 
-1. **List existing vaults:** Run `agent-browser auth list`. Each row is a vault name plus a username.
-2. **Vault matches the project** (e.g., `default`, `default-user`, project slug, admin/customer name): use that name. Stories reference it via `auth: { vault: "<name>" }`.
-3. **No matching vault:** print the one-time command for the user to run in their own shell — do NOT search the project for credentials and do NOT ask the LLM:
-   ```
-   No matching auth vault found. To create one (the LLM will never see the password):
-
-       agent-browser auth set <vault-name> <username> <password>
-
-   Recommended vault name: `default-user` (or `<project-slug>-user`).
-
-   When done, reply "ready" and I'll continue. To skip auth-gated stories for now, reply "skip".
-   ```
-   On `ready`: re-run `agent-browser auth list`, confirm, continue. On `skip`: tag stories needing auth as `needs-auth-vault` and skip them in Step 5 refinement.
-4. **Multiple vaults exist** (e.g., `default-user`, `admin-user`): map each story's persona to the matching vault; fall back to `default-user` with a comment when no clean match.
-
-### Legacy `auth.yml` detection
-
-**Trigger:** `{OUTPUT_DIR}/auth.yml` exists from a v3 install.
-
-When detected: read `migration.md` in this skill's directory for the split procedure (credentials → Auth Vault, server URLs → `servers.yml`).
+If at least one auth-gated page was found OR a legacy `auth.yml` is present, read `auth-resolution.md` in this skill's directory for the full procedure (vault listing, vault-name convention, interactive/auto branches, legacy `auth.yml` migration trigger).
 
 ### URL-to-Source-File Mapping
 
@@ -428,56 +356,11 @@ After writing, look at the YAML with fresh eyes. Fix issues inline — this is t
 
 If REFINE=true, Step 5 will catch DOM-level issues this pass missed. If REFINE=false, this is your only check — fix anything you find.
 
-## Step 5: Refine (when REFINE=true)
+## Step 5: Refine (conditional — when REFINE=true)
 
-Skip entirely if `refine=false`.
+If `refine=false` was passed in `$ARGUMENTS`, skip this step entirely and proceed to Step 6.
 
-### 5a. Quick Validation Pass
-
-1. Select a sample of stories to validate from the stories just written or regenerated (not unchanged existing stories):
-    - All `priority: high` stories.
-    - Up to 3 randomly selected `priority: medium` stories.
-    - Skip `priority: low` stories in the validation sample.
-    - Maximum 10 stories total.
-    - When NEGATIVE is also active, include a mix of positive and negative stories.
-
-2. For each selected story, validate against the live app using agent-browser:
-    a. `agent-browser --session <story-id> open <story.url>` (kebab-case session, derived from the story id).
-    b. If the story declares `auth: { vault: "<name>" }`: `agent-browser --session <story-id> auth use <name>`.
-    c. `agent-browser --session <story-id> snapshot -i -c` to get the accessibility tree.
-    d. For each step, attempt execution:
-       - **Locator resolution:** Run `agent-browser --session <story-id> find <type> <args>` for the step's semantic locator. If `find` returns 0 matches, record failure: `{ storyId, stepIndex, issue: "locator_unresolved", locator }`. If `find` returns >1 matches, record: `{ storyId, stepIndex, issue: "locator_ambiguous", locator, matchCount }` — flag for disambiguation. If exactly 1, capture the resulting `@eN` ref and proceed.
-       - **Action execution:** Run the action against the resolved ref (e.g., `click @e3`, `fill @e7 "user@example.com"`). If it fails, record: `{ storyId, stepIndex, issue: "action_failed", action, error }`.
-       - **Verify assertion:** If the step has `verify` or is `assert_visible`, evaluate against the post-action snapshot. If the expected element/text is not present, record: `{ storyId, stepIndex, issue: "assertion_mismatch", expected, actual }`.
-    e. **On any step failure:** capture trace before closing — `agent-browser --session <story-id> trace save traces/<story-id>/<timestamp>.zip`. Attach the trace path to the failure record. Then close the session.
-    f. **On success:** `agent-browser --session <story-id> close`.
-
-3. Collect all validation failures into a FAILURES list. Each failure record includes the trace path when one was captured.
-
-### 5b. Self-Correction Round
-
-4. If FAILURES is empty:
-    - Log: "Refinement: All {N} sampled stories validated successfully. No corrections needed."
-    - Skip to Step 6.
-
-5. If FAILURES is non-empty:
-    - For each failed story:
-      a. Log the failure details: "Story '{storyId}' failed validation — Step {stepIndex}: {issue}. Trace: {tracePath}"
-      b. Re-open the story's URL in a fresh session and run `agent-browser --session <story-id> snapshot -i -c` to capture the current accessibility tree.
-      c. Regenerate ONLY the failed story with corrected semantic locators, actions, and assertions based on the live snapshot. For ambiguous locators, prefer adding `name` (for `role`-only locators), switching to `testid` if available, or scoping by an enclosing `role: region` / `role: form`.
-      d. Rewrite the corrected story into the YAML file, replacing the draft version.
-
-6. Log the correction summary: "Refinement: {N} stories validated, {M} corrected. Trace files captured for {K} initial failures: traces/<story-id>/<timestamp>.zip."
-
-### 5c. Persistent Failure Handling
-
-7. If any stories still fail after the correction round:
-    - Do NOT delete them. Keep them in the YAML.
-    - Add a YAML comment above the story: `# REFINEMENT_WARNING: This story failed automated validation. Manual review recommended. Trace: traces/<story-id>/<timestamp>.zip`
-    - Add tag `needs-review` to the story's tags array.
-    - Log: "Refinement: {K} stories still failing after correction — tagged 'needs-review' for manual review. See trace files for inspection: `agent-browser trace view <path>`."
-
-8. Maximum one correction round. Do not loop further. (agent-browser's token-efficient snapshot+find pattern reduces context cost vs. earlier CSS-selector validation, but the cap stays in place to avoid infinite loops on genuinely broken pages.)
+Otherwise read `refine.md` in this skill's directory for the full Refine procedure: 5a Quick Validation Pass (sample selection, locator resolution, trace-on-failure), 5b Self-Correction Round (regenerate failed stories from a fresh snapshot, one round max), and 5c Persistent Failure Handling (`REFINEMENT_WARNING` comment + `needs-review` tag).
 
 ## Step 6: Report and Handoff
 

@@ -32,11 +32,7 @@ The plugin enforces a 2-tier artifact taxonomy:
 | Strategic | Design doc (one file, multi-phase OK as `## Phase N` sections) | `/superpowers:brainstorming` (superpowers, unchanged) — produces a single design doc by convention | `/claude-tweaks:specify` |
 | Executional | Spec (one file per agent-sized work unit) | `/claude-tweaks:specify` | `/claude-tweaks:flow`, `/claude-tweaks:build` |
 
-**Routing reality:** `/claude-tweaks:specify` IS the canonical entry point — its **polymorphic input** (canonical definition) means the user can pass a design doc path, a topic, or an INBOX reference. When given a bare topic with no existing design doc, `/specify` invokes `/superpowers:brainstorming` internally to produce one, then decomposes it. Direct `/superpowers:brainstorming` invocations are exploratory; the user routes the resulting design doc back to `/specify` manually instead of running `writing-plans`.
-
-**Why writing-plans is bypassed:** superpowers' `writing-plans` produces multi-phase plan files (`*-P1.md`, `*-P2.md`, …) that exceed `/flow`'s envelope. The path that broke `/flow` was `/superpowers:brainstorming → writing-plans → /flow` — three artifact tiers with the middle tier being agent-too-big. The new path is `/superpowers:brainstorming → /specify → /flow` — two artifact tiers where `/specify` produces specs sized for `/flow`'s shape gate.
-
-**Enforcement:** the contract holds at two enforcement points — `/specify`'s phase-aware decomposition (this skill) and `/flow`'s Step 2.7 design-doc rejection. `/superpowers:brainstorming` is unchanged; the contract relies on the user (or a skill caller) routing to `/specify` rather than `writing-plans`.
+`/claude-tweaks:specify` is the canonical entry point — its polymorphic input accepts a design doc path, a topic, or an INBOX reference. For a bare topic it invokes `/superpowers:brainstorming` internally, then decomposes the resulting design doc. The contract holds at two enforcement points: this skill's phase-aware decomposition and `/flow`'s Step 2.7 design-doc rejection. See the "Background" section near the end of this file for the historical context on why `/superpowers:writing-plans` is bypassed.
 
 ## Input
 
@@ -196,7 +192,7 @@ After decomposing into work units, before writing spec files, check each new wor
 | New spec's files overlap with an **in-progress** spec | Active conflict — concurrent changes to the same files | Add to `blocked-by` — wait for the in-progress spec to finish |
 | Two **new** specs from this decomposition share files | Internal conflict within the batch | Add explicit dependency between them and order accordingly |
 
-Present any detected implicit dependencies as part of the Step 7 summary. These are flagged alongside the explicit `blocked-by` relationships from the tier/prerequisite analysis.
+Present any detected implicit dependencies as part of the Step 9 summary. These are flagged alongside the explicit `blocked-by` relationships from the tier/prerequisite analysis.
 
 > **Algorithm shared with /claude-tweaks:help:** Both /specify and /help use the same implicit dependency check — compare Key Files from the target spec against Key Files from all non-completed specs. /specify runs this at creation time; /help re-runs it at dashboard time to catch new conflicts from specs that started building after /specify ran.
 
@@ -258,43 +254,9 @@ Before deleting the design doc and brief, absorb key context into the specs so i
 
 This ensures specs are self-contained — a developer reading spec 73 understands *why* the approach was chosen without needing the deleted design doc.
 
-## Step 5: Delete Consumed Artifacts (only when fully decomposed)
+## Step 5: Multi-Persona Red-Team
 
-The design doc and brainstorming brief have served their purpose **once every phase has been decomposed into specs**. Behavior depends on the phase target:
-
-| Decomposition mode | Delete design doc? |
-|---|---|
-| No `phase-N` argument; doc has 0 phase sections (single-phase) | Yes — fully consumed |
-| No `phase-N` argument; doc has N phase sections; all decomposed in this run | Yes — fully consumed |
-| `phase-N` argument; only that phase decomposed | **No** — design doc retained for remaining phases. Add a `## Phase N: Specified` marker after the phase heading instead, listing the spec numbers it produced. |
-| `phase-N` argument; this was the last un-specified phase | Yes — fully consumed (run delete after marker bookkeeping confirms all phases marked) |
-
-**Pre-delete verification:** Before deleting (when applicable), scan the design doc for any content not yet absorbed into specs — architectural rationale, rejected alternatives, edge case notes, integration constraints. If anything was missed, add it to the relevant spec's Decision Rationale, Assumptions, or Gotchas section. `/build` only reads the spec and INDEX.md — it will not have access to the design doc.
-
-```bash
-# Full decomposition (all phases or single-phase):
-git rm docs/superpowers/specs/YYYY-MM-DD-{topic}-design.md
-git rm docs/plans/YYYY-MM-DD-{topic}-brief.md  # if it exists
-
-# Partial decomposition (phase-N only): commit the marker, keep the doc
-git add docs/superpowers/specs/YYYY-MM-DD-{topic}-design.md
-git commit -m "docs(specs): mark phase-{N} specified in design doc"
-```
-
-When fully consumed, do NOT keep these around. They create dangling references and stale artifacts. The specs are the durable record.
-
-## Step 6: Clean Up INBOX
-
-If the work originated from an INBOX item:
-
-- Remove the entry from `specs/INBOX.md`
-- It has been promoted — the specs are the durable artifact now
-
----
-
-## Step 6.4: Multi-Persona Red-Team
-
-Before Self-Review, dispatch three persona-instantiated agents in one parallel batch to surface ambiguities, gaps, and unstated assumptions the author may have missed. Findings are written **into the spec body** — either as inline `<!-- ambiguity: ... -->` HTML comments next to a flagged sentence, or as rows in an appended `## Open Questions` table. No mid-flow prompt — the existing Step 6.5 Self-Review naturally picks them up.
+Before deleting the design doc, dispatch three persona-instantiated agents in one parallel batch to surface ambiguities, gaps, and unstated assumptions the author may have missed. Findings are written **into the spec body** — either as inline `<!-- ambiguity: ... -->` HTML comments next to a flagged sentence, or as rows in an appended `## Open Questions` table. No mid-flow prompt — the next step (Self-Review) naturally picks them up.
 
 > **Parallel execution:** Dispatch the three personas as parallel Task agents — each runs independently and returns Template-A findings narrowed to ambiguities, gaps, and unstated assumptions. Assemble results after all agents complete.
 >
@@ -306,7 +268,21 @@ Before Self-Review, dispatch three persona-instantiated agents in one parallel b
 > Task scope: Read the draft spec below as {Implementer | Maintainer | Skeptical Reviewer}.
 > Lens question: {persona's lens question — verbatim from the table below}
 > Constraint: Surface only ambiguities, gaps, and unstated assumptions. Not stylistic feedback. Not approval/rejection. Focus on the 3-5 most load-bearing items, not exhaustive enumeration. Read-only — do not modify the spec.
-> Output: Template-A — one finding per row with columns: Severity | Path:Line (line range in the draft spec, OR "general" if no precise location) | Finding | Evidence | Suggested resolution (optional).
+>
+> Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED.
+>
+> OUTPUT FORMAT (required):
+> Return ONLY a markdown table after the status line, no preamble:
+>
+> | Severity | Path:Line | Finding | Evidence | Suggested resolution |
+> |---|---|---|---|---|
+> | medium | spec.md:42 | "store retry state somewhere" leaves the surface undefined | the spec mentions retry behavior in 3 places without naming a storage backend | name the table or in-memory structure |
+>
+> Severity scale: critical / high / medium / low / info
+> Path:Line is a line range in the draft spec, OR literal "general" if no precise location.
+> Suggested resolution is optional — leave the cell empty if the persona has no constructive fix.
+> If no findings: return literal text "No findings."
+> Do not add narration, headers, or summaries before or after the table.
 >
 > [Use: Standard model.]
 >
@@ -333,13 +309,13 @@ After all three agents return, write findings back into the spec body:
    ```
    Write each entry **after** the spec body is updated — if the write-back fails, the decision-log should not lie about what happened.
 
-Red-team runs on every generated spec regardless of `surface:` — the lens questions are artefact-agnostic. The user (or Step 6.5 Self-Review) decides what to do with each finding. There is no mid-flow stop here.
+Red-team runs on every generated spec regardless of `surface:` — the lens questions are artefact-agnostic. The user (or Step 6 Self-Review) decides what to do with each finding. There is no mid-flow stop here.
 
 ---
 
-## Step 6.5: Spec Self-Review
+## Step 6: Spec Self-Review
 
-Before the summary, look at every spec you wrote with fresh eyes. Fix issues inline — no subagent, no separate review pass.
+Before deleting the design doc, look at every spec you wrote with fresh eyes — including the red-team findings just written in Step 5. Fix issues inline — no subagent, no separate review pass. This is also the last chance to catch content the design doc captured but no spec implements.
 
 > **Parallel execution (conditional):** When N ≥ 3 specs are produced, run scope and ambiguity checks across all specs concurrently using parallel Read + Grep calls.
 
@@ -347,12 +323,45 @@ Before the summary, look at every spec you wrote with fresh eyes. Fix issues inl
 2. **Internal consistency** — across the specs in this decomposition, do referenced types, model names, and endpoint signatures match? A function called `clearLayers()` in spec 42 but `clearFullLayers()` in spec 43 is a bug.
 3. **Scope check** — is each spec genuinely a single work unit (3-8 tasks)? If one is doing two things, split it now. If two are doing the same thing, merge them.
 4. **Ambiguity check** — could any acceptance criterion be interpreted two different ways? Pick one and make it explicit.
+5. **Design-doc coverage** — re-read the design doc with each spec open. If you find a spec requirement the doc captured but no spec implements, add it to the right spec now — the doc is about to be deleted in Step 7.
 
-If you find a spec requirement the design doc captured but no spec implements, add it to the right spec. Then move on — no need to re-review after fixing.
+When all four checks come back clean, proceed to Step 7. No need to re-review after fixing.
 
 ---
 
-## Step 7: Summary and Commit
+## Step 7: Delete Consumed Artifacts (only when fully decomposed)
+
+The design doc and brainstorming brief have served their purpose **once every phase has been decomposed into specs and Step 6 Self-Review has confirmed coverage**. Behavior depends on the phase target:
+
+| Decomposition mode | Delete design doc? |
+|---|---|
+| No `phase-N` argument; doc has 0 phase sections (single-phase) | Yes — fully consumed |
+| No `phase-N` argument; doc has N phase sections; all decomposed in this run | Yes — fully consumed |
+| `phase-N` argument; only that phase decomposed | **No** — design doc retained for remaining phases. Add a `## Phase N: Specified` marker after the phase heading instead, listing the spec numbers it produced. |
+| `phase-N` argument; this was the last un-specified phase | Yes — fully consumed (run delete after marker bookkeeping confirms all phases marked) |
+
+```bash
+# Full decomposition (all phases or single-phase):
+git rm docs/superpowers/specs/YYYY-MM-DD-{topic}-design.md
+git rm docs/plans/YYYY-MM-DD-{topic}-brief.md  # if it exists
+
+# Partial decomposition (phase-N only): commit the marker, keep the doc
+git add docs/superpowers/specs/YYYY-MM-DD-{topic}-design.md
+git commit -m "docs(specs): mark phase-{N} specified in design doc"
+```
+
+When fully consumed, do NOT keep these around. They create dangling references and stale artifacts. The specs are the durable record.
+
+## Step 8: Clean Up INBOX
+
+If the work originated from an INBOX item:
+
+- Remove the entry from `specs/INBOX.md`
+- It has been promoted — the specs are the durable artifact now
+
+---
+
+## Step 9: Summary and Commit
 
 Present a summary:
 
@@ -406,7 +415,7 @@ Commit with a message describing the specs created.
 | Specifying without a codebase scan | Specs need Current State context — without it, `/superpowers:writing-plans` operates on blind assumptions. Step 1's Landscape reads include git log + existing files. The design-doc half of this anti-pattern is no longer possible: polymorphic input invokes `/superpowers:brainstorming` automatically when the input is a bare topic with no existing design doc. |
 | Specs that touch every layer | A single spec spanning data + API + UI + infra is too large for agent-sized execution |
 | Vague acceptance criteria | "Works correctly" can't be verified — `/superpowers:writing-plans` needs specific, testable assertions |
-| Keeping the design doc after specifying | Creates dangling references — the spec is the durable record, the design doc is consumed. Partial (`phase-N`) decomposition is the only exception (see Step 5's table). |
+| Keeping the design doc after specifying | Creates dangling references — the spec is the durable record, the design doc is consumed. Partial (`phase-N`) decomposition is the only exception (see Step 7's table). |
 | Silently deciding how to handle overlapping specs | Overlap handling (extend vs. companion vs. replace) is a user decision — present numbered options, don't assume |
 | Mis-targeting design pre-steps | Asking design-intent on backend specs is irrelevant; skipping the shape pre-step on frontend specs without offering loses UX value. Step 2.5a's frontend detection gates both — respect it. |
 | Writing specs without `surface:` frontmatter | Wrapper Layer 2 detection falls through to file-extension sniff, which is less reliable. Always write `surface:` per the canonical reference in `spec-template.md`. |
@@ -424,10 +433,16 @@ Commit with a message describing the specs created.
 | `/superpowers:executing-plans` | Executes specs AFTER /claude-tweaks:specify — uses the plan from `/superpowers:writing-plans` (via `/claude-tweaks:build` batched execution strategy) |
 | `/claude-tweaks:build` | Runs AFTER /claude-tweaks:specify — takes a single spec and implements it |
 | `/claude-tweaks:capture` | Feeds INBOX items that may trigger brainstorming → /claude-tweaks:specify |
-| `/claude-tweaks:tidy` | Reviews specs created by /claude-tweaks:specify for staleness. /claude-tweaks:tidy tags INBOX items as `**Promoted:**` — /claude-tweaks:specify Step 6 removes them from INBOX after creating the spec |
+| `/claude-tweaks:tidy` | Reviews specs created by /claude-tweaks:specify for staleness. /claude-tweaks:tidy tags INBOX items as `**Promoted:**` — /claude-tweaks:specify Step 8 removes them from INBOX after creating the spec |
 | `/claude-tweaks:help` | Shows which specs from /claude-tweaks:specify are ready for /claude-tweaks:build — also uses Key Files for implicit dependency detection |
 | `/claude-tweaks:design` | /specify invokes `/claude-tweaks:design shape <topic>` (Step 2.5b) on frontend design docs to enrich the design doc with UX/UI planning. /specify writes `surface:` and `design-intent:` frontmatter (Step 2.5c + Step 3) on every generated spec; the design wrapper reads `surface:` for Layer 2 detection and reads `design-intent:` for `polish` mode's intent-driven dispatch (active in v4.5.0). |
 | `/claude-tweaks:research` | Prior-art lookup before authoring a spec — `/research` reports can be cited directly in spec "Background" / "Prior art" sections. |
 | `/claude-tweaks:challenge` | Runs BEFORE /specify on INBOX items — produces a debiased brief whose assumptions, blind spots, and constraints /specify absorbs into spec Gotchas sections during Step 1 |
 | `/claude-tweaks:flow` | Invoked BY /flow when a design doc is passed to /flow Step 2.7 — flow rejects design docs and routes through /specify to enforce the granularity contract before pipeline entry |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
+| `_shared/multi-agent-coordination.md` | Canonical primitive for Multi-persona red-team (Mode 3) — three fixed personas, one round, run as part of the self-review step. |
+| `_shared/subagent-output-contract.md` | Red-team persona agents emit Template A (findings); follow the status-line and model-tier conventions. |
+
+## Background
+
+`/superpowers:writing-plans` produces multi-phase plan files (`*-P1.md`, `*-P2.md`, …) that exceed `/flow`'s envelope. The legacy path `/superpowers:brainstorming → writing-plans → /flow` had three artifact tiers with the middle tier agent-too-big. The current path is `/superpowers:brainstorming → /specify → /flow` — two artifact tiers where `/specify` produces specs sized for `/flow`'s shape gate. `/superpowers:brainstorming` is unchanged; the granularity contract relies on the user (or a skill caller) routing through `/specify` rather than `writing-plans`.

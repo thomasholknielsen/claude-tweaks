@@ -75,7 +75,7 @@ Match the model to the work. Specify the tier in the `Task()` dispatch.
 |---|---|---|
 | **Fast** (Haiku) | Mechanical: file location, pattern grep, structured extraction, single-file checks | `/journeys` per-journey extraction, `/stories` per-flow probe, `/test` parallel scouts, `/review` lens 3a (convention check), lens 3f (test quality on isolated files) |
 | **Standard** (Sonnet) | Integration: multi-file analysis, cross-cutting findings, format-sensitive transforms | `/review` lenses 3b-3e (security, errors, perf, architecture), `/browse` agents, `/tidy` reviewers |
-| **Capable** (Opus) | Judgment-heavy: design synthesis, UX analysis, ambiguous calibration, plan-quality review | `/review` lens 3h (UX analysis), `/reflect` per-lens reflection, final-review dispatch |
+| **Capable** (Opus) | Judgment-heavy: design synthesis, UX analysis, ambiguous calibration, plan-quality review | `/review` lens 3h (UX analysis), `/challenge` Mode 4 aggregator (Layered MoA), `/specify` red-team synthesis |
 
 Default to the cheapest model that can do the job. Upgrade explicitly when the agent comes back `BLOCKED` for reasoning reasons (not for context reasons).
 
@@ -99,7 +99,7 @@ If no findings: return literal text "No findings."
 Do not add narration, headers, or summaries before or after the table.
 ```
 
-**Used by:** `/review` (review angles), `/visual-review` (per-page review agents), `/reflect` (per-lens reflection).
+**Used by:** `/review` (review angles), `/visual-review` (per-page review agents), `/specify` (per-persona red-team findings), `/challenge` (per-lens proposers).
 
 ## Template B — Search-style (returns locations)
 
@@ -162,7 +162,28 @@ In a Form B blockquote:
 > **Contract:** Each agent follows the Subagent Contract — minimal input (scope + path + output template, no conversation), one of {DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED} as its first line, then Template A. Pick the cheapest model tier that fits ({Fast | Standard | Capable}). Inline the template literally; reject and re-prompt on format violations.
 ```
 
-In the actual `Task()` call, the prompt body must contain the literal template — not a reference to it.
+In the actual `Task()` call, the prompt body must contain the literal template — not a reference to it. Concrete example:
+
+```
+Task scope: Review src/auth.ts and src/api.ts for security issues.
+
+Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED.
+
+OUTPUT FORMAT (required):
+Return ONLY a markdown table, no preamble:
+
+| Severity | Path:Line | Finding | Evidence |
+|---|---|---|---|
+| critical | src/auth.ts:42 | Missing token expiry check | uses `<` not `<=` |
+
+Severity scale: critical / high / medium / low / info
+If no findings: return literal text "No findings."
+Do not add narration, headers, or summaries before or after the table.
+
+[Use: Standard model.]
+```
+
+The blockquote above is the dispatch-site directive; the fenced block is what each `Task()` call's prompt actually contains.
 
 ## Related primitives
 

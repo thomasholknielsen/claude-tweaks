@@ -1,6 +1,6 @@
 # Browser Detection — Shared
 
-Detection + install procedure for `agent-browser`, used by /browse, /init, /review, /visual-review, /stories. The single supported backend is `agent-browser`; do not prompt the user for a backend choice.
+Detection + install procedure for `agent-browser`, used by /browse, /init, /visual-review. (Also expected to be invoked by /stories as a prereq gate — see /stories Step 0 once added.) The single supported backend is `agent-browser`; do not prompt the user for a backend choice.
 
 ## Detect
 

@@ -46,7 +46,7 @@ Mechanical pass/fail gate — types, lint, tests, QA story validation. Answers "
 | `qa story={name}` | QA — single story by name (substring match) |
 | `qa retry={path}` | QA — re-run only failed stories from a previous run |
 | `qa affected` | QA — run only stories whose `source_files` overlap with uncommitted changes |
-| `qa journey={name}` | QA — run only stories with `journey: {name}` (e.g., `qa journey=profile-settings`) |
+| `qa journey={name}` | QA — run only stories with `journey: {name}` (kebab-case, case-insensitive match against the story's `journey:` field; e.g., `qa journey=profile-settings`) |
 | `all` | Full suite (types + lint + tests) AND QA story validation |
 | `skip-qa` | Run types/lint/tests only. Skip QA story validation **even when stories exist**. The Design CLI gate (Step 1.5) still runs since it is not QA. |
 
@@ -214,11 +214,7 @@ Set TEST_PASSED=true (if all passed or passed with observations).
 |--------|--------|-----|
 | Ledger fix | Auto-recovered selector (test/qa) — `{story file}` | — |
 
-PASS_WITH_CAVEATS counts as passed for the `TEST_PASSED` gate — caveats are informational, not blocking. When timing data is available in the QA results (per-story elapsed time and total wall-clock time), include the Timing section from the QA report.
-
-When selectors are auto-recovered during QA execution, the report includes a "Recovered Selectors" summary showing the original and recovered selector for each affected step. The story YAML files have already been updated by the orchestrator (`qa-reporting.md` Phase 4.5) — no manual YAML editing is needed. Auto-recovered selectors are classified as `stale-selector` with status `auto-fixed` in the findings table.
-
-After presenting QA results, write QA findings and observations to the open items ledger (see `/claude-tweaks:ledger`) with phase `test/qa`. See `qa-reporting.md` Phase 5.5 in this skill's directory for finding vs observation classification. Findings from failures get status `open` and block the pipeline. Observations from PASS_WITH_CAVEATS stories get status `observation` with severity `Info` — they are informational and do not block the pipeline.
+PASS_WITH_CAVEATS counts as passed for the `TEST_PASSED` gate — caveats are informational, not blocking. Timing, recovered-selector summaries, and the finding/observation ledger writes (phase `test/qa`) are all documented canonically in `qa-reporting.md` Phase 5.5 — defer to that section rather than restating here.
 
 ### All mode result
 
@@ -270,7 +266,7 @@ If tests fail and the failures look straightforward (type errors, lint violation
 
 ### Auto mode
 
-When a pipeline run directory exists, apply the `/test` row from the silences table in `_shared/auto-mode-contract.md`. Read `auto-fix-threshold` from `config.yml` (default `lint+type`) and route by failure type: lint always auto-fixes; type failures auto-fix at `lint+type` and above (staged at `lint-only`); test failures stage by default and auto-fix only when the user has explicitly opted into `lint+type+test` in the Manifesto (rare, semantic-changes-hidden risk). QA failures never auto-fix — they always stage.
+When a pipeline run directory exists, apply the `/test` row from the silences table in `_shared/auto-mode-contract.md`. Read `auto-fix-threshold` from `config.yml` (resolve the run dir via `_shared/pipeline-run-dir.md`; default `lint+type`) and route by failure type: lint always auto-fixes; type failures auto-fix at `lint+type` and above (staged at `lint-only`); test failures stage by default and auto-fix only when the user has explicitly opted into `lint+type+test` in the Manifesto (rare, semantic-changes-hidden risk). QA failures never auto-fix — they always stage.
 
 **Auto-fix flow:** make the changes, re-run the failed checks. On re-verification pass, log `AUTO {time} — Step 3: auto-fixed {N} {type} failures. Reversibility: high; commit: {hash}.` and proceed. On re-verification fail or new issues, downgrade to STAGED and surface at Review Console.
 
@@ -300,6 +296,10 @@ If the user chooses to fix:
 2. Re-run failed stories — `/claude-tweaks:test qa retry={RUN_DIR}`
 3. Skip — I'll investigate manually
 ```
+
+## Component-Skill Contract
+
+`/claude-tweaks:test` is invoked by `/claude-tweaks:flow` between build and review, and by `/claude-tweaks:review` Step 1.5 as the test gate. Parent invocation is signaled by the `PIPELINE_RUN_DIR` env var or by the caller setting `TEST_PASSED` in the calling context. When `PIPELINE_RUN_DIR` is set, omit the `### Next Actions` block — the parent owns the handoff. When invoked directly by a user, render Next Actions as documented. The skip-qa flag and qa-mode args are user-facing; parents pass `skip-qa` during the `/flow` polish re-verify gate and never invoke qa mode themselves (qa runs at its own pipeline stage).
 
 ## Anti-Patterns
 

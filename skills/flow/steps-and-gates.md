@@ -12,12 +12,14 @@ Only automatable skills can be included in the pipeline:
 | `stories` | `/claude-tweaks:stories` | Autonomous — browses app, generates YAML stories. Auto-triggered when build produces UI file changes (unless `no-stories`). |
 | `test` | `/claude-tweaks:test` | Mechanical pass/fail gate — types, lint, tests, QA story validation. Sets `TEST_PASSED=true` on pass. |
 | `review` | `/claude-tweaks:review` | Code review, simplification, visual browser review with idea generation (when browser available) — produces a verdict. Gates on `TEST_PASSED`. |
-| `polish` | `/claude-tweaks:design polish <spec>` | **(Phase 2)** Invokes Impeccable polish + clarify + harden (auto-fit) plus issue-driven commands when audit findings exist. Modifies code. Always followed by re-verify (`/test skip-qa`). Gates on review verdict PASS. Skipped on non-frontend specs (wrapper detection). |
+| `polish` | `/claude-tweaks:design polish <spec>` | Invokes Impeccable polish + clarify + harden (auto-fit) plus issue-driven commands when audit findings exist. Modifies code. Always followed by re-verify (`/test skip-qa`). Gates on review verdict PASS. Skipped on non-frontend specs (wrapper detection). |
 | `wrap-up` | `/claude-tweaks:wrap-up` | Reflection, cleanup, knowledge routing — produces actionable summary |
 
 **Not allowed in flow:** `capture`, `challenge`, `specify`, `init`, `tidy`, `help`, `browse` — these require interactive decision-making or are utility skills.
 
 `re-verify` is **bundled** with `polish` — it is not a separately addressable step. When `polish` runs and modifies code, the re-verify gate runs automatically afterward (`/test skip-qa`, one-cycle cap). Including `re-verify` in a step list is a no-op; treat it as already implied by `polish`.
+
+**Resume-only step `review-console`** — accepted only on multi-spec resume after a Halt at the consolidated console (see `multispec-review-console.md`). Usage: `/claude-tweaks:flow {specs} review-console` re-reads the parent run dir and re-presents the console. Not a normal pipeline step; not valid in a comma-separated step list with other steps.
 
 ## Step Arguments
 
@@ -34,6 +36,7 @@ Steps must follow lifecycle order. Invalid orderings are rejected.
 **Explicit subset** (comma-separated steps) runs only the listed steps. Context from skipped prior steps is read from files if available.
 
 **Valid examples:**
+- `review-console` — valid only on multi-spec resume after a Halt at the consolidated console (re-reads the parent run dir and re-presents the console)
 - `build,test,review,polish,wrap-up` — valid (default; stories auto-inserted if UI changed)
 - `build,stories,test,review,polish,wrap-up` — valid (stories always runs regardless of UI changes)
 - `build,test,review,wrap-up` — valid (skips polish — equivalent to `no-polish`)
@@ -62,7 +65,7 @@ Each step has a gate that determines whether to proceed to the next step.
 | `stories` (auto) | YAML files created + no parse errors | Proceed to test | **STOP** — present generation failures |
 | `test` | All checks pass — types, lint, tests, QA (when stories exist). `PASS_WITH_CAVEATS` counts as passed (caveats are informational). Sets `TEST_PASSED=true`. | Proceed to review | **STOP** — present test/QA failures |
 | `review` | Verdict is **PASS**. Gates on `TEST_PASSED=true`. Runs in full mode (code + visual) when browser available; falls back to code mode otherwise. | Proceed to polish (or wrap-up if `no-polish`) | **STOP** — present **BLOCKED** verdict with findings |
-| `polish` (Phase 2) | Wrapper returns `{result: "ok"}`. Acceptable returns include `commands_invoked: []` (no auto-fit applicable, no audit findings — no work to do) and `{skipped: ...}` (non-frontend, no Impeccable, integration disabled). | See the polish-phase decision tree below. | **STOP** — wrapper returned an error (rare; usually means Impeccable plugin crashed mid-dispatch). Present the error. |
+| `polish` | Wrapper returns `{result: "ok"}`. Acceptable returns include `commands_invoked: []` (no auto-fit applicable, no audit findings — no work to do) and `{skipped: ...}` (non-frontend, no Impeccable, integration disabled). | See the polish-phase decision tree below. | **STOP** — wrapper returned an error (rare; usually means Impeccable plugin crashed mid-dispatch). Present the error. |
 | `re-verify` (bundled with polish) | `/test skip-qa` passes (types + lint + tests). | Proceed to wrap-up | **STOP** — present "Polish broke verification" failure card. One-cycle cap — no automatic retry. |
 | `wrap-up` | Always passes | Pipeline complete | — |
 

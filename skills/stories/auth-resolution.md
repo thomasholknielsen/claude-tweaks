@@ -1,0 +1,44 @@
+# Stories — Auth Resolution
+
+Loaded by `/claude-tweaks:stories` Step 2 **only when** at least one discovered page requires authentication (or a legacy `auth.yml` is detected). When no auth-gated page is found, SKILL.md skips this file entirely.
+
+## Auth Vault — vault-naming convention
+
+Stories that require login reference the credentials via `auth: { vault: "<name>" }`. Vault names follow this convention:
+
+- `default-user` — canonical user persona (matches the examples in `story-examples.md`).
+- `<persona>-user` — additional personas (`admin-user`, `customer-user`).
+- `<project-slug>-user` — when a project benefits from disambiguating from other vaults on the same machine.
+
+Stay consistent with whatever vault list `agent-browser auth list` already shows; only introduce a new convention when no clean match exists.
+
+## Procedure
+
+1. **List existing vaults:** Run `agent-browser auth list`. Each row is a vault name plus a username.
+2. **Vault matches the project** (e.g., `default-user`, project slug, admin/customer name): use that name. Stories reference it via `auth: { vault: "<name>" }`.
+3. **No matching vault:**
+
+   **Interactive mode:** print the one-time command for the user to run in their own shell — do NOT search the project for credentials and do NOT ask the LLM:
+   ```
+   No matching auth vault found. To create one (the LLM will never see the password):
+
+       agent-browser auth set <vault-name> <username> <password>
+
+   Recommended vault name: `default-user` (or `<project-slug>-user`).
+
+   When done, reply "ready" and I'll continue. To skip auth-gated stories for now, reply "skip".
+   ```
+   On `ready`: re-run `agent-browser auth list`, confirm, continue. On `skip`: tag stories needing auth as `needs-auth-vault` and skip them in Step 5 refinement.
+
+   **Auto mode:** never block — tag auth-gated stories as `needs-auth-vault`, skip them in Step 5 refinement, and stage the install hint. Log:
+   ```
+   STAGED {HH:MM:SS} — Auth Resolution: no matching vault for {auth-gated-page-list}. Auth-gated stories tagged `needs-auth-vault` and skipped in Refine. User can create a vault with `agent-browser auth set default-user <username> <password>` and re-run /stories. Reversibility: high (re-run /stories or /test qa).
+   ```
+   Surface the install hint at the Wrap-Up Review Console.
+4. **Multiple vaults exist** (e.g., `default-user`, `admin-user`): map each story's persona to the matching vault; fall back to `default-user` with a comment when no clean match.
+
+## Legacy `auth.yml` detection
+
+**Trigger:** `{OUTPUT_DIR}/auth.yml` exists from a v3 install.
+
+When detected: read `migration.md` in this skill's directory for the split procedure (credentials → Auth Vault, server URLs → `servers.yml`). Migration is a one-time operation — once `auth.yml` is split, this section never re-runs for the project.

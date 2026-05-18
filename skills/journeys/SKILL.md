@@ -82,10 +82,10 @@ Before committing, look at the journey file(s) with fresh eyes. Fix issues inlin
 
 **Decision gate:** make one fix attempt per issue. Issues that remain after one fix attempt route by mode:
 
-**Auto mode** (pipeline run directory exists): stage unresolved issues to `staged/journeys-{n}.md` and continue — journey files are documentation, not code, so a stale persona or vague success state must not block the pipeline. The Wrap-Up Review Console surfaces the staged file for batch approval. Log:
+**Auto mode** (pipeline run directory exists): stage unresolved issues to `staged/journeys-{journey-slug}.md` (one file per journey, using the journey's kebab-case slug) and continue — journey files are documentation, not code, so a stale persona or vague success state must not block the pipeline. The Wrap-Up Review Console surfaces the staged file for batch approval. Log:
 
 ```
-STAGED {time} — Step 3.5: {N} journey self-review issues remain after one fix attempt. Stage path: staged/journeys-{n}.md. Reversibility: high.
+STAGED {time} — Step 3.5: {N} journey self-review issues remain after one fix attempt. Stage path: staged/journeys-{journey-slug}.md. Reversibility: high.
 ```
 
 Only BLOCK when the journey file is structurally invalid (missing required frontmatter, missing `## Steps` heading, no steps at all) — those are degraded output the caller must address before continuing.
@@ -147,7 +147,7 @@ When invoked directly (not by a parent skill), end with:
 
 1. `/claude-tweaks:stories` — generate QA stories from journeys **(Recommended)**
 2. `/claude-tweaks:visual-review journey:{name}` — visual review of a journey
-3. `/claude-tweaks:test` — verify implementation
+3. `/claude-tweaks:test {spec}` — verify implementation
 ```
 
 When invoked by a parent, omit Next Actions — the parent handles flow control.

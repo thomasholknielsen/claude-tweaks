@@ -96,6 +96,32 @@ When a pipeline run directory exists, route findings by category without prompti
 
 Default behavior: **defer everything** to the Review Console. The exception is safety regressions, which always surface inline.
 
+**Stage-file format** (`{run-dir}/staged/reflect-{n}.md`):
+
+```markdown
+# Reflect — staged finding {n}
+
+**Category:** {convention | tangential | observation}
+**Severity:** {low | med | high}
+**Reversibility:** {high | med | low}
+**Source:** {full | hindsight} mode, lens "{lens name}"
+**Files:** {comma-separated paths or "general"}
+
+## Finding
+
+{1-3 sentences. What was observed; why it might matter.}
+
+## Suggested resolution
+
+{Optional. Concrete change or routing recommendation.}
+
+## Decision-log reference
+
+{Copy the matching `STAGED …` line from `decisions.md` so the Console can cross-link.}
+```
+
+Number `{n}` is a per-run sequence counter — increment as each staged file is written so multiple stages in one run never collide.
+
 ### Interactive mode (batch user routing — differs by mode)
 
 - **Hindsight mode** → see `hindsight-mode.md` (Implementation Hindsight batch table + recommendation rules)
@@ -112,15 +138,15 @@ Default behavior: **defer everything** to the Review Console. The exception is s
 | Standalone, ledger exists | `reflect` | Write findings/insights to existing ledger. |
 | Standalone, no ledger | *(skip)* | Present findings without ledger tracking. |
 
-## Standalone Next Actions
+## Step 5: Report
 
-When invoked directly (not by a parent skill), end with:
+When invoked directly (not by a parent skill), present findings and end with the Next Actions block below:
 
 ```
 ### Next Actions
 
 1. `/claude-tweaks:review {spec}` — full code review **(Recommended)**
-2. `/claude-tweaks:test` — verify changes from reflection
+2. `/claude-tweaks:test {spec}` — verify changes from reflection
 3. `/claude-tweaks:wrap-up {spec}` — capture learnings and clean up
 ```
 
