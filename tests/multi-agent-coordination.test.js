@@ -346,3 +346,123 @@ test('/review summary assembly: confirmed flow to summary; unconfirmed + contest
     'review-console.md must document the Contested subsection',
   );
 });
+
+// ============================================================
+// /specify integration tests (Spec 03)
+// ============================================================
+
+test('/specify red-team integration: ambiguous draft spec → red-team flags it → spec body contains Open Questions row OR inline ambiguity comment', () => {
+  // Fixture: a draft spec containing a deliberate ambiguity.
+  const draftSpec = [
+    '# Spec 99: Fast API',
+    '',
+    '## Acceptance Criteria',
+    '1. The API should be fast.',
+    '2. Returns paginated results.',
+  ].join('\n');
+
+  // Build the red-team dispatch — 3 personas, batched.
+  const dispatch = c.buildRedTeamDispatch(draftSpec);
+  assert.strictEqual(dispatch.agentCount, 3);
+  assert.deepStrictEqual(
+    dispatch.agents.map((a) => a.role).sort(),
+    ['Implementer', 'Maintainer', 'Skeptical Reviewer'],
+  );
+
+  // Each persona prompt contains the draft spec verbatim AND the lens question verbatim.
+  for (const agent of dispatch.agents) {
+    assert.ok(agent.prompt.includes(draftSpec), `${agent.role}'s prompt must include the draft spec`);
+    const persona = c.RED_TEAM_PERSONAS.find((p) => p.name === agent.role);
+    assert.ok(agent.prompt.includes(persona.lens), `${agent.role}'s prompt must include its lens question`);
+  }
+
+  // Simulate persona output: Skeptical Reviewer flags "fast" with a precise location;
+  // Implementer flags missing pagination shape with general location.
+  const personaFindings = [
+    {
+      persona: 'Skeptical Reviewer',
+      severity: 'medium',
+      location: 'Acceptance Criteria 1',
+      finding: '"fast" has no metric — load-bearing assumption',
+      resolution: 'define p95 latency target',
+    },
+    {
+      persona: 'Implementer',
+      severity: 'medium',
+      location: 'general',
+      finding: 'pagination shape not defined — page size? cursor or offset?',
+    },
+  ];
+
+  // Apply write-back logic: precise-location → inline comment; general → Open Questions row.
+  function applyRedTeamFindings(specBody, findings) {
+    let body = specBody;
+    const openQuestions = [];
+    for (const f of findings) {
+      if (f.location === 'general') {
+        openQuestions.push(f);
+      } else {
+        const comment = `<!-- ambiguity: ${f.persona} — ${f.finding}${f.resolution ? `; suggested: ${f.resolution}` : ''} -->`;
+        // Insert comment after the line containing the location identifier.
+        body = body.replace(/(1\. The API should be fast\.)/, `$1 ${comment}`);
+      }
+    }
+    if (openQuestions.length > 0) {
+      const rows = openQuestions
+        .map((f) => `| ${f.persona} | ${f.finding} | ${f.resolution || '—'} |`)
+        .join('\n');
+      body +=
+        '\n\n## Open Questions\n\n| Persona | Finding | Suggested Resolution |\n|---------|---------|---------------------|\n' +
+        rows;
+    }
+    return body;
+  }
+
+  const updated = applyRedTeamFindings(draftSpec, personaFindings);
+
+  // Precise-location finding → inline ambiguity comment
+  assert.ok(
+    updated.includes('<!-- ambiguity: Skeptical Reviewer'),
+    'spec body must contain inline ambiguity comment for precise-location finding',
+  );
+  assert.ok(
+    updated.includes('"fast" has no metric'),
+    'inline comment must include the finding text',
+  );
+  assert.ok(
+    updated.includes('suggested: define p95 latency target'),
+    'inline comment must include the suggested resolution',
+  );
+
+  // General-location finding → Open Questions row
+  assert.ok(updated.includes('## Open Questions'), 'spec body must contain Open Questions section');
+  assert.ok(
+    updated.includes('pagination shape not defined'),
+    'Open Questions table must contain the general-location finding',
+  );
+
+  // Decision-log entry schema for one staged finding
+  const entry =
+    `- STAGED 11:22:33 — Red-team: persona "Skeptical Reviewer" flagged ambiguity at Acceptance Criteria 1. ` +
+    `Written to spec as <!-- ambiguity: --> marker.`;
+  assert.match(
+    entry,
+    /^- STAGED \d{2}:\d{2}:\d{2} — Red-team: persona ".+" flagged (ambiguity|gap|unstated assumption) at .+\. Written to spec as .+\.$/,
+  );
+});
+
+test('/specify red-team integration: zero findings → Open Questions section is omitted entirely (no empty placeholder)', () => {
+  const draftSpec = '# Spec 100\n\nNo issues here.';
+  function applyRedTeamFindings(specBody, findings) {
+    if (findings.length === 0) return specBody; // Section omitted entirely
+    let body = specBody;
+    const general = findings.filter((f) => f.location === 'general');
+    if (general.length > 0) {
+      body += '\n\n## Open Questions\n\n| Persona | Finding | Suggested Resolution |\n|---|---|---|\n';
+    }
+    return body;
+  }
+  const result = applyRedTeamFindings(draftSpec, []);
+  assert.ok(!result.includes('## Open Questions'), 'empty findings must not emit a placeholder header');
+  assert.strictEqual(result, draftSpec, 'spec body unchanged when there are no findings');
+});

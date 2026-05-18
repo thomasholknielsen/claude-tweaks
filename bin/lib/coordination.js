@@ -23,15 +23,15 @@ const SEVERITY_BUCKETS = {
 const RED_TEAM_PERSONAS = [
   {
     name: 'Implementer',
-    lens: "What's ambiguous or under-specified that would block me from starting to code?",
+    lens: 'Could I build exactly what this asks for without asking a question?',
   },
   {
     name: 'Maintainer',
-    lens: 'What in this spec will be hard to maintain six months from now?',
+    lens: "In 6 months, can someone changing related code know what they can/can't break?",
   },
   {
     name: 'Skeptical Reviewer',
-    lens: 'What is this spec assuming that might not be true?',
+    lens: 'What unstated assumption is doing the load-bearing work here?',
   },
 ];
 

@@ -89,6 +89,16 @@ design-intent: {bold | quiet | minimal | delightful | onboarding | none}
 
 {Absorbed from the brief. Validated assumptions, surfaced blind spots, and hard constraints that shaped this spec. Only included when the brief contains assumptions relevant to this specific spec.}
 
+## Open Questions (optional)
+
+{Populated by /specify Step 6.4 multi-persona red-team. Each row is a question raised by a persona during red-team review. When empty, this section is omitted from the spec entirely — do not emit an empty header.}
+
+| Persona | Finding | Suggested Resolution |
+|---------|---------|---------------------|
+| {Implementer | Maintainer | Skeptical Reviewer} | {finding text} | {resolution or "—"} |
+
+{Resolve each row during Step 6.5 Self-Review: edit the spec to remove the ambiguity, or explicitly accept the finding inline. When all rows are resolved, delete the section.}
+
 ## Manual Steps
 
 Operations that **cannot be automated by a capable CLI user** — not things that merely live outside the codebase. `/build` Step 2.5 probes each item at execution time; items with a CLI/API and credentials are run inline, not seeded as manual.
@@ -140,6 +150,7 @@ If you would need `/superpowers:writing-plans` to guess, the spec is incomplete 
 | **Data / API Surface** | Enables exact code generation — names, types, endpoints |
 | **Key Files** | Exact paths for the plan's "Files" section |
 | **Gotchas** | Injected as constraints into subagent prompts |
+| **Open Questions** | Reviewed during Step 6.5 Self-Review — must be resolved (clarified or accepted) before the spec is handed to `/superpowers:writing-plans`. The section is appended by Step 6.4 multi-persona red-team and is optional (omitted when red-team finds no general-location ambiguities). |
 | **Manual Steps** | Classified at build start (Step 2.5) — auto-executable items run inline; only items that fail the triage (no-cli, requires-judgment, requires-signoff, auth-not-configured) seed the ledger as `ops` |
 
 ## Frontmatter reference (canonical spec)

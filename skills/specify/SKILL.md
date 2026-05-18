@@ -292,6 +292,51 @@ If the work originated from an INBOX item:
 
 ---
 
+## Step 6.4: Multi-Persona Red-Team
+
+Before Self-Review, dispatch three persona-instantiated agents in one parallel batch to surface ambiguities, gaps, and unstated assumptions the author may have missed. Findings are written **into the spec body** — either as inline `<!-- ambiguity: ... -->` HTML comments next to a flagged sentence, or as rows in an appended `## Open Questions` table. No mid-flow prompt — the existing Step 6.5 Self-Review naturally picks them up.
+
+> **Parallel execution:** Dispatch the three personas as parallel Task agents — each runs independently and returns Template-A findings narrowed to ambiguities, gaps, and unstated assumptions. Assemble results after all agents complete.
+>
+> **Contract:** Each agent follows the Subagent Contract — minimal input (draft spec content + persona lens question + Template A), one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED` as its first reply line. Tier: **Standard** (Sonnet). Read-only — personas never modify the spec themselves.
+>
+> **Persona prompts (inline literally per agent — Mode 3 from `skills/_shared/multi-agent-coordination.md`):**
+>
+> ```
+> Task scope: Read the draft spec below as {Implementer | Maintainer | Skeptical Reviewer}.
+> Lens question: {persona's lens question — verbatim from the table below}
+> Constraint: Surface only ambiguities, gaps, and unstated assumptions. Not stylistic feedback. Not approval/rejection. Focus on the 3-5 most load-bearing items, not exhaustive enumeration. Read-only — do not modify the spec.
+> Output: Template-A — one finding per row with columns: Severity | Path:Line (line range in the draft spec, OR "general" if no precise location) | Finding | Evidence | Suggested resolution (optional).
+>
+> [Use: Standard model.]
+>
+> Draft spec follows:
+> ---
+> {draft spec content}
+> ```
+>
+> **The three personas (lens questions verbatim):**
+>
+> | Persona | Lens question |
+> |---|---|
+> | Implementer | Could I build exactly what this asks for without asking a question? |
+> | Maintainer | In 6 months, can someone changing related code know what they can/can't break? |
+> | Skeptical Reviewer | What unstated assumption is doing the load-bearing work here? |
+
+After all three agents return, write findings back into the spec body:
+
+1. **Precise-location findings** (persona named a specific sentence, quoted text, or line range) → insert `<!-- ambiguity: {persona} — {finding text}{; suggested: {resolution}} -->` immediately after the flagged sentence. On the same line if short; on the next line if long.
+2. **General findings** (no precise location) → accumulate into an `## Open Questions` table appended to the spec, with columns `Persona | Finding | Suggested Resolution`. When this batch is empty, omit the section entirely — do not emit an empty header.
+3. **Decision-log entry per finding:**
+   ```
+   STAGED {HH:MM:SS} — Red-team: persona "{persona}" flagged {ambiguity|gap|unstated assumption} at {location}. Written to spec as {<!-- ambiguity: --> marker | ## Open Questions row}.
+   ```
+   Write each entry **after** the spec body is updated — if the write-back fails, the decision-log should not lie about what happened.
+
+Red-team runs on every generated spec regardless of `surface:` — the lens questions are artefact-agnostic. The user (or Step 6.5 Self-Review) decides what to do with each finding. There is no mid-flow stop here.
+
+---
+
 ## Step 6.5: Spec Self-Review
 
 Before the summary, look at every spec you wrote with fresh eyes. Fix issues inline — no subagent, no separate review pass.

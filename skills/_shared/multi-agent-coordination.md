@@ -168,9 +168,9 @@ Surface ambiguity and under-specification in a spec doc by reading it through th
 
 | Persona | Lens question |
 |---|---|
-| Implementer | "What's ambiguous or under-specified that would block me from starting to code?" |
-| Maintainer | "What in this spec will be hard to maintain six months from now?" |
-| Skeptical Reviewer | "What is this spec assuming that might not be true?" |
+| Implementer | "Could I build exactly what this asks for without asking a question?" |
+| Maintainer | "In 6 months, can someone changing related code know what they can/can't break?" |
+| Skeptical Reviewer | "What unstated assumption is doing the load-bearing work here?" |
 
 ### Comparison / aggregation rule
 
