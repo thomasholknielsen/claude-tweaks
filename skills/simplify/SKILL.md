@@ -59,6 +59,8 @@ If no files are in scope, state: "No changed files to simplify." and stop.
 
 ## Step 2: Run Code Simplifier
 
+> **Parallel execution:** Dispatch to `code-simplifier:code-simplifier` subagent. **Contract:** the subagent follows `_shared/subagent-output-contract.md` — minimal input scope, status line first, output template inlined.
+
 Invoke the `code-simplifier:code-simplifier` subagent on the scoped files. Follow the **Subagent Contract** (`_shared/subagent-output-contract.md`) — minimal input (file paths + the output template, no conversation history), tier **Standard (Sonnet)**, and the literal output template below inlined verbatim in the dispatch prompt (the subagent cannot read sibling files):
 
 ```
@@ -149,13 +151,11 @@ Verification: {pass/fail}
 No simplifications needed — code is already clean.
 ```
 
-### Standalone Next Actions
+## Next Actions
 
 When invoked directly (not by a parent skill), end with:
 
 ```
-### Next Actions
-
 1. `/claude-tweaks:review {spec}` — code review quality gate **(Recommended)**
 2. `/claude-tweaks:test` — verify changes
 ```
@@ -164,7 +164,7 @@ When invoked by a parent, omit Next Actions — the parent handles flow control.
 
 ## Component-Skill Contract
 
-This skill is a **component skill** — invoked by `/claude-tweaks:build` (Common Step 3) and `/claude-tweaks:review` (Step 5). Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (the parent is running inside an active pipeline run). When invoked by a parent, omit the `### Next Actions` block — the parent owns the handoff. When invoked directly by a user (no `$PIPELINE_RUN_DIR`, regardless of whether file paths were typed in `$ARGUMENTS` or passed inline), render Next Actions as shown above.
+This skill is a **component skill** — invoked by `/claude-tweaks:build` (Common Step 3) and `/claude-tweaks:review` (Step 5). Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (the parent is running inside an active pipeline run). When invoked by a parent, omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user (no `$PIPELINE_RUN_DIR`, regardless of whether file paths were typed in `$ARGUMENTS` or passed inline), render Next Actions as shown above.
 
 ## Anti-Patterns
 

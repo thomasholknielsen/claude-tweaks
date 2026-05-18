@@ -22,74 +22,17 @@ Implement a spec or design doc end-to-end: plan it, build it, simplify it, verif
 - /claude-tweaks:help recommends building a specific spec
 - Resuming a partially-completed build
 
-## Build Options
+## Build Options (summary)
 
-Two orthogonal choices control how `/build` runs. Combine them freely:
+Two orthogonal axes (execution × git) combine freely. Default is `subagent` + `worktree`.
 
-| Axis | Option | Behavior | Best for |
-|------|--------|----------|----------|
-| **Execution** | `subagent` (default) | Invokes `/superpowers:subagent-driven-development`. Fresh subagent per task; automated spec reviewer + code quality reviewer + final review. No human in the loop. Push commits promptly. | Solo work, trusted pipeline |
-| **Execution** | `batched` | Invokes `/superpowers:executing-plans`. Executes 3 tasks per batch, pauses for human review after each batch. User approves, requests changes, or skips tasks. Push after each approved batch. | Complex specs, unfamiliar code, hands-on review |
-| **Git** | `worktree` (default) | Before execution, invokes `/superpowers:using-git-worktrees` to create an isolated workspace with dependency install and baseline test verification. All commits land in the worktree on a feature branch. At handoff, delegates to `/superpowers:finishing-a-development-branch` (merge, PR, keep, or discard). | Parallel work, team projects, risky changes, safe automation |
-| **Git** | `current-branch` | Commits land directly on the current branch. No isolation — simple and fast. | Quick local edits, no isolation needed |
+| Axis | Options | Default |
+|------|---------|---------|
+| **Execution** | `subagent` (automated review chain) / `batched` (3-task human-reviewed batches) | `subagent` |
+| **Git** | `worktree` (isolated branch) / `current-branch` (direct commits) | `worktree` |
+| **Auto** | `auto` keyword — applies CLAUDE.md / fallback defaults, skips confirmation prompts, routes deviations per `_shared/auto-mode-contract.md` | off |
 
-```
-/claude-tweaks:build 42                         → subagent + worktree (default)
-/claude-tweaks:build 42 current-branch          → subagent + current branch (no isolation)
-/claude-tweaks:build 42 batched                 → human-reviewed batches + worktree
-/claude-tweaks:build 42 batched current-branch  → human-reviewed batches + current branch
-/claude-tweaks:build 42 auto                    → subagent + worktree, no confirmations
-/claude-tweaks:build 42 auto current-branch     → subagent + current-branch, no confirmations
-```
-
-### Default resolution
-
-1. Explicit arguments (`/claude-tweaks:build 42 batched current-branch`) — always win
-2. CLAUDE.md settings — project-level defaults:
-   ```
-   ## Build
-   execution-strategy: subagent
-   git-strategy: worktree
-   ```
-3. Fallback — `subagent` + `worktree`
-4. `auto` keyword — skip intermediate confirmation prompts. Uses defaults (`subagent` + `worktree`) unless overridden. Architecture alignment (Common Step 4.5) auto-routes "Beneficial" deviations (update spec silently). Decisions that warrant human judgment are staged to the Wrap-Up Review Console (Step 8.6) rather than stopping the pipeline mid-flow — see `_shared/auto-mode-contract.md` for the silences inventory and the HARD-GATE exemption list.
-
-## Input
-
-`$ARGUMENTS` = spec number, design doc path, or topic name — optionally followed by execution strategy (`batched`), git strategy (`worktree`), and/or `auto`.
-
-### Resolve the input:
-
-1. **Spec number** (e.g., `42`, `73`) → **Spec mode** — full lifecycle with prerequisites, INDEX.md tracking, and spec compliance
-2. **Design doc path** (e.g., `docs/superpowers/specs/2026-02-21-meal-planning-design.md`) → **Design mode** — build directly from the design doc, skipping spec machinery
-3. **Topic name** (e.g., `meal planning`) → search for a matching design doc in `docs/superpowers/specs/*-design.md` AND a matching spec in `specs/`. If both exist, present numbered options:
-
-```
-Found both a spec and a design doc for "{topic}":
-1. Spec mode (spec {N}: {title}) — Full lifecycle with prerequisites and tracking
-2. Design mode ({design doc filename}) — Build directly, skip spec machinery
-``` If only one exists, use it.
-4. **No arguments** → check conversation context or recent git activity for clues. Ask if unclear.
-
-### Prompt for build options
-
-When execution strategy AND git strategy are both missing from arguments, ask once — the two choices are correlated (the 2x2 above already enumerates the combinations), so they are one decision:
-
-```
-How should this build run?
-
-1. Subagent + worktree **(Recommended)** — automated review chain, isolated workspace
-2. Subagent + current-branch — automated review chain, no isolation
-3. Batched + worktree — human reviews every 3 tasks, isolated workspace
-4. Batched + current-branch — human reviews every 3 tasks, no isolation
-```
-
-When only ONE was provided as an argument (e.g., `/build 42 batched`), ask just for the missing one with a simple 2-option prompt. Skip the prompt entirely if both were provided.
-
-| Mode | Source | Skips | Best for |
-|------|--------|-------|----------|
-| **Spec mode** | `specs/{N}-*.md` | Nothing | Tracked work with acceptance criteria, dependencies, and INDEX.md |
-| **Design mode** | `docs/superpowers/specs/*-design.md` | `/claude-tweaks:specify`, prerequisite checks, INDEX.md | Quick builds where the design doc is clear enough to execute directly |
+Read `build-options.md` in this skill's directory for the full options matrix, invocation grammar (six combinations), default-resolution order, the build-options prompt template, the spec-vs-design mode table, and the input-resolution rules. `$ARGUMENTS` = spec number / design doc path / topic name, optionally followed by execution strategy, git strategy, and/or `auto`.
 
 ## Workflow
 
@@ -220,7 +163,7 @@ Audit the plan against the actual repo before dispatching execution. Two checks:
 - **Check A (always):** verify every path in the plan's Files: sections exists (or its parent directory exists for Create).
 - **Check B (conditional):** when the plan declares `Scope keywords:`, grep the repo for each keyword and list any matched files not in the plan.
 
-**Auto mode:** apply the `scope-creep` policy from `config.yml` (default `add-to-plan`). **Interactive mode:** present a numbered prompt with "Add to plan / Continue without / Stop."
+**Auto mode:** apply the `scope-creep` policy from `config.yml` (default `add-to-plan`). **Interactive mode:** present a numbered prompt with "Add to plan and continue / Continue without / Stop."
 
 **Skip this step entirely when** the plan has fewer than 3 file references AND no `Scope keywords:` field is present.
 
@@ -277,22 +220,17 @@ Compare what was actually built to what the spec or design doc said. For the ful
 
 ### Common Step 5: Final Verification
 
-After code simplification, run the shared verification procedure from the shared verification procedure (`skills/test/verification.md`). This runs type checking, linting, and tests using the project's commands from CLAUDE.md.
+After code simplification, run the shared verification procedure (`skills/test/verification.md`). This runs type checking, linting, and tests using the project's commands from CLAUDE.md.
+
+**Note:** `/build` always runs verification (it is the *producer* of `VERIFICATION_PASSED`). The skip-if-recent rule in `test/verification.md` applies only to `/test` callers — never to this step.
 
 If anything fails, fix it and commit the fix.
 
 ### Common Step 5.5: Operational Checklist
 
-After verification passes, check for operational tasks that are easy to forget. These are not code quality issues — they're deployment and environment concerns that slip through code review.
+After verification passes, check for operational tasks that are easy to forget — deployment and environment concerns that slip through code review (schema/migration files, env access patterns, IaC, CI/CD, container configs).
 
-**Triggers:**
-
-- **Category A** — `git diff` touches schema/migration files, shared constants, env access patterns (`process.env.*`, `import.meta.env.*`, `os.environ`, `ENV[...]`), or `package.json` `exports` field.
-- **Category B** — repo signals indicate a deployment platform or infrastructure-as-code (`vercel.json`, `fly.toml`, `wrangler.toml`, `*.tf`, `.github/workflows/`, `prisma/migrations/`, `Dockerfile*`, etc.) modified in this build's diff.
-
-**Skip this step entirely when** the diff matches no Category A or B trigger.
-
-When at least one trigger matches, read `operational-checklist.md` in this skill's directory for the full check tables (Category A in-code fixes, Category B platform probes), the probe-then-classify procedure, and the ledger format for auto-executed / auth-gap / truly-manual items.
+If your build's diff matches schema/env/IaC/CI/platform-config files, read `operational-checklist.md` in this skill's directory for the full Category A/B trigger lists, check tables, probe-then-classify procedure, and ledger format. Otherwise skip this step entirely.
 
 > **Parallel execution:** Use parallel tool calls — all checks are independent Grep/Glob operations.
 
@@ -314,25 +252,6 @@ If `docs/REGISTRY.md` exists, read `docs-sync.md` in this skill's directory for 
 
 After successful build, read `handoff-template.md` in this skill's directory and render the handoff using that template. The template covers verification status, what was built, simplification summary, journeys, documentation changes, blocked items, manual steps, and the Actions Performed table.
 
-### Next Actions
-
-Generate 2-4 numbered options based on context. Example rendering (the signal-to-option table below is the lookup the generator uses to populate the numbered list):
-
-```
-1. /claude-tweaks:review 42 full — code + visual review **(Recommended)**
-2. /claude-tweaks:test qa — validate 7 QA stories before review
-3. /superpowers:finishing-a-development-branch — merge, PR, or discard the feature branch
-```
-
-Signal-to-option lookup:
-
-| Signal | Option |
-|--------|--------|
-| UI changed + browser available | `/claude-tweaks:review {N} full` — code + visual review **(Recommended)** |
-| No browser or no UI | `/claude-tweaks:review {N}` — code review **(Recommended)** |
-| QA stories exist (`stories/*.yaml` or `stories/*.yml`) | `/claude-tweaks:test qa` — validate {X} QA stories before review |
-| Worktree mode | `/superpowers:finishing-a-development-branch` — merge, PR, or discard the feature branch **(Recommended in worktree mode)** |
-
 ## Git Strategy
 
 **worktree** (default): Before any work begins, `/superpowers:using-git-worktrees` creates an isolated workspace on a feature branch. All commits land in the worktree. At handoff, `/superpowers:finishing-a-development-branch` handles merge, PR, or discard — do NOT auto-merge or auto-PR.
@@ -352,9 +271,28 @@ These apply in **subagent** execution strategy. In **batched** strategy, autonom
 - **Do not present options** — pick the best one and implement it.
 - **If ambiguous**, choose the simpler approach and note the alternative in a code comment.
 
+## Next Actions
+
+Generate 2-4 numbered options based on context. Example rendering (the signal-to-option table below is the lookup the generator uses to populate the numbered list):
+
+```
+1. /claude-tweaks:review 42 full — code + visual review **(Recommended)**
+2. /claude-tweaks:test qa — validate 7 QA stories before review
+3. /superpowers:finishing-a-development-branch — merge, PR, or discard the feature branch
+```
+
+Signal-to-option lookup:
+
+| Signal | Option |
+|--------|--------|
+| UI changed + browser available | `/claude-tweaks:review {N} full` — code + visual review **(Recommended)** |
+| No browser or no UI | `/claude-tweaks:review {N}` — code review **(Recommended)** |
+| QA stories exist (`stories/*.yaml` or `stories/*.yml`) | `/claude-tweaks:test qa` — validate {X} QA stories before review |
+| Worktree mode | `/superpowers:finishing-a-development-branch` — merge, PR, or discard the feature branch **(Recommended in worktree mode)** |
+
 ## Component-Skill Contract
 
-`/claude-tweaks:build` is invoked by `/claude-tweaks:flow` as the implementation stage of the pipeline. Parent invocation is signaled by the `PIPELINE_RUN_DIR` env var (set by `/flow` when it spawns this skill — also resolvable via the most-recent matching run under `.claude-tweaks/pipelines/`). When `PIPELINE_RUN_DIR` is set, omit the `### Next Actions` block at the end of Step 7 — the parent `/flow` owns the handoff and renders its own Pipeline Summary + Next Actions. When invoked directly by a user (no `PIPELINE_RUN_DIR`), render Next Actions as documented in Step 7. The Manual Steps section likewise defers its rendering to the parent's summary when invoked under `/flow` (see Step 5.5).
+`/claude-tweaks:build` is invoked by `/claude-tweaks:flow` as the implementation stage of the pipeline. Parent invocation is signaled by the `PIPELINE_RUN_DIR` env var (set by `/flow` when it spawns this skill — also resolvable via the most-recent matching run under `.claude-tweaks/pipelines/`). When `PIPELINE_RUN_DIR` is set, omit the `## Next Actions` block at the end of Step 7 — the parent `/flow` owns the handoff and renders its own Pipeline Summary + Next Actions. When invoked directly by a user (no `PIPELINE_RUN_DIR`), render Next Actions as documented in Step 7. The Manual Steps section likewise defers its rendering to the parent's summary when invoked under `/flow` (see Step 5.5).
 
 ## Anti-Patterns
 

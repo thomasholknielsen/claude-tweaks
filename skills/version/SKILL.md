@@ -58,6 +58,11 @@ https://github.com/thomasholknielsen/claude-tweaks
 
 That's the entire skill — no decisions, no findings, no follow-up gates.
 
+## Next Actions
+
+1. `/claude-tweaks:help` — full pipeline status and command reference **(Recommended when version was the only thing you needed)**
+2. `https://github.com/thomasholknielsen/claude-tweaks/releases` — release notes for this and prior versions
+
 ## Anti-Patterns
 
 | Pattern | Why It Fails |
@@ -74,8 +79,3 @@ That's the entire skill — no decisions, no findings, no follow-up gates.
 | `/claude-tweaks:help` | /help shows the full reference card; /version is the minimal "just the version" complement |
 | `/claude-tweaks:init` | /init may print the version during bootstrap; /version is its standalone equivalent |
 | `_shared/auto-mode-contract.md` | `/version` is a pure read — no decisions, no staged actions, no auto-mode interaction. Listed for completeness; the contract does not modify behavior. |
-
-## Next Actions
-
-1. `/claude-tweaks:help` — full pipeline status and command reference **(Recommended when version was the only thing you needed)**
-2. `https://github.com/thomasholknielsen/claude-tweaks/releases` — release notes for this and prior versions

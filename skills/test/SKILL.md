@@ -48,7 +48,7 @@ Mechanical pass/fail gate — types, lint, tests, QA story validation. Answers "
 | `qa affected` | QA — run only stories whose `source_files` overlap with uncommitted changes |
 | `qa journey={name}` | QA — run only stories with `journey: {name}` (kebab-case, case-insensitive match against the story's `journey:` field; e.g., `qa journey=profile-settings`) |
 | `all` | Full suite (types + lint + tests) AND QA story validation |
-| `skip-qa` | Run types/lint/tests only. Skip QA story validation **even when stories exist**. The Design CLI gate (Step 1.5) still runs since it is not QA. |
+| `skip-qa` | Run types/lint/tests only. Skip QA story validation **even when stories exist**. (Step 1.5 Design CLI gate still runs — see that step for details.) |
 
 Multiple arguments can be combined: `/claude-tweaks:test types lint` runs both type checking and linting.
 
@@ -181,84 +181,17 @@ If errors are present, append a Design Findings section before the standard test
 
 ## Step 2: Report
 
-Present results using the format from `verification.md` Step 3 for standard checks. For QA and pipeline results, extend the format:
+Present results using the format from `verification.md` Step 3 for standard checks. For QA and pipeline results, render the appropriate template from `report-templates.md` in this skill's directory.
 
-### Standard mode result
+| Mode | Template in `report-templates.md` |
+|------|----------------------------------|
+| Standard suite (no args) | `## Standard mode result` |
+| QA-only (`qa`) | `## QA mode result` (includes Actions Performed sub-table) |
+| Full suite + QA (`all`) | `## All mode result` |
+| Pipeline (`VERIFICATION_PASSED=true`, no stories) | `## Pipeline result (VERIFICATION_PASSED + no stories)` |
+| Pipeline (`VERIFICATION_PASSED=true`, stories exist) | `## Pipeline result (VERIFICATION_PASSED + stories)` |
 
-```
-All checks passed. Set TEST_PASSED=true.
-```
-
-### QA mode result
-
-```
-## QA Validation Results
-
-**Stories:** {total} total | {pass} pass | {pass_with_caveats} pass (caveats) | {fail} fail | {skip} skipped
-**Findings:** {N findings} | **Observations:** {M caveats}
-
-{Findings table from qa-reporting.md — only if findings exist}
-{Observations table from qa-reporting.md — only if caveats exist}
-{Full QA report from qa-reporting.md}
-
-Set TEST_PASSED=true (if all passed or passed with observations).
-```
-
-> **Propagation rule:** `PASS_WITH_CAVEATS` sets `TEST_PASSED=true` — downstream gates (/review, /wrap-up) treat it identically to a clean pass. Caveats are carried as `observation` status ledger entries, visible in review findings but never blocking.
-
-### Actions Performed
-
-{Only show when QA auto-recovered selectors or applied fixes. Omit when purely observational.}
-
-| Action | Detail | Ref |
-|--------|--------|-----|
-| Ledger fix | Auto-recovered selector (test/qa) — `{story file}` | — |
-
-PASS_WITH_CAVEATS counts as passed for the `TEST_PASSED` gate — caveats are informational, not blocking. Timing, recovered-selector summaries, and the finding/observation ledger writes (phase `test/qa`) are all documented canonically in `qa-reporting.md` Phase 5.5 — defer to that section rather than restating here.
-
-### All mode result
-
-```
-## Verification Results
-
-{standard verification table}
-
-## QA Validation Results
-
-**Stories:** {total} total | {pass} pass | {pass_with_caveats} pass (caveats) | {fail} fail | {skip} skipped
-**Findings:** {N findings} | **Observations:** {M caveats}
-
-{Findings table from qa-reporting.md — only if findings exist}
-{Observations table from qa-reporting.md — only if caveats exist}
-{Full QA report from qa-reporting.md}
-
-Set TEST_PASSED=true (if all passed or passed with observations).
-```
-
-### Pipeline result (VERIFICATION_PASSED + no stories)
-
-```
-Verification: passed in build. QA: no stories found.
-Set TEST_PASSED=true.
-```
-
-### Pipeline result (VERIFICATION_PASSED + stories)
-
-```
-Verification: passed in build.
-
-## QA Validation Results
-
-**Stories:** {total} total | {pass} pass | {pass_with_caveats} pass (caveats) | {fail} fail | {skip} skipped
-**Findings:** {N findings} | **Observations:** {M caveats}
-
-{Findings and Observations tables if applicable}
-{QA report}
-
-Set TEST_PASSED=true (if all passed or passed with observations).
-```
-
-On overall pass (including PASSED WITH OBSERVATIONS), set `TEST_PASSED=true` in pipeline context.
+Read `report-templates.md` for the full templates, the `PASS_WITH_CAVEATS` propagation rule, the Actions Performed format, and the canonical `TEST_PASSED` semantics.
 
 ## Step 3: Fix Mode (Optional)
 
@@ -266,13 +199,15 @@ If tests fail and the failures look straightforward (type errors, lint violation
 
 ### Auto mode
 
-When a pipeline run directory exists, apply the `/test` row from the silences table in `_shared/auto-mode-contract.md`. Read `auto-fix-threshold` from `config.yml` (resolve the run dir via `_shared/pipeline-run-dir.md`; default `lint+type`) and route by failure type: lint always auto-fixes; type failures auto-fix at `lint+type` and above (staged at `lint-only`); test failures stage by default and auto-fix only when the user has explicitly opted into `lint+type+test` in the Manifesto (rare, semantic-changes-hidden risk). QA failures never auto-fix — they always stage.
+When a pipeline run directory exists, apply the `/test` row from the silences table in `_shared/auto-mode-contract.md`. Read `auto-fix-threshold` from `config.yml` (resolve the run dir via `_shared/pipeline-run-dir.md`; default `lint+type`) and route per the `/test` row in `_shared/auto-mode-contract.md`. QA failures never auto-fix — they always stage.
 
 **Auto-fix flow:** make the changes, re-run the failed checks. On re-verification pass, log `AUTO {time} — Step 3: auto-fixed {N} {type} failures. Reversibility: high; commit: {hash}.` and proceed. On re-verification fail or new issues, downgrade to STAGED and surface at Review Console.
 
 **Stage flow:** write the proposed fix to `staged/test-fix-{n}.patch` and log `STAGED {time} — Step 3: {N} {type} failures staged for review. Stage path: staged/test-fix-{n}.patch.`. The test gate fails until the user resolves at the Review Console.
 
 ### Interactive mode
+
+> **Prompt ordering:** Per CLAUDE.md's "never present more than one batch decision table per message" rule — if both lint/type and QA failures are present, present the lint/type prompt first, resolve, then present the QA prompt. Never combine them into a single message.
 
 ```
 {N} failure(s) found.
@@ -297,6 +232,17 @@ If the user chooses to fix:
 3. Skip — I'll investigate manually
 ```
 
+## Next Actions
+
+Pick the row matching the mode just completed:
+
+| Mode + outcome | Recommended next |
+|---|---|
+| Standard / All / QA passed (or PASS_WITH_CAVEATS) | `/claude-tweaks:review {spec}` — code review quality gate **(Recommended)** |
+| Standard / All passed AND UI files changed AND browser available | `/claude-tweaks:review {spec} full` — code + visual review |
+| Verification failed (types/lint/tests) | Fix the failures, then re-run `/claude-tweaks:test` |
+| QA failed | Investigate failures (Fix Mode option 1), then `/claude-tweaks:test qa retry={RUN_DIR}` |
+
 ## Component-Skill Contract
 
 `/claude-tweaks:test` is invoked by `/claude-tweaks:flow` between build and review, and by `/claude-tweaks:review` Step 1.5 as the test gate. Parent invocation is signaled by the `PIPELINE_RUN_DIR` env var or by the caller setting `TEST_PASSED` in the calling context. When `PIPELINE_RUN_DIR` is set, omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user, render Next Actions as documented. The skip-qa flag and qa-mode args are user-facing; parents pass `skip-qa` during the `/flow` polish re-verify gate and never invoke qa mode themselves (qa runs at its own pipeline stage).
@@ -316,7 +262,7 @@ If the user chooses to fix:
 | Treating Design CLI skip as a test failure | The wrapper skips for legitimate reasons (backend project, Impeccable not installed, kill-switch disabled). None are test failures — only `result: fail` from the wrapper is a gate failure. |
 | Auto-fixing Design CLI findings | Design findings require human judgment — surface them, do not auto-modify code. The Phase 1 wrapper's `test` mode is read-only by design (the Phase 2 `polish` mode is the code-modifying counterpart, invoked separately by `/flow`). |
 | Using `skip-qa` outside the re-verify context | The flag exists for `/flow`'s re-verify gate after polish modifications — it skips browser QA after stylistic changes. Standalone use is allowed but rarely useful; prefer the default suite which includes QA when stories exist. |
-| Skipping the Design CLI gate when `skip-qa` is set | `skip-qa` only skips QA story validation. The Design CLI is a deterministic anti-pattern check — orthogonal to QA — and must still run. |
+| Skipping the Design CLI gate when `skip-qa` is set | See Step 1.5 — the Design CLI gate is orthogonal to QA and must still run. |
 
 ## Relationship to Other Skills
 
@@ -335,21 +281,3 @@ If the user chooses to fix:
 | `/claude-tweaks:simplify` | /simplify runs before /test in /build's Common Step 3; /test verifies that simplification did not break behavior. |
 | `/claude-tweaks:visual-review` | /visual-review consumes QA data produced by /test qa (when stories exist); both contribute to the /review verdict surface. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. Step 3 Fix Mode follows the contract's auto-fix-threshold + reversibility-floor pattern. |
-
-## Next Actions
-
-Pick the row matching the mode just completed:
-
-| Mode + outcome | Recommended next |
-|---|---|
-| Standard / All / QA passed (or PASS_WITH_CAVEATS) | `/claude-tweaks:review {spec}` — code review quality gate **(Recommended)** |
-| Standard / All passed AND UI files changed AND browser available | `/claude-tweaks:review {spec} full` — code + visual review |
-| Verification failed (types/lint/tests) | Fix the failures, then re-run `/claude-tweaks:test` |
-| QA failed | Investigate failures (Fix Mode option 1), then `/claude-tweaks:test qa retry={RUN_DIR}` |
-
-Canonical option set:
-
-1. `/claude-tweaks:review {spec}` — code review quality gate **(Recommended when verification passed)**
-2. `/claude-tweaks:review {spec} full` — code + visual review (if UI files changed and browser available)
-3. `/claude-tweaks:test` — re-run after fixing failures (when verification failed)
-4. `/claude-tweaks:test qa retry={RUN_DIR}` — re-run failed QA stories only

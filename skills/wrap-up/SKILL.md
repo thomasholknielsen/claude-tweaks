@@ -86,18 +86,7 @@ Identify unfinished spec sections that cannot be completed in the current work c
 
 This step **plans** the cleanup — it does not execute. Actual deletions and archival run in Step 10 *after* the nothing-left-behind gate (Step 8.5) and the Review Console / batch decision (Step 8.6 or Step 9) approve them.
 
-Enumerate the cleanups that will be applied:
-
-| # | Cleanup | Procedure | Condition |
-|---|---------|-----------|-----------|
-| 1 | Execution plans | Delete plan files in `docs/superpowers/plans/` related to this spec. (Design docs `*-design.md` in `docs/superpowers/specs/` should already be gone — `/specify` deletes them. If any remain, delete now.) | spec-based work |
-| 2 | Auto-generated plans | Delete related plans in `~/.claude/plans/` | spec-based work |
-| 3 | Open items ledger | Delete using `/ledger`'s delete operation — only after Step 8.5 confirms zero open items | ledger exists |
-| 4 | Design wrapper caches | Delete `*-audit.json`, `*-recommendations.json`, `*-declined.json` in `docs/plans/` (Section A of `cleanup-procedures.md`) | design wrapper active |
-| 5 | Pipeline run directory | Archive (not delete) to `.claude-tweaks/pipelines/archive/{run-id}/` (Section B of `cleanup-procedures.md`). Honors `MULTISPEC_REVIEW_DEFER=1` (skip — parent `/flow` owns archival). | run dir exists |
-| 6 | Git worktree | Complete feature branch via `/superpowers:finishing-a-development-branch`, then remove worktree + delete merged branch (Section C of `cleanup-procedures.md`) | worktree strategy |
-
-For the non-trivial procedures (caches, run-dir, worktree), read `cleanup-procedures.md` in this skill's directory. Carry the planned list forward into Step 9's summary and Step 10's execution.
+See `cleanup-procedures.md` in this skill's directory for the canonical cleanup list — Step 5 enumerates the same 6 items: execution plans, ledger, design caches, pipeline run dir, worktree, spec lifecycle. Filter the list to rows whose Condition holds for this run (e.g., skip the worktree row when no worktree strategy was used). Carry the filtered list forward into Step 9's summary and Step 10's execution.
 
 ## Step 6: Assess Configuration Updates
 
@@ -265,7 +254,7 @@ Run the resolve gate from `/claude-tweaks:ledger` (see ledger skill for the thre
 **Hard requirements:**
 
 - Phase 1 must run before any user-facing output. The agent fixes everything that qualifies for fix-now, commits, then presents only the genuine residue.
-- Phase 2 always requires explicit per-item user input. Never bulk-resolve. Never assume "obvious" defers. Never offer a "Fix all (Recommended)" or "Defer all" shortcut — those bias the user toward whichever bulk action is easier to type.
+- Phase 2 always requires explicit per-item user input for `fix` / `defer` / `accept` decisions. Status `acknowledged` (informational, e.g., ops items the user has read) may be applied in bulk via a single explicit "I've read every item" choice. Never bulk-resolve `fix` / `defer` / `accept`. Never assume "obvious" defers. Never offer a "Fix all (Recommended)" or "Defer all" shortcut — those bias the user toward whichever bulk action is easier to type.
 - `auto` mode does NOT silence this gate.
 - Both `specs/DEFERRED.md` and `specs/INBOX.md` are valid routing destinations, but every individual entry requires an explicit per-item user choice — neither file is ever written autonomously.
 
@@ -320,14 +309,7 @@ For the run-directory resolution sequence, the multi-spec defer protocol, the fu
 Overall: {X}% complete
 
 ### Cleanup Actions (planned in Step 5; executed in Step 10)
-Render only rows that apply — skip those whose condition is false (e.g., no worktree, no design caches).
-- [ ] Delete spec (if 100%) or update status
-- [ ] Update INDEX.md
-- [ ] Delete plans from docs/plans/
-- [ ] Delete open items ledger
-- [ ] Delete design wrapper caches (audit / recommendations / declined) from docs/plans/
-- [ ] Archive pipeline run directory to .claude-tweaks/pipelines/archive/
-- [ ] Remove worktree and feature branch (if worktree strategy)
+See `cleanup-procedures.md` for the canonical cleanup list. Render only rows whose Condition holds (e.g., no worktree, no design caches). Under `MULTISPEC_REVIEW_DEFER=1`, items marked deferred in `cleanup-procedures.md` are skipped here too.
 - [ ] Leftover work: {recommendation}
 
 ### Configuration Updates (from Step 6)
@@ -362,13 +344,7 @@ Resolved in Step 7.5 — {N} updates applied / 0 updates needed.
 
 Generate from: cleanup actions in Step 10, config/skill updates applied, ledger items resolved in Step 8.5.
 
-### Next Actions
-
-| Signal | Option |
-|--------|--------|
-| Next spec exists (Step 8) | `/claude-tweaks:flow {N}` — full pipeline on spec {N}: "{title}" **(Recommended)** |
-| Newly unblocked specs | `/claude-tweaks:build {N}` — spec {N} "{title}" now unblocked |
-| Always | `/claude-tweaks:help` — full pipeline status |
+(Next Actions are rendered as a top-level section after Step 10 — see `## Next Actions` below. Do NOT render them here in the per-spec summary template.)
 ```
 
 **Conditional batch decision** — only present when the Wrap-Up Review Console (Step 8.6) did NOT run:
@@ -376,18 +352,14 @@ Generate from: cleanup actions in Step 10, config/skill updates applied, ledger 
 - **Step 8.6 ran** (`auto` or `hybrid` mode with a pipeline run directory) → cleanup + config items were already approved at the Review Console. Skip this batch table and proceed to Step 10 execution. Rendering a second batch table here duplicates the Review Console and violates the "one decision per message" + bookend ("at most two stops in auto") promises.
 - **Step 8.6 was skipped** (interactive mode, standalone wrap-up, or empty-console fast path) → present the batch decision below.
 
+Render the cleanup rows from `cleanup-procedures.md`'s canonical list (filtered by Condition), followed by configuration update rows from Step 6:
+
 ```
 | # | Type | Action | Details |
 |---|------|--------|---------|
-| 1 | cleanup | Delete spec | specs/{number}.md (100% complete) |
-| 2 | cleanup | Update INDEX.md | Remove completed entry |
-| 3 | cleanup | Delete plans | docs/plans/{files} |
-| 4 | cleanup | Delete ledger | docs/plans/*-ledger.md |
-| 5 | cleanup | Delete design caches | docs/plans/*-audit.json, *-recommendations.json, *-declined.json (if design wrapper active) |
-| 6 | cleanup | Archive run directory | .claude-tweaks/pipelines/archive/{run-id}/ (if run dir exists) |
-| 7 | cleanup | Remove worktree | `{path}` + branch `{branch}` (if worktree strategy) |
-| 8 | config | {doc/claude.md/rule} | {what to add/change} |
-| 9 | config | ... | ... |
+| 1 | cleanup | {row from cleanup-procedures.md canonical list} | {details} |
+| ... | cleanup | ... | ... |
+| N | config | {doc/claude.md/rule} | {what to add/change} |
 
 1. Apply all **(Recommended)**
 2. Override specific items (tell me which #s to change)
@@ -403,20 +375,18 @@ Work archived. Spec {N}, its plans, and ledger have been deleted. The code and l
 
 This signals clearly that the lifecycle is complete — there's nothing left to do for this spec.
 
-The Next Actions block in the template above replaces the old single-line handoff. Generate 2-4 numbered options based on context signals (next spec, unblocked specs, pipeline status). Always include a "next unblocked spec" option when one exists, so the user doesn't have to run `/help` to find it.
+Next Actions are rendered as a top-level `## Next Actions` section after Step 10's verification — see the section near the end of this file. They replace the old single-line handoff with a context-signal-driven table.
 
 ## Step 10: Execute Approved Actions
 
-Execute the full cleanup planned in Step 5 plus the configuration / skill updates approved at the Review Console (Step 8.6) or batch decision (Step 9):
+Execute the cleanup planned in Step 5 (canonical list in `cleanup-procedures.md`) plus the configuration / skill updates approved at the Review Console (Step 8.6) or batch decision (Step 9). The 6 cleanup items, in execution order, are defined in `cleanup-procedures.md`'s canonical list — do not re-enumerate here. Filter rows by Condition.
 
-1. **Spec lifecycle** — delete the spec file (if 100% complete) or update its status; update `specs/INDEX.md` (remove completed entries)
-2. **Execution plans** — delete files in `docs/superpowers/plans/` and `~/.claude/plans/` related to this spec
-3. **Open items ledger** — delete the ledger file (Step 8.5 must have confirmed zero open items)
-4. **Design wrapper caches** — delete `*-audit.json`, `*-recommendations.json`, `*-declined.json` in `docs/plans/` (Section A of `cleanup-procedures.md`)
-5. **Pipeline run directory** — archive to `.claude-tweaks/pipelines/archive/{run-id}/` (Section B of `cleanup-procedures.md`). Skip when `MULTISPEC_REVIEW_DEFER=1` is set.
-6. **Git worktree** (worktree strategy only) — complete the feature branch via `/superpowers:finishing-a-development-branch`, remove the worktree, delete the merged feature branch (Section C of `cleanup-procedures.md`)
-7. **Documentation, CLAUDE.md, rules** — apply the registry / doc / rule edits collected in Step 6 and approved at the Console or batch
-8. **Skill updates** — apply patches and create new skills (Step 7.5 staged or approved items)
+**MULTISPEC_REVIEW_DEFER branch:** When `$MULTISPEC_REVIEW_DEFER=1` is set, Step 10 SKIPS the state-changing cleanups marked deferred in `cleanup-procedures.md` (items 3 Design caches, 4 Pipeline run dir archival, 5 Worktree removal). Those defer to `/flow`'s consolidated multi-spec Review Console at end-of-run, which has authority to apply or override them across all specs in the run. Step 10 still executes the idempotent cleanups (items 1 Execution plans, 2 Open items ledger, 6 Spec lifecycle + INDEX) — those do not interact with parent-orchestrated cleanup.
+
+After the cleanup, also apply:
+
+- **Documentation, CLAUDE.md, rules** — apply the registry / doc / rule edits collected in Step 6 and approved at the Console or batch
+- **Skill updates** — apply patches and create new skills (Step 7.5 staged or approved items)
 
 Commit with a message summarizing the wrap-up actions.
 
@@ -442,6 +412,26 @@ If any approved action did not land, do NOT emit the closure line. Surface the g
 - Reflection insights with no clear destination must still be explicitly resolved — the user confirms "don't capture" with a reason, rather than the skill silently dropping them
 - **Merge conflicts during wrap-up** (e.g., when merging a worktree feature branch back to main): resolve conflicts by understanding both sides' intent — read both versions, pick the correct merge. Never use `git reset` or `git checkout .` to discard changes. If the conflict involves spec or INDEX.md files being deleted by wrap-up but modified on main, prefer the deletion (the spec is complete).
 
+## Next Actions
+
+When invoked by `/flow` (`$PIPELINE_RUN_DIR` is set), omit this block — the parent `/flow` renders its own Pipeline Summary + Next Actions after Step 9.
+
+When invoked directly by a user (standalone wrap-up), render the table below. Generate 2-4 numbered options based on context signals; always include the "next unblocked spec" option when one exists so the user doesn't have to run `/help` to find it.
+
+| Signal | Option |
+|--------|--------|
+| Next spec exists (Step 8) | `/claude-tweaks:flow {N}` — full pipeline on spec {N}: "{title}" **(Recommended)** |
+| Newly unblocked specs | `/claude-tweaks:build {N}` — spec {N} "{title}" now unblocked |
+| Always | `/claude-tweaks:help` — full pipeline status |
+
+## Component-Skill Contract
+
+When `$PIPELINE_RUN_DIR` is set, `/wrap-up` is running inside a `/flow` pipeline. In that case:
+- Omit the `## Next Actions` block at the end of Step 9 — the parent `/flow` renders its own pipeline summary.
+- Step 8.6 (Review Console) honors `$MULTISPEC_REVIEW_DEFER` — if set, skip the per-spec console and let `/flow`'s consolidated console handle approvals.
+
+When `$PIPELINE_RUN_DIR` is unset, `/wrap-up` runs standalone — render Next Actions as usual.
+
 ## Anti-Patterns
 
 | Pattern | Why It Fails |
@@ -462,6 +452,7 @@ If any approved action did not land, do NOT emit the closure line. Surface the g
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:review` | Must pass before /claude-tweaks:wrap-up — handles verification, code review, and simplification. Skill-routed ledger entries from lens 3a (phase `review/skill`) and /reflect hindsight findings tagged `[skill: …]` (phase `review/hindsight`) feed into Step 7 skill analysis. |
+| `/claude-tweaks:test` | Indirect dependency — /test passes before /review, which passes before /wrap-up. Open QA ledger entries (`test/qa` phase) carried forward from /test surface in Step 8.5's resolve gate as items requiring per-item user decision. |
 | `/claude-tweaks:review` (visual modes) | Visual complement — findings from visual review may feed into wrap-up's reflection lenses |
 | `/claude-tweaks:reflect` | Invoked BY /wrap-up (Step 3) in full mode. Handles all four reflection lenses, tradeoff review, insight routing, and ledger writes with phase `wrap-up`. |
 | `/claude-tweaks:capture` | /claude-tweaks:wrap-up may create INBOX items for genuinely new ideas discovered during implementation |

@@ -27,7 +27,7 @@ If the multi-spec run aborted early (one spec hit a HARD-GATE), still render the
 ## Locating the parent run directory
 
 1. Resolve via `MULTISPEC_PARENT_DIR` env var if set by `/flow`
-2. Else find the most recent directory in `.claude-tweaks/pipelines/` whose `spec-slug` is comma-joined (e.g., `157-159-160`)
+2. Else find the most recent directory in `.claude-tweaks/pipelines/` whose `spec-slug` is dash-joined with a single `spec-` prefix (e.g., `spec-157-159-160`)
 3. Else fall back to interactive single-spec behavior (no consolidation)
 
 ## Present the consolidated console

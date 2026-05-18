@@ -165,6 +165,8 @@ Every wrapper invocation returns one of two shapes:
 
 Callers must handle both. Skips are not failures — they are valid outcomes that mean "Impeccable doesn't apply here."
 
+See `_shared/design-wrapper-handling.md` for the canonical caller-side contract — the full return-shape categories (`ok` / `pass` / `advisory` / `fail` / `skipped` / `deferred`) and the "why skips don't fail" rationale shared by every caller of this wrapper.
+
 ## Reference sub-files
 
 Lazy-load these only when needed for the active mode:
@@ -176,22 +178,29 @@ Lazy-load these only when needed for the active mode:
 
 ## Next Actions
 
-When invoked directly by a user (not from a lifecycle skill), surface 1-2 follow-ups keyed off the wrapper's return shape. When invoked from a caller skill, omit this block — callers consume the return value themselves.
+When invoked directly by a user (not from a lifecycle skill), look up the return shape in the table below, then surface the matching numbered options. When invoked from a caller skill, omit this block — callers consume the return value themselves.
 
-| Return | Recommended | Alternative |
-|--------|-------------|-------------|
-| `test` pass / `review` advisory | `/claude-tweaks:review {spec}` (after test mode) or `/claude-tweaks:wrap-up {spec}` (after review) | — |
-| `test` fail | Fix the flagged anti-patterns, re-run `/claude-tweaks:test` | `npx impeccable detect <file>` for more detail |
-| `shape` ok | Append `output` to the design doc, continue `/claude-tweaks:specify` | — |
-| `pre-build` ok | `/claude-tweaks:build {spec}` — references loaded | — |
-| `polish` ok + `commands_invoked` non-empty | `/claude-tweaks:test skip-qa` — re-verify after polish | `git diff` to inspect changes |
-| `polish` ok + `commands_invoked: []` | `/claude-tweaks:wrap-up {spec}` — no changes, proceed | — |
-| `survey` ok + recommendations | Run any resonating command manually | `reset-recommendations {spec}` if previously suppressed should re-appear |
-| `survey` ok + `recommendations: []` | No follow-up — caller omits the Creative Opportunities block | — |
-| `reset-recommendations` ok | Re-run `/claude-tweaks:flow {spec}` or `/claude-tweaks:visual-review` — survey will re-surface | — |
-| `{skipped: "Impeccable not installed"}` | `/claude-tweaks:init` to set up integration (Step 0.9) | — |
-| `{skipped: "design integration disabled"}` | Re-run `/claude-tweaks:init` to re-enable | — |
-| `{skipped: "non-frontend"}` | No action — the wrapper correctly skipped | — |
+| Return | Recommended follow-up |
+|--------|----------------------|
+| `test` pass / `review` advisory | `/claude-tweaks:review {spec}` (after test mode) or `/claude-tweaks:wrap-up {spec}` (after review) |
+| `test` fail | Fix the flagged anti-patterns, re-run `/claude-tweaks:test` |
+| `shape` ok | Append `output` to the design doc, continue `/claude-tweaks:specify` |
+| `pre-build` ok | `/claude-tweaks:build {spec}` — references loaded |
+| `polish` ok + `commands_invoked` non-empty | `/claude-tweaks:test skip-qa` — re-verify after polish |
+| `polish` ok + `commands_invoked: []` | `/claude-tweaks:wrap-up {spec}` — no changes, proceed |
+| `survey` ok + recommendations | Run any resonating command manually |
+| `survey` ok + `recommendations: []` | No follow-up — caller omits the Creative Opportunities block |
+| `reset-recommendations` ok | Re-run `/claude-tweaks:flow {spec}` or `/claude-tweaks:visual-review` — survey will re-surface |
+| `{skipped: "Impeccable not installed"}` | `/claude-tweaks:init` to set up integration (Step 0.9) |
+| `{skipped: "design integration disabled"}` | Re-run `/claude-tweaks:init` to re-enable |
+| `{skipped: "non-frontend"}` | No action — the wrapper correctly skipped |
+
+Standard numbered options to present (pick by return shape from the table above, mark one **(Recommended)**):
+
+1. `/claude-tweaks:test {spec}` — re-verify (after `polish ok + commands_invoked` or `test fail`) **(Recommended after polish or test fail)**
+2. `/claude-tweaks:review {spec}` — code review quality gate **(Recommended after `test pass` or `review advisory`)**
+3. `/claude-tweaks:wrap-up {spec}` — close out the spec (after `review advisory` with nothing to fix, or `polish` no-op)
+4. `/claude-tweaks:init` — configure or re-enable design integration (only when `{skipped: "Impeccable not installed"}` or `{skipped: "design integration disabled"}`)
 
 ## Component-Skill Contract
 
@@ -231,5 +240,6 @@ This skill is a **component skill** (utility wrapper) — invoked by `/claude-tw
 | `/claude-tweaks:simplify` | Runs before `polish` mode in `/flow` (different phases — simplify is in build, polish is post-review) — `distill` is intent-only to avoid double-stripping with `/simplify`. /simplify reciprocally avoids the `distill` overlap by deferring distillation to /design polish when intent declares it. |
 | `/claude-tweaks:ledger` | No direct interaction — the wrapper writes its own caches (audit, recommendations, declined) as separate files from the ledger. Polish-phase actions surface in `/flow`'s pipeline summary via the actions-performed table. /ledger reciprocally treats design-cache files as separate from the ledger lifecycle (cleanup is handled by /wrap-up Step 5, not by /ledger itself). |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. The wrapper's mode-dispatch decisions follow the contract's reversibility/severity floors (polish modifies code → never auto-applied without explicit caller intent; survey is read-only by design). |
+| `_shared/design-wrapper-handling.md` | Design wrapper return shape contract — consumed by /build, /test, /review, /flow, /specify, and /visual-review. Documents the universal `{result}` / `{skipped}` / `{deferred}` / `{fail}` shapes this wrapper produces. |
 | superpowers `/superpowers:brainstorming` | Invoked by `/specify` when given a topic input — produces the design doc that `shape` mode then enriches. The wrapper does not invoke `/superpowers:brainstorming` directly. |
 | Impeccable plugin | All wrapper modes (except `survey` and `reset-recommendations`) invoke commands or the CLI from this plugin. Availability checks gate every dispatching mode. |

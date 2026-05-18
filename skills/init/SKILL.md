@@ -233,7 +233,9 @@ Carry the confirmed maturity and doc tier forward to Phase 5 (CLAUDE.md Philosop
 
 **Update Mode:** Score only the **gaps**. Existing skills that need updating are handled as patches, not new skills.
 
-> **Parallel execution:** Use parallel tool calls aggressively — scoring of independent skill candidates is read-only (re-checking grep/glob signals from Phase 2) and should run concurrently. If the candidate list is large enough to warrant dispatching, use parallel Task agents per the Subagent Contract (`_shared/subagent-output-contract.md`).
+> **Parallel execution:** Use parallel tool calls aggressively — scoring of independent skill candidates is read-only (re-checking grep/glob signals from Phase 2) and should run concurrently.
+>
+> **Parallel execution (conditional):** When the candidate list has ≥ 8 skills, dispatch scoring as parallel Task agents per the Subagent Contract (`_shared/subagent-output-contract.md`). Otherwise, run the scoring inline in the main thread.
 
 Apply the **Frequency + Complexity + Danger** rubric (max 9). Generate skills scoring 6+ first. Skills not selected (Priority 2-3 or aspirational) become INBOX items with their scoring rationale and Phase 2 evidence — no reconnaissance is wasted.
 
@@ -251,40 +253,7 @@ For the complete CLAUDE.md template, patch format, Philosophy generation guide, 
 
 ### Pain Point Routing
 
-Phase 2f findings split into two destinations based on their category (see `detection-tables.md`):
-
-- **Convention conflicts and anti-patterns** → CLAUDE.md Don'ts (guardrails for existing patterns)
-- **Missing infrastructure, practices, stale deps, dead code** → INBOX items with Phase 2 context baked in
-
-INBOX items for improvement work follow the same format as doc work items from Phase 8.5:
-
-```markdown
-### Set up CI pipeline
-Project deploys to {target} using {framework} but has no CI.
-Scripts available: `lint` ({tool}), `test` ({framework}), `build`, `typecheck`.
-Suggested pipeline: lint → typecheck → test → build.
-```
-
-```markdown
-### Add test coverage for src/utils/
-{N} utility functions with no test coverage. Complex functions: {list with line counts}.
-Testing framework: {framework}. Test location convention: {co-located / separate dir}.
-```
-
-```markdown
-### Upgrade {dependency} (v{current} → v{latest})
-{N} major versions behind. Key breaking changes: {list}.
-Files importing this dep: {count} across {dirs}.
-```
-
-Present a summary of routed pain points after CLAUDE.md generation:
-
-```
-### Pain Points Routed
-
-**→ CLAUDE.md Don'ts ({N}):** {list of convention conflicts / anti-patterns added}
-**→ INBOX ({N}):** {list of improvement items captured}
-```
+Phase 2f findings split into CLAUDE.md Don'ts (convention conflicts and anti-patterns) and INBOX items (missing infrastructure, practices, stale deps, dead code). For the INBOX item templates and the "Pain Points Routed" summary template, read `pain-point-routing.md` in this skill's directory.
 
 ---
 
@@ -300,27 +269,7 @@ For the complete SKILL.md template, update patch format, quality gates checklist
 
 ## Phase 7: Generate / Update Rules (optional)
 
-If certain conventions are path-scoped (e.g., "all files in `src/api/` must use the error handler"), generate `.claude/rules/` files:
-
-```markdown
----
-paths:
-  - src/api/**
----
-
-{Rule content — concise, imperative}
-```
-
-Only create rules for conventions that are **path-specific**. Project-wide conventions belong in CLAUDE.md.
-
-**Common rule candidates:**
-- API routes with specific middleware/auth requirements
-- Test directories with specific mocking conventions
-- Migration directories with specific naming/ordering rules
-- Component directories with specific prop/style patterns
-- Generated code directories that should not be manually edited
-
-**Update Mode:** Check existing rules for stale `paths` globs (directories renamed or restructured). Patch or delete as needed.
+Generate `.claude/rules/` files for **path-specific** conventions (e.g., "all files in `src/api/` must use the error handler"). Project-wide conventions belong in CLAUDE.md, not rules. For the rule frontmatter template, common rule candidates, and Update-Mode hint, read `rules-template.md` in this skill's directory.
 
 ---
 
@@ -401,6 +350,19 @@ Execute only after user confirmation.
 
 ---
 
+## Next Actions
+
+Pick the recommended action based on which signals fired during this run. Resolve signals top-to-bottom; the first matching row is the recommendation.
+
+| Signal | Recommended Next Action |
+|--------|------------------------|
+| Update Mode ran AND total drift count > 0 | `/claude-tweaks:tidy` — clean up drifted/stale config and INBOX items before resuming feature work **(Recommended)** |
+| INBOX has items written this run (deferred skills, pain points, doc work, skeleton enrichment) | `/claude-tweaks:tidy` — triage what /init just captured **(Recommended)** |
+| Initial Mode ran AND INBOX is empty | `/claude-tweaks:capture {idea}` — capture the first idea or feature into INBOX for triage **(Recommended)** |
+| Everything is clean (Update Mode early-exit OR Initial Mode with nothing routed to INBOX) | `/claude-tweaks:help` — see the full lifecycle overview and current pipeline status **(Recommended)** |
+| Always (any state) | `/claude-tweaks:specify {first feature topic}` — jump straight to specifying the first lifecycle feature |
+| Always (any state) | `/claude-tweaks:tidy` — review INBOX and DEFERRED items |
+
 ## Anti-Patterns
 
 | Pattern | Why It Fails |
@@ -449,16 +411,3 @@ Execute only after user confirmation.
 | `/claude-tweaks:version` | /version reads the same `plugin.json` that /init may print during bootstrap |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. Phase 3 classification auto-confirm follows the contract's confidence-gated pattern. |
 | All workflow skills | Depend on the structure /claude-tweaks:init creates |
-
-## Next Actions
-
-Pick the recommended action based on which signals fired during this run. Resolve signals top-to-bottom; the first matching row is the recommendation.
-
-| Signal | Recommended Next Action |
-|--------|------------------------|
-| Update Mode ran AND total drift count > 0 | `/claude-tweaks:tidy` — clean up drifted/stale config and INBOX items before resuming feature work **(Recommended)** |
-| INBOX has items written this run (deferred skills, pain points, doc work, skeleton enrichment) | `/claude-tweaks:tidy` — triage what /init just captured **(Recommended)** |
-| Initial Mode ran AND INBOX is empty | `/claude-tweaks:capture {idea}` — capture the first idea or feature into INBOX for triage **(Recommended)** |
-| Everything is clean (Update Mode early-exit OR Initial Mode with nothing routed to INBOX) | `/claude-tweaks:help` — see the full lifecycle overview and current pipeline status **(Recommended)** |
-| Always (any state) | `/claude-tweaks:specify {first feature topic}` — jump straight to specifying the first lifecycle feature |
-| Always (any state) | `/claude-tweaks:tidy` — review INBOX and DEFERRED items |

@@ -34,12 +34,14 @@ This SKILL.md is the **orientation + mode resolution** layer. The mechanical bro
 | **page** | URL or description | Review a single page or flow. Full creative framework + vitals. |
 | **journey** | `journey:{name}` | Walk a documented journey step by step using a single batch invocation. Each step reviewed against its "should feel" / "red flags." Vitals captured per page. |
 | **discover** | `discover` | Explore the running app to identify and document undocumented user journeys. Vitals captured per discovered page. |
+| **recommendation** | `--mode=recommendation` (typically passed by `/review` Step 6 code-only) | Detect UI changes via `git diff` and identify affected journeys. Returns a structured recommendation (which journeys to walk, severity) without opening the browser. No agent-browser dependency. |
 
 ### When to use each mode
 
 - **Journey mode** is the richer review — defined persona, goal, and experiential expectations at every step. Use when a documented journey exists for the affected flow.
 - **Page mode** is for quick checks, single-page changes, or pages that aren't part of a defined journey yet.
 - **Discover mode** is for brownfield projects that need journey coverage bootstrapped — codebase scan + browser walkthrough produces new journey files.
+- **Recommendation mode** is for callers that need a "should we walk anything?" signal without committing to a full browser review — used by `/review` Step 6 in code-only mode to surface journey suggestions in the review summary.
 
 ## Mode Resolution
 
@@ -63,13 +65,43 @@ The parent skill passes:
 
 When invoked by `/review` in **full** mode, the visual review runs after code review steps complete. In standalone visual/journey/discover modes, the code review is skipped.
 
+## Step 0.5: Mode — `recommendation` (short-circuit)
+
+When the resolved mode is `recommendation` (typically invoked as `--mode=recommendation` from `/review` Step 6 code-only), skip the browser entirely and produce a structured recommendation instead. This mode has no `agent-browser` dependency and no dev URL requirement.
+
+Procedure:
+
+1. **Resolve scope** — accept the changed-files list from the parent (preferred) or fall back to `git diff --name-only` against the base branch.
+2. **Cross-reference with journeys** — read `docs/journeys/*.md` and match the changed files against each journey's `files:` frontmatter. A journey is **affected** when at least one of its `files:` entries appears in the changed-file set.
+3. **Score severity** — for each affected journey:
+   - `high` — primary flow step files (page entry, primary action component) changed
+   - `medium` — supporting components or non-primary steps changed
+   - `low` — peripheral files (helpers, styles only) changed
+4. **Return structured recommendation:**
+
+```markdown
+### Visual Review Recommendation (no browser)
+
+| Journey | Severity | Changed files in journey |
+|---------|----------|--------------------------|
+| {journey-name} | {high\|medium\|low} | {file1}, {file2} |
+
+> Recommended follow-up: `/claude-tweaks:visual-review journey:{top-severity-journey-name}`
+```
+
+If no journeys are affected, return: `No documented journeys affected by the diff. Visual review not recommended.`
+
+5. **Return control** — skip the remaining Steps (1-4). Do not open the browser, do not run a survey, do not append a Creative Opportunities block.
+
+Recommendation mode is **read-only and browser-free** — it produces a routing signal, nothing else.
+
 ## Step 1: Browser Prerequisites
 
 See `_shared/browser-detection.md` for the detect / install / verify procedure (daemon auto-starts on port 4848; recovery via `agent-browser doctor`).
 
 Visual-review-specific behavior when `agent-browser` is unavailable:
 
-**Auto mode:** in addition to the standard `STAGED` log line from the shared procedure, write `staged/visual-review-skipped.md` describing the skip and the install command. Surface at Review Console. The review proceeds in code-only mode without further interruption.
+**Auto mode:** in addition to the standard `STAGED` log line from the shared procedure, write `staged/visual-review-skipped.md` describing the skip and the install command. Append to the auto-decision log under `## /visual-review` in `{run-dir}/decisions.md` (per `_shared/auto-decision-log.md`). Surface at Review Console. The review proceeds in code-only mode without further interruption.
 
 **Interactive mode:** the shared procedure prompts with install / skip options. Frame the skip choice as "skip visual review — proceed with code-only review" so the user understands the impact in this skill's context. Never silently skip — always report and offer options.
 
@@ -81,9 +113,9 @@ This skill resolves the dev URL silently when possible. The canonical resolution
 
 If the resolved URL doesn't respond:
 
-**Auto mode:** auto-skip visual review entirely (do not retry, do not ask). Log:
+**Auto mode:** auto-skip visual review entirely (do not retry, do not ask). Append to the auto-decision log under `## /visual-review` in `{run-dir}/decisions.md` (per `_shared/auto-decision-log.md`):
 ```
-STAGED {time} — Step 2: dev URL {url} unreachable. Visual review skipped. Surface at Review Console with hint: start dev server and re-run /visual-review.
+- STAGED {HH:MM:SS} — Step 2: dev URL {url} unreachable. Visual review skipped. Surface at Review Console with hint: start dev server and re-run /visual-review.
 ```
 Write `staged/visual-review-dev-url.md` capturing the URL attempted and the request to retry. The review proceeds in code-only mode.
 
@@ -144,24 +176,22 @@ Handle the wrapper's return:
 
 When the wrapper reports `suppressed > 0` in its return, append a small note below the table: `> N suggestion(s) hidden — previously declined for this spec. Reset with /claude-tweaks:design reset-recommendations <spec>.`
 
-## Standalone Next Actions
+## Next Actions
 
 When invoked directly (not by a parent skill), end with:
 
 ```
-### Next Actions
-
 1. `/claude-tweaks:review {spec}` — full code review **(Recommended)**
 2. `/claude-tweaks:visual-review journey:{name}` — walk a specific journey
 3. `/claude-tweaks:stories` — generate QA stories from what was reviewed
 4. `/claude-tweaks:capture {idea}` — save ideas surfaced during the review
 ```
 
-When invoked by `/review`, omit Next Actions — the parent handles flow control and summary.
+This is the canonical handoff block for the skill. Mode-specific Next Actions exist in `discover-mode.md` (post-discover variant emphasising journey walks) and `browser-review.md` (post-page-review variant gated by review-source signals) for situations where the standalone block doesn't fit the mode's deliverable — they reference back to this section. When invoked by a parent (`/review` or `/init`), omit Next Actions — the parent handles flow control and summary.
 
 ## Component-Skill Contract
 
-This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step 6) in `full` mode. Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (the parent is running inside an active pipeline run). When invoked by a parent, omit the `### Next Actions` block — the parent owns the handoff. When invoked directly by a user (no `$PIPELINE_RUN_DIR`), render Next Actions as shown above.
+This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step 6) in `full` mode and by `/claude-tweaks:init` (Phase 8) for brownfield journey discovery. Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (the parent is running inside an active pipeline run). When invoked by a parent, omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user (no `$PIPELINE_RUN_DIR`), render Next Actions as shown above.
 
 ## Anti-Patterns
 

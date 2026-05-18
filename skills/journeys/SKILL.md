@@ -82,10 +82,10 @@ Before committing, look at the journey file(s) with fresh eyes. Fix issues inlin
 
 **Decision gate:** make one fix attempt per issue. Issues that remain after one fix attempt route by mode:
 
-**Auto mode** (pipeline run directory exists): stage unresolved issues to `staged/journeys-{journey-slug}.md` (one file per journey, using the journey's kebab-case slug) and continue — journey files are documentation, not code, so a stale persona or vague success state must not block the pipeline. The Wrap-Up Review Console surfaces the staged file for batch approval. Log:
+**Auto mode** (pipeline run directory exists): stage unresolved issues to `staged/journeys-{journey-slug}.md` (one file per journey, using the journey's kebab-case slug) and continue — journey files are documentation, not code, so a stale persona or vague success state must not block the pipeline. The Wrap-Up Review Console surfaces the staged file for batch approval. Append to the auto-decision log under the `## /journeys` heading in `{run-dir}/decisions.md` (per `_shared/auto-decision-log.md`):
 
 ```
-STAGED {time} — Step 3.5: {N} journey self-review issues remain after one fix attempt. Stage path: staged/journeys-{journey-slug}.md. Reversibility: high.
+- STAGED {HH:MM:SS} — Step 3.5: {N} journey self-review issues remain after one fix attempt. Stage path: staged/journeys-{journey-slug}.md. Reversibility: high.
 ```
 
 Only BLOCK when the journey file is structurally invalid (missing required frontmatter, missing `## Steps` heading, no steps at all) — those are degraded output the caller must address before continuing.
@@ -138,13 +138,11 @@ git commit -m "Add/update {journey name} journey"
 
 (or: "No user-facing journeys affected.")
 
-### Standalone Next Actions
+## Next Actions
 
 When invoked directly (not by a parent skill), end with:
 
 ```
-### Next Actions
-
 1. `/claude-tweaks:stories` — generate QA stories from journeys **(Recommended)**
 2. `/claude-tweaks:visual-review journey:{name}` — visual review of a journey
 3. `/claude-tweaks:test {spec}` — verify implementation
@@ -154,7 +152,7 @@ When invoked by a parent, omit Next Actions — the parent handles flow control.
 
 ## Component-Skill Contract
 
-This skill is a **component skill** — invoked by `/claude-tweaks:build` (Common Step 6). Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (the parent is running inside an active pipeline run). When invoked by a parent, omit the `### Next Actions` block — the parent owns the handoff. When invoked directly by a user (no `$PIPELINE_RUN_DIR`), render Next Actions as shown above.
+This skill is a **component skill** — invoked by `/claude-tweaks:build` (Common Step 6). Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (the parent is running inside an active pipeline run). When invoked by a parent, omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user (no `$PIPELINE_RUN_DIR`), render Next Actions as shown above.
 
 ## Anti-Patterns
 
@@ -180,3 +178,4 @@ This skill is a **component skill** — invoked by `/claude-tweaks:build` (Commo
 | `/claude-tweaks:visual-review` | Visual review walks documented journeys (`journey:{name}` mode) and tests against each step's "should feel" expectations. |
 | `/claude-tweaks:help` | /help references /journeys in the workflow diagram and reference card. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
+| `_shared/auto-decision-log.md` | Canonical schema and path for the auto-decision log written in Step 3.5 (`{run-dir}/decisions.md` under `## /journeys`). |

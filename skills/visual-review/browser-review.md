@@ -133,7 +133,7 @@ agent-browser batch --session <session> \
 
 **Dispatcher column mapping (page-review use):** When assembling agent output into the Step 6 Report & Route table, map the agent's `| Severity | Path:Line | Finding | Evidence |` columns as follows: Severity = severity/impact (`critical` for broken page or failed health check, `high`/`medium` for major UX or perf issues, `low` for cosmetic, `info` for ideas), Path:Line = the page URL + overlay ref (`/pricing#[3]`, `/checkout#[7]`), Finding = the issue or idea (`Primary CTA at [3] competes visually with [5]` / `LCP 3.1s exceeds 2.5s threshold`), Evidence = the screenshot path + raw measurement (`screenshots/browse/pricing-review/02_above-fold.png; LCP 3.1s; persona: distracted mobile`). The dispatcher merges all agents' tables into the Step 6 Report & Route table, filling Source from the lens that produced each finding (Health / Performance / First Impression / Persona / Analyze / Reimagine).
 
-> **Parallel execution (conditional):** When the review covers 3+ independent pages (different URLs with no shared state or navigation dependency), dispatch page reviews as parallel Task agents. Each agent owns its own session, runs its own batch, and returns findings in the standard `| # | Finding | Type | Source | Severity/Impact | Recommended |` format. Assemble results into a single findings table after all agents complete. When pages share state (form submission on page A affects page B) or there are fewer than 3 pages, review sequentially.
+> **Parallel execution (conditional):** When the review covers 3+ independent pages (different URLs with no shared state or navigation dependency), dispatch page reviews as parallel Task agents. Each agent owns its own session, runs its own batch, and returns findings in the `| Severity | Path:Line | Finding | Evidence |` format (see the output template below). The dispatcher maps these rows into the Step 6 Report & Route table using the column mapping documented immediately above. When pages share state (form submission on page A affects page B) or there are fewer than 3 pages, review sequentially.
 >
 > **Model tier:** Standard (Sonnet) — per-page review agents run Steps 1-5 (health, first impressions, persona walk, structured analysis, reimagine) which require integration across snapshot, screenshot, vitals, and source context. Upgrade to Capable (Opus) only when the page's "reimagine" pass is the primary deliverable and creative synthesis dominates the work.
 >
@@ -458,6 +458,8 @@ When the survey wrapper returns no recommendations or a skip (non-frontend, Impe
 See `SKILL.md` Step 4 for the exact template, return-shape handling, and the suppression-note convention when the wrapper reports `suppressed > 0`.
 
 ### Next Actions
+
+This mode-specific table supplements the canonical handoff in SKILL.md `## Next Actions` — render it when the review-source signals (full review mode, missing code review, "fix now" items, standalone) usefully refine the standalone block. When in doubt, defer to SKILL.md `## Next Actions`.
 
 | Signal | Option |
 |--------|--------|

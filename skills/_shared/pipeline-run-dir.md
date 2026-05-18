@@ -6,9 +6,10 @@ Operational TLDR for skills that need to locate the active pipeline run director
 
 1. **`PIPELINE_RUN_DIR` env var** — set explicitly by `/flow` when orchestrating. Use this when present (preferred path).
 2. **Most-recent matching directory** — when the env var is unset, find the most recent directory under `.claude-tweaks/pipelines/` whose `spec-slug` segment matches the current spec or topic.
-3. **Fall back to interactive mode** — when neither resolves to an existing directory, no policy lookup is possible and no auto-decisions are allowed. The skill MUST behave as if invoked in interactive mode for this run.
+3. **Standalone auto fallback** — when neither resolves AND the skill is running in `auto` mode AND the skill is on the standalone-auto allowlist (`/tidy`, `/init`, `/capture`, `/reflect`, `/journeys`, `/visual-review`, `/simplify`), create a standalone run dir at `.claude-tweaks/pipelines/{ISO-timestamp}-{skill-name}-standalone/` with `decisions.md` and `staged/`. The audit log stays on; the skill auto-resolves per project policy in CLAUDE.md. The dir is presented in a Pending Review section at the end of the skill's report (no separate Review Console — this is the bookend-end for a standalone run).
+4. **Fall back to interactive mode** — when neither resolves AND the skill is NOT on the standalone-auto allowlist, no policy lookup is possible and no auto-decisions are allowed. The skill MUST behave as if invoked in interactive mode for this run.
 
-The resolved directory contains `config.yml` (Manifesto answers / policy), `decisions.md` (auto-decision log), and `staged/` (proposals awaiting the Review Console). Full layout and lifecycle in `auto-mode-contract.md`.
+The resolved directory contains `config.yml` (Manifesto answers / policy — absent for standalone runs), `decisions.md` (auto-decision log), and `staged/` (proposals awaiting the Review Console / Pending Review section). Full layout and lifecycle in `auto-mode-contract.md`.
 
 ## Bash snippet (resolution)
 
@@ -17,10 +18,21 @@ RUN_DIR="${PIPELINE_RUN_DIR:-}"
 if [ -z "$RUN_DIR" ]; then
   RUN_DIR=$(find .claude-tweaks/pipelines/ -maxdepth 1 -type d -name "*${SPEC_SLUG}*" 2>/dev/null | sort | tail -n 1)
 fi
+if [ -z "$RUN_DIR" ] && [ "$MODE" = "auto" ] && [ -n "$STANDALONE_SKILL" ]; then
+  # Standalone auto fallback — see resolution order step 3
+  TS=$(date -u +%Y-%m-%dT%H%M%S)
+  RUN_DIR=".claude-tweaks/pipelines/${TS}-${STANDALONE_SKILL}-standalone"
+  mkdir -p "$RUN_DIR/staged"
+  touch "$RUN_DIR/decisions.md"
+fi
 [ -d "$RUN_DIR" ] || RUN_DIR=""  # empty = fall back to interactive mode
 ```
 
-Skills should set `SPEC_SLUG` from their input (spec number, topic slug, or `git branch --show-current` as a last-resort match — only after a worktree exists; `/flow` and `/build` create the worktree before any path-sensitive command, so this fallback is safe at the time the resolution runs).
+**SPEC_SLUG conventions** (load-bearing — short numeric slugs would collide with timestamps without a prefix):
+- Spec runs: pass `SPEC_SLUG="spec-42"` (with `spec-` prefix) — matches dirs like `2026-05-15T143207-spec-42` without colliding with timestamp digits.
+- Multi-spec runs: pass `SPEC_SLUG="spec-42-45-48"` (single prefix, dash-joined IDs).
+- Topic runs: pass `SPEC_SLUG="meal-planning"` (no prefix — non-numeric slugs don't collide).
+- Last-resort: `git branch --show-current` after a worktree exists. `/flow` and `/build` create the worktree before any path-sensitive command, so this fallback is safe at the time the resolution runs.
 
 ## See also
 

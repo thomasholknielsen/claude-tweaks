@@ -1,0 +1,60 @@
+# Step 5: Multi-Persona Red-Team — Dispatch Prompt
+
+Loaded by `/specify` Step 5 at dispatch time. The Template A block below is inlined verbatim into each agent's prompt (per the Subagent Contract — agents only see what's in their prompt; references to sibling files don't reach them).
+
+## Parallel dispatch
+
+> **Parallel execution:** Dispatch the three personas as parallel Task agents — each runs independently and returns Template-A findings narrowed to ambiguities, gaps, and unstated assumptions. Assemble results after all agents complete.
+>
+> **Contract:** Each agent follows the Subagent Contract — minimal input (draft spec content + persona lens question + Template A), one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED` as its first reply line. Tier: **Standard** (Sonnet). Read-only — personas never modify the spec themselves.
+>
+> **Persona prompts (inline literally per agent — Mode 3 from `skills/_shared/multi-agent-coordination.md`):**
+>
+> ```
+> Task scope: Read the draft spec below as {Implementer | Maintainer | Skeptical Reviewer}.
+> Lens question: {persona's lens question — verbatim from the table below}
+> Constraint: Surface only ambiguities, gaps, and unstated assumptions. Not stylistic feedback. Not approval/rejection. Focus on the 3-5 most load-bearing items, not exhaustive enumeration. Read-only — do not modify the spec.
+>
+> Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED.
+>
+> OUTPUT FORMAT (required):
+> Return ONLY a markdown table after the status line, no preamble:
+>
+> | Severity | Path:Line | Finding | Evidence | Suggested resolution |
+> |---|---|---|---|---|
+> | medium | spec.md:42 | "store retry state somewhere" leaves the surface undefined | the spec mentions retry behavior in 3 places without naming a storage backend | name the table or in-memory structure |
+>
+> Severity scale: critical / high / medium / low / info
+> Path:Line is a line range in the draft spec, OR literal "general" if no precise location.
+> Suggested resolution is optional — leave the cell empty if the persona has no constructive fix.
+> If no findings: return literal text "No findings."
+> Do not add narration, headers, or summaries before or after the table.
+>
+> [Use: Standard model.]
+>
+> Draft spec follows:
+> ---
+> {draft spec content}
+> ```
+>
+> **The three personas (lens questions verbatim):**
+>
+> | Persona | Lens question |
+> |---|---|
+> | Implementer | Could I build exactly what this asks for without asking a question? |
+> | Maintainer | In 6 months, can someone changing related code know what they can/can't break? |
+> | Skeptical Reviewer | What unstated assumption is doing the load-bearing work here? |
+
+## Write-back procedure
+
+After all three agents return, write findings back into the spec body:
+
+1. **Precise-location findings** (persona named a specific sentence, quoted text, or line range) → insert `<!-- ambiguity: {persona} — {finding text}{; suggested: {resolution}} -->` immediately after the flagged sentence. On the same line if short; on the next line if long.
+2. **General findings** (no precise location) → accumulate into an `## Open Questions` table appended to the spec, with columns `Persona | Finding | Suggested Resolution`. When this batch is empty, omit the section entirely — do not emit an empty header.
+3. **Decision-log entry per finding:**
+   ```
+   STAGED {HH:MM:SS} — Red-team: persona "{persona}" flagged {ambiguity|gap|unstated assumption} at {location}. Written to spec as {<!-- ambiguity: --> marker | ## Open Questions row}.
+   ```
+   Write each entry **after** the spec body is updated — if the write-back fails, the decision-log should not lie about what happened.
+
+Red-team runs on every generated spec regardless of `surface:` — the lens questions are artefact-agnostic. The user (or Step 6 Self-Review) decides what to do with each finding. There is no mid-flow stop here.

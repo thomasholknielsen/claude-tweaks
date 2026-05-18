@@ -153,5 +153,7 @@ Commit journey files with message: "Add {N} user journeys from discovery (brownf
 
 ## Next Actions (discover mode)
 
+Discover mode emphasises journey-walk follow-up because it just created journey files. Render this block in place of the canonical SKILL.md `## Next Actions` when reporting discover-mode results; otherwise defer to SKILL.md.
+
 1. `/claude-tweaks:visual-review journey:{name}` — test a specific journey against its expectations **(Recommended)**
 2. `/claude-tweaks:visual-review {url}` — review a specific page

@@ -55,8 +55,7 @@ When invoked by `/claude-tweaks:flow`, review runs in **full** mode by default (
 4. **`visual` + URL or description** (e.g., "visual http://localhost:3000") — browser review only (page mode)
 5. **`journey:{name}`** (e.g., "journey:checkout") — browser review only (journey mode)
 6. **`discover`** — browser review only (discover mode)
-7. **`qa`** — **Redirect:** QA validation has moved to `/claude-tweaks:test qa`. Run `/claude-tweaks:test qa` for story validation, or `/claude-tweaks:test all` for full verification + QA.
-8. **No arguments** — use `git diff` against the base branch or recent commits to identify changed files. Mode: code.
+7. **No arguments** — use `git diff` against the base branch or recent commits to identify changed files. Mode: code.
 
 In visual, journey, and discover modes, delegate entirely to `/claude-tweaks:visual-review` — skip Steps 1-7.
 
@@ -158,38 +157,7 @@ Review changed files through these lenses. Skip lenses that don't apply to the t
 >
 > **Model tier (per lens):** 3a (Convention) and 3f (Test Quality) → Fast (Haiku) — mechanical convention checks on isolated files. 3b-3e (Security, Errors, Performance, Architecture) → Standard (Sonnet) — multi-file analysis and cross-cutting findings. 3h (UX Analysis) → Capable (Opus) — judgment-heavy synthesis.
 >
-> **Output template (each agent must follow exactly — reproduce the Calibration block byte-identical in every dispatched agent's prompt, do NOT adapt, summarize, or paraphrase it. The whole point is that all agents apply the same filter as the main thread; rewording defeats the cross-lens reproduction logic in Step 3.5.):**
->
-> ```markdown
-> CALIBRATION (required):
-> Only flag issues where:
-> - the user will hit a bug, broken state, or unsafe behavior
-> - the code will fail under realistic load, edge cases, or future maintenance
-> - a project convention is violated in a way that compounds (not isolated stylistic choices)
->
-> Do NOT flag:
-> - alternate naming you'd prefer ("`fetchUser` would read better as `getUser`")
-> - formatting, whitespace, or import ordering quibbles
-> - "could be DRYer" without a concrete second caller that proves the duplication is real
-> - hypothetical edge cases the spec didn't require ("what if the input is a 4GB string?")
-> - missing comments on self-explanatory code
->
-> When in doubt: would a calibrated senior engineer block a PR on this finding alone? If no, drop it.
->
-> OUTPUT FORMAT (required):
-> Return ONLY a markdown table, no preamble:
->
-> | Severity | Path:Line | Finding | Evidence |
-> |---|---|---|---|
-> | critical | src/auth.ts:42 | Missing token expiry check | uses `<` not `<=` |
-> | medium | src/api.ts:180 | Unhandled rejection | line 184: `await fetch(...)` no try/catch |
->
-> Severity scale: critical / high / medium / low / info
-> If no findings: return literal text "No findings."
-> Do not add narration, headers, or summaries before or after the table.
-> ```
->
-> Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the table. The dispatcher merges findings into the Step 3 Routing table — Severity maps directly, Path:Line maps to the Affected column, Finding maps to the Finding column, and the dispatcher fills the Category column from the lens that produced it. Re-prompt once on format violation.
+> **Output template (each agent must follow exactly):** The Calibration block + OUTPUT FORMAT must be reproduced byte-identical in each dispatched agent's prompt — do NOT paraphrase. Read `step3-routing.md` in this skill's directory for the canonical dispatch template; inline it verbatim into every `Task()` call.
 
 ### 3a: Convention Compliance
 
@@ -299,6 +267,7 @@ After per-lens reproduction completes, scan for contradictions across lenses bef
 >
 >    ```
 >    Two lenses disagreed on this region. Review the conflicting findings below and return:
+>    First line: one of DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED. Then:
 >    1. Verdict: agree / disagree / partial
 >    2. One paragraph of reasoning.
 >
@@ -347,7 +316,7 @@ The simplify skill handles scope resolution, running the code-simplifier subagen
 ## Step 6: Visual Review
 
 **When this step runs:**
-- **Code mode:** Delegate to `/claude-tweaks:visual-review` in recommendation-only mode — it detects UI changes + affected journeys and surfaces a recommendation. Do not stop to ask; note any recommendation in the summary (Step 7).
+- **Code mode:** Delegate to `/claude-tweaks:visual-review discover` — it detects UI changes + affected journeys and surfaces a recommendation. Do not stop to ask; note any recommendation in the summary (Step 7).
 - **Full mode:** Invoke `/claude-tweaks:visual-review` with the target URL/journey and QA data (if available). The visual review owns UI/journey detection and the procedure. Findings feed into the summary (Step 7) as the "UI / Visual" lens with their own severity classifications, routed through the same Step 3 Routing resolution mechanics (fix now / defer / accept) when actionable.
 - **Visual/journey/discover mode:** Delegate entirely to `/claude-tweaks:visual-review` — skip Steps 1-5 and 7.
 
@@ -382,7 +351,17 @@ See `_shared/design-wrapper-handling.md` for the canonical return-shape contract
 
 **Why findings are advisory (review-specific):** Impeccable critiques are LLM-generated and opinionated. The user judges which findings to action. The wrapper's `review` mode is read-only — code-modifying behavior lives in `polish` (invoked separately). Surfacing findings is the value-add; the user routes them to fixes, deferrals, or accepted decisions through Step 3 Routing if they choose.
 
-**Routing into Step 3 Routing (optional):** When the user wants to action design findings inline, treat each as an additional row in the Code Review Findings table with category `Design Quality`. This keeps the resolution mechanics consistent with code-review findings (fix now / defer / accept). When the user opts not to action them inline, they remain in the Design Quality summary section as informational.
+**Routing (optional):** When the user wants to action design findings inline, route them through Step 3-bis below — Step 3 has already completed by this point, so design findings get their own branch reachable only from Step 6.5. When the user opts not to action them inline, they remain in the Design Quality summary section as informational.
+
+## Step 3-bis: Design Findings Routing (from Step 6.5)
+
+Reachable only when Step 6.5 produced `{result: "advisory", findings: [...]}` AND the user opted to action findings inline. This branch reuses the routing mechanics from `step3-routing.md` (severity-based auto routing, interactive batch table, deferral gate, parallel-fix dispatch) but operates on a separate findings set scoped to category `Design Quality`.
+
+1. Treat each design finding as a row in a Step 3-bis batch table with category `Design Quality`, severity from the wrapper output (`info` → low, `warning` → medium, `error` → high), and the wrapper's suggestion as the recommended fix.
+2. Run the same severity-routing table from `step3-routing.md` — low → AUTO, medium → STAGED, high → STAGED, critical → KEPT-PROMPT.
+3. After resolution, fold the resolved findings back into the Step 7 summary's "Design Quality" section with their final status (fixed / deferred / accepted).
+
+Step 3-bis does NOT replay Step 3.5 (cross-lens debate) — design findings come from a single source and have no peers to debate against. Step 3-bis also does NOT re-dispatch reproduction pairs — Impeccable's output is already filtered upstream.
 
 ## Step 7: Present Review Summary
 
@@ -409,9 +388,15 @@ If no notable learnings emerged, state: "No key learnings — straightforward re
 - Skip review lenses that don't apply to the type of change
 - This skill reviews the *current work* — it is not a codebase-wide audit
 
+## Next Actions
+
+Next Actions are rendered as part of Step 7's review summary — they live in `review-summary-template.md` (the "Next Actions" block at the bottom of the template), conditioned on the verdict (PASS or BLOCKED). The template's signal-driven table determines which options surface (e.g., visual-review options appear only when journeys are affected and a browser is available).
+
+See `review-summary-template.md` in this skill's directory for the full Next Actions tables.
+
 ## Component-Skill Contract
 
-`/claude-tweaks:review` is invoked by `/claude-tweaks:flow` as the analytical-quality gate between test and wrap-up. Parent invocation is signaled by the `PIPELINE_RUN_DIR` env var. When `PIPELINE_RUN_DIR` is set, omit the `### Next Actions` block at the end of Step 7 — the parent `/flow` owns the handoff and renders its own Pipeline Summary + Next Actions. When invoked directly by a user (no `PIPELINE_RUN_DIR`), render Next Actions as documented. /review itself invokes `/claude-tweaks:reflect` (Step 4), `/claude-tweaks:simplify` (Step 5), `/claude-tweaks:visual-review` (Step 6), and `/claude-tweaks:design` (Step 6.5) — each is a component skill governed by its own contract (Next-Actions omitted when invoked from here).
+`/claude-tweaks:review` is invoked by `/claude-tweaks:flow` as the analytical-quality gate between test and wrap-up. Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (set by `/flow`, `/build`, or other pipeline orchestrators). Direct invocations may pass `--source <parent>` as an explicit fallback. When `$PIPELINE_RUN_DIR` is set, omit the Next Actions block at the end of Step 7's summary — the parent `/flow` owns the handoff and renders its own Pipeline Summary + Next Actions. When invoked directly by a user, render Next Actions per `review-summary-template.md`. /review itself invokes `/claude-tweaks:reflect` (Step 4), `/claude-tweaks:simplify` (Step 5), `/claude-tweaks:visual-review` (Step 6), and `/claude-tweaks:design` (Step 6.5) — each is a component skill governed by its own contract (Next-Actions omitted when invoked from here).
 
 ## Anti-Patterns
 

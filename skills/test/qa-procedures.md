@@ -105,3 +105,5 @@ Before dispatching any tier, resolve auth vault references for stories that requ
     - Pass the resolved credentials to the qa-agent via the prompt's `**Auth (legacy):**` field. The agent performs the login flow inline as its first step. Vault references take precedence whenever both are present on the same story.
 
 16. **Pre-flight failure handling:** If `agent-browser auth list` itself fails (daemon down, agent-browser not installed), abort the run with the agent-browser doctor recovery hint. Do not attempt per-story workarounds.
+
+→ Continue with Phase 3 in `qa-prompts.md`.

@@ -41,7 +41,7 @@ A lever is **suppressed** (hidden from the Manifesto) when no skill in the resol
 |---|---|
 | **Overlap** (3) | `/specify` not in the pipeline (always suppressed for `/flow` — specs already exist) |
 | **Design intent** (4) | All specs have `design-intent:` locked in frontmatter, OR all specs are non-frontend (polish auto-skips regardless) |
-| **Tidy aggressiveness** (8) | `/tidy` not in the step list (it is not part of default `/flow`) |
+| **Tidy aggressiveness** (8) | Effectively always suppressed by `/flow` — `/tidy` is not in the default step list. This lever is consulted only when a `/flow` caller explicitly adds `/tidy` to the step list (rare). Kept in the canonical 8-lever count for stable numbering across all skills that reference these levers. |
 | **Auto-fix threshold** (6) | `/test` not in the step list |
 | **Review severity floor** (7) | `/review` not in the step list |
 | **Leftover routing** (5) | `/wrap-up` not in the step list |
@@ -166,7 +166,7 @@ Initialize `decisions.md` in the same directory with the config snapshot header 
 
 - Run directory: `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`
 - `ISO-timestamp` is `YYYY-MM-DDTHHMMSS` (no colons; portable across filesystems)
-- `spec-slug` is the spec number, comma-joined spec numbers, or topic slug
+- `spec-slug` uses a single `spec-` prefix on numeric IDs to disambiguate from timestamp digits: `spec-42` (single spec), `spec-42-45-48` (multi-spec, dash-joined), or a non-numeric topic slug like `meal-planning` (no prefix needed). See `_shared/pipeline-run-dir.md` for the canonical SPEC_SLUG conventions.
 - Collisions never happen — multiple parallel agents in the same checkout each get their own run directory
 - The run directory and its path are exposed to downstream skills via the `PIPELINE_RUN_DIR` env var (set in the skill chain)
 - After successful pipeline closure, `/wrap-up` moves the directory to `.claude-tweaks/pipelines/archive/`

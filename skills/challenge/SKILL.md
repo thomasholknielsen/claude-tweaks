@@ -30,7 +30,7 @@ The user is about to invest significant time brainstorming and specifying a feat
 
 | Trigger | Mode | Lenses run |
 |---|---|---|
-| `quick` keyword in `$ARGUMENTS` (e.g., `/challenge quick meal planning`) | Quick | Lens 1 (Surface Hidden Assumptions) + Lens 7 (The Meta-Question) — two interactions instead of seven |
+| `quick` keyword in `$ARGUMENTS` (e.g., `/challenge quick meal planning`) | Quick | Lens 1 (Surface Hidden Assumptions) + Lens 7 (The Meta-Question) — two lens proposers instead of seven |
 | No `quick` keyword | Full | All applicable lenses (default) |
 
 ### Resolve the input:
@@ -254,9 +254,17 @@ Look at the saved brief with fresh eyes. Fix issues inline — no subagent, no s
 3. **Reframe coherence** — does the reframed problem statement still match what the user originally wanted to do? Major reframes are fine; *unrecognizable* reframes mean the lenses overcorrected. If so, soften back toward the original.
 4. **Open question quality** — every open question should be answerable. "What should we do?" is too vague; "Should we support multi-tenant from day one, or single-tenant first?" is actionable. Rewrite vague ones.
 
+## Next Actions
+
+After saving the brief, hand off to brainstorming. If the user wants to adjust the reframing or re-examine from a different lens, they can say so — otherwise, proceed.
+
+1. `/superpowers:brainstorming` — explore solutions for the reframed problem **(Recommended)** — after brainstorm produces the design doc, run `/claude-tweaks:specify` next (not `/superpowers:writing-plans` — specify handles decomposition into agent-sized specs before planning)
+2. Re-examine — revisit a specific lens or adjust the reframing
+3. Save and resume later — keep the brief on disk; pick up at brainstorming when ready
+
 ## Component-Skill Contract
 
-This skill is a **component skill** — invoked by `/claude-tweaks:capture` when an INBOX item is routed via `--route=challenge`. Parent invocation is signaled by `$ARGUMENTS` referencing an INBOX item or by a parent-passed topic. When invoked by a parent, omit the `### Next Actions` block at the end of this skill — the parent owns the handoff (the parent typically dispatches to `/superpowers:brainstorming` next). When invoked directly by a user, render Next Actions as documented at the end of this file.
+This skill is a **component skill** — invoked by `/claude-tweaks:capture` when an INBOX item is routed via `--route=challenge`. Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (set by `/capture --route=challenge` or other orchestrators). When invoked by a parent, omit the `## Next Actions` block above — the parent owns the handoff (the parent typically dispatches to `/superpowers:brainstorming` next). When invoked directly by a user (no `PIPELINE_RUN_DIR`), render Next Actions as documented above.
 
 ## Anti-Patterns
 
@@ -281,11 +289,3 @@ This skill is a **component skill** — invoked by `/claude-tweaks:capture` when
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — `/challenge` lenses are on the "not silenced" list. |
 | `_shared/multi-agent-coordination.md` | Canonical primitive for Layered MoA (Mode 4) — N parallel lens proposers + one sequential aggregator. Hard limits live in the primitive. |
 | `_shared/subagent-output-contract.md` | Per-lens proposer agents emit Template A; the aggregator follows the status-line and model-tier conventions (Capable tier). |
-
-### Next Actions
-
-After saving the brief, hand off to brainstorming. If the user wants to adjust the reframing or re-examine from a different lens, they can say so — otherwise, proceed.
-
-1. `/superpowers:brainstorming` — explore solutions for the reframed problem **(Recommended)** — after brainstorm produces the design doc, run `/claude-tweaks:specify` next (not `/superpowers:writing-plans` — specify handles decomposition into agent-sized specs before planning)
-2. Re-examine — revisit a specific lens or adjust the reframing
-3. Save and resume later — keep the brief on disk; pick up at brainstorming when ready

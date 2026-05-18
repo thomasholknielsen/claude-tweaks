@@ -258,6 +258,10 @@ For mode-selection guidance (worktree vs current-branch), the merge reconciliati
 
 ---
 
+## Next Actions
+
+Next Actions in `/flow` are outcome-conditional and rendered as part of the Pipeline Summary (Step 5 success template) or Failure Card (see `failure-cards.md`). See `## Pipeline Summary template` above for the canonical numbered options on success; see `failure-cards.md` for the per-failure-shape Next Actions blocks. There is no standalone Next Actions block here — the rendered block fires inside the success or failure template that matches the pipeline outcome.
+
 ## Anti-Patterns
 
 | Pattern | Why It Fails |
@@ -300,3 +304,4 @@ For mode-selection guidance (worktree vs current-branch), the merge reconciliati
 | `/claude-tweaks:design` | /flow invokes `/claude-tweaks:design polish <spec>` after review verdict PASS (auto-fit + issue-driven + intent-driven dispatch — v4.5.0). The wrapper handles its own detection (non-frontend skips); when polish modifies code, /flow follows up with `/test skip-qa` (re-verify gate, one-cycle cap). The `no-polish` argument removes the polish phase entirely. /flow's pipeline summary also invokes `/claude-tweaks:design survey <full-diff>` to render the Creative Opportunities block (anchor 3 of v4.5.0's creative surfacing system); /flow handles decline detection by comparing the prior recommendations cache against the new diff before each survey call. |
 | `/claude-tweaks:journeys` | /journeys produces journey files that /flow's auto-stories step (post-build) ingests so derived stories carry `journey:` field and inherited source files. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling in /flow. Governs the bookend architecture (Step 3 Manifesto = begin stop, /wrap-up Review Console = end stop), what `auto` silences, and what it never silences. |
+| `_shared/pipeline-run-dir.md` | /flow creates the pipeline run directory at Step 3 (Manifesto) and exports `PIPELINE_RUN_DIR` to every downstream skill per this shared procedure. Multi-spec runs use the per-spec subdirectory layout documented in `multi-spec.md`, also rooted in this contract. |

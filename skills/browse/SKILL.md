@@ -1,6 +1,6 @@
 ---
 name: claude-tweaks:browse
-description: Use for browser automation via agent-browser — defines session naming, screenshot/trace paths, and operation vocabulary used by /stories, /visual-review, and /review. Keywords - browse, browser, agent-browser, headless, screenshot, scrape, automation.
+description: Use for browser automation via agent-browser — defines session naming, screenshot/trace paths, and operation vocabulary used by /stories, /visual-review, and /review. Keywords - browse, browser, agent-browser, screenshot, scrape, automation.
 ---
 > **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
 
@@ -27,6 +27,22 @@ Conventions skill for browser automation. Defines session naming, screenshot/tra
 ## Requirements
 
 `agent-browser` must be installed. See `_shared/browser-detection.md` for the detect / install / verify procedure, daemon lifecycle (auto-starts on port 4848), and recovery (`agent-browser doctor`).
+
+## Input
+
+`$ARGUMENTS` is freeform — a URL, a task description, or a session-management command. There is no fixed argument schema; the skill translates the request into one or more `agent-browser` operations.
+
+| Pattern | Example | Behavior |
+|---------|---------|----------|
+| *(none)* | — | Show session conventions and exit, or list active sessions |
+| `<URL>` | `https://example.com` | Open a default session at the URL and snapshot |
+| `<task description>` | `walk the checkout flow on https://example.com` | Plan and execute multi-step ops to satisfy the task |
+| `--session <name> open <URL>` | `--session checkout-flow open https://example.com` | Open a named session |
+| `--session <name> click "<selector>"` | `--session checkout-flow click "button[name='Pay']"` | Operate within a named session |
+| `set viewport <wxh>` | `set viewport 1280x800` | Adjust viewport for the active session |
+| `set device "<name>"` | `set device "iPhone 14"` | Emulate a device profile |
+
+See `agent-browser-reference.md` in this skill's directory for the full operation vocabulary (snapshot, find, fill, type, vitals, trace, batch, react, auth vault, viewport/device flags).
 
 ## Conventions Defined Here
 
@@ -93,6 +109,8 @@ Each parallel agent gets its own `--session <unique-name>`. One browser instance
 
 > **Parallel execution:** Dispatch independent browser walks as parallel Task agents — each opens its own session, runs its ops, and returns a per-session result. Assemble results after all agents complete.
 >
+> **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input, status line first, output template inlined verbatim. Model tier: Standard.
+>
 > **Model tier:** Standard (Sonnet) — browser-walk agents do multi-step navigation and structured observation, which exceeds Fast-tier mechanical extraction. Upgrade to Capable (Opus) only if the walk requires synthesis of subjective UX judgment.
 >
 > **Output template (each agent must follow exactly):**
@@ -136,7 +154,7 @@ Each parallel agent gets its own `--session <unique-name>`. One browser instance
 
 ## Component-Skill Contract
 
-`/claude-tweaks:browse` is a conventions skill — it documents the operation vocabulary for `agent-browser` and is consumed transitively by `/claude-tweaks:stories`, `/claude-tweaks:visual-review`, `/claude-tweaks:review`, and the registered `qa-agent`. Those callers either inline the relevant operation text directly in their own dispatch prompts (parallel-session pattern) or call `agent-browser` commands by name; they do not "invoke" /browse as a workflow step. As a result, the `### Next Actions` block renders only when a user invokes `/browse` directly — when a parent skill is using these conventions as a knowledge dependency, no parent handoff exists to defer to and no Next Actions render in the parent's context. Detection: there is no `PIPELINE_RUN_DIR` signal because /browse never runs as a pipeline stage.
+`/claude-tweaks:browse` is a conventions skill — it documents the operation vocabulary for `agent-browser` and is consumed transitively by `/claude-tweaks:stories`, `/claude-tweaks:visual-review`, `/claude-tweaks:review`, and the registered `qa-agent`. Those callers either inline the relevant operation text directly in their own dispatch prompts (parallel-session pattern) or call `agent-browser` commands by name; they do not "invoke" /browse as a workflow step. As a result, the `## Next Actions` block renders only when a user invokes `/browse` directly — when a parent skill is using these conventions as a knowledge dependency, no parent handoff exists to defer to and no Next Actions render in the parent's context. Detection: there is no `PIPELINE_RUN_DIR` signal because /browse never runs as a pipeline stage.
 
 ## Anti-Patterns
 

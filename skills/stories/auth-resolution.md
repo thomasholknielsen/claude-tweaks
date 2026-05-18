@@ -26,9 +26,10 @@ Stay consistent with whatever vault list `agent-browser auth list` already shows
 
    Recommended vault name: `default-user` (or `<project-slug>-user`).
 
-   When done, reply "ready" and I'll continue. To skip auth-gated stories for now, reply "skip".
+   1. Ready — vault was created **(Recommended)**
+   2. Skip auth-gated stories for now
    ```
-   On `ready`: re-run `agent-browser auth list`, confirm, continue. On `skip`: tag stories needing auth as `needs-auth-vault` and skip them in Step 5 refinement.
+   On `1` (Ready): re-run `agent-browser auth list`, confirm, continue. On `2` (Skip): tag stories needing auth as `needs-auth-vault` and skip them in Step 5 refinement.
 
    **Auto mode:** never block — tag auth-gated stories as `needs-auth-vault`, skip them in Step 5 refinement, and stage the install hint. Log:
    ```

@@ -58,6 +58,20 @@ When page inventories from multiple pages are available, compare patterns across
 ## Screenshot Review
 
 > **Parallel execution (conditional):** When more than 5 screenshots exist across the QA run, dispatch a screenshot review Task agent that reads the screenshots using the Read tool (multimodal) and returns visual observations. When 5 or fewer, review screenshots inline in the main thread.
+>
+> **Output template (inline this into the Task() prompt verbatim):**
+>
+> ```markdown
+> OUTPUT FORMAT (required):
+> First line: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED
+> Then per observation:
+> - [Severity] {path/screenshot.png} — {observation} — Evidence: {what you saw}
+>   Suggested fix: {one line}
+>
+> Severity scale: high / medium / low / info
+> If no observations: return literal text "No observations."
+> Do not add narration or grouping headers.
+> ```
 
 For each screenshot (or the subset reviewed by the Task agent), observe:
 

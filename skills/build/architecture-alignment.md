@@ -38,7 +38,7 @@ After resolution, apply each row's classification per the table above. "Benefici
 
 ## In `auto` mode
 
-Auto-apply rows classified as "Beneficial" (update spec silently, commit-message insight). Rows classified "Fix now" or "Update the spec" are staged to `staged/build-deviation-{N}.md` and surfaced at the Wrap-Up Review Console — per `_shared/auto-mode-contract.md`, `auto` does not silence destructive or spec-altering decisions. Log every auto-applied and staged row to the auto-decision log.
+Apply the `Architecture alignment (/build Common Step 4.5)` row from the silences table in `_shared/auto-mode-contract.md`. Stage non-AUTO rows to `staged/build-deviation-{N}.md` and surface them at the Wrap-Up Review Console. Log every auto-applied and staged row to the auto-decision log per the standard skill-integration pattern.
 
 ## Skip this step if
 

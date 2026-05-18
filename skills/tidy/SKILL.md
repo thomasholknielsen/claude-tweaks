@@ -34,6 +34,8 @@ Periodic backlog hygiene to keep the spec system healthy. Run when the backlog f
 
 > **Parallel execution:** Dispatch Steps 1, 1.5, 2, 3, 4, 4.5, and 4.6 as parallel Task agents — each scan is independent (INBOX, Deferred, Specs, Design Docs + Briefs, Plans, Git, Doc Registry). Each agent returns findings in the `[type] item — detail — recommendation` format. Step 3's classification tables are inlined directly into its agent prompt (see Step 3 below) so subagents have everything they need. After parallel scans complete, run Step 5 and Step 5.5 sequentially — they depend on Step 2's spec scan results. Assemble all findings into the Step 6 report.
 >
+> **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input, status line first, output template inlined verbatim. Model tier: Fast.
+>
 > **Model tier:** Fast (Haiku) — each scan is a mechanical read of a single data source (INBOX file, DEFERRED file, spec directory, design-doc directory, plan directory, `git worktree list` + branches, REGISTRY). No cross-cutting analysis at the per-scan level; Step 5/5.5 do the synthesis sequentially in the main thread.
 >
 > **Output template (each agent must follow exactly):**
@@ -124,7 +126,9 @@ AUTO 11:14:32 — Step 6: deleted stale INBOX entry "{title}" (5 weeks old). Rev
 STAGED 11:14:35 — Step 6: merge proposal for INBOX "{title}" into spec 42. Stage path: staged/tidy-merge-1.md.
 ```
 
-Auto-applied items are committed. Staged items surface at the Wrap-Up Review Console for batch approval (`/wrap-up` Step 8.6) when `/tidy` runs as part of a pipeline. When `/tidy` runs standalone in `auto` mode (no pipeline run directory), use `tidy-aggressiveness` from CLAUDE.md (project policy) as the routing key, skip the decision log (no run to attach to), and present staged items at the end of the report as a Pending Review section before completing.
+Auto-applied items are committed. Staged items surface at the Wrap-Up Review Console for batch approval (`/wrap-up` Step 8.6) when `/tidy` runs as part of a pipeline.
+
+**Standalone auto:** When `/tidy` runs standalone in `auto` mode (no parent pipeline run dir), follow the Standalone auto fallback in `_shared/pipeline-run-dir.md` — create `.claude-tweaks/pipelines/{ISO-timestamp}-tidy-standalone/` with `decisions.md` and `staged/`. The audit log stays on. Apply `tidy-aggressiveness` from CLAUDE.md as the routing key. Present staged items in a Pending Review section at the end of the report (this is the bookend-end for the standalone run; no separate Review Console).
 
 ### Interactive mode (batch approval)
 
@@ -202,6 +206,13 @@ If any verification fails, fix it before committing. Do not commit partial state
 
 Commit with a message summarizing the tidy-up.
 
+## Next Actions
+
+1. `/claude-tweaks:help` — full pipeline status with refreshed counts after the cleanup **(Recommended)**
+2. `/claude-tweaks:build {N}` — build the highest-priority ready spec surfaced by the tidy report
+3. `/claude-tweaks:specify {topic}` — specify an unspecified design doc surfaced by the audit
+4. `/claude-tweaks:review {N}` — review a spec the audit flagged as "appears complete, not reviewed"
+
 ## Component-Skill Contract
 
 `/claude-tweaks:tidy` is a **standalone-only** maintenance skill — it is not invoked by any parent skill in the workflow. There is no `PIPELINE_RUN_DIR` signal expected as a caller-side argument (the run dir is only resolved internally for the auto-mode aggressiveness routing in Step 6). The `## Next Actions` block always renders. If a future parent skill ever wraps `/tidy` (e.g., a scheduled hygiene pass inside `/flow`), the parent must update this contract; until then, treat parent invocation as not applicable.
@@ -234,10 +245,5 @@ Commit with a message summarizing the tidy-up.
 | `/claude-tweaks:init` | /claude-tweaks:tidy Step 4.6 audits doc registry health — flags stale entries, gaps, pattern drift. Suggests `/init update` for tier drift. |
 | `/claude-tweaks:ledger` | /ledger creates the per-feature ledger files /tidy scans for stale or orphaned open items during periodic hygiene. /tidy may surface ledgers whose related spec is complete but whose items were never resolved. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. The aggressiveness-routing table in Step 6 (conservative / moderate / aggressive) implements the contract's reversibility/confidence floors for tidy actions. |
-
-## Next Actions
-
-1. `/claude-tweaks:help` — full pipeline status with refreshed counts after the cleanup **(Recommended)**
-2. `/claude-tweaks:build {N}` — build the highest-priority ready spec surfaced by the tidy report
-3. `/claude-tweaks:specify {topic}` — specify an unspecified design doc surfaced by the audit
-4. `/claude-tweaks:review {N}` — review a spec the audit flagged as "appears complete, not reviewed"
+| `_shared/pipeline-run-dir.md` | Standalone-auto fallback (Step 6) creates `.claude-tweaks/pipelines/{ts}-tidy-standalone/` with `decisions.md` + `staged/` per this shared procedure. /tidy is on the standalone-auto allowlist. |
+| `_shared/subagent-output-contract.md` | Steps 1-4.6 dispatch parallel Task agents per this contract — minimal input, status line first (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`), Template A inlined verbatim. Model tier: Fast. |

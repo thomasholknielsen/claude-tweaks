@@ -75,6 +75,15 @@ Note: the upstream code uses `pathlib.Path` throughout; the patch stays consiste
 
 Upstream infers mode from natural-language phrasing ("deep research in ultradeep mode: X"). Our `SKILL.md` instead asks one structured question with 4 options (`standard` recommended).
 
+### 4. claude-tweaks-side patch: marketplace-install path compatibility
+
+`SKILL.md` prefixes paths with `${CLAUDE_PLUGIN_ROOT}/` for marketplace install compatibility (lines 58, 72):
+
+- L58 — `python3 ${CLAUDE_PLUGIN_ROOT}/skills/research/scripts/research_engine.py …`
+- L72 — `pip install -r ${CLAUDE_PLUGIN_ROOT}/skills/research/requirements.txt`
+
+This is claude-tweaks wiring only — the upstream `.py` scripts themselves are not modified. The first-run checklist commands (which run from the repo root during development) still use the unprefixed `skills/research/...` path.
+
 ## Style deviations from claude-tweaks house style
 
 The vendored research skill content is preserved verbatim from upstream, including:

@@ -91,13 +91,17 @@ An INBOX item likely needs debiasing when it:
 
 ### Present Recommendation
 
-```markdown
-### Next Actions
+Render the recommendation as the `## Next Actions` block below — `{recommended command}` becomes option 1 marked `**(Recommended)**`, with 1-3 alternatives drawn from the priority order.
+
+## Next Actions
 
 1. `{recommended command with parameters}` — {rationale} **(Recommended)**
 2. `{alternative command}` — {description}
 {3. `{option}` — {description}}
-```
+
+## Component-Skill Contract
+
+`/claude-tweaks:help` is a **standalone-only** dashboard skill — it is not invoked by any parent skill in the workflow. There is no `PIPELINE_RUN_DIR` signal, no parent context to defer to, and the `## Next Actions` block always renders. If a future parent skill ever invokes `/help` (e.g., a "show me the pipeline" dispatch), the parent must update this contract before that lands; until then, treat parent invocation as not applicable.
 
 ## Anti-Patterns
 
@@ -110,10 +114,6 @@ An INBOX item likely needs debiasing when it:
 | Triaging INBOX items from /help instead of handing off to /tidy | /help is a read-only dashboard — it reports status and recommends next steps. If the user wants to triage, delete, promote, merge, or defer INBOX items, hand off to `/claude-tweaks:tidy`. Do not improvise an ad-hoc walkthrough. |
 
 For a detailed explanation of how context flows between skills via artifacts, read `context-flow.md` in this skill's directory.
-
-## Component-Skill Contract
-
-`/claude-tweaks:help` is a **standalone-only** dashboard skill — it is not invoked by any parent skill in the workflow. There is no `PIPELINE_RUN_DIR` signal, no parent context to defer to, and the `### Next Actions` block always renders. If a future parent skill ever invokes `/help` (e.g., a "show me the pipeline" dispatch), the parent must update this contract before that lands; until then, treat parent invocation as not applicable.
 
 ## Relationship to Other Skills
 

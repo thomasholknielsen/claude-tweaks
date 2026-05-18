@@ -75,6 +75,8 @@ observation          (informational, non-blocking — e.g., QA caveats)
 
 **Non-terminal status:** `open` — these items block pipeline completion.
 
+User-facing "Drop" choice in the resolve gate maps to status `accepted` with reason `dropped per user` (see `resolve-gate.md` Phase 3 for the full disposition table).
+
 ## Phase Taxonomy
 
 Each item is tagged with a phase indicating where it was discovered.
@@ -83,7 +85,7 @@ Each item is tagged with a phase indicating where it was discovered.
 
 ```
 Phase     ::= Skill | Skill "/" Qualifier
-Skill     ::= "build" | "test" | "review" | "reflect" | "wrap-up" | "ops"
+Skill     ::= "build" | "test" | "review" | "reflect" | "wrap-up" | "ops" | "flow" | "design"
 Qualifier ::= "ops" | "skill" | "hindsight" | "qa"
 ```
 
@@ -147,7 +149,7 @@ Append a row to the ledger table.
 **Optional:**
 - **Resolution** — pre-filled for `observation` items, `—` for `open` items
 
-**De-duplication:** Before adding, check existing items for semantic duplicates. If an item with the same phase and substantially similar description exists, skip the add and note: "Duplicate — matches item #{N}."
+**De-duplication:** Before adding, check existing items for semantic duplicates. If an item with the same phase and substantially similar description exists, skip the add and note: "Duplicate — matches item #{N}." Surface this in the skill's output to the user (do not silently skip).
 
 ### Update Item
 
@@ -174,7 +176,7 @@ Read the ledger and filter by criteria:
 
 ### Resolve Gate (Nothing-Left-Behind)
 
-The critical gate that prevents dropped work — three phases (Phase 1 fix-exhaust → Phase 2 per-item user input → Phase 3 apply). Full procedure lives in `resolve-gate.md` in this skill's directory (also referenced from the "Resolve Gate (canonical reference)" section below). Called by `/claude-tweaks:wrap-up` Step 8.5 and `/claude-tweaks:flow` Step 5.
+The critical gate that prevents dropped work — three phases (Phase 1 fix-exhaust → Phase 2 per-item user input → Phase 3 apply). Full procedure lives in `resolve-gate.md` in this skill's directory. Phase 2 is on the "What `auto` does NOT silence" list in `_shared/auto-mode-contract.md`. Called by `/claude-tweaks:wrap-up` Step 8.5 and `/claude-tweaks:flow` Step 5.
 
 ### Delete
 
@@ -200,13 +202,17 @@ Only delete when the resolve gate has passed — all items must have terminal st
 2. Run the resolve gate procedure
 3. Present results
 
+## Next Actions
+
+1. `/claude-tweaks:wrap-up {spec}` — wrap up the current work once all items are resolved **(Recommended)**
+2. `/claude-tweaks:ledger resolve` — re-run the nothing-left-behind gate if items remain `open`
+3. `/claude-tweaks:help` — check overall pipeline status
+
 ## Component-Skill Contract
 
-`/claude-tweaks:ledger` is invoked by `/claude-tweaks:build`, `/claude-tweaks:test`, `/claude-tweaks:review`, `/claude-tweaks:wrap-up`, and `/claude-tweaks:flow` for ledger create / add-item / update / query / resolve / delete operations. Parent invocation is signaled by the argument shape — `create {feature}`, `add {phase} "{item}"`, `update {n} {status}`, `query`, `resolve`, `delete` are the component-invocation API; the standalone `(none)` / `{feature-name}` / `resolve` forms are the user-facing entrypoints. When invoked as a component (any operation argument), do not render a `## Next Actions` block — the parent owns the handoff. When invoked standalone or with `resolve`, render Next Actions as documented. The resolve gate Phase 2 is on the "What `auto` does NOT silence" list regardless of caller.
+`/ledger` is consumed as a **knowledge dependency** by `/build`, `/test`, `/review`, `/wrap-up`, `/flow`, and `/tidy` — they read this skill to learn the ledger file format and resolve-gate procedure, then write to `.claude-tweaks/ledgers/{feature}.md` directly using file operations. There is no programmatic invocation API.
 
-## Resolve Gate (canonical reference)
-
-Read `resolve-gate.md` in this skill's directory for the three-phase nothing-left-behind procedure (Phase 1 fix-exhaust → Phase 2 per-item user input → Phase 3 apply). Phase 2 is on the "What `auto` does NOT silence" list in `_shared/auto-mode-contract.md`. Called by `/claude-tweaks:wrap-up` Step 8.5 and `/claude-tweaks:flow` Step 5.
+When `$PIPELINE_RUN_DIR` is set, `/ledger` is running inside a pipeline (typically standalone via /ledger resolve at wrap-up time). In that case omit the `## Next Actions` block — the parent owns the handoff.
 
 ## Anti-Patterns
 
@@ -241,9 +247,3 @@ Read `resolve-gate.md` in this skill's directory for the three-phase nothing-lef
 | `/claude-tweaks:help` | Scans for active ledgers with open items and surfaces them in the status dashboard. |
 | `/claude-tweaks:tidy` | May scan ledger files during backlog hygiene to detect abandoned pipelines. /tidy reciprocally relies on /ledger's status taxonomy to detect stale entries. |
 | `_shared/auto-mode-contract.md` | The resolve gate (Phase 8.5 in /wrap-up, Phase 5 in /flow) is on the contract's "not silenced" list — even under `auto`, per-item user input is required. Bulk-route shortcuts are forbidden. |
-
-## Next Actions
-
-1. `/claude-tweaks:wrap-up {spec}` — wrap up the current work once all items are resolved **(Recommended)**
-2. `/claude-tweaks:ledger resolve` — re-run the nothing-left-behind gate if items remain `open`
-3. `/claude-tweaks:help` — check overall pipeline status

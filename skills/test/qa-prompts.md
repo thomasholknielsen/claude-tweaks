@@ -4,7 +4,11 @@ QA parallel dispatch + agent prompt templates — Phase 3. Read `qa-procedures.m
 
 This phase dispatches qa-agent subagents in parallel — one per story, bounded by `MAX_PARALLEL` and tier dependencies from Phase 2. Each agent owns a single `agent-browser` session named after the story id (kebab-case). One session per agent — never share a session across parallel stories.
 
-> **Parallel execution:** Dispatch each tier's stories as parallel Task agents — each runs independently against its own `agent-browser` session and returns a `RESULT:` summary line (plus optional `TRACE:` line and `REPORT_JSON` comment). Assemble results after all agents in the tier complete. Follow the subagent contract in `skills/_shared/subagent-output-contract.md`: inline the prompt template below verbatim per agent (no references to sibling files), pick model tier `Standard` (qa-agent work is browser-driven step execution, not deep analysis), and treat the agent's first reply line as its status (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`). Anchor the working directory in each prompt when story YAML paths or screenshot/trace paths are relative.
+> **Parallel execution:** Dispatch each tier's stories as parallel Task agents — each runs independently against its own `agent-browser` session and returns a `RESULT:` summary line (plus optional `TRACE:` line and `REPORT_JSON` comment). Assemble results after all agents in the tier complete. Follow the subagent contract in `skills/_shared/subagent-output-contract.md`: inline the prompt template below verbatim per agent (no references to sibling files), pick model tier `Standard` (qa-agent work is browser-driven step execution, not deep analysis), and treat the agent's first reply line as its status (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`).
+>
+> **Working directory discipline:** Resolve `{SCREENSHOT_PATH}` and `{TRACES_BASE}` to absolute paths *before* substituting them into each agent's prompt — relative paths cannot reach the agent's working directory reliably. The dispatch also anchors the working directory by inlining a "Working directory" line at the top of each agent's prompt body (see templates below).
+>
+> **Custom output schema note:** This dispatch uses a custom output schema (`RESULT` / `TRACE` / `REPORT_JSON`) — not Templates A/B/C from the subagent contract — because QA agents return structured execution results, not findings/locators. Templates A/B/C are for analysis dispatches; QA execution is a different shape.
 
 17. For each tier (starting from Tier 0):
 
@@ -55,6 +59,8 @@ This phase dispatches qa-agent subagents in parallel — one per story, bounded 
 ```
 Execute this user story and report results using the agent-browser CLI.
 
+**Working directory:** {ABSOLUTE_WORKTREE_PATH}. Start every shell command with `cd "{ABSOLUTE_WORKTREE_PATH}" && ...` so screenshots, traces, and git operations land in the correct checkout.
+
 **ID:** {story.id}
 **Story:** {story.name}
 **URL:** {story.url}
@@ -96,7 +102,7 @@ Instructions:
 - **Status line (required, line 1 of your reply):** emit exactly one of `DONE` | `DONE_WITH_CONCERNS` | `NEEDS_CONTEXT` | `BLOCKED`. Mapping:
   - `PASS` → `DONE`
   - `PASS_WITH_CAVEATS` → `DONE_WITH_CONCERNS`
-  - `FAIL` → `DONE` (the test failed, but your execution completed normally — the failure is the result, not an agent error)
+  - `FAIL` → `DONE_WITH_CONCERNS` (your execution completed normally — `FAIL` is a real finding the dispatcher must act on, and the status line carries that signal)
   - Cannot open the browser, server unreachable, or other infrastructure failure that prevents step execution → `BLOCKED`
   - Required input missing (auth vault not configured, env var not set, locator references something that doesn't exist in the prompt) → `NEEDS_CONTEXT`
 - Use this exact format for your final summary line (after the status line):
@@ -113,6 +119,8 @@ Instructions:
 **Legacy format prompt:**
 ```
 Execute this user story and report results using the agent-browser CLI.
+
+**Working directory:** {ABSOLUTE_WORKTREE_PATH}. Start every shell command with `cd "{ABSOLUTE_WORKTREE_PATH}" && ...` so screenshots, traces, and git operations land in the correct checkout.
 
 **ID:** {story.id or "legacy-" + slugified-name}
 **Story:** {story.name}
@@ -134,7 +142,7 @@ Instructions:
 - **Status line (required, line 1 of your reply):** emit exactly one of `DONE` | `DONE_WITH_CONCERNS` | `NEEDS_CONTEXT` | `BLOCKED`. Mapping:
   - `PASS` → `DONE`
   - `PASS_WITH_CAVEATS` → `DONE_WITH_CONCERNS`
-  - `FAIL` → `DONE` (test failed, but execution completed normally)
+  - `FAIL` → `DONE_WITH_CONCERNS` (execution completed normally — `FAIL` is a real finding the dispatcher must act on, and the status line carries that signal)
   - Browser cannot open, server unreachable, or other infrastructure failure → `BLOCKED`
   - Missing auth vault, missing required env var, or workflow refers to undefined state → `NEEDS_CONTEXT`
 - Use this exact format for your final summary line (after the status line):

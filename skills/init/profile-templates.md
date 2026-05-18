@@ -96,6 +96,8 @@ CLAUDE.md sections required by the current claude-tweaks contract that are missi
 
 Present as batch — `1. Apply all contract patches  2. Choose per-item  3. Skip` — since patch bodies are template-sourced.
 
+**Sequencing:** Present Contract Drift batch first; after resolution, present Stale/Drifted/Gaps batch. Per CLAUDE.md interaction patterns, never present more than one batch decision table per message.
+
 ### Stale (fix or remove)
 
 Things the config references that no longer match reality:

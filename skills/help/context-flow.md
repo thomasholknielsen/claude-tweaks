@@ -73,7 +73,7 @@ In auto/hybrid mode, each `/flow` invocation creates a per-run directory at `.cl
 
 The directory is **collision-safe** across parallel agents (multiple `/flow` runs in the same checkout each get their own `{ISO-timestamp}-{spec-slug}` directory). Downstream skills locate the active run via the `PIPELINE_RUN_DIR` env var or by selecting the most recent matching directory.
 
-After successful pipeline closure, `/wrap-up` Step 5 moves the directory to `.claude-tweaks/pipelines/archive/{run-id}/` — preserving the audit trail without polluting the active workspace.
+After successful pipeline closure, `/wrap-up` Step 10 moves the directory to `.claude-tweaks/pipelines/archive/{run-id}/` — preserving the audit trail without polluting the active workspace.
 
 ## Within-Session Context
 

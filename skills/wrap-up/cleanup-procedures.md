@@ -1,14 +1,31 @@
 # Wrap-Up Cleanup Procedures
 
-Loaded by `/claude-tweaks:wrap-up`. Step 5 references this file to enumerate the planned cleanup; Step 10 references it again to execute the actual deletions.
+Canonical home for the wrap-up cleanup enumeration. Loaded by `/claude-tweaks:wrap-up` Step 5 (planning), Step 9 (summary checklist), Step 10 (execution), and by `review-console.md` (Section 6 of the Review Console). All four call sites reference this list — do NOT duplicate the table inline elsewhere.
 
-This file contains three cleanup procedures executed in order:
+## Canonical cleanup list
 
-- **A. Design wrapper caches** — silent cleanup of per-spec caches written by `/claude-tweaks:design`.
-- **B. Pipeline run directory** — archive on success, leave for inspection on failure (multi-spec defer aware).
-- **C. Worktree** — merge handoff to `/superpowers:finishing-a-development-branch`, worktree removal, branch deletion.
+Six cleanup actions, executed in order (Step 10) and surfaced together (Step 5, Step 9, Review Console):
 
-The other cleanups (Execution Plans, Open Items Ledger) are simple enough to live inline in Step 10's enumeration; they execute alongside this file's procedures after the Review Console / batch decision approves them.
+| # | Cleanup | Procedure ref | Condition | Deferred under `MULTISPEC_REVIEW_DEFER=1`? |
+|---|---------|---------------|-----------|--------------------------------------------|
+| 1 | Execution plans | Delete plan files in `docs/superpowers/plans/` and `~/.claude/plans/` related to this spec. (Design docs `*-design.md` in `docs/superpowers/specs/` should already be gone — `/specify` deletes them. If any remain, delete now.) | spec-based work | No (idempotent — leave to per-spec wrap-up) |
+| 2 | Open items ledger | Delete via `/ledger`'s delete operation, only after Step 8.5 confirms zero open items | ledger exists | No (idempotent) |
+| 3 | Design wrapper caches | Section A below — delete `*-audit.json`, `*-recommendations.json`, `*-declined.json` in `docs/plans/` | design wrapper active | **Yes — defer to parent `/flow` console** |
+| 4 | Pipeline run directory | Section B below — archive (do not delete) to `.claude-tweaks/pipelines/archive/{run-id}/` | run dir exists | **Yes — parent `/flow` owns archival** |
+| 5 | Git worktree | Section C below — complete feature branch via `/superpowers:finishing-a-development-branch`, then remove worktree + delete merged branch | worktree strategy | **Yes — defer to parent `/flow` console** |
+| 6 | Spec lifecycle (file + INDEX) | Delete the spec file (if 100% complete) or update its status; update `specs/INDEX.md` (remove completed entries) | spec-based work | No (idempotent — the spec being deleted does not interact with parent multi-spec archival) |
+
+The detailed procedures for items 3–5 follow. Items 1, 2, and 6 are simple enough to execute inline at Step 10 without a sub-procedure.
+
+## Multi-spec defer behavior
+
+Under `MULTISPEC_REVIEW_DEFER=1`, Step 10 SKIPS state-changing cleanups marked "Yes" in the table above (items 3, 4, 5). Those defer to `/flow`'s consolidated multi-spec Review Console at end-of-run. Items 1, 2, and 6 still execute — they are idempotent and do not interfere with parent-orchestrated cleanup of design caches, run dirs, or worktrees.
+
+The full list of Step 10's deferred-under-MULTISPEC actions:
+
+- Item 3 (Design caches) — parent /flow owns design-cache archival across all specs
+- Item 4 (Pipeline run dir archival) — parent /flow archives the multi-spec parent dir after consolidated console
+- Item 5 (Worktree removal) — parent /flow handles worktree teardown after consolidated console approves cross-spec changes
 
 ---
 

@@ -66,7 +66,7 @@ A backend project that touches only `.ts`/`.js` files outside `/components/`, `/
 
 ## Layer 2 — Frontmatter spec (read by wrapper, written by `/specify`)
 
-Spec files in `specs/*.md` may declare two design-related frontmatter fields: `surface:` and `design-intent:`. `/specify` writes both on every new spec. The wrapper reads `surface:` for Layer 2 detection and `design-intent:` for `polish` mode's intent-driven dispatch (active in v4.5.0).
+Spec files in `specs/*.md` may declare two design-related frontmatter fields: `surface:` and `design-intent:`. `/specify` writes both on every new spec. The wrapper reads `surface:` for Layer 2 detection and `design-intent:` for `polish` mode's intent-driven dispatch.
 
 **The canonical definition of these fields lives in the spec template** at `skills/specify/spec-template.md` (see the "Frontmatter reference (canonical spec)" section). Both the wrapper (which reads the fields) and `/specify` (which writes them) reference that single source of truth — do not duplicate the value enumerations across multiple files.
 

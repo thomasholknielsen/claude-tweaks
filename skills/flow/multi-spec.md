@@ -88,7 +88,7 @@ If `auto` mode is set and conflicts are detected, the Manifesto still presents n
 Multi-spec runs use a parent run directory with per-spec subdirectories so the consolidated end-of-run Review Console can read every spec's outputs:
 
 ```
-.claude-tweaks/pipelines/{ISO-timestamp}-{spec-1}-{spec-2}-{spec-N}/
+.claude-tweaks/pipelines/{ISO-timestamp}-spec-{N1}-{N2}-{N3}/
 ├── config.yml          ← Manifesto answers (one for the whole run)
 ├── manifest.yml        ← Multi-spec metadata (spec IDs, order, statuses)
 └── spec-{N}/           ← Per-spec subdirectory (one per spec)
@@ -96,11 +96,13 @@ Multi-spec runs use a parent run directory with per-spec subdirectories so the c
     └── staged/
 ```
 
+The parent dir uses a single `spec-` prefix at the start of the spec-slug segment so `find -name "*spec-${N}*"` reliably disambiguates spec IDs from timestamp digits.
+
 `manifest.yml` lists the specs in execution order plus their status as the run progresses:
 
 ```yaml
 multispec:
-  parent: .claude-tweaks/pipelines/2026-05-16T143207-157-159-160/
+  parent: .claude-tweaks/pipelines/2026-05-16T143207-spec-157-159-160/
   specs:
     - id: 157
       status: complete    # pending | running | complete | failed | not-run

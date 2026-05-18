@@ -68,7 +68,7 @@ Input is polymorphic — see the canonical definition in the Granularity Contrac
 2. Design doc path — read the file directly
 ```
 
-This explicit disambiguation prevents the silent wrong-path failure that the Phase 2 design doc flagged as the polymorphic-input edge case.
+This explicit disambiguation prevents the silent wrong-path failure flagged by past polymorphic-input edge cases.
 
 ## Step 1: Understand the Landscape
 
@@ -256,60 +256,9 @@ This ensures specs are self-contained — a developer reading spec 73 understand
 
 ## Step 5: Multi-Persona Red-Team
 
-Before deleting the design doc, dispatch three persona-instantiated agents in one parallel batch to surface ambiguities, gaps, and unstated assumptions the author may have missed. Findings are written **into the spec body** — either as inline `<!-- ambiguity: ... -->` HTML comments next to a flagged sentence, or as rows in an appended `## Open Questions` table. No mid-flow prompt — the next step (Self-Review) naturally picks them up.
+Before deleting the design doc, dispatch three persona-instantiated agents (Implementer / Maintainer / Skeptical Reviewer) in one parallel batch to surface ambiguities, gaps, and unstated assumptions. Findings are written **into the spec body** — inline `<!-- ambiguity: ... -->` HTML comments next to flagged sentences, or rows in an appended `## Open Questions` table. No mid-flow prompt — Step 6 Self-Review picks them up.
 
-> **Parallel execution:** Dispatch the three personas as parallel Task agents — each runs independently and returns Template-A findings narrowed to ambiguities, gaps, and unstated assumptions. Assemble results after all agents complete.
->
-> **Contract:** Each agent follows the Subagent Contract — minimal input (draft spec content + persona lens question + Template A), one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED` as its first reply line. Tier: **Standard** (Sonnet). Read-only — personas never modify the spec themselves.
->
-> **Persona prompts (inline literally per agent — Mode 3 from `skills/_shared/multi-agent-coordination.md`):**
->
-> ```
-> Task scope: Read the draft spec below as {Implementer | Maintainer | Skeptical Reviewer}.
-> Lens question: {persona's lens question — verbatim from the table below}
-> Constraint: Surface only ambiguities, gaps, and unstated assumptions. Not stylistic feedback. Not approval/rejection. Focus on the 3-5 most load-bearing items, not exhaustive enumeration. Read-only — do not modify the spec.
->
-> Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED.
->
-> OUTPUT FORMAT (required):
-> Return ONLY a markdown table after the status line, no preamble:
->
-> | Severity | Path:Line | Finding | Evidence | Suggested resolution |
-> |---|---|---|---|---|
-> | medium | spec.md:42 | "store retry state somewhere" leaves the surface undefined | the spec mentions retry behavior in 3 places without naming a storage backend | name the table or in-memory structure |
->
-> Severity scale: critical / high / medium / low / info
-> Path:Line is a line range in the draft spec, OR literal "general" if no precise location.
-> Suggested resolution is optional — leave the cell empty if the persona has no constructive fix.
-> If no findings: return literal text "No findings."
-> Do not add narration, headers, or summaries before or after the table.
->
-> [Use: Standard model.]
->
-> Draft spec follows:
-> ---
-> {draft spec content}
-> ```
->
-> **The three personas (lens questions verbatim):**
->
-> | Persona | Lens question |
-> |---|---|
-> | Implementer | Could I build exactly what this asks for without asking a question? |
-> | Maintainer | In 6 months, can someone changing related code know what they can/can't break? |
-> | Skeptical Reviewer | What unstated assumption is doing the load-bearing work here? |
-
-After all three agents return, write findings back into the spec body:
-
-1. **Precise-location findings** (persona named a specific sentence, quoted text, or line range) → insert `<!-- ambiguity: {persona} — {finding text}{; suggested: {resolution}} -->` immediately after the flagged sentence. On the same line if short; on the next line if long.
-2. **General findings** (no precise location) → accumulate into an `## Open Questions` table appended to the spec, with columns `Persona | Finding | Suggested Resolution`. When this batch is empty, omit the section entirely — do not emit an empty header.
-3. **Decision-log entry per finding:**
-   ```
-   STAGED {HH:MM:SS} — Red-team: persona "{persona}" flagged {ambiguity|gap|unstated assumption} at {location}. Written to spec as {<!-- ambiguity: --> marker | ## Open Questions row}.
-   ```
-   Write each entry **after** the spec body is updated — if the write-back fails, the decision-log should not lie about what happened.
-
-Red-team runs on every generated spec regardless of `surface:` — the lens questions are artefact-agnostic. The user (or Step 6 Self-Review) decides what to do with each finding. There is no mid-flow stop here.
+Read `red-team.md` in this skill's directory for the dispatch prompt (Template A block must remain inlined verbatim in the dispatch prompt at runtime per the Subagent Contract), the three persona lens questions, and the write-back procedure.
 
 ---
 
@@ -380,7 +329,7 @@ Present a summary:
 - {changes made}
 
 ### Artifacts Removed
-- Design doc: `docs/plans/{filename}` (absorbed into specs)
+- Design doc: `docs/superpowers/specs/{filename}` (absorbed into specs)
 - Brainstorming brief: `docs/plans/{filename}` (absorbed into spec Gotchas) — if it existed
 - INBOX entry: {title} (promoted)
 ```
@@ -393,7 +342,9 @@ Present a summary:
 | Operational | Updated `specs/INDEX.md` | `{hash}` |
 | Operational | Deleted design doc + brief | `{hash}` |
 
-### Next Actions
+Commit with a message describing the specs created.
+
+## Next Actions
 
 Self-routing — render based on what was produced:
 
@@ -406,7 +357,9 @@ Self-routing — render based on what was produced:
 
 Always recommend `/flow` over `/build` — `/flow` is the canonical path through the pipeline, and the new shape gate (Step 2.6 in `/flow`) accepts well-structured specs of any size.
 
-Commit with a message describing the specs created.
+## Component-Skill Contract
+
+`/specify` is always user-facing — it does not detect `$PIPELINE_RUN_DIR` because it dispatches `/superpowers:brainstorming` polymorphically rather than being invoked by a pipeline parent. Always renders Next Actions.
 
 ## Anti-Patterns
 

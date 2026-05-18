@@ -55,7 +55,7 @@ Reply with the user's selection. Then proceed.
 3. **Invoke the engine.** Run the research engine via:
 
    ```bash
-   python3 skills/research/scripts/research_engine.py \
+   python3 ${CLAUDE_PLUGIN_ROOT}/skills/research/scripts/research_engine.py \
      --topic "{topic}" \
      --mode {quick|standard|deep|ultradeep} \
      --output {cwd}/.claude-tweaks/research/[YYYY-MM-DD]-[topic-slug]/
@@ -69,7 +69,7 @@ Reply with the user's selection. Then proceed.
 
 - **Zero-config baseline.** Built-in `WebSearch` is the fallback retrieval provider. The skill runs end-to-end without any external installs.
 - **Enhanced.** Install `search-cli` (Homebrew: `brew tap 199-biotechnologies/tap && brew install search-cli`) for parallel multi-provider retrieval across Brave / Serper / Exa / Jina / Firecrawl. Configure provider API keys via `search config set keys.<provider> <KEY>`.
-- **Optional.** Python 3 + `requirements.txt` for the upstream validators, citation manager, and HTML/PDF generation. Install with `pip install -r skills/research/requirements.txt`.
+- **Optional.** Python 3 + `requirements.txt` for the upstream validators, citation manager, and HTML/PDF generation. Install with `pip install -r ${CLAUDE_PLUGIN_ROOT}/skills/research/requirements.txt`.
 
 ## Anti-Patterns
 

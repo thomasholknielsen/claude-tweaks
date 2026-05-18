@@ -2,6 +2,41 @@
 
 Loaded by `/claude-tweaks:review` Step 3 after lenses 3a-3i have produced findings. Contains the full routing rules — severity-based auto routing, the interactive batch table, recommendation rules, deferral gate, and parallel-fix dispatch contract. Lazy-loaded only when findings actually exist (skip the load entirely when all lenses returned "No findings.").
 
+## Per-lens Calibration + Output template (dispatch contract)
+
+The Calibration and Output template MUST be reproduced byte-identical in every dispatched per-lens reviewer agent's prompt. Do NOT adapt, summarize, or paraphrase — the cross-lens reproduction logic in Step 3.5 depends on every agent applying the same filter.
+
+```markdown
+CALIBRATION (required):
+Only flag issues where:
+- the user will hit a bug, broken state, or unsafe behavior
+- the code will fail under realistic load, edge cases, or future maintenance
+- a project convention is violated in a way that compounds (not isolated stylistic choices)
+
+Do NOT flag:
+- alternate naming you'd prefer ("`fetchUser` would read better as `getUser`")
+- formatting, whitespace, or import ordering quibbles
+- "could be DRYer" without a concrete second caller that proves the duplication is real
+- hypothetical edge cases the spec didn't require ("what if the input is a 4GB string?")
+- missing comments on self-explanatory code
+
+When in doubt: would a calibrated senior engineer block a PR on this finding alone? If no, drop it.
+
+OUTPUT FORMAT (required):
+Return ONLY a markdown table, no preamble:
+
+| Severity | Path:Line | Finding | Evidence |
+|---|---|---|---|
+| critical | src/auth.ts:42 | Missing token expiry check | uses `<` not `<=` |
+| medium | src/api.ts:180 | Unhandled rejection | line 184: `await fetch(...)` no try/catch |
+
+Severity scale: critical / high / medium / low / info
+If no findings: return literal text "No findings."
+Do not add narration, headers, or summaries before or after the table.
+```
+
+Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the table. The dispatcher merges findings into the Step 3 Routing table below — Severity maps directly, Path:Line maps to the Affected column, Finding maps to the Finding column, and the dispatcher fills the Category column from the lens that produced it. Re-prompt once on format violation.
+
 ## Inputs
 
 - Findings table merged from lenses 3a-3i, plus open QA ledger entries with phase `test/qa`.
@@ -16,7 +51,7 @@ Unresolved QA ledger entries (status `open`, phase `test/qa`) are included in th
 
 When a pipeline run directory exists (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet), read `review-severity-floor` from `config.yml` (default `low`).
 
-For each finding, route by severity per the contract (`_shared/auto-mode-contract.md`). Append every entry to `decisions.md` under the `## /review` heading.
+Per the `/review` Step 3 Routing row in `_shared/auto-mode-contract.md`, severity routes to: low → AUTO, medium → STAGED, high → STAGED, critical → KEPT-PROMPT (rare; security/correctness hard-fails the bookend). Append every entry to `decisions.md` under the `## /review` heading.
 
 | Severity | Default action under `review-severity-floor: low` | Log entry |
 |---|---|---|
@@ -72,6 +107,8 @@ If any findings are "Fix now", make the changes, re-run `/claude-tweaks:test`, a
 
 ## Parallel fix dispatch (3+ independent fixes)
 
+> **Working Directory Discipline (applies to every fix-agent Task() dispatch):** Resolve `WORKTREE = $(git rev-parse --show-toplevel)` once in the dispatcher. Anchor every git command in the agent prompt as `git -C "$WORKTREE" …`, and prefix any path-sensitive shell command with `cd "$WORKTREE" && …`. CWD does not propagate reliably to parallel agents; without the anchor, fix-agents can edit the wrong checkout. See `_shared/git-discipline.md` and the Working Directory Discipline section in `_shared/subagent-output-contract.md`.
+
 > **Parallel execution (conditional):** When there are 3+ "Fix now" findings across different files with no shared file dependencies, dispatch fixes as parallel agents using the `/superpowers:dispatching-parallel-agents` pattern — one agent per independent fix domain. Each agent gets: specific file scope, finding details, constraint to not modify other files. Returns summary of changes. After all agents complete, check for conflicts between agent changes, then re-run `/claude-tweaks:test`. When fixes overlap files or there are fewer than 3 findings, fix sequentially in the main thread.
 >
 > **Model tier:** Standard (Sonnet) — fix agents make targeted code edits constrained to their assigned files. Upgrade to Capable (Opus) only when the fix requires architectural redesign rather than localized correction.
@@ -80,15 +117,13 @@ If any findings are "Fix now", make the changes, re-run `/claude-tweaks:test`, a
 >
 > ```markdown
 > OUTPUT FORMAT (required):
-> Return ONLY bullet lines, one per match:
->
-> - {path}:{line} — {one-line context}
->
-> If no matches: return literal text "No matches."
-> Do not add narration or grouping headers.
+> First line: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED
+> Then per change made:
+> - {path}:{line} — {change description}
+> If no changes made: return literal text 'No changes.'
 > ```
 >
-> Each fix agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`. Each bullet describes one change made (e.g., `- src/auth.ts:42 — added "<="-boundary check; covered by existing test at line 88`). The dispatcher inspects the bullets for cross-file conflicts before re-running `/claude-tweaks:test`.
+> The dispatcher inspects the bullets for cross-file conflicts before re-running `/claude-tweaks:test`.
 
 **Write all findings to the open items ledger** (see `/claude-tweaks:ledger`). Use the appropriate `review/*` phase. Status: `open` for "Fix now" items, `deferred` for DEFERRED.md routes, `accepted` for "Don't fix" items (with reason). After fixing, update status to `fixed`.
 

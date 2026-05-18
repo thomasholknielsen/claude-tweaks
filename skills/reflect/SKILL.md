@@ -140,21 +140,21 @@ Number `{n}` is a per-run sequence counter — increment as each staged file is 
 
 ## Step 5: Report
 
-When invoked directly (not by a parent skill), present findings and end with the Next Actions block below:
+When invoked directly (not by a parent skill), present findings and end with the Next Actions block below. When invoked by a parent, omit Next Actions — the parent handles flow control.
+
+## Next Actions
+
+When invoked directly (not by a parent skill), end with:
 
 ```
-### Next Actions
-
 1. `/claude-tweaks:review {spec}` — full code review **(Recommended)**
 2. `/claude-tweaks:test {spec}` — verify changes from reflection
 3. `/claude-tweaks:wrap-up {spec}` — capture learnings and clean up
 ```
 
-When invoked by a parent, omit Next Actions — the parent handles flow control.
-
 ## Component-Skill Contract
 
-This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step 4, `hindsight` mode) and `/claude-tweaks:wrap-up` (Step 3, `full` mode). Parent invocation is signaled by the pipeline context arguments documented under Input above (mode + scope + ledger phase + seed context). When invoked by a parent, omit the `### Next Actions` block — the parent owns the handoff. When invoked directly by a user, render Next Actions as shown above.
+This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step 4, `hindsight` mode) and `/claude-tweaks:wrap-up` (Step 3, `full` mode). Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (set by `/review`, `/wrap-up`, or other pipeline orchestrators). When invoked by a parent, omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user (no `$PIPELINE_RUN_DIR`), render Next Actions as shown above.
 
 ## Anti-Patterns
 
@@ -180,3 +180,4 @@ This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step
 | `/claude-tweaks:help` | /help references /reflect in the workflow diagram and reference card. |
 | `specs/DEFERRED.md` | /reflect routes deferred improvements here (with origin, files, trigger) |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
+| `_shared/auto-decision-log.md` | Canonical schema and path for the auto-decision log written in Step 3 (`{run-dir}/decisions.md`). |

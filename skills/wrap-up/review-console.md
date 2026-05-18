@@ -100,15 +100,12 @@ Render this section only when `decisions.md` contains STAGED entries from cross-
 
 #### Cleanup actions (executed in Step 10 after approval)
 
+Render the cleanup rows from the canonical list in `cleanup-procedures.md`, filtered by Condition (e.g., omit the worktree row when no worktree strategy was used). Each row gets a globally-unique # in the Section 1–6 sequence. Example:
+
 | # | Type | Action | Details |
 |---|---|---|---|
-| 15 | cleanup | Delete spec | specs/{number}.md (100% complete) |
-| 16 | cleanup | Update INDEX.md | Remove completed entry |
-| 17 | cleanup | Delete plans | docs/plans/{files} |
-| 18 | cleanup | Delete ledger | docs/plans/*-ledger.md |
-| 19 | cleanup | Delete design caches | docs/plans/*-audit.json, *-recommendations.json, *-declined.json (if design wrapper active) |
-| 20 | cleanup | Archive run directory | .claude-tweaks/pipelines/archive/{run-id}/ (if run dir exists) |
-| 21 | cleanup | Remove worktree | `{path}` + branch `{branch}` (if worktree strategy) |
+| 15 | cleanup | {row from cleanup-procedures.md canonical list} | {details} |
+| ... | cleanup | ... | ... |
 
 #### Queue writes — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")
 

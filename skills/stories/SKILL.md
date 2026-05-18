@@ -124,7 +124,7 @@ For the full procedure (component-file identification, journey-seeded source fil
 
 ## Step 2: Explore
 
-> **Parallel execution:** When exploring multiple pages whose flows are independent (different sections with no shared state), open one session per page in parallel — each `agent-browser --session <name> batch ...` invocation runs in its own process and they do not interfere. Use a single batch per session to bundle `open + snapshot + screenshot`. Pages that share state (login → dashboard → settings) must run sequentially within a single session.
+> **Parallel execution (custom):** Stories explores N pages in parallel sub-processes, one agent-browser session per page (`agent-browser --session <name> batch ...`). Sessions are processes, not Task agents — each runs concurrently in its own process. Use a single batch per session to bundle `open + snapshot + screenshot`. Pages that share state (login → dashboard → settings) must run sequentially within a single session.
 
 1. Create the output directory if it doesn't exist (use `mkdir -p` via the Bash tool — `-p` creates parent directories and silently no-ops if the directory already exists; plain `mkdir` does NOT create parents on macOS/Linux).
 2. Use the `/claude-tweaks:browse` skill to open the site. The concrete command is `agent-browser --session <session-name> open <url>`. Choose `<session-name>` per the kebab-case convention (e.g., `stories-explore`, `stories-checkout`). Use `agent-browser batch --session <name>` to bundle open + initial snapshot + reconnaissance screenshot in one process invocation.
@@ -343,7 +343,7 @@ stories:
 4. File naming: `{OUTPUT_DIR}/{site-name}-{persona-or-area}.yaml`
     - Examples: `stories/myapp-customer.yaml`, `stories/myapp-admin.yaml`, `stories/myapp-customer-negative.yaml`
 
-5. Close all browser sessions when done writing.
+5. Close all browser sessions when done writing (Step 5 re-opens fresh sessions for refinement).
 
 ## Step 4.5: Story Self-Review
 
@@ -405,7 +405,7 @@ Otherwise read `refine.md` in this skill's directory for the full Refine procedu
 
 One row per story file written, updated, or deleted. Omit unchanged files.
 
-### Next Actions
+## Next Actions
 
 When invoked by a parent skill (e.g., `/claude-tweaks:flow`), omit this block — the parent owns the handoff. When invoked directly by a user, emit 2-4 numbered options based on context — include the smoke option only when at least one story is tagged `smoke`; include the `affected` option only when update mode regenerated stories; include the journey option only when a journey was the dominant story source. One option marked **(Recommended)**.
 
@@ -416,7 +416,7 @@ When invoked by a parent skill (e.g., `/claude-tweaks:flow`), omit this block �
 
 ## Component-Skill Contract
 
-This skill is a **component skill** — invoked by `/claude-tweaks:flow` (auto-triggered between build and test when UI files change, unless `no-stories`). Parent invocation is signaled by pipeline context arguments (changed files, mode flags) or by `$PIPELINE_RUN_DIR` being set. When invoked by a parent, omit the `### Next Actions` block — the parent owns the handoff. When invoked directly by a user, render Next Actions as shown above.
+This skill is a **component skill** — invoked by `/claude-tweaks:flow` (auto-triggered between build and test when UI files change, unless `no-stories`). Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (set by `/flow`, `/build`, or other pipeline orchestrators). Direct invocations may pass `--source <parent>` as an explicit fallback. When invoked by a parent, omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user, render Next Actions as shown above.
 
 ## Examples
 
