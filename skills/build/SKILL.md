@@ -224,6 +224,8 @@ Audit the plan against the actual repo before dispatching execution. Two checks:
 
 **Skip this step entirely when** the plan has fewer than 3 file references AND no `Scope keywords:` field is present.
 
+> **Project setting:** When CLAUDE.md declares `scope-keywords-required: true` under a `## Build` section, plans without a `Scope keywords:` field are treated as failed audits (require the field, not just optional). See `plan-audit.md` for the policy table.
+
 For the full procedure (Check A failure handling, Check B scope-keyword sweep command, `scope-keywords-required` setting, auto-mode policy table, interactive prompt), read `plan-audit.md` in this skill's directory.
 
 ### Common Step 1.7: Design Pre-Build (frontend specs)
@@ -275,7 +277,7 @@ Compare what was actually built to what the spec or design doc said. For the ful
 
 ### Common Step 5: Final Verification
 
-After code simplification, run the shared verification procedure from `verification.md` in the `/claude-tweaks:test` skill's directory. This runs type checking, linting, and tests using the project's commands from CLAUDE.md.
+After code simplification, run the shared verification procedure from the shared verification procedure (`skills/test/verification.md`). This runs type checking, linting, and tests using the project's commands from CLAUDE.md.
 
 If anything fails, fix it and commit the fix.
 

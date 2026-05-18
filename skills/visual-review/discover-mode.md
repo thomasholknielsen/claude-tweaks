@@ -82,8 +82,9 @@ Include developer journeys when the project has CLI tools, APIs, or developer-fa
 >
 > | Severity | Path:Line | Finding | Evidence |
 > |---|---|---|---|
-> | critical | src/auth.ts:42 | Missing token expiry check | uses `<` not `<=` |
-> | medium | src/api.ts:180 | Unhandled rejection | line 184: `await fetch(...)` no try/catch |
+> | high | /checkout/payment | Returning user payment flow — broken: form clears on validation error | screenshots/browse/discover-payment/04_error.png; LCP 1.8s; missing "save card" affordance |
+> | medium | /admin/users/{id} | Admin user-detail journey worth documenting | screenshots/browse/discover-admin/02_user.png; 6 actions per page |
+> | low | /settings/notifications | Notifications page reachable but no journey covers it | screenshots/browse/discover-settings/01_landing.png |
 >
 > Severity scale: critical / high / medium / low / info
 > If no findings: return literal text "No findings."

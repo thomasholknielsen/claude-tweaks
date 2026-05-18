@@ -111,6 +111,10 @@ An INBOX item likely needs debiasing when it:
 
 For a detailed explanation of how context flows between skills via artifacts, read `context-flow.md` in this skill's directory.
 
+## Component-Skill Contract
+
+`/claude-tweaks:help` is a **standalone-only** dashboard skill — it is not invoked by any parent skill in the workflow. There is no `PIPELINE_RUN_DIR` signal, no parent context to defer to, and the `### Next Actions` block always renders. If a future parent skill ever invokes `/help` (e.g., a "show me the pipeline" dispatch), the parent must update this contract before that lands; until then, treat parent invocation as not applicable.
+
 ## Relationship to Other Skills
 
 | Skill | Relationship |

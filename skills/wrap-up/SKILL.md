@@ -271,9 +271,9 @@ Run the resolve gate from `/claude-tweaks:ledger` (see ledger skill for the thre
 
 ### Bulk-resolve fast path (terminal-status only)
 
-If every ledger item already has terminal status (`fixed`, `deferred`, `accepted`, `acknowledged`, `observation`) at gate entry, report: "All {N} ledger items resolved. No open items." and proceed to Step 9.
+The fast path applies **only when every ledger item already has terminal status** (`fixed`, `deferred`, `accepted`, `acknowledged`, `observation`) at gate entry. If a single item has status `open`, the fast path does NOT apply — Phase 1 → Phase 2 → Phase 3 must run in full sequence without exception. When the fast path applies, report: "All {N} ledger items resolved. No open items." and proceed to Step 9.
 
-This fast path applies **only when zero items are `open` at gate entry**. It is never a justification to skip Phase 2 — items that arrive `open` always go through Phase 1 → Phase 2 → Phase 3.
+Phase 2 is on the "What `auto` does NOT silence" list in `_shared/auto-mode-contract.md` — it is never skipped, regardless of `auto` state, when any `open` item exists.
 
 ### Ops acknowledgment (when ops items exist)
 
@@ -419,6 +419,19 @@ Execute the full cleanup planned in Step 5 plus the configuration / skill update
 8. **Skill updates** — apply patches and create new skills (Step 7.5 staged or approved items)
 
 Commit with a message summarizing the wrap-up actions.
+
+### Verify execution
+
+Before emitting the closure line, confirm every approved action actually ran:
+
+- Spec file deleted (or status updated) — `ls specs/{N}*.md` returns nothing (or `git status` shows the status edit committed)
+- INDEX.md updated — `git log -1 --stat specs/INDEX.md` shows this run's commit
+- Plans + ledger removed — `ls docs/superpowers/plans/*{spec-slug}* docs/plans/*-ledger.md` returns nothing
+- Design caches deleted (when applicable) — no `*-audit.json` / `*-recommendations.json` / `*-declined.json` for this spec remain in `docs/plans/`
+- Pipeline run dir archived — `.claude-tweaks/pipelines/{run-id}/` is gone; `.claude-tweaks/pipelines/archive/{run-id}/` exists (skipped when `MULTISPEC_REVIEW_DEFER=1`)
+- Worktree removed (worktree strategy) — `git worktree list` no longer shows the feature worktree path
+
+If any approved action did not land, do NOT emit the closure line. Surface the gap (`BLOCKED — cleanup step {N} did not complete: {reason}`) and stop.
 
 ## Important Notes
 

@@ -126,8 +126,10 @@ For the full procedure (component-file identification, journey-seeded source fil
 
 ## Step 2: Explore
 
+> **Parallel execution:** When exploring multiple pages whose flows are independent (different sections with no shared state), open one session per page in parallel — each `agent-browser --session <name> batch ...` invocation runs in its own process and they do not interfere. Use a single batch per session to bundle `open + snapshot + screenshot`. Pages that share state (login → dashboard → settings) must run sequentially within a single session.
+
 1. Create the output directory if it doesn't exist (use `mkdir -p` via the Bash tool — `-p` creates parent directories and silently no-ops if the directory already exists; plain `mkdir` does NOT create parents on macOS/Linux).
-2. Use the `/claude-tweaks:browse` skill to open the site. The concrete command is `agent-browser --session <session-name> open <url>`. Choose `<session-name>` per the kebab-case convention (e.g., `stories-explore`, `stories-checkout`). Consider `agent-browser batch --session <name>` to bundle open + initial snapshot + reconnaissance screenshot in one process invocation when exploring multiple pages.
+2. Use the `/claude-tweaks:browse` skill to open the site. The concrete command is `agent-browser --session <session-name> open <url>`. Choose `<session-name>` per the kebab-case convention (e.g., `stories-explore`, `stories-checkout`). Use `agent-browser batch --session <name>` to bundle open + initial snapshot + reconnaissance screenshot in one process invocation.
 3. Capture an accessibility-tree snapshot via `agent-browser --session <name> snapshot -i -c` to understand the page structure. The snapshot returns elements with role, accessible name, text, label, placeholder, and `data-testid` — these are the only attributes used to build v2 locators.
 4. Identify the main navigation, key pages, and interactive elements from the snapshot.
 5. Follow links to discover major sections (limit to 5-8 pages to stay efficient).
@@ -349,7 +351,7 @@ stories:
 
 After writing, look at the YAML with fresh eyes. Fix issues inline — this is the cheap pass before Step 5's DOM-validation pass.
 
-1. **Selector quality** — every locator should be semantic (`role`, `label`, `text`) or testid, never a brittle structural path (`div > div:nth-child(3) > button`). Brittle locators caught here are saved from breaking in CI.
+1. **Selector quality** — every locator must use a semantic attribute (`role`, `label`, `text`, `placeholder`) or `testid`. CSS selectors, XPath, class names, IDs, and `@eN` snapshot refs are forbidden in schema v2 — brittle structural paths like `div > div:nth-child(3) > button` get caught here before they break in CI.
 2. **Assertion specificity** — every step asserts something concrete. "Page loads" is too vague; "URL contains `/dashboard` and `text:Welcome` is visible" is actionable.
 3. **Persona coherence** — each story's actions are consistent with its persona's permissions. Don't have a logged-out persona clicking a settings link that requires auth.
 4. **Source-aware integrity** — when stories are source-aware (Step 1.5 ran), the asserted outcomes match what the SourceContract said the code does. A story that asserts a behavior the source doesn't implement is a placeholder story.

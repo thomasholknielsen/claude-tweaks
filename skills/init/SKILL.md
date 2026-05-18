@@ -69,39 +69,39 @@ Fast, idempotent structural setup. Creates directories, starter files, and verif
 
 ### Step 0.1: Check Plugin Dependencies
 
-Verify required dependencies are installed: **Superpowers** plugin (provides `/superpowers:brainstorming`, `/superpowers:writing-plans`, `/superpowers:subagent-driven-development`, `/superpowers:executing-plans`, `/superpowers:using-git-worktrees`, `/superpowers:finishing-a-development-branch`, `/superpowers:dispatching-parallel-agents`) and the built-in **code-simplifier** subagent. Read `bootstrap-steps.md` (Step 0.1) in this skill's directory for the detection commands and install hint.
+Verify Superpowers plugin and the built-in code-simplifier subagent are available. Read `bootstrap-steps.md` (Step 0.1) for the dependency list, detection commands, and install hint.
 
 ### Step 0.2: Create Directory Structure
 
-Create the required directories (only create what's missing): `specs/`, `docs/`, `docs/superpowers/specs/`, `docs/superpowers/plans/`, `docs/plans/`, `docs/journeys/`, `.claude/skills/`. Read `bootstrap-steps.md` (Step 0.2) in this skill's directory for the full directory taxonomy and per-directory rationale.
+Create the required workflow directories — idempotent, only creates what's missing. Read `bootstrap-steps.md` (Step 0.2) for the directory taxonomy and per-directory rationale.
 
 ### Step 0.3: Create Starter Files
 
-Create `specs/INBOX.md`, `specs/DEFERRED.md`, and `specs/INDEX.md` **only if missing** — never overwrite existing content. Read `bootstrap-steps.md` (Step 0.3) in this skill's directory for the canonical starter content (boilerplate headers, tier tables).
+Create `specs/INBOX.md`, `specs/DEFERRED.md`, and `specs/INDEX.md` — only if missing, never overwrite. Read `bootstrap-steps.md` (Step 0.3) for the canonical starter content.
 
 ### Step 0.4: Suggest .gitignore Entries
 
-Suggest entries for transient workflow artifacts (`screenshots/`, `.worktrees/`, `stories/auth.yml`, `.claude-tweaks/`) — do not modify `.gitignore` without asking. If `stories/` exists or will be created, ask the user whether story YAML files should be committed (default: yes). Read `bootstrap-steps.md` (Step 0.4) in this skill's directory for the full suggested block and the stories prompt.
+Suggest entries for transient workflow artifacts; never modify `.gitignore` without asking. Read `bootstrap-steps.md` (Step 0.4) for the full suggested block and the stories-commit prompt.
 
 ### Step 0.5: Verify Git
 
-The workflow system relies on git for change tracking. Check that the current directory is a git repo — if not, warn the user that `/claude-tweaks:review` and `/claude-tweaks:wrap-up` will be degraded. Read `bootstrap-steps.md` (Step 0.5) in this skill's directory for the full procedure.
+Confirm the directory is a git repo; warn if not (review and wrap-up will be degraded). Read `bootstrap-steps.md` (Step 0.5) for the full procedure.
 
 ### Step 0.6: Worktree Configuration
 
-Ensure `.worktrees/` exists in the project root (matches superpowers v5.1.0's preferred path, the only directory `/superpowers:finishing-a-development-branch` will clean up). If a legacy `.claude/worktrees/` exists, suggest migrating. Read `bootstrap-steps.md` (Step 0.6) in this skill's directory for the full procedure.
+Ensure `.worktrees/` exists in the project root; suggest migration if a legacy `.claude/worktrees/` is found. Read `bootstrap-steps.md` (Step 0.6) for the full procedure.
 
 ### Step 0.7: Browser Integration
 
-Detect `agent-browser --version` (the single supported backend, used by `/stories`, `/visual-review`, `/review qa`); if missing, surface the install command and continue — never block init, never auto-install, never prompt for backend choice. Read `bootstrap-steps.md` (Step 0.7) in this skill's directory for the full procedure.
+Detect `agent-browser`; surface the install command if missing. Never block init, never auto-install, never prompt for backend choice. Read `bootstrap-steps.md` (Step 0.7) for the full procedure.
 
 ### Step 0.8: Token-Saver Dependencies & Statusline
 
-Detect Node (and optionally git); for missing deps, prompt to install via the platform's package manager (skip Node if a version manager is on PATH). Install the statusline wrapper at `~/.claude-tweaks/bin/statusline.js` and prompt before wiring `statusLine.command` in `~/.claude/settings.json` — never overwrite a non-claude-tweaks command. Read `bootstrap-steps.md` (Step 0.8) in this skill's directory for the full procedure (detection commands, package-manager prompts, settings.json migration matrix, exact JSON to write, `NO_COLOR=1` opt-out).
+Detect Node (and optionally git), install the statusline wrapper at `~/.claude-tweaks/bin/statusline.js`, and prompt before wiring `statusLine.command` in `~/.claude/settings.json` — never overwrite a non-claude-tweaks command. Read `bootstrap-steps.md` (Step 0.8) for the full procedure (detection, package-manager prompts, settings.json migration matrix, NO_COLOR opt-out).
 
 ### Step 0.9: Impeccable Design Integration (Optional)
 
-When Phase 2 reconnaissance detects frontend signals, present the three-option Impeccable setup prompt (Full / Plugin-only / Skip) and write the resulting `design-integration` flag (`enabled` / `plugin-only` / `disabled`) to CLAUDE.md — the `/claude-tweaks:design` wrapper reads this flag as Layer 1 of its detection logic. Missing flag is treated as `disabled`. Re-run behavior: `enabled` → offer to refresh `teach + document`; `plugin-only` / `disabled` → offer the upgrade path. Read `bootstrap-steps.md` (Step 0.9) in this skill's directory for the full procedure (frontend-detection list, install command sequence, flag-value table, optional Chrome extension note, failure handling).
+When Phase 2 detects frontend signals, present the three-option Impeccable setup prompt (Full / Plugin-only / Skip) and write the `design-integration` flag to CLAUDE.md — the `/claude-tweaks:design` wrapper reads this as Layer 1 of its detection logic. Read `bootstrap-steps.md` (Step 0.9) for the full procedure (frontend-detection list, install sequence, flag-value table, re-run behavior, failure handling).
 
 ---
 

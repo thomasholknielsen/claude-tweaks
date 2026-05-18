@@ -145,8 +145,9 @@ agent-browser batch --session <session> \
 >
 > | Severity | Path:Line | Finding | Evidence |
 > |---|---|---|---|
-> | critical | src/auth.ts:42 | Missing token expiry check | uses `<` not `<=` |
-> | medium | src/api.ts:180 | Unhandled rejection | line 184: `await fetch(...)` no try/catch |
+> | critical | /checkout#[7] | Submit button is disabled on valid input | screenshots/browse/checkout-review/03_form.png; INP 240ms; persona: returning user |
+> | medium | /pricing#[3] | Hero feels generic — pure black on white, no brand voice | screenshots/browse/pricing-review/01_landing.png |
+> | low | /dashboard#[12] | Tertiary CTA dominates visual weight over primary | screenshots/browse/dashboard-review/02_above-fold.png |
 >
 > Severity scale: critical / high / medium / low / info
 > If no findings: return literal text "No findings."

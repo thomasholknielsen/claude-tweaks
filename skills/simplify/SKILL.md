@@ -59,10 +59,24 @@ If no files are in scope, state: "No changed files to simplify." and stop.
 
 ## Step 2: Run Code Simplifier
 
-Invoke the `code-simplifier:code-simplifier` subagent on the scoped files:
+Invoke the `code-simplifier:code-simplifier` subagent on the scoped files. Follow the **Subagent Contract** (`_shared/subagent-output-contract.md`) — minimal input (file paths + the output template, no conversation history), tier **Standard (Sonnet)**, and the literal output template below inlined verbatim in the dispatch prompt (the subagent cannot read sibling files):
 
 ```
-Task tool with subagent_type="code-simplifier:code-simplifier"
+SCOPE (required):
+- Files to simplify: {space-separated relative paths from Step 1}
+- Constraints: preserve all behavior; never expand scope beyond the listed files.
+
+OUTPUT FORMAT (required):
+First reply line MUST be one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED.
+
+Then return ONLY a markdown table, no preamble:
+
+| File | Change | Lines |
+|---|---|---|
+| {relative path} | {one-line description of the simplification} | -N/+M |
+
+If no simplifications were made: return literal text "No simplifications needed."
+Do not add narration, headers, or summaries before or after the table.
 ```
 
 **What it catches:**
@@ -150,7 +164,11 @@ When invoked by a parent, omit Next Actions — the parent handles flow control.
 
 ## Component-Skill Contract
 
-This skill is a **component skill** — invoked by `/claude-tweaks:build` (Common Step 3) and `/claude-tweaks:review` (Step 5). Parent invocation is signaled by the pipeline context arguments documented under Input above (parent-provided file scope). When invoked by a parent, omit the `### Next Actions` block — the parent owns the handoff. When invoked directly by a user, render Next Actions as shown above.
+This skill is a **component skill** — invoked by `/claude-tweaks:build` (Common Step 3) and `/claude-tweaks:review` (Step 5). Parent invocation is signaled by **either** of:
+- `$PIPELINE_RUN_DIR` is set (the parent skill is running inside an active pipeline run); or
+- the file scope comes from a parent's `git diff --name-only` snapshot (passed inline by the parent), as opposed to user-typed paths in `$ARGUMENTS`.
+
+When invoked by a parent, omit the `### Next Actions` block — the parent owns the handoff. When invoked directly by a user, render Next Actions as shown above.
 
 ## Anti-Patterns
 

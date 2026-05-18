@@ -132,6 +132,20 @@ This classification guides which review lenses to apply — a pure UI change doe
 
 Review changed files through these lenses. Skip lenses that don't apply to the type of change (e.g., skip "Performance" for a docs-only change).
 
+**Severity floor per lens** (calibrate flag thresholds — over-flagging is the most common review failure):
+
+| Lens | Expected ceiling | Notes |
+|------|------------------|-------|
+| 3a Convention | medium | Only flag when divergence compounds (e.g., new code introduces a third logging pattern); single-instance style differences are not findings. |
+| 3b Security | critical / high | Always actionable. No "info" findings — if it's a security observation that isn't actionable, drop it. |
+| 3c Error handling | high | Critical only when an uncaught error leaves the system in a broken state. |
+| 3d Performance | high | Critical only when a measured regression exists (real query, real benchmark); never speculative. |
+| 3e Architecture | high | Critical only when a layering violation will break a near-term feature; otherwise medium. |
+| 3f Test quality | medium | Tests are not production code; flag only when a missing test would have caught a real bug. |
+| 3g-cov Coverage | low / informational | Never blocks the review. |
+| 3h UX (when QA data) | high | Capable model — judgment-heavy synthesis. |
+| 3i Doc freshness | low / informational | Never blocks the review. |
+
 > **Working Directory Discipline (applies to every Task() dispatch in Step 3 and Step 3.5):** Resolve `WORKTREE = $(git rev-parse --show-toplevel)` once in the dispatcher. Anchor every git command in the agent prompt as `git -C "$WORKTREE" …`, and prefix any path-sensitive shell command with `cd "$WORKTREE" && …`. CWD does not propagate reliably to parallel agents; without the anchor, reproductions and debate agents can read the wrong checkout. See `_shared/git-discipline.md` and the Working Directory Discipline section in `_shared/subagent-output-contract.md`.
 
 > **Parallel execution:** Before running any lens, gather all context upfront — read all changed files and their surrounding context (imports, tests, schemas) as parallel Read/Grep calls. Each lens needs the same files, so front-loading reads avoids redundant I/O.
@@ -144,7 +158,7 @@ Review changed files through these lenses. Skip lenses that don't apply to the t
 >
 > **Model tier (per lens):** 3a (Convention) and 3f (Test Quality) → Fast (Haiku) — mechanical convention checks on isolated files. 3b-3e (Security, Errors, Performance, Architecture) → Standard (Sonnet) — multi-file analysis and cross-cutting findings. 3h (UX Analysis) → Capable (Opus) — judgment-heavy synthesis.
 >
-> **Output template (each agent must follow exactly — include the Calibration block verbatim so dispatched agents apply the same filter as the main thread):**
+> **Output template (each agent must follow exactly — reproduce the Calibration block byte-identical in every dispatched agent's prompt, do NOT adapt, summarize, or paraphrase it. The whole point is that all agents apply the same filter as the main thread; rewording defeats the cross-lens reproduction logic in Step 3.5.):**
 >
 > ```markdown
 > CALIBRATION (required):

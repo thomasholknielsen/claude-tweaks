@@ -52,7 +52,16 @@ Reply with the user's selection. Then proceed.
 
 1. **Read the methodology.** Open `reference/methodology.md` in this skill's directory for the canonical 8-phase pipeline (decompose → parallel search → citation registry → evidence-mapped outline → section drafting → counter-review → validation → report assembly).
 2. **Construct the output directory.** Path is `{cwd}/.claude-tweaks/research/[YYYY-MM-DD]-[topic-slug]/` unless `--output=` overrides. Create it before invoking the engine.
-3. **Invoke the engine.** Run `scripts/research_engine.py` with the topic, mode, and output dir. The engine handles phase orchestration, parallel search dispatch, citation tracking via `sources.json`, validate-fix-retry (max 3 cycles) using `scripts/validate_report.py` + `scripts/verify_citations.py`, and HTML/PDF assembly via `scripts/md_to_html.py`.
+3. **Invoke the engine.** Run the research engine via:
+
+   ```bash
+   python3 skills/research/scripts/research_engine.py \
+     --topic "{topic}" \
+     --mode {quick|standard|deep|ultradeep} \
+     --output {cwd}/.claude-tweaks/research/[YYYY-MM-DD]-[topic-slug]/
+   ```
+
+   The engine handles phase orchestration, parallel search dispatch, citation tracking via `sources.json`, validate-fix-retry (max 3 cycles) using `scripts/validate_report.py` + `scripts/verify_citations.py`, and HTML/PDF assembly via `scripts/md_to_html.py`.
 4. **Surface progress.** As each phase completes, echo a single status line ("Phase N/8: <name> — <status>").
 5. **On finish, write the Next Actions block** with the produced report path.
 

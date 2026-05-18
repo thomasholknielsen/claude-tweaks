@@ -202,6 +202,10 @@ If any verification fails, fix it before committing. Do not commit partial state
 
 Commit with a message summarizing the tidy-up.
 
+## Component-Skill Contract
+
+`/claude-tweaks:tidy` is a **standalone-only** maintenance skill — it is not invoked by any parent skill in the workflow. There is no `PIPELINE_RUN_DIR` signal expected as a caller-side argument (the run dir is only resolved internally for the auto-mode aggressiveness routing in Step 6). The `### Next Actions` block always renders. If a future parent skill ever wraps `/tidy` (e.g., a scheduled hygiene pass inside `/flow`), the parent must update this contract; until then, treat parent invocation as not applicable.
+
 ## Anti-Patterns
 
 | Pattern | Why It Fails |
