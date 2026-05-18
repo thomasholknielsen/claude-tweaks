@@ -174,6 +174,10 @@ Lazy-load these only when needed for the active mode:
 - `frontend-detection.md` — Trigger extensions and path patterns for Layer 3 sniff; pointer to the canonical `surface:` and `design-intent:` frontmatter spec (which lives in `skills/specify/spec-template.md`).
 - `impeccable-cli.md` — Exact CLI invocation, JSON output schema, parsing rules.
 
+## Component-Skill Contract
+
+This skill is a **component skill** (utility wrapper) — invoked by `/claude-tweaks:test`, `/claude-tweaks:review`, `/claude-tweaks:build`, `/claude-tweaks:flow`, `/claude-tweaks:specify`, and `/claude-tweaks:visual-review`. Parent invocation is signaled by direct `$ARGUMENTS` containing a mode + target (callers invoke `/claude-tweaks:design <mode> <target>`); the wrapper distinguishes caller-vs-direct by whether the caller consumes the return value structurally. When invoked from a caller skill, omit the `### Next Actions` block (callers consume the return shape themselves). When invoked directly by a user, render the return-shape-keyed Next Actions table at the end of this skill.
+
 ## Anti-Patterns
 
 | Pattern | Why It Fails |

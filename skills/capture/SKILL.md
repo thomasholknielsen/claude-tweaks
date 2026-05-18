@@ -128,6 +128,10 @@ This ensures every captured idea has an explicit next step — either immediate 
 
 Periodically (or when inbox gets long), use `/claude-tweaks:tidy` to batch-review all INBOX items with recommended actions.
 
+## Component-Skill Contract
+
+This skill is a **component skill** — invoked by `/claude-tweaks:build` (Common Step 4, design-mode follow-up capture), `/claude-tweaks:visual-review` (capture UI ideas surfaced during review), `/claude-tweaks:reflect` (route tangential ideas to INBOX), and `/claude-tweaks:wrap-up` (capture genuinely new ideas during cleanup). Parent invocation is signaled when `$ARGUMENTS` includes a `--source={parent-skill}` flag or the call is dispatched from another skill's workflow (the parent passes the entry content directly). When invoked by a parent, omit the `### Next Actions` block — the parent owns the handoff. When invoked directly by a user, render Next Actions as shown below.
+
 ## Anti-Patterns
 
 | Pattern | Why It Fails |
@@ -158,6 +162,8 @@ Periodically (or when inbox gets long), use `/claude-tweaks:tidy` to batch-revie
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
 
 ### Next Actions
+
+When invoked by a parent skill, omit this block — the parent owns the handoff. When invoked directly by a user:
 
 1. `/claude-tweaks:capture {next idea}` — capture another idea while you're in brainstorming flow **(Recommended)**
 2. `/claude-tweaks:tidy` — review and triage INBOX (promote, merge, or drop stale items)

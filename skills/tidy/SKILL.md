@@ -48,7 +48,9 @@ Periodic backlog hygiene to keep the spec system healthy. Run when the backlog f
 > Do not add narration, headers, or summaries before or after the table.
 > ```
 >
-> Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the table. For /tidy use, map columns as: Severity = recommendation urgency (`info` for Keep, `low` for routine cleanup, `medium` for Promote/Merge/Defer, `high` for stale-Delete or registry break), Path:Line = the artifact (`specs/INBOX.md:42`, `specs/DEFERRED.md`, `docs/REGISTRY.md`, worktree path), Finding = `[type] item — short detail` (e.g., `[inbox] "Build redis cache" — 5 weeks old`), Evidence = the recommendation (`Delete — stale` / `Promote — ready for brainstorm` / `Merge → Spec 42`). The dispatcher merges all agents' tables into the Step 6 report.
+> Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the Template A table verbatim. Agents do not invent a new schema.
+>
+> **Tidy-specific column semantics (for the dispatcher, not the agents):** when the dispatcher receives Template A rows back from each scan agent, it interprets the four standard columns in this skill's vocabulary — Severity = recommendation urgency (`info` for Keep, `low` for routine cleanup, `medium` for Promote/Merge/Defer, `high` for stale-Delete or registry break); Path:Line = the artifact (`specs/INBOX.md:42`, `specs/DEFERRED.md`, `docs/REGISTRY.md`, worktree path); Finding = `[type] item — short detail` (e.g., `[inbox] "Build redis cache" — 5 weeks old`); Evidence = the recommendation (`Delete — stale` / `Promote — ready for brainstorm` / `Merge → Spec 42`). The dispatcher merges all agents' Template A tables into the Step 6 report using these semantics. **Template A itself is unchanged** — the remapping is purely how the dispatcher reads it.
 
 ### Scan steps (data sources + collection format)
 

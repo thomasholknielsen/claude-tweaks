@@ -524,12 +524,16 @@ One row per story file written, updated, or deleted. Omit unchanged files.
 
 ### Next Actions
 
-Emit 2-4 numbered options based on context — include the smoke option only when at least one story is tagged `smoke`; include the `affected` option only when update mode regenerated stories; include the journey option only when a journey was the dominant story source. One option marked **(Recommended)**.
+When invoked by a parent skill (e.g., `/claude-tweaks:flow`), omit this block — the parent owns the handoff. When invoked directly by a user, emit 2-4 numbered options based on context — include the smoke option only when at least one story is tagged `smoke`; include the `affected` option only when update mode regenerated stories; include the journey option only when a journey was the dominant story source. One option marked **(Recommended)**.
 
 1. `/claude-tweaks:test qa` — validate all {N} stories against the running app **(Recommended)**
 2. `/claude-tweaks:test qa tag=smoke` — quick pass on {N} smoke stories first (when smoke stories exist)
 3. `/claude-tweaks:test qa affected` — validate only changed stories (when update mode regenerated stories)
 4. `/claude-tweaks:test qa journey={name}` — validate {N} stories for the {name} journey (when journeys exist)
+
+## Component-Skill Contract
+
+This skill is a **component skill** — invoked by `/claude-tweaks:flow` (auto-triggered between build and test when UI files change, unless `no-stories`). Parent invocation is signaled by pipeline context arguments (changed files, mode flags) or by `$PIPELINE_RUN_DIR` being set. When invoked by a parent, omit the `### Next Actions` block — the parent owns the handoff. When invoked directly by a user, render Next Actions as shown above.
 
 ## Examples
 

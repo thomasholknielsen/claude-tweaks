@@ -197,11 +197,15 @@ Look at the saved brief with fresh eyes. Fix issues inline — no subagent, no s
 
 ### Next Actions
 
-After saving the brief, hand off to brainstorming. If the user wants to adjust the reframing or re-examine from a different lens, they can say so — otherwise, proceed.
+When invoked by a parent skill (e.g., `/claude-tweaks:capture` with `--route=challenge`), omit this block — the parent owns the handoff. When invoked directly by a user, after saving the brief, hand off to brainstorming. If the user wants to adjust the reframing or re-examine from a different lens, they can say so — otherwise, proceed.
 
 1. `/superpowers:brainstorming` — explore solutions for the reframed problem **(Recommended)** — after brainstorm produces the design doc, run `/claude-tweaks:specify` next (not `/superpowers:writing-plans` — specify handles decomposition into agent-sized specs before planning)
 2. Re-examine — revisit a specific lens or adjust the reframing
 3. Save and resume later — keep the brief on disk; pick up at brainstorming when ready
+
+## Component-Skill Contract
+
+This skill is a **component skill** — invoked by `/claude-tweaks:capture` when an INBOX item is routed via `--route=challenge`. Parent invocation is signaled by `$ARGUMENTS` referencing an INBOX item or by a parent-passed topic. When invoked by a parent, omit the `### Next Actions` block — the parent owns the handoff (the parent typically dispatches to `/superpowers:brainstorming` next). When invoked directly by a user, render Next Actions as shown above.
 
 ## Anti-Patterns
 

@@ -106,11 +106,11 @@ Search `~/.claude/plans/` for related plans → **delete them**.
 
 Delete the open items ledger using the ledger skill's delete operation (see `/claude-tweaks:ledger`). All items must have been resolved by the nothing-left-behind gate (Step 8.5).
 
-### Design wrapper caches (v4.5.0)
+### Design wrapper caches
 
 Silently delete per-spec `*-audit.json`, `*-recommendations.json`, and `*-declined.json` files written by `/claude-tweaks:design` in `docs/plans/`. For the cache list, fallback glob, and missing-file handling, read `cleanup-procedures.md` (Section A) in this skill's directory.
 
-### Pipeline run directory (v4.6.0)
+### Pipeline run directory
 
 If a pipeline run directory exists for this work (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet), archive it to `.claude-tweaks/pipelines/archive/{run-id}/` (not delete — the auto-decision log is project history). Honors `MULTISPEC_REVIEW_DEFER=1` (skip — parent `/flow` owns archival). For the full procedure, read `cleanup-procedures.md` (Section B) in this skill's directory.
 

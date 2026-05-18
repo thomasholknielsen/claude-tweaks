@@ -1,6 +1,6 @@
 # Pipeline Run Directory Resolution — Shared
 
-Operational TLDR for skills that need to locate the active pipeline run directory. The canonical contract lives in `auto-mode-contract.md` (section "Pipeline run directory: location and collision-safety"); this file is the lookup-and-bash quick reference.
+Operational TLDR for skills that need to locate the active pipeline run directory. The canonical contract (directory structure, collision-safety rationale, lifecycle, multi-spec defer protocol) lives in `auto-mode-contract.md` — section "Pipeline run directory: location and collision-safety". This file is the lookup-and-bash quick reference; consult the contract for anything not covered here.
 
 ## Resolution order
 
@@ -8,19 +8,7 @@ Operational TLDR for skills that need to locate the active pipeline run director
 2. **Most-recent matching directory** — when the env var is unset, find the most recent directory under `.claude-tweaks/pipelines/` whose `spec-slug` segment matches the current spec or topic.
 3. **Fall back to interactive mode** — when neither resolves to an existing directory, no policy lookup is possible and no auto-decisions are allowed. The skill MUST behave as if invoked in interactive mode for this run.
 
-## What lives in the run directory
-
-```
-.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/
-├── config.yml         ← Pipeline Config Manifesto answers (read for policy lookups)
-├── decisions.md       ← Auto-decision log (append per _shared/auto-decision-log.md)
-└── staged/            ← Patches and proposals awaiting the Wrap-Up Review Console
-    ├── review-{n}.patch
-    ├── tidy-{n}.md
-    └── ...
-```
-
-`ISO-timestamp` is `YYYY-MM-DDTHHMMSS` (no colons). `spec-slug` is the spec number(s) or topic slug.
+The resolved directory contains `config.yml` (Manifesto answers / policy), `decisions.md` (auto-decision log), and `staged/` (proposals awaiting the Review Console). Full layout and lifecycle in `auto-mode-contract.md`.
 
 ## Bash snippet (resolution)
 
@@ -34,13 +22,7 @@ fi
 
 Skills should set `SPEC_SLUG` from their input (spec number, topic slug, or `git branch --show-current` as a last-resort match).
 
-## Lifecycle
-
-- Created by the pipeline entrypoint (`/flow`, or the first standalone skill in a chain).
-- Archived by the Wrap-Up Review Console on successful pipeline closure to `.claude-tweaks/pipelines/archive/{run-id}/` — preserves the audit trail; never deleted outright.
-- `/tidy` may compact archive entries older than 30 days.
-
 ## See also
 
-- `_shared/auto-mode-contract.md` — full spec (collision-safety rationale, lifecycle, multi-spec defer protocol)
+- `_shared/auto-mode-contract.md` — full spec (directory layout, lifecycle, archive rules)
 - `_shared/auto-decision-log.md` — log entry format for `decisions.md`

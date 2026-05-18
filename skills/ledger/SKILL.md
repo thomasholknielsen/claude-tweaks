@@ -77,7 +77,17 @@ observation          (informational, non-blocking — e.g., QA caveats)
 
 ## Phase Taxonomy
 
-Each item is tagged with a phase indicating where it was discovered. Phases use a flat `{skill}` or `{skill}/{qualifier}` format — the qualifier adds specificity when a skill produces multiple finding types, but is optional.
+Each item is tagged with a phase indicating where it was discovered.
+
+**Schema:**
+
+```
+Phase     ::= Skill | Skill "/" Qualifier
+Skill     ::= "build" | "test" | "review" | "reflect" | "wrap-up" | "ops"
+Qualifier ::= "ops" | "skill" | "hindsight" | "qa"
+```
+
+The qualifier adds specificity when a skill produces multiple finding types, but is optional. Downstream filters (Wrap-Up Review Console, `/tidy` cross-spec scans) parse the phase string by splitting on `/` — keep the format strict.
 
 | Phase | Source | Typical Items |
 |-------|--------|---------------|

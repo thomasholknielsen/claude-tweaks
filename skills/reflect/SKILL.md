@@ -99,7 +99,7 @@ Default behavior: **defer everything** to the Review Console. The exception is s
 ### Interactive mode (batch user routing — differs by mode)
 
 - **Hindsight mode** → see `hindsight-mode.md` (Implementation Hindsight batch table + recommendation rules)
-- **Full mode** → see `full-mode.md` (Reflection Insights batch table + routing guide + auto-apply-when-uniform optimization)
+- **Full mode** → see `full-mode.md` (Reflection Insights batch table + routing guide)
 
 ## Step 4: Ledger Integration
 
@@ -125,6 +125,10 @@ When invoked directly (not by a parent skill), end with:
 ```
 
 When invoked by a parent, omit Next Actions — the parent handles flow control.
+
+## Component-Skill Contract
+
+This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step 4, `hindsight` mode) and `/claude-tweaks:wrap-up` (Step 3, `full` mode). Parent invocation is signaled by the pipeline context arguments documented under Input above (mode + scope + ledger phase + seed context). When invoked by a parent, omit the `### Next Actions` block — the parent owns the handoff. When invoked directly by a user, render Next Actions as shown above.
 
 ## Anti-Patterns
 

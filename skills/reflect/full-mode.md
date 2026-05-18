@@ -69,14 +69,6 @@ Collect all insights from the four lenses and the tradeoff review into a single 
 - **Capture to INBOX** — the insight is complex or uncertain and needs brainstorming/exploration before it can be acted on.
 - **Don't capture** — only for insights that are genuinely not actionable (one-off observations, context-specific facts, things already documented elsewhere). Must state why.
 
-**Auto-apply when uniform:** When ALL insights are "Implement now" (none are "Defer" or "Capture to INBOX"), auto-apply without presenting the decision table. State: "Implementing {N} reflection insights:" followed by a brief list of changes, then proceed. When any insight has mixed routing, present the full batch table. *(Verified-permitted per `_shared/auto-mode-contract.md` — this is a reversibility-high, uniform-batch optimization, not a HARD-GATE bypass or a "not silenced" exemption.)*
+If any insight is "Implement now", handle it after the user approves the batch table, before returning control to the parent or presenting Next Actions.
 
-**Audit-log requirement (non-negotiable):** every auto-applied insight MUST write an `AUTO` entry to `{run-dir}/decisions.md` per `_shared/auto-decision-log.md` (canonical entry schema). Append under `## /reflect` heading, one line per insight following the schema — e.g.:
-
-```
-- AUTO {HH:MM:SS} — Step 3 full-mode auto-apply: insight "{summary}" → {destination}. Reason: uniform-implement-now batch. Reversibility: high.
-```
-
-Resolve `{run-dir}` via `PIPELINE_RUN_DIR` env var or most-recent matching run under `.claude-tweaks/pipelines/`. If no run directory exists, fall back to interactive mode (present the batch table) — auto-apply is forbidden without an audit trail.
-
-If any insight is "Implement now", handle it before returning control to the parent or presenting Next Actions.
+> **Always present the batch table in interactive mode**, even when every insight routes to "Implement now." Interactive mode means *ask the user* — the confirmation is the contract, not a formality. Skipping it (because the routing looks uniform or obvious) would be contract drift: auto-apply behavior belongs in auto mode, governed by the `Reflect insight routing` row of `_shared/auto-mode-contract.md`'s silences table.

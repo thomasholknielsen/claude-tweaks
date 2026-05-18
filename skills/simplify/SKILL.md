@@ -148,6 +148,10 @@ When invoked directly (not by a parent skill), end with:
 
 When invoked by a parent, omit Next Actions — the parent handles flow control.
 
+## Component-Skill Contract
+
+This skill is a **component skill** — invoked by `/claude-tweaks:build` (Common Step 3) and `/claude-tweaks:review` (Step 5). Parent invocation is signaled by the pipeline context arguments documented under Input above (parent-provided file scope). When invoked by a parent, omit the `### Next Actions` block — the parent owns the handoff. When invoked directly by a user, render Next Actions as shown above.
+
 ## Anti-Patterns
 
 | Pattern | Why It Fails |

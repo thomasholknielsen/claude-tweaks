@@ -2,6 +2,8 @@
 
 Shared procedure for auto-detecting a running development server. Checks persisted config first, then probes ports. Persists detected URLs for future runs. Referenced by `/claude-tweaks:stories`, `/claude-tweaks:test`, and `/claude-tweaks:flow`.
 
+> **Permissions required:** this procedure performs file **writes** in Step 4 (creates or updates `stories/servers.yml`). Any skill that invokes this procedure must run with Write and Edit tool access enabled. Read-only callers will fail at Step 4 — there is no read-only path; persistence is mandatory, not optional.
+
 ## When This Runs
 
 - `/claude-tweaks:stories` is invoked without a URL argument

@@ -159,6 +159,10 @@ When invoked directly (not by a parent skill), end with:
 
 When invoked by `/review`, omit Next Actions — the parent handles flow control and summary.
 
+## Component-Skill Contract
+
+This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step 6) in `full` mode. Parent invocation is signaled by the pipeline context arguments documented under Mode Resolution above (mode + QA data + spec context). When invoked by a parent, omit the `### Next Actions` block — the parent owns the handoff. When invoked directly by a user, render Next Actions as shown above.
+
 ## Anti-Patterns
 
 | Pattern | Why It Fails |

@@ -93,44 +93,15 @@ Ensure `.worktrees/` exists in the project root (matches superpowers v5.1.0's pr
 
 ### Step 0.7: Browser Integration
 
-Browser integration lets Claude Code interact with web pages — used by `/claude-tweaks:stories`, `/claude-tweaks:visual-review`, and `/claude-tweaks:review qa`. The single supported backend is `agent-browser`.
-
-**Fires when:** every run. Detect `agent-browser --version`; if missing, surface the install command and continue (never block init, never auto-install, never prompt for backend choice).
-
-Read `bootstrap-steps.md` in this skill's directory for the full procedure (detection command, the exact install-note text to print, and the no-block contract).
+Detect `agent-browser --version` (the single supported backend, used by `/stories`, `/visual-review`, `/review qa`); if missing, surface the install command and continue — never block init, never auto-install, never prompt for backend choice. Read `bootstrap-steps.md` (Step 0.7) in this skill's directory for the full procedure.
 
 ### Step 0.8: Token-Saver Dependencies & Statusline
 
-claude-tweaks v4.2+ ships a bash-output filter, a 9-segment statusline, and a JSONL telemetry ledger. These require Node and (optionally) git for the branch segment.
-
-**Fires when:** every run. Two user-facing decisions:
-
-1. **Missing deps (Node/git)** — if a dep is missing, prompt to install via the detected package manager (Homebrew on macOS, winget/scoop on Windows; Linux prints the command rather than running sudo). If a Node version manager (nvm/fnm/volta/n) is on PATH, **do not offer to install Node**.
-2. **Statusline wiring** — install the wrapper at `~/.claude-tweaks/bin/statusline.js` (resolves the latest cached plugin version at runtime), then prompt before writing `statusLine.command` to `~/.claude/settings.json`. If a hardcoded-version path is already present, offer to migrate to the wrapper. If a non-claude-tweaks command is present, never overwrite — just print the wrapper path and let the user compose manually.
-
-Read `bootstrap-steps.md` in this skill's directory for the full procedure (detection commands, package-manager prompts table, wrapper installer invocation, settings.json migration matrix, exact JSON to write, and `NO_COLOR=1` opt-out).
+Detect Node (and optionally git); for missing deps, prompt to install via the platform's package manager (skip Node if a version manager is on PATH). Install the statusline wrapper at `~/.claude-tweaks/bin/statusline.js` and prompt before wiring `statusLine.command` in `~/.claude/settings.json` — never overwrite a non-claude-tweaks command. Read `bootstrap-steps.md` (Step 0.8) in this skill's directory for the full procedure (detection commands, package-manager prompts, settings.json migration matrix, exact JSON to write, `NO_COLOR=1` opt-out).
 
 ### Step 0.9: Impeccable Design Integration (Optional)
 
-claude-tweaks v4.5+ integrates [Impeccable](https://impeccable.style/) — a frontend-design plugin (LLM commands + deterministic `impeccable detect` CLI). Opt-in, frontend-only.
-
-**Fires when:** Phase 2 reconnaissance (or a quick sniff of the project root) detects frontend signals — `.tsx/.jsx/.vue/.svelte/.html/.css` files, or `components/`, `pages/`, `app/`, `routes/`, `views/`, `ui/` directories. If no frontend, skip entirely.
-
-**User-facing decision** when frontend is detected:
-
-```
-Detected frontend project. Set up Impeccable design integration?
-
-1. Full integration **(Recommended)** — install plugin, run teach + document
-2. Plugin only — install plugin, skip the design-context interview (run later)
-3. Skip — disable design integration
-```
-
-Each choice writes a `design-integration` flag to CLAUDE.md (`enabled` / `plugin-only` / `disabled`) that the `/claude-tweaks:design` wrapper reads as Layer 1 of its detection logic. Missing flag is treated as `disabled` — design integration only activates when explicitly enabled by `/init`.
-
-**Re-run behavior:** if already `enabled`, offer to re-run `teach + document` to refresh `PRODUCT.md` / `DESIGN.md`; if `plugin-only` or `disabled`, offer the upgrade path back to full integration.
-
-Read `bootstrap-steps.md` in this skill's directory for the full procedure (frontend-detection list, the three-command plugin install sequence, the `teach` + `document` invocation, the flag-value table, the optional Chrome extension note, and failure handling that keeps `/init` from aborting on plugin-install failure).
+When Phase 2 reconnaissance detects frontend signals, present the three-option Impeccable setup prompt (Full / Plugin-only / Skip) and write the resulting `design-integration` flag (`enabled` / `plugin-only` / `disabled`) to CLAUDE.md — the `/claude-tweaks:design` wrapper reads this flag as Layer 1 of its detection logic. Missing flag is treated as `disabled`. Re-run behavior: `enabled` → offer to refresh `teach + document`; `plugin-only` / `disabled` → offer the upgrade path. Read `bootstrap-steps.md` (Step 0.9) in this skill's directory for the full procedure (frontend-detection list, install command sequence, flag-value table, optional Chrome extension note, failure handling).
 
 ---
 
@@ -361,17 +332,7 @@ Only create rules for conventions that are **path-specific**. Project-wide conve
 
 ## Phase 8: Discover User Journeys (Optional)
 
-If the project has a user-facing application (web app, CLI tool, API with documentation), offer to discover and document user journeys. This is especially valuable for brownfield projects that have features but no documented journeys.
-
-**When to offer:**
-- The codebase has routes, pages, views, or CLI commands (detected during Phase 2 reconnaissance)
-- `docs/journeys/` is empty or doesn't exist
-- The project is not a pure library with no user-facing surface
-
-**When to skip:**
-- The project is a library or framework with no user-facing application
-- Journeys already exist and appear comprehensive
-- The user explicitly skips this phase
+For projects with user-facing surfaces (web app, CLI, API with docs), offer to discover and document user journeys — especially valuable for brownfield projects with features but no documented flows. Skip for pure libraries or when `docs/journeys/` already has comprehensive coverage.
 
 ### Present the option:
 
@@ -387,17 +348,7 @@ Would you like to discover and document journeys?
 
 ### Option 1: Codebase-only discovery
 
-Use the codebase scan from Phase 2 to identify journey candidates. This produces journey skeletons — the structure and steps are defined but "should feel" and "red flags" are inferred from code rather than experienced in the browser.
-
-**Steps:**
-
-1. **Identify routes and pages** from Phase 2 findings (route files, page components, views, navigation structure)
-2. **Infer personas** from user roles, auth flows, public vs. authenticated pages, developer-facing features
-3. **Map journeys** — group routes into goal-oriented sequences (signup flow, content creation flow, admin workflow, developer setup)
-4. **Write skeleton journey files** to `docs/journeys/` using the standard format
-5. **Mark as skeleton** — add `**Status:** Skeleton — inferred from code, not yet browser-tested` to each journey file
-
-Skeleton journeys are useful immediately — they document the intended flows. But the "should feel" fields will be weaker since they're inferred, not experienced. Running `/review journey:{name}` later fills in the experiential details and removes the skeleton status.
+Use Phase 2 findings to identify routes/pages, infer personas (user roles, auth flows, public vs. authenticated), and group routes into goal-oriented journey skeletons. Write skeleton files to `docs/journeys/` (use `journey-template.md` from the `/claude-tweaks:journeys` skill directory) — each one stamped `**Status:** Skeleton — inferred from code, not yet browser-tested`. Skeletons document the intended flows but "should feel" fields are weaker until browser-tested.
 
 **Capture enrichment as INBOX items** for each skeleton journey:
 
@@ -410,15 +361,7 @@ Run `/review journey:{name}` to enrich with experiential details.
 
 ### Option 2: Hybrid discovery (codebase + browser)
 
-This delegates to `/visual-review discover` — which runs the full 6-phase discovery process (codebase scan → journey candidates → browser walkthrough → write files → coverage report → handoff).
-
-Tell the user:
-```
-This will scan the codebase for routes and user flows, then open a browser to walk each journey.
-The app needs to be running. What's the dev server URL?
-```
-
-Then invoke `/claude-tweaks:visual-review discover`.
+Delegate to `/claude-tweaks:visual-review discover` — runs the full 6-phase discovery process (codebase scan → journey candidates → browser walkthrough → write files → coverage report → handoff). Ask the user for the dev server URL before invoking.
 
 ### Option 3: Skip
 
