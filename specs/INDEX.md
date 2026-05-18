@@ -25,7 +25,7 @@ Spec 01 must merge before any of 02 / 03 / 04 can start. Specs 02–04 are logic
 
 | # | Title | Status | Progress | Blocked By | File |
 |---|-------|--------|----------|------------|------|
-| 01 | Multi-Agent Coordination Primitive | Not started | 0% | — | [01-multi-agent-coordination-primitive.md](./01-multi-agent-coordination-primitive.md) |
+| 01 | Multi-Agent Coordination Primitive | Complete | 100% | — | [01-multi-agent-coordination-primitive.md](./01-multi-agent-coordination-primitive.md) |
 | 02 | /review Reproduction Pairs + Cross-Lens Debate + Wrap-Up Console Categorisation | Not started | 0% | 01 | [02-review-reproduction-and-debate.md](./02-review-reproduction-and-debate.md) |
 | 03 | /specify Multi-Persona Red-Team Integration | Not started | 0% | 01 | [03-specify-redteam.md](./03-specify-redteam.md) |
 | 04 | /challenge Layered MoA Integration | Not started | 0% | 01 | [04-challenge-moa.md](./04-challenge-moa.md) |

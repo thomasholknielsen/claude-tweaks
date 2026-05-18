@@ -1,7 +1,7 @@
 ---
 tier: 1
-status: not-started
-progress: 0
+status: complete
+progress: 100
 blocked-by: []
 surface: infra
 design-intent: none
