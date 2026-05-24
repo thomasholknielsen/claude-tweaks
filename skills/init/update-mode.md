@@ -71,17 +71,29 @@ After Phase 1u (inventory) and Phase 1u.5 (contract drift) complete, evaluate th
 
 **On early-exit:**
 
-1. Present the audit findings inline (one block, not a full phase summary):
+1. Present the audit findings inline (one block, not a full phase summary). Enumerate what was verified — the early-exit must still answer "what did you check and find healthy?", just from the inventory + contract-marker passes (Phases 1u/1u.5), since Phases 2-8.5 were skipped:
 
    ```
    ### Update Mode — Quick Audit
 
    Config is current. No drift detected. {N} preliminary gap signals (below threshold).
 
-   {if N > 0: list the N items briefly with file paths}
+   **Verified & Consistent**
+
+   Environment & dependencies:
+   - Superpowers: present · Code simplifier: available · agent-browser: installed (v{X.Y.Z})
+   - Git repo: yes · Node: v{X} · Statusline: wired · Workflow dirs: present
+
+   Contract markers (claude-tweaks v{X.Y}+): pipeline section, auto-mode flag, bookend paragraph, auto-mode policy block, run-dir reference — all present.
+
+   Inventory: {M} skills, {R} rules, CLAUDE.md ({L} lines) — all classified "covered" against the existing config.
+
+   {if N > 0: list the N preliminary gap signals briefly with file paths}
 
    Skipping Phases 2-8.5 (full reconnaissance) — re-run `/init update --full` to force the complete pass.
    ```
+
+   Only include lines for checks that ran; omit any the inventory pass did not compute.
 
 2. Log to the active pipeline's `decisions.md` using the resolution order in `_shared/pipeline-run-dir.md`. `/init` is on the standalone-auto allowlist — if `PIPELINE_RUN_DIR` is unset and no recent run matches, create a standalone run dir at `.claude-tweaks/pipelines/{ISO-timestamp}-init-standalone/` and append the entry there. Never suppress the audit-log write.
    ```

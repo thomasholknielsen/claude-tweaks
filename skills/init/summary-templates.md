@@ -5,6 +5,23 @@
 ```markdown
 ## Init Summary
 
+### Verified & Consistent
+
+What /init checked and found true about this repo and environment — the affirmative findings behind the config below. Only list checks that actually ran; mark `med`/`low` confidence detections so the user knows what to review.
+
+| Check | Result |
+|-------|--------|
+| Superpowers plugin | present |
+| Code simplifier | available |
+| agent-browser | installed (v{X.Y.Z}) / not installed — install hint surfaced |
+| Git repo | yes |
+| Node (token-saver) | v{X} present |
+| Statusline | wired to claude-tweaks wrapper |
+| Stack detected | {list} (confidence: high) |
+| Architecture | {pattern} (confidence: high) |
+| Maturity / doc tier | {value} / {N} (confirmed Phase 3) |
+| Conventions detected | {N} grounded in observed code |
+
 ### Bootstrap (Phase 0)
 
 | Item | Status |
@@ -71,8 +88,45 @@ Ready to write these files?
 
 ## Update Mode Summary
 
+Lead with what was audited and found healthy, then the proposed changes. The **Verified & Consistent** section is not optional — it is the answer to "what did you check and decide not to touch?" Only include rows for checks that actually ran this pass; omit dimensions skipped by an early-exit (the early-exit path has its own shorter verified block in `update-mode.md`).
+
 ```markdown
 ## Configuration Update
+
+### Verified & Consistent (audited — no change needed)
+
+Everything below was checked against the current codebase and found accurate. Surfaced so you can see what was confirmed, not just what changed.
+
+**Environment & dependencies**
+| Check | Result |
+|-------|--------|
+| Superpowers plugin | present |
+| Code simplifier | available |
+| agent-browser | installed (v{X.Y.Z}) |
+| Git repo | yes |
+| Node (token-saver) | v{X} present |
+| Statusline | wired to claude-tweaks wrapper |
+| Workflow dirs (`specs/`, `docs/`, `.worktrees/`) | present |
+
+**Contract markers (claude-tweaks v{X.Y}+)**
+| Marker | Status |
+|--------|--------|
+| Pipeline section | present |
+| Auto-mode flag | present |
+| Bookend paragraph | present |
+| Auto-mode policy block | present |
+| Run-dir reference | present |
+
+**Config accuracy (verified against codebase)**
+| Area | Finding |
+|------|---------|
+| Stack table | matches detected stack ({list}) |
+| Commands | all {N} resolve to real scripts |
+| Conventions | {N} confirmed still in force |
+| Skills | {N} of {M} accurate — paths + patterns still exist |
+| Rules | {N} path scopes still valid |
+| Doc registry | {N} entries map to live code areas |
+| Journeys | {N} match current routes |
 
 ### CLAUDE.md
 - {N} patches ({list: "updated Stack table", "added Don't", etc.})
@@ -94,9 +148,6 @@ Ready to write these files?
 
 ### Rules
 - {N} updated, {N} created, {N} to remove
-
-### No changes needed
-- {list items that were audited and found healthy}
 
 Ready to apply these changes?
 ```
