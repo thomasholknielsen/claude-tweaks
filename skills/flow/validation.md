@@ -32,18 +32,22 @@ This gate protects against *any* path to an uncommitted spec (a spec added by ha
 
 ## 2.5 — Merge check
 
-Read the `Pre-flight / merge-check` CLAUDE.md setting (default: `true`). When enabled and worktree strategy resolves to `worktree`:
+Read the `Pre-flight / merge-check` CLAUDE.md setting (default: `true`). When enabled and worktree strategy resolves to `worktree`, compare against the **upstream of the current branch** (or the detected remote default), never a hardcoded `main`:
 
 ```bash
-git fetch origin main 2>/dev/null
-ahead=$(git rev-list --count HEAD..origin/main 2>/dev/null)
+UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream} 2>/dev/null) \
+  || UPSTREAM="origin/$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@')"
+git fetch "${UPSTREAM%%/*}" "${UPSTREAM#*/}" 2>/dev/null
+ahead=$(git rev-list --count "HEAD..$UPSTREAM" 2>/dev/null)
 ```
 
-If `ahead > 0`, surface the divergence (`git log --oneline HEAD..origin/main | head -5`) and offer: (1) Rebase first **(Recommended)**, (2) Continue and acknowledge in ledger. In `auto` mode, automatically choose option 2 and add an `ops` ledger entry; also log:
+If `ahead > 0`, surface the divergence (`git log --oneline HEAD..$UPSTREAM | head -5`) and offer: (1) Rebase first **(Recommended)**, (2) Continue and acknowledge in ledger. In `auto` mode, automatically choose option 2 and add an `ops` ledger entry; also log:
 
 ```
-AUTO {time} — Step 2.5: pre-flight merge-check — main is {N} ahead. Continued and added ops ledger entry. Reversibility: low (divergence persists).
+AUTO {time} — Step 2.5: pre-flight merge-check — {UPSTREAM} is {N} ahead. Continued and added ops ledger entry. Reversibility: low (divergence persists).
 ```
+
+> **Base ref:** `/flow` worktrees branch from the current local HEAD via `worktree.baseRef: "head"` (settings.json), and `/build` Common Step 1 verifies the resulting base after creation. See `skills/build/worktree-setup.md` ("Base ref" + Step 0/4) — the harness default `fresh` branches from a possibly-stale `origin/<default-branch>` and the plugin cannot override it through `EnterWorktree`.
 
 ## 2.6 — Shape check (structural coupling)
 

@@ -83,6 +83,11 @@ git-strategy: worktree             # overrides Build setting in /flow context
 
 ## Worktree
 directory: .worktrees
+# Base ref is a harness setting, NOT a CLAUDE.md one. Set it in settings.json:
+#   { "worktree": { "baseRef": "head" } }
+# claude-tweaks branches worktrees from your current local HEAD. The harness
+# default `fresh` branches from origin/<default-branch> and silently uses a
+# stale base when your integration branch (e.g. dev) is ahead of the remote.
 
 ## Subagent
 markdown-mode: streamlined         # streamlined | full

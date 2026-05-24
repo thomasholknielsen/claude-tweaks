@@ -127,8 +127,19 @@ For each per-spec invocation, `/flow` exports four environment variables:
 | `MULTISPEC_REVIEW_DEFER` | `1` | Signals `/wrap-up` Step 8.6 to skip the per-spec console — the consolidated end-of-run console handles all approvals |
 | `MULTISPEC_PARENT_DIR` | `{parent}/` | Pointer to the parent run dir — read by the consolidated console at end-of-run |
 | `MULTISPEC_KEEP_GOING` | `1` (when `keep-going` arg set) | Signals per-spec pipelines to continue the multi-spec run after this spec's HARD-GATE failure |
+| `MULTISPEC_SHARED_WORKTREE` | `1` (when `worktree` strategy resolved) | Signals per-spec `/build` Common Step 1 to skip worktree creation — the run's single shared worktree already exists and the pipeline is running inside it |
 
-If `worktree` is specified, each spec gets its own worktree via `/superpowers:using-git-worktrees`. The worktree is finished via `/superpowers:finishing-a-development-branch` before the next spec begins.
+### Shared worktree (sequential multi-spec)
+
+When `worktree` is specified, a sequential multi-spec run uses **one shared worktree for the whole run — NOT one per spec.** All specs build and commit into the same worktree on a single feature branch, and the branch is finished **once** at the end of the run.
+
+1. **Create once, up front** — before spec 1's pipeline, `/flow` creates a single worktree from the current local HEAD following `skills/build/worktree-setup.md` (including its Step 0/4 base-ref verification). The branch covers the whole run: `flow/spec-{N1}-{N2}-{N3}` (for runs longer than 3 specs, use `flow/spec-{N1}-…-{Nlast}`; the manifest holds the full list). `/flow` then `cd`s into the worktree.
+2. **Per-spec builds skip creation** — `/flow` exports `MULTISPEC_SHARED_WORKTREE=1` and runs every spec's pipeline inside the shared worktree. Each per-spec `/build` Common Step 1 detects it is already inside an isolated worktree (superpowers Step 0: `GIT_DIR != GIT_COMMON`, reinforced by `MULTISPEC_SHARED_WORKTREE`) and **skips worktree creation**, committing into the shared branch. It does NOT call `/superpowers:finishing-a-development-branch` between specs.
+3. **Finish once at the end** — after the last spec's pipeline and the consolidated Review Console, `/flow` finishes the single feature branch via `/superpowers:finishing-a-development-branch` (merge / PR / discard).
+
+Why shared, not per-spec: sequential specs in one run are one logical unit of work on one base. Per-spec worktrees would each branch from the same base and then need N separate merges that can't see each other's commits — exactly the divergence/stale-base problem worktrees are meant to avoid. One branch accumulates the specs in dependency order and merges back as a single reconciled changeset.
+
+> Separate-terminal parallel runs (`/flow 42 worktree` in each terminal) are different — those are N independent single-spec runs and each correctly gets its own worktree. See `worktree-merge.md`.
 
 ## Failure handling (default vs `keep-going`)
 
@@ -173,13 +184,18 @@ keep-going + dependencies: spec 159 depends on 157 — if 157 fails, 159 may als
 
 ### Interaction with worktree mode
 
-`keep-going` and `worktree` compose cleanly. Each spec gets its own worktree; a failed spec's worktree is **kept** (not auto-discarded) so the user can inspect it post-run. The consolidated console's **Not run / Failed** footer notes the worktree path:
+The run shares **one worktree** (see "Shared worktree" above), so there is no per-spec worktree to discard or preserve. A failed spec leaves its commits in the shared branch:
+
+- **Default mode** — the shared worktree contains commits up to and including the failed spec; subsequent specs don't run. The branch is **not** finished automatically; the consolidated console notes the path so the user can inspect before deciding to merge or discard.
+- **`keep-going`** — subsequent specs keep committing into the same shared branch on top of the failed spec's commits. This compounds the failed spec's state into later specs (same risk as current-branch mode) — which is why `keep-going` is opt-in and meant for genuinely independent specs.
+
+The consolidated console's **Not run / Failed** footer notes the shared worktree path once:
 
 ```
-| 159 | failed | test gate — worktree at `.worktrees/spec-159` preserved for inspection |
+| 159 | failed | test gate (3 type errors) — shared worktree at `.worktrees/flow/spec-157-159-160` preserved; inspect before finishing |
 ```
 
-User cleans up failed worktrees manually after triage (`/superpowers:finishing-a-development-branch` on the failed branch).
+The user finishes or discards the single shared branch after triage (`/superpowers:finishing-a-development-branch`).
 
 ## Consolidated Review Console (end of run)
 

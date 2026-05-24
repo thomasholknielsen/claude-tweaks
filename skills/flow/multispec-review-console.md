@@ -73,8 +73,10 @@ Pipeline complete for specs 157, 159, 160. The pipeline auto-resolved {N} decisi
 
 | Spec | Status | Reason | Worktree |
 |---|---|---|---|
-| 159 | failed | test gate (3 type errors) — see `spec-159/decisions.md` | `.worktrees/spec-159` preserved |
+| 159 | failed | test gate (3 type errors) — see `spec-159/decisions.md` | shared `.worktrees/flow/spec-157-159-160` (commits up to 159) |
 | 160 | not-run | previous spec failed (159); `keep-going` not set | — |
+
+The run shares **one** worktree (see `multi-spec.md`, "Shared worktree"), so the Worktree column names the single shared path once on the first failed/blocked row — there is no per-spec worktree.
 
 Status values:
 - **failed** — spec hit a HARD-GATE but the run continued (only happens under `keep-going`). Worktree is preserved for inspection.
