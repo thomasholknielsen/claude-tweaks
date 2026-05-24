@@ -4,9 +4,12 @@ The Manifesto is the **first bookend** of the pipeline (see `_shared/auto-mode-c
 
 ## When to run
 
-- **`auto` mode** — mandatory. Present the Manifesto, get approval, then proceed.
-- **`hybrid` mode** — mandatory. Same Manifesto; policies set here are honored, but skills still prompt for non-floor decisions.
-- **`interactive` mode** — skipped. Old behavior (skills present each decision in-flow).
+In every mode except `interactive`, the Manifesto **computes the levers and writes `config.yml`** (downstream skills need a value to read). What changes by mode is whether it stops for approval:
+
+- **`auto` mode (flow's default)** — **read-only FYI.** Compute the levers, render them as a `### Pipeline Config (auto)` table (value + source), print `→ proceeding (no approval needed)`, and continue. No approval stop. This is the everyday path.
+- **`confirm` mode** — **approval gate.** Present the full Manifesto with the `Approve all / Override / Cancel` block and wait. After approval the rest of the pipeline runs as `auto`. Use when the user wants to inspect/tweak levers first.
+- **`hybrid` mode** — approval gate (same as `confirm`); policies set here are honored, but skills still prompt for non-floor decisions.
+- **`interactive` mode** — no Manifesto and no run directory; skills present each decision in-flow (they prompt rather than read `config.yml`).
 
 ## Compute recommendations
 
@@ -51,6 +54,10 @@ Always visible: **Mode** (1), **Scope-creep** (2) — they affect every pipeline
 When a lever is suppressed, mention it once in the Suppressed footer below the table so the user knows it was considered and dropped.
 
 ## Present the Manifesto
+
+The template below is the **`confirm` / `hybrid` (approval-gate)** rendering — it ends with the numbered `Approve all / Override / Cancel` block and waits.
+
+**In default `auto` mode, render the FYI variant instead:** show the same preview + policy-levers tables, but change the heading to `### Pipeline Config (auto)`, drop the numbered approval block entirely, and close with a single line — `→ proceeding (no approval needed) · run with \`confirm\` to review/override`. Then continue to Step 4. Do not wait for input.
 
 ```markdown
 ### Pipeline Config Manifesto
@@ -138,6 +145,8 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | Tidy aggressiveness | `conservative` | Keep + unambiguous Delete only |
 
 ## Approval flow
+
+**In default `auto` mode (FYI, no gate):** write the computed values straight to `config.yml` (same schema as below), initialize `decisions.md` with the config snapshot header, create `staged/`, then proceed to Step 4 without waiting. The FYI table has already shown the user what was chosen; there is no approval step to process. This is the everyday path. The `Approve all / Override / Cancel` handling below applies only to `confirm` and `hybrid` modes.
 
 **On approval (option 1):** write the chosen values to `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/config.yml`:
 

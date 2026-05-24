@@ -20,7 +20,7 @@ After every spec's pipeline reaches `/wrap-up` Step 10 (or stops at a HARD-GATE 
 4. Apply the user's approval/override
 5. Archive the parent run dir to `.claude-tweaks/pipelines/archive/`
 
-If `auto` was not set (interactive mode), the per-spec consoles ran inline as usual — no consolidation step. Skip this entirely.
+In `interactive` mode (auto opted out), the per-spec consoles ran inline as usual — no consolidation step. Skip this entirely. (Default `auto`, `confirm`, and `hybrid` all consolidate.)
 
 If the multi-spec run aborted early (one spec hit a HARD-GATE), still render the consolidated console with whatever was accumulated up to the failure point. Specs that didn't run appear as a row in the "Not run" footer.
 

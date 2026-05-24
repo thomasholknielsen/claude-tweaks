@@ -26,8 +26,9 @@ The pipeline has at most two stops in `auto` mode, regardless of how many decisi
 └─────────────────────────────┘                                  └─────────────────────────┘
 ```
 
-- **Begin stop** — one structured numbered-options block at pipeline start collects all policy levers (scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness). Saved to `config.yml` inside the run directory at `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`.
-- **One message, not many.** The begin stop is a single message with every lever pre-filled and an Approve all / Override / Cancel choice. Never a chain of per-lever questions — if you need to ask twice, you've already broken the bookend.
+- **Begin stop** — the Pipeline Config Manifesto computes all policy levers (scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness) and saves them to `config.yml` inside the run directory at `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`.
+- **Begin stop is opt-in under `auto`.** `/flow` defaults to `auto`, and in `auto` the Manifesto renders as a **read-only FYI** (display levers + sources, then proceed) — so the everyday auto pipeline has effectively **one** user-facing stop: the end-of-run Review Console. Pass `confirm` (or use `hybrid`) to turn the begin stop into a real approval gate. The "at most two stops" promise is a ceiling, not a floor.
+- **One message, not many.** When the begin stop *is* a gate (`confirm` / `hybrid`), it is a single message with every lever pre-filled and an Approve all / Override / Cancel choice. Never a chain of per-lever questions — if you need to ask twice, you've already broken the bookend.
 - **Mid-flow** — skills look up policy and execute. Every auto-decision lands in the auto-decision log.
 - **End stop** — `/wrap-up` Review Console presents one consolidated batch table covering everything that was auto-decided or staged.
 
@@ -37,9 +38,12 @@ The pipeline has at most two stops in `auto` mode, regardless of how many decisi
 
 | Mode | When set | Behavior |
 |---|---|---|
-| `auto` | Explicit `auto` arg, or `auto-mode: default-on` in CLAUDE.md | Bookend architecture: stop at begin (manifesto), stop at end (review console), pure automation in the middle. HARD-GATEs and mandatory user-input items still fire. |
-| `interactive` (default) | No `auto` arg and no `auto-mode` setting | Skills present each decision in-flow as today. |
-| `hybrid` | Explicit `hybrid` arg | Skills auto-resolve only when reversibility:high AND confidence:high AND severity ≤ low. Everything else asks. Review Console still runs at end. |
+| `auto` | **`/flow`'s default**; also explicit `auto` arg or `auto-mode: default-on` in CLAUDE.md | Bookend architecture with the begin stop as a **read-only FYI** (Manifesto displays, does not gate) — so the only user-facing stop is the end Review Console. Pure automation in the middle. HARD-GATEs and mandatory user-input items still fire. |
+| `confirm` | Explicit `confirm` arg | Same as `auto`, but the begin stop is a real **approval gate** (Approve all / Override / Cancel). After approval, the rest of the pipeline runs as `auto`. |
+| `hybrid` | Explicit `hybrid` arg | Begin stop is an approval gate; downstream skills also auto-resolve only when reversibility:high AND confidence:high AND severity ≤ low — everything else asks. Review Console still runs at end. |
+| `interactive` | Explicit `interactive` arg, or `auto-mode: default-off` in CLAUDE.md | No Manifesto presented; skills present each decision in-flow as the standalone skills do. |
+
+**Default note:** `/flow` defaults to `auto` (its purpose is hands-off automation). Standalone skills invoked outside `/flow` with no mode signal fall back to `interactive`. The `auto-mode:` CLAUDE.md flag lowers (`default-off` → interactive) or confirms (`default-on` → auto) the default; an explicit mode arg always wins.
 
 ## Decision precedence
 

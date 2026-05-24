@@ -31,10 +31,12 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 ## Syntax
 
 ```
-/claude-tweaks:flow <spec>[,spec2,spec3] [worktree | current-branch] [no-stories] [no-polish] [auto] [keep-going] [step1,step2,step3]
+/claude-tweaks:flow <spec>[,spec2,spec3] [worktree | current-branch] [no-stories] [no-polish] [auto | interactive | hybrid | confirm] [keep-going] [step1,step2,step3]
 ```
 
 All bracketed tokens are optional and order-independent. `worktree` is the default git strategy when neither `worktree` nor `current-branch` is set. `keep-going` applies to multi-spec runs only. Design doc paths are rejected at Step 2.7 — run `/claude-tweaks:specify` first.
+
+**Flow defaults to `auto` mode** (its purpose is hands-off automation). In `auto` the Pipeline Config Manifesto runs as a **read-only FYI** — it computes and displays the policy levers, then proceeds without an approval stop. Pass `confirm` to re-enable the Manifesto approval gate, `interactive` for per-skill in-flow prompts, or `hybrid` for floor-gated prompts. See the mode arguments below.
 
 ### Arguments
 
@@ -45,7 +47,10 @@ All bracketed tokens are optional and order-independent. `worktree` is the defau
 | `current-branch` | No | Override the default and commit directly on the current branch instead of creating a worktree. |
 | `no-stories` | No | Skip automatic story generation even if UI files changed. By default, flow auto-generates stories when the build produces UI file changes. |
 | `no-polish` | No | Skip the polish phase (and its re-verify gate) entirely. Overrides any explicit `polish` in the step list. Use when iterating fast on backend specs, when polish is not desired (one-off scripts, infrastructure-only changes), or when the user has already manually invoked Impeccable polish. The wrapper would skip polish anyway on non-frontend specs (detection layer 2); `no-polish` is the explicit user-facing escape hatch. |
-| `auto` | No | Session intent flag — pipeline runs hands-off. Silences merge-check (Step 2.5), shape-check (Step 2.6), all path-selection prompts mid-pipeline, and explicitly forbids the model from inserting its own reality-checks or context-window concerns. Failures surface via the ledger and the failure card, never via mid-pipeline questions. **Full contract:** see `_shared/auto-mode-contract.md` — that file is the single source of truth for what `auto` silences AND what it does NOT silence (resolve gate, INBOX/DEFERRED writes, hard validation failures all remain mandatory). Also settable as `auto-mode: default-on` in CLAUDE.md (project default). Passed through to `/build`. |
+| `auto` | No | **Flow's default mode** — pipeline runs hands-off. The Config Manifesto (Step 3) renders as a read-only FYI and proceeds without an approval stop. Silences merge-check (Step 2.5), shape-check (Step 2.6), all path-selection prompts mid-pipeline, and explicitly forbids the model from inserting its own reality-checks or context-window concerns. Failures surface via the ledger and the failure card, never via mid-pipeline questions. **Full contract:** see `_shared/auto-mode-contract.md` — that file is the single source of truth for what `auto` silences AND what it does NOT silence (resolve gate, INBOX/DEFERRED writes, hard validation failures all remain mandatory). Passing `auto` explicitly is redundant (it is already the default) but harmless. Passed through to `/build`. |
+| `confirm` | No | Stay in `auto` but **re-enable the Manifesto approval gate** at Step 3 (the `Approve all / Override / Cancel` block). Use when you want to inspect and tweak the policy levers before the pipeline runs hands-off. Everything after the Manifesto still runs as `auto`. |
+| `interactive` | No | Opt out of auto entirely — skills present each decision in-flow as the standalone skills do. The Manifesto is skipped. Highest friction; use when you want a checkpoint at every decision. |
+| `hybrid` | No | Manifesto approval gate runs, and downstream skills still prompt when a decision fails the reversibility/confidence/severity floors (see `_shared/auto-mode-contract.md`). Between full `auto` and `interactive`. |
 | `keep-going` | No | **Multi-spec only.** Continue the run after a HARD-GATE failure in one spec — remaining specs still run. Failed specs surface in the consolidated Review Console's "Not run / Failed" footer with their worktree paths preserved for inspection. Use when specs are genuinely independent (no `depends-on:` edges). The default is to stop on first failure because spec N+1 may build on spec N's correctness — `keep-going` inverts that safety, so it's opt-in. See `multi-spec.md`. |
 | `[steps]` | No | Step argument(s). Single step = resume from that step onward. Comma-separated steps = run exactly those steps. Default (no steps): `build,test,review,polish,wrap-up` (re-verify is bundled with polish). |
 
@@ -71,13 +76,14 @@ If no UI files changed, or `no-stories` is set, the stories step is skipped.
 ### Examples
 
 ```
-/claude-tweaks:flow 42                                              → full pipeline in worktree (default): build, test, review, polish, wrap-up
+/claude-tweaks:flow 42                                              → full pipeline in worktree (default = auto): build, test, review, polish, wrap-up; Manifesto shown as FYI, no approval stop
+/claude-tweaks:flow 42 confirm                                      → same, but stop at the Manifesto approval gate first (inspect/override levers), then run auto
+/claude-tweaks:flow 42 interactive                                  → opt out of auto — per-skill in-flow prompts, no Manifesto
 /claude-tweaks:flow 42 current-branch                               → full pipeline on current branch (no isolation)
 /claude-tweaks:flow 42 no-stories                                   → full pipeline in worktree (skip stories even if UI changed)
 /claude-tweaks:flow 42 no-polish                                    → full pipeline without polish phase
 /claude-tweaks:flow 42,45,48                                        → multi-spec sequential, each in its own worktree
 /claude-tweaks:flow 42,45,48 keep-going                             → multi-spec, continue past HARD-GATE failures (independent specs only)
-/claude-tweaks:flow 42 auto                                         → silence per the auto-mode contract (see _shared/auto-mode-contract.md for the full silences list)
 /claude-tweaks:flow meal planning                                   → resolve to spec by name (rejected if only design doc exists)
 /claude-tweaks:flow docs/superpowers/specs/migration-design.md      → REJECTED — run /specify first; flow only accepts specs (auto does not silence this)
 ```
@@ -96,7 +102,10 @@ When a gate fails, the pipeline stops immediately and renders a failure card. Tw
 
 ### Step 1: Validate Input
 
-1. Parse `$ARGUMENTS` — extract spec number(s) or topic name, detect `worktree`, `current-branch`, `no-stories`, `no-polish`, and `auto` keywords, plus optional step list. Also read CLAUDE.md `auto-mode: default-on` setting; merge with the argument (argument wins when both set).
+1. Parse `$ARGUMENTS` — extract spec number(s) or topic name, detect `worktree`, `current-branch`, `no-stories`, `no-polish`, the mode keywords (`auto` / `interactive` / `hybrid` / `confirm`), plus optional step list. **Resolve the mode** in this order (first match wins):
+   1. Explicit mode keyword in `$ARGUMENTS` — `interactive` / `hybrid` / `confirm` / `auto`. (`confirm` means "auto mode, but gate the Manifesto"; see Step 3.)
+   2. CLAUDE.md `auto-mode:` setting — `default-off` → `interactive`; `default-on` → `auto`.
+   3. **Intrinsic default → `auto`.** Flow's purpose is hands-off automation, so it runs auto unless a param or `auto-mode: default-off` lowers it.
 2. Determine spec mode (number) or topic-resolution mode (name). A path argument is held until Step 2.7 (pre-flight) where it's checked against the design-doc rejection rule.
 3. **Git strategy defaults to `worktree`** — same default as `/build`; flow never prompts. Resolution order:
    1. Explicit argument: `worktree` or `current-branch` in `$ARGUMENTS` — always wins
@@ -121,13 +130,18 @@ Any hard fail or rejection stops the pipeline before the Config Manifesto runs. 
 
 ### Step 3: Pipeline Config Manifesto (front-loaded policy)
 
-This is the bookend "begin stop" that locks in policy for the rest of the pipeline. Runs after pre-flight passes so policy levers are not collected if the pipeline would not have started.
+This is the bookend "begin stop" that locks in policy for the rest of the pipeline. Runs after pre-flight passes so policy levers are not collected if the pipeline would not have started. In every mode except `interactive`, it computes the levers (scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness) from the precedence chain and writes `config.yml` + initializes `decisions.md` in `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`. What differs by mode is whether it **stops**:
 
-In `auto` or `hybrid` mode, present the Pipeline Config Manifesto — one structured table that pre-fills every policy lever (scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness) with recommendations from project policy + sensible defaults. The user approves all (default) or overrides specific items. Saved to `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/config.yml`. Skipped in `interactive` mode.
+| Mode | Manifesto behavior |
+|------|-------------------|
+| `auto` (default) | **Read-only FYI.** Render the computed levers as a `### Pipeline Config (auto)` table (value + source per lever), print `→ proceeding (no approval needed)`, and continue. No stop. |
+| `confirm` | **Approval gate.** Present the `Approve all / Override / Cancel` block and wait. After approval, the rest of the pipeline runs as `auto`. |
+| `hybrid` | Approval gate (same as `confirm`); downstream skills still prompt on floor failures. |
+| `interactive` | Skipped — no Manifesto and no run directory; skills prompt each decision in-flow rather than reading `config.yml`. |
 
-**This is the first bookend** of the pipeline (see `_shared/auto-mode-contract.md`). After approval, no downstream skill asks the user about these levers — they read `config.yml` and apply.
+**This is the first bookend** of the pipeline (see `_shared/auto-mode-contract.md`). In default `auto` the begin-stop is informational only; the single user-facing stop is the Wrap-Up Review Console at the end. Regardless of mode, after this step no downstream skill re-asks the user about these levers — they read `config.yml` and apply.
 
-For the complete Manifesto content (presentation template, recommendation defaults, source values, approval flow, path conventions), read `manifesto.md` in this skill's directory.
+For the complete Manifesto content (presentation template, recommendation defaults, source values, FYI vs approval-gate flow, path conventions), read `manifesto.md` in this skill's directory.
 
 ### Step 4: Run Pipeline
 

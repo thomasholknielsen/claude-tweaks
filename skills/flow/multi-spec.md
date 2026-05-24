@@ -73,7 +73,7 @@ Conflicts: spec 157 ↔ spec 159 both modify src/auth/session.ts; spec 159 ↔ s
 
 This is a **warning, not a hard fail**. Sequential execution is usually fine — but the user deserves to know that spec 159's plan was written assuming `src/auth/session.ts` had its pre-157 shape, and after 157 runs, that file will look different.
 
-If `auto` mode is set and conflicts are detected, the Manifesto still presents normally — the conflict footer just makes it visible before approval. No mid-flow re-prompt.
+If `auto` mode is set and conflicts are detected, the Manifesto still renders (as a read-only FYI in default `auto`, or as the approval gate under `confirm` / `hybrid`) — the conflict footer just makes it visible before the pipeline proceeds. No mid-flow re-prompt.
 
 ### Anti-patterns
 

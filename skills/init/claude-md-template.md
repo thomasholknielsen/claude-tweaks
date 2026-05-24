@@ -59,13 +59,13 @@ Generated from the maturity classification detected in Phase 2h. See "Generating
 
 **Entry point:** `/claude-tweaks:specify` — accepts a topic (calls `/superpowers:brainstorming`), design-doc path, or INBOX ref.
 
-**`/flow`:** specs only (rejects design docs). Size is not a stop signal — gate blocks on structural coupling (cross-task deps, scope leak).
+**`/flow`:** specs only (rejects design docs). Size is not a stop signal — gate blocks on structural coupling (cross-task deps, scope leak). **Defaults to `auto` mode** (hands-off); pass `confirm` to gate the Manifesto, `interactive` for per-skill prompts, or `hybrid` for floor-gated prompts.
 
-**`auto-mode: default-off`** by default — flip to `default-on` to make `/flow` and `/build` run in auto. Under auto, do NOT insert mid-pipeline reality-checks, path-selection prompts, or context concerns. Surface failures via ledger/failure card. See `_shared/auto-mode-contract.md` in the claude-tweaks plugin.
+**`auto-mode`:** `/flow` defaults to `auto` on its own. The optional `auto-mode:` flag (Project Defaults below) sets `/build`'s default and can lower `/flow` to `interactive` project-wide (`default-off`) for anyone who wants it. Under auto, do NOT insert mid-pipeline reality-checks, path-selection prompts, or context concerns. Surface failures via ledger/failure card. See `_shared/auto-mode-contract.md` in the claude-tweaks plugin.
 
-**Bookend architecture (v4.6+):** in auto mode the pipeline has exactly two stops — the Pipeline Config Manifesto at the start (`/flow` Step 3 — one "Approve all recommendations" table) and the Wrap-Up Review Console at the end (`/wrap-up` Step 8.6 — one consolidated batch). Mid-flow decisions are looked up from `.claude-tweaks/pipelines/{run-id}/config.yml` and logged to `decisions.md` in the same directory. Skills MUST NOT invent new mid-flow stops in auto. See `_shared/auto-mode-contract.md` and `_shared/auto-decision-log.md`.
+**Bookend architecture (v4.6+):** in default `auto` mode the pipeline has **one user-facing stop** — the Wrap-Up Review Console at the end (`/wrap-up` Step 8.6 — one consolidated batch). The Pipeline Config Manifesto (`/flow` Step 3) computes the policy levers, writes `config.yml`, and displays as a **read-only FYI** rather than stopping — pass `/flow … confirm` to turn it back into an "Approve all / Override / Cancel" gate. Mid-flow decisions are looked up from `.claude-tweaks/pipelines/{run-id}/config.yml` and logged to `decisions.md` in the same directory. Skills MUST NOT invent new mid-flow stops in auto. See `_shared/auto-mode-contract.md` and `_shared/auto-decision-log.md`.
 
-**Project policy defaults** in this CLAUDE.md (under `## Auto-mode policy`) pre-fill the Manifesto so the user can hit "Approve all" with no overrides — see the section below.
+**Project policy defaults** in this CLAUDE.md (under `## Auto-mode policy`) pre-fill the Manifesto — shown in the FYI display (default `auto`) and used as the pre-filled recommendations when the gate runs (`confirm` / `hybrid`). See the section below.
 
 **Superpowers overrides:** `/superpowers:brainstorming` stops after the design doc — route to `/specify`, never `/superpowers:writing-plans`. `/superpowers:subagent-driven-development` and `/superpowers:executing-plans` don't auto-invoke `/superpowers:finishing-a-development-branch`.
 
@@ -97,7 +97,10 @@ merge-check: true
 scope-keywords-required: false
 
 ## Auto-mode
-auto-mode: default-off             # default-on | default-off
+# /flow defaults to auto on its own — no flag needed. Uncomment to set a
+# project-wide default: default-on also makes standalone /build run in auto;
+# default-off lowers /flow to interactive (per-skill prompts).
+# auto-mode: default-on            # default-on | default-off
 
 ## Auto-mode policy (pre-fills Pipeline Config Manifesto — v4.6+)
 # Each lever has a sensible default. Override only what the project actually

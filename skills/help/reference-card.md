@@ -131,11 +131,11 @@ Consumed artifacts are deleted — specs and code are the durable outputs.
 
 ## Bookend Architecture (v4.6+)
 
-In `auto` mode (`/flow … auto` or `auto-mode: default-on` in CLAUDE.md), the pipeline has **two user-facing stops** and everything else is logged automation:
+`/flow` defaults to `auto` mode (hands-off). In `auto` the pipeline has **one user-facing stop** — the end-of-run Review Console — and everything else is logged automation. The Config Manifesto runs as a read-only FYI at the start unless you pass `confirm` (which turns it back into an approval gate):
 
 | Stop | Where | What |
 |---|---|---|
-| **Pipeline Config Manifesto** | `/flow` Step 3 | One table pre-fills every policy lever (Mode, scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness). Hit "1. Approve all recommendations" or override specific items. |
+| **Pipeline Config Manifesto** | `/flow` Step 3 | Computes every policy lever (Mode, scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness) and writes `config.yml`. **In default `auto` it displays as an FYI and proceeds — no stop.** Pass `/flow … confirm` to get the "Approve all / Override / Cancel" gate; `interactive` skips it for per-skill in-flow prompts. |
 | **Wrap-Up Review Console** | `/wrap-up` Step 8.6 | One consolidated batch: auto-applied items + pending-review items + skill updates + config changes. Hit "1. Approve all" or override. |
 
 **Mid-flow:** skills look up policy from `.claude-tweaks/pipelines/{run-id}/config.yml` and log every auto-decision to `decisions.md`. Skills MUST NOT invent new mid-flow stops in auto.
