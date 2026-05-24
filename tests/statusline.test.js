@@ -124,6 +124,80 @@ test('colorByPct skips colors when NO_COLOR set', () => {
   else process.env.NO_COLOR = orig;
 });
 
+function withLedgers(files, fn) {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ledger-'));
+  const plans = path.join(cwd, 'docs', 'plans');
+  fs.mkdirSync(plans, { recursive: true });
+  for (const [name, content] of Object.entries(files)) {
+    fs.writeFileSync(path.join(plans, name), content);
+  }
+  try {
+    return fn(cwd);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+}
+
+const LEDGER_HEADER = '| # | Phase | Item | Status | Resolution |\n| --- | --- | --- | --- | --- |\n';
+
+test('findOpenLedger returns null when no ledger files exist', () => {
+  withLedgers({}, (cwd) => {
+    assert.strictEqual(sl.findOpenLedger(cwd), null);
+  });
+});
+
+test('findOpenLedger returns null when cwd has no docs/plans', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-noplans-'));
+  try {
+    assert.strictEqual(sl.findOpenLedger(cwd), null);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('findOpenLedger returns null when all rows are terminal', () => {
+  withLedgers(
+    {
+      'a-ledger.md': `${LEDGER_HEADER}| 1 | build | item | fixed | done |\n| 2 | test | item | observation | n/a |\n`,
+    },
+    (cwd) => assert.strictEqual(sl.findOpenLedger(cwd), null),
+  );
+});
+
+test('findOpenLedger counts open rows in a single ledger', () => {
+  withLedgers(
+    {
+      'a-ledger.md': `${LEDGER_HEADER}| 1 | build | item | open | — |\n| 2 | test | item | fixed | done |\n`,
+    },
+    (cwd) => assert.match(sl.findOpenLedger(cwd), /ledger: 1 open/),
+  );
+});
+
+test('findOpenLedger sums open rows across all ledgers in cwd', () => {
+  withLedgers(
+    {
+      'spec-1-ledger.md': `${LEDGER_HEADER}| 1 | build | item | open | — |\n`,
+      'spec-2-ledger.md': `${LEDGER_HEADER}| 1 | build | item | open | — |\n| 2 | test | item | open | — |\n`,
+      'spec-3-ledger.md': `${LEDGER_HEADER}| 1 | build | item | fixed | done |\n`,
+    },
+    (cwd) => assert.match(sl.findOpenLedger(cwd), /ledger: 3 open/),
+  );
+});
+
+test('findOpenLedger colors yellow at >=3 open and red at >=10', () => {
+  const orig = process.env.NO_COLOR;
+  delete process.env.NO_COLOR;
+  const threeRows = Array.from({ length: 3 }, (_, i) => `| ${i + 1} | build | item | open | — |`).join('\n');
+  const tenRows = Array.from({ length: 10 }, (_, i) => `| ${i + 1} | build | item | open | — |`).join('\n');
+  withLedgers({ 'a-ledger.md': `${LEDGER_HEADER}${threeRows}\n` }, (cwd) => {
+    assert.ok(sl.findOpenLedger(cwd).includes('\x1b[33m'));
+  });
+  withLedgers({ 'a-ledger.md': `${LEDGER_HEADER}${tenRows}\n` }, (cwd) => {
+    assert.ok(sl.findOpenLedger(cwd).includes('\x1b[31m'));
+  });
+  if (orig !== undefined) process.env.NO_COLOR = orig;
+});
+
 test('end-to-end: real Claude Code schema renders model + context', () => {
   const out = runStatusline(
     {

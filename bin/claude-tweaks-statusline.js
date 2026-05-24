@@ -138,23 +138,16 @@ function findActiveSpec(cwd) {
 function findOpenLedger(cwd) {
   const dir = path.join(cwd, 'docs', 'plans');
   try {
-    const ledgers = fs
-      .readdirSync(dir)
-      .filter((f) => f.endsWith('-ledger.md'))
-      .map((f) => {
-        const fullPath = path.join(dir, f);
-        const stat = fs.statSync(fullPath);
-        return { path: fullPath, mtime: stat.mtimeMs };
-      })
-      .sort((a, b) => b.mtime - a.mtime);
+    const ledgers = fs.readdirSync(dir).filter((f) => f.endsWith('-ledger.md'));
     if (ledgers.length === 0) return null;
-    const content = fs.readFileSync(ledgers[0].path, 'utf8');
-    const lines = content.split('\n');
     let openCount = 0;
-    for (const line of lines) {
-      if (!line.startsWith('|')) continue;
-      const cells = line.split('|').map((c) => c.trim());
-      if (cells.length >= 5 && cells[4] === 'open') openCount += 1;
+    for (const f of ledgers) {
+      const content = fs.readFileSync(path.join(dir, f), 'utf8');
+      for (const line of content.split('\n')) {
+        if (!line.startsWith('|')) continue;
+        const cells = line.split('|').map((c) => c.trim());
+        if (cells.length >= 5 && cells[4] === 'open') openCount += 1;
+      }
     }
     if (openCount === 0) return null;
     const text = `ledger: ${openCount} open`;
