@@ -2,9 +2,33 @@
 
 Loaded by /flow Step 2 when performing pre-flight checks. Each substep returns OK / WARNING (continue with log entry) / BLOCKED (cannot proceed).
 
-Run substeps 2.5, 2.6, and 2.7 in order. Any hard fail or rejection stops the pipeline before the Config Manifesto runs.
+Run substeps 2.4, 2.5, 2.6, and 2.7 in order. Any hard fail or rejection stops the pipeline before the Config Manifesto runs.
 
-**Bookend note (hybrid mode):** Pre-flight stops at 2.5 and 2.6 may surface in hybrid mode because their decisions have `reversibility: low` (worktree divergence persists, tangled-task risk persists) which fails the hybrid floor. These pre-flight stops are exempt from the "two stops" bookend count — they fire before the Manifesto and protect against starting a pipeline that would otherwise corrupt downstream state. See `_shared/auto-mode-contract.md` for the HARD-GATE exemption list.
+**Bookend note (hybrid mode):** Pre-flight stops at 2.4, 2.5 and 2.6 may surface in hybrid mode because their decisions have `reversibility: low` (worktree divergence persists, tangled-task risk persists) which fails the hybrid floor. These pre-flight stops are exempt from the "two stops" bookend count — they fire before the Manifesto and protect against starting a pipeline that would otherwise corrupt downstream state. See `_shared/auto-mode-contract.md` for the HARD-GATE exemption list.
+
+## 2.4 — Spec-committed check
+
+Gated to worktree strategy (same as 2.5). A worktree branches from the base commit and does **not** contain files uncommitted in the main working tree. If a target spec is untracked or has uncommitted changes, the worktree will not contain it — the build then has nothing to build (or builds a stale version). This is the most common cause of an "empty worktree." Skip this check when the git strategy resolves to `current-branch` (in-place runs see the working tree directly, so uncommitted specs are visible).
+
+For each target spec, check tracked + clean:
+
+```bash
+git ls-files --error-unmatch specs/{N}-*.md  >/dev/null 2>&1 || echo "UNTRACKED: {N}"
+git status --porcelain specs/ docs/specs/ 2>/dev/null   # any output = uncommitted spec/index/audit changes
+```
+
+If any target spec is untracked, **or** `specs/` (or the project's spec/INDEX path) has uncommitted changes → **hard fail (HARD-GATE)**:
+
+- Surface the specific spec(s) and the dirty paths.
+- Offer: (1) Commit the specs to the base branch now, then proceed **(Recommended)**, (2) Cancel.
+- The commit message names the specs (e.g. `Commit specs {N},{M} for pipeline run`). After committing, verify with `git log --oneline -1` per `_shared/git-discipline.md`, then continue.
+- Under `auto`, automatically choose option 1 — specs are low-risk planning artifacts and committing them is the natural durable state (reversibility: high). Commit, then log:
+
+```
+AUTO {time} — Step 2.4: spec-committed check — committed {N} uncommitted spec/index file(s) to base before worktree creation. Reversibility: high.
+```
+
+This gate protects against *any* path to an uncommitted spec (a spec added by hand, a partial `/specify` run, a manual edit), not just specs produced by `/specify`. `/specify` Step 9 already commits its output; this is the defense-in-depth net for everything else.
 
 ## 2.5 — Merge check
 

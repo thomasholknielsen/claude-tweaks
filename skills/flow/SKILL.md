@@ -121,7 +121,8 @@ When a gate fails, the pipeline stops immediately and renders a failure card. Tw
 
 ### Step 2: Pre-flight Checks
 
-Three checks before pipeline starts. Each can return OK / WARNING / BLOCKED.
+Four checks before pipeline starts. Each can return OK / WARNING / BLOCKED.
+- 2.4 — Spec-committed check (target spec tracked + clean; hard-fail — a worktree from base won't contain an uncommitted spec). Worktree strategy only.
 - 2.5 — Merge check (uncommitted changes, branch ahead/behind)
 - 2.6 — Shape check (structural coupling, hard-fail on cross-task deps)
 - 2.7 — Design-doc rejection (granularity contract — specs only, not design docs)

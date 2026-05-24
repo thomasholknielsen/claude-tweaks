@@ -377,11 +377,19 @@ Present a summary:
 | Operational | Updated `specs/INDEX.md` | `{hash}` |
 | Operational | Deleted design doc + brief | `{hash}` |
 
-Commit with a message describing the specs created.
+**Commit the specs — this is mandatory and is the skill's terminal action, not an optional follow-up.** A spec is the *input* to work, like a ticket: it must exist in committed history on the base branch before any pipeline runs. `/flow` cuts a worktree from base, and a worktree does not contain uncommitted files — an uncommitted spec produces an empty worktree and a build with nothing to build (`/flow` Step 2.4 hard-gates on exactly this). Commit every durable artifact this run produced in one commit: the spec files, `specs/INDEX.md` updates, any audit doc, and the design-doc deletion/marker from Step 7.
+
+```bash
+git add specs/ docs/   # specs, INDEX, audit doc, design-doc removal/marker
+git commit -m "{message describing the specs created}"
+git log --oneline -1   # verify it landed (see _shared/git-discipline.md)
+```
+
+By the time Next Actions renders, this commit has already happened.
 
 ## Next Actions
 
-Self-routing — render based on what was produced:
+Self-routing — render based on what was produced. The specs are **already committed** (Step 9) — never offer "commit then flow" or "have me commit these specs" as an option; that decision is closed before Next Actions renders. Options are purely about *which* specs to pipeline and in *what order*.
 
 | Situation | Next Actions block |
 |---|---|
