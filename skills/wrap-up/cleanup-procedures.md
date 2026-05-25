@@ -4,7 +4,7 @@ Canonical home for the wrap-up cleanup enumeration. Loaded by `/claude-tweaks:wr
 
 ## Canonical cleanup list
 
-Six cleanup actions, executed in order (Step 10) and surfaced together (Step 5, Step 9, Review Console):
+Seven cleanup actions, executed in order (Step 10) and surfaced together (Step 5, Step 9, Review Console):
 
 | # | Cleanup | Procedure ref | Condition | Deferred under `MULTISPEC_REVIEW_DEFER=1`? |
 |---|---------|---------------|-----------|--------------------------------------------|
@@ -14,8 +14,9 @@ Six cleanup actions, executed in order (Step 10) and surfaced together (Step 5, 
 | 4 | Pipeline run directory | Section B below — archive (do not delete) to `.claude-tweaks/pipelines/archive/{run-id}/` | run dir exists | **Yes — parent `/flow` owns archival** |
 | 5 | Git worktree | Section C below — complete feature branch via `/superpowers:finishing-a-development-branch`, then remove worktree + delete merged branch | worktree strategy | **Yes — defer to parent `/flow` console** |
 | 6 | Spec lifecycle (file + INDEX) | Delete the spec file (if 100% complete) or update its status; update `specs/INDEX.md` (remove completed entries) | spec-based work | No (idempotent — the spec being deleted does not interact with parent multi-spec archival) |
+| 7 | Ephemeral dev server | Section D below — kill the auto-started dev server tracked in `{run-id}/ephemeral-server.txt` | `ephemeral-server.txt` exists | **Yes — server stays up across specs; parent `/flow` kills it once after the consolidated console** |
 
-The detailed procedures for items 3–5 follow. Items 1, 2, and 6 are simple enough to execute inline at Step 10 without a sub-procedure.
+The detailed procedures for items 3–5 and 7 follow. Items 1, 2, and 6 are simple enough to execute inline at Step 10 without a sub-procedure.
 
 ## Multi-spec defer behavior
 
@@ -26,6 +27,7 @@ The full list of Step 10's deferred-under-MULTISPEC actions:
 - Item 3 (Design caches) — parent /flow owns design-cache archival across all specs
 - Item 4 (Pipeline run dir archival) — parent /flow archives the multi-spec parent dir after consolidated console
 - Item 5 (Worktree removal) — parent /flow handles worktree teardown after consolidated console approves cross-spec changes
+- Item 7 (Ephemeral dev server) — the auto-started server is shared across all specs in the run; parent /flow kills it once after the consolidated console (killing it per-spec would force every later spec's visual review to restart it)
 
 ---
 
@@ -70,3 +72,17 @@ If the build used worktree git strategy, clean up the worktree directory:
 4. If the branch was merged (not kept for PR), delete it: `git branch -d {branch}`.
 
 If no worktree exists for this spec, skip this section silently.
+
+---
+
+## D. Ephemeral dev server (v4.11.0)
+
+If `/visual-review` or `/stories` auto-started a dev server during this run (`dev-url-detection.md` "Ephemeral server start"), it recorded the PID, port, and worktree root in `{run-dir}/ephemeral-server.txt`.
+
+1. **Multi-spec defer check:** if `MULTISPEC_REVIEW_DEFER=1` is set, **skip this section** — the server is shared across all specs in the run. The parent `/flow` kills it once after the consolidated Review Console (otherwise each later spec's visual review would have to restart it).
+2. Read `{run-dir}/ephemeral-server.txt`. Stop the process: `kill {pid}` (fall back to `lsof -ti tcp:{port} | xargs kill` if the PID is stale).
+3. Confirm the port is free, then delete `ephemeral-server.txt`.
+
+This only stops servers *this pipeline started*. A dev server the user was already running (or one on the main checkout) is never touched — it was never recorded in `ephemeral-server.txt`.
+
+If no `ephemeral-server.txt` exists, skip this section silently (the run used an already-running server, or visual review degraded to code-only).

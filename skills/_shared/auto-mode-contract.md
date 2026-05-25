@@ -120,6 +120,7 @@ When any floor fails, the skill MUST stage the decision (log it, don't act) and 
 - Auto-decision log entries (delete to undo)
 - Cache writes under `.claude-tweaks/pipelines/{run-id}/cache/*.json` (regeneration is cheap)
 - Ledger appends with status `observation` or `open`
+- **Ephemeral dev server** started on a free port, anchored to the worktree root, with PID/port tracked in `{run-id}/ephemeral-server.txt` and torn down at wrap-up (kill the process to undo). This is the worktree-correct way to make a running app reachable for `/visual-review` and `/stories` in auto mode — see `_shared/dev-url-detection.md`, "Ephemeral server start". (A *global install* like `agent-browser` is NOT in this class — see `browser-detection.md`.)
 
 ### Never-reversible (auto-FORBIDDEN, regardless of mode)
 
@@ -147,7 +148,7 @@ When any floor fails, the skill MUST stage the decision (log it, don't act) and 
 | Test fix mode (`/test` Step 3) | Auto-fix / show / skip | `lint` tier: lint-only. `lint+type` tier (default): lint + type-only. `lint+type+test` tier (opt-in via Manifesto): also auto-fix straightforward test failures. Anything beyond the tier ceiling is staged. |
 | Architecture alignment (`/build` Common Step 4.5) | Per-deviation decision | Deviations classified `Beneficial` → `AUTO` (apply silently to plan/spec, log entry includes commit ref of spec edit). `Neutral` → `STAGED`. `Concerning` → `KEPT-PROMPT`. |
 | Visual-review prereqs (`/visual-review` Step 1) | Install / skip | Auto-skip if not installed; surface in report |
-| Visual-review dev URL (`/visual-review` Step 2) | Try other / wait | Auto-skip with "dev URL unreachable" log entry; do not retry |
+| Visual-review dev URL (`/visual-review` Step 2) | Try other / wait | First **attempt to start an ephemeral worktree server** on a free port (reversible, tracked, torn down at wrap-up — see `dev-url-detection.md` Step 3 + "Always-reversible" above). Auto-skip to code-only mode with a "dev URL unreachable — no dev command / start failed" log entry **only if** no server can be started. Never reuse a foreign (main-checkout) server in a worktree run. |
 | Stories v1 detection (`/stories` Step 1) | Regenerate all / diff / cancel | Auto-skip migration; stage as "legacy stories detected" |
 | Story journey link suggestions (`/stories` Step 6) | Apply all / override | Auto-apply (mechanical mapping) |
 | Init Phase 3 classification | Confirm / override | Auto-confirm when detection confidence ≥ 0.8 and signals are consistent |

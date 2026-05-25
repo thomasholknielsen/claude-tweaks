@@ -109,25 +109,26 @@ Session naming, screenshot paths, and the full operation vocabulary follow the `
 
 ## Step 2: Dev URL Resolution
 
-This skill resolves the dev URL silently when possible. The canonical resolution procedure lives in `dev-url-detection.md` in `skills/_shared/` (probes `stories/servers.yml` first, then falls back to detection heuristics). The auto-mode behavior below extends that procedure with policy-driven skip semantics.
+This skill resolves the dev URL silently when possible. The canonical resolution procedure lives in `dev-url-detection.md` in `skills/_shared/` (probes `stories/servers.yml` first, then applies **worktree awareness** (Step 2.7 — a responding port in a worktree run may be the main checkout's server, serving the *wrong* code), then falls back to detection heuristics and, in auto mode, **starting an ephemeral worktree server** on a free port). The auto-mode behavior below extends that procedure with policy-driven skip semantics.
 
-If the resolved URL doesn't respond:
+If `dev-url-detection.md` cannot yield a reachable `APP_URL` for *this* checkout:
 
-**Auto mode:** auto-skip visual review entirely (do not retry, do not ask). Append to the auto-decision log under `## /visual-review` in `{run-dir}/decisions.md` (per `_shared/auto-decision-log.md`):
+**Auto mode:** Run the full `dev-url-detection.md` Step 3 first — in a worktree (the `/flow` default) it auto-starts an ephemeral server on a free port (reversible, tracked, torn down at wrap-up). Only when that yields no `APP_URL` (no dev command found, or the server failed to come up) do you auto-skip visual review (do not ask). Append to the auto-decision log under `## /visual-review` in `{run-dir}/decisions.md` (per `_shared/auto-decision-log.md`):
 ```
-- STAGED {HH:MM:SS} — Step 2: dev URL {url} unreachable. Visual review skipped. Surface at Review Console with hint: start dev server and re-run /visual-review.
+- STAGED {HH:MM:SS} — Step 2: no reachable dev URL for this checkout (start attempted: {yes/no}, reason: {no-dev-command | start-timeout}). Visual review skipped — code-only mode. Surface at Review Console.
 ```
-Write `staged/visual-review-dev-url.md` capturing the URL attempted and the request to retry. The review proceeds in code-only mode.
+Write `staged/visual-review-dev-url.md` capturing what was attempted. The review proceeds in code-only mode.
 
 **Interactive mode:**
 
 ```
 The app doesn't seem to be running at {url}. Should I:
-1. Try a different URL
-2. Wait while you start the dev server
+1. Start the dev server on a free port and continue
+2. Try a different URL
+3. Wait while you start the dev server
 ```
 
-Do NOT attempt to start the dev server yourself.
+In interactive mode, only start the server with the user's consent (option 1). In auto mode, starting an ephemeral worktree server is pre-authorized (it is reversible and torn down at wrap-up) — see `dev-url-detection.md` "Ephemeral server start".
 
 ## Step 3: Run Visual Review
 
@@ -199,7 +200,8 @@ This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step
 |---------|-------------|
 | Silently skipping when `agent-browser` is unavailable | Always report the missing dependency and offer options — never skip without telling the user |
 | Skipping First Impressions in visual review | The whole point is raw reaction before structured analysis — don't make it analytical |
-| Starting the dev server without asking | Dev URL auto-detection offers to start — it doesn't force it |
+| Starting the dev server without asking **in interactive mode** | Interactive mode offers to start — it doesn't force it. (Auto mode is different: starting an ephemeral worktree server on a free port is pre-authorized and tracked — see `dev-url-detection.md`.) |
+| Reusing a responding port without checking it serves *this* worktree | In a worktree run, a server on :3000 is usually the main checkout — reviewing it reports false confidence on the wrong code. Always apply `dev-url-detection.md` Step 2.7 (worktree awareness) before trusting a port. |
 | Generic visual ideas ("improve the UX") | Ideas must be concrete and implementable in the current tech stack |
 | Running visual review without a running app | The browser can't inspect what isn't served — verify the URL responds first |
 | Describing elements by position instead of annotated overlay number | "The button on the right" is brittle; "element [3]" is precise. Always reference annotated screenshot overlays in findings |

@@ -100,14 +100,16 @@ Below each table, show the full patch / diff for each pending item.
 2. Apply skill updates and create new skills (from each spec's Step 7.5)
 3. Apply config updates (docs, CLAUDE.md, rules)
 4. Commit with a multi-spec wrap-up message that lists which specs contributed which changes
-5. Archive the parent run dir to `.claude-tweaks/pipelines/archive/{run-id}/` (subdirs included)
+5. **Tear down the shared ephemeral dev server** if one was started (`{parent-run-dir}/ephemeral-server.txt` — see `wrap-up/cleanup-procedures.md` Section D). It was kept up across all specs (per-spec wrap-ups deferred it under `MULTISPEC_REVIEW_DEFER=1`); kill it once here.
+6. Archive the parent run dir to `.claude-tweaks/pipelines/archive/{run-id}/` (subdirs included)
 
 ## On override (option 2)
 
 1. Parse the user's overrides — `#`s map to consolidated table rows; resolve back to the originating spec's subdirectory for each
 2. Apply, skip, or modify per item
 3. For items the user wants reverted: `git revert {commit}` (one revert commit per item)
-4. Archive the parent run dir
+4. Tear down the shared ephemeral dev server if one was started (`{parent-run-dir}/ephemeral-server.txt` — see `wrap-up/cleanup-procedures.md` Section D)
+5. Archive the parent run dir
 
 ## On stop (option 3)
 

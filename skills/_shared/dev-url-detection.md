@@ -62,14 +62,50 @@ If no ports responded (or to validate the best match), check project configurati
    - `vue.config.*` (`devServer.port`)
    - `.env` or `.env.local` (`PORT=`)
 
+### Step 2.7: Worktree Awareness (mandatory before trusting a responding port)
+
+A responding port is **not** proof that the server is serving *this* checkout. When the pipeline runs inside a git worktree (the default for `/flow` and `/build`), a dev server on a common port is most likely the **main checkout's** server — pointing the browser at it would review the wrong code and report false confidence.
+
+Detect a linked worktree (CWD is a worktree, not the primary checkout):
+
+```bash
+[ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ] && echo "WORKTREE" || echo "PRIMARY"
+```
+
+When the result is `WORKTREE`, for **each responding port** verify it is serving the active worktree before accepting it:
+
+```bash
+# Resolve the listening process's working directory and compare to the worktree root
+PID=$(lsof -nP -iTCP:{PORT} -sTCP:LISTEN -t 2>/dev/null | head -1)
+SRV_CWD=$(lsof -a -p "$PID" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')
+WT_ROOT=$(git rev-parse --show-toplevel)
+[ "$SRV_CWD" = "$WT_ROOT" ] && echo "MATCH" || echo "FOREIGN"
+```
+
+- **MATCH** → the responding server serves this worktree. Accept it as in Step 3.
+- **FOREIGN** (or PID/cwd can't be resolved) → treat the port as **not responding for this worktree**. Do not use it. Fall through to the "no usable server" rows in Step 3 so an ephemeral worktree server can be started instead.
+
+In the `PRIMARY` (non-worktree) case, skip this check — a responding port is assumed to serve the current checkout.
+
 ### Step 3: Resolve
 
 | Scenario | Action |
 |----------|--------|
-| **One port responding** | Use it. Set `APP_URL = http://localhost:{port}`. |
-| **Multiple ports responding** | Prefer the port matching the project's framework config. If ambiguous, use the first responding port and note the alternatives. |
-| **No port responding + dev command known** | Offer to start the server: "No dev server detected. Start with `{command}`?" Set `SERVER_STARTED = true` if the user agrees. Wait for the server to be reachable before proceeding. |
-| **No port responding + no dev command** | Ask the user: "No running dev server detected. Enter the URL or start your dev server and re-run." |
+| **One port responding (and MATCH / non-worktree)** | Use it. Set `APP_URL = http://localhost:{port}`. |
+| **Multiple ports responding (and MATCH / non-worktree)** | Prefer the port matching the project's framework config. If ambiguous, use the first responding port and note the alternatives. |
+| **No usable server + dev command known — auto mode** | **Start an ephemeral dev server on a free port** (see "Ephemeral server start" below). This is the worktree-correct path: it guarantees the browser reviews *this* checkout, not a foreign one. Set `SERVER_STARTED = true`. No prompt — starting a tracked, torn-down-at-wrap-up server on a free port clears every reversibility floor (see `_shared/auto-mode-contract.md`, "Always-reversible"). Log an `AUTO` decision-log entry. |
+| **No usable server + dev command known — interactive mode** | Offer to start the server: "No dev server detected for this checkout. Start with `{command}` on a free port?" Set `SERVER_STARTED = true` if the user agrees. Wait for the server to be reachable before proceeding. |
+| **No usable server + no dev command** | Auto mode: cannot start (nothing to run) — return no `APP_URL` and let the caller's auto-skip branch handle it (log the gap). Interactive: ask the user: "No running dev server and no dev command found. Enter the URL or start your dev server and re-run." |
+
+#### Ephemeral server start
+
+When starting a server (auto mode, or interactive with consent):
+
+1. **Pick a free port** — probe upward from the framework's default (e.g. 3001, 3002, …) until one is free, skipping any port already found responding in Step 1. Use the `node -e` check from Step 1 inverted (free = connection refused).
+2. **Anchor to the worktree root** — run the dev command from `git rev-parse --show-toplevel`, never from an assumed CWD (CWD does not propagate reliably — see "Working Directory Discipline" in `subagent-output-contract.md`). Pass the port via the framework's env var when arg-passing is unreliable (e.g. `PORT={port}` for Next.js — `next dev` respects `PORT`).
+3. **Run in the background** and poll the port until it responds (2xx/3xx) or a timeout (~90s for first compile). Set `APP_URL = http://localhost:{free-port}` once reachable.
+4. **Record the PID + port** for teardown: write `{run-dir}/ephemeral-server.txt` (one line: `{pid} {port} {worktree-root}`) when a pipeline run dir exists. This is what `/wrap-up` cleanup reads to stop the server. Outside a pipeline (standalone), the calling skill stops it at the end of its own run.
+5. If the server fails to come up within the timeout, do not block: set no `APP_URL`, log the failure, and let the caller degrade to code-only mode.
 
 ### Output
 
@@ -113,4 +149,7 @@ Add stories/auth.yml to .gitignore? This file contains credentials and must not 
 
 ### Cleanup
 
-If `SERVER_STARTED = true`, the calling skill is responsible for noting this — the server was started for automation purposes and the user may want to stop it after the pipeline completes.
+If `SERVER_STARTED = true`, the ephemeral server must be stopped once visual work completes:
+
+- **In a pipeline** (`{run-dir}/ephemeral-server.txt` was written): `/claude-tweaks:wrap-up` cleanup (Section D in `wrap-up/cleanup-procedures.md`) reads the file and kills the PID at end-of-run. In multi-spec runs the server stays up across specs and is torn down once at the consolidated end (deferred under `MULTISPEC_REVIEW_DEFER=1`). The calling skill does not stop it mid-pipeline — later steps may also need it.
+- **Standalone** (no run dir): the calling skill stops the server (`lsof -ti tcp:{port} | xargs kill`) before it returns, and notes that it was started for automation.

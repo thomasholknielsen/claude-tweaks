@@ -2,7 +2,7 @@
 
 ## What this is
 
-A Claude Code plugin (v4.10.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation, QA pipeline support, and v4.2+ token-saving infrastructure (bash filter hook, statusline, subagent contract).
+A Claude Code plugin (v4.11.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation, QA pipeline support, and v4.2+ token-saving infrastructure (bash filter hook, statusline, subagent contract).
 
 ## Stack
 
