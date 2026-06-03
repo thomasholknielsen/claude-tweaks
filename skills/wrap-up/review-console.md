@@ -84,14 +84,14 @@ Render this section only when `decisions.md` contains STAGED entries from cross-
 
 > Two reviewer lenses disagreed on this region and one debate round did not converge. Both verdicts are staged at `staged/review-contested-{N}.md` with reasoning side-by-side. Pick one — or accept both as informational — from the action prompt below.
 
-#### Skill updates (from Step 7.5)
+#### Skill updates (from Step 7)
 
 | # | Skill | Section | Change |
 |---|---|---|---|
 | 11 | auth | Anti-Patterns | Add: "Don't share session tokens via querystring" |
 | 12 | NEW | session-management | Create new skill for session lifecycle patterns |
 
-#### Configuration updates (from Steps 6 + 7.5)
+#### Configuration updates (from Step 6)
 
 | # | Type | Target | Change |
 |---|---|---|---|
@@ -138,7 +138,7 @@ Apply? (yes / no / edit)
 ## On approval (option 1)
 
 1. Apply all staged patches in `staged/` for items 5–7 (run `git apply` or equivalent for each)
-2. Apply skill updates and create new skills (items 11–12, from Step 7.5)
+2. Apply skill updates and create new skills (items 11–12, from Step 7)
 3. Apply config updates (items 13–14: docs, CLAUDE.md, rules)
 4. Execute cleanup actions (items 15–21) — Step 10 picks these up
 5. For each `Q#` queue write, prompt the user per item. Apply only on explicit `yes` or `edit`. `no` drops the proposal.

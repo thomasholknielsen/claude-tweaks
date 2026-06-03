@@ -92,7 +92,7 @@ When a pipeline run directory exists, route findings by category without prompti
 | Safety regression (security, data loss, broken invariants — e.g., token expiry bug, auth bypass, dropped writes, resource leak, race condition on shared state) | KEPT-PROMPT — surfaces inline; cannot defer safety findings autonomously | `KEPT-PROMPT {time} — Step 3: safety finding "{summary}". Surfaced inline.` |
 | Convention drift, code smell, simplification opportunity | STAGED — write to `staged/reflect-{n}.md`. Surface at Wrap-Up Review Console. | `STAGED {time} — Step 3: convention finding "{summary}". Stage path: staged/reflect-{n}.md.` |
 | Tangential idea (new feature, alternative design) | STAGED → INBOX candidate. Wrap-Up Review Console asks before writing to INBOX (never autonomous). | `STAGED {time} — Step 3: tangential idea "{summary}" — INBOX candidate. Surface at Review Console.` |
-| Pattern observation, design tradeoff acknowledgment | STAGED — write to `staged/reflect-{n}.md`. Most go to skill updates handled in `/wrap-up` Step 7.5. | `STAGED {time} — Step 3: pattern observation "{summary}". Stage path: staged/reflect-{n}.md.` |
+| Pattern observation, design tradeoff acknowledgment | STAGED — write to `staged/reflect-{n}.md`. Most go to skill updates handled in `/wrap-up` Step 7. | `STAGED {time} — Step 3: pattern observation "{summary}". Stage path: staged/reflect-{n}.md.` |
 
 Default behavior: **defer everything** to the Review Console. The exception is safety regressions, which always surface inline.
 

@@ -155,7 +155,7 @@ When any floor fails, the skill MUST stage the decision (log it, don't act) and 
 | Capture next-action routing | Numbered options | Apply `--route` arg if set; else default to `inbox` (most conservative) |
 | Reflect insight routing | Per-item decision | Auto-route: defer (default), inbox (tangential), fix-now (only safety regressions) |
 | Wrap-up Step 4 leftover routing | Per-item decision | Apply `leftover-default` policy from manifesto (default `defer`) |
-| Wrap-up Step 7.5 skill updates | Apply all / override | Auto-apply purely additive changes (new examples, anti-patterns); stage restructures |
+| Wrap-up Step 7 skill updates | Apply all / override | Auto-apply purely additive changes (new examples, anti-patterns) — including those the independent domain scan surfaces, not only ledger-seeded ones; stage restructures and new-skill candidates |
 | Wrap-up Step 8.6 per-spec Review Consoles under multi-spec `/flow` | One console per spec at each wrap-up (N consoles for N specs) | **Consolidated into one** end-of-run Review Console at `/flow`. Per-spec wrap-ups skip Step 8.6 when `MULTISPEC_REVIEW_DEFER=1` is set; the parent `/flow` runs a single console reading every per-spec `decisions.md` + `staged/` after the last spec completes. Preserves the bookend promise (one start stop, one end stop) regardless of N. See `flow/multispec-review-console.md`. |
 | Mid-pipeline reality-checks inserted by the model | Free-form prompt | **NOT ALLOWED** — see Anti-Patterns |
 | "Are you sure?" before authorized reversible operations | Confirmation prompt | Proceed silently |

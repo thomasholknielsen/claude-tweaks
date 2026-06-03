@@ -2,7 +2,7 @@
 
 ## What this is
 
-A Claude Code plugin (v4.11.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation, QA pipeline support, and v4.2+ token-saving infrastructure (bash filter hook, statusline, subagent contract).
+A Claude Code plugin (v4.12.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation, QA pipeline support, and v4.2+ token-saving infrastructure (bash filter hook, statusline, subagent contract).
 
 ## Stack
 
@@ -50,7 +50,7 @@ LICENSE                           → MIT
 | journeys | journey-template.md | Journey file template + key principles (loaded only when creating a new journey file) |
 | visual-review | browser-review.md, reconnaissance.md, journey-mode.md, discover-mode.md, qa-accelerated.md | Shared visual-review prerequisites + Page Mode steps; contextual page reconnaissance; mode-specific procedures; QA-accelerated paths for Steps 1, 3, 4 (loaded only when QA_DATA_AVAILABLE) |
 | specify | spec-template.md, design-pre-steps.md | Spec file template with field rationale; Step 2.5 frontend-detection + shape pre-step + design-intent question (lazy-loaded only for frontend specs) |
-| wrap-up | leftover-routing.md, review-console.md, cleanup-procedures.md | Leftover routing rules for unfinished work; Review Console consolidation template; Step 5 cleanup procedures (design wrapper caches, pipeline run dir archival, worktree teardown) |
+| wrap-up | leftover-routing.md, review-console.md, cleanup-procedures.md, skill-curation.md | Leftover routing rules for unfinished work; Review Console consolidation template; Step 5 cleanup procedures (design wrapper caches, pipeline run dir archival, worktree teardown); Step 7 skill curation (seed gather, independent domain-scoped scan + gap detection, 6-dimension analysis, ≥2-of-3 new-skill gate, stage/present) — generates candidates from the work itself, not only ledger-tagged seeds |
 | tidy | scan-procedures.md | Per-step scan rules for Steps 1-5.5 (INBOX, deferred, specs, design-docs+briefs, plans, git worktrees, doc registry, sizing, cross-spec patterns) — inlined into each parallel agent's prompt at dispatch time |
 | ledger | resolve-gate.md | Three-phase nothing-left-behind resolve gate (fix-exhaust → per-item user input → apply) referenced by /wrap-up Step 8.5 and /flow Step 5 |
 | flow | manifesto.md, multi-spec.md, multispec-review-console.md, steps-and-gates.md, survey.md, validation.md, worktree-merge.md, failure-cards.md | Pipeline Config Manifesto; multi-spec batching; consolidated multi-spec Review Console; Allowed Steps + Step Arguments + Gate Behavior + polish-phase decision tree (single canonical home); Creative Opportunities survey ownership; pre-flight validation; worktree-merge handoff; on-failure card templates (generic + polish-broke-verification) loaded only when a gate fails |

@@ -49,8 +49,11 @@ Apply the `Architecture alignment (/build Common Step 4.5)` row from the silence
 
 While checking architectural alignment, also compare against relevant project skills:
 
-1. Identify 0-3 skill files in `.claude/skills/` covering patterns related to what was built
+1. Identify 0-3 skill files in `.claude/skills/` covering patterns related to what was built (if the directory exists)
 2. Quick-scan their Key Patterns and Project Conventions sections only
-3. If the implementation diverges from or extends what the skill documents, append a ledger entry with phase `build/skill`
-4. Keep it light — one sentence per entry; `/claude-tweaks:wrap-up` does the deep analysis
-5. Skip if no `.claude/skills/` directory exists or the build is trivial
+3. Append a one-sentence ledger entry (phase `build/skill`) when the implementation:
+   - **diverges** from what a skill documents (the skill may be stale), or
+   - **extends** a skill's pattern with a new wrinkle worth documenting (enrichment), or
+   - **establishes a reusable pattern in a domain no skill covers** — tag the entry body `[skill: NEW - {suggested-name}]` (hyphen, not em-dash, for tooling friendliness) so `/claude-tweaks:wrap-up` evaluates it as a new-skill candidate
+4. Keep it light — one sentence per entry; `/claude-tweaks:wrap-up` does the deep analysis (its independent scan also catches uncovered domains, so an emitted entry is a head start, not the only path)
+5. Skip if the build is trivial

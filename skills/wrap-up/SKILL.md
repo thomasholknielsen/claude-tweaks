@@ -132,109 +132,15 @@ Before adding to CLAUDE.md, check the size budget — keep it concise. Move deta
 
 ---
 
-## Step 7: Skill Update Analysis
+## Step 7: Skill Curation
 
-Analyze whether project skills need updating based on what was built. This step runs standalone (not batched with Step 6) because skill updates require reading and comparing full skill files — a different weight of analysis.
+Analyze whether project skills need updating, and whether the work warrants a **new** skill — based on what was built. This step runs standalone (not batched with Step 6) because it requires reading and comparing full skill files — a heavier weight of analysis.
 
-### 7.1: Gather Inputs
+Unlike a pure consumer, Step 7 **generates** candidates from the work itself. Ledger entries (`build/skill`, `review/skill`, `[skill: …]`-tagged) and reflection insights are **seeds** that focus the analysis — but an independent, domain-scoped scan inspects the skills whose domain overlaps the changed files **even when nothing was tagged**, and gap detection looks for reusable patterns no skill covers. New-skill candidates are proposed when **≥2 of 3** criteria (reusability, complexity, project-specificity) are met — not all three.
 
-1. Read ledger entries with phase `build/skill` (from /build Step 4.5) or `review/skill` (from /review lens 3a convention check), plus any ledger entry whose body contains a `[skill: …]` tag (from /reflect hindsight findings under phases `review/hindsight`, `wrap-up`, or `reflect`)
-2. Check reflection insights (Step 3) tagged for skill destinations
-3. List all skill files in `.claude/skills/`
-4. Identify **relevant skills** — those referenced by ledger entries, targeted by reflection insights, or in the domain of changed files
-5. Read relevant skill files in full
+For the full procedure — seed gathering (7.1), the independent scan + gap detection (7.2), the 6-dimension analysis (7.3), the ≥2-of-3 new-skill gate (7.4), quality gates (7.5), and auto/interactive stage-or-present (7.6) — read `skill-curation.md` in this skill's directory.
 
-If no ledger entries, no reflection insights targeting skills, and no relevant skills identified → state "No skill updates needed" and proceed to Step 8 (Analyze Next Steps).
-
-### 7.2: Analyze Each Relevant Skill
-
-Compare each relevant skill against what the build actually did. Check across 6 dimensions:
-
-| Check | Question |
-|-------|----------|
-| **Pattern accuracy** | Do the skill's Key Patterns still match how the codebase works? |
-| **Convention drift** | Do Project Conventions reflect current practice, or has the build diverged? |
-| **Missing patterns** | Did the build introduce patterns that belong in this skill but aren't documented? |
-| **Stale examples** | Do code examples still exist at the referenced file paths? |
-| **Anti-pattern gaps** | Did the build reveal new anti-patterns worth documenting? |
-| **Decision framework completeness** | Does the Decision Framework cover the choices made during this build? |
-
-For each needed change, produce a patch in `/claude-tweaks:init`'s Update Mode format (read `skill-template.md` in the `/claude-tweaks:init` skill's directory for the format):
-
-```
-### Edit {N}: {description}
-**Section:** {section name}
-**Action:** Replace / Add / Remove
-**Current:** `{current text or "N/A" for additions}`
-**Proposed:** `{new text}`
-**Reason:** {what changed — cite the specific build/review observation}
-```
-
-### 7.3: Identify New Skill Candidates
-
-Evaluate patterns from `[skill: NEW — {name}]` ledger entries and reflection insights that don't fit existing skills. A new skill is warranted only when **all three** criteria are met:
-
-1. **Reusability** — the pattern applies to 2+ future builds (not a one-off)
-2. **Complexity** — the pattern is non-obvious (simple conventions belong in CLAUDE.md)
-3. **Project-specific** — the pattern is specific to this project (not generic best practice)
-
-For approved candidates, note the skill name and scope — the actual skill file is created during Step 10 execution.
-
-### 7.4: Quality Check
-
-Verify each proposed update against the quality gates from `skill-template.md` in the `/claude-tweaks:init` skill's directory:
-
-- [ ] Every code example is adapted from actual codebase patterns (not generic)
-- [ ] File paths referenced actually exist
-- [ ] Commands referenced actually work
-- [ ] Conventions described match what the codebase actually does
-- [ ] No generic advice that adds no project-specific value
-- [ ] Anti-patterns cite project-specific reasons, not textbook warnings
-
-Discard any proposed update that fails these gates. Note what was discarded and why.
-
-### 7.5: Stage or Present Skill Updates
-
-**Auto mode (pipeline run dir exists):**
-
-For each proposed change:
-
-1. Classify as **additive** (new examples, new anti-patterns, new section appended) or **restructural** (changing existing wording, moving content, renaming sections, splitting/merging skills)
-2. **Additive + reversibility:high + confidence:high** → auto-apply now. Commit. Log entry:
-   ```
-   AUTO 14:52:24 — Step 7.5: applied additive update to {skill}/SKILL.md ({section}). Reversibility: high; commit: {hash}.
-   ```
-3. **Restructural OR confidence:med-low** → stage as `staged/wrap-up-skill-{N}.md` containing the Update Mode patch. Log entry:
-   ```
-   STAGED 14:52:31 — Step 7.5: skill update proposed for {skill}/SKILL.md ({section}). Reversibility: high (stage path: staged/wrap-up-skill-{N}.md).
-   ```
-4. **New skill candidates** (Step 7.3) → always stage (creating a new skill is a structural decision). Log entry:
-   ```
-   STAGED 14:52:38 — Step 7.5: new skill candidate "{name}". Reversibility: high (stage path: staged/wrap-up-skill-new-{name}.md).
-   ```
-
-Staged items surface at the Wrap-Up Review Console (Step 8.6) as rows in the "Skill updates" section. Do not present a separate batch decision here.
-
-(Or: "No skill updates needed." if Steps 7.1-7.3 found nothing.)
-
-**Interactive mode:** Present the dedicated batch decision table:
-
-```
-### Skill Updates
-
-| # | Skill | Section | Change | Source |
-|---|-------|---------|--------|--------|
-| 1 | {skill name} | {section} | {change description} | {ledger entry or reflection insight} |
-| 2 | {skill name} | {section} | {change description} | {source} |
-| 3 | NEW: {name} | — | Create new skill | {source} |
-
-1. Apply all **(Recommended)**
-2. Override specific items (tell me which #s to change)
-```
-
-Below the table, show the full Update Mode patches for each row so the user can see exactly what will change.
-
-**Wait for resolution before proceeding to Step 8** (interactive mode only).
+Skill curation declares "No skill updates needed" only when seeds, the independent scan, and gap detection all come up empty — never merely because no ledger entry was tagged. Staged updates and new-skill candidates surface at the Wrap-Up Review Console (Step 8.6), or the interactive batch table per `skill-curation.md`.
 
 ## Step 8: Analyze Next Steps (spec-based only)
 
@@ -328,7 +234,7 @@ See `cleanup-procedures.md` for the canonical cleanup list. Render only rows who
 > Complete these after merging.
 
 ### Skill Updates
-Resolved in Step 7.5 — {N} updates applied / 0 updates needed.
+Resolved in Step 7 — {N} updates applied / 0 updates needed.
 
 ### Actions Performed
 
@@ -386,7 +292,7 @@ Execute the cleanup planned in Step 5 (canonical list in `cleanup-procedures.md`
 After the cleanup, also apply:
 
 - **Documentation, CLAUDE.md, rules** — apply the registry / doc / rule edits collected in Step 6 and approved at the Console or batch
-- **Skill updates** — apply patches and create new skills (Step 7.5 staged or approved items)
+- **Skill updates** — apply patches and create new skills (Step 7 staged or approved items)
 
 Commit with a message summarizing the wrap-up actions.
 
@@ -443,9 +349,10 @@ When `$PIPELINE_RUN_DIR` is unset, `/wrap-up` runs standalone — render Next Ac
 | Keeping design docs and plans after wrap-up | Consumed artifacts create stale references — the spec and code are the durable records |
 | Silently dropping insights with no obvious destination | Every insight gets an explicit decision — even "don't capture" requires a stated reason from the user |
 | Completing wrap-up with open ledger items | The nothing-left-behind gate exists to prevent dropped work — resolve every item before presenting the summary |
-| Auditing all skills instead of ledger-tagged ones | Step 7 scopes to skills referenced by `build/skill` and `review/skill` ledger entries — scanning the entire skill library wastes effort and produces noise |
-| Proposing generic skill updates without citing a build/review observation | Every skill update must trace back to a specific ledger entry or reflection insight — generic improvements are indistinguishable from hallucinated ones |
-| Mixing skill updates into the doc/CLAUDE.md batch table | Skill updates require full file reads and Update Mode patches — they get their own decision table in Step 7.5 |
+| Scanning the entire skill library on every wrap-up | Step 7's independent scan is bounded to the ~5 skills whose domain overlaps the changed files (plus seeded skills) — a whole-library audit on every wrap-up wastes effort and produces noise. Domain-scoped scanning is expected; whole-library scanning is the anti-pattern |
+| Skipping skill curation because nothing was ledger-tagged | Step 7 generates candidates from the work itself — the independent scan and gap detection run even with zero seeds. Declaring "no skill updates needed" just because no entry was tagged is the failure this step exists to fix |
+| Proposing generic skill updates with no concrete anchor | Every skill update must trace to a ledger entry, a reflection insight, or a specific changed-file observation from the independent scan — updates with no anchor are indistinguishable from hallucinated ones |
+| Mixing skill updates into the doc/CLAUDE.md batch table | Skill updates require full file reads and Update Mode patches — they get their own decision table in Step 7 |
 
 ## Relationship to Other Skills
 

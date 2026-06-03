@@ -55,7 +55,7 @@ Pipeline complete for specs 157, 159, 160. The pipeline auto-resolved {N} decisi
 | 7 | 159 | /wrap-up | Skill restructure proposed | Split `auth/SKILL.md` into `auth/` + `session-management/` | `spec-159/staged/wrap-up-skill-restructure.md` |
 | 8 | 160 | /stories | Legacy v1 stories detected (3 files) | stories/checkout.yml, stories/profile.yml, stories/settings.yml | Migration: `/claude-tweaks:stories migrate` |
 
-#### Skill updates (from each spec's Step 7.5)
+#### Skill updates (from each spec's Step 7)
 
 | # | Spec | Skill | Section | Change |
 |---|---|---|---|---|
@@ -97,7 +97,7 @@ Below each table, show the full patch / diff for each pending item.
 ## On approval (option 1)
 
 1. For each `spec-{N}/staged/` patch: `git apply` (each spec already has its own commit context — patches apply against the cumulative pipeline state)
-2. Apply skill updates and create new skills (from each spec's Step 7.5)
+2. Apply skill updates and create new skills (from each spec's Step 7)
 3. Apply config updates (docs, CLAUDE.md, rules)
 4. Commit with a multi-spec wrap-up message that lists which specs contributed which changes
 5. **Tear down the shared ephemeral dev server** if one was started (`{parent-run-dir}/ephemeral-server.txt` — see `wrap-up/cleanup-procedures.md` Section D). It was kept up across all specs (per-spec wrap-ups deferred it under `MULTISPEC_REVIEW_DEFER=1`); kill it once here.

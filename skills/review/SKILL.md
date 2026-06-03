@@ -165,7 +165,7 @@ Review changed files through these lenses. Skip lenses that don't apply to the t
 - Are project patterns followed (error handling, validation, logging)?
 - Are shared utilities used instead of reinventing (check existing packages)?
 - Are imports from the right packages (not duplicating types inline)?
-- Does the code follow patterns documented in `.claude/skills/*.md`? If code diverges from a skill, flag it in the findings table AND append a `review/skill` ledger entry — the code may be correct and the skill stale.
+- Does the code follow patterns documented in `.claude/skills/*.md`? Append a `review/skill` ledger entry when the code **diverges** from a skill (flag it in the findings table too — the code may be correct and the skill stale), **extends** a documented pattern with a new wrinkle worth capturing (enrichment), or establishes a reusable pattern in a domain **no skill covers** (tag the entry `[skill: NEW - {name}]` — hyphen, not em-dash, for tooling friendliness). Keep it to a one-line entry — `/claude-tweaks:wrap-up` Step 7 does the deep analysis.
 
 ### 3b: Security
 
