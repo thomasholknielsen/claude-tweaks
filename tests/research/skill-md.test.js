@@ -60,3 +60,27 @@ test('SKILL.md output path is project-local under .claude-tweaks/research/', () 
   assert.match(body, /\.claude-tweaks\/research\//);
   assert.doesNotMatch(body, /~\/Documents/, 'should not reference upstream ~/Documents path');
 });
+
+test('SKILL.md describes delegation to the built-in /deep-research', () => {
+  const body = readSkill();
+  assert.match(body, /deep-research/, 'must reference the built-in /deep-research');
+  assert.match(body, /Dynamic Workflow/i, 'must name the Dynamic Workflows feature');
+});
+
+test('SKILL.md describes an inline fallback path', () => {
+  const body = readSkill();
+  assert.match(body, /fallback/i, 'must describe a fallback');
+  assert.match(body, /methodology\.md/, 'fallback must point at reference/methodology.md');
+});
+
+test('SKILL.md includes the built-in setup/enablement note', () => {
+  const body = readSkill();
+  assert.match(body, /2\.1\.154/, 'must state the minimum Claude Code version');
+  assert.match(body, /disableWorkflows|CLAUDE_CODE_DISABLE_WORKFLOWS/, 'must mention how the feature is gated');
+});
+
+test('SKILL.md has a Component-Skill Contract keyed on PIPELINE_RUN_DIR', () => {
+  const body = readSkill();
+  assert.match(body, /## Component-Skill Contract/);
+  assert.match(body, /\$PIPELINE_RUN_DIR/);
+});

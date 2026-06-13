@@ -1,13 +1,16 @@
 ---
 name: claude-tweaks:research
-description: Use when conducting in-depth web research — multi-source synthesis, citation-audited reports with 4 runtime modes from quick (~2-5 min) to ultradeep (~20-45 min, multi-persona red-team). Keywords - research, deep research, web research, sources, citations, literature review.
+description: Use when conducting in-depth web research — multi-source synthesis, citation-audited reports with 4 runtime modes from quick (~2-5 min) to ultradeep (~20-45 min, multi-persona red-team). Delegates to Claude Code's built-in /deep-research when available; falls back to an inline method otherwise. Keywords - research, deep research, web research, sources, citations, literature review.
 ---
 > **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
 
 
 # Research — Deep Web Research with Citation-Audited Reports
 
-ChatGPT-Deep-Research-style multi-source web research. An 8-phase pipeline decomposes the topic, dispatches parallel searchers, validates citations, and synthesizes a structured report. Vendored from [199-biotechnologies/claude-deep-research-skill](https://github.com/199-biotechnologies/claude-deep-research-skill) (MIT) — see `UPSTREAM.md`.
+Multi-source web research that produces a citation-audited markdown report. When Claude Code's
+built-in `/deep-research` **Dynamic Workflow** is available, this skill delegates to it;
+otherwise it runs a lean inline method (`reference/methodology.md`). Either path writes the
+report under `.claude-tweaks/research/`.
 
 ```
                              [ /claude-tweaks:research ] ← utility (no fixed lifecycle position)
@@ -24,13 +27,13 @@ ChatGPT-Deep-Research-style multi-source web research. An 8-phase pipeline decom
 - Audit prior art / state-of-the-art before authoring a spec.
 - Debias an INBOX item with evidence from multiple sources.
 - Gather citations for a user journey, RFC, or technical decision.
-- Generate a structured report (markdown + HTML + PDF) with audited citations.
+- Generate a citation-audited markdown report.
 
 ## Input
 
 - `$ARGUMENTS` is the research topic. If empty, ask the user for it before proceeding.
-- Mode is selected via a single numbered-options prompt (see Mode Picker below). **`standard` is the recommended default** — it balances depth and runtime.
-- Power-user flags (parsed from `$ARGUMENTS`):
+- Mode is selected via a single numbered-options prompt (see Mode Picker). **`standard` is the recommended default** — it balances depth and runtime.
+- Flags parsed from `$ARGUMENTS`:
   - `--mode=<quick|standard|deep|ultradeep>` — skip the mode prompt.
   - `--output=<path>` — override the default output root (defaults to `.claude-tweaks/research/`).
 
@@ -50,36 +53,60 @@ Reply with the user's selection. Then proceed.
 
 ## Workflow
 
-1. **Read the methodology.** Open `reference/methodology.md` in this skill's directory for the canonical 8-phase pipeline (decompose → parallel search → citation registry → evidence-mapped outline → section drafting → counter-review → validation → report assembly).
-2. **Construct the output directory.** Path is `{cwd}/.claude-tweaks/research/[YYYY-MM-DD]-[topic-slug]/` unless `--output=` overrides. Create it before invoking the engine.
-3. **Invoke the engine.** Run the research engine via:
+1. **Resolve** topic + depth tier from `$ARGUMENTS` (or the Mode Picker).
+2. **Construct the output directory:** `{cwd}/.claude-tweaks/research/[YYYY-MM-DD]-[topic-slug]/` unless `--output=` overrides. Create it before researching.
+3. **Availability pre-check (built-in path).** Decide whether the built-in `/deep-research` Dynamic Workflow is usable:
 
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/skills/research/scripts/research_engine.py \
-     --topic "{topic}" \
-     --mode {quick|standard|deep|ultradeep} \
-     --output {cwd}/.claude-tweaks/research/[YYYY-MM-DD]-[topic-slug]/
+   # Built-in /deep-research needs Claude Code >= 2.1.154 and Dynamic Workflows enabled.
+   test "${CLAUDE_CODE_DISABLE_WORKFLOWS:-0}" = "1" && echo "workflows: OFF (env)" || echo "workflows: env-ok"
+   grep -sq '"disableWorkflows"[[:space:]]*:[[:space:]]*true' \
+     ~/.claude/settings.json .claude/settings.json .claude/settings.local.json \
+     && echo "workflows: OFF (settings)" || echo "workflows: settings-ok"
    ```
 
-   The engine handles phase orchestration, parallel search dispatch, citation tracking via `sources.json`, validate-fix-retry (max 3 cycles) using `scripts/validate_report.py` + `scripts/verify_citations.py`, and HTML/PDF assembly via `scripts/md_to_html.py`.
-4. **Surface progress.** As each phase completes, echo a single status line ("Phase N/8: <name> — <status>").
-5. **On finish, write the Next Actions block** with the produced report path.
+   Treat the built-in as **available** only when neither check reports OFF. (The pre-check catches explicit disables; plan-gating and "never enabled on Pro" are caught by the fallback in Step 5.)
+4. **Delegate to the built-in (when available).** Invoke `/deep-research` with the topic, passing depth guidance derived from the tier (for `deep`/`ultradeep`, ask it to dig broadly and cross-check more sources). Capture the cited report it returns. If the command is absent or returns nothing, fall through to Step 5.
+5. **Inline fallback (when unavailable or empty).** Read `reference/methodology.md` in this skill's directory and run the lean inline method (decompose → parallel `WebSearch` → `WebFetch` extract → adversarial-verify subagents → synthesize), scaled to the depth tier.
+6. **Write the report** to `report.md` (plus a `sources.json` provenance list) in the output directory — identical location for both paths.
+7. **Surface progress** with a single status line per phase, then present **Next Actions** with the produced report path.
+
+## Enabling the built-in path
+
+The built-in `/deep-research` produces the highest-quality result. It ships as a **Dynamic
+Workflows** feature (research preview) — nothing to install, but it is gated:
+
+| Requirement | Detail |
+|-------------|--------|
+| Claude Code | ≥ 2.1.154 |
+| Plan | Pro / Max / Team / Enterprise (not Free) |
+| Default | On for Max & Team · **Pro: enable in `/config` → Dynamic workflows** · Enterprise: admin-enabled |
+| Disabled by | `/config` toggle · `"disableWorkflows": true` in settings · `CLAUDE_CODE_DISABLE_WORKFLOWS=1` |
+
+When unavailable, the inline fallback runs automatically — no setup required, lower ceiling.
 
 ## Dependency posture
 
-- **Zero-config baseline.** Built-in `WebSearch` is the fallback retrieval provider. The skill runs end-to-end without any external installs.
-- **Enhanced.** Install `search-cli` (Homebrew: `brew tap 199-biotechnologies/tap && brew install search-cli`) for parallel multi-provider retrieval across Brave / Serper / Exa / Jina / Firecrawl. Configure provider API keys via `search config set keys.<provider> <KEY>`.
-- **Optional.** Python 3 + `requirements.txt` for the upstream validators, citation manager, and HTML/PDF generation. Install with `pip install -r ${CLAUDE_PLUGIN_ROOT}/skills/research/requirements.txt`.
+- **Zero-config baseline.** The inline fallback uses built-in `WebSearch`/`WebFetch` and runs
+  end-to-end without any external install or the built-in workflow.
+- **Enhanced.** When Dynamic Workflows are enabled, the skill delegates to `/deep-research`
+  for cross-checked, vote-validated synthesis.
 
 ## Anti-Patterns
 
 | Pattern | Why It Fails |
 |---------|--------------|
-| Invoking `deep` or `ultradeep` on a fuzzy single-word topic | Burns 20+ minutes on under-scoped queries. Add 1 clarifying sentence to the topic, or use `quick`/`standard` first to refine the scope before going deep. |
-| Treating the `WebSearch` fallback as failure | The skill is designed to run zero-config. Install `search-cli` only when source breadth is genuinely insufficient — not by default. |
-| Editing reports in place after generation | Reports are dated immutable artifacts. Re-run the skill with the updated topic; the new report gets a fresh dated directory. |
-| Skipping the mode prompt by guessing | The 4 modes differ in runtime by ~10×. Always ask unless `--mode=` is passed; this is the one decision that genuinely matters. |
-| Retrofitting Manifesto / Review Console wrapping | `/research` is a single-skill utility, not a pipeline. The v4.6 bookend architecture does not apply. See `UPSTREAM.md`. |
+| Invoking `deep`/`ultradeep` on a fuzzy one-word topic | Burns time on under-scoped queries. Add a clarifying sentence, or use `quick`/`standard` first to refine scope. |
+| Skipping the mode prompt by guessing | The 4 modes differ in runtime by ~10×. Always ask unless `--mode=` is passed. |
+| Treating the inline fallback as failure | The fallback is a first-class path, not an error state. Most users without Dynamic Workflows rely on it. |
+| Editing reports in place after generation | Reports are dated immutable artifacts. Re-run the skill; the new report gets a fresh dated directory. |
+| Hard-depending on the built-in | `/deep-research` is a gated preview feature absent for many users. Never remove the fallback or assume the command exists. |
+
+## Component-Skill Contract
+
+When `$PIPELINE_RUN_DIR` is set, `/claude-tweaks:research` is running inside a pipeline (invoked by `/claude-tweaks:capture`, `/claude-tweaks:challenge`, `/claude-tweaks:specify`, or another pipeline orchestrator). In that case omit the `## Next Actions` block — the parent owns the handoff.
+
+Direct invocation may pass `--source <parent-skill>` as an explicit fallback when ambiguity exists (rare; `$PIPELINE_RUN_DIR` is the primary signal).
 
 ## Relationship to Other Skills
 
@@ -89,8 +116,6 @@ Reply with the user's selection. Then proceed.
 | `/claude-tweaks:challenge` | `/challenge` invokes `/research` to back debiasing lenses with evidence; this skill's reports can be cited as challenge sources. |
 | `/claude-tweaks:specify` | `/specify` uses `/research` outputs for prior-art sections; this skill's Next Actions block offers a direct "cite findings in a new spec" path. |
 | `/claude-tweaks:browse` | Both are utility skills (no fixed lifecycle position). `/browse` covers interactive browser automation; `/research` covers autonomous multi-source research. |
-| `UPSTREAM.md` (in this skill's directory) | Captures the vendoring contract — pinned commit, modifications, update runbook, auto-mode posture rationale. |
-| `_shared/auto-mode-contract.md` | `/research` opts out of the bookend architecture (no Manifesto, no Review Console). The contract still applies trivially — credentials prompts and BLOCKED states are honored. See UPSTREAM.md for the opt-out rationale. |
 
 ## Next Actions
 
