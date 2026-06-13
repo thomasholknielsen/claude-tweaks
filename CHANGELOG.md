@@ -1,5 +1,15 @@
 # Changelog
 
+## v4.14.0 — Remove the bash-output filter + savings meter
+
+The v4.2 "token-saver" — a `PostToolUse[Bash]` hook that compacted noisy command output and a statusline `saved: ↓Nk` meter that reported the reclaimed tokens — has been removed. The observed savings never justified the surface area, and the harness already manages context.
+
+- **Deleted** `bin/filter-bash-output.js` (the parser), `bin/lib/jsonl.js` and `bin/lib/paths.js` (telemetry plumbing used only by the filter and the savings meter), and `tests/filter-bash-output.test.js`.
+- **`hooks/hooks.json`** drops the `PostToolUse[Bash]` block. Only the `SessionStart` dependency check remains.
+- **Statusline** loses `renderSavings`/`formatK` and the `saved:` segment. Everything else (project, model, `ctx:`, effort, git, rate limits, active spec, open-ledger count) is unchanged.
+- No migration needed. Stale `~/.claude-tweaks/logs/` files (raw bash logs + `filter.jsonl`) are now inert and can be deleted by hand.
+- The **Subagent Contract** (clean-room input, Templates A/B/C, model-tier selection) is unaffected — it's dispatch discipline, not part of the filter.
+
 ## v4.13.0 — Filter compaction + universal Working Approach
 
 Two additions, both folded in together: smarter bash-output compaction, and a standard task-execution guardrail block in every generated CLAUDE.md.

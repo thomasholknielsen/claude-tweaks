@@ -2,13 +2,13 @@
 
 ## What this is
 
-A Claude Code plugin (v4.13.1) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation, QA pipeline support, and v4.2+ token-saving infrastructure (bash filter hook, statusline, subagent contract).
+A Claude Code plugin (v4.14.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation, QA pipeline support, a statusline, and a subagent contract for parallel dispatch.
 
 ## Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Runtime | Claude Code plugin system + Node 18+ (for v4.2 token-saver: filter hook, statusline) |
+| Runtime | Claude Code plugin system + Node 18+ (for the statusline) |
 | Content | Markdown (SKILL.md files with YAML frontmatter); Node modules under `bin/` |
 | Dependencies | Superpowers plugin (`/superpowers:brainstorming`, `/superpowers:writing-plans`, `/superpowers:subagent-driven-development`, `/superpowers:executing-plans`, `/superpowers:using-git-worktrees`, `/superpowers:finishing-a-development-branch`, `/superpowers:dispatching-parallel-agents`), code-simplifier (built-in subagent), agent-browser (optional), git CLI (optional — required only for the statusline git segment) |
 | Test runner | `node --test tests/` (built-in, no external deps) |
@@ -22,9 +22,9 @@ skills/{name}/SKILL.md            → Skill definition (frontmatter + body)
 skills/{name}/*.md                → Sub-files lazy-loaded by the skill
 skills/_shared/*.md               → Cross-skill shared content (subagent contract, auto-mode contract, auto-decision log, browser detection, pipeline run dir, dev URL detection, git discipline, design-wrapper handling, multi-agent coordination)
 agents/{name}.md                  → Agent definitions (frontmatter + body)
-hooks/hooks.json                  → Hook definitions (SessionStart, PostToolUse[Bash])
-bin/                              → Node executables (filter, statusline, deps check)
-bin/lib/                          → Shared Node helpers (paths, jsonl, color, deps, coordination)
+hooks/hooks.json                  → Hook definitions (SessionStart)
+bin/                              → Node executables (statusline, deps check)
+bin/lib/                          → Shared Node helpers (color, deps, coordination)
 tests/                            → Node test files (node --test runner)
 README.md                         → User-facing documentation
 LICENSE                           → MIT
@@ -140,7 +140,7 @@ Forms B and C always pair with the **Subagent Contract** (`skills/_shared/subage
 
 ```bash
 claude --plugin-dir ./              # Local development — load plugin from current directory
-node --test tests/                  # Run Node tests (filter + statusline) — v4.2+
+node --test tests/                  # Run Node tests (statusline + libs)
 ```
 
 ### Subagent Contract (v4.2+)
@@ -169,7 +169,7 @@ claude-tweaks pipelines have at most two stops in `auto` mode: a **Pipeline Conf
 - Don't put detailed reference content inline in a SKILL.md when it would make the file unwieldy — use a sub-file and reference it with "read `{filename}` in this skill's directory"
 - Don't forget to update README.md and `/help` when adding or changing skills
 - Don't use emojis in skill files — use `**(Recommended)**` bold text for emphasis instead
-- Don't write to `~/.claude-tweaks/` from skill content — that path is runtime state owned by the harness layer (filter logs, telemetry, usage cache)
+- Don't write to `~/.claude-tweaks/` from skill content — that path is runtime state owned by the harness layer (statusline wrapper, caches, usage state)
 - Don't dispatch parallel Task agents without inlining a literal output template (Template A/B/C) from `skills/_shared/subagent-output-contract.md` in the agent prompt — references won't reach the agent
 - Don't dispatch agents that run `git` or `node --test` without anchoring the working directory in the prompt — see "Working Directory Discipline" in `skills/_shared/subagent-output-contract.md`. CWD does not propagate reliably; without an explicit `cd "$WORKTREE"` or `git -C "$WORKTREE"` and a `pwd` + `git rev-parse --show-toplevel` check before commit, commits and test runs can land in the wrong checkout
 - Don't invent new mid-flow stops in `auto` mode — if a decision is decision-worthy, stage it to the auto-decision log and surface at the Wrap-Up Review Console. Mid-flow stops are reserved for HARD-GATEs and the explicit "not silenced" list in `_shared/auto-mode-contract.md`

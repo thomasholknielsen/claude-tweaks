@@ -105,7 +105,7 @@ stories/auth.yml
 .claude-tweaks/
 ```
 
-The `.claude-tweaks/` directory holds per-pipeline run state (`pipelines/{ISO-timestamp}-{spec-slug}/config.yml`, `decisions.md`, `staged/`) plus the bash filter logs and statusline cache. None of it should be committed — the auto-decision log is for the user's calibration of project policy, not git history.
+The `.claude-tweaks/` directory holds per-pipeline run state (`pipelines/{ISO-timestamp}-{spec-slug}/config.yml`, `decisions.md`, `staged/`) plus the statusline cache. None of it should be committed — the auto-decision log is for the user's calibration of project policy, not git history.
 
 If `stories/` exists or will be created, ask the user:
 
@@ -157,9 +157,9 @@ Init-specific contract:
 
 ---
 
-## Step 0.8 — Token-Saver Dependencies & Statusline (detailed procedure)
+## Step 0.8 — Statusline & Dependencies (detailed procedure)
 
-claude-tweaks v4.2+ ships a bash-output filter, a 9-segment statusline, and a JSONL telemetry ledger. These require Node and (optionally) git for the branch segment.
+claude-tweaks ships a multi-segment statusline. This requires Node and (optionally) git for the branch segment.
 
 **Detect dependencies:**
 

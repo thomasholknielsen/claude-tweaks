@@ -95,7 +95,7 @@ Ensure `.worktrees/` exists in the project root; suggest migration if a legacy `
 
 Detect `agent-browser`; surface the install command if missing. Never block init, never auto-install, never prompt for backend choice. Read `bootstrap-steps.md` (Step 0.7) for the full procedure.
 
-### Step 0.8: Token-Saver Dependencies & Statusline
+### Step 0.8: Statusline & Dependencies
 
 Detect Node (and optionally git), install the statusline wrapper at `~/.claude-tweaks/bin/statusline.js`, and prompt before wiring `statusLine.command` in `~/.claude/settings.json` — never overwrite a non-claude-tweaks command. Read `bootstrap-steps.md` (Step 0.8) for the full procedure (detection, package-manager prompts, settings.json migration matrix, NO_COLOR opt-out).
 

@@ -15,7 +15,7 @@ What /init checked and found true about this repo and environment — the affirm
 | Code simplifier | available |
 | agent-browser | installed (v{X.Y.Z}) / not installed — install hint surfaced |
 | Git repo | yes |
-| Node (token-saver) | v{X} present |
+| Node (statusline) | v{X} present |
 | Statusline | wired to claude-tweaks wrapper |
 | Stack detected | {list} (confidence: high) |
 | Architecture | {pattern} (confidence: high) |
@@ -104,7 +104,7 @@ Everything below was checked against the current codebase and found accurate. Su
 | Code simplifier | available |
 | agent-browser | installed (v{X.Y.Z}) |
 | Git repo | yes |
-| Node (token-saver) | v{X} present |
+| Node (statusline) | v{X} present |
 | Statusline | wired to claude-tweaks wrapper |
 | Workflow dirs (`specs/`, `docs/`, `.worktrees/`) | present |
 

@@ -93,13 +93,6 @@ test('renderRateLimit omits parenthetical when reset is missing', () => {
   assert.strictEqual(r, 'sess: 42%');
 });
 
-test('formatK suffix scaling', () => {
-  assert.strictEqual(sl.formatK(500), '500');
-  assert.strictEqual(sl.formatK(2400), '2.4k');
-  assert.strictEqual(sl.formatK(15000), '15k');
-  assert.strictEqual(sl.formatK(2_000_000), '2M');
-});
-
 test('formatDuration scales correctly', () => {
   assert.strictEqual(sl.formatDuration(30), null);
   assert.strictEqual(sl.formatDuration(180), '3m');

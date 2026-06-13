@@ -231,7 +231,7 @@ Handles 3-layer detection (kill-switch / spec frontmatter / file-extension sniff
 |---------------|--------|----------|
 | [Superpowers](https://github.com/obra/superpowers) | `/plugin install superpowers@claude-plugins-official` | Yes — brainstorming, planning, subagent execution, worktree management |
 | agent-browser | `npm install -g agent-browser` | Optional — browser automation for /stories, /visual-review, /review qa |
-| Node 18+ | brew/winget/scoop install nodejs | Yes (v4.2+) — bash filter hook, statusline. `/claude-tweaks:init` Step 0.8 offers to install via your package manager. |
+| Node 18+ | brew/winget/scoop install nodejs | Yes — statusline. `/claude-tweaks:init` Step 0.8 offers to install via your package manager. |
 | git CLI | brew/winget/apt install git | Optional — required only for the git segment in the statusline; everything else degrades gracefully. |
 
 ## Configuration

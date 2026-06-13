@@ -2,8 +2,6 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-const paths = require('./lib/paths');
-const jsonl = require('./lib/jsonl');
 const color = require('./lib/color');
 
 const SEPARATOR = '  ';
@@ -18,12 +16,6 @@ function readStdin() {
     process.stdin.on('error', () => resolve(data));
     setTimeout(() => resolve(data), 50);
   });
-}
-
-function formatK(n) {
-  if (n < 1000) return String(n);
-  if (n < 1_000_000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`;
-  return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
 }
 
 function formatDuration(seconds) {
@@ -101,16 +93,6 @@ function renderRateLimit(label, period, now) {
   return colorByPct(pct, text);
 }
 
-function renderSavings(sessionStartMs) {
-  const events = jsonl.readTail(paths.filterEventsPath(), 65536);
-  if (events.length === 0) return null;
-  const sessionEvents = events.filter((e) => typeof e.ts === 'number' && e.ts >= sessionStartMs);
-  if (sessionEvents.length === 0) return null;
-  const blocked = sessionEvents.reduce((sum, e) => sum + (e.blocked || 0), 0);
-  if (blocked <= 0) return null;
-  return color.green(`saved: ↓${formatK(blocked)}`);
-}
-
 function findActiveSpec(cwd) {
   const candidates = [path.join(cwd, 'specs', 'INBOX'), path.join(cwd, 'specs')];
   for (const dir of candidates) {
@@ -169,7 +151,6 @@ async function main() {
   }
 
   const cwd = (input.workspace && input.workspace.current_dir) || input.cwd || process.cwd();
-  const sessionStartMs = input.session_start_ms || Date.now() - 6 * 60 * 60 * 1000;
   const now = Date.now();
   const rateLimits = input.rate_limits || {};
 
@@ -181,7 +162,6 @@ async function main() {
     renderGit(),
     renderRateLimit('sess', rateLimits.five_hour, now),
     renderRateLimit('week', rateLimits.seven_day, now),
-    renderSavings(sessionStartMs),
     findActiveSpec(cwd),
     findOpenLedger(cwd),
   ].filter((s) => s !== null && s !== undefined && s !== '');
@@ -199,10 +179,8 @@ module.exports = {
   renderContext,
   renderEffort,
   renderRateLimit,
-  renderSavings,
   findActiveSpec,
   findOpenLedger,
-  formatK,
   formatDuration,
   colorByPct,
 };
