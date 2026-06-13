@@ -59,7 +59,7 @@ Write `report.md` as flowing prose (not bullet dumps) in the output directory. F
 citation discipline below. Also write `sources.json` — an array of
 `{ "n": 1, "title": "...", "url": "...", "retrieved": "YYYY-MM-DD" }` provenance entries.
 
-## Step 6: Citation self-check (replaces the old `verify_citations.py`)
+## Step 6: Citation self-check (replaces the old script-based validation)
 
 Before finishing, verify:
 
