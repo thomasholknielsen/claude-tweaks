@@ -43,7 +43,7 @@ test('SKILL.md has the four required sections', () => {
   assert.match(body, /## When to Use/);
   assert.match(body, /## Anti-Patterns/);
   assert.match(body, /## Relationship to Other Skills/);
-  assert.match(body, /### Next Actions/);
+  assert.match(body, /## Next Actions/);
 });
 
 test('SKILL.md mode picker mentions all four modes with standard recommended', () => {
