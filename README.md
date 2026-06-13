@@ -15,9 +15,9 @@ Claude Code is powerful but unstructured. claude-tweaks adds a complete developm
 - **deep** (~10-20 min, 15+ sources) — comprehensive synthesis with broader source pool
 - **ultradeep** (~20-45 min) — multi-persona red-team with adversarial review
 
-Vendored from [199-biotechnologies/claude-deep-research-skill](https://github.com/199-biotechnologies/claude-deep-research-skill) (MIT). See `skills/research/UPSTREAM.md` for the vendoring contract, pinned commit, modifications, and update runbook. Reports land under `.claude-tweaks/research/`.
+As of v4.15.0 this delegates to Claude Code's built-in `/deep-research` Dynamic Workflow when available, with a lean inline fallback otherwise. Reports land under `.claude-tweaks/research/`.
 
-**Diagram Design companion plugin** — a soft-hook integration with [`cathrynlavery/diagram-design`](https://github.com/cathrynlavery/diagram-design) (MIT, separately installed). Unlike Impeccable (wrapped via `/claude-tweaks:design`) or research (vendored), diagram-design has no callable surface — it's a pure-skill plugin that auto-triggers from its YAML description. claude-tweaks adds *contextual nudges* at three lifecycle moments:
+**Diagram Design companion plugin** — a soft-hook integration with [`cathrynlavery/diagram-design`](https://github.com/cathrynlavery/diagram-design) (MIT, separately installed). Unlike Impeccable (wrapped via `/claude-tweaks:design`) or research (which delegates to the built-in `/deep-research`), diagram-design has no callable surface — it's a pure-skill plugin that auto-triggers from its YAML description. claude-tweaks adds *contextual nudges* at three lifecycle moments:
 
 - **`/specify` Step 2.5d** (new, all surfaces) — when the design doc describes state machines, schemas, multi-actor flows, decision trees, or layered architecture, the spec summary surfaces "consider a {type} diagram" with a suggested output path (`docs/diagrams/{slug}.html`). Un-gated from frontend — backend specs get architecture / ER / state diagrams too. Caps at 2 suggestions per spec.
 - **`/journeys` Step 3.6** (new) — when a journey crosses 2+ personas, has 3+ named decision branches, or sequences 2+ external services, suggests the matching diagram type (swimlane / flowchart / sequence) before commit.
@@ -171,7 +171,7 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 
 **`/claude-tweaks:browse`** — Browser automation via agent-browser. Defines session naming, screenshot/trace paths, and operation vocabulary used by /stories, /visual-review, and /review.
 
-**`/claude-tweaks:research`** — Deep web research with citation-audited reports. Four runtime modes from quick (~2-5 min) to ultradeep (~20-45 min, multi-persona red-team). Built on [199-biotechnologies/claude-deep-research-skill](https://github.com/199-biotechnologies/claude-deep-research-skill) (MIT) — see `skills/research/UPSTREAM.md`.
+**`/claude-tweaks:research`** — Deep web research with citation-audited reports. Four runtime modes from quick (~2-5 min) to ultradeep (~20-45 min, multi-persona red-team). Delegates to Claude Code's built-in `/deep-research` Dynamic Workflow when available; falls back to a lean inline method otherwise. Reports land under `.claude-tweaks/research/`.
 
 **`/claude-tweaks:ledger`** — Query and resolve the open items ledger (`docs/plans/*-ledger.md`) that tracks findings across all pipeline phases. The ledger is a file on disk — it survives context window compression so findings from one phase aren't lost before a later phase can act on them.
 
