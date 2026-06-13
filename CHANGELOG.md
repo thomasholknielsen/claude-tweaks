@@ -1,5 +1,15 @@
 # Changelog
 
+## v4.15.0 — Research delegates to the built-in /deep-research
+
+`/claude-tweaks:research` no longer ships a vendored Python engine. It now delegates to Claude Code's built-in `/deep-research` Dynamic Workflow when available, and falls back to a lean inline model-driven method otherwise.
+
+- **Removed** the vendored `skills/research/scripts/` (10 Python modules), `schemas/`, `templates/`, the Python `tests/`, `requirements.txt`, `UPSTREAM.md`, and `LICENSE-UPSTREAM` — ~6,800 lines.
+- **`skills/research/SKILL.md`** rewritten: availability pre-check → delegate to `/deep-research` → inline fallback → write `report.md` + `sources.json` under `.claude-tweaks/research/`. Adds an "Enabling the built-in path" setup note and a Component-Skill Contract.
+- **`skills/research/reference/methodology.md`** rewritten as the lean inline fallback (decompose → parallel `WebSearch`/`WebFetch` → adversarial-verify subagents → synthesize) with the salvaged citation-discipline rules.
+- **Regressions accepted:** HTML/PDF report generation, deterministic Python citation/DOI validation, continuation/resume state, and source-credibility scoring are dropped. Citation validation is now a model self-check; output is markdown + `sources.json`.
+- The built-in path requires Claude Code ≥ 2.1.154 with Dynamic Workflows enabled (Pro: enable via `/config`). When unavailable, the inline fallback runs automatically.
+
 ## v4.14.0 — Remove the bash-output filter + savings meter
 
 The v4.2 "token-saver" — a `PostToolUse[Bash]` hook that compacted noisy command output and a statusline `saved: ↓Nk` meter that reported the reclaimed tokens — has been removed. The observed savings never justified the surface area, and the harness already manages context.
