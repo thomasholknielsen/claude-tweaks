@@ -41,6 +41,19 @@ Verify every command exists in package.json / Makefile / scripts before listing.
 {Adaptive principles that calibrate how Claude approaches changes in this project.
 Generated from the maturity classification detected in Phase 2h. See "Generating Philosophy" below.}
 
+## Working Approach
+
+How to execute any task here. These apply project-wide unless a more specific rule or instruction overrides them; use judgment on trivial tasks.
+
+- **Think before coding.** State assumptions; ask rather than guess when uncertain. Push back when a simpler approach exists. Stop when confused.
+- **Honest, not agreeable.** When the user proposes a direction, pressure-test it before agreeing — name the weakest assumption first, not the strengths. State disagreement plainly: no flattery openers, no hedging, no reflexive reassurance. If you genuinely can't find a flaw, say so rather than manufacturing one.
+- **Simplicity first.** Write the minimum correct code for what was asked — nothing speculative, no abstractions for single-use code. ("Do it properly" above means correct, not more.)
+- **Surgical changes.** Touch only what the task requires. Don't reformat or "improve" adjacent code. Match the surrounding style.
+- **Goal-driven.** Define success criteria up front and loop until they're verified, rather than following steps blindly.
+- **Read before you write.** Before adding code, read the file's exports, immediate callers, and shared utilities — duplicate logic usually already exists nearby.
+- **Checkpoint multi-step work.** After each significant step, state what's done, what's verified, and what's left. Don't build on a state you can't describe back.
+- **Fail loud.** "Done" is wrong if anything was skipped; "tests pass" is wrong if any were skipped. Surface uncertainty and partial results — never hide them.
+
 ## Testing
 
 {Framework, run commands, file location, naming convention}
@@ -213,6 +226,15 @@ Established codebase with active users. Schema changes require migrations with r
 
 **Important:** Only include entries that match the project. A greenfield project with no infrastructure doesn't need the automation entry. An established project with no published APIs doesn't need the expand-contract entry. Adapt, don't copy blindly.
 
+## Working Approach (universal behavior block)
+
+`## Working Approach` is the one **standard, non-adaptive** section in the template — include it verbatim in every generated CLAUDE.md (like the `## claude-tweaks Pipeline` section). It encodes universal task-execution behavior (think-before-coding, honest-not-agreeable, simplicity, surgical changes, goal-driven, read-before-write, checkpointing, fail-loud) so that **ad-hoc work outside the pipeline** — where no skill gate fires — still gets the same guardrails the lifecycle skills enforce.
+
+Two rules of thumb:
+
+- **Complements Philosophy, doesn't repeat it.** Philosophy calibrates *how aggressive changes should be in this codebase* (maturity-dependent). Working Approach is *how to execute any task* (project-independent). If a bullet is already fully covered by an existing project convention, trim it to respect the 150-line budget.
+- **No hard token-budget rule (deliberate).** The popular 8-rule CLAUDE.md template adds a "hard per-task / per-session token budget, summarize-and-restart on breach" rule. claude-tweaks **omits it on purpose**: context management is the harness's job, and `_shared/auto-mode-contract.md` explicitly forbids the model from inserting context-window/budget stop prompts. Do not add a token-budget bullet here.
+
 ## Principles
 
 - **How to work here, not what's missing** — every entry should help someone working in the codebase right now. Improvements belong in INBOX.
@@ -221,3 +243,4 @@ Established codebase with active users. Schema changes require migrations with r
 - **Commands must work** — verify scripts exist before listing them
 - **Don'ts are guardrails, not wishes** — they describe existing patterns that should not be violated, never infrastructure that doesn't exist yet
 - **Philosophy adapts to maturity** — the same principle stated differently for greenfield vs established projects prevents both reckless breaking changes and unnecessary conservatism
+- **Working Approach is standard, not adaptive** — include the universal behavior block verbatim; it covers ad-hoc work that never triggers a skill gate. No token-budget rule (the harness owns context)

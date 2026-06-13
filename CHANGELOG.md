@@ -1,5 +1,12 @@
 # Changelog
 
+## v4.13.0 — Filter compaction + universal Working Approach
+
+Two additions, both folded in together: smarter bash-output compaction, and a standard task-execution guardrail block in every generated CLAUDE.md.
+
+- **Bash filter now groups, not just clips.** `compactExcerpt` gained three shape-aware modes ahead of the old head/tail clip: file listings (git status / ls / find) collapse into a **by-directory histogram**, lint findings (ruff / flake8 / pylint / clippy / eslint stylish) collapse into a **by-rule histogram**, and identical adjacent runs **dedupe** into `line  (×N)`. Grouping only triggers when a clear majority of lines match the expected shape (ratio gates: 0.6 for paths, 0.5 for rules, min 8 lines) — otherwise it falls back to dedupe + clip, so prose output is never mangled. A new `Test summary:` section surfaces aggregate test-runner result lines (cargo `test result:`, jest `Tests:`/`Test Suites:`, pytest `N passed … in`, mocha `N passing`) that dedupe/clip would otherwise bury under per-test noise. New unit coverage for `dedupeLines`, `testSummaryLines`, `groupByDirectory`, `groupByRule`, and the `summarize` integration paths.
+- **`/init` emits a `## Working Approach` block.** Every generated CLAUDE.md now carries a standard, non-adaptive block of universal task-execution guardrails — think-before-coding, simplicity-first, surgical-changes, goal-driven, read-before-write, checkpoint-multi-step, fail-loud — so ad-hoc work outside the pipeline (where no skill gate fires) gets the same discipline the lifecycle skills enforce. It complements the maturity-adaptive Philosophy section rather than repeating it, and **deliberately omits a token-budget rule** (context management is the harness's job; `_shared/auto-mode-contract.md` forbids the model from inserting context-window stop prompts).
+
 ## v4.7.1 — Statusline ledger fix
 
 - **Statusline `ledger` segment now sums open rows across *all* `-ledger.md` files in the current checkout's `docs/plans`**, instead of reading only the most-recently-modified file. The old "newest file wins" logic both undercounted (open items in older ledgers were invisible) and relied on mtimes that are unreliable right after a worktree checkout. Worktree isolation is preserved — the scan is relative to the session's `cwd`, so side-by-side worktrees never see each other's uncommitted ledgers. Added `findOpenLedger` test coverage (previously none).

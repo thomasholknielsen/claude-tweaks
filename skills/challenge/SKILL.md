@@ -275,6 +275,8 @@ This skill is a **component skill** — invoked by `/claude-tweaks:capture` when
 | Running all 7 lenses mechanically | Some problems only need 2-3 lenses |
 | Being adversarial rather than curious | The goal is insight, not winning an argument |
 | Softening challenges with "maybe" | Be direct — the user opted into this |
+| Bracketing a challenge with flattery — a "great question" opener or a "your instinct is good" closer | The praise signals agreement and blunts the challenge before it lands; the user opted into directness |
+| Inventing a flaw to look rigorous when the framing holds | If the lenses surface nothing real, say so plainly — manufactured doubt is as useless as false agreement |
 | Skipping /claude-tweaks:challenge for "obvious" features | Obvious features often have the strongest hidden assumptions |
 
 ## Relationship to Other Skills
