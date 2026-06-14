@@ -1,0 +1,77 @@
+const { test } = require('node:test');
+const assert = require('node:assert');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const REPO_ROOT = path.resolve(__dirname, '..', '..');
+
+function readShared(name) {
+  return fs.readFileSync(path.join(REPO_ROOT, 'skills', '_shared', name), 'utf8');
+}
+function readSkill(skill, file = 'SKILL.md') {
+  return fs.readFileSync(path.join(REPO_ROOT, 'skills', skill, file), 'utf8');
+}
+
+const FRAGMENTS = [
+  'criteria-architecture-depth.md',
+  'criteria-simplification.md',
+  'criteria-review-quality.md',
+];
+
+test('all three criteria fragments exist', () => {
+  for (const f of FRAGMENTS) {
+    assert.ok(
+      fs.existsSync(path.join(REPO_ROOT, 'skills', '_shared', f)),
+      `expected skills/_shared/${f} to exist`
+    );
+  }
+});
+
+test('architecture-depth fragment carries signature criteria', () => {
+  const body = readShared('criteria-architecture-depth.md');
+  assert.match(body, /Leverage = how much behavior/, 'leverage definition');
+  assert.match(body, /deletion test/i, 'deletion test');
+  assert.match(body, /port/i, 'dependency classification (port/adapter)');
+});
+
+test('simplification fragment carries signature criteria', () => {
+  const body = readShared('criteria-simplification.md');
+  assert.match(body, /trial-and-error/i, 'verbose debugging patterns');
+  assert.match(body, /readability/i, 'readability counter-rule');
+});
+
+test('review-quality fragment carries signature criteria', () => {
+  const body = readShared('criteria-review-quality.md');
+  assert.match(body, /critical.*high.*medium.*low/i, 'severity scale');
+  for (const cat of ['Architecture', 'Security', 'Convention', 'Performance',
+                     'Error handling', 'Test quality', 'Coverage', 'UX', 'Docs']) {
+    assert.match(body, new RegExp(cat), `category enum value: ${cat}`);
+  }
+  assert.match(body, /calibrated senior engineer block a PR/, 'CALIBRATION filter');
+  assert.match(body, /auto-mode-contract/, 'points at contract for confidence/reversibility');
+});
+
+test('/deepen references the architecture-depth criteria fragment', () => {
+  const skill = readSkill('deepen');
+  const sub = readSkill('deepen', 'depth-analysis.md');
+  assert.match(skill + sub, /criteria-architecture-depth\.md/);
+});
+
+test('/simplify references the simplification criteria fragment', () => {
+  assert.match(readSkill('simplify'), /criteria-simplification\.md/);
+});
+
+test('/review references the review-quality criteria fragment', () => {
+  const skill = readSkill('review');
+  const routing = readSkill('review', 'step3-routing.md');
+  assert.match(skill + routing, /criteria-review-quality\.md/);
+});
+
+test('review-quality CALIBRATION block stays byte-identical between fragment and step3-routing', () => {
+  const frag = readShared('criteria-review-quality.md');
+  const routing = readSkill('review', 'step3-routing.md');
+  // Both must contain the load-bearing filter line verbatim.
+  const anchor = 'When in doubt: would a calibrated senior engineer block a PR on this finding alone? If no, drop it.';
+  assert.ok(frag.includes(anchor), 'fragment contains the calibration anchor line');
+  assert.ok(routing.includes(anchor), 'step3-routing contains the calibration anchor line');
+});
