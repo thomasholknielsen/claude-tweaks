@@ -179,6 +179,8 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 
 **`/claude-tweaks:version`** — Reports the installed claude-tweaks plugin version (read from `.claude-plugin/plugin.json`). Useful for verifying the marketplace install picked up the right version.
 
+**`/claude-tweaks:recon`** — Proactive, report-only repo-improvement finder. Applies mechanical lenses (oversized files, dead exports, TODO/FIXME comments, loose dependency ranges, project lint/typecheck) to the repo, fingerprints each finding, dedups against open GitHub issues, and files the work worth doing as `recon`-labelled issues. Never edits code. Filed issues are `/specify`-shaped so they promote into agent-sized specs with near-zero translation.
+
 **`/claude-tweaks:design`** — Wrapper for the [Impeccable](https://github.com/pbakaus/impeccable) frontend-design plugin. Six active modes:
 
 - **`test`** — invoked by `/test` for the deterministic CLI gate (`npx impeccable detect`)

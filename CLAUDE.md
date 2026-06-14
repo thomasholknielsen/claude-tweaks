@@ -2,7 +2,7 @@
 
 ## What this is
 
-A Claude Code plugin (v4.17.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation, QA pipeline support, a statusline, and a subagent contract for parallel dispatch.
+A Claude Code plugin (v4.18.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation, QA pipeline support, a statusline, and a subagent contract for parallel dispatch.
 
 ## Stack
 
@@ -30,11 +30,11 @@ README.md                         → User-facing documentation
 LICENSE                           → MIT
 ```
 
-### Skill directories (22 total)
+### Skill directories (23 total)
 
 **Lifecycle:** init, capture, challenge, specify, build, test, stories, review, wrap-up
 **Component:** reflect, simplify, deepen, journeys, visual-review, design
-**Utility:** help, tidy, flow, browse, ledger, version, research
+**Utility:** help, tidy, flow, browse, ledger, version, research, recon
 
 ### Skills with sub-files
 
@@ -154,7 +154,8 @@ The marketplace `source` is an **unpinned git URL**, so installs and updates tra
 
 ```bash
 claude --plugin-dir ./              # Local development — load plugin from current directory
-node --test tests/                  # Run Node tests (statusline + libs)
+npm test                            # Runs node --test over tests/ AND bin/lib/recon/tests/
+node --test bin/lib/recon/tests/*.test.js   # Recon unit suite only
 ```
 
 ### Subagent Contract (v4.2+)
