@@ -34,7 +34,7 @@ assembled.
 
    ```bash
    node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" pull-issues \
-     --label recon [--min-severity high] --issues-json <path-to-gh-output.json>
+     --label recon [--min-severity high] --issues <path-to-gh-output.json>
    ```
 
    (or call `bin/lib/recon/pull-issues.js`'s `pullReconIssues` directly with the parsed array).
