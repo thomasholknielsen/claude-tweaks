@@ -23,6 +23,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 |---------|-------------|-------|
 | `/claude-tweaks:reflect` | Structured evaluation: hindsight, surprises, near-misses | `hindsight`/`full`, spec #, file paths |
 | `/claude-tweaks:simplify` | Code simplification via code-simplifier subagent | file paths or auto from git diff |
+| `/claude-tweaks:deepen` | Architectural depth pass — finds shallow modules, proposes deepening/collapsing ranked by leverage | file paths, spec #, or auto from git diff |
 | `/claude-tweaks:journeys` | Create/update user journey documentation | spec #, file paths |
 | `/claude-tweaks:visual-review` | Browser-based UI inspection, journey walks, discovery | URL, `journey:{name}`, `discover` |
 
@@ -32,7 +33,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 |---------|-------------|-------|
 | `/claude-tweaks:help` | Dashboard: commands + status + recommendations | `status`, `commands`, spec/topic |
 | `/claude-tweaks:tidy` | Batch backlog hygiene | — |
-| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → polish → wrap-up | spec #(s), doc path + `auto` `worktree`/`current-branch` `no-stories` `no-polish` `keep-going` `[step]` (single = resume) |
+| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → polish → wrap-up (+ end-of-run depth survey) | spec #(s), doc path + `auto` `worktree`/`current-branch` `no-stories` `no-polish` `no-deepen` `keep-going` `[step]` (single = resume) |
 | `/claude-tweaks:browse` | Unified browser automation (utility) | `--session <name>`, `set viewport`, `set device`, operation vocabulary (see SKILL.md) |
 | `/claude-tweaks:design` | Wrapper that lets lifecycle skills invoke Impeccable design-quality commands. Modes: `pre-build`, `test`, `review`, `shape`, `polish`, `survey`, `reset-recommendations` | mode + spec/files + flags |
 | `/claude-tweaks:ledger` | Open items tracking — query, resolve ledger entries | *(none)*, `resolve`, `{feature-name}` |

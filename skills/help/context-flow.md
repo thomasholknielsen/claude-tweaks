@@ -44,6 +44,7 @@ src/ + journeys    stories/*.yaml     types + lint + tests + QA     code + visua
 | `/build` | `specs/NN-*.md`, `docs/plans/*.md` | Code, plan files, ledger items. Invokes `/journeys` for journey files and `/simplify` for code cleanup. Worktree mode also produces transient worktree directories and feature branches. | — |
 | `/journeys` | Changed files (from parent or git diff), `docs/journeys/*.md` | `docs/journeys/*.md` | — |
 | `/simplify` | Changed files (from parent or git diff) | Simplified code (in-place) | — |
+| `/deepen` | Changed files / spec scope, module call sites | Depth refactors (in-place) or staged candidates; ledger items (phase `deepen`) | — |
 | `/reflect` | Changed files, review summary (in full mode), ledger | Ledger items (phase depends on invoker: `review/hindsight`, `wrap-up`, or `reflect`) | — |
 | `/test` | CLAUDE.md (for commands), `stories/*.yaml` (in qa/all mode) | `TEST_PASSED=true`, QA report (when stories exist), `docs/plans/*-ledger.md` (QA findings and observations) | — |
 | `/test` (qa mode) | `stories/*.yaml`, `stories/auth.yml` (for auth profile resolution) | `screenshots/qa/report.json`, `screenshots/qa/report.md`, `TEST_PASSED=true`, `docs/plans/*-ledger.md` (QA findings and observations) | — |
@@ -52,7 +53,7 @@ src/ + journeys    stories/*.yaml     types + lint + tests + QA     code + visua
 | `/stories` | Existing `stories/*.yaml`, `stories/auth.yml` (for auth profiles), `docs/journeys/*.md` (for journey-aware generation), site via `/browse`, component source files (for source analysis) | `stories/*.yaml` (with `source_files:` and `journey:` fields), `stories/auth.yml` (created on first auth detection) | — |
 | `/review` | Code (via git diff), `specs/NN-*.md`, `docs/journeys/*.md`, `stories/*.yaml` (for journey-story coverage), `TEST_PASSED` from /test, ledger (including QA entries with phase `test/qa`), QA screenshots + page inventories (for UX analysis lens) | Review summary, ledger items. Invokes `/reflect` (hindsight mode), `/simplify`, and `/visual-review`. | — |
 | `/visual-review` | Running app (via browser), `docs/journeys/*.md` (journey mode), QA data (optional enrichment), source files (for reconnaissance) | Visual review report, journey file updates, `screenshots/` | — |
-| `/wrap-up` | `specs/NN-*.md`, review output, plan files, ledger, `.claude/skills/*.md` (relevant skills from ledger entries) | CLAUDE.md updates, skill updates, `DEFERRED.md`. Invokes `/reflect` (full mode). | Spec file, plan files, ledger |
+| `/wrap-up` | `specs/NN-*.md`, review output, plan files, ledger, `.claude/skills/*.md` (relevant skills from ledger entries) | CLAUDE.md updates, skill updates, `DEFERRED.md`, `docs/decisions/*.md` (ADRs, Step 6.3). Invokes `/reflect` (full mode). | Spec file, plan files, ledger |
 | `/tidy` | All artifacts | Cleanup actions | Stale artifacts |
 
 ## Open Items Ledger

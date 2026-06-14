@@ -31,7 +31,7 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 ## Syntax
 
 ```
-/claude-tweaks:flow <spec>[,spec2,spec3] [worktree | current-branch] [no-stories] [no-polish] [auto | interactive | hybrid | confirm] [keep-going] [step1,step2,step3]
+/claude-tweaks:flow <spec>[,spec2,spec3] [worktree | current-branch] [no-stories] [no-polish] [no-deepen] [auto | interactive | hybrid | confirm] [keep-going] [step1,step2,step3]
 ```
 
 All bracketed tokens are optional and order-independent. `worktree` is the default git strategy when neither `worktree` nor `current-branch` is set. `keep-going` applies to multi-spec runs only. Design doc paths are rejected at Step 2.7 — run `/claude-tweaks:specify` first.
@@ -47,6 +47,7 @@ All bracketed tokens are optional and order-independent. `worktree` is the defau
 | `current-branch` | No | Override the default and commit directly on the current branch instead of creating a worktree. |
 | `no-stories` | No | Skip automatic story generation even if UI files changed. By default, flow auto-generates stories when the build produces UI file changes. |
 | `no-polish` | No | Skip the polish phase (and its re-verify gate) entirely. Overrides any explicit `polish` in the step list. Use when iterating fast on backend specs, when polish is not desired (one-off scripts, infrastructure-only changes), or when the user has already manually invoked Impeccable polish. The wrapper would skip polish anyway on non-frontend specs (detection layer 2); `no-polish` is the explicit user-facing escape hatch. |
+| `no-deepen` | No | Skip the end-of-run **Depth Opportunities** survey. By default flow runs `/claude-tweaks:deepen`'s read-only analysis at the Pipeline Summary and surfaces shallow-module candidates as recommendations (it never refactors automatically — see Step 5). `no-deepen` skips the analysis entirely. Can also be defaulted off project-wide with `depth-survey: off` in CLAUDE.md under `## Auto-mode policy`. |
 | `auto` | No | **Flow's default mode** — pipeline runs hands-off. The Config Manifesto (Step 3) renders as a read-only FYI and proceeds without an approval stop. Silences merge-check (Step 2.5), shape-check (Step 2.6), all path-selection prompts mid-pipeline, and explicitly forbids the model from inserting its own reality-checks or context-window concerns. Failures surface via the ledger and the failure card, never via mid-pipeline questions. **Full contract:** see `_shared/auto-mode-contract.md` — that file is the single source of truth for what `auto` silences AND what it does NOT silence (resolve gate, INBOX/DEFERRED writes, hard validation failures all remain mandatory). Passing `auto` explicitly is redundant (it is already the default) but harmless. Passed through to `/build`. |
 | `confirm` | No | Stay in `auto` but **re-enable the Manifesto approval gate** at Step 3 (the `Approve all / Override / Cancel` block). Use when you want to inspect and tweak the policy levers before the pipeline runs hands-off. Everything after the Manifesto still runs as `auto`. |
 | `interactive` | No | Opt out of auto entirely — skills present each decision in-flow as the standalone skills do. The Manifesto is skipped. Highest friction; use when you want a checkpoint at every decision. |
@@ -82,6 +83,7 @@ If no UI files changed, or `no-stories` is set, the stories step is skipped.
 /claude-tweaks:flow 42 current-branch                               → full pipeline on current branch (no isolation)
 /claude-tweaks:flow 42 no-stories                                   → full pipeline in worktree (skip stories even if UI changed)
 /claude-tweaks:flow 42 no-polish                                    → full pipeline without polish phase
+/claude-tweaks:flow 42 no-deepen                                    → full pipeline, skip the end-of-run depth-opportunities survey
 /claude-tweaks:flow 42,45,48                                        → multi-spec sequential, all specs in one shared worktree
 /claude-tweaks:flow 42,45,48 keep-going                             → multi-spec, continue past HARD-GATE failures (independent specs only)
 /claude-tweaks:flow meal planning                                   → resolve to spec by name (rejected if only design doc exists)
@@ -102,7 +104,7 @@ When a gate fails, the pipeline stops immediately and renders a failure card. Tw
 
 ### Step 1: Validate Input
 
-1. Parse `$ARGUMENTS` — extract spec number(s) or topic name, detect `worktree`, `current-branch`, `no-stories`, `no-polish`, the mode keywords (`auto` / `interactive` / `hybrid` / `confirm`), plus optional step list. **Resolve the mode** in this order (first match wins):
+1. Parse `$ARGUMENTS` — extract spec number(s) or topic name, detect `worktree`, `current-branch`, `no-stories`, `no-polish`, `no-deepen`, the mode keywords (`auto` / `interactive` / `hybrid` / `confirm`), plus optional step list. **Resolve the mode** in this order (first match wins):
    1. Explicit mode keyword in `$ARGUMENTS` — `interactive` / `hybrid` / `confirm` / `auto`. (`confirm` means "auto mode, but gate the Manifesto"; see Step 3.)
    2. CLAUDE.md `auto-mode:` setting — `default-off` → `interactive`; `default-on` → `auto`.
    3. **Intrinsic default → `auto`.** Flow's purpose is hands-off automation, so it runs auto unless a param or `auto-mode: default-off` lowers it.
@@ -180,7 +182,9 @@ Follow the polish-phase decision tree in `steps-and-gates.md`. Mechanics specifi
 
 **Creative Opportunities survey (v4.5.0).** Before rendering the summary, run decline detection (compares prior recommendations cache against the new diff to suppress repeatedly-declined items), then invoke `/claude-tweaks:design survey <changed-files>`. Returned recommendations render as a Creative Opportunities block (template below) before Next Actions; empty or `{skipped}` returns omit the block.
 
-For the full survey procedure (wrapper return handling) and decline detection algorithm (cache comparison, decline_count semantics, reset path), read `survey.md` in this skill's directory.
+**Depth Opportunities survey.** Also before rendering the summary, run the depth survey — the responsible way a hands-off `/flow` captures `/claude-tweaks:deepen`'s value. After the pre-check passes (source modules changed, `no-deepen` not set), invoke `/claude-tweaks:deepen <changed-source-files>` with `$PIPELINE_RUN_DIR` set, which runs `/deepen`'s **analysis-only** path (module mapping + deletion test + leverage ranking — read-only). It returns ranked candidates **without applying or staging-to-apply any refactor**. Render the top candidates as a Depth Opportunities block (template below) before Next Actions; no candidates or a skipped pre-check omit the block. **`/flow` never runs the interactive interface-design step or modifies code for a depth candidate** — the block is a recommendation to run `/claude-tweaks:deepen` manually.
+
+For both surveys' full procedures (wrapper/skill return handling, the depth pre-check and responsibility boundary) and the Creative Opportunities decline-detection algorithm, read `survey.md` in this skill's directory.
 
 On successful completion of all steps:
 
@@ -232,12 +236,27 @@ Each is a one-shot manual command; flow does not run these automatically.
 
 > Render this block only when `survey` returned `recommendations` non-empty. When the wrapper reports `suppressed > 0`, append: `> N suggestion(s) hidden — previously declined for this spec. Reset with /claude-tweaks:design reset-recommendations <spec>.` Omit the entire section when the wrapper returned `recommendations: []` or `{skipped}`.
 
+### Depth Opportunities
+
+The depth survey analyzed the changed modules. These are shallow abstractions worth restructuring — `/flow` did **not** refactor them (architecture is low-reversibility; the depth refactor is a deliberate, interactive pass):
+
+| Module | Kind | Why it's shallow | Leverage |
+|--------|------|------------------|----------|
+| `src/services/user.ts` | collapse | Pass-through wrapper — every method forwards one call to the DB | 4 callers simpler |
+| `src/jobs/runner.ts` | deepen | Callers must call `init()`→`configure()`→`run()` in order; the module could own the sequence | smaller surface, 3 callers |
+
+Run `/claude-tweaks:deepen <changed-paths>` to act on these — it presents candidates, then walks the interface design for the ones you pick. Flow never runs this automatically.
+
+> Render this block only when the depth survey returned candidates. Cap at the top 3 by leverage; if more exist append `> N more lower-leverage candidates — run /claude-tweaks:deepen for the full list.` Omit the entire section when the survey found no shallow modules, the pre-check skipped it (no source modules changed), or `no-deepen` was set.
+
 ### Next Actions
 
 1. `/claude-tweaks:flow {next spec}` — full pipeline on spec {N}: "{title}" **(Recommended)**
 2. `/claude-tweaks:help` — full pipeline status
 {If unblocked specs:}
 3. `/claude-tweaks:build {N}` — spec {N} "{title}" now unblocked
+{If the depth survey surfaced candidates:}
+4. `/claude-tweaks:deepen {changed-paths}` — act on the {N} depth opportunit{y/ies} surfaced above
 ```
 
 ---
@@ -299,6 +318,9 @@ Next Actions in `/flow` are outcome-conditional and rendered as part of the Pipe
 | Running re-verify without `skip-qa` | Browser QA is irrelevant after stylistic-only polish — re-verify uses `/test skip-qa` to keep the cycle fast. The Design CLI gate still runs (it is not QA). |
 | Using `no-polish` on a frontend spec by reflex | Polish is the value-add for frontend specs — only set `no-polish` when iterating fast or when the user has manually run Impeccable polish before flow. |
 | Auto-running creative commands surfaced in the Creative Opportunities block | The block is recommendations only. Flow never executes Impeccable creative commands from survey output — the user invokes them manually if a suggestion resonates. |
+| Applying (or staging-to-apply) a depth refactor inside flow | The depth survey is analysis-only. Architecture is low-reversibility and the depth refactor is interactive by design — flow surfaces candidates as recommendations and the user runs `/claude-tweaks:deepen` deliberately. Auto-refactoring module interfaces in a hands-off run is exactly the irresponsible move the survey boundary prevents. |
+| Running the depth survey on a config-only or docs-only diff | The pre-check exists to keep cost proportionate — skip the survey when no source modules changed. Burning tokens reading call sites on a trivial diff is waste. |
+| Rendering the Depth Opportunities block when the survey found nothing | An empty result means the abstractions are earning their keep, not that analysis was skipped — omit the block rather than implying there was nothing to analyze. |
 | Rendering the Creative Opportunities block when survey returned empty or skipped | Survey is heuristic. An empty result means "nothing matched the criteria," not "design is complete." Rendering an empty block falsely implies completeness. Omit the block entirely. |
 | Skipping decline detection on re-runs of the same spec | The declined-recommendations cache is what keeps the Creative Opportunities block from becoming noise across iterations. Read the prior recommendations cache, compare against the new diff, increment declines for un-invoked recommendations before invoking survey. |
 
@@ -312,6 +334,7 @@ Next Actions in `/flow` are outcome-conditional and rendered as part of the Pipe
 | `/claude-tweaks:review` | Analytical gate — receives `TEST_PASSED=true` from test, produces verdict. Runs in **full** mode (code + visual) by default; delegates visual review to `/visual-review` which handles its own browser detection. Code mode fallback when no browser available. Never runs verification or QA itself. |
 | `/claude-tweaks:visual-review` | Invoked transitively by /review in full mode. Handles browser detection, dev URL resolution, and the full visual review procedure. |
 | `/claude-tweaks:wrap-up` | Final step — receives review output, produces clean slate |
+| `/claude-tweaks:deepen` | Invoked BY /flow at the Pipeline Summary (Step 5) in analysis-only mode — runs the read-only depth analysis and surfaces shallow-module candidates as a Depth Opportunities recommendation block. /flow never applies a depth refactor (low-reversibility + interactive); the user runs /deepen manually. Skipped by `no-deepen` or when no source modules changed. |
 | `/claude-tweaks:help` | Shows pipeline status and recommends flow-ready specs |
 | `/claude-tweaks:specify` | Creates the specs that flow consumes |
 | `/claude-tweaks:browse` | Used transitively — /stories and /review visual modes use /browse for browser interaction |

@@ -113,7 +113,7 @@ See [CHANGELOG.md](CHANGELOG.md) for earlier release notes (v4.6, v4.5, v4.2, v4
 | **Subagent** (default) | Fast solo work, no isolation | Isolated feature branch |
 | **Batched** | Hands-on review per chunk | Full control + full isolation |
 
-Uses `/superpowers:subagent-driven-development` and `/superpowers:executing-plans` for autonomous execution. In worktree mode, `/superpowers:using-git-worktrees` manages the isolated branch. Delegates code cleanup to `/claude-tweaks:simplify` and journey capture to `/claude-tweaks:journeys`. Updates docs matched by the documentation registry and tracks deferred items in the open items ledger.
+Uses `/superpowers:subagent-driven-development` and `/superpowers:executing-plans` for autonomous execution. In worktree mode, `/superpowers:using-git-worktrees` manages the isolated branch. Delegates code cleanup to `/claude-tweaks:simplify` and journey capture to `/claude-tweaks:journeys`. When a behavioral bug surfaces during verification, delegates to `/superpowers:systematic-debugging` — reproduce on command first, then fix the confirmed cause (no edit-and-pray). Updates docs matched by the documentation registry and tracks deferred items in the open items ledger.
 
 ```
 /claude-tweaks:build 42                    → subagent + worktree (default)
@@ -135,7 +135,7 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 /claude-tweaks:test all                    → full suite + QA stories
 ```
 
-**`/claude-tweaks:review`** — Analytical "is it good?" gate. Gates on `/claude-tweaks:test` passing. Runs multiple review lenses in parallel — spec compliance, code quality, UX analysis. Delegates hindsight to `/claude-tweaks:reflect`, code cleanup to `/claude-tweaks:simplify`, and visual review to `/claude-tweaks:visual-review`. Detects journey regressions when changed files overlap with existing journey `files:` frontmatter. Uses `/superpowers:dispatching-parallel-agents` to fix 3+ independent issues in parallel. Every finding must be explicitly resolved — fix now, defer, or accept with reason.
+**`/claude-tweaks:review`** — Analytical "is it good?" gate. Gates on `/claude-tweaks:test` passing. Runs multiple review lenses in parallel — spec compliance, code quality, UX analysis. Delegates hindsight to `/claude-tweaks:reflect`, code cleanup to `/claude-tweaks:simplify`, and visual review to `/claude-tweaks:visual-review`. The architecture lens flags shallow modules and surfaces `/claude-tweaks:deepen` for a dedicated depth pass; confirmed bug fixes route through `/superpowers:systematic-debugging` (reproduce first). Detects journey regressions when changed files overlap with existing journey `files:` frontmatter. Uses `/superpowers:dispatching-parallel-agents` to fix 3+ independent issues in parallel. Every finding must be explicitly resolved — fix now, defer, or accept with reason.
 
 | Mode | What it does |
 |------|-------------|
@@ -145,7 +145,7 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 | **journey** | Delegates to `/visual-review` — walk a documented journey |
 | **discover** | Delegates to `/visual-review` — scan and document all user journeys |
 
-**`/claude-tweaks:wrap-up`** — Reflection and cleanup. Delegates structured reflection to `/claude-tweaks:reflect` (full mode) for knowledge capture. Routes learnings to CLAUDE.md and skill files, captures deferred work with triggers for re-activation, resolves every open ledger item. In worktree mode, uses `/superpowers:finishing-a-development-branch` to merge and clean up the feature branch. Deletes the spec, plan files, and ledger — leaving a clean slate.
+**`/claude-tweaks:wrap-up`** — Reflection and cleanup. Delegates structured reflection to `/claude-tweaks:reflect` (full mode) for knowledge capture. Routes learnings to CLAUDE.md and skill files, records significant decisions as ADRs in `docs/decisions/` when they pass a 3-factor gate (hard-to-reverse, surprising, a real trade-off — kept deliberately rare), captures deferred work with triggers for re-activation, resolves every open ledger item. In worktree mode, uses `/superpowers:finishing-a-development-branch` to merge and clean up the feature branch. Deletes the spec, plan files, and ledger — leaving a clean slate.
 
 ### Component skills (standalone or called by lifecycle skills)
 
@@ -153,13 +153,15 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 
 **`/claude-tweaks:simplify`** — Code simplification via the `code-simplifier:code-simplifier` subagent. Catches unnecessary complexity from iterative development, verbose debugging patterns, and cross-file inconsistencies. Used by `/build` (Common Step 3) and `/review` (Step 5). Works standalone against any file scope.
 
+**`/claude-tweaks:deepen`** — Architectural depth pass at the module level (where `/simplify` works at the line level). Finds shallow modules — interfaces nearly as complex as their implementation — using a leverage-based depth model (not a line ratio) and the deletion test ("would removing this concentrate complexity, or just move it?"). Presents deepening/collapse candidates ranked by leverage in a two-stage flow: candidates first, then a focused interface conversation only for the ones you pick — never a runaway rewrite. Classifies dependencies (pure / local stand-in / network-boundary → port + adapter) to keep the deepened module testable. Surfaced as a Next Action by `/review` (lens 3e) and `/reflect` (structural-debt lens); run it standalone every few days to catch architecture entropy. In `auto` mode it stages candidates rather than refactoring.
+
 **`/claude-tweaks:journeys`** — Creates or updates user journey documentation (`docs/journeys/`) for recently built features. Scans existing journeys for overlap, creates new journey files with persona-specific steps and "should feel" qualifiers, and updates existing journeys when builds modify their flows. Used by `/build` (Common Step 6). Works standalone.
 
 **`/claude-tweaks:visual-review`** — Browser-based UI inspection with structured review steps: reconnaissance, first impressions, persona-based interaction, structured analysis, and creative reimagination. Three modes: **page** (single URL), **journey** (walk a documented journey testing "should feel" expectations), **discover** (scan and document all journeys in a brownfield project). Handles its own browser detection with fallback chain. Used by `/review` (Step 6). Works standalone: `/claude-tweaks:visual-review http://localhost:3000`.
 
 ### Utility skills
 
-**`/claude-tweaks:flow`** — Automated pipeline: build → [stories →] test → review → polish → wrap-up in one command. **Runs hands-off by default (`auto` mode)** — the Pipeline Config Manifesto displays as a read-only FYI and the pipeline proceeds without an approval stop; the only user-facing stop is the Wrap-Up Review Console at the end. Pass `confirm` to inspect/override the policy levers at a Manifesto gate first, `interactive` for per-skill prompts. Defaults to worktree git strategy; pass `current-branch` to commit on the current branch instead. Add `no-stories` to skip QA generation, `no-polish` to skip the polish phase entirely. Resume from any step with `/claude-tweaks:flow 42 review`. Run multiple specs sequentially (`/claude-tweaks:flow 42,45,48`) or in parallel across terminals — each terminal gets its own isolated worktree.
+**`/claude-tweaks:flow`** — Automated pipeline: build → [stories →] test → review → polish → wrap-up in one command. **Runs hands-off by default (`auto` mode)** — the Pipeline Config Manifesto displays as a read-only FYI and the pipeline proceeds without an approval stop; the only user-facing stop is the Wrap-Up Review Console at the end. Pass `confirm` to inspect/override the policy levers at a Manifesto gate first, `interactive` for per-skill prompts. Defaults to worktree git strategy; pass `current-branch` to commit on the current branch instead. Add `no-stories` to skip QA generation, `no-polish` to skip the polish phase entirely, `no-deepen` to skip the end-of-run depth survey. At the Pipeline Summary, flow runs `/claude-tweaks:deepen`'s read-only analysis and surfaces shallow-module candidates as a **Depth Opportunities** recommendation block — it never refactors module interfaces in a hands-off run (architecture is low-reversibility; you run `/deepen` deliberately to act). Resume from any step with `/claude-tweaks:flow 42 review`. Run multiple specs sequentially (`/claude-tweaks:flow 42,45,48`) or in parallel across terminals — each terminal gets its own isolated worktree.
 
 **Polish phase:** After review verdict PASS on a frontend spec, `/flow` invokes `/claude-tweaks:design polish <spec>` to dispatch Impeccable's auto-fit commands (`polish` / `clarify` / `harden`), issue-driven commands (`typeset` / `layout` / `adapt` / `optimize` when audit flagged matching findings), and intent-driven commands (`bolder` / `quieter` / `distill` / `delight`+`animate` / `onboard` per the spec's `design-intent:` frontmatter). When polish modifies code, a re-verify gate runs `/test skip-qa` (types + lint + tests, no QA) with a one-cycle cap — a re-verify failure stops the pipeline with a "Polish broke verification" failure card. Backend specs and projects without Impeccable installed skip polish cleanly.
 
@@ -229,7 +231,7 @@ Handles 3-layer detection (kill-switch / spec frontmatter / file-extension sniff
 
 | Plugin / Tool | Source | Required |
 |---------------|--------|----------|
-| [Superpowers](https://github.com/obra/superpowers) | `/plugin install superpowers@claude-plugins-official` | Yes — brainstorming, planning, subagent execution, worktree management |
+| [Superpowers](https://github.com/obra/superpowers) | `/plugin install superpowers@claude-plugins-official` | Yes — brainstorming, planning, subagent execution, worktree management, systematic debugging |
 | agent-browser | `npm install -g agent-browser` | Optional — browser automation for /stories, /visual-review, /review qa |
 | Node 18+ | brew/winget/scoop install nodejs | Yes — statusline. `/claude-tweaks:init` Step 0.8 offers to install via your package manager. |
 | git CLI | brew/winget/apt install git | Optional — required only for the git segment in the statusline; everything else degrades gracefully. |

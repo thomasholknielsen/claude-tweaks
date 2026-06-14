@@ -231,6 +231,7 @@ The output is structured to feed directly into `/superpowers:brainstorming` as a
 
 ### Constraints to Carry Forward
 {Non-negotiable constraints that brainstorming should respect — things that survived the debiasing process}
+{Tag any constraint that encodes a hard-to-reverse, non-obvious, genuinely-traded-off decision with `[ADR-candidate]` — `/claude-tweaks:wrap-up` Step 6.3 runs the 3-factor gate on these and records the survivors as ADRs. Do not write the ADR here; the decision isn't final pre-brainstorm.}
 
 ### Open Questions for Brainstorming
 - {Question 1 — something the lenses surfaced that brainstorming should explore}
@@ -288,6 +289,7 @@ This skill is a **component skill** — invoked by `/claude-tweaks:capture` when
 | `/claude-tweaks:specify` | Downstream — converts brainstorming output into specs |
 | `/claude-tweaks:help` | Flags INBOX items with baked-in assumptions as candidates for /claude-tweaks:challenge |
 | `/claude-tweaks:research` | Back debiasing lenses with evidence — `/research` produces citation-audited reports that can ground a challenge. |
+| `_shared/decision-records.md` | /challenge tags hard-to-reverse framing decisions `[ADR-candidate]` in the brief; /wrap-up Step 6.3 applies the 3-factor gate and records the survivors. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — `/challenge` lenses are on the "not silenced" list. |
 | `_shared/multi-agent-coordination.md` | Canonical primitive for Layered MoA (Mode 4) — N parallel lens proposers + one sequential aggregator. Hard limits live in the primitive. |
 | `_shared/subagent-output-contract.md` | Per-lens proposer agents emit Template A; the aggregator follows the status-line and model-tier conventions (Capable tier). |

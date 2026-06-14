@@ -16,6 +16,8 @@ This is an **action gate** — findings lead to changes, not just observations.
 | 4 | **Convention drift** | Did we accidentally diverge from established project patterns? |
 | 5 | **Skill-worthy patterns** | Did the work establish or extend a reusable pattern that should be documented in a project skill? |
 
+For **structural debt** (evaluation 2): when the debt is module-level — a shallow abstraction, a leaky interface, a pass-through wrapper, or a wrong boundary that a depth refactor would address — recommend `/claude-tweaks:deepen` as the follow-up rather than trying to resolve module restructuring inline. Line-level cleanup still routes to `/claude-tweaks:simplify`; reserve the /deepen recommendation for genuine interface/depth issues.
+
 For skill-worthy patterns: if yes, **be prescriptive** — name the target skill and section for an update, or a proposed name and one-line scope for a new skill. Vague "this might be skill-worthy" notes don't survive `/wrap-up`'s analysis; a named target does. Use the phase from Step 4's routing table (`review/hindsight` when invoked by /review, `wrap-up` when invoked by /wrap-up, `reflect` when standalone). Tag the entry body with `[skill: existing-skill-name]` for findings that target a specific skill, or `[skill: NEW - {suggested-name}]` for patterns that don't fit any existing skill (hyphen, not em-dash, for tooling friendliness). `/wrap-up` Step 7 picks these up by scanning ledger entry bodies for the `[skill: …]` tag — phase doesn't have to be `*/skill` for the entry to be skill-routed.
 
 ## Step 3: Route Findings — Hindsight Mode

@@ -183,6 +183,7 @@ This skill is a **component skill** — invoked by `/claude-tweaks:build` (Commo
 | `/claude-tweaks:build` | Invokes /simplify after implementation (Common Step 3). Passes files changed during build. |
 | `/claude-tweaks:review` | Invokes /simplify after review fixes (Step 5). Passes files changed during review. |
 | `/claude-tweaks:test` | /simplify uses the shared verification procedure from /test's `verification.md`. |
+| `/claude-tweaks:deepen` | Complementary, different altitude — /simplify cleans up *within* files (line-level complexity), /deepen restructures *across* module interfaces (depth/leverage). Run /simplify on the files /deepen restructured for line-level cleanup. |
 | `/claude-tweaks:design` | /design may invoke /simplify after design-quality fixes land. |
 | `/claude-tweaks:help` | /help references /simplify in the workflow diagram and reference card. |
 | `code-simplifier:code-simplifier` | The subagent that does the actual simplification work. /simplify is the skill wrapper that handles scope, verification, and reporting. |

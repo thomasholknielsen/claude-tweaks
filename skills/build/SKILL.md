@@ -224,7 +224,7 @@ After code simplification, run the shared verification procedure (`skills/test/v
 
 **Note:** `/build` always runs verification (it is the *producer* of `VERIFICATION_PASSED`). The skip-if-recent rule in `test/verification.md` applies only to `/test` callers — never to this step.
 
-If anything fails, fix it and commit the fix.
+If anything fails, fix it and commit the fix. **When a failure is a behavioral bug — not a mechanical type/lint error — invoke `/superpowers:systematic-debugging` before changing code:** reproduce the bug on command (a deterministic, runnable pass/fail signal) first, then fix the confirmed cause. Do not guess at fixes and re-run tests hoping they pass. If the bug cannot be reproduced, stop and escalate (state what you tried and what you need) rather than flailing — see `failure-recovery.md`.
 
 ### Common Step 5.5: Operational Checklist
 
@@ -307,6 +307,7 @@ Signal-to-option lookup:
 | Writing journeys with vague "should feel" | "Good" and "intuitive" are not testable. "Low commitment" and "like an accomplishment" are. |
 | Asking the user whether to create a journey | Journey capture is automatic. The user didn't know they needed the spec either — that's why the workflow exists. |
 | Ignoring architectural deviations from the spec | Drift happens during implementation — catch it in Step 4.5 before it becomes tech debt. Every deviation must be explicitly classified. |
+| Guessing at fixes for behavioral bugs without reproducing them | Edit-and-pray debugging turns a 30-minute bug into a 3-hour one — reproduce on command first via `/superpowers:systematic-debugging`, then fix the confirmed cause (Common Step 5). |
 | Using `batched` execution within `/flow` | Flow's purpose is hands-off automation — batched pauses for human review after every 3 tasks, contradicting flow's no-stopping design. Use `subagent` with `/flow`. |
 | Rewriting docs from scratch during build | Build doc updates are incremental — add/change what the build touched. Full rewrites belong in /wrap-up or /init. |
 
@@ -321,7 +322,9 @@ Signal-to-option lookup:
 | `/superpowers:executing-plans` | Invoked BY /claude-tweaks:build (batched execution strategy) to execute the plan with human-reviewed batches |
 | `/superpowers:using-git-worktrees` | Invoked BY /claude-tweaks:build (worktree git strategy) to create an isolated workspace before execution |
 | `/superpowers:finishing-a-development-branch` | Invoked BY /claude-tweaks:build (worktree git strategy) at handoff to merge, PR, or discard the feature branch |
+| `/superpowers:systematic-debugging` | Invoked BY /claude-tweaks:build (Common Step 5) when a behavioral bug surfaces during verification — reproduce-first discipline before fixing, escalate when the bug can't be reproduced |
 | `/claude-tweaks:simplify` | Invoked BY /claude-tweaks:build after implementation (Common Step 3). Handles code simplification and re-verification. |
+| `/claude-tweaks:deepen` | Produces the modules /deepen evaluates. Architectural deviations build catches in Common Step 4.5 can route to /deepen for a dedicated module-depth pass (distinct from /simplify's line-level cleanup). |
 | `/claude-tweaks:journeys` | Invoked BY /claude-tweaks:build after verification (Common Step 6). Creates/updates journey files for built features. |
 | `/claude-tweaks:stories` | Runs AFTER /claude-tweaks:build — auto-triggered by `/flow` when UI files change, or run manually. /build creates journey files via /journeys (`docs/journeys/*.md`) that /stories ingests for journey-aware story generation — stories reference their source journey via the `journey:` field. Stories are validated by `/test qa`. |
 | `/claude-tweaks:test` | Runs AFTER /claude-tweaks:build (in pipeline: receives `VERIFICATION_PASSED=true`, skips types/lint/tests, runs QA if stories exist). Standalone: runs the same checks as /build Common Step 5. |

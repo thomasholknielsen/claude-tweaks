@@ -2,7 +2,7 @@
 
 ## What this is
 
-A Claude Code plugin (v4.14.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation, QA pipeline support, a statusline, and a subagent contract for parallel dispatch.
+A Claude Code plugin (v4.17.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation, QA pipeline support, a statusline, and a subagent contract for parallel dispatch.
 
 ## Stack
 
@@ -10,7 +10,7 @@ A Claude Code plugin (v4.14.0) containing markdown skill files that guide Claude
 |-------|-----------|
 | Runtime | Claude Code plugin system + Node 18+ (for the statusline) |
 | Content | Markdown (SKILL.md files with YAML frontmatter); Node modules under `bin/` |
-| Dependencies | Superpowers plugin (`/superpowers:brainstorming`, `/superpowers:writing-plans`, `/superpowers:subagent-driven-development`, `/superpowers:executing-plans`, `/superpowers:using-git-worktrees`, `/superpowers:finishing-a-development-branch`, `/superpowers:dispatching-parallel-agents`), code-simplifier (built-in subagent), agent-browser (optional), git CLI (optional — required only for the statusline git segment) |
+| Dependencies | Superpowers plugin (`/superpowers:brainstorming`, `/superpowers:writing-plans`, `/superpowers:subagent-driven-development`, `/superpowers:executing-plans`, `/superpowers:using-git-worktrees`, `/superpowers:finishing-a-development-branch`, `/superpowers:dispatching-parallel-agents`, `/superpowers:systematic-debugging`), code-simplifier (built-in subagent), agent-browser (optional), git CLI (optional — required only for the statusline git segment) |
 | Test runner | `node --test tests/` (built-in, no external deps) |
 | Distribution | Plugin marketplace via `thomasholknielsen/claude-tweaks-marketplace` |
 
@@ -20,7 +20,7 @@ A Claude Code plugin (v4.14.0) containing markdown skill files that guide Claude
 .claude-plugin/plugin.json        → Plugin manifest (name, version, description)
 skills/{name}/SKILL.md            → Skill definition (frontmatter + body)
 skills/{name}/*.md                → Sub-files lazy-loaded by the skill
-skills/_shared/*.md               → Cross-skill shared content (subagent contract, auto-mode contract, auto-decision log, browser detection, pipeline run dir, dev URL detection, git discipline, design-wrapper handling, multi-agent coordination)
+skills/_shared/*.md               → Cross-skill shared content (subagent contract, auto-mode contract, auto-decision log, browser detection, pipeline run dir, dev URL detection, git discipline, design-wrapper handling, multi-agent coordination, decision records / ADR gate)
 agents/{name}.md                  → Agent definitions (frontmatter + body)
 hooks/hooks.json                  → Hook definitions (SessionStart)
 bin/                              → Node executables (statusline, deps check)
@@ -30,10 +30,10 @@ README.md                         → User-facing documentation
 LICENSE                           → MIT
 ```
 
-### Skill directories (21 total)
+### Skill directories (22 total)
 
 **Lifecycle:** init, capture, challenge, specify, build, test, stories, review, wrap-up
-**Component:** reflect, simplify, journeys, visual-review, design
+**Component:** reflect, simplify, deepen, journeys, visual-review, design
 **Utility:** help, tidy, flow, browse, ledger, version, research
 
 ### Skills with sub-files
@@ -42,18 +42,19 @@ LICENSE                           → MIT
 |-------|-----------|---------|
 | init | detection-tables.md, profile-templates.md, claude-md-template.md, skill-template.md, skill-categories.md, summary-templates.md, docs-structure.md, bootstrap-steps.md, phase-3-classification.md, phase-4-scoring.md, update-mode.md | Lazy-loaded reference content per phase; doc registry format, tier detection, folder taxonomy; Phase 0 bootstrap procedures; Phase 3 auto/confirmation gate template; Phase 4 scoring procedure + manifest template; Update-Mode procedures (Phase 1u inventory, contract-drift, early-exit gate) loaded only when existing config is detected |
 | browse | agent-browser-reference.md | Operation vocabulary and advanced commands (batch, find, snapshot, vitals, trace, auth, react) used by consumer skills |
-| build | plan-audit.md, worktree-setup.md, operational-checklist.md, design-prebuild.md, architecture-alignment.md, failure-recovery.md | Plan audit; worktree setup; Common Step 5.5 operational tables + ledger format; Common Step 1.7 (design pre-build invocation + result handling); Common Step 4.5 (architecture alignment diff + batch table); Superpowers execution failure recovery table |
+| build | plan-audit.md, worktree-setup.md, operational-checklist.md, design-prebuild.md, architecture-alignment.md, failure-recovery.md | Plan audit; worktree setup; Common Step 5.5 operational tables + ledger format; Common Step 1.7 (design pre-build invocation + result handling); Common Step 4.5 (architecture alignment diff + batch table); Superpowers execution failure recovery table + behavioral-bug reproduce-first escalation (delegates to /superpowers:systematic-debugging) |
 | test | verification.md, qa-procedures.md, qa-prompts.md, qa-reporting.md | Shared verification procedure (used by /build, /review, /test); QA Phases 1-2.5 (pre-flight + discovery); Phase 3 parallel dispatch + agent prompt templates (loaded only when stories exist); Phases 4-5.5 (selector recoveries, reporting, ledger writes, report.json schema) |
 | stories | source-analysis.md, story-examples.md, migration.md, source-aware-design.md, coverage-report.md, journey-ingest.md, auth-resolution.md, refine.md | Source extraction patterns for behavioral contracts; YAML story examples + locator-type reference; v1→v2 and legacy auth.yml migration; source-aware story design (Step 1.5 + Step 3 source/diff-aware bodies); Step 6 coverage report template loaded only when journeys exist; Step 1.1 journey ingest loaded only when docs/journeys/*.md exists; Step 2 auth resolution loaded only when an auth-gated page is found; Step 5 refine procedure loaded only when REFINE=true |
 | review | review-summary-template.md, ux-analysis.md, step3-routing.md | Structured summary template; UX analysis procedure; Step 3 routing (severity-based auto routing, interactive batch table, parallel-fix dispatch) — lazy-loaded only when findings exist |
 | reflect | hindsight-mode.md, full-mode.md | Mode-specific procedures: hindsight (5-eval action gate, /review caller) vs full (4 lenses + tradeoff review + auto-apply-when-uniform optimization, /wrap-up caller). SKILL.md owns shared dispatch table + Step 1 + Step 4 + ledger integration |
+| deepen | depth-analysis.md | Depth model (leverage, not line ratio), the deletion test, leverage ranking, dependency classification (pure / local stand-in / network-boundary→port+adapter), and the controlled vocabulary — loaded by Steps 2-4 of the architectural depth pass |
 | journeys | journey-template.md | Journey file template + key principles (loaded only when creating a new journey file) |
 | visual-review | browser-review.md, reconnaissance.md, journey-mode.md, discover-mode.md, qa-accelerated.md | Shared visual-review prerequisites + Page Mode steps; contextual page reconnaissance; mode-specific procedures; QA-accelerated paths for Steps 1, 3, 4 (loaded only when QA_DATA_AVAILABLE) |
 | specify | spec-template.md, design-pre-steps.md | Spec file template with field rationale; Step 2.5 frontend-detection + shape pre-step + design-intent question (lazy-loaded only for frontend specs) |
 | wrap-up | leftover-routing.md, review-console.md, cleanup-procedures.md, skill-curation.md | Leftover routing rules for unfinished work; Review Console consolidation template; Step 5 cleanup procedures (design wrapper caches, pipeline run dir archival, worktree teardown); Step 7 skill curation (seed gather, independent domain-scoped scan + gap detection, 6-dimension analysis, ≥2-of-3 new-skill gate, stage/present) — generates candidates from the work itself, not only ledger-tagged seeds |
 | tidy | scan-procedures.md | Per-step scan rules for Steps 1-5.5 (INBOX, deferred, specs, design-docs+briefs, plans, git worktrees, doc registry, sizing, cross-spec patterns) — inlined into each parallel agent's prompt at dispatch time |
 | ledger | resolve-gate.md | Three-phase nothing-left-behind resolve gate (fix-exhaust → per-item user input → apply) referenced by /wrap-up Step 8.5 and /flow Step 5 |
-| flow | manifesto.md, multi-spec.md, multispec-review-console.md, steps-and-gates.md, survey.md, validation.md, worktree-merge.md, failure-cards.md | Pipeline Config Manifesto; multi-spec batching; consolidated multi-spec Review Console; Allowed Steps + Step Arguments + Gate Behavior + polish-phase decision tree (single canonical home); Creative Opportunities survey ownership; pre-flight validation; worktree-merge handoff; on-failure card templates (generic + polish-broke-verification) loaded only when a gate fails |
+| flow | manifesto.md, multi-spec.md, multispec-review-console.md, steps-and-gates.md, survey.md, validation.md, worktree-merge.md, failure-cards.md | Pipeline Config Manifesto; multi-spec batching; consolidated multi-spec Review Console; Allowed Steps + Step Arguments + Gate Behavior + polish-phase decision tree (single canonical home); Creative Opportunities + Depth Opportunities survey ownership (end-of-run analysis-only surveys; Depth surfaces `/deepen` candidates without auto-refactoring); pre-flight validation; worktree-merge handoff; on-failure card templates (generic + polish-broke-verification) loaded only when a gate fails |
 | design | command-map.md, frontend-detection.md, impeccable-cli.md, modes/{test,review,shape,pre-build,polish,survey,reset-recommendations}.md | Canonical dispatch tables (auto-fit / issue-driven / intent-driven / survey "would help" criteria); frontend-vs-backend detection rules; Impeccable CLI invocation patterns; per-mode full procedures (steps, decision rules, output format) lazy-loaded by the active mode |
 | help | reference-card.md, context-flow.md, status-scan.md | Quick reference card (single source of truth for the command catalog); artifact flow documentation; pipeline status scan parallel-dispatch procedure (Stages 1-7) |
 | research | methodology.md | Delegates to Claude Code's built-in `/deep-research` Dynamic Workflow when available; otherwise runs the lean inline model-driven method in `methodology.md` (decompose → parallel search → adversarial verify → synthesize). Citation-audited markdown reports under `.claude-tweaks/research/`. |
@@ -82,7 +83,7 @@ Every skill follows this structure:
 - **Actions Performed table** — When a skill performs autonomous actions beyond what the user explicitly requested, include a `### Actions Performed` table before Next Actions. Columns: `| Action | Detail | Ref |`. Action types: `Implemented`, `Bug fix`, `Simplified`, `Operational`, `Journey`, `Ledger fix`. Ref column shows short commit hash. Resolved ledger items show source phase in parentheses. Generated from git log, git diff, and ledger entries. Omit when no autonomous actions were performed.
 - **Hard gates** — BLOCKED/STOP conditions that prevent proceeding with degraded state
 - **Adaptive section batching** — when a skill presents multi-section material that requires sequential approval (e.g., design walkthroughs, multi-part summaries), if the user accepts 2 consecutive sections without modification, batch all remaining sections into a single approval gate. The default `Brainstorm / section-confirmation: adaptive` setting makes this the standard behavior; override with `per-section` (always ask) or `batch` (always present once).
-- **Component-skill contract** — Skills that are routinely invoked by other skills (e.g., `/simplify`, `/reflect`, `/journeys`, `/visual-review`, `/design`, `/capture`, `/challenge`, `/stories`) MUST detect whether they were invoked by a parent skill or directly by a user. When invoked by a parent, omit the `## Next Actions` block — the parent owns the handoff and Next Actions belong to the parent's flow. When invoked directly, render Next Actions as usual. Document this contract explicitly with a labeled `## Component-Skill Contract` paragraph placed **immediately before `## Anti-Patterns`** (after any post-workflow documentation sections such as Output contract or Reference sub-files). The paragraph must name the parent skills and use a **programmatic detection signal** — preferred is `$PIPELINE_RUN_DIR` (set by `/flow` and all pipeline orchestrators), with an explicit `--source <parent-skill>` flag as fallback for direct invocation where ambiguity exists. Vague signals like "pipeline context arguments" or "whether the caller consumes the return value" are insufficient — the model cannot reliably detect those at invocation time.
+- **Component-skill contract** — Skills that are routinely invoked by other skills (e.g., `/simplify`, `/reflect`, `/deepen`, `/journeys`, `/visual-review`, `/design`, `/capture`, `/challenge`, `/stories`) MUST detect whether they were invoked by a parent skill or directly by a user. When invoked by a parent, omit the `## Next Actions` block — the parent owns the handoff and Next Actions belong to the parent's flow. When invoked directly, render Next Actions as usual. Document this contract explicitly with a labeled `## Component-Skill Contract` paragraph placed **immediately before `## Anti-Patterns`** (after any post-workflow documentation sections such as Output contract or Reference sub-files). The paragraph must name the parent skills and use a **programmatic detection signal** — preferred is `$PIPELINE_RUN_DIR` (set by `/flow` and all pipeline orchestrators), with an explicit `--source <parent-skill>` flag as fallback for direct invocation where ambiguity exists. Vague signals like "pipeline context arguments" or "whether the caller consumes the return value" are insufficient — the model cannot reliably detect those at invocation time.
 
   **Canonical CSC template** (copy-paste, customize the parent list):
 

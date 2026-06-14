@@ -134,6 +134,7 @@ For a detailed explanation of how context flows between skills via artifacts, re
 | `/claude-tweaks:ledger` | Utility skill — /claude-tweaks:help lists it in the utility skills table and scans for active ledgers with open items |
 | `/claude-tweaks:reflect` | Component skill — /claude-tweaks:help lists it in the component skills table |
 | `/claude-tweaks:simplify` | Component skill — /claude-tweaks:help lists it in the component skills table |
+| `/claude-tweaks:deepen` | Component skill — /claude-tweaks:help lists it in the component skills table |
 | `/claude-tweaks:journeys` | Component skill — /claude-tweaks:help lists it in the component skills table |
 | `/claude-tweaks:visual-review` | Component skill — /claude-tweaks:help lists it in the component skills table |
 | `/claude-tweaks:init` | /init configures the workflow system that /help reports on — /help reads the same artifact paths /init bootstraps (INBOX, DEFERRED, specs, plans, docs registry) |

@@ -90,9 +90,9 @@ See `cleanup-procedures.md` in this skill's directory for the canonical cleanup 
 
 ## Step 6: Assess Configuration Updates
 
-> **Batch collection.** Step 6 collects potential documentation and CLAUDE.md/rules updates in a single pass across two sub-scans (Documentation, CLAUDE.md and Rules). No decisions are made here — everything is presented together in Step 9 for batch approval. Skill updates are handled separately in Step 7.
+> **Batch collection.** Step 6 collects potential documentation, CLAUDE.md/rules, and decision-record updates in a single pass across three sub-scans (Documentation, CLAUDE.md and Rules, Decision Records). No decisions are made here — everything is presented together in Step 9 for batch approval. Skill updates are handled separately in Step 7.
 
-> **Parallel execution:** Run both sub-scans (documentation, CLAUDE.md/rules) as parallel tool calls — each checks independent sources and collects findings in the `[type] target — change` format.
+> **Parallel execution:** Run all three sub-scans (documentation, CLAUDE.md/rules, decision records) as parallel tool calls — each checks independent sources and collects findings in the `[type] target — change` format.
 
 ### 6.1: Documentation
 
@@ -129,6 +129,22 @@ Check if the work introduced project-wide conventions:
 Before adding to CLAUDE.md, check the size budget — keep it concise. Move detailed content to skills or rules. Route improvement ideas to INBOX, not CLAUDE.md.
 
 → Collect each needed update as: `[claude.md] {section} — {what to add/change}` or `[rule] {path scope} — {convention}`
+
+### 6.3: Decision Records (ADRs)
+
+Capture the *why* behind significant decisions made during this work — distinct from `decisions.md` (the per-run auto-decision audit log) and the spec (which records *what*). Apply the **3-factor gate** from `_shared/decision-records.md` (read it for the gate, the location convention, and the template).
+
+1. **Gather decision candidates** from this work's surfaces:
+   - `[ADR-candidate]`-tagged constraints in the brainstorming brief (flagged by `/claude-tweaks:challenge`)
+   - Architectural deviations classified in `/build` Common Step 4.5
+   - Interface trade-offs flagged `[ADR-candidate]` by `/claude-tweaks:deepen`
+   - Tradeoffs accepted during `/review` and reflection insights about approach
+2. **Run the 3-factor gate** on each candidate — write an ADR only when ALL THREE hold: **hard to reverse** AND **surprising without context** AND **the result of a real trade-off**. If any factor is missing, do not propose an ADR (the decision belongs in the spec, a code comment, or nowhere).
+3. For each decision that passes, propose creating `docs/decisions/NNNN-{slug}.md` using the template in `_shared/decision-records.md` (find the highest existing `NNNN` and increment).
+
+→ Collect each as: `[adr] docs/decisions/NNNN-{slug}.md — {decision title}`
+
+ADR proposals are routed through the Step 9 batch table / Review Console alongside other configuration updates — never written silently. Most wrap-ups produce **zero** ADRs; that is correct. ADRs are valuable because they are rare.
 
 ---
 
@@ -221,7 +237,7 @@ See `cleanup-procedures.md` for the canonical cleanup list. Render only rows who
 ### Configuration Updates (from Step 6)
 | # | Type | Target | Change |
 |---|------|--------|--------|
-| 1 | {doc/claude.md/rule} | {target} | {what to add/change} |
+| 1 | {doc/claude.md/rule/adr} | {target} | {what to add/change} |
 | 2 | ... | ... | ... |
 (or: No configuration updates needed.)
 
@@ -265,7 +281,7 @@ Render the cleanup rows from `cleanup-procedures.md`'s canonical list (filtered 
 |---|------|--------|---------|
 | 1 | cleanup | {row from cleanup-procedures.md canonical list} | {details} |
 | ... | cleanup | ... | ... |
-| N | config | {doc/claude.md/rule} | {what to add/change} |
+| N | config | {doc/claude.md/rule/adr} | {what to add/change} |
 
 1. Apply all **(Recommended)**
 2. Override specific items (tell me which #s to change)
@@ -292,6 +308,7 @@ Execute the cleanup planned in Step 5 (canonical list in `cleanup-procedures.md`
 After the cleanup, also apply:
 
 - **Documentation, CLAUDE.md, rules** — apply the registry / doc / rule edits collected in Step 6 and approved at the Console or batch
+- **Decision records (ADRs)** — write the approved `docs/decisions/NNNN-{slug}.md` files (Step 6.3) using the template in `_shared/decision-records.md`, and add them to `docs/REGISTRY.md` if a registry exists
 - **Skill updates** — apply patches and create new skills (Step 7 staged or approved items)
 
 Commit with a message summarizing the wrap-up actions.
@@ -353,6 +370,7 @@ When `$PIPELINE_RUN_DIR` is unset, `/wrap-up` runs standalone — render Next Ac
 | Skipping skill curation because nothing was ledger-tagged | Step 7 generates candidates from the work itself — the independent scan and gap detection run even with zero seeds. Declaring "no skill updates needed" just because no entry was tagged is the failure this step exists to fix |
 | Proposing generic skill updates with no concrete anchor | Every skill update must trace to a ledger entry, a reflection insight, or a specific changed-file observation from the independent scan — updates with no anchor are indistinguishable from hallucinated ones |
 | Mixing skill updates into the doc/CLAUDE.md batch table | Skill updates require full file reads and Update Mode patches — they get their own decision table in Step 7 |
+| Writing an ADR for every decision | ADRs are valuable because they are rare — Step 6.3's 3-factor gate (hard-to-reverse AND surprising AND a real trade-off) keeps them so. Most wrap-ups produce zero ADRs, and that is correct |
 
 ## Relationship to Other Skills
 
@@ -372,4 +390,6 @@ When `$PIPELINE_RUN_DIR` is unset, `/wrap-up` runs standalone — render Next Ac
 | `/claude-tweaks:ledger` | Manages the open items ledger. /wrap-up appends reflection insights (Step 3), runs the resolve gate (Step 8.5), plans deletion in Step 5, and executes deletion in Step 10. |
 | `/claude-tweaks:design` | /wrap-up plans cleanup of the design wrapper's per-spec caches (`*-audit.json`, `*-recommendations.json`, `*-declined.json` in `docs/plans/`) in Step 5 and executes the deletion in Step 10 alongside the ledger. |
 | `/claude-tweaks:flow` | Invoked BY /flow as the pipeline's final step; flow waits for /wrap-up's Review Console (Step 8.6) before archiving the run directory. Multi-spec runs set `MULTISPEC_REVIEW_DEFER=1` so per-spec wrap-ups defer to flow's consolidated console. |
+| `/claude-tweaks:deepen` | Interface trade-offs /deepen flags `[ADR-candidate]` are picked up by Step 6.3 and run through the 3-factor gate for possible ADR creation |
+| `_shared/decision-records.md` | Canonical 3-factor ADR gate, location convention, and template applied by Step 6.3 |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |

@@ -112,7 +112,7 @@ docs/
     deployment.md
     monitoring.md
     migration-guide.md
-  decisions/               ← ADRs (0001-chose-postgres.md)
+  decisions/               ← ADRs (0001-chose-postgres.md) — written by /wrap-up Step 6.3 per the 3-factor gate in `_shared/decision-records.md`
   journeys/                ← already exists
   plans/                   ← already exists
 ```

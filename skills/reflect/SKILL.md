@@ -176,6 +176,7 @@ This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step
 | `/claude-tweaks:review` | Invokes /reflect in **hindsight** mode (Step 4). Passes analyzed changes and review context. Receives hindsight findings for the review summary. |
 | `/claude-tweaks:wrap-up` | Invokes /reflect in **full** mode (Step 3). Passes review summary, key learnings, and tradeoffs. Receives routed insights for knowledge capture. |
 | `/claude-tweaks:build` | Produces the code that /reflect evaluates |
+| `/claude-tweaks:deepen` | The structural-debt lens (premature abstractions, wrong boundaries) seeds /deepen candidates — when /reflect surfaces module-level structural debt, it recommends `/claude-tweaks:deepen` for a dedicated depth pass rather than resolving it inline |
 | `/claude-tweaks:test` | /reflect may trigger re-verification after "Change now" fixes |
 | `/claude-tweaks:ledger` | /reflect writes findings to the ledger using the phase provided by the parent (or `reflect` when standalone) |
 | `/claude-tweaks:capture` | /reflect may create INBOX items for complex insights needing brainstorming |

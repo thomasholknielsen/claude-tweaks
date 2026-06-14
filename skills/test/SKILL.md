@@ -217,20 +217,22 @@ When a pipeline run directory exists, apply the `/test` row from the silences ta
 ```
 
 If the user chooses to fix:
-- Make the changes
-- Re-run the failed checks to verify
-- Report the results
+- **Mechanical failures (lint/type):** make the changes directly, re-run the failed checks, report results.
+- **Behavioral test failures:** do not edit-and-pray. Invoke `/superpowers:systematic-debugging` — reproduce the failure on command, identify the confirmed cause, then fix it. A failing test is a reproduction you already have; use it. Re-run the failed checks to verify the fix and that nothing else regressed. If the root cause can't be pinned down, surface what you found rather than guessing at a patch.
+- Report the results.
 
-**Auto-fix for lint/type-only failures (interactive default):** When failures are exclusively lint errors or type errors (no test failures), auto-fix and re-verify without asking. State: "Auto-fixing {N} lint/type errors" and re-run the failed checks. If re-verification passes, proceed. If re-verification fails or new issues appear, stop and present the 3-option choice above. For test failures or mixed failure types (lint + test), always present the choice.
+**Auto-fix for lint/type-only failures (interactive default):** When failures are exclusively lint errors or type errors (no test failures), auto-fix and re-verify without asking. State: "Auto-fixing {N} lint/type errors" and re-run the failed checks. If re-verification passes, proceed. If re-verification fails or new issues appear, stop and present the 3-option choice above. For test failures or mixed failure types (lint + test), always present the choice — and resolve test failures via reproduce-first debugging, not blind patching.
 
 **QA failures** are not auto-fixable — they indicate broken user-facing behavior that requires investigation. For QA failures:
 
 ```
 {N} QA story failure(s) found. QA failures require investigation — they cannot be auto-fixed.
-1. Show failure details — I'll investigate the root cause **(Recommended)**
+1. Show failure details — I'll investigate the root cause via reproduce-first debugging (`/superpowers:systematic-debugging`) **(Recommended)**
 2. Re-run failed stories — `/claude-tweaks:test qa retry={RUN_DIR}`
 3. Skip — I'll investigate manually
 ```
+
+When investigating a QA failure (option 1), use `/superpowers:systematic-debugging` — a QA story failure is already a reproduction; confirm it reproduces, find the cause, then fix. Do not patch the symptom (e.g., loosening a selector) without confirming the underlying behavior is correct.
 
 ## Next Actions
 
@@ -258,6 +260,7 @@ Pick the row matching the mode just completed:
 | Ignoring lint warnings | Warnings accumulate into a noisy codebase — surface them |
 | Running QA on broken code | Verification must pass before QA is meaningful — types/lint/tests gate QA in `all` mode |
 | Auto-fixing QA failures | QA failures indicate broken user-facing behavior — they need investigation, not automated patches |
+| Patching a behavioral test/QA failure without reproducing the cause | A failing test is a reproduction you already have — confirm it reproduces, find the root cause via `/superpowers:systematic-debugging`, then fix. Loosening assertions or selectors to make red go green hides the bug. |
 | Skipping QA when stories exist in pipeline | Stories exist to be validated — if `VERIFICATION_PASSED` is set and stories exist, QA must run |
 | Treating Design CLI skip as a test failure | The wrapper skips for legitimate reasons (backend project, Impeccable not installed, kill-switch disabled). None are test failures — only `result: fail` from the wrapper is a gate failure. |
 | Auto-fixing Design CLI findings | Design findings require human judgment — surface them, do not auto-modify code. The Phase 1 wrapper's `test` mode is read-only by design (the Phase 2 `polish` mode is the code-modifying counterpart, invoked separately by `/flow`). |
@@ -279,5 +282,7 @@ Pick the row matching the mode just completed:
 | `/claude-tweaks:journeys` | /journeys feeds journey files into /stories which /test qa consumes; `journey={name}` filter lets /test run only the QA stories tied to a single journey. |
 | `/claude-tweaks:reflect` | /reflect may surface implementation findings that reference /test verification gaps; /test does not invoke /reflect, but reflection insights can call for new test coverage. |
 | `/claude-tweaks:simplify` | /simplify runs before /test in /build's Common Step 3; /test verifies that simplification did not break behavior. |
+| `/claude-tweaks:deepen` | /deepen uses the shared verification procedure from /test's `verification.md` to confirm a depth refactor preserved behavior. |
 | `/claude-tweaks:visual-review` | /visual-review consumes QA data produced by /test qa (when stories exist); both contribute to the /review verdict surface. |
+| `/superpowers:systematic-debugging` | Invoked BY /test Step 3 Fix Mode when a behavioral test or QA failure needs root-causing — reproduce-first before fixing, never patch a symptom to make red go green |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. Step 3 Fix Mode follows the contract's auto-fix-threshold + reversibility-floor pattern. |

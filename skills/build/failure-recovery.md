@@ -12,6 +12,14 @@ Referenced from Common Step 2 of `/claude-tweaks:build`. Loaded only when an exe
 | **Subagent failures** (individual tasks fail within `subagent-driven-development`) | Let the skill's built-in retry handle it first. If the task fails repeatedly, implement that task directly in the main thread and continue. |
 | **Batch rejection** (user rejects a batch in `executing-plans`) | Review the feedback, adjust the failing tasks, and re-run the rejected batch. If the user rejects the same batch twice, implement those tasks directly in the main thread. |
 
+## Behavioral bugs (distinct from execution-skill failures)
+
+The table above covers *execution-skill* failures (the Superpowers chain itself breaking). A **behavioral bug** — code that runs but produces the wrong result, a failing test that reflects a real defect — is different. Do not edit-and-pray:
+
+1. **Reproduce first.** Invoke `/superpowers:systematic-debugging`. Build a deterministic, runnable pass/fail signal for the bug (a failing test, a one-line repro) *before* touching production code. Spend disproportionate effort here — with a reliable repro the cause follows; without one, staring at code rarely does.
+2. **Fix the confirmed cause**, then re-run the repro to confirm it's gone, and the suite to confirm no regression.
+3. **If you cannot reproduce it, stop and escalate.** State what you tried and ask for what would unblock you (environment access, a captured artifact, permission for temporary instrumentation). Escalation is the correct move, not a failure — do not proceed to guess at a fix without a reproduction loop.
+
 ## Project-Specific Context
 
 The implementer subagents will pick up project conventions from CLAUDE.md, `.claude/rules/`, and loaded skills. Ensure your CLAUDE.md documents:

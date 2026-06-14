@@ -85,7 +85,7 @@ Each item is tagged with a phase indicating where it was discovered.
 
 ```
 Phase     ::= Skill | Skill "/" Qualifier
-Skill     ::= "build" | "test" | "review" | "reflect" | "wrap-up" | "ops" | "flow" | "design"
+Skill     ::= "build" | "test" | "review" | "reflect" | "deepen" | "wrap-up" | "ops" | "flow" | "design"
 Qualifier ::= "ops" | "skill" | "hindsight" | "qa"
 ```
 
@@ -104,6 +104,7 @@ The qualifier adds specificity when a skill produces multiple finding types, but
 | `review/hindsight` | `/claude-tweaks:reflect` (hindsight mode, via /review) | Implementation hindsight findings |
 | `wrap-up` | `/claude-tweaks:reflect` (full mode, via /wrap-up) | Reflection insights |
 | `reflect` | `/claude-tweaks:reflect` (standalone) | Standalone reflection findings |
+| `deepen` | `/claude-tweaks:deepen` | Staged depth candidates and declined candidates from the architectural depth pass |
 
 > **Phase taxonomy:** Use the item description and category column to distinguish finding types within a phase. Sub-phases (`build/ops`, `build/skill`, `review/skill`, `review/hindsight`, `test/qa`) carry semantic meaning that downstream skills filter on — keep them distinct. Lens-specific review sub-phases (e.g., `review/convention`, `review/ux`, `review/coverage`) collapse into `review`; the lens is recorded in the entry body, not the phase.
 
@@ -242,6 +243,7 @@ When `$PIPELINE_RUN_DIR` is set, `/ledger` is running inside a pipeline (typical
 | `/claude-tweaks:test` | Appends QA findings and observations during test execution. Uses phases: `test`, `test/qa`. |
 | `/claude-tweaks:review` | Appends code review findings (Step 3 Routing) and reads/routes existing entries. Uses phases: `review`, `review/skill`. Hindsight findings (Step 4) are written by /reflect. |
 | `/claude-tweaks:reflect` | Appends hindsight findings (via /review, phase `review/hindsight`), reflection insights (via /wrap-up, phase `wrap-up`), or standalone findings (phase `reflect`). |
+| `/claude-tweaks:deepen` | Appends staged and declined depth candidates when invoked in a pipeline. Uses phase: `deepen`. |
 | `/claude-tweaks:wrap-up` | Runs the resolve gate (Step 8.5) and deletes the ledger (Step 5). Reflection insights are written by /reflect (Step 3). |
 | `/claude-tweaks:flow` | Creates the ledger at pipeline start (Step 1), carries it forward across all phases, and runs the resolve gate before the final summary (Step 5). |
 | `/claude-tweaks:help` | Scans for active ledgers with open items and surfaces them in the status dashboard. |

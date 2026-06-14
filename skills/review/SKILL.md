@@ -197,14 +197,17 @@ Review changed files through these lenses. Skip lenses that don't apply to the t
 - Dependencies flow in the right direction?
 - No circular dependencies introduced?
 - Changes consistent with existing architecture?
+- **Shallow modules?** Does any new module have an interface nearly as complex as its implementation (a pass-through wrapper, a module whose interface mirrors its single dependency)? Flag at most the 1-2 most leverage-worthy at medium severity — and when shallow abstractions or wrong boundaries are the theme, recommend `/claude-tweaks:deepen` for a dedicated depth pass rather than trying to resolve module-level restructuring inline here.
 
 ### 3f: Test Quality
 
-- Tests verify behavior, not implementation details?
+- Tests verify behavior through the public interface, not implementation details? (No asserting on private methods, spying on internal collaborators, or checking intermediate data shapes that exist only because of the current implementation.)
+- **Refactor-coupling diagnostic:** would this test break if you renamed an internal function or restructured the implementation *without changing behavior*? If yes, it's testing implementation, not behavior — flag it. The point of a test is to survive refactors and fail only when behavior breaks.
+- **Test names read as specifications?** A good name states a capability ("user can checkout with a valid cart"), not an implementation path ("returns 200 when cart items quantity > 0 and user authed"). Flag names that describe internals.
 - Edge cases and error paths tested?
 - Test data is realistic and follows schemas?
 - No test pollution (shared mutable state)?
-- Mocks are minimal and at the right level?
+- Mocks are minimal and at the right level? (Mocking internal collaborators is a smell — prefer real objects or interface-level stand-ins.)
 
 ### 3g-cov: Journey-Story Coverage (when journeys and stories exist)
 
@@ -413,6 +416,7 @@ If no notable learnings emerged, state: "No key learnings — straightforward re
 - Code simplification runs on changed files only — never expand scope to unrelated code
 - Skip review lenses that don't apply to the type of change
 - This skill reviews the *current work* — it is not a codebase-wide audit
+- When a confirmed bug finding needs a fix that isn't a one-line mechanical correction, root-cause it via `/superpowers:systematic-debugging` (reproduce first, then fix) before applying the change — don't guess at fixes during routing
 
 ## Next Actions
 
@@ -456,6 +460,8 @@ See `review-summary-template.md` in this skill's directory for the full Next Act
 | `/superpowers:dispatching-parallel-agents` | Used BY /claude-tweaks:review (conditional) to dispatch 3+ independent fix-now findings as parallel agents |
 | `/claude-tweaks:reflect` | Invoked BY /review (Step 4) in hindsight mode. Handles the implementation hindsight evaluation, finding routing, and ledger writes with phase `review/hindsight`. |
 | `/claude-tweaks:simplify` | Invoked BY /review (Step 5) on files modified during review. Handles code simplification and re-verification. |
+| `/claude-tweaks:deepen` | Lens 3e (Architecture) flags shallow modules and leaky abstractions; when module-level restructuring is the theme, /review surfaces `/claude-tweaks:deepen` as a Next Action rather than resolving it inline. /deepen is the dedicated depth pass. |
+| `/superpowers:systematic-debugging` | Invoked BY /review when a confirmed bug finding needs a non-trivial fix — reproduce-first discipline before applying the change (see Important Notes). |
 | `/claude-tweaks:ledger` | Manages the open items ledger. /review appends findings (Step 3 Routing). Hindsight findings (Step 4) are written by /reflect using `review/*` phases. |
 | `/claude-tweaks:help` | /help flags specs awaiting review and recommends `/review` in its pipeline status scan |
 | `/claude-tweaks:design` | /review invokes `/claude-tweaks:design review <spec>` as Step 6.5 to run Impeccable's `critique` + `audit` commands. Findings are advisory, surfaced in the "Design Quality" section of the review summary. The wrapper handles its own detection and availability checks; skips are silent (section omitted). |
