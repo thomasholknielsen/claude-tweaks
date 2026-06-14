@@ -4,6 +4,8 @@ Loaded by `/claude-tweaks:review` Step 3 after lenses 3a-3i have produced findin
 
 ## Per-lens Calibration + Output template (dispatch contract)
 
+The CALIBRATION filter and severity scale below are the canonical copy from `_shared/criteria-review-quality.md`, reproduced here because dispatched agents cannot read sibling files. Keep them byte-identical to the fragment.
+
 The Calibration and Output template MUST be reproduced byte-identical in every dispatched per-lens reviewer agent's prompt. Do NOT adapt, summarize, or paraphrase — the cross-lens reproduction logic in Step 3.5 depends on every agent applying the same filter.
 
 ```markdown
