@@ -24,4 +24,58 @@ function writeCache(root, cache) {
   return p;
 }
 
-module.exports = { cachePath, readCache, writeCache };
+function runsDir(rootDir) {
+  return path.join(rootDir, '.claude-tweaks', 'recon', 'runs');
+}
+
+// Persist the fingerprint set this run produced. runId is an ISO-ish timestamp;
+// colons are valid on Linux/macOS so the runId round-trips into the filename.
+function recordRun(rootDir, runId, fingerprints) {
+  const dir = runsDir(rootDir);
+  fs.mkdirSync(dir, { recursive: true });
+  const record = { runId, runAt: new Date().toISOString(), fingerprints: [...fingerprints] };
+  fs.writeFileSync(path.join(dir, `${runId}.json`), JSON.stringify(record, null, 2) + '\n', 'utf8');
+  return record;
+}
+
+// All run records, oldest first (by runAt).
+function readRuns(rootDir) {
+  let entries;
+  try {
+    entries = fs.readdirSync(runsDir(rootDir));
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((f) => f.endsWith('.json'))
+    .map((f) => {
+      try {
+        return JSON.parse(fs.readFileSync(path.join(runsDir(rootDir), f), 'utf8'));
+      } catch {
+        return null;
+      }
+    })
+    .filter((r) => r && Array.isArray(r.fingerprints) && r.runId)
+    .sort((a, b) => ((a.runAt || '') < (b.runAt || '') ? -1 : 1));
+}
+
+// Churn vs the prior run. ratio = (appeared + disappeared) / |prior ∪ current|.
+// PORT.md delta #5: union denominator, NOT max(prior, current).
+// A complete turnover gives ratio 1.0; no changes gives ratio 0.0.
+function computeChurn(currentFps, priorRun) {
+  const priorFps = priorRun && Array.isArray(priorRun.fingerprints) ? priorRun.fingerprints : [];
+  const current = new Set(currentFps);
+  const prior = new Set(priorFps);
+
+  const appeared = currentFps.filter((fp) => !prior.has(fp));
+  const disappeared = priorFps.filter((fp) => !current.has(fp));
+  const stayed = currentFps.filter((fp) => prior.has(fp));
+  const union = new Set([...currentFps, ...priorFps]);
+  const total = Math.max(union.size, 1);
+  const raw = (appeared.length + disappeared.length) / total;
+  const ratio = Math.round(raw * 1000) / 1000;
+
+  return { appeared, disappeared, stayed, ratio };
+}
+
+module.exports = { cachePath, readCache, writeCache, runsDir, recordRun, readRuns, computeChurn };
