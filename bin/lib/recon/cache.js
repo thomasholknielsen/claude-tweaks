@@ -28,13 +28,43 @@ function runsDir(rootDir) {
   return path.join(rootDir, '.claude-tweaks', 'recon', 'runs');
 }
 
+function cursorsPath(rootDir) {
+  return path.join(rootDir, '.claude-tweaks', 'recon', 'cursors.json');
+}
+
+function readCursors(rootDir) {
+  try {
+    return JSON.parse(fs.readFileSync(cursorsPath(rootDir), 'utf8'));
+  } catch {
+    return {}; // missing or corrupt -> empty
+  }
+}
+
+function writeCursors(rootDir, cursors) {
+  const p = cursorsPath(rootDir);
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, JSON.stringify(cursors, null, 2) + '\n', 'utf8');
+}
+
 // Persist the fingerprint set this run produced. runId is an ISO-ish timestamp;
 // colons are valid on Linux/macOS so the runId round-trips into the filename.
-function recordRun(rootDir, runId, fingerprints) {
+// arg: { fingerprints, areasSwept } — areasSwept is the list of area ids swept this run.
+function recordRun(rootDir, runId, { fingerprints, areasSwept = [] } = {}) {
   const dir = runsDir(rootDir);
   fs.mkdirSync(dir, { recursive: true });
   const record = { runId, runAt: new Date().toISOString(), fingerprints: [...fingerprints] };
   fs.writeFileSync(path.join(dir, `${runId}.json`), JSON.stringify(record, null, 2) + '\n', 'utf8');
+
+  // Persist per-area sweep cursors so the round-robin coverage floor rotates.
+  if (areasSwept.length > 0) {
+    const now = Date.now();
+    const cursors = readCursors(rootDir);
+    for (const areaId of areasSwept) {
+      cursors[areaId] = { lastSweptMs: now };
+    }
+    writeCursors(rootDir, cursors);
+  }
+
   return record;
 }
 
@@ -78,4 +108,4 @@ function computeChurn(currentFps, priorRun) {
   return { appeared, disappeared, stayed, ratio };
 }
 
-module.exports = { cachePath, readCache, writeCache, runsDir, recordRun, readRuns, computeChurn };
+module.exports = { cachePath, readCache, writeCache, runsDir, cursorsPath, readCursors, recordRun, readRuns, computeChurn };

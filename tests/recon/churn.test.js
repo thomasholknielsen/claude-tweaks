@@ -12,7 +12,7 @@ function tmpRoot() {
 
 test('recordRun then readRuns round-trips fingerprints', () => {
   const root = tmpRoot();
-  recordRun(root, '2026-06-14T100000', ['fp-a', 'fp-b']);
+  recordRun(root, '2026-06-14T100000', { fingerprints: ['fp-a', 'fp-b'], areasSwept: [] });
   const runs = readRuns(root);
   assert.strictEqual(runs.length, 1);
   assert.deepStrictEqual(runs[0].fingerprints.sort(), ['fp-a', 'fp-b']);

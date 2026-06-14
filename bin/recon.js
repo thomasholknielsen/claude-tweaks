@@ -6,7 +6,7 @@ const { detectAreas, selectAreas: selectAreasRaw } = require('./lib/recon/areas'
 const { scoreAreas } = require('./lib/recon/score');
 const { buildLenses } = require('./lib/recon/lenses/index');
 const { fingerprint } = require('./lib/recon/fingerprint');
-const { readCache, writeCache, readRuns, computeChurn } = require('./lib/recon/cache');
+const { readCache, writeCache, readRuns, computeChurn, recordRun, readCursors } = require('./lib/recon/cache');
 const { decide } = require('./lib/recon/dedup');
 const { toIssuePayload } = require('./lib/recon/issue-payload');
 const { buildWorkOrders, JUDGMENT_LENS_MAP } = require('./lib/recon/judgment');
@@ -29,6 +29,8 @@ function parseArgs(argv) {
     else if (a === '--max-subagents') args.maxSubagents = Number(argv[++i]);
     else if (a === '--fail-on') args['fail-on'] = argv[++i];
     else if (a === '--fail-on-high-churn') args['fail-on-high-churn'] = argv[++i];
+    else if (a === '--label') args.label = argv[++i];
+    else if (a === '--min-severity') args['min-severity'] = argv[++i];
     else args._.push(a);
   }
   return args;
@@ -71,7 +73,7 @@ function collectSignals(rootDir, areas) {
   const signals = {};
   for (const area of areas) {
     signals[area.id] = {
-      lastSweptMs: areaLastSweptMs(cache, area.id),
+      lastSweptMs: areaLastSweptMs(rootDir, area.id),
       churn: gitChurn(rootDir, area.path || area.id),
       loc: areaLoc(rootDir, area.path || area.id),
       priorFindings: priorFindingCount(cache, area.id),
@@ -111,8 +113,15 @@ function areaLoc(rootDir, areaPath) {
   }
 }
 
-// Cache shape: { <fp>: { status, issue, area?, lastSweptMs? } }.
-function areaLastSweptMs(cache, areaId) {
+// Reads per-area sweep cursor from the cursors store (.claude-tweaks/recon/cursors.json).
+// Falls back to scanning the cache for legacy lastSweptMs entries (backward compat).
+function areaLastSweptMs(rootDir, areaId) {
+  const cursors = readCursors(rootDir);
+  if (cursors[areaId] && typeof cursors[areaId].lastSweptMs === 'number') {
+    return cursors[areaId].lastSweptMs;
+  }
+  // Legacy fallback: scan cache entries that embed area+lastSweptMs
+  const cache = readCache(rootDir);
   let max = null;
   for (const entry of Object.values(cache)) {
     if (entry.area === areaId && typeof entry.lastSweptMs === 'number') {
@@ -169,7 +178,12 @@ function cmdRun(args) {
     }
   }
 
-  if (!args.dryRun) writeCache(args.root, cache);
+  if (!args.dryRun) {
+    writeCache(args.root, cache);
+    const fingerprints = plan.map((e) => e.fingerprint).filter(Boolean);
+    const areasSwept = areas.map((a) => a.id);
+    recordRun(args.root, args.runId, { fingerprints, areasSwept });
+  }
 
   process.stdout.write(JSON.stringify({
     runId: args.runId,
@@ -335,6 +349,31 @@ function cmdChurnReport(args) {
   }
 }
 
+function cmdPullIssues(args) {
+  const { pullReconIssues } = require('./lib/recon/pull-issues');
+  if (!args.issues) {
+    process.stderr.write('usage: recon.js pull-issues --label <label> --issues <file> [--min-severity <sev>]\n');
+    process.exit(2);
+  }
+  let issuesJson;
+  try {
+    issuesJson = JSON.parse(fs.readFileSync(args.issues, 'utf8'));
+  } catch {
+    process.stderr.write(`pull-issues: could not read or parse issues file: ${args.issues}\n`);
+    process.exit(1);
+  }
+  if (!Array.isArray(issuesJson)) {
+    process.stderr.write('pull-issues: issues file must contain a JSON array\n');
+    process.exit(1);
+  }
+  const briefs = pullReconIssues({
+    label: args.label || 'recon',
+    minSeverity: args['min-severity'],
+    issuesJson,
+  });
+  process.stdout.write(JSON.stringify(briefs, null, 2) + '\n');
+}
+
 function main(argv) {
   const args = parseArgs(argv);
   const cmd = args._[0];
@@ -343,6 +382,7 @@ function main(argv) {
   if (cmd === 'ingest-judgment') return cmdIngestJudgment(args);
   if (cmd === 'status') return cmdStatus(args);
   if (cmd === 'churn-report') return cmdChurnReport(args);
+  if (cmd === 'pull-issues') return cmdPullIssues(args);
   process.stderr.write('usage: recon.js run [--area <path>] [--dry-run] [--root <dir>] [--issues <file>]\n');
   process.exit(2);
 }
