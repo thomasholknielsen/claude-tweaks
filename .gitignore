@@ -1,4 +1,5 @@
 .worktrees/
 .DS_Store
 .claude-tweaks/research/
+.claude-tweaks/recon/
 **/__pycache__/

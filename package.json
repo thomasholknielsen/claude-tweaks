@@ -1,0 +1,9 @@
+{
+  "name": "claude-tweaks",
+  "private": true,
+  "version": "4.18.0",
+  "description": "claude-tweaks plugin — test harness only; the plugin itself ships no runtime npm deps.",
+  "scripts": {
+    "test": "node --test tests/ bin/lib/recon/tests/*.test.js"
+  }
+}
