@@ -2,7 +2,8 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { detectAreas, selectAreas } = require('./lib/recon/areas');
+const { detectAreas, selectAreas: selectAreasRaw } = require('./lib/recon/areas');
+const { scoreAreas } = require('./lib/recon/score');
 const { buildLenses } = require('./lib/recon/lenses/index');
 const { fingerprint } = require('./lib/recon/fingerprint');
 const { readCache, writeCache } = require('./lib/recon/cache');
@@ -48,9 +49,88 @@ function loadIssueIndex(file) {
   return index;
 }
 
+// Returns areas to sweep this run. `--area` bypasses detection + scoring.
+// `inject` (tests only): { areas, signals, now } supplies deterministic inputs.
+function selectAreas(cfg, inject) {
+  if (cfg && cfg.area) return [{ id: cfg.area, path: cfg.area, globs: [cfg.area], flags: {} }];
+
+  const now = inject && inject.now != null ? inject.now : Date.now();
+  const areas = inject && inject.areas ? inject.areas : detectAreas(cfg && cfg.root || process.cwd());
+  const signals =
+    inject && inject.signals ? inject.signals : collectSignals(cfg && cfg.root || process.cwd(), areas);
+
+  const ranked = scoreAreas(areas, signals, now);
+  return ranked.slice(0, (cfg && cfg.K) || 3);
+}
+
+// Impure: gathers per-area signals from git, the filesystem, and the dedup cache.
+function collectSignals(rootDir, areas) {
+  const cache = readCache(rootDir);
+  const signals = {};
+  for (const area of areas) {
+    signals[area.id] = {
+      lastSweptMs: areaLastSweptMs(cache, area.id),
+      churn: gitChurn(rootDir, area.path || area.id),
+      loc: areaLoc(rootDir, area.path || area.id),
+      priorFindings: priorFindingCount(cache, area.id),
+      fanIn: 0, // fan-in heuristic: extended in a later pass
+    };
+  }
+  return signals;
+}
+
+function gitChurn(rootDir, areaPath) {
+  const { execFileSync } = require('child_process');
+  const since = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  try {
+    const out = execFileSync(
+      'git',
+      ['-C', rootDir, 'log', '--oneline', `--since=${since}`, '--', areaPath],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+    );
+    return out.split('\n').filter(Boolean).length;
+  } catch {
+    return 0;
+  }
+}
+
+function areaLoc(rootDir, areaPath) {
+  const { execSync } = require('child_process');
+  const abs = path.join(rootDir, areaPath);
+  try {
+    const out = execSync(
+      `find "${abs}" -type f \\( -name "*.js" -o -name "*.ts" -o -name "*.tsx" -o -name "*.jsx" \\) -print0 | xargs -0 wc -l 2>/dev/null | tail -1`,
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+    );
+    const n = parseInt(out.trim().split(/\s+/)[0], 10);
+    return Number.isNaN(n) ? 0 : n;
+  } catch {
+    return 0;
+  }
+}
+
+// Cache shape: { <fp>: { status, issue, area?, lastSweptMs? } }.
+function areaLastSweptMs(cache, areaId) {
+  let max = null;
+  for (const entry of Object.values(cache)) {
+    if (entry.area === areaId && typeof entry.lastSweptMs === 'number') {
+      if (max === null || entry.lastSweptMs > max) max = entry.lastSweptMs;
+    }
+  }
+  return max;
+}
+
+function priorFindingCount(cache, areaId) {
+  let n = 0;
+  for (const entry of Object.values(cache)) {
+    if (entry.area === areaId && (entry.status === 'open' || entry.status === 'regressed')) n++;
+  }
+  return n;
+}
+
 function cmdRun(args) {
   const cfg = {}; // Phase 1: default lens set; project-command stays opt-in
-  const areas = selectAreas(detectAreas(args.root), { area: args.area });
+  const areas = selectAreas({ area: args.area, root: args.root, K: 3 });
   const lenses = buildLenses(cfg);
   const issueIndex = loadIssueIndex(args.issues);
   const cache = readCache(args.root);
@@ -210,4 +290,4 @@ function main(argv) {
 
 if (require.main === module) main(process.argv.slice(2));
 
-module.exports = { parseArgs, cmdRun, main };
+module.exports = { parseArgs, cmdRun, main, selectAreas, collectSignals };
