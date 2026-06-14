@@ -139,3 +139,53 @@ test('CLI plan-judgment: --areas is required', () => {
       { encoding: 'utf8', stdio: 'pipe' });
   }, /areas is required|status 2|Command failed/);
 });
+
+// ---------------------------------------------------------------------------
+// CLI integration tests (Task 4: ingest-judgment)
+// ---------------------------------------------------------------------------
+
+test('CLI ingest-judgment: drops malformed findings, emits payloads for valid survivors', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'recon-ingest-'));
+  const results = [
+    {
+      lensId: 'architecture-depth',
+      area: 'src/a',
+      findings: [
+        { // valid
+          title: 'Passthrough service', lens: 'architecture-depth', category: 'Architecture',
+          severity: 'medium', confidence: 'high', area: 'src/a',
+          files: ['src/a/svc.ts:10'], signature: 'passthrough svc',
+          evidence: 'delegates with no logic', suggestion: 'inline it',
+          acceptance: 'method adds value or is removed',
+        },
+        { // malformed — bad severity, missing acceptance
+          title: 'X', lens: 'architecture-depth', category: 'Architecture',
+          severity: 'urgent', confidence: 'high', area: 'src/a',
+          files: ['src/a/x.ts:1'], signature: 'x', evidence: 'e', suggestion: 's',
+        },
+      ],
+    },
+  ];
+  const resultsPath = path.join(root, 'results.json');
+  fs.writeFileSync(resultsPath, JSON.stringify(results), 'utf8');
+
+  const proc = require('node:child_process').spawnSync('node', [
+    RECON_CLI, 'ingest-judgment', resultsPath, '--root', root, '--run-id', 'TESTRUN',
+  ], { encoding: 'utf8' });
+
+  assert.strictEqual(proc.status, 0, proc.stderr);
+  // Malformed finding logged as dropped.
+  assert.ok(/drop/i.test(proc.stderr), `expected a drop log, got: ${proc.stderr}`);
+  // Valid survivor surfaced (title appears in stdout payload output).
+  assert.ok(proc.stdout.includes('Passthrough service'), proc.stdout);
+});
+
+test('CLI ingest-judgment: non-array results file exits non-zero', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'recon-ingest-'));
+  const resultsPath = path.join(root, 'bad.json');
+  fs.writeFileSync(resultsPath, JSON.stringify({ not: 'an array' }), 'utf8');
+  const proc = require('node:child_process').spawnSync('node', [
+    RECON_CLI, 'ingest-judgment', resultsPath, '--root', root,
+  ], { encoding: 'utf8' });
+  assert.notStrictEqual(proc.status, 0);
+});
