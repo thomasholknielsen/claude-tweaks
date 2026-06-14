@@ -99,15 +99,24 @@ function gitChurn(rootDir, areaPath) {
 }
 
 function areaLoc(rootDir, areaPath) {
-  const { execSync } = require('child_process');
+  const { execFileSync } = require('child_process');
   const abs = path.join(rootDir, areaPath);
   try {
-    const out = execSync(
-      `find "${abs}" -type f \\( -name "*.js" -o -name "*.ts" -o -name "*.tsx" -o -name "*.jsx" \\) -print0 | xargs -0 wc -l 2>/dev/null | tail -1`,
+    const out = execFileSync(
+      'find',
+      [abs, '-type', 'f', '(', '-name', '*.js', '-o', '-name', '*.ts', '-o', '-name', '*.tsx', '-o', '-name', '*.jsx', ')'],
       { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
     );
-    const n = parseInt(out.trim().split(/\s+/)[0], 10);
-    return Number.isNaN(n) ? 0 : n;
+    let total = 0;
+    for (const file of out.split('\n').filter(Boolean)) {
+      try {
+        const content = fs.readFileSync(file, 'utf8');
+        total += content.split('\n').length;
+      } catch {
+        // skip unreadable files
+      }
+    }
+    return total;
   } catch {
     return 0;
   }
