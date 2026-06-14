@@ -70,8 +70,25 @@ test('/review references the review-quality criteria fragment', () => {
 test('review-quality CALIBRATION block stays byte-identical between fragment and step3-routing', () => {
   const frag = readShared('criteria-review-quality.md');
   const routing = readSkill('review', 'step3-routing.md');
-  // Both must contain the load-bearing filter line verbatim.
+
+  // Both must contain the load-bearing filter line verbatim (belt-and-suspenders existence checks).
   const anchor = 'When in doubt: would a calibrated senior engineer block a PR on this finding alone? If no, drop it.';
   assert.ok(frag.includes(anchor), 'fragment contains the calibration anchor line');
   assert.ok(routing.includes(anchor), 'step3-routing contains the calibration anchor line');
+
+  // Extract the full CALIBRATION block from a file's content.
+  // Returns the substring starting at "Only flag issues where:" and ending at the "drop it." sentence (inclusive).
+  function extractCalibrationBlock(content) {
+    const start = 'Only flag issues where:';
+    const end = 'When in doubt: would a calibrated senior engineer block a PR on this finding alone? If no, drop it.';
+    const startIdx = content.indexOf(start);
+    const endIdx = content.indexOf(end);
+    assert.ok(startIdx !== -1, 'CALIBRATION block start not found');
+    assert.ok(endIdx !== -1, 'CALIBRATION block end not found');
+    return content.slice(startIdx, endIdx + end.length);
+  }
+
+  const fromFragment = extractCalibrationBlock(frag);
+  const fromRouting = extractCalibrationBlock(routing);
+  assert.strictEqual(fromFragment, fromRouting, 'CALIBRATION block must be byte-identical in fragment and step3-routing');
 });
