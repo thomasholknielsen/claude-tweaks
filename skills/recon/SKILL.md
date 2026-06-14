@@ -70,6 +70,49 @@ The engine emits a JSON object: `{ runId, areas, plan:[{fingerprint, action, sev
 
 **Step 5 — Summarize.** Report the counts (`filed`, `reopened`, `skipped`, `remembered`) and list any new issue URLs. In interactive mode, present findings as a batch table and let the user route each to *file issue / INBOX (`/capture`) / `/specify` directly / dismiss*.
 
+## Judgment Lens Dispatch
+
+Runs after the mechanical lenses, only when judgment lenses are enabled in config (default: `architecture-depth,simplification,review-quality`) and the scoring step selected at least one area. Each judgment lens is an LLM subagent reading the area's source against a shared Phase 0 criteria fragment — `recon.js` itself never calls a model; it emits work orders and ingests results.
+
+> **Parallel execution:** Dispatch the work orders as parallel Task agents — each runs independently against one (area, lens) pair and returns findings in Template A's JSON-block form. Assemble all responses into one results file after every agent completes.
+> **Contract:** Each agent follows the Subagent Contract (`skills/_shared/subagent-output-contract.md`) — minimal input (the work order's `prompt` field, nothing else), one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED` as its first reply line, then the fenced JSON block the prompt specifies. Use the work order's `modelTier` (`haiku` or `sonnet`). The prompt already embeds the criteria, the Finding JSON shape, and the status-line requirement — pass it verbatim, add nothing.
+
+### Step J1 — Emit work orders
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" plan-judgment \
+  --root . \
+  --run-id "${RUN_ID}" \
+  --areas "${SELECTED_AREAS}" \
+  --lenses "${ENABLED_JUDGMENT_LENSES:-architecture-depth,simplification,review-quality}" \
+  --max-subagents "${MAX_SUBAGENTS:-6}"
+```
+
+This writes `.claude-tweaks/recon/runs/${RUN_ID}-work-orders.json` (gitignored) and prints the same JSON. Each order is `{ lensId, area, modelTier, prompt }`. The list is already truncated to `MAX_SUBAGENTS` — the dispatch loop below iterates at most that many times.
+
+### Step J2 — Dispatch one subagent per work order (capped)
+
+For each work order in the array (no more than `MAX_SUBAGENTS`):
+- Dispatch one Task agent at the order's `modelTier`.
+- The agent prompt is the order's `prompt` field, used **verbatim** — it already contains the criteria fragment, the required Finding JSON shape, and the status-line instruction.
+- Capture the agent's reply. Parse the fenced ```json block into a `findings` array (empty array if the agent reported none).
+- Collect one entry per order: `{ "lensId": <order.lensId>, "area": <order.area>, "findings": [ ... ] }`.
+
+Assemble all entries into `.claude-tweaks/recon/runs/${RUN_ID}-results.json` as a JSON array. **Never pass an individual agent's raw text to `ingest-judgment`** — ingest reads the assembled results file so the dedup pass sees the whole run at once.
+
+**Budget rule:** `MAX_SUBAGENTS` defaults to `6` (K=2 areas x 3 lenses). `plan-judgment` enforces the cap by truncating the work-order list; the dispatch loop must not exceed `orders.length`. Never dispatch a lens/area pair that is not in the work-order list.
+
+### Step J3 — Ingest results
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" ingest-judgment \
+  ".claude-tweaks/recon/runs/${RUN_ID}-results.json" \
+  --root . \
+  --run-id "${RUN_ID}"
+```
+
+This validates each finding (dropping malformed ones with a logged reason on stderr), fingerprints survivors, deduplicates against the cache and open `recon`-labelled issues, and prints `gh`-ready issue payloads on stdout for the survivors. Hand those payloads to `gh issue create` exactly as in the mechanical-lens triage step (Phase 1) — judgment findings flow through the same filing path.
+
 ## Next Actions
 
 1. `/claude-tweaks:specify <issue-url-or-title>` — promote a filed recon issue into an agent-sized spec. **(Recommended when high-severity issues were filed.)**
@@ -93,6 +136,8 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | Calling the network from `recon.js` | The engine is emit-only and unit-testable. The skill hands payloads to `gh`; the engine never does. |
 | Treating the cache as durable state | The cache is a rebuildable optimization. GitHub issue state is the source of truth for cross-run memory. |
 | Using a skill-directory environment variable to invoke the CLI | No such variable is set by Claude Code. Always use `${CLAUDE_PLUGIN_ROOT}/bin/recon.js`. |
+| Dispatching more subagents than `MAX_SUBAGENTS` in one run | Cost is bounded by K and the cap. `plan-judgment` truncates the work-order list; iterate at most `orders.length` and never invent extra lens/area pairs. |
+| Passing a single agent's raw reply to `ingest-judgment` | Ingest reads the assembled `results.json` so dedup sees the whole run atomically. Collect every reply into the results file first, then ingest once. |
 
 ## Relationship to Other Skills
 
