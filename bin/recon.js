@@ -2,7 +2,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { detectAreas, selectAreas: selectAreasRaw } = require('./lib/recon/areas');
+const { detectAreas } = require('./lib/recon/areas');
 const { scoreAreas } = require('./lib/recon/score');
 const { buildLenses } = require('./lib/recon/lenses/index');
 const { fingerprint } = require('./lib/recon/fingerprint');

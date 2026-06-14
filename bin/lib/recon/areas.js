@@ -60,12 +60,4 @@ function detectAreas(root) {
   return rel.map((p) => ({ id: p, globs: [p], flags: {} }));
 }
 
-// Phase 1: pass-through, or filter/synthesize the explicitly requested --area.
-// Phase 3 replaces this with weighted scoring + round-robin selection.
-function selectAreas(areas, opts) {
-  if (!opts || !opts.area) return areas;
-  const found = areas.find((a) => a.id === opts.area);
-  return found ? [found] : [{ id: opts.area, globs: [opts.area], flags: {} }];
-}
-
-module.exports = { detectAreas, selectAreas };
+module.exports = { detectAreas };
