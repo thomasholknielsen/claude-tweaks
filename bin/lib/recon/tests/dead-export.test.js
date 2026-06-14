@@ -29,3 +29,11 @@ test('self-pollution guard skips .claude-tweaks', () => {
   fs.writeFileSync(path.join(root, '.claude-tweaks', 'x.js'), 'export const orphan = 1;\n');
   assert.strictEqual(lens.run(AREA, root).length, 0);
 });
+
+test('import type { X } does not count as dead export', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'types.ts'), 'export const Foo = {};\n');
+  fs.writeFileSync(path.join(root, 'consumer.ts'), "import type { Foo } from './types';\n");
+  const findings = lens.run(AREA, root);
+  assert.strictEqual(findings.length, 0, 'Foo should not be flagged as dead when imported via import type');
+});

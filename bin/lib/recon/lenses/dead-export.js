@@ -6,7 +6,7 @@ const SKIP_DIRS = new Set(['node_modules', '.git', '.worktrees', 'dist', 'build'
 const CODE_EXT = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
 const DECL_EXPORT = /^export\s+(?:const|let|var|function|class)\s+(\w+)/;
 const NAMED_EXPORT = /export\s*\{([^}]+)\}/g;
-const IMPORT_NAMES = /import\s*\{([^}]+)\}/g;
+const IMPORT_NAMES = /import\s+(?:type\s*)?\{([^}]+)\}/g;
 
 function* walk(dir) {
   let entries;
@@ -73,7 +73,7 @@ function run(area, root) {
         files: [`${rel}:${line}`],
         signature: `dead-export ${name}`,
         title: `Possibly dead export: ${name} in ${path.basename(rel)}`,
-        evidence: `${rel}:${line}: "${name}" is exported but no import of that name was found under the scan root. Heuristic: dynamic imports, re-exports via *, and external consumers are not checked.`,
+        evidence: `${rel}:${line}: "${name}" is exported but no import of that name was found under the scan root. Heuristic: dynamic imports, re-exports via *, multi-line \`export { … }\` blocks, and external consumers are not checked.`,
         suggestion: `Verify whether "${name}" is consumed outside this root. If genuinely unused, remove it to reduce the public surface.`,
         acceptance: `"${name}" is removed, unexported, or confirmed used by a consumer outside the scan root.`,
       }));
