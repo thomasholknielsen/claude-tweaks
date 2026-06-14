@@ -126,6 +126,72 @@ When `$PIPELINE_RUN_DIR` is set, `/claude-tweaks:recon` is running inside a pipe
 
 Direct invocation may pass `--source <parent-skill>` as an explicit fallback when ambiguity exists (rare; `$PIPELINE_RUN_DIR` is the primary signal). Standalone (no `$PIPELINE_RUN_DIR`) is the common case and renders Next Actions as usual.
 
+## Routine Configuration
+
+`/recon` is designed to run unattended on a schedule via a Claude Code Routine
+(`/schedule` or `claude.ai/code/routines`). Design for **small predictable sips**: a tight
+per-run budget so a scheduled run is cheap and a skipped run is harmless (the round-robin
+coverage floor means any starved area is force-picked on the next window).
+
+```
+Name:      recon-daily
+Schedule:  daily at 03:00 (off-peak)
+Prompt:    /claude-tweaks:recon
+K-budget:  1–3 areas per run (cfg.K)
+Fan-out:   capped subagent count for judgment lenses (--max-subagents)
+```
+
+A headless Routine run does: discover → score (top-K) → run lenses → fingerprint → dedup against
+open `recon` issues → file issues for findings ≥ threshold → record the run-log. Triage happens
+later, in GitHub, by a human (close / `wontfix` / pick one up via `/flow --from-recon`).
+
+> **Billing note:** Routines run inside the subscription (no separate API key); verify any
+> automation-credit specifics against the live account.
+
+## Regression and Critical Gating
+
+`status` reads the dedup cache + run-logs and prints one summary line; it gates a scheduled
+Routine on regressions or open criticals (exit 1 stops the Routine for a human to look):
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" status
+# open:N regressed:N closed:N wontfix:N
+
+node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" status --fail-on regressed
+# exits 1 when any finding has reappeared after being closed
+
+node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" status --fail-on critical
+# exits 1 when any open finding is severity critical
+```
+
+## Regression Reopen
+
+When dedup returns `{action:'reopen', issue, note}` (a finding matching a **closed,
+non-`wontfix`** issue has reappeared — design §9), reopen the issue and comment, through the
+`gh` CLI:
+
+```bash
+gh issue reopen <issue>
+gh issue comment <issue> --body "Regressed: this finding reappeared on run <runId>. <note>"
+```
+
+A `{action:'suppress'}` decision (the issue carries the `wontfix` label) files nothing — the
+standing decision is respected. The engine never calls `gh`; it returns the decision and the
+SKILL.md hands the reopen+comment to the tool.
+
+## Fingerprint Churn
+
+Each persisted run records its fingerprint set under `.claude-tweaks/recon/runs/` (gitignored).
+`churn-report` compares consecutive runs and prints a per-run churn table. A ratio near 0 means
+fingerprints are stable; a ratio near 1 means most IDs changed run-to-run, pointing at normalizer
+instability (cosmetic edits minting new IDs — design §16's top risk).
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" churn-report
+node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" churn-report --fail-on-high-churn 0.5
+# exits 1 when any run-to-run churn ratio >= 0.5
+```
+
 ## Anti-Patterns
 
 | Pattern | Why It Fails |
@@ -146,4 +212,4 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `/claude-tweaks:specify` | Recon findings are pre-specs — a filed `recon` issue body is `/specify`-shaped (Current State / Deliverables / Acceptance Criteria), so `/specify` consumes it with near-zero translation. |
 | `/claude-tweaks:capture` | Fuzzy or below-threshold findings route to INBOX via `/capture` instead of inflating the tracker. |
 | `/claude-tweaks:tidy` | `/tidy` audits the backlog (INBOX, deferred, specs); recon-filed issues are another input it can fold into a hygiene pass. |
-| `/claude-tweaks:flow` | Phase 3 adds a `/flow` affordance to pull a batch of open `recon`-labelled issues, route each through `/specify`, and execute the pipeline. Until then, promote issues to specs manually. |
+| `/claude-tweaks:flow` | `/flow --from-recon` pulls the `recon`-labelled issues this skill files and runs them as a multi-spec batch (derive specs via `/specify` → build/test/review/polish/wrap-up). `/recon` files and reopens issues; `/flow` consumes them. See `flow/from-recon.md`. |
