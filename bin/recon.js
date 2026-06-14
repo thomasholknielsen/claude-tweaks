@@ -157,6 +157,7 @@ function cmdRun(args) {
 
   const plan = [];
   const summary = { file: 0, remember: 0, reopen: 0, skip: 0, suppress: 0 };
+  const seen = new Set(); // intra-run dedup: keep the first occurrence of each fingerprint
 
   for (const area of areas) {
     for (const lens of lenses) {
@@ -167,6 +168,8 @@ function cmdRun(args) {
           signature: finding.signature,
           file: finding.files && finding.files[0],
         });
+        if (seen.has(finding.id)) continue; // skip duplicate fingerprint within this run
+        seen.add(finding.id);
         const decision = decide(finding, issueIndex, cache);
         summary[decision.action] = (summary[decision.action] || 0) + 1;
         const entry = {
@@ -286,7 +289,10 @@ function cmdIngestJudgment(args) {
   const cache = readCache(root);
   const issueIndex = loadIssueIndex(args.issues);
   const payloads = [];
+  const seenIngest = new Set(); // intra-run dedup: keep the first occurrence of each fingerprint
   for (const finding of survivors) {
+    if (seenIngest.has(finding.id)) continue; // skip duplicate fingerprint within this run
+    seenIngest.add(finding.id);
     const decision = decide(finding, issueIndex, cache);
     if (decision.action === 'skip' || decision.action === 'suppress') continue;
     if (decision.action === 'file' || decision.action === 'reopen') {
@@ -402,4 +408,4 @@ function main(argv) {
 
 if (require.main === module) main(process.argv.slice(2));
 
-module.exports = { parseArgs, cmdRun, main, selectAreas, collectSignals };
+module.exports = { parseArgs, cmdRun, cmdIngestJudgment, main, selectAreas, collectSignals };
