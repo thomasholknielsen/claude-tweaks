@@ -6,7 +6,7 @@ const { detectAreas, selectAreas: selectAreasRaw } = require('./lib/recon/areas'
 const { scoreAreas } = require('./lib/recon/score');
 const { buildLenses } = require('./lib/recon/lenses/index');
 const { fingerprint } = require('./lib/recon/fingerprint');
-const { readCache, writeCache } = require('./lib/recon/cache');
+const { readCache, writeCache, readRuns, computeChurn } = require('./lib/recon/cache');
 const { decide } = require('./lib/recon/dedup');
 const { toIssuePayload } = require('./lib/recon/issue-payload');
 const { buildWorkOrders, JUDGMENT_LENS_MAP } = require('./lib/recon/judgment');
@@ -27,6 +27,8 @@ function parseArgs(argv) {
     else if (a === '--areas') args.areas = argv[++i];
     else if (a === '--lenses') args.lenses = argv[++i];
     else if (a === '--max-subagents') args.maxSubagents = Number(argv[++i]);
+    else if (a === '--fail-on') args['fail-on'] = argv[++i];
+    else if (a === '--fail-on-high-churn') args['fail-on-high-churn'] = argv[++i];
     else args._.push(a);
   }
   return args;
@@ -278,12 +280,69 @@ function cmdIngestJudgment(args) {
     `${survivors.length} valid finding(s), ${payloads.length} payload(s) after dedup\n`);
 }
 
+function cmdStatus(args) {
+  const cache = readCache(args.root);
+  const findings = Object.values(cache);
+  const counts = {
+    open: findings.filter((f) => f.status === 'open').length,
+    regressed: findings.filter((f) => f.status === 'regressed').length,
+    closed: findings.filter((f) => f.status === 'closed').length,
+    wontfix: findings.filter((f) => f.status === 'wontfix').length,
+    critical: findings.filter((f) => f.status === 'open' && f.severity === 'critical').length,
+  };
+  const line = `open:${counts.open} regressed:${counts.regressed} closed:${counts.closed} wontfix:${counts.wontfix}\n`;
+  const failOn = args['fail-on'];
+  if (failOn === 'regressed' && counts.regressed > 0) {
+    process.stdout.write(`FAIL: ${counts.regressed} regressed finding(s)\n` + line);
+    process.exit(1);
+  }
+  if (failOn === 'critical' && counts.critical > 0) {
+    process.stdout.write(`FAIL: ${counts.critical} open critical finding(s)\n` + line);
+    process.exit(1);
+  }
+  process.stdout.write(line);
+}
+
+function cmdChurnReport(args) {
+  const runs = readRuns(args.root);
+  if (runs.length === 0) {
+    process.stdout.write('no run logs found\n');
+    return;
+  }
+  const threshold = args['fail-on-high-churn'] != null ? parseFloat(args['fail-on-high-churn']) : null;
+  const rows = [['runId', 'runAt', 'findings', 'appeared', 'disappeared', 'ratio']];
+  let exceeded = false;
+  for (let i = 0; i < runs.length; i++) {
+    const prior = i > 0 ? runs[i - 1] : null;
+    const c = computeChurn(runs[i].fingerprints, prior);
+    rows.push([
+      runs[i].runId,
+      (runs[i].runAt || '').slice(0, 19),
+      String(runs[i].fingerprints.length),
+      String(c.appeared.length),
+      String(c.disappeared.length),
+      String(c.ratio),
+    ]);
+    if (threshold != null && c.ratio >= threshold) exceeded = true;
+  }
+  const widths = rows[0].map((_, col) => Math.max(...rows.map((r) => String(r[col]).length)));
+  for (const row of rows) {
+    process.stdout.write(row.map((cell, i) => String(cell).padEnd(widths[i])).join('  ') + '\n');
+  }
+  if (exceeded) {
+    process.stdout.write(`\nhigh churn: one or more runs >= ${threshold}\n`);
+    process.exit(1);
+  }
+}
+
 function main(argv) {
   const args = parseArgs(argv);
   const cmd = args._[0];
   if (cmd === 'run') return cmdRun(args);
   if (cmd === 'plan-judgment') return cmdPlanJudgment(args);
   if (cmd === 'ingest-judgment') return cmdIngestJudgment(args);
+  if (cmd === 'status') return cmdStatus(args);
+  if (cmd === 'churn-report') return cmdChurnReport(args);
   process.stderr.write('usage: recon.js run [--area <path>] [--dry-run] [--root <dir>] [--issues <file>]\n');
   process.exit(2);
 }
