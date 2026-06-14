@@ -16,8 +16,8 @@ const SEVERITY_RANK = { critical: 0, high: 1, medium: 2, low: 3 };
 //   new >= threshold         -> file
 //   new <  threshold         -> remember
 //
-// Phase 1 ships file/skip/suppress/remember; reopen is a documented stub
-// completed in Phase 3 — but the arm is wired and returns the correct action.
+// Phase 1 ships file/skip/suppress/remember/reopen — all actions are implemented
+// here. Phase 3 wires the SKILL.md/gh side that acts on a reopen decision.
 function decide(finding, issueIndex, cache, opts) {
   const threshold = (opts && opts.threshold) || 'high';
   const match = issueIndex && issueIndex[finding.id];

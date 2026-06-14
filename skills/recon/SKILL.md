@@ -59,13 +59,14 @@ Transform each issue into `{number, state, labels, fingerprint}` by extracting t
 node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" run --issues /tmp/recon-open.json
 ```
 
-The engine emits a JSON object: `{ runId, areas, plan:[{fingerprint, action, severity, title, payload?}], summary:{file, remember, reopen, skip} }`.
+The engine emits a JSON object: `{ runId, areas, plan:[{fingerprint, action, severity, title, payload?}], summary:{file, remember, reopen, skip, suppress} }`.
 
 **Step 4 — File / reopen issues yourself.** For each plan entry, act per its `action` — `recon.js` only emits payloads; it never calls the network:
 
 - `file` → `gh issue create --title "<payload.title>" --body "<payload.body>" --label recon --label "recon:<severity>"`
 - `reopen` → `gh issue reopen <entry.issue>` and add a comment noting the regression.
 - `skip` / `remember` → do nothing (already tracked, or below threshold and remembered in the cache).
+- `suppress` → do nothing (a `wontfix`-labelled issue — a standing decision already recorded).
 
 **Step 5 — Summarize.** Report the counts (`filed`, `reopened`, `skipped`, `remembered`) and list any new issue URLs. In interactive mode, present findings as a batch table and let the user route each to *file issue / INBOX (`/capture`) / `/specify` directly / dismiss*.
 
