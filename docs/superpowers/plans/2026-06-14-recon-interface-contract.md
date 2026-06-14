@@ -38,7 +38,7 @@ cachePath(root) -> "<root>/.claude-tweaks/recon/cache.json"
 // Phase 3 adds:
 recordRun(root, runId, { fingerprints, areasSwept }) -> void   // writes runs/<runId>.json + bumps per-area cursors
 readRuns(root) -> [RunLog]
-computeChurn(currentFps, priorRun) -> number                    // denominator = |prior ∪ current|
+computeChurn(currentFps, priorRun) -> { appeared, disappeared, stayed, ratio }  // ratio denominator = |prior ∪ current|
 ```
 
 - **Canonical names are `readCache` / `writeCache`.** Not `loadCache` / `saveCache`.
