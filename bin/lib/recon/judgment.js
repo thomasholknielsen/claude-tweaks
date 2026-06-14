@@ -134,13 +134,13 @@ function buildWorkOrders({ areas, lenses, maxSubagents, criteriaDir = DEFAULT_CR
       if (!criteriaCache.has(lensId)) {
         criteriaCache.set(lensId, readCriteria(criteriaDir, filename));
       }
+      if (orders.length >= cap) break outer;
       orders.push({
         lensId,
         area,
         modelTier: LENS_META[lensId].modelTier,
         prompt: buildPrompt(lensId, area, criteriaCache.get(lensId)),
       });
-      if (orders.length >= cap) break outer;
     }
   }
 

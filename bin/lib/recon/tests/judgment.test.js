@@ -104,6 +104,17 @@ test('OUTPUT_FORMAT names the lens enum values', () => {
   assert.ok(OUTPUT_FORMAT.includes('Architecture'));
 });
 
+test('buildWorkOrders: maxSubagents=0 returns an empty array', () => {
+  const dir = makeCriteriaDir();
+  const orders = buildWorkOrders({
+    areas: ['src/a', 'src/b'],
+    lenses: ['architecture-depth', 'simplification'],
+    maxSubagents: 0,
+    criteriaDir: dir,
+  });
+  assert.strictEqual(orders.length, 0);
+});
+
 // ---------------------------------------------------------------------------
 // CLI integration tests (Task 3: plan-judgment)
 // ---------------------------------------------------------------------------
