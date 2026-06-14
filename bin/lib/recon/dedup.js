@@ -20,13 +20,21 @@ const SEVERITY_RANK = { critical: 0, high: 1, medium: 2, low: 3 };
 // here. Phase 3 wires the SKILL.md/gh side that acts on a reopen decision.
 function decide(finding, issueIndex, cache, opts) {
   const threshold = (opts && opts.threshold) || 'high';
-  const match = issueIndex && issueIndex[finding.id];
+  // Support both finding.id (fingerprint hash from Phase 1) and finding.fingerprint (direct string).
+  const fp = finding.fingerprint || finding.id;
+  const match = issueIndex && fp && issueIndex[fp];
   if (match) {
     if ((match.labels || []).includes('wontfix')) return { action: 'suppress', issue: match.number };
-    if (match.state === 'closed') return { action: 'reopen', issue: match.number };
+    if (match.state === 'closed') {
+      return {
+        action: 'reopen',
+        issue: match.number,
+        note: 'regressed — this finding was previously closed and has reappeared',
+      };
+    }
     return { action: 'skip', issue: match.number };
   }
-  const cached = cache && cache[finding.id];
+  const cached = cache && fp && cache[fp];
   if (cached && cached.status === 'wontfix') return { action: 'suppress' };
   const rank = SEVERITY_RANK[finding.severity];
   const thresholdRank = SEVERITY_RANK[threshold];
