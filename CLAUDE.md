@@ -131,6 +131,19 @@ Forms B and C always pair with the **Subagent Contract** (`skills/_shared/subage
 - Bump minor version for feature additions, patch for fixes
 - Commit message style: `{Verb} {what} — {detail}` (imperative, no conventional commit prefixes)
 
+### Releasing (two repos)
+
+A release touches **both** this repo and the separate marketplace repo (`thomasholknielsen/claude-tweaks-marketplace`):
+
+1. Bump `version` in `.claude-plugin/plugin.json` here; commit + push `main`.
+2. In the marketplace repo, edit `.claude-plugin/marketplace.json`:
+   - `plugins[].version` **mirrors this plugin's version** (e.g., `4.17.0`).
+   - `metadata.version` is the **marketplace's own independent scheme** (currently `2.x`) — bump it on catalog changes, not in lockstep with the plugin.
+   - Keep `plugins[].description` aligned with `plugin.json`'s description.
+   - Commit + push `main`.
+
+The marketplace `source` is an **unpinned git URL**, so installs and updates track this repo's `main` HEAD — there are no git tags. The marketplace `version` is catalog metadata, not what gates the install.
+
 ### Cross-references
 
 - Every skill's Relationship table must be bidirectional — if A references B, B must reference A
