@@ -169,7 +169,9 @@ function cmdRun(args) {
         if (decision.issue !== undefined) entry.issue = decision.issue;
         if (decision.action === 'file' || decision.action === 'reopen') {
           entry.payload = toIssuePayload(finding);
-          cache[finding.id] = { status: 'open', issue: decision.issue || null };
+          cache[finding.id] = decision.action === 'reopen'
+            ? { status: 'regressed', issue: decision.issue || null, severity: finding.severity }
+            : { status: 'open', issue: decision.issue || null, severity: finding.severity };
         } else if (decision.action === 'remember') {
           if (!cache[finding.id]) cache[finding.id] = { status: 'remembered', issue: null };
         }
@@ -270,16 +272,18 @@ function cmdIngestJudgment(args) {
   }
 
   // 3. Dedup via Phase 1 against the cache; emit payloads only for survivors.
-  // decide(finding, issueIndex, cache) — issueIndex is empty for ingest since we
-  // don't have issue JSON here; the skill wires --issues at the run step.
+  // --issues is optional: when provided (e.g. a closed-issue file signalling a
+  // regression), decide() can produce 'reopen' decisions.
   const cache = readCache(root);
-  const issueIndex = {};
+  const issueIndex = loadIssueIndex(args.issues);
   const payloads = [];
   for (const finding of survivors) {
     const decision = decide(finding, issueIndex, cache);
     if (decision.action === 'skip' || decision.action === 'suppress') continue;
     if (decision.action === 'file' || decision.action === 'reopen') {
-      cache[finding.id] = { status: 'open', issue: decision.issue || null };
+      cache[finding.id] = decision.action === 'reopen'
+        ? { status: 'regressed', issue: decision.issue || null, severity: finding.severity }
+        : { status: 'open', issue: decision.issue || null, severity: finding.severity };
     } else if (decision.action === 'remember') {
       if (!cache[finding.id]) cache[finding.id] = { status: 'remembered', issue: null };
     }
