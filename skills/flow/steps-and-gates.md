@@ -55,6 +55,16 @@ Steps must follow lifecycle order. Invalid orderings are rejected.
 
 **`no-polish` argument behavior:** When `no-polish` is set, the polish phase (and its re-verify gate) is removed from the pipeline. The default pipeline becomes `build,test,review,wrap-up` (the pre-Phase-2 default). `no-polish` overrides any explicit `polish` in the step list — the user's explicit step request wins on the rest of the pipeline, but polish is unconditionally dropped.
 
+### `--from-recon` spec source
+
+`--from-recon` is not a step — it is an alternative *spec source* resolved before Step 1. It
+pulls open `recon`-labelled GitHub issues (via `gh`), maps each to a `/claude-tweaks:specify`
+brief (`bin/lib/recon/pull-issues.js`), derives specs, then runs the normal step pipeline
+(`build,test,review,polish,wrap-up`) as a multi-spec batch. `--min-severity <sev>` filters the
+pull by the `recon:<sev>` label. The full procedure lives in `from-recon.md`; the step pipeline
+and gates are unchanged. A missing/unauthenticated `gh` CLI is a hard gate (`auto` does not
+silence a missing dependency).
+
 ## Gate Behavior
 
 Each step has a gate that determines whether to proceed to the next step.

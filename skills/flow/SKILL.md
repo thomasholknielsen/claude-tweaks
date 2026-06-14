@@ -42,7 +42,9 @@ All bracketed tokens are optional and order-independent. `worktree` is the defau
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `<spec>` | Yes | Spec number (e.g., `42`) or comma-separated spec numbers (e.g., `42,45,48`). **Design docs are not accepted** — run `/claude-tweaks:specify {design-doc}` first to decompose into specs. See Step 2.7. |
+| `<spec>` | Yes* | Spec number (e.g., `42`) or comma-separated spec numbers (e.g., `42,45,48`). **Design docs are not accepted** — run `/claude-tweaks:specify {design-doc}` first to decompose into specs. See Step 2.7. *Not required when `--from-recon` is set. |
+| `--from-recon` | No | **Alternative spec source.** Instead of spec numbers, pull open `recon`-labelled GitHub issues, turn each into a `/claude-tweaks:specify` brief, and run the derived specs through the multi-spec batch. Pair with `--min-severity <sev>` to filter. Needs the `gh` CLI (hard gate if absent). See `from-recon.md`. |
+| `--min-severity <sev>` | No | **`--from-recon` only.** Filter pulled issues by the `recon:<sev>` label (`critical`/`high`/`medium`/`low`). Default: all open `recon` issues. |
 | `worktree` | No | Use worktree git strategy — isolated workspace on a feature branch (this is the default for flow). See "Parallel Development with Worktrees" below. |
 | `current-branch` | No | Override the default and commit directly on the current branch instead of creating a worktree. |
 | `no-stories` | No | Skip automatic story generation even if UI files changed. By default, flow auto-generates stories when the build produces UI file changes. |
@@ -63,6 +65,7 @@ Flow always uses **subagent** execution strategy — its purpose is hands-off au
 2. **Multiple spec numbers** (e.g., `42,45,48`) → **Multi-spec mode** — runs each spec sequentially in one terminal (see Multi-Spec Sequential Flow below). For true parallel execution, use separate terminals with `worktree` mode.
 3. **Topic name** (e.g., `meal planning`) → search `specs/` for a matching spec. If found, use spec mode. If only a design doc exists at `docs/superpowers/specs/*-design.md`, **stop and route to `/claude-tweaks:specify`** (see Step 2.7) — design docs are no longer executable directly by `/flow`.
 4. **Design doc path** → **rejected** at Step 2.7 with a routing message to `/claude-tweaks:specify`. Design-mode flow was removed because it bypassed the granularity contract — design docs describe multi-phase programs, not agent-sized work units.
+5. **`--from-recon` flag** → **Recon-batch mode** — ignore any spec numbers; assemble the spec list by pulling open `recon` GitHub issues → `/specify` briefs → derived specs, then run the standard multi-spec batch. See `from-recon.md` for the full procedure.
 
 ### Automatic story generation
 
@@ -344,6 +347,6 @@ Next Actions in `/flow` are outcome-conditional and rendered as part of the Pipe
 | `/claude-tweaks:ledger` | Manages the open items ledger. /flow creates the ledger (Step 1), carries it across phases, and runs the resolve gate (Step 5). |
 | `/claude-tweaks:design` | /flow invokes `/claude-tweaks:design polish <spec>` after review verdict PASS (auto-fit + issue-driven + intent-driven dispatch — v4.5.0). The wrapper handles its own detection (non-frontend skips); when polish modifies code, /flow follows up with `/test skip-qa` (re-verify gate, one-cycle cap). The `no-polish` argument removes the polish phase entirely. /flow's pipeline summary also invokes `/claude-tweaks:design survey <full-diff>` to render the Creative Opportunities block (anchor 3 of v4.5.0's creative surfacing system); /flow handles decline detection by comparing the prior recommendations cache against the new diff before each survey call. |
 | `/claude-tweaks:journeys` | /journeys produces journey files that /flow's auto-stories step (post-build) ingests so derived stories carry `journey:` field and inherited source files. |
-| `/claude-tweaks:recon` | Phase 3 adds a `/flow` affordance to pull a batch of open `recon`-labelled issues, route each through `/specify`, and execute the pipeline (reusing multi-spec batching + the Review Console). Not yet wired in Phase 1 — `/recon`-filed issues are promoted to specs manually for now. |
+| `/claude-tweaks:recon` | `/flow --from-recon` pulls the `recon`-labelled GitHub issues `/recon` files, derives specs via `/specify`, and runs them as a multi-spec batch. `/flow` consumes recon's output; it never files or closes recon issues (filing is recon's job; closing is a user action at the Review Console). See `from-recon.md`. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling in /flow. Governs the bookend architecture (Step 3 Manifesto = begin stop, /wrap-up Review Console = end stop), what `auto` silences, and what it never silences. |
 | `_shared/pipeline-run-dir.md` | /flow creates the pipeline run directory at Step 3 (Manifesto) and exports `PIPELINE_RUN_DIR` to every downstream skill per this shared procedure. Multi-spec runs use the per-spec subdirectory layout documented in `multi-spec.md`, also rooted in this contract. |
