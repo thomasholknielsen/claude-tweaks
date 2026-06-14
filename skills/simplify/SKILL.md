@@ -81,20 +81,7 @@ If no simplifications were made: return literal text "No simplifications needed.
 Do not add narration, headers, or summaries before or after the table.
 ```
 
-**What it catches:**
-- Unnecessary complexity from iterative development
-- Verbose patterns from trial-and-error debugging
-- Leftover defensive code from abandoned approaches
-- Inconsistent naming or structure across changed files
-- Dead paths, redundant conditionals, over-abstraction
-- Cross-task patterns (when multiple tasks modified related files):
-  - Inconsistent naming or patterns between files modified by different tasks
-  - Opportunities to consolidate similar code written by different subagents
-  - Unnecessary complexity that accumulated across iterative implementation
-
-**Constraints:**
-- Preserves all functionality — no behavioral changes
-- Scope is strictly the provided files — never simplify unrelated code
+**What it catches and the constraints** are the shared simplification criteria — read `_shared/criteria-simplification.md`. The same criteria are reused by `/claude-tweaks:recon`'s simplification lens, so the reactive pass and the proactive sweep flag identical complexity. (The `code-simplifier` subagent applies them; the dispatch prompt above carries the scope and output contract.)
 
 ## Step 3: Verify
 
@@ -189,3 +176,4 @@ This skill is a **component skill** — invoked by `/claude-tweaks:build` (Commo
 | `code-simplifier:code-simplifier` | The subagent that does the actual simplification work. /simplify is the skill wrapper that handles scope, verification, and reporting. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
 | `_shared/subagent-output-contract.md` | The Working-Directory Discipline rule referenced by Step 3 verify lives here (CWD anchoring before `git` / `node --test`). |
+| `_shared/criteria-simplification.md` | The shared simplification criteria (what's worth simplifying + the behavior/scope/readability constraints) — single source of truth read by both /simplify and /recon's simplification lens. |
