@@ -17,7 +17,10 @@ test('open issue with same fingerprint -> skip', () => {
 
 test('closed non-wontfix issue with same fingerprint -> reopen (regressed)', () => {
   const index = { 'recon-bbb': { number: 8, state: 'closed', labels: ['recon'] } };
-  assert.deepStrictEqual(decide(F('recon-bbb'), index, {}), { action: 'reopen', issue: 8 });
+  const result = decide(F('recon-bbb'), index, {});
+  assert.strictEqual(result.action, 'reopen');
+  assert.strictEqual(result.issue, 8);
+  assert.ok(typeof result.note === 'string' && result.note.length > 0, 'note should be a non-empty string');
 });
 
 test('wontfix-labelled issue -> suppress (standing decision)', () => {
