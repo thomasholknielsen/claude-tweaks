@@ -103,3 +103,39 @@ test('OUTPUT_FORMAT names the lens enum values', () => {
   assert.ok(OUTPUT_FORMAT.includes('critical'));
   assert.ok(OUTPUT_FORMAT.includes('Architecture'));
 });
+
+// ---------------------------------------------------------------------------
+// CLI integration tests (Task 3: plan-judgment)
+// ---------------------------------------------------------------------------
+
+const { execFileSync } = require('node:child_process');
+
+const RECON_CLI = path.resolve(__dirname, '..', '..', '..', '..', 'bin', 'recon.js');
+
+test('CLI plan-judgment: writes work-orders file and prints JSON', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'recon-run-'));
+  const out = execFileSync('node', [
+    RECON_CLI, 'plan-judgment',
+    '--root', root,
+    '--run-id', 'TESTRUN',
+    '--areas', 'src/a,src/b',
+    '--lenses', 'architecture-depth,simplification,review-quality',
+    '--max-subagents', '4',
+  ], { encoding: 'utf8' });
+
+  const printed = JSON.parse(out);
+  assert.strictEqual(printed.length, 4, 'stdout JSON respects the cap');
+
+  const filePath = path.join(root, '.claude-tweaks', 'recon', 'runs', 'TESTRUN-work-orders.json');
+  assert.ok(fs.existsSync(filePath), 'work-orders file written under gitignored .claude-tweaks');
+  const onDisk = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  assert.deepStrictEqual(onDisk, printed, 'file matches stdout');
+});
+
+test('CLI plan-judgment: --areas is required', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'recon-run-'));
+  assert.throws(() => {
+    execFileSync('node', [RECON_CLI, 'plan-judgment', '--root', root, '--run-id', 'X'],
+      { encoding: 'utf8', stdio: 'pipe' });
+  }, /areas is required|status 2|Command failed/);
+});
