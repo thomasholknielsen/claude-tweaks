@@ -377,7 +377,7 @@ function cmdChurnReport(args) {
       String(c.disappeared.length),
       String(c.ratio),
     ]);
-    if (threshold != null && c.ratio >= threshold) exceeded = true;
+    if (threshold != null && prior != null && c.ratio >= threshold) exceeded = true;
   }
   const widths = rows[0].map((_, col) => Math.max(...rows.map((r) => String(r[col]).length)));
   for (const row of rows) {
