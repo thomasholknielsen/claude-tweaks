@@ -1,29 +1,29 @@
 ---
 name: claude-tweaks:recon
-description: Use when you want a proactive, report-only sweep of a repository that surfaces improvement opportunities and files them as deduplicated GitHub issues. Mechanical lenses only in Phase 1 — oversized files, dead exports, TODO/FIXME, loose dependency ranges, project lint/typecheck. Never edits code. Keywords - recon, sweep, repo audit, technical debt, proactive, github issues.
+description: Use when you want a proactive, report-only sweep of one code area that surfaces improvement opportunities as deduplicated GitHub issues. An LLM judges the slice against the universal criteria catalog and files the work worth doing. Never edits code. Keywords - recon, sweep, repo audit, technical debt, proactive, github issues, llm judge.
 ---
 > **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
 
+# Recon — LLM-as-Code-Judge, Proactive Repo Improvement
 
-# Recon — Proactive, Report-Only Repo-Improvement Finder
-
-A recurring watchman doing rounds: applies mechanical improvement lenses to a repo, fingerprints each finding, dedups against open GitHub issues, and files the work worth doing as deduplicated GitHub issues. It never edits code.
+A recurring watchman doing rounds: reads one directory slice, judges it against the universal criteria catalog, fingerprints each finding, dedups against open GitHub issues, and files the work worth doing. The LLM is the spine. Deterministic helpers handle fingerprint, dedup, and issue-payload projection. It never edits code.
 
 ```
-                  [ /claude-tweaks:recon ] ← utility (no fixed lifecycle position)
-                               │  surfaces the work worth making
-                               ▼
- findings → file GitHub issue (label: recon) → /claude-tweaks:specify → /claude-tweaks:build / /claude-tweaks:flow
-          └ fuzzy / not-yet → /claude-tweaks:capture (INBOX)
+              [ /claude-tweaks:recon ] <- utility (no fixed lifecycle position)
+                           |  judges the slice; surfaces findings
+                           v
+findings -> validate-findings -> file GitHub issue (label: recon) -> /claude-tweaks:specify -> /claude-tweaks:build / /claude-tweaks:flow
+         +- fuzzy / not-yet -> /claude-tweaks:capture (INBOX)
 ```
 
 The plugin reacts to changes you make; `/recon` surfaces the changes worth making.
 
 ## When to Use
 
-- You want a periodic, hands-off pass that keeps technical debt visible without driving each scan yourself.
-- You want machine-found improvements filed as GitHub issues that drop into `/specify` with near-zero translation.
-- You want to dedup against work already tracked — never re-flood the tracker.
+- You want a hands-off pass that keeps technical debt visible without driving each scan yourself.
+- You want LLM-judged improvements filed as GitHub issues that drop into `/specify` with near-zero translation.
+- You want findings deduplicated against work already tracked — never re-flood the tracker.
+- You want to run on demand against a specific area (rotation is Phase 3).
 
 Not for: auto-fixing (report-only), CI gating (CI stays reactive), or replacing INBOX/specs (recon owns no backlog — it routes findings into the stores that already exist).
 
@@ -31,93 +31,158 @@ Not for: auto-fixing (report-only), CI gating (CI stays reactive), or replacing 
 
 `$ARGUMENTS` may contain:
 
-- `--area <path>` — scope the run to one area (default: all detected areas).
-- `--dry-run` — emit the plan but write nothing (cache untouched, no issues filed). Use for the smoke check.
-- `--root <dir>` — scan a project elsewhere (default: current directory).
+- `--area <path>` — the directory slice to judge (relative to root; required for on-demand runs).
+- `--dry-run` — fingerprint and dedup, print payloads, but write nothing to cache and file no issues.
+- `--root <dir>` — scan a project elsewhere (default: current working directory).
+
+Scope note: auto-rotation (picking the next slice automatically) is Phase 3. In Phase 1, always supply `--area`.
 
 ## Workflow
 
-**Step 1 — Smoke (dry-run).** Confirm the engine runs and see what it would do, writing nothing:
+**Step 1 — SCOPE: resolve the area.**
+
+The `--area` argument is the directory slice to judge. Verify it exists:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" run --dry-run
+ls "${ROOT:-$PWD}/${AREA}"
 ```
 
-Read the JSON plan printed to stdout. If it errors, stop and report — do not proceed to a real run.
+If the path does not exist, stop and ask the user to correct it. If `--area` was not supplied, ask the user which directory to judge.
 
-**Step 2 — Gather open issues for dedup.** Read the fingerprints of existing `recon`-labelled issues so the engine can skip/reopen correctly:
+Set `AREA` and `ROOT` for the rest of the steps.
+
+**Step 2 — GATHER OPEN ISSUES for dedup.**
+
+Collect existing `recon`-labelled issues so the engine can skip/reopen correctly:
 
 ```bash
-gh issue list --label recon --state all --json number,state,labels,body --limit 500 > /tmp/recon-issues.json
+gh issue list --label recon --state all --json number,state,labels,body --limit 500 > /tmp/recon-issues-raw.json
 ```
 
-Transform each issue into `{number, state, labels, fingerprint}` by extracting the `<!-- recon-fingerprint: recon-XXXXXXXX -->` marker from its body, and write the array to a file (e.g. `/tmp/recon-open.json`). If `gh` is unavailable or the repo has no recon issues yet, skip this step — the run dedups against the local cache only.
+Parse each issue body for the fingerprint marker `<!-- recon-fingerprint: recon-XXXXXXXX -->` and build an array of `{ number, state, labels, fingerprint }` objects. Write to `/tmp/recon-open.json`. If `gh` is unavailable or the repo has no recon issues, skip this step and set `ISSUES_FILE=""` — the run dedups against the local cache only.
 
-**Step 3 — Run.** Produce the plan and update the dedup cache:
+**Step 3 — READ THE SLICE.**
+
+Read every source file in `${ROOT}/${AREA}`. Use Read and Glob:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" run --issues /tmp/recon-open.json
+# List all files in the area
+find "${ROOT}/${AREA}" -type f | sort
 ```
 
-The engine emits a JSON object: `{ runId, areas, plan:[{fingerprint, action, severity, title, payload?}], summary:{file, remember, reopen, skip, suppress} }`.
+Read each file in full. Hold the full content in context — this is the material the judge will apply criteria to.
 
-**Step 4 — File / reopen issues yourself.** For each plan entry, act per its `action` — `recon.js` only emits payloads; it never calls the network:
+**Step 4 — CLASSIFY: select applicable criteria.**
 
-- `file` → `gh issue create --title "<payload.title>" --body "<payload.body>" --label recon --label "recon:<severity>"`
-- `reopen` → `gh issue reopen <entry.issue>` and add a comment noting the regression.
-- `skip` / `remember` → do nothing (already tracked, or below threshold and remembered in the cache).
-- `suppress` → do nothing (a `wontfix`-labelled issue — a standing decision already recorded).
+For Phase 1 the area type is not yet detected (that is Phase 2). Apply all universal criteria: `architecture-depth`, `simplification`, `review-quality`, `scalability`, `security-logic`, `bad-practice`, `doc-freshness`, `dead-code`, `test-quality`, `resilience`, `observability`, `config-secrets`, `dependency-health`, `input-validation`, `naming-clarity`.
 
-**Step 5 — Summarize.** Report the counts (`filed`, `reopened`, `skipped`, `remembered`) and list any new issue URLs. In interactive mode, present findings as a batch table and let the user route each to *file issue / INBOX (`/capture`) / `/specify` directly / dismiss*.
-
-## Judgment Lens Dispatch
-
-Runs after the mechanical lenses, only when judgment lenses are enabled in config (default: `architecture-depth,simplification,review-quality`) and the scoring step selected at least one area. Each judgment lens is an LLM subagent reading the area's source against a shared Phase 0 criteria fragment — `recon.js` itself never calls a model; it emits work orders and ingests results.
-
-> **Parallel execution:** Dispatch the work orders as parallel Task agents — each runs independently against one (area, lens) pair and returns findings in Template A's JSON-block form. Assemble all responses into one results file after every agent completes.
-> **Contract:** Each agent follows the Subagent Contract (`skills/_shared/subagent-output-contract.md`) — minimal input (the work order's `prompt` field, nothing else), one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED` as its first reply line, then the fenced JSON block the prompt specifies. Use the work order's `modelTier` (`haiku` or `sonnet`). The prompt already embeds the criteria, the Finding JSON shape, and the status-line requirement — pass it verbatim, add nothing.
-
-### Step J1 — Emit work orders
+You can verify the catalog at any time:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" plan-judgment \
-  --root . \
-  --run-id "${RUN_ID}" \
-  --areas "${SELECTED_AREAS}" \
-  --lenses "${ENABLED_JUDGMENT_LENSES:-architecture-depth,simplification,review-quality}" \
-  --max-subagents "${MAX_SUBAGENTS:-6}"
+node -e "const {criteriaForArea}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/recon/criteria.js'); console.log(criteriaForArea([]).map(c=>c.id).join(', '))"
 ```
 
-This writes `.claude-tweaks/recon/runs/${RUN_ID}-work-orders.json` (gitignored) and prints the same JSON. Each order is `{ lensId, area, modelTier, prompt }`. The list is already truncated to `MAX_SUBAGENTS` — the dispatch loop below iterates at most that many times.
+**Step 5 — JUDGE: apply each criterion holistically.**
 
-### Step J2 — Dispatch one subagent per work order (capped)
+For each universal criterion, read the code with that criterion as the lens. Apply the criterion holistically — this is a behavioral judgment, not a mechanical check. Call deterministic tools as evidence when they help (lint, grep, git log); skip them gracefully when not available. Evidence grounds the finding; do not file speculative findings.
 
-For each work order in the array (no more than `MAX_SUBAGENTS`):
-- Dispatch one Task agent at the order's `modelTier`.
-- The agent prompt is the order's `prompt` field, used **verbatim** — it already contains the criteria fragment, the required Finding JSON shape, and the status-line instruction.
-- Capture the agent's reply. Parse the fenced ```json block into a `findings` array (empty array if the agent reported none).
-- Collect one entry per order: `{ "lensId": <order.lensId>, "area": <order.area>, "findings": [ ... ] }`.
+For `architecture-depth`, `simplification`, and `review-quality`: read the criterion fragment embedded here before judging:
 
-Assemble all entries into `.claude-tweaks/recon/runs/${RUN_ID}-results.json` as a JSON array. **Never pass an individual agent's raw text to `ingest-judgment`** — ingest reads the assembled results file so the dedup pass sees the whole run at once.
+- `architecture-depth`: read `skills/_shared/criteria-architecture-depth.md` relative to `$CLAUDE_PLUGIN_ROOT`.
+- `simplification`: read `skills/_shared/criteria-simplification.md` relative to `$CLAUDE_PLUGIN_ROOT`.
+- `review-quality`: read `skills/_shared/criteria-review-quality.md` relative to `$CLAUDE_PLUGIN_ROOT`.
 
-**Budget rule:** `MAX_SUBAGENTS` defaults to `6` (K=2 areas x 3 lenses). `plan-judgment` enforces the cap by truncating the work-order list; the dispatch loop must not exceed `orders.length`. Never dispatch a lens/area pair that is not in the work-order list.
+After applying all enumerated criteria, run a final "anything else worth flagging?" pass to catch what the checklist missed.
 
-### Step J3 — Ingest results
+**Step 6 — EMIT FINDINGS as a JSON array.**
+
+For each finding, emit exactly this shape:
+
+```json
+{
+  "criterion": "<catalog id, e.g. 'simplification'>",
+  "areaId": "<directory path relative to root, e.g. 'src/api'>",
+  "anchor": "<relfile#NearestNamedSymbol — see anchor rules below>",
+  "severity": "<low|medium|high|critical>",
+  "confidence": "<high|med|low>",
+  "title": "<short summary>",
+  "evidence": "<what was observed — cites anchor; no line numbers>",
+  "suggestedApproach": "<described fix in prose — NO code>",
+  "acceptance": "<acceptance criteria>"
+}
+```
+
+**Anchor rules (critical for dedup stability):**
+- Format: `relative/file/path#NearestNamedSymbol`
+- `NearestNamedSymbol` is the name of the nearest enclosing function, class, const, or section header.
+- No line numbers. No surrounding prose. No absolute paths.
+- Examples: `src/api/user.js#getUser`, `lib/parser.js#Parser`, `bin/recon.js#cmdRun`
+- When a finding is module-level (no named symbol), use the file itself: `src/api/user.js#module`
+
+Write the array to `/tmp/recon-findings.json`.
+
+**Step 7 — VALIDATE, FINGERPRINT, DEDUP.**
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" ingest-judgment \
-  ".claude-tweaks/recon/runs/${RUN_ID}-results.json" \
-  --root . \
-  --run-id "${RUN_ID}"
+node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" validate-findings /tmp/recon-findings.json \
+  --root "${ROOT:-$PWD}" \
+  ${ISSUES_FILE:+--issues "$ISSUES_FILE"} \
+  ${DRY_RUN:+--dry-run} \
+  > /tmp/recon-payloads.json
 ```
 
-This validates each finding (dropping malformed ones with a logged reason on stderr), fingerprints survivors, deduplicates against the cache and open `recon`-labelled issues, and prints `gh`-ready issue payloads on stdout for the survivors. Hand those payloads to `gh issue create` exactly as in the mechanical-lens triage step (Phase 1) — judgment findings flow through the same filing path.
+Read `/tmp/recon-payloads.json`. The command:
+- Validates each finding (drops malformed ones with a logged reason on stderr).
+- Fingerprints via `criterion + areaId + normalizeAnchor(anchor)`.
+- Deduplicates against open `recon` issues and the local cache.
+- Writes the updated cache (unless `--dry-run`).
+- Emits gh-ready payloads on stdout as a JSON array.
+
+**Step 8 — FILE / REOPEN ISSUES.**
+
+For each payload in `/tmp/recon-payloads.json`, call `gh issue create`. The engine is emit-only; filing is always done by the skill:
+
+```bash
+gh issue create \
+  --title "<payload.title>" \
+  --body "<payload.body>" \
+  --label recon \
+  --label "recon:<severity>" \
+  --label "recon:<criterion>"
+```
+
+For `reopen` decisions (a finding matching a closed non-`wontfix` issue has reappeared), reopen the issue and comment:
+
+```bash
+gh issue reopen <issue_number>
+gh issue comment <issue_number> --body "Regressed: this finding reappeared. Run: ${RUN_ID}"
+```
+
+In `--dry-run` mode, print the payloads and the `gh` commands that would run, but do not call `gh`.
+
+**Step 9 — SUMMARIZE.**
+
+Report: how many findings were emitted, how many survived dedup, how many issues were filed / skipped / remembered. List any new issue URLs. In interactive mode, present findings as a batch table and let the user route each to: file issue / INBOX (`/capture`) / `/specify` directly / dismiss.
+
+## Routine Configuration
+
+`/recon` is designed to run unattended on a schedule via a Claude Code Routine (`/schedule`). Design for small predictable sips: one area per run so a scheduled run is cheap and a skipped run is harmless.
+
+```
+Name:      recon-daily
+Schedule:  daily at 03:00 (off-peak)
+Prompt:    /claude-tweaks:recon --area <area>
+```
+
+Auto-rotation (picking the next area automatically each run) is Phase 3. Until then, set a fixed `--area` in the Routine prompt or rotate manually.
+
+> **Billing note:** Routines run inside the subscription (no separate API key); verify any automation-credit specifics against the live account.
 
 ## Next Actions
 
 1. `/claude-tweaks:specify <issue-url-or-title>` — promote a filed recon issue into an agent-sized spec. **(Recommended when high-severity issues were filed.)**
 2. `/claude-tweaks:capture <finding>` — park a fuzzy or below-threshold finding in INBOX for later triage.
-3. `node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" run --area <path>` — re-run scoped to a single area to dig deeper.
+3. `/claude-tweaks:recon --area <other-path>` — re-run on a different directory slice.
 4. `/claude-tweaks:tidy` — fold the new issues into a backlog-hygiene pass alongside INBOX and deferred items.
 
 ## Component-Skill Contract
@@ -126,84 +191,19 @@ When `$PIPELINE_RUN_DIR` is set, `/claude-tweaks:recon` is running inside a pipe
 
 Direct invocation may pass `--source <parent-skill>` as an explicit fallback when ambiguity exists (rare; `$PIPELINE_RUN_DIR` is the primary signal). Standalone (no `$PIPELINE_RUN_DIR`) is the common case and renders Next Actions as usual.
 
-## Routine Configuration
-
-`/recon` is designed to run unattended on a schedule via a Claude Code Routine
-(`/schedule` or `claude.ai/code/routines`). Design for **small predictable sips**: a tight
-per-run budget so a scheduled run is cheap and a skipped run is harmless (the round-robin
-coverage floor means any starved area is force-picked on the next window).
-
-```
-Name:      recon-daily
-Schedule:  daily at 03:00 (off-peak)
-Prompt:    /claude-tweaks:recon
-K-budget:  1–3 areas per run (cfg.K)
-Fan-out:   capped subagent count for judgment lenses (--max-subagents)
-```
-
-A headless Routine run does: discover → score (top-K) → run lenses → fingerprint → dedup against
-open `recon` issues → file issues for findings ≥ threshold → record the run-log. Triage happens
-later, in GitHub, by a human (close / `wontfix` / pick one up via `/flow --from-recon`).
-
-> **Billing note:** Routines run inside the subscription (no separate API key); verify any
-> automation-credit specifics against the live account.
-
-## Regression and Critical Gating
-
-`status` reads the dedup cache + run-logs and prints one summary line; it gates a scheduled
-Routine on regressions or open criticals (exit 1 stops the Routine for a human to look):
-
-```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" status
-# open:N regressed:N closed:N wontfix:N
-
-node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" status --fail-on regressed
-# exits 1 when any finding has reappeared after being closed
-
-node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" status --fail-on critical
-# exits 1 when any open finding is severity critical
-```
-
-## Regression Reopen
-
-When dedup returns `{action:'reopen', issue, note}` (a finding matching a **closed,
-non-`wontfix`** issue has reappeared — design §9), reopen the issue and comment, through the
-`gh` CLI:
-
-```bash
-gh issue reopen <issue>
-gh issue comment <issue> --body "Regressed: this finding reappeared on run <runId>. <note>"
-```
-
-A `{action:'suppress'}` decision (the issue carries the `wontfix` label) files nothing — the
-standing decision is respected. The engine never calls `gh`; it returns the decision and the
-SKILL.md hands the reopen+comment to the tool.
-
-## Fingerprint Churn
-
-Each persisted run records its fingerprint set under `.claude-tweaks/recon/runs/` (gitignored).
-`churn-report` compares consecutive runs and prints a per-run churn table. A ratio near 0 means
-fingerprints are stable; a ratio near 1 means most IDs changed run-to-run, pointing at normalizer
-instability (cosmetic edits minting new IDs — design §16's top risk).
-
-```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" churn-report
-node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" churn-report --fail-on-high-churn 0.5
-# exits 1 when any run-to-run churn ratio >= 0.5
-```
-
 ## Anti-Patterns
 
 | Pattern | Why It Fails |
 |---------|--------------|
-| Editing code to "just fix" a finding during a recon run | Recon is report-only. Fixing belongs to `/build` / `/flow` after a finding is promoted to a spec. |
-| Filing every finding regardless of severity | Floods the tracker. Below-threshold findings are remembered in the cache, not filed. |
-| Re-filing a finding that already has an open issue | Duplicates the tracker. Always dedup against open `recon` issues (Step 2) before filing. |
-| Calling the network from `recon.js` | The engine is emit-only and unit-testable. The skill hands payloads to `gh`; the engine never does. |
+| Editing code to "just fix" a finding during a recon run | Recon is report-only. Fixing belongs to `/build` / `/flow` after a finding is promoted to a spec via `/specify`. |
+| Filing every finding regardless of severity or confidence | Floods the tracker. Below-threshold or low-confidence findings are remembered in the cache, not filed. |
+| Re-filing a finding that already has an open issue | Duplicates the tracker. Always run `validate-findings` with `--issues` before filing. |
+| Hashing the prose description instead of the anchor | The dedup contract requires a stable structural anchor (`relfile#NearestSymbol`), not a content hash. Prose changes every run. |
+| Emitting a line number in the anchor | Line numbers move when code is edited, breaking dedup. The anchor format is `file#Symbol` — no `:12`, no `:12:3`. |
+| Calling the network from `recon.js` or `criteria.js` | The engine is emit-only and unit-testable. The skill hands payloads to `gh`; the engine never does. |
 | Treating the cache as durable state | The cache is a rebuildable optimization. GitHub issue state is the source of truth for cross-run memory. |
-| Using a skill-directory environment variable to invoke the CLI | No such variable is set by Claude Code. Always use `${CLAUDE_PLUGIN_ROOT}/bin/recon.js`. |
-| Dispatching more subagents than `MAX_SUBAGENTS` in one run | Cost is bounded by K and the cap. `plan-judgment` truncates the work-order list; iterate at most `orders.length` and never invent extra lens/area pairs. |
-| Passing a single agent's raw reply to `ingest-judgment` | Ingest reads the assembled `results.json` so dedup sees the whole run atomically. Collect every reply into the results file first, then ingest once. |
+| Filing a finding with `confidence: 'low'` for a noisy criterion | Noisy criteria (`security-logic`, `config-secrets`, `input-validation`, `resilience`) require `confidence: 'high'` to file. The confidence floor is enforced by the skill judgment, not the engine — the engine validates the shape, not the policy. |
+| Reporting rotation in P1 | Auto-rotation (picking the next area automatically) is Phase 3. P1 is on-demand with `--area` explicitly supplied. |
 
 ## Relationship to Other Skills
 
@@ -211,5 +211,8 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" churn-report --fail-on-high-churn 0.5
 |-------|-------------|
 | `/claude-tweaks:specify` | Recon findings are pre-specs — a filed `recon` issue body is `/specify`-shaped (Current State / Deliverables / Acceptance Criteria), so `/specify` consumes it with near-zero translation. |
 | `/claude-tweaks:capture` | Fuzzy or below-threshold findings route to INBOX via `/capture` instead of inflating the tracker. |
-| `/claude-tweaks:tidy` | `/tidy` audits the backlog (INBOX, deferred, specs); recon-filed issues are another input it can fold into a hygiene pass. |
-| `/claude-tweaks:flow` | `/flow --from-recon` pulls the `recon`-labelled issues this skill files and runs them as a multi-spec batch (derive specs via `/specify` → build/test/review/polish/wrap-up). `/recon` files and reopens issues; `/flow` consumes them. See `flow/from-recon.md`. |
+| `/claude-tweaks:tidy` | `/tidy` audits the backlog (INBOX, deferred, specs); recon-filed issues are another input it folds into a hygiene pass. |
+| `/claude-tweaks:flow` | `/flow --from-recon` pulls the `recon`-labelled issues this skill files and runs them as a multi-spec batch (derive specs via `/specify` -> build/test/review/polish/wrap-up). |
+| `/claude-tweaks:review` | `/review` judges diffs reactively; `/recon` judges latent code proactively. Both reuse the same criteria fragments from `skills/_shared/`. |
+| `/claude-tweaks:deepen` | `/deepen` applies the architecture-depth criterion reactively to code you are changing; `/recon` applies it proactively on a schedule. Both read `criteria-architecture-depth.md`. |
+| `/claude-tweaks:simplify` | `/simplify` applies the simplification criterion reactively; `/recon` applies it proactively. Both read `criteria-simplification.md`. |

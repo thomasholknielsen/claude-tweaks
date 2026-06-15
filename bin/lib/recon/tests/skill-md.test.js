@@ -50,3 +50,38 @@ test('Relationship table references specify, capture, tidy, flow', () => {
     assert.ok(body.includes(s), `missing relationship to ${s}`);
   }
 });
+
+// ── v2 recon SKILL.md anchors ──────────────────────────────────────────────
+
+const skillMdPath = path.join(__dirname, '..', '..', '..', '..', 'skills', 'recon', 'SKILL.md');
+
+test('v2 SKILL.md: exists', () => {
+  assert.ok(fs.existsSync(skillMdPath), `SKILL.md not found at ${skillMdPath}`);
+});
+
+['## When to Use', '## Input', '## Workflow', '## Anti-Patterns',
+ '## Component-Skill Contract', '## Relationship to Other Skills',
+ '## Next Actions', '## Routine Configuration',
+].forEach((anchor) => {
+  test(`v2 SKILL.md: contains section '${anchor}'`, () => {
+    const content = fs.readFileSync(skillMdPath, 'utf8');
+    assert.ok(content.includes(anchor), `missing section: ${anchor}`);
+  });
+});
+
+['validate-findings', '$PIPELINE_RUN_DIR', '--dry-run', 'criteriaForArea', 'anchor',
+ 'recon-fingerprint', 'NearestNamedSymbol',
+].forEach((token) => {
+  test(`v2 SKILL.md: contains required token '${token}'`, () => {
+    const content = fs.readFileSync(skillMdPath, 'utf8');
+    assert.ok(content.includes(token), `missing required token: ${token}`);
+  });
+});
+
+test('v2 SKILL.md: no emojis (common emoji unicode sequences)', () => {
+  const content = fs.readFileSync(skillMdPath, 'utf8');
+  // Match common emoji ranges: U+1F300-U+1FAFF (Misc Symbols, Emoticons, etc.)
+  // Using the surrogate pair regex that matches in JS UTF-16 strings.
+  const emojiRe = /[\u{1F300}-\u{1FAFF}]/u;
+  assert.ok(!emojiRe.test(content), 'SKILL.md must not contain emojis');
+});
