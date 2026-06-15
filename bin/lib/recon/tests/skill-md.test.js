@@ -85,3 +85,21 @@ test('v2 SKILL.md: no emojis (common emoji unicode sequences)', () => {
   const emojiRe = /[\u{1F300}-\u{1FAFF}]/u;
   assert.ok(!emojiRe.test(content), 'SKILL.md must not contain emojis');
 });
+
+// ── P4 Task 6: new section anchors ────────────────────────────────────────────
+
+test('v2 SKILL.md: contains section \'## Regression and Critical Gating\'', () => {
+  const content = fs.readFileSync(skillMdPath, 'utf8');
+  assert.ok(content.includes('## Regression and Critical Gating'), 'missing section: ## Regression and Critical Gating');
+});
+
+test('v2 SKILL.md: contains section \'## Fingerprint Churn\'', () => {
+  const content = fs.readFileSync(skillMdPath, 'utf8');
+  assert.ok(content.includes('## Fingerprint Churn'), 'missing section: ## Fingerprint Churn');
+});
+
+test('v2 SKILL.md: contains exactly one occurrence of "subscription"', () => {
+  const content = fs.readFileSync(skillMdPath, 'utf8');
+  const count = (content.match(/subscription/g) || []).length;
+  assert.strictEqual(count, 1, `expected exactly 1 occurrence of "subscription", got ${count}`);
+});

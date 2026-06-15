@@ -23,7 +23,7 @@ The plugin reacts to changes you make; `/recon` surfaces the changes worth makin
 - You want a hands-off pass that keeps technical debt visible without driving each scan yourself.
 - You want LLM-judged improvements filed as GitHub issues that drop into `/specify` with near-zero translation.
 - You want findings deduplicated against work already tracked — never re-flood the tracker.
-- You want to run on demand against a specific area (rotation is Phase 3).
+- You want to run on demand against a specific area, or let `next-slice` pick the highest-priority area automatically.
 
 Not for: auto-fixing (report-only), CI gating (CI stays reactive), or replacing INBOX/specs (recon owns no backlog — it routes findings into the stores that already exist).
 
@@ -217,15 +217,55 @@ Report: how many findings were emitted, how many survived dedup, how many issues
 `/recon` is designed to run unattended on a schedule via a Claude Code Routine (`/schedule`). Design for small predictable sips: one slice per run so a scheduled run is cheap and a skipped run is harmless.
 
 ```
-Name:      recon-daily
-Schedule:  daily at 03:00 (off-peak)
-Prompt:    /claude-tweaks:recon
-K-budget:  1–3 slices per run (--budget flag on next-slice; default 1)
+Name:       recon-daily
+Schedule:   daily at 03:00 (off-peak)
+Prompt:     /claude-tweaks:recon
+K-budget:   1–3 slices per run (--budget flag on next-slice; default 1)
+Token cap:  align with per-run budget
 ```
 
-Omit `--area` in the Routine prompt to let `next-slice` pick the highest-priority slice automatically. Supply `--area <path>` only for targeted re-inspection of a specific area.
+**Headless run flow:** SCOPE(`next-slice`) → CLASSIFY → JUDGE → `validate-findings` → file issues. Triage happens later in GitHub — the Routine does not wait for interactive input. Omit `--area` in the Routine prompt to let `next-slice` pick the highest-priority slice automatically.
 
-> **Billing note:** Routines run inside the subscription (no separate API key); verify any automation-credit specifics against the live account.
+A skipped run (e.g., `next-slice` returns `null` because all slices are fresh) is harmless — rotation resumes from the same position on the next window.
+
+> **Billing note:** Routines run inside the subscription; verify automation-credit specifics against the live account.
+
+## Regression and Critical Gating
+
+Use `status [--fail-on regressed|critical]` to integrate recon state into CI or pre-push hooks.
+
+```bash
+# Exit 1 if any regressed entries exist in the cache (a closed issue re-opened)
+node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" status --fail-on regressed
+
+# Exit 1 if any open critical-severity entries exist in the cache
+node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" status --fail-on critical
+```
+
+Exit-code behavior:
+- `--fail-on regressed` — exits `1` when one or more cache entries have `status: "regressed"`; exits `0` otherwise.
+- `--fail-on critical` — exits `1` when one or more open cache entries have `severity: "critical"`; exits `0` otherwise.
+- Without `--fail-on`, `status` always exits `0` and prints a summary table.
+
+Run both checks independently in CI if you want to gate on either condition.
+
+## Fingerprint Churn
+
+Use `churn-report [--fail-on-high-churn <r>]` to detect runs where the fingerprint set changed dramatically — a signal that criteria, anchoring rules, or code structure shifted in a way that may invalidate historical dedup.
+
+```bash
+# Print a churn report across all consecutive run pairs
+node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" churn-report
+
+# Exit 1 when appeared + disappeared / union ratio exceeds 0.5 (50 %)
+node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" churn-report --fail-on-high-churn 0.5
+```
+
+Exit-code behavior:
+- `--fail-on-high-churn <r>` — exits `1` if any consecutive run pair's `(appeared + disappeared) / union` ratio exceeds `r`; exits `0` otherwise. The first run has no prior and never triggers failure.
+- Without the flag, `churn-report` always exits `0` and prints the ratio.
+
+Use in post-run validation or a weekly cron step to catch accidental anchor or criteria regressions before they pollute the dedup cache.
 
 ## Next Actions
 
@@ -252,7 +292,6 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | Calling the network from `recon.js` or `criteria.js` | The engine is emit-only and unit-testable. The skill hands payloads to `gh`; the engine never does. |
 | Treating the cache as durable state | The cache is a rebuildable optimization. GitHub issue state is the source of truth for cross-run memory. |
 | Filing a finding with `confidence: 'low'` for a noisy criterion | Noisy criteria (`security-logic`, `config-secrets`, `input-validation`, `resilience`) require `confidence: 'high'` to file. The confidence floor is enforced by the skill judgment, not the engine — the engine validates the shape, not the policy. |
-| Reporting rotation in P1 | Auto-rotation (picking the next area automatically) is Phase 3. P1 is on-demand with `--area` explicitly supplied. |
 | Skipping the verify gate before filing | Files plausible-but-wrong findings. Every surviving finding must pass all three verify questions — real, actionable, reproducible — before reaching dedup. |
 
 ## Relationship to Other Skills
