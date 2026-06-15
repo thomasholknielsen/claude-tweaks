@@ -326,10 +326,18 @@ function cmdValidateFindings(args) {
   if (!args.dryRun) {
     writeCache(root, cache);
     // Persist the run-log (for churn) and the swept slice's cursor (for rotation/change-skip).
-    const sliceId = args.slice;
-    const areasSwept = sliceId ? [sliceId] : [];
-    const hashes = sliceId ? { [sliceId]: contentHash(path.resolve(root, sliceId)) } : {};
-    recordRun(root, args.runId, { fingerprints: [...seen], areasSwept, hashes });
+    // Best-effort: cursors and run-logs are a rebuildable optimization (GitHub issue state is
+    // the source of truth), so a persistence failure must never block emitting the payloads.
+    try {
+      const sliceId = args.slice;
+      const areasSwept = sliceId ? [sliceId] : [];
+      const hashes = sliceId ? { [sliceId]: contentHash(path.resolve(root, sliceId)) } : {};
+      recordRun(root, args.runId, { fingerprints: [...seen], areasSwept, hashes });
+    } catch (err) {
+      process.stderr.write(
+        `[recon] validate-findings: run/cursor persistence failed (non-fatal, payloads still emitted): ${err.message}\n`,
+      );
+    }
   }
 
   // 5. Emit gh-ready payloads on stdout.
