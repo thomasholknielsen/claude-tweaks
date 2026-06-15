@@ -1,0 +1,37 @@
+// Project a finding into a GitHub issue payload. Emit-only: this never calls
+// the network. The skill hands the payload to the gh CLI itself.
+// Body is /specify-shaped so promotion to a spec is near-zero translation, and
+// carries a hidden fingerprint marker the dedup step re-extracts.
+function toIssuePayload(finding) {
+  const marker = `<!-- recon-fingerprint: ${finding.id} -->`;
+  const filesLine = (finding.files || []).length ? (finding.files || []).join(', ') : '(no specific file)';
+  const body = [
+    marker,
+    '',
+    `**Lens:** ${finding.lens} | **Severity:** ${finding.severity} | **Confidence:** ${finding.confidence} | **Area:** ${finding.area}`,
+    '',
+    '## Current State',
+    '',
+    `Files: ${filesLine}`,
+    '',
+    finding.evidence,
+    '',
+    '## Deliverables',
+    '',
+    finding.suggestion,
+    '',
+    '## Acceptance Criteria',
+    '',
+    finding.acceptance,
+    '',
+    '_Filed by `/recon`. Close to resolve; label `wontfix` to suppress future reports of this finding._',
+  ].join('\n');
+
+  return {
+    title: finding.title,
+    body,
+    labels: ['recon', `recon:${finding.severity}`],
+  };
+}
+
+module.exports = { toIssuePayload };

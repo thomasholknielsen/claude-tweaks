@@ -2,7 +2,7 @@
 
 ## What this is
 
-A Claude Code plugin (v4.17.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation, QA pipeline support, a statusline, and a subagent contract for parallel dispatch.
+A Claude Code plugin (v4.20.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation, QA pipeline support, a statusline, and a subagent contract for parallel dispatch.
 
 ## Stack
 
@@ -20,7 +20,7 @@ A Claude Code plugin (v4.17.0) containing markdown skill files that guide Claude
 .claude-plugin/plugin.json        → Plugin manifest (name, version, description)
 skills/{name}/SKILL.md            → Skill definition (frontmatter + body)
 skills/{name}/*.md                → Sub-files lazy-loaded by the skill
-skills/_shared/*.md               → Cross-skill shared content (subagent contract, auto-mode contract, auto-decision log, browser detection, pipeline run dir, dev URL detection, git discipline, design-wrapper handling, multi-agent coordination, decision records / ADR gate)
+skills/_shared/*.md               → Cross-skill shared content (subagent contract, auto-mode contract, auto-decision log, browser detection, pipeline run dir, dev URL detection, git discipline, design-wrapper handling, multi-agent coordination, decision records / ADR gate, **shared analysis criteria: architecture-depth / simplification / review-quality**)
 agents/{name}.md                  → Agent definitions (frontmatter + body)
 hooks/hooks.json                  → Hook definitions (SessionStart)
 bin/                              → Node executables (statusline, deps check)
@@ -30,11 +30,11 @@ README.md                         → User-facing documentation
 LICENSE                           → MIT
 ```
 
-### Skill directories (22 total)
+### Skill directories (23 total)
 
 **Lifecycle:** init, capture, challenge, specify, build, test, stories, review, wrap-up
 **Component:** reflect, simplify, deepen, journeys, visual-review, design
-**Utility:** help, tidy, flow, browse, ledger, version, research
+**Utility:** help, tidy, flow, browse, ledger, version, research, recon
 
 ### Skills with sub-files
 
@@ -54,7 +54,7 @@ LICENSE                           → MIT
 | wrap-up | leftover-routing.md, review-console.md, cleanup-procedures.md, skill-curation.md | Leftover routing rules for unfinished work; Review Console consolidation template; Step 5 cleanup procedures (design wrapper caches, pipeline run dir archival, worktree teardown); Step 7 skill curation (seed gather, independent domain-scoped scan + gap detection, 6-dimension analysis, ≥2-of-3 new-skill gate, stage/present) — generates candidates from the work itself, not only ledger-tagged seeds |
 | tidy | scan-procedures.md | Per-step scan rules for Steps 1-5.5 (INBOX, deferred, specs, design-docs+briefs, plans, git worktrees, doc registry, sizing, cross-spec patterns) — inlined into each parallel agent's prompt at dispatch time |
 | ledger | resolve-gate.md | Three-phase nothing-left-behind resolve gate (fix-exhaust → per-item user input → apply) referenced by /wrap-up Step 8.5 and /flow Step 5 |
-| flow | manifesto.md, multi-spec.md, multispec-review-console.md, steps-and-gates.md, survey.md, validation.md, worktree-merge.md, failure-cards.md | Pipeline Config Manifesto; multi-spec batching; consolidated multi-spec Review Console; Allowed Steps + Step Arguments + Gate Behavior + polish-phase decision tree (single canonical home); Creative Opportunities + Depth Opportunities survey ownership (end-of-run analysis-only surveys; Depth surfaces `/deepen` candidates without auto-refactoring); pre-flight validation; worktree-merge handoff; on-failure card templates (generic + polish-broke-verification) loaded only when a gate fails |
+| flow | manifesto.md, multi-spec.md, multispec-review-console.md, steps-and-gates.md, survey.md, validation.md, worktree-merge.md, failure-cards.md, from-recon.md | Pipeline Config Manifesto; multi-spec batching; consolidated multi-spec Review Console; Allowed Steps + Step Arguments + Gate Behavior + polish-phase decision tree (single canonical home); Creative Opportunities + Depth Opportunities survey ownership (end-of-run analysis-only surveys; Depth surfaces `/deepen` candidates without auto-refactoring); pre-flight validation; worktree-merge handoff; on-failure card templates (generic + polish-broke-verification) loaded only when a gate fails; `--from-recon` pull-issues → /specify briefs → multi-spec batch procedure |
 | design | command-map.md, frontend-detection.md, impeccable-cli.md, modes/{test,review,shape,pre-build,polish,survey,reset-recommendations}.md | Canonical dispatch tables (auto-fit / issue-driven / intent-driven / survey "would help" criteria); frontend-vs-backend detection rules; Impeccable CLI invocation patterns; per-mode full procedures (steps, decision rules, output format) lazy-loaded by the active mode |
 | help | reference-card.md, context-flow.md, status-scan.md | Quick reference card (single source of truth for the command catalog); artifact flow documentation; pipeline status scan parallel-dispatch procedure (Stages 1-7) |
 | research | methodology.md | Delegates to Claude Code's built-in `/deep-research` Dynamic Workflow when available; otherwise runs the lean inline model-driven method in `methodology.md` (decompose → parallel search → adversarial verify → synthesize). Citation-audited markdown reports under `.claude-tweaks/research/`. |
@@ -154,7 +154,8 @@ The marketplace `source` is an **unpinned git URL**, so installs and updates tra
 
 ```bash
 claude --plugin-dir ./              # Local development — load plugin from current directory
-node --test tests/                  # Run Node tests (statusline + libs)
+npm test                            # Runs node --test over tests/ AND bin/lib/recon/tests/
+node --test bin/lib/recon/tests/*.test.js   # Recon unit suite only
 ```
 
 ### Subagent Contract (v4.2+)

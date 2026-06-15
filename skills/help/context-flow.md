@@ -14,6 +14,13 @@ This design means:
 ## Artifact Flow
 
 ```
+Codebase                ──→ Findings cache        ──→ GitHub Issues (durable)     ──→ Build pipeline
+.claude-tweaks/recon/       .claude-tweaks/recon/       gh issues (label: recon)        /flow --from-recon
+  /recon                     cache.json + runs/               ↓ (or)                    specs/NN-*.md via /specify
+                                                        INBOX / /specify                  /build
+```
+
+```
 INBOX item          ──→ Brief               ──→ Design Doc          ──→ Spec              ──→ Code + Journey
 specs/INBOX.md         docs/plans/*-brief.md   docs/superpowers/specs/*-design.md  specs/NN-*.md         src/ + docs/journeys/
   /capture               /challenge              /superpowers:brainstorming            /specify              /build
@@ -36,6 +43,7 @@ src/ + journeys    stories/*.yaml     types + lint + tests + QA     code + visua
 
 | Skill | Reads | Writes | Deletes |
 |-------|-------|--------|---------|
+| `/recon` | Codebase files (via lenses), `.claude-tweaks/recon/cache.json` (prior findings), `--issues <file>` (open issue index from `gh issue list`) | `.claude-tweaks/recon/cache.json` (fingerprint + status), `.claude-tweaks/recon/runs/` (run logs for churn tracking), GitHub issues via `gh issue create` (durable sink), `specs/INBOX.md` or `/specify` (routing for actionable findings) | — |
 | `/init` | `~/.claude/plugins/`, entire codebase, CLAUDE.md, config files, git state | `specs/`, `docs/plans/`, `docs/journeys/`, `specs/INBOX.md`, `specs/DEFERRED.md`, `specs/INDEX.md`, CLAUDE.md, `.claude/skills/*.md`, `.claude/rules/`, `docs/journeys/*.md` | — |
 | `/capture` | — | `specs/INBOX.md` (append) | — |
 | `/challenge` | `specs/INBOX.md` | `docs/plans/*-brief.md` | — |

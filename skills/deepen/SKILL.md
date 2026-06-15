@@ -49,7 +49,7 @@ A parent skill (or the user) may pass a file scope and a structural seed (e.g., 
 
 ## Vocabulary Contract
 
-This skill uses a controlled vocabulary so proposals stay precise and comparable: **module, interface, implementation, depth, seam, adapter, leverage**. Do not drift into `component`, `service`, `API` (unless it literally means a network API), or `boundary`. Definitions live in `depth-analysis.md` in this skill's directory. Inconsistent language is the failure that makes refactor proposals impossible to weigh against each other.
+This skill uses a controlled vocabulary so proposals stay precise and comparable: **module, interface, implementation, depth, seam, adapter, leverage**. Do not drift into `component`, `service`, `API` (unless it literally means a network API), or `boundary`. Definitions live in `_shared/criteria-architecture-depth.md` (the shared depth criteria). `depth-analysis.md` shows how `/deepen` applies them. Inconsistent language is the failure that makes refactor proposals impossible to weigh against each other.
 
 ## Step 1: Resolve Scope and Map Modules
 
@@ -61,7 +61,7 @@ This skill uses a controlled vocabulary so proposals stay precise and comparable
 
 ## Step 2: Find Shallow Modules
 
-Apply the method in `depth-analysis.md` (read it in this skill's directory):
+Apply the depth criteria in `_shared/criteria-architecture-depth.md`; `depth-analysis.md` (this skill's directory) shows how those criteria map onto Steps 2-4:
 
 1. **Judge depth as leverage** — how much behavior each caller exercises per unit of interface it must learn. Not a line ratio. Make the judgment from the call sites.
 2. **Run the deletion test** on each suspected-shallow module — would deleting it *concentrate* complexity (it earns its keep — not a candidate) or *just move* it (shallow — a candidate)?
@@ -69,7 +69,7 @@ Apply the method in `depth-analysis.md` (read it in this skill's directory):
 
 ## Step 3: Rank and Present Candidates (Stage 1 of 2)
 
-Rank candidates by leverage per unit of churn (callers affected, interface shrink, blast radius — see `depth-analysis.md`). Present them as a numbered list. **Do not propose interfaces yet** — present *what* is shallow and *why*, then ask which to explore. Proposing concrete interfaces for every candidate up front is the runaway-rewrite this skill exists to prevent.
+Rank candidates by leverage per unit of churn (callers affected, interface shrink, blast radius — see `_shared/criteria-architecture-depth.md`). Present them as a numbered list. **Do not propose interfaces yet** — present *what* is shallow and *why*, then ask which to explore. Proposing concrete interfaces for every candidate up front is the runaway-rewrite this skill exists to prevent.
 
 ```
 Found {N} depth opportunities in {scope}, ranked by leverage:
@@ -99,7 +99,7 @@ Surface at the Wrap-Up Review Console. Do not run Steps 4-5 in auto mode — int
 For each candidate the user picked, hold a focused interface conversation — do not jump to code. Per the `Brainstorm / section-confirmation: adaptive` convention, if the user accepts two consecutive candidates' designs without modification, batch the rest into a single approval.
 
 1. **Propose the deepened (or collapsed) interface** — the smallest surface that hides the most behavior. Show the before/after signature, not the implementation.
-2. **Classify dependencies** for testability (pure computation / local stand-in / network boundary → port + adapter) per `depth-analysis.md`. State how the deepened module will be tested.
+2. **Classify dependencies** for testability (pure computation / local stand-in / network boundary → port + adapter) per `_shared/criteria-architecture-depth.md`. State how the deepened module will be tested.
 3. **Name the trade-off** — what the new shape makes easy, what it makes harder, and what would force revisiting it. If the trade-off is genuinely hard-to-reverse, surprising, and a real choice, flag it as an `[ADR-candidate]` so wrap-up can record it (see `_shared/decision-records.md`).
 4. Confirm before implementing.
 
@@ -185,3 +185,4 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `_shared/decision-records.md` | Hard-to-reverse interface trade-offs surfaced in Step 4 are flagged `[ADR-candidate]` for /wrap-up to record. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — /deepen always stages in auto (architecture is low-reversibility), never auto-refactors. |
 | `_shared/subagent-output-contract.md` | The Working-Directory Discipline rule referenced by Step 5 verify lives here (CWD anchoring before `git` / `node --test`). |
+| `_shared/criteria-architecture-depth.md` | The shared depth criteria (leverage, deletion test, dependency classification, vocabulary) — single source of truth read by both /deepen and /recon's architecture-depth lens. |

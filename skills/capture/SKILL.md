@@ -174,4 +174,5 @@ Parent invocation of `/capture` is signaled by `$PIPELINE_RUN_DIR` being set in 
 | `/claude-tweaks:visual-review` | UI ideas surfaced during visual review (creative improvements, follow-ups) land in INBOX via /capture instead of inflating the current spec |
 | `specs/DEFERRED.md` | Structured deferral for build/review work — carries origin, files, and triggers that INBOX doesn't |
 | `/claude-tweaks:research` | Research findings can be captured as INBOX items; invoke `/research` when an INBOX idea needs evidence before specifying. |
+| `/claude-tweaks:recon` | `/recon` routes fuzzy or below-threshold findings to INBOX via `/capture` instead of filing a GitHub issue, so they get human triage before promotion. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
