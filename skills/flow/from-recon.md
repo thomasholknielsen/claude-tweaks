@@ -38,8 +38,18 @@ assembled.
    ```
 
    (or call `bin/lib/recon/pull-issues.js`'s `pullReconIssues` directly with the parsed array).
+   Call signature: `pullReconIssues({ label, minSeverity, issuesJson })`.
+
+   **v2 label set.** Each recon issue carries three label types:
+   - `recon` — presence filter; `pullReconIssues` includes only issues that have this label.
+   - `recon:<severity>` — e.g. `recon:high`; severity is extracted from this label and stored
+     in the brief's `severity` field. If absent, defaults to `info`.
+   - `recon:<criterion>` — e.g. `recon:architecture`; informational only. `pullReconIssues`
+     does not filter on it — it is passed through in the brief's `body`.
+
    Each brief is `{ number, title, body, fingerprint, severity }`. The body is already
-   `/specify`-shaped (Current State / Deliverables / Acceptance Criteria).
+   `/specify`-shaped with three sections: `## Current State`, `## Deliverables`,
+   `## Acceptance Criteria`.
 
 3. **Derive specs via `/specify`.** For each brief, invoke `/claude-tweaks:specify` with the
    brief's title + body as the design input. `/specify` produces a numbered spec under `specs/`.
