@@ -29,13 +29,13 @@ const CRITERIA = [
   {
     id: 'scalability',
     appliesTo: 'universal',
-    fragment: null,
+    fragment: 'criteria-scalability.md',
     confidenceFloor: 'high',
   },
   {
     id: 'security-logic',
     appliesTo: 'universal',
-    fragment: null,
+    fragment: 'criteria-security-logic.md',
     confidenceFloor: 'high',
   },
   {
@@ -65,13 +65,13 @@ const CRITERIA = [
   {
     id: 'resilience',
     appliesTo: 'universal',
-    fragment: null,
+    fragment: 'criteria-resilience.md',
     confidenceFloor: 'high',
   },
   {
     id: 'observability',
     appliesTo: 'universal',
-    fragment: null,
+    fragment: 'criteria-observability.md',
     confidenceFloor: 'med',
   },
   {
