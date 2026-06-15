@@ -13,50 +13,29 @@ function runCli(args, root) {
   return JSON.parse(out);
 }
 
-test('run on a repo with a high-severity finding plans to file an issue', () => {
+// v2: cmdRun emits a slices-only stub — no mechanical-lens findings loop.
+// The SKILL drives the LLM judge directly; this command is a scope smoke-check.
+
+test('run emits v2 shape: runId, dryRun, areas[], plan:[], summary:{}', () => {
   const root = tmp();
-  fs.writeFileSync(path.join(root, 'big.js'), 'x\n'.repeat(700)); // oversized -> high
   const res = runCli(['--area', '.'], root);
-  const filed = res.plan.filter((p) => p.action === 'file');
-  assert.ok(filed.length >= 1);
-  assert.ok(filed[0].fingerprint.startsWith('recon-'));
-  assert.ok(filed[0].payload.labels.includes('recon'));
-  // cache was written (not a dry run) — contract path: .claude-tweaks/recon/cache.json
-  assert.ok(fs.existsSync(path.join(root, '.claude-tweaks', 'recon', 'cache.json')));
+  assert.ok(typeof res.runId === 'string', 'runId must be a string');
+  assert.strictEqual(res.dryRun, false, 'dryRun must default to false');
+  assert.ok(Array.isArray(res.areas), 'areas must be an array');
+  assert.deepStrictEqual(res.plan, [], 'plan must be empty in v2');
+  assert.deepStrictEqual(res.summary, {}, 'summary must be empty in v2');
 });
 
-test('--dry-run writes no cache and files nothing to disk', () => {
+test('--area constrains the selected areas to the given path', () => {
   const root = tmp();
-  fs.writeFileSync(path.join(root, 'big.js'), 'x\n'.repeat(700));
+  const res = runCli(['--area', '.'], root);
+  assert.deepStrictEqual(res.areas, ['.'], 'single --area should produce exactly that area id');
+});
+
+test('--dry-run sets dryRun:true in the output', () => {
+  const root = tmp();
   const res = runCli(['--area', '.', '--dry-run'], root);
-  assert.ok(res.plan.some((p) => p.action === 'file'));
+  assert.strictEqual(res.dryRun, true);
+  // v2: no cache is written because plan is empty (no findings to persist)
   assert.strictEqual(fs.existsSync(path.join(root, '.claude-tweaks', 'recon', 'cache.json')), false);
-});
-
-// IDEMPOTENCY (design §15): second run files zero new issues.
-test('a second run against unchanged state files nothing new', () => {
-  const root = tmp();
-  fs.writeFileSync(path.join(root, 'big.js'), 'x\n'.repeat(700));
-  const first = runCli(['--area', '.'], root);
-  const filedFirst = first.summary.file;
-  assert.ok(filedFirst >= 1);
-  // Simulate the issues now being open: feed the filed fingerprints back as open issues.
-  // --issues array shape: [{ number, state, labels, fingerprint }]
-  const fps = first.plan.filter((p) => p.action === 'file').map((p) => p.fingerprint);
-  const issuesFile = path.join(root, 'issues.json');
-  fs.writeFileSync(issuesFile, JSON.stringify(fps.map((fp, n) => ({ number: n + 1, state: 'open', labels: ['recon'], fingerprint: fp }))));
-  const second = runCli(['--area', '.', '--issues', issuesFile], root);
-  assert.strictEqual(second.summary.file, 0);
-  assert.ok(second.summary.skip >= filedFirst);
-});
-
-// SELF-POLLUTION (PORT.md delta #2) end-to-end: a "." run ignores its own cache dir.
-test('a default "." run does not re-report findings from its own .claude-tweaks output', () => {
-  const root = tmp();
-  fs.writeFileSync(path.join(root, 'a.js'), '// TODO: real source todo\n');
-  runCli(['--area', '.'], root); // writes .claude-tweaks/recon/cache.json
-  const second = runCli(['--area', '.'], root);
-  // No finding should reference a file under .claude-tweaks
-  const polluted = second.plan.filter((p) => p.payload && p.payload.body.includes('.claude-tweaks'));
-  assert.strictEqual(polluted.length, 0);
 });

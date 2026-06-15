@@ -4,21 +4,14 @@ const fs = require('fs');
 const path = require('path');
 const { detectAreas } = require('./lib/recon/areas');
 const { scoreAreas } = require('./lib/recon/score');
-const { buildLenses } = require('./lib/recon/lenses/index');
 const { fingerprint } = require('./lib/recon/fingerprint');
 const { readCache, writeCache, readRuns, computeChurn, recordRun, readCursors } = require('./lib/recon/cache');
 const { decide } = require('./lib/recon/dedup');
-const { toIssuePayload } = require('./lib/recon/issue-payload');
-const { buildWorkOrders, JUDGMENT_LENS_MAP } = require('./lib/recon/judgment');
-const { validateFinding } = require('./lib/recon/validate-finding');
 const { validateFindingV2 } = require('./lib/recon/validate-finding');
 const { toIssuePayloadV2 } = require('./lib/recon/issue-payload');
 const { getCriterion } = require('./lib/recon/criteria');
 const { classifyArea } = require('./lib/recon/area-type');
 const { listSlices, contentHash, selectSlice } = require('./lib/recon/scope');
-
-const DEFAULT_JUDGMENT_LENSES = Object.keys(JUDGMENT_LENS_MAP);
-const DEFAULT_MAX_SUBAGENTS = 6;
 
 // Confidence ordering for floor comparison. Higher index = higher confidence.
 const CONFIDENCE_ORDER = ['low', 'med', 'high'];
@@ -44,9 +37,6 @@ function parseArgs(argv) {
     else if (a === '--area') args.area = argv[++i];
     else if (a === '--issues') args.issues = argv[++i];
     else if (a === '--run-id') args.runId = argv[++i];
-    else if (a === '--areas') args.areas = argv[++i];
-    else if (a === '--lenses') args.lenses = argv[++i];
-    else if (a === '--max-subagents') args.maxSubagents = Number(argv[++i]);
     else if (a === '--fail-on') args['fail-on'] = argv[++i];
     else if (a === '--fail-on-high-churn') args['fail-on-high-churn'] = argv[++i];
     else if (a === '--label') args.label = argv[++i];
@@ -170,168 +160,17 @@ function priorFindingCount(cache, areaId) {
 }
 
 function cmdRun(args) {
-  const cfg = {}; // Phase 1: default lens set; project-command stays opt-in
-  const areas = selectAreas({ area: args.area, root: args.root, K: 3 });
-  const lenses = buildLenses(cfg);
-  const issueIndex = loadIssueIndex(args.issues);
-  const cache = readCache(args.root);
-
-  const plan = [];
-  const summary = { file: 0, remember: 0, reopen: 0, skip: 0, suppress: 0 };
-  const seen = new Set(); // intra-run dedup: keep the first occurrence of each fingerprint
-
-  for (const area of areas) {
-    for (const lens of lenses) {
-      for (const finding of lens.run(area, args.root, cfg[lens.id])) {
-        finding.id = fingerprint({
-          lens: finding.lens,
-          areaId: finding.area,
-          signature: finding.signature,
-          file: finding.files && finding.files[0],
-        });
-        if (seen.has(finding.id)) continue; // skip duplicate fingerprint within this run
-        seen.add(finding.id);
-        const decision = decide(finding, issueIndex, cache);
-        summary[decision.action] = (summary[decision.action] || 0) + 1;
-        const entry = {
-          fingerprint: finding.id,
-          action: decision.action,
-          severity: finding.severity,
-          title: finding.title,
-        };
-        if (decision.issue !== undefined) entry.issue = decision.issue;
-        if (decision.action === 'file' || decision.action === 'reopen') {
-          entry.payload = toIssuePayload(finding);
-          cache[finding.id] = decision.action === 'reopen'
-            ? { status: 'regressed', issue: decision.issue || null, severity: finding.severity }
-            : { status: 'open', issue: decision.issue || null, severity: finding.severity };
-        } else if (decision.action === 'remember') {
-          if (!cache[finding.id]) cache[finding.id] = { status: 'remembered', issue: null };
-        }
-        plan.push(entry);
-      }
-    }
-  }
-
-  if (!args.dryRun) {
-    writeCache(args.root, cache);
-    const fingerprints = plan.map((e) => e.fingerprint).filter(Boolean);
-    const areasSwept = areas.map((a) => a.id);
-    recordRun(args.root, args.runId, { fingerprints, areasSwept });
-  }
-
-  process.stdout.write(JSON.stringify({
+  // v2: lenses are demoted from the run spine. The SKILL drives the LLM judge
+  // directly; this function is a scope smoke-check / dry-run helper only.
+  const slice = selectAreas({ area: args.area, root: args.root, K: 1 });
+  const out = {
     runId: args.runId,
-    dryRun: args.dryRun,
-    areas: areas.map((a) => a.id),
-    plan,
-    summary,
-  }, null, 2) + '\n');
-}
-
-function reconRunsDir(root) {
-  return path.join(root, '.claude-tweaks', 'recon', 'runs');
-}
-
-function cmdPlanJudgment(args) {
-  const root = args.root || process.cwd();
-  const areas = (args.areas || '').split(',').map((a) => a.trim()).filter(Boolean);
-  if (areas.length === 0) {
-    process.stderr.write('plan-judgment: --areas is required (comma-separated list)\n');
-    process.exit(2);
-  }
-  const lenses = args.lenses
-    ? args.lenses.split(',').map((l) => l.trim()).filter(Boolean)
-    : DEFAULT_JUDGMENT_LENSES;
-  const maxSubagents = Number.isFinite(args.maxSubagents) ? args.maxSubagents : DEFAULT_MAX_SUBAGENTS;
-
-  const orders = buildWorkOrders({ areas, lenses, maxSubagents });
-  const json = JSON.stringify(orders, null, 2) + '\n';
-
-  const runId = args.runId;
-  if (runId) {
-    const outDir = reconRunsDir(root);
-    fs.mkdirSync(outDir, { recursive: true });
-    fs.writeFileSync(path.join(outDir, `${runId}-work-orders.json`), json, 'utf8');
-  }
-  process.stdout.write(json);
-}
-
-function cmdIngestJudgment(args) {
-  const root = args.root || process.cwd();
-  const resultsPath = args._[1]; // positional after the subcommand
-  if (!resultsPath) {
-    process.stderr.write('usage: recon ingest-judgment <results.json> [--run-id <id>]\n');
-    process.exit(2);
-  }
-
-  let raw;
-  try {
-    raw = JSON.parse(fs.readFileSync(resultsPath, 'utf8'));
-  } catch (err) {
-    process.stderr.write(`ingest-judgment: results file not found or not valid JSON: ${resultsPath}\n`);
-    process.exit(1);
-  }
-  if (!Array.isArray(raw)) {
-    process.stderr.write('ingest-judgment: results file must contain a JSON array of {lensId, area, findings}\n');
-    process.exit(1);
-  }
-
-  // 1. Validate every finding; drop malformed with a logged reason.
-  const survivors = [];
-  for (const result of raw) {
-    if (!result || typeof result.lensId !== 'string' || typeof result.area !== 'string') {
-      process.stderr.write('[recon] ingest-judgment: skipping malformed result entry (missing lensId/area)\n');
-      continue;
-    }
-    const findings = Array.isArray(result.findings) ? result.findings : [];
-    for (const f of findings) {
-      const v = validateFinding(f);
-      if (!v.ok) {
-        process.stderr.write(
-          `[recon] ingest-judgment: dropped finding "${(f && f.signature) || '?'}" ` +
-          `(lens ${result.lensId}, area ${result.area}): ${v.errors.join('; ')}\n`);
-        continue;
-      }
-      // 2. Fingerprint via Phase 1. Field name is areaId (not area).
-      const id = fingerprint({
-        lens: v.value.lens,
-        areaId: v.value.area,
-        signature: v.value.signature,
-        file: v.value.files && v.value.files[0],
-      });
-      survivors.push({ ...v.value, id });
-    }
-  }
-
-  // 3. Dedup via Phase 1 against the cache; emit payloads only for survivors.
-  // --issues is optional: when provided (e.g. a closed-issue file signalling a
-  // regression), decide() can produce 'reopen' decisions.
-  const cache = readCache(root);
-  const issueIndex = loadIssueIndex(args.issues);
-  const payloads = [];
-  const seenIngest = new Set(); // intra-run dedup: keep the first occurrence of each fingerprint
-  for (const finding of survivors) {
-    if (seenIngest.has(finding.id)) continue; // skip duplicate fingerprint within this run
-    seenIngest.add(finding.id);
-    const decision = decide(finding, issueIndex, cache);
-    if (decision.action === 'skip' || decision.action === 'suppress') continue;
-    if (decision.action === 'file' || decision.action === 'reopen') {
-      cache[finding.id] = decision.action === 'reopen'
-        ? { status: 'regressed', issue: decision.issue || null, severity: finding.severity }
-        : { status: 'open', issue: decision.issue || null, severity: finding.severity };
-    } else if (decision.action === 'remember') {
-      if (!cache[finding.id]) cache[finding.id] = { status: 'remembered', issue: null };
-    }
-    payloads.push(toIssuePayload(finding));
-  }
-  writeCache(root, cache);
-
-  // 4. Emit gh-ready payloads on stdout; the SKILL.md hands these to gh.
-  process.stdout.write(JSON.stringify(payloads, null, 2) + '\n');
-  process.stderr.write(
-    `[recon] ingest-judgment ${args.runId || '?'}: ` +
-    `${survivors.length} valid finding(s), ${payloads.length} payload(s) after dedup\n`);
+    dryRun: args.dryRun || false,
+    areas: slice.map((a) => a.id),
+    plan: [],
+    summary: {},
+  };
+  process.stdout.write(JSON.stringify(out, null, 2) + '\n');
 }
 
 function cmdStatus(args) {
@@ -535,8 +374,6 @@ function main(argv) {
   const args = parseArgs(argv);
   const cmd = args._[0];
   if (cmd === 'run') return cmdRun(args);
-  if (cmd === 'plan-judgment') return cmdPlanJudgment(args);
-  if (cmd === 'ingest-judgment') return cmdIngestJudgment(args);
   if (cmd === 'status') return cmdStatus(args);
   if (cmd === 'churn-report') return cmdChurnReport(args);
   if (cmd === 'pull-issues') return cmdPullIssues(args);
@@ -544,19 +381,12 @@ function main(argv) {
   if (cmd === 'classify') return cmdClassify(args);
   if (cmd === 'next-slice') return cmdNextSlice(args);
   process.stderr.write(
-    'usage: recon.js <run|next-slice|validate-findings|classify|status|churn-report|pull-issues> ...\n' +
-    '  run [--area <path>] [--dry-run] [--root <dir>] [--issues <file>]\n' +
-    '  next-slice [--root <dir>] [--budget <n>|--max-slices <n>]\n' +
-    '  validate-findings <findings.json> [--root <dir>] [--issues <file>] [--run-id <id>] [--dry-run]\n' +
-    '  plan-judgment --areas <a,b> [--lenses <l,m>] [--max-subagents <n>] [--run-id <id>]\n' +
-    '  ingest-judgment <results.json> [--root <dir>] [--run-id <id>]\n' +
-    '  status [--fail-on regressed|critical]\n' +
-    '  churn-report [--fail-on-high-churn <ratio>]\n' +
-    '  pull-issues --label <label> --issues <file> [--min-severity <sev>]\n',
+    'usage: recon.js <command> [options]\n' +
+    'commands: run, validate-findings, classify, next-slice, status, churn-report, pull-issues\n',
   );
   process.exit(2);
 }
 
 if (require.main === module) main(process.argv.slice(2));
 
-module.exports = { parseArgs, cmdRun, cmdIngestJudgment, cmdValidateFindings, main, selectAreas, collectSignals, applyConfidenceFloor };
+module.exports = { parseArgs, cmdRun, cmdValidateFindings, main, selectAreas, collectSignals, applyConfidenceFloor };

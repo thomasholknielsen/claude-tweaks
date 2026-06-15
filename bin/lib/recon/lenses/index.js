@@ -9,13 +9,9 @@ const projectCommand = require('./project-command');
 const ALL_LENSES = [todoComments, oversizedFile, deadExport, dependencyFreshness, projectCommand];
 const DEFAULT_IDS = ['todo-comments', 'oversized-file', 'dead-export', 'dependency-freshness'];
 
-// Returns the active lens set. With config.enabledLenses (string[]), returns
-// only those ids in the given order; otherwise the default mechanical set.
-function buildLenses(config) {
-  const enabled = config && Array.isArray(config.enabledLenses) && config.enabledLenses.length
-    ? config.enabledLenses
-    : DEFAULT_IDS;
-  return enabled.map((id) => ALL_LENSES.find((l) => l.id === id)).filter(Boolean);
-}
+// Lenses are demoted from the run spine in v2.
+// The v2 SKILL drives the LLM judge directly; lenses are optional tools
+// the SKILL may call as evidence. Return [] so cmdRun emits no findings.
+function buildLenses(_config) { return []; }
 
 module.exports = { ALL_LENSES, DEFAULT_IDS, buildLenses };

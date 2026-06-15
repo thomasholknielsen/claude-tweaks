@@ -10,12 +10,10 @@ test('every lens satisfies the {id, kind:mechanical, run} contract', () => {
   }
 });
 
-test('default set excludes project-command (needs config)', () => {
-  const ids = buildLenses({}).map((l) => l.id);
-  assert.deepStrictEqual(ids, ['todo-comments', 'oversized-file', 'dead-export', 'dependency-freshness']);
+test('buildLenses always returns [] (lenses demoted from run spine in v2)', () => {
+  assert.deepStrictEqual(buildLenses({}), []);
 });
 
-test('enabledLenses selects by id, in order, including project-command', () => {
-  const ids = buildLenses({ enabledLenses: ['project-command', 'todo-comments'] }).map((l) => l.id);
-  assert.deepStrictEqual(ids, ['project-command', 'todo-comments']);
+test('buildLenses returns [] even when enabledLenses is specified (v2 spine)', () => {
+  assert.deepStrictEqual(buildLenses({ enabledLenses: ['project-command', 'todo-comments'] }), []);
 });
