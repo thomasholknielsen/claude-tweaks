@@ -170,16 +170,20 @@ The verify gate is a judgment step, not a mechanical check. It cannot be automat
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" validate-findings /tmp/recon-findings.json \
   --root "${ROOT:-$PWD}" \
+  --slice "${SLICE_ID}" \
+  --run-id "${RUN_ID}" \
   ${ISSUES_FILE:+--issues "$ISSUES_FILE"} \
   ${DRY_RUN:+--dry-run} \
   > /tmp/recon-payloads.json
 ```
 
+`SLICE_ID` is the `id` field from the `next-slice` output in Step 1 (or the `--area` value when using manual override). `RUN_ID` is the run identifier for this sweep (ISO timestamp or any stable string unique per run).
+
 Read `/tmp/recon-payloads.json`. The command:
 - Validates each finding (drops malformed ones with a logged reason on stderr).
 - Fingerprints via `criterion + areaId + normalizeAnchor(anchor)`.
 - Deduplicates against open `recon` issues and the local cache.
-- Writes the updated cache (unless `--dry-run`).
+- Writes the updated cache and records the run-log + slice cursor (unless `--dry-run`).
 - Emits gh-ready payloads on stdout as a JSON array.
 
 **Step 9 — FILE / REOPEN ISSUES.**
@@ -204,9 +208,15 @@ gh issue comment <issue_number> --body "Regressed: this finding reappeared. Run:
 
 In `--dry-run` mode, print the payloads and the `gh` commands that would run, but do not call `gh`.
 
-**Step 9.5 — Record the content-hash.**
+**Step 9.5 — Confirm cursor + run-log persistence.**
 
-After filing all surviving findings, the slice's content-hash is recorded automatically. When `validate-findings` completes a real (non-`--dry-run`) run, the engine persists the content-hash for the judged slice via the cursor's `lastHash` field. No manual shell command is needed — this step confirms the mechanism is active. The next `next-slice` call will see `lastHash` in the cursor and skip the slice unless its source files have changed since the last run.
+When `validate-findings` is called with `--slice <id>` and `--run-id <id>` on a real (non-`--dry-run`) run, the engine:
+- Writes the run's fingerprint set to `.claude-tweaks/recon/runs/<run-id>.json` (used by `churn-report`).
+- Records the slice's content-hash (`lastHash`) and sweep timestamp (`lastSweptMs`) to `.claude-tweaks/recon/cursors.json`.
+
+The next `next-slice` call will read these cursors and skip the slice unless its source files have changed since `lastHash` was recorded, or more than 30 days have passed (`stale` threshold). Without `--slice`, only the run-log is written and no cursor is updated (the slice remains eligible for re-selection).
+
+In `--dry-run` mode, neither the run-log nor the cursors are written — the run is truly a no-op for all persistence.
 
 **Step 10 — SUMMARIZE.**
 

@@ -37,6 +37,7 @@ function parseArgs(argv) {
     else if (a === '--area') args.area = argv[++i];
     else if (a === '--issues') args.issues = argv[++i];
     else if (a === '--run-id') args.runId = argv[++i];
+    else if (a === '--slice') args.slice = argv[++i];
     else if (a === '--fail-on') args['fail-on'] = argv[++i];
     else if (a === '--fail-on-high-churn') args['fail-on-high-churn'] = argv[++i];
     else if (a === '--label') args.label = argv[++i];
@@ -258,7 +259,7 @@ function cmdValidateFindings(args) {
   const findingsPath = args._[1]; // positional after the subcommand name
   if (!findingsPath) {
     process.stderr.write(
-      'usage: recon.js validate-findings <findings.json> [--root <dir>] [--issues <file>] [--run-id <id>] [--dry-run]\n',
+      'usage: recon.js validate-findings <findings.json> [--root <dir>] [--issues <file>] [--run-id <id>] [--slice <id>] [--dry-run]\n',
     );
     process.exit(2);
   }
@@ -324,6 +325,11 @@ function cmdValidateFindings(args) {
   // 4. Persist cache (unless dry-run).
   if (!args.dryRun) {
     writeCache(root, cache);
+    // Persist the run-log (for churn) and the swept slice's cursor (for rotation/change-skip).
+    const sliceId = args.slice;
+    const areasSwept = sliceId ? [sliceId] : [];
+    const hashes = sliceId ? { [sliceId]: contentHash(path.resolve(root, sliceId)) } : {};
+    recordRun(root, args.runId, { fingerprints: [...seen], areasSwept, hashes });
   }
 
   // 5. Emit gh-ready payloads on stdout.
@@ -382,7 +388,7 @@ function main(argv) {
   if (cmd === 'next-slice') return cmdNextSlice(args);
   process.stderr.write(
     'usage: recon.js <command> [options]\n' +
-    'commands: run, validate-findings, classify, next-slice, status, churn-report, pull-issues\n',
+    'commands: run, validate-findings [--slice <id>], classify, next-slice, status, churn-report, pull-issues\n',
   );
   process.exit(2);
 }

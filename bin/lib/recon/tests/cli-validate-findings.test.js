@@ -158,3 +158,84 @@ test('applyConfidenceFloor passes when criterionFloor is undefined (no floor set
   const result = applyConfidenceFloor({ confidence: 'low' }, undefined);
   assert.strictEqual(result.pass, true);
 });
+
+// ── Cursor + run-log persistence (Commit 1) ──────────────────────────────────
+
+const { readRuns } = require('../cache');
+
+test('validate-findings: persists cursor + run-log on a real run with --slice', () => {
+  const root = tmp();
+  // Use areaId '.' so the slice path is root itself (which exists).
+  const f = validFinding({ areaId: '.', anchor: 'index.js#module' });
+  const findingsFile = path.join(root, 'findings.json');
+  // Write a source file so contentHash has something to hash.
+  fs.writeFileSync(path.join(root, 'index.js'), 'module.exports = 1;\n');
+  fs.writeFileSync(findingsFile, JSON.stringify([f]));
+
+  const result = runValidateFindings(root, findingsFile, ['--slice', '.', '--run-id', 'test-run-1']);
+  assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+
+  // cursors.json must be written
+  const cursorsFile = path.join(root, '.claude-tweaks', 'recon', 'cursors.json');
+  assert.ok(fs.existsSync(cursorsFile), 'cursors.json must exist after a real run with --slice');
+  const cursors = JSON.parse(fs.readFileSync(cursorsFile, 'utf8'));
+  assert.ok(typeof cursors['.'].lastHash === 'string' && cursors['.'].lastHash.length > 0,
+    'cursors["."].lastHash must be a non-empty string');
+  assert.ok(typeof cursors['.'].lastSweptMs === 'number',
+    'cursors["."].lastSweptMs must be a number');
+
+  // run-log must be written under runs/
+  const runs = readRuns(root);
+  assert.ok(runs.length > 0, 'a run-log must be written to runs/');
+  assert.strictEqual(runs[0].runId, 'test-run-1');
+});
+
+test('validate-findings: --dry-run with --slice writes neither cursors nor cache', () => {
+  const root = tmp();
+  const f = validFinding({ areaId: '.', anchor: 'index.js#module' });
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(path.join(root, 'index.js'), 'module.exports = 1;\n');
+  fs.writeFileSync(findingsFile, JSON.stringify([f]));
+
+  const result = runValidateFindings(root, findingsFile, ['--slice', '.', '--run-id', 'test-run-2', '--dry-run']);
+  assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+
+  assert.strictEqual(
+    fs.existsSync(path.join(root, '.claude-tweaks', 'recon', 'cursors.json')),
+    false,
+    'cursors.json must NOT be written in dry-run',
+  );
+  assert.strictEqual(
+    fs.existsSync(path.join(root, '.claude-tweaks', 'recon', 'cache.json')),
+    false,
+    'cache.json must NOT be written in dry-run',
+  );
+});
+
+test('validate-findings: next-slice skips the just-recorded unchanged slice', () => {
+  const root = tmp();
+  // Create a single source file so the root slice (.) has content to hash.
+  fs.writeFileSync(path.join(root, 'index.js'), 'module.exports = 1;\n');
+  // We also need a git repo so next-slice doesn't churn-fail silently.
+  const { execFileSync: exec } = require('child_process');
+  try {
+    exec('git', ['-C', root, 'init'], { stdio: 'ignore' });
+    exec('git', ['-C', root, 'add', '.'], { stdio: 'ignore' });
+    exec('git', ['-C', root, 'commit', '-m', 'init', '--allow-empty-message', '--no-verify'], { stdio: 'ignore' });
+  } catch { /* ignore git failures in CI */ }
+
+  const f = validFinding({ areaId: '.', anchor: 'index.js#module' });
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([f]));
+
+  // Record the slice via validate-findings.
+  const vfResult = runValidateFindings(root, findingsFile, ['--slice', '.', '--run-id', 'r1']);
+  assert.strictEqual(vfResult.status, 0, `validate-findings stderr: ${vfResult.stderr}`);
+
+  // next-slice should now return null (slice recorded, hash unchanged).
+  const nsResult = spawnSync('node', [CLI, 'next-slice', '--root', root], { encoding: 'utf8' });
+  assert.strictEqual(nsResult.status, 0, `next-slice stderr: ${nsResult.stderr}`);
+  const sliceOut = JSON.parse(nsResult.stdout);
+  assert.strictEqual(sliceOut, null,
+    `next-slice must return null after recording the only slice — got: ${JSON.stringify(sliceOut)}`);
+});
