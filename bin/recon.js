@@ -13,9 +13,25 @@ const { buildWorkOrders, JUDGMENT_LENS_MAP } = require('./lib/recon/judgment');
 const { validateFinding } = require('./lib/recon/validate-finding');
 const { validateFindingV2 } = require('./lib/recon/validate-finding');
 const { toIssuePayloadV2 } = require('./lib/recon/issue-payload');
+const { getCriterion } = require('./lib/recon/criteria');
 
 const DEFAULT_JUDGMENT_LENSES = Object.keys(JUDGMENT_LENS_MAP);
 const DEFAULT_MAX_SUBAGENTS = 6;
+
+// Confidence ordering for floor comparison. Higher index = higher confidence.
+const CONFIDENCE_ORDER = ['low', 'med', 'high'];
+
+// Returns { pass: true } or { pass: false, reason: string }.
+function applyConfidenceFloor(finding, criterionFloor) {
+  if (!criterionFloor) return { pass: true };
+  const findingIdx = CONFIDENCE_ORDER.indexOf(finding.confidence);
+  const floorIdx = CONFIDENCE_ORDER.indexOf(criterionFloor);
+  if (findingIdx >= floorIdx) return { pass: true };
+  return {
+    pass: false,
+    reason: `confidence '${finding.confidence}' below floor '${criterionFloor}' for criterion '${finding.criterion}'`,
+  };
+}
 
 function parseArgs(argv) {
   const args = { _: [], root: process.cwd(), dryRun: false, runId: new Date().toISOString() };
@@ -429,6 +445,13 @@ function cmdValidateFindings(args) {
       );
       continue;
     }
+    // 1a. Confidence-floor gate: drop findings below the criterion's floor.
+    const crit = getCriterion(v.value.criterion);
+    const floorResult = applyConfidenceFloor(v.value, crit && crit.confidenceFloor);
+    if (!floorResult.pass) {
+      process.stderr.write(`[recon] validate-findings: dropped "${v.value.title}" — ${floorResult.reason}\n`);
+      continue;
+    }
     // 2. Fingerprint via v2 form.
     const id = fingerprint({ criterion: v.value.criterion, areaId: v.value.areaId, anchor: v.value.anchor });
     survivors.push({ ...v.value, id });
@@ -494,4 +517,4 @@ function main(argv) {
 
 if (require.main === module) main(process.argv.slice(2));
 
-module.exports = { parseArgs, cmdRun, cmdIngestJudgment, cmdValidateFindings, main, selectAreas, collectSignals };
+module.exports = { parseArgs, cmdRun, cmdIngestJudgment, cmdValidateFindings, main, selectAreas, collectSignals, applyConfidenceFloor };

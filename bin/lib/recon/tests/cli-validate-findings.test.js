@@ -129,3 +129,32 @@ test('validate-findings: writes cache after a non-dry-run', () => {
     'cache must be written after a non-dry-run',
   );
 });
+
+// P2 additions: confidence-floor gate
+const { applyConfidenceFloor } = require('../../../recon');
+
+test('applyConfidenceFloor passes a high-confidence finding for a high-floor criterion', () => {
+  const result = applyConfidenceFloor({ confidence: 'high' }, 'high');
+  assert.strictEqual(result.pass, true);
+});
+
+test('applyConfidenceFloor drops a med-confidence finding for a high-floor criterion', () => {
+  const result = applyConfidenceFloor({ confidence: 'med' }, 'high');
+  assert.strictEqual(result.pass, false);
+  assert.ok(result.reason.includes('below floor'));
+});
+
+test('applyConfidenceFloor drops a low-confidence finding for a med-floor criterion', () => {
+  const result = applyConfidenceFloor({ confidence: 'low' }, 'med');
+  assert.strictEqual(result.pass, false);
+});
+
+test('applyConfidenceFloor passes a low-confidence finding for a low-floor criterion', () => {
+  const result = applyConfidenceFloor({ confidence: 'low' }, 'low');
+  assert.strictEqual(result.pass, true);
+});
+
+test('applyConfidenceFloor passes when criterionFloor is undefined (no floor set)', () => {
+  const result = applyConfidenceFloor({ confidence: 'low' }, undefined);
+  assert.strictEqual(result.pass, true);
+});
