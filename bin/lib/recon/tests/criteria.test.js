@@ -82,3 +82,87 @@ test('criteria with a fragment field point to a string path', () => {
     }
   }
 });
+
+// P2 — domain criteria and area filtering
+
+test('domain criterion a11y is returned for frontend areas', () => {
+  const results = criteriaForArea(['frontend']);
+  assert.ok(results.some((c) => c.id === 'a11y'), 'a11y must appear for frontend');
+});
+
+test('domain criterion a11y is NOT returned for backend-only areas', () => {
+  const results = criteriaForArea(['backend']);
+  assert.ok(!results.some((c) => c.id === 'a11y'), 'a11y must not appear for backend');
+});
+
+test('domain criterion api-stability appears for library and backend', () => {
+  const libResults = criteriaForArea(['library']);
+  assert.ok(libResults.some((c) => c.id === 'api-stability'), 'api-stability must appear for library');
+  const beResults = criteriaForArea(['backend']);
+  assert.ok(beResults.some((c) => c.id === 'api-stability'), 'api-stability must appear for backend');
+});
+
+test('domain criterion migration-safety appears only for data areas', () => {
+  assert.ok(criteriaForArea(['data']).some((c) => c.id === 'migration-safety'));
+  assert.ok(!criteriaForArea(['frontend']).some((c) => c.id === 'migration-safety'));
+});
+
+test('domain criterion iac-security appears only for infra areas', () => {
+  assert.ok(criteriaForArea(['infra']).some((c) => c.id === 'iac-security'));
+  assert.ok(!criteriaForArea(['backend']).some((c) => c.id === 'iac-security'));
+});
+
+test('domain criterion privacy-pii appears for frontend, backend, and data', () => {
+  for (const t of ['frontend', 'backend', 'data']) {
+    assert.ok(criteriaForArea([t]).some((c) => c.id === 'privacy-pii'),
+      `privacy-pii must appear for ${t}`);
+  }
+  assert.ok(!criteriaForArea(['infra']).some((c) => c.id === 'privacy-pii'));
+});
+
+test('domain criterion concurrency appears for backend, cli, and data', () => {
+  for (const t of ['backend', 'cli', 'data']) {
+    assert.ok(criteriaForArea([t]).some((c) => c.id === 'concurrency'),
+      `concurrency must appear for ${t}`);
+  }
+  assert.ok(!criteriaForArea(['frontend']).some((c) => c.id === 'concurrency'));
+});
+
+test('criteriaForArea with empty types returns universal-only (no domain criteria)', () => {
+  const universalIds = CRITERIA.filter((c) => c.appliesTo === 'universal').map((c) => c.id);
+  const results = criteriaForArea([]);
+  const resultIds = results.map((c) => c.id);
+  assert.deepStrictEqual(resultIds.sort(), universalIds.sort());
+});
+
+test('multi-type area gets union of universal + all matching domain criteria', () => {
+  // frontend+library => a11y + api-stability both appear
+  const results = criteriaForArea(['frontend', 'library']);
+  assert.ok(results.some((c) => c.id === 'a11y'));
+  assert.ok(results.some((c) => c.id === 'api-stability'));
+  // No duplicates
+  const ids = results.map((c) => c.id);
+  assert.strictEqual(new Set(ids).size, ids.length, 'no duplicate criteria in result');
+});
+
+test('each domain criterion has a confidenceFloor', () => {
+  const domainIds = ['a11y', 'i18n', 'api-stability', 'migration-safety', 'iac-security', 'privacy-pii', 'concurrency'];
+  for (const id of domainIds) {
+    const c = getCriterion(id);
+    assert.ok(c, `getCriterion('${id}') must return a criterion`);
+    assert.ok(['low', 'med', 'high'].includes(c.confidenceFloor),
+      `${id}.confidenceFloor must be 'low'|'med'|'high', got ${c.confidenceFloor}`);
+  }
+});
+
+test('noisy criteria a11y, iac-security, migration-safety, privacy-pii have confidenceFloor high', () => {
+  for (const id of ['a11y', 'iac-security', 'migration-safety', 'privacy-pii']) {
+    const c = getCriterion(id);
+    assert.strictEqual(c.confidenceFloor, 'high', `${id}.confidenceFloor must be 'high'`);
+  }
+});
+
+test('security-logic universal criterion has confidenceFloor high', () => {
+  const c = getCriterion('security-logic');
+  assert.strictEqual(c.confidenceFloor, 'high');
+});

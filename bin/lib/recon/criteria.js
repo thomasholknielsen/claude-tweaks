@@ -98,6 +98,20 @@ const CRITERIA = [
     fragment: null,
     confidenceFloor: 'med',
   },
+  // Domain: a11y → frontend
+  { id: 'a11y', appliesTo: ['frontend'], confidenceFloor: 'high', fragment: 'criteria-a11y.md' },
+  // Domain: i18n → frontend + backend (user-facing apps)
+  { id: 'i18n', appliesTo: ['frontend', 'backend'], confidenceFloor: 'med', fragment: 'criteria-i18n.md' },
+  // Domain: api-stability → library + backend
+  { id: 'api-stability', appliesTo: ['library', 'backend'], confidenceFloor: 'med', fragment: 'criteria-api-stability.md' },
+  // Domain: migration-safety → data
+  { id: 'migration-safety', appliesTo: ['data'], confidenceFloor: 'high', fragment: 'criteria-migration-safety.md' },
+  // Domain: iac-security → infra
+  { id: 'iac-security', appliesTo: ['infra'], confidenceFloor: 'high', fragment: 'criteria-iac-security.md' },
+  // Domain: privacy-pii → user-data areas (frontend, backend, data)
+  { id: 'privacy-pii', appliesTo: ['frontend', 'backend', 'data'], confidenceFloor: 'high', fragment: 'criteria-privacy-pii.md' },
+  // Domain: concurrency → async/shared-state (backend, cli, data)
+  { id: 'concurrency', appliesTo: ['backend', 'cli', 'data'], confidenceFloor: 'med', fragment: 'criteria-concurrency.md' },
 ];
 
 // Build a lookup map once on load for O(1) getCriterion.
