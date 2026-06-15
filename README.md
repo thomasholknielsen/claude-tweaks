@@ -6,6 +6,10 @@ A structured workflow system for Claude Code — from idea capture through build
 
 Claude Code is powerful but unstructured. claude-tweaks adds a complete development lifecycle: capture ideas, challenge assumptions, decompose into specs, build with quality gates, and learn from what was built. Every finding is explicitly resolved — nothing silently drops.
 
+### What's new in v5.0.0 — Recon v2: LLM-as-judge + scheduled Routine
+
+Recon v2 replaces the v1 mechanical-lens spine with an LLM-as-judge model: the LLM evaluates the repo against a criteria catalog, calling deterministic tool checks as evidence. Area-type routing, content-hash skip, hotspot priority, fingerprinting, and dedup are handled by deterministic helpers. The v1 subagent dance and `plan-judgment` / `ingest-judgment` phases are removed. Recon now runs as a scheduled Routine for continuous, hands-off coverage — no manual invocation needed.
+
 ### What's new in v4.7 — Deep web research + Diagram Design companion
 
 **`/claude-tweaks:research`** adds citation-audited deep web research to the plugin. Four runtime modes trade depth for time:
@@ -179,7 +183,7 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 
 **`/claude-tweaks:version`** — Reports the installed claude-tweaks plugin version (read from `.claude-plugin/plugin.json`). Useful for verifying the marketplace install picked up the right version.
 
-**`/claude-tweaks:recon`** — Proactive, report-only repo-improvement finder. Applies mechanical lenses (oversized files, dead exports, TODO/FIXME comments, loose dependency ranges, project lint/typecheck) to the repo, fingerprints each finding, dedups against open GitHub issues, and files the work worth doing as `recon`-labelled issues. Never edits code. Filed issues are `/specify`-shaped so they promote into agent-sized specs with near-zero translation.
+**`/claude-tweaks:recon`** — Proactive, report-only repo-improvement finder. An LLM judges the repo against a criteria catalog, calling deterministic tool checks as evidence. Deterministic helpers handle scope rotation, content-hash skip (unchanged areas are skipped), fingerprinting, dedup against open GitHub issues, and issue filing. Workflow: SCOPE → CLASSIFY → JUDGE → validate-findings → file issues. Never edits code. Filed issues are `/specify`-shaped so they promote into agent-sized specs with near-zero translation. Runs on a scheduled Routine for continuous coverage.
 
 **`/claude-tweaks:design`** — Wrapper for the [Impeccable](https://github.com/pbakaus/impeccable) frontend-design plugin. Six active modes:
 
