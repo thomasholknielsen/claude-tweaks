@@ -4,7 +4,10 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { execFileSync } = require('child_process');
 const { classifyArea } = require('../area-type');
+
+const CLI = path.resolve(__dirname, '..', '..', '..', 'recon.js');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-at-')); }
 
@@ -141,4 +144,24 @@ test('types are additive: frontend+library from react+exports', () => {
   const { types } = classifyArea(d, d);
   assert.ok(types.includes('frontend'), `types: ${types}`);
   assert.ok(types.includes('library'), `types: ${types}`);
+});
+
+test('classify CLI command prints { areaId, types } JSON for a frontend dir', () => {
+  const d = tmp();
+  fs.writeFileSync(path.join(d, 'package.json'),
+    JSON.stringify({ dependencies: { react: '^18.0.0' } }));
+  const out = execFileSync(
+    process.execPath,
+    [
+      CLI,
+      'classify',
+      '--root', d,
+      '--area', '.',
+    ],
+    { encoding: 'utf8' },
+  );
+  const result = JSON.parse(out);
+  assert.strictEqual(result.areaId, '.');
+  assert.ok(Array.isArray(result.types));
+  assert.ok(result.types.includes('frontend'), `types: ${result.types}`);
 });

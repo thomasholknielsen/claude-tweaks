@@ -14,6 +14,7 @@ const { validateFinding } = require('./lib/recon/validate-finding');
 const { validateFindingV2 } = require('./lib/recon/validate-finding');
 const { toIssuePayloadV2 } = require('./lib/recon/issue-payload');
 const { getCriterion } = require('./lib/recon/criteria');
+const { classifyArea } = require('./lib/recon/area-type');
 
 const DEFAULT_JUDGMENT_LENSES = Object.keys(JUDGMENT_LENS_MAP);
 const DEFAULT_MAX_SUBAGENTS = 6;
@@ -492,6 +493,14 @@ function cmdValidateFindings(args) {
   );
 }
 
+function cmdClassify(args) {
+  const root = args.root || process.cwd();
+  const areaPath = args.area || '.';
+  const absDir = path.resolve(root, areaPath);
+  const { types } = classifyArea(absDir, root);
+  process.stdout.write(JSON.stringify({ areaId: areaPath, types }, null, 2) + '\n');
+}
+
 function main(argv) {
   const args = parseArgs(argv);
   const cmd = args._[0];
@@ -502,6 +511,7 @@ function main(argv) {
   if (cmd === 'churn-report') return cmdChurnReport(args);
   if (cmd === 'pull-issues') return cmdPullIssues(args);
   if (cmd === 'validate-findings') return cmdValidateFindings(args);
+  if (cmd === 'classify') return cmdClassify(args);
   process.stderr.write(
     'usage: recon.js <command> [options]\n' +
     '  run [--area <path>] [--dry-run] [--root <dir>] [--issues <file>]\n' +
