@@ -39,7 +39,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/claude-tweaks:ledger` | Open items tracking — query, resolve ledger entries | *(none)*, `resolve`, `{feature-name}` |
 | `/claude-tweaks:research` | Deep web research with citation-audited reports — 4 runtime modes from quick to ultradeep. | topic + `quick`, `standard`, `deep`, `ultradeep`, `--output=` |
 | `/claude-tweaks:version` | Print the installed plugin version | *(none)*, `plain`, `full` |
-| `/claude-tweaks:recon` | Proactive repo-improvement sweep — mechanical lenses, deduped GitHub issues, never edits code | `--area <path>`, `--dry-run`, `--root <dir>` |
+| `/claude-tweaks:recon` | LLM-as-judge recurring sweep — applies criteria holistically to a directory slice, deduplicates against open GitHub issues, files pre-specs as GitHub issues. Scheduled Routine. Never edits code. | `--area <path>`, `--dry-run`, `--root <dir>` |
 
 ## Recommended Companion Plugins
 

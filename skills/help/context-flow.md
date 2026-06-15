@@ -43,7 +43,7 @@ src/ + journeys    stories/*.yaml     types + lint + tests + QA     code + visua
 
 | Skill | Reads | Writes | Deletes |
 |-------|-------|--------|---------|
-| `/recon` | Codebase files (via lenses), `.claude-tweaks/recon/cache.json` (prior findings), `--issues <file>` (open issue index from `gh issue list`) | `.claude-tweaks/recon/cache.json` (fingerprint + status), `.claude-tweaks/recon/runs/` (run logs for churn tracking), GitHub issues via `gh issue create` (durable sink), `specs/INBOX.md` or `/specify` (routing for actionable findings) | — |
+| `/recon` | Codebase files (via LLM judge + optional tool assists), `.claude-tweaks/recon/cache.json` (prior findings), `.claude-tweaks/recon/cursors.json` (per-area sweep state), `--issues <file>` (open issue index from `gh issue list`) | `.claude-tweaks/recon/cache.json` (fingerprint + status), `.claude-tweaks/recon/cursors.json` (per-area `lastHash` + `lastSweptMs`), `.claude-tweaks/recon/runs/` (run logs for churn tracking), GitHub issues via `gh issue create` (durable sink) | — |
 | `/init` | `~/.claude/plugins/`, entire codebase, CLAUDE.md, config files, git state | `specs/`, `docs/plans/`, `docs/journeys/`, `specs/INBOX.md`, `specs/DEFERRED.md`, `specs/INDEX.md`, CLAUDE.md, `.claude/skills/*.md`, `.claude/rules/`, `docs/journeys/*.md` | — |
 | `/capture` | — | `specs/INBOX.md` (append) | — |
 | `/challenge` | `specs/INBOX.md` | `docs/plans/*-brief.md` | — |
