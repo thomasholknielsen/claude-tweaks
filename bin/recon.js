@@ -11,6 +11,8 @@ const { decide } = require('./lib/recon/dedup');
 const { toIssuePayload } = require('./lib/recon/issue-payload');
 const { buildWorkOrders, JUDGMENT_LENS_MAP } = require('./lib/recon/judgment');
 const { validateFinding } = require('./lib/recon/validate-finding');
+const { validateFindingV2 } = require('./lib/recon/validate-finding');
+const { toIssuePayloadV2 } = require('./lib/recon/issue-payload');
 
 const DEFAULT_JUDGMENT_LENSES = Object.keys(JUDGMENT_LENS_MAP);
 const DEFAULT_MAX_SUBAGENTS = 6;
@@ -393,6 +395,80 @@ function cmdPullIssues(args) {
   process.stdout.write(JSON.stringify(briefs, null, 2) + '\n');
 }
 
+function cmdValidateFindings(args) {
+  const root = args.root || process.cwd();
+  const findingsPath = args._[1]; // positional after the subcommand name
+  if (!findingsPath) {
+    process.stderr.write(
+      'usage: recon.js validate-findings <findings.json> [--root <dir>] [--issues <file>] [--run-id <id>] [--dry-run]\n',
+    );
+    process.exit(2);
+  }
+
+  let raw;
+  try {
+    raw = JSON.parse(fs.readFileSync(findingsPath, 'utf8'));
+  } catch (err) {
+    process.stderr.write(`validate-findings: could not read or parse findings file: ${findingsPath}\n`);
+    process.exit(1);
+  }
+  if (!Array.isArray(raw)) {
+    process.stderr.write('validate-findings: findings file must contain a JSON array\n');
+    process.exit(1);
+  }
+
+  // 1. Validate every finding; drop malformed ones with a logged reason.
+  const survivors = [];
+  for (const f of raw) {
+    const v = validateFindingV2(f);
+    if (!v.ok) {
+      process.stderr.write(
+        `[recon] validate-findings: dropped finding "${(f && f.title) || '?'}" ` +
+        `(criterion ${(f && f.criterion) || '?'}, area ${(f && f.areaId) || '?'}): ` +
+        `${v.errors.join('; ')}\n`,
+      );
+      continue;
+    }
+    // 2. Fingerprint via v2 form.
+    const id = fingerprint({ criterion: v.value.criterion, areaId: v.value.areaId, anchor: v.value.anchor });
+    survivors.push({ ...v.value, id });
+  }
+
+  // 3. Dedup against the issue index and local cache.
+  const cache = readCache(root);
+  const issueIndex = loadIssueIndex(args.issues);
+  const payloads = [];
+  const seen = new Set();
+  for (const finding of survivors) {
+    if (seen.has(finding.id)) continue; // intra-run dedup
+    seen.add(finding.id);
+
+    const decision = decide(finding, issueIndex, cache, { threshold: 'low' });
+    if (decision.action === 'skip' || decision.action === 'suppress') continue;
+
+    if (decision.action === 'file' || decision.action === 'reopen') {
+      cache[finding.id] = decision.action === 'reopen'
+        ? { status: 'regressed', issue: decision.issue || null, severity: finding.severity }
+        : { status: 'open', issue: null, severity: finding.severity };
+      payloads.push(toIssuePayloadV2(finding));
+    } else if (decision.action === 'remember') {
+      if (!cache[finding.id]) cache[finding.id] = { status: 'remembered', issue: null };
+    }
+  }
+
+  // 4. Persist cache (unless dry-run).
+  if (!args.dryRun) {
+    writeCache(root, cache);
+  }
+
+  // 5. Emit gh-ready payloads on stdout.
+  process.stdout.write(JSON.stringify(payloads, null, 2) + '\n');
+  process.stderr.write(
+    `[recon] validate-findings ${args.runId || '?'}: ` +
+    `${survivors.length} valid finding(s), ${payloads.length} payload(s) after dedup\n`,
+  );
+}
+
 function main(argv) {
   const args = parseArgs(argv);
   const cmd = args._[0];
@@ -402,10 +478,20 @@ function main(argv) {
   if (cmd === 'status') return cmdStatus(args);
   if (cmd === 'churn-report') return cmdChurnReport(args);
   if (cmd === 'pull-issues') return cmdPullIssues(args);
-  process.stderr.write('usage: recon.js run [--area <path>] [--dry-run] [--root <dir>] [--issues <file>]\n');
+  if (cmd === 'validate-findings') return cmdValidateFindings(args);
+  process.stderr.write(
+    'usage: recon.js <command> [options]\n' +
+    '  run [--area <path>] [--dry-run] [--root <dir>] [--issues <file>]\n' +
+    '  validate-findings <findings.json> [--root <dir>] [--issues <file>] [--run-id <id>] [--dry-run]\n' +
+    '  plan-judgment --areas <a,b> [--lenses <l,m>] [--max-subagents <n>] [--run-id <id>]\n' +
+    '  ingest-judgment <results.json> [--root <dir>] [--run-id <id>]\n' +
+    '  status [--fail-on regressed|critical]\n' +
+    '  churn-report [--fail-on-high-churn <ratio>]\n' +
+    '  pull-issues --label <label> --issues <file> [--min-severity <sev>]\n',
+  );
   process.exit(2);
 }
 
 if (require.main === module) main(process.argv.slice(2));
 
-module.exports = { parseArgs, cmdRun, cmdIngestJudgment, main, selectAreas, collectSignals };
+module.exports = { parseArgs, cmdRun, cmdIngestJudgment, cmdValidateFindings, main, selectAreas, collectSignals };
