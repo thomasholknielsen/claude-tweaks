@@ -48,8 +48,9 @@ function writeCursors(rootDir, cursors) {
 
 // Persist the fingerprint set this run produced. runId is an ISO-ish timestamp;
 // colons are valid on Linux/macOS so the runId round-trips into the filename.
-// arg: { fingerprints, areasSwept } — areasSwept is the list of area ids swept this run.
-function recordRun(rootDir, runId, { fingerprints, areasSwept = [] } = {}) {
+// arg: { fingerprints, areasSwept, hashes } — areasSwept is the list of area ids swept this run;
+// hashes is an optional map of areaId -> content hash to persist as lastHash on each cursor.
+function recordRun(rootDir, runId, { fingerprints, areasSwept = [], hashes = {} } = {}) {
   const dir = runsDir(rootDir);
   fs.mkdirSync(dir, { recursive: true });
   const record = { runId, runAt: new Date().toISOString(), fingerprints: [...fingerprints] };
@@ -60,7 +61,12 @@ function recordRun(rootDir, runId, { fingerprints, areasSwept = [] } = {}) {
     const now = Date.now();
     const cursors = readCursors(rootDir);
     for (const areaId of areasSwept) {
-      cursors[areaId] = { lastSweptMs: now };
+      const existing = cursors[areaId] || {};
+      cursors[areaId] = {
+        ...existing,
+        lastSweptMs: now,
+        ...(hashes && hashes[areaId] != null ? { lastHash: hashes[areaId] } : {}),
+      };
     }
     writeCursors(rootDir, cursors);
   }
@@ -108,4 +114,4 @@ function computeChurn(currentFps, priorRun) {
   return { appeared, disappeared, stayed, ratio };
 }
 
-module.exports = { cachePath, readCache, writeCache, runsDir, cursorsPath, readCursors, recordRun, readRuns, computeChurn };
+module.exports = { cachePath, readCache, writeCache, runsDir, cursorsPath, readCursors, writeCursors, recordRun, readRuns, computeChurn };

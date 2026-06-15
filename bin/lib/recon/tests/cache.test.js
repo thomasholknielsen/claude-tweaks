@@ -30,3 +30,46 @@ test('readCache returns {} on corrupt JSON rather than throwing', () => {
   fs.writeFileSync(path.join(root, '.claude-tweaks', 'recon', 'cache.json'), '{ not json');
   assert.deepStrictEqual(readCache(root), {});
 });
+
+const { recordRun, readCursors, writeCursors } = require('../cache');
+
+function tmp2() { return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-cache2-')); }
+
+test('writeCursors is exported and round-trips via readCursors', () => {
+  const root = tmp2();
+  const cursors = { 'src': { lastSweptMs: 1000, lastHash: 'abc123' } };
+  writeCursors(root, cursors);
+  assert.deepStrictEqual(readCursors(root), cursors);
+});
+
+test('recordRun with hashes persists lastHash into cursors', () => {
+  const root = tmp2();
+  const runId = 'test-run-1';
+  recordRun(root, runId, {
+    fingerprints: ['recon-aabbccdd'],
+    areasSwept: ['src'],
+    hashes: { src: 'sha1-of-src-contents' },
+  });
+  const cursors = readCursors(root);
+  assert.strictEqual(cursors['src'].lastHash, 'sha1-of-src-contents');
+  assert.ok(typeof cursors['src'].lastSweptMs === 'number');
+});
+
+test('recordRun without hashes leaves existing lastHash untouched', () => {
+  const root = tmp2();
+  writeCursors(root, { 'lib': { lastSweptMs: 5000, lastHash: 'existing-hash' } });
+  recordRun(root, 'run-2', { fingerprints: [], areasSwept: ['lib'] });
+  const cursors = readCursors(root);
+  assert.strictEqual(cursors['lib'].lastHash, 'existing-hash');
+});
+
+test('recordRun with hashes for an area not in areasSwept is ignored', () => {
+  const root = tmp2();
+  recordRun(root, 'run-3', {
+    fingerprints: [],
+    areasSwept: ['a'],
+    hashes: { a: 'hash-a', b: 'hash-b-should-be-ignored' },
+  });
+  const cursors = readCursors(root);
+  assert.ok(!cursors['b'], 'only swept areas get cursors written');
+});
