@@ -72,9 +72,17 @@ find "${ROOT}/${AREA}" -type f | sort
 
 Read each file in full. Hold the full content in context — this is the material the judge will apply criteria to.
 
-**Step 4 — CLASSIFY: select applicable criteria.**
+**Step 4 — CLASSIFY: detect area type + select criteria.**
 
-For Phase 1 the area type is not yet detected (that is Phase 2). Apply all universal criteria: `architecture-depth`, `simplification`, `review-quality`, `scalability`, `security-logic`, `bad-practice`, `doc-freshness`, `dead-code`, `test-quality`, `resilience`, `observability`, `config-secrets`, `dependency-health`, `input-validation`, `naming-clarity`.
+Call the `classify` command to determine the area's type:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" classify --root . --area "<slice-id>"
+```
+
+The command prints `{ areaId, types }`. Use the `types` array to select the applicable criteria via `criteriaForArea(types)` from `bin/lib/recon/criteria.js`. Types are additive — a `['frontend', 'library']` area gets universal criteria plus `a11y` and `api-stability`.
+
+If `types` is `[]` (unknown area), apply universal criteria only: `architecture-depth`, `simplification`, `review-quality`, `scalability`, `security-logic`, `bad-practice`, `doc-freshness`, `dead-code`, `test-quality`, `resilience`, `observability`, `config-secrets`, `dependency-health`, `input-validation`, `naming-clarity`.
 
 You can verify the catalog at any time:
 
@@ -82,15 +90,29 @@ You can verify the catalog at any time:
 node -e "const {criteriaForArea}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/recon/criteria.js'); console.log(criteriaForArea([]).map(c=>c.id).join(', '))"
 ```
 
+Load each selected criterion's fragment file (the `fragment` field in the catalog) and embed it in the judge prompt for Step 5. Fragments live under `skills/_shared/` — read each one and include its content so the judge has the calibration text inline.
+
 **Step 5 — JUDGE: apply each criterion holistically.**
 
-For each universal criterion, read the code with that criterion as the lens. Apply the criterion holistically — this is a behavioral judgment, not a mechanical check. Call deterministic tools as evidence when they help (lint, grep, git log); skip them gracefully when not available. Evidence grounds the finding; do not file speculative findings.
+**Tools as evidence (optional assists).**
 
-For `architecture-depth`, `simplification`, and `review-quality`: read the criterion fragment embedded here before judging:
+Before or during judging, the judge MAY call the following deterministic tools to ground its findings. Each is optional — skip gracefully if the tool is not installed or the command errors. Tool output is evidence the judge weighs when forming a finding; raw tool output is never filed as a finding itself.
 
-- `architecture-depth`: read `skills/_shared/criteria-architecture-depth.md` relative to `$CLAUDE_PLUGIN_ROOT`.
-- `simplification`: read `skills/_shared/criteria-simplification.md` relative to `$CLAUDE_PLUGIN_ROOT`.
-- `review-quality`: read `skills/_shared/criteria-review-quality.md` relative to `$CLAUDE_PLUGIN_ROOT`.
+| Tool | Command | Evidence it provides |
+|------|---------|----------------------|
+| Project lint/typecheck | `npm run lint --if-present` or `npx tsc --noEmit` | Concrete type errors and lint violations in the slice |
+| Dead code / unused deps | `npx knip --reporter json` or `npx depcheck` | Unused exports, unreferenced packages |
+| Dependency vulnerabilities | `npm audit --json` or `npx osv-scanner --format json .` | Known CVEs in installed packages |
+| Dependency cycles | `npx madge --circular --json <slice-path>` | Import cycles in the slice |
+| Grep / git log | Standard Bash + git CLI | Code patterns, recent churn, authorship |
+
+A finding confirmed by a tool output is higher-confidence than one based on code reading alone. Include the relevant tool output line as part of the finding's `evidence` field (not as a separate finding).
+
+When a tool is absent or errors, log a single line to stderr and continue — do not abort the judge run.
+
+For each selected criterion, read the code with that criterion as the lens. Apply the criterion holistically — this is a behavioral judgment, not a mechanical check. Evidence grounds the finding; do not file speculative findings.
+
+For `architecture-depth`, `simplification`, and `review-quality`: the criterion fragments were embedded in Step 4. Use them as the calibration text inline before judging each criterion.
 
 After applying all enumerated criteria, run a final "anything else worth flagging?" pass to catch what the checklist missed.
 
@@ -121,7 +143,19 @@ For each finding, emit exactly this shape:
 
 Write the array to `/tmp/recon-findings.json`.
 
-**Step 7 — VALIDATE, FINGERPRINT, DEDUP.**
+**Step 7 — VERIFY GATE: sanity-check surviving findings before dedup.**
+
+Before fingerprinting and dedup, re-examine each finding the judge emitted and ask three questions:
+
+1. **Is it real?** Does the code actually exhibit the problem, or did the judge misread the structure? If the code is correctly guarded (a timeout IS configured, a check IS present), drop the finding.
+2. **Is it actionable?** Is the `suggestedApproach` concrete and executable? A finding like "consider improving error handling" with no specific location or change is not actionable — drop it or refine it until it is.
+3. **Does it reproduce?** Given the code read in Step 3, would a developer following the `suggestedApproach` be able to find and fix the issue without additional investigation? If not, the anchor or evidence is too vague — either tighten it or drop the finding.
+
+Drop any finding that fails any of the three questions. Log the drop reason. A smaller set of high-quality findings is always preferable to a larger set with noise. This is the adversarial-verify discipline that the v1 design established — apply it every time.
+
+The verify gate is a judgment step, not a mechanical check. It cannot be automated. Do not skip it even under time pressure.
+
+**Step 8 — VALIDATE, FINGERPRINT, DEDUP.**
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" validate-findings /tmp/recon-findings.json \
@@ -138,7 +172,7 @@ Read `/tmp/recon-payloads.json`. The command:
 - Writes the updated cache (unless `--dry-run`).
 - Emits gh-ready payloads on stdout as a JSON array.
 
-**Step 8 — FILE / REOPEN ISSUES.**
+**Step 9 — FILE / REOPEN ISSUES.**
 
 For each payload in `/tmp/recon-payloads.json`, call `gh issue create`. The engine is emit-only; filing is always done by the skill:
 
@@ -160,7 +194,7 @@ gh issue comment <issue_number> --body "Regressed: this finding reappeared. Run:
 
 In `--dry-run` mode, print the payloads and the `gh` commands that would run, but do not call `gh`.
 
-**Step 9 — SUMMARIZE.**
+**Step 10 — SUMMARIZE.**
 
 Report: how many findings were emitted, how many survived dedup, how many issues were filed / skipped / remembered. List any new issue URLs. In interactive mode, present findings as a batch table and let the user route each to: file issue / INBOX (`/capture`) / `/specify` directly / dismiss.
 
@@ -204,6 +238,7 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | Treating the cache as durable state | The cache is a rebuildable optimization. GitHub issue state is the source of truth for cross-run memory. |
 | Filing a finding with `confidence: 'low'` for a noisy criterion | Noisy criteria (`security-logic`, `config-secrets`, `input-validation`, `resilience`) require `confidence: 'high'` to file. The confidence floor is enforced by the skill judgment, not the engine — the engine validates the shape, not the policy. |
 | Reporting rotation in P1 | Auto-rotation (picking the next area automatically) is Phase 3. P1 is on-demand with `--area` explicitly supplied. |
+| Skipping the verify gate before filing | Files plausible-but-wrong findings. Every surviving finding must pass all three verify questions — real, actionable, reproducible — before reaching dedup. |
 
 ## Relationship to Other Skills
 
