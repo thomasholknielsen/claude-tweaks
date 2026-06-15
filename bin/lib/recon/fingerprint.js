@@ -10,16 +10,39 @@ function normalizeSignature(sig) {
     .toLowerCase();
 }
 
-// Stable id from lens + area + normalized signature (+ optional file).
-// CORRECTED (PORT.md delta #1): the file's trailing :line(:col) is stripped
-// BEFORE hashing, so a finding that moves lines keeps its id. JSON.stringify of
-// the field array is an unambiguous, collision-free basis (no field can bleed
-// into its neighbour).
-function fingerprint({ lens, areaId, signature, file }) {
-  const normFile = String(file || '').replace(/:\d+(:\d+)?$/, '');
-  const basis = JSON.stringify([lens, areaId, normFile, normalizeSignature(signature)]);
-  const hash = crypto.createHash('sha1').update(basis).digest('hex').slice(0, 8);
-  return `recon-${hash}`;
+// v2: normalize a stable anchor ("relfile#NearestSymbol").
+// Rules:
+//   1. Trim surrounding whitespace.
+//   2. Split on the first '#'. Normalize each side independently.
+//   3. Path side: lowercase; strip any trailing :line(:col) artifact.
+//   4. Symbol side: strip any trailing :line(:col) artifact; trim whitespace.
+//      Do NOT lowercase the symbol — symbol names are case-sensitive identifiers.
+//   5. Re-join with '#'. If there is no '#', treat the whole string as the path side.
+function normalizeAnchor(anchor) {
+  const s = String(anchor).trim();
+  const hashIdx = s.indexOf('#');
+  if (hashIdx === -1) {
+    // No symbol — normalize the whole thing as a path.
+    return s.replace(/:\d+(:\d+)?$/, '').replace(/\s+/g, '').toLowerCase();
+  }
+  const pathPart = s.slice(0, hashIdx).replace(/:\d+(:\d+)?$/, '').replace(/\s+/g, '').toLowerCase();
+  const symbolPart = s.slice(hashIdx + 1).replace(/:\d+(:\d+)?$/, '').trim();
+  return `${pathPart}#${symbolPart}`;
 }
 
-module.exports = { fingerprint, normalizeSignature };
+// v2 form: stable id from criterion + areaId + normalized anchor.
+// v1 form: stable id from lens + areaId + normalized signature (+ optional file).
+// Both are detected by checking which keys are present.
+function fingerprint({ lens, areaId, signature, file, criterion, anchor }) {
+  if (criterion !== undefined) {
+    // v2: LLM-judge finding. Hash criterion + areaId + normalizeAnchor(anchor).
+    const basis = JSON.stringify([criterion, areaId, normalizeAnchor(anchor || '')]);
+    return 'recon-' + crypto.createHash('sha1').update(basis).digest('hex').slice(0, 8);
+  }
+  // v1: mechanical-lens finding. Keep the existing logic exactly.
+  const normFile = String(file || '').replace(/:\d+(:\d+)?$/, '');
+  const basis = JSON.stringify([lens, areaId, normFile, normalizeSignature(signature)]);
+  return 'recon-' + crypto.createHash('sha1').update(basis).digest('hex').slice(0, 8);
+}
+
+module.exports = { fingerprint, normalizeSignature, normalizeAnchor };
