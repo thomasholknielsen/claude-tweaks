@@ -11,8 +11,8 @@ const CATEGORY_VALUES = new Set([
   'Error handling', 'Test quality', 'Coverage', 'UX', 'Docs',
 ]);
 
-// Required string fields. `id` is assigned by ingest-judgment AFTER validation
-// (fingerprint of lens+area+signature), so the subagent never supplies it.
+// Required string fields. `id` is assigned during fingerprinting AFTER validation
+// (fingerprint of lens+area+signature), so the producer never supplies it.
 const REQUIRED_STRINGS = [
   'title', 'lens', 'category', 'severity', 'confidence',
   'area', 'signature', 'evidence', 'suggestion', 'acceptance',
