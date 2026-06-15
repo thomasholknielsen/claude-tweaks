@@ -83,3 +83,90 @@ test('validateFinding: coerces numeric line numbers in files to strings', () => 
   assert.strictEqual(result.ok, true);
   assert.deepStrictEqual(result.value.files, ['a.ts', '7']);
 });
+
+// ── v2 Finding shape ───────────────────────────────────────────────────────
+
+const { validateFindingV2 } = require('../validate-finding');
+
+function validV2Finding(overrides = {}) {
+  return {
+    criterion: 'simplification',
+    areaId: 'src/api',
+    anchor: 'src/api/user.js#getUser',
+    severity: 'medium',
+    confidence: 'high',
+    title: 'getUser is a passthrough to the repository',
+    evidence: 'src/api/user.js#getUser delegates directly to UserRepository.find with no added logic.',
+    suggestedApproach: 'Inline the call at the call site, or add caching/auth in this method.',
+    acceptance: 'getUser adds caching, authorization, or enrichment; or is removed and callers use the repository directly.',
+    ...overrides,
+  };
+}
+
+test('validateFindingV2: a complete v2 finding passes', () => {
+  const result = validateFindingV2(validV2Finding());
+  assert.strictEqual(result.ok, true);
+  assert.deepStrictEqual(result.errors, []);
+});
+
+test('validateFindingV2: missing required field fails with a named error', () => {
+  const f = validV2Finding();
+  delete f.anchor;
+  const result = validateFindingV2(f);
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.startsWith('anchor')), result.errors.join('; '));
+});
+
+test('validateFindingV2: suggestedApproach is required (not suggestion)', () => {
+  const f = validV2Finding();
+  delete f.suggestedApproach;
+  const result = validateFindingV2(f);
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.startsWith('suggestedApproach')), result.errors.join('; '));
+});
+
+test('validateFindingV2: unknown criterion id fails', () => {
+  const result = validateFindingV2(validV2Finding({ criterion: 'not-a-real-criterion' }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.includes('criterion') && e.includes('unknown')), result.errors.join('; '));
+});
+
+test('validateFindingV2: bad severity enum fails', () => {
+  const result = validateFindingV2(validV2Finding({ severity: 'urgent' }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.startsWith('severity')));
+});
+
+test('validateFindingV2: bad confidence enum fails', () => {
+  const result = validateFindingV2(validV2Finding({ confidence: 'medium' }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.startsWith('confidence')));
+});
+
+test('validateFindingV2: accumulates all errors in one pass', () => {
+  const result = validateFindingV2({ severity: 'urgent', confidence: 'medium' });
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.length >= 5, `got ${result.errors.length}: ${result.errors.join('; ')}`);
+});
+
+test('validateFindingV2: valid result carries the original fields', () => {
+  const f = validV2Finding();
+  const result = validateFindingV2(f);
+  assert.strictEqual(result.value.criterion, 'simplification');
+  assert.strictEqual(result.value.anchor, 'src/api/user.js#getUser');
+  assert.strictEqual(result.value.suggestedApproach, f.suggestedApproach);
+  assert.strictEqual(result.value.acceptance, f.acceptance);
+});
+
+test('validateFinding (v1) still works after extending the module', () => {
+  // Guard against accidentally breaking the v1 export.
+  const { validateFinding: v1 } = require('../validate-finding');
+  const f = {
+    title: 'T', lens: 'todo-comments', category: 'Architecture',
+    severity: 'low', confidence: 'high', area: 'src',
+    files: ['src/a.js'], evidence: 'E', suggestion: 'S', acceptance: 'A',
+    signature: 'sig',
+  };
+  const result = v1(f);
+  assert.strictEqual(result.ok, true);
+});

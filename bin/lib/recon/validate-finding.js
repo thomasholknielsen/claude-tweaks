@@ -56,4 +56,49 @@ function validateFinding(obj) {
   return { ok: true, errors: [], value };
 }
 
-module.exports = { validateFinding, SEVERITY_VALUES, CONFIDENCE_VALUES, CATEGORY_VALUES, REQUIRED_STRINGS };
+const { getCriterion } = require('./criteria');
+
+// v2 Finding shape: criterion (catalog id), areaId, anchor, severity, confidence,
+// title, evidence, suggestedApproach, acceptance.
+// Returns { ok: boolean, errors: string[], value? }.
+const V2_REQUIRED_STRINGS = [
+  'criterion', 'areaId', 'anchor', 'title', 'evidence', 'suggestedApproach', 'acceptance',
+];
+
+function validateFindingV2(obj) {
+  const errors = [];
+  if (obj === null || typeof obj !== 'object') {
+    return { ok: false, errors: ['finding: must be an object'] };
+  }
+
+  for (const field of V2_REQUIRED_STRINGS) {
+    const v = obj[field];
+    if (typeof v !== 'string' || v.trim() === '') {
+      errors.push(`${field}: required non-empty string (got ${JSON.stringify(v)})`);
+    }
+  }
+
+  // Criterion must be a known catalog id (only check when it passed the string check).
+  if (typeof obj.criterion === 'string' && obj.criterion.trim() !== '') {
+    if (getCriterion(obj.criterion) === undefined) {
+      errors.push(`criterion: unknown criterion id "${obj.criterion}" — must be a registered catalog id`);
+    }
+  }
+
+  if (typeof obj.severity === 'string' && !SEVERITY_VALUES.has(obj.severity)) {
+    errors.push(`severity: must be one of ${[...SEVERITY_VALUES].join('|')} (got "${obj.severity}")`);
+  } else if (typeof obj.severity !== 'string') {
+    errors.push(`severity: required non-empty string (got ${JSON.stringify(obj.severity)})`);
+  }
+
+  if (typeof obj.confidence === 'string' && !CONFIDENCE_VALUES.has(obj.confidence)) {
+    errors.push(`confidence: must be one of ${[...CONFIDENCE_VALUES].join('|')} (got "${obj.confidence}")`);
+  } else if (typeof obj.confidence !== 'string') {
+    errors.push(`confidence: required non-empty string (got ${JSON.stringify(obj.confidence)})`);
+  }
+
+  if (errors.length > 0) return { ok: false, errors };
+  return { ok: true, errors: [], value: { ...obj } };
+}
+
+module.exports = { validateFinding, validateFindingV2, SEVERITY_VALUES, CONFIDENCE_VALUES, CATEGORY_VALUES, REQUIRED_STRINGS };
