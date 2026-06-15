@@ -46,3 +46,75 @@ test('the fingerprint can be re-extracted from the body with a stable regex', ()
   const m = body.match(/<!--\s*recon-fingerprint:\s*(recon-[0-9a-f]{8})\s*-->/);
   assert.strictEqual(m[1], 'recon-abc12345');
 });
+
+// ── v2 issue payload ───────────────────────────────────────────────────────
+
+const { toIssuePayloadV2 } = require('../issue-payload');
+
+const V2_FINDING = {
+  id: 'recon-ab12cd34',
+  criterion: 'simplification',
+  areaId: 'src/api',
+  anchor: 'src/api/user.js#getUser',
+  severity: 'medium',
+  confidence: 'high',
+  title: 'getUser is a passthrough to the repository',
+  evidence: 'src/api/user.js#getUser delegates directly to UserRepository.find with no added logic.',
+  suggestedApproach: 'Inline the call at the call site, or add caching/auth in this method.',
+  acceptance: 'getUser adds caching, authorization, or enrichment; or is removed.',
+};
+
+test('v2 labels are recon + recon:<severity> + recon:<criterion>', () => {
+  assert.deepStrictEqual(
+    toIssuePayloadV2(V2_FINDING).labels,
+    ['recon', 'recon:medium', 'recon:simplification'],
+  );
+});
+
+test('v2 title is the finding title', () => {
+  assert.strictEqual(toIssuePayloadV2(V2_FINDING).title, V2_FINDING.title);
+});
+
+test('v2 body embeds the fingerprint marker', () => {
+  const { body } = toIssuePayloadV2(V2_FINDING);
+  assert.ok(body.includes('<!-- recon-fingerprint: recon-ab12cd34 -->'), 'marker missing');
+});
+
+test('v2 body has ## Current State containing anchor and evidence', () => {
+  const { body } = toIssuePayloadV2(V2_FINDING);
+  assert.ok(body.includes('## Current State'), '## Current State missing');
+  assert.ok(body.includes('src/api/user.js#getUser'), 'anchor missing');
+  assert.ok(body.includes('delegates directly to UserRepository.find'), 'evidence missing');
+});
+
+test('v2 body has ## Deliverables containing suggestedApproach', () => {
+  const { body } = toIssuePayloadV2(V2_FINDING);
+  assert.ok(body.includes('## Deliverables'), '## Deliverables missing');
+  assert.ok(body.includes('Inline the call at the call site'), 'suggestedApproach missing');
+});
+
+test('v2 body has ## Acceptance Criteria containing acceptance', () => {
+  const { body } = toIssuePayloadV2(V2_FINDING);
+  assert.ok(body.includes('## Acceptance Criteria'), '## Acceptance Criteria missing');
+  assert.ok(body.includes('adds caching, authorization'), 'acceptance missing');
+});
+
+test('v2 fingerprint marker is re-extractable with the standard regex', () => {
+  const { body } = toIssuePayloadV2(V2_FINDING);
+  const m = body.match(/<!--\s*recon-fingerprint:\s*(recon-[0-9a-f]{8})\s*-->/);
+  assert.ok(m, 'regex did not match');
+  assert.strictEqual(m[1], 'recon-ab12cd34');
+});
+
+test('toIssuePayload (v1) still works after extending the module', () => {
+  // Guard: existing v1 export must be unaffected.
+  const { toIssuePayload: v1 } = require('../issue-payload');
+  const FINDING = {
+    id: 'recon-abc12345', title: 'T', lens: 'oversized-file', category: 'architecture',
+    severity: 'high', confidence: 'high', area: 'apps/web',
+    files: ['apps/web/big.js'], evidence: 'E', suggestion: 'S', acceptance: 'A',
+  };
+  const p = v1(FINDING);
+  assert.ok(p.body.includes('<!-- recon-fingerprint: recon-abc12345 -->'));
+  assert.deepStrictEqual(p.labels, ['recon', 'recon:high']);
+});

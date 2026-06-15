@@ -34,4 +34,37 @@ function toIssuePayload(finding) {
   };
 }
 
-module.exports = { toIssuePayload };
+// v2: body uses anchor (Current State), suggestedApproach (Deliverables), acceptance (Acceptance Criteria).
+// Labels include the criterion.
+function toIssuePayloadV2(finding) {
+  const marker = `<!-- recon-fingerprint: ${finding.id} -->`;
+  const body = [
+    marker,
+    '',
+    `**Criterion:** ${finding.criterion} | **Severity:** ${finding.severity} | **Confidence:** ${finding.confidence} | **Area:** ${finding.areaId}`,
+    '',
+    '## Current State',
+    '',
+    `Anchor: \`${finding.anchor}\``,
+    '',
+    finding.evidence,
+    '',
+    '## Deliverables',
+    '',
+    finding.suggestedApproach,
+    '',
+    '## Acceptance Criteria',
+    '',
+    finding.acceptance,
+    '',
+    '_Filed by `/recon`. Close to resolve; label `wontfix` to suppress future reports of this finding._',
+  ].join('\n');
+
+  return {
+    title: finding.title,
+    body,
+    labels: ['recon', `recon:${finding.severity}`, `recon:${finding.criterion}`],
+  };
+}
+
+module.exports = { toIssuePayload, toIssuePayloadV2 };
