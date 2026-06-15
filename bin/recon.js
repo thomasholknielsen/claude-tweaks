@@ -2,8 +2,6 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { detectAreas } = require('./lib/recon/areas');
-const { scoreAreas } = require('./lib/recon/score');
 const { fingerprint } = require('./lib/recon/fingerprint');
 const { readCache, writeCache, readRuns, computeChurn, recordRun, readCursors } = require('./lib/recon/cache');
 const { decide } = require('./lib/recon/dedup');
@@ -63,115 +61,6 @@ function loadIssueIndex(file) {
     }
   }
   return index;
-}
-
-// Returns areas to sweep this run. `--area` bypasses detection + scoring.
-// `inject` (tests only): { areas, signals, now } supplies deterministic inputs.
-function selectAreas(cfg, inject) {
-  if (cfg && cfg.area) return [{ id: cfg.area, path: cfg.area, globs: [cfg.area], flags: {} }];
-
-  const now = inject && inject.now != null ? inject.now : Date.now();
-  const areas = inject && inject.areas ? inject.areas : detectAreas(cfg && cfg.root || process.cwd());
-  const signals =
-    inject && inject.signals ? inject.signals : collectSignals(cfg && cfg.root || process.cwd(), areas);
-
-  const ranked = scoreAreas(areas, signals, now);
-  return ranked.slice(0, (cfg && cfg.K) || 3);
-}
-
-// Impure: gathers per-area signals from git, the filesystem, and the dedup cache.
-function collectSignals(rootDir, areas) {
-  const cache = readCache(rootDir);
-  const signals = {};
-  for (const area of areas) {
-    signals[area.id] = {
-      lastSweptMs: areaLastSweptMs(rootDir, area.id),
-      churn: gitChurn(rootDir, area.path || area.id),
-      loc: areaLoc(rootDir, area.path || area.id),
-      priorFindings: priorFindingCount(cache, area.id),
-      fanIn: 0, // fan-in heuristic: extended in a later pass
-    };
-  }
-  return signals;
-}
-
-function gitChurn(rootDir, areaPath) {
-  const { execFileSync } = require('child_process');
-  const since = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-  try {
-    const out = execFileSync(
-      'git',
-      ['-C', rootDir, 'log', '--oneline', `--since=${since}`, '--', areaPath],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
-    );
-    return out.split('\n').filter(Boolean).length;
-  } catch {
-    return 0;
-  }
-}
-
-function areaLoc(rootDir, areaPath) {
-  const { execFileSync } = require('child_process');
-  const abs = path.join(rootDir, areaPath);
-  try {
-    const out = execFileSync(
-      'find',
-      [abs, '-type', 'f', '(', '-name', '*.js', '-o', '-name', '*.ts', '-o', '-name', '*.tsx', '-o', '-name', '*.jsx', ')'],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
-    );
-    let total = 0;
-    for (const file of out.split('\n').filter(Boolean)) {
-      try {
-        const content = fs.readFileSync(file, 'utf8');
-        total += content.split('\n').length;
-      } catch {
-        // skip unreadable files
-      }
-    }
-    return total;
-  } catch {
-    return 0;
-  }
-}
-
-// Reads per-area sweep cursor from the cursors store (.claude-tweaks/recon/cursors.json).
-// Falls back to scanning the cache for legacy lastSweptMs entries (backward compat).
-function areaLastSweptMs(rootDir, areaId) {
-  const cursors = readCursors(rootDir);
-  if (cursors[areaId] && typeof cursors[areaId].lastSweptMs === 'number') {
-    return cursors[areaId].lastSweptMs;
-  }
-  // Legacy fallback: scan cache entries that embed area+lastSweptMs
-  const cache = readCache(rootDir);
-  let max = null;
-  for (const entry of Object.values(cache)) {
-    if (entry.area === areaId && typeof entry.lastSweptMs === 'number') {
-      if (max === null || entry.lastSweptMs > max) max = entry.lastSweptMs;
-    }
-  }
-  return max;
-}
-
-function priorFindingCount(cache, areaId) {
-  let n = 0;
-  for (const entry of Object.values(cache)) {
-    if (entry.area === areaId && (entry.status === 'open' || entry.status === 'regressed')) n++;
-  }
-  return n;
-}
-
-function cmdRun(args) {
-  // v2: lenses are demoted from the run spine. The SKILL drives the LLM judge
-  // directly; this function is a scope smoke-check / dry-run helper only.
-  const slice = selectAreas({ area: args.area, root: args.root, K: 1 });
-  const out = {
-    runId: args.runId,
-    dryRun: args.dryRun || false,
-    areas: slice.map((a) => a.id),
-    plan: [],
-    summary: {},
-  };
-  process.stdout.write(JSON.stringify(out, null, 2) + '\n');
 }
 
 function cmdStatus(args) {
@@ -387,7 +276,6 @@ function cmdClassify(args) {
 function main(argv) {
   const args = parseArgs(argv);
   const cmd = args._[0];
-  if (cmd === 'run') return cmdRun(args);
   if (cmd === 'status') return cmdStatus(args);
   if (cmd === 'churn-report') return cmdChurnReport(args);
   if (cmd === 'pull-issues') return cmdPullIssues(args);
@@ -396,11 +284,11 @@ function main(argv) {
   if (cmd === 'next-slice') return cmdNextSlice(args);
   process.stderr.write(
     'usage: recon.js <command> [options]\n' +
-    'commands: run, validate-findings [--slice <id>], classify, next-slice, status, churn-report, pull-issues\n',
+    'commands: validate-findings [--slice <id>], classify, next-slice, status, churn-report, pull-issues\n',
   );
   process.exit(2);
 }
 
 if (require.main === module) main(process.argv.slice(2));
 
-module.exports = { parseArgs, cmdRun, cmdValidateFindings, main, selectAreas, collectSignals, applyConfidenceFloor };
+module.exports = { parseArgs, cmdValidateFindings, main, applyConfidenceFloor };

@@ -6,7 +6,6 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { recordRun, readCursors } = require('../../bin/lib/recon/cache');
-const { scoreAreas } = require('../../bin/lib/recon/score');
 
 function tmpRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-cursors-'));
@@ -46,27 +45,7 @@ test('readCursors returns {} when cursors file absent', () => {
   assert.deepStrictEqual(readCursors(root), {});
 });
 
-// Test 4: rotation — area B (never swept, null lastSweptMs) outranks area A (swept just now)
-// with otherwise equal signals.
-test('scoreAreas ranks never-swept area above just-swept area with equal other signals', () => {
-  const NOW = Date.now();
-  const areas = [
-    { id: 'area-a', path: 'area-a' },
-    { id: 'area-b', path: 'area-b' },
-  ];
-  const signals = {
-    // area-a was swept 1 second ago — effectively just swept
-    'area-a': { lastSweptMs: NOW - 1000, churn: 5, loc: 500, priorFindings: 2, fanIn: 3 },
-    // area-b has identical other signals but was NEVER swept (null)
-    'area-b': { lastSweptMs: null, churn: 5, loc: 500, priorFindings: 2, fanIn: 3 },
-  };
-  const ranked = scoreAreas(areas, signals, NOW);
-  // area-b (null lastSweptMs → stale boost) must rank above area-a
-  assert.strictEqual(ranked[0].id, 'area-b', 'never-swept area-b should outrank just-swept area-a');
-  assert.ok(ranked[0].score > ranked[1].score, 'area-b score should exceed area-a score');
-});
-
-// Test 5: the churn.test.js backward-compat — old flat array signature should still work
+// Test 4: the churn.test.js backward-compat — old flat array signature should still work
 // (we need to handle old callers gracefully; this test verifies it after the interface change)
 test('recordRun old flat-array form still round-trips fingerprints (backward-compat)', () => {
   const root = tmpRoot();

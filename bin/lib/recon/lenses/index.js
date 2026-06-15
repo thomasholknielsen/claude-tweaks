@@ -9,9 +9,9 @@ const projectCommand = require('./project-command');
 const ALL_LENSES = [todoComments, oversizedFile, deadExport, dependencyFreshness, projectCommand];
 const DEFAULT_IDS = ['todo-comments', 'oversized-file', 'dead-export', 'dependency-freshness'];
 
-// Lenses are demoted from the run spine in v2.
-// The v2 SKILL drives the LLM judge directly; lenses are optional tools
-// the SKILL may call as evidence. Return [] so cmdRun emits no findings.
+// Lenses are demoted from the run spine in v2. The v2 SKILL drives the LLM
+// judge directly; lenses are retained only as optional tools it may call as
+// evidence. buildLenses returns [] so nothing treats lenses as the run spine.
 function buildLenses(_config) { return []; }
 
 module.exports = { ALL_LENSES, DEFAULT_IDS, buildLenses };

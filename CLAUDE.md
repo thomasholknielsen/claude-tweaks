@@ -156,7 +156,7 @@ The marketplace `source` is an **unpinned git URL**, so installs and updates tra
 claude --plugin-dir ./              # Local development — load plugin from current directory
 npm test                            # Runs node --test over tests/ AND bin/lib/recon/tests/
 node --test bin/lib/recon/tests/*.test.js   # Recon unit suite only
-node bin/recon.js <cmd>             # Recon CLI: run, validate-findings, classify, next-slice, status, churn-report, pull-issues
+node bin/recon.js <cmd>             # Recon CLI: validate-findings, classify, next-slice, status, churn-report, pull-issues
 ```
 
 ### Subagent Contract (v4.2+)
