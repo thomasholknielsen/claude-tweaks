@@ -15,6 +15,7 @@ const { validateFindingV2 } = require('./lib/recon/validate-finding');
 const { toIssuePayloadV2 } = require('./lib/recon/issue-payload');
 const { getCriterion } = require('./lib/recon/criteria');
 const { classifyArea } = require('./lib/recon/area-type');
+const { listSlices, contentHash, selectSlice } = require('./lib/recon/scope');
 
 const DEFAULT_JUDGMENT_LENSES = Object.keys(JUDGMENT_LENS_MAP);
 const DEFAULT_MAX_SUBAGENTS = 6;
@@ -50,6 +51,7 @@ function parseArgs(argv) {
     else if (a === '--fail-on-high-churn') args['fail-on-high-churn'] = argv[++i];
     else if (a === '--label') args.label = argv[++i];
     else if (a === '--min-severity') args['min-severity'] = argv[++i];
+    else if (a === '--budget' || a === '--max-slices') args.budget = Number(argv[++i]);
     else args._.push(a);
   }
   return args;
@@ -493,6 +495,34 @@ function cmdValidateFindings(args) {
   );
 }
 
+function cmdNextSlice(args) {
+  const root = args.root || process.cwd();
+  const budget = Number.isFinite(args.budget) && args.budget > 0 ? args.budget : 1;
+  const { readCursors } = require('./lib/recon/cache');
+  let cursors = readCursors(root);
+  const now = Date.now();
+
+  if (budget === 1) {
+    const slice = selectSlice(root, cursors, { now });
+    process.stdout.write(JSON.stringify(slice, null, 2) + '\n');
+    return;
+  }
+
+  // Budget > 1: iterate, marking each chosen slice as seen in-memory only.
+  const chosen = [];
+  for (let i = 0; i < budget; i++) {
+    const slice = selectSlice(root, cursors, { now });
+    if (!slice) break;
+    chosen.push(slice);
+    // Simulate post-judge state so the next iteration picks a different slice.
+    cursors = {
+      ...cursors,
+      [slice.id]: { lastSweptMs: now, lastHash: contentHash(slice.path) },
+    };
+  }
+  process.stdout.write(JSON.stringify(chosen, null, 2) + '\n');
+}
+
 function cmdClassify(args) {
   const root = args.root || process.cwd();
   const areaPath = args.area || '.';
@@ -512,9 +542,11 @@ function main(argv) {
   if (cmd === 'pull-issues') return cmdPullIssues(args);
   if (cmd === 'validate-findings') return cmdValidateFindings(args);
   if (cmd === 'classify') return cmdClassify(args);
+  if (cmd === 'next-slice') return cmdNextSlice(args);
   process.stderr.write(
-    'usage: recon.js <command> [options]\n' +
+    'usage: recon.js <run|next-slice|validate-findings|classify|status|churn-report|pull-issues> ...\n' +
     '  run [--area <path>] [--dry-run] [--root <dir>] [--issues <file>]\n' +
+    '  next-slice [--root <dir>] [--budget <n>|--max-slices <n>]\n' +
     '  validate-findings <findings.json> [--root <dir>] [--issues <file>] [--run-id <id>] [--dry-run]\n' +
     '  plan-judgment --areas <a,b> [--lenses <l,m>] [--max-subagents <n>] [--run-id <id>]\n' +
     '  ingest-judgment <results.json> [--root <dir>] [--run-id <id>]\n' +
