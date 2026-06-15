@@ -1,6 +1,6 @@
 ---
 name: claude-tweaks:recon
-description: Use when you want a proactive, report-only sweep of one code area that surfaces improvement opportunities as deduplicated GitHub issues. An LLM judges the slice against the universal criteria catalog and files the work worth doing. Never edits code. Keywords - recon, sweep, repo audit, technical debt, proactive, github issues, llm judge.
+description: Use when you want a proactive, report-only sweep of a repository that surfaces improvement opportunities and files them as deduplicated GitHub issues. An LLM judges the code; deterministic helpers handle scope rotation, content-hash skip, fingerprinting, dedup, and issue filing. Never edits code. Keywords - recon, sweep, repo audit, technical debt, proactive, github issues, scheduled, routine.
 ---
 > **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
 
@@ -31,25 +31,35 @@ Not for: auto-fixing (report-only), CI gating (CI stays reactive), or replacing 
 
 `$ARGUMENTS` may contain:
 
-- `--area <path>` — the directory slice to judge (relative to root; required for on-demand runs).
-- `--dry-run` — fingerprint and dedup, print payloads, but write nothing to cache and file no issues.
+- `--area <path>` — manual override: scope the run to one specific area, bypassing `next-slice` rotation. Use for targeted re-inspection.
+- `--dry-run` — emit the plan but write nothing (cache untouched, no issues filed). Use for the smoke check.
 - `--root <dir>` — scan a project elsewhere (default: current working directory).
-
-Scope note: auto-rotation (picking the next slice automatically) is Phase 3. In Phase 1, always supply `--area`.
+- `--budget <n>` — judge up to `n` slices in one run (default: 1). Use with `next-slice` when you want a deeper sweep in a single invocation.
 
 ## Workflow
 
-**Step 1 — SCOPE: resolve the area.**
+**Step 1 — SCOPE: select the target slice.**
 
-The `--area` argument is the directory slice to judge. Verify it exists:
+Unless `--area` was provided, call the engine to pick the next slice to judge:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" next-slice --root .
+```
+
+The command prints `{ id, path, why }` JSON, or `null` if nothing is due. Read the output:
+- If `null`: all slices were judged recently and their content is unchanged. Report this to the user and stop.
+- If `why: "stale"`: this slice has not been judged in over 30 days regardless of content changes.
+- If `why: "hotspot"`: this slice has the highest churn × complexity score among slices with changed content.
+
+When `--area <path>` is provided, skip `next-slice` and use that path directly as the slice (manual override).
+
+Verify the resolved path exists:
 
 ```bash
 ls "${ROOT:-$PWD}/${AREA}"
 ```
 
-If the path does not exist, stop and ask the user to correct it. If `--area` was not supplied, ask the user which directory to judge.
-
-Set `AREA` and `ROOT` for the rest of the steps.
+If the path does not exist, stop and report the error. Set `AREA` and `ROOT` for the rest of the steps.
 
 **Step 2 — GATHER OPEN ISSUES for dedup.**
 
@@ -194,21 +204,26 @@ gh issue comment <issue_number> --body "Regressed: this finding reappeared. Run:
 
 In `--dry-run` mode, print the payloads and the `gh` commands that would run, but do not call `gh`.
 
+**Step 9.5 — Record the content-hash.**
+
+After filing all surviving findings, the slice's content-hash is recorded automatically. When `validate-findings` completes a real (non-`--dry-run`) run, the engine persists the content-hash for the judged slice via the cursor's `lastHash` field. No manual shell command is needed — this step confirms the mechanism is active. The next `next-slice` call will see `lastHash` in the cursor and skip the slice unless its source files have changed since the last run.
+
 **Step 10 — SUMMARIZE.**
 
 Report: how many findings were emitted, how many survived dedup, how many issues were filed / skipped / remembered. List any new issue URLs. In interactive mode, present findings as a batch table and let the user route each to: file issue / INBOX (`/capture`) / `/specify` directly / dismiss.
 
 ## Routine Configuration
 
-`/recon` is designed to run unattended on a schedule via a Claude Code Routine (`/schedule`). Design for small predictable sips: one area per run so a scheduled run is cheap and a skipped run is harmless.
+`/recon` is designed to run unattended on a schedule via a Claude Code Routine (`/schedule`). Design for small predictable sips: one slice per run so a scheduled run is cheap and a skipped run is harmless.
 
 ```
 Name:      recon-daily
 Schedule:  daily at 03:00 (off-peak)
-Prompt:    /claude-tweaks:recon --area <area>
+Prompt:    /claude-tweaks:recon
+K-budget:  1–3 slices per run (--budget flag on next-slice; default 1)
 ```
 
-Auto-rotation (picking the next area automatically each run) is Phase 3. Until then, set a fixed `--area` in the Routine prompt or rotate manually.
+Omit `--area` in the Routine prompt to let `next-slice` pick the highest-priority slice automatically. Supply `--area <path>` only for targeted re-inspection of a specific area.
 
 > **Billing note:** Routines run inside the subscription (no separate API key); verify any automation-credit specifics against the live account.
 
