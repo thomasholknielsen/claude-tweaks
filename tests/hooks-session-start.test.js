@@ -40,6 +40,23 @@ test('stale runs are reported in additionalContext, capped at 3, newest first', 
   assert.doesNotMatch(ctx, /spec-0/);
 });
 
+test('close-run hint substitutes CLAUDE_PLUGIN_ROOT when set, else keeps the literal placeholder', () => {
+  const project = tmpProject();
+  mkRun(project, '2026-07-01T090000-spec-1', { status: 'interrupted' });
+
+  delete process.env.CLAUDE_PLUGIN_ROOT;
+  const withoutEnv = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  assert.match(withoutEnv.json.hookSpecificOutput.additionalContext, /\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/hooks\.js/);
+
+  process.env.CLAUDE_PLUGIN_ROOT = '/opt/claude-tweaks';
+  try {
+    const withEnv = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+    assert.match(withEnv.json.hookSpecificOutput.additionalContext, /\/opt\/claude-tweaks\/bin\/hooks\.js/);
+  } finally {
+    delete process.env.CLAUDE_PLUGIN_ROOT;
+  }
+});
+
 test('no stale runs and no deps warnings -> no json output', () => {
   const project = tmpProject();
   mkRun(project, '2026-07-01T090000-spec-1', { status: 'clean' });

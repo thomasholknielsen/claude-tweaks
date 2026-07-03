@@ -17,7 +17,12 @@ function main(argv) {
   const cmd = argv[2];
   if (cmd === 'record-worktree') {
     const runDir = ctxLib.resolveRunDir(process.cwd(), process.env);
-    if (runDir && argv[3]) ctxLib.writeRunState(runDir, { worktree: path.resolve(argv[3]), status: 'active' });
+    if (runDir && argv[3]) {
+      ctxLib.writeRunState(runDir, { worktree: path.resolve(argv[3]), status: 'active' });
+      process.stdout.write(`claude-tweaks: worktree recorded for ${path.basename(runDir)}\n`);
+    } else if (!runDir) {
+      process.stdout.write('claude-tweaks: no pipeline run dir found — worktree not recorded\n');
+    }
     return 0;
   }
   if (cmd === 'close-run') {

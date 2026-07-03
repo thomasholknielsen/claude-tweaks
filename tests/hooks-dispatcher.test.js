@@ -45,10 +45,12 @@ test('invariant: unknown event and missing event exit 0', () => {
   assert.strictEqual(runHook([], { input: '{}' }).code, 0);
 });
 
-test('record-worktree writes run-state and close-run marks clean', () => {
+test('record-worktree writes run-state, prints a confirmation line, and close-run marks clean', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
-  assert.strictEqual(runHook(['record-worktree', '/tmp/wt-1'], { cwd: project }).code, 0);
+  const recorded = runHook(['record-worktree', '/tmp/wt-1'], { cwd: project });
+  assert.strictEqual(recorded.code, 0);
+  assert.match(recorded.stdout, /claude-tweaks: worktree recorded for 2026-07-01T090000-spec-1/);
   let state = JSON.parse(fs.readFileSync(path.join(run, 'run-state.json'), 'utf8'));
   assert.strictEqual(state.worktree, path.resolve('/tmp/wt-1'));
   assert.strictEqual(state.status, 'active');
@@ -57,9 +59,11 @@ test('record-worktree writes run-state and close-run marks clean', () => {
   assert.strictEqual(state.status, 'clean');
 });
 
-test('record-worktree without a run dir exits 0 silently', () => {
+test('record-worktree without a run dir exits 0 and prints a not-recorded notice', () => {
   const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bare-'));
-  assert.strictEqual(runHook(['record-worktree', '/tmp/wt'], { cwd: bare }).code, 0);
+  const result = runHook(['record-worktree', '/tmp/wt'], { cwd: bare });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /claude-tweaks: no pipeline run dir found — worktree not recorded/);
 });
 
 test('close-run lifts E1 enforcement: pre-tool-use allows a commit outside the old worktree', () => {

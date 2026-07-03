@@ -7,6 +7,10 @@ const { execFileSync } = require('child_process');
 const { gitTargets } = require('./git-command');
 const ctxLib = require('./context');
 
+function pluginRoot() {
+  return process.env.CLAUDE_PLUGIN_ROOT || '${CLAUDE_PLUGIN_ROOT}';
+}
+
 function toplevel(dir) {
   try {
     return execFileSync('git', ['-C', dir, 'rev-parse', '--show-toplevel'], {
@@ -27,16 +31,42 @@ function run(ctx) {
   if (typeof command !== 'string' || !command) return {};
   const assigned = safeReal(ctx.runState.worktree);
   if (!assigned) return {};
+
+  // Multi-run project: the fallback resolver in bin/hooks.js always picks the
+  // newest non-terminal run, so a terminal committing in its OWN assigned
+  // worktree can land here with ctx.runDir pointing at a DIFFERENT (newer)
+  // run. Build the full set of live worktrees (this run's plus every other
+  // non-terminal run's) so such a commit is allowed rather than false-denied.
+  const otherWorktrees = new Map(); // realpath (excluding this run's own) -> run dir
+  for (const dir of ctxLib.listRunDirs(ctx.cwd)) {
+    const state = ctxLib.readRunState(dir);
+    if (!state || !state.worktree) continue;
+    const real = safeReal(state.worktree);
+    if (!real || real === assigned) continue;
+    if (!otherWorktrees.has(real)) otherWorktrees.set(real, dir);
+  }
+
   for (const target of gitTargets(command, ctx.cwd)) {
     const top = toplevel(target.dir);
     if (!top) continue; // cannot prove the target -> allow
     const actual = safeReal(top);
-    if (!actual || actual === assigned) continue;
+    if (!actual) continue;
+    if (actual === assigned) continue;
+    if (otherWorktrees.has(actual)) {
+      // Matches a DIFFERENT live run's worktree -> allow, but a commit isn't
+      // provably in the run this hook resolved, so flag it for review.
+      if (target.action !== 'push') {
+        ctxLib.appendEvent(ctx.runDir, 'wd-ambiguous', { matched: actual });
+      }
+      continue;
+    }
     if (target.action === 'push') {
       ctxLib.appendEvent(ctx.runDir, 'wd-push-mismatch', { expected: assigned, actual, command: command.slice(0, 200) });
       continue;
     }
     ctxLib.appendEvent(ctx.runDir, 'wd-deny', { expected: assigned, actual, command: command.slice(0, 200) });
+    const others = [...otherWorktrees.keys()];
+    const othersNote = others.length ? ` Other active runs' worktrees: ${others.join(', ')}.` : '';
     return {
       exit: 0,
       json: {
@@ -44,9 +74,10 @@ function run(ctx) {
           hookEventName: 'PreToolUse',
           permissionDecision: 'deny',
           permissionDecisionReason:
-            `claude-tweaks working-directory discipline: this run's assigned worktree is ${assigned} but the commit targets ${actual}. ` +
-            `Re-run inside the worktree (cd "${assigned}") or use git -C "${assigned}". ` +
-            'If this checkout is intentionally correct (e.g. finishing the branch), clear the assignment first: node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run',
+            `claude-tweaks working-directory discipline: this run's assigned worktree is ${assigned} but the commit targets ${actual}.` +
+            othersNote +
+            ` Re-run inside the worktree (cd "${assigned}") or use git -C "${assigned}". ` +
+            `If this checkout is intentionally correct (e.g. finishing the branch), clear the assignment first: node "${pluginRoot()}/bin/hooks.js" close-run`,
         },
       },
     };

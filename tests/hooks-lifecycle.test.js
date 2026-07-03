@@ -38,6 +38,16 @@ test('session-end with no run dir is a no-op', () => {
   assert.deepStrictEqual(sessionEnd.run({ input: {}, runDir: null, runState: null, cwd: '/x' }), {});
 });
 
+test('session-end on a run dir with no run-state.json marks interrupted and logs the event', () => {
+  const { run } = mkRun(); // no state written -> readRunState(run) is null
+  const out = sessionEnd.run({ input: { reason: 'exit', session_id: 's1' }, runDir: run, runState: null, cwd: '/x' });
+  assert.deepStrictEqual(out, {});
+  assert.strictEqual(readState(run).status, 'interrupted');
+  const ev = readEvents(run);
+  assert.strictEqual(ev[0].type, 'session-end');
+  assert.strictEqual(ev[0].reason, 'exit');
+});
+
 test('pre-compact appends breadcrumb and stamps lastEvent', () => {
   const { run } = mkRun({ status: 'active' });
   preCompact.run({ input: { trigger: 'auto' }, runDir: run, runState: readState(run), cwd: '/x' });
