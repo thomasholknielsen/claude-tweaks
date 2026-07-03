@@ -3,6 +3,7 @@
 // Cardinal invariant: never break a session. Exit 0 on ANY error; the only
 // deliberate non-zero exit is the pre-tool-use deny.
 'use strict';
+const fs = require('fs');
 const path = require('path');
 const ctxLib = require('./lib/hooks/context');
 
@@ -33,7 +34,7 @@ function main(argv) {
   const runDir = ctxLib.resolveRunDir(cwd, process.env);
   const runState = runDir ? ctxLib.readRunState(runDir) : null;
   const out = mod.run({ input, runDir, runState, cwd }) || {};
-  if (out.json) process.stdout.write(JSON.stringify(out.json));
+  if (out.json) fs.writeSync(1, JSON.stringify(out.json));
   return typeof out.exit === 'number' ? out.exit : 0;
 }
 
