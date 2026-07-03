@@ -54,7 +54,26 @@
 
 ## Task 9 Smoke Test Results
 
-**hooks/hooks.json** registers all six events through the dispatcher (`node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" <event>`). SessionStart/SessionEnd/PreCompact/SubagentStop each get one unmatchered entry. PreToolUse and PostToolUse each get TWO entries — `matcher: "Bash"` paired with `if: "Bash(git commit *)"` on one, `if: "Bash(git push *)"` on the other — per the `content` MATCHER_MODE decision above. SessionStart's prior standalone deps-check invocation (`bin/lib/deps.js`) is gone; `session-start.js`'s `run()` now calls `deps.collect()` itself, so the dispatcher-routed registration preserves the old behavior.
+**hooks/hooks.json** registers all six events through the dispatcher (`node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" <event>`). SessionStart/SessionEnd/PreCompact/SubagentStop each get one unmatchered entry. PreToolUse and PostToolUse each get THREE entries — `matcher: "Bash"` paired with `if: "Bash(git commit *)"` on the first, `if: "Bash(git push *)"` on the second, `if: "Bash(git -C *)"` on the third — per the `content` MATCHER_MODE decision above. SessionStart's prior standalone deps-check invocation (`bin/lib/deps.js`) is gone; `session-start.js`'s `run()` now calls `deps.collect()` itself, so the dispatcher-routed registration preserves the old behavior.
+
+**Post-review fix (this revision):** a Critical review finding caught that the plugin's own canonical dispatched-agent commit form — `git -C "/abs/worktree" commit ...`, mandated by `skills/_shared/subagent-output-contract.md`'s Working Directory Discipline — starts with `git -C`, not `git commit` or `git push`, so neither original `if` pattern matched it and the hook process was never spawned for exactly the commands E1/E2 exist to police. `bin/lib/hooks/git-command.js`'s `gitTargets()` already parsed `-C` (and `cd`) correctly downstream (see its `VALUE_FLAGS`/`-C` handling) — only the pre-spawn filter in `hooks.json` was blind to it. Fix: added a third `if: "Bash(git -C *)"` entry to both PreToolUse and PostToolUse. Cost tradeoff: `git -C` invocations that aren't commit/push (e.g. `git -C dir status`) now spawn the ~30ms dispatcher and no-op (`gitTargets` finds no commit/push target → exit 0) — an accepted targeted cost, with no ambient cost added to non-git Bash calls.
+
+### Coverage analysis (post-review fix)
+
+Which command shapes match which `if` pattern in `hooks/hooks.json`'s PreToolUse/PostToolUse entries:
+
+| Command shape | Matches | Note |
+|---|---|---|
+| `git commit ...` | `Bash(git commit *)` | direct match |
+| `git push ...` | `Bash(git push *)` | direct match |
+| `git -C <path> commit ...` / `git -C <path> push ...` | `Bash(git -C *)` (new) | the fix in this revision — this is the plugin's own mandated dispatched-agent form |
+| `cd X && git commit ...` | matches ONLY IF Claude Code's `if` engine applies permission-rule matching per-subcommand of compound commands | documented behavior for permission rules generally; **not yet verified live for hook `if` fields specifically** — see deferred checks below |
+| `GIT_X=y git commit ...` (env-prefixed) | not matched by any pattern | residual gap, accepted |
+| `sh -c "git commit ..."` | not matched by any pattern | residual gap, accepted |
+
+Residual-gap rationale: the env-prefixed and `sh -c` wrapped forms are accepted gaps rather than fixed, because the underlying `gitTargets()` parser (`bin/lib/hooks/git-command.js`) would mark most of these unprovable anyway (an `sh -c "..."` argument is an opaque quoted string to the tokenizer, and env-var prefixes aren't part of the `git`/`cd` token grammar it walks), so closing the pre-spawn filter for these shapes wouldn't produce a useful deny/allow decision downstream even if the hook did spawn.
+
+**Amendment to the Step 2/3 results below:** those checks validated the dispatcher **module** logic (`pre-tool-use.js`, `post-tool-use.js`, `git-command.js`) via direct invocation (`echo '{...}' | node bin/hooks.js <event>`). They did **not** exercise Claude Code's `if`-filter engine live — that engine runs inside the Claude Code process before the dispatcher is ever spawned, and a piped-echo invocation bypasses it entirely by construction. Whether `Bash(git -C *)` (or the pre-existing `Bash(git commit *)` / `Bash(git push *)` patterns) actually causes Claude Code to spawn the dispatcher for a real Bash tool call remains unverified outside the module boundary.
 
 ### Step 2 — JSON validity + six-event simulation
 
@@ -86,6 +105,7 @@ Scratch repo built per the brief: `mktemp -d`, `git init`, fabricated `.claude-t
 
 - (a) Startup banner shows the A1 stale-run context visually in an interactive session (headless `-p` mode doesn't render a startup banner; A1 was instead verified directly via dispatcher invocation, see table above).
 - (b) `/hooks` (or the session debug view) lists all six registrations. Structural correctness of `hooks/hooks.json` was validated (Step 2) and each event's module was exercised directly via the dispatcher, but the in-session `/hooks` listing itself was not visually inspected.
+- (e) Live-fire `if`-engine verification: inside a real session with the plugin, run a `git -C <path> commit` in a pipeline-active scratch repo and confirm (a) the hook spawns, (b) `events.jsonl` gets the breadcrumb; also test a `cd X && git commit` chain to settle per-subcommand matching. Fallback if `if` patterns prove unreliable: drop the `if` fields (tool-name mode, ~32ms per Bash call, module no-ops fast).
 
 ### Full test suite
 
