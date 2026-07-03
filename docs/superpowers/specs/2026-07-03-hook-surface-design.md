@@ -67,8 +67,9 @@ E1–E3 gate on `$PIPELINE_RUN_DIR` in-script and exit in ~1ms of script time ou
 
 - CLAUDE.md: structure entries for `bin/hooks.js` + `bin/lib/hooks/`; a short "Hooks" convention block (tier policy, events.jsonl contract, never-break-the-session invariant).
 - `_shared/auto-mode-contract.md`: cross-ref — hooks mechanize the tiers.
-- `_shared/pipeline-run-dir.md`: add `events.jsonl` + `run-state.json` to the run-dir contract; `_shared/git-discipline.md` and `_shared/multi-agent-coordination.md` gain a note that E1 mechanically enforces the worktree assignment they describe.
-- README hook-surface mention; minor version bump (4.21.0) + marketplace mirror per release procedure.
+- `_shared/pipeline-run-dir.md`: add `events.jsonl` + `run-state.json` to the run-dir contract; `_shared/git-discipline.md` and the Working Directory Discipline section of `_shared/subagent-output-contract.md` gain a note that E1 mechanically enforces the worktree assignment they describe.
+- Worktree assignment is not currently persisted anywhere — `skills/build/worktree-setup.md` gains a `record-worktree` call after base verification, and the finish/merge path gains a clear step, both via auxiliary dispatcher subcommands (`node bin/hooks.js record-worktree <path>` / `close-run`), so run-state has a single writer.
+- README hook-surface mention; minor version bump (5.0.0 → 5.1.0 — CLAUDE.md's "v4.20.0" header is stale and gets corrected in the same pass) + marketplace mirror per release procedure.
 
 ## Testing
 
