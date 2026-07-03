@@ -45,3 +45,60 @@ test('non-git and empty commands yield nothing, never throw', () => {
   assert.deepStrictEqual(gitTargets('', '/repo'), []);
   assert.deepStrictEqual(gitTargets(undefined, '/repo'), []);
 });
+
+test('separators inside quotes do not fabricate targets (double quotes)', () => {
+  assert.deepStrictEqual(
+    gitTargets('git commit -m "text && git -C /malicious push && more text"', '/repo'),
+    [{ action: 'commit', dir: '/repo' }],
+  );
+});
+
+test('separators inside quotes do not fabricate targets (single quotes, ; and |)', () => {
+  assert.deepStrictEqual(
+    gitTargets("git commit -m 'text ; git -C /malicious push | more text'", '/repo'),
+    [{ action: 'commit', dir: '/repo' }],
+  );
+});
+
+test('unresolvable cd forms poison the effective cwd — a following git commit yields no target', () => {
+  assert.deepStrictEqual(gitTargets('cd && git commit -m "x"', '/repo'), []);
+  assert.deepStrictEqual(gitTargets('cd - && git commit -m "x"', '/repo'), []);
+  assert.deepStrictEqual(gitTargets('cd ~ && git commit -m "x"', '/repo'), []);
+  assert.deepStrictEqual(gitTargets('cd "$HOME/x" && git commit -m "x"', '/repo'), []);
+});
+
+test('poisoned cwd + git -C <absolute plain path> is still provable', () => {
+  assert.deepStrictEqual(
+    gitTargets('cd && git -C /abs/path commit -m "x"', '/repo'),
+    [{ action: 'commit', dir: '/abs/path' }],
+  );
+});
+
+test('poisoned cwd then cd to an absolute plain path restores provability', () => {
+  assert.deepStrictEqual(
+    gitTargets('cd && cd /abs/known && git commit -m "x"', '/repo'),
+    [{ action: 'commit', dir: '/abs/known' }],
+  );
+});
+
+test('repeated -C flags stack cumulatively like real git', () => {
+  assert.deepStrictEqual(gitTargets('git -C /a -C b commit -m "x"', '/repo'), [{ action: 'commit', dir: '/a/b' }]);
+  assert.deepStrictEqual(gitTargets('git -C /a -C /c commit -m "x"', '/repo'), [{ action: 'commit', dir: '/c' }]);
+});
+
+test('-C value containing $ or ~ yields no target regardless of cwd state', () => {
+  assert.deepStrictEqual(gitTargets('git -C "$HOME/x" commit -m "x"', '/repo'), []);
+  assert.deepStrictEqual(gitTargets('git -C ~/x commit -m "x"', '/repo'), []);
+});
+
+test('while cwd is unknown, a relative cd keeps it unknown', () => {
+  assert.deepStrictEqual(gitTargets('cd && cd sub && git commit -m "x"', '/repo'), []);
+});
+
+test('a cd argument with a backtick poisons the cwd', () => {
+  assert.deepStrictEqual(gitTargets('cd `pwd` && git commit -m "x"', '/repo'), []);
+});
+
+test('a relative -C value while cwd is unknown yields no target', () => {
+  assert.deepStrictEqual(gitTargets('cd && git -C sub commit -m "x"', '/repo'), []);
+});

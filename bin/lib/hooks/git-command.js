@@ -2,10 +2,35 @@
 'use strict';
 const path = require('path');
 
-// Naive top-level split: separators inside quotes also split. Acceptable — a
-// misparsed segment produces no git target, and no target means allow.
+// Quote-aware top-level split: a single pass tracks single/double-quote state
+// and only cuts at separators (&&, ||, ;, |) that are outside any quote span.
+// This protects the safety invariant — ambiguity resolves to allow — by
+// preventing quoted text (e.g. a commit message containing "&& git -C /x push")
+// from being misparsed as additional shell segments that fabricate a target.
 function splitSegments(command) {
-  return String(command || '').split(/&&|\|\||;|\|/);
+  const str = String(command || '');
+  const segments = [];
+  let current = '';
+  let quote = null; // null | '"' | "'"
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (quote) {
+      current += ch;
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      current += ch;
+      continue;
+    }
+    if (ch === '&' && str[i + 1] === '&') { segments.push(current); current = ''; i += 1; continue; }
+    if (ch === '|' && str[i + 1] === '|') { segments.push(current); current = ''; i += 1; continue; }
+    if (ch === ';' || ch === '|') { segments.push(current); current = ''; continue; }
+    current += ch;
+  }
+  segments.push(current);
+  return segments;
 }
 
 function stripQuotes(s) {
@@ -26,28 +51,63 @@ const VALUE_FLAGS = new Set(['-C', '-c', '--exec-path', '--namespace']);
 // Flags that make the target unprovable from the command text alone.
 const UNPROVABLE_FLAGS = ['--git-dir', '--work-tree'];
 
+// A raw (unquote-stripped) cd/-C argument that is unresolvable to a concrete,
+// literal path: no argument, "-", starts with "~", or contains "$"/backtick.
+function isUnresolvable(raw) {
+  return raw === undefined || raw === '-' || raw.startsWith('~') || raw.includes('$') || raw.includes('`');
+}
+
+function isAbsolutePlain(raw) {
+  return !isUnresolvable(raw) && path.isAbsolute(raw);
+}
+
 function gitTargets(command, cwd) {
   const targets = [];
-  let effCwd = cwd || '.';
+  let effCwd = cwd || '.'; // string, or null meaning UNKNOWN
   for (const seg of splitSegments(command)) {
     const t = tokenize(seg.trim());
     if (!t.length) continue;
-    if (t[0] === 'cd' && t[1]) {
-      effCwd = path.resolve(effCwd, stripQuotes(t[1]));
+    if (t[0] === 'cd') {
+      const raw = t[1];
+      if (isUnresolvable(raw)) {
+        effCwd = null;
+        continue;
+      }
+      if (effCwd === null) {
+        // Unknown cwd: only a plain absolute path restores provability.
+        if (isAbsolutePlain(raw)) effCwd = path.resolve(raw);
+        continue;
+      }
+      effCwd = path.resolve(effCwd, stripQuotes(raw));
       continue;
     }
     if (t[0] !== 'git') continue;
     let i = 1;
-    let dir = effCwd;
+    let dir = effCwd; // may be null (UNKNOWN)
     let unprovable = false;
     while (i < t.length && t[i].startsWith('-')) {
       const flag = t[i];
       if (UNPROVABLE_FLAGS.some((u) => flag === u || flag.startsWith(u + '='))) { unprovable = true; i += flag.includes('=') ? 1 : 2; continue; }
-      if (flag === '-C' && t[i + 1]) { dir = path.resolve(effCwd, stripQuotes(t[i + 1])); i += 2; continue; }
+      if (flag === '-C' && t[i + 1]) {
+        const raw = t[i + 1];
+        if (isUnresolvable(raw)) {
+          unprovable = true;
+        } else if (path.isAbsolute(raw)) {
+          dir = path.resolve(raw);
+        } else if (dir === null) {
+          // Relative -C while cwd is UNKNOWN — cannot prove the target.
+          unprovable = true;
+        } else {
+          dir = path.resolve(dir, raw);
+        }
+        i += 2;
+        continue;
+      }
       if (VALUE_FLAGS.has(flag) && t[i + 1]) { i += 2; continue; }
       i += 1;
     }
     if (unprovable) continue;
+    if (dir === null) continue; // cwd UNKNOWN and no provable -C — no target
     const sub = t[i];
     if (sub === 'commit' || sub === 'push') targets.push({ action: sub, dir });
   }
