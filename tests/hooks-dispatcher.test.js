@@ -1,0 +1,57 @@
+// tests/hooks-dispatcher.test.js
+'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert');
+const { execFileSync } = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+const HOOKS = path.join(__dirname, '..', 'bin', 'hooks.js');
+
+function runHook(args, { input = '', cwd = undefined, env = {} } = {}) {
+  try {
+    const stdout = execFileSync('node', [HOOKS, ...args], {
+      input, cwd, encoding: 'utf8', env: { ...process.env, ...env },
+    });
+    return { code: 0, stdout };
+  } catch (e) {
+    return { code: e.status, stdout: e.stdout || '' };
+  }
+}
+
+function tmpProject() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-disp-'));
+  fs.mkdirSync(path.join(dir, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1'), { recursive: true });
+  return dir;
+}
+
+test('invariant: every event exits 0 on garbage stdin, no stdout noise', () => {
+  for (const ev of ['session-start', 'session-end', 'pre-compact', 'pre-tool-use', 'post-tool-use', 'subagent-stop']) {
+    const r = runHook([ev], { input: '%%%not json%%%' });
+    assert.strictEqual(r.code, 0, `${ev} must exit 0 on garbage stdin`);
+    if (r.stdout.trim()) assert.doesNotThrow(() => JSON.parse(r.stdout), `${ev} stdout must be empty or valid JSON`);
+  }
+});
+
+test('invariant: unknown event and missing event exit 0', () => {
+  assert.strictEqual(runHook(['no-such-event'], { input: '{}' }).code, 0);
+  assert.strictEqual(runHook([], { input: '{}' }).code, 0);
+});
+
+test('record-worktree writes run-state and close-run marks clean', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  assert.strictEqual(runHook(['record-worktree', '/tmp/wt-1'], { cwd: project }).code, 0);
+  let state = JSON.parse(fs.readFileSync(path.join(run, 'run-state.json'), 'utf8'));
+  assert.strictEqual(state.worktree, path.resolve('/tmp/wt-1'));
+  assert.strictEqual(state.status, 'active');
+  assert.strictEqual(runHook(['close-run'], { cwd: project }).code, 0);
+  state = JSON.parse(fs.readFileSync(path.join(run, 'run-state.json'), 'utf8'));
+  assert.strictEqual(state.status, 'clean');
+});
+
+test('record-worktree without a run dir exits 0 silently', () => {
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bare-'));
+  assert.strictEqual(runHook(['record-worktree', '/tmp/wt'], { cwd: bare }).code, 0);
+});
