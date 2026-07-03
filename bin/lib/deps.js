@@ -52,25 +52,22 @@ function detectVersionManager() {
   return null;
 }
 
-function checkAgentBrowser() {
+function agentBrowserMessage() {
   if (!has('agent-browser')) {
-    process.stdout.write(
-      'claude-tweaks: Browser features require agent-browser. Install: npm install -g agent-browser. Browser features are optional.\n',
-    );
+    return 'claude-tweaks: Browser features require agent-browser. Install: npm install -g agent-browser. Browser features are optional.';
   }
+  return null;
 }
 
-function reportMissing(dep, pm, vm) {
+function missingMessage(dep, pm, vm) {
   const platform = os.platform();
   if (dep === 'node' && vm) {
-    process.stdout.write(`claude-tweaks: Node not found, but ${vm} is on PATH. Install Node via your version manager.\n`);
-    return;
+    return `claude-tweaks: Node not found, but ${vm} is on PATH. Install Node via your version manager.`;
   }
   if (pm) {
     const cmd = installCommand(pm, dep);
     const sudoNote = pm.needsSudo ? ' (requires sudo)' : '';
-    process.stdout.write(`claude-tweaks: ${dep} not found. Install via ${pm.name}: ${cmd}${sudoNote}\n`);
-    return;
+    return `claude-tweaks: ${dep} not found. Install via ${pm.name}: ${cmd}${sudoNote}`;
   }
   const fallback = {
     darwin: { node: 'https://nodejs.org/ or `xcode-select --install` then install brew', git: 'https://git-scm.com/ or `xcode-select --install`' },
@@ -78,17 +75,24 @@ function reportMissing(dep, pm, vm) {
     linux: { node: 'use your distro package manager', git: 'use your distro package manager' },
   };
   const url = fallback[platform]?.[dep] || `install ${dep}`;
-  process.stdout.write(`claude-tweaks: ${dep} not found. Install: ${url}\n`);
+  return `claude-tweaks: ${dep} not found. Install: ${url}`;
+}
+
+function collect() {
+  const pm = detectPackageManager();
+  const vm = detectVersionManager();
+  const msgs = [];
+  if (!has('node')) msgs.push(missingMessage('node', pm, vm));
+  if (!has('git')) msgs.push(missingMessage('git', pm, null));
+  const ab = agentBrowserMessage();
+  if (ab) msgs.push(ab);
+  return msgs;
 }
 
 function main() {
-  const pm = detectPackageManager();
-  const vm = detectVersionManager();
-  if (!has('node')) reportMissing('node', pm, vm);
-  if (!has('git')) reportMissing('git', pm, null);
-  checkAgentBrowser();
+  for (const m of collect()) process.stdout.write(m + '\n');
 }
 
 if (require.main === module) main();
 
-module.exports = { has, detectPackageManager, detectVersionManager, installCommand, reportMissing };
+module.exports = { has, detectPackageManager, detectVersionManager, installCommand, collect, main };
