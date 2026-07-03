@@ -8,7 +8,7 @@
   > Each event type matches on a different field:
   >
   > | Event | What the matcher filters |
-  > | `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`, `PermissionDenied` | **tool name** |
+  > | `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`, `PermissionDenied` | tool name |
 
   On the `if` field, which adds content-level filtering on top of `matcher`:
 
@@ -30,7 +30,8 @@
             {
               "type": "command",
               "if": "Bash(rm *)",
-              "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/block-rm.sh"
+              "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/block-rm.sh",
+              "args": []
             }
           ]
         }
@@ -46,5 +47,7 @@
 
 - MATCHER_MODE: content
   - content → matchers can scope to `git commit`/`git push` command content; dispatcher spawns only on git fires.
+
+- **Registration shape for Task 9:** `matcher: "Bash"` PLUS `if: "Bash(git commit *)"` (and a second entry with `if: "Bash(git push *)"`). Do NOT put a content pattern inside the `matcher` field itself — `matcher` matches tool names only; the `if` field (permission-rule syntax) does the content filtering, before the hook process spawns.
 
 **Rationale:** Decision rule per brief: "if content matchers exist → content." hooks.json does support content-scoped gating that prevents spawn on non-match — not via the `matcher` field itself (tool-name only), but via the sibling `if` field using permission-rule syntax (`"Bash(git commit *)"`, `"Bash(git push *)"`), evaluated pre-spawn by Claude Code itself. This satisfies the practical criterion behind `content` mode ("dispatcher spawns only on git fires") even though the registration shape for Task 9 is `matcher: "Bash"` + `if: "Bash(git commit *)"` / `if: "Bash(git push *)"` per handler, not a content-matching `matcher` field. The 32ms spawn cost (well under the 100ms tool-name-mode threshold) is recorded for completeness but is not the deciding factor, since `content` mode was reached first per the decision rule's precedence.
