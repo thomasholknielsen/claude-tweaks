@@ -113,6 +113,8 @@ A skill MAY auto-resolve a decision only when ALL of these hold:
 
 When any floor fails, the skill MUST stage the decision (log it, don't act) and surface it at the Review Console.
 
+The hook surface (`bin/hooks.js`, see CLAUDE.md Conventions → Hooks) mechanizes these tiers for working-directory discipline and run continuity — block/warn/inform/log map 1:1 to the reversibility floors defined here.
+
 ### Always-reversible (auto-OK)
 
 - File edits in worktree (`git revert`)

@@ -2,7 +2,7 @@
 
 ## What this is
 
-A Claude Code plugin (v4.20.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation, QA pipeline support, a statusline, and a subagent contract for parallel dispatch.
+A Claude Code plugin (v5.1.0) containing markdown skill files that guide Claude through a structured development lifecycle, with browser automation, QA pipeline support, a statusline, and a subagent contract for parallel dispatch.
 
 ## Stack
 
@@ -22,7 +22,8 @@ skills/{name}/SKILL.md            → Skill definition (frontmatter + body)
 skills/{name}/*.md                → Sub-files lazy-loaded by the skill
 skills/_shared/*.md               → Cross-skill shared content (subagent contract, auto-mode contract, auto-decision log, browser detection, pipeline run dir, dev URL detection, git discipline, design-wrapper handling, multi-agent coordination, decision records / ADR gate, **shared analysis criteria: architecture-depth / simplification / review-quality**)
 agents/{name}.md                  → Agent definitions (frontmatter + body)
-hooks/hooks.json                  → Hook definitions (SessionStart)
+hooks/hooks.json                  → Hook definitions (SessionStart/SessionEnd/PreCompact continuity + PreToolUse/PostToolUse/SubagentStop enforcement, all via bin/hooks.js)
+bin/hooks.js                      → Hook dispatcher (one entry point for all hook events + record-worktree/close-run subcommands)
 bin/                              → Node executables (statusline, deps check)
 bin/lib/                          → Shared Node helpers (color, deps, coordination)
 tests/                            → Node test files (node --test runner)
@@ -149,6 +150,18 @@ The marketplace `source` is an **unpinned git URL**, so installs and updates tra
 - Every skill's Relationship table must be bidirectional — if A references B, B must reference A
 - Workflow diagrams in `/help` must list all skills
 - The artifact lifecycle diagram in `/help` and `README.md` must stay in sync
+
+### Hooks
+
+All hook registrations route through `bin/hooks.js <event>` — one dispatcher, one module per event in `bin/lib/hooks/`. Rules:
+
+- **Never break a session.** Every path exits 0 on error; the only deliberate non-zero outcome is the pre-tool-use deny. New modules must pass the garbage-stdin invariant test in `tests/hooks-dispatcher.test.js`.
+- **Tiered posture per `_shared/auto-mode-contract.md`:** block (E1 wrong-checkout commit only), warn (non-blocking systemMessage), inform (SessionStart additionalContext), log (append to the run dir's `events.jsonl`).
+- **Project-agnostic by construction:** modules key off plugin-owned state (`$PIPELINE_RUN_DIR`, `.claude-tweaks/pipelines/`), never off project structure. E1/E2/E3 no-op without a resolved run dir.
+- **Ambiguity resolves to allow** — E1 denies only provable mismatches. A recorded worktree whose path no longer exists also resolves to allow (fail-open) — tear-down without close-run ends enforcement, not the session.
+- Run-dir state files written by hooks: `events.jsonl` (append-only typed events) and `run-state.json` (status: active | interrupted | clean, worktree assignment). Skills write run-state only through `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" record-worktree <path>` / `close-run`.
+
+Referenced by (worktree assignment, enforcement, and `events.jsonl` consumption): `_shared/git-discipline.md`, `_shared/subagent-output-contract.md`, `_shared/pipeline-run-dir.md`, `_shared/auto-mode-contract.md`, `build/worktree-setup.md`, `flow/worktree-merge.md`, `wrap-up/cleanup-procedures.md`, `wrap-up/SKILL.md`, `wrap-up/review-console.md`.
 
 ## Commands
 

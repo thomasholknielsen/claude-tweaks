@@ -58,6 +58,7 @@ Set `worktree.baseRef: "head"` in `settings.json`. Because the plugin cannot pas
    2. Rebase this worktree branch onto {BASE_BRANCH} (replays the empty branch onto the right base)
    ```
    **Never recover with `git reset --hard`** — it is forbidden by `_shared/git-discipline.md` (it wipes concurrent work). Use rebase or recreate. In `auto` mode, choose option 1 (remove + recreate) since the branch has no commits yet, and log the correction to the auto-decision log.
+4.5. **Record the assignment** — `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" record-worktree "$WORKTREE"` so the working-directory hook (E1) can enforce commits land in this worktree.
 5. All subsequent work happens in the worktree
 
 ## Consent prompt (v5.1.0+)

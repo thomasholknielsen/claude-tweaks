@@ -25,6 +25,8 @@ Each terminal creates its own worktree and feature branch. There is no file over
 
 After all terminals complete, merge the feature branches back. Run this once from the main working tree:
 
+Before the merge/finish handoff begins, run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run` to clear each run's worktree assignment — merge and push happen in the main checkout legitimately, and the working-directory hook (E1) would otherwise deny them as a wrong-checkout commit.
+
 ### Merge Order
 
 1. Sort completed branches by diff size (smallest first — run `git diff --stat main..{branch}` and read the summary line at the end of its output)

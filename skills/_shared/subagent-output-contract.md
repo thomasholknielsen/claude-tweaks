@@ -40,6 +40,8 @@ Before any commit step, the implementer must echo `pwd` and `git rev-parse --sho
 
 When the dispatch is for a verification or test-running agent (no commits), the working directory still matters: results depend on which files are visible.
 
+During worktree-mode pipeline runs this rule is mechanically enforced — the plugin's PreToolUse hook denies commits whose resolved checkout differs from the run's recorded worktree assignment.
+
 ## Implementer Status Protocol
 
 Every dispatched agent reports one of four statuses as the first line of its reply (before the output template):
@@ -66,6 +68,8 @@ Reason: couldn't locate the auth middleware referenced in the task scope.
 Tried: grep -r "authMiddleware" src/, grep -r "requireAuth" src/
 Need: actual file path of the auth middleware, or confirmation it doesn't exist.
 ```
+
+SubagentStop hook (E3) logs replies missing the status line to the run dir's `events.jsonl` (best-effort — the event fires unreliably for Task dispatches, claude-code#27755).
 
 ## Model Selection
 

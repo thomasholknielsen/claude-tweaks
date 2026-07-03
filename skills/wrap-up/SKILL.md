@@ -264,7 +264,7 @@ Resolved in Step 7 — {N} updates applied / 0 updates needed.
 | Operational | Removed worktree `{path}`, deleted branch `{branch}` | — |
 | Ledger fix | {item} ({phase}) — {resolution} | `{hash}` |
 
-Generate from: cleanup actions in Step 10, config/skill updates applied, ledger items resolved in Step 8.5.
+Generate from: cleanup actions in Step 10, config/skill updates applied, ledger items resolved in Step 8.5, and, when present, the run dir's `events.jsonl` (hook-recorded commit breadcrumbs — hash reflects HEAD at hook time, not verified against commit success — and contract violations).
 
 (Next Actions are rendered as a top-level section after Step 10 — see `## Next Actions` below. Do NOT render them here in the per-spec summary template.)
 ```

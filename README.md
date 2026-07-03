@@ -6,6 +6,15 @@ A structured workflow system for Claude Code — from idea capture through build
 
 Claude Code is powerful but unstructured. claude-tweaks adds a complete development lifecycle: capture ideas, challenge assumptions, decompose into specs, build with quality gates, and learn from what was built. Every finding is explicitly resolved — nothing silently drops.
 
+### What's new in v5.1.0 — Hook surface: pipeline continuity + working-directory enforcement
+
+A dispatcher-based hook surface (`bin/hooks.js`, registered via `hooks/hooks.json`) adds two things with no skill-level opt-in required:
+
+- **Pipeline-run continuity across sessions and compaction** — SessionStart/SessionEnd/PreCompact hooks track the active pipeline run and re-surface it after a session restart or context compaction.
+- **Mechanical working-directory enforcement during worktree runs** — PreToolUse/PostToolUse/SubagentStop hooks deny commits that land in the wrong checkout, log commit breadcrumbs, and flag Subagent Contract status-line violations.
+
+Inert (a fast no-op) outside pipeline runs — no run directory means no hook activity. See CLAUDE.md Conventions → Hooks for the full contract.
+
 ### What's new in v5.0.0 — Recon v2: LLM-as-judge + scheduled Routine
 
 Recon v2 replaces the v1 mechanical-lens spine with an LLM-as-judge model: the LLM evaluates the repo against a criteria catalog, calling deterministic tool checks as evidence. Area-type routing, content-hash skip, hotspot priority, fingerprinting, and dedup are handled by deterministic helpers. The v1 subagent dance and `plan-judgment` / `ingest-judgment` phases are removed. Recon now runs as a scheduled Routine for continuous, hands-off coverage — no manual invocation needed.

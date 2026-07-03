@@ -9,7 +9,7 @@ Operational TLDR for skills that need to locate the active pipeline run director
 3. **Standalone auto fallback** — when neither resolves AND the skill is running in `auto` mode AND the skill is on the standalone-auto allowlist (`/tidy`, `/init`, `/capture`, `/reflect`, `/journeys`, `/visual-review`, `/simplify`), create a standalone run dir at `.claude-tweaks/pipelines/{ISO-timestamp}-{skill-name}-standalone/` with `decisions.md` and `staged/`. The audit log stays on; the skill auto-resolves per project policy in CLAUDE.md. The dir is presented in a Pending Review section at the end of the skill's report (no separate Review Console — this is the bookend-end for a standalone run).
 4. **Fall back to interactive mode** — when neither resolves AND the skill is NOT on the standalone-auto allowlist, no policy lookup is possible and no auto-decisions are allowed. The skill MUST behave as if invoked in interactive mode for this run.
 
-The resolved directory contains `config.yml` (Manifesto answers / policy — absent for standalone runs), `decisions.md` (auto-decision log), and `staged/` (proposals awaiting the Review Console / Pending Review section). Full layout and lifecycle in `auto-mode-contract.md`.
+The resolved directory contains `config.yml` (Manifesto answers / policy — absent for standalone runs), `decisions.md` (auto-decision log), `staged/` (proposals awaiting the Review Console / Pending Review section), `run-state.json` (hook-maintained status/worktree assignment; terminal = status `clean`), and `events.jsonl` (hook-appended typed events). Full layout and lifecycle in `auto-mode-contract.md`.
 
 ## Bash snippet (resolution)
 

@@ -4,6 +4,7 @@ const { execFileSync } = require('child_process');
 const { gitTargets } = require('./git-command');
 const ctxLib = require('./context');
 
+// Hash reflects HEAD at hook time — PostToolUse has no success signal, so a failed commit logs the previous HEAD.
 function shortHead(dir) {
   try {
     return execFileSync('git', ['-C', dir, 'rev-parse', '--short', 'HEAD'], {
