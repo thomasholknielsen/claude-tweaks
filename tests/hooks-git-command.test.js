@@ -102,3 +102,42 @@ test('a cd argument with a backtick poisons the cwd', () => {
 test('a relative -C value while cwd is unknown yields no target', () => {
   assert.deepStrictEqual(gitTargets('cd && git -C sub commit -m "x"', '/repo'), []);
 });
+
+test('an escaped quote inside a double-quoted string does not close it (with -C)', () => {
+  assert.deepStrictEqual(
+    gitTargets('git commit -m "abc\\" && git -C /evil push "', '/repo'),
+    [{ action: 'commit', dir: '/repo' }],
+  );
+});
+
+test('an escaped quote inside a double-quoted string does not close it (no -C, cwd not fabricated)', () => {
+  assert.deepStrictEqual(
+    gitTargets('git commit -m "abc\\" && git push "', '/repo'),
+    [{ action: 'commit', dir: '/repo' }],
+  );
+});
+
+test('a doubled backslash before the closing quote is a literal backslash — the quote DOES close, so a following separator is a real command', () => {
+  assert.deepStrictEqual(
+    gitTargets('git commit -m "a\\\\" && git push', '/repo'),
+    [
+      { action: 'commit', dir: '/repo' },
+      { action: 'push', dir: '/repo' },
+    ],
+  );
+});
+
+test('a cd argument containing an escaped quote is unresolvable and poisons cwd', () => {
+  assert.deepStrictEqual(gitTargets('cd "pa\\"th" && git commit', '/repo'), []);
+});
+
+test('a -C value containing an escaped quote is unresolvable — no target', () => {
+  assert.deepStrictEqual(gitTargets('git -C "we\\"ird" commit', '/repo'), []);
+});
+
+test('positive control: an unquoted separator after a simple quoted string still yields both targets', () => {
+  assert.deepStrictEqual(gitTargets('git commit -m "x" && git push', '/repo'), [
+    { action: 'commit', dir: '/repo' },
+    { action: 'push', dir: '/repo' },
+  ]);
+});

@@ -14,9 +14,23 @@ function splitSegments(command) {
   let quote = null; // null | '"' | "'"
   for (let i = 0; i < str.length; i++) {
     const ch = str[i];
-    if (quote) {
+    if (quote === "'") {
+      // Inside single quotes, backslash has no special meaning in bash.
       current += ch;
-      if (ch === quote) quote = null;
+      if (ch === "'") quote = null;
+      continue;
+    }
+    // Not inside single quotes (unquoted or inside double quotes): a
+    // backslash escapes the next character, so `\"` never toggles quote
+    // state and `\\` is a literal backslash — matching bash semantics.
+    if (ch === '\\' && i + 1 < str.length) {
+      current += ch + str[i + 1];
+      i += 1;
+      continue;
+    }
+    if (quote === '"') {
+      current += ch;
+      if (ch === '"') quote = null;
       continue;
     }
     if (ch === '"' || ch === "'") {
@@ -52,9 +66,22 @@ const VALUE_FLAGS = new Set(['-C', '-c', '--exec-path', '--namespace']);
 const UNPROVABLE_FLAGS = ['--git-dir', '--work-tree'];
 
 // A raw (unquote-stripped) cd/-C argument that is unresolvable to a concrete,
-// literal path: no argument, "-", starts with "~", or contains "$"/backtick.
+// literal path: no argument, "-", starts with "~", contains "$"/backtick, or
+// contains a backslash/double-quote. The last two guard against token-level
+// ambiguity: the regex tokenizer below is not escape-aware, so a value that
+// still carries a backslash or stray quote (from an escaped-quote sequence
+// upstream) cannot be trusted as a literal path — never claim an unprovable
+// target.
 function isUnresolvable(raw) {
-  return raw === undefined || raw === '-' || raw.startsWith('~') || raw.includes('$') || raw.includes('`');
+  return (
+    raw === undefined ||
+    raw === '-' ||
+    raw.startsWith('~') ||
+    raw.includes('$') ||
+    raw.includes('`') ||
+    raw.includes('\\') ||
+    raw.includes('"')
+  );
 }
 
 function isAbsolutePlain(raw) {
