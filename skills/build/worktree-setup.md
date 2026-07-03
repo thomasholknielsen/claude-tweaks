@@ -58,7 +58,7 @@ Set `worktree.baseRef: "head"` in `settings.json`. Because the plugin cannot pas
    2. Rebase this worktree branch onto {BASE_BRANCH} (replays the empty branch onto the right base)
    ```
    **Never recover with `git reset --hard`** — it is forbidden by `_shared/git-discipline.md` (it wipes concurrent work). Use rebase or recreate. In `auto` mode, choose option 1 (remove + recreate) since the branch has no commits yet, and log the correction to the auto-decision log.
-4.5. **Record the assignment** — `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" record-worktree "$WORKTREE"` so the working-directory hook (E1) can enforce commits land in this worktree.
+4.5. **Record the assignment** — `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" record-worktree "$WORKTREE"` so the working-directory hook (E1) can enforce commits land in this worktree. Run this with the **main checkout as cwd**, not the worktree — the worktree has no `.claude-tweaks/` directory, so run-dir resolution fails from inside it and the assignment silently isn't recorded. On success the command prints `claude-tweaks: worktree recorded for <run-id>` to stdout (or `claude-tweaks: no pipeline run dir found — worktree not recorded` if resolution failed); verify that confirmation line before proceeding.
 5. All subsequent work happens in the worktree
 
 ## Consent prompt (v5.1.0+)

@@ -160,6 +160,7 @@ All hook registrations route through `bin/hooks.js <event>` — one dispatcher, 
 - **Project-agnostic by construction:** modules key off plugin-owned state (`$PIPELINE_RUN_DIR`, `.claude-tweaks/pipelines/`), never off project structure. E1/E2/E3 no-op without a resolved run dir.
 - **Ambiguity resolves to allow** — E1 denies only provable mismatches. A recorded worktree whose path no longer exists also resolves to allow (fail-open) — tear-down without close-run ends enforcement, not the session.
 - Run-dir state files written by hooks: `events.jsonl` (append-only typed events) and `run-state.json` (status: active | interrupted | clean, worktree assignment). Skills write run-state only through `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" record-worktree <path>` / `close-run`.
+- Hook processes are spawned with the harness's own environment, so a `PIPELINE_RUN_DIR` exported inside a Bash tool call does not reach them; hooks instead resolve runs via the newest-non-terminal fallback from the Bash call's cwd, and a commit issued from inside a worktree that contains no `.claude-tweaks/` resolves no run dir and is allowed (fail-open).
 
 Referenced by (worktree assignment, enforcement, and `events.jsonl` consumption): `_shared/git-discipline.md`, `_shared/subagent-output-contract.md`, `_shared/pipeline-run-dir.md`, `_shared/auto-mode-contract.md`, `build/worktree-setup.md`, `flow/worktree-merge.md`, `wrap-up/cleanup-procedures.md`, `wrap-up/SKILL.md`, `wrap-up/review-console.md`.
 

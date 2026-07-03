@@ -13,7 +13,7 @@ A dispatcher-based hook surface (`bin/hooks.js`, registered via `hooks/hooks.jso
 - **Pipeline-run continuity across sessions and compaction** — SessionStart/SessionEnd/PreCompact hooks track the active pipeline run and re-surface it after a session restart or context compaction.
 - **Mechanical working-directory enforcement during worktree runs** — PreToolUse/PostToolUse/SubagentStop hooks deny commits that land in the wrong checkout, log commit breadcrumbs, and flag Subagent Contract status-line violations.
 
-Inert (a fast no-op) outside pipeline runs — no run directory means no hook activity. See CLAUDE.md Conventions → Hooks for the full contract.
+Near-inert outside pipeline runs: SessionStart's dependency check always runs regardless of a resolved run directory, and each matched git command pays a ~30ms no-op spawn to check for one. With no run directory, there is no state to write or enforce. See CLAUDE.md Conventions → Hooks for the full contract.
 
 ### What's new in v5.0.0 — Recon v2: LLM-as-judge + scheduled Routine
 

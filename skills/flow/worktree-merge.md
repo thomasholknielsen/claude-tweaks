@@ -25,7 +25,7 @@ Each terminal creates its own worktree and feature branch. There is no file over
 
 After all terminals complete, merge the feature branches back. Run this once from the main working tree:
 
-Before the merge/finish handoff begins, run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run` to clear each run's worktree assignment — merge and push happen in the main checkout legitimately, and the working-directory hook (E1) would otherwise deny them as a wrong-checkout commit.
+Before the merge/finish handoff begins, clear each run's worktree assignment — merge and push happen in the main checkout legitimately, and the working-directory hook (E1) would otherwise deny them as a wrong-checkout commit. A single bare `close-run` closes only the newest run, so with multiple parallel terminals this is not enough: list `.claude-tweaks/pipelines/*/` and, for every run dir whose `run-state.json` status is not already `clean`, run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$dir"` explicitly before starting the merge/finish sequence.
 
 ### Merge Order
 
