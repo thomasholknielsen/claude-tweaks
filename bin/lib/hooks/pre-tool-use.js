@@ -21,6 +21,7 @@ function safeReal(p) {
 
 function run(ctx) {
   if (!ctx.runDir || !ctx.runState || !ctx.runState.worktree) return {};
+  if (ctx.runState.status === 'clean') return {};
   if (ctx.input.tool_name !== 'Bash') return {};
   const command = ctx.input.tool_input && ctx.input.tool_input.command;
   if (typeof command !== 'string' || !command) return {};

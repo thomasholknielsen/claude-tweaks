@@ -23,7 +23,7 @@ function main(argv) {
   if (cmd === 'close-run') {
     const flagIdx = argv.indexOf('--run');
     const runDir = flagIdx !== -1 && argv[flagIdx + 1] ? argv[flagIdx + 1] : ctxLib.resolveRunDir(process.cwd(), process.env);
-    if (runDir) ctxLib.writeRunState(runDir, { status: 'clean' });
+    if (runDir) ctxLib.writeRunState(runDir, { status: 'clean', worktree: null });
     return 0;
   }
   if (!EVENTS.includes(cmd)) return 0;

@@ -26,6 +26,12 @@ function tmpProject() {
   return dir;
 }
 
+function gitRepo() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-disp-repo-'));
+  execFileSync('git', ['-C', dir, 'init', '-q']);
+  return fs.realpathSync(dir);
+}
+
 test('invariant: every event exits 0 on garbage stdin, no stdout noise', () => {
   for (const ev of ['session-start', 'session-end', 'pre-compact', 'pre-tool-use', 'post-tool-use', 'subagent-stop']) {
     const r = runHook([ev], { input: '%%%not json%%%' });
@@ -54,4 +60,24 @@ test('record-worktree writes run-state and close-run marks clean', () => {
 test('record-worktree without a run dir exits 0 silently', () => {
   const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bare-'));
   assert.strictEqual(runHook(['record-worktree', '/tmp/wt'], { cwd: bare }).code, 0);
+});
+
+test('close-run lifts E1 enforcement: pre-tool-use allows a commit outside the old worktree', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  const worktree = gitRepo();
+  const otherRepo = gitRepo();
+
+  assert.strictEqual(runHook(['record-worktree', worktree], { cwd: project }).code, 0);
+  assert.strictEqual(runHook(['close-run'], { cwd: project }).code, 0);
+
+  const result = runHook(['pre-tool-use'], {
+    input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'git commit -m x' }, cwd: otherRepo }),
+    env: { PIPELINE_RUN_DIR: run },
+  });
+  assert.strictEqual(result.code, 0);
+  assert.ok(
+    !result.stdout.includes('permissionDecision'),
+    `expected close-run to lift E1 enforcement (no permissionDecision), got: ${result.stdout}`
+  );
 });
