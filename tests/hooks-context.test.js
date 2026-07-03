@@ -23,6 +23,7 @@ test('parseInput returns {} on garbage and non-objects', () => {
   assert.deepStrictEqual(ctx.parseInput('not json'), {});
   assert.deepStrictEqual(ctx.parseInput('42'), {});
   assert.deepStrictEqual(ctx.parseInput(''), {});
+  assert.deepStrictEqual(ctx.parseInput('[1,2,3]'), {});
   assert.deepStrictEqual(ctx.parseInput('{"a":1}'), { a: 1 });
 });
 
@@ -46,12 +47,35 @@ test('resolveRunDir returns null with no pipelines dir', () => {
   assert.strictEqual(ctx.resolveRunDir(bare, {}), null);
 });
 
+test('resolveRunDir falls through to the scan when PIPELINE_RUN_DIR points at a file, not a directory', () => {
+  const project = tmpProject();
+  const run = mkRun(project, '2026-07-01T090000-spec-1');
+  const notADir = path.join(project, 'not-a-dir.txt');
+  fs.writeFileSync(notADir, 'x');
+  assert.strictEqual(ctx.resolveRunDir(project, { PIPELINE_RUN_DIR: notADir }), run);
+});
+
 test('listRunDirs returns non-terminal newest first', () => {
   const project = tmpProject();
   const a = mkRun(project, '2026-07-01T090000-spec-1', { status: 'interrupted' });
   const b = mkRun(project, '2026-07-02T090000-spec-2');
   mkRun(project, '2026-07-03T090000-spec-3', { status: 'clean' });
   assert.deepStrictEqual(ctx.listRunDirs(project), [b, a]);
+});
+
+test('listRunDirs excludes the archive/ sibling (and other non-run-id-shaped dirs); resolveRunDir never resolves it', () => {
+  const project = tmpProject();
+  const live = mkRun(project, '2026-07-01T090000-spec-1');
+  mkRun(project, 'archive'); // wrap-up archival destination; sorts AFTER ISO names lexically
+  assert.deepStrictEqual(ctx.listRunDirs(project), [live]);
+  assert.strictEqual(ctx.resolveRunDir(project, {}), live);
+});
+
+test('listRunDirs and resolveRunDir return empty/null when only archive/ exists', () => {
+  const project = tmpProject();
+  mkRun(project, 'archive');
+  assert.deepStrictEqual(ctx.listRunDirs(project), []);
+  assert.strictEqual(ctx.resolveRunDir(project, {}), null);
 });
 
 test('writeRunState merges, stamps updatedAt; readRunState round-trips', () => {

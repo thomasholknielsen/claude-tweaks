@@ -23,12 +23,18 @@ function isTerminal(runDir) {
   return !!s && s.status === 'clean';
 }
 
+// Run dirs are named as ISO-timestamp-prefixed slugs (e.g. 2026-07-01T090000-spec-1).
+// Other siblings under pipelines/ — notably archive/, the wrap-up archival
+// destination — are not runs. archive/ sorts AFTER ISO names lexically, so an
+// unfiltered .sort().reverse() would rank it first and shadow live runs.
+const RUN_ID_RE = /^\d{4}-\d{2}-\d{2}T/;
+
 function listRunDirs(cwd) {
   const base = path.join(cwd || process.cwd(), '.claude-tweaks', 'pipelines');
   let entries;
   try { entries = fs.readdirSync(base, { withFileTypes: true }); } catch { return []; }
   return entries
-    .filter((e) => e.isDirectory())
+    .filter((e) => e.isDirectory() && RUN_ID_RE.test(e.name))
     .map((e) => path.join(base, e.name))
     .sort()
     .reverse()
