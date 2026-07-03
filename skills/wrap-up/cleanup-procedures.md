@@ -51,7 +51,7 @@ If a pipeline run directory exists for this work (see `_shared/pipeline-run-dir.
 
 1. **Multi-spec defer check:** if `MULTISPEC_REVIEW_DEFER=1` is set, **skip this section entirely**. The parent `/flow` orchestration owns archival of the multi-spec parent dir after its consolidated Review Console completes. The per-spec subdirectory stays in place under the parent.
 2. Verify the Review Console (Step 8.6) ran and applied/dismissed all staged items.
-3. **Mark the run terminal** — before archiving, run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"` so the run-state hook records this run as `clean` and E1/E2/E3 stop treating it as active.
+3. **Mark the run terminal** — before archiving, run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"` so close-run lifts E1 enforcement (clears the worktree assignment and marks the run clean), while E2/E3 continue best-effort logging until the run dir is archived.
 4. Move the run directory to `.claude-tweaks/pipelines/archive/{run-id}/` — this preserves the audit trail (`decisions.md`, `config.yml`, and any skipped staged items) for future reference.
 5. Skipped staged items remain in the archive; they are NOT silently dropped.
 
