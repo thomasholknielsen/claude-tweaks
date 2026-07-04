@@ -180,9 +180,9 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 
 **Pipeline summary Creative Opportunities block:** Before Next Actions, `/flow` invokes `/claude-tweaks:design survey` against the full pipeline diff and renders a Creative Opportunities table when survey returns recommendations. `/flow` handles decline detection across re-runs by comparing the previous recommendations cache to the new diff and incrementing a per-spec decline counter for un-invoked recommendations; suggestions declined twice are suppressed.
 
-**`/claude-tweaks:help`** — Dashboard with workflow status, command reference, and context-aware recommendations. Warns about dependency conflicts between in-progress specs.
+**`/claude-tweaks:help`** — Dashboard with workflow status, command reference, and context-aware recommendations. Warns about dependency conflicts between in-progress specs. Surfaces the current branch's open PR (review decision, CI checks, unresolved threads) and ranks blocked-PR work first in recommendations.
 
-**`/claude-tweaks:tidy`** — Batch backlog hygiene. Triages INBOX items, scans review/wrap-up history for recurring patterns across specs, audits the documentation registry, and recommends project-level fixes.
+**`/claude-tweaks:tidy`** — Batch backlog hygiene. Triages INBOX items, scans review/wrap-up history for recurring patterns across specs, audits the documentation registry, and recommends project-level fixes. Also audits GitHub state — stale open PRs, recon-filed issues, addressed-but-unresolved review threads — with GitHub mutations (close, resolve) executing only after batch approval.
 
 **`/claude-tweaks:browse`** — Browser automation via agent-browser. Defines session naming, screenshot/trace paths, and operation vocabulary used by /stories, /visual-review, and /review.
 
