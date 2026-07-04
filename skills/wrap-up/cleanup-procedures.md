@@ -4,7 +4,7 @@ Canonical home for the wrap-up cleanup enumeration. Loaded by `/claude-tweaks:wr
 
 ## Canonical cleanup list
 
-Seven cleanup actions, executed in order (Step 10) and surfaced together (Step 5, Step 9, Review Console):
+Eight cleanup actions, executed in order (Step 10) and surfaced together (Step 5, Step 9, Review Console):
 
 | # | Cleanup | Procedure ref | Condition | Deferred under `MULTISPEC_REVIEW_DEFER=1`? |
 |---|---------|---------------|-----------|--------------------------------------------|
@@ -15,8 +15,9 @@ Seven cleanup actions, executed in order (Step 10) and surfaced together (Step 5
 | 5 | Git worktree | Section C below — complete feature branch via `/superpowers:finishing-a-development-branch`, then remove worktree + delete merged branch | worktree strategy | **Yes — defer to parent `/flow` console** |
 | 6 | Spec lifecycle (file + INDEX) | Delete the spec file (if 100% complete) or update its status; update `specs/INDEX.md` (remove completed entries) | spec-based work | No (idempotent — the spec being deleted does not interact with parent multi-spec archival) |
 | 7 | Ephemeral dev server | Section D below — kill the auto-started dev server tracked in `{run-id}/ephemeral-server.txt` | `ephemeral-server.txt` exists | **Yes — server stays up across specs; parent `/flow` kills it once after the consolidated console** |
+| 8 | Issue claim release | Section E below — release `refs/claims/issue-{n}` for each spec with `recon-issue:` frontmatter | spec frontmatter has `recon-issue:` | **Yes — defer to parent `/flow` console** (release follows the merge decision; releasing before the consolidated console would let another agent grab the issue while the work sits unmerged) |
 
-The detailed procedures for items 3–5 and 7 follow. Items 1, 2, and 6 are simple enough to execute inline at Step 10 without a sub-procedure.
+The detailed procedures for items 3–5, 7, and 8 follow. Items 1, 2, and 6 are simple enough to execute inline at Step 10 without a sub-procedure.
 
 ## Multi-spec defer behavior
 
@@ -28,6 +29,7 @@ The full list of Step 10's deferred-under-MULTISPEC actions:
 - Item 4 (Pipeline run dir archival) — parent /flow archives the multi-spec parent dir after consolidated console
 - Item 5 (Worktree removal) — parent /flow handles worktree teardown after consolidated console approves cross-spec changes
 - Item 7 (Ephemeral dev server) — the auto-started server is shared across all specs in the run; parent /flow kills it once after the consolidated console (killing it per-spec would force every later spec's visual review to restart it)
+- Item 8 (Issue claim release) — parent /flow releases all claims once, after the consolidated console and worktree merge decide each spec's outcome
 
 ---
 
@@ -87,3 +89,35 @@ If `/visual-review` or `/stories` auto-started a dev server during this run (`de
 This only stops servers *this pipeline started*. A dev server the user was already running (or one on the main checkout) is never touched — it was never recorded in `ephemeral-server.txt`.
 
 If no `ephemeral-server.txt` exists, skip this section silently (the run used an already-running server, or visual review degraded to code-only).
+
+---
+
+## E. Issue claim release (v5.3.0)
+
+If the spec's frontmatter carries `recon-issue: <n>` (stamped by `/flow --from-recon` spec
+derivation), the pipeline holds `refs/claims/issue-<n>` per `_shared/issue-claims.md`.
+Release it only after the branch outcome is known (item 5 completes first — the execution
+order of the canonical list guarantees this):
+
+1. **Multi-spec defer check:** if `MULTISPEC_REVIEW_DEFER=1`, skip this section — the parent
+   `/flow` releases all claims once after its consolidated Review Console and merge.
+2. Map the outcome from `/superpowers:finishing-a-development-branch` to a release reason:
+   merged → `merged: spec {N}`; PR opened → `pr-opened: spec {N}`; discarded →
+   `abandoned: spec {N}`.
+3. Generate the release comment with `releasePayload`, delete the ref, post the comment:
+
+   ```bash
+   node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
+     console.log(c.releasePayload({issueNumber:Number(process.argv[1]),runId:process.argv[2],
+     reason:process.argv[3],now:Date.now()}).commentBody)" "$N" "$RUN_ID" "$REASON" \
+     > "${RUN_DIR}/release-${N}.md"
+   gh api -X DELETE "repos/{owner}/{repo}/git/refs/claims/issue-${N}"
+   gh issue comment "$N" --body-file "${RUN_DIR}/release-${N}.md"
+   ```
+
+4. A 404/422 from the ref delete means the claim was already released or swept — log it and
+   still post the release comment (the comment trail should record the outcome). Any other
+   failure: retry once, then log and continue — TTL is the backstop, never block wrap-up.
+5. Log each release to `decisions.md` (status `AUTO`, reason string as detail).
+
+If no spec has `recon-issue:` frontmatter, skip silently.
