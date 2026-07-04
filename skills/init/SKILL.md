@@ -83,6 +83,10 @@ Create `specs/INBOX.md`, `specs/DEFERRED.md`, and `specs/INDEX.md` — only if m
 
 Suggest entries for transient workflow artifacts; never modify `.gitignore` without asking. Read `bootstrap-steps.md` (Step 0.4) for the full suggested block and the stories-commit prompt.
 
+### Step 0.45: GitHub Issue Form Template (Optional)
+
+GitHub issue form template offer (agent-task.yml). Read `bootstrap-steps.md` (Step 0.45) for the full procedure.
+
 ### Step 0.5: Verify Git
 
 Confirm the directory is a git repo; warn if not (review and wrap-up will be degraded). Read `bootstrap-steps.md` (Step 0.5) for the full procedure.

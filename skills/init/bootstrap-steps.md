@@ -130,6 +130,49 @@ Do not modify `.gitignore` without asking — the user may have opinions about w
 
 ---
 
+## Step 0.45 — GitHub issue form template (agent-task)
+
+Offer only when the project has a GitHub remote (`git remote get-url origin` matches
+`github.com`). Check whether `.github/ISSUE_TEMPLATE/agent-task.yml` exists; if absent,
+offer to install it. The form makes human-filed issues pipeline-ready at filing time: its
+three sections match what `/claude-tweaks:flow`'s issue-sourced batches consume with zero
+translation (`bin/lib/issues/ingest.js` `isFormShaped` — GitHub renders the labels as `###`
+headings, which the detector accepts).
+
+```yaml
+name: Agent task
+description: File a task an agent pipeline can build directly (claude-tweaks issue-sourced batch)
+title: "[task] "
+body:
+  - type: textarea
+    id: current-state
+    attributes:
+      label: Current State
+      description: What exists today, and what is wrong or missing
+    validations:
+      required: true
+  - type: textarea
+    id: deliverables
+    attributes:
+      label: Deliverables
+      description: What should exist when this is done
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: How to verify it is done
+    validations:
+      required: true
+```
+
+Write the YAML exactly as above to `.github/ISSUE_TEMPLATE/agent-task.yml`. Declining is
+fine — freeform issues still work via the translation step (`from-recon.md` Step 2.6); the
+form just removes the translation judgment.
+
+---
+
 ## Step 0.5 — Verify Git (detailed procedure)
 
 The workflow system relies on git for change tracking (`/claude-tweaks:review` uses `git diff`, `/claude-tweaks:wrap-up` checks recent commits).
