@@ -71,6 +71,11 @@ If the build used worktree git strategy, clean up the worktree directory:
 2. Verify the feature branch was completed (merged, PR created, or discarded) via `/superpowers:finishing-a-development-branch`:
    - **Already completed** → proceed to step 3.
    - **Not completed** → run `/superpowers:finishing-a-development-branch` now (do not stop and ask the user to run it separately). Present the merge/PR/discard options as the skill normally would. After the branch is completed, proceed to step 3.
+   When any spec on the branch carries `recon-issue:` frontmatter, the merge artifact must
+   carry the closing keywords (see "Close-via-merge" in `_shared/issue-claims.md`): pass
+   `Fixes #{issue}` lines — one per issue — in the PR body (PR option) or the merge commit
+   message (merge option). The user's merge/push closes the issues; the agent never runs
+   `gh issue close`.
 3. Remove the worktree: `git worktree remove {path}`.
 4. If the branch was merged (not kept for PR), delete it: `git branch -d {branch}`.
 
@@ -102,22 +107,27 @@ order of the canonical list guarantees this):
 1. **Multi-spec defer check:** if `MULTISPEC_REVIEW_DEFER=1`, skip this section — the parent
    `/flow` releases all claims once after its consolidated Review Console and merge.
 2. Map the outcome from `/superpowers:finishing-a-development-branch` to a release reason:
-   merged → `merged: spec {N}`; PR opened → `pr-opened: spec {N}`; discarded →
-   `abandoned: spec {N}`.
-3. Generate the release comment with `releasePayload`, delete the ref, post the comment:
+   merged → `merged: spec {spec}`; PR opened → `pr-opened: spec {spec}`; discarded →
+   `abandoned: spec {spec}`.
+3. **Ownership check (per `_shared/issue-claims.md`, "Release triggers").** Fetch the issue's
+   comments and fold through `claimStatus`. If `claim.runId` is not this run's `$RUN_ID`, a
+   successor holds the lock — skip the delete AND the comment, log
+   `AUTO — skipped release of issue #{issue}: claim held by run {claim.runId}`, and continue.
+4. Generate the release comment with `releasePayload`, delete the ref, post the comment:
 
    ```bash
    node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
      console.log(c.releasePayload({issueNumber:Number(process.argv[1]),runId:process.argv[2],
-     reason:process.argv[3],now:Date.now()}).commentBody)" "$N" "$RUN_ID" "$REASON" \
-     > "${RUN_DIR}/release-${N}.md"
-   gh api -X DELETE "repos/{owner}/{repo}/git/refs/claims/issue-${N}"
-   gh issue comment "$N" --body-file "${RUN_DIR}/release-${N}.md"
+     reason:process.argv[3],link:process.argv[4]||undefined,now:Date.now()}).commentBody)" \
+     "$ISSUE" "$RUN_ID" "$REASON" "$LINK" \
+     > "${RUN_DIR}/release-${ISSUE}.md"
+   gh api -X DELETE "repos/{owner}/{repo}/git/refs/claims/issue-${ISSUE}"
+   gh issue comment "$ISSUE" --body-file "${RUN_DIR}/release-${ISSUE}.md"
    ```
 
-4. A 404/422 from the ref delete means the claim was already released or swept — log it and
+5. A 404/422 from the ref delete means the claim was already released or swept — log it and
    still post the release comment (the comment trail should record the outcome). Any other
    failure: retry once, then log and continue — TTL is the backstop, never block wrap-up.
-5. Log each release to `decisions.md` (status `AUTO`, reason string as detail).
+6. Log each release to `decisions.md` (status `AUTO`, reason string as detail).
 
 If no spec has `recon-issue:` frontmatter, skip silently.
