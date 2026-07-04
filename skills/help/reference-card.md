@@ -33,7 +33,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 |---------|-------------|-------|
 | `/claude-tweaks:help` | Dashboard: commands + status (incl. current PR) + recommendations | `status`, `commands`, spec/topic |
 | `/claude-tweaks:tidy` | Batch backlog hygiene (incl. GitHub PRs + recon issues) | — |
-| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → polish → wrap-up (+ end-of-run depth survey); issue-sourced batches via `--from-recon` / `--from-label <label>` / `--from-issues <n,...>` | spec #(s), doc path + `auto` `worktree`/`current-branch` `no-stories` `no-polish` `no-deepen` `keep-going` `[step]` (single = resume) |
+| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → polish → wrap-up (+ end-of-run depth survey); issue-sourced batches via `--from-recon` / `--from-label <label>` / `--from-issues <n,...>` / `--from-milestone <m>` (+ `--require-eligible`) | spec #(s), doc path + `auto` `worktree`/`current-branch` `no-stories` `no-polish` `no-deepen` `keep-going` `[step]` (single = resume) |
 | `/claude-tweaks:browse` | Unified browser automation (utility) | `--session <name>`, `set viewport`, `set device`, operation vocabulary (see SKILL.md) |
 | `/claude-tweaks:design` | Wrapper that lets lifecycle skills invoke Impeccable design-quality commands. Modes: `pre-build`, `test`, `review`, `shape`, `polish`, `survey`, `reset-recommendations` | mode + spec/files + flags |
 | `/claude-tweaks:ledger` | Open items tracking — query, resolve ledger entries | *(none)*, `resolve`, `{feature-name}` |

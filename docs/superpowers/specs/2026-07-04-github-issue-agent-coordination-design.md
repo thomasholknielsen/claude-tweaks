@@ -1,7 +1,7 @@
 # GitHub Issue Agent Coordination — Design
 
 **Date:** 2026-07-04
-**Status:** Approved design, pending implementation plan
+**Status:** Implemented — all four phases shipped (v5.3.0-v5.7.0; Phase 3 shipped as v5.6.0 after a version collision with the PR-awareness release).
 **Scope:** Issue claiming/locking, close-the-loop automation, generic issue ingestion, and label-driven dispatch — implemented in four phases.
 
 ## Problem
@@ -160,6 +160,8 @@ Claiming (Phase 1) applies to all ingested issues identically.
 **Carried from Phase 2 review:** current-branch mode has no closing-keyword carrier — `--from-recon` in `current-branch` mode produces neither a merge commit nor a PR, so its issues never auto-close and Section E's outcome mapping has no input. Phase 3 must either gate `--from-recon` to worktree mode at `/flow` validation, or define the carrier (e.g. `Fixes #{issue}` lines in the final wrap-up commit, which closes on push when the current branch is the default branch). **Resolved in v5.6.0:** the carrier is defined — `Fixes #{issue}` lines in the final wrap-up commit message — and Section E maps current-branch releases to `merged: spec {spec}` with the wrap-up commit sha as `$LINK`.
 
 ## Phase 4 — Dispatch + policy
+
+**Status: implemented in v5.7.0** (requireLabels gate, dispatch authorization contract, --from-milestone, --require-eligible, flow routine template).
 
 **`agent:eligible` — the authorization gate.** Autonomous (headless/routine) runs only pick up issues carrying this label; interactive runs are unrestricted (the user is present to decide). Security rationale, stated explicitly in the contract doc: **applying a label requires triage permission, so the label is a maintainer's signature.** A drive-by issue from a stranger cannot opt itself into autonomous execution — this matters because "headless agent builds arbitrary issue content" is a prompt-injection surface. Default policy in `.claude-tweaks/policy.yml` (e.g. `issues.autonomous-eligibility: label agent:eligible | any`), overridable per run.
 
