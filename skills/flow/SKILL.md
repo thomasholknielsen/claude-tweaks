@@ -331,6 +331,14 @@ Next Actions in `/flow` are outcome-conditional and rendered as part of the Pipe
 | Rendering the Creative Opportunities block when survey returned empty or skipped | Survey is heuristic. An empty result means "nothing matched the criteria," not "design is complete." Rendering an empty block falsely implies completeness. Omit the block entirely. |
 | Skipping decline detection on re-runs of the same spec | The declined-recommendations cache is what keeps the Creative Opportunities block from becoming noise across iterations. Read the prior recommendations cache, compare against the new diff, increment declines for un-invoked recommendations before invoking survey. |
 
+## Routine Configuration
+
+`/flow` ships a routine template (`skills/flow/routine-template.yml`) — a scheduled headless issue dispatcher. Instantiate with `/claude-tweaks:routine create flow` (add `--dry-run` to inspect first); the label lifecycle and full dispatch procedure live in `from-recon.md`'s "Dispatch Configuration" section.
+
+**Unattended execution:** each firing that finds eligible `agent:go` issues runs the pipeline hands-off and ends at its consolidated Review Console, awaiting your answer in the cloud session — approval there triggers branch finish, claim release, and dispatch-label removal. A never-answered console is not fatal: the run's claims age out after the TTL (72h default) and a later firing supersedes it by breaking the stale claims. A firing with no eligible issues is a cheap no-op.
+
+> **Billing note:** Routines run inside the subscription; verify automation-credit specifics against the live account.
+
 ## Relationship to Other Skills
 
 | Skill | Relationship |

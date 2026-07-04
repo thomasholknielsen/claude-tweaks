@@ -122,7 +122,8 @@ Below each table, show the full patch / diff for each pending item.
 5. **Tear down the shared ephemeral dev server** if one was started (`{parent-run-dir}/ephemeral-server.txt` — see `wrap-up/cleanup-procedures.md` Section D). It was kept up across all specs (per-spec wrap-ups deferred it under `MULTISPEC_REVIEW_DEFER=1`); kill it once here.
 6. **Finish the shared branch** per `multi-spec.md` — complete it via `/superpowers:finishing-a-development-branch` (merge / PR / discard). The outcome decides each spec's release reason and `$LINK` (merge commit sha or PR URL) for the next step.
 7. Release each issue claim this run holds (specs with `recon-issue:` frontmatter): use the outcome-mapped reason and procedure from `wrap-up/cleanup-procedures.md` Section E (merged → `merged: spec {spec}`, PR → `pr-opened: spec {spec}`, discarded → `abandoned: spec {spec}`). Skip briefs already released at console decline. Log each release to `decisions.md`. Include the work-ready `link` (the branch-finish outcome's merge commit sha or PR URL (from the previous step)) via `releasePayload`'s `link` param, and honor the ownership check in Section E — a successor's claim is never deleted.
-8. Archive the parent run dir to `.claude-tweaks/pipelines/archive/{run-id}/` (subdirs included)
+8. **Remove the dispatch label** for each issue released with a `merged:` or `pr-opened:` outcome that carries `agent:go`: `gh issue edit "$ISSUE" --remove-label agent:go` — reversible, log each removal to `decisions.md`. Skip issues released as `abandoned:` (the label is the retry request) and issues without the label. See "Dispatch authorization" in `_shared/issue-claims.md`.
+9. Archive the parent run dir to `.claude-tweaks/pipelines/archive/{run-id}/` (subdirs included)
 
 ## On override (option 2)
 
@@ -132,7 +133,8 @@ Below each table, show the full patch / diff for each pending item.
 4. Tear down the shared ephemeral dev server if one was started (`{parent-run-dir}/ephemeral-server.txt` — see `wrap-up/cleanup-procedures.md` Section D)
 5. **Finish the shared branch** per `multi-spec.md` — complete it via `/superpowers:finishing-a-development-branch` (merge / PR / discard). The outcome decides each spec's release reason and `$LINK` (merge commit sha or PR URL) for the next step.
 6. Release each issue claim this run holds (specs with `recon-issue:` frontmatter): use the outcome-mapped reason and procedure from `wrap-up/cleanup-procedures.md` Section E (merged → `merged: spec {spec}`, PR → `pr-opened: spec {spec}`, discarded → `abandoned: spec {spec}`). Skip briefs already released at console decline. Log each release to `decisions.md`. Include the work-ready `link` (the branch-finish outcome's merge commit sha or PR URL (from the previous step)) via `releasePayload`'s `link` param, and honor the ownership check in Section E — a successor's claim is never deleted.
-7. Archive the parent run dir
+7. **Remove the dispatch label** for each issue released with a `merged:` or `pr-opened:` outcome that carries `agent:go`: `gh issue edit "$ISSUE" --remove-label agent:go` — reversible, log each removal to `decisions.md`. Skip issues released as `abandoned:` (the label is the retry request) and issues without the label. See "Dispatch authorization" in `_shared/issue-claims.md`.
+8. Archive the parent run dir
 
 ## On stop (option 3)
 

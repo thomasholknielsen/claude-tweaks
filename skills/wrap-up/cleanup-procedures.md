@@ -137,6 +137,10 @@ order of the canonical list guarantees this):
 5. A 404/422 from the ref delete means the claim was already released or swept — log it and
    still post the release comment (the comment trail should record the outcome). Any other
    failure: retry once, then log and continue — TTL is the backstop, never block wrap-up.
-6. Log each release to `decisions.md` (status `AUTO`, reason string as detail).
+6. **Remove the dispatch label** when the outcome was `merged:` or `pr-opened:` and the issue
+   carries `agent:go`: `gh issue edit "$ISSUE" --remove-label agent:go` (reversible; log to
+   `decisions.md`). Leave the label on `abandoned:` — it is the standing retry request. Skip
+   silently when the label is absent.
+7. Log each release to `decisions.md` (status `AUTO`, reason string as detail).
 
 If no spec has `recon-issue:` frontmatter, skip silently.

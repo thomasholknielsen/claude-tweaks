@@ -55,7 +55,7 @@ Steps must follow lifecycle order. Invalid orderings are rejected.
 
 **`no-polish` argument behavior:** When `no-polish` is set, the polish phase (and its re-verify gate) is removed from the pipeline. The default pipeline becomes `build,test,review,wrap-up` (the pre-Phase-2 default). `no-polish` overrides any explicit `polish` in the step list — the user's explicit step request wins on the rest of the pipeline, but polish is unconditionally dropped.
 
-### Issue-sourced spec source (`--from-recon` / `--from-label` / `--from-issues`)
+### Issue-sourced spec source (`--from-recon` / `--from-label` / `--from-issues` / `--from-milestone`)
 
 These are not steps — they are alternative *spec sources* resolved before Step 1.
 `--from-label <label>` pulls any open, labelled issue set (via `gh`); `--from-issues <n,...>`

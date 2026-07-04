@@ -1,4 +1,4 @@
-template_version: 1
+template_version: 2
 routine_name: flow-dispatch
 prompt: "/claude-tweaks:flow --from-label agent:go --require-eligible auto worktree"
 model: claude-sonnet-5
@@ -15,3 +15,7 @@ notes: >
   and a failed run retries at a later firing once its claim ages out (TTL). agent:go is
   removed only after successful wrap-up. A firing with no eligible agent:go issues is a
   cheap no-op. Builder routine — unlike recon's report-only template it needs write tools.
+  Each firing that builds work ends at its consolidated Review Console awaiting the user's
+  answer in the cloud session; an unanswered console's claims age out via TTL and a later
+  firing supersedes the run. Subagent execution requires the Task tool (in allowed_tools)
+  and the superpowers plugin in the cloud environment.
