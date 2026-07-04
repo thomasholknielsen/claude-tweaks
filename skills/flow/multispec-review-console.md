@@ -15,7 +15,9 @@ The single-spec path is unchanged: `PIPELINE_RUN_DIR` points to a top-level run 
 After every spec's pipeline reaches `/wrap-up` Step 10 (or stops at a HARD-GATE failure) AND the multi-spec run is in `auto` or `hybrid` mode:
 
 1. Read `manifest.yml` to enumerate per-spec subdirectories
-2. For each `spec-{N}/`: read `decisions.md` + `staged/` contents
+2. For each `spec-{N}/`: read `decisions.md` + `staged/` contents; ALSO read the parent run
+   dir's own `decisions.md` + `staged/` (Manifesto-created — holds run-level items such as
+   freeform-issue translations)
 3. Render the consolidated console (template below)
 4. Apply the user's approval/override
 5. Archive the parent run dir to `.claude-tweaks/pipelines/archive/`
@@ -73,10 +75,18 @@ Pipeline complete for specs 157, 159, 160. The pipeline auto-resolved {N} decisi
 
 | # | Spec | Issue | Closes via |
 |---|---|---|---|
-| 13 | 157 | #84 | `Fixes #84` in the reconciliation merge commit — fires on push to the default branch |
+| 13 | 157 | #84 | `Fixes #84` in the reconciliation merge commit (worktree) or the spec's wrap-up commit (current-branch) — fires on push to the default branch |
 
 Issues resolved without a merge (wontfix/duplicate) list a manual `gh issue close` command
 instead — a user action. Omit this section entirely for runs without `recon-issue:` specs.
+
+#### Translated briefs (freeform issues — what the model inferred)
+
+| # | Issue | Translation |
+|---|---|---|
+| 14 | #85 | `staged/translation-85.md` — original prose → three-section brief |
+
+Omit when the run had no freeform issues.
 
 #### Not run / Failed (if any spec didn't complete cleanly)
 
@@ -130,7 +140,7 @@ Halt before applying. Leave the parent run dir intact. User resumes with `/claud
 
 ## Empty-console fast path
 
-If every per-spec `decisions.md` has zero entries AND every per-spec `staged/` is empty AND there are no skill or config updates across the run, skip the console entirely. Log "Multi-spec Review Console: nothing to review" and archive silently.
+If every per-spec `decisions.md` has zero entries AND every per-spec `staged/` is empty AND the parent `staged/` is empty AND there are no skill or config updates across the run, skip the console entirely. Log "Multi-spec Review Console: nothing to review" and archive silently.
 
 ## Sort order
 
@@ -138,7 +148,7 @@ Within each section: reversibility:low first (highest-stakes revert), then rever
 
 ## Hard requirements
 
-- The console MUST present every entry from every per-spec `decisions.md` (auto-applied + staged + kept-prompt) and every file in every per-spec `staged/` directory. Silently dropping any item is forbidden.
+- The console MUST present every entry from every per-spec `decisions.md` (auto-applied + staged + kept-prompt) and every file in every per-spec `staged/` directory and every file in the parent run dir's `staged/`. Silently dropping any item is forbidden.
 - The `Spec` column is mandatory in every table — the user must be able to trace any row to its originating spec for context.
 - The `Not run` footer is mandatory when any spec was skipped due to a HARD-GATE earlier in the pipeline — those specs' contexts are explicit, not buried.
 

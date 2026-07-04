@@ -118,6 +118,9 @@ The agent never runs `gh issue close` (non-reversible network write — see
   human merges to the default branch.
 - **Local-merge path:** the same `Fixes #{issue}` lines in the merge commit message — GitHub
   closes the issues when the user pushes that commit to the default branch.
+- **Current-branch path:** no merge commit or PR exists — the same `Fixes #{issue}` lines go
+  in the final wrap-up commit message (per spec, in multi-spec runs); GitHub closes the issues
+  when that commit reaches the default branch.
 
 One line per issue. Direct `gh issue close` commands surface only for issues resolved
 *without* a merge (wontfix, duplicate), and the user runs them.

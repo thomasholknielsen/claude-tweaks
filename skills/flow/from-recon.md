@@ -13,11 +13,13 @@ are *derived* from issues at the start of the run.
 ```
 /claude-tweaks:flow --from-recon        [--min-severity high] [worktree | current-branch] [keep-going] [auto | confirm | hybrid]
 /claude-tweaks:flow --from-label <label> [--min-severity high] [...same]
-/claude-tweaks:flow --from-issues <n,...>                      [...same]
+/claude-tweaks:flow --from-issues <n,...>       [--min-severity high] [...same]
 ```
 
 `--min-severity` floors on the `recon:<sev>` label (unlabeled issues rank `info`). All other
 `/flow` arguments behave as normal — the selectors only change how the spec list is assembled.
+Note: `--min-severity` with a non-recon label set is empty by construction unless those issues
+also carry `recon:<sev>` labels.
 
 ## Procedure
 
@@ -32,8 +34,11 @@ are *derived* from issues at the start of the run.
    gh issue view "${ISSUE}" --json number,title,body,labels,state
    ```
 
+   Assemble the per-issue objects into ONE JSON array at `/tmp/flow-issues.json` (e.g.
+   `jq -s '.'` over the collected outputs) — Step 2 requires an array.
+
    If `gh` is unavailable or unauthenticated, STOP with: "GitHub CLI not available —
-   issue-sourced `/flow` runs need `gh` to read `recon` issues. Install/authenticate `gh`, or run
+   issue-sourced `/flow` runs need `gh` to read issues. Install/authenticate `gh`, or run
    `/claude-tweaks:flow <spec-numbers>` directly." (Hard gate — `auto` does not silence a missing
    dependency.)
 
@@ -62,6 +67,8 @@ are *derived* from issues at the start of the run.
      in the brief's `severity` field. If absent, defaults to `info`.
    - `recon:<criterion>` — e.g. `recon:architecture`; informational only. `pullReconIssues`
      does not filter on it — it is passed through in the brief's `body`.
+   (`issuesToBriefs` performs the same label/severity filtering `pullReconIssues` applied — the
+   recon CLI path and the generic path are equivalent for `--from-recon`.)
 
 2.5. **Claim each issue (per `_shared/issue-claims.md`).** Before any `/specify` invocation,
    claim every brief's issue so concurrent consumers (a scheduled routine, a second machine,
@@ -103,13 +110,15 @@ are *derived* from issues at the start of the run.
    a three-section brief body from the issue's title + prose, citing the issue number. The
    original body is preserved in the issue itself; the translated body feeds `/specify`.
 
-   Translation is a judgment call the user must be able to inspect: once the pipeline run
-   directory exists (after the Config Manifesto), write each translation to
-   `{run-dir}/staged/translation-{issue}.md` (original body, translated body, one-line
-   rationale) and log `STAGED — translated freeform issue #{issue} to a three-section brief`
-   to `decisions.md`. The consolidated Review Console surfaces these staged translations so
-   the user sees what the model inferred each issue meant. Form-shaped briefs skip this step
-   entirely.
+   Translation is a judgment call the user must be able to inspect. Hold the translations in
+   memory through pre-flight; immediately after flow Step 3 creates the pipeline run
+   directory, write each one to `{parent-run-dir}/staged/translation-{issue}.md` (original
+   body, translated body, one-line rationale) and log `STAGED — translated freeform issue
+   #{issue} to a three-section brief` to the parent `decisions.md`. The consolidated Review
+   Console reads the parent-level `staged/` alongside the per-spec directories and surfaces
+   these translations. In `interactive` mode (no run directory), present each translation
+   in-flow for approval before its `/specify` invocation instead. Form-shaped briefs skip
+   this step entirely.
 
 3. **Derive specs via `/specify`.** For each brief, invoke `/claude-tweaks:specify` with the
    brief's title + body as the design input. `/specify` produces a numbered spec under `specs/`.

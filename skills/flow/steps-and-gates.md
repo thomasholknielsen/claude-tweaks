@@ -55,15 +55,18 @@ Steps must follow lifecycle order. Invalid orderings are rejected.
 
 **`no-polish` argument behavior:** When `no-polish` is set, the polish phase (and its re-verify gate) is removed from the pipeline. The default pipeline becomes `build,test,review,wrap-up` (the pre-Phase-2 default). `no-polish` overrides any explicit `polish` in the step list — the user's explicit step request wins on the rest of the pipeline, but polish is unconditionally dropped.
 
-### `--from-recon` spec source
+### Issue-sourced spec source (`--from-recon` / `--from-label` / `--from-issues`)
 
-`--from-recon` is not a step — it is an alternative *spec source* resolved before Step 1. It
-pulls open `recon`-labelled GitHub issues (via `gh`), maps each to a `/claude-tweaks:specify`
-brief (`bin/lib/recon/pull-issues.js`), derives specs, then runs the normal step pipeline
-(`build,test,review,polish,wrap-up`) as a multi-spec batch. `--min-severity <sev>` filters the
-pull by the `recon:<sev>` label. The full procedure lives in `from-recon.md`; the step pipeline
-and gates are unchanged. A missing/unauthenticated `gh` CLI is a hard gate (`auto` does not
-silence a missing dependency).
+These are not steps — they are alternative *spec sources* resolved before Step 1.
+`--from-label <label>` pulls any open, labelled issue set (via `gh`); `--from-issues <n,...>`
+pulls specific issue numbers; `--from-recon` is a preserved alias for `--from-label recon`.
+Each pulled issue maps to a `/claude-tweaks:specify` brief via `issuesToBriefs`
+(`bin/lib/issues/ingest.js`), derives specs, then runs the normal step pipeline
+(`build,test,review,polish,wrap-up`) as a multi-spec batch. `--min-severity <sev>` floors on
+the `recon:<sev>` label (unlabeled issues rank `info`). The full procedure lives in
+`from-recon.md`; the step pipeline and gates are unchanged. A missing/unauthenticated `gh` CLI
+is a hard gate (`auto` does not silence a missing dependency). See `from-recon.md` for the
+full procedure.
 
 ## Gate Behavior
 

@@ -78,7 +78,8 @@ If the build used worktree git strategy, clean up the worktree directory:
    `gh issue close`.
    In `current-branch` mode (no worktree, no branch finish) the carrier is the final wrap-up
    commit message — include the same `Fixes #{issue}` lines there; GitHub closes the issues
-   when that commit reaches the default branch.
+   when that commit reaches the default branch (the operative instruction lives in wrap-up
+   SKILL.md Step 10's commit procedure, since Section C is skipped when no worktree exists).
 3. Remove the worktree: `git worktree remove {path}`.
 4. If the branch was merged (not kept for PR), delete it: `git branch -d {branch}`.
 
@@ -113,6 +114,10 @@ order of the canonical list guarantees this):
    merged → `merged: spec {spec}`; PR opened → `pr-opened: spec {spec}`; discarded →
    `abandoned: spec {spec}`. Set `$LINK` to the merge commit sha/URL (merged), the PR URL
    (pr-opened), or empty (abandoned).
+   In `current-branch` mode (no branch finish): the reason is `merged: spec {spec}` and
+   `$LINK` is the final wrap-up commit sha — and that wrap-up commit's MESSAGE must carry the
+   closing keywords (one `Fixes #{issue}` line per resolved issue; see Section C's carrier
+   note). This applies per spec's own wrap-up commit in multi-spec current-branch runs.
 3. **Ownership check (per `_shared/issue-claims.md`, "Release triggers").** Fetch the issue's
    comments and fold through `claimStatus`. If `claim.runId` is not this run's `$RUN_ID`, a
    successor holds the lock — skip the delete AND the comment, log
