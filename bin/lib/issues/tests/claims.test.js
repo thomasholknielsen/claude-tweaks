@@ -90,3 +90,73 @@ test('parseClaimMarker: derived kind wins over a spoofed "kind" field in the mar
   const spoofed2 = parseClaimMarker('<!-- agent-claim: {"kind":"release","runId":"x"} -->');
   assert.strictEqual(spoofed2.kind, 'claim');
 });
+
+const { isStale, claimStatus } = require('../claims');
+
+const H = 3600 * 1000;
+
+function claimBodyAt(now, { runId = 'run-1', ttlHours } = {}) {
+  return claimPayload({ issueNumber: 1, sha: 'x', runId, sessionId: 's', ttlHours, now }).commentBody;
+}
+
+test('claimStatus: no comments → unclaimed', () => {
+  assert.deepStrictEqual(claimStatus([], T0), { claimed: false, claim: null, stale: false });
+  assert.deepStrictEqual(claimStatus(undefined, T0), { claimed: false, claim: null, stale: false });
+});
+
+test('claimStatus: live claim → claimed, not stale', () => {
+  const s = claimStatus([claimBodyAt(T0)], T0 + 1 * H);
+  assert.strictEqual(s.claimed, true);
+  assert.strictEqual(s.stale, false);
+  assert.strictEqual(s.claim.runId, 'run-1');
+});
+
+test('claimStatus: claim then release → unclaimed', () => {
+  const release = releasePayload({ issueNumber: 1, runId: 'run-1', reason: 'merged', now: T0 + 2 * H }).commentBody;
+  const s = claimStatus([claimBodyAt(T0), release], T0 + 3 * H);
+  assert.strictEqual(s.claimed, false);
+});
+
+test('claimStatus: claim, release, re-claim → claimed by the second run', () => {
+  const release = releasePayload({ issueNumber: 1, runId: 'run-1', reason: 'abandoned', now: T0 + 1 * H }).commentBody;
+  const s = claimStatus([claimBodyAt(T0), release, claimBodyAt(T0 + 2 * H, { runId: 'run-2' })], T0 + 3 * H);
+  assert.strictEqual(s.claimed, true);
+  assert.strictEqual(s.claim.runId, 'run-2');
+});
+
+test('claimStatus ignores non-marker comments', () => {
+  const s = claimStatus(['just a human comment', claimBodyAt(T0), 'another comment'], T0 + 1 * H);
+  assert.strictEqual(s.claimed, true);
+});
+
+test('claimStatus accepts gh api comment objects ({body}) directly', () => {
+  const s = claimStatus([{ body: claimBodyAt(T0) }, { body: 'noise' }], T0 + 1 * H);
+  assert.strictEqual(s.claimed, true);
+  assert.strictEqual(s.claim.runId, 'run-1');
+});
+
+test('staleness boundary: just under TTL not stale, at TTL stale, past TTL stale', () => {
+  const claim = parseClaimMarker(claimBodyAt(T0));
+  assert.strictEqual(isStale(claim, T0 + 72 * H - 1), false);
+  assert.strictEqual(isStale(claim, T0 + 72 * H), true);
+  assert.strictEqual(isStale(claim, T0 + 100 * H), true);
+});
+
+test('custom ttlHours is honored', () => {
+  const claim = parseClaimMarker(claimBodyAt(T0, { ttlHours: 1 }));
+  assert.strictEqual(isStale(claim, T0 + 1 * H - 1), false);
+  assert.strictEqual(isStale(claim, T0 + 1 * H), true);
+});
+
+test('unparseable claimedAt → claimed but never stale (fail-closed)', () => {
+  const body = '<!-- agent-claim: {"runId":"r1","claimedAt":"garbage","ttlHours":1} -->';
+  const s = claimStatus([body], T0 + 1000 * H);
+  assert.strictEqual(s.claimed, true);
+  assert.strictEqual(s.stale, false);
+});
+
+test('missing ttlHours defaults to 72', () => {
+  const claim = { runId: 'r1', claimedAt: new Date(T0).toISOString() };
+  assert.strictEqual(isStale(claim, T0 + 72 * H - 1), false);
+  assert.strictEqual(isStale(claim, T0 + 72 * H), true);
+});

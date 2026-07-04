@@ -60,4 +60,30 @@ function parseClaimMarker(body) {
   return null;
 }
 
-module.exports = { DEFAULT_TTL_HOURS, claimRef, claimPayload, releasePayload, parseClaimMarker };
+// claim: a parsed claim marker. now: epoch ms.
+// Stale iff now >= claimedAt + ttlHours. Unparseable claimedAt → never stale
+// (fail-closed: a claim you cannot read is not yours to break; /tidy surfaces it).
+function isStale(claim, now) {
+  const t = Date.parse(claim && claim.claimedAt);
+  if (Number.isNaN(t)) return false;
+  const ttl = typeof claim.ttlHours === 'number' ? claim.ttlHours : DEFAULT_TTL_HOURS;
+  return now >= t + ttl * 3600 * 1000;
+}
+
+// comments: array of body strings or {body} objects, chronological (gh api order).
+// Folds markers in order: a claim activates, a release clears. `claimed` is true
+// even when stale — staleness signals breakability, not absence.
+function claimStatus(comments, now) {
+  let active = null;
+  for (const item of comments || []) {
+    const body = typeof item === 'string' ? item : item && item.body;
+    const marker = parseClaimMarker(body);
+    if (!marker) continue;
+    if (marker.kind === 'claim') active = marker;
+    else active = null;
+  }
+  if (!active) return { claimed: false, claim: null, stale: false };
+  return { claimed: true, claim: active, stale: isStale(active, now) };
+}
+
+module.exports = { DEFAULT_TTL_HOURS, claimRef, claimPayload, releasePayload, parseClaimMarker, isStale, claimStatus };
