@@ -44,7 +44,7 @@ For each completed branch (in order):
    git merge --no-ff {branch} -m "Merge {branch} — specs {list}
 
    Fixes #{issue}
-   Fixes #{issue2}"
+   Fixes #{second-issue}"
    ```
 
    Otherwise a plain `git merge {branch}` is fine. The issues close when the user pushes the
@@ -71,9 +71,9 @@ For each completed branch (in order):
 
 | Branch | Spec | Merge Status |
 |--------|------|-------------|
-| {branch} | {N} | Merged cleanly |
-| {branch} | {N} | Merged with conflict resolution |
-| {branch} | {N} | Skipped (pipeline failed) |
+| {branch} | {spec} | Merged cleanly |
+| {branch} | {spec} | Merged with conflict resolution |
+| {branch} | {spec} | Skipped (pipeline failed) |
 
 ### Next Actions
 - Failed specs: fix issues and re-run `/claude-tweaks:flow {spec} worktree {remaining steps}`

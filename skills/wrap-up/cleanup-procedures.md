@@ -108,7 +108,8 @@ order of the canonical list guarantees this):
    `/flow` releases all claims once after its consolidated Review Console and merge.
 2. Map the outcome from `/superpowers:finishing-a-development-branch` to a release reason:
    merged → `merged: spec {spec}`; PR opened → `pr-opened: spec {spec}`; discarded →
-   `abandoned: spec {spec}`.
+   `abandoned: spec {spec}`. Set `$LINK` to the merge commit sha/URL (merged), the PR URL
+   (pr-opened), or empty (abandoned).
 3. **Ownership check (per `_shared/issue-claims.md`, "Release triggers").** Fetch the issue's
    comments and fold through `claimStatus`. If `claim.runId` is not this run's `$RUN_ID`, a
    successor holds the lock — skip the delete AND the comment, log

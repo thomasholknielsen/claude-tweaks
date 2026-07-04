@@ -18,8 +18,10 @@ When the stop occurs, post a *blocked* checkpoint comment to each claimed issue 
 issue carries a resumable breadcrumb (plain text, no marker — `claimStatus` ignores it):
 
 ```bash
-gh issue comment "$ISSUE" --body "Blocked at {gate}: {one-line reason}. Run {runId}; claim active until claimedAt+ttlHours unless released."
+gh issue comment "$ISSUE" --body "Blocked at {gate}: {one-line reason}. Run {runId}; claim active until {expiry} unless released."
 ```
+
+Compute `{expiry}` from this run's claim comment (`claimedAt` + `ttlHours`).
 
 Posting is automatic (a reversible network write) and each post logs to `decisions.md`.
 Release remains offered-only — see below. Add this option to the card's
@@ -27,7 +29,8 @@ Next Actions when claims are held:
 
 ```markdown
 {next}. Release held claims if you will not resume (reason `failed: {gate}`):
-   `gh api -X DELETE "repos/{owner}/{repo}/git/refs/claims/issue-{issue}"` + release comment
+   `gh api -X DELETE "repos/{owner}/{repo}/git/refs/claims/issue-{issue}"`, after the ownership
+   check (`_shared/issue-claims.md`, "Release triggers") + release comment
    per `_shared/issue-claims.md` — otherwise they expire after the TTL (72h default).
 ```
 

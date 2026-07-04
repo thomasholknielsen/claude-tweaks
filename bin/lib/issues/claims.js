@@ -47,6 +47,8 @@ function releasePayload({ issueNumber, runId, reason, link, owner = '{owner}', r
 // Never throws. Returns { kind: 'claim'|'release', ...markerFields } or null.
 // The derived kind (from which marker prefix matched) always wins over any
 // "kind" key inside the marker JSON — fields spread first, kind last.
+// Release is checked first; the claim regex cannot match a release marker
+// ("agent-claim-release:" has "-" after "agent-claim", not ":").
 function parseClaimMarker(body) {
   if (typeof body !== 'string') return null;
   for (const [kind, re] of [['release', RELEASE_RE], ['claim', CLAIM_RE]]) {
