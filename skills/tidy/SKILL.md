@@ -206,6 +206,20 @@ If any verification fails, fix it before committing. Do not commit partial state
 
 Commit with a message summarizing the tidy-up.
 
+## Routine Configuration
+
+`/tidy` ships a routine template (`skills/tidy/routine-template.yml`) for unattended backlog hygiene. Instantiate it for the current project with:
+
+```
+/claude-tweaks:routine create tidy
+```
+
+This resolves the account- and project-specific values a portable template can't hardcode (which environment, which repo) and creates a live cloud Routine via `RemoteTrigger` directly — see `skills/routine/SKILL.md` for the full mechanism. Add `--dry-run` to inspect the assembled configuration before anything is created.
+
+**Unattended execution:** a scheduled firing runs Steps 1-7.5 exactly as an interactive invocation would, except Step 6's Standalone auto fallback takes over in place of the interactive batch-approval prompt — safe, atomic actions (stale deletes, clean merges) auto-apply per the `conservative` aggressiveness default, and everything requiring judgment is staged to that run's `decisions.md` rather than blocking on input that will never arrive. Nothing is invented here for routines specifically — this is the same Standalone auto path `/tidy` already uses whenever it runs outside a parent pipeline.
+
+> **Billing note:** Routines run inside the subscription; verify automation-credit specifics against the live account.
+
 ## Next Actions
 
 1. `/claude-tweaks:help` — full pipeline status with refreshed counts after the cleanup **(Recommended)**
@@ -245,6 +259,7 @@ Commit with a message summarizing the tidy-up.
 | `/claude-tweaks:init` | /claude-tweaks:tidy Step 4.6 audits doc registry health — flags stale entries, gaps, pattern drift. Suggests `/init update` for tier drift. |
 | `/claude-tweaks:ledger` | /ledger creates the per-feature ledger files /tidy scans for stale or orphaned open items during periodic hygiene. /tidy may surface ledgers whose related spec is complete but whose items were never resolved. |
 | `/claude-tweaks:recon` | `/recon` files improvement findings as `recon`-labelled GitHub issues; `/tidy` can fold those issues into a backlog-hygiene pass alongside INBOX, deferred items, and specs. |
+| `/claude-tweaks:routine` | `/routine create tidy` instantiates tidy's `routine-template.yml` into a live, scheduled cloud Routine — the mechanism behind this skill's own "Routine Configuration" section. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. The aggressiveness-routing table in Step 6 (conservative / moderate / aggressive) implements the contract's reversibility/confidence floors for tidy actions. |
 | `_shared/pipeline-run-dir.md` | Standalone-auto fallback (Step 6) creates `.claude-tweaks/pipelines/{ts}-tidy-standalone/` with `decisions.md` + `staged/` per this shared procedure. /tidy is on the standalone-auto allowlist. |
 | `_shared/subagent-output-contract.md` | Steps 1-4.6 dispatch parallel Task agents per this contract — minimal input, status line first (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`), Template A inlined verbatim. Model tier: Fast. |
