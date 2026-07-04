@@ -110,6 +110,14 @@ stories/auth.yml
 
 These entries ignore claude-tweaks' transient, project-local state — pipeline run directories (`pipelines/{ISO-timestamp}-{spec-slug}/config.yml`, `decisions.md`, `staged/`), research report output, recon's own cache/cursor state (`recon/cache.json`, `recon/cursors.json`, `recon/runs/`, see `skills/recon/SKILL.md` and `bin/lib/recon/cache.js`), and the routine-environment-resolution cache (see `skills/routine/SKILL.md`). Deliberately **not** blanket-ignored: `.claude-tweaks/routines/{name}.yml` (instantiated cloud-Routine records, written by `/claude-tweaks:routine`) — those are explicitly documented as safe, and meant, to commit. A blanket `.claude-tweaks/` line would make that directory permanently uncommittable regardless of user intent, since git cannot reliably re-include a subdirectory of an already-ignored parent via `!` negation. The statusline cache lives under the user's home directory (`~/.claude-tweaks/`), a separate global path — it never needs a project `.gitignore` entry.
 
+**Re-run behavior (migration check):** don't just check whether `.gitignore` "already covers" `.claude-tweaks/` — a project that adopted claude-tweaks before this split existed may have the old blanket line, which silently reintroduces the routines-uncommittable bug even though something matching `.claude-tweaks` is technically present.
+
+| Current state | Action |
+|---|---|
+| No `.gitignore`, or one with no `.claude-tweaks` reference at all | Suggest adding the split entries above. |
+| Standalone blanket `.claude-tweaks/` line (the old, pre-split form) | **Migrate.** Propose replacing the blanket line with the split entries (`.claude-tweaks/pipelines/`, `.claude-tweaks/research/`, `.claude-tweaks/recon/`, `.claude-tweaks/routine-environment-cache.yml`) rather than silently treating it as already covered — the blanket form makes `.claude-tweaks/routines/{name}.yml` permanently uncommittable. Backup `.gitignore` before write. |
+| Already has the split entries (no blanket line) | No-op (already migrated). |
+
 If `stories/` exists or will be created, ask the user:
 
 ```
@@ -355,7 +363,7 @@ claude-tweaks skills can ship a `routine-template.yml` (schema: `skills/_shared/
 ls "${CLAUDE_PLUGIN_ROOT}"/skills/*/routine-template.yml 2>/dev/null
 ```
 
-For each match, read its `routine_name` field, then check whether `.claude-tweaks/routines/{routine_name}.yml` already exists in the current project. Only offer skills without an existing record — this makes the step idempotent and safe on every `/init` re-run. If no candidates remain (none shipped, or every candidate already has a record), skip this step silently.
+For each match, note the candidate skill name (the directory under `skills/`). Then glob `.claude-tweaks/routines/*.yml` in the current project and read each match's `template:` field (per `skills/_shared/routine-template-schema.md`'s instantiated-record schema — `template` names the skill the record came from). Build the set of skill names that already have a record this way, and only offer candidates NOT in that set. This is prefix-agnostic — it never needs to re-derive the project-prefixed record filename (`PREFIXED_NAME`, computed by `/routine` itself) inside init — and makes the step idempotent and safe on every `/init` re-run. If no candidates remain (none shipped, or every candidate already has a record), skip this step silently.
 
 **Present:**
 
@@ -367,7 +375,7 @@ Set any of these up now?
 2. Not now — I'll use `/claude-tweaks:routine create <skill>` later
 ```
 
-**For option 1:** For each skill the user selects, invoke `/claude-tweaks:routine create <skill> --source init` directly. `/routine`'s own CREATE workflow (template load, repo/name resolution, idempotency check, environment/schedule resolution, review gate, dry-run offer) handles everything end-to-end, including the mandatory explicit confirmation before any live `RemoteTrigger` call. `/init` does not reimplement, shortcut, or pre-answer any part of that workflow — it only discovers candidates and hands off.
+**For option 1:** For each skill the user selects, invoke `/claude-tweaks:routine create <skill> --source init` directly. `/routine`'s own CREATE workflow (template load, repo/name resolution, idempotency check, environment/schedule resolution, review gate) handles everything end-to-end, including the mandatory explicit confirmation before any live `RemoteTrigger` call — the invocation may also include `--dry-run` if the user wants to inspect the assembled configuration first without creating anything live. `/init` does not reimplement, shortcut, or pre-answer any part of that workflow — it only discovers candidates and hands off.
 
 **For option 2:** Note the skipped candidates and continue. The same offer reappears on the next `/init` run for any candidate still missing a record.
 

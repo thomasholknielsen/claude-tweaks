@@ -1,8 +1,8 @@
-template_version: 1
+template_version: 2
 routine_name: tidy-weekly
 prompt: "/claude-tweaks:tidy"
 model: claude-sonnet-5
-allowed_tools: [Bash, Read, Grep, Glob, Edit, Write]
+allowed_tools: [Bash, Read, Grep, Glob, Edit, Write, Task]
 mcp_connections: []
 default_schedule:
   cron_expression: "0 4 * * 0"
@@ -11,6 +11,14 @@ notes: >
   Tidy already has first-class standalone-auto support: Step 6's aggressiveness
   routing (conservative by default) stages judgment-requiring items to
   decisions.md rather than blocking on interactive input, and auto-applies only
-  the safe, atomic actions (stale deletes, clean merges). No new mechanism is
-  needed for unattended execution — see skills/tidy/SKILL.md's "Standalone auto"
-  fallback and its own Routine Configuration section for tuning guidance.
+  the safe, atomic actions (stale deletes, cleanly-merged worktree/branch
+  removals). This only takes effect when the target project's own CLAUDE.md
+  already sets `auto-mode: default-on` — a bare scheduled firing has no other
+  way to supply an auto-mode signal, and without that project policy the
+  routine will block on an interactive prompt that never gets answered. `Task`
+  is included in allowed_tools so tidy's parallel-agent scan (Steps 1-4.6) can
+  dispatch as designed; if Task-based subagent dispatch isn't supported in a
+  given cloud routine session, those steps degrade to running sequentially
+  instead. See skills/tidy/SKILL.md's "Standalone auto" fallback and its own
+  Routine Configuration section for tuning guidance, and
+  skills/_shared/auto-mode-contract.md for the mode-precedence rules.

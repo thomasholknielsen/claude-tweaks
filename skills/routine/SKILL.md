@@ -33,6 +33,7 @@ Not for: one-off or exploratory routines you don't want templated (use `/schedul
 | `update <skill>` | Re-sync an existing routine against its (possibly changed) template. |
 | `status <skill>` | Show the instantiated record alongside live routine state. |
 | `--dry-run` (combine with `create`/`update`) | Assemble and display the `RemoteTrigger` body; never make a `create`/`update` call (read-only `list`/`get` calls to resolve values are still permitted), never write or rewrite the instantiated record. |
+| `--source <parent-skill>` | Used by a parent skill (e.g. `/claude-tweaks:init`) to identify itself as the caller; see Component-Skill Contract below. |
 
 ## Workflow
 
@@ -54,7 +55,7 @@ Derive `REPO_SLUG` from the resolved URL's `{repo}` segment: lowercase it, repla
 
 **Step 4 — Resolve `environment_id`.** Check `.claude-tweaks/routine-environment-cache.yml` in the current project first. If it exists and contains an `environment_id` value, offer it as the default (let the user override). Otherwise, load the tool with `ToolSearch select:RemoteTrigger`, then call `{action: "list"}`. If existing routines are returned, read `job_config.ccr.environment_id` off the most recently created one and offer it as the default (let the user override). If none exist yet, ask the user directly which environment to use — present whatever environment names/IDs are available in context; if none are, ask the user to name one (they can check via `/schedule` once if unsure). Do not cache this value anywhere under `~/.claude-tweaks/` — that path is harness-owned, not skill-owned.
 
-After the user confirms an environment (whether sourced from the cache, `list`, or direct input), write it to `.claude-tweaks/routine-environment-cache.yml`:
+After the user confirms an environment (whether sourced from the cache, `list`, or direct input), write it to `.claude-tweaks/routine-environment-cache.yml` (skip this write if `--dry-run` was passed):
 
 ```yaml
 environment_id: "<confirmed environment_id>"
@@ -117,7 +118,7 @@ Report the console URL to the user.
 
 **Step 2.** Compare the template's `template_version` (already read in Step 1) against the instantiated record's `template_version` — if they match and the user hasn't asked to change anything else, report "already in sync" and stop.
 
-**Step 3.** Re-resolve environment and schedule using the same procedure as CREATE's environment-resolution step (checking `.claude-tweaks/routine-environment-cache.yml` first, per that step) and schedule-resolution step, but pre-fill each default from the existing record instead of asking from scratch. (Repo URL and `PREFIXED_NAME` were already resolved in Step 1 — do not re-derive them.)
+**Step 3.** Re-resolve environment and schedule — the two fields pre-fill from different sources, not both from the record. For environment, follow CREATE Step 4's procedure exactly: check `.claude-tweaks/routine-environment-cache.yml` first, falling back to `RemoteTrigger list` if the cache is empty — never the instantiated record itself, since the record schema deliberately never stores `environment_id` (see `skills/_shared/routine-template-schema.md`). For schedule, follow CREATE Step 5's procedure but pre-fill the default from the existing record's `schedule` field instead of asking from scratch. (Repo URL and `PREFIXED_NAME` were already resolved in Step 1 — do not re-derive them.)
 
 **Step 4.** Assemble the body the same way as CREATE's body-assembly step, then show a diff between the recorded config (schedule, template version, resolved values) and the freshly assembled one. If nothing changed, report that and stop.
 
