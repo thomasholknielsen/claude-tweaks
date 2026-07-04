@@ -23,3 +23,11 @@ Scope: Reframe `skills/_shared/subagent-output-contract.md` and its CLAUDE.md re
 Context: `tests/statusline.test.js` "end-to-end: render under 500ms" flakes under parallel-agent load — observed 2290ms during a subagent-driven run with concurrent `npm test` suites; passes at ~125-310ms in isolation. Every future multi-agent session running the suite concurrently hits this noise.
 
 Scope: Make the perf assertion load-tolerant — options: CPU-time instead of wall-clock, load-detection multiplier, retry-once-in-isolation before failing, or skip under agent-parallel env. Needs a small design decision, not just a threshold bump.
+
+## Tidy check for missed agent:go label removal
+
+**Added:** 2026-07-04 | **Category:** technical | **Related:** skills/flow/routine-template.yml, skills/_shared/issue-claims.md
+
+Context: the flow dispatch routine (`agent:go`/`agent:eligible` lifecycle, Phase 4 of the issue-claims program) removes `agent:go` after a `merged:`/`pr-opened:` release. If that removal step is ever skipped (a bug, a manual override, a crashed run past the removal point), the failure signature is observable: an issue carrying `agent:go`, no active claim ref, and an open PR already referencing it.
+
+Scope: Add a `/tidy` scan step that flags exactly this signature — open issue + `agent:go` label + no claim ref + a linked open/merged PR — as a likely missed removal, recommending the same `gh issue edit --remove-label agent:go` command the dispatcher itself would run. Surfaced by the Phase 4 final whole-branch review as a defense-in-depth recommendation, not a required fix.
