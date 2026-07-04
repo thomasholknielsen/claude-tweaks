@@ -19,10 +19,10 @@ DEFAULT_BRANCH=$(gh api "repos/{owner}/{repo}" -q .default_branch)
 SHA=$(gh api "repos/{owner}/{repo}/commits/${DEFAULT_BRANCH}" -q .sha)
 
 # Claim (201 = claimed, HTTP 422 = already claimed by someone):
-gh api "repos/{owner}/{repo}/git/refs" -f "ref=refs/claims/issue-${N}" -f "sha=${SHA}"
+gh api "repos/{owner}/{repo}/git/refs" -f "ref=refs/claims/issue-${ISSUE}" -f "sha=${SHA}"
 
 # Release:
-gh api -X DELETE "repos/{owner}/{repo}/git/refs/claims/issue-${N}"
+gh api -X DELETE "repos/{owner}/{repo}/git/refs/claims/issue-${ISSUE}"
 
 # List all claims:
 gh api "repos/{owner}/{repo}/git/matching-refs/claims/" -q '.[].ref'
@@ -38,8 +38,8 @@ bodies with the module — never hand-write markers:
 node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
   console.log(c.claimPayload({issueNumber:Number(process.argv[1]),sha:process.argv[2],
   runId:process.argv[3],sessionId:process.env.CLAUDE_CODE_SESSION_ID||'',
-  host:require('os').hostname(),now:Date.now()}).commentBody)" "$N" "$SHA" "$RUN_ID" > "$TMP/claim-$N.md"
-gh issue comment "$N" --body-file "$TMP/claim-$N.md"
+  host:require('os').hostname(),now:Date.now()}).commentBody)" "$ISSUE" "$SHA" "$RUN_ID" > /tmp/claim-${ISSUE}.md
+gh issue comment "$ISSUE" --body-file /tmp/claim-${ISSUE}.md
 ```
 
 Marker shapes (emitted by `claimPayload` / `releasePayload`):
@@ -59,10 +59,13 @@ retry once, warn, proceed.
 Fetch comments and fold them through `claimStatus` (accepts raw `gh` comment objects):
 
 ```bash
-gh api "repos/{owner}/{repo}/issues/${N}/comments?per_page=100" > "$TMP/comments-$N.json"
+gh api "repos/{owner}/{repo}/issues/${ISSUE}/comments?per_page=100" > /tmp/comments-${ISSUE}.json
 node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
-  console.log(JSON.stringify(c.claimStatus(require(process.argv[1]),Date.now())))" "$TMP/comments-$N.json"
+  console.log(JSON.stringify(c.claimStatus(require(process.argv[1]),Date.now())))" /tmp/comments-${ISSUE}.json
 ```
+
+Paths in these snippets must be absolute (`/tmp/...` or a run-dir path) — `require()` inside
+`node -e` resolves relative paths against the eval context, not the working directory.
 
 Output: `{claimed, claim, stale}`. `claimed: true` with `stale: true` means the claim is
 breakable, not absent.
@@ -74,21 +77,50 @@ v1 (runs last hours, not days; a renewal comment is a reserved future extension)
 
 **Breaking a stale claim:** delete the ref, recreate it (atomicity applies again — of two
 racing breakers, exactly one gets 201), post a new claim comment noting the takeover and the
-prior run id. **A claim whose comment is unreadable or missing is never stale** — treat as
+prior run id.
+
+Generate the takeover comment with `claimPayload`'s `note` param (e.g.
+`note: "Broke stale claim from run {priorRunId} (expired {expiry})."`) — the note becomes a
+third human-readable line. Never hand-edit or append to the marker line itself.
+
+**A claim whose comment is unreadable or missing is never stale** — treat as
 live, skip the issue, and let `/tidy`'s sweep surface it for human judgment.
 
 ## Release triggers
 
 | Trigger | Owner | Reason string |
 |---|---|---|
-| Spec merged / PR opened / discarded | `/wrap-up` cleanup item 8 | `merged: spec {N}` / `pr-opened: spec {N}` / `abandoned: spec {N}` |
+| Spec merged / PR opened / discarded | `/wrap-up` cleanup item 8 | `merged: spec {spec}` / `pr-opened: spec {spec}` / `abandoned: spec {spec}` |
 | User declines the brief at the Review Console | `/flow` | `declined at review console` |
 | Pipeline stops at a gate, user chooses not to resume | `/flow` failure card (offered, not automatic) | `failed: {gate}` |
 | Stale or orphaned claim in hygiene pass | `/tidy` Step 4.7 (after batch approval) | `swept: stale claim` / `swept: issue closed` |
 | Interrupted session | nobody — TTL ages it out; `/tidy` sweeps it | — |
 
+**Ownership rule.** Before a this-run release deletes the ref, fold the issue's comments
+through `claimStatus` and confirm `claim.runId` equals this run's `$RUN_ID`. A mismatch means
+a successor broke the stale claim and now holds the lock — skip the delete, log, and post
+nothing. `/tidy`'s sweep is exempt: it releases *other* runs' stale claims by design, after
+batch approval.
+
+**Work-ready evidence.** Pass `releasePayload` a `link` (merge commit URL/sha or PR URL) when
+one exists — it lands in the release marker and human line, making the issue's comment trail
+point at the shipped change.
+
 Every claim, skip, break, and release is logged to the run's `decisions.md` per
 `_shared/auto-decision-log.md` (status `AUTO`, reversible: release deletes the ref).
+
+## Close-via-merge
+
+The agent never runs `gh issue close` (non-reversible network write — see
+`_shared/auto-mode-contract.md`). Issues close through the user's own merge action instead:
+
+- **PR path:** `Fixes #{issue}` lines in the PR body — GitHub closes the issues when the
+  human merges to the default branch.
+- **Local-merge path:** the same `Fixes #{issue}` lines in the merge commit message — GitHub
+  closes the issues when the user pushes that commit to the default branch.
+
+One line per issue. Direct `gh issue close` commands surface only for issues resolved
+*without* a merge (wontfix, duplicate), and the user runs them.
 
 ## Failure posture
 
@@ -103,6 +135,7 @@ Fail-closed on claiming; never block the session.
 | Claim ref 422, comments fold to released (ref delete failed earlier) | Treat as stale: break (delete ref, recreate, takeover comment) |
 | Comment fails after ref succeeds | Ref is the lock — retry once, warn, proceed |
 | Release fails | Log; TTL is the backstop |
+| Release attempted but claim's `runId` is not this run's | Skip the delete, log — a successor holds the lock (ownership rule) |
 | Ref listing fails in `/tidy` | Skip the sweep step, note it in the report |
 | Any other `gh` failure during claim | Drop that issue, log, continue — partial batch over hung batch |
 
