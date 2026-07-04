@@ -100,6 +100,7 @@ Fail-closed on claiming; never block the session.
 | Claim ref 422, live claim | Skip the issue, log `AUTO`, continue |
 | Claim ref 422, stale claim | Break: delete ref → recreate → takeover comment |
 | Claim ref 422, unreadable claim | Treat as live: skip, log; `/tidy` surfaces it |
+| Claim ref 422, comments fold to released (ref delete failed earlier) | Treat as stale: break (delete ref, recreate, takeover comment) |
 | Comment fails after ref succeeds | Ref is the lock — retry once, warn, proceed |
 | Release fails | Log; TTL is the backstop |
 | Ref listing fails in `/tidy` | Skip the sweep step, note it in the report |

@@ -86,7 +86,7 @@ Identify unfinished spec sections that cannot be completed in the current work c
 
 This step **plans** the cleanup — it does not execute. Actual deletions and archival run in Step 10 *after* the nothing-left-behind gate (Step 8.5) and the Review Console / batch decision (Step 8.6 or Step 9) approve them.
 
-See `cleanup-procedures.md` in this skill's directory for the canonical cleanup list — Step 5 enumerates the same 6 items: execution plans, ledger, design caches, pipeline run dir, worktree, spec lifecycle. Filter the list to rows whose Condition holds for this run (e.g., skip the worktree row when no worktree strategy was used). Carry the filtered list forward into Step 9's summary and Step 10's execution.
+See `cleanup-procedures.md` in this skill's directory for the canonical cleanup list — Step 5 enumerates the same 8 items: execution plans, ledger, design caches, pipeline run dir, worktree, spec lifecycle, ephemeral dev server, issue claim release. Filter the list to rows whose Condition holds for this run (e.g., skip the worktree row when no worktree strategy was used). Carry the filtered list forward into Step 9's summary and Step 10's execution.
 
 ## Step 6: Assess Configuration Updates
 
