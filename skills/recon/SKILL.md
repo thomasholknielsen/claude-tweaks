@@ -224,17 +224,15 @@ Report: how many findings were emitted, how many survived dedup, how many issues
 
 ## Routine Configuration
 
-`/recon` is designed to run unattended on a schedule via a Claude Code Routine (`/schedule`). Design for small predictable sips: one slice per run so a scheduled run is cheap and a skipped run is harmless.
+`/recon` ships a routine template (`skills/recon/routine-template.yml`) designed for small, predictable sips: one slice per run, so a scheduled firing is cheap and a skipped one is harmless. Instantiate it for the current project with:
 
 ```
-Name:       recon-daily
-Schedule:   daily at 03:00 (off-peak)
-Prompt:     /claude-tweaks:recon
-K-budget:   1–3 slices per run (--budget flag on next-slice; default 1)
-Token cap:  align with per-run budget
+/claude-tweaks:routine create recon
 ```
 
-**Headless run flow:** SCOPE(`next-slice`) → CLASSIFY → JUDGE → `validate-findings` → file issues. Triage happens later in GitHub — the Routine does not wait for interactive input. Omit `--area` in the Routine prompt to let `next-slice` pick the highest-priority slice automatically.
+This resolves the account- and project-specific values a portable template can't hardcode (which environment, which repo) and creates a live cloud Routine via `RemoteTrigger` directly — see `skills/routine/SKILL.md` for the full mechanism. Add `--dry-run` to inspect the assembled configuration before anything is created.
+
+**Headless run flow:** SCOPE(`next-slice`) → CLASSIFY → JUDGE → `validate-findings` → file issues. Triage happens later in GitHub — the Routine does not wait for interactive input. The template's prompt omits `--area` so `next-slice` always picks the highest-priority slice automatically.
 
 A skipped run (e.g., `next-slice` returns `null` because all slices are fresh) is harmless — rotation resumes from the same position on the next window.
 
@@ -314,4 +312,5 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `/claude-tweaks:flow` | `/flow --from-recon` pulls the `recon`-labelled issues this skill files and runs them as a multi-spec batch (derive specs via `/specify` -> build/test/review/polish/wrap-up). |
 | `/claude-tweaks:review` | `/review` judges diffs reactively; `/recon` judges latent code proactively. Both reuse the same criteria fragments from `skills/_shared/`. |
 | `/claude-tweaks:deepen` | `/deepen` applies the architecture-depth criterion reactively to code you are changing; `/recon` applies it proactively on a schedule. Both read `criteria-architecture-depth.md`. |
+| `/claude-tweaks:routine` | `/routine create recon` instantiates recon's `routine-template.yml` into a live, scheduled cloud Routine — the mechanism behind this skill's own "Routine Configuration" section. |
 | `/claude-tweaks:simplify` | `/simplify` applies the simplification criterion reactively; `/recon` applies it proactively. Both read `criteria-simplification.md`. |
