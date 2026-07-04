@@ -78,9 +78,11 @@ Severity mapping (Template A Severity column):
 
 | Signal | Severity |
 |--------|----------|
-| Failing CI or `CHANGES_REQUESTED` on the current branch's PR | high |
+| Failing CI or `CHANGES_REQUESTED` on any open PR (current branch's or repo-wide) | high |
 | Unresolved review threads | medium |
 | Stale open PR (>4 weeks) | medium |
+| Open PR superseded (related work already merged) | medium |
+| Merged/closed PR with local branch/worktree remnants | medium |
 | Recon issue stale/superseded | medium |
 | Recon issue still valid, awaiting pipeline | low |
 | Fresh draft PR / no PR / scan skipped | info |

@@ -91,7 +91,7 @@ Subagents cannot read sibling files, so dispatchers inline the relevant scope se
 ## Section D — Cross-cutting
 
 - **CLAUDE.md:** add `github-pr-scan` to the `_shared` list in Structure; add `gh` CLI to Stack Dependencies as "(optional — required only for GitHub PR/issue scanning in /tidy and /help)".
-- **Relationship tables (bidirectional rule):** update tidy↔recon wording from "can fold" to the implemented Step 4.7; tidy and help each gain a `_shared/github-pr-scan.md` row; recon's table gets the matching tidy update.
+- **Relationship tables (bidirectional rule):** update tidy↔recon wording from "can fold" to the implemented Step 4.8; tidy and help each gain a `_shared/github-pr-scan.md` row; recon's table gets the matching tidy update.
 - **README + `/help` reference-card:** one-line mentions of PR-awareness in both skills' descriptions.
 - **No new Node code, no new tests** — pure markdown change. Version bump: minor (feature) at release time.
 

@@ -36,7 +36,7 @@ Periodic backlog hygiene to keep the spec system healthy. Run when the backlog f
 >
 > **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input, status line first, output template inlined verbatim. Model tier: Fast.
 >
-> **Model tier:** Fast (Haiku) — each scan is a mechanical read of a single data source (INBOX file, DEFERRED file, spec directory, design-doc directory, plan directory, `git worktree list` + branches, REGISTRY, issue-claim refs + comments). No cross-cutting analysis at the per-scan level; Step 5/5.5 do the synthesis sequentially in the main thread.
+> **Model tier:** Fast (Haiku) — each scan is a mechanical read of a single data source (INBOX file, DEFERRED file, spec directory, design-doc directory, plan directory, `git worktree list` + branches, REGISTRY, issue-claim refs + comments, gh PR/issue queries). No cross-cutting analysis at the per-scan level; Step 5/5.5 do the synthesis sequentially in the main thread.
 >
 > **Output template (each agent must follow exactly):**
 >
@@ -206,6 +206,7 @@ After all actions are applied, verify every decision was fully executed. Present
 - [x] Deferred: "{title}" — in DEFERRED.md (trigger: {condition}), removed from INBOX
 - [x] Merged: "{title}" → Spec {N} — integrated into Deliverables/AC, removed from INBOX
 - [x] Promoted: "{title}" — tagged in INBOX, still present
+- [x] Captured: "{title}" — added to INBOX with source URL (PR/thread/issue link)
 - [x] Closed (GitHub): PR #{n} / issue #{n} — explanatory comment posted, state re-queried as `CLOSED` (`gh pr view {n} --json state` / `gh issue view {n} --json state`)
 - [x] Resolved thread: PR #{n} — thread re-queried as `isResolved: true`
 - [ ] FAILED: "{title}" — {what went wrong}
