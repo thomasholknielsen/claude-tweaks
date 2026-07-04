@@ -1,5 +1,7 @@
 .worktrees/
 .DS_Store
+.claude-tweaks/pipelines/
 .claude-tweaks/research/
 .claude-tweaks/recon/
+.claude-tweaks/routine-environment-cache.yml
 **/__pycache__/
