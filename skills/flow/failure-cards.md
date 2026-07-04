@@ -10,14 +10,24 @@ Two templates live here. Pick by failure shape:
 | Any other gate (build / stories / test / review / wrap-up) | "Generic gate failure" below |
 
 **Claims held by `--from-recon` runs:** when the stopped run holds issue claims
-(`refs/claims/issue-{N}`, per `_shared/issue-claims.md`), the card must OFFER release —
+(`refs/claims/issue-{issue}`, per `_shared/issue-claims.md`), the card must OFFER release —
 never auto-release. Resuming is the recommended next action, and a resumed run needs its
-claims intact; an unreleased claim ages out via TTL anyway. Add this option to the card's
+claims intact; an unreleased claim ages out via TTL anyway.
+
+When the stop occurs, post a *blocked* checkpoint comment to each claimed issue so a stalled
+issue carries a resumable breadcrumb (plain text, no marker — `claimStatus` ignores it):
+
+```bash
+gh issue comment "$ISSUE" --body "Blocked at {gate}: {one-line reason}. Run {runId}; claim active until claimedAt+ttlHours unless released."
+```
+
+Posting is automatic (a reversible network write) and each post logs to `decisions.md`.
+Release remains offered-only — see below. Add this option to the card's
 Next Actions when claims are held:
 
 ```markdown
-{N+1}. Release held claims if you will not resume (reason `failed: {gate}`):
-   `gh api -X DELETE "repos/{owner}/{repo}/git/refs/claims/issue-{N}"` + release comment
+{next}. Release held claims if you will not resume (reason `failed: {gate}`):
+   `gh api -X DELETE "repos/{owner}/{repo}/git/refs/claims/issue-{issue}"` + release comment
    per `_shared/issue-claims.md` — otherwise they expire after the TTL (72h default).
 ```
 
