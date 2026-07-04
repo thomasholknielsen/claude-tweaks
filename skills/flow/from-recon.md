@@ -3,17 +3,19 @@
 `/claude-tweaks:flow` can assemble its spec list from GitHub issues instead of spec numbers:
 `--from-recon` (alias for `--from-label recon`) pulls the issues `/claude-tweaks:recon` filed;
 `--from-label <label>` pulls any labelled set; `--from-issues <n,...>` pulls specific issue
-numbers. Each pulled issue is claimed (Step 2.5), turned into a `/claude-tweaks:specify`
-brief, and run through the existing multi-spec batch pipeline + consolidated Review Console.
-These are the only `/flow` entry points that do not take spec numbers up front — the specs
-are *derived* from issues at the start of the run.
+numbers; `--from-milestone <m>` pulls a milestone's open issues. Each pulled issue is claimed
+(Step 2.5), turned into a `/claude-tweaks:specify` brief, and run through the existing
+multi-spec batch pipeline + consolidated Review Console. These are the only `/flow` entry
+points that do not take spec numbers up front — the specs are *derived* from issues at the
+start of the run.
 
 ## Syntax
 
 ```
-/claude-tweaks:flow --from-recon        [--min-severity high] [worktree | current-branch] [keep-going] [auto | confirm | hybrid]
-/claude-tweaks:flow --from-label <label> [--min-severity high] [...same]
-/claude-tweaks:flow --from-issues <n,...>       [--min-severity high] [...same]
+/claude-tweaks:flow --from-recon        [--min-severity high] [--require-eligible] [worktree | current-branch] [keep-going] [auto | confirm | hybrid]
+/claude-tweaks:flow --from-label <label> [--min-severity high] [--require-eligible] [...same]
+/claude-tweaks:flow --from-issues <n,...>       [--min-severity high] [--require-eligible] [...same]
+/claude-tweaks:flow --from-milestone <m>          [--min-severity high] [--require-eligible] [...same]
 ```
 
 `--min-severity` floors on the `recon:<sev>` label (unlabeled issues rank `info`). All other
@@ -32,6 +34,10 @@ also carry `recon:<sev>` labels.
 
    # --from-issues <n,...> — one gh call per number; skip non-open issues with a log entry:
    gh issue view "${ISSUE}" --json number,title,body,labels,state
+
+   # --from-milestone <m>:
+   gh issue list --milestone "<m>" --state open \
+     --json number,title,body,labels --limit 100
    ```
 
    Assemble the per-issue objects into ONE JSON array at `/tmp/flow-issues.json` (e.g.
@@ -50,12 +56,15 @@ also carry `recon:<sev>` labels.
      console.log(JSON.stringify(i.issuesToBriefs({issuesJson:issues,
        label:process.argv[2]||undefined,
        numbers:process.argv[3]?process.argv[3].split(',').map(Number):undefined,
-       minSeverity:process.argv[4]||undefined})))" \
-     /tmp/flow-issues.json "<label-or-empty>" "<numbers-or-empty>" "<min-severity-or-empty>"
+       minSeverity:process.argv[4]||undefined,
+       requireLabels:process.argv[5]?process.argv[5].split(','):undefined})))" \
+     /tmp/flow-issues.json "<label-or-empty>" "<numbers-or-empty>" "<min-severity-or-empty>" "<require-labels-csv-or-empty>"
    ```
 
-   Call signature: `issuesToBriefs({ issuesJson, label?, numbers?, minSeverity? })`. For
+   Call signature: `issuesToBriefs({ issuesJson, label?, numbers?, minSeverity?, requireLabels? })`. For
    `--from-recon`, `label` is `recon` (the `bin/recon.js pull-issues` CLI remains equivalent).
+   With `--require-eligible`, pass `agent:eligible` as the fifth argument — autonomous dispatch
+   always does (see "Dispatch authorization" in `_shared/issue-claims.md`).
    Each brief is `{ number, title, body, fingerprint, severity, shape }` — `shape` is `form`
    when the body carries the three sections (at `##` or `###` level — GitHub issue forms
    render `###`), else `freeform`.

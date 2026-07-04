@@ -59,14 +59,16 @@ Steps must follow lifecycle order. Invalid orderings are rejected.
 
 These are not steps — they are alternative *spec sources* resolved before Step 1.
 `--from-label <label>` pulls any open, labelled issue set (via `gh`); `--from-issues <n,...>`
-pulls specific issue numbers; `--from-recon` is a preserved alias for `--from-label recon`.
+pulls specific issue numbers; `--from-milestone <m>` pulls a milestone's open issues;
+`--from-recon` is a preserved alias for `--from-label recon`.
 Each pulled issue maps to a `/claude-tweaks:specify` brief via `issuesToBriefs`
 (`bin/lib/issues/ingest.js`), derives specs, then runs the normal step pipeline
 (`build,test,review,polish,wrap-up`) as a multi-spec batch. `--min-severity <sev>` floors on
-the `recon:<sev>` label (unlabeled issues rank `info`). The full procedure lives in
-`from-recon.md`; the step pipeline and gates are unchanged. A missing/unauthenticated `gh` CLI
-is a hard gate (`auto` does not silence a missing dependency). See `from-recon.md` for the
-full procedure.
+the `recon:<sev>` label (unlabeled issues rank `info`). `--require-eligible` restricts any
+selector to `agent:eligible`-labelled issues — mandatory for autonomous dispatch. The full
+procedure lives in `from-recon.md`; the step pipeline and gates are unchanged. A
+missing/unauthenticated `gh` CLI is a hard gate (`auto` does not silence a missing dependency).
+See `from-recon.md` for the full procedure.
 
 ## Gate Behavior
 
