@@ -342,3 +342,33 @@ The soft-hook nudges in `/specify`, `/build`, and `/review` read this flag and s
 **Re-run behavior:** When `/init` is re-run on a project where `diagram-integration: enabled`, this step is a no-op (there's no `teach` to refresh). When the flag is `disabled`, offer the upgrade path back to `enabled`. When the flag is **missing** (pre-v4.7 projects), present the first-run prompt — same as a fresh init.
 
 **Failure handling:** If the plugin install fails, do not abort `/init` — surface the failure and continue with `diagram-integration: disabled` until the user resolves it. The soft-hook nudges check the flag, not the plugin's presence, so a failed install just means the user sees no nudges (graceful degradation).
+
+---
+
+## Step 0.96 — Routine Installation (detailed procedure)
+
+claude-tweaks skills can ship a `routine-template.yml` (schema: `skills/_shared/routine-template-schema.md`) enabling `/claude-tweaks:routine create <skill>` to instantiate a scheduled cloud Routine for this project — e.g. recon's nightly LLM-as-judge sweep, or tidy's periodic backlog hygiene pass. This step surfaces that option right after bootstrap instead of leaving it to be discovered later.
+
+**Detect candidates:**
+
+```bash
+ls "${CLAUDE_PLUGIN_ROOT}"/skills/*/routine-template.yml 2>/dev/null
+```
+
+For each match, read its `routine_name` field, then check whether `.claude-tweaks/routines/{routine_name}.yml` already exists in the current project. Only offer skills without an existing record — this makes the step idempotent and safe on every `/init` re-run. If no candidates remain (none shipped, or every candidate already has a record), skip this step silently.
+
+**Present:**
+
+```
+{N} claude-tweaks skill(s) support scheduled cloud Routines: {list, e.g. "recon (nightly repo sweep), tidy (periodic backlog hygiene)"}.
+
+Set any of these up now?
+1. Yes — walk me through each **(Recommended)**
+2. Not now — I'll use `/claude-tweaks:routine create <skill>` later
+```
+
+**For option 1:** For each skill the user selects, invoke `/claude-tweaks:routine create <skill> --source init` directly. `/routine`'s own CREATE workflow (template load, repo/name resolution, idempotency check, environment/schedule resolution, review gate, dry-run offer) handles everything end-to-end, including the mandatory explicit confirmation before any live `RemoteTrigger` call. `/init` does not reimplement, shortcut, or pre-answer any part of that workflow — it only discovers candidates and hands off.
+
+**For option 2:** Note the skipped candidates and continue. The same offer reappears on the next `/init` run for any candidate still missing a record.
+
+**Failure handling:** If a `create` invocation fails or the user backs out mid-flow, continue with the remaining selected candidates (or none) rather than aborting the rest of `/init`.

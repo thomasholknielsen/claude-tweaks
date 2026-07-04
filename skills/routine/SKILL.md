@@ -147,6 +147,12 @@ Report both the live state and the drift check(s) together.
 2. `/schedule` — inspect, run, or list any routine (including ones this skill created) via the built-in conversational flow. (Deletion always happens at claude.ai/code/routines.)
 3. `/claude-tweaks:routine update <skill>` — re-sync after the template changes.
 
+## Component-Skill Contract
+
+When invoked with `--source init` (used by `/claude-tweaks:init`'s Phase 0.96), `/claude-tweaks:routine` is running as a component of `/init`'s bootstrap flow — omit the `## Next Actions` block, since `/init` owns the overall handoff. `/init` does not set `$PIPELINE_RUN_DIR` (it is not a `/flow`-style pipeline orchestrator), so `--source init` is the sole signal for this caller, not merely a fallback for a rare ambiguity — unlike most component-skill contracts in this plugin, `$PIPELINE_RUN_DIR` is not the primary signal here.
+
+Standalone invocation (no `--source` flag) is the common case and renders Next Actions as usual.
+
 ## Anti-Patterns
 
 | Pattern | Why It Fails |
@@ -165,3 +171,5 @@ Report both the live state and the drift check(s) together.
 | `/claude-tweaks:recon` | Recon is this skill's first consumer — `skills/recon/routine-template.yml` is the reference template; recon's own SKILL.md points here instead of documenting manual `/schedule` setup. |
 | `/schedule` (built-in) | `/routine` assembles the same `RemoteTrigger` body `/schedule` would build conversationally, but non-interactively from a template. `/schedule` remains the tool for one-off/exploratory routines and for listing, running, or inspecting a routine. Deletion always requires the web console at claude.ai/code/routines. |
 | `skills/_shared/routine-template-schema.md` | Canonical schema for both the template and the instantiated record — referenced, not duplicated, here. |
+| `/claude-tweaks:init` | Phase 0.96 discovers skills with a `routine-template.yml` and no existing record, then invokes `/claude-tweaks:routine create <skill> --source init` for each the user selects — pure discovery + handoff, no logic duplicated. |
+| `/claude-tweaks:tidy` | Tidy is this skill's second consumer — `skills/tidy/routine-template.yml` relies on tidy's own Standalone-auto support for safe unattended execution. |

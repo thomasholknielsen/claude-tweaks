@@ -107,6 +107,10 @@ When Phase 2 detects frontend signals, present the three-option Impeccable setup
 
 Always offered (not frontend-gated). Present the two-option diagram-design setup prompt (Install / Skip) and write the `diagram-integration` flag to CLAUDE.md under the existing `## Design integration` section. Soft-hook nudges in `/specify`, `/build`, and `/review` read this flag to decide whether to surface "consider a diagram here" recommendations. Read `bootstrap-steps.md` (Step 0.95) for the full procedure.
 
+### Step 0.96: Routine Installation (Optional Companion)
+
+Always offered (not gated) — detect which claude-tweaks skills ship a `routine-template.yml` without an existing instantiated record for this project, and offer to walk through `/claude-tweaks:routine create <skill> --source init` for each. Idempotent: skills with an existing record are never re-offered. Read `bootstrap-steps.md` (Step 0.96) for the full procedure.
+
 ---
 
 ## Scope Selection Gate
@@ -344,6 +348,7 @@ After writing files, surface what was created. Generate the table from the actua
 | Starter files | Wrote `specs/INBOX.md`, `specs/DEFERRED.md`, `specs/INDEX.md` (only if missing) | Phase 0.3 |
 | Statusline | Installed wrapper at `~/.claude-tweaks/bin/statusline.js`; wired `~/.claude/settings.json` | Phase 0.8 |
 | Design integration | Set `design-integration: {enabled/plugin-only/disabled}` in CLAUDE.md | Phase 0.9 |
+| Routines | Instantiated {N} routine(s): `{list}` (or "Offered, none set up") | Phase 0.96 |
 | Classification | Confirmed maturity `{value}`, doc tier `{N}` | Phase 3 |
 | CLAUDE.md | Wrote {N} lines (Initial) / Applied {N} patches (Update) | Phase 5 |
 | Skills | Generated {N} SKILL.md files: `{list}` | Phase 6 |
@@ -416,5 +421,6 @@ Pick the recommended action based on which signals fired during this run. Resolv
 | `/superpowers:using-git-worktrees` | /claude-tweaks:init optionally configures the worktree directory that `using-git-worktrees` needs |
 | `/claude-tweaks:stories` | /init Phase 8 (journey discovery) feeds /stories — discovered journeys become input for story generation |
 | `/claude-tweaks:version` | /version reads the same `plugin.json` that /init may print during bootstrap |
+| `/claude-tweaks:routine` | Phase 0.96 discovers claude-tweaks skills shipping a `routine-template.yml` with no existing instantiated record, and offers to invoke `/claude-tweaks:routine create <skill> --source init` for each — pure discovery + handoff. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. Phase 3 classification auto-confirm follows the contract's confidence-gated pattern. |
 | All workflow skills | Depend on the structure /claude-tweaks:init creates |
