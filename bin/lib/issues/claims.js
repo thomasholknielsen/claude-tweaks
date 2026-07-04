@@ -52,7 +52,7 @@ function parseClaimMarker(body) {
     try {
       const fields = JSON.parse(m[1]);
       if (fields === null || typeof fields !== 'object' || Array.isArray(fields)) return null;
-      return { kind, ...fields };
+      return { ...fields, kind };
     } catch {
       return null;
     }

@@ -83,3 +83,10 @@ test('parseClaimMarker distinguishes claim from release markers', () => {
   const release = parseClaimMarker('<!-- agent-claim-release: {"runId":"r1","reason":"done"} -->');
   assert.strictEqual(release.kind, 'release');
 });
+
+test('parseClaimMarker: derived kind wins over a spoofed "kind" field in the marker JSON', () => {
+  const spoofed = parseClaimMarker('<!-- agent-claim-release: {"kind":"claim","runId":"x"} -->');
+  assert.strictEqual(spoofed.kind, 'release');
+  const spoofed2 = parseClaimMarker('<!-- agent-claim: {"kind":"release","runId":"x"} -->');
+  assert.strictEqual(spoofed2.kind, 'claim');
+});
