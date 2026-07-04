@@ -137,7 +137,9 @@ If `--dry-run` was passed: show the diff and stop. Do not call `RemoteTrigger`. 
 
 **Step 3.** Compare the record's `template_version` against the current template file's (already read in Step 1) `template_version`. If they differ, flag it: "this routine was created from template v{N}; the template is now at v{M} — run `update {skill}` to re-sync."
 
-Report both the live state and the drift check together.
+**Step 3.5 — Field-level drift (best-effort).** If Step 2's `get` response includes `job_config.ccr` fields (`cron_expression`, `session_context.model`, `session_context.allowed_tools`, `session_context.sources[].git_repository.url`), diff each against the resolved template + record values: cron against `record.schedule`, model against `template.model`, allowed_tools against `template.allowed_tools` (set comparison, order-independent), repo URL against the project's origin (re-resolve via `git remote get-url origin` if not already available in this invocation). Report any per-field mismatch alongside the version-drift flag from Step 3. If the `get` response does not carry these fields, skip this step and note "field-level drift unavailable — comparing template_version only" instead of assuming a response shape the tool hasn't been confirmed to return.
+
+Report both the live state and the drift check(s) together.
 
 ## Next Actions
 
