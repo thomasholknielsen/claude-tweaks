@@ -170,7 +170,7 @@ Standalone invocation (no `--source` flag) is the common case and renders Next A
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:recon` | Recon is this skill's first consumer — `skills/recon/routine-template.yml` is the reference template; recon's own SKILL.md points here instead of documenting manual `/schedule` setup. |
-| `/claude-tweaks:flow` | `skills/flow/routine-template.yml` is the second consumer — a headless issue dispatcher; `/routine create flow` instantiates it. Unlike recon's report-only template it carries write tools. |
+| `/claude-tweaks:flow` | `skills/flow/routine-template.yml` is a consumer — a headless issue dispatcher; `/routine create flow` instantiates it. Unlike recon's report-only template it carries write tools. |
 | `/schedule` (built-in) | `/routine` assembles the same `RemoteTrigger` body `/schedule` would build conversationally, but non-interactively from a template. `/schedule` remains the tool for one-off/exploratory routines and for listing, running, or inspecting a routine. Deletion always requires the web console at claude.ai/code/routines. |
 | `skills/_shared/routine-template-schema.md` | Canonical schema for both the template and the instantiated record — referenced, not duplicated, here. |
 | `/claude-tweaks:init` | Phase 0.96 discovers skills with a `routine-template.yml` and no existing record, then invokes `/claude-tweaks:routine create <skill> --source init` for each the user selects — pure discovery + handoff, no logic duplicated. |
