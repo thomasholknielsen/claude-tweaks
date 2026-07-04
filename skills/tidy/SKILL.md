@@ -28,15 +28,15 @@ Periodic backlog hygiene to keep the spec system healthy. Run when the backlog f
 
 `$ARGUMENTS` is not used by /tidy. The skill scans `specs/INBOX.md`, `specs/DEFERRED.md`, `specs/`, design docs, plans, worktrees, and the doc registry from their canonical locations; an aggressiveness override (when needed) is read from the active pipeline run's `config.yml` (Manifesto `tidy-aggressiveness` lever), not from arguments.
 
-## Steps 1-4.6: Scan Everything
+## Steps 1-4.7: Scan Everything
 
-> **No decisions during scanning.** Steps 1-4.6 silently collect all findings. Everything is presented as one batch in Step 6 for approval. This replaces the previous per-item decision model.
+> **No decisions during scanning.** Steps 1-4.7 silently collect all findings. Everything is presented as one batch in Step 6 for approval. This replaces the previous per-item decision model.
 
-> **Parallel execution:** Dispatch Steps 1, 1.5, 2, 3, 4, 4.5, and 4.6 as parallel Task agents — each scan is independent (INBOX, Deferred, Specs, Design Docs + Briefs, Plans, Git, Doc Registry). Each agent returns findings in the `[type] item — detail — recommendation` format. Step 3's classification tables are inlined directly into its agent prompt (see Step 3 below) so subagents have everything they need. After parallel scans complete, run Step 5 and Step 5.5 sequentially — they depend on Step 2's spec scan results. Assemble all findings into the Step 6 report.
+> **Parallel execution:** Dispatch Steps 1, 1.5, 2, 3, 4, 4.5, 4.6, and 4.7 as parallel Task agents — each scan is independent (INBOX, Deferred, Specs, Design Docs + Briefs, Plans, Git, Doc Registry, Issue Claims). Each agent returns findings in the `[type] item — detail — recommendation` format. Step 3's classification tables are inlined directly into its agent prompt (see Step 3 below) so subagents have everything they need. After parallel scans complete, run Step 5 and Step 5.5 sequentially — they depend on Step 2's spec scan results. Assemble all findings into the Step 6 report.
 >
 > **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input, status line first, output template inlined verbatim. Model tier: Fast.
 >
-> **Model tier:** Fast (Haiku) — each scan is a mechanical read of a single data source (INBOX file, DEFERRED file, spec directory, design-doc directory, plan directory, `git worktree list` + branches, REGISTRY). No cross-cutting analysis at the per-scan level; Step 5/5.5 do the synthesis sequentially in the main thread.
+> **Model tier:** Fast (Haiku) — each scan is a mechanical read of a single data source (INBOX file, DEFERRED file, spec directory, design-doc directory, plan directory, `git worktree list` + branches, REGISTRY, issue-claim refs + comments). No cross-cutting analysis at the per-scan level; Step 5/5.5 do the synthesis sequentially in the main thread.
 >
 > **Output template (each agent must follow exactly):**
 >
@@ -71,8 +71,9 @@ Read `scan-procedures.md` in this skill's directory for the full classification 
 | 4 | `docs/superpowers/plans/`, `~/.claude/plans/` | `[plan]` |
 | 4.5 | `git worktree list`, `git branch --list "build/*"` | `[git]` |
 | 4.6 | `docs/REGISTRY.md` | `[registry]` |
+| 4.7 | `gh api git/matching-refs/claims/` + issue comments | `[claim]` |
 | 5 (sequential, after Step 2) | Specs not yet built | (sizing flags appended to `[spec]` rows) |
-| 5.5 (sequential, after Steps 2-4.6) | Recent git history of review/wrap-up commits | `[pattern]`, `[health]` |
+| 5.5 (sequential, after Steps 2-4.7) | Recent git history of review/wrap-up commits | `[pattern]`, `[health]` |
 
 Steps 5 and 5.5 require Step 2's spec scan results, so run them sequentially in the main thread after the parallel scans complete.
 
@@ -247,4 +248,4 @@ Commit with a message summarizing the tidy-up.
 | `/claude-tweaks:recon` | `/recon` files improvement findings as `recon`-labelled GitHub issues; `/tidy` can fold those issues into a backlog-hygiene pass alongside INBOX, deferred items, and specs. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. The aggressiveness-routing table in Step 6 (conservative / moderate / aggressive) implements the contract's reversibility/confidence floors for tidy actions. |
 | `_shared/pipeline-run-dir.md` | Standalone-auto fallback (Step 6) creates `.claude-tweaks/pipelines/{ts}-tidy-standalone/` with `decisions.md` + `staged/` per this shared procedure. /tidy is on the standalone-auto allowlist. |
-| `_shared/subagent-output-contract.md` | Steps 1-4.6 dispatch parallel Task agents per this contract — minimal input, status line first (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`), Template A inlined verbatim. Model tier: Fast. |
+| `_shared/subagent-output-contract.md` | Steps 1-4.7 dispatch parallel Task agents per this contract — minimal input, status line first (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`), Template A inlined verbatim. Model tier: Fast. |
