@@ -1,8 +1,14 @@
 // bin/lib/hooks/pre-tool-use.js — E1: working-directory discipline (block tier).
 // Denies ONLY on a provable mismatch. Ambiguity -> allow: a false-positive
 // freeze in an unattended run is worse than a missed catch (E2 still records).
+// "Provable" includes ownership: a deny requires the commit to come from the
+// session that recorded the worktree (or identity to be unavailable on either
+// side, which preserves the pre-stamp behavior). A commit from a DIFFERENT
+// session — e.g. unrelated fix work in the main checkout while a pipeline runs
+// elsewhere — is not provably this run's work: allow, warn, log.
 'use strict';
 const fs = require('fs');
+const path = require('path');
 const { execFileSync } = require('child_process');
 const { gitTargets } = require('./git-command');
 const ctxLib = require('./context');
@@ -64,7 +70,21 @@ function run(ctx) {
       ctxLib.appendEvent(ctx.runDir, 'wd-push-mismatch', { expected: assigned, actual, command: command.slice(0, 200) });
       continue;
     }
-    ctxLib.appendEvent(ctx.runDir, 'wd-deny', { expected: assigned, actual, command: command.slice(0, 200) });
+    const owner = typeof ctx.runState.sessionId === 'string' ? ctx.runState.sessionId : '';
+    const caller = typeof ctx.input.session_id === 'string' ? ctx.input.session_id : '';
+    if (owner && caller && owner !== caller) {
+      ctxLib.appendEvent(ctx.runDir, 'wd-foreign-session', { expected: assigned, actual, owner, caller, command: command.slice(0, 200) });
+      return {
+        exit: 0,
+        json: {
+          systemMessage:
+            `claude-tweaks: pipeline run ${path.basename(ctx.runDir)} is active in worktree ${assigned}; ` +
+            `allowing this commit because it comes from a different session. ` +
+            `If this IS that pipeline's work, run it inside the worktree (git -C "${assigned}").`,
+        },
+      };
+    }
+    ctxLib.appendEvent(ctx.runDir, 'wd-deny', { expected: assigned, actual, session: caller || undefined, command: command.slice(0, 200) });
     const others = [...otherWorktrees.keys()];
     const othersNote = others.length ? ` Other active runs' worktrees: ${others.join(', ')}.` : '';
     return {

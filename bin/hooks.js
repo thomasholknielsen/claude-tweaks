@@ -18,7 +18,12 @@ function main(argv) {
   if (cmd === 'record-worktree') {
     const runDir = ctxLib.resolveRunDir(process.cwd(), process.env);
     if (runDir && argv[3]) {
-      ctxLib.writeRunState(runDir, { worktree: path.resolve(argv[3]), status: 'active' });
+      // Stamp the owning session so E1 can scope enforcement to it. Absent env
+      // var: omit the key rather than write null — an env-less re-record must
+      // not clobber a previous stamp.
+      const patch = { worktree: path.resolve(argv[3]), status: 'active' };
+      if (process.env.CLAUDE_CODE_SESSION_ID) patch.sessionId = process.env.CLAUDE_CODE_SESSION_ID;
+      ctxLib.writeRunState(runDir, patch);
       process.stdout.write(`claude-tweaks: worktree recorded for ${path.basename(runDir)}\n`);
     } else if (!runDir) {
       process.stdout.write('claude-tweaks: no pipeline run dir found — worktree not recorded\n');
@@ -28,7 +33,14 @@ function main(argv) {
   if (cmd === 'close-run') {
     const flagIdx = argv.indexOf('--run');
     const runDir = flagIdx !== -1 && argv[flagIdx + 1] ? argv[flagIdx + 1] : ctxLib.resolveRunDir(process.cwd(), process.env);
-    if (runDir) ctxLib.writeRunState(runDir, { status: 'clean', worktree: null });
+    if (runDir) {
+      const prev = ctxLib.readRunState(runDir);
+      const me = process.env.CLAUDE_CODE_SESSION_ID;
+      if (prev && typeof prev.sessionId === 'string' && prev.sessionId && me && prev.sessionId !== me) {
+        process.stdout.write(`claude-tweaks: closing run ${path.basename(runDir)} recorded by another session\n`);
+      }
+      ctxLib.writeRunState(runDir, { status: 'clean', worktree: null });
+    }
     return 0;
   }
   if (!EVENTS.includes(cmd)) return 0;

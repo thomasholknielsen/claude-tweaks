@@ -13,11 +13,12 @@ function gitRepo() {
   execFileSync('git', ['-C', dir, 'init', '-q']);
   return fs.realpathSync(dir);
 }
-function mkRun(worktree) {
+function mkRun(worktree, sessionId) {
   const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-e1run-'));
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   fs.mkdirSync(run, { recursive: true });
   const state = worktree ? { status: 'active', worktree } : { status: 'active' };
+  if (sessionId !== undefined) state.sessionId = sessionId;
   fs.writeFileSync(path.join(run, 'run-state.json'), JSON.stringify(state));
   return { run, state };
 }
@@ -57,6 +58,61 @@ test('commit in a different checkout is denied with corrective reason', () => {
   assert.match(spec.permissionDecisionReason, /git -C/);
   const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8');
   assert.match(events, /"type":"wd-deny"/);
+});
+
+test('wrong-checkout commit from a FOREIGN session is allowed with a warn and logs wd-foreign-session', () => {
+  const wt = gitRepo();
+  const other = gitRepo();
+  const { run, state } = mkRun(wt, 'owner-session');
+  const input = { ...bashInput('git commit -m "x"', other), session_id: 'bystander-session' };
+  const out = pre.run({ input, runDir: run, runState: state, cwd: other });
+  assert.ok(!(out.json && out.json.hookSpecificOutput), 'foreign-session commit must not be denied');
+  assert.match(out.json.systemMessage, /allowing this commit/);
+  assert.match(out.json.systemMessage, new RegExp(esc(wt)));
+  assert.match(out.json.systemMessage, /2026-07-01T090000-spec-1/);
+  const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8');
+  assert.match(events, /"type":"wd-foreign-session"/);
+  assert.doesNotMatch(events, /"type":"wd-deny"/);
+});
+
+test('wrong-checkout commit from the OWNING session is still denied', () => {
+  const wt = gitRepo();
+  const other = gitRepo();
+  const { run, state } = mkRun(wt, 'owner-session');
+  const input = { ...bashInput('git commit -m "x"', other), session_id: 'owner-session' };
+  const out = pre.run({ input, runDir: run, runState: state, cwd: other });
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
+  const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8');
+  assert.match(events, /"type":"wd-deny"/);
+});
+
+test('missing or malformed session identity on either side falls back to deny (status quo)', () => {
+  // Legacy run-state (no recorded owner), caller id present.
+  const legacyOther = gitRepo();
+  const legacy = mkRun(gitRepo());
+  const legacyOut = pre.run({
+    input: { ...bashInput('git commit -m "x"', legacyOther), session_id: 'bystander-session' },
+    runDir: legacy.run, runState: legacy.state, cwd: legacyOther,
+  });
+  assert.strictEqual(legacyOut.json.hookSpecificOutput.permissionDecision, 'deny');
+
+  // Owner recorded, caller id absent from hook input.
+  const noCallerOther = gitRepo();
+  const noCaller = mkRun(gitRepo(), 'owner-session');
+  const noCallerOut = pre.run({
+    input: bashInput('git commit -m "x"', noCallerOther),
+    runDir: noCaller.run, runState: noCaller.state, cwd: noCallerOther,
+  });
+  assert.strictEqual(noCallerOut.json.hookSpecificOutput.permissionDecision, 'deny');
+
+  // Corrupt owner (non-string) never counts as identity.
+  const corruptOther = gitRepo();
+  const corrupt = mkRun(gitRepo(), { nested: true });
+  const corruptOut = pre.run({
+    input: { ...bashInput('git commit -m "x"', corruptOther), session_id: 'bystander-session' },
+    runDir: corrupt.run, runState: corrupt.state, cwd: corruptOther,
+  });
+  assert.strictEqual(corruptOut.json.hookSpecificOutput.permissionDecision, 'deny');
 });
 
 test('git -C into the assigned worktree from elsewhere is allowed', () => {

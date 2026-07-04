@@ -66,6 +66,55 @@ test('record-worktree without a run dir exits 0 and prints a not-recorded notice
   assert.match(result.stdout, /claude-tweaks: no pipeline run dir found — worktree not recorded/);
 });
 
+test('record-worktree stamps the owning session from CLAUDE_CODE_SESSION_ID and preserves it on env-less re-record', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  runHook(['record-worktree', '/tmp/wt-1'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'sess-owner' } });
+  let state = JSON.parse(fs.readFileSync(path.join(run, 'run-state.json'), 'utf8'));
+  assert.strictEqual(state.sessionId, 'sess-owner');
+  runHook(['record-worktree', '/tmp/wt-1'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: '' } });
+  state = JSON.parse(fs.readFileSync(path.join(run, 'run-state.json'), 'utf8'));
+  assert.strictEqual(state.sessionId, 'sess-owner', 'env-less re-record must not clobber the stamp');
+});
+
+test('record-worktree without CLAUDE_CODE_SESSION_ID records no owner', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  runHook(['record-worktree', '/tmp/wt-2'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: '' } });
+  const state = JSON.parse(fs.readFileSync(path.join(run, 'run-state.json'), 'utf8'));
+  assert.ok(!('sessionId' in state), 'no env var -> no sessionId field');
+});
+
+test('close-run notes when closing a run recorded by another session, stays silent for the owner', () => {
+  const foreignProject = tmpProject();
+  runHook(['record-worktree', '/tmp/wt'], { cwd: foreignProject, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
+  const foreign = runHook(['close-run'], { cwd: foreignProject, env: { CLAUDE_CODE_SESSION_ID: 'bystander' } });
+  assert.strictEqual(foreign.code, 0);
+  assert.match(foreign.stdout, /recorded by another session/);
+
+  const ownProject = tmpProject();
+  runHook(['record-worktree', '/tmp/wt'], { cwd: ownProject, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
+  const own = runHook(['close-run'], { cwd: ownProject, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
+  assert.strictEqual(own.code, 0);
+  assert.strictEqual(own.stdout, '');
+});
+
+test('e2e: foreign-session commit in the main checkout is allowed with a systemMessage, not denied', () => {
+  const project = tmpProject();
+  execFileSync('git', ['-C', project, 'init', '-q']);
+  const worktree = gitRepo();
+  runHook(['record-worktree', worktree], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
+
+  const result = runHook(['pre-tool-use'], {
+    input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'git commit -m x' }, cwd: project, session_id: 'bystander' }),
+    cwd: project,
+  });
+  assert.strictEqual(result.code, 0);
+  assert.ok(!result.stdout.includes('permissionDecision'), `expected allow, got: ${result.stdout}`);
+  assert.match(result.stdout, /"systemMessage"/);
+  assert.match(result.stdout, /allowing this commit/);
+});
+
 test('close-run lifts E1 enforcement: pre-tool-use allows a commit outside the old worktree', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
