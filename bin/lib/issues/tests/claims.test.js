@@ -160,3 +160,34 @@ test('missing ttlHours defaults to 72', () => {
   assert.strictEqual(isStale(claim, T0 + 72 * H - 1), false);
   assert.strictEqual(isStale(claim, T0 + 72 * H), true);
 });
+
+test('claimPayload note appends a third line without touching the marker', () => {
+  const p = claimPayload({ issueNumber: 5, sha: 'x', runId: 'run-2', sessionId: 's', now: T0, note: 'Broke stale claim from run run-1.' });
+  const lines = p.commentBody.split('\n');
+  assert.strictEqual(lines.length, 3);
+  assert.strictEqual(lines[2], 'Broke stale claim from run run-1.');
+  const m = parseClaimMarker(p.commentBody);
+  assert.strictEqual(m.kind, 'claim');
+  assert.strictEqual(m.runId, 'run-2');
+  assert.strictEqual('note' in m, false);
+});
+
+test('claimPayload without note keeps the two-line body', () => {
+  const p = claimPayload({ issueNumber: 5, sha: 'x', runId: 'r', sessionId: 's', now: T0 });
+  assert.strictEqual(p.commentBody.split('\n').length, 2);
+});
+
+test('releasePayload link lands in the marker JSON and the human line', () => {
+  const p = releasePayload({ issueNumber: 5, runId: 'r', reason: 'merged: spec 12', link: 'https://github.com/o/r/commit/abc123', now: T0 });
+  const m = parseClaimMarker(p.commentBody);
+  assert.strictEqual(m.kind, 'release');
+  assert.strictEqual(m.link, 'https://github.com/o/r/commit/abc123');
+  assert.ok(p.commentBody.endsWith('See https://github.com/o/r/commit/abc123.'));
+});
+
+test('releasePayload without link has no link key and an unchanged human line', () => {
+  const p = releasePayload({ issueNumber: 5, runId: 'r', reason: 'merged: spec 12', now: T0 });
+  const m = parseClaimMarker(p.commentBody);
+  assert.strictEqual('link' in m, false);
+  assert.ok(p.commentBody.endsWith('merged: spec 12.'));
+});

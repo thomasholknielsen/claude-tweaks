@@ -13,37 +13,40 @@ function claimRef(issueNumber) {
   return `refs/claims/issue-${issueNumber}`;
 }
 
-// opts: { issueNumber, sha, runId, sessionId, ttlHours?, host?, owner?, repo?, now }
+// opts: { issueNumber, sha, runId, sessionId, ttlHours?, host?, owner?, repo?, note?, now }
 // owner/repo default to gh's {owner}/{repo} placeholders (auto-filled from the current repo).
 // Returns { ref, refArgs, commentBody }. refArgs feed `gh api` (201 = claimed, 422 = contested).
-function claimPayload({ issueNumber, sha, runId, sessionId, ttlHours = DEFAULT_TTL_HOURS, host = '', owner = '{owner}', repo = '{repo}', now }) {
+function claimPayload({ issueNumber, sha, runId, sessionId, ttlHours = DEFAULT_TTL_HOURS, host = '', owner = '{owner}', repo = '{repo}', note, now }) {
   const claimedAt = new Date(now).toISOString();
   const ref = claimRef(issueNumber);
   const marker = { runId, sessionId, claimedAt, ttlHours, host };
+  const humanLines = [`Claimed by claude-tweaks run ${runId} at ${claimedAt} (TTL ${ttlHours}h).`];
+  if (note) humanLines.push(note);
   return {
     ref,
     refArgs: [`repos/${owner}/${repo}/git/refs`, '-f', `ref=${ref}`, '-f', `sha=${sha}`],
-    commentBody: `<!-- agent-claim: ${JSON.stringify(marker)} -->\nClaimed by claude-tweaks run ${runId} at ${claimedAt} (TTL ${ttlHours}h).`,
+    commentBody: `<!-- agent-claim: ${JSON.stringify(marker)} -->\n${humanLines.join('\n')}`,
   };
 }
 
-// opts: { issueNumber, runId, reason, owner?, repo?, now }
+// opts: { issueNumber, runId, reason, link?, owner?, repo?, now }
 // Returns { ref, refDeleteArgs, commentBody }. DELETE path is /git/refs/claims/issue-<n>
 // (the API drops the leading "refs/" segment in the delete path).
-function releasePayload({ issueNumber, runId, reason, owner = '{owner}', repo = '{repo}', now }) {
+function releasePayload({ issueNumber, runId, reason, link, owner = '{owner}', repo = '{repo}', now }) {
   const releasedAt = new Date(now).toISOString();
   const ref = claimRef(issueNumber);
-  const marker = { runId, reason, releasedAt };
+  const marker = link ? { runId, reason, releasedAt, link } : { runId, reason, releasedAt };
+  const human = `Released by run ${runId}: ${reason}.` + (link ? ` See ${link}.` : '');
   return {
     ref,
     refDeleteArgs: ['-X', 'DELETE', `repos/${owner}/${repo}/git/${ref}`],
-    commentBody: `<!-- agent-claim-release: ${JSON.stringify(marker)} -->\nReleased by run ${runId}: ${reason}.`,
+    commentBody: `<!-- agent-claim-release: ${JSON.stringify(marker)} -->\n${human}`,
   };
 }
 
 // Never throws. Returns { kind: 'claim'|'release', ...markerFields } or null.
-// Release is checked first; the claim regex cannot match a release marker
-// ("agent-claim-release:" has "-" after "agent-claim", not ":").
+// The derived kind (from which marker prefix matched) always wins over any
+// "kind" key inside the marker JSON — fields spread first, kind last.
 function parseClaimMarker(body) {
   if (typeof body !== 'string') return null;
   for (const [kind, re] of [['release', RELEASE_RE], ['claim', CLAIM_RE]]) {
