@@ -232,7 +232,7 @@ Report: how many findings were emitted, how many survived dedup, how many issues
 
 This resolves the account- and project-specific values a portable template can't hardcode (which environment, which repo) and creates a live cloud Routine via `RemoteTrigger` directly — see `skills/routine/SKILL.md` for the full mechanism. Add `--dry-run` to inspect the assembled configuration before anything is created.
 
-**Headless run flow:** SCOPE(`next-slice`) → CLASSIFY → JUDGE → `validate-findings` → file issues. Triage happens later in GitHub — the Routine does not wait for interactive input. The template's prompt omits `--area` so `next-slice` always picks the highest-priority slice automatically.
+**Headless run flow:** SCOPE(`next-slice`) → CLASSIFY → JUDGE → `validate-findings` → file issues. Triage happens later in GitHub — the Routine does not wait for interactive input. The template's prompt omits `--area` so `next-slice` always picks the highest-priority slice automatically. Recon's own `--budget` flag (default 1 slice per run) governs how deep each firing goes — raise it via a manual `/claude-tweaks:recon --budget <n>` run if you want a one-off deeper sweep; the routine itself always uses the template's single-slice default, and token cost scales with whatever budget is in effect for that invocation.
 
 A skipped run (e.g., `next-slice` returns `null` because all slices are fresh) is harmless — rotation resumes from the same position on the next window.
 
