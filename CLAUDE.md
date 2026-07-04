@@ -31,11 +31,11 @@ README.md                         → User-facing documentation
 LICENSE                           → MIT
 ```
 
-### Skill directories (23 total)
+### Skill directories (24 total)
 
 **Lifecycle:** init, capture, challenge, specify, build, test, stories, review, wrap-up
 **Component:** reflect, simplify, deepen, journeys, visual-review, design
-**Utility:** help, tidy, flow, browse, ledger, version, research, recon
+**Utility:** help, tidy, flow, browse, ledger, version, research, recon, routine
 
 ### Skills with sub-files
 

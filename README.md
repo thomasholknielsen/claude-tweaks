@@ -194,6 +194,8 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 
 **`/claude-tweaks:recon`** — Proactive, report-only repo-improvement finder. An LLM judges the repo against a criteria catalog, calling deterministic tool checks as evidence. Deterministic helpers handle scope rotation, content-hash skip (unchanged areas are skipped), fingerprinting, dedup against open GitHub issues, and issue filing. Workflow: SCOPE → CLASSIFY → JUDGE → validate-findings → file issues. Never edits code. Filed issues are `/specify`-shaped so they promote into agent-sized specs with near-zero translation. Runs on a scheduled Routine for continuous coverage.
 
+**`/claude-tweaks:routine`** — Instantiates a skill's plugin-shipped routine template (e.g. recon's) into a live Claude Code cloud Routine for the current project, resolving account- and project-specific values (environment, repo) that a portable template can't hardcode, then calling `RemoteTrigger` directly — no manual `/schedule` walkthrough needed. Writes a committable instantiated record to `.claude-tweaks/routines/`. Supports `create`, `update`, and `status`, plus `--dry-run` to inspect the assembled configuration before anything is created.
+
 **`/claude-tweaks:design`** — Wrapper for the [Impeccable](https://github.com/pbakaus/impeccable) frontend-design plugin. Six active modes:
 
 - **`test`** — invoked by `/test` for the deterministic CLI gate (`npx impeccable detect`)
