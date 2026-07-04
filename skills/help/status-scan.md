@@ -2,11 +2,11 @@
 
 Stage-by-stage scan procedure run by `/claude-tweaks:help` (default invocation, or `status` argument). Lazy-loaded from `SKILL.md` Section 2.
 
-> **Parallel execution:** Dispatch Stages 1-7 as parallel Task agents — each stage scans an independent data source and returns counts, flags, and recommendations. The orchestrator assembles the dashboard after all agents complete.
+> **Parallel execution:** Dispatch Stages 1-7 (including Stage 4.5) as parallel Task agents — each stage scans an independent data source and returns counts, flags, and recommendations. The orchestrator assembles the dashboard after all agents complete.
 >
 > **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input (scope + path + literal output template, no conversation), status line first (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`), then Template A.
 >
-> **Model tier:** Fast (Haiku) — each stage scan is a mechanical read/grep over a single data source (INBOX, DEFERRED, design docs, specs, plans, registry). No synthesis at the per-stage level; the orchestrator assembles the dashboard.
+> **Model tier:** Fast (Haiku) — each stage scan is a mechanical read/grep over a single data source (INBOX, DEFERRED, design docs, specs, plans, registry, current PR via gh). No synthesis at the per-stage level; the orchestrator assembles the dashboard.
 >
 > **Output template (each agent must follow exactly):**
 >
@@ -64,6 +64,15 @@ Stage-by-stage scan procedure run by `/claude-tweaks:help` (default invocation, 
 - Check frontmatter for `status: in-progress`
 - These may need `/claude-tweaks:build` resumed or `/claude-tweaks:review` run
 
+## Stage 4.5: Current PR (GitHub)
+
+Scan per `_shared/github-pr-scan.md`, **`current-pr`** scope. The dispatcher inlines that file's Detection Ladder, `current-pr` scope section, and Output Contract into this agent's prompt — subagents cannot read sibling files.
+
+- Detection ladder runs first — any failure emits a single info row (`GitHub scan skipped — {reason}`) and the stage completes normally (fail-open, never BLOCKED)
+- Current branch's PR: review decision, failing/pending CI checks, unresolved review-thread count, linked issues
+- Repo-wide stale-PR count (total open, count stale) — routed to Stage 7's maintenance signals, not the Current PR dashboard section
+- No PR on the branch → single info row (`No open PR for current branch`); the dashboard omits the Current PR section
+
 ## Stage 5: Specs Awaiting Review
 
 - Find specs that appear fully implemented but haven't been reviewed yet
@@ -76,6 +85,7 @@ Stage-by-stage scan procedure run by `/claude-tweaks:help` (default invocation, 
 ## Stage 7: Maintenance Signals
 
 - INBOX has 10+ items → suggest `/claude-tweaks:tidy`
+- Stage 4.5 reports stale open PRs (>4 weeks without updates) → suggest `/claude-tweaks:tidy` (Step 4.8 audits the PR backlog)
 - Plans older than 4 weeks with no matching spec progress → flag
 - More than 3 design docs unspecified → suggest a `/claude-tweaks:specify` session
 - Doc registry exists but has stale entries or gaps → suggest `/claude-tweaks:tidy` (Step 4.6 audits registry health)
@@ -99,6 +109,17 @@ Stage-by-stage scan procedure run by `/claude-tweaks:help` (default invocation, 
 | Specs in progress | {N} | Resume `/claude-tweaks:build` or check status |
 | Specs awaiting review | {N} | `/claude-tweaks:review {number}` |
 | Specs awaiting wrap-up | {N} | `/claude-tweaks:wrap-up {number}` |
+
+### Current PR — #{N} {title}
+
+*(Omit this section when Stage 4.5 reports no open PR or the GitHub scan was skipped.)*
+
+| Signal | State | Action |
+|--------|-------|--------|
+| Review decision | {APPROVED / CHANGES_REQUESTED / REVIEW_REQUIRED} | {Address review threads / —} |
+| CI checks | {N failing, M pending} | {Fix before merge / —} |
+| Unresolved threads | {N} | {Address or resolve / —} |
+| Linked issues | {#12, #14} | Closed on merge |
 
 ### Ready to Build (priority order)
 | Spec | Title | Tier | Has Plan? |
