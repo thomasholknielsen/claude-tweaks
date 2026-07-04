@@ -76,6 +76,9 @@ If the build used worktree git strategy, clean up the worktree directory:
    `Fixes #{issue}` lines — one per issue — in the PR body (PR option) or the merge commit
    message (merge option). The user's merge/push closes the issues; the agent never runs
    `gh issue close`.
+   In `current-branch` mode (no worktree, no branch finish) the carrier is the final wrap-up
+   commit message — include the same `Fixes #{issue}` lines there; GitHub closes the issues
+   when that commit reaches the default branch.
 3. Remove the worktree: `git worktree remove {path}`.
 4. If the branch was merged (not kept for PR), delete it: `git branch -d {branch}`.
 
