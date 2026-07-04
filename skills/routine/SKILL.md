@@ -100,3 +100,56 @@ console_url: "<url from the create response>"
 ```
 
 Report the console URL to the user.
+
+### UPDATE `<skill>`
+
+**Step 1.** Require an existing `.claude-tweaks/routines/{routine_name}.yml` for the current project (routed here automatically from CREATE's idempotency check, or invoked directly). If none exists, tell the user to run `create <skill>` first and stop.
+
+**Step 2.** Re-read the current template. Compare its `template_version` against the instantiated record's `template_version` — if they match and the user hasn't asked to change anything else, report "already in sync" and stop.
+
+**Step 3.** Re-resolve repo URL / environment / schedule using the same procedure as CREATE Steps 3-5, but pre-fill each default from the existing record instead of asking from scratch.
+
+**Step 4.** Assemble the body the same way as CREATE Step 6, then show a diff between the recorded config (schedule, template version, resolved values) and the freshly assembled one. If nothing changed, report that and stop.
+
+**Step 5.** Review gate — same standard as CREATE Step 7: show the diff, confirm explicitly before acting.
+
+If `--dry-run` was passed: show the diff and stop. Do not call `RemoteTrigger`. Do not rewrite the instantiated record.
+
+**Step 6.** Call `RemoteTrigger {action: "update", trigger_id: <record.routine_id>, body: <assembled body>}`.
+
+**Step 7.** Rewrite the instantiated record with the new `template_version` and a fresh `created_at` timestamp (this field doubles as "last written at").
+
+### STATUS `<skill>`
+
+**Step 1.** Read `.claude-tweaks/routines/{routine_name}.yml`. If missing, report that no routine has been created for `<skill>` in this project and suggest `create <skill>`. Stop.
+
+**Step 2.** Call `RemoteTrigger {action: "get", trigger_id: <record.routine_id>}` for live state — enabled/disabled, schedule, and any last/next run fields the response carries.
+
+**Step 3.** Compare the record's `template_version` against the current template file's `template_version`. If they differ, flag it: "this routine was created from template v{N}; the template is now at v{M} — run `update {skill}` to re-sync."
+
+Report both the live state and the drift check together.
+
+## Next Actions
+
+1. `/claude-tweaks:routine status <skill>` — check on a routine you just created. **(Recommended right after `create`.)**
+2. `/schedule` — inspect or run any routine (including ones this skill created) via the built-in conversational flow; also the only path to delete one.
+3. `/claude-tweaks:routine update <skill>` — re-sync after the template changes.
+
+## Anti-Patterns
+
+| Pattern | Why It Fails |
+|---------|--------------|
+| Writing `environment_id` or a repo URL into a skill's `routine-template.yml` | Templates ship with the plugin across every project and account — baking in one account's environment or one project's repo makes the template wrong everywhere else. |
+| Skipping the review gate because the assembled body "looks right" | `RemoteTrigger create` has no delete counterpart — a mistaken routine runs on a live schedule until manually removed at claude.ai/code/routines. |
+| Creating a second routine when an instantiated record already exists | Always check `.claude-tweaks/routines/{name}.yml` first and route to `update` — duplicate routines double-run the same work. |
+| Committing account-specific values into the instantiated record | The record schema deliberately excludes `environment_id` and MCP credentials — it's meant to be safe to commit. |
+| Treating `--dry-run`'s assembled body as already created | Nothing is created, updated, or written until the non-dry-run path completes its final API call and record write. |
+| Caching `environment_id` under `~/.claude-tweaks/` | That path is harness-owned runtime state, not skill-owned — resolve it fresh via `RemoteTrigger list` each time instead. |
+
+## Relationship to Other Skills
+
+| Skill | Relationship |
+|-------|-------------|
+| `/claude-tweaks:recon` | Recon is this skill's first consumer — `skills/recon/routine-template.yml` is the reference template; recon's own SKILL.md points here instead of documenting manual `/schedule` setup. |
+| `/schedule` (built-in) | `/routine` assembles the same `RemoteTrigger` body `/schedule` would build conversationally, but non-interactively from a template. `/schedule` remains the tool for one-off/exploratory routines and for listing, running now, or deleting a routine. |
+| `skills/_shared/routine-template-schema.md` | Canonical schema for both the template and the instantiated record — referenced, not duplicated, here. |
