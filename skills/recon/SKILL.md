@@ -309,7 +309,7 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `/claude-tweaks:specify` | Recon findings are pre-specs — a filed `recon` issue body is `/specify`-shaped (Current State / Deliverables / Acceptance Criteria), so `/specify` consumes it with near-zero translation. |
 | `/claude-tweaks:capture` | Fuzzy or below-threshold findings route to INBOX via `/capture` instead of inflating the tracker. |
 | `/claude-tweaks:tidy` | `/tidy` audits the backlog (INBOX, deferred, specs); recon-filed issues are another input it folds into a hygiene pass. |
-| `/claude-tweaks:flow` | `/flow --from-recon` pulls the `recon`-labelled issues this skill files and runs them as a multi-spec batch (derive specs via `/specify` -> build/test/review/polish/wrap-up). |
+| `/claude-tweaks:flow` | `/flow --from-recon` pulls the `recon`-labelled issues this skill files and runs them as a multi-spec batch (derive specs via `/specify` -> build/test/review/polish/wrap-up). Batch consumers claim each issue per `_shared/issue-claims.md` before deriving specs, so concurrent runs never double-build. |
 | `/claude-tweaks:review` | `/review` judges diffs reactively; `/recon` judges latent code proactively. Both reuse the same criteria fragments from `skills/_shared/`. |
 | `/claude-tweaks:deepen` | `/deepen` applies the architecture-depth criterion reactively to code you are changing; `/recon` applies it proactively on a schedule. Both read `criteria-architecture-depth.md`. |
 | `/claude-tweaks:routine` | `/routine create recon` instantiates recon's `routine-template.yml` into a live, scheduled cloud Routine — the mechanism behind this skill's own "Routine Configuration" section. |

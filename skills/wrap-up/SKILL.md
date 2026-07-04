@@ -393,3 +393,4 @@ When `$PIPELINE_RUN_DIR` is unset, `/wrap-up` runs standalone — render Next Ac
 | `/claude-tweaks:deepen` | Interface trade-offs /deepen flags `[ADR-candidate]` are picked up by Step 6.3 and run through the 3-factor gate for possible ADR creation |
 | `_shared/decision-records.md` | Canonical 3-factor ADR gate, location convention, and template applied by Step 6.3 |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
+| `_shared/issue-claims.md` | Cleanup item 8 (Section E of `cleanup-procedures.md`) releases claims for specs with `recon-issue:` frontmatter, with the branch outcome as the release reason. |
