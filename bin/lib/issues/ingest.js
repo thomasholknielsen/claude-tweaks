@@ -32,9 +32,9 @@ function isFormShaped(body) {
   return SECTION_RES.every((re) => re.test(body));
 }
 
-// opts: { issuesJson = [], label?, numbers?, minSeverity? }. Returns brief[]:
+// opts: { issuesJson = [], label?, numbers?, minSeverity?, requireLabels? }. Returns brief[]:
 // [{ number, title, body, fingerprint, severity, shape }].
-function issuesToBriefs({ issuesJson = [], label, numbers, minSeverity } = {}) {
+function issuesToBriefs({ issuesJson = [], label, numbers, minSeverity, requireLabels } = {}) {
   const floor = minSeverity != null ? SEVERITY_RANK[minSeverity] : null;
   const wanted = numbers != null ? new Set(numbers) : null;
   const briefs = [];
@@ -42,6 +42,7 @@ function issuesToBriefs({ issuesJson = [], label, numbers, minSeverity } = {}) {
     if (wanted && !wanted.has(issue.number)) continue;
     const names = labelNames(issue);
     if (label && !names.includes(label)) continue;
+    if (requireLabels && requireLabels.length && !requireLabels.every((r) => names.includes(r))) continue;
 
     const severity = severityOf(names);
     if (floor != null && (SEVERITY_RANK[severity] ?? SEVERITY_RANK.info) > floor) continue;

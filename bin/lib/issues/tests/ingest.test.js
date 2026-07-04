@@ -79,3 +79,27 @@ test('pullReconIssues still defaults to the recon label (wrapper behavior)', () 
   assert.strictEqual(briefs[0].severity, 'high');
   assert.strictEqual(briefs[0].shape, 'form');
 });
+
+test('requireLabels demands every listed label (AND semantics)', () => {
+  const briefs = issuesToBriefs({ requireLabels: ['agent:eligible'], issuesJson: [
+    issue({ number: 1, labels: ['agent:go', 'agent:eligible'] }),
+    issue({ number: 2, labels: ['agent:go'] }),
+  ] });
+  assert.deepStrictEqual(briefs.map((b) => b.number), [1]);
+});
+
+test('requireLabels combines with the label filter', () => {
+  const briefs = issuesToBriefs({ label: 'agent:go', requireLabels: ['agent:eligible'], issuesJson: [
+    issue({ number: 1, labels: ['agent:go', 'agent:eligible'] }),
+    issue({ number: 2, labels: ['agent:eligible'] }), // lacks agent:go
+    issue({ number: 3, labels: ['agent:go'] }),       // lacks agent:eligible
+  ] });
+  assert.deepStrictEqual(briefs.map((b) => b.number), [1]);
+});
+
+test('requireLabels absent or empty has no effect', () => {
+  const all = issuesToBriefs({ issuesJson: [issue({ number: 1 })] });
+  const empty = issuesToBriefs({ requireLabels: [], issuesJson: [issue({ number: 1 })] });
+  assert.strictEqual(all.length, 1);
+  assert.strictEqual(empty.length, 1);
+});
