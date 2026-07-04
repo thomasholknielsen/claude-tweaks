@@ -13,7 +13,7 @@ Ships with the plugin. Plugin-owned, project-agnostic, account-agnostic. NEVER c
 | Field | Type | Required | Meaning |
 |---|---|---|---|
 | `template_version` | integer | yes | Bumped whenever this file's fields change. Instantiated records capture the version they were created from; `/claude-tweaks:routine status` compares the template's current version against the recorded version to detect drift. |
-| `routine_name` | string | yes | Base name used for both the created routine's `name` field and the instantiated record's filename (`.claude-tweaks/routines/{routine_name}.yml`). |
+| `routine_name` | string | yes | Base name used for both the created routine's `name` field and the instantiated record's filename (`.claude-tweaks/routines/{routine_name}.yml`). Not guaranteed unique account-wide — two unrelated routines can share a display name. `routine_id` (not this name) is the actual identity anchor when inspecting live routines. |
 | `prompt` | string | yes | The exact kickoff message sent to the cloud session on each firing — must be self-contained (the cloud session starts with zero conversation history). |
 | `model` | string | yes | Default model for the routine's session (e.g. `claude-sonnet-5`). |
 | `allowed_tools` | array of strings | yes | Tool allowlist for the cloud session, e.g. `[Bash, Read, Grep, Glob]`. |

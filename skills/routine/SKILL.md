@@ -82,7 +82,7 @@ Normalize to full HTTPS the same way `/schedule` does: accept `org/repo`, `git@g
 
 If `template.mcp_connections` is non-empty, add a top-level `mcp_connections` array with `{connector_uuid, name, url}` entries (same shape `/schedule` uses) — warn the user if a named connector isn't currently connected, and direct them to https://claude.ai/customize/connectors.
 
-**Step 7 — Review gate.** Show the full assembled body before doing anything with it. This creates live, billed infrastructure with no delete API — always confirm explicitly here, regardless of how automated everything upstream was.
+**Step 7 — Review gate.** Show the full assembled body before doing anything with it, along with the template's `notes` field (if present) so the user sees any tuning guidance before confirming. This creates live, billed infrastructure with no delete API — always confirm explicitly here, regardless of how automated everything upstream was.
 
 If `--dry-run` was passed: print the assembled body and stop. Do not call `RemoteTrigger`. Do not write an instantiated record.
 
@@ -105,7 +105,7 @@ Report the console URL to the user.
 
 **Step 1.** Require an existing `.claude-tweaks/routines/{routine_name}.yml` for the current project (routed here automatically from CREATE's idempotency check, or invoked directly). If none exists, tell the user to run `create <skill>` first and stop.
 
-**Step 2.** Re-read the current template. Compare its `template_version` against the instantiated record's `template_version` — if they match and the user hasn't asked to change anything else, report "already in sync" and stop.
+**Step 2.** Re-read the current template at `${CLAUDE_PLUGIN_ROOT}/skills/{skill}/routine-template.yml`. Compare its `template_version` against the instantiated record's `template_version` — if they match and the user hasn't asked to change anything else, report "already in sync" and stop.
 
 **Step 3.** Re-resolve repo URL / environment / schedule using the same procedure as CREATE Steps 3-5, but pre-fill each default from the existing record instead of asking from scratch.
 
@@ -117,15 +117,15 @@ If `--dry-run` was passed: show the diff and stop. Do not call `RemoteTrigger`. 
 
 **Step 6.** Call `RemoteTrigger {action: "update", trigger_id: <record.routine_id>, body: <assembled body>}`.
 
-**Step 7.** Rewrite the instantiated record with the resolved schedule, the new `template_version`, and a fresh `created_at` timestamp (this field doubles as "last written at").
+**Step 7.** Rewrite the instantiated record with the resolved schedule, the new `template_version`, and a fresh `created_at` timestamp (this field doubles as "last written at") — preserving `routine_id`, `template`, and `console_url` from the existing record.
 
 ### STATUS `<skill>`
 
-**Step 1.** Read `.claude-tweaks/routines/{routine_name}.yml`. If missing, report that no routine has been created for `<skill>` in this project and suggest `create <skill>`. Stop.
+**Step 1.** Read the template at `${CLAUDE_PLUGIN_ROOT}/skills/{skill}/routine-template.yml` to resolve `routine_name` (the instantiated record's filename depends on it), then read `.claude-tweaks/routines/{routine_name}.yml`. If missing, report that no routine has been created for `<skill>` in this project and suggest `create <skill>`. Stop.
 
-**Step 2.** Call `RemoteTrigger {action: "get", trigger_id: <record.routine_id>}` for live state — enabled/disabled, schedule, and any last/next run fields the response carries.
+**Step 2.** Call `RemoteTrigger {action: "get", trigger_id: <record.routine_id>}` for live state — enabled/disabled, schedule, and any last/next run fields the response carries. If the `get` call fails because the routine no longer exists, report the record as stale and offer to delete `.claude-tweaks/routines/{routine_name}.yml` and re-run `create <skill>`.
 
-**Step 3.** Compare the record's `template_version` against the current template file's `template_version`. If they differ, flag it: "this routine was created from template v{N}; the template is now at v{M} — run `update {skill}` to re-sync."
+**Step 3.** Compare the record's `template_version` against the current template file's (`${CLAUDE_PLUGIN_ROOT}/skills/{skill}/routine-template.yml`, already read in Step 1) `template_version`. If they differ, flag it: "this routine was created from template v{N}; the template is now at v{M} — run `update {skill}` to re-sync."
 
 Report both the live state and the drift check together.
 
