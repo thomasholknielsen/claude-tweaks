@@ -117,7 +117,7 @@ If `--dry-run` was passed: show the diff and stop. Do not call `RemoteTrigger`. 
 
 **Step 6.** Call `RemoteTrigger {action: "update", trigger_id: <record.routine_id>, body: <assembled body>}`.
 
-**Step 7.** Rewrite the instantiated record with the new `template_version` and a fresh `created_at` timestamp (this field doubles as "last written at").
+**Step 7.** Rewrite the instantiated record with the resolved schedule, the new `template_version`, and a fresh `created_at` timestamp (this field doubles as "last written at").
 
 ### STATUS `<skill>`
 
@@ -132,7 +132,7 @@ Report both the live state and the drift check together.
 ## Next Actions
 
 1. `/claude-tweaks:routine status <skill>` — check on a routine you just created. **(Recommended right after `create`.)**
-2. `/schedule` — inspect or run any routine (including ones this skill created) via the built-in conversational flow; also the only path to delete one.
+2. `/schedule` — inspect, run, or list any routine (including ones this skill created) via the built-in conversational flow. (Deletion always happens at claude.ai/code/routines.)
 3. `/claude-tweaks:routine update <skill>` — re-sync after the template changes.
 
 ## Anti-Patterns
@@ -151,5 +151,5 @@ Report both the live state and the drift check together.
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:recon` | Recon is this skill's first consumer — `skills/recon/routine-template.yml` is the reference template; recon's own SKILL.md points here instead of documenting manual `/schedule` setup. |
-| `/schedule` (built-in) | `/routine` assembles the same `RemoteTrigger` body `/schedule` would build conversationally, but non-interactively from a template. `/schedule` remains the tool for one-off/exploratory routines and for listing, running now, or deleting a routine. |
+| `/schedule` (built-in) | `/routine` assembles the same `RemoteTrigger` body `/schedule` would build conversationally, but non-interactively from a template. `/schedule` remains the tool for one-off/exploratory routines and for listing, running, or inspecting a routine. Deletion always requires the web console at claude.ai/code/routines. |
 | `skills/_shared/routine-template-schema.md` | Canonical schema for both the template and the instantiated record — referenced, not duplicated, here. |
