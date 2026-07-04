@@ -36,7 +36,19 @@ Before the merge/finish handoff begins, clear each run's worktree assignment —
 
 For each completed branch (in order):
 
-1. `git merge {branch}` into the base branch
+1. Merge into the base branch. For from-recon runs (any spec on the branch has `recon-issue:`
+   frontmatter), the merge commit message must carry the closing keywords — one line per issue
+   (see "Close-via-merge" in `_shared/issue-claims.md`):
+
+   ```bash
+   git merge --no-ff {branch} -m "Merge {branch} — specs {list}
+
+   Fixes #{issue}
+   Fixes #{issue2}"
+   ```
+
+   Otherwise a plain `git merge {branch}` is fine. The issues close when the user pushes the
+   base branch to the default remote branch.
 2. **If merge succeeds** — continue to the next branch
 3. **If merge conflicts** — present the conflicts:
    ```

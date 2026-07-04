@@ -69,6 +69,15 @@ Pipeline complete for specs 157, 159, 160. The pipeline auto-resolved {N} decisi
 | 11 | 157 | doc | docs/api.md | Document new /auth/refresh endpoint |
 | 12 | 159 | claude.md | Commands | Add `npm run lint:fix` to test workflow |
 
+#### Issue closures (from-recon runs — closes on YOUR merge/push, not by the pipeline)
+
+| # | Spec | Issue | Closes via |
+|---|---|---|---|
+| 13 | 157 | #84 | `Fixes #84` in the reconciliation merge commit — fires on push to the default branch |
+
+Issues resolved without a merge (wontfix/duplicate) list a manual `gh issue close` command
+instead — a user action. Omit this section entirely for runs without `recon-issue:` specs.
+
 #### Not run / Failed (if any spec didn't complete cleanly)
 
 | Spec | Status | Reason | Worktree |
@@ -101,7 +110,7 @@ Below each table, show the full patch / diff for each pending item.
 3. Apply config updates (docs, CLAUDE.md, rules)
 4. Commit with a multi-spec wrap-up message that lists which specs contributed which changes
 5. **Tear down the shared ephemeral dev server** if one was started (`{parent-run-dir}/ephemeral-server.txt` — see `wrap-up/cleanup-procedures.md` Section D). It was kept up across all specs (per-spec wrap-ups deferred it under `MULTISPEC_REVIEW_DEFER=1`); kill it once here.
-6. Release each issue claim this run holds (specs with `recon-issue:` frontmatter): use the outcome-mapped reason and procedure from `wrap-up/cleanup-procedures.md` Section E (merged → `merged: spec {N}`, PR → `pr-opened: spec {N}`, discarded → `abandoned: spec {N}`). Skip briefs already released at console decline. Log each release to `decisions.md`.
+6. Release each issue claim this run holds (specs with `recon-issue:` frontmatter): use the outcome-mapped reason and procedure from `wrap-up/cleanup-procedures.md` Section E (merged → `merged: spec {spec}`, PR → `pr-opened: spec {spec}`, discarded → `abandoned: spec {spec}`). Skip briefs already released at console decline. Log each release to `decisions.md`. Include the work-ready `link` (the reconciliation merge commit sha, or the PR URL) via `releasePayload`'s `link` param, and honor the ownership check in Section E — a successor's claim is never deleted.
 7. Archive the parent run dir to `.claude-tweaks/pipelines/archive/{run-id}/` (subdirs included)
 
 ## On override (option 2)
@@ -110,7 +119,7 @@ Below each table, show the full patch / diff for each pending item.
 2. Apply, skip, or modify per item
 3. For items the user wants reverted: `git revert {commit}` (one revert commit per item)
 4. Tear down the shared ephemeral dev server if one was started (`{parent-run-dir}/ephemeral-server.txt` — see `wrap-up/cleanup-procedures.md` Section D)
-5. Release each issue claim this run holds (specs with `recon-issue:` frontmatter): use the outcome-mapped reason and procedure from `wrap-up/cleanup-procedures.md` Section E (merged → `merged: spec {N}`, PR → `pr-opened: spec {N}`, discarded → `abandoned: spec {N}`). Skip briefs already released at console decline. Log each release to `decisions.md`.
+5. Release each issue claim this run holds (specs with `recon-issue:` frontmatter): use the outcome-mapped reason and procedure from `wrap-up/cleanup-procedures.md` Section E (merged → `merged: spec {spec}`, PR → `pr-opened: spec {spec}`, discarded → `abandoned: spec {spec}`). Skip briefs already released at console decline. Log each release to `decisions.md`. Include the work-ready `link` (the reconciliation merge commit sha, or the PR URL) via `releasePayload`'s `link` param, and honor the ownership check in Section E — a successor's claim is never deleted.
 6. Archive the parent run dir
 
 ## On stop (option 3)
