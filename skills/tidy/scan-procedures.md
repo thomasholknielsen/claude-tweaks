@@ -148,6 +148,17 @@ batch approval — breaking a lock is never autonomous in /tidy.
 
 → Collect each as: `[claim] refs/claims/issue-{n} — {status} — {recommendation}`
 
+## Step 4.8: Audit GitHub PRs and Issues
+
+Scan per `_shared/github-pr-scan.md`, **`repo-wide`** scope. The dispatcher inlines that file's Detection Ladder, `repo-wide` scope section (including its findings table), and Output Contract into this agent's prompt. The detection ladder makes this fail-open — skip with a single info row when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
+
+The `repo-wide` findings table maps each finding to a recommendation from the Action Vocabulary: stale/superseded open PRs → Close (GitHub); threads addressed by later commits → Resolve thread; unaddressed threads and still-valid recon issues → Capture or a suggested local command; merged PRs with surviving local branches → corroborates Step 4.5 `[git]` rows (the dispatcher merges overlapping recommendations at assembly).
+
+GitHub mutations recommended here (Close (GitHub), Resolve thread) execute only after Step 6 batch approval and are staged at every aggressiveness level in auto mode — outward-facing actions are never autonomous in /tidy.
+
+→ Collect each as: `[pr] PR #{n}: {title} — {issue} — {recommendation}`
+→ Collect each as: `[gh-issue] #{n}: {title} — {issue} — {recommendation}`
+
 ## Step 5: Spec Sizing Review
 
 For specs not yet built, check sizing:
@@ -196,6 +207,6 @@ Patterns and health observations are informational — they surface systemic iss
 
 | Collection prefix | Renders in Step 6 table | Notes |
 |---|---|---|
-| `[inbox]`, `[deferred]`, `[spec]`, `[dependency]`, `[doc]`, `[plan]`, `[git]`, `[registry]`, `[claim]` | Actions table | Each row gets a pre-filled recommendation. |
+| `[inbox]`, `[deferred]`, `[spec]`, `[dependency]`, `[doc]`, `[plan]`, `[git]`, `[registry]`, `[claim]`, `[pr]`, `[gh-issue]` | Actions table | Each row gets a pre-filled recommendation. |
 | `[pattern]` | Cross-Spec Patterns table | Informational; presented separately. |
 | `[health]` | Summary section | Project-level observations. |
