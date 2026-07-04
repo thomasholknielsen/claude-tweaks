@@ -22,7 +22,7 @@ Ships with the plugin. Plugin-owned, project-agnostic, account-agnostic. NEVER c
 | `default_schedule.description` | string | yes | Human-readable intent (e.g. "off-peak anchor, UTC — confirm against your local timezone at creation time"). |
 | `notes` | string | no | Free-text guidance for whoever instantiates this (budget flags, tuning advice, links to the owning skill's own docs). |
 
-## Instantiated record — `.claude-tweaks/routines/{routine_name}.yml`
+## Instantiated record — `.claude-tweaks/routines/{prefixed-name}.yml`
 
 Written per-project, after a successful `RemoteTrigger create` or `update`. Project-owned. Safe to commit — deliberately excludes anything account-specific.
 
