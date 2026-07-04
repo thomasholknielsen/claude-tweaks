@@ -32,7 +32,7 @@ Not for: one-off or exploratory routines you don't want templated (use `/schedul
 | `create <skill>` | Instantiate `<skill>`'s routine template into a live routine for the current project. Routes to the UPDATE workflow automatically if an instantiated record already exists for this project+skill. |
 | `update <skill>` | Re-sync an existing routine against its (possibly changed) template. |
 | `status <skill>` | Show the instantiated record alongside live routine state. |
-| `--dry-run` (combine with `create`/`update`) | Assemble and display the `RemoteTrigger` body; never call the tool, never write or rewrite the instantiated record. |
+| `--dry-run` (combine with `create`/`update`) | Assemble and display the `RemoteTrigger` body; never make a `create`/`update` call (read-only `list`/`get` calls to resolve values are still permitted), never write or rewrite the instantiated record. |
 
 ## Workflow
 
