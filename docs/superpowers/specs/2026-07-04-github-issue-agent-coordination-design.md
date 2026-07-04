@@ -142,7 +142,7 @@ Phase 1's whole-branch review triaged these as defer-to-Phase-2; recorded here s
 
 ## Phase 3 — Generic ingestion
 
-**Status: implemented in v5.5.0** (selectors, ingest module, issue form, freeform translation, current-branch carrier).
+**Status: implemented in v5.6.0** (selectors, ingest module, issue form, freeform translation, current-branch carrier).
 
 **New `/flow` selectors.** `--from-issues <n,...>` and `--from-label <label>` generalize the recon-only entry point. `--from-recon` becomes a preserved alias for `--from-label recon` with severity-filter semantics intact. `--min-severity` applies only when issues carry `recon:<severity>`-style labels; unlabeled issues default to no severity.
 
@@ -157,7 +157,7 @@ Phase 1's whole-branch review triaged these as defer-to-Phase-2; recorded here s
 
 Claiming (Phase 1) applies to all ingested issues identically.
 
-**Carried from Phase 2 review:** current-branch mode has no closing-keyword carrier — `--from-recon` in `current-branch` mode produces neither a merge commit nor a PR, so its issues never auto-close and Section E's outcome mapping has no input. Phase 3 must either gate `--from-recon` to worktree mode at `/flow` validation, or define the carrier (e.g. `Fixes #{issue}` lines in the final wrap-up commit, which closes on push when the current branch is the default branch). **Resolved in v5.5.0:** the carrier is defined — `Fixes #{issue}` lines in the final wrap-up commit message — and Section E maps current-branch releases to `merged: spec {spec}` with the wrap-up commit sha as `$LINK`.
+**Carried from Phase 2 review:** current-branch mode has no closing-keyword carrier — `--from-recon` in `current-branch` mode produces neither a merge commit nor a PR, so its issues never auto-close and Section E's outcome mapping has no input. Phase 3 must either gate `--from-recon` to worktree mode at `/flow` validation, or define the carrier (e.g. `Fixes #{issue}` lines in the final wrap-up commit, which closes on push when the current branch is the default branch). **Resolved in v5.6.0:** the carrier is defined — `Fixes #{issue}` lines in the final wrap-up commit message — and Section E maps current-branch releases to `merged: spec {spec}` with the wrap-up commit sha as `$LINK`.
 
 ## Phase 4 — Dispatch + policy
 
