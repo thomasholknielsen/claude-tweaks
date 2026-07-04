@@ -107,6 +107,8 @@ Claiming precedes `/specify` because the wasted work being prevented includes sp
 
 ## Phase 2 — Close the loop
 
+**Status: implemented in v5.4.0** (plus the addendum's five hardening items).
+
 **Checkpoint comments** — three, not a running commentary:
 
 - *claimed* (Phase 1 posts it)
@@ -129,6 +131,8 @@ The agent never closes an issue; the user's merge/push does. This satisfies the 
 ### Phase 2 addendum — hardening items carried from Phase 1's final review (2026-07-04)
 
 Phase 1's whole-branch review triaged these as defer-to-Phase-2; recorded here so they survive the worktree teardown:
+
+**All five items implemented in v5.4.0.**
 
 1. **Ownership check before ref delete** — Section E and console-decline releases delete `refs/claims/issue-N` unconditionally; a >TTL-stalled run that resumes can delete a successor's lock. Before deleting, confirm `claimStatus().claim.runId` is this run's; otherwise skip and log. (Related design characteristic: `claimStatus` release-folding is runId-agnostic.)
 2. **Placeholder disambiguation** — `{N}` means spec number in release reasons but issue number in `refs/claims/issue-{N}` and `{N+1}` is a list index in failure cards; rename to `{spec}` / `{issue}` at the next touch of those files.
