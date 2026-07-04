@@ -63,7 +63,7 @@ Subagents cannot read sibling files, so dispatchers inline the relevant scope se
 
 ## Section C — `/tidy` changes
 
-- **`scan-procedures.md`: new Step 4.7 — Audit GitHub PRs and Issues.** Parallel scan wave, Fast tier, `repo-wide` scope inlined. Findings:
+- **`scan-procedures.md`: new Step 4.8 — Audit GitHub PRs and Issues.** (4.7 is taken — the issue-claims sweep landed there in v5.3.0.) Parallel scan wave, Fast tier, `repo-wide` scope inlined. Findings:
 
   | Finding | Recommendation |
   |---------|---------------|
@@ -83,9 +83,9 @@ Subagents cannot read sibling files, so dispatchers inline the relevant scope se
   | **Resolve thread** | GraphQL `resolveReviewThread` mutation — only with commit evidence that the concern was addressed |
   | **Capture** | Add structured entry to `specs/INBOX.md` referencing the PR/thread URL — the local-followup escape hatch |
 
-- **Aggressiveness routing (Step 6): one overriding rule** — all GitHub mutations (Close, Resolve thread) **Stage at every aggressiveness level** in auto mode; outward-facing actions are never-auto per the auto-mode contract's reversibility floor. Interactive mode: they sit in the batch table and execute on approval. `Capture` routes like Merge (stage at conservative, auto at moderate+).
+- **Aggressiveness routing (Step 6): one overriding rule** — all GitHub mutations (Close, Resolve thread) **Stage at every aggressiveness level** in auto mode; outward-facing actions are never-auto per the auto-mode contract's reversibility floor. Interactive mode: they sit in the batch table and execute on approval. `Capture` also stages at every level — it writes to `specs/INBOX.md`, and INBOX/DEFERRED writes are on the auto-mode contract's never-silenced list.
 - **Step 7.5 verification:** GitHub actions verified by re-querying state (`gh pr view --json state`, etc.) before the checklist renders.
-- **Bookkeeping in existing files:** add Step 4.7 to SKILL.md's scan-steps table and the parallel-dispatch list (Steps 1–4.7); add `[pr]` / `[gh-issue]` to `scan-procedures.md`'s Collection routing table (both route to the Actions table).
+- **Bookkeeping in existing files:** add Step 4.8 to SKILL.md's scan-steps table and the parallel-dispatch list (Steps 1–4.8); add `[pr]` / `[gh-issue]` to `scan-procedures.md`'s Collection routing table (both route to the Actions table).
 - **Anti-Patterns: two new rows** — closing a PR/issue without a comment (silent closes destroy the audit trail); resolving review threads without commit evidence (resolving unaddressed feedback is worse than leaving it open).
 
 ## Section D — Cross-cutting
