@@ -48,7 +48,7 @@ Not for: one-off or exploratory routines you don't want templated (use `/schedul
 git remote get-url origin
 ```
 
-Normalize to full HTTPS the same way `/schedule` does: accept `org/repo`, `git@github.com:org/repo.git`, or `https://github.com/org/repo` and produce `https://github.com/{org}/{repo}` (strip any `.git` suffix, convert the SSH form).
+Normalize to full HTTPS the same way `/schedule` does: accept `org/repo`, `git@github.com:org/repo.git`, or `https://github.com/org/repo` and produce `https://github.com/{org}/{repo}` (strip any `.git` suffix, convert the SSH form). If the command fails (no `origin` remote, not a git repo, etc.), stop and ask the user for the repo URL directly instead of proceeding with an empty or invalid value.
 
 **Step 4 — Resolve `environment_id`.** Load the tool with `ToolSearch select:RemoteTrigger`, then call `{action: "list"}`. If existing routines are returned, read `job_config.ccr.environment_id` off the most recently created one and offer it as the default (let the user override). If none exist yet, ask the user directly which environment to use — present whatever environment names/IDs are available in context; if none are, ask the user to name one (they can check via `/schedule` once if unsure). Do not cache this value anywhere under `~/.claude-tweaks/` — that path is harness-owned, not skill-owned.
 
@@ -58,7 +58,7 @@ Normalize to full HTTPS the same way `/schedule` does: accept `org/repo`, `git@g
 
 ```json
 {
-  "name": "<template.routine_name, or user override>",
+  "name": "<template.routine_name>",
   "cron_expression": "<resolved cron, UTC>",
   "job_config": {
     "ccr": {
@@ -66,7 +66,7 @@ Normalize to full HTTPS the same way `/schedule` does: accept `org/repo`, `git@g
       "session_context": {
         "model": "<template.model>",
         "sources": [{"git_repository": {"url": "<resolved repo URL>"}}],
-        "allowed_tools": ["<template.allowed_tools, verbatim>"]
+        "allowed_tools": <template.allowed_tools, verbatim — this is already an array, e.g. ["Bash", "Read", "Grep", "Glob"], do not add another layer of brackets>
       },
       "events": [{"data": {
         "uuid": "<fresh lowercase v4 UUID, generated now>",
