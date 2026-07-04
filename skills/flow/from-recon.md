@@ -63,18 +63,20 @@ assembled.
    For each brief, attempt the atomic ref creation:
 
    ```bash
-   gh api "repos/{owner}/{repo}/git/refs" -f "ref=refs/claims/issue-${N}" -f "sha=${SHA}"
+   gh api "repos/{owner}/{repo}/git/refs" -f "ref=refs/claims/issue-${ISSUE}" -f "sha=${SHA}"
    ```
 
    - **201 (claimed):** post the claim comment (generate the body with `claimPayload` — see
      "The mirror" in `_shared/issue-claims.md`), keep the brief, and log:
-     `AUTO — claimed issue #{N} (refs/claims/issue-{N}) — reversible (release deletes the ref)`.
+     `AUTO — claimed issue #{issue} (refs/claims/issue-{issue}) — reversible (release deletes the ref)`.
      If the comment post fails twice, proceed anyway (the ref is the lock) and log a warning.
    - **422 (contested):** fetch the issue's comments and fold through `claimStatus` (see
      "Reading claim state"). Live claim → drop the brief; log
-     `AUTO — skipped issue #{N} — claimed by run {claim.runId}, stale after {claimedAt}+{ttlHours}h`.
+     `AUTO — skipped issue #{issue} — claimed by run {claim.runId}, stale after {claimedAt}+{ttlHours}h`.
      Stale claim → break it (delete ref, recreate — exactly one of two racing breakers gets
-     201 — then post a takeover claim comment naming the prior run id) and keep the brief.
+     201 — then post a takeover claim comment naming the prior run id — generate it with
+     `claimPayload`'s `note` param per "TTL and staleness" in `_shared/issue-claims.md`) and
+     keep the brief.
      A fold showing *released* while the ref still exists (a failed earlier ref delete) is
      treated the same way — break and keep the brief.
      Unreadable claim (no marker found) → treat as live: drop the brief, log; `/tidy` Step 4.7
@@ -94,16 +96,20 @@ assembled.
    per-spec consoles, one consolidated Review Console at the end. Nothing about the batch pipeline
    changes; `--from-recon` only sourced the spec list.
 
-5. **Close-the-loop note (Review Console).** Surface, in the consolidated Review Console, which
-   `recon` issues each merged spec resolves, with the `gh` command to close them:
+5. **Close-the-loop (Review Console).** The consolidated Review Console presents an issue-
+   closure mapping instead of close commands — issues close through the user's merge action
+   (see "Close-via-merge" in `_shared/issue-claims.md`):
 
-   ```bash
-   gh issue close <number> --comment "Resolved by spec <N> (flow --from-recon)"
-   ```
+   | Spec | Issue | Closes via |
+   |------|-------|-----------|
+   | {spec} | #{issue} | `Fixes #{issue}` in the merge commit (worktree mode) or PR body — fires when the user pushes/merges to the default branch |
 
-   Closing is a user action at the console — the pipeline never closes issues autonomously
-   (closing a GitHub issue is a non-reversible network write; see `_shared/auto-mode-contract.md`,
-   "Never-reversible").
+   The merge artifacts carry the closing keywords: `worktree-merge.md`'s reconciliation puts
+   `Fixes #{issue}` lines in the merge commit message; the single-spec PR path puts them in
+   the PR body (see `wrap-up/cleanup-procedures.md` Section C). Direct
+   `gh issue close #{issue} --comment "..."` commands surface ONLY for issues resolved
+   without a merge (wontfix, duplicate) — the user runs them; the pipeline never closes
+   issues autonomously (see `_shared/auto-mode-contract.md`, "Never-reversible").
 
    The console also lists the claims this run holds (`refs/claims/issue-{N}` per brief).
    Completed specs release at the consolidated multi-spec Review Console (see
@@ -120,5 +126,5 @@ assembled.
 |---------|-------------|
 | Filing or closing `recon` issues from inside `/flow` | `/flow --from-recon` is a *consumer* of issues. Filing belongs to `/recon`; closing is a user decision at the Review Console. |
 | Deriving specs from pulled issues without claiming them (skipping Step 2.5) | Concurrent consumers — a scheduled routine, a second machine — pull the same open issues and double-build them. The claim ref (`_shared/issue-claims.md`) is the only arbiter. |
-| Auto-closing the issue when its spec merges | Closing is a non-reversible network write — `auto` never silences it. Surface the `gh issue close` command; the user runs it. |
+| Running `gh issue close` from the pipeline | Direct closes are non-reversible network writes the agent never performs. Closing keywords in merge artifacts (`Fixes #{issue}` in the PR body or merge commit message) are sanctioned — the user's merge/push is the closing action. |
 | Pulling issues without `--state open` | Closed/`wontfix` issues are standing decisions — re-pulling them re-floods the batch with resolved work. |
