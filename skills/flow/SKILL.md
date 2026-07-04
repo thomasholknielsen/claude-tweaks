@@ -42,7 +42,7 @@ All bracketed tokens are optional and order-independent. `worktree` is the defau
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `<spec>` | Yes* | Spec number (e.g., `42`) or comma-separated spec numbers (e.g., `42,45,48`). **Design docs are not accepted** — run `/claude-tweaks:specify {design-doc}` first to decompose into specs. See Step 2.7. *Not required when `--from-recon` is set. |
+| `<spec>` | Yes* | Spec number (e.g., `42`) or comma-separated spec numbers (e.g., `42,45,48`). **Design docs are not accepted** — run `/claude-tweaks:specify {design-doc}` first to decompose into specs. See Step 2.7. *Not required when an issue-selector flag (`--from-recon`, `--from-label`, or `--from-issues`) is set. |
 | `--from-recon` | No | **Alternative spec source.** Alias for `--from-label recon` — pull open `recon`-labelled GitHub issues, turn each into a `/claude-tweaks:specify` brief, and run the derived specs through the multi-spec batch. Pair with `--min-severity <sev>` to filter. Needs the `gh` CLI (hard gate if absent). See `from-recon.md`. |
 | `--from-label <label>` | No | **Alternative spec source.** Pull ALL open issues carrying `<label>` and run them as an issue-sourced batch (claim → brief → `/specify` → multi-spec). Form-shaped bodies (Current State / Deliverables / Acceptance Criteria) convert with zero translation; freeform bodies get an LLM translation surfaced at the Review Console. Needs `gh`. See `from-recon.md`. |
 | `--from-issues <n,...>` | No | **Alternative spec source.** Pull specific open issues by number (comma-separated) regardless of labels, and run them as an issue-sourced batch. Same claim/translation behavior as `--from-label`. Needs `gh`. See `from-recon.md`. |
