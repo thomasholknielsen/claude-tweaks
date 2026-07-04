@@ -126,6 +126,16 @@ The agent never closes an issue; the user's merge/push does. This satisfies the 
 
 **`from-recon.md` anti-pattern update.** Rewrite the "Auto-closing the issue when its spec merges" row to draw the real line: closing keywords in merge artifacts are sanctioned (merge is the user's action); direct `gh issue close` by the agent stays forbidden.
 
+### Phase 2 addendum — hardening items carried from Phase 1's final review (2026-07-04)
+
+Phase 1's whole-branch review triaged these as defer-to-Phase-2; recorded here so they survive the worktree teardown:
+
+1. **Ownership check before ref delete** — Section E and console-decline releases delete `refs/claims/issue-N` unconditionally; a >TTL-stalled run that resumes can delete a successor's lock. Before deleting, confirm `claimStatus().claim.runId` is this run's; otherwise skip and log. (Related design characteristic: `claimStatus` release-folding is runId-agnostic.)
+2. **Placeholder disambiguation** — `{N}` means spec number in release reasons but issue number in `refs/claims/issue-{N}` and `{N+1}` is a list index in failure cards; rename to `{spec}` / `{issue}` at the next touch of those files.
+3. **`$TMP` vs `/tmp` alignment** — the contract's `node -e` snippets use an undefined `$TMP` (and `require()` of a relative path fails in `-e` mode); tidy Step 4.7 uses `/tmp`. Align on `/tmp` or define `TMP` in the snippet.
+4. **Takeover-comment mechanics** — the takeover must "name the prior run id" but `claimPayload` emits a fixed body; state explicitly: append a human-readable line after the generated body, never modify the marker line.
+5. **`parseClaimMarker` doc comment** — state kind-precedence (derived kind wins over marker JSON) explicitly above the function.
+
 ## Phase 3 — Generic ingestion
 
 **New `/flow` selectors.** `--from-issues <n,...>` and `--from-label <label>` generalize the recon-only entry point. `--from-recon` becomes a preserved alias for `--from-label recon` with severity-filter semantics intact. `--min-severity` applies only when issues carry `recon:<severity>`-style labels; unlabeled issues default to no severity.

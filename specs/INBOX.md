@@ -15,3 +15,11 @@ Scope: If the skill count grows or users find the simplify/deepen boundary confu
 Context: Removing the v4.2 bash-output filter exposed that CLAUDE.md's "token-saving infrastructure" label also covered the Subagent Contract, making the removal scope ambiguous. The contract's real load-bearing value is correctness (status protocol, working-directory discipline, output templates), not unmeasured token savings.
 
 Scope: Reframe `skills/_shared/subagent-output-contract.md` and its CLAUDE.md references so the contract reads as dispatch-correctness discipline, not a cost optimization — keep the mechanism, drop the "saves tokens" framing. Doc-only.
+
+## Load-tolerant statusline perf assertion
+
+**Added:** 2026-07-04 | **Category:** technical | **Related:** tests/statusline.test.js
+
+Context: `tests/statusline.test.js` "end-to-end: render under 500ms" flakes under parallel-agent load — observed 2290ms during a subagent-driven run with concurrent `npm test` suites; passes at ~125-310ms in isolation. Every future multi-agent session running the suite concurrently hits this noise.
+
+Scope: Make the perf assertion load-tolerant — options: CPU-time instead of wall-clock, load-detection multiplier, retry-once-in-isolation before failing, or skip under agent-parallel env. Needs a small design decision, not just a threshold bump.
