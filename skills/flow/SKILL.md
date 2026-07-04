@@ -43,8 +43,10 @@ All bracketed tokens are optional and order-independent. `worktree` is the defau
 | Argument | Required | Description |
 |----------|----------|-------------|
 | `<spec>` | Yes* | Spec number (e.g., `42`) or comma-separated spec numbers (e.g., `42,45,48`). **Design docs are not accepted** — run `/claude-tweaks:specify {design-doc}` first to decompose into specs. See Step 2.7. *Not required when `--from-recon` is set. |
-| `--from-recon` | No | **Alternative spec source.** Instead of spec numbers, pull open `recon`-labelled GitHub issues, turn each into a `/claude-tweaks:specify` brief, and run the derived specs through the multi-spec batch. Pair with `--min-severity <sev>` to filter. Needs the `gh` CLI (hard gate if absent). See `from-recon.md`. |
-| `--min-severity <sev>` | No | **`--from-recon` only.** Filter pulled issues by the `recon:<sev>` label (`critical`/`high`/`medium`/`low`). Default: all open `recon` issues. |
+| `--from-recon` | No | **Alternative spec source.** Alias for `--from-label recon` — pull open `recon`-labelled GitHub issues, turn each into a `/claude-tweaks:specify` brief, and run the derived specs through the multi-spec batch. Pair with `--min-severity <sev>` to filter. Needs the `gh` CLI (hard gate if absent). See `from-recon.md`. |
+| `--from-label <label>` | No | **Alternative spec source.** Pull ALL open issues carrying `<label>` and run them as an issue-sourced batch (claim → brief → `/specify` → multi-spec). Form-shaped bodies (Current State / Deliverables / Acceptance Criteria) convert with zero translation; freeform bodies get an LLM translation surfaced at the Review Console. Needs `gh`. See `from-recon.md`. |
+| `--from-issues <n,...>` | No | **Alternative spec source.** Pull specific open issues by number (comma-separated) regardless of labels, and run them as an issue-sourced batch. Same claim/translation behavior as `--from-label`. Needs `gh`. See `from-recon.md`. |
+| `--min-severity <sev>` | No | **Issue-sourced batches only.** Filter pulled issues by the `recon:<sev>` label (`critical`/`high`/`medium`/`low`). Issues without a `recon:<sev>` label rank as `info` and are excluded by any higher floor. Default: no floor. |
 | `worktree` | No | Use worktree git strategy — isolated workspace on a feature branch (this is the default for flow). See "Parallel Development with Worktrees" below. |
 | `current-branch` | No | Override the default and commit directly on the current branch instead of creating a worktree. |
 | `no-stories` | No | Skip automatic story generation even if UI files changed. By default, flow auto-generates stories when the build produces UI file changes. |
@@ -65,7 +67,7 @@ Flow always uses **subagent** execution strategy — its purpose is hands-off au
 2. **Multiple spec numbers** (e.g., `42,45,48`) → **Multi-spec mode** — runs each spec sequentially in one terminal (see Multi-Spec Sequential Flow below). For true parallel execution, use separate terminals with `worktree` mode.
 3. **Topic name** (e.g., `meal planning`) → search `specs/` for a matching spec. If found, use spec mode. If only a design doc exists at `docs/superpowers/specs/*-design.md`, **stop and route to `/claude-tweaks:specify`** (see Step 2.7) — design docs are no longer executable directly by `/flow`.
 4. **Design doc path** → **rejected** at Step 2.7 with a routing message to `/claude-tweaks:specify`. Design-mode flow was removed because it bypassed the granularity contract — design docs describe multi-phase programs, not agent-sized work units.
-5. **`--from-recon` flag** → **Recon-batch mode** — ignore any spec numbers; assemble the spec list by pulling open `recon` GitHub issues → `/specify` briefs → derived specs, then run the standard multi-spec batch. See `from-recon.md` for the full procedure.
+5. **`--from-recon` / `--from-label <label>` / `--from-issues <n,...>`** → **Issue-batch mode** — ignore any spec numbers; assemble the spec list by pulling the selected GitHub issues → claim each → `/specify` briefs → derived specs, then run the standard multi-spec batch. `--from-recon` is an alias for `--from-label recon`. See `from-recon.md` for the full procedure.
 
 ### Automatic story generation
 
