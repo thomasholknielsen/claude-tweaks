@@ -51,7 +51,7 @@ For the canonical cheat sheet — lifecycle, component, and utility commands; co
 
 *(Skip if `$ARGUMENTS` = `commands`)*
 
-Read `status-scan.md` in this skill's directory for the full parallel-dispatch procedure (Stages 1-7, dispatch contract, agent template, and dashboard rendering). The orchestrator dispatches the seven stages in parallel and assembles the dashboard after all agents complete.
+Read `status-scan.md` in this skill's directory for the full parallel-dispatch procedure (Stages 1-7, incl. Stage 4.5 current-PR scan; dispatch contract, agent template, and dashboard rendering). The orchestrator dispatches all eight stages in parallel and assembles the dashboard after all agents complete.
 
 ---
 
@@ -61,16 +61,17 @@ Read `status-scan.md` in this skill's directory for the full parallel-dispatch p
 
 ### Priority Order
 
-1. **Specs awaiting review** — review completed work before it goes stale
-2. **Specs awaiting wrap-up** — wrap up reviewed work (captures learnings while fresh)
-3. **Specs in progress** — finish what's started before starting new work
-4. **Design docs unspecified** — specify before building (don't let designs go stale)
-5. **Deferred items with met triggers** — promote before starting new work
-6. **Specs ready to build** — pick the highest-priority spec with met prerequisites
-7. **Promoted INBOX items** — items tagged `**Promoted:**` are ready for `/superpowers:brainstorming` (or `/claude-tweaks:challenge` first if they have baked-in assumptions). These have already been triaged and prioritized over unpromoted items.
-8. **INBOX review** — if inbox is stale or has 10+ items, suggest `/claude-tweaks:tidy` before new brainstorming
-9. **Challenge + Brainstorming** — if pipeline is empty and no promoted items exist, suggest promoting an INBOX item; if it has baked-in assumptions, run `/claude-tweaks:challenge` first, then `/superpowers:brainstorming`
-10. **Nothing to do** — if everything is clean, say so
+1. **Current PR blocked** — the current branch's open PR has failing CI, `CHANGES_REQUESTED`, or unresolved review threads (Stage 4.5). PR feedback is the most perishable work in the system — reviewer context decays fastest and it blocks in-flight work from merging. Recommend fixing CI, addressing threads, or resuming `/claude-tweaks:build` before anything below.
+2. **Specs awaiting review** — review completed work before it goes stale
+3. **Specs awaiting wrap-up** — wrap up reviewed work (captures learnings while fresh)
+4. **Specs in progress** — finish what's started before starting new work
+5. **Design docs unspecified** — specify before building (don't let designs go stale)
+6. **Deferred items with met triggers** — promote before starting new work
+7. **Specs ready to build** — pick the highest-priority spec with met prerequisites
+8. **Promoted INBOX items** — items tagged `**Promoted:**` are ready for `/superpowers:brainstorming` (or `/claude-tweaks:challenge` first if they have baked-in assumptions). These have already been triaged and prioritized over unpromoted items.
+9. **INBOX review** — if inbox is stale or has 10+ items, suggest `/claude-tweaks:tidy` before new brainstorming
+10. **Challenge + Brainstorming** — if pipeline is empty and no promoted items exist, suggest promoting an INBOX item; if it has baked-in assumptions, run `/claude-tweaks:challenge` first, then `/superpowers:brainstorming`
+11. **Nothing to do** — if everything is clean, say so
 
 ### Tie-Breaking
 
@@ -109,6 +110,7 @@ Render the recommendation as the `## Next Actions` block below — `{recommended
 |---------|-------------|
 | Running a full scan when user just needs command syntax | Wastes time — respect the `commands` argument |
 | Recommending new work when specs await review | Finish in-progress work first — stale reviews lose context |
+| Recommending new work while the current PR has unresolved feedback or failing checks | In-flight work rots fastest — reviewer context decays and merge conflicts accumulate. The pipeline picture is incomplete without PR state. |
 | Skipping the INBOX scan | Stale INBOX items create noise and slow down the pipeline |
 | Not checking for baked-in assumptions | Solution-oriented INBOX items bypass the debiasing step |
 | Triaging INBOX items from /help instead of handing off to /tidy | /help is a read-only dashboard — it reports status and recommends next steps. If the user wants to triage, delete, promote, merge, or defer INBOX items, hand off to `/claude-tweaks:tidy`. Do not improvise an ad-hoc walkthrough. |
@@ -142,3 +144,4 @@ For a detailed explanation of how context flows between skills via artifacts, re
 | `/claude-tweaks:design` | Utility wrapper — /help lists it in the utility skills table. /design is invoked by /build (Common Step 1.7 pre-build), /test (Step 1.5 CLI gate), /review (Step 6.5 advisory pass), /flow (polish phase), and /visual-review; standalone usage is rare. |
 | `/claude-tweaks:research` | Utility skill — /help lists it in the utility skills table. /research has no fixed lifecycle position; /help may surface it as an option when an INBOX item or pending spec would benefit from prior-art research. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling to /help (e.g., if a future status scan ever auto-resolves recommendations) |
+| `_shared/github-pr-scan.md` | Stage 4.5 scans the current branch's PR per this shared procedure (`current-pr` scope) — detection ladder, exact gh/GraphQL commands, output contract, severity mapping |
