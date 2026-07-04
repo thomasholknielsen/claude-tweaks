@@ -13,7 +13,7 @@ Ships with the plugin. Plugin-owned, project-agnostic, account-agnostic. NEVER c
 | Field | Type | Required | Meaning |
 |---|---|---|---|
 | `template_version` | integer | yes | Bumped whenever this file's fields change. Instantiated records capture the version they were created from; `/claude-tweaks:routine status` compares the template's current version against the recorded version to detect drift. |
-| `routine_name` | string | yes | Base name used for both the created routine's `name` field and the instantiated record's filename (`.claude-tweaks/routines/{routine_name}.yml`). Not guaranteed unique account-wide — two unrelated routines can share a display name. `routine_id` (not this name) is the actual identity anchor when inspecting live routines. |
+| `routine_name` | string | yes | Base name declared by the template (e.g. `recon-daily`). At creation time, `/claude-tweaks:routine` prefixes this with a slug derived from the project's repo name (e.g. `claude-tweaks-recon-daily`) before using it as the live routine's `name` field and the instantiated record's filename (`.claude-tweaks/routines/{prefixed-name}.yml`) — this prevents the common case of the same skill's routine colliding across every project it's instantiated in. Prefixing narrows but does not eliminate collisions (two projects with the same repo name, or repos under different orgs sharing a name, still collide) — `routine_id` remains the actual identity anchor when inspecting live routines. |
 | `prompt` | string | yes | The exact kickoff message sent to the cloud session on each firing — must be self-contained (the cloud session starts with zero conversation history). |
 | `model` | string | yes | Default model for the routine's session (e.g. `claude-sonnet-5`). |
 | `allowed_tools` | array of strings | yes | Tool allowlist for the cloud session, e.g. `[Bash, Read, Grep, Glob]`. |
@@ -22,7 +22,7 @@ Ships with the plugin. Plugin-owned, project-agnostic, account-agnostic. NEVER c
 | `default_schedule.description` | string | yes | Human-readable intent (e.g. "off-peak anchor, UTC — confirm against your local timezone at creation time"). |
 | `notes` | string | no | Free-text guidance for whoever instantiates this (budget flags, tuning advice, links to the owning skill's own docs). |
 
-## Instantiated record — `.claude-tweaks/routines/{routine_name}.yml`
+## Instantiated record — `.claude-tweaks/routines/{prefixed-name}.yml`
 
 Written per-project, after a successful `RemoteTrigger create` or `update`. Project-owned. Safe to commit — deliberately excludes anything account-specific.
 
