@@ -125,6 +125,27 @@ The agent never runs `gh issue close` (non-reversible network write — see
 One line per issue. Direct `gh issue close` commands surface only for issues resolved
 *without* a merge (wontfix, duplicate), and the user runs them.
 
+## Dispatch authorization
+
+Headless agents building arbitrary issue content is a prompt-injection surface: an issue
+body is untrusted input, and a drive-by issue must not be able to opt itself into autonomous
+execution. The gate is GitHub's own permission model — **applying a label requires triage
+permission, so a label is a maintainer's signature**:
+
+- `agent:eligible` — authorization. Autonomous (headless/routine) runs only build issues
+  carrying it; they pass `--require-eligible` so ingestion filters on it (`requireLabels` in
+  `bin/lib/issues/ingest.js`). Interactive runs are unrestricted — the user is present to
+  judge each issue.
+- `agent:go` — the standing dispatch request a scheduled dispatcher selects on
+  (`--from-label agent:go`). Label = standing request, claim = in flight: the claim ref
+  prevents double-dispatch across firings, and the label persists until *successful*
+  wrap-up — a failed run retries at a later firing once its claim ages out. Removing
+  `agent:go` on success is a reversible write, logged to `decisions.md`.
+
+The agent never applies either label itself — that would forge the signature. The shipped
+dispatcher template (`skills/flow/routine-template.yml`) always passes `--require-eligible`;
+a project relaxes the gate only by editing its instantiated routine's prompt.
+
 ## Failure posture
 
 Fail-closed on claiming; never block the session.
