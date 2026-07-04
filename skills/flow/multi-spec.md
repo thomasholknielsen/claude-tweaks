@@ -91,6 +91,8 @@ Multi-spec runs use a parent run directory with per-spec subdirectories so the c
 .claude-tweaks/pipelines/{ISO-timestamp}-spec-{N1}-{N2}-{N3}/
 ├── config.yml          ← Manifesto answers (one for the whole run)
 ├── manifest.yml        ← Multi-spec metadata (spec IDs, order, statuses)
+├── decisions.md        ← Run-level audit log (freeform-issue translations log here)
+├── staged/             ← Run-level staged items (translation-{issue}.md) — read by the consolidated console
 └── spec-{N}/           ← Per-spec subdirectory (one per spec)
     ├── decisions.md
     └── staged/

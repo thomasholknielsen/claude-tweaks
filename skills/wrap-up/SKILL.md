@@ -312,7 +312,7 @@ After the cleanup, also apply:
 - **Skill updates** — apply patches and create new skills (Step 7 staged or approved items)
 
 Commit with a message summarizing the wrap-up actions. When the run is `current-branch` mode
-and any spec carries `recon-issue:` frontmatter, include one `Fixes #{issue}` line per
+and this spec carries `recon-issue:` frontmatter, include one `Fixes #{issue}` line per
 resolved issue in this commit message — it is the closing-keyword carrier for current-branch
 runs (see `cleanup-procedures.md` Section C); GitHub closes the issues when the commit reaches
 the default branch.
