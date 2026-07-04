@@ -1,55 +1,67 @@
-# Flow — `--from-recon` mode
+# Flow — Issue-sourced batches (`--from-recon` / `--from-label` / `--from-issues`)
 
-`/claude-tweaks:flow --from-recon` pulls open GitHub issues labelled `recon` (filed by
-`/claude-tweaks:recon`), turns each into a `/claude-tweaks:specify` brief, and runs the
-resulting specs through the existing multi-spec batch pipeline + consolidated Review Console.
-This is the only `/flow` entry point that does not take spec numbers up front — the specs are
-*derived* from issues at the start of the run.
+`/claude-tweaks:flow` can assemble its spec list from GitHub issues instead of spec numbers:
+`--from-recon` (alias for `--from-label recon`) pulls the issues `/claude-tweaks:recon` filed;
+`--from-label <label>` pulls any labelled set; `--from-issues <n,...>` pulls specific issue
+numbers. Each pulled issue is claimed (Step 2.5), turned into a `/claude-tweaks:specify`
+brief, and run through the existing multi-spec batch pipeline + consolidated Review Console.
+These are the only `/flow` entry points that do not take spec numbers up front — the specs
+are *derived* from issues at the start of the run.
 
 ## Syntax
 
 ```
-/claude-tweaks:flow --from-recon [--min-severity high] [worktree | current-branch] [keep-going] [auto | confirm | hybrid]
+/claude-tweaks:flow --from-recon        [--min-severity high] [worktree | current-branch] [keep-going] [auto | confirm | hybrid]
+/claude-tweaks:flow --from-label <label> [--min-severity high] [...same]
+/claude-tweaks:flow --from-issues <n,...>                      [...same]
 ```
 
-`--min-severity` (default: none — all open `recon` issues) filters by the `recon:<sev>` label.
-All other `/flow` arguments behave as normal — `--from-recon` only changes how the spec list is
-assembled.
+`--min-severity` floors on the `recon:<sev>` label (unlabeled issues rank `info`). All other
+`/flow` arguments behave as normal — the selectors only change how the spec list is assembled.
 
 ## Procedure
 
-1. **Pull issues (through-tool).** Run the GitHub CLI to list open `recon` issues as JSON:
+1. **Pull issues (through-tool).** Run the GitHub CLI for the active selector:
 
    ```bash
-   gh issue list --label recon --state open \
+   # --from-recon (alias) and --from-label <label>:
+   gh issue list --label "<label>" --state open \
      --json number,title,body,labels --limit 100
+
+   # --from-issues <n,...> — one gh call per number; skip non-open issues with a log entry:
+   gh issue view "${ISSUE}" --json number,title,body,labels,state
    ```
 
-   If `gh` is unavailable or unauthenticated, STOP with: "GitHub CLI not available — `/flow
-   --from-recon` needs `gh` to read `recon` issues. Install/authenticate `gh`, or run
+   If `gh` is unavailable or unauthenticated, STOP with: "GitHub CLI not available —
+   issue-sourced `/flow` runs need `gh` to read `recon` issues. Install/authenticate `gh`, or run
    `/claude-tweaks:flow <spec-numbers>` directly." (Hard gate — `auto` does not silence a missing
    dependency.)
 
-2. **Parse to briefs (pure).** Pass the parsed JSON array to `pullReconIssues`:
+2. **Parse to briefs (pure).** Pass the parsed JSON array to `issuesToBriefs`:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" pull-issues \
-     --label recon [--min-severity high] --issues <path-to-gh-output.json>
+   node -e "const i=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/ingest.js');
+     const issues=require(process.argv[1]);
+     console.log(JSON.stringify(i.issuesToBriefs({issuesJson:issues,
+       label:process.argv[2]||undefined,
+       numbers:process.argv[3]?process.argv[3].split(',').map(Number):undefined,
+       minSeverity:process.argv[4]||undefined})))" \
+     /tmp/flow-issues.json "<label-or-empty>" "<numbers-or-empty>" "<min-severity-or-empty>"
    ```
 
-   (or call `bin/lib/recon/pull-issues.js`'s `pullReconIssues` directly with the parsed array).
-   Call signature: `pullReconIssues({ label, minSeverity, issuesJson })`.
+   Call signature: `issuesToBriefs({ issuesJson, label?, numbers?, minSeverity? })`. For
+   `--from-recon`, `label` is `recon` (the `bin/recon.js pull-issues` CLI remains equivalent).
+   Each brief is `{ number, title, body, fingerprint, severity, shape }` — `shape` is `form`
+   when the body carries the three sections (at `##` or `###` level — GitHub issue forms
+   render `###`), else `freeform`.
 
-   **v2 label set.** Each recon issue carries three label types:
+   **Labels (recon-filed issues).** Each recon issue carries three label types — this applies
+   to `--from-recon`; other selectors may pull issues with no recon labels at all:
    - `recon` — presence filter; `pullReconIssues` includes only issues that have this label.
    - `recon:<severity>` — e.g. `recon:high`; severity is extracted from this label and stored
      in the brief's `severity` field. If absent, defaults to `info`.
    - `recon:<criterion>` — e.g. `recon:architecture`; informational only. `pullReconIssues`
      does not filter on it — it is passed through in the brief's `body`.
-
-   Each brief is `{ number, title, body, fingerprint, severity }`. The body is already
-   `/specify`-shaped with three sections: `## Current State`, `## Deliverables`,
-   `## Acceptance Criteria`.
 
 2.5. **Claim each issue (per `_shared/issue-claims.md`).** Before any `/specify` invocation,
    claim every brief's issue so concurrent consumers (a scheduled routine, a second machine,
@@ -86,6 +98,19 @@ assembled.
    If every brief is dropped, stop and report: "All pulled recon issues are claimed by other
    runs — nothing to build. Stale claims are recoverable via /claude-tweaks:tidy (Step 4.7)."
 
+2.6. **Translate freeform briefs.** Briefs with `shape: freeform` (no Current State /
+   Deliverables / Acceptance Criteria sections) are translated before spec derivation: write
+   a three-section brief body from the issue's title + prose, citing the issue number. The
+   original body is preserved in the issue itself; the translated body feeds `/specify`.
+
+   Translation is a judgment call the user must be able to inspect: once the pipeline run
+   directory exists (after the Config Manifesto), write each translation to
+   `{run-dir}/staged/translation-{issue}.md` (original body, translated body, one-line
+   rationale) and log `STAGED — translated freeform issue #{issue} to a three-section brief`
+   to `decisions.md`. The consolidated Review Console surfaces these staged translations so
+   the user sees what the model inferred each issue meant. Form-shaped briefs skip this step
+   entirely.
+
 3. **Derive specs via `/specify`.** For each brief, invoke `/claude-tweaks:specify` with the
    brief's title + body as the design input. `/specify` produces a numbered spec under `specs/`.
    Carry the issue `number` and `fingerprint` forward as spec frontmatter (`recon-issue: <number>`,
@@ -106,8 +131,15 @@ assembled.
 
    The merge artifacts carry the closing keywords: `worktree-merge.md`'s reconciliation puts
    `Fixes #{issue}` lines in the merge commit message; the single-spec PR path puts them in
-   the PR body (see `wrap-up/cleanup-procedures.md` Section C). Direct
-   `gh issue close #{issue} --comment "..."` commands surface ONLY for issues resolved
+   the PR body (see `wrap-up/cleanup-procedures.md` Section C).
+
+   In `current-branch` mode there is no merge commit or PR — the carrier is the **final
+   wrap-up commit message**: include one `Fixes #{issue}` line per resolved issue in the
+   wrap-up commit; GitHub closes the issues when that commit reaches the default branch
+   (immediately on push if the current branch IS the default branch, otherwise at the
+   eventual merge).
+
+   Direct `gh issue close #{issue} --comment "..."` commands surface ONLY for issues resolved
    without a merge (wontfix, duplicate) — the user runs them; the pipeline never closes
    issues autonomously (see `_shared/auto-mode-contract.md`, "Never-reversible").
 
@@ -125,7 +157,7 @@ assembled.
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Filing or closing `recon` issues from inside `/flow` | `/flow --from-recon` is a *consumer* of issues. Filing belongs to `/recon`; closing is a user decision at the Review Console. |
+| Filing or closing issues from inside `/flow` | `/flow --from-recon` is a *consumer* of issues. Filing belongs to `/recon`; closing is a user decision at the Review Console. |
 | Deriving specs from pulled issues without claiming them (skipping Step 2.5) | Concurrent consumers — a scheduled routine, a second machine — pull the same open issues and double-build them. The claim ref (`_shared/issue-claims.md`) is the only arbiter. |
 | Running `gh issue close` from the pipeline | Direct closes are non-reversible network writes the agent never performs. Closing keywords in merge artifacts (`Fixes #{issue}` in the PR body or merge commit message) are sanctioned — the user's merge/push is the closing action. |
 | Pulling issues without `--state open` | Closed/`wontfix` issues are standing decisions — re-pulling them re-floods the batch with resolved work. |
