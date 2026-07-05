@@ -21,7 +21,7 @@ Regardless of seeds, look at the work itself:
 1. **List changed files** — `git diff --name-only` against the work's base ref.
 2. **List skills** — enumerate skill files in `.claude/skills/`. If the directory doesn't exist, still run step 4 (gap detection) — a project with no skills is the strongest case for a first one.
 3. **Rank by domain overlap** — score each skill by how much its domain (the directories, file-types, and patterns it documents) intersects the changed files. Read the **top ~5 most relevant** skills in full. The cap bounds token cost; the ranking ensures the highest-value skills are covered. If more than 5 skills are relevant, **note the overflow explicitly** — `/claude-tweaks:tidy` and future wrap-ups pick up the remainder (never silently truncate).
-4. **Gap detection** — identify any *cohesive* set of changed files implementing one reusable pattern in a domain that **no** skill covers. "Cohesive" means multiple files implementing a single pattern, not scattered one-off edits. Each cohesive uncovered domain becomes a new-skill gap candidate, evaluated in 7.4.
+4. **Gap detection** — identify any *cohesive* set of changed files implementing one reusable pattern in a domain that **no** skill covers. "Cohesive" means multiple files implementing a single pattern, not scattered one-off edits. Each cohesive uncovered domain becomes a new-skill gap candidate, evaluated via the shared procedure in 7.3-7.5.
 5. **Union with seeds** — add any seeded skills from 7.1 not already in the top-5 to the read set. Seeds are always analyzed.
 
 ## 7.3-7.5: Judge Each Relevant Skill and New-Skill Candidates
@@ -53,14 +53,14 @@ For each proposed change:
    ```
    STAGED 14:52:31 — Step 7: skill update proposed for {skill}/SKILL.md ({section}). Reversibility: high (stage path: staged/wrap-up-skill-{N}.md).
    ```
-4. **New skill candidates** (7.4) → always stage (creating a new skill is a structural decision). Log entry:
+4. **New skill candidates** (7.3-7.5) → always stage (creating a new skill is a structural decision). Log entry:
    ```
    STAGED 14:52:38 — Step 7: new skill candidate "{name}". Reversibility: high (stage path: staged/wrap-up-skill-new-{name}.md).
    ```
 
 Staged items surface at the Wrap-Up Review Console (SKILL.md Step 8.6) as rows in the "Skill updates" section. New-skill candidates appear as ordinary rows covered by "Approve all." Do not present a separate batch decision here.
 
-Declare **"No skill updates needed"** only when 7.1 found no seeds, 7.2's scan found no relevant skills and no gap candidates, and 7.4 produced no candidates. Do not declare it merely because no ledger entries were tagged.
+Declare **"No skill updates needed"** only when 7.1 found no seeds, 7.2's scan found no relevant skills and no gap candidates, and 7.3-7.5 produced no candidates. Do not declare it merely because no ledger entries were tagged.
 
 **Interactive mode:** Present the dedicated batch decision table:
 

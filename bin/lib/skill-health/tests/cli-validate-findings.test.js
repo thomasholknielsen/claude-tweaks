@@ -108,6 +108,21 @@ test('validate-findings: a finding already open in the issue index is skipped (d
   assert.strictEqual(JSON.parse(second.stdout).length, 0, 'open finding must be skipped');
 });
 
+test('validate-findings: a malformed --issues file degrades gracefully with a stderr warning, not a hard failure', () => {
+  const root = tmp();
+  const f = validFinding();
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([f]));
+  const badIssuesFile = path.join(root, 'bad-issues.json');
+  fs.writeFileSync(badIssuesFile, 'not valid json{{{');
+
+  const result = runValidateFindings(root, findingsFile, ['--issues', badIssuesFile]);
+  assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes('could not read or parse --issues file'), `expected a warning in stderr: ${result.stderr}`);
+  const payloads = JSON.parse(result.stdout);
+  assert.strictEqual(payloads.length, 1, 'must still file the finding, just without issue-based dedup');
+});
+
 test('validate-findings: exits non-zero when the findings file is missing', () => {
   const root = tmp();
   const result = runValidateFindings(root, path.join(root, 'nonexistent.json'));

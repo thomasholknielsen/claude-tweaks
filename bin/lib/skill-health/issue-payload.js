@@ -33,6 +33,15 @@ function toIssuePayload(finding) {
   ].join('\n');
 
   return {
+    id: finding.id,
+    kind: finding.kind,
+    skill: finding.skill,
+    section: finding.section,
+    classification: finding.classification,
+    confidence: finding.confidence,
+    reversibility: finding.reversibility,
+    oldString: finding.oldString,
+    newString: finding.newString,
     title: finding.kind === 'new-skill'
       ? `New skill candidate: ${finding.skill}`
       : `Skill drift: ${finding.skill} — ${finding.section}`,

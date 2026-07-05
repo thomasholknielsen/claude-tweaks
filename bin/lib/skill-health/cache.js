@@ -97,7 +97,10 @@ function readRuns(root) {
       }
     })
     .filter((r) => r && Array.isArray(r.fingerprints) && r.runId)
-    .sort((a, b) => ((a.runAt || '') < (b.runAt || '') ? -1 : 1));
+    .sort((a, b) => {
+      const x = a.runAt || '', y = b.runAt || '';
+      return x < y ? -1 : x > y ? 1 : 0;
+    });
 }
 
 // Churn vs the prior run. ratio = (appeared + disappeared) / |prior ∪ current|.

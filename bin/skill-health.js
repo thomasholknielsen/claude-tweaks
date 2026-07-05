@@ -23,6 +23,7 @@ function parseArgs(argv) {
     else if (a === '--gap-scan') args.gapScan = true;
     else if (a === '--run-id') args.runId = argv[++i];
     else if (a === '--fail-on-high-churn') args['fail-on-high-churn'] = argv[++i];
+    else if (a === '--budget') args.budget = Number(argv[++i]);
     else args._.push(a);
   }
   return args;
@@ -33,8 +34,16 @@ function parseArgs(argv) {
 function loadIssueIndex(file) {
   if (!file) return {};
   let arr;
-  try { arr = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return {}; }
-  if (!Array.isArray(arr)) return {};
+  try {
+    arr = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    process.stderr.write(`[skill-health] validate-findings: could not read or parse --issues file: ${file} — dedup falls back to the local cache only\n`);
+    return {};
+  }
+  if (!Array.isArray(arr)) {
+    process.stderr.write(`[skill-health] validate-findings: --issues file must contain a JSON array: ${file} — dedup falls back to the local cache only\n`);
+    return {};
+  }
   const index = {};
   for (const issue of arr) {
     if (issue.fingerprint) {
@@ -46,21 +55,36 @@ function loadIssueIndex(file) {
 
 function cmdNextTarget(args) {
   const root = args.root || process.cwd();
-  const cursors = readCursors(root);
   const now = Date.now();
-
-  let target = null;
-  if (args.skill) {
-    const found = listSkills(root).find((s) => s.id === args.skill) || null;
-    target = found ? { ...found, why: 'manual' } : null;
-  } else {
-    target = selectTarget(root, cursors, { now });
-  }
-
   const gapScan = readGapScanCursor(root);
   const gapScanDue = gapScan.lastScannedMs == null || (now - gapScan.lastScannedMs) / 86400000 > STALE_DAYS;
 
-  process.stdout.write(JSON.stringify({ target, gapScanDue }, null, 2) + '\n');
+  if (args.skill) {
+    const found = listSkills(root).find((s) => s.id === args.skill) || null;
+    const target = found ? { ...found, why: 'manual' } : null;
+    process.stdout.write(JSON.stringify({ target, gapScanDue }, null, 2) + '\n');
+    return;
+  }
+
+  const budget = Number.isFinite(args.budget) && args.budget > 0 ? args.budget : 1;
+  let cursors = readCursors(root);
+
+  if (budget === 1) {
+    const target = selectTarget(root, cursors, { now });
+    process.stdout.write(JSON.stringify({ target, gapScanDue }, null, 2) + '\n');
+    return;
+  }
+
+  // budget > 1: iterate, simulating post-audit cursor state in-memory so each
+  // pick is a different skill (mirrors recon's next-slice --budget).
+  const targets = [];
+  for (let i = 0; i < budget; i++) {
+    const target = selectTarget(root, cursors, { now });
+    if (!target) break;
+    targets.push(target);
+    cursors = { ...cursors, [target.id]: { ...(cursors[target.id] || {}), lastAuditedMs: now } };
+  }
+  process.stdout.write(JSON.stringify({ targets, gapScanDue }, null, 2) + '\n');
 }
 
 function cmdValidateFindings(args) {
@@ -165,19 +189,36 @@ function cmdChurnReport(args) {
   }
 }
 
+const MARK_STATUSES = new Set(['applied', 'declined']);
+
+function cmdMark(args) {
+  const root = args.root || process.cwd();
+  const fp = args._[1];
+  const status = args._[2];
+  if (!fp || !MARK_STATUSES.has(status)) {
+    process.stderr.write(`usage: skill-health.js mark <fingerprint> <${[...MARK_STATUSES].join('|')}> [--root <dir>]\n`);
+    process.exit(2);
+  }
+  const cache = readCache(root);
+  cache[fp] = { status, lastSeenMs: Date.now() };
+  writeCache(root, cache);
+  process.stdout.write(JSON.stringify(cache[fp], null, 2) + '\n');
+}
+
 function main(argv) {
   const args = parseArgs(argv);
   const cmd = args._[0];
   if (cmd === 'next-target') return cmdNextTarget(args);
   if (cmd === 'validate-findings') return cmdValidateFindings(args);
   if (cmd === 'churn-report') return cmdChurnReport(args);
+  if (cmd === 'mark') return cmdMark(args);
   process.stderr.write(
     'usage: skill-health.js <command> [options]\n' +
-    'commands: next-target [--skill <id>], validate-findings <file> [--skill <id>] [--gap-scan], churn-report [--fail-on-high-churn <r>]\n',
+    'commands: next-target [--skill <id>], validate-findings <file> [--skill <id>] [--gap-scan], churn-report [--fail-on-high-churn <r>], mark <fingerprint> <applied|declined>\n',
   );
   process.exit(2);
 }
 
 if (require.main === module) main(process.argv.slice(2));
 
-module.exports = { parseArgs, cmdNextTarget, cmdValidateFindings, cmdChurnReport, main };
+module.exports = { parseArgs, cmdNextTarget, cmdValidateFindings, cmdChurnReport, cmdMark, main };

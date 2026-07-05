@@ -78,6 +78,12 @@ test('readRuns returns [] when no run logs exist', () => {
 test('recordRun then readRuns round-trips, sorted oldest first', () => {
   const root = tmp();
   recordRun(root, 'run-2', ['skillhealth-b']);
+  // Force the two records onto different runAt millisecond stamps — recordRun
+  // has no way to inject a timestamp, and readRuns' sort is a genuine
+  // (correct) comparator now, so a same-millisecond tie would fall back to
+  // stable/readdir order instead of write order, making this assertion flaky.
+  const start = Date.now();
+  while (Date.now() === start) { /* spin past this millisecond */ }
   recordRun(root, 'run-1', ['skillhealth-a']);
   const runs = readRuns(root);
   assert.strictEqual(runs.length, 2);
@@ -87,10 +93,11 @@ test('recordRun then readRuns round-trips, sorted oldest first', () => {
   assert.strictEqual(runs[1].runId, 'run-1');
 });
 
-test('computeChurn: no prior run gives ratio 0 for identical sets, appeared for new ones', () => {
+test('computeChurn: no prior run treats every fingerprint as appeared, giving ratio 1 (definitional for a first-ever run)', () => {
   const result = computeChurn(['a', 'b'], null);
   assert.deepStrictEqual(result.appeared, ['a', 'b']);
   assert.deepStrictEqual(result.disappeared, []);
+  assert.strictEqual(result.ratio, 1);
 });
 
 test('computeChurn: identical current and prior gives ratio 0', () => {

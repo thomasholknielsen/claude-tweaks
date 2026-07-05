@@ -56,3 +56,27 @@ test('toIssuePayload body always includes Current State, Deliverables, and Accep
   assert.ok(payload.body.includes('## Deliverables'));
   assert.ok(payload.body.includes('## Acceptance Criteria'));
 });
+
+test('toIssuePayload for a patch finding carries structured decision fields matching the input finding', () => {
+  const finding = patchFinding();
+  const payload = toIssuePayload(finding);
+  assert.strictEqual(payload.id, finding.id);
+  assert.strictEqual(payload.kind, finding.kind);
+  assert.strictEqual(payload.skill, finding.skill);
+  assert.strictEqual(payload.classification, finding.classification);
+  assert.strictEqual(payload.confidence, finding.confidence);
+  assert.strictEqual(payload.reversibility, finding.reversibility);
+  assert.strictEqual(payload.oldString, finding.oldString);
+  assert.strictEqual(payload.newString, finding.newString);
+});
+
+test('toIssuePayload for a new-skill finding carries structured decision fields matching the input finding', () => {
+  const finding = newSkillFinding();
+  const payload = toIssuePayload(finding);
+  assert.strictEqual(payload.id, finding.id);
+  assert.strictEqual(payload.kind, finding.kind);
+  assert.strictEqual(payload.skill, finding.skill);
+  assert.strictEqual(payload.classification, finding.classification);
+  assert.strictEqual(payload.confidence, finding.confidence);
+  assert.strictEqual(payload.reversibility, finding.reversibility);
+});

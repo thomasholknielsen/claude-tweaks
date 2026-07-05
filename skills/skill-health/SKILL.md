@@ -34,19 +34,21 @@ Not for: auditing CLAUDE.md or `.claude/rules/` (out of scope for this skill). N
 
 ## Workflow
 
-**Step 1 — SELECT: pick the next target.**
+**Step 1 — SELECT: pick the next target(s).**
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/skill-health.js" next-target --root . ${SKILL:+--skill "$SKILL"}
+node "${CLAUDE_PLUGIN_ROOT}/bin/skill-health.js" next-target --root . ${SKILL:+--skill "$SKILL"} ${BUDGET:+--budget "$BUDGET"}
 ```
 
-Prints `{ target: { id, path, why } | null, gapScanDue: boolean }`. Read the output:
-- If `target` is `null` and `gapScanDue` is `false`: nothing is due this firing. Report this to the user and stop.
-- If `why: "stale"`: this skill has not been audited in over 90 days regardless of domain churn.
-- If `why: "hotspot"`: this skill's documented file paths (backtick-quoted references extracted from its own content) have the highest git churn since its last audit among skills with any churn at all.
-- If `why: "manual"`: `--skill` was passed, bypassing selection.
+Without `--budget` (or `--budget 1`), prints `{ target: { id, path, why } | null, gapScanDue: boolean }` — a single target. With `--budget <n>` where `n > 1`, prints `{ targets: [{ id, path, why }, ...], gapScanDue: boolean }` instead — up to `n` targets, each a different skill. When `targets` is present, run Steps 2-3 once per entry before moving on to Step 4 (gap scan runs once per firing regardless of budget, not once per target).
 
-If `target` is `null` but `gapScanDue` is `true`, skip straight to Step 4 (gap detection) — there's no specific skill to deep-audit this firing, but the gap scan is still due.
+Read the `why` field on whichever target(s) came back:
+- If both `target`/`targets` are empty and `gapScanDue` is `false`: nothing is due this firing. Report this to the user and stop.
+- `why: "stale"` — this skill has not been audited in over 90 days regardless of domain churn.
+- `why: "hotspot"` — this skill's documented file paths (backtick-quoted references extracted from its own content) have the highest git churn since its last audit among skills with any churn at all.
+- `why: "manual"` — `--skill` was passed, bypassing selection.
+
+If there is no target to deep-audit this firing (`target` is `null`, or `targets` is empty) but `gapScanDue` is `true`, skip straight to Step 4 (gap detection) — the gap scan is still due even with nothing else to audit.
 
 **Step 2 — READ the target skill.**
 
@@ -84,15 +86,17 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/skill-health.js" validate-findings /tmp/skill-he
 
 **Step 7 — APPLY or FILE.**
 
-For each payload in `/tmp/skill-health-payloads.json`:
-- If the underlying finding is `kind: "patch"` with `classification: "additive"`, `confidence: "high"`, and `reversibility: "high"` — apply it directly with `Edit` (using the finding's exact `oldString`/`newString`), then commit: `git commit -am "skill-health: apply additive patch to {skill} ({section})"`.
+Each payload in `/tmp/skill-health-payloads.json` carries structured fields, not just the GitHub issue text — `id`, `kind`, `skill`, `section`, `classification`, `confidence`, `reversibility`, `oldString`, `newString` are all present directly on the payload object (not just embedded in `payload.body`'s markdown).
+
+For each payload:
+- If `payload.classification === "additive"`, `payload.confidence === "high"`, and `payload.reversibility === "high"` — apply it directly with `Edit` (using `payload.oldString`/`payload.newString` exactly), commit: `git commit -am "skill-health: apply additive patch to {skill} ({section})"`, then mark it applied so it doesn't get re-proposed: `node "${CLAUDE_PLUGIN_ROOT}/bin/skill-health.js" mark "${payload.id}" applied --root .`.
 - Otherwise (restructural patches, any new-skill candidate, or lower confidence/reversibility) — file it: `gh issue create --title "<payload.title>" --body "<payload.body>" --label skill-health --label "<payload.labels[1]>"`.
 
-In `--dry-run` mode, print what would be applied/filed but do not call `Edit`, `git commit`, or `gh`.
+In `--dry-run` mode, print what would be applied/filed but do not call `Edit`, `git commit`, `gh`, or `mark`.
 
 **Step 8 — SUMMARIZE.**
 
-Report: which skill was audited (or that only the gap scan ran), how many findings were emitted, how many auto-applied vs filed vs skipped by dedup. List any new issue URLs. In interactive mode, present findings as a batch table and let the user route each to: apply now / file issue / dismiss.
+Report: which skill(s) were audited (or that only the gap scan ran), how many findings were emitted, how many auto-applied vs filed vs skipped by dedup. List any new issue URLs. In interactive mode, present findings as a batch table and let the user route each to: apply now / file issue / dismiss. For "dismiss," run `node "${CLAUDE_PLUGIN_ROOT}/bin/skill-health.js" mark "<payload.id>" declined --root .` so the same proposal doesn't reappear on a future firing.
 
 ## Routine Configuration
 
