@@ -24,59 +24,19 @@ Regardless of seeds, look at the work itself:
 4. **Gap detection** — identify any *cohesive* set of changed files implementing one reusable pattern in a domain that **no** skill covers. "Cohesive" means multiple files implementing a single pattern, not scattered one-off edits. Each cohesive uncovered domain becomes a new-skill gap candidate, evaluated in 7.4.
 5. **Union with seeds** — add any seeded skills from 7.1 not already in the top-5 to the read set. Seeds are always analyzed.
 
-## 7.3: Analyze Each Relevant Skill
+## 7.3-7.5: Judge Each Relevant Skill and New-Skill Candidates
 
-Compare each skill in the read set (seeded + scanned) against what the build actually did. Check across 6 dimensions:
+Apply the full procedure in `_shared/skill-health-analysis.md` (Steps 1-6: evidence pre-checks, the 6-dimension check, new-skill gap detection, the new-skill qualification gate, the verify gate, and quality gates) to every skill in the read set (seeded + scanned from 7.2) and to any new-skill candidates discovered there. That file is the single canonical procedure — also read by `/claude-tweaks:init` (Phase 3/6) and the standalone `/claude-tweaks:skill-health` routine — so a skill's drift verdict doesn't depend on which of the three ever looked at it.
 
-| Check | Question |
-|-------|----------|
-| **Pattern accuracy** | Do the skill's Key Patterns still match how the codebase works? |
-| **Convention drift** | Do Project Conventions reflect current practice, or has the build diverged? |
-| **Missing patterns** | Did the build introduce patterns that belong in this skill but aren't documented? |
-| **Stale examples** | Do code examples still exist at the referenced file paths? |
-| **Anti-pattern gaps** | Did the build reveal new anti-patterns worth documenting? |
-| **Decision framework completeness** | Does the Decision Framework cover the choices made during this build? |
+Emit findings in the Finding Shape that file defines. A proposed new-skill candidate is **never auto-created** — it is always staged for an explicit decision (7.6). For approved candidates, note the skill name and scope; the actual skill file is created during SKILL.md Step 10 execution.
 
-For each needed change, produce a patch in `/claude-tweaks:init`'s Update Mode format (read `skill-template.md` in the `/claude-tweaks:init` skill's directory for the format):
+**Record the audit.** For each skill analyzed in this pass — whether or not a patch was proposed — record it in the shared cursor so `/claude-tweaks:skill-health`'s rotation and `/claude-tweaks:init`'s classification skip a skill wrap-up just reviewed:
 
-```
-### Edit {N}: {description}
-**Section:** {section name}
-**Action:** Replace / Add / Remove
-**Current:** `{current text or "N/A" for additions}`
-**Proposed:** `{new text}`
-**Reason:** {what changed — cite the specific build/review observation or changed-file diff}
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/skill-health.js" validate-findings <findings-for-that-skill.json> --root . --skill <skill-id>
 ```
 
-## 7.4: Identify New-Skill Candidates
-
-Candidates come from two sources:
-
-- **Seeded** — `[skill: NEW - {name}]` ledger entries and reflection insights that don't fit existing skills (7.1). (The tag uses a hyphen, not an em-dash — match it exactly when scanning.)
-- **Discovered** — gap candidates from the independent scan (7.2 step 4). These do **not** require a pre-tag — wrap-up surfaces them on its own.
-
-Evaluate each candidate against three criteria:
-
-1. **Reusability** — the pattern applies to 2+ future builds (not a one-off).
-2. **Complexity** — the pattern is non-obvious (simple conventions belong in CLAUDE.md).
-3. **Project-specific** — the pattern is specific to this project (not generic best practice).
-
-**Gate — propose the candidate when at least 2 of the 3 criteria are clearly met.** (Previously all three were required, which suppressed nearly every candidate.) A candidate meeting all three is a strong recommendation; one meeting exactly two is proposed for the user / Review Console to decide. A candidate meeting ≤1 criterion is dropped — note which were dropped and why so the decision is auditable.
-
-A proposed candidate is **never auto-created** — it is always staged for an explicit decision (7.6). For approved candidates, note the skill name and scope; the actual skill file is created during SKILL.md Step 10 execution.
-
-## 7.5: Quality Check
-
-Verify each proposed update against the quality gates from `skill-template.md` in the `/claude-tweaks:init` skill's directory:
-
-- [ ] Every code example is adapted from actual codebase patterns (not generic)
-- [ ] File paths referenced actually exist
-- [ ] Commands referenced actually work
-- [ ] Conventions described match what the codebase actually does
-- [ ] No generic advice that adds no project-specific value
-- [ ] Anti-patterns cite project-specific reasons, not textbook warnings
-
-**Anchor check:** every proposed update must trace to a concrete anchor — a ledger entry, a reflection insight, **or a specific changed-file observation from the independent scan (7.2)**. Updates with no concrete anchor are indistinguishable from hallucinated ones — discard them. Note what was discarded and why.
+An empty findings array is valid here — it still records `lastAuditedSha`/`lastAuditedMs` for that skill.
 
 ## 7.6: Stage or Present
 
