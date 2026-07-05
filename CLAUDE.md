@@ -20,7 +20,7 @@ A Claude Code plugin (v5.7.0) containing markdown skill files that guide Claude 
 .claude-plugin/plugin.json        → Plugin manifest (name, version, description)
 skills/{name}/SKILL.md            → Skill definition (frontmatter + body)
 skills/{name}/*.md                → Sub-files lazy-loaded by the skill
-skills/_shared/*.md               → Cross-skill shared content (subagent contract, auto-mode contract, auto-decision log, browser detection, pipeline run dir, dev URL detection, git discipline, design-wrapper handling, multi-agent coordination, decision records / ADR gate, **shared analysis criteria: architecture-depth / simplification / review-quality**, issue-claims contract (refs/claims/* atomic lock), github-pr-scan (GitHub PR/issue state for /tidy Step 4.8 + /help Stage 4.5))
+skills/_shared/*.md               → Cross-skill shared content (subagent contract, auto-mode contract, auto-decision log, browser detection, pipeline run dir, dev URL detection, git discipline, design-wrapper handling, multi-agent coordination, decision records / ADR gate, **shared analysis criteria: architecture-depth / simplification / review-quality**, skill-health-analysis (canonical skill-drift judge shared by /init, /wrap-up, and /skill-health), issue-claims contract (refs/claims/* atomic lock), github-pr-scan (GitHub PR/issue state for /tidy Step 4.8 + /help Stage 4.5))
 agents/{name}.md                  → Agent definitions (frontmatter + body)
 hooks/hooks.json                  → Hook definitions (SessionStart/SessionEnd/PreCompact continuity + PreToolUse/PostToolUse/SubagentStop enforcement, all via bin/hooks.js)
 bin/hooks.js                      → Hook dispatcher (one entry point for all hook events + record-worktree/close-run subcommands)
@@ -31,11 +31,11 @@ README.md                         → User-facing documentation
 LICENSE                           → MIT
 ```
 
-### Skill directories (24 total)
+### Skill directories (25 total)
 
 **Lifecycle:** init, capture, challenge, specify, build, test, stories, review, wrap-up
 **Component:** reflect, simplify, deepen, journeys, visual-review, design
-**Utility:** help, tidy, flow, browse, ledger, version, research, recon, routine
+**Utility:** help, tidy, flow, browse, ledger, version, research, recon, routine, skill-health
 
 ### Skills with sub-files
 

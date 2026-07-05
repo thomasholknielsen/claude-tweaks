@@ -275,7 +275,7 @@ Phase 2f findings split into CLAUDE.md Don'ts (convention conflicts and anti-pat
 
 Only generate skills for patterns that **actually exist and are actively used** in the codebase. Aspirational skills (e.g., testing for a project with no tests) should have been captured as INBOX items in Phase 4 — do not generate SKILL.md files for them.
 
-For the complete SKILL.md template, update patch format, quality gates checklist, and depth guide, read `skill-template.md` in this skill's directory.
+For the complete SKILL.md template and depth guide, read `skill-template.md` in this skill's directory. For the drift-patch procedure and quality gates applied to drifted/gap skills, read `_shared/skill-health-analysis.md` — the same procedure `/claude-tweaks:wrap-up` Step 7 and the standalone `/claude-tweaks:skill-health` routine use.
 
 ---
 
@@ -426,5 +426,6 @@ Pick the recommended action based on which signals fired during this run. Resolv
 | `/claude-tweaks:stories` | /init Phase 8 (journey discovery) feeds /stories — discovered journeys become input for story generation |
 | `/claude-tweaks:version` | /version reads the same `plugin.json` that /init may print during bootstrap |
 | `/claude-tweaks:routine` | Phase 0.96 discovers claude-tweaks skills shipping a `routine-template.yml` with no existing instantiated record, and offers to invoke `/claude-tweaks:routine create <skill> --source init` for each — pure discovery + handoff. |
+| `/claude-tweaks:skill-health` and `_shared/skill-health-analysis.md` | Phase 6's drift-patch procedure and Phase 3/1u's skill classification apply this shared procedure instead of an inline copy, sharing its judgment logic and `.claude-tweaks/skill-health/` cursor/cache state with `/claude-tweaks:wrap-up` Step 7 and the standalone routine. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. Phase 3 classification auto-confirm follows the contract's confidence-gated pattern. |
 | All workflow skills | Depend on the structure /claude-tweaks:init creates |

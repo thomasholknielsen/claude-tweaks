@@ -46,12 +46,13 @@ Emit `[pr]` rows per the Output Contract.
 
 ## Scope: `repo-wide` (consumed by /tidy Step 4.8)
 
-Full sweep of open PRs and recon-labelled issues.
+Full sweep of open PRs, recon-labelled issues, and skill-health-labelled issues.
 
 1. **Open PRs** — `gh pr list --state open --json number,title,updatedAt,isDraft,reviewDecision,headRefName,url` → classify each per the Staleness Thresholds.
 2. **Unresolved threads per open PR** — the same GraphQL query as `current-pr` item 2, once per open PR.
 3. **Recon issues** — `gh issue list --label recon --state open --json number,title,updatedAt,url`.
 4. **Merged/closed PRs with local remnants** — `gh pr list --state merged --limit 50 --json number,headRefName`; cross-check each `headRefName` against `git -C "{REPO_ROOT}" branch --list` output.
+5. **Skill-health issues** — `gh issue list --label skill-health --state open --json number,title,updatedAt,url`.
 
 Findings and recommendations (tidy Action Vocabulary):
 
@@ -64,6 +65,8 @@ Findings and recommendations (tidy Action Vocabulary):
 | Unresolved review thread not addressed | Capture to INBOX or run `/review` — local action |
 | Recon issue stale (>4 weeks, flagged code since changed/removed) | Close (GitHub) — superseded |
 | Recon issue still valid | Suggest `/flow --from-recon` or Capture to INBOX |
+| Skill-health issue stale (>4 weeks, the referenced skill or code has since changed again) | Close (GitHub) — superseded |
+| Skill-health issue still valid | Suggest applying the patch directly, or `/claude-tweaks:skill-health --skill <name>` to re-judge |
 
 Emit `[pr]` and `[gh-issue]` rows per the Output Contract.
 

@@ -46,20 +46,17 @@ Include actual commands that work in this project.}
 
 ## Update Mode
 
-For each approved drifted skill, produce **targeted edits** — not a full rewrite:
+For each skill classified **drifted** or **gap** in Phase 3, apply the full procedure in `_shared/skill-health-analysis.md` — the same procedure `/claude-tweaks:wrap-up` Step 7 and the standalone `/claude-tweaks:skill-health` routine use for judging drift and proposing patches. That file owns the 6-dimension check, evidence pre-checks, the tightened patch format (exact `oldString`/`newString`, required for reliable auto-apply), the new-skill qualification gate, and the verify gate — do not duplicate them here.
 
-```markdown
-## Skill Patches: `{skill-name}`
+For approved gap skills that qualify as new-skill candidates (per the shared fragment's qualification gate), generate the full SKILL.md as in Initial Mode, above — the shared fragment's `proposedBody` field uses that same template.
 
-### Edit 1: {description}
-**Section:** {section name}
-**Action:** Replace / Add / Remove
-**Current:** `{current text or "N/A" for additions}`
-**Proposed:** `{new text}`
-**Reason:** {what changed in the codebase}
+### Cursor Participation
+
+Before classifying a skill in Phase 1u/Phase 3, check `.claude-tweaks/skill-health/cursors.json`: a skill with `lastAuditedMs` within the last 90 days was recently verified by `/claude-tweaks:wrap-up` or the `/claude-tweaks:skill-health` routine — mark it "recently verified — skipped" rather than re-judging it from scratch in Phase 2. After Phase 6 patches a drifted skill, record the audit so wrap-up and the routine see it too:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/skill-health.js" validate-findings <findings.json> --root . --skill <skill-id>
 ```
-
-For approved gap skills (new patterns needing new skills), generate full SKILL.md as in Initial Mode.
 
 ## Quality Gates for Generated Skills
 

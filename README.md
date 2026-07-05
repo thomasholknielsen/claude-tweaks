@@ -196,6 +196,8 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 
 **`/claude-tweaks:routine`** — Instantiates a skill's plugin-shipped routine template (e.g. recon's) into a live Claude Code cloud Routine for the current project, resolving account- and project-specific values (environment, repo) that a portable template can't hardcode, then calling `RemoteTrigger` directly — no manual `/schedule` walkthrough needed. Writes a committable instantiated record to `.claude-tweaks/routines/`. Supports `create`, `update`, and `status`, plus `--dry-run` to inspect the assembled configuration before anything is created.
 
+**`/claude-tweaks:skill-health`** — Recurring watchman for `.claude/skills/*.md`: picks one skill to audit against the codebase (or checks for a new-skill gap), judges it via the shared `_shared/skill-health-analysis.md` procedure — also used by `/init` Phase 6 and `/wrap-up` Step 7 — and either auto-applies a safe additive patch or files a `skill-health`-labelled GitHub issue. Runs on a scheduled Routine for continuous coverage, rotating through the skill library via a churn/staleness cursor shared with `/init` and `/wrap-up`. Never edits code — only skill documentation.
+
 **`/claude-tweaks:design`** — Wrapper for the [Impeccable](https://github.com/pbakaus/impeccable) frontend-design plugin. Six active modes:
 
 - **`test`** — invoked by `/test` for the deterministic CLI gate (`npx impeccable detect`)
