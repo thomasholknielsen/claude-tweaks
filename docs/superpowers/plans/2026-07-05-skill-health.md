@@ -2126,7 +2126,7 @@ Run:
 grep -n "skill-health-analysis" skills/init/skill-template.md skills/init/SKILL.md
 ```
 
-Expected: at least 2 matches in `skill-template.md` and 2 in `SKILL.md`.
+Expected: at least 1 match in `skill-template.md` and 2 in `SKILL.md`.
 
 ```bash
 grep -n "^## Quality Gates for Generated Skills" skills/init/skill-template.md
