@@ -44,8 +44,12 @@ test('renderProject: falls back to input.cwd when workspace missing', () => {
   assert.strictEqual(sl.renderProject({ cwd: '/Users/x/Code/fallback' }), 'fallback');
 });
 
-test('renderProject returns null when no directory available', () => {
+test('renderProject returns null when no directory or fallback available', () => {
   assert.strictEqual(sl.renderProject({}), null);
+});
+
+test('renderProject: falls back to explicit fallbackCwd when nothing else available', () => {
+  assert.strictEqual(sl.renderProject({}, '/Users/x/Code/fallback-cwd'), 'fallback-cwd');
 });
 
 test('renderContext: uses used_percentage when provided', () => {
@@ -242,6 +246,11 @@ test('end-to-end: effort segment renders when level is set', () => {
 test('end-to-end: empty input does not crash', () => {
   const out = runStatusline({}, { NO_COLOR: '1' });
   assert.ok(typeof out === 'string');
+});
+
+test('end-to-end: project segment is always present, even with empty input', () => {
+  const out = runStatusline({}, { NO_COLOR: '1' });
+  assert.ok(out.startsWith(path.basename(process.cwd())), `expected project segment: ${out}`);
 });
 
 test('end-to-end: NO_COLOR strips ANSI codes even at high context', () => {
