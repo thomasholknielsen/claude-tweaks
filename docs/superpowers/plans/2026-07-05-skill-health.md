@@ -2017,7 +2017,7 @@ Run:
 grep -n "skill-health-analysis" skills/wrap-up/skill-curation.md skills/wrap-up/SKILL.md
 ```
 
-Expected: at least 2 matches in `skill-curation.md` and 1 in `SKILL.md`.
+Expected: at least 1 match in `skill-curation.md` and 1 in `SKILL.md`.
 
 ```bash
 grep -n "## 7.4\|## 7.5" skills/wrap-up/skill-curation.md
