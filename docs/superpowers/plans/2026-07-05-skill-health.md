@@ -2276,7 +2276,7 @@ Run:
 grep -n "skill-health" skills/_shared/github-pr-scan.md skills/tidy/SKILL.md skills/tidy/scan-procedures.md
 ```
 
-Expected: at least 4 matches in `github-pr-scan.md`, 3 in `SKILL.md`, and 1 in `scan-procedures.md`.
+Expected: at least 3 matches in `github-pr-scan.md`, 3 in `SKILL.md`, and 1 in `scan-procedures.md`.
 
 - [ ] **Step 5: Commit**
 
