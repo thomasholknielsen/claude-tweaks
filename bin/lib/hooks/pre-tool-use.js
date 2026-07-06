@@ -57,15 +57,19 @@ function checkWorktreeRequired(ctx) {
   }
   if (!targetPath) return {};
 
-  // Cheap fs-only check first: is there even a policy file to care about?
-  // Avoids forking git at all for the overwhelming majority of projects
-  // that never opt into this policy.
-  const policyDir = wtDetect.findPolicyFile(targetPath);
-  if (!policyDir) return {};
-  if (!policy.isWorktreeAlwaysOn(policyDir)) return {};
+  // Cheap fs-only pre-check: if no policy.yml exists anywhere in the ancestor
+  // chain, there is definitely nothing to enforce — skip forking git entirely
+  // for the overwhelming majority of projects that never opt into this
+  // policy. This is a fast-reject filter ONLY: once it finds a policy file
+  // somewhere, the actual enforcement check below still re-scopes to the
+  // target's own git repo root, since a policy file belonging to an
+  // unrelated ANCESTOR directory outside this repo's boundary must not leak
+  // into a nested repo (e.g. a submodule) that never opted in itself.
+  if (!wtDetect.findPolicyFile(targetPath)) return {};
 
   const repoRoot = wtDetect.repoRootFor(targetPath);
   if (!repoRoot) return {}; // not a git repo at all -> allow
+  if (!policy.isWorktreeAlwaysOn(repoRoot)) return {};
   if (wtDetect.isLinkedWorktree(targetPath)) return {};
 
   return {

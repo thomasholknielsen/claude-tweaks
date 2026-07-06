@@ -288,3 +288,14 @@ test('worktree-required: policy is read from the EDIT TARGET\'s own repo, not th
   const out = pre.run({ input: { tool_name: 'Edit', tool_input: { file_path: path.join(otherRepo, 'a.txt') } }, runDir: null, runState: null, cwd: policyRepo });
   assert.deepStrictEqual(out, {});
 });
+
+test('worktree-required: a policy file in an ancestor directory OUTSIDE the target repo does not leak in (repo-scoped, not filesystem-ancestor-scoped)', () => {
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-e1-ancestor-'));
+  withPolicy(parent, 'worktree.always: true\n');
+  const nestedRepo = path.join(parent, 'nested-repo');
+  fs.mkdirSync(nestedRepo, { recursive: true });
+  execFileSync('git', ['-C', nestedRepo, 'init', '-q']);
+  execFileSync('git', ['-C', nestedRepo, 'commit', '--allow-empty', '-m', 'init', '-q']);
+  const out = pre.run({ input: { tool_name: 'Edit', tool_input: { file_path: path.join(nestedRepo, 'a.txt') } }, runDir: null, runState: null, cwd: nestedRepo });
+  assert.deepStrictEqual(out, {});
+});
