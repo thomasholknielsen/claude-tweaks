@@ -43,6 +43,34 @@ test('listSlices slice.path is the absolute path', () => {
   assert.strictEqual(dot.path, root);
 });
 
+test('listSlices: a workspace-covered top-level dir is replaced by its expanded children', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ workspaces: ['packages/*'] }));
+  fs.mkdirSync(path.join(root, 'packages', 'a'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'packages', 'b'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'docs'), { recursive: true }); // not covered by any workspace pattern
+  const ids = listSlices(root).map((s) => s.id).sort();
+  assert.deepStrictEqual(ids, ['.', 'docs', 'packages/a', 'packages/b']);
+  assert.ok(!ids.includes('packages'), 'the raw "packages" mega-slice must not also appear');
+});
+
+test('listSlices: falls back to one-level behavior when no workspace manifest exists', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'src'));
+  fs.mkdirSync(path.join(root, 'lib'));
+  const ids = listSlices(root).map((s) => s.id).sort();
+  assert.deepStrictEqual(ids, ['.', 'lib', 'src']);
+});
+
+test('listSlices: a workspace-expanded slice.path is the absolute path to the package', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ workspaces: ['packages/*'] }));
+  fs.mkdirSync(path.join(root, 'packages', 'db'), { recursive: true });
+  const slice = listSlices(root).find((s) => s.id === 'packages/db');
+  assert.ok(slice, 'packages/db slice must exist');
+  assert.strictEqual(slice.path, path.join(root, 'packages', 'db'));
+});
+
 // ─── contentHash ───────────────────────────────────────────────────────────
 
 test('contentHash returns a non-empty hex string', () => {

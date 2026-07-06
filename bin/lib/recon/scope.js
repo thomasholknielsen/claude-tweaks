@@ -11,16 +11,25 @@ const SKIP_DIRS = new Set([
 const SOURCE_EXTS = new Set(['.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs']);
 
 // ─── listSlices ──────────────────────────────────────────────────────────────
-// Returns [{ id, path }] for . (root) plus each immediate non-SKIP subdir.
+// Returns [{ id, path }] for . (root), each immediate non-SKIP subdir NOT covered
+// by a workspace manifest, plus every workspace-expanded package slice. A
+// top-level dir covered by a workspace pattern (e.g. "packages" when
+// "packages/*" is declared) is replaced by its expanded children rather than
+// also appearing as its own mega-slice. Repos with no workspace manifest keep
+// today's exact one-level-deep behavior.
 function listSlices(root) {
   const slices = [{ id: '.', path: root }];
+  const workspaceSlices = listWorkspaceSlices(root);
+  const coveredTopLevel = new Set(workspaceSlices.map((s) => s.id.split('/')[0]));
   let entries;
   try { entries = fs.readdirSync(root, { withFileTypes: true }); } catch { return slices; }
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     if (SKIP_DIRS.has(entry.name)) continue;
+    if (coveredTopLevel.has(entry.name)) continue;
     slices.push({ id: entry.name, path: path.join(root, entry.name) });
   }
+  slices.push(...workspaceSlices);
   return slices;
 }
 
