@@ -22,6 +22,8 @@ Walk the precedence chain (see `_shared/auto-mode-contract.md`):
 
 For each lever, record both the recommended value AND its source so the user can see why each value was suggested.
 
+**Git lever override.** When `.claude-tweaks/policy.yml` sets `worktree.always: true`, the Git lever is forced to `worktree` regardless of CLI args or defaults above — `current-branch` is never offered or accepted. This is enforced mechanically by a `PreToolUse` gate (see `_shared/git-discipline.md`), so a stale/overridden config value would simply get every edit denied; the Manifesto short-circuits to `worktree` here to avoid presenting a choice that can't actually be honored.
+
 ## Compute per-spec preview
 
 Before rendering the Manifesto, derive a per-spec preview by reading each spec's frontmatter and inferring what will run:

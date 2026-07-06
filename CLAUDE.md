@@ -25,7 +25,7 @@ agents/{name}.md                  → Agent definitions (frontmatter + body)
 hooks/hooks.json                  → Hook definitions (SessionStart/SessionEnd/PreCompact continuity + PreToolUse/PostToolUse/SubagentStop enforcement, all via bin/hooks.js)
 bin/hooks.js                      → Hook dispatcher (one entry point for all hook events + record-worktree/close-run subcommands)
 bin/                              → Node executables (statusline, deps check)
-bin/lib/                          → Shared Node helpers (color, deps, coordination, issue claims + ingestion)
+bin/lib/                          → Shared Node helpers (color, deps, coordination, issue claims + ingestion, policy)
 tests/                            → Node test files (node --test runner)
 README.md                         → User-facing documentation
 LICENSE                           → MIT
@@ -156,8 +156,8 @@ The marketplace `source` is an **unpinned git URL**, so installs and updates tra
 All hook registrations route through `bin/hooks.js <event>` — one dispatcher, one module per event in `bin/lib/hooks/`. Rules:
 
 - **Never break a session.** Every path exits 0 on error; the only deliberate non-zero outcome is the pre-tool-use deny. New modules must pass the garbage-stdin invariant test in `tests/hooks-dispatcher.test.js`.
-- **Tiered posture per `_shared/auto-mode-contract.md`:** block (E1 wrong-checkout commit only), warn (non-blocking systemMessage), inform (SessionStart additionalContext), log (append to the run dir's `events.jsonl`).
-- **Project-agnostic by construction:** modules key off plugin-owned state (`$PIPELINE_RUN_DIR`, `.claude-tweaks/pipelines/`), never off project structure. E1/E2/E3 no-op without a resolved run dir.
+- **Tiered posture per `_shared/auto-mode-contract.md`:** block (E1 wrong-checkout commit; the `worktree.always` policy gate on Edit/Write/NotebookEdit/commit), warn (non-blocking systemMessage), inform (SessionStart additionalContext), log (append to the run dir's `events.jsonl`).
+- **Project-agnostic by construction:** modules key off plugin-owned state (`$PIPELINE_RUN_DIR`, `.claude-tweaks/pipelines/`, `.claude-tweaks/policy.yml`), never off project structure. E1/E2/E3 no-op without a resolved run dir — the `worktree.always` policy gate is the one PreToolUse check that is deliberately run-independent, since its job is to require a worktree even before any pipeline run exists.
 - **Ambiguity resolves to allow** — E1 denies only provable mismatches. A recorded worktree whose path no longer exists also resolves to allow (fail-open) — tear-down without close-run ends enforcement, not the session. Ownership counts toward provability: `record-worktree` stamps the recording session's id (`CLAUDE_CODE_SESSION_ID`), and a wrong-checkout commit from a *different* session is allowed with a warn (`wd-foreign-session` event) instead of denied; missing identity on either side falls back to deny.
 - Run-dir state files written by hooks: `events.jsonl` (append-only typed events) and `run-state.json` (status: active | interrupted | clean, worktree assignment, owning session id). Skills write run-state only through `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" record-worktree <path>` / `close-run`.
 - Hook processes are spawned with the harness's own environment, so a `PIPELINE_RUN_DIR` exported inside a Bash tool call does not reach them; hooks instead resolve runs via the newest-non-terminal fallback from the Bash call's cwd, and a commit issued from inside a worktree that contains no `.claude-tweaks/` resolves no run dir and is allowed (fail-open).

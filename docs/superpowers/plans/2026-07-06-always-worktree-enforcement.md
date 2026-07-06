@@ -869,16 +869,17 @@ worktree.always: true
 Run: `npm test`
 Expected: PASS (this repo's own `.claude-tweaks/policy.yml` has no effect on the test suite, since every test uses isolated `mkdtemp` fixtures rather than this real path)
 
-- [ ] **Step 3: Verify the gate actually denies against the real main checkout, without leaving the worktree**
+- [ ] **Step 3: Confirm the real committed policy file is readable by the real code**
 
-From inside the current worktree (never from the main checkout), run a read-only diagnostic: invoke the hook CLI directly with `cwd` pointed at the **main checkout** path, using a crafted `Edit` input, and confirm it denies. `bin/hooks.js` reads `cwd` from the input JSON's `cwd` field, so pass the main checkout's absolute path there — set `MAIN` to that path (the directory you ran `/superpowers:using-git-worktrees` from) and run:
+**Correction (superseding an earlier version of this step):** an end-to-end "does the gate deny against the real main checkout" diagnostic is structurally impossible to run before this branch merges — the main checkout has no `.claude-tweaks/policy.yml` on disk until the merge lands (the file only exists inside this worktree pre-merge), so pointing any diagnostic at the main checkout's path will always come back empty/allow, no matter how correct the mechanism is. Do not attempt that diagnostic and do not report a deny result for it — the mechanism's correctness against exactly this scenario (policy file present in a plain, non-worktree repo → Edit/Write/NotebookEdit/commit denied) is already fully proven by the passing test suites from Tasks 1-5 (`tests/policy.test.js`, `tests/hooks-worktree-detect.test.js`, `tests/hooks-pre-tool-use.test.js`, `tests/hooks-session-start.test.js`). Full live proof against the real main checkout naturally happens the first time anyone works in this repo after merge — that's the point of the feature, not something provable in advance.
+
+What IS achievable and worth checking pre-merge: confirm the actual file just created in Step 1 (not a synthetic test fixture) is well-formed and parses correctly through the real reader. From this worktree's root, run:
 
 ```bash
-echo "{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$MAIN/README.md\"},\"cwd\":\"$MAIN\"}" \
-  | node "$MAIN/bin/hooks.js" pre-tool-use
+node -e "console.log(require('./bin/lib/policy').isWorktreeAlwaysOn(process.cwd()))"
 ```
 
-Expected output: a JSON object containing `"permissionDecision":"deny"` and a `permissionDecisionReason` mentioning `worktree.always`. This confirms the gate is live for the real repo without ever attempting a real Edit against the main checkout.
+Expected output: `true`. This proves the exact bytes committed in Step 1 satisfy `bin/lib/policy.js`'s regex — the one thing genuinely specific to this task that the fixture-based unit tests can't cover, since they write their own synthetic policy files rather than reading this real one.
 
 - [ ] **Step 4: Commit**
 

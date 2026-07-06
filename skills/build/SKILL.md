@@ -32,6 +32,8 @@ Two orthogonal axes (execution × git) combine freely. Default is `subagent` + `
 | **Git** | `worktree` (isolated branch) / `current-branch` (direct commits) | `worktree` |
 | **Auto** | `auto` keyword — applies CLAUDE.md / fallback defaults, skips confirmation prompts, routes deviations per `_shared/auto-mode-contract.md` | off |
 
+When `.claude-tweaks/policy.yml` sets `worktree.always: true`, the Git axis has only one value: `current-branch` is not offered and is rejected if passed explicitly — the mechanical PreToolUse gate would deny any edit outside a worktree regardless (see `_shared/git-discipline.md`).
+
 Read `build-options.md` in this skill's directory for the full options matrix, invocation grammar (six combinations), default-resolution order, the build-options prompt template, the spec-vs-design mode table, and the input-resolution rules. `$ARGUMENTS` = spec number / design doc path / topic name, optionally followed by execution strategy, git strategy, and/or `auto`.
 
 ## Workflow
@@ -256,7 +258,7 @@ After successful build, read `handoff-template.md` in this skill's directory and
 
 **worktree** (default): Before any work begins, `/superpowers:using-git-worktrees` creates an isolated workspace on a feature branch. All commits land in the worktree. At handoff, `/superpowers:finishing-a-development-branch` handles merge, PR, or discard — do NOT auto-merge or auto-PR.
 
-**current-branch**: Commit directly on the current branch. No isolation.
+**current-branch**: Commit directly on the current branch. No isolation. Unavailable when `.claude-tweaks/policy.yml` sets `worktree.always: true` — the mechanical PreToolUse gate denies edits outside a worktree regardless of what this lever says.
 
 ## Git Rules
 

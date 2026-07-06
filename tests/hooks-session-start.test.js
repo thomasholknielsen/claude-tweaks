@@ -2,6 +2,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
+const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -67,4 +68,43 @@ test('no stale runs and no deps warnings -> no json output', () => {
   } else {
     assert.deepStrictEqual(out, {});
   }
+});
+
+function gitProject() {
+  const dir = tmpProject();
+  execFileSync('git', ['-C', dir, 'init', '-q']);
+  return dir;
+}
+function withPolicy(repo, content) {
+  fs.mkdirSync(path.join(repo, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.claude-tweaks', 'policy.yml'), content);
+}
+
+test('worktree.always nudge appears when policy is on and session is not yet isolated', () => {
+  const project = gitProject();
+  withPolicy(project, 'worktree.always: true\n');
+  const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  assert.match(out.json.hookSpecificOutput.additionalContext, /worktree\.always/);
+  assert.match(out.json.hookSpecificOutput.additionalContext, /using-git-worktrees/);
+});
+
+test('worktree.always nudge is absent when policy is off', () => {
+  const project = gitProject();
+  const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+  if (out.json) assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /worktree\.always/);
+  else assert.deepStrictEqual(out, {});
+});
+
+test('worktree.always nudge is absent when the session is already inside a linked worktree', () => {
+  const project = gitProject();
+  execFileSync('git', ['-C', project, 'commit', '--allow-empty', '-m', 'init', '-q']);
+  withPolicy(project, 'worktree.always: true\n');
+  execFileSync('git', ['-C', project, 'add', '.claude-tweaks/policy.yml']);
+  execFileSync('git', ['-C', project, 'commit', '-m', 'policy', '-q']);
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ss-wt-'));
+  const wt = path.join(parent, 'wt');
+  execFileSync('git', ['-C', project, 'worktree', 'add', '-q', wt, '-b', 'wt-branch']);
+  const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: fs.realpathSync(wt) });
+  if (out.json) assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /worktree\.always/);
+  else assert.deepStrictEqual(out, {});
 });

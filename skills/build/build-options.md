@@ -13,6 +13,8 @@ Two orthogonal choices control how `/build` runs. Combine them freely:
 | **Git** | `worktree` (default) | Before execution, invokes `/superpowers:using-git-worktrees` to create an isolated workspace with dependency install and baseline test verification. All commits land in the worktree on a feature branch. At handoff, delegates to `/superpowers:finishing-a-development-branch` (merge, PR, keep, or discard). | Parallel work, team projects, risky changes, safe automation |
 | **Git** | `current-branch` | Commits land directly on the current branch. No isolation — simple and fast. | Quick local edits, no isolation needed |
 
+When `.claude-tweaks/policy.yml` sets `worktree.always: true`, the Git axis above collapses to `worktree` only — `current-branch` is not offered by the prompt, is rejected if passed explicitly, and every invocation example and default-resolution rule below that mentions `current-branch` is inapplicable for a project with this policy on. The mechanical PreToolUse gate denies any edit outside a worktree regardless of what this file's defaults say (see `_shared/git-discipline.md`).
+
 ```
 /claude-tweaks:build 42                         → subagent + worktree (default)
 /claude-tweaks:build 42 current-branch          → subagent + current branch (no isolation)
