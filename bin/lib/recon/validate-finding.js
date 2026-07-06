@@ -78,6 +78,16 @@ function validateFindingV2(obj) {
     }
   }
 
+  // relatedAnchors is optional: when present, every entry must be a non-empty string
+  // (same shape as `anchor` — sibling occurrences of the same root cause).
+  if (obj.relatedAnchors !== undefined) {
+    const isValidArray = Array.isArray(obj.relatedAnchors) &&
+      obj.relatedAnchors.every((a) => typeof a === 'string' && a.trim() !== '');
+    if (!isValidArray) {
+      errors.push(`relatedAnchors: when present, must be an array of non-empty strings (got ${JSON.stringify(obj.relatedAnchors)})`);
+    }
+  }
+
   // Criterion must be a known catalog id (only check when it passed the string check).
   if (typeof obj.criterion === 'string' && obj.criterion.trim() !== '') {
     if (getCriterion(obj.criterion) === undefined) {

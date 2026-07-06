@@ -170,3 +170,37 @@ test('validateFinding (v1) still works after extending the module', () => {
   const result = v1(f);
   assert.strictEqual(result.ok, true);
 });
+
+// ── relatedAnchors (bundled findings) ────────────────────────────────────────
+
+test('validateFindingV2: relatedAnchors is optional — absent is valid', () => {
+  const result = validateFindingV2(validV2Finding());
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.value.relatedAnchors, undefined);
+});
+
+test('validateFindingV2: relatedAnchors accepted when present as an array of non-empty strings', () => {
+  const result = validateFindingV2(validV2Finding({
+    relatedAnchors: ['src/api/other.js#getOther', 'src/api/third.js#getThird'],
+  }));
+  assert.strictEqual(result.ok, true);
+  assert.deepStrictEqual(result.value.relatedAnchors, ['src/api/other.js#getOther', 'src/api/third.js#getThird']);
+});
+
+test('validateFindingV2: relatedAnchors fails when not an array', () => {
+  const result = validateFindingV2(validV2Finding({ relatedAnchors: 'src/api/other.js#getOther' }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.startsWith('relatedAnchors')), result.errors.join('; '));
+});
+
+test('validateFindingV2: relatedAnchors fails when it contains an empty string', () => {
+  const result = validateFindingV2(validV2Finding({ relatedAnchors: ['src/a.js#a', ''] }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.startsWith('relatedAnchors')), result.errors.join('; '));
+});
+
+test('validateFindingV2: relatedAnchors fails when it contains a non-string entry', () => {
+  const result = validateFindingV2(validV2Finding({ relatedAnchors: ['src/a.js#a', 42] }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.startsWith('relatedAnchors')), result.errors.join('; '));
+});
