@@ -159,6 +159,25 @@ GitHub mutations recommended here (Close (GitHub), Resolve thread) execute only 
 → Collect each as: `[pr] PR #{n}: {title} — {issue} — {recommendation}`
 → Collect each as: `[gh-issue] #{n}: {title} — {issue} — {recommendation}`
 
+### Step 4.8a: Recon severity-policy reconciliation (one-time)
+
+Recon's default filing threshold changed to high/critical only (`/claude-tweaks:recon`'s `--min-severity`, default `high`) — issues filed before that change may still carry `recon:low` or `recon:medium` from when everything filed regardless of severity. This is a one-time backstop, not a recurring behavior: once an issue is relabelled `recon:remembered`, it's excluded from this check on every future `/tidy` run (see the query below), so this step is self-limiting and naturally becomes a no-op once the existing backlog is caught up.
+
+Scoped strictly to issues carrying the `recon` label — this does not touch skill-health-labelled issues or any other tracker content.
+
+```bash
+gh issue list --label recon --state open --json number,title,labels \
+  --jq '.[] | select((.labels | map(.name) | any(. == "recon:low" or . == "recon:medium")) and (.labels | map(.name) | any(. == "recon:remembered") | not))'
+```
+
+For each issue this returns:
+- Add the `recon:remembered` label.
+- Comment: `Relabelled to recon:remembered — recon's default filing threshold is now high/critical only; this issue predates that change. Still valid work, just not held to the same urgency as a fresh high/critical finding.`
+
+This mutation follows the same staged/batch-approval path as the rest of Step 4.8 — it is proposed here, not applied until Step 6 batch approval, and is staged at every aggressiveness level in auto mode.
+
+→ Collect each as: `[gh-issue] #{n}: {title} — recon:remembered backfill — Relabel + comment (severity-policy reconciliation)`
+
 ## Step 5: Spec Sizing Review
 
 For specs not yet built, check sizing:
