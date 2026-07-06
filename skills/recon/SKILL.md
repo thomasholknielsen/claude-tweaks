@@ -138,6 +138,7 @@ For each finding, emit exactly this shape:
   "criterion": "<catalog id, e.g. 'simplification'>",
   "areaId": "<directory path relative to root, e.g. 'src/api'>",
   "anchor": "<relfile#NearestNamedSymbol — see anchor rules below>",
+  "relatedAnchors": "<optional array of relfile#NearestNamedSymbol strings — sibling occurrences of the same root cause; omit if there's only one occurrence>",
   "severity": "<low|medium|high|critical>",
   "confidence": "<high|med|low>",
   "title": "<short summary>",
@@ -146,6 +147,8 @@ For each finding, emit exactly this shape:
   "acceptance": "<acceptance criteria>"
 }
 ```
+
+**Bundling rule (recurring root causes):** when the same criterion and the same suggested fix recur at multiple call sites within the slice being judged, file **one** finding, not one per call site. Pick the clearest/most representative occurrence as the primary `anchor`; list every other occurrence in `relatedAnchors`; make `evidence` enumerate all occurrences; make `acceptance` require all of them fixed, not just the primary. Only bundle occurrences that share both the criterion AND the fix — do not bundle unrelated findings under one anchor just because they're nearby in the same file or directory.
 
 **Anchor rules (critical for dedup stability):**
 - Format: `relative/file/path#NearestNamedSymbol`
@@ -308,6 +311,7 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | Filing a finding with `confidence: 'low'` for a noisy criterion | Noisy criteria (`security-logic`, `config-secrets`, `input-validation`, `resilience`) require `confidence: 'high'` to file. The confidence floor is enforced by the skill judgment, not the engine — the engine validates the shape, not the policy. |
 | Skipping the verify gate before filing | Files plausible-but-wrong findings. Every surviving finding must pass all three verify questions — real, actionable, reproducible — before reaching dedup. |
 | Filing `gh issue create` directly off a `--dry-run` payload without a matching non-`--dry-run` `validate-findings` call | Breaks rotation state silently — cursors and the run-log never persist, so `next-slice` re-selects the same slice next time. Always follow a `--dry-run` preview with the real call before filing. |
+| Splitting one recurring root cause into N near-duplicate issues instead of bundling | Floods the tracker with issues that are really one fix applied at N call sites. Use `relatedAnchors` to cover every occurrence in a single finding instead. |
 
 ## Relationship to Other Skills
 
