@@ -218,3 +218,73 @@ test('deny reason substitutes CLAUDE_PLUGIN_ROOT when set, else keeps the litera
     delete process.env.CLAUDE_PLUGIN_ROOT;
   }
 });
+
+function gitRepoWithCommit() {
+  const dir = gitRepo();
+  execFileSync('git', ['-C', dir, 'commit', '--allow-empty', '-m', 'init', '-q']);
+  return dir;
+}
+
+function linkedWorktreeOf(main) {
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-e1-wtparent-'));
+  const wt = path.join(parent, 'wt');
+  execFileSync('git', ['-C', main, 'worktree', 'add', '-q', wt, '-b', `wt-branch-${path.basename(parent)}`]);
+  return fs.realpathSync(wt);
+}
+
+function withPolicy(repo, content) {
+  fs.mkdirSync(path.join(repo, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.claude-tweaks', 'policy.yml'), content);
+}
+
+test('worktree-required: policy off allows Edit/Write/NotebookEdit/commit in the main checkout', () => {
+  const repo = gitRepoWithCommit();
+  assert.deepStrictEqual(pre.run({ input: { tool_name: 'Edit', tool_input: { file_path: path.join(repo, 'a.txt') } }, runDir: null, runState: null, cwd: repo }), {});
+  assert.deepStrictEqual(pre.run({ input: { tool_name: 'Write', tool_input: { file_path: path.join(repo, 'b.txt') } }, runDir: null, runState: null, cwd: repo }), {});
+  assert.deepStrictEqual(pre.run({ input: { tool_name: 'NotebookEdit', tool_input: { notebook_path: path.join(repo, 'n.ipynb') } }, runDir: null, runState: null, cwd: repo }), {});
+  assert.deepStrictEqual(pre.run({ input: bashInput('git commit -m "x"', repo), runDir: null, runState: null, cwd: repo }), {});
+});
+
+test('worktree-required: policy on denies Edit in the main checkout with a corrective reason', () => {
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree.always: true\n');
+  const out = pre.run({ input: { tool_name: 'Edit', tool_input: { file_path: path.join(repo, 'a.txt') } }, runDir: null, runState: null, cwd: repo });
+  const spec = out.json.hookSpecificOutput;
+  assert.strictEqual(spec.permissionDecision, 'deny');
+  assert.match(spec.permissionDecisionReason, /worktree\.always/);
+  assert.match(spec.permissionDecisionReason, /using-git-worktrees/);
+});
+
+test('worktree-required: policy on allows Edit inside a linked worktree', () => {
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree.always: true\n');
+  execFileSync('git', ['-C', repo, 'add', '.claude-tweaks/policy.yml']);
+  execFileSync('git', ['-C', repo, 'commit', '-m', 'policy', '-q']);
+  const wt = linkedWorktreeOf(repo);
+  const out = pre.run({ input: { tool_name: 'Edit', tool_input: { file_path: path.join(wt, 'a.txt') } }, runDir: null, runState: null, cwd: wt });
+  assert.deepStrictEqual(out, {});
+});
+
+test('worktree-required: policy on denies Write to a not-yet-existing file, and NotebookEdit, in the main checkout', () => {
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree.always: true\n');
+  const writeOut = pre.run({ input: { tool_name: 'Write', tool_input: { file_path: path.join(repo, 'new', 'brand-new.txt') } }, runDir: null, runState: null, cwd: repo });
+  assert.strictEqual(writeOut.json.hookSpecificOutput.permissionDecision, 'deny');
+  const nbOut = pre.run({ input: { tool_name: 'NotebookEdit', tool_input: { notebook_path: path.join(repo, 'n.ipynb') } }, runDir: null, runState: null, cwd: repo });
+  assert.strictEqual(nbOut.json.hookSpecificOutput.permissionDecision, 'deny');
+});
+
+test('worktree-required: policy on denies a git commit in the main checkout even with NO pipeline run dir at all', () => {
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree.always: true\n');
+  const out = pre.run({ input: bashInput('git commit -m "x"', repo), runDir: null, runState: null, cwd: repo });
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
+});
+
+test('worktree-required: policy is read from the EDIT TARGET\'s own repo, not the session cwd', () => {
+  const policyRepo = gitRepoWithCommit();
+  withPolicy(policyRepo, 'worktree.always: true\n');
+  const otherRepo = gitRepoWithCommit(); // no policy
+  const out = pre.run({ input: { tool_name: 'Edit', tool_input: { file_path: path.join(otherRepo, 'a.txt') } }, runDir: null, runState: null, cwd: policyRepo });
+  assert.deepStrictEqual(out, {});
+});

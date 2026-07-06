@@ -1,4 +1,5 @@
-// bin/lib/hooks/pre-tool-use.js — E1: working-directory discipline (block tier).
+// bin/lib/hooks/pre-tool-use.js — E1: working-directory discipline (block tier)
+// + the worktree-required policy gate (run-independent; see below).
 // Denies ONLY on a provable mismatch. Ambiguity -> allow: a false-positive
 // freeze in an unattended run is worse than a missed catch (E2 still records).
 // "Provable" includes ownership: a deny requires the commit to come from the
@@ -12,6 +13,8 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const { gitTargets } = require('./git-command');
 const ctxLib = require('./context');
+const policy = require('../policy');
+const wtDetect = require('./worktree-detect');
 
 function pluginRoot() {
   return process.env.CLAUDE_PLUGIN_ROOT || '${CLAUDE_PLUGIN_ROOT}';
@@ -29,7 +32,53 @@ function safeReal(p) {
   try { return fs.realpathSync(p); } catch { return null; }
 }
 
+// worktree-required policy gate: unlike E1 below, this needs no pipeline run
+// state at all — it fires on the first Edit/Write/NotebookEdit/commit of a
+// session, before any skill has ever run, whenever the target repo has opted
+// into `worktree.always: true` in its .claude-tweaks/policy.yml.
+function checkWorktreeRequired(ctx) {
+  const toolName = ctx.input && ctx.input.tool_name;
+  const toolInput = ctx.input && ctx.input.tool_input;
+  let targetPath = null;
+
+  if (toolName === 'Edit' || toolName === 'Write') {
+    if (toolInput && typeof toolInput.file_path === 'string') targetPath = toolInput.file_path;
+  } else if (toolName === 'NotebookEdit') {
+    if (toolInput && typeof toolInput.notebook_path === 'string') targetPath = toolInput.notebook_path;
+  } else if (toolName === 'Bash') {
+    const command = toolInput && typeof toolInput.command === 'string' ? toolInput.command : null;
+    if (command) {
+      const commit = gitTargets(command, ctx.cwd).find((t) => t.action === 'commit');
+      if (commit) targetPath = commit.dir;
+    }
+  }
+  if (!targetPath) return {};
+
+  const repoRoot = wtDetect.repoRootFor(targetPath);
+  if (!repoRoot) return {}; // not a git repo at all -> allow
+  if (!policy.isWorktreeAlwaysOn(repoRoot)) return {};
+  if (wtDetect.isLinkedWorktree(targetPath)) return {};
+
+  return {
+    exit: 0,
+    json: {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason:
+          `claude-tweaks: this project requires an isolated worktree for all file changes ` +
+          `(policy: worktree.always in .claude-tweaks/policy.yml). You're currently working in ` +
+          `the main checkout (${repoRoot}). Set one up first: invoke /superpowers:using-git-worktrees, ` +
+          `then retry this edit inside the new worktree.`,
+      },
+    },
+  };
+}
+
 function run(ctx) {
+  const gate = checkWorktreeRequired(ctx);
+  if (gate.json) return gate;
+
   if (!ctx.runDir || !ctx.runState || !ctx.runState.worktree) return {};
   if (ctx.runState.status === 'clean') return {};
   if (ctx.input.tool_name !== 'Bash') return {};
