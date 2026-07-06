@@ -32,6 +32,18 @@ test('status prints open and regressed counts from v2 cache', () => {
   assert.ok(out.includes('closed:1'), `expected closed:1 in: ${out}`);
 });
 
+test('status prints the remembered count from v2 cache', () => {
+  const root = tmp();
+  writeV2Cache(root, [
+    { fp: 'recon-aaaabbbb', status: 'open', severity: 'medium' },
+    { fp: 'recon-ccccdddd', status: 'remembered', severity: 'medium' },
+    { fp: 'recon-eeeeffff', status: 'remembered', severity: 'low' },
+  ]);
+  const out = execFileSync('node', [CLI, 'status', '--root', root], { encoding: 'utf8' });
+  assert.ok(out.includes('open:1'), `expected open:1 in: ${out}`);
+  assert.ok(out.includes('remembered:2'), `expected remembered:2 in: ${out}`);
+});
+
 test('status --fail-on regressed exits 1 when regressed entries exist in v2 cache', () => {
   const root = tmp();
   writeV2Cache(root, [

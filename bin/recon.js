@@ -71,9 +71,11 @@ function cmdStatus(args) {
     regressed: findings.filter((f) => f.status === 'regressed').length,
     closed: findings.filter((f) => f.status === 'closed').length,
     wontfix: findings.filter((f) => f.status === 'wontfix').length,
+    remembered: findings.filter((f) => f.status === 'remembered').length,
     critical: findings.filter((f) => f.status === 'open' && f.severity === 'critical').length,
   };
-  const line = `open:${counts.open} regressed:${counts.regressed} closed:${counts.closed} wontfix:${counts.wontfix}\n`;
+  const line = `open:${counts.open} regressed:${counts.regressed} closed:${counts.closed} ` +
+    `wontfix:${counts.wontfix} remembered:${counts.remembered}\n`;
   const failOn = args['fail-on'];
   if (failOn === 'regressed' && counts.regressed > 0) {
     process.stdout.write(`FAIL: ${counts.regressed} regressed finding(s)\n` + line);
