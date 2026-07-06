@@ -98,6 +98,81 @@ function hotspotScore(churn, loc) {
   return churn * Math.min(loc / 100, 10); // cap loc contribution to keep scores finite
 }
 
+// ─── Workspace-aware slicing ─────────────────────────────────────────────────
+// Reads package.json#workspaces (array or {packages:[...]} form) or, failing
+// that, pnpm-workspace.yaml's `packages:` list, and expands each pattern to its
+// member packages. Minimal glob support by design — no new dependency:
+//   "<dir>/*"   → every immediate subdirectory of <dir> becomes its own slice
+//   "<literal>" → that exact path becomes one slice (existence-checked)
+//   anything else (**, negation, multiple wildcards) → skipped, logged to stderr
+function readWorkspacePatterns(root) {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+    if (Array.isArray(pkg.workspaces)) return pkg.workspaces;
+    if (pkg.workspaces && Array.isArray(pkg.workspaces.packages)) return pkg.workspaces.packages;
+  } catch { /* no package.json, or no usable workspaces field — fall through to pnpm */ }
+
+  try {
+    const yaml = fs.readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8');
+    const patterns = [];
+    let inPackages = false;
+    for (const line of yaml.split('\n')) {
+      if (/^packages:\s*$/.test(line.trim())) { inPackages = true; continue; }
+      if (!inPackages) continue;
+      const m = line.match(/^\s*-\s*['"]?([^'"#\s]+)['"]?\s*$/);
+      if (m) { patterns.push(m[1]); continue; }
+      if (line.trim() !== '' && !/^[\s-]/.test(line)) inPackages = false;
+    }
+    return patterns;
+  } catch {
+    return [];
+  }
+}
+
+function expandWorkspacePattern(root, pattern) {
+  const wildcardCount = (pattern.match(/\*/g) || []).length;
+  const hasOtherSpecial = /[!{}?]/.test(pattern);
+
+  if (wildcardCount === 0 && !hasOtherSpecial) {
+    const abs = path.join(root, pattern);
+    try {
+      if (fs.statSync(abs).isDirectory()) return [{ id: pattern, path: abs }];
+    } catch { /* pattern names a path that doesn't exist */ }
+    return [];
+  }
+
+  if (wildcardCount === 1 && !hasOtherSpecial && pattern.endsWith('/*')) {
+    const prefix = pattern.slice(0, -2); // strip trailing "/*"
+    const absPrefix = path.join(root, prefix);
+    let entries;
+    try { entries = fs.readdirSync(absPrefix, { withFileTypes: true }); } catch { return []; }
+    return entries
+      .filter((e) => e.isDirectory())
+      .map((e) => ({ id: `${prefix}/${e.name}`, path: path.join(absPrefix, e.name) }));
+  }
+
+  process.stderr.write(
+    `[recon] scope: skipping unsupported workspace pattern "${pattern}" ` +
+    '(only "<dir>/*" and literal paths are supported)\n',
+  );
+  return [];
+}
+
+// Returns [] when no workspace manifest exists or none of its patterns resolve.
+function listWorkspaceSlices(root) {
+  const patterns = readWorkspacePatterns(root);
+  const slices = [];
+  const seen = new Set();
+  for (const pattern of patterns) {
+    for (const slice of expandWorkspacePattern(root, pattern)) {
+      if (seen.has(slice.id)) continue;
+      seen.add(slice.id);
+      slices.push(slice);
+    }
+  }
+  return slices;
+}
+
 // ─── selectSlice ─────────────────────────────────────────────────────────────
 // opts: { budget?: number, now?: number, signals?: { [id]: { churn, loc } } }
 // Returns Slice & { why: 'stale' | 'hotspot' } or null.
@@ -136,4 +211,4 @@ function selectSlice(root, cursors, opts = {}) {
   return { ...scored[0].slice, why: 'hotspot' };
 }
 
-module.exports = { listSlices, contentHash, selectSlice };
+module.exports = { listSlices, contentHash, selectSlice, listWorkspaceSlices };

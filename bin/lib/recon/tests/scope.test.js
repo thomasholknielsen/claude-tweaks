@@ -3,7 +3,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { listSlices, contentHash, selectSlice } = require('../scope');
+const { listSlices, contentHash, selectSlice, listWorkspaceSlices } = require('../scope');
 const { writeCursors } = require('../cache');
 
 const MAX_STALE_DAYS = 30; // mirrors score.js constant
@@ -177,4 +177,85 @@ test('selectSlice rotation: a second call after first is recorded picks a differ
   if (second !== null) {
     assert.notStrictEqual(second.id, first.id, 'must not re-pick the already-judged unchanged slice');
   }
+});
+
+// ─── Workspace-aware slicing: listWorkspaceSlices ─────────────────────────────
+
+test('listWorkspaceSlices: expands a package.json workspaces array with a trailing /* pattern', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ workspaces: ['packages/*'] }));
+  fs.mkdirSync(path.join(root, 'packages', 'a'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'packages', 'b'), { recursive: true });
+  const ids = listWorkspaceSlices(root).map((s) => s.id).sort();
+  assert.deepStrictEqual(ids, ['packages/a', 'packages/b']);
+});
+
+test('listWorkspaceSlices: expands the package.json workspaces.packages object form', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ workspaces: { packages: ['apps/*'] } }));
+  fs.mkdirSync(path.join(root, 'apps', 'web'), { recursive: true });
+  const ids = listWorkspaceSlices(root).map((s) => s.id);
+  assert.deepStrictEqual(ids, ['apps/web']);
+});
+
+test('listWorkspaceSlices: accepts a literal (non-glob) package path', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ workspaces: ['tools/cli'] }));
+  fs.mkdirSync(path.join(root, 'tools', 'cli'), { recursive: true });
+  const ids = listWorkspaceSlices(root).map((s) => s.id);
+  assert.deepStrictEqual(ids, ['tools/cli']);
+});
+
+test('listWorkspaceSlices: a literal pattern pointing at a non-existent path yields nothing', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ workspaces: ['tools/missing'] }));
+  assert.deepStrictEqual(listWorkspaceSlices(root), []);
+});
+
+test('listWorkspaceSlices: reads pnpm-workspace.yaml when package.json has no workspaces field', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'root' }));
+  fs.writeFileSync(path.join(root, 'pnpm-workspace.yaml'), 'packages:\n  - "packages/*"\n  - "apps/*"\n');
+  fs.mkdirSync(path.join(root, 'packages', 'db'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'apps', 'web'), { recursive: true });
+  const ids = listWorkspaceSlices(root).map((s) => s.id).sort();
+  assert.deepStrictEqual(ids, ['apps/web', 'packages/db']);
+});
+
+test('listWorkspaceSlices: package.json workspaces field takes precedence over pnpm-workspace.yaml', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ workspaces: ['packages/*'] }));
+  fs.writeFileSync(path.join(root, 'pnpm-workspace.yaml'), 'packages:\n  - "apps/*"\n');
+  fs.mkdirSync(path.join(root, 'packages', 'db'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'apps', 'web'), { recursive: true });
+  const ids = listWorkspaceSlices(root).map((s) => s.id);
+  assert.deepStrictEqual(ids, ['packages/db'], 'package.json must win when both manifests exist');
+});
+
+test('listWorkspaceSlices: unsupported pattern (double-star) is skipped, not thrown', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ workspaces: ['apps/**'] }));
+  fs.mkdirSync(path.join(root, 'apps', 'web'), { recursive: true });
+  assert.doesNotThrow(() => listWorkspaceSlices(root));
+  assert.deepStrictEqual(listWorkspaceSlices(root), []);
+});
+
+test('listWorkspaceSlices: returns [] when neither package.json nor pnpm-workspace.yaml exist', () => {
+  const root = tmp();
+  assert.deepStrictEqual(listWorkspaceSlices(root), []);
+});
+
+test('listWorkspaceSlices: returns [] when package.json has no workspaces field', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'x' }));
+  assert.deepStrictEqual(listWorkspaceSlices(root), []);
+});
+
+test('listWorkspaceSlices: slice.path is the absolute path to the expanded package', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ workspaces: ['packages/*'] }));
+  fs.mkdirSync(path.join(root, 'packages', 'db'), { recursive: true });
+  const slice = listWorkspaceSlices(root).find((s) => s.id === 'packages/db');
+  assert.ok(slice, 'packages/db slice must exist');
+  assert.strictEqual(slice.path, path.join(root, 'packages', 'db'));
 });
