@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { nearestExistingDir, repoRootFor, isLinkedWorktree } = require('../bin/lib/hooks/worktree-detect');
+const { nearestExistingDir, repoRootFor, isLinkedWorktree, findPolicyFile } = require('../bin/lib/hooks/worktree-detect');
 
 function gitRepo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-wtd-'));
@@ -76,4 +76,27 @@ test('isLinkedWorktree: a submodule is treated as not isolated', () => {
   execFileSync('git', ['-C', outer, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', inner, 'sub']);
   const subPath = path.join(outer, 'sub');
   assert.strictEqual(isLinkedWorktree(subPath), false);
+});
+
+test('findPolicyFile: no policy file anywhere in the ancestor chain returns null', () => {
+  const dir = gitRepo();
+  assert.strictEqual(findPolicyFile(path.join(dir, 'a.txt')), null);
+});
+
+test('findPolicyFile: policy file present at the target\'s own directory returns that directory', () => {
+  const dir = gitRepo();
+  fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'worktree.always: true\n');
+  assert.strictEqual(findPolicyFile(path.join(dir, 'a.txt')), dir);
+});
+
+test('findPolicyFile: policy file present several directories up returns that ancestor directory', () => {
+  const dir = gitRepo();
+  fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'worktree.always: true\n');
+  const nested = path.join(dir, 'a', 'b', 'c');
+  fs.mkdirSync(nested, { recursive: true });
+  const target = path.join(nested, 'file.txt');
+  assert.strictEqual(findPolicyFile(target), dir);
+  assert.notStrictEqual(findPolicyFile(target), nested);
 });

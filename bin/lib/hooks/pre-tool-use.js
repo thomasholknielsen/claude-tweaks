@@ -41,6 +41,9 @@ function checkWorktreeRequired(ctx) {
   const toolInput = ctx.input && ctx.input.tool_input;
   let targetPath = null;
 
+  // Keep this tool list in sync with the Edit/Write/NotebookEdit matchers in
+  // hooks/hooks.json — a new file-mutation tool must be added to both or it
+  // silently bypasses this gate.
   if (toolName === 'Edit' || toolName === 'Write') {
     if (toolInput && typeof toolInput.file_path === 'string') targetPath = toolInput.file_path;
   } else if (toolName === 'NotebookEdit') {
@@ -54,9 +57,15 @@ function checkWorktreeRequired(ctx) {
   }
   if (!targetPath) return {};
 
+  // Cheap fs-only check first: is there even a policy file to care about?
+  // Avoids forking git at all for the overwhelming majority of projects
+  // that never opt into this policy.
+  const policyDir = wtDetect.findPolicyFile(targetPath);
+  if (!policyDir) return {};
+  if (!policy.isWorktreeAlwaysOn(policyDir)) return {};
+
   const repoRoot = wtDetect.repoRootFor(targetPath);
   if (!repoRoot) return {}; // not a git repo at all -> allow
-  if (!policy.isWorktreeAlwaysOn(repoRoot)) return {};
   if (wtDetect.isLinkedWorktree(targetPath)) return {};
 
   return {
@@ -68,7 +77,7 @@ function checkWorktreeRequired(ctx) {
         permissionDecisionReason:
           `claude-tweaks: this project requires an isolated worktree for all file changes ` +
           `(policy: worktree.always in .claude-tweaks/policy.yml). You're currently working in ` +
-          `the main checkout (${repoRoot}). Set one up first: invoke /superpowers:using-git-worktrees, ` +
+          `a non-isolated checkout (${repoRoot}). Set one up first: invoke /superpowers:using-git-worktrees, ` +
           `then retry this edit inside the new worktree.`,
       },
     },

@@ -55,4 +55,19 @@ function isLinkedWorktree(p) {
   return safeReal(path.resolve(dir, gitDir)) !== safeReal(path.resolve(dir, gitCommon));
 }
 
-module.exports = { nearestExistingDir, repoRootFor, isLinkedWorktree };
+// fs-only walk-up looking for a .claude-tweaks/policy.yml, so callers can
+// check "is there even a policy file to care about" WITHOUT forking git.
+// Returns the directory containing the policy file, or null if none is
+// found anywhere up the ancestor chain.
+function findPolicyFile(p) {
+  let dir = nearestExistingDir(p);
+  while (dir) {
+    if (fs.existsSync(path.join(dir, '.claude-tweaks', 'policy.yml'))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+  return null;
+}
+
+module.exports = { nearestExistingDir, repoRootFor, isLinkedWorktree, findPolicyFile };
