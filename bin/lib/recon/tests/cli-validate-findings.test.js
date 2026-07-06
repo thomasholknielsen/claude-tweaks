@@ -42,7 +42,7 @@ test('validate-findings: valid finding emits one payload on stdout', () => {
   const findingsFile = path.join(root, 'findings.json');
   fs.writeFileSync(findingsFile, JSON.stringify([f]));
 
-  const result = runValidateFindings(root, findingsFile);
+  const result = runValidateFindings(root, findingsFile, ['--slice', 'src/api', '--run-id', 'r-basic']);
   assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
 
   const payloads = JSON.parse(result.stdout);
@@ -64,7 +64,7 @@ test('validate-findings: malformed finding is dropped with a stderr reason, vali
   const findingsFile = path.join(root, 'findings.json');
   fs.writeFileSync(findingsFile, JSON.stringify([malformed, good]));
 
-  const result = runValidateFindings(root, findingsFile);
+  const result = runValidateFindings(root, findingsFile, ['--slice', 'src/util', '--run-id', 'r-malformed']);
   assert.strictEqual(result.status, 0);
 
   const payloads = JSON.parse(result.stdout);
@@ -97,7 +97,7 @@ test('validate-findings: finding already open in issue index is skipped (dedup)'
   fs.writeFileSync(findingsFile, JSON.stringify([f]));
 
   // First run to learn the fingerprint.
-  const firstResult = runValidateFindings(root, findingsFile);
+  const firstResult = runValidateFindings(root, findingsFile, ['--slice', 'src/api', '--run-id', 'r-dedup-1']);
   const firstPayloads = JSON.parse(firstResult.stdout);
   assert.strictEqual(firstPayloads.length, 1);
   const fp = firstPayloads[0].body.match(/<!--\s*recon-fingerprint:\s*(recon-[0-9a-f]{8})\s*-->/)[1];
@@ -106,7 +106,9 @@ test('validate-findings: finding already open in issue index is skipped (dedup)'
   const issuesFile = path.join(root, 'issues.json');
   fs.writeFileSync(issuesFile, JSON.stringify([{ number: 1, state: 'open', labels: ['recon'], fingerprint: fp }]));
 
-  const secondResult = runValidateFindings(root, findingsFile, ['--issues', issuesFile]);
+  const secondResult = runValidateFindings(
+    root, findingsFile, ['--issues', issuesFile, '--slice', 'src/api', '--run-id', 'r-dedup-2'],
+  );
   assert.strictEqual(secondResult.status, 0);
   const secondPayloads = JSON.parse(secondResult.stdout);
   assert.strictEqual(secondPayloads.length, 0, 'open finding must be skipped (dedup)');
@@ -124,7 +126,7 @@ test('validate-findings: writes cache after a non-dry-run', () => {
   const findingsFile = path.join(root, 'findings.json');
   fs.writeFileSync(findingsFile, JSON.stringify([f]));
 
-  const result = runValidateFindings(root, findingsFile);
+  const result = runValidateFindings(root, findingsFile, ['--slice', 'src/api', '--run-id', 'r-cache']);
   assert.strictEqual(result.status, 0);
   assert.ok(
     fs.existsSync(path.join(root, '.claude-tweaks', 'recon', 'cache.json')),
@@ -297,4 +299,29 @@ test('validate-findings: --min-severity medium lowers the bar and files a medium
   assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
   const payloads = JSON.parse(result.stdout);
   assert.strictEqual(payloads.length, 1, 'medium finding must file when --min-severity medium is passed');
+});
+
+// ── Persistence hardening: --slice required for a real run ──────────────────
+
+test('validate-findings: exits 2 when --slice is missing on a non-dry-run call', () => {
+  const root = tmp();
+  const f = validFinding({ severity: 'high' });
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([f]));
+
+  const result = runValidateFindings(root, findingsFile, ['--run-id', 'r-no-slice']);
+  assert.strictEqual(result.status, 2, `expected exit 2, got ${result.status}. stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes('--slice'), `expected --slice mentioned in stderr: ${result.stderr}`);
+});
+
+test('validate-findings: --dry-run without --slice still succeeds (preview mode unaffected)', () => {
+  const root = tmp();
+  const f = validFinding({ severity: 'high' });
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([f]));
+
+  const result = runValidateFindings(root, findingsFile, ['--dry-run']);
+  assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+  const payloads = JSON.parse(result.stdout);
+  assert.strictEqual(payloads.length, 1);
 });

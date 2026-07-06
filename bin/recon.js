@@ -156,6 +156,15 @@ function cmdValidateFindings(args) {
     process.exit(2);
   }
 
+  if (!args.dryRun && !args.slice) {
+    process.stderr.write(
+      'validate-findings: --slice is required for a real (non-dry-run) run — without it, ' +
+      'the round-robin cursor for this slice never persists and rotation state silently drifts. ' +
+      'Pass --dry-run to preview without it.\n',
+    );
+    process.exit(2);
+  }
+
   let raw;
   try {
     raw = JSON.parse(fs.readFileSync(findingsPath, 'utf8'));

@@ -52,6 +52,8 @@ The command prints `{ id, path, why }` JSON, or `null` if nothing is due. Read t
 - If `why: "stale"`: this slice has not been judged in over 30 days regardless of content changes.
 - If `why: "hotspot"`: this slice has the highest churn × complexity score among slices with changed content.
 
+**Multi-slice runs (`--budget > 1`):** `next-slice` returns a JSON **array** of up to `n` slices instead of a single object when `--budget` is passed. Treat each array entry as its own full sweep: run Steps 2–9 in their entirety for slice 1 (including its own `validate-findings --slice <id> --run-id <id>` call), then repeat the full Steps 2–9 for slice 2, and so on. Never collect findings from multiple slices into one shared `validate-findings` call — each slice needs its own `--slice` value so its cursor persists independently. A run that judges 3 slices makes 3 separate `validate-findings` invocations, not 1.
+
 When `--area <path>` is provided, skip `next-slice` and use that path directly as the slice (manual override).
 
 Verify the resolved path exists:
@@ -212,13 +214,15 @@ In `--dry-run` mode, print the payloads and the `gh` commands that would run, bu
 
 **Step 9.5 — Confirm cursor + run-log persistence.**
 
-When `validate-findings` is called with `--slice <id>` and `--run-id <id>` on a real (non-`--dry-run`) run, the engine:
+`validate-findings` requires `--slice <id>` on a real (non-`--dry-run`) run — it exits 2 without it (Step 8). Given `--slice` and `--run-id`, the engine:
 - Writes the run's fingerprint set to `.claude-tweaks/recon/runs/<run-id>.json` (used by `churn-report`).
 - Records the slice's content-hash (`lastHash`) and sweep timestamp (`lastSweptMs`) to `.claude-tweaks/recon/cursors.json`.
 
-The next `next-slice` call will read these cursors and skip the slice unless its source files have changed since `lastHash` was recorded, or more than 30 days have passed (`stale` threshold). Without `--slice`, only the run-log is written and no cursor is updated (the slice remains eligible for re-selection).
+The next `next-slice` call will read these cursors and skip the slice unless its source files have changed since `lastHash` was recorded, or more than 30 days have passed (`stale` threshold).
 
-In `--dry-run` mode, neither the run-log nor the cursors are written — the run is truly a no-op for all persistence.
+**Mandatory readback check:** immediately after a real (non-`--dry-run`) `validate-findings` call, read `.claude-tweaks/recon/cursors.json` and confirm the just-swept slice id now has a `lastSweptMs` from this run (within the last few minutes). If it's missing or stale, **do not report the sweep as complete** — tell the user the persistence write appears to have failed (permissions, disk, or an unexpected error the engine logged to stderr as non-fatal) before proceeding. This is the safety net for the one failure mode no CLI flag can prevent: filing issues from a `--dry-run` preview without ever making the matching real call.
+
+In `--dry-run` mode, neither the run-log nor the cursors are written — the run is truly a no-op for all persistence, and this readback check does not apply.
 
 **Step 10 — SUMMARIZE.**
 
@@ -303,6 +307,7 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | Treating the cache as durable state | The cache is a rebuildable optimization. GitHub issue state is the source of truth for cross-run memory. |
 | Filing a finding with `confidence: 'low'` for a noisy criterion | Noisy criteria (`security-logic`, `config-secrets`, `input-validation`, `resilience`) require `confidence: 'high'` to file. The confidence floor is enforced by the skill judgment, not the engine — the engine validates the shape, not the policy. |
 | Skipping the verify gate before filing | Files plausible-but-wrong findings. Every surviving finding must pass all three verify questions — real, actionable, reproducible — before reaching dedup. |
+| Filing `gh issue create` directly off a `--dry-run` payload without a matching non-`--dry-run` `validate-findings` call | Breaks rotation state silently — cursors and the run-log never persist, so `next-slice` re-selects the same slice next time. Always follow a `--dry-run` preview with the real call before filing. |
 
 ## Relationship to Other Skills
 

@@ -71,6 +71,7 @@ test('v2 SKILL.md: exists', () => {
 
 ['validate-findings', '$PIPELINE_RUN_DIR', '--dry-run', 'criteriaForArea', 'anchor',
  'recon-fingerprint', 'NearestNamedSymbol', '--min-severity',
+ 'Multi-slice runs', 'Mandatory readback check',
 ].forEach((token) => {
   test(`v2 SKILL.md: contains required token '${token}'`, () => {
     const content = fs.readFileSync(skillMdPath, 'utf8');
