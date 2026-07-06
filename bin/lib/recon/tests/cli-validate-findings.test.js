@@ -328,3 +328,30 @@ test('validate-findings: --dry-run without --slice still succeeds (preview mode 
   const payloads = JSON.parse(result.stdout);
   assert.strictEqual(payloads.length, 1);
 });
+
+// ── Guard against unrecognized --min-severity values ─────────────────────────
+
+test('validate-findings: exits 2 when --min-severity is an unrecognized value', () => {
+  const root = tmp();
+  const f = validFinding({ severity: 'critical' });
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([f]));
+  const result = runValidateFindings(
+    root, findingsFile, ['--slice', 'src/api', '--run-id', 'r-bad-sev', '--min-severity', 'hgih'],
+  );
+  assert.strictEqual(result.status, 2, `expected exit 2, got ${result.status}. stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes('--min-severity'), `expected --min-severity mentioned in stderr: ${result.stderr}`);
+});
+
+test('validate-findings: a recognized --min-severity value still works normally', () => {
+  const root = tmp();
+  const f = validFinding({ severity: 'critical' });
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([f]));
+  const result = runValidateFindings(
+    root, findingsFile, ['--slice', 'src/api', '--run-id', 'r-good-sev', '--min-severity', 'low'],
+  );
+  assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+  const payloads = JSON.parse(result.stdout);
+  assert.strictEqual(payloads.length, 1, 'critical finding must still file with a valid --min-severity value');
+});

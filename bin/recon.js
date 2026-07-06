@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { fingerprint } = require('./lib/recon/fingerprint');
 const { readCache, writeCache, readRuns, computeChurn, recordRun, readCursors } = require('./lib/recon/cache');
-const { decide } = require('./lib/recon/dedup');
+const { decide, SEVERITY_RANK } = require('./lib/recon/dedup');
 const { validateFindingV2 } = require('./lib/recon/validate-finding');
 const { toIssuePayloadV2 } = require('./lib/recon/issue-payload');
 const { getCriterion } = require('./lib/recon/criteria');
@@ -161,6 +161,15 @@ function cmdValidateFindings(args) {
       'validate-findings: --slice is required for a real (non-dry-run) run — without it, ' +
       'the round-robin cursor for this slice never persists and rotation state silently drifts. ' +
       'Pass --dry-run to preview without it.\n',
+    );
+    process.exit(2);
+  }
+
+  if (args['min-severity'] && !(args['min-severity'] in SEVERITY_RANK)) {
+    process.stderr.write(
+      `validate-findings: --min-severity "${args['min-severity']}" is not a recognized severity ` +
+      '(must be one of low|medium|high|critical) — an unrecognized value silently remembers every ' +
+      'finding instead of filing it, including critical ones.\n',
     );
     process.exit(2);
   }
