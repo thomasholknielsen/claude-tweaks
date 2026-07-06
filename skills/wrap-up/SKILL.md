@@ -327,6 +327,7 @@ Before emitting the closure line, confirm every approved action actually ran:
 - Design caches deleted (when applicable) — no `*-audit.json` / `*-recommendations.json` / `*-declined.json` for this spec remain in `docs/plans/`
 - Pipeline run dir archived — `.claude-tweaks/pipelines/{run-id}/` is gone; `.claude-tweaks/pipelines/archive/{run-id}/` exists (skipped when `MULTISPEC_REVIEW_DEFER=1`)
 - Worktree removed (worktree strategy) — `git worktree list` no longer shows the feature worktree path
+- Closing-keyword carrier commit landed (worktree strategy + any spec has `recon-issue:` frontmatter) — `git log {default-branch} --grep="Fixes #{issue}"` shows the carrier commit for each resolved issue once merged (or `git log {feature-branch} --grep=...` if the branch is still open under "keep as-is" or a pending PR)
 
 If any approved action did not land, do NOT emit the closure line. Surface the gap (`BLOCKED — cleanup step {N} did not complete: {reason}`) and stop.
 

@@ -113,15 +113,28 @@ Every claim, skip, break, and release is logged to the run's `decisions.md` per
 ## Close-via-merge
 
 The agent never runs `gh issue close` (non-reversible network write — see
-`_shared/auto-mode-contract.md`). Issues close through the user's own merge action instead:
+`_shared/auto-mode-contract.md`). Issues close through the user's own merge action instead —
+by making sure the closing keyword already exists in a commit that will reach the default
+branch, regardless of *how* that happens:
 
-- **PR path:** `Fixes #{issue}` lines in the PR body — GitHub closes the issues when the
-  human merges to the default branch.
-- **Local-merge path:** the same `Fixes #{issue}` lines in the merge commit message — GitHub
-  closes the issues when the user pushes that commit to the default branch.
-- **Current-branch path:** no merge commit or PR exists — the same `Fixes #{issue}` lines go
-  in the final wrap-up commit message (per spec, in multi-spec runs); GitHub closes the issues
-  when that commit reaches the default branch.
+- **Worktree path (single-spec, the common case):** before handing off to
+  `/superpowers:finishing-a-development-branch`, `/wrap-up` cleanup Section C commits an empty
+  carrier commit on the feature branch — `git commit --allow-empty -m "Fixes #{issue}"`, one
+  line per issue — *before* that skill runs. This is necessary, not just convenient: that
+  skill's own "Merge locally" option runs a bare `git merge` with no `--no-ff`, which
+  fast-forwards and creates no merge commit to carry a message into; its "Push and Create PR"
+  option only runs `git push` and never calls `gh pr create`, so there is no PR body either. A
+  carrier commit on the branch itself works uniformly across all four of that skill's options
+  (fast-forward merge, `--no-ff` merge, push+PR — even a PR the user creates manually
+  afterward — or keep-as-is) because GitHub scans every commit reaching the default branch,
+  not just a merge commit or PR body.
+- **Worktree path (multi-terminal parallel):** `flow/worktree-merge.md` performs the merge
+  directly rather than delegating — `git merge --no-ff {branch} -m "... Fixes #{issue} ..."`.
+  The explicit `--no-ff` guarantees a real merge commit exists to carry the keyword, so no
+  separate carrier commit is needed on this path.
+- **Current-branch path:** no merge commit, PR, or branch finish exists — the same
+  `Fixes #{issue}` lines go in the final wrap-up commit message (per spec, in multi-spec runs);
+  GitHub closes the issues when that commit reaches the default branch.
 
 One line per issue. Direct `gh issue close` commands surface only for issues resolved
 *without* a merge (wontfix, duplicate), and the user runs them.
