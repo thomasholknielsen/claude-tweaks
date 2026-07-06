@@ -38,6 +38,9 @@ function toIssuePayload(finding) {
 // Labels include the criterion.
 function toIssuePayloadV2(finding) {
   const marker = `<!-- recon-fingerprint: ${finding.id} -->`;
+  const relatedLines = Array.isArray(finding.relatedAnchors) && finding.relatedAnchors.length > 0
+    ? ['', `Also affects: ${finding.relatedAnchors.map((a) => `\`${a}\``).join(', ')}`]
+    : [];
   const body = [
     marker,
     '',
@@ -46,6 +49,7 @@ function toIssuePayloadV2(finding) {
     '## Current State',
     '',
     `Anchor: \`${finding.anchor}\``,
+    ...relatedLines,
     '',
     finding.evidence,
     '',

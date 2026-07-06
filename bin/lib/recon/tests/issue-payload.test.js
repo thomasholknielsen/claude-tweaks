@@ -118,3 +118,23 @@ test('toIssuePayload (v1) still works after extending the module', () => {
   assert.ok(p.body.includes('<!-- recon-fingerprint: recon-abc12345 -->'));
   assert.deepStrictEqual(p.labels, ['recon', 'recon:high']);
 });
+
+// ── relatedAnchors rendering (bundled findings) ──────────────────────────────
+
+test('v2 body includes an "Also affects" line when relatedAnchors is present', () => {
+  const finding = { ...V2_FINDING, relatedAnchors: ['src/api/other.js#getOther', 'src/api/third.js#getThird'] };
+  const { body } = toIssuePayloadV2(finding);
+  assert.ok(body.includes('Also affects:'), 'missing Also affects block');
+  assert.ok(body.includes('`src/api/other.js#getOther`'));
+  assert.ok(body.includes('`src/api/third.js#getThird`'));
+});
+
+test('v2 body omits "Also affects" when relatedAnchors is absent', () => {
+  const { body } = toIssuePayloadV2(V2_FINDING);
+  assert.ok(!body.includes('Also affects:'));
+});
+
+test('v2 body omits "Also affects" when relatedAnchors is an empty array', () => {
+  const { body } = toIssuePayloadV2({ ...V2_FINDING, relatedAnchors: [] });
+  assert.ok(!body.includes('Also affects:'));
+});
