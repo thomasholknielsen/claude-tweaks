@@ -134,3 +134,33 @@ test('close-run lifts E1 enforcement: pre-tool-use allows a commit outside the o
     `expected close-run to lift E1 enforcement (no permissionDecision), got: ${result.stdout}`
   );
 });
+
+test('hooks.json registers PreToolUse matchers for Edit, Write, and NotebookEdit', () => {
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'hooks.json'), 'utf8'));
+  const matchers = config.hooks.PreToolUse.map((entry) => entry.matcher);
+  assert.ok(matchers.includes('Edit'), 'expected an Edit matcher');
+  assert.ok(matchers.includes('Write'), 'expected a Write matcher');
+  assert.ok(matchers.includes('NotebookEdit'), 'expected a NotebookEdit matcher');
+});
+
+test('e2e: pre-tool-use CLI denies an Edit when worktree.always policy is set in the main checkout', () => {
+  const project = gitRepo();
+  fs.mkdirSync(path.join(project, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(project, '.claude-tweaks', 'policy.yml'), 'worktree.always: true\n');
+  const result = runHook(['pre-tool-use'], {
+    input: JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: path.join(project, 'a.txt') } }),
+    cwd: project,
+  });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /"permissionDecision":"deny"/);
+});
+
+test('e2e: pre-tool-use CLI allows an Edit when worktree.always policy is not set', () => {
+  const project = gitRepo();
+  const result = runHook(['pre-tool-use'], {
+    input: JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: path.join(project, 'a.txt') } }),
+    cwd: project,
+  });
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(result.stdout, '');
+});
