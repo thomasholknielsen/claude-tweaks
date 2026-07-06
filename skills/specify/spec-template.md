@@ -10,6 +10,8 @@ progress: 0
 blocked-by: [{spec numbers or empty}]
 surface: {frontend | backend | infra | mixed}
 design-intent: {bold | quiet | minimal | delightful | onboarding | none}
+recon-issue: {GitHub issue number, only when derived from one — omit otherwise}
+recon-fingerprint: {fingerprint marker from the issue body, when present — omit otherwise}
 ---
 
 # {Number}: {Title}
@@ -203,3 +205,19 @@ The user can declare multiple intents (e.g., `design-intent: delightful, onboard
 `design-intent:` answers "what creative direction does this spec want?" — gates only intent-driven commands.
 
 Keeping them separate means a frontend spec with no creative intent (`surface: frontend`, `design-intent: none`) still runs auto-fit + issue-driven commands but skips the intent-driven creative commands that would otherwise need explicit user direction. A backend spec (`surface: backend`) skips everything — no Impeccable invocations, no token cost.
+
+### `recon-issue:` and `recon-fingerprint:` fields
+
+Present only on specs derived from a GitHub issue — either directly (`/specify <issue-url>`, SKILL.md "Resolve the input" case 1) or via `/flow --from-recon`'s batch path (`flow/from-recon.md` Step 3, which stamps these itself rather than routing through case 1 — see that file).
+
+```yaml
+recon-issue: 142            # the GitHub issue number this spec resolves
+recon-fingerprint: recon-a1b2c3d4   # from the issue body's <!-- recon-fingerprint: ... --> marker, when present
+```
+
+| Field | Meaning | Consumer |
+|-------|---------|----------|
+| `recon-issue:` | The GitHub issue number to close when this spec's work merges | `/wrap-up` cleanup item 8 (issue-claim release, `cleanup-procedures.md` Section E) checks for this field's presence; cleanup item 5 (`cleanup-procedures.md` Section C) stamps the `Fixes #{issue}` closing-keyword carrier commit when it's present |
+| `recon-fingerprint:` | The finding's fingerprint at issue-filing time, for future reverse-reconciliation (comparing against a freshly recomputed fingerprint to tell whether the flagged code has since changed) | Not yet consumed by any skill — write-only today; `recon-issue:` alone is sufficient for closure |
+
+Omit both fields for specs not derived from a GitHub issue — there is no "none" sentinel; absence is the signal (same convention as `design-intent:`'s missing-field handling, but unlike it, absence here means "not applicable" rather than a default value).

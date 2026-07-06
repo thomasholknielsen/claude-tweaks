@@ -68,20 +68,41 @@ If no pipeline run directory exists (interactive mode, or pre-v4.6 pipeline), sk
 If the build used worktree git strategy, clean up the worktree directory:
 
 1. Run `git worktree list` to find worktrees associated with this spec's feature branch.
-2. Verify the feature branch was completed (merged, PR created, or discarded) via `/superpowers:finishing-a-development-branch`:
-   - **Already completed** → proceed to step 3.
-   - **Not completed** → run `/superpowers:finishing-a-development-branch` now (do not stop and ask the user to run it separately). Present the merge/PR/discard options as the skill normally would. After the branch is completed, proceed to step 3.
-   When any spec on the branch carries `recon-issue:` frontmatter, the merge artifact must
-   carry the closing keywords (see "Close-via-merge" in `_shared/issue-claims.md`): pass
-   `Fixes #{issue}` lines — one per issue — in the PR body (PR option) or the merge commit
-   message (merge option). The user's merge/push closes the issues; the agent never runs
-   `gh issue close`.
-   In `current-branch` mode (no worktree, no branch finish) the carrier is the final wrap-up
-   commit message — include the same `Fixes #{issue}` lines there; GitHub closes the issues
-   when that commit reaches the default branch (the operative instruction lives in wrap-up
-   SKILL.md Step 10's commit procedure, since Section C is skipped when no worktree exists).
-3. Remove the worktree: `git worktree remove {path}`.
-4. If the branch was merged (not kept for PR), delete it: `git branch -d {branch}`.
+2. **Stamp the closing-keyword carrier commit.** When any spec on the branch carries
+   `recon-issue:` frontmatter, and *before* handing off to
+   `/superpowers:finishing-a-development-branch`, commit an empty carrier commit on the feature
+   branch from inside the worktree:
+
+   ```bash
+   git commit --allow-empty -m "$(printf 'Fixes #%s\n' "${ISSUES[@]}")"
+   ```
+
+   One `Fixes #{issue}` line per resolved issue on the branch. Skip if a carrier commit for
+   these issues already exists on the branch (`git log {branch} --grep="Fixes #{issue}"` —
+   avoids duplicate empty commits if this step re-runs after an interruption).
+
+   **Why a dedicated commit, not the merge artifact:** `/superpowers:finishing-a-development-branch`'s
+   own git mechanics give the closing keyword no reliable home otherwise. Its "Merge locally"
+   option runs a bare `git merge <feature-branch>` with no `--no-ff` — git fast-forwards
+   silently whenever possible, producing **no merge commit at all** to carry a message into.
+   Its "Push and Create PR" option only runs `git push` — it never calls `gh pr create`, so
+   there is no PR body either. Stamping the feature branch itself sidesteps both: the keyword
+   travels with the branch regardless of which of the four options gets chosen (fast-forward
+   merge, non-ff merge, push+PR — even one the user creates manually afterward — or
+   keep-as-is), because GitHub scans every commit that reaches the default branch, not just a
+   merge commit or PR body. See "Close-via-merge" in `_shared/issue-claims.md` for the full
+   contract, including the multi-terminal parallel path (`flow/worktree-merge.md`), which
+   performs its own merge directly with `--no-ff` and does not need this carrier commit.
+3. Verify the feature branch was completed (merged, PR created, or discarded) via `/superpowers:finishing-a-development-branch`:
+   - **Already completed** → proceed to step 4.
+   - **Not completed** → run `/superpowers:finishing-a-development-branch` now (do not stop and ask the user to run it separately). Present the merge/PR/discard options as the skill normally would, unmodified — step 2's carrier commit already guarantees closure regardless of which option is chosen, so this skill's own literal git commands need no adaptation. After the branch is completed, proceed to step 4.
+   In `current-branch` mode (no worktree, no branch finish) there is no feature branch to stamp
+   — the carrier is the final wrap-up commit message instead: include the same
+   `Fixes #{issue}` lines there; GitHub closes the issues when that commit reaches the default
+   branch (the operative instruction lives in wrap-up SKILL.md Step 10's commit procedure,
+   since Section C is skipped when no worktree exists).
+4. Remove the worktree: `git worktree remove {path}`.
+5. If the branch was merged (not kept for PR), delete it: `git branch -d {branch}`.
 
 If no worktree exists for this spec, skip this section silently.
 
