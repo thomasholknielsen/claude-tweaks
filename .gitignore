@@ -1,4 +1,8 @@
 .worktrees/
+.claude/worktrees/
+.claude/settings.local.json
+.superpowers/sdd/
+node_modules/
 .DS_Store
 .claude-tweaks/pipelines/
 .claude-tweaks/research/
