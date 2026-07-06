@@ -138,7 +138,8 @@ function readWorkspacePatterns(root) {
   }
 }
 
-function expandWorkspacePattern(root, pattern) {
+function expandWorkspacePattern(root, rawPattern) {
+  const pattern = rawPattern.replace(/^\.\//, '').replace(/\/$/, '');
   const wildcardCount = (pattern.match(/\*/g) || []).length;
   const hasOtherSpecial = /[!{}?]/.test(pattern);
 

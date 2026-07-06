@@ -287,3 +287,20 @@ test('listWorkspaceSlices: slice.path is the absolute path to the expanded packa
   assert.ok(slice, 'packages/db slice must exist');
   assert.strictEqual(slice.path, path.join(root, 'packages', 'db'));
 });
+
+test('listWorkspaceSlices: strips a leading "./" from a workspace pattern', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ workspaces: ['./packages/*'] }));
+  fs.mkdirSync(path.join(root, 'packages', 'a'), { recursive: true });
+  const ids = listWorkspaceSlices(root).map((s) => s.id);
+  assert.deepStrictEqual(ids, ['packages/a'], 'a leading "./" must not produce a malformed id');
+});
+
+test('listSlices: a leading "./" workspace pattern still replaces the mega-slice (no duplicate coverage)', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ workspaces: ['./packages/*'] }));
+  fs.mkdirSync(path.join(root, 'packages', 'a'), { recursive: true });
+  const ids = listSlices(root).map((s) => s.id).sort();
+  assert.deepStrictEqual(ids, ['.', 'packages/a']);
+  assert.ok(!ids.includes('packages'), 'raw mega-slice must not survive alongside the expanded child');
+});
