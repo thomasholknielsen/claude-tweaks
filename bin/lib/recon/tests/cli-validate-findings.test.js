@@ -38,7 +38,7 @@ function validFinding(overrides = {}) {
 
 test('validate-findings: valid finding emits one payload on stdout', () => {
   const root = tmp();
-  const f = validFinding();
+  const f = validFinding({ severity: 'high' });
   const findingsFile = path.join(root, 'findings.json');
   fs.writeFileSync(findingsFile, JSON.stringify([f]));
 
@@ -58,7 +58,9 @@ test('validate-findings: valid finding emits one payload on stdout', () => {
 test('validate-findings: malformed finding is dropped with a stderr reason, valid ones survive', () => {
   const root = tmp();
   const malformed = { criterion: 'simplification', severity: 'medium' }; // missing required fields
-  const good = validFinding({ criterion: 'dead-code', anchor: 'src/util.js#trimPath', title: 'trimPath is unused' });
+  const good = validFinding({
+    criterion: 'dead-code', anchor: 'src/util.js#trimPath', title: 'trimPath is unused', severity: 'high',
+  });
   const findingsFile = path.join(root, 'findings.json');
   fs.writeFileSync(findingsFile, JSON.stringify([malformed, good]));
 
@@ -72,7 +74,7 @@ test('validate-findings: malformed finding is dropped with a stderr reason, vali
 
 test('validate-findings: --dry-run emits payloads but does not write cache', () => {
   const root = tmp();
-  const f = validFinding();
+  const f = validFinding({ severity: 'high' });
   const findingsFile = path.join(root, 'findings.json');
   fs.writeFileSync(findingsFile, JSON.stringify([f]));
 
@@ -90,7 +92,7 @@ test('validate-findings: --dry-run emits payloads but does not write cache', () 
 
 test('validate-findings: finding already open in issue index is skipped (dedup)', () => {
   const root = tmp();
-  const f = validFinding();
+  const f = validFinding({ severity: 'high' });
   const findingsFile = path.join(root, 'findings.json');
   fs.writeFileSync(findingsFile, JSON.stringify([f]));
 
@@ -238,4 +240,61 @@ test('validate-findings: next-slice skips the just-recorded unchanged slice', ()
   const sliceOut = JSON.parse(nsResult.stdout);
   assert.strictEqual(sliceOut, null,
     `next-slice must return null after recording the only slice — got: ${JSON.stringify(sliceOut)}`);
+});
+
+// ── Severity filter (min-severity) ───────────────────────────────────────────
+
+test('validate-findings: default min-severity is high — a medium finding is remembered, not filed', () => {
+  const root = tmp();
+  const f = validFinding({ severity: 'medium' });
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([f]));
+
+  const result = runValidateFindings(root, findingsFile, ['--slice', 'src/api', '--run-id', 'r-med']);
+  assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+  const payloads = JSON.parse(result.stdout);
+  assert.strictEqual(payloads.length, 0, 'medium severity must not file under the default (high) threshold');
+
+  const cache = JSON.parse(fs.readFileSync(path.join(root, '.claude-tweaks', 'recon', 'cache.json'), 'utf8'));
+  const entry = Object.values(cache)[0];
+  assert.strictEqual(entry.status, 'remembered');
+});
+
+test('validate-findings: high severity still files under the default threshold', () => {
+  const root = tmp();
+  const f = validFinding({ severity: 'high' });
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([f]));
+
+  const result = runValidateFindings(root, findingsFile, ['--slice', 'src/api', '--run-id', 'r-high']);
+  assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+  const payloads = JSON.parse(result.stdout);
+  assert.strictEqual(payloads.length, 1, 'high severity must file under the default threshold');
+});
+
+test('validate-findings: critical severity files under the default threshold', () => {
+  const root = tmp();
+  const f = validFinding({ severity: 'critical' });
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([f]));
+
+  const result = runValidateFindings(root, findingsFile, ['--slice', 'src/api', '--run-id', 'r-crit']);
+  assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+  const payloads = JSON.parse(result.stdout);
+  assert.strictEqual(payloads.length, 1, 'critical severity must file under the default threshold');
+});
+
+test('validate-findings: --min-severity medium lowers the bar and files a medium finding', () => {
+  const root = tmp();
+  const f = validFinding({ severity: 'medium' });
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([f]));
+
+  const result = runValidateFindings(
+    root, findingsFile,
+    ['--slice', 'src/api', '--run-id', 'r-min-med', '--min-severity', 'medium'],
+  );
+  assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+  const payloads = JSON.parse(result.stdout);
+  assert.strictEqual(payloads.length, 1, 'medium finding must file when --min-severity medium is passed');
 });

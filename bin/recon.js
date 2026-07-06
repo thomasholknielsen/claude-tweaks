@@ -148,7 +148,8 @@ function cmdValidateFindings(args) {
   const findingsPath = args._[1]; // positional after the subcommand name
   if (!findingsPath) {
     process.stderr.write(
-      'usage: recon.js validate-findings <findings.json> [--root <dir>] [--issues <file>] [--run-id <id>] [--slice <id>] [--dry-run]\n',
+      'usage: recon.js validate-findings <findings.json> [--root <dir>] [--issues <file>] ' +
+      '[--run-id <id>] [--slice <id>] [--min-severity <level>] [--dry-run]\n',
     );
     process.exit(2);
   }
@@ -198,7 +199,7 @@ function cmdValidateFindings(args) {
     if (seen.has(finding.id)) continue; // intra-run dedup
     seen.add(finding.id);
 
-    const decision = decide(finding, issueIndex, cache, { threshold: 'low' });
+    const decision = decide(finding, issueIndex, cache, { threshold: args['min-severity'] || 'high' });
     if (decision.action === 'skip' || decision.action === 'suppress') continue;
 
     if (decision.action === 'file' || decision.action === 'reopen') {

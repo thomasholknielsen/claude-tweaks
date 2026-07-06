@@ -35,6 +35,7 @@ Not for: auto-fixing (report-only), CI gating (CI stays reactive), or replacing 
 - `--dry-run` — emit the plan but write nothing (cache untouched, no issues filed). Use for the smoke check.
 - `--root <dir>` — scan a project elsewhere (default: current working directory).
 - `--budget <n>` — judge up to `n` slices in one run (default: 1). Use with `next-slice` when you want a deeper sweep in a single invocation.
+- `--min-severity <level>` — minimum severity that gets filed as a GitHub issue (default: `high`; one of `low|medium|high|critical`). Findings below this are held in the local cache as `remembered` — not dropped, not filed — until they escalate or a deliberately deeper sweep lowers the bar. Pass `--min-severity medium` (or `low`) for an intentional deep-dive that surfaces more than the default high/critical-only trickle.
 
 ## Workflow
 
@@ -173,6 +174,7 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" validate-findings /tmp/recon-findings.
   --slice "${SLICE_ID}" \
   --run-id "${RUN_ID}" \
   ${ISSUES_FILE:+--issues "$ISSUES_FILE"} \
+  ${MIN_SEVERITY:+--min-severity "$MIN_SEVERITY"} \
   ${DRY_RUN:+--dry-run} \
   > /tmp/recon-payloads.json
 ```
