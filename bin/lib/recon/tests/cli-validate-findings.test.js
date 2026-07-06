@@ -116,8 +116,11 @@ test('validate-findings: finding already open in issue index is skipped (dedup)'
 
 test('validate-findings: exits non-zero when findings file is missing', () => {
   const root = tmp();
-  const result = runValidateFindings(root, path.join(root, 'nonexistent.json'));
-  assert.notStrictEqual(result.status, 0, 'should exit non-zero for missing file');
+  const result = runValidateFindings(
+    root, path.join(root, 'nonexistent.json'), ['--slice', 'src/api', '--run-id', 'r-missing-file'],
+  );
+  assert.strictEqual(result.status, 1, 'should exit 1 for missing/unparsable findings file');
+  assert.ok(result.stderr.includes('could not read or parse'), `expected file-read error in stderr: ${result.stderr}`);
 });
 
 test('validate-findings: writes cache after a non-dry-run', () => {
