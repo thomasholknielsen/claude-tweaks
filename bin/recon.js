@@ -121,9 +121,17 @@ function cmdChurnReport(args) {
 }
 
 function cmdPullIssues(args) {
-  const { pullReconIssues } = require('./lib/recon/pull-issues');
+  const { pullReconIssues, SEVERITY_RANK } = require('./lib/recon/pull-issues');
   if (!args.issues) {
     process.stderr.write('usage: recon.js pull-issues --label <label> --issues <file> [--min-severity <sev>]\n');
+    process.exit(2);
+  }
+  if (args['min-severity'] && !(args['min-severity'] in SEVERITY_RANK)) {
+    process.stderr.write(
+      `pull-issues: --min-severity "${args['min-severity']}" is not a recognized severity ` +
+      `(must be one of ${Object.keys(SEVERITY_RANK).join('|')}) — an unrecognized value silently disables ` +
+      'the severity filter instead of restricting output.\n',
+    );
     process.exit(2);
   }
   let issuesJson;
