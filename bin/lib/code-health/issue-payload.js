@@ -3,7 +3,7 @@
 // Body is /specify-shaped so promotion to a spec is near-zero translation, and
 // carries a hidden fingerprint marker the dedup step re-extracts.
 function toIssuePayload(finding) {
-  const marker = `<!-- recon-fingerprint: ${finding.id} -->`;
+  const marker = `<!-- code-health-fingerprint: ${finding.id} -->`;
   const filesLine = (finding.files || []).length ? (finding.files || []).join(', ') : '(no specific file)';
   const body = [
     marker,
@@ -24,20 +24,20 @@ function toIssuePayload(finding) {
     '',
     finding.acceptance,
     '',
-    '_Filed by `/recon`. Close to resolve; label `wontfix` to suppress future reports of this finding._',
+    '_Filed by `/code-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._',
   ].join('\n');
 
   return {
     title: finding.title,
     body,
-    labels: ['recon', `recon:${finding.severity}`],
+    labels: ['code-health', `code-health:${finding.severity}`],
   };
 }
 
 // v2: body uses anchor (Current State), suggestedApproach (Deliverables), acceptance (Acceptance Criteria).
 // Labels include the criterion.
 function toIssuePayloadV2(finding) {
-  const marker = `<!-- recon-fingerprint: ${finding.id} -->`;
+  const marker = `<!-- code-health-fingerprint: ${finding.id} -->`;
   const relatedLines = Array.isArray(finding.relatedAnchors) && finding.relatedAnchors.length > 0
     ? ['', `Also affects: ${finding.relatedAnchors.map((a) => `\`${a}\``).join(', ')}`]
     : [];
@@ -61,13 +61,13 @@ function toIssuePayloadV2(finding) {
     '',
     finding.acceptance,
     '',
-    '_Filed by `/recon`. Close to resolve; label `wontfix` to suppress future reports of this finding._',
+    '_Filed by `/code-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._',
   ].join('\n');
 
   return {
     title: finding.title,
     body,
-    labels: ['recon', `recon:${finding.severity}`, `recon:${finding.criterion}`],
+    labels: ['code-health', `code-health:${finding.severity}`, `code-health:${finding.criterion}`],
   };
 }
 

@@ -6,7 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const CLI = path.resolve(__dirname, '..', '..', '..', 'recon.js');
+const CLI = path.resolve(__dirname, '..', '..', '..', 'code-health.js');
 
 function tmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-vf-'));
@@ -50,9 +50,9 @@ test('validate-findings: valid finding emits one payload on stdout', () => {
   assert.strictEqual(payloads.length, 1, 'expected 1 payload');
   assert.ok(payloads[0].title === f.title, 'title mismatch');
   assert.ok(Array.isArray(payloads[0].labels), 'labels must be an array');
-  assert.ok(payloads[0].labels.includes('recon'), 'missing recon label');
-  assert.ok(payloads[0].labels.includes('recon:simplification'), 'missing criterion label');
-  assert.ok(payloads[0].body.includes('<!-- recon-fingerprint: recon-'), 'fingerprint marker missing');
+  assert.ok(payloads[0].labels.includes('code-health'), 'missing code-health label');
+  assert.ok(payloads[0].labels.includes('code-health:simplification'), 'missing criterion label');
+  assert.ok(payloads[0].body.includes('<!-- code-health-fingerprint: codehealth-'), 'fingerprint marker missing');
 });
 
 test('validate-findings: malformed finding is dropped with a stderr reason, valid ones survive', () => {
@@ -84,7 +84,7 @@ test('validate-findings: --dry-run emits payloads but does not write cache', () 
   const payloads = JSON.parse(result.stdout);
   assert.strictEqual(payloads.length, 1);
   assert.strictEqual(
-    fs.existsSync(path.join(root, '.claude-tweaks', 'recon', 'cache.json')),
+    fs.existsSync(path.join(root, '.claude-tweaks', 'code-health', 'cache.json')),
     false,
     'cache must not be written in dry-run',
   );
@@ -100,11 +100,11 @@ test('validate-findings: finding already open in issue index is skipped (dedup)'
   const firstResult = runValidateFindings(root, findingsFile, ['--slice', 'src/api', '--run-id', 'r-dedup-1']);
   const firstPayloads = JSON.parse(firstResult.stdout);
   assert.strictEqual(firstPayloads.length, 1);
-  const fp = firstPayloads[0].body.match(/<!--\s*recon-fingerprint:\s*(recon-[0-9a-f]{8})\s*-->/)[1];
+  const fp = firstPayloads[0].body.match(/<!--\s*code-health-fingerprint:\s*(codehealth-[0-9a-f]{8})\s*-->/)[1];
 
   // Build an issue index pretending the fingerprint is already open.
   const issuesFile = path.join(root, 'issues.json');
-  fs.writeFileSync(issuesFile, JSON.stringify([{ number: 1, state: 'open', labels: ['recon'], fingerprint: fp }]));
+  fs.writeFileSync(issuesFile, JSON.stringify([{ number: 1, state: 'open', labels: ['code-health'], fingerprint: fp }]));
 
   const secondResult = runValidateFindings(
     root, findingsFile, ['--issues', issuesFile, '--slice', 'src/api', '--run-id', 'r-dedup-2'],
@@ -132,13 +132,13 @@ test('validate-findings: writes cache after a non-dry-run', () => {
   const result = runValidateFindings(root, findingsFile, ['--slice', 'src/api', '--run-id', 'r-cache']);
   assert.strictEqual(result.status, 0);
   assert.ok(
-    fs.existsSync(path.join(root, '.claude-tweaks', 'recon', 'cache.json')),
+    fs.existsSync(path.join(root, '.claude-tweaks', 'code-health', 'cache.json')),
     'cache must be written after a non-dry-run',
   );
 });
 
 // P2 additions: confidence-floor gate
-const { applyConfidenceFloor } = require('../../../recon');
+const { applyConfidenceFloor } = require('../../../code-health');
 
 test('applyConfidenceFloor passes a high-confidence finding for a high-floor criterion', () => {
   const result = applyConfidenceFloor({ confidence: 'high' }, 'high');
@@ -183,7 +183,7 @@ test('validate-findings: persists cursor + run-log on a real run with --slice', 
   assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
 
   // cursors.json must be written
-  const cursorsFile = path.join(root, '.claude-tweaks', 'recon', 'cursors.json');
+  const cursorsFile = path.join(root, '.claude-tweaks', 'code-health', 'cursors.json');
   assert.ok(fs.existsSync(cursorsFile), 'cursors.json must exist after a real run with --slice');
   const cursors = JSON.parse(fs.readFileSync(cursorsFile, 'utf8'));
   assert.ok(typeof cursors['.'].lastHash === 'string' && cursors['.'].lastHash.length > 0,
@@ -208,12 +208,12 @@ test('validate-findings: --dry-run with --slice writes neither cursors nor cache
   assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
 
   assert.strictEqual(
-    fs.existsSync(path.join(root, '.claude-tweaks', 'recon', 'cursors.json')),
+    fs.existsSync(path.join(root, '.claude-tweaks', 'code-health', 'cursors.json')),
     false,
     'cursors.json must NOT be written in dry-run',
   );
   assert.strictEqual(
-    fs.existsSync(path.join(root, '.claude-tweaks', 'recon', 'cache.json')),
+    fs.existsSync(path.join(root, '.claude-tweaks', 'code-health', 'cache.json')),
     false,
     'cache.json must NOT be written in dry-run',
   );
@@ -260,7 +260,7 @@ test('validate-findings: default min-severity is high — a medium finding is re
   const payloads = JSON.parse(result.stdout);
   assert.strictEqual(payloads.length, 0, 'medium severity must not file under the default (high) threshold');
 
-  const cache = JSON.parse(fs.readFileSync(path.join(root, '.claude-tweaks', 'recon', 'cache.json'), 'utf8'));
+  const cache = JSON.parse(fs.readFileSync(path.join(root, '.claude-tweaks', 'code-health', 'cache.json'), 'utf8'));
   const entry = Object.values(cache)[0];
   assert.strictEqual(entry.status, 'remembered');
 });

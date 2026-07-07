@@ -162,7 +162,7 @@ function expandWorkspacePattern(root, rawPattern) {
   }
 
   process.stderr.write(
-    `[recon] scope: skipping unsupported workspace pattern "${pattern}" ` +
+    `[code-health] scope: skipping unsupported workspace pattern "${pattern}" ` +
     '(only "<dir>/*" and literal paths are supported)\n',
   );
   return [];

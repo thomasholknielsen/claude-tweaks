@@ -6,7 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const CLI = path.resolve(__dirname, '..', '..', '..', 'recon.js');
+const CLI = path.resolve(__dirname, '..', '..', '..', 'code-health.js');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-status-v2-')); }
 
@@ -14,7 +14,7 @@ function writeV2Cache(root, entries) {
   // entries: [{ fp, status, severity }]
   const cache = {};
   for (const e of entries) cache[e.fp] = { status: e.status, severity: e.severity, issue: null };
-  const p = path.join(root, '.claude-tweaks', 'recon', 'cache.json');
+  const p = path.join(root, '.claude-tweaks', 'code-health', 'cache.json');
   fs.mkdirSync(path.dirname(p), { recursive: true });
   fs.writeFileSync(p, JSON.stringify(cache, null, 2) + '\n', 'utf8');
 }

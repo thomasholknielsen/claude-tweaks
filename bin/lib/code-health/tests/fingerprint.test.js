@@ -4,7 +4,7 @@ const { fingerprint, normalizeSignature } = require('../fingerprint');
 
 test('fingerprint returns a recon-<8hex> id', () => {
   const id = fingerprint({ lens: 'todo-comments', areaId: '.', signature: 'TODO x', file: 'a.js:12' });
-  assert.match(id, /^recon-[0-9a-f]{8}$/);
+  assert.match(id, /^codehealth-[0-9a-f]{8}$/);
 });
 
 // REGRESSION (PORT.md delta #1): a cosmetic line move must NOT mint a new id.
@@ -60,7 +60,7 @@ test('normalizeAnchor lowercases path, strips :line and :line:col on either side
 test('v2 fingerprint returns a recon-<8hex> id', () => {
   const { fingerprint } = require('../fingerprint');
   const id = fingerprint({ criterion: 'simplification', areaId: 'src/api', anchor: 'src/api/user.js#getUser' });
-  assert.match(id, /^recon-[0-9a-f]{8}$/);
+  assert.match(id, /^codehealth-[0-9a-f]{8}$/);
 });
 
 test('v2 fingerprint is stable when the finding moves lines (anchor stability)', () => {
@@ -100,8 +100,8 @@ test('v1 and v2 forms coexist — same module, both callable', () => {
   const { fingerprint } = require('../fingerprint');
   const v1 = fingerprint({ lens: 'todo-comments', areaId: '.', signature: 'TODO x', file: 'a.js:1' });
   const v2 = fingerprint({ criterion: 'bad-practice', areaId: '.', anchor: 'a.js#TODO x' });
-  assert.match(v1, /^recon-[0-9a-f]{8}$/);
-  assert.match(v2, /^recon-[0-9a-f]{8}$/);
+  assert.match(v1, /^codehealth-[0-9a-f]{8}$/);
+  assert.match(v2, /^codehealth-[0-9a-f]{8}$/);
   // They hash different inputs, so they should differ (unless astronomically unlucky).
   assert.notStrictEqual(v1, v2);
 });

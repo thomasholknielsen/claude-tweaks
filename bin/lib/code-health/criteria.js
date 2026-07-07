@@ -1,6 +1,6 @@
 'use strict';
 
-// Universal criteria catalog for recon v2.
+// Universal criteria catalog for code-health v2.
 // P1 populates all 15 universal criteria. Domain criteria (a11y, i18n, etc.) are added in P2.
 // Each entry: { id, appliesTo, fragment, confidenceFloor }
 //   appliesTo:      'universal' | string[]  (area type strings, e.g. ['frontend','library'])

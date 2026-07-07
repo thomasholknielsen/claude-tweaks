@@ -7,7 +7,7 @@ const os = require('os');
 const path = require('path');
 
 const { recordRun, readRuns, computeChurn } = require('../cache');
-const CLI = path.resolve(__dirname, '..', '..', '..', 'recon.js');
+const CLI = path.resolve(__dirname, '..', '..', '..', 'code-health.js');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-churn-v2-')); }
 

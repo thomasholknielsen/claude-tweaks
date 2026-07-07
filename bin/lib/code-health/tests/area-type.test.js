@@ -7,7 +7,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const { classifyArea } = require('../area-type');
 
-const CLI = path.resolve(__dirname, '..', '..', '..', 'recon.js');
+const CLI = path.resolve(__dirname, '..', '..', '..', 'code-health.js');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-at-')); }
 

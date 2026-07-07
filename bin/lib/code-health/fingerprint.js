@@ -37,12 +37,12 @@ function fingerprint({ lens, areaId, signature, file, criterion, anchor }) {
   if (criterion !== undefined) {
     // v2: LLM-judge finding. Hash criterion + areaId + normalizeAnchor(anchor).
     const basis = JSON.stringify([criterion, areaId, normalizeAnchor(anchor || '')]);
-    return 'recon-' + crypto.createHash('sha1').update(basis).digest('hex').slice(0, 8);
+    return 'codehealth-' + crypto.createHash('sha1').update(basis).digest('hex').slice(0, 8);
   }
   // v1: mechanical-lens finding. Keep the existing logic exactly.
   const normFile = String(file || '').replace(/:\d+(:\d+)?$/, '');
   const basis = JSON.stringify([lens, areaId, normFile, normalizeSignature(signature)]);
-  return 'recon-' + crypto.createHash('sha1').update(basis).digest('hex').slice(0, 8);
+  return 'codehealth-' + crypto.createHash('sha1').update(basis).digest('hex').slice(0, 8);
 }
 
 module.exports = { fingerprint, normalizeSignature, normalizeAnchor };

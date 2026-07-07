@@ -3,16 +3,16 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const { pullReconIssues } = require('../pull-issues');
 
-// A v2-shaped issue: body has three sections; labels include recon:<criterion>
+// A v2-shaped issue: body has three sections; labels include code-health:<criterion>
 function v2Issue({ number = 1, severity = 'high', criterion = 'security-logic', fingerprint = 'recon-abcd1234' } = {}) {
   return {
     number,
-    title: `[recon] ${criterion} finding`,
+    title: `[code-health] ${criterion} finding`,
     state: 'open',
     labels: [
-      { name: 'recon' },
-      { name: `recon:${severity}` },
-      { name: `recon:${criterion}` },
+      { name: 'code-health' },
+      { name: `code-health:${severity}` },
+      { name: `code-health:${criterion}` },
     ],
     body: [
       `## Current State`,
@@ -24,7 +24,7 @@ function v2Issue({ number = 1, severity = 'high', criterion = 'security-logic', 
       `## Acceptance Criteria`,
       `The validateToken function validates all inputs at the boundary.`,
       ``,
-      `<!-- recon-fingerprint: ${fingerprint} -->`,
+      `<!-- code-health-fingerprint: ${fingerprint} -->`,
     ].join('\n'),
   };
 }
@@ -35,7 +35,7 @@ test('pullReconIssues extracts fingerprint from v2 body', () => {
   assert.strictEqual(briefs[0].fingerprint, 'recon-abcd1234');
 });
 
-test('pullReconIssues extracts severity from recon:<severity> label (not recon:<criterion>)', () => {
+test('pullReconIssues extracts severity from code-health:<severity> label (not code-health:<criterion>)', () => {
   const briefs = pullReconIssues({ issuesJson: [v2Issue({ severity: 'critical', criterion: 'a11y' })] });
   assert.strictEqual(briefs[0].severity, 'critical');
 });

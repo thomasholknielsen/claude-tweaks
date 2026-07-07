@@ -2,11 +2,11 @@ const fs = require('fs');
 const path = require('path');
 
 // Gitignored, rebuildable-from-issues dedup cache.
-// Canonical path: <root>/.claude-tweaks/recon/cache.json (contract §cache.js)
+// Canonical path: <root>/.claude-tweaks/code-health/cache.json (contract §cache.js)
 // Shape: { "<fingerprint>": { status: 'open'|'wontfix'|'closed'|'remembered'|'regressed', issue: <number|null> } }
 
 function cachePath(root) {
-  return path.join(root, '.claude-tweaks', 'recon', 'cache.json');
+  return path.join(root, '.claude-tweaks', 'code-health', 'cache.json');
 }
 
 function readCache(root) {
@@ -25,11 +25,11 @@ function writeCache(root, cache) {
 }
 
 function runsDir(rootDir) {
-  return path.join(rootDir, '.claude-tweaks', 'recon', 'runs');
+  return path.join(rootDir, '.claude-tweaks', 'code-health', 'runs');
 }
 
 function cursorsPath(rootDir) {
-  return path.join(rootDir, '.claude-tweaks', 'recon', 'cursors.json');
+  return path.join(rootDir, '.claude-tweaks', 'code-health', 'cursors.json');
 }
 
 function readCursors(rootDir) {

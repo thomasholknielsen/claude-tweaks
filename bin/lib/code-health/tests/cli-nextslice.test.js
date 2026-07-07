@@ -7,7 +7,7 @@ const path = require('path');
 const { contentHash } = require('../scope');
 const { writeCursors } = require('../cache');
 
-const CLI = path.resolve(__dirname, '..', '..', '..', 'recon.js');
+const CLI = path.resolve(__dirname, '..', '..', '..', 'code-health.js');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-ns-')); }
 function runNextSlice(args, root) {
@@ -59,5 +59,5 @@ test('next-slice exits 0 and writes nothing to disk', () => {
   const raw = execFileSync('node', [CLI, 'next-slice', '--root', root], { encoding: 'utf8' });
   assert.strictEqual(JSON.parse(raw), null);
   // Cache must be untouched
-  assert.strictEqual(fs.existsSync(path.join(root, '.claude-tweaks', 'recon', 'cache.json')), false);
+  assert.strictEqual(fs.existsSync(path.join(root, '.claude-tweaks', 'code-health', 'cache.json')), false);
 });

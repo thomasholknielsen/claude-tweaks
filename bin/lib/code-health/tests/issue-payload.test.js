@@ -16,8 +16,8 @@ const FINDING = {
   acceptance: 'No module exceeds 300 lines, or the threshold is documented.',
 };
 
-test('labels are recon + recon:<severity>', () => {
-  assert.deepStrictEqual(toIssuePayload(FINDING).labels, ['recon', 'recon:high']);
+test('labels are code-health + code-health:<severity>', () => {
+  assert.deepStrictEqual(toIssuePayload(FINDING).labels, ['code-health', 'code-health:high']);
 });
 
 test('title is the finding title', () => {
@@ -26,7 +26,7 @@ test('title is the finding title', () => {
 
 test('body embeds the fingerprint marker so it can be re-extracted for dedup', () => {
   const { body } = toIssuePayload(FINDING);
-  assert.ok(body.includes('<!-- recon-fingerprint: recon-abc12345 -->'));
+  assert.ok(body.includes('<!-- code-health-fingerprint: recon-abc12345 -->'));
 });
 
 test('body carries /specify-shaped sections sourced from the finding', () => {
@@ -43,7 +43,7 @@ test('body carries /specify-shaped sections sourced from the finding', () => {
 // The marker is the dedup contract: the skill reads issue bodies and matches this.
 test('the fingerprint can be re-extracted from the body with a stable regex', () => {
   const { body } = toIssuePayload(FINDING);
-  const m = body.match(/<!--\s*recon-fingerprint:\s*(recon-[0-9a-f]{8})\s*-->/);
+  const m = body.match(/<!--\s*code-health-fingerprint:\s*(codehealth-[0-9a-f]{8}|recon-[0-9a-f]{8})\s*-->/);
   assert.strictEqual(m[1], 'recon-abc12345');
 });
 
@@ -64,10 +64,10 @@ const V2_FINDING = {
   acceptance: 'getUser adds caching, authorization, or enrichment; or is removed.',
 };
 
-test('v2 labels are recon + recon:<severity> + recon:<criterion>', () => {
+test('v2 labels are code-health + code-health:<severity> + code-health:<criterion>', () => {
   assert.deepStrictEqual(
     toIssuePayloadV2(V2_FINDING).labels,
-    ['recon', 'recon:medium', 'recon:simplification'],
+    ['code-health', 'code-health:medium', 'code-health:simplification'],
   );
 });
 
@@ -77,7 +77,7 @@ test('v2 title is the finding title', () => {
 
 test('v2 body embeds the fingerprint marker', () => {
   const { body } = toIssuePayloadV2(V2_FINDING);
-  assert.ok(body.includes('<!-- recon-fingerprint: recon-ab12cd34 -->'), 'marker missing');
+  assert.ok(body.includes('<!-- code-health-fingerprint: recon-ab12cd34 -->'), 'marker missing');
 });
 
 test('v2 body has ## Current State containing anchor and evidence', () => {
@@ -101,7 +101,7 @@ test('v2 body has ## Acceptance Criteria containing acceptance', () => {
 
 test('v2 fingerprint marker is re-extractable with the standard regex', () => {
   const { body } = toIssuePayloadV2(V2_FINDING);
-  const m = body.match(/<!--\s*recon-fingerprint:\s*(recon-[0-9a-f]{8})\s*-->/);
+  const m = body.match(/<!--\s*code-health-fingerprint:\s*(codehealth-[0-9a-f]{8}|recon-[0-9a-f]{8})\s*-->/);
   assert.ok(m, 'regex did not match');
   assert.strictEqual(m[1], 'recon-ab12cd34');
 });
@@ -115,8 +115,8 @@ test('toIssuePayload (v1) still works after extending the module', () => {
     files: ['apps/web/big.js'], evidence: 'E', suggestion: 'S', acceptance: 'A',
   };
   const p = v1(FINDING);
-  assert.ok(p.body.includes('<!-- recon-fingerprint: recon-abc12345 -->'));
-  assert.deepStrictEqual(p.labels, ['recon', 'recon:high']);
+  assert.ok(p.body.includes('<!-- code-health-fingerprint: recon-abc12345 -->'));
+  assert.deepStrictEqual(p.labels, ['code-health', 'code-health:high']);
 });
 
 // ── relatedAnchors rendering (bundled findings) ──────────────────────────────

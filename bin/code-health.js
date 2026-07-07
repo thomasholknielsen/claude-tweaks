@@ -2,14 +2,14 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { fingerprint } = require('./lib/recon/fingerprint');
-const { readCache, writeCache, readRuns, computeChurn, recordRun, readCursors } = require('./lib/recon/cache');
-const { decide, SEVERITY_RANK } = require('./lib/recon/dedup');
-const { validateFindingV2 } = require('./lib/recon/validate-finding');
-const { toIssuePayloadV2 } = require('./lib/recon/issue-payload');
-const { getCriterion } = require('./lib/recon/criteria');
-const { classifyArea } = require('./lib/recon/area-type');
-const { listSlices, contentHash, selectSlice } = require('./lib/recon/scope');
+const { fingerprint } = require('./lib/code-health/fingerprint');
+const { readCache, writeCache, readRuns, computeChurn, recordRun, readCursors } = require('./lib/code-health/cache');
+const { decide, SEVERITY_RANK } = require('./lib/code-health/dedup');
+const { validateFindingV2 } = require('./lib/code-health/validate-finding');
+const { toIssuePayloadV2 } = require('./lib/code-health/issue-payload');
+const { getCriterion } = require('./lib/code-health/criteria');
+const { classifyArea } = require('./lib/code-health/area-type');
+const { listSlices, contentHash, selectSlice } = require('./lib/code-health/scope');
 
 // Confidence ordering for floor comparison. Higher index = higher confidence.
 const CONFIDENCE_ORDER = ['low', 'med', 'high'];
@@ -121,9 +121,9 @@ function cmdChurnReport(args) {
 }
 
 function cmdPullIssues(args) {
-  const { pullReconIssues, SEVERITY_RANK } = require('./lib/recon/pull-issues');
+  const { pullReconIssues, SEVERITY_RANK } = require('./lib/code-health/pull-issues');
   if (!args.issues) {
-    process.stderr.write('usage: recon.js pull-issues --label <label> --issues <file> [--min-severity <sev>]\n');
+    process.stderr.write('usage: code-health.js pull-issues --label <label> --issues <file> [--min-severity <sev>]\n');
     process.exit(2);
   }
   if (args['min-severity'] && !(args['min-severity'] in SEVERITY_RANK)) {
@@ -146,7 +146,7 @@ function cmdPullIssues(args) {
     process.exit(1);
   }
   const briefs = pullReconIssues({
-    label: args.label || 'recon',
+    label: args.label || 'code-health',
     minSeverity: args['min-severity'],
     issuesJson,
   });
@@ -158,7 +158,7 @@ function cmdValidateFindings(args) {
   const findingsPath = args._[1]; // positional after the subcommand name
   if (!findingsPath) {
     process.stderr.write(
-      'usage: recon.js validate-findings <findings.json> [--root <dir>] [--issues <file>] ' +
+      'usage: code-health.js validate-findings <findings.json> [--root <dir>] [--issues <file>] ' +
       '[--run-id <id>] [--slice <id>] [--min-severity <level>] [--dry-run]\n',
     );
     process.exit(2);
@@ -200,7 +200,7 @@ function cmdValidateFindings(args) {
     const v = validateFindingV2(f);
     if (!v.ok) {
       process.stderr.write(
-        `[recon] validate-findings: dropped finding "${(f && f.title) || '?'}" ` +
+        `[code-health] validate-findings: dropped finding "${(f && f.title) || '?'}" ` +
         `(criterion ${(f && f.criterion) || '?'}, area ${(f && f.areaId) || '?'}): ` +
         `${v.errors.join('; ')}\n`,
       );
@@ -210,7 +210,7 @@ function cmdValidateFindings(args) {
     const crit = getCriterion(v.value.criterion);
     const floorResult = applyConfidenceFloor(v.value, crit && crit.confidenceFloor);
     if (!floorResult.pass) {
-      process.stderr.write(`[recon] validate-findings: dropped "${v.value.title}" — ${floorResult.reason}\n`);
+      process.stderr.write(`[code-health] validate-findings: dropped "${v.value.title}" — ${floorResult.reason}\n`);
       continue;
     }
     // 2. Fingerprint via v2 form.
@@ -253,7 +253,7 @@ function cmdValidateFindings(args) {
       recordRun(root, args.runId, { fingerprints: [...seen], areasSwept, hashes });
     } catch (err) {
       process.stderr.write(
-        `[recon] validate-findings: run/cursor persistence failed (non-fatal, payloads still emitted): ${err.message}\n`,
+        `[code-health] validate-findings: run/cursor persistence failed (non-fatal, payloads still emitted): ${err.message}\n`,
       );
     }
   }
@@ -261,7 +261,7 @@ function cmdValidateFindings(args) {
   // 5. Emit gh-ready payloads on stdout.
   process.stdout.write(JSON.stringify(payloads, null, 2) + '\n');
   process.stderr.write(
-    `[recon] validate-findings ${args.runId || '?'}: ` +
+    `[code-health] validate-findings ${args.runId || '?'}: ` +
     `${survivors.length} valid finding(s), ${payloads.length} payload(s) after dedup\n`,
   );
 }
@@ -269,7 +269,7 @@ function cmdValidateFindings(args) {
 function cmdNextSlice(args) {
   const root = args.root || process.cwd();
   const budget = Number.isFinite(args.budget) && args.budget > 0 ? args.budget : 1;
-  const { readCursors } = require('./lib/recon/cache');
+  const { readCursors } = require('./lib/code-health/cache');
   let cursors = readCursors(root);
   const now = Date.now();
 
@@ -312,7 +312,7 @@ function main(argv) {
   if (cmd === 'classify') return cmdClassify(args);
   if (cmd === 'next-slice') return cmdNextSlice(args);
   process.stderr.write(
-    'usage: recon.js <command> [options]\n' +
+    'usage: code-health.js <command> [options]\n' +
     'commands: validate-findings [--slice <id>], classify, next-slice, status, churn-report, pull-issues\n',
   );
   process.exit(2);

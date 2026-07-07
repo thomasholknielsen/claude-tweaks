@@ -6,8 +6,8 @@
 'use strict';
 
 const SEVERITY_RANK = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
-const FP_RE = /<!--\s*recon-fingerprint:\s*([^\s>]+)\s*-->/;
-const SEV_LABEL_RE = /^recon:(critical|high|medium|low|info)$/;
+const FP_RE = /<!--\s*code-health-fingerprint:\s*([^\s>]+)\s*-->/;
+const SEV_LABEL_RE = /^code-health:(critical|high|medium|low|info)$/;
 // GitHub issue forms render textarea labels as ### headings; recon writes ##.
 const SECTION_RES = [
   /^###?\s+Current State\s*$/m,

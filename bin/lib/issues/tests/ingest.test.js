@@ -47,32 +47,32 @@ test('no label and no numbers → all issues pass the filter stage', () => {
   assert.strictEqual(briefs.length, 2);
 });
 
-test('minSeverity floors on recon:<sev> labels; unlabeled defaults to info', () => {
+test('minSeverity floors on code-health:<sev> labels; unlabeled defaults to info', () => {
   const briefs = issuesToBriefs({ minSeverity: 'high', issuesJson: [
-    issue({ number: 1, labels: ['recon:critical'] }),
-    issue({ number: 2, labels: ['recon:low'] }),
+    issue({ number: 1, labels: ['code-health:critical'] }),
+    issue({ number: 2, labels: ['code-health:low'] }),
     issue({ number: 3 }), // unlabeled → info → excluded by high floor
   ] });
   assert.deepStrictEqual(briefs.map((b) => b.number), [1]);
 });
 
-test('fingerprint extracted when the recon marker is present, else null', () => {
-  const withFp = issue({ number: 1, body: FORM_BODY_H2 + '\n<!-- recon-fingerprint: recon-abcd1234 -->' });
+test('fingerprint extracted when the code-health marker is present, else null', () => {
+  const withFp = issue({ number: 1, body: FORM_BODY_H2 + '\n<!-- code-health-fingerprint: recon-abcd1234 -->' });
   const briefs = issuesToBriefs({ issuesJson: [withFp, issue({ number: 2 })] });
   assert.strictEqual(briefs[0].fingerprint, 'recon-abcd1234');
   assert.strictEqual(briefs[1].fingerprint, null);
 });
 
-test('SEVERITY_RANK is exported and recon pull-issues re-exports it', () => {
+test('SEVERITY_RANK is exported and code-health pull-issues re-exports it', () => {
   assert.strictEqual(SEVERITY_RANK.critical, 0);
-  const recon = require('../../recon/pull-issues');
+  const recon = require('../../code-health/pull-issues');
   assert.strictEqual(recon.SEVERITY_RANK, SEVERITY_RANK);
 });
 
-test('pullReconIssues still defaults to the recon label (wrapper behavior)', () => {
-  const { pullReconIssues } = require('../../recon/pull-issues');
+test('pullReconIssues still defaults to the code-health label (wrapper behavior)', () => {
+  const { pullReconIssues } = require('../../code-health/pull-issues');
   const briefs = pullReconIssues({ issuesJson: [
-    issue({ number: 1, labels: ['recon', 'recon:high'], body: FORM_BODY_H2 }),
+    issue({ number: 1, labels: ['code-health', 'code-health:high'], body: FORM_BODY_H2 }),
     issue({ number: 2, labels: ['bug'], body: FORM_BODY_H2 }),
   ] });
   assert.deepStrictEqual(briefs.map((b) => b.number), [1]);
