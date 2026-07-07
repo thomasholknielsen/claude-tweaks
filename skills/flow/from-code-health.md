@@ -48,7 +48,8 @@ also carry `code-health:<sev>` labels.
    `/claude-tweaks:flow <spec-numbers>` directly." (Hard gate — `auto` does not silence a missing
    dependency.)
 
-2. **Parse to briefs (pure).** Pass the parsed JSON array to `issuesToBriefs`:
+2. **Parse to briefs (pure).** Pass the parsed JSON array to `issuesToBriefs`, redirecting its
+   output to a file so the steps below can chain off it:
 
    ```bash
    node -e "const i=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/ingest.js');
@@ -58,7 +59,8 @@ also carry `code-health:<sev>` labels.
        numbers:process.argv[3]?process.argv[3].split(',').map(Number):undefined,
        minSeverity:process.argv[4]||undefined,
        requireLabels:process.argv[5]?process.argv[5].split(','):undefined})))" \
-     /tmp/flow-issues.json "<label-or-empty>" "<numbers-or-empty>" "<min-severity-or-empty>" "<require-labels-csv-or-empty>"
+     /tmp/flow-issues.json "<label-or-empty>" "<numbers-or-empty>" "<min-severity-or-empty>" "<require-labels-csv-or-empty>" \
+     > /tmp/flow-briefs.json
    ```
 
    Call signature: `issuesToBriefs({ issuesJson, label?, numbers?, minSeverity?, requireLabels? })`. For
@@ -69,6 +71,53 @@ also carry `code-health:<sev>` labels.
    Each brief is `{ number, title, body, fingerprint, severity, shape }` — `shape` is `form`
    when the body carries the three sections (at `##` or `###` level — GitHub issue forms
    render `###`), else `freeform`.
+
+   **Effort extraction (code-health-specific, not part of `issuesToBriefs`).** For `--from-code-health`
+   and `--from-label code-health` runs, also extract `effort` directly from each raw issue's labels
+   (this is code-health-specific glue, not a generic `/flow` concern, so it stays here rather than
+   in `bin/lib/issues/ingest.js`):
+
+   ```bash
+   node -e "
+     const issues = require('/tmp/flow-issues.json');
+     const briefs = require('/tmp/flow-briefs.json');
+     const byNumber = new Map(issues.map(i => [i.number, i]));
+     const EFFORT_RE = /^code-health:effort-(low|medium|high)\$/;
+     for (const b of briefs) {
+       const issue = byNumber.get(b.number);
+       const names = (issue.labels || []).map(l => (typeof l === 'string' ? l : l.name)).filter(Boolean);
+       const m = names.map(n => EFFORT_RE.exec(n)).find(Boolean);
+       b.effort = m ? m[1] : undefined;
+     }
+     console.log(JSON.stringify(briefs));
+   " > /tmp/flow-briefs-with-effort.json
+   mv /tmp/flow-briefs-with-effort.json /tmp/flow-briefs.json
+   ```
+
+   For selectors other than `--from-code-health`/`--from-label code-health` (i.e. issues that never
+   carry code-health's own labels), every brief's `effort` is `undefined` — this is expected, not
+   an error; Task 4's `--quick-wins` filter and Task 2's frontmatter stamping both treat `undefined`
+   as "not applicable," the same convention `code-health-effort:` frontmatter already uses for
+   non-code-health-derived specs.
+
+   **Risk-ordered batching.** Before Step 2.5's claim step, sort `/tmp/flow-briefs.json` by risk —
+   most urgent first — reusing `issuesToBriefs`'s own `SEVERITY_RANK` export (no new ranking table):
+
+   ```bash
+   node -e "
+     const { SEVERITY_RANK } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/ingest.js');
+     const briefs = require('/tmp/flow-briefs.json');
+     briefs.sort((a, b) => (SEVERITY_RANK[a.severity] ?? SEVERITY_RANK.info) - (SEVERITY_RANK[b.severity] ?? SEVERITY_RANK.info));
+     console.log(JSON.stringify(briefs));
+   " > /tmp/flow-briefs-sorted.json
+   mv /tmp/flow-briefs-sorted.json /tmp/flow-briefs.json
+   ```
+
+   Since Phase 3 widened `issuesToBriefs`'s severity extraction to also match `code-health:risk-<tier>`
+   labels, a code-health-filed issue's `severity` field already holds its risk tier — this sort is
+   risk-ordering in practice for code-health issues, and a harmless no-op ordering-by-`info` for
+   issues from other selectors that carry no severity/risk label at all. If a run doesn't finish
+   every derived spec, the highest-value work was attempted first.
 
    **Labels (code-health-filed issues).** Each code-health issue carries three label types — this applies
    to `--from-code-health`; other selectors may pull issues with no code-health labels at all:
