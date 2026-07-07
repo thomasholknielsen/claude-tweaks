@@ -28,8 +28,14 @@ function commitMessage(dir) {
 // A recognized GitHub closing keyword immediately preceding a bare "#123" auto-closes
 // that issue when the commit reaches the repository's default branch. Case-insensitive;
 // covers every form GitHub recognizes (fix/fixes/fixed, close/closes/closed,
-// resolve/resolves/resolved).
-const CLOSING_KEYWORD_RE = /\b(?:fix|fixes|fixed|close|closes|closed|resolve|resolves|resolved)\s+#\d+/i;
+// resolve/resolves/resolved). The trailing `$` anchors this to the END of whatever
+// substring it's tested against (see hasUnclosedRef below, which always tests a slice
+// ending exactly at the current ref) — without it, "Fixes #100, #200" would wrongly
+// read as closing #200 too, since "Fixes #100" sits inside the lookback window before
+// #200 even though the keyword only ever applied to #100. GitHub requires the keyword
+// immediately before EACH ref it closes ("Fixes #100, fixes #200"); a bare trailing
+// ref after a comma is exactly the gotcha this check exists to catch.
+const CLOSING_KEYWORD_RE = /\b(?:fix|fixes|fixed|close|closes|closed|resolve|resolves|resolved)\s+#\d+$/i;
 const BARE_ISSUE_REF_RE = /#\d+/g;
 
 // Deliberately NOT gated on ctx.runDir, unlike the breadcrumb logic below — the

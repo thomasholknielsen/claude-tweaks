@@ -77,3 +77,18 @@ test('does not warn when the Bash command is not a git commit', () => {
   });
   assert.deepStrictEqual(out, {});
 });
+
+test('warns on a comma-separated trailing ref with no keyword of its own ("Fixes #100, #200" only closes #100)', () => {
+  // GitHub requires the keyword immediately before EACH ref it closes; a bare trailing
+  // ref after a comma is a well-known gotcha this check exists to catch — the naive
+  // "does a keyword appear anywhere in the lookback window" check would wrongly treat
+  // #200 as closed here, since "Fixes #100" sits within the window before it.
+  const repo = gitRepoWithMessage('Fixes #100, #200');
+  const out = runPostToolUse(repo);
+  assert.match(out.json.systemMessage, /closing keyword/i);
+});
+
+test('does not warn when every ref has its own keyword ("Fixes #100, fixes #200")', () => {
+  const repo = gitRepoWithMessage('Fixes #100, fixes #200');
+  assert.deepStrictEqual(runPostToolUse(repo), {});
+});
