@@ -35,7 +35,7 @@ Not for: auto-fixing (report-only), CI gating (CI stays reactive), or replacing 
 - `--dry-run` — emit the plan but write nothing (cache untouched, no issues filed). Use for the smoke check.
 - `--root <dir>` — scan a project elsewhere (default: current working directory).
 - `--budget <n>` — judge up to `n` slices in one run (default: 1). Use with `next-slice` when you want a deeper sweep in a single invocation.
-- `--min-severity <level>` — minimum severity that gets filed as a GitHub issue (default: `high`; one of `low|medium|high|critical`). Findings below this are held in the local cache as `remembered` — not dropped, not filed — until they escalate or a deliberately deeper sweep lowers the bar. Pass `--min-severity medium` (or `low`) for an intentional deep-dive that surfaces more than the default high/critical-only trickle.
+- `--min-risk <level>` — minimum computed risk tier (severity × likelihood) that gets filed as a GitHub issue (default: `high`; one of `low|medium|high`). Findings below this are held in the local cache as `remembered` — not dropped, not filed — until they escalate or a deliberately deeper sweep lowers the bar. Pass `--min-risk medium` (or `low`) for an intentional deep-dive that surfaces more than the default high-risk-only trickle.
 
 ## Workflow
 
@@ -194,7 +194,7 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" validate-findings /tmp/code-heal
   --slice "${SLICE_ID}" \
   --run-id "${RUN_ID}" \
   ${ISSUES_FILE:+--issues "$ISSUES_FILE"} \
-  ${MIN_SEVERITY:+--min-severity "$MIN_SEVERITY"} \
+  ${MIN_RISK:+--min-risk "$MIN_RISK"} \
   ${DRY_RUN:+--dry-run} \
   > /tmp/code-health-payloads.json
 ```
@@ -272,21 +272,21 @@ A skipped run (e.g., `next-slice` returns `null` because all slices are fresh) i
 
 > **Billing note:** Routines run inside the subscription; verify automation-credit specifics against the live account.
 
-## Regression and Critical Gating
+## Regression and Risk Gating
 
-Use `status [--fail-on regressed|critical]` to integrate code-health state into CI or pre-push hooks.
+Use `status [--fail-on regressed|risk-high]` to integrate code-health state into CI or pre-push hooks.
 
 ```bash
 # Exit 1 if any regressed entries exist in the cache (a closed issue re-opened)
 node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" status --fail-on regressed
 
-# Exit 1 if any open critical-severity entries exist in the cache
-node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" status --fail-on critical
+# Exit 1 if any open risk-high entries exist in the cache
+node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" status --fail-on risk-high
 ```
 
 Exit-code behavior:
 - `--fail-on regressed` — exits `1` when one or more cache entries have `status: "regressed"`; exits `0` otherwise.
-- `--fail-on critical` — exits `1` when one or more open cache entries have `severity: "critical"`; exits `0` otherwise.
+- `--fail-on risk-high` — exits `1` when one or more open cache entries have `risk: "high"`; exits `0` otherwise.
 - Without `--fail-on`, `status` always exits `0` and prints a summary table.
 
 Run both checks independently in CI if you want to gate on either condition.
