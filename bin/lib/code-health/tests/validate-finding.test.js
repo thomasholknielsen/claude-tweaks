@@ -95,6 +95,8 @@ function validV2Finding(overrides = {}) {
     anchor: 'src/api/user.js#getUser',
     severity: 'medium',
     confidence: 'high',
+    likelihood: 'medium',
+    effort: 'medium',
     title: 'getUser is a passthrough to the repository',
     evidence: 'src/api/user.js#getUser delegates directly to UserRepository.find with no added logic.',
     suggestedApproach: 'Inline the call at the call site, or add caching/auth in this method.',
@@ -203,4 +205,47 @@ test('validateFindingV2: relatedAnchors fails when it contains a non-string entr
   const result = validateFindingV2(validV2Finding({ relatedAnchors: ['src/a.js#a', 42] }));
   assert.strictEqual(result.ok, false);
   assert.ok(result.errors.some((e) => e.startsWith('relatedAnchors')), result.errors.join('; '));
+});
+
+// ── likelihood / effort (schema unification) ────────────────────────────────
+
+test('validateFindingV2: bad severity enum "critical" fails (dropped from the schema)', () => {
+  const result = validateFindingV2(validV2Finding({ severity: 'critical' }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.startsWith('severity')), result.errors.join('; '));
+});
+
+test('validateFindingV2: likelihood is required', () => {
+  const f = validV2Finding();
+  delete f.likelihood;
+  const result = validateFindingV2(f);
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.startsWith('likelihood')), result.errors.join('; '));
+});
+
+test('validateFindingV2: bad likelihood enum fails', () => {
+  const result = validateFindingV2(validV2Finding({ likelihood: 'certain' }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.startsWith('likelihood')), result.errors.join('; '));
+});
+
+test('validateFindingV2: effort is required', () => {
+  const f = validV2Finding();
+  delete f.effort;
+  const result = validateFindingV2(f);
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.startsWith('effort')), result.errors.join('; '));
+});
+
+test('validateFindingV2: bad effort enum fails', () => {
+  const result = validateFindingV2(validV2Finding({ effort: 'huge' }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.startsWith('effort')), result.errors.join('; '));
+});
+
+test('validateFindingV2: valid result carries likelihood and effort', () => {
+  const result = validateFindingV2(validV2Finding({ likelihood: 'high', effort: 'low' }));
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.value.likelihood, 'high');
+  assert.strictEqual(result.value.effort, 'low');
 });

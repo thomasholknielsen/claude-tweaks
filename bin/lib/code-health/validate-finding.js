@@ -4,8 +4,10 @@
 // Returns { ok:true, value } (files coerced to strings) or { ok:false, errors:string[] }.
 // Zero deps; accumulates all errors in one pass so the caller logs one line per drop.
 
-const SEVERITY_VALUES = new Set(['low', 'medium', 'high', 'critical']);
+const SEVERITY_VALUES = new Set(['low', 'medium', 'high']);
 const CONFIDENCE_VALUES = new Set(['high', 'medium', 'low']);
+const LIKELIHOOD_VALUES = new Set(['low', 'medium', 'high']);
+const EFFORT_VALUES = new Set(['low', 'medium', 'high']);
 const CATEGORY_VALUES = new Set([
   'Architecture', 'Security', 'Convention', 'Performance',
   'Error handling', 'Test quality', 'Coverage', 'UX', 'Docs',
@@ -63,6 +65,7 @@ const { getCriterion } = require('./criteria');
 // Returns { ok: boolean, errors: string[], value? }.
 const V2_REQUIRED_STRINGS = [
   'criterion', 'areaId', 'anchor', 'title', 'evidence', 'suggestedApproach', 'acceptance',
+  'likelihood', 'effort',
 ];
 
 function validateFindingV2(obj) {
@@ -107,8 +110,19 @@ function validateFindingV2(obj) {
     errors.push(`confidence: required non-empty string (got ${JSON.stringify(obj.confidence)})`);
   }
 
+  if (typeof obj.likelihood === 'string' && !LIKELIHOOD_VALUES.has(obj.likelihood)) {
+    errors.push(`likelihood: must be one of ${[...LIKELIHOOD_VALUES].join('|')} (got "${obj.likelihood}")`);
+  }
+
+  if (typeof obj.effort === 'string' && !EFFORT_VALUES.has(obj.effort)) {
+    errors.push(`effort: must be one of ${[...EFFORT_VALUES].join('|')} (got "${obj.effort}")`);
+  }
+
   if (errors.length > 0) return { ok: false, errors };
   return { ok: true, errors: [], value: { ...obj } };
 }
 
-module.exports = { validateFinding, validateFindingV2, SEVERITY_VALUES, CONFIDENCE_VALUES, CATEGORY_VALUES, REQUIRED_STRINGS };
+module.exports = {
+  validateFinding, validateFindingV2, SEVERITY_VALUES, CONFIDENCE_VALUES, CATEGORY_VALUES,
+  REQUIRED_STRINGS, LIKELIHOOD_VALUES, EFFORT_VALUES,
+};

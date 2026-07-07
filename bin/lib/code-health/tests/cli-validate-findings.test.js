@@ -28,6 +28,8 @@ function validFinding(overrides = {}) {
     anchor: 'src/api/user.js#getUser',
     severity: 'medium',
     confidence: 'high',
+    likelihood: 'medium',
+    effort: 'medium',
     title: 'getUser is a passthrough',
     evidence: 'getUser delegates directly to UserRepository.find with no added logic.',
     suggestedApproach: 'Inline the call or add caching.',
@@ -277,18 +279,6 @@ test('validate-findings: high severity still files under the default threshold',
   assert.strictEqual(payloads.length, 1, 'high severity must file under the default threshold');
 });
 
-test('validate-findings: critical severity files under the default threshold', () => {
-  const root = tmp();
-  const f = validFinding({ severity: 'critical' });
-  const findingsFile = path.join(root, 'findings.json');
-  fs.writeFileSync(findingsFile, JSON.stringify([f]));
-
-  const result = runValidateFindings(root, findingsFile, ['--slice', 'src/api', '--run-id', 'r-crit']);
-  assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
-  const payloads = JSON.parse(result.stdout);
-  assert.strictEqual(payloads.length, 1, 'critical severity must file under the default threshold');
-});
-
 test('validate-findings: --min-severity medium lowers the bar and files a medium finding', () => {
   const root = tmp();
   const f = validFinding({ severity: 'medium' });
@@ -333,7 +323,7 @@ test('validate-findings: --dry-run without --slice still succeeds (preview mode 
 
 test('validate-findings: exits 2 when --min-severity is an unrecognized value', () => {
   const root = tmp();
-  const f = validFinding({ severity: 'critical' });
+  const f = validFinding({ severity: 'high' });
   const findingsFile = path.join(root, 'findings.json');
   fs.writeFileSync(findingsFile, JSON.stringify([f]));
   const result = runValidateFindings(
@@ -345,7 +335,7 @@ test('validate-findings: exits 2 when --min-severity is an unrecognized value', 
 
 test('validate-findings: a recognized --min-severity value still works normally', () => {
   const root = tmp();
-  const f = validFinding({ severity: 'critical' });
+  const f = validFinding({ severity: 'high' });
   const findingsFile = path.join(root, 'findings.json');
   fs.writeFileSync(findingsFile, JSON.stringify([f]));
   const result = runValidateFindings(
@@ -353,5 +343,5 @@ test('validate-findings: a recognized --min-severity value still works normally'
   );
   assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
   const payloads = JSON.parse(result.stdout);
-  assert.strictEqual(payloads.length, 1, 'critical finding must still file with a valid --min-severity value');
+  assert.strictEqual(payloads.length, 1, 'high-severity finding must still file with a valid --min-severity value');
 });
