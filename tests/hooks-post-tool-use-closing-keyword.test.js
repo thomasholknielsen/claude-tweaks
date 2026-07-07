@@ -1,0 +1,79 @@
+// tests/hooks-post-tool-use-closing-keyword.test.js
+'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { execFileSync } = require('child_process');
+const post = require('../bin/lib/hooks/post-tool-use');
+
+function gitRepoWithMessage(message) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ck-'));
+  execFileSync('git', ['-C', dir, 'init', '-q']);
+  execFileSync('git', ['-C', dir, 'commit', '--allow-empty', '-m', message, '-q'], {
+    env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' },
+  });
+  return fs.realpathSync(dir);
+}
+
+function runPostToolUse(repo, runDir = null) {
+  return post.run({
+    input: { tool_name: 'Bash', tool_input: { command: 'git commit -m "..."' }, cwd: repo },
+    runDir,
+    runState: null,
+    cwd: repo,
+  });
+}
+
+test('warns when a commit references an issue without a recognized closing keyword', () => {
+  const repo = gitRepoWithMessage('Addresses #306, #305, #304 — bounded-concurrency fixes');
+  const out = runPostToolUse(repo);
+  assert.ok(out.json && typeof out.json.systemMessage === 'string', 'expected a systemMessage warning');
+  assert.match(out.json.systemMessage, /closing keyword/i);
+});
+
+test('does not warn when the commit uses "Fixes"', () => {
+  const repo = gitRepoWithMessage('Fixes #42');
+  assert.deepStrictEqual(runPostToolUse(repo), {});
+});
+
+test('does not warn when the commit uses "Closes" or "Resolves" case-insensitively', () => {
+  const repo1 = gitRepoWithMessage('closes #5');
+  assert.deepStrictEqual(runPostToolUse(repo1), {});
+  const repo2 = gitRepoWithMessage('RESOLVES #5');
+  assert.deepStrictEqual(runPostToolUse(repo2), {});
+});
+
+test('does not warn when the commit has no issue reference at all', () => {
+  const repo = gitRepoWithMessage('Just a normal commit with no issue mention');
+  assert.deepStrictEqual(runPostToolUse(repo), {});
+});
+
+test('fires with no runDir set, unlike E2\'s breadcrumb logic', () => {
+  const repo = gitRepoWithMessage('Addresses #7');
+  const out = runPostToolUse(repo, null);
+  assert.match(out.json.systemMessage, /closing keyword/i);
+});
+
+test('fires even when a runDir IS set (both checks run independently)', () => {
+  const repo = gitRepoWithMessage('Addresses #7');
+  const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ck-run-'));
+  const out = post.run({
+    input: { tool_name: 'Bash', tool_input: { command: 'git commit -m "..."' }, cwd: repo },
+    runDir, runState: { status: 'active' }, cwd: repo,
+  });
+  assert.match(out.json.systemMessage, /closing keyword/i);
+  // E2's breadcrumb still logs independently, unaffected by the new check:
+  const events = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+  assert.strictEqual(events[0].type, 'commit');
+});
+
+test('does not warn when the Bash command is not a git commit', () => {
+  const repo = gitRepoWithMessage('Addresses #7'); // real repo state irrelevant — command isn't a commit
+  const out = post.run({
+    input: { tool_name: 'Bash', tool_input: { command: 'npm test' }, cwd: repo },
+    runDir: null, runState: null, cwd: repo,
+  });
+  assert.deepStrictEqual(out, {});
+});
