@@ -9,7 +9,7 @@ Two templates live here. Pick by failure shape:
 | Re-verify gate failed after polish modified code | "Polish broke verification" below |
 | Any other gate (build / stories / test / review / wrap-up) | "Generic gate failure" below |
 
-**Claims held by `--from-recon` runs:** when the stopped run holds issue claims
+**Claims held by `--from-code-health` runs:** when the stopped run holds issue claims
 (`refs/claims/issue-{issue}`, per `_shared/issue-claims.md`), the card must OFFER release —
 never auto-release. Resuming is the recommended next action, and a resumed run needs its
 claims intact; an unreleased claim ages out via TTL anyway.

@@ -1,6 +1,6 @@
 # Criteria: Security Logic
 
-Shared, criteria-only fragment — logic-level security defects, not static analysis findings or dependency vulnerabilities. No workflow, no Next Actions. Consumed by `/claude-tweaks:recon`'s security-logic judgment lens.
+Shared, criteria-only fragment — logic-level security defects, not static analysis findings or dependency vulnerabilities. No workflow, no Next Actions. Consumed by `/claude-tweaks:code-health`'s security-logic judgment lens.
 
 This fragment is for what a careful security reviewer would catch by reading the code, not what a linter reports.
 

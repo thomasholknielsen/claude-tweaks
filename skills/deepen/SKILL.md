@@ -185,4 +185,4 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `_shared/decision-records.md` | Hard-to-reverse interface trade-offs surfaced in Step 4 are flagged `[ADR-candidate]` for /wrap-up to record. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — /deepen always stages in auto (architecture is low-reversibility), never auto-refactors. |
 | `_shared/subagent-output-contract.md` | The Working-Directory Discipline rule referenced by Step 5 verify lives here (CWD anchoring before `git` / `node --test`). |
-| `_shared/criteria-architecture-depth.md` | The shared depth criteria (leverage, deletion test, dependency classification, vocabulary) — single source of truth read by both /deepen and /recon's architecture-depth lens. |
+| `_shared/criteria-architecture-depth.md` | The shared depth criteria (leverage, deletion test, dependency classification, vocabulary) — single source of truth read by both /deepen and /code-health's architecture-depth lens. |

@@ -108,7 +108,7 @@ For rules and CLAUDE.md, dimensions 7 and 8 read from the *same* origin-template
 
 **Rule adherence-ratio guard (dimension 2).** A low adherence ratio (few files matching `paths:` actually follow the stated convention) has two different causes, and only one belongs to this procedure:
 - **The codebase's shape moved on** (the glob now matches files the rule was never meant to cover, e.g. a newer sibling directory) → this is documentation drift, a real finding here.
-- **Files that should comply, don't** (the rule is still correct; code violates it) → this is a code-quality/compliance problem, `/claude-tweaks:recon`'s job, not this procedure's. Do not emit a finding for this case.
+- **Files that should comply, don't** (the rule is still correct; code violates it) → this is a code-quality/compliance problem, `/claude-tweaks:code-health`'s job, not this procedure's. Do not emit a finding for this case.
 
 Always reason about *why* the ratio is low before emitting a finding — never report the raw ratio as if a low number were self-evidently a documentation problem.
 
@@ -142,7 +142,7 @@ Evaluate each gap candidate (from Step 3, or seeded by a caller — e.g. wrap-up
 
 ## Step 5: Verify Gate (adversarial, before staging)
 
-Before a finding is emitted, re-examine it and answer three questions — same discipline `/recon` already applies:
+Before a finding is emitted, re-examine it and answer three questions — same discipline `/code-health` already applies:
 
 1. **Is it real?** Does the target actually diverge from the codebase (or its own origin template, or known best practice), or did the judge misread the target's prose, the code's structure, or the template's requirements?
 2. **Is it actionable?** For a patch: is `oldString` an exact, unique quote from the target file, and does `newString` concretely fix the issue (not "consider updating this")? For a new-skill candidate: is `proposedBody` a real, codebase-grounded SKILL.md, not a generic template?

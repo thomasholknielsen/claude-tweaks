@@ -1,6 +1,6 @@
 # Criteria: Internationalization (i18n)
 
-Shared, criteria-only fragment — what to flag in user-facing applications for i18n correctness and future-proofing. No workflow, no Next Actions. Consumed by `/claude-tweaks:recon`'s i18n judgment lens (frontend + backend areas serving user-visible content).
+Shared, criteria-only fragment — what to flag in user-facing applications for i18n correctness and future-proofing. No workflow, no Next Actions. Consumed by `/claude-tweaks:code-health`'s i18n judgment lens (frontend + backend areas serving user-visible content).
 
 ## What to flag
 

@@ -212,7 +212,7 @@ Present only on specs derived from a GitHub issue — either directly (`/specify
 
 ```yaml
 recon-issue: 142            # the GitHub issue number this spec resolves
-recon-fingerprint: recon-a1b2c3d4   # from the issue body's <!-- recon-fingerprint: ... --> marker, when present
+recon-fingerprint: recon-a1b2c3d4   # from the issue body's <!-- code-health-fingerprint: ... --> marker, when present
 ```
 
 | Field | Meaning | Consumer |

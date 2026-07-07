@@ -1,6 +1,6 @@
 # Criteria: Resilience / Fault-Tolerance
 
-Shared, criteria-only fragment — what to flag when judging resilience. No workflow, no Next Actions. Consumed by `/claude-tweaks:recon`'s resilience judgment lens. One source of truth so every sweep applies identical calibration.
+Shared, criteria-only fragment — what to flag when judging resilience. No workflow, no Next Actions. Consumed by `/claude-tweaks:code-health`'s resilience judgment lens. One source of truth so every sweep applies identical calibration.
 
 ## What to flag
 

@@ -1,6 +1,6 @@
 # Criteria: Concurrency Safety
 
-Shared, criteria-only fragment — what to flag for concurrency defects in async code and shared-state areas. No workflow, no Next Actions. Consumed by `/claude-tweaks:recon`'s concurrency judgment lens (backend, cli, and data areas with shared mutable state or async operations).
+Shared, criteria-only fragment — what to flag for concurrency defects in async code and shared-state areas. No workflow, no Next Actions. Consumed by `/claude-tweaks:code-health`'s concurrency judgment lens (backend, cli, and data areas with shared mutable state or async operations).
 
 ## What to flag
 

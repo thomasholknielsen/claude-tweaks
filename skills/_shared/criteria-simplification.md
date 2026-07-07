@@ -1,6 +1,6 @@
 # Criteria: Simplification
 
-Shared, criteria-only fragment — the "what is worth simplifying" knowledge. No workflow, no subagent dispatch, no Next Actions. Consumed by `/claude-tweaks:simplify` (the reactive cleanup pass, which dispatches `code-simplifier:code-simplifier`) and by `/claude-tweaks:recon`'s simplification judgment lens (Phase 2 subagents). One source of truth so a reactive cleanup and a proactive sweep flag the same kinds of complexity.
+Shared, criteria-only fragment — the "what is worth simplifying" knowledge. No workflow, no subagent dispatch, no Next Actions. Consumed by `/claude-tweaks:simplify` (the reactive cleanup pass, which dispatches `code-simplifier:code-simplifier`) and by `/claude-tweaks:code-health`'s simplification judgment lens (Phase 2 subagents). One source of truth so a reactive cleanup and a proactive sweep flag the same kinds of complexity.
 
 ## What is worth flagging
 

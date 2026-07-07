@@ -1,4 +1,4 @@
-// bin/lib/recon/score.js
+// bin/lib/code-health/score.js
 // Shared scoring constants used by scope.js (v2 rotation).
 'use strict';
 

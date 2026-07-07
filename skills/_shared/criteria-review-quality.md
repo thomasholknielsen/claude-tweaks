@@ -1,6 +1,6 @@
 # Criteria: Review Quality
 
-Shared, criteria-only fragment — the "what is worth flagging in a code review and how to label it" knowledge. No workflow, no routing, no Next Actions. Consumed by `/claude-tweaks:review` (the reactive quality gate) and by `/claude-tweaks:recon`'s review-quality judgment lens (Phase 2 subagents). One source of truth so a reactive review and a proactive sweep apply the same calibration, severity scale, and categories.
+Shared, criteria-only fragment — the "what is worth flagging in a code review and how to label it" knowledge. No workflow, no routing, no Next Actions. Consumed by `/claude-tweaks:review` (the reactive quality gate) and by `/claude-tweaks:code-health`'s review-quality judgment lens (Phase 2 subagents). One source of truth so a reactive review and a proactive sweep apply the same calibration, severity scale, and categories.
 
 ## Severity scale
 

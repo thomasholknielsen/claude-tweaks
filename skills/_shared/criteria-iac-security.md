@@ -1,6 +1,6 @@
 # Criteria: IaC Security & Hygiene
 
-Shared, criteria-only fragment — what to flag in infrastructure-as-code (Terraform, Bicep, Dockerfiles, Kubernetes manifests, Helm charts). No workflow, no Next Actions. Consumed by `/claude-tweaks:recon`'s iac-security judgment lens (infra areas). Confidence floor: `high`.
+Shared, criteria-only fragment — what to flag in infrastructure-as-code (Terraform, Bicep, Dockerfiles, Kubernetes manifests, Helm charts). No workflow, no Next Actions. Consumed by `/claude-tweaks:code-health`'s iac-security judgment lens (infra areas). Confidence floor: `high`.
 
 ## What to flag
 

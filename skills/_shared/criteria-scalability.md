@@ -1,6 +1,6 @@
 # Criteria: Scalability
 
-Shared, criteria-only fragment — structural patterns that will constrain scale before performance bottlenecks become visible. No workflow, no Next Actions. Consumed by `/claude-tweaks:recon`'s scalability judgment lens.
+Shared, criteria-only fragment — structural patterns that will constrain scale before performance bottlenecks become visible. No workflow, no Next Actions. Consumed by `/claude-tweaks:code-health`'s scalability judgment lens.
 
 ## What to flag
 

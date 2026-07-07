@@ -124,7 +124,7 @@ If no `ephemeral-server.txt` exists, skip this section silently (the run used an
 
 ## E. Issue claim release (v5.3.0)
 
-If the spec's frontmatter carries `recon-issue: <n>` (stamped by `/flow --from-recon` spec
+If the spec's frontmatter carries `recon-issue: <n>` (stamped by `/flow --from-code-health` spec
 derivation), the pipeline holds `refs/claims/issue-<n>` per `_shared/issue-claims.md`.
 Release it only after the branch outcome is known (item 5 completes first — the execution
 order of the canonical list guarantees this):

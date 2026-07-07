@@ -8,10 +8,10 @@ default_schedule:
   cron_expression: "0 5 * * *"
   description: "off-peak anchor, UTC — confirm against your local timezone at creation time"
 notes: >
-  Unlike recon, harness-health has a genuine stage-vs-auto-apply decision (additive +
+  Unlike code-health, harness-health has a genuine stage-vs-auto-apply decision (additive +
   high-confidence + high-reversibility patches on skills/rules auto-apply; everything
   else, and every CLAUDE.md finding regardless of confidence, files as an issue) — the
-  same situation tidy is in, not recon's report-only case. A bare firing has zero
+  same situation tidy is in, not code-health's report-only case. A bare firing has zero
   conversation history and no CLI arg to signal auto mode, so this routine only
   auto-applies safely when the target project's CLAUDE.md already sets
   `auto-mode: default-on`; otherwise it degrades to filing everything as an issue

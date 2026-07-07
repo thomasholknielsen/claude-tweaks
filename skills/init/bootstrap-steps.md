@@ -104,18 +104,18 @@ screenshots/
 stories/auth.yml
 .claude-tweaks/pipelines/
 .claude-tweaks/research/
-.claude-tweaks/recon/
+.claude-tweaks/code-health/
 .claude-tweaks/routine-environment-cache.yml
 ```
 
-These entries ignore claude-tweaks' transient, project-local state — pipeline run directories (`pipelines/{ISO-timestamp}-{spec-slug}/config.yml`, `decisions.md`, `staged/`), research report output, recon's own cache/cursor state (`recon/cache.json`, `recon/cursors.json`, `recon/runs/`, see `skills/recon/SKILL.md` and `bin/lib/recon/cache.js`), and the routine-environment-resolution cache (see `skills/routine/SKILL.md`). Deliberately **not** blanket-ignored: `.claude-tweaks/routines/{name}.yml` (instantiated cloud-Routine records, written by `/claude-tweaks:routine`) — those are explicitly documented as safe, and meant, to commit. A blanket `.claude-tweaks/` line would make that directory permanently uncommittable regardless of user intent, since git cannot reliably re-include a subdirectory of an already-ignored parent via `!` negation. The statusline cache lives under the user's home directory (`~/.claude-tweaks/`), a separate global path — it never needs a project `.gitignore` entry.
+These entries ignore claude-tweaks' transient, project-local state — pipeline run directories (`pipelines/{ISO-timestamp}-{spec-slug}/config.yml`, `decisions.md`, `staged/`), research report output, code-health's own cache/cursor state (`code-health/cache.json`, `code-health/cursors.json`, `code-health/runs/`, see `skills/code-health/SKILL.md` and `bin/lib/code-health/cache.js`), and the routine-environment-resolution cache (see `skills/routine/SKILL.md`). Deliberately **not** blanket-ignored: `.claude-tweaks/routines/{name}.yml` (instantiated cloud-Routine records, written by `/claude-tweaks:routine`) — those are explicitly documented as safe, and meant, to commit. A blanket `.claude-tweaks/` line would make that directory permanently uncommittable regardless of user intent, since git cannot reliably re-include a subdirectory of an already-ignored parent via `!` negation. The statusline cache lives under the user's home directory (`~/.claude-tweaks/`), a separate global path — it never needs a project `.gitignore` entry.
 
 **Re-run behavior (migration check):** don't just check whether `.gitignore` "already covers" `.claude-tweaks/` — a project that adopted claude-tweaks before this split existed may have the old blanket line, which silently reintroduces the routines-uncommittable bug even though something matching `.claude-tweaks` is technically present.
 
 | Current state | Action |
 |---|---|
 | No `.gitignore`, or one with no `.claude-tweaks` reference at all | Suggest adding the split entries above. |
-| Standalone blanket `.claude-tweaks/` line (the old, pre-split form) | **Migrate.** Propose replacing the blanket line with the split entries (`.claude-tweaks/pipelines/`, `.claude-tweaks/research/`, `.claude-tweaks/recon/`, `.claude-tweaks/routine-environment-cache.yml`) rather than silently treating it as already covered — the blanket form makes `.claude-tweaks/routines/{name}.yml` permanently uncommittable. Backup `.gitignore` before write. |
+| Standalone blanket `.claude-tweaks/` line (the old, pre-split form) | **Migrate.** Propose replacing the blanket line with the split entries (`.claude-tweaks/pipelines/`, `.claude-tweaks/research/`, `.claude-tweaks/code-health/`, `.claude-tweaks/routine-environment-cache.yml`) rather than silently treating it as already covered — the blanket form makes `.claude-tweaks/routines/{name}.yml` permanently uncommittable. Backup `.gitignore` before write. |
 | Already has the split entries (no blanket line) | No-op (already migrated). |
 
 If `stories/` exists or will be created, ask the user:
@@ -168,7 +168,7 @@ body:
 ```
 
 Write the YAML exactly as above to `.github/ISSUE_TEMPLATE/agent-task.yml`. Declining is
-fine — freeform issues still work via the translation step (`from-recon.md` Step 2.6); the
+fine — freeform issues still work via the translation step (`from-code-health.md` Step 2.6); the
 form just removes the translation judgment.
 
 ---
@@ -398,7 +398,7 @@ The soft-hook nudges in `/specify`, `/build`, and `/review` read this flag and s
 
 ## Step 0.96 — Routine Installation (detailed procedure)
 
-claude-tweaks skills can ship a `routine-template.yml` (schema: `skills/_shared/routine-template-schema.md`) enabling `/claude-tweaks:routine create <skill>` to instantiate a scheduled cloud Routine for this project — e.g. recon's nightly LLM-as-judge sweep, or tidy's periodic backlog hygiene pass. This step surfaces that option right after bootstrap instead of leaving it to be discovered later.
+claude-tweaks skills can ship a `routine-template.yml` (schema: `skills/_shared/routine-template-schema.md`) enabling `/claude-tweaks:routine create <skill>` to instantiate a scheduled cloud Routine for this project — e.g. code-health's nightly LLM-as-judge sweep, or tidy's periodic backlog hygiene pass. This step surfaces that option right after bootstrap instead of leaving it to be discovered later.
 
 **Detect candidates:**
 
@@ -411,7 +411,7 @@ For each match, note the candidate skill name (the directory under `skills/`). T
 **Present:**
 
 ```
-{N} claude-tweaks skill(s) support scheduled cloud Routines: {list, e.g. "recon (nightly repo sweep), tidy (periodic backlog hygiene)"}.
+{N} claude-tweaks skill(s) support scheduled cloud Routines: {list, e.g. "code-health (nightly repo sweep), tidy (periodic backlog hygiene)"}.
 
 Set any of these up now?
 1. Yes — walk me through each **(Recommended)**

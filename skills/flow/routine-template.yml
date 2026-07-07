@@ -14,7 +14,7 @@ notes: >
   The claim ref makes overlapping firings harmless (a second firing skips claimed issues),
   and a failed run retries at a later firing once its claim ages out (TTL). agent:go is
   removed only after successful wrap-up. A firing with no eligible agent:go issues is a
-  cheap no-op. Builder routine — unlike recon's report-only template it needs write tools.
+  cheap no-op. Builder routine — unlike code-health's report-only template it needs write tools.
   Each firing that builds work ends at its consolidated Review Console awaiting the user's
   answer in the cloud session; an unanswered console's claims age out via TTL and a later
   firing supersedes the run. Subagent execution requires the Task tool (in allowed_tools)

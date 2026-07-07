@@ -1,6 +1,6 @@
 # Criteria: API / Contract Stability
 
-Shared, criteria-only fragment — what to flag for API and contract stability in libraries and public-facing services. No workflow, no Next Actions. Consumed by `/claude-tweaks:recon`'s api-stability judgment lens (library + backend areas).
+Shared, criteria-only fragment — what to flag for API and contract stability in libraries and public-facing services. No workflow, no Next Actions. Consumed by `/claude-tweaks:code-health`'s api-stability judgment lens (library + backend areas).
 
 ## What to flag
 

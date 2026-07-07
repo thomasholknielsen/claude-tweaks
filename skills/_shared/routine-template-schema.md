@@ -13,7 +13,7 @@ Ships with the plugin. Plugin-owned, project-agnostic, account-agnostic. NEVER c
 | Field | Type | Required | Meaning |
 |---|---|---|---|
 | `template_version` | integer | yes | Bumped whenever this file's fields change. Instantiated records capture the version they were created from; `/claude-tweaks:routine status` compares the template's current version against the recorded version to detect drift. |
-| `routine_name` | string | yes | Base name declared by the template (e.g. `recon-daily`). At creation time, `/claude-tweaks:routine` prefixes this with a slug derived from the project's repo name (e.g. `claude-tweaks-recon-daily`) before using it as the live routine's `name` field and the instantiated record's filename (`.claude-tweaks/routines/{prefixed-name}.yml`) — this prevents the common case of the same skill's routine colliding across every project it's instantiated in. Prefixing narrows but does not eliminate collisions (two projects with the same repo name, or repos under different orgs sharing a name, still collide) — `routine_id` remains the actual identity anchor when inspecting live routines. |
+| `routine_name` | string | yes | Base name declared by the template (e.g. `code-health-daily`). At creation time, `/claude-tweaks:routine` prefixes this with a slug derived from the project's repo name (e.g. `claude-tweaks-code-health-daily`) before using it as the live routine's `name` field and the instantiated record's filename (`.claude-tweaks/routines/{prefixed-name}.yml`) — this prevents the common case of the same skill's routine colliding across every project it's instantiated in. Prefixing narrows but does not eliminate collisions (two projects with the same repo name, or repos under different orgs sharing a name, still collide) — `routine_id` remains the actual identity anchor when inspecting live routines. |
 | `prompt` | string | yes | The exact kickoff message sent to the cloud session on each firing — must be self-contained (the cloud session starts with zero conversation history). |
 | `model` | string | yes | Default model for the routine's session (e.g. `claude-sonnet-5`). |
 | `allowed_tools` | array of strings | yes | Tool allowlist for the cloud session, e.g. `[Bash, Read, Grep, Glob]`. |
@@ -51,5 +51,5 @@ Written per-project, after a successful `RemoteTrigger create` or `update`. Proj
 ## See also
 
 - `skills/routine/SKILL.md` — the skill that reads templates and writes instantiated records
-- `skills/recon/routine-template.yml` — the reference template implementation (no auto-mode prerequisite — recon has no interactive gate)
+- `skills/code-health/routine-template.yml` — the reference template implementation (no auto-mode prerequisite — code-health has no interactive gate)
 - `skills/tidy/routine-template.yml` — a template whose unattended safety genuinely depends on the target project's `auto-mode: default-on` already being set

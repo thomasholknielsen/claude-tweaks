@@ -14,10 +14,10 @@ This design means:
 ## Artifact Flow
 
 ```
-Codebase                ──→ Findings cache        ──→ GitHub Issues (durable)     ──→ Build pipeline
-.claude-tweaks/recon/       .claude-tweaks/recon/       gh issues (label: recon)        /flow --from-recon
-  /recon                     cache.json + runs/               ↓ (or)                    specs/NN-*.md via /specify
-                                                        INBOX / /specify                  /build
+Codebase                     ──→ Findings cache               ──→ GitHub Issues (durable)         ──→ Build pipeline
+.claude-tweaks/code-health/      .claude-tweaks/code-health/      gh issues (label: code-health)      /flow --from-code-health
+  /code-health                   cache.json + runs/               ↓ (or)                              specs/NN-*.md via /specify
+                                                                  INBOX / /specify                    /build
 ```
 
 ```
@@ -43,7 +43,7 @@ src/ + journeys    stories/*.yaml     types + lint + tests + QA     code + visua
 
 | Skill | Reads | Writes | Deletes |
 |-------|-------|--------|---------|
-| `/recon` | Codebase files (via LLM judge + optional tool assists), `.claude-tweaks/recon/cache.json` (prior findings), `.claude-tweaks/recon/cursors.json` (per-area sweep state), `--issues <file>` (open issue index from `gh issue list`) | `.claude-tweaks/recon/cache.json` (fingerprint + status), `.claude-tweaks/recon/cursors.json` (per-area `lastHash` + `lastSweptMs`), `.claude-tweaks/recon/runs/` (run logs for churn tracking), GitHub issues via `gh issue create` (durable sink) | — |
+| `/code-health` | Codebase files (via LLM judge + optional tool assists), `.claude-tweaks/code-health/cache.json` (prior findings), `.claude-tweaks/code-health/cursors.json` (per-area sweep state), `--issues <file>` (open issue index from `gh issue list`) | `.claude-tweaks/code-health/cache.json` (fingerprint + status), `.claude-tweaks/code-health/cursors.json` (per-area `lastHash` + `lastSweptMs`), `.claude-tweaks/code-health/runs/` (run logs for churn tracking), GitHub issues via `gh issue create` (durable sink) | — |
 | `/init` | `~/.claude/plugins/`, entire codebase, CLAUDE.md, config files, git state | `specs/`, `docs/plans/`, `docs/journeys/`, `specs/INBOX.md`, `specs/DEFERRED.md`, `specs/INDEX.md`, CLAUDE.md, `.claude/skills/*.md`, `.claude/rules/`, `docs/journeys/*.md` | — |
 | `/capture` | — | `specs/INBOX.md` (append) | — |
 | `/challenge` | `specs/INBOX.md` | `docs/plans/*-brief.md` | — |

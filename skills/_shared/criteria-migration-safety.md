@@ -1,6 +1,6 @@
 # Criteria: Data / Migration Safety
 
-Shared, criteria-only fragment — what to flag in database-backed areas for migration correctness and rollback safety. No workflow, no Next Actions. Consumed by `/claude-tweaks:recon`'s migration-safety judgment lens (data areas). Confidence floor: `high` — data defects can be irreversible; only file concrete findings.
+Shared, criteria-only fragment — what to flag in database-backed areas for migration correctness and rollback safety. No workflow, no Next Actions. Consumed by `/claude-tweaks:code-health`'s migration-safety judgment lens (data areas). Confidence floor: `high` — data defects can be irreversible; only file concrete findings.
 
 ## What to flag
 

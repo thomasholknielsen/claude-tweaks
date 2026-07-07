@@ -1,6 +1,6 @@
 # Criteria: Observability
 
-Shared, criteria-only fragment — what to flag when judging observability on critical paths. No workflow, no Next Actions. Consumed by `/claude-tweaks:recon`'s observability judgment lens.
+Shared, criteria-only fragment — what to flag when judging observability on critical paths. No workflow, no Next Actions. Consumed by `/claude-tweaks:code-health`'s observability judgment lens.
 
 ## What to flag
 

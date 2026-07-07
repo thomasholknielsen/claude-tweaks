@@ -131,7 +131,7 @@ This classification guides which review lenses to apply — a pure UI change doe
 
 Review changed files through these lenses. Skip lenses that don't apply to the type of change (e.g., skip "Performance" for a docs-only change).
 
-The severity scale, category enum, per-lens floors, and the CALIBRATION filter are the shared review-quality criteria — read `_shared/criteria-review-quality.md` (also used by `/claude-tweaks:recon`'s review lens). The table below is the operative copy:
+The severity scale, category enum, per-lens floors, and the CALIBRATION filter are the shared review-quality criteria — read `_shared/criteria-review-quality.md` (also used by `/claude-tweaks:code-health`'s review lens). The table below is the operative copy:
 
 **Severity floor per lens** (calibrate flag thresholds — over-flagging is the most common review failure):
 
@@ -470,7 +470,7 @@ See `review-summary-template.md` in this skill's directory for the full Next Act
 | `/claude-tweaks:journeys` | /journeys produces the journey files /review consults in Step 6 to recommend visual review for affected journeys and in lens 3g-cov for journey-to-story coverage. /review surfaces uncovered journey steps and orphaned stories as informational findings. |
 | `/claude-tweaks:tidy` | /tidy reads /review summaries to detect cross-spec patterns (Step 5.5) — recurring finding categories, frequently flagged files, repeated gotchas — and recommends adding rules to CLAUDE.md when patterns appear in 3+ specs. /tidy also flags specs that appear complete but lack a /review run. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. The severity-routing table in "Step 3 Routing — Code Review Findings" implements the contract's reversibility/confidence/severity floors. |
-| `_shared/criteria-review-quality.md` | The shared review-quality criteria (severity scale, category enum, per-lens floors, CALIBRATION filter) — single source of truth read by both /review's Step 3 lenses and /recon's review-quality lens. The CALIBRATION block in step3-routing.md is the byte-identical inlined-for-dispatch copy. |
+| `_shared/criteria-review-quality.md` | The shared review-quality criteria (severity scale, category enum, per-lens floors, CALIBRATION filter) — single source of truth read by both /review's Step 3 lenses and /code-health's review-quality lens. The CALIBRATION block in step3-routing.md is the byte-identical inlined-for-dispatch copy. |
 | `_shared/multi-agent-coordination.md` | Canonical primitive for Reproduction (Mode 1, Step 3 per-lens dispatch) and Debate (Mode 2, Step 3.5 cross-lens contradiction resolution). The deterministic comparison + resolve helpers live in `bin/lib/coordination.js`. |
 | `_shared/subagent-output-contract.md` | Per-lens reviewer agents emit Template A; debate agents inline a custom verdict template. The status line and model-tier conventions follow this contract. |
 | `_shared/diagram-integration-check.md` | Lens 3i-diagram reads this for the flag check and signal→type mapping. Soft-hook only — emits one informational finding per matched signal, never invokes the companion plugin. |

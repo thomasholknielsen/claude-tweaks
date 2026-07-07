@@ -1,6 +1,6 @@
 # Criteria: Privacy / PII Handling
 
-Shared, criteria-only fragment — what to flag in code that touches personally identifiable information. No workflow, no Next Actions. Consumed by `/claude-tweaks:recon`'s privacy-pii judgment lens (frontend, backend, and data areas touching user data). Confidence floor: `high` — privacy findings have regulatory and reputational consequences; do not file speculative findings.
+Shared, criteria-only fragment — what to flag in code that touches personally identifiable information. No workflow, no Next Actions. Consumed by `/claude-tweaks:code-health`'s privacy-pii judgment lens (frontend, backend, and data areas touching user data). Confidence floor: `high` — privacy findings have regulatory and reputational consequences; do not file speculative findings.
 
 ## What to flag
 

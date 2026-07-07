@@ -22,7 +22,7 @@ finding -> validate-findings -> auto-apply (skill/rule, additive+high-confidence
 - You want a scheduled Routine that periodically rotates through skills, rules, and CLAUDE.md and flags drift, structural decay, or best-practice gaps as they're found.
 - You want to check one specific target right now (`--target <name> [--kind <skill|rule|claude-md>]`).
 
-Not for: code-quality findings (`/claude-tweaks:recon`'s job — including cases where a rule's `paths:` glob is still correct but the code doesn't comply with it). Not a replacement for `/claude-tweaks:wrap-up` Step 7 or `/claude-tweaks:init`'s Update Mode — both consume the same shared procedure this skill does (currently against skills only), on their own scope models (a finished spec's diff; a whole-codebase reconnaissance) rather than this skill's churn/staleness rotation. Not for auditing memory (`~/.claude/projects/*/memory/`) — out of scope; see the harness-health design doc for why.
+Not for: code-quality findings (`/claude-tweaks:code-health`'s job — including cases where a rule's `paths:` glob is still correct but the code doesn't comply with it). Not a replacement for `/claude-tweaks:wrap-up` Step 7 or `/claude-tweaks:init`'s Update Mode — both consume the same shared procedure this skill does (currently against skills only), on their own scope models (a finished spec's diff; a whole-codebase reconnaissance) rather than this skill's churn/staleness rotation. Not for auditing memory (`~/.claude/projects/*/memory/`) — out of scope; see the harness-health design doc for why.
 
 ## Input
 
@@ -111,7 +111,7 @@ Report: which target(s) were audited (or that only the gap scan ran), how many f
 
 **Headless run flow:** SELECT(`next-target`) → JUDGE → validate-findings → apply/file. A firing with nothing due (`target: null`, `gapScanDue: false`) is a cheap no-op.
 
-Additive+high-confidence+high-reversibility patches on **skills and rules** auto-apply and commit directly — this depends on the target project's CLAUDE.md already setting `auto-mode: default-on` (same situation `/tidy`'s routine is in, not `/recon`'s report-only case — see `_shared/auto-mode-contract.md`). Without that project policy, everything files as an issue instead of blocking on an unanswerable prompt. **CLAUDE.md findings always file as an issue, regardless of this policy.**
+Additive+high-confidence+high-reversibility patches on **skills and rules** auto-apply and commit directly — this depends on the target project's CLAUDE.md already setting `auto-mode: default-on` (same situation `/tidy`'s routine is in, not `/code-health`'s report-only case — see `_shared/auto-mode-contract.md`). Without that project policy, everything files as an issue instead of blocking on an unanswerable prompt. **CLAUDE.md findings always file as an issue, regardless of this policy.**
 
 > **Billing note:** Routines run inside the subscription; verify automation-credit specifics against the live account.
 
@@ -133,11 +133,11 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 |---------|--------------|
 | Auto-applying a CLAUDE.md patch | CLAUDE.md findings always file as an issue for human review, regardless of classification/confidence/reversibility — it governs every future session's behavior, so an unattended bad edit has outsized blast radius. |
 | Auto-applying a restructural patch (skill/rule) | Only additive+high-confidence+high-reversibility patches auto-apply — restructural changes always go through a filed issue for human review. |
-| Treating a rule's low compliance ratio as automatic drift | A low adherence ratio can mean the code violates a still-correct rule (a `/recon` code-quality problem) rather than the rule being stale — always reason about *why* the ratio is low before emitting a finding. |
+| Treating a rule's low compliance ratio as automatic drift | A low adherence ratio can mean the code violates a still-correct rule (a `/code-health` code-quality problem) rather than the rule being stale — always reason about *why* the ratio is low before emitting a finding. |
 | Re-proposing a patch already marked `declined` in the cache | The decline-memory cache exists specifically so a rejected proposal doesn't reappear every firing forever. |
 | Skipping the verify gate under time pressure | Unattended firings compound false positives into staged noise if a misread isn't caught before staging — the verify gate in `_shared/harness-health-analysis.md` is not optional. |
 | Reading every sub-file of a candidate skill regardless of relevance | Some skills (`build`, `stories`, `init`) have many sub-files — exhaustive reads get expensive across a whole-library rotation. Bound reads by relevance. |
-| Treating the local cache as durable state | The cache is a rebuildable optimization — GitHub issue state is the source of truth for cross-run memory, same as `/recon`. |
+| Treating the local cache as durable state | The cache is a rebuildable optimization — GitHub issue state is the source of truth for cross-run memory, same as `/code-health`. |
 | Editing code to "fix" what a skill, rule, or CLAUDE.md describes | This skill only ever touches harness documentation, never the code it describes. |
 | Proposing a "new-rule" or "new-claude-md-section" finding | Gap detection (proposing a brand-new artifact) is skill-only this phase — rules and CLAUDE.md only ever get `patch` findings against their existing content. |
 
@@ -148,5 +148,5 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `/claude-tweaks:wrap-up` | Step 7 (Skill Curation) applies the same `_shared/harness-health-analysis.md` procedure on a spec's changed skill files, and writes to the same cursor/cache state this skill reads and writes. |
 | `/claude-tweaks:init` | Phase 6 (Update Mode skill patches) and Phase 3/1u's skill classification apply the same shared procedure on whole-codebase reconnaissance, sharing the same cursor/cache state. |
 | `_shared/harness-health-analysis.md` | The canonical judge this skill, `/wrap-up`, and `/init` all read — the 8-dimension check, evidence pre-checks, verify gate, patch format, and new-skill gate live there, not here. |
-| `/claude-tweaks:tidy` | Step 4.8 sweeps `harness-health`-labelled issues alongside `recon`-labelled ones, using the same stale/superseded triage. |
+| `/claude-tweaks:tidy` | Step 4.8 sweeps `harness-health`-labelled issues alongside `code-health`-labelled ones, using the same stale/superseded triage. |
 | `/claude-tweaks:routine` | `/routine create harness-health` instantiates this skill's `routine-template.yml` into a live, scheduled cloud Routine. |

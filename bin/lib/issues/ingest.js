@@ -1,14 +1,14 @@
 // bin/lib/issues/ingest.js
 // Pure: turn `gh issue list/view --json number,title,body,labels` output into
-// pipeline briefs for any selector (--from-issues, --from-label, --from-recon).
+// pipeline briefs for any selector (--from-issues, --from-label, --from-code-health).
 // The SKILL.md runs gh and passes the parsed array — no network here.
-// Contract: skills/_shared/issue-claims.md; consumed by skills/flow/from-recon.md.
+// Contract: skills/_shared/issue-claims.md; consumed by skills/flow/from-code-health.md.
 'use strict';
 
 const SEVERITY_RANK = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
 const FP_RE = /<!--\s*code-health-fingerprint:\s*([^\s>]+)\s*-->/;
 const SEV_LABEL_RE = /^code-health:(critical|high|medium|low|info)$/;
-// GitHub issue forms render textarea labels as ### headings; recon writes ##.
+// GitHub issue forms render textarea labels as ### headings; code-health writes ##.
 const SECTION_RES = [
   /^###?\s+Current State\s*$/m,
   /^###?\s+Deliverables\s*$/m,

@@ -1,6 +1,6 @@
 # Criteria: Accessibility (a11y)
 
-Shared, criteria-only fragment — what to flag when judging accessibility in frontend/UI code. No workflow, no Next Actions. Consumed by `/claude-tweaks:recon`'s a11y judgment lens (frontend areas only). Confidence floor: `high` — flag only clear, concrete violations, not speculative issues.
+Shared, criteria-only fragment — what to flag when judging accessibility in frontend/UI code. No workflow, no Next Actions. Consumed by `/claude-tweaks:code-health`'s a11y judgment lens (frontend areas only). Confidence floor: `high` — flag only clear, concrete violations, not speculative issues.
 
 ## What to flag
 
