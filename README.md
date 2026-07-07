@@ -6,6 +6,10 @@ A structured workflow system for Claude Code — from idea capture through build
 
 Claude Code is powerful but unstructured. claude-tweaks adds a complete development lifecycle: capture ideas, challenge assumptions, decompose into specs, build with quality gates, and learn from what was built. Every finding is explicitly resolved — nothing silently drops.
 
+### What's new in v5.15.0 — code-health: risk-based triage + closing-keyword safety net
+
+`/claude-tweaks:recon` is renamed to `/claude-tweaks:code-health` (bare rename, no migration shim — see CLAUDE.md's `recon-issue:`/`recon-fingerprint:` note). Findings now carry a `likelihood` and `effort` alongside `severity`; a new deterministic helper (`bin/lib/code-health/risk.js`) computes a `risk` tier (`severity × likelihood`, product-bucketed) the same way `dedup.js#decide()` already computes decisions — never LLM-judged. GitHub labels move from `code-health:{severity}` to `code-health:risk-{tier}` + `code-health:effort-{tier}` (criterion labels are kept, now with real descriptions); filing and CI gates move from `--min-severity`/`--fail-on critical` to `--min-risk`/`--fail-on risk-high`. Downstream, `/flow --from-code-health` sorts batches by risk, offers `--quick-wins` (risk:high AND effort:low), and `/build` reads the `code-health-effort:` frontmatter to pick its implementer's model tier. Separately, a new harness-wide PostToolUse hook (warn tier, not gated on a resolved pipeline run) flags any commit that references a bare `#N` issue number without an immediately-preceding GitHub closing keyword — catching ad hoc fix commits that would otherwise silently leave the issue open.
+
 ### What's new in v5.1.0 — Hook surface: pipeline continuity + working-directory enforcement
 
 A dispatcher-based hook surface (`bin/hooks.js`, registered via `hooks/hooks.json`) adds two things with no skill-level opt-in required:
