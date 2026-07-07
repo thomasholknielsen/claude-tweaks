@@ -139,14 +139,25 @@ For each finding, emit exactly this shape:
   "areaId": "<directory path relative to root, e.g. 'src/api'>",
   "anchor": "<relfile#NearestNamedSymbol — see anchor rules below>",
   "relatedAnchors": "<optional array of relfile#NearestNamedSymbol strings — sibling occurrences of the same root cause; omit if there's only one occurrence>",
-  "severity": "<low|medium|high|critical>",
-  "confidence": "<high|med|low>",
+  "severity": "<low|medium|high>",
+  "confidence": "<high|medium|low>",
+  "likelihood": "<low|medium|high>",
+  "effort": "<low|medium|high>",
   "title": "<short summary>",
   "evidence": "<what was observed — cites anchor; no line numbers>",
   "suggestedApproach": "<described fix in prose — NO code>",
   "acceptance": "<acceptance criteria>"
 }
 ```
+
+**Severity, likelihood, and effort are three separate, simpler judgments — do not conflate them:**
+
+- **`severity`** — impact *if* the pattern manifests. Unchanged meaning from before.
+- **`likelihood`** — how probable this is to actually matter in practice. One holistic judgment folding together whichever of these three factors actually apply to the finding at hand:
+  - **Exposure** — is this on a hot/frequently-executed path and user-facing, or a rarely-touched internal script / dead corner?
+  - **Blast radius** — does this affect one call site, or a shared/foundational module many things depend on?
+  - **Exploitability** — for security-relevant criteria specifically: can external input actually reach and trigger this, or is it a theoretical concern with no real attack surface? Non-security criteria simply have no exploitability consideration to weigh.
+- **`effort`** — the cost/complexity of the finding's own `suggestedApproach`. A one-line parameter addition is `low`; a bundled fix across several sibling occurrences is `medium`; a structural change (new abstraction, cross-file rework) is `high`.
 
 **Bundling rule (recurring root causes):** when the same criterion and the same suggested fix recur at multiple call sites within the slice being judged, file **one** finding, not one per call site. Pick the clearest/most representative occurrence as the primary `anchor`; list every other occurrence in `relatedAnchors`; make `evidence` enumerate all occurrences; make `acceptance` require all of them fixed, not just the primary. Only bundle occurrences that share both the criterion AND the fix — do not bundle unrelated findings under one anchor just because they're nearby in the same file or directory.
 
@@ -161,13 +172,15 @@ Write the array to `/tmp/code-health-findings.json`.
 
 **Step 7 — VERIFY GATE: sanity-check surviving findings before dedup.**
 
-Before fingerprinting and dedup, re-examine each finding the judge emitted and ask three questions:
+Before fingerprinting and dedup, re-examine each finding the judge emitted and ask five questions:
 
 1. **Is it real?** Does the code actually exhibit the problem, or did the judge misread the structure? If the code is correctly guarded (a timeout IS configured, a check IS present), drop the finding.
 2. **Is it actionable?** Is the `suggestedApproach` concrete and executable? A finding like "consider improving error handling" with no specific location or change is not actionable — drop it or refine it until it is.
 3. **Does it reproduce?** Given the code read in Step 3, would a developer following the `suggestedApproach` be able to find and fix the issue without additional investigation? If not, the anchor or evidence is too vague — either tighten it or drop the finding.
+4. **Is `likelihood` justified by the evidence?** The finding's `evidence` should support the claimed exposure/blast-radius/exploitability — not just assert a likelihood tier without grounding it in what was actually observed in the code.
+5. **Is `effort` consistent with `suggestedApproach`?** A `suggestedApproach` that reads as a one-line change should not carry `effort: high`, and vice versa.
 
-Drop any finding that fails any of the three questions. Log the drop reason. A smaller set of high-quality findings is always preferable to a larger set with noise. This is the adversarial-verify discipline that the v1 design established — apply it every time.
+Drop any finding that fails any of the five questions. Log the drop reason. A smaller set of high-quality findings is always preferable to a larger set with noise. This is the adversarial-verify discipline that the v1 design established — apply it every time.
 
 The verify gate is a judgment step, not a mechanical check. It cannot be automated. Do not skip it even under time pressure.
 
