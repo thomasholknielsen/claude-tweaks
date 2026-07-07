@@ -115,6 +115,10 @@ Always offered (not frontend-gated). Present the two-option diagram-design setup
 
 Always offered (not gated) — detect which claude-tweaks skills ship a `routine-template.yml` without an existing instantiated record for this project, and offer to walk through `/claude-tweaks:routine create <skill> --source init` for each. Idempotent: skills with an existing record are never re-offered. Read `bootstrap-steps.md` (Step 0.96) for the full procedure.
 
+### Step 0.97: Non-Default-Branch Issue Tracking (Optional Companion)
+
+Offer only on projects with a GitHub remote — writes `.github/workflows/track-issue-fixes.yml`, which labels (`fix-on-<branch>`) and comments on issues fixed on non-default branches, then strips those labels once the fix reaches the default branch and GitHub closes the issue natively. Idempotent: skipped silently once the workflow file exists. Read `bootstrap-steps.md` (Step 0.97) for the full procedure.
+
 ---
 
 ## Scope Selection Gate
