@@ -2,7 +2,7 @@
 name: claude-tweaks:routine
 description: Use when you want to create, update, or check the status of a Claude Code cloud Routine for a claude-tweaks skill — instantiates a versioned, project-agnostic routine template (e.g. code-health's) into a live, account-and-project-specific scheduled routine via the RemoteTrigger API. Keywords - routine, schedule, cron, cloud agent, recurring, automation.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
+> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 # Routine — Instantiate Versioned Cloud Routines
 
@@ -95,6 +95,12 @@ If `template.mcp_connections` is non-empty, add a top-level `mcp_connections` ar
 
 **Step 7 — Review gate.** Show the full assembled body before doing anything with it, along with the template's `notes` field (if present) so the user sees any tuning guidance before confirming. This creates live, billed infrastructure with no delete API — always confirm explicitly here, regardless of how automated everything upstream was.
 
+Call `AskUserQuestion` with `question`: `"Create this routine?"`, `header`: `"Confirm routine"`, `multiSelect`: `false`, and:
+- Option 1 — `label`: `"Create"`, `description`: `"Proceed with the assembled RemoteTrigger body shown above"`
+- Option 2 — `label`: `"Cancel"`, `description`: `"Do not create anything"`
+
+**Neither option carries `(Recommended)`** — this is a consequential, hard-to-reverse action (live, billed infrastructure with no delete API), so the tool's normal "mark a recommended default" convention is deliberately not followed here.
+
 If `--dry-run` was passed: print the assembled body and stop. Do not call `RemoteTrigger`. Do not write an instantiated record.
 
 **Step 8 — Create.** Call `RemoteTrigger {action: "create", body: <assembled body>}`. Read the routine/trigger ID and the claude.ai routine URL from the response (the tool appends a summary line with both).
@@ -122,7 +128,11 @@ Report the console URL to the user.
 
 **Step 4.** Assemble the body the same way as CREATE's body-assembly step, then show a diff between the recorded config (schedule, template version, resolved values) and the freshly assembled one. If nothing changed, report that and stop.
 
-**Step 5.** Review gate — same standard as CREATE's review gate: show the diff, confirm explicitly before acting.
+**Step 5.** Review gate — same standard as CREATE's review gate: show the diff, then call `AskUserQuestion` with `question`: `"Update this routine?"`, `header`: `"Confirm routine"`, `multiSelect`: `false`, and:
+- Option 1 — `label`: `"Update"`, `description`: `"Proceed with the assembled RemoteTrigger body shown above"`
+- Option 2 — `label`: `"Cancel"`, `description`: `"Do not update anything"`
+
+**Neither option carries `(Recommended)`** — same reasoning as CREATE Step 7 (live, billed infrastructure with no delete API).
 
 If `--dry-run` was passed: show the diff and stop. Do not call `RemoteTrigger`. Do not rewrite the instantiated record.
 
@@ -144,9 +154,11 @@ Report both the live state and the drift check(s) together.
 
 ## Next Actions
 
-1. `/claude-tweaks:routine status <skill>` — check on a routine you just created. **(Recommended right after `create`.)**
-2. `/schedule` — inspect, run, or list any routine (including ones this skill created) via the built-in conversational flow. (Deletion always happens at claude.ai/code/routines.)
-3. `/claude-tweaks:routine update <skill>` — re-sync after the template changes.
+Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+
+- Option 1 — `label`: `"Check status"`, `description`: `"/claude-tweaks:routine status <skill> — check on a routine you just created"`. Suffix the label `(Recommended)` right after a `create` operation.
+- Option 2 — `label`: `"Use /schedule"`, `description`: `"/schedule — inspect, run, or list any routine (including ones this skill created) via the built-in conversational flow. Deletion always happens at claude.ai/code/routines."`
+- Option 3 — `label`: `"Re-sync"`, `description`: `"/claude-tweaks:routine update <skill> — re-sync after the template changes"`
 
 ## Component-Skill Contract
 

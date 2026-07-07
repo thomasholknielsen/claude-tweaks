@@ -2,7 +2,7 @@
 name: claude-tweaks:ledger
 description: Use when you need to create, update, query, or resolve open items in a pipeline ledger file. Called by /claude-tweaks:build, /claude-tweaks:test, /claude-tweaks:review, /claude-tweaks:wrap-up, and /claude-tweaks:flow — or standalone for ledger inspection.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
+> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 
 # Ledger — Open Items Tracking
@@ -205,9 +205,11 @@ Only delete when the resolve gate has passed — all items must have terminal st
 
 ## Next Actions
 
-1. `/claude-tweaks:wrap-up {spec}` — wrap up the current work once all items are resolved **(Recommended)**
-2. `/claude-tweaks:ledger resolve` — re-run the nothing-left-behind gate if items remain `open`
-3. `/claude-tweaks:help` — check overall pipeline status
+Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+
+- Option 1 — `label`: `"Wrap up (Recommended)"`, `description`: `"/claude-tweaks:wrap-up {spec} — wrap up the current work once all items are resolved"`
+- Option 2 — `label`: `"Re-run resolve gate"`, `description`: `"/claude-tweaks:ledger resolve — re-run the nothing-left-behind gate if items remain open"`
+- Option 3 — `label`: `"Pipeline status"`, `description`: `"/claude-tweaks:help — check overall pipeline status"`
 
 ## Component-Skill Contract
 

@@ -35,7 +35,7 @@ test('SKILL.md frontmatter has required fields', () => {
 
 test('SKILL.md contains interaction style directive', () => {
   const body = readSkill();
-  assert.match(body, /Interaction style:\*\* Present decisions as numbered options/);
+  assert.match(body, /Interaction style:\*\* Present single decisions via the `AskUserQuestion` tool/);
 });
 
 test('SKILL.md has the four required sections', () => {

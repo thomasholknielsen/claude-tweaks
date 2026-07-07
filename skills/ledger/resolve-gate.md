@@ -35,7 +35,7 @@ If the item qualifies, fix it, commit it, update status to `fixed` with the comm
 
 ## Phase 2 — Present remainder (per-item user input required)
 
-After Phase 1, only items the agent could not fix remain `open`. Present them:
+After Phase 1, only items the agent could not fix remain `open`. Present the full table once, upfront — it is not re-rendered per item as the drill below proceeds:
 
 ```
 ### Unresolved Open Items
@@ -43,14 +43,6 @@ After Phase 1, only items the agent could not fix remain `open`. Present them:
 | # | Phase | Item | Why not fixed now |
 |---|-------|------|-------------------|
 | {N} | {phase} | {description} | {specific blocker — must be one of the legitimate-defer reasons} |
-
-For each item, reply with `{#}: {choice}` (or `all: {choice}` if uniform):
-1. Fix anyway — address it now even though it expands scope
-2. Defer to `specs/DEFERRED.md` — has a trigger condition for when to revisit
-3. Send to `specs/INBOX.md` — captured for later evaluation, no specific trigger yet
-4. Accept — intentional, with stated reason
-5. Acknowledge — ops items requiring action outside the codebase
-6. Drop — no longer relevant
 ```
 
 Both `specs/DEFERRED.md` and `specs/INBOX.md` are valid destinations — the user picks per item. Rough guidance to surface alongside each row if helpful (not a rule):
@@ -58,7 +50,32 @@ Both `specs/DEFERRED.md` and `specs/INBOX.md` are valid destinations — the use
 - **DEFERRED.md** when the item has a clear trigger ("revisit after P5 ships," "when consumer X exists")
 - **INBOX.md** when the item is a captured idea without a specific trigger yet — to be triaged later
 
-**Wait for the user's reply.** Do NOT pre-classify items, do NOT pick "obviously correct" resolutions, do NOT auto-route to "apply all" — every remaining item gets an explicit per-item user response. The user may reply `all: 2` (or `all: 3`) to bulk-route, but the request must come from them, not be the default offered.
+For each item, run a two-step `AskUserQuestion` drill (the old 6-option flat list exceeds the tool's 4-option-per-question cap):
+
+**Guardrail:** No step of this drill may gain a 4th/"apply to all" option, even though the option cap would allow it — bulk routing is user-initiated via `Other` only, never a presented default. See Anti-Patterns: "Bulk-resolving open items without per-item user input."
+
+**Step 1 (always) — call `AskUserQuestion` with `question`: `"How do you want to handle item #{N}: {short description}?"`, `header`: `"Item #{N}"`, `multiSelect`: `false`, and:**
+
+- Option 1 — `label`: `"Fix anyway"`, `description`: `"Address it now even though it expands scope"`
+- Option 2 — `label`: `"Route to a doc"`, `description`: `"Defer to specs/DEFERRED.md or capture to specs/INBOX.md"`
+- Option 3 — `label`: `"Close out"`, `description`: `"Accept, acknowledge, or drop it"`
+
+None of these three options carries `(Recommended)` — Phase 1 already fixed everything fixable; every remaining item is a genuine judgment call with no safe default.
+
+**Step 2a (only if "Route to a doc" was chosen) — call `AskUserQuestion` with `question`: `"Where should item #{N} go?"`, `header`: `"Route item #{N}"`, `multiSelect`: `false`, and:**
+
+- Option 1 — `label`: `"Defer"`, `description`: `"To specs/DEFERRED.md — has a trigger condition for when to revisit"`
+- Option 2 — `label`: `"Send to INBOX"`, `description`: `"To specs/INBOX.md — captured for later evaluation, no specific trigger yet"`
+
+**Step 2b (only if "Close out" was chosen) — call `AskUserQuestion` with `question`: `"How should item #{N} be closed out?"`, `header`: `"Close item #{N}"`, `multiSelect`: `false`, and:**
+
+- Option 1 — `label`: `"Accept"`, `description`: `"Intentional, with stated reason"`
+- Option 2 — `label`: `"Acknowledge"`, `description`: `"Ops item requiring action outside the codebase"`
+- Option 3 — `label`: `"Drop"`, `description`: `"No longer relevant"`
+
+Neither Step 2a nor Step 2b carries a `(Recommended)` option either — same reasoning as Step 1.
+
+**Wait for the user's reply at every step.** Do NOT pre-classify items, do NOT pick "obviously correct" resolutions, do NOT auto-route to "apply all" — every remaining item gets an explicit per-item response, at every step of the drill. The user may bulk-route by answering any step's `Other` free-text field with a bulk instruction (e.g., Step 1 `Other`: "apply Route to a doc + Defer to all remaining items"; Step 2b `Other`, after answering Step 1 individually per item: "Drop the rest") — apply it to all remaining like-classified items and skip individual calls for those. This is the direct replacement for the old `all: {choice}` free-text convention, generalized to both steps of the drill — but the request must come from them, never a presented button at any step, at any level of the drill.
 
 ---
 

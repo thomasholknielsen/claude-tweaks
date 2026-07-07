@@ -2,7 +2,7 @@
 name: claude-tweaks:code-health
 description: Use when you want a proactive, report-only sweep of a repository that surfaces improvement opportunities and files them as deduplicated GitHub issues. An LLM judges the code; deterministic helpers handle scope rotation, content-hash skip, fingerprinting, dedup, and issue filing. Never edits code. Keywords - code-health, sweep, repo audit, technical debt, proactive, github issues, scheduled, routine.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
+> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 # Code-Health — LLM-as-Code-Judge, Proactive Repo Improvement
 
@@ -254,7 +254,29 @@ In `--dry-run` mode, neither the run-log nor the cursors are written — the run
 
 **Step 10 — SUMMARIZE.**
 
-Report: how many findings were emitted, how many survived dedup, how many issues were filed / skipped / remembered. List any new issue URLs. In interactive mode, present findings as a batch table and let the user route each to: file issue / INBOX (`/capture`) / `/specify` directly / dismiss.
+Report: how many findings were emitted, how many survived dedup, how many issues were filed / skipped / remembered. List any new issue URLs.
+
+In interactive mode, route surviving findings through a two-tier decision:
+
+1. Render all findings as a markdown batch table:
+
+   ```
+   | # | Title | Criterion | Severity | Confidence | Recommended |
+   |---|-------|-----------|----------|------------|-------------|
+   | 1 | {title} | {criterion} | {severity} | {confidence} | {File issue|INBOX} |
+   ```
+
+   Pre-fill the Recommended column: high severity + high confidence → `"File issue"`; below `--min-risk` or low confidence → `"INBOX"`; everything else (e.g. medium severity + high confidence) → `"File issue"` — file issue is the safe default whenever a finding clears the confidence bar but isn't low-risk enough for INBOX.
+
+2. Call `AskUserQuestion` with `question`: `"How do you want to handle these findings?"`, `header`: `"Findings"`, `multiSelect`: `false`, and:
+   - Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"File / INBOX each finding per the Recommended column above"`
+   - Option 2 — `label`: `"Route individually"`, `description`: `"Decide each finding one at a time"`
+
+3. If "Route individually" was chosen, call `AskUserQuestion` once per finding — `question`: `"How do you want to handle finding #{N}: {title}?"`, `header`: `"Finding #{N}"`, `multiSelect`: `false`, and:
+   - Option 1 — `label`: `"File issue"`, `description`: `"File as a GitHub code-health issue"`
+   - Option 2 — `label`: `"INBOX"`, `description`: `"Capture via /capture for later triage"`
+   - Option 3 — `label`: `"/specify directly"`, `description`: `"Promote straight to a spec, skipping the issue"`
+   - Option 4 — `label`: `"Dismiss"`, `description`: `"Drop this finding"`
 
 ## Routine Configuration
 
@@ -311,10 +333,12 @@ Use in post-run validation or a weekly cron step to catch accidental anchor or c
 
 ## Next Actions
 
-1. `/claude-tweaks:specify <issue-url-or-title>` — promote a filed code-health issue into an agent-sized spec. **(Recommended when high-severity issues were filed.)**
-2. `/claude-tweaks:capture <finding>` — park a fuzzy or below-threshold finding in INBOX for later triage.
-3. `/claude-tweaks:code-health --area <other-path>` — re-run on a different directory slice.
-4. `/claude-tweaks:tidy` — fold the new issues into a backlog-hygiene pass alongside INBOX and deferred items.
+Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+
+- Option 1 — `label`: `"Promote to a spec"`, `description`: `"/claude-tweaks:specify <issue-url-or-title> — promote a filed code-health issue into an agent-sized spec"`. Suffix the label `(Recommended)` when high-severity issues were filed.
+- Option 2 — `label`: `"Capture to INBOX"`, `description`: `"/claude-tweaks:capture <finding> — park a fuzzy or below-threshold finding in INBOX for later triage"`
+- Option 3 — `label`: `"Re-run elsewhere"`, `description`: `"/claude-tweaks:code-health --area <other-path> — re-run on a different directory slice"`
+- Option 4 — `label`: `"Backlog hygiene"`, `description`: `"/claude-tweaks:tidy — fold the new issues into a backlog-hygiene pass alongside INBOX and deferred items"`
 
 ## Component-Skill Contract
 

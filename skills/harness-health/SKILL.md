@@ -2,7 +2,7 @@
 name: claude-tweaks:harness-health
 description: Use when you want to check whether a project's harness documentation — `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md — still accurately describes the codebase, still conforms to its own origin template, and still follows best practices for getting the harness to perform well; or find a reusable pattern with no skill covering it. Runs standalone or on a schedule via a Routine. Never edits code — only harness documentation, and never auto-applies to CLAUDE.md. Keywords - harness health, skill health, skill drift, rule drift, CLAUDE.md drift, best practice, template conformance, new-skill gap, scheduled, routine.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
+> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 # Harness Health — Keep Skills, Rules, and CLAUDE.md Honest
 
@@ -99,7 +99,30 @@ In `--dry-run` mode, print what would be applied/filed but do not call `Edit`, `
 
 **Step 8 — SUMMARIZE.**
 
-Report: which target(s) were audited (or that only the gap scan ran), how many findings were emitted, how many auto-applied vs filed vs skipped by dedup. List any new issue URLs. In interactive mode, present findings as a batch table and let the user route each to: apply now / file issue / dismiss. For "dismiss," run `node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" mark "<payload.id>" declined --root .` so the same proposal doesn't reappear on a future firing.
+Report: which target(s) were audited (or that only the gap scan ran), how many findings were emitted, how many auto-applied vs filed vs skipped by dedup. List any new issue URLs.
+
+In interactive mode, route surviving findings through a two-tier decision:
+
+1. Render all findings as a markdown batch table:
+
+   ```
+   | # | Title | Category | Classification | Confidence | Reversibility | Recommended |
+   |---|-------|----------|-----------------|------------|----------------|-------------|
+   | 1 | {title} | {category} | {classification} | {confidence} | {reversibility} | {Apply now|File issue} |
+   ```
+
+   Pre-fill the Recommended column per Step 7's own existing auto-apply policy: additive + high-confidence + high-reversibility → `"Apply now"` (never for `assetType: claude-md`, which always recommends `"File issue"` per Step 7); everything else → `"File issue"`.
+
+2. Call `AskUserQuestion` with `question`: `"How do you want to handle these findings?"`, `header`: `"Findings"`, `multiSelect`: `false`, and:
+   - Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"Apply / file each finding per the Recommended column above"`
+   - Option 2 — `label`: `"Route individually"`, `description`: `"Decide each finding one at a time"`
+
+3. If "Route individually" was chosen, call `AskUserQuestion` once per finding — `question`: `"How do you want to handle finding #{N}: {title}?"`, `header`: `"Finding #{N}"`, `multiSelect`: `false`, and:
+   - Option 1 — `label`: `"Apply now"`, `description`: `"Apply this patch directly"`
+   - Option 2 — `label`: `"File issue"`, `description`: `"File as a GitHub harness-health issue"`
+   - Option 3 — `label`: `"Dismiss"`, `description`: `"Run mark declined so it doesn't reappear"`
+
+For "dismiss," run `node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" mark "<payload.id>" declined --root .` so the same proposal doesn't reappear on a future firing.
 
 ## Routine Configuration
 
@@ -117,9 +140,11 @@ Additive+high-confidence+high-reversibility patches on **skills and rules** auto
 
 ## Next Actions
 
-1. `/claude-tweaks:routine create harness-health` — schedule this as a recurring Routine. **(Recommended after a first standalone run confirms the output looks right.)**
-2. `/claude-tweaks:harness-health --target <name> --kind <skill|rule|claude-md>` — audit one specific target right now.
-3. `/claude-tweaks:tidy` — fold any filed `harness-health` issues into a backlog-hygiene pass.
+Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+
+- Option 1 — `label`: `"Schedule a Routine"`, `description`: `"/claude-tweaks:routine create harness-health — schedule this as a recurring Routine"`. Suffix the label `(Recommended)` after a first standalone run confirms the output looks right.
+- Option 2 — `label`: `"Audit one target"`, `description`: `"/claude-tweaks:harness-health --target <name> --kind <skill|rule|claude-md> — audit one specific target right now"`
+- Option 3 — `label`: `"Backlog hygiene"`, `description`: `"/claude-tweaks:tidy — fold any filed harness-health issues into a backlog-hygiene pass"`
 
 ## Component-Skill Contract
 

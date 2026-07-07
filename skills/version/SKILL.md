@@ -2,7 +2,7 @@
 name: claude-tweaks:version
 description: Use when you want to know which version of the claude-tweaks plugin is installed.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
+> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 
 # Version — Plugin Version Lookup
@@ -60,8 +60,10 @@ That's the entire skill — no decisions, no findings, no follow-up gates.
 
 ## Next Actions
 
-1. `/claude-tweaks:help` — full pipeline status and command reference **(Recommended when version was the only thing you needed)**
-2. `https://github.com/thomasholknielsen/claude-tweaks/releases` — release notes for this and prior versions
+Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+
+- Option 1 — `label`: `"Pipeline status (Recommended)"`, `description`: `"/claude-tweaks:help — full pipeline status and command reference"`
+- Option 2 — `label`: `"Release notes"`, `description`: `"https://github.com/thomasholknielsen/claude-tweaks/releases — release notes for this and prior versions"`
 
 ## Anti-Patterns
 

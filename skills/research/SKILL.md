@@ -2,7 +2,7 @@
 name: claude-tweaks:research
 description: Use when conducting in-depth web research — multi-source synthesis, citation-audited reports with 4 runtime modes from quick (~2-5 min) to ultradeep (~20-45 min, multi-persona red-team). Delegates to Claude Code's built-in /deep-research when available; falls back to an inline method otherwise. Keywords - research, deep research, web research, sources, citations, literature review.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
+> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 
 # Research — Deep Web Research with Citation-Audited Reports
@@ -39,17 +39,14 @@ report under `.claude-tweaks/research/`.
 
 ## Mode Picker
 
-If no `--mode=` flag is present, ask exactly this question:
+If no `--mode=` flag is present, call `AskUserQuestion` with `question`: `'Mode for "<topic>":'`, `header`: `"Research mode"`, `multiSelect`: `false`, and:
 
-```
-? Mode for "<topic>":
-  1. quick      (~2-5 min,    5+ sources)
-  2. standard   (~5-10 min,  10+ sources)   ← recommended
-  3. deep       (~10-20 min, 15+ sources)
-  4. ultradeep  (~20-45 min, red-team pass + multi-persona critique)
-```
+- Option 1 — `label`: `"Quick"`, `description`: `"~2-5 min, 5+ sources"`
+- Option 2 — `label`: `"Standard (Recommended)"`, `description`: `"~5-10 min, 10+ sources"`
+- Option 3 — `label`: `"Deep"`, `description`: `"~10-20 min, 15+ sources"`
+- Option 4 — `label`: `"Ultradeep"`, `description`: `"~20-45 min, red-team pass + multi-persona critique"`
 
-Reply with the user's selection. Then proceed.
+Then proceed with the selected mode.
 
 ## Workflow
 
@@ -119,9 +116,9 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 
 ## Next Actions
 
-After the report completes, present these options:
+After the report completes, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
 
-1. **Promote findings into INBOX** — `/claude-tweaks:capture <findings-summary>` **(Recommended when topic was exploratory)**.
-2. **Use findings to debias a problem** — `/claude-tweaks:challenge <inbox-item>`.
-3. **Cite findings in a new spec** — `/claude-tweaks:specify <spec-name>`.
-4. **Re-run in deeper mode** — `/claude-tweaks:research --mode=deep <topic>` (only if current mode left obvious gaps).
+- Option 1 — `label`: `"Promote to INBOX"`, `description`: `"/claude-tweaks:capture <findings-summary> — promote findings into INBOX"`. Suffix the label `(Recommended)` when the topic was exploratory; when it wasn't, leave this — and every other option in this call — unmarked (`AskUserQuestion` doesn't require a Recommended option).
+- Option 2 — `label`: `"Debias a problem"`, `description`: `"/claude-tweaks:challenge <inbox-item> — use findings to debias a problem"`
+- Option 3 — `label`: `"Cite in a new spec"`, `description`: `"/claude-tweaks:specify <spec-name> — cite findings in a new spec"`
+- Option 4 (include only if current mode left obvious gaps — otherwise this is a 3-option call, not a 4-option call with a greyed-out or caveated choice) — `label`: `"Re-run deeper"`, `description`: `"/claude-tweaks:research --mode=deep <topic> — re-run in deeper mode"`
