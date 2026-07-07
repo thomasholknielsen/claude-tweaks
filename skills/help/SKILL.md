@@ -2,7 +2,7 @@
 name: claude-tweaks:help
 description: Use when you need a quick reference for available commands, want to see workflow status, or need a recommendation for what to do next.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
+> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 
 # Help — Quick Reference + Workflow Dashboard
@@ -92,13 +92,15 @@ An INBOX item likely needs debiasing when it:
 
 ### Present Recommendation
 
-Render the recommendation as the `## Next Actions` block below — `{recommended command}` becomes option 1 marked `**(Recommended)**`, with 1-3 alternatives drawn from the priority order.
+Render the recommendation as the `## Next Actions` block below via one `AskUserQuestion` call — `{recommended command}` becomes option 1, labeled with a short name suffixed `(Recommended)`, with 1-3 alternatives drawn from the priority order.
 
 ## Next Actions
 
-1. `{recommended command with parameters}` — {rationale} **(Recommended)**
-2. `{alternative command}` — {description}
-{3. `{option}` — {description}}
+Call `AskUserQuestion`:
+
+- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
+- Option 1 — `label`: short name of the recommended command suffixed `(Recommended)`, `description`: the full command with parameters + rationale
+- Option 2 (and optional option 3) — same shape, for each alternative drawn from the priority order
 
 ## Component-Skill Contract
 

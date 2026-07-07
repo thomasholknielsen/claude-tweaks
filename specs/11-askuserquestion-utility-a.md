@@ -1,7 +1,7 @@
 ---
 tier: 3
-status: not-started
-progress: 0
+status: complete
+progress: 100
 blocked-by: [5]
 surface: backend
 ---
@@ -41,16 +41,16 @@ Four of these six files (`help`, `tidy`, `flow`, `browse`) each carry their own 
 
 ## Deliverables
 
-- [ ] Replace the directive boilerplate blockquote in `help/SKILL.md` (line 5), `tidy/SKILL.md` (line 5), `flow/SKILL.md` (line 5), and `browse/SKILL.md` (line 5) with Spec 5's canonical wording, verbatim.
-- [ ] Convert `help/SKILL.md`'s Next Actions template (lines 97-101) to instruct rendering via one `AskUserQuestion` call: the recommended command as option 1 (label suffixed `(Recommended)`, description carrying the full command + rationale), the alternative(s) as options 2-3 in the same shape.
-- [ ] Convert `tidy/SKILL.md`'s Step 6 Tidy Report terminal decision (lines 181-182) to one `AskUserQuestion` call with options "Apply all recommendations" (label suffixed `(Recommended)`) and "Override specific items" — the table above it (lines 144-179) stays as markdown, unchanged.
-- [ ] Convert `tidy/SKILL.md`'s Next Actions block (lines 233-238) to one `AskUserQuestion` call — 4 options, first suffixed `(Recommended)`.
-- [ ] Convert `flow/SKILL.md`'s Pipeline Summary Next Actions template (lines 260-268) to instruct rendering via one `AskUserQuestion` call — base option `(Recommended)`, plus the two conditional options rendered only when their condition holds. Reword the meta `## Next Actions` section (lines 314-316) so its "canonical numbered options on success" phrase no longer describes a numbered list that no longer exists.
-- [ ] Convert `flow/worktree-merge.md`'s merge-conflict decision (lines 61-64) to one `AskUserQuestion` call with 3 options, first suffixed `(Recommended)`.
-- [ ] Convert `flow/worktree-merge.md`'s Post-Merge Summary follow-up bullets (lines 78-81) to one `AskUserQuestion` call with 2 options (normalizing the informal bullet format into the same Pattern C shape used everywhere else), heading renamed from `### Next Actions` to `## Next Actions` for consistency with Spec 5's H2 fix.
-- [ ] Convert `flow/failure-cards.md`'s "Generic gate failure" Next Actions template (lines 67-76) to one `AskUserQuestion` call assembled from the base 2 options plus the "if test failed" conditional option, plus the claims-release addendum item (lines 30-35) when issue claims are held (max 4, at the cap). Drop the template's own "if re-verify failed (polish broke verification)" branch (current lines 73-75) from this conversion — per the file's routing table (lines 7-10), that failure shape always routes to the separate "Polish broke verification" template below, never to this one, so the branch is dead here.
-- [ ] Convert `flow/failure-cards.md`'s "Polish broke verification" Next Actions template (lines 101-107) to one `AskUserQuestion` call with 3 options, first suffixed `(Recommended)`.
-- [ ] Convert `browse/SKILL.md`'s Next Actions block (lines 148-153) to one `AskUserQuestion` call with 4 options, first suffixed `(Recommended)`.
+- [x] Replace the directive boilerplate blockquote in `help/SKILL.md` (line 5), `tidy/SKILL.md` (line 5), `flow/SKILL.md` (line 5), and `browse/SKILL.md` (line 5) with Spec 5's canonical wording, verbatim.
+- [x] Convert `help/SKILL.md`'s Next Actions template (lines 97-101) to instruct rendering via one `AskUserQuestion` call: the recommended command as option 1 (label suffixed `(Recommended)`, description carrying the full command + rationale), the alternative(s) as options 2-3 in the same shape.
+- [x] Convert `tidy/SKILL.md`'s Step 6 Tidy Report terminal decision (lines 181-182) to one `AskUserQuestion` call with options "Apply all recommendations" (label suffixed `(Recommended)`) and "Override specific items" — the table above it (lines 144-179) stays as markdown, unchanged.
+- [x] Convert `tidy/SKILL.md`'s Next Actions block (lines 233-238) to one `AskUserQuestion` call — 4 options, first suffixed `(Recommended)`.
+- [x] Convert `flow/SKILL.md`'s Pipeline Summary Next Actions template (lines 260-268) to instruct rendering via one `AskUserQuestion` call — base option `(Recommended)`, plus the two conditional options rendered only when their condition holds. Reword the meta `## Next Actions` section (lines 314-316) so its "canonical numbered options on success" phrase no longer describes a numbered list that no longer exists.
+- [x] Convert `flow/worktree-merge.md`'s merge-conflict decision (lines 61-64) to one `AskUserQuestion` call with 3 options, first suffixed `(Recommended)`.
+- [x] Convert `flow/worktree-merge.md`'s Post-Merge Summary follow-up bullets (lines 78-81) to one `AskUserQuestion` call with 2 options (normalizing the informal bullet format into the same Pattern C shape used everywhere else), heading renamed from `### Next Actions` to `## Next Actions` for consistency with Spec 5's H2 fix.
+- [x] Convert `flow/failure-cards.md`'s "Generic gate failure" Next Actions template (lines 67-76) to one `AskUserQuestion` call assembled from the base 2 options plus the "if test failed" conditional option, plus the claims-release addendum item (lines 30-35) when issue claims are held (max 4, at the cap). Drop the template's own "if re-verify failed (polish broke verification)" branch (current lines 73-75) from this conversion — per the file's routing table (lines 7-10), that failure shape always routes to the separate "Polish broke verification" template below, never to this one, so the branch is dead here.
+- [x] Convert `flow/failure-cards.md`'s "Polish broke verification" Next Actions template (lines 101-107) to one `AskUserQuestion` call with 3 options, first suffixed `(Recommended)`.
+- [x] Convert `browse/SKILL.md`'s Next Actions block (lines 148-153) to one `AskUserQuestion` call with 4 options, first suffixed `(Recommended)`.
 
 ## Acceptance Criteria
 

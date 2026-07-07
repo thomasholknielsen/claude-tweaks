@@ -57,11 +57,13 @@ For each completed branch (in order):
    Conflicting files:
    - {file1}
    - {file2}
-
-   1. Resolve conflicts now **(Recommended)** — I'll resolve based on both specs' intent
-   2. Skip this branch — merge remaining branches first, come back to this one
-   3. Abort all remaining merges — I'll handle merges manually
    ```
+
+   Call `AskUserQuestion`:
+   - `question`: `"How do you want to handle this merge conflict?"`, `header`: `"Merge conflict"`, `multiSelect`: `false`
+   - Option 1 — `label`: `"Resolve now (Recommended)"`, `description`: `"I'll resolve based on both specs' intent"`
+   - Option 2 — `label`: `"Skip this branch"`, `description`: `"merge remaining branches first, come back to this one"`
+   - Option 3 — `label`: `"Abort remaining merges"`, `description`: `"I'll handle merges manually"`
 4. After all merges, update `specs/INDEX.md` to reflect completed specs
 
 ### Post-Merge Summary
@@ -74,8 +76,12 @@ For each completed branch (in order):
 | {branch} | {spec} | Merged cleanly |
 | {branch} | {spec} | Merged with conflict resolution |
 | {branch} | {spec} | Skipped (pipeline failed) |
-
-### Next Actions
-- Failed specs: fix issues and re-run `/claude-tweaks:flow {spec} worktree {remaining steps}`
-- All merged: run `/claude-tweaks:help` for full pipeline status
 ```
+
+## Next Actions
+
+Call `AskUserQuestion`:
+
+- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Fix + resume"`, `description`: `"re-run /claude-tweaks:flow {spec} worktree {remaining steps} for any failed specs"`
+- Option 2 — `label`: `"Pipeline status"`, `description`: `"/claude-tweaks:help for full pipeline status"`

@@ -2,7 +2,7 @@
 name: claude-tweaks:browse
 description: Use for browser automation via agent-browser — defines session naming, screenshot/trace paths, and operation vocabulary used by /stories, /visual-review, and /review. Keywords - browse, browser, agent-browser, screenshot, scrape, automation.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
+> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 
 # Browse — Browser Conventions
@@ -147,10 +147,13 @@ Each parallel agent gets its own `--session <unique-name>`. One browser instance
 
 ## Next Actions
 
-1. `/claude-tweaks:visual-review {url}` — run a structured visual review against the page or journey just driven **(Recommended)**
-2. `/claude-tweaks:stories` — generate or refresh QA story YAML files from the live DOM
-3. `/claude-tweaks:review {spec} full` — full review pipeline including code, visual, and QA passes
-4. `/claude-tweaks:capture "{idea}"` — save an idea surfaced while exploring the browser
+Call `AskUserQuestion`:
+
+- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Visual review (Recommended)"`, `description`: `"/claude-tweaks:visual-review {url} — run a structured visual review against the page or journey just driven"`
+- Option 2 — `label`: `"Generate stories"`, `description`: `"/claude-tweaks:stories — generate or refresh QA story YAML files from the live DOM"`
+- Option 3 — `label`: `"Full review"`, `description`: `"/claude-tweaks:review {spec} full — full review pipeline including code, visual, and QA passes"`
+- Option 4 — `label`: `"Capture idea"`, `description`: `"/claude-tweaks:capture \"{idea}\" — save an idea surfaced while exploring the browser"`
 
 ## Component-Skill Contract
 

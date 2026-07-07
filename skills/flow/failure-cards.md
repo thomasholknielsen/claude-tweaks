@@ -24,15 +24,11 @@ gh issue comment "$ISSUE" --body "Blocked at {gate}: {one-line reason}. Run {run
 Compute `{expiry}` from this run's claim comment (`claimedAt` + `ttlHours`).
 
 Posting is automatic (a reversible network write) and each post logs to `decisions.md`.
-Release remains offered-only — see below. Add this option to the card's
-Next Actions when claims are held:
+Release remains offered-only — see below. When claims are held, append this as an
+additional `AskUserQuestion` option to whichever template's Next Actions call applies
+— not as a separate freestanding numbered item:
 
-```markdown
-{next}. Release held claims if you will not resume (reason `failed: {gate}`):
-   `gh api -X DELETE "repos/{owner}/{repo}/git/refs/claims/issue-{issue}"`, after the ownership
-   check (`_shared/issue-claims.md`, "Release triggers") + release comment
-   per `_shared/issue-claims.md` — otherwise they expire after the TTL (72h default).
-```
+- `label`: `"Release claims"`, `description`: `"Release held claims if you will not resume (reason failed: {gate}): gh api -X DELETE \"repos/{owner}/{repo}/git/refs/claims/issue-{issue}\", after the ownership check (_shared/issue-claims.md, 'Release triggers') + release comment per _shared/issue-claims.md — otherwise they expire after the TTL (72h default)."`
 
 ## Generic gate failure
 
@@ -63,17 +59,19 @@ Next Actions when claims are held:
 | Action | Detail | Ref |
 |--------|--------|-----|
 | {rows from completed phases} | ... | ... |
+```
 
 ### Next Actions
 
-1. `/claude-tweaks:flow {spec} {failed-step}` — resume from {failed step} **(Recommended)**
-2. `/claude-tweaks:{step} {spec}` — run {failed step} manually for more control
-{If test failed:}
-3. `/claude-tweaks:test` — re-verify after fixes
-{If re-verify failed (polish broke verification):}
-3. `git diff` — inspect the polish modifications that broke verification
-4. `git revert HEAD` — revert the polish commit if it's not salvageable, then retry with `/claude-tweaks:flow {spec} no-polish` to skip polish entirely on the next run
-```
+Close the template's fence above, then call `AskUserQuestion` with the applicable options as unfenced prose:
+
+- `question`: `"How do you want to proceed?"`, `header`: `"Next step"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Resume (Recommended)"`, `description`: `"/claude-tweaks:flow {spec} {failed-step} — resume from {failed step}"`
+- Option 2 — `label`: `"Run manually"`, `description`: `"/claude-tweaks:{step} {spec} — run {failed step} manually for more control"`
+- Option 3 (if test failed) — `label`: `"Re-verify"`, `description`: `"/claude-tweaks:test — re-verify after fixes"`
+- Option 4 (if issue claims are held) — the claims-release option described above
+
+A re-verify failure after polish (the "polish broke verification" shape) never reaches this template — per the routing table above, it always routes to the "Polish broke verification" template below, which owns the dedicated `git diff` / `git revert` conversion for that shape. That branch is dropped here rather than duplicated. With it dropped, the realistic maximum for this call is base 2 + "if test failed" (1) + claims-release (1) = 4 options, exactly at `AskUserQuestion`'s 4-option cap — never assemble a 5th.
 
 ## Polish broke verification
 
@@ -97,12 +95,15 @@ Use this specific shape (instead of the generic template above) when the re-veri
 
 ### Open Items (at time of failure)
 {current ledger contents}
+```
 
 ### Next Actions
 
-1. Inspect the polish modifications: `git diff {polish-commit-range}` **(Recommended)**
-2. Revert the polish commit and resume without polish: `git revert {polish-commit}` then `/claude-tweaks:flow {spec} no-polish wrap-up`
-3. Fix the verification failure manually, then resume: `/claude-tweaks:flow {spec} polish`
+Close the template's fence above, then call `AskUserQuestion` with the options in the same order, option 1 labeled `(Recommended)`, as unfenced prose:
+
+- `question`: `"How do you want to proceed?"`, `header`: `"Next step"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Inspect diff (Recommended)"`, `description`: `"git diff {polish-commit-range} — inspect the polish modifications that broke verification"`
+- Option 2 — `label`: `"Revert + resume"`, `description`: `"git revert {polish-commit} then /claude-tweaks:flow {spec} no-polish wrap-up — revert the polish commit and resume without polish"`
+- Option 3 — `label`: `"Fix manually"`, `description`: `"Fix the verification failure manually, then resume: /claude-tweaks:flow {spec} polish"`
 
 > The re-verify cycle cap is 1 per flow run. Resuming with `/flow {spec} polish` starts a fresh cycle.
-```

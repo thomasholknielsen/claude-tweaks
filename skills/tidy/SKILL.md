@@ -2,7 +2,7 @@
 name: claude-tweaks:tidy
 description: Use when the backlog needs hygiene — review stale INBOX items, partially-complete specs, orphaned plans, and overall spec health
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
+> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 
 # Tidy
@@ -177,10 +177,15 @@ Present all collected findings as a single report. Every item has a pre-filled r
 - Specs: {A} total, {B} appear complete, {C} need attention
 - Plans to clean: {D} design docs, {E} execution plans
 - Git cleanup: {F} worktrees, {G} build branches
-
-1. Apply all recommendations **(Recommended)**
-2. Override specific items (tell me which #s to change)
 ```
+
+Immediately after presenting the report above, call `AskUserQuestion`:
+
+- `question`: `"How do you want to handle these tidy actions?"`, `header`: `"Tidy actions"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Apply all recommendations shown above"`
+- Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which #s to change"`
+
+If "Override specific items" is chosen, the follow-up (#s and target values) is ordinary free-text conversation in the next message, per Spec 05's Pattern B convention — not the tool's built-in `Other` field.
 
 Items recommended as "Keep" are included for visibility but require no action. Only items with an active recommendation (delete, promote, fix, run) are executed.
 
@@ -232,10 +237,13 @@ This resolves the account- and project-specific values a portable template can't
 
 ## Next Actions
 
-1. `/claude-tweaks:help` — full pipeline status with refreshed counts after the cleanup **(Recommended)**
-2. `/claude-tweaks:build {N}` — build the highest-priority ready spec surfaced by the tidy report
-3. `/claude-tweaks:specify {topic}` — specify an unspecified design doc surfaced by the audit
-4. `/claude-tweaks:review {N}` — review a spec the audit flagged as "appears complete, not reviewed"
+Call `AskUserQuestion`:
+
+- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Help dashboard (Recommended)"`, `description`: `"/claude-tweaks:help — full pipeline status with refreshed counts after the cleanup"`
+- Option 2 — `label`: `"Build {N}"`, `description`: `"/claude-tweaks:build {N} — build the highest-priority ready spec surfaced by the tidy report"`
+- Option 3 — `label`: `"Specify {topic}"`, `description`: `"/claude-tweaks:specify {topic} — specify an unspecified design doc surfaced by the audit"`
+- Option 4 — `label`: `"Review {N}"`, `description`: `"/claude-tweaks:review {N} — review a spec the audit flagged as \"appears complete, not reviewed\""`
 
 ## Component-Skill Contract
 

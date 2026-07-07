@@ -2,7 +2,7 @@
 name: claude-tweaks:flow
 description: Use when you want to run an automated build → test → review → polish → wrap-up pipeline on a spec without stopping between steps. Accepts specs only — design docs must be decomposed via /claude-tweaks:specify first.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
+> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 
 # Flow — Automated Pipeline
@@ -256,16 +256,17 @@ The depth survey analyzed the changed modules. These are shallow abstractions wo
 Run `/claude-tweaks:deepen <changed-paths>` to act on these — it presents candidates, then walks the interface design for the ones you pick. Flow never runs this automatically.
 
 > Render this block only when the depth survey returned candidates. Cap at the top 3 by leverage; if more exist append `> N more lower-leverage candidates — run /claude-tweaks:deepen for the full list.` Omit the entire section when the survey found no shallow modules, the pre-check skipped it (no source modules changed), or `no-deepen` was set.
+```
 
 ### Next Actions
 
-1. `/claude-tweaks:flow {next spec}` — full pipeline on spec {N}: "{title}" **(Recommended)**
-2. `/claude-tweaks:help` — full pipeline status
-{If unblocked specs:}
-3. `/claude-tweaks:build {N}` — spec {N} "{title}" now unblocked
-{If the depth survey surfaced candidates:}
-4. `/claude-tweaks:deepen {changed-paths}` — act on the {N} depth opportunit{y/ies} surfaced above
-```
+Close the template's fence above, then assemble the applicable options (the base 2 always; the two conditional options only when their trigger condition holds) and present them via one `AskUserQuestion` call as unfenced prose:
+
+- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
+- Option 1 — `label`: short name of the next spec's run suffixed `(Recommended)`, `description`: `"/claude-tweaks:flow {next spec} — full pipeline on spec {N}: \"{title}\""`
+- Option 2 — `label`: `"Pipeline status"`, `description`: `"/claude-tweaks:help — full pipeline status"`
+- Option 3 (if unblocked specs) — `label`: `"Build {N}"`, `description`: `"/claude-tweaks:build {N} — spec {N} \"{title}\" now unblocked"`
+- Option 4 (if the depth survey surfaced candidates) — `label`: `"Depth opportunities"`, `description`: `"/claude-tweaks:deepen {changed-paths} — act on the {N} depth opportunit{y/ies} surfaced above"`
 
 ---
 
@@ -313,7 +314,7 @@ For mode-selection guidance (worktree vs current-branch), the merge reconciliati
 
 ## Next Actions
 
-Next Actions in `/flow` are outcome-conditional and rendered as part of the Pipeline Summary (Step 5 success template) or Failure Card (see `failure-cards.md`). See `## Pipeline Summary template` above for the canonical numbered options on success; see `failure-cards.md` for the per-failure-shape Next Actions blocks. There is no standalone Next Actions block here — the rendered block fires inside the success or failure template that matches the pipeline outcome.
+Next Actions in `/flow` are outcome-conditional and rendered as part of the Pipeline Summary (Step 5 success template) or Failure Card (see `failure-cards.md`). See `## Pipeline Summary template` above for the canonical `AskUserQuestion` call on success; see `failure-cards.md` for the per-failure-shape Next Actions blocks. There is no standalone Next Actions block here — the rendered block fires inside the success or failure template that matches the pipeline outcome.
 
 ## Anti-Patterns
 
