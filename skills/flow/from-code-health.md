@@ -12,16 +12,18 @@ start of the run.
 ## Syntax
 
 ```
-/claude-tweaks:flow --from-code-health  [--min-severity high] [--require-eligible] [worktree | current-branch] [keep-going] [auto | confirm | hybrid]
-/claude-tweaks:flow --from-label <label> [--min-severity high] [--require-eligible] [...same]
-/claude-tweaks:flow --from-issues <n,...>       [--min-severity high] [--require-eligible] [...same]
-/claude-tweaks:flow --from-milestone <m>          [--min-severity high] [--require-eligible] [...same]
+/claude-tweaks:flow --from-code-health  [--min-severity high] [--quick-wins] [--require-eligible] [worktree | current-branch] [keep-going] [auto | confirm | hybrid]
+/claude-tweaks:flow --from-label <label> [--min-severity high] [--quick-wins] [--require-eligible] [...same]
+/claude-tweaks:flow --from-issues <n,...>       [--min-severity high] [--quick-wins] [--require-eligible] [...same]
+/claude-tweaks:flow --from-milestone <m>          [--min-severity high] [--quick-wins] [--require-eligible] [...same]
 ```
 
-`--min-severity` floors on the `code-health:<sev>` label (unlabeled issues rank `info`). All other
-`/flow` arguments behave as normal — the selectors only change how the spec list is assembled.
-Note: `--min-severity` with a non-code-health label set is empty by construction unless those issues
-also carry `code-health:<sev>` labels.
+`--min-severity` floors on the `code-health:<sev>` label (unlabeled issues rank `info`). `--quick-wins`
+narrows to `risk:high AND effort:low` (see Step 2.4 below). All other `/flow` arguments behave as
+normal — the selectors only change how the spec list is assembled. Note: `--min-severity` and
+`--quick-wins` are both empty-by-construction filters for a non-code-health label set unless those
+issues also carry the relevant `code-health:<sev>`/`code-health:risk-<tier>`/`code-health:effort-<tier>`
+labels.
 
 ## Procedure
 
@@ -128,6 +130,24 @@ also carry `code-health:<sev>` labels.
      does not filter on it — it is passed through in the brief's `body`.
    (`issuesToBriefs` performs the same label/severity filtering `pullReconIssues` applied — the
    code-health CLI path and the generic path are equivalent for `--from-code-health`.)
+
+2.4. **Filter to quick wins (only when `--quick-wins` is passed).** After sorting (above), narrow
+   the brief list to the intersection of `risk:high` and `effort:low`:
+
+   ```bash
+   node -e "
+     const briefs = require('/tmp/flow-briefs.json');
+     const quickWins = briefs.filter(b => b.severity === 'high' && b.effort === 'low');
+     console.log(JSON.stringify(quickWins));
+   " > /tmp/flow-briefs-quickwins.json
+   mv /tmp/flow-briefs-quickwins.json /tmp/flow-briefs.json
+   ```
+
+   (Recall `severity` holds the risk tier for code-health issues per Phase 3's label-extraction
+   widening.) If this empties the list, stop and report: "No open code-health issues currently
+   match risk:high AND effort:low — nothing to build for --quick-wins." Skip this step entirely
+   when `--quick-wins` was not passed. Numbered `2.4` so it reads, in document order, between
+   Step 2's brief-parsing/sorting content and the existing `2.5` claim step.
 
 2.5. **Claim each issue (per `_shared/issue-claims.md`).** Before any `/specify` invocation,
    claim every brief's issue so concurrent consumers (a scheduled routine, a second machine,
