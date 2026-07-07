@@ -2,7 +2,7 @@
 name: claude-tweaks:wrap-up
 description: Use when /claude-tweaks:review passes and you need to capture learnings, clean up specs/plans, update skills, and decide next steps. The lifecycle closure step.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
+> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 
 # Wrap-Up — Capture learnings, clean up, and close the lifecycle
@@ -188,7 +188,7 @@ Phase 2 is on the "What `auto` does NOT silence" list in `_shared/auto-mode-cont
 
 ### Ops acknowledgment (when ops items exist)
 
-Ops items represent infrastructure changes the user needs to action post-merge — bulk-acknowledging them risks the user not reading them. Present each item, and require explicit confirmation rather than offering a `(Recommended)` shortcut:
+Ops items represent infrastructure changes the user needs to action post-merge — bulk-acknowledging them risks the user not reading them. Present each item, and require explicit confirmation rather than a shortcut that defaults to bulk action:
 
 ```
 The following ops items need acknowledgment. These represent infrastructure changes you need to action post-merge — read each one before choosing:
@@ -196,12 +196,14 @@ The following ops items need acknowledgment. These represent infrastructure chan
 | # | What | Where |
 |---|------|-------|
 | 1 | {description} | {source} |
-
-1. I've read every item — acknowledge all
-2. I have questions about specific items — show details
 ```
 
-After choice 1, update status to `acknowledged` for every item. After choice 2, surface each item with full detail and ask per item.
+Call `AskUserQuestion` with `question`: `"How do you want to handle these ops items?"`, `header`: `"Ops items"`, `multiSelect`: `false` — neither option's label is marked as the default:
+
+- Option 1 — `label`: `"Acknowledge all"`, `description`: `"I've read every item"`
+- Option 2 — `label`: `"Show details"`, `description`: `"I have questions about specific items"`
+
+After option 1, update status to `acknowledged` for every item. After option 2, surface each item with full detail and ask per item.
 
 ---
 
@@ -282,10 +284,13 @@ Render the cleanup rows from `cleanup-procedures.md`'s canonical list (filtered 
 | 1 | cleanup | {row from cleanup-procedures.md canonical list} | {details} |
 | ... | cleanup | ... | ... |
 | N | config | {doc/claude.md/rule/adr} | {what to add/change} |
-
-1. Apply all **(Recommended)**
-2. Override specific items (tell me which #s to change)
 ```
+
+The table renders as markdown, as above. Immediately below it, call `AskUserQuestion` with:
+
+- `question`: `"How do you want to apply these changes?"`, `header`: `"Apply changes"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Apply all cleanup and configuration items"`
+- Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which #s to change"`
 
 If the user chooses to override, let them pick which items to skip or change.
 
@@ -344,13 +349,19 @@ If any approved action did not land, do NOT emit the closure line. Surface the g
 
 When invoked by `/flow` (`$PIPELINE_RUN_DIR` is set), omit this block — the parent `/flow` renders its own Pipeline Summary + Next Actions after Step 9.
 
-When invoked directly by a user (standalone wrap-up), render the table below. Generate 2-4 numbered options based on context signals; always include the "next unblocked spec" option when one exists so the user doesn't have to run `/help` to find it.
+When invoked directly by a user (standalone wrap-up), resolve 2-4 options based on context signals; always include the "next unblocked spec" option when one exists so the user doesn't have to run `/help` to find it. The signal-to-option lookup table below stays as-is — the assistant's own logic for picking which options apply, never itself shown to the user or converted into an `AskUserQuestion` option:
 
 | Signal | Option |
 |--------|--------|
 | Next spec exists (Step 8) | `/claude-tweaks:flow {N}` — full pipeline on spec {N}: "{title}" **(Recommended)** |
 | Newly unblocked specs | `/claude-tweaks:build {N}` — spec {N} "{title}" now unblocked |
 | Always | `/claude-tweaks:help` — full pipeline status |
+
+Once the signals are resolved, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+
+- Option 1 (when a next spec exists) — `label`: `"Full pipeline (Recommended)"`, `description`: `"/claude-tweaks:flow {N} — full pipeline on spec {N}: \"{title}\""`
+- Option 2 (when specs are newly unblocked) — `label`: `"Build {N}"`, `description`: `"/claude-tweaks:build {N} — spec {N} \"{title}\" now unblocked"`
+- Option 3 (always) — `label`: `"Pipeline status"`, `description`: `"/claude-tweaks:help — full pipeline status"`
 
 ## Component-Skill Contract
 

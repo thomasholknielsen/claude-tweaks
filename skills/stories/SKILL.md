@@ -2,7 +2,7 @@
 name: claude-tweaks:stories
 description: Use when generating or updating user story YAML files for UI testing — browses a site with agent-browser, discovers flows, creates structured stories using semantic locators (schema v2) with diff-aware updates, negative testing, source-aware contracts, journey awareness, and self-validation. Keywords - stories, generate, create, user journey, persona, QA, testing, semantic-locators.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
+> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 
 # Stories — Generate, refine, and update user-story YAML (semantic locators, journey + source aware)
@@ -407,12 +407,16 @@ One row per story file written, updated, or deleted. Omit unchanged files.
 
 ## Next Actions
 
-When invoked by a parent skill (e.g., `/claude-tweaks:flow`), omit this block — the parent owns the handoff. When invoked directly by a user, emit 2-4 numbered options based on context — include the smoke option only when at least one story is tagged `smoke`; include the `affected` option only when update mode regenerated stories; include the journey option only when a journey was the dominant story source. One option marked **(Recommended)**.
+When invoked by a parent skill (e.g., `/claude-tweaks:flow`), omit this block — the parent owns the handoff. When invoked directly by a user, resolve 2-4 options based on context — include the smoke option only when at least one story is tagged `smoke`; include the `affected` option only when update mode regenerated stories; include the journey option only when a journey was the dominant story source.
 
-1. `/claude-tweaks:test qa` — validate all {N} stories against the running app **(Recommended)**
-2. `/claude-tweaks:test qa tag=smoke` — quick pass on {N} smoke stories first (when smoke stories exist)
-3. `/claude-tweaks:test qa affected` — validate only changed stories (when update mode regenerated stories)
-4. `/claude-tweaks:test qa journey={name}` — validate {N} stories for the {name} journey (when journeys exist)
+If none of the three conditional options apply (no smoke stories, no update-mode regeneration, no journeys), only the always-present validate-all option remains — a lone option isn't a decision, so skip `AskUserQuestion` and state the command directly: "Next: `/claude-tweaks:test qa` — validate all {N} stories against the running app."
+
+Otherwise, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+
+- Option 1 (always) — `label`: `"Validate all (Recommended)"`, `description`: `"/claude-tweaks:test qa — validate all {N} stories against the running app"`
+- Option 2 (when smoke stories exist) — `label`: `"Smoke pass"`, `description`: `"/claude-tweaks:test qa tag=smoke — quick pass on {N} smoke stories first"`
+- Option 3 (when update mode regenerated stories) — `label`: `"Affected only"`, `description`: `"/claude-tweaks:test qa affected — validate only changed stories"`
+- Option 4 (when journeys exist) — `label`: `"By journey"`, `description`: `"/claude-tweaks:test qa journey={name} — validate {N} stories for the {name} journey"`
 
 ## Component-Skill Contract
 

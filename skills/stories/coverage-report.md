@@ -57,8 +57,11 @@ Existing stories without a `journey:` field that match journey step URLs:
 | # | Story ID | File | URL | Suggested Journey | Action |
 |---|----------|------|-----|-------------------|--------|
 | 1 | {id} | {file} | {url} | {journey} | Add `journey: {name}` |
-
-1. Apply all suggestions **(Recommended)**
-2. Override specific items (tell me which #s to skip)
-3. Skip all — I'll link journeys manually
 ```
+
+The table renders as markdown, as above. Immediately below it, call `AskUserQuestion` with:
+
+- `question`: `"How do you want to handle these journey link suggestions?"`, `header`: `"Journey links"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Add the suggested journey: field to every listed story"`
+- Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which #s to skip"`
+- Option 3 — `label`: `"Skip all"`, `description`: `"I'll link journeys manually"`

@@ -72,10 +72,13 @@ Declare **"No skill updates needed"** only when 7.1 found no seeds, 7.2's scan f
 | 1 | {skill name} | {section} | {change description} | {ledger entry / reflection insight / changed-file scan} |
 | 2 | {skill name} | {section} | {change description} | {source} |
 | 3 | NEW: {name} | — | Create new skill | {seed or independent gap scan} |
-
-1. Apply all **(Recommended)**
-2. Override specific items (tell me which #s to change)
 ```
+
+The table renders as markdown, as above. Immediately below it, call `AskUserQuestion` with:
+
+- `question`: `"How do you want to apply these skill updates?"`, `header`: `"Skill updates"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Apply all skill and config updates"`
+- Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which #s to change"`
 
 Below the table, show the full Update Mode patches for each row so the user can see exactly what will change.
 

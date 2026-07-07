@@ -80,10 +80,13 @@ Present all findings as a single batch table with recommended actions pre-filled
 | 2 | {description} | High | Error | {files} | Fix now |
 | 3 | {description} | Medium | Convention | {files} | Fix now |
 | 4 | {description} | Low | Perf | {files} | Fix now |
-
-1. Apply all recommendations **(Recommended)**
-2. Override specific items (tell me which #s to change)
 ```
+
+The table renders as markdown, as above. Immediately below it, call `AskUserQuestion` with:
+
+- `question`: `"How do you want to handle these findings?"`, `header`: `"Findings"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Apply all recommended fixes"`
+- Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which #s to change"`
 
 **Recommendation rules** (interactive mode — severity-to-route mapping in `auto` mode is the table at the top of this file):
 

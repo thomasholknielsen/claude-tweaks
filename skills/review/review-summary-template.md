@@ -97,18 +97,28 @@ Generate from: git log since review start, findings with status `fixed`, ledger 
 
 ### Next Actions
 
+The signal-to-option lookup tables below stay as-is — the assistant's own resolution logic for picking which options apply this run, never itself shown to the user or converted into an `AskUserQuestion` option. Only one branch (PASS or BLOCKED) is ever resolved per actual review run.
+
 **When PASS:**
 
 | Signal | Option |
 |--------|--------|
-| Always | `/claude-tweaks:wrap-up {N}` — capture learnings and clean up **(Recommended)** |
+| Always | `/claude-tweaks:wrap-up {N}` — capture learnings and clean up |
 | Visual not done + journeys affected + browser | `/claude-tweaks:visual-review journey:{name}` — walk affected journey before wrapping up |
 | Visual not done + UI changed + browser | `/claude-tweaks:visual-review {url}` — visual pass before wrapping up |
+
+Once resolved, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`:
+- Option 1 (always) — `label`: `"Wrap up (Recommended)"`, `description`: `"/claude-tweaks:wrap-up {N} — capture learnings and clean up"`
+- Option 2 (when visual not done + journeys affected/UI changed + browser available) — `label`: `"Visual review"`, `description`: `"/claude-tweaks:visual-review journey:{name} — walk affected journey before wrapping up"` (or the `{url}` variant when journeys aren't affected but UI changed)
 
 **When BLOCKED:**
 
 | Signal | Option |
 |--------|--------|
-| Always | `/claude-tweaks:build {N}` — fix gaps listed above **(Recommended)** |
+| Always | `/claude-tweaks:build {N}` — fix gaps listed above |
 | Test failures | `/claude-tweaks:test` — re-verify after fixes |
+
+Once resolved, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`:
+- Option 1 (always) — `label`: `"Fix gaps (Recommended)"`, `description`: `"/claude-tweaks:build {N} — fix gaps listed above"`
+- Option 2 (when test failures present) — `label`: `"Re-verify"`, `description`: `"/claude-tweaks:test — re-verify after fixes"`
 ```

@@ -117,24 +117,30 @@ Render this section only when leftover routing or other steps have proposed writ
 | Q1 | DEFERRED | "Add OAuth refresh edge case" — blocked on /auth provider docs | Step 4 leftover routing, section "Edge cases" |
 | Q2 | INBOX | "Investigate token rotation strategy" — surfaced by /reflect Step 3 | reflect insight stage file |
 
----
-
-1. **Approve all** — apply pending items, accept auto-applied, apply skill + config updates, execute cleanup (items 1–21 in this example). Queue writes (Q1, Q2) are handled separately below. **(Recommended)**
-2. **Override specific items** — reply with #s to skip/modify (e.g., "skip 5, modify 7, revert 1")
-3. **Stop and re-engage** — pause the pipeline; I'll resume after manual review
-
 Below each table, show the full patch / diff for each pending item so the user can see exactly what will change.
 ```
 
-After the user selects option 1 or 2, prompt the queue writes individually:
+Immediately after presenting the console tables above, call `AskUserQuestion` with:
 
-```
-Queue write Q1 → specs/DEFERRED.md: "Add OAuth refresh edge case" — blocked on /auth provider docs.
-Apply? (yes / no / edit)
+- `question`: `"How do you want to handle the Review Console items?"`, `header`: `"Review Console"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Approve all (Recommended)"`, `description`: `"Apply pending items, accept auto-applied, apply skill + config updates, execute cleanup (items 1-{N})"`
+- Option 2 — `label`: `"Override specific items"`, `description`: `"Reply with #s to skip/modify (e.g., \"skip 5, modify 7, revert 1\")"`
+- Option 3 — `label`: `"Stop and re-engage"`, `description`: `"Pause the pipeline; resume after manual review"`
 
-Queue write Q2 → specs/INBOX.md: "Investigate token rotation strategy" — surfaced by /reflect Step 3.
-Apply? (yes / no / edit)
-```
+Queue writes (Q1, Q2) are handled separately below — they are never part of this terminal decision, regardless of which option is chosen.
+
+After the user selects option 1 or 2, prompt the queue writes individually — one small `AskUserQuestion` call per `Q#` item, issued separately (never batched into a single call's multiple questions).
+
+For each `Q#` item, call `AskUserQuestion` with `question`: the queue-write line (e.g. `"Queue write Q1 → specs/DEFERRED.md: \"Add OAuth refresh edge case\" — blocked on /auth provider docs."`), `header`: `"Queue write {Q#}"`, `multiSelect`: `false`:
+- Option 1 — `label`: `"Apply"`, `description`: `"Write to {destination}: \"{content}\""`
+- Option 2 — `label`: `"Skip"`, `description`: `"Drop this proposal"`
+- Option 3 — `label`: `"Edit"`, `description`: `"Modify before writing"`
+
+Applied to this example's two queue writes:
+- Q1 — `question`: `"Queue write Q1 → specs/DEFERRED.md: \"Add OAuth refresh edge case\" — blocked on /auth provider docs."`, `header`: `"Queue write Q1"`; Option 1 description: `"Write to specs/DEFERRED.md: \"Add OAuth refresh edge case\" — blocked on /auth provider docs"`
+- Q2 — `question`: `"Queue write Q2 → specs/INBOX.md: \"Investigate token rotation strategy\" — surfaced by /reflect Step 3."`, `header`: `"Queue write Q2"`; Option 1 description: `"Write to specs/INBOX.md: \"Investigate token rotation strategy\" — surfaced by /reflect Step 3"`
+
+None of these three options carries `(Recommended)` — the source text requires explicit per-item attention, and these calls are never combined into a single multi-question `AskUserQuestion` call across multiple `Q#` items (that would functionally reintroduce bulk approval by letting the user answer several at once without individually attending to each).
 
 ## On approval (option 1)
 
@@ -142,7 +148,7 @@ Apply? (yes / no / edit)
 2. Apply skill updates and create new skills (items 11–12, from Step 7)
 3. Apply config updates (items 13–14: docs, CLAUDE.md, rules)
 4. Execute cleanup actions (items 15–21) — Step 10 picks these up
-5. For each `Q#` queue write, prompt the user per item. Apply only on explicit `yes` or `edit`. `no` drops the proposal.
+5. For each `Q#` queue write, prompt the user per item via its own `AskUserQuestion` call. Apply only on explicit Apply or Edit. Skip drops the proposal.
 6. Commit with a wrap-up message
 7. Proceed to Step 10 (Consolidated Summary)
 
@@ -152,7 +158,7 @@ Apply? (yes / no / edit)
 2. For each item: apply, skip (delete from staged/), or modify (re-edit the staged patch then apply)
 3. Auto-applied items the user wants reverted: `git revert {commit}` (one revert commit per item, to keep history clean)
 4. Cleanup items the user skipped: leave the target intact (spec/plan/worktree stays)
-5. Queue writes (`Q#`): still prompted per item even under override — the user can `no` them or `edit` them, but the per-item gate cannot be bulk-resolved
+5. Queue writes (`Q#`): still prompted per item even under override — the user can Skip or Edit them, but the per-item gate cannot be bulk-resolved
 6. Commit, then proceed to Step 10
 
 ## On stop (option 3)
