@@ -1,7 +1,7 @@
 'use strict';
 
-// Validates a skill-health finding (a patch proposal or new-skill candidate)
-// against the Finding Shape in _shared/skill-health-analysis.md.
+// Validates a harness-health finding (a patch proposal or new-skill candidate)
+// against the Finding Shape in _shared/harness-health-analysis.md.
 // Returns { ok:true, value } or { ok:false, errors:string[] }.
 
 const KIND_VALUES = new Set(['patch', 'new-skill']);

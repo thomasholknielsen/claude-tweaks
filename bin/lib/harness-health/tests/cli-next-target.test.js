@@ -6,9 +6,9 @@ const os = require('os');
 const path = require('path');
 const { writeCursors } = require('../cache');
 
-const CLI = path.resolve(__dirname, '..', '..', '..', 'skill-health.js');
+const CLI = path.resolve(__dirname, '..', '..', '..', 'harness-health.js');
 
-function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'skill-health-nt-')); }
+function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'harness-health-nt-')); }
 function runNextTarget(args, root) {
   const raw = execFileSync('node', [CLI, 'next-target', '--root', root, ...args], { encoding: 'utf8' });
   return JSON.parse(raw);

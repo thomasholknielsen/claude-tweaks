@@ -36,8 +36,8 @@ function newSkillFinding(overrides = {}) {
 
 test('toIssuePayload for a patch finding includes the fingerprint marker and labels', () => {
   const payload = toIssuePayload(patchFinding());
-  assert.ok(payload.body.includes('<!-- skill-health-fingerprint: skillhealth-abc12345 -->'));
-  assert.deepStrictEqual(payload.labels, ['skill-health', 'skill-health:restructural']);
+  assert.ok(payload.body.includes('<!-- harness-health-fingerprint: skillhealth-abc12345 -->'));
+  assert.deepStrictEqual(payload.labels, ['harness-health', 'harness-health:restructural']);
   assert.ok(payload.title.includes('auth'));
   assert.ok(payload.body.includes('src/auth/login.js'));
   assert.ok(payload.body.includes('src/auth/session.js'));
@@ -45,7 +45,7 @@ test('toIssuePayload for a patch finding includes the fingerprint marker and lab
 
 test('toIssuePayload for a new-skill finding uses the new-skill label and includes proposedBody', () => {
   const payload = toIssuePayload(newSkillFinding());
-  assert.deepStrictEqual(payload.labels, ['skill-health', 'skill-health:new-skill']);
+  assert.deepStrictEqual(payload.labels, ['harness-health', 'harness-health:new-skill']);
   assert.ok(payload.title.includes('queue-retry-pattern'));
   assert.ok(payload.body.includes('Queue Retry Pattern'));
 });

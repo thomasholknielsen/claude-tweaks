@@ -11,7 +11,7 @@ function normalizeDescription(description) {
 // criterion/areaId, description stands in for anchor.
 function fingerprint({ skill, section, description }) {
   const basis = JSON.stringify([skill, section, normalizeDescription(description)]);
-  return 'skillhealth-' + crypto.createHash('sha1').update(basis).digest('hex').slice(0, 8);
+  return 'harnesshealth-' + crypto.createHash('sha1').update(basis).digest('hex').slice(0, 8);
 }
 
 module.exports = { fingerprint, normalizeDescription };

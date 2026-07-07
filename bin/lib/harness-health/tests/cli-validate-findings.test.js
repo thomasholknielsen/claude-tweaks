@@ -6,9 +6,9 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const CLI = path.resolve(__dirname, '..', '..', '..', 'skill-health.js');
+const CLI = path.resolve(__dirname, '..', '..', '..', 'harness-health.js');
 
-function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'skill-health-vf-')); }
+function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'harness-health-vf-')); }
 
 function runValidateFindings(root, findingsFile, extraArgs = []) {
   return spawnSync('node', [CLI, 'validate-findings', findingsFile, '--root', root, ...extraArgs], { encoding: 'utf8' });
@@ -40,8 +40,8 @@ test('validate-findings: valid finding emits one payload on stdout', () => {
 
   const payloads = JSON.parse(result.stdout);
   assert.strictEqual(payloads.length, 1);
-  assert.ok(payloads[0].labels.includes('skill-health'));
-  assert.ok(payloads[0].body.includes('<!-- skill-health-fingerprint: skillhealth-'));
+  assert.ok(payloads[0].labels.includes('harness-health'));
+  assert.ok(payloads[0].body.includes('<!-- harness-health-fingerprint: harnesshealth-'));
 });
 
 test('validate-findings: malformed finding is dropped with a stderr reason, valid ones survive', () => {
@@ -66,8 +66,8 @@ test('validate-findings: --dry-run emits payloads but writes no state', () => {
   const result = runValidateFindings(root, findingsFile, ['--dry-run', '--skill', 'auth', '--gap-scan']);
   assert.strictEqual(result.status, 0);
   assert.strictEqual(JSON.parse(result.stdout).length, 1);
-  assert.strictEqual(fs.existsSync(path.join(root, '.claude-tweaks', 'skill-health', 'cache.json')), false);
-  assert.strictEqual(fs.existsSync(path.join(root, '.claude-tweaks', 'skill-health', 'cursors.json')), false);
+  assert.strictEqual(fs.existsSync(path.join(root, '.claude-tweaks', 'harness-health', 'cache.json')), false);
+  assert.strictEqual(fs.existsSync(path.join(root, '.claude-tweaks', 'harness-health', 'cursors.json')), false);
 });
 
 test('validate-findings: --skill <id> records the audit cursor for that skill', () => {
@@ -77,7 +77,7 @@ test('validate-findings: --skill <id> records the audit cursor for that skill', 
 
   const result = runValidateFindings(root, findingsFile, ['--skill', 'auth']);
   assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
-  const cursors = JSON.parse(fs.readFileSync(path.join(root, '.claude-tweaks', 'skill-health', 'cursors.json'), 'utf8'));
+  const cursors = JSON.parse(fs.readFileSync(path.join(root, '.claude-tweaks', 'harness-health', 'cursors.json'), 'utf8'));
   assert.ok(typeof cursors.auth.lastAuditedMs === 'number');
 });
 
@@ -88,7 +88,7 @@ test('validate-findings: --gap-scan records the global gap-scan cursor', () => {
 
   const result = runValidateFindings(root, findingsFile, ['--gap-scan']);
   assert.strictEqual(result.status, 0);
-  const cursors = JSON.parse(fs.readFileSync(path.join(root, '.claude-tweaks', 'skill-health', 'cursors.json'), 'utf8'));
+  const cursors = JSON.parse(fs.readFileSync(path.join(root, '.claude-tweaks', 'harness-health', 'cursors.json'), 'utf8'));
   assert.ok(typeof cursors.__gapScan.lastScannedMs === 'number');
 });
 
@@ -99,10 +99,10 @@ test('validate-findings: a finding already open in the issue index is skipped (d
 
   const first = runValidateFindings(root, findingsFile);
   const firstPayloads = JSON.parse(first.stdout);
-  const fp = firstPayloads[0].body.match(/<!--\s*skill-health-fingerprint:\s*(skillhealth-[0-9a-f]{8})\s*-->/)[1];
+  const fp = firstPayloads[0].body.match(/<!--\s*harness-health-fingerprint:\s*(harnesshealth-[0-9a-f]{8})\s*-->/)[1];
 
   const issuesFile = path.join(root, 'issues.json');
-  fs.writeFileSync(issuesFile, JSON.stringify([{ number: 1, state: 'open', labels: ['skill-health'], fingerprint: fp }]));
+  fs.writeFileSync(issuesFile, JSON.stringify([{ number: 1, state: 'open', labels: ['harness-health'], fingerprint: fp }]));
 
   const second = runValidateFindings(root, findingsFile, ['--issues', issuesFile]);
   assert.strictEqual(JSON.parse(second.stdout).length, 0, 'open finding must be skipped');

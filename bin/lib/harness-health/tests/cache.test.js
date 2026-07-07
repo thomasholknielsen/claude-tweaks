@@ -10,7 +10,7 @@ const {
   recordRun, readRuns, computeChurn,
 } = require('../cache');
 
-function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'skill-health-cache-')); }
+function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'harness-health-cache-')); }
 
 test('readCache returns {} when the cache file does not exist', () => {
   const root = tmp();
@@ -23,9 +23,9 @@ test('writeCache then readCache round-trips', () => {
   assert.deepStrictEqual(readCache(root), { 'skillhealth-abc123': { status: 'staged', lastSeenMs: 1000 } });
 });
 
-test('cachePath points under .claude-tweaks/skill-health/cache.json', () => {
+test('cachePath points under .claude-tweaks/harness-health/cache.json', () => {
   const root = tmp();
-  assert.strictEqual(cachePath(root), path.join(root, '.claude-tweaks', 'skill-health', 'cache.json'));
+  assert.strictEqual(cachePath(root), path.join(root, '.claude-tweaks', 'harness-health', 'cache.json'));
 });
 
 test('readCursors returns {} when the cursors file does not exist', () => {

@@ -3,7 +3,7 @@
 // Project a finding into a GitHub issue payload. Emit-only — never calls the
 // network. The skill hands the payload to the gh CLI itself.
 function toIssuePayload(finding) {
-  const marker = `<!-- skill-health-fingerprint: ${finding.id} -->`;
+  const marker = `<!-- harness-health-fingerprint: ${finding.id} -->`;
   const kindLine = finding.kind === 'new-skill'
     ? `**New skill candidate** | **Confidence:** ${finding.confidence}`
     : `**Skill:** ${finding.skill} | **Section:** ${finding.section} | **Classification:** ${finding.classification} | **Confidence:** ${finding.confidence}`;
@@ -29,7 +29,7 @@ function toIssuePayload(finding) {
     '',
     finding.description,
     '',
-    '_Filed by `/claude-tweaks:skill-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._',
+    '_Filed by `/claude-tweaks:harness-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._',
   ].join('\n');
 
   return {
@@ -46,7 +46,7 @@ function toIssuePayload(finding) {
       ? `New skill candidate: ${finding.skill}`
       : `Skill drift: ${finding.skill} — ${finding.section}`,
     body,
-    labels: ['skill-health', finding.kind === 'new-skill' ? 'skill-health:new-skill' : `skill-health:${finding.classification}`],
+    labels: ['harness-health', finding.kind === 'new-skill' ? 'harness-health:new-skill' : `harness-health:${finding.classification}`],
   };
 }
 

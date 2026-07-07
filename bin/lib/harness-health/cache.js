@@ -3,10 +3,10 @@ const fs = require('fs');
 const path = require('path');
 
 // Gitignored, rebuildable-from-issues state. Canonical path:
-// <root>/.claude-tweaks/skill-health/{cache,cursors}.json and .../runs/*.json
+// <root>/.claude-tweaks/harness-health/{cache,cursors}.json and .../runs/*.json
 
 function cachePath(root) {
-  return path.join(root, '.claude-tweaks', 'skill-health', 'cache.json');
+  return path.join(root, '.claude-tweaks', 'harness-health', 'cache.json');
 }
 
 function readCache(root) {
@@ -25,7 +25,7 @@ function writeCache(root, cache) {
 }
 
 function cursorsPath(root) {
-  return path.join(root, '.claude-tweaks', 'skill-health', 'cursors.json');
+  return path.join(root, '.claude-tweaks', 'harness-health', 'cursors.json');
 }
 
 function readCursors(root) {
@@ -67,7 +67,7 @@ function recordGapScan(root, { sha = null, whenMs = Date.now() } = {}) {
 }
 
 function runsDir(root) {
-  return path.join(root, '.claude-tweaks', 'skill-health', 'runs');
+  return path.join(root, '.claude-tweaks', 'harness-health', 'runs');
 }
 
 // Persist the fingerprint set a firing produced, for churn-report diagnostics.

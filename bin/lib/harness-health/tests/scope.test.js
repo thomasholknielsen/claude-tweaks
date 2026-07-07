@@ -6,7 +6,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const { listSkills, extractDomainPaths, domainChurn, selectTarget } = require('../scope');
 
-function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'skill-health-scope-')); }
+function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'harness-health-scope-')); }
 
 function initGitRepo(root) {
   execFileSync('git', ['-C', root, 'init', '-q']);

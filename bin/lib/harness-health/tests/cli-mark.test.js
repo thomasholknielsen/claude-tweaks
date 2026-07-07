@@ -5,23 +5,23 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const CLI = path.resolve(__dirname, '..', '..', '..', 'skill-health.js');
+const CLI = path.resolve(__dirname, '..', '..', '..', 'harness-health.js');
 
-function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'skill-health-mark-')); }
+function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'harness-health-mark-')); }
 
 test('mark writes an applied status to the cache', () => {
   const root = tmp();
   const raw = execFileSync('node', [CLI, 'mark', 'skillhealth-abc12345', 'applied', '--root', root], { encoding: 'utf8' });
   const result = JSON.parse(raw);
   assert.strictEqual(result.status, 'applied');
-  const cache = JSON.parse(fs.readFileSync(path.join(root, '.claude-tweaks', 'skill-health', 'cache.json'), 'utf8'));
+  const cache = JSON.parse(fs.readFileSync(path.join(root, '.claude-tweaks', 'harness-health', 'cache.json'), 'utf8'));
   assert.strictEqual(cache['skillhealth-abc12345'].status, 'applied');
 });
 
 test('mark writes a declined status to the cache', () => {
   const root = tmp();
   execFileSync('node', [CLI, 'mark', 'skillhealth-xyz98765', 'declined', '--root', root], { encoding: 'utf8' });
-  const cache = JSON.parse(fs.readFileSync(path.join(root, '.claude-tweaks', 'skill-health', 'cache.json'), 'utf8'));
+  const cache = JSON.parse(fs.readFileSync(path.join(root, '.claude-tweaks', 'harness-health', 'cache.json'), 'utf8'));
   assert.strictEqual(cache['skillhealth-xyz98765'].status, 'declined');
 });
 

@@ -2,9 +2,9 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const { fingerprint, normalizeDescription } = require('../fingerprint');
 
-test('fingerprint returns a skillhealth-<8hex> id', () => {
+test('fingerprint returns a harnesshealth-<8hex> id', () => {
   const id = fingerprint({ skill: 'auth', section: 'Key Patterns', description: 'stale example path' });
-  assert.match(id, /^skillhealth-[0-9a-f]{8}$/);
+  assert.match(id, /^harnesshealth-[0-9a-f]{8}$/);
 });
 
 test('fingerprint is stable across whitespace and case differences in description', () => {

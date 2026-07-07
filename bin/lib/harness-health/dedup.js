@@ -4,7 +4,7 @@
 // issue index and local cache. Pure — no I/O, no network.
 //
 // issueIndex: precomputed map { "<fingerprint>": { number, state, labels } }
-//   built from `gh issue list --label skill-health` output (the skill builds
+//   built from `gh issue list --label harness-health` output (the skill builds
 //   it; the engine never calls network) — same contract as recon's dedup.js.
 //
 // Decision logic:

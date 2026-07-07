@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 'use strict';
 const fs = require('fs');
-const { fingerprint } = require('./lib/skill-health/fingerprint');
+const { fingerprint } = require('./lib/harness-health/fingerprint');
 const {
   readCache, writeCache, readCursors, recordAudit,
   readGapScanCursor, recordGapScan, recordRun, readRuns, computeChurn,
-} = require('./lib/skill-health/cache');
-const { decide } = require('./lib/skill-health/dedup');
-const { validateFinding } = require('./lib/skill-health/validate-finding');
-const { toIssuePayload } = require('./lib/skill-health/issue-payload');
-const { selectTarget, listSkills } = require('./lib/skill-health/scope');
-const { STALE_DAYS } = require('./lib/skill-health/score');
+} = require('./lib/harness-health/cache');
+const { decide } = require('./lib/harness-health/dedup');
+const { validateFinding } = require('./lib/harness-health/validate-finding');
+const { toIssuePayload } = require('./lib/harness-health/issue-payload');
+const { selectTarget, listSkills } = require('./lib/harness-health/scope');
+const { STALE_DAYS } = require('./lib/harness-health/score');
 
 function parseArgs(argv) {
   const args = { _: [], root: process.cwd(), dryRun: false, runId: new Date().toISOString() };
@@ -37,11 +37,11 @@ function loadIssueIndex(file) {
   try {
     arr = JSON.parse(fs.readFileSync(file, 'utf8'));
   } catch {
-    process.stderr.write(`[skill-health] validate-findings: could not read or parse --issues file: ${file} — dedup falls back to the local cache only\n`);
+    process.stderr.write(`[harness-health] validate-findings: could not read or parse --issues file: ${file} — dedup falls back to the local cache only\n`);
     return {};
   }
   if (!Array.isArray(arr)) {
-    process.stderr.write(`[skill-health] validate-findings: --issues file must contain a JSON array: ${file} — dedup falls back to the local cache only\n`);
+    process.stderr.write(`[harness-health] validate-findings: --issues file must contain a JSON array: ${file} — dedup falls back to the local cache only\n`);
     return {};
   }
   const index = {};
@@ -92,7 +92,7 @@ function cmdValidateFindings(args) {
   const findingsPath = args._[1];
   if (!findingsPath) {
     process.stderr.write(
-      'usage: skill-health.js validate-findings <findings.json> [--root <dir>] [--issues <file>] [--skill <id>] [--gap-scan] [--run-id <id>] [--dry-run]\n',
+      'usage: harness-health.js validate-findings <findings.json> [--root <dir>] [--issues <file>] [--skill <id>] [--gap-scan] [--run-id <id>] [--dry-run]\n',
     );
     process.exit(2);
   }
@@ -114,7 +114,7 @@ function cmdValidateFindings(args) {
     const v = validateFinding(f);
     if (!v.ok) {
       process.stderr.write(
-        `[skill-health] validate-findings: dropped finding for skill "${(f && f.skill) || '?'}": ${v.errors.join('; ')}\n`,
+        `[harness-health] validate-findings: dropped finding for skill "${(f && f.skill) || '?'}": ${v.errors.join('; ')}\n`,
       );
       continue;
     }
@@ -152,7 +152,7 @@ function cmdValidateFindings(args) {
 
   process.stdout.write(JSON.stringify(payloads, null, 2) + '\n');
   process.stderr.write(
-    `[skill-health] validate-findings: ${survivors.length} valid finding(s), ${payloads.length} payload(s) after dedup\n`,
+    `[harness-health] validate-findings: ${survivors.length} valid finding(s), ${payloads.length} payload(s) after dedup\n`,
   );
 }
 
@@ -196,7 +196,7 @@ function cmdMark(args) {
   const fp = args._[1];
   const status = args._[2];
   if (!fp || !MARK_STATUSES.has(status)) {
-    process.stderr.write(`usage: skill-health.js mark <fingerprint> <${[...MARK_STATUSES].join('|')}> [--root <dir>]\n`);
+    process.stderr.write(`usage: harness-health.js mark <fingerprint> <${[...MARK_STATUSES].join('|')}> [--root <dir>]\n`);
     process.exit(2);
   }
   const cache = readCache(root);
@@ -213,7 +213,7 @@ function main(argv) {
   if (cmd === 'churn-report') return cmdChurnReport(args);
   if (cmd === 'mark') return cmdMark(args);
   process.stderr.write(
-    'usage: skill-health.js <command> [options]\n' +
+    'usage: harness-health.js <command> [options]\n' +
     'commands: next-target [--skill <id>], validate-findings <file> [--skill <id>] [--gap-scan], churn-report [--fail-on-high-churn <r>], mark <fingerprint> <applied|declined>\n',
   );
   process.exit(2);
