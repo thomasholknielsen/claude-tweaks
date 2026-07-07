@@ -212,7 +212,7 @@ When a skill has a historical mid-flow stop, rewrite it like this:
 ```markdown
 ### Step N: {decision name}
 
-**Interactive mode:** present numbered options and wait.
+**Interactive mode:** call `AskUserQuestion` with the options below and wait.
 
 **Auto mode:**
 1. Read pipeline config from `{run-dir}/config.yml` (resolve `{run-dir}` via `PIPELINE_RUN_DIR` env var or most-recent matching run under `.claude-tweaks/pipelines/`) for `{policy-key}` → if set, apply.

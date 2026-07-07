@@ -1,7 +1,7 @@
 ---
 tier: 3
-status: not-started
-progress: 0
+status: complete
+progress: 100
 blocked-by: []
 surface: backend
 ---
@@ -37,11 +37,11 @@ None — this is the first spec in the decomposition; specs 06-12 are `blocked-b
 
 ## Deliverables
 
-- [ ] Rewrite `CLAUDE.md`'s Interaction style directive blockquote (line ~70-72, the text quoted under "### Interaction style directive") to the canonical wording in Technical Approach below.
-- [ ] Rewrite `CLAUDE.md`'s "Interaction patterns" section bullets (`Decisions`, `Multi-item decisions`, `One decision per message`, `Skill handoffs (Next Actions)`) to the canonical wording in Technical Approach below.
-- [ ] While rewriting the `Skill handoffs (Next Actions)` bullet (same line), fix the stale heading level from `` `### Next Actions` `` to `` `## Next Actions` `` for a skill's own **standalone, top-level** Next Actions section, and add one clarifying sentence that a Next Actions block nested inside a larger rendered report template (Pipeline Summary, failure cards, review summary) may legitimately stay `### Next Actions` as that report's own subsection heading — this is the same bullet already being rewritten for the `AskUserQuestion` change, not a separate unrelated edit.
-- [ ] Rewrite `skills/_shared/auto-mode-contract.md` line 215 from `**Interactive mode:** present numbered options and wait.` to `**Interactive mode:** call \`AskUserQuestion\` with the options below and wait.`
-- [ ] Convert `skills/_shared/browser-detection.md`'s "Install (interactive mode)" section (lines 15-29) from a plain-text numbered list to an `AskUserQuestion` call, per the worked example in Technical Approach below. Preserve the existing "Choice 1 / Choice 2" branching text unchanged — only the presentation mechanism changes.
+- [x] Rewrite `CLAUDE.md`'s Interaction style directive blockquote (line ~70-72, the text quoted under "### Interaction style directive") to the canonical wording in Technical Approach below.
+- [x] Rewrite `CLAUDE.md`'s "Interaction patterns" section bullets (`Decisions`, `Multi-item decisions`, `One decision per message`, `Skill handoffs (Next Actions)`) to the canonical wording in Technical Approach below.
+- [x] While rewriting the `Skill handoffs (Next Actions)` bullet (same line), fix the stale heading level from `` `### Next Actions` `` to `` `## Next Actions` `` for a skill's own **standalone, top-level** Next Actions section, and add one clarifying sentence that a Next Actions block nested inside a larger rendered report template (Pipeline Summary, failure cards, review summary) may legitimately stay `### Next Actions` as that report's own subsection heading — this is the same bullet already being rewritten for the `AskUserQuestion` change, not a separate unrelated edit.
+- [x] Rewrite `skills/_shared/auto-mode-contract.md` line 215 from `**Interactive mode:** present numbered options and wait.` to `**Interactive mode:** call \`AskUserQuestion\` with the options below and wait.`
+- [x] Convert `skills/_shared/browser-detection.md`'s "Install (interactive mode)" section (lines 15-29) from a plain-text numbered list to an `AskUserQuestion` call, per the worked example in Technical Approach below. Preserve the existing "Choice 1 / Choice 2" branching text unchanged — only the presentation mechanism changes.
 
 ## Acceptance Criteria
 

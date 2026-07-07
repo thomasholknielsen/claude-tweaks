@@ -14,14 +14,11 @@ If the command succeeds, confirm the version and return OK. If it fails (binary 
 
 ## Install (interactive mode)
 
-Prompt the user with numbered options:
+Call `AskUserQuestion`:
 
-```
-agent-browser is not installed.
-
-1. Install agent-browser globally — `npm install -g agent-browser` **(Recommended)**
-2. Skip — visual review, story generation, and QA validation will be unavailable
-```
+- `question`: `"agent-browser is not installed."`, `header`: `"Browser tool"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Install (Recommended)"`, `description`: `"Install agent-browser globally — npm install -g agent-browser"`
+- Option 2 — `label`: `"Skip"`, `description`: `"visual review, story generation, and QA validation will be unavailable"`
 
 - **Choice 1:** run `npm install -g agent-browser`, then verify (see "Verify after install" below). Return OK.
 - **Choice 2:** return SKIPPED — the caller surfaces a "browser unavailable" line in its report and degrades gracefully (never silently skip without telling the user).
