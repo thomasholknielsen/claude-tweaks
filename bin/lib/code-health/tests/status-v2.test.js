@@ -11,9 +11,9 @@ const CLI = path.resolve(__dirname, '..', '..', '..', 'code-health.js');
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-status-v2-')); }
 
 function writeV2Cache(root, entries) {
-  // entries: [{ fp, status, severity }]
+  // entries: [{ fp, status, severity, risk }]
   const cache = {};
-  for (const e of entries) cache[e.fp] = { status: e.status, severity: e.severity, issue: null };
+  for (const e of entries) cache[e.fp] = { status: e.status, severity: e.severity, risk: e.risk, issue: null };
   const p = path.join(root, '.claude-tweaks', 'code-health', 'cache.json');
   fs.mkdirSync(path.dirname(p), { recursive: true });
   fs.writeFileSync(p, JSON.stringify(cache, null, 2) + '\n', 'utf8');
@@ -55,12 +55,12 @@ test('status --fail-on regressed exits 1 when regressed entries exist in v2 cach
   assert.ok(result.stdout.includes('FAIL'));
 });
 
-test('status --fail-on critical exits 1 when open critical entries exist in v2 cache', () => {
+test('status --fail-on risk-high exits 1 when open risk-high entries exist in v2 cache', () => {
   const root = tmp();
   writeV2Cache(root, [
-    { fp: 'recon-aaaabbbb', status: 'open', severity: 'critical' },
+    { fp: 'recon-aaaabbbb', status: 'open', severity: 'high', risk: 'high' },
   ]);
-  const result = spawnSync('node', [CLI, 'status', '--fail-on', 'critical', '--root', root], { encoding: 'utf8' });
+  const result = spawnSync('node', [CLI, 'status', '--fail-on', 'risk-high', '--root', root], { encoding: 'utf8' });
   assert.strictEqual(result.status, 1);
   assert.ok(result.stdout.includes('FAIL'));
 });

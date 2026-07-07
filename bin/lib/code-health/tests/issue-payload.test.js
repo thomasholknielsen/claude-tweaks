@@ -58,17 +58,29 @@ const V2_FINDING = {
   anchor: 'src/api/user.js#getUser',
   severity: 'medium',
   confidence: 'high',
+  likelihood: 'high',
+  effort: 'low',
+  risk: 'high',
   title: 'getUser is a passthrough to the repository',
   evidence: 'src/api/user.js#getUser delegates directly to UserRepository.find with no added logic.',
   suggestedApproach: 'Inline the call at the call site, or add caching/auth in this method.',
   acceptance: 'getUser adds caching, authorization, or enrichment; or is removed.',
 };
 
-test('v2 labels are code-health + code-health:<severity> + code-health:<criterion>', () => {
+test('v2 labels are code-health + code-health:risk-<tier> + code-health:effort-<tier> + code-health:<criterion>', () => {
   assert.deepStrictEqual(
     toIssuePayloadV2(V2_FINDING).labels,
-    ['code-health', 'code-health:medium', 'code-health:simplification'],
+    ['code-health', 'code-health:risk-high', 'code-health:effort-low', 'code-health:simplification'],
   );
+});
+
+test('v2 body header line shows severity, likelihood, effort, risk, and confidence', () => {
+  const { body } = toIssuePayloadV2(V2_FINDING);
+  assert.ok(body.includes('**Risk:** high'), 'risk missing from body header');
+  assert.ok(body.includes('**Severity:** medium'), 'severity missing from body header');
+  assert.ok(body.includes('**Likelihood:** high'), 'likelihood missing from body header');
+  assert.ok(body.includes('**Effort:** low'), 'effort missing from body header');
+  assert.ok(body.includes('**Confidence:** high'), 'confidence missing from body header');
 });
 
 test('v2 title is the finding title', () => {

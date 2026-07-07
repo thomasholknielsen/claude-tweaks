@@ -44,7 +44,7 @@ function toIssuePayloadV2(finding) {
   const body = [
     marker,
     '',
-    `**Criterion:** ${finding.criterion} | **Severity:** ${finding.severity} | **Confidence:** ${finding.confidence} | **Area:** ${finding.areaId}`,
+    `**Criterion:** ${finding.criterion} | **Risk:** ${finding.risk} | **Severity:** ${finding.severity} | **Likelihood:** ${finding.likelihood} | **Effort:** ${finding.effort} | **Confidence:** ${finding.confidence} | **Area:** ${finding.areaId}`,
     '',
     '## Current State',
     '',
@@ -67,7 +67,7 @@ function toIssuePayloadV2(finding) {
   return {
     title: finding.title,
     body,
-    labels: ['code-health', `code-health:${finding.severity}`, `code-health:${finding.criterion}`],
+    labels: ['code-health', `code-health:risk-${finding.risk}`, `code-health:effort-${finding.effort}`, `code-health:${finding.criterion}`],
   };
 }
 

@@ -70,7 +70,7 @@ test('v2 SKILL.md: exists', () => {
 });
 
 ['validate-findings', '$PIPELINE_RUN_DIR', '--dry-run', 'criteriaForArea', 'anchor',
- 'code-health-fingerprint', 'NearestNamedSymbol', '--min-severity',
+ 'code-health-fingerprint', 'NearestNamedSymbol', '--min-risk',
  'Multi-slice runs', 'Mandatory readback check', 'relatedAnchors', 'Bundling rule',
 ].forEach((token) => {
   test(`v2 SKILL.md: contains required token '${token}'`, () => {
@@ -89,9 +89,9 @@ test('v2 SKILL.md: no emojis (common emoji unicode sequences)', () => {
 
 // ── P4 Task 6: new section anchors ────────────────────────────────────────────
 
-test('v2 SKILL.md: contains section \'## Regression and Critical Gating\'', () => {
+test('v2 SKILL.md: contains section \'## Regression and Risk Gating\'', () => {
   const content = fs.readFileSync(skillMdPath, 'utf8');
-  assert.ok(content.includes('## Regression and Critical Gating'), 'missing section: ## Regression and Critical Gating');
+  assert.ok(content.includes('## Regression and Risk Gating'), 'missing section: ## Regression and Risk Gating');
 });
 
 test('v2 SKILL.md: contains section \'## Fingerprint Churn\'', () => {
