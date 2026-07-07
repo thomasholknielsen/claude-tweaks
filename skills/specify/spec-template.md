@@ -12,6 +12,7 @@ surface: {frontend | backend | infra | mixed}
 design-intent: {bold | quiet | minimal | delightful | onboarding | none}
 recon-issue: {GitHub issue number, only when derived from one — omit otherwise}
 recon-fingerprint: {fingerprint marker from the issue body, when present — omit otherwise}
+code-health-effort: {low | medium | high — only when derived from a code-health issue carrying a code-health:effort-<tier> label; omit otherwise}
 ---
 
 # {Number}: {Title}
@@ -219,5 +220,6 @@ recon-fingerprint: recon-a1b2c3d4   # from the issue body's <!-- code-health-fin
 |-------|---------|----------|
 | `recon-issue:` | The GitHub issue number to close when this spec's work merges | `/wrap-up` cleanup item 8 (issue-claim release, `cleanup-procedures.md` Section E) checks for this field's presence; cleanup item 5 (`cleanup-procedures.md` Section C) stamps the `Fixes #{issue}` closing-keyword carrier commit when it's present |
 | `recon-fingerprint:` | The finding's fingerprint at issue-filing time, for future reverse-reconciliation (comparing against a freshly recomputed fingerprint to tell whether the flagged code has since changed) | Not yet consumed by any skill — write-only today; `recon-issue:` alone is sufficient for closure |
+| `code-health-effort:` | The judged fix-cost tier from the originating code-health finding | `/claude-tweaks:build` Common Step 2 reads it to select the per-task implementer model tier (low→Fast, medium→Standard, high→Capable) when invoking `/superpowers:subagent-driven-development` |
 
-Omit both fields for specs not derived from a GitHub issue — there is no "none" sentinel; absence is the signal (same convention as `design-intent:`'s missing-field handling, but unlike it, absence here means "not applicable" rather than a default value).
+Omit all three fields for specs not derived from a GitHub issue — there is no "none" sentinel; absence is the signal (same convention as `design-intent:`'s missing-field handling, but unlike it, absence here means "not applicable" rather than a default value). `code-health-effort:` is additionally omitted for specs derived from a non-code-health issue (e.g. a hand-filed bug report pulled via `--from-label`) even when `recon-issue:`/`recon-fingerprint:` are present, since only code-health's own findings carry an effort judgment.

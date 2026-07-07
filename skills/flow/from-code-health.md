@@ -181,8 +181,11 @@ also carry `code-health:<sev>` labels.
 
 3. **Derive specs via `/specify`.** For each brief, invoke `/claude-tweaks:specify` with the
    brief's title + body as the design input. `/specify` produces a numbered spec under `specs/`.
-   Carry the issue `number` and `fingerprint` forward as spec frontmatter (`recon-issue: <number>`,
-   `recon-fingerprint: <fp>`) so wrap-up can close the issue on merge.
+   Carry the issue `number`, `fingerprint`, and (when present) `effort` forward as spec frontmatter
+   (`recon-issue: <number>`, `recon-fingerprint: <fp>`, `code-health-effort: <tier>`) so wrap-up
+   can close the issue on merge and `/build` can select the model tier for this spec's
+   implementer dispatches. When `effort` is `high`, also carry forward the same
+   possible-decomposition note `/specify`'s own Rules section describes for its direct-issue path.
 
 4. **Run the multi-spec batch.** Feed the derived spec numbers into the standard Multi-Spec
    Sequential Flow (see `multi-spec.md`) — dependency-aware ordering, shared worktree, deferred
