@@ -1,0 +1,166 @@
+# Harness Health Analysis — Shared Procedure
+
+Canonical procedure for judging whether a project's harness documentation — `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md — still accurately describes the codebase, still conforms to its own origin template, and still follows known best practices for getting an LLM harness to perform well; and for detecting a cohesive, reusable pattern with no skill covering it. Read by three consumers, each supplying its own scope model:
+
+| Consumer | Supplies |
+|---|---|
+| `/claude-tweaks:harness-health` | One target per firing (any of skill/rule/claude-md), selected by churn/staleness rotation (`next-target`) |
+| `/claude-tweaks:wrap-up` Step 7 | A finished spec's changed skill files + ledger/reflection seeds (skill-only this phase — see Scope note below) |
+| `/claude-tweaks:init` Phase 3/6 | Whole-codebase Phase 2 reconnaissance (skill-only this phase — see Scope note below) |
+
+**Scope note:** all three consumers can read every section of this procedure. `/claude-tweaks:wrap-up` and `/claude-tweaks:init` currently only invoke it against skills (their own scope-selection logic hasn't been extended to pass rule/CLAUDE.md files in) — extending them is a separate, smaller follow-on, not required by the harness-health design. `/claude-tweaks:harness-health` is the only consumer that exercises the rule/claude-md paths today.
+
+This file owns the judgment. It does not own scope selection, staging destination, or cursor/cache mechanics — those are each consumer's own job.
+
+## Finding Shape
+
+Emit each finding as a JSON object in exactly this shape:
+
+```json
+{
+  "kind": "patch",
+  "target": "auth",
+  "assetType": "skill",
+  "category": "drift",
+  "section": "Key Patterns",
+  "classification": "additive",
+  "confidence": "high",
+  "reversibility": "high",
+  "description": "The referenced example at src/auth/login.js no longer exists",
+  "oldString": "See `src/auth/login.js` for the canonical flow.",
+  "newString": "See `src/auth/session.js` for the canonical flow.",
+  "reason": "src/auth/login.js was renamed to src/auth/session.js in a prior refactor; the skill still points at the old path."
+}
+```
+
+For a new-skill candidate, use `"kind": "new-skill"` and replace `section`/`oldString`/`newString` with `"proposedBody"` (the full proposed SKILL.md content, using the Initial Mode template from `/claude-tweaks:init`'s `skill-template.md`):
+
+```json
+{
+  "kind": "new-skill",
+  "target": "queue-retry-pattern",
+  "assetType": "skill",
+  "category": "drift",
+  "classification": "additive",
+  "confidence": "med",
+  "reversibility": "high",
+  "description": "Three files under src/jobs/ implement the same retry-with-backoff pattern with no skill documenting it",
+  "proposedBody": "---\nname: queue-retry-pattern\ndescription: ...\n---\n...",
+  "reason": "src/jobs/emailQueue.js, src/jobs/webhookQueue.js, and src/jobs/syncQueue.js all implement retry-with-exponential-backoff independently — a reusable pattern with no skill covering it."
+}
+```
+
+Required fields for every finding: `kind` (`patch` | `new-skill`), `target` (the artifact's id — a skill/rule filename stem, or `"CLAUDE"` for CLAUDE.md), `assetType` (`skill` | `rule` | `claude-md`), `category` (`drift` | `template-conformance` | `best-practice`), `classification` (`additive` | `restructural`), `confidence` (`high` | `med` | `low`), `reversibility` (`high` | `med` | `low`), `description`, `reason`. `kind: "patch"` additionally requires `section`, `oldString` (empty string `""` allowed for a pure addition with nothing to replace), and `newString`. `kind: "new-skill"` additionally requires `proposedBody`. **`new-skill` is the only artifact-creation kind** — rules and CLAUDE.md never get a `"new-rule"` or `"new-claude-md-section"` kind; a "missing pattern" finding against an existing rule or CLAUDE.md is always a `kind: "patch"` addition to that file's existing content (see Step 3).
+
+`category` distinguishes *why* a finding exists, so a human skimming filed issues can tell them apart at a glance:
+- **`drift`** — the document no longer matches the codebase's current reality.
+- **`template-conformance`** — the document no longer matches the structure its own generator established.
+- **`best-practice`** — the document is accurate and well-structured, but not written in a way that gets the harness to perform well.
+
+**`oldString`/`newString` must be exact, unique, verbatim quotes from the target file** — not paraphrased "Current/Proposed" prose. The consuming skill applies additive+high-confidence+high-reversibility patches directly via the `Edit` tool, which requires `oldString` to match uniquely; a paraphrased or non-unique quote will fail to apply or apply to the wrong location. **Exception: CLAUDE.md findings never auto-apply regardless of classification/confidence/reversibility** — see the caller's own auto-apply gate (`skills/harness-health/SKILL.md` Step 7). CLAUDE.md governs every future session's behavior; an unattended routine editing it unattended carries outsized blast radius compared to a single skill's documentation.
+
+## Step 1: Evidence Pre-Checks (deterministic, before judging)
+
+Before forming any finding, run these mechanical checks and treat their output as evidence the judgment step weighs — not findings themselves:
+
+1. **Stale-example check.** For every backtick-quoted file path or command referenced in the target (e.g. `` `src/auth/login.js` ``, `` `npm run build` ``), verify it still exists / still works:
+   ```bash
+   ls "<referenced-path>" 2>&1
+   ```
+   For commands, check the command exists in `package.json` scripts, a `Makefile`, or is a known binary. A referenced path or command that no longer resolves is strong evidence for a `stale examples` finding — cite the exact `ls`/check output as the finding's evidence, not just "this looks outdated."
+
+2. **Quantified convention-drift check.** For each documented convention or pattern (e.g., "this project always uses X for Y"), grep how many current files actually match it vs. how many files in the same domain don't:
+   ```bash
+   grep -rl "<pattern-signature>" <domain-dir> | wc -l
+   ```
+   A convention followed by a small minority of relevant files (e.g., "2 of 15") is quantified evidence of drift — cite the ratio in the finding's evidence field, not just an impression.
+
+3. **Rule glob-resolution check** (rules only, new). Expand the rule's `paths:` frontmatter glob(s) against the actual filesystem:
+   ```bash
+   find "<root>" -path "<glob>" 2>&1
+   ```
+   Zero matches is strong, mechanical evidence the rule's domain no longer exists (a renamed/removed directory) — a high-confidence `drift` finding proposing either an updated glob or retiring the rule.
+
+4. **CLAUDE.md line-budget check** (CLAUDE.md only, new). `/init`'s own template caps CLAUDE.md at 150 lines:
+   ```bash
+   wc -l CLAUDE.md
+   ```
+   Over budget is mechanical, high-confidence evidence for a `template-conformance` finding — content belongs in a skill or rule instead, per `skills/init/claude-md-template.md`'s own "Under 150 lines" principle.
+
+Checks 1-2 are optional assists — skip gracefully if a referenced path/command genuinely can't be checked mechanically (e.g., a described convention with no clean grep signature). A finding grounded in one of these checks is higher-confidence than one based on reading alone.
+
+## Step 2: The 8-Dimension Check
+
+For the target (or, for wrap-up/init, each skill in their own read set), apply the dimensions that meaningfully apply to its kind:
+
+| Check | Question | Skill | Rule | CLAUDE.md |
+|-------|----------|:---:|:---:|:---:|
+| **1. Pattern accuracy** | Do documented examples/patterns still match how the codebase works? | ✓ | ✓ (does the stated convention still hold for files matching `paths:`?) | ✓ |
+| **2. Convention drift** | Do documented conventions reflect current practice, or has the codebase diverged? (Use the quantified check from Step 1 where a clean grep signature exists.) | ✓ | ✓ (the adherence-ratio check — see guard below) | ✓ |
+| **3. Missing patterns** | Has the codebase introduced patterns that belong here but aren't documented? | ✓ | — | ✓ (always a `patch` to an existing section, never a new one) |
+| **4. Stale examples** | Do referenced file paths/commands still exist? (Use the stale-example check from Step 1.) | ✓ | ✓ (the glob-resolution check) | ✓ |
+| **5. Anti-pattern gaps** | Has the codebase revealed new anti-patterns worth documenting? | ✓ | — | ✓ (Don'ts) |
+| **6. Decision framework completeness** | Does the Decision Framework cover the choices the codebase actually makes? | ✓ | — | rarely (only if the project's CLAUDE.md happens to have one) |
+| **7. Template/structural conformance** (new) | Does this artifact still match the structure its own generator established? | ✓ (CLAUDE.md's own "SKILL.md structure" convention + `skills/init/skill-template.md`) | ✓ (`skills/init/rules-template.md`'s frontmatter shape) | ✓ (`skills/init/claude-md-template.md`'s "Principles" — 150-line budget, observed-not-aspirational, required sections, Working Approach present verbatim) |
+| **8. Best-practice/harness-performance fit** (new) | Does it follow known practices for getting an LLM harness to perform well (clear triggers, no cross-skill overlap, right-sized scope, concision)? | ✓ (`superpowers:writing-skills`) | ✓ (`skills/init/rules-template.md`'s own "path-specific only; project-wide belongs in CLAUDE.md" guidance — a suspiciously broad glob should be a CLAUDE.md convention instead) | ✓ (`skills/init/claude-md-template.md`'s Principles, same source as dimension 7 for this kind) |
+
+For rules and CLAUDE.md, dimensions 7 and 8 read from the *same* origin-template file — for those two kinds the structural template and the best-practice guidance are the same document, since the project's own author already encoded best-practice judgment into the template. Read these templates **live** each time, not from a frozen copy of their content — a future tightening of `skill-template.md`/`rules-template.md`/`claude-md-template.md` is picked up automatically by every subsequent audit.
+
+**Rule adherence-ratio guard (dimension 2).** A low adherence ratio (few files matching `paths:` actually follow the stated convention) has two different causes, and only one belongs to this procedure:
+- **The codebase's shape moved on** (the glob now matches files the rule was never meant to cover, e.g. a newer sibling directory) → this is documentation drift, a real finding here.
+- **Files that should comply, don't** (the rule is still correct; code violates it) → this is a code-quality/compliance problem, `/claude-tweaks:recon`'s job, not this procedure's. Do not emit a finding for this case.
+
+Always reason about *why* the ratio is low before emitting a finding — never report the raw ratio as if a low number were self-evidently a documentation problem.
+
+**CLAUDE.md-specific checks unlocked by dimension 7/8 (concrete, largely mechanical):**
+- **Line budget** — Step 1's `wc -l` check vs. 150 lines.
+- **Observed-not-aspirational** — flag language ("should", "TODO", "need to add") describing infrastructure that doesn't exist yet; that belongs in the project's INBOX, not CLAUDE.md.
+- **Working Approach present verbatim** — `skills/init/claude-md-template.md` mandates this section be included unmodified in every generated CLAUDE.md; a structural presence check.
+- **Don'ts are guardrails, not wishes** — every Don't must describe an *existing* pattern (grep-checkable, same evidence style as dimension 2), never aspirational infrastructure.
+- **Philosophy matches current maturity** — re-derive today's maturity signal (the classification `/claude-tweaks:init` Phase 2h would compute right now) and compare it to what the Philosophy section says; flags e.g. a project that shipped to real users since the CLAUDE.md was written but still reads "Greenfield."
+- **Project Defaults / claude-tweaks Pipeline sections in sync with the installed plugin version** — does the documented auto-mode-policy lever list match what the currently installed claude-tweaks plugin version actually supports? This one is checked against the plugin's own evolving contract (its bundled `_shared/auto-mode-contract.md`), not the target project's own source — a genuinely different kind of drift from every other check in this file.
+
+**Bounded sub-file reads.** If the target references sub-files (lazy-loaded content, e.g. `init`'s 11 sub-files or `build`'s 6), do not read all of them by default — read only the sub-files whose content plausibly relates to what changed (matched by filename/section keyword against the change source: churned domain paths for the routine, the spec's changed files for wrap-up, Phase 2 findings for init). Note explicitly which sub-files were skipped and why, so a human reviewing the finding can request a deeper read if needed.
+
+## Step 3: New-Skill Gap Detection
+
+Independent of any specific target's audit, look for a **cohesive** set of files implementing one reusable pattern with **no** skill covering it. This step is skill-only — rules and CLAUDE.md never get an equivalent "new-rule" or "new-claude-md-section" gap scan this phase; their dimension 3 ("missing patterns") is the closest analog, and it always produces a `patch` against existing content instead. "Cohesive" means multiple files implementing the same pattern, not scattered one-off edits — ground this in concrete signals, not impression alone:
+
+- A new top-level directory with 3+ files sharing a naming convention (e.g. `*.queue.js`, `*Repository.ts`).
+- A recurring import combination (the same 2+ modules imported together) appearing in 3+ files with no matching skill.
+- A commit-message keyword or phrase recurring across 3+ commits, none of which are covered by an existing skill's domain.
+
+## Step 4: New-Skill Qualification Gate
+
+Evaluate each gap candidate (from Step 3, or seeded by a caller — e.g. wrap-up's `[skill: NEW - {name}]` ledger tags) against three criteria:
+
+1. **Reusability** — the pattern applies to 2+ future builds, not a one-off.
+2. **Complexity** — the pattern is non-obvious (simple conventions belong in CLAUDE.md, not a skill).
+3. **Project-specific** — the pattern is specific to this project, not generic best practice.
+
+**Propose the candidate when at least 2 of the 3 criteria are clearly met.** A candidate meeting all three is a strong recommendation; one meeting exactly two is proposed for human review. A candidate meeting ≤1 criterion is dropped — note which criteria were missing so the decision is auditable.
+
+## Step 5: Verify Gate (adversarial, before staging)
+
+Before a finding is emitted, re-examine it and answer three questions — same discipline `/recon` already applies:
+
+1. **Is it real?** Does the target actually diverge from the codebase (or its own origin template, or known best practice), or did the judge misread the target's prose, the code's structure, or the template's requirements?
+2. **Is it actionable?** For a patch: is `oldString` an exact, unique quote from the target file, and does `newString` concretely fix the issue (not "consider updating this")? For a new-skill candidate: is `proposedBody` a real, codebase-grounded SKILL.md, not a generic template?
+3. **Does it reproduce?** Given the evidence cited, would a reviewer applying `newString` (or creating the proposed skill) end up with content that's actually correct, without further investigation?
+
+Drop any finding that fails any of the three questions. Log the drop reason. This gate is a judgment step, not mechanical — do not skip it even for a routine firing under no time pressure to rush.
+
+## Step 6: Quality Gates (before finalizing any patch or new skill)
+
+- [ ] Every code example is adapted from actual codebase patterns (not generic).
+- [ ] File paths referenced actually exist (post-patch).
+- [ ] Commands referenced actually work.
+- [ ] Conventions described match what the codebase actually does.
+- [ ] No generic advice that adds no project-specific value.
+- [ ] Anti-patterns/Don'ts cite project-specific reasons, not textbook warnings.
+- [ ] A `kind: "new-skill"` finding's `proposedBody` description starts with "Use when..." and names a clear trigger.
+- [ ] A `category: "template-conformance"` or `"best-practice"` finding cites the specific origin-template requirement it's checking against (not a vague "this could be better").
+
+## Anchor Requirement
+
+Every finding must trace to a concrete anchor — a specific referenced path/command that failed the Step 1 check, a quantified drift ratio, a zero-match glob expansion, a line-count over budget, a ledger entry, a reflection insight, or a specific changed-file/commit observation. A finding with no concrete anchor is indistinguishable from a hallucinated one — discard it, and note what was discarded and why.
