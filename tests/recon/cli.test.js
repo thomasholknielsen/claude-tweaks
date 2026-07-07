@@ -44,10 +44,10 @@ test('status --fail-on regressed exits 1 when a finding regressed', () => {
   assert.match(r.stdout, /regressed:1/);
 });
 
-test('status --fail-on critical exits 1 when an open critical exists', () => {
+test('status --fail-on risk-high exits 1 when an open risk-high finding exists', () => {
   const root = tmpRepo();
-  writeCache(root, { 'fp-1': { status: 'open', severity: 'critical' } });
-  const r = spawnSync('node', [CLI, 'status', '--fail-on', 'critical', '--root', root], { encoding: 'utf8' });
+  writeCache(root, { 'fp-1': { status: 'open', severity: 'high', risk: 'high' } });
+  const r = spawnSync('node', [CLI, 'status', '--fail-on', 'risk-high', '--root', root], { encoding: 'utf8' });
   assert.strictEqual(r.status, 1);
 });
 

@@ -1,5 +1,5 @@
-// Severity rank: lower number = more severe.
-const SEVERITY_RANK = { critical: 0, high: 1, medium: 2, low: 3 };
+// Risk rank: lower number = more urgent (highest priority to file).
+const RISK_RANK = { high: 0, medium: 1, low: 2 };
 
 // Decide what to do with a freshly-fingerprinted finding given the current issue
 // index and local cache. Pure — no I/O, no network.
@@ -16,8 +16,8 @@ const SEVERITY_RANK = { critical: 0, high: 1, medium: 2, low: 3 };
 //   new >= threshold         -> file
 //   new <  threshold         -> remember
 //
-// Phase 1 ships file/skip/suppress/remember/reopen — all actions are implemented
-// here. Phase 3 wires the SKILL.md/gh side that acts on a reopen decision.
+// Filing gates on the computed `risk` tier (severity x likelihood — see
+// bin/lib/code-health/risk.js#computeRisk), not raw severity.
 function decide(finding, issueIndex, cache, opts) {
   const threshold = (opts && opts.threshold) || 'high';
   // Support both finding.id (fingerprint hash from Phase 1) and finding.fingerprint (direct string).
@@ -36,10 +36,10 @@ function decide(finding, issueIndex, cache, opts) {
   }
   const cached = cache && fp && cache[fp];
   if (cached && cached.status === 'wontfix') return { action: 'suppress' };
-  const rank = SEVERITY_RANK[finding.severity];
-  const thresholdRank = SEVERITY_RANK[threshold];
+  const rank = RISK_RANK[finding.risk];
+  const thresholdRank = RISK_RANK[threshold];
   if (rank !== undefined && thresholdRank !== undefined && rank <= thresholdRank) return { action: 'file' };
   return { action: 'remember' };
 }
 
-module.exports = { decide, SEVERITY_RANK };
+module.exports = { decide, RISK_RANK };

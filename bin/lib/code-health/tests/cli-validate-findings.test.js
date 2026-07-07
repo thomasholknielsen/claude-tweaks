@@ -249,9 +249,9 @@ test('validate-findings: next-slice skips the just-recorded unchanged slice', ()
     `next-slice must return null after recording the only slice — got: ${JSON.stringify(sliceOut)}`);
 });
 
-// ── Severity filter (min-severity) ───────────────────────────────────────────
+// ── Risk filter (min-risk) ────────────────────────────────────────────────────
 
-test('validate-findings: default min-severity is high — a medium finding is remembered, not filed', () => {
+test('validate-findings: default min-risk is high — a medium finding is remembered, not filed', () => {
   const root = tmp();
   const f = validFinding({ severity: 'medium' });
   const findingsFile = path.join(root, 'findings.json');
@@ -279,19 +279,19 @@ test('validate-findings: high severity still files under the default threshold',
   assert.strictEqual(payloads.length, 1, 'high severity must file under the default threshold');
 });
 
-test('validate-findings: --min-severity medium lowers the bar and files a medium finding', () => {
+test('validate-findings: --min-risk medium lowers the bar and files a medium-risk finding', () => {
   const root = tmp();
-  const f = validFinding({ severity: 'medium' });
+  const f = validFinding({ severity: 'medium', likelihood: 'medium' });
   const findingsFile = path.join(root, 'findings.json');
   fs.writeFileSync(findingsFile, JSON.stringify([f]));
 
   const result = runValidateFindings(
     root, findingsFile,
-    ['--slice', 'src/api', '--run-id', 'r-min-med', '--min-severity', 'medium'],
+    ['--slice', 'src/api', '--run-id', 'r-min-med', '--min-risk', 'medium'],
   );
   assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
   const payloads = JSON.parse(result.stdout);
-  assert.strictEqual(payloads.length, 1, 'medium finding must file when --min-severity medium is passed');
+  assert.strictEqual(payloads.length, 1, 'medium-risk finding must file when --min-risk medium is passed');
 });
 
 // ── Persistence hardening: --slice required for a real run ──────────────────
@@ -319,29 +319,29 @@ test('validate-findings: --dry-run without --slice still succeeds (preview mode 
   assert.strictEqual(payloads.length, 1);
 });
 
-// ── Guard against unrecognized --min-severity values ─────────────────────────
+// ── Guard against unrecognized --min-risk values ──────────────────────────────
 
-test('validate-findings: exits 2 when --min-severity is an unrecognized value', () => {
+test('validate-findings: exits 2 when --min-risk is an unrecognized value', () => {
   const root = tmp();
   const f = validFinding({ severity: 'high' });
   const findingsFile = path.join(root, 'findings.json');
   fs.writeFileSync(findingsFile, JSON.stringify([f]));
   const result = runValidateFindings(
-    root, findingsFile, ['--slice', 'src/api', '--run-id', 'r-bad-sev', '--min-severity', 'hgih'],
+    root, findingsFile, ['--slice', 'src/api', '--run-id', 'r-bad-sev', '--min-risk', 'hgih'],
   );
   assert.strictEqual(result.status, 2, `expected exit 2, got ${result.status}. stderr: ${result.stderr}`);
-  assert.ok(result.stderr.includes('--min-severity'), `expected --min-severity mentioned in stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes('--min-risk'), `expected --min-risk mentioned in stderr: ${result.stderr}`);
 });
 
-test('validate-findings: a recognized --min-severity value still works normally', () => {
+test('validate-findings: a recognized --min-risk value still works normally', () => {
   const root = tmp();
   const f = validFinding({ severity: 'high' });
   const findingsFile = path.join(root, 'findings.json');
   fs.writeFileSync(findingsFile, JSON.stringify([f]));
   const result = runValidateFindings(
-    root, findingsFile, ['--slice', 'src/api', '--run-id', 'r-good-sev', '--min-severity', 'low'],
+    root, findingsFile, ['--slice', 'src/api', '--run-id', 'r-good-sev', '--min-risk', 'low'],
   );
   assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
   const payloads = JSON.parse(result.stdout);
-  assert.strictEqual(payloads.length, 1, 'high-severity finding must still file with a valid --min-severity value');
+  assert.strictEqual(payloads.length, 1, 'high-risk finding must still file with a valid --min-risk value');
 });

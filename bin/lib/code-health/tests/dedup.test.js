@@ -1,13 +1,13 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { decide, SEVERITY_RANK } = require('../dedup');
+const { decide, RISK_RANK } = require('../dedup');
 
 // issueIndex shape (contract): { "<fingerprint>": { number, state, labels } }
-const F = (id, sev = 'high') => ({ id, severity: sev });
+const F = (id, risk = 'high') => ({ id, risk });
 
-test('SEVERITY_RANK orders critical highest', () => {
-  assert.ok(SEVERITY_RANK.critical < SEVERITY_RANK.high);
-  assert.ok(SEVERITY_RANK.high < SEVERITY_RANK.low);
+test('RISK_RANK orders high as most urgent', () => {
+  assert.ok(RISK_RANK.high < RISK_RANK.medium);
+  assert.ok(RISK_RANK.medium < RISK_RANK.low);
 });
 
 test('open issue with same fingerprint -> skip', () => {
@@ -35,7 +35,6 @@ test('wontfix in cache, no issue -> suppress', () => {
 
 test('new finding at/above threshold -> file', () => {
   assert.deepStrictEqual(decide(F('recon-eee', 'high'), {}, {}), { action: 'file' });
-  assert.deepStrictEqual(decide(F('recon-eee', 'critical'), {}, {}), { action: 'file' });
 });
 
 test('new finding below threshold -> remember', () => {

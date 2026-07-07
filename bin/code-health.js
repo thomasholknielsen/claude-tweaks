@@ -4,7 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const { fingerprint } = require('./lib/code-health/fingerprint');
 const { readCache, writeCache, readRuns, computeChurn, recordRun, readCursors } = require('./lib/code-health/cache');
-const { decide, SEVERITY_RANK } = require('./lib/code-health/dedup');
+const { decide, RISK_RANK } = require('./lib/code-health/dedup');
+const { computeRisk } = require('./lib/code-health/risk');
 const { validateFindingV2 } = require('./lib/code-health/validate-finding');
 const { toIssuePayloadV2 } = require('./lib/code-health/issue-payload');
 const { getCriterion } = require('./lib/code-health/criteria');
@@ -39,6 +40,9 @@ function parseArgs(argv) {
     else if (a === '--fail-on') args['fail-on'] = argv[++i];
     else if (a === '--fail-on-high-churn') args['fail-on-high-churn'] = argv[++i];
     else if (a === '--label') args.label = argv[++i];
+    else if (a === '--min-risk') args['min-risk'] = argv[++i];
+    // --min-severity is retained for pull-issues, which filters already-filed GitHub
+    // issues by their (unrelated, wider) severity label scale — not the computed risk tier.
     else if (a === '--min-severity') args['min-severity'] = argv[++i];
     else if (a === '--budget' || a === '--max-slices') args.budget = Number(argv[++i]);
     else args._.push(a);
@@ -72,7 +76,7 @@ function cmdStatus(args) {
     closed: findings.filter((f) => f.status === 'closed').length,
     wontfix: findings.filter((f) => f.status === 'wontfix').length,
     remembered: findings.filter((f) => f.status === 'remembered').length,
-    critical: findings.filter((f) => f.status === 'open' && f.severity === 'critical').length,
+    riskHigh: findings.filter((f) => f.status === 'open' && f.risk === 'high').length,
   };
   const line = `open:${counts.open} regressed:${counts.regressed} closed:${counts.closed} ` +
     `wontfix:${counts.wontfix} remembered:${counts.remembered}\n`;
@@ -81,8 +85,8 @@ function cmdStatus(args) {
     process.stdout.write(`FAIL: ${counts.regressed} regressed finding(s)\n` + line);
     process.exit(1);
   }
-  if (failOn === 'critical' && counts.critical > 0) {
-    process.stdout.write(`FAIL: ${counts.critical} open critical finding(s)\n` + line);
+  if (failOn === 'risk-high' && counts.riskHigh > 0) {
+    process.stdout.write(`FAIL: ${counts.riskHigh} open risk-high finding(s)\n` + line);
     process.exit(1);
   }
   process.stdout.write(line);
@@ -159,7 +163,7 @@ function cmdValidateFindings(args) {
   if (!findingsPath) {
     process.stderr.write(
       'usage: code-health.js validate-findings <findings.json> [--root <dir>] [--issues <file>] ' +
-      '[--run-id <id>] [--slice <id>] [--min-severity <level>] [--dry-run]\n',
+      '[--run-id <id>] [--slice <id>] [--min-risk <level>] [--dry-run]\n',
     );
     process.exit(2);
   }
@@ -173,11 +177,11 @@ function cmdValidateFindings(args) {
     process.exit(2);
   }
 
-  if (args['min-severity'] && !(args['min-severity'] in SEVERITY_RANK)) {
+  if (args['min-risk'] && !(args['min-risk'] in RISK_RANK)) {
     process.stderr.write(
-      `validate-findings: --min-severity "${args['min-severity']}" is not a recognized severity ` +
-      '(must be one of low|medium|high|critical) — an unrecognized value silently remembers every ' +
-      'finding instead of filing it, including critical ones.\n',
+      `validate-findings: --min-risk "${args['min-risk']}" is not a recognized risk tier ` +
+      '(must be one of low|medium|high) — an unrecognized value silently remembers every ' +
+      'finding instead of filing it, including high-risk ones.\n',
     );
     process.exit(2);
   }
@@ -213,9 +217,10 @@ function cmdValidateFindings(args) {
       process.stderr.write(`[code-health] validate-findings: dropped "${v.value.title}" — ${floorResult.reason}\n`);
       continue;
     }
-    // 2. Fingerprint via v2 form.
+    // 2. Fingerprint via v2 form, then compute risk (severity x likelihood — deterministic, not judged).
     const id = fingerprint({ criterion: v.value.criterion, areaId: v.value.areaId, anchor: v.value.anchor });
-    survivors.push({ ...v.value, id });
+    const risk = computeRisk(v.value.severity, v.value.likelihood);
+    survivors.push({ ...v.value, id, risk });
   }
 
   // 3. Dedup against the issue index and local cache.
@@ -227,16 +232,16 @@ function cmdValidateFindings(args) {
     if (seen.has(finding.id)) continue; // intra-run dedup
     seen.add(finding.id);
 
-    const decision = decide(finding, issueIndex, cache, { threshold: args['min-severity'] || 'high' });
+    const decision = decide(finding, issueIndex, cache, { threshold: args['min-risk'] || 'high' });
     if (decision.action === 'skip' || decision.action === 'suppress') continue;
 
     if (decision.action === 'file' || decision.action === 'reopen') {
       cache[finding.id] = decision.action === 'reopen'
-        ? { status: 'regressed', issue: decision.issue || null, severity: finding.severity }
-        : { status: 'open', issue: null, severity: finding.severity };
+        ? { status: 'regressed', issue: decision.issue || null, severity: finding.severity, risk: finding.risk }
+        : { status: 'open', issue: null, severity: finding.severity, risk: finding.risk };
       payloads.push(toIssuePayloadV2(finding));
     } else if (decision.action === 'remember') {
-      if (!cache[finding.id]) cache[finding.id] = { status: 'remembered', issue: null };
+      if (!cache[finding.id]) cache[finding.id] = { status: 'remembered', issue: null, severity: finding.severity, risk: finding.risk };
     }
   }
 

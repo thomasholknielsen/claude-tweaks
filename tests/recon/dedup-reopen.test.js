@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const { decide } = require('../../bin/lib/code-health/dedup');
 
-const finding = { fingerprint: 'fp-abc', severity: 'high', title: 'Oversized module' };
+const finding = { fingerprint: 'fp-abc', risk: 'high', title: 'Oversized module' };
 
 test('closed (non-wontfix) issue match → reopen with regressed note', () => {
   const issueIndex = { 'fp-abc': { number: 42, state: 'closed', labels: ['recon'] } };
