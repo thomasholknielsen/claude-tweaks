@@ -158,6 +158,13 @@ also carry `code-health:<sev>` labels.
    (immediately on push if the current branch IS the default branch, otherwise at the
    eventual merge).
 
+   **Non-default-branch note:** the mapping above assumes the merge/push lands directly
+   on the default branch. If your project's workflow lands fixes on an integration branch
+   first (`dev`, `staging`), that push produces no GitHub signal at all until it later
+   reaches default — `/init` Step 0.97 offers a companion GitHub Actions workflow
+   (`.github/workflows/track-issue-fixes.yml`) that labels + comments on those issues in
+   the meantime, then cleans up once the default-branch merge actually closes them.
+
    Direct `gh issue close #{issue} --comment "..."` commands surface ONLY for issues resolved
    without a merge (wontfix, duplicate) — the user runs them; the pipeline never closes
    issues autonomously (see `_shared/auto-mode-contract.md`, "Never-reversible").
