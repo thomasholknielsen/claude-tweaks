@@ -7,20 +7,20 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const CLI = path.join(__dirname, '..', '..', 'bin', 'recon.js');
+const CLI = path.join(__dirname, '..', '..', 'bin', 'code-health.js');
 
 function tmpRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-pull-issues-cli-'));
 }
 
-// Fake gh issue list JSON payload with recon label + fingerprint marker
+// Fake gh issue list JSON payload with code-health label + fingerprint marker
 const fakeIssues = [
   {
     number: 42,
     title: 'Dead export: src/lib/unused.ts',
-    labels: [{ name: 'recon' }, { name: 'recon:high' }],
+    labels: [{ name: 'code-health' }, { name: 'code-health:high' }],
     body: [
-      '<!-- recon-fingerprint: recon-deadbeef -->',
+      '<!-- code-health-fingerprint: recon-deadbeef -->',
       '## Current State',
       'src/lib/unused.ts exports `unusedHelper` which has zero import sites.',
       '## Deliverables',
@@ -32,8 +32,8 @@ const fakeIssues = [
   {
     number: 43,
     title: 'TODO debt: src/util/parse.ts',
-    labels: [{ name: 'recon' }, { name: 'recon:low' }],
-    body: '<!-- recon-fingerprint: recon-abc12345 -->\n## Current State\n5 TODO comments.',
+    labels: [{ name: 'code-health' }, { name: 'code-health:low' }],
+    body: '<!-- code-health-fingerprint: recon-abc12345 -->\n## Current State\n5 TODO comments.',
   },
 ];
 
@@ -42,7 +42,7 @@ test('pull-issues CLI subcommand emits briefs as JSON to stdout', () => {
   const issuesFile = path.join(root, 'issues.json');
   fs.writeFileSync(issuesFile, JSON.stringify(fakeIssues), 'utf8');
 
-  const r = spawnSync('node', [CLI, 'pull-issues', '--label', 'recon', '--issues', issuesFile], {
+  const r = spawnSync('node', [CLI, 'pull-issues', '--label', 'code-health', '--issues', issuesFile], {
     encoding: 'utf8',
   });
 
@@ -68,7 +68,7 @@ test('pull-issues CLI --min-severity high filters low-severity issues', () => {
 
   const r = spawnSync(
     'node',
-    [CLI, 'pull-issues', '--label', 'recon', '--min-severity', 'high', '--issues', issuesFile],
+    [CLI, 'pull-issues', '--label', 'code-health', '--min-severity', 'high', '--issues', issuesFile],
     { encoding: 'utf8' },
   );
 
@@ -79,6 +79,6 @@ test('pull-issues CLI --min-severity high filters low-severity issues', () => {
 });
 
 test('pull-issues exits 2 when --issues flag is missing', () => {
-  const r = spawnSync('node', [CLI, 'pull-issues', '--label', 'recon'], { encoding: 'utf8' });
+  const r = spawnSync('node', [CLI, 'pull-issues', '--label', 'code-health'], { encoding: 'utf8' });
   assert.strictEqual(r.status, 2, 'should exit 2 when --issues is missing');
 });

@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { recordRun, readCursors } = require('../../bin/lib/recon/cache');
+const { recordRun, readCursors } = require('../../bin/lib/code-health/cache');
 
 function tmpRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-cursors-'));

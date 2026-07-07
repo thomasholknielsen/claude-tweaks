@@ -6,17 +6,17 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const CLI = path.join(__dirname, '..', '..', 'bin', 'recon.js');
+const CLI = path.join(__dirname, '..', '..', 'bin', 'code-health.js');
 
 function tmpRepo() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'recon-cli-'));
-  fs.mkdirSync(path.join(root, '.claude-tweaks', 'recon'), { recursive: true });
+  fs.mkdirSync(path.join(root, '.claude-tweaks', 'code-health'), { recursive: true });
   return root;
 }
 
 function writeCache(root, cache) {
   fs.writeFileSync(
-    path.join(root, '.claude-tweaks', 'recon', 'cache.json'),
+    path.join(root, '.claude-tweaks', 'code-health', 'cache.json'),
     JSON.stringify(cache, null, 2),
     'utf8',
   );
@@ -53,7 +53,7 @@ test('status --fail-on critical exits 1 when an open critical exists', () => {
 
 test('churn-report --fail-on-high-churn exits 1 above threshold', () => {
   const root = tmpRepo();
-  const runs = path.join(root, '.claude-tweaks', 'recon', 'runs');
+  const runs = path.join(root, '.claude-tweaks', 'code-health', 'runs');
   fs.mkdirSync(runs, { recursive: true });
   fs.writeFileSync(path.join(runs, 'r1.json'), JSON.stringify({ runId: 'r1', runAt: '2026-06-13T00:00:00Z', fingerprints: ['fp-a', 'fp-b'] }));
   fs.writeFileSync(path.join(runs, 'r2.json'), JSON.stringify({ runId: 'r2', runAt: '2026-06-14T00:00:00Z', fingerprints: ['fp-c', 'fp-d'] }));

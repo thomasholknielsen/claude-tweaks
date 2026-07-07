@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { pullReconIssues } = require('../../bin/lib/recon/pull-issues');
+const { pullReconIssues } = require('../../bin/lib/code-health/pull-issues');
 
 // Issue bodies are /specify-shaped (issue-payload.js, Phase 1) with a hidden
 // fingerprint marker line. gh issue list --json returns this array shape.
@@ -9,9 +9,9 @@ const issuesJson = [
   {
     number: 12,
     title: 'Oversized module: src/api/handlers.ts',
-    labels: [{ name: 'recon' }, { name: 'recon:high' }],
+    labels: [{ name: 'code-health' }, { name: 'code-health:high' }],
     body: [
-      '<!-- recon-fingerprint: fp-12abc -->',
+      '<!-- code-health-fingerprint: fp-12abc -->',
       '## Current State',
       'src/api/handlers.ts is 820 lines.',
       '## Deliverables',
@@ -23,13 +23,13 @@ const issuesJson = [
   {
     number: 13,
     title: 'TODO debt in src/util',
-    labels: [{ name: 'recon' }, { name: 'recon:low' }],
-    body: '<!-- recon-fingerprint: fp-13def -->\n## Current State\n12 TODOs.',
+    labels: [{ name: 'code-health' }, { name: 'code-health:low' }],
+    body: '<!-- code-health-fingerprint: fp-13def -->\n## Current State\n12 TODOs.',
   },
 ];
 
 test('pullReconIssues maps issues to briefs with fingerprint + severity', () => {
-  const briefs = pullReconIssues({ label: 'recon', issuesJson });
+  const briefs = pullReconIssues({ label: 'code-health', issuesJson });
   assert.strictEqual(briefs.length, 2);
   assert.strictEqual(briefs[0].number, 12);
   assert.strictEqual(briefs[0].fingerprint, 'fp-12abc');
@@ -39,14 +39,14 @@ test('pullReconIssues maps issues to briefs with fingerprint + severity', () => 
 });
 
 test('minSeverity filters out below-threshold issues', () => {
-  const briefs = pullReconIssues({ label: 'recon', minSeverity: 'high', issuesJson });
+  const briefs = pullReconIssues({ label: 'code-health', minSeverity: 'high', issuesJson });
   assert.strictEqual(briefs.length, 1);
   assert.strictEqual(briefs[0].number, 12);
 });
 
-test('issues without the recon label are ignored', () => {
+test('issues without the code-health label are ignored', () => {
   const briefs = pullReconIssues({
-    label: 'recon',
+    label: 'code-health',
     issuesJson: [{ number: 1, title: 'x', labels: [{ name: 'bug' }], body: 'y' }],
   });
   assert.strictEqual(briefs.length, 0);
