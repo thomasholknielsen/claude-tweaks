@@ -456,6 +456,7 @@ file; the generator is the single source of truth (its embedded regex pattern is
 unit-tested). Run:
 
 ```bash
+mkdir -p .github/workflows
 node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issue-branch-tracking.js').generateWorkflowYaml())" > .github/workflows/track-issue-fixes.yml
 ```
 
