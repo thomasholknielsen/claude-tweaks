@@ -56,6 +56,23 @@ test('minSeverity floors on code-health:<sev> labels; unlabeled defaults to info
   assert.deepStrictEqual(briefs.map((b) => b.number), [1]);
 });
 
+test('severity extraction also matches the new code-health:risk-<tier> label shape', () => {
+  const briefs = issuesToBriefs({ issuesJson: [
+    issue({ number: 1, labels: ['code-health:risk-high'] }),
+    issue({ number: 2, labels: ['code-health:risk-low'] }),
+  ] });
+  assert.strictEqual(briefs[0].severity, 'high');
+  assert.strictEqual(briefs[1].severity, 'low');
+});
+
+test('minSeverity floors correctly against risk-<tier> labelled issues', () => {
+  const briefs = issuesToBriefs({ minSeverity: 'high', issuesJson: [
+    issue({ number: 1, labels: ['code-health:risk-high'] }),
+    issue({ number: 2, labels: ['code-health:risk-low'] }),
+  ] });
+  assert.deepStrictEqual(briefs.map((b) => b.number), [1]);
+});
+
 test('fingerprint extracted when the code-health marker is present, else null', () => {
   const withFp = issue({ number: 1, body: FORM_BODY_H2 + '\n<!-- code-health-fingerprint: recon-abcd1234 -->' });
   const briefs = issuesToBriefs({ issuesJson: [withFp, issue({ number: 2 })] });
