@@ -1,7 +1,7 @@
 ---
 tier: 3
-status: not-started
-progress: 0
+status: complete
+progress: 100
 blocked-by: [5]
 surface: backend
 ---
@@ -39,11 +39,11 @@ Converts the plain-text numbered-option convention to `AskUserQuestion` across `
 
 ## Deliverables
 
-- [ ] `skills/journeys/SKILL.md`: replace line 5's directive with the canonical text from spec 05. Convert the `## Next Actions` block (lines 169-179) to one `AskUserQuestion` call.
-- [ ] `skills/visual-review/SKILL.md`: replace line 5's directive with the canonical text from spec 05. Convert the Step 2 interactive-mode 3-option list (lines 124-129) to one `AskUserQuestion` call. Convert the `## Next Actions` block (lines 180-191) to one `AskUserQuestion` call.
-- [ ] `skills/visual-review/browser-review.md`: convert the "Ensure the app is running" 2-option list (lines 43-47) to one `AskUserQuestion` call. Convert the Step 6 batch-table terminal decision (lines 422-424) to one `AskUserQuestion` call (the table itself, lines 411-421, stays as markdown per Pattern B). Convert its own "Next Actions" table (lines 462-469) to its own independent `AskUserQuestion` call, resolved dynamically from that table's signal column exactly as `design/SKILL.md`'s Return-shape table resolves — this call renders *instead of* SKILL.md's canonical Next Actions call when this file's conditions (full review mode / code-review status / pending fixes / standalone) apply, not alongside it. Keep the existing sentence stating it "supplements the canonical handoff" but clarify in-place that "supplements" means *substitutes when more specific*, not *merges option sets* — the table's own options (including `/claude-tweaks:wrap-up {N}`, which is not one of SKILL.md's 4) are the ones that render.
-- [ ] `skills/visual-review/discover-mode.md`: convert the Phase 5 batch-table terminal decision (lines 146-147) to one `AskUserQuestion` call (the table, lines 140-144, stays as markdown). The unrelated "Journey Discovery Report" template (lines 118-134) is untouched — it is not part of this conversion. Convert "Next Actions (discover mode)" (lines 154-159) to one `AskUserQuestion` call. Leave Phase 2's candidate-journey list (lines 41-65) as prose — add a one-line note explaining why (see Gotchas).
-- [ ] `skills/design/SKILL.md`: replace line 5's directive with the canonical text from spec 05. Convert the `## Next Actions` block (lines 179-203) to one `AskUserQuestion` call whose options are selected dynamically from the Return-shape lookup table, same dynamic-selection shape as `build/SKILL.md`'s signal-to-option lookup (see spec 05's browser-detection worked example for the single-call convention).
+- [x] `skills/journeys/SKILL.md`: replace line 5's directive with the canonical text from spec 05. Convert the `## Next Actions` block (lines 169-179) to one `AskUserQuestion` call.
+- [x] `skills/visual-review/SKILL.md`: replace line 5's directive with the canonical text from spec 05. Convert the Step 2 interactive-mode 3-option list (lines 124-129) to one `AskUserQuestion` call. Convert the `## Next Actions` block (lines 180-191) to one `AskUserQuestion` call.
+- [x] `skills/visual-review/browser-review.md`: convert the "Ensure the app is running" 2-option list (lines 43-47) to one `AskUserQuestion` call. Convert the Step 6 batch-table terminal decision (lines 422-424) to one `AskUserQuestion` call (the table itself, lines 411-421, stays as markdown per Pattern B). Convert its own "Next Actions" table (lines 462-469) to its own independent `AskUserQuestion` call, resolved dynamically from that table's signal column exactly as `design/SKILL.md`'s Return-shape table resolves — this call renders *instead of* SKILL.md's canonical Next Actions call when this file's conditions (full review mode / code-review status / pending fixes / standalone) apply, not alongside it. Keep the existing sentence stating it "supplements the canonical handoff" but clarify in-place that "supplements" means *substitutes when more specific*, not *merges option sets* — the table's own options (including `/claude-tweaks:wrap-up {N}`, which is not one of SKILL.md's 4) are the ones that render.
+- [x] `skills/visual-review/discover-mode.md`: convert the Phase 5 batch-table terminal decision (lines 146-147) to one `AskUserQuestion` call (the table, lines 140-144, stays as markdown). The unrelated "Journey Discovery Report" template (lines 118-134) is untouched — it is not part of this conversion. Convert "Next Actions (discover mode)" (lines 154-159) to one `AskUserQuestion` call. Leave Phase 2's candidate-journey list (lines 41-65) as prose — add a one-line note explaining why (see Gotchas).
+- [x] `skills/design/SKILL.md`: replace line 5's directive with the canonical text from spec 05. Convert the `## Next Actions` block (lines 179-203) to one `AskUserQuestion` call whose options are selected dynamically from the Return-shape lookup table, same dynamic-selection shape as `build/SKILL.md`'s signal-to-option lookup (see spec 05's browser-detection worked example for the single-call convention).
 
 ## Acceptance Criteria
 

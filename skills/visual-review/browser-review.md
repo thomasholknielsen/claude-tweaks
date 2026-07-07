@@ -38,13 +38,10 @@ Run the canonical procedure in `dev-url-detection.md` in `skills/_shared/` — i
 
 ### Ensure the app is running
 
-Before navigating, confirm the application is accessible. If the URL doesn't respond, ask the user:
+Before navigating, confirm the application is accessible. If the URL doesn't respond, call `AskUserQuestion` with `question`: `"The app doesn't seem to be running at {url}. Should I:"`, `header`: `"Dev server"`, `multiSelect`: `false`:
 
-```
-The app doesn't seem to be running at {url}. Should I:
-1. Try a different URL
-2. Wait while you start the dev server
-```
+- Option 1 — `label`: `"Try different URL"`, `description`: `"provide a different URL to check"`
+- Option 2 — `label`: `"Wait"`, `description`: `"wait while you start the dev server"`
 
 Do NOT attempt to start the dev server yourself — the user knows their setup best.
 
@@ -418,10 +415,13 @@ Present all findings and ideas in a single batch table. Findings reference annot
 | 6 | {description} | Idea | Reimagine | High | Fix now — add to current spec |
 | 7 | {description} | Idea | Reimagine | Medium | Defer — not relevant now |
 | 8 | {description} | Idea | Reimagine | Low | Capture to INBOX — needs brainstorming |
-
-1. Apply all recommendations **(Recommended)**
-2. Override specific items (tell me which #s to change)
 ```
+
+The table renders as markdown, as above. Immediately below it, call `AskUserQuestion` with:
+
+- `question`: `"How do you want to handle these findings?"`, `header`: `"Findings"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Apply all recommendations"`
+- Option 2 — `label`: `"Override specific items"`, `description`: `"tell me which #s to change"`
 
 The **Source** column traces each finding to its origin step (Health, Performance, First Impression, Persona, Analyze, Reimagine). This replaces the separate "Functional Issues," "Visual & Content Issues," and "UX Observations" report sections.
 
@@ -459,14 +459,23 @@ See `SKILL.md` Step 4 for the exact template, return-shape handling, and the sup
 
 ### Next Actions
 
-This mode-specific table supplements the canonical handoff in SKILL.md `## Next Actions` — render it when the review-source signals (full review mode, missing code review, "fix now" items, standalone) usefully refine the standalone block. When in doubt, defer to SKILL.md `## Next Actions`.
+This mode-specific table supplements the canonical handoff in SKILL.md `## Next Actions` — "supplements" here means *substitutes when more specific*, not *merges option sets*. This section is its own independent `AskUserQuestion` call, resolved dynamically from the signal table below exactly as `design/SKILL.md`'s Return-shape table resolves — render it (with its own options, including `/claude-tweaks:wrap-up {N}`, which is not one of SKILL.md's 4 static options) when the review-source signals (full review mode, missing code review, "fix now" items, standalone) usefully refine the standalone block. It renders *instead of* SKILL.md's canonical Next Actions call, never alongside or merged with it. When in doubt, defer to SKILL.md `## Next Actions`.
+
+The signal-to-option lookup table below stays as-is — the assistant's own logic for picking which options apply this run, never itself shown to the user or converted into an `AskUserQuestion` option:
 
 | Signal | Option |
 |--------|--------|
-| Coming from full review mode | `/claude-tweaks:wrap-up {N}` — capture learnings and clean up **(Recommended)** |
+| Coming from full review mode | `/claude-tweaks:wrap-up {N}` — capture learnings and clean up |
 | Not yet code-reviewed | `/claude-tweaks:review {N}` — run code review before wrapping up |
 | "Fix now" items exist | Address fixes first, then re-run this review |
 | Standalone | `/claude-tweaks:capture` — save ideas surfaced during the session |
+
+Once the signals are resolved, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+
+- Option 1 (when coming from full review mode) — `label`: `"Wrap up (Recommended)"`, `description`: `"/claude-tweaks:wrap-up {N} — capture learnings and clean up"`
+- Option 2 (when not yet code-reviewed) — `label`: `"Code review"`, `description`: `"/claude-tweaks:review {N} — run code review before wrapping up"`
+- Option 3 (when "fix now" items exist) — `label`: `"Fix first"`, `description`: `"Address fixes first, then re-run this review"`
+- Option 4 (standalone) — `label`: `"Capture ideas"`, `description`: `"/claude-tweaks:capture — save ideas surfaced during the session"`
 
 ---
 

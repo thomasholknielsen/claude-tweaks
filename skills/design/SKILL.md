@@ -2,7 +2,7 @@
 name: claude-tweaks:design
 description: Use when a lifecycle skill (/test, /review, /build, /flow, /visual-review, /specify) needs to invoke Impeccable design-quality commands. Wrapper that encapsulates "when, how, and whether to invoke Impeccable" so caller skills don't have to know.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
+> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 
 # Design — Impeccable Integration Wrapper
@@ -178,7 +178,7 @@ Lazy-load these only when needed for the active mode:
 
 ## Next Actions
 
-When invoked directly by a user (not from a lifecycle skill), look up the return shape in the table below, then surface the matching numbered options. When invoked from a caller skill, omit this block — callers consume the return value themselves.
+When invoked directly by a user (not from a lifecycle skill), look up the return shape in the table below, then resolve the matching options. When invoked from a caller skill, omit this block — callers consume the return value themselves.
 
 | Return | Recommended follow-up |
 |--------|----------------------|
@@ -195,12 +195,12 @@ When invoked directly by a user (not from a lifecycle skill), look up the return
 | `{skipped: "design integration disabled"}` | Re-run `/claude-tweaks:init` to re-enable |
 | `{skipped: "non-frontend"}` | No action — the wrapper correctly skipped |
 
-Standard numbered options to present (pick by return shape from the table above, mark one **(Recommended)**):
+The table above stays as-is — it's the assistant's own resolution logic for picking which options apply to the current return shape, never itself shown to the user or converted into an `AskUserQuestion` option. Once resolved (1-4 options, matched by return shape from the table above), call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
 
-1. `/claude-tweaks:test {spec}` — re-verify (after `polish ok + commands_invoked` or `test fail`) **(Recommended after polish or test fail)**
-2. `/claude-tweaks:review {spec}` — code review quality gate **(Recommended after `test pass` or `review advisory`)**
-3. `/claude-tweaks:wrap-up {spec}` — close out the spec (after `review advisory` with nothing to fix, or `polish` no-op)
-4. `/claude-tweaks:init` — configure or re-enable design integration (only when `{skipped: "Impeccable not installed"}` or `{skipped: "design integration disabled"}`)
+- Option 1 (after `polish ok + commands_invoked` or `test fail`) — `label`: `"Re-verify (Recommended after polish or test fail)"`, `description`: `"/claude-tweaks:test {spec} — re-verify"`
+- Option 2 (after `test pass` or `review advisory`) — `label`: `"Code review (Recommended after test pass or review advisory)"`, `description`: `"/claude-tweaks:review {spec} — code review quality gate"`
+- Option 3 (after `review advisory` with nothing to fix, or `polish` no-op) — `label`: `"Wrap up"`, `description`: `"/claude-tweaks:wrap-up {spec} — close out the spec"`
+- Option 4 (only when `{skipped: "Impeccable not installed"}` or `{skipped: "design integration disabled"}`) — `label`: `"Configure design integration"`, `description`: `"/claude-tweaks:init — configure or re-enable design integration"`
 
 ## Component-Skill Contract
 

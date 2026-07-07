@@ -2,7 +2,7 @@
 name: claude-tweaks:visual-review
 description: Use when you want to visually review a running application in the browser — inspect UI quality, walk user journeys, discover undocumented journeys, or generate creative improvement ideas. Works standalone or as a step within /claude-tweaks:review.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
+> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 
 # Visual Review — Browser-Based UI Inspection
@@ -121,12 +121,11 @@ Write `staged/visual-review-dev-url.md` capturing what was attempted. The review
 
 **Interactive mode:**
 
-```
-The app doesn't seem to be running at {url}. Should I:
-1. Start the dev server on a free port and continue
-2. Try a different URL
-3. Wait while you start the dev server
-```
+Call `AskUserQuestion` with `question`: `"The app doesn't seem to be running at {url}. Should I:"`, `header`: `"Dev server"`, `multiSelect`: `false` — no option is marked (Recommended); the current text has no explicit recommendation among the three:
+
+- Option 1 — `label`: `"Start dev server"`, `description`: `"start it on a free port and continue"`
+- Option 2 — `label`: `"Try different URL"`, `description`: `"provide a different URL to check"`
+- Option 3 — `label`: `"Wait"`, `description`: `"wait while you start the dev server yourself"`
 
 In interactive mode, only start the server with the user's consent (option 1). In auto mode, starting an ephemeral worktree server is pre-authorized (it is reversible and torn down at wrap-up) — see `dev-url-detection.md` "Ephemeral server start".
 
@@ -179,16 +178,14 @@ When the wrapper reports `suppressed > 0` in its return, append a small note bel
 
 ## Next Actions
 
-When invoked directly (not by a parent skill), end with:
+When invoked directly (not by a parent skill), call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
 
-```
-1. `/claude-tweaks:review {spec}` — full code review **(Recommended)**
-2. `/claude-tweaks:visual-review journey:{name}` — walk a specific journey
-3. `/claude-tweaks:stories` — generate QA stories from what was reviewed
-4. `/claude-tweaks:capture {idea}` — save ideas surfaced during the review
-```
+- Option 1 — `label`: `"Code review (Recommended)"`, `description`: `"/claude-tweaks:review {spec} — full code review"`
+- Option 2 — `label`: `"Walk a journey"`, `description`: `"/claude-tweaks:visual-review journey:{name} — walk a specific journey"`
+- Option 3 — `label`: `"Generate QA stories"`, `description`: `"/claude-tweaks:stories — generate QA stories from what was reviewed"`
+- Option 4 — `label`: `"Capture ideas"`, `description`: `"/claude-tweaks:capture {idea} — save ideas surfaced during the review"`
 
-This is the canonical handoff block for the skill. Mode-specific Next Actions exist in `discover-mode.md` (post-discover variant emphasising journey walks) and `browser-review.md` (post-page-review variant gated by review-source signals) for situations where the standalone block doesn't fit the mode's deliverable — they reference back to this section. When invoked by a parent (`/review` or `/init`), omit Next Actions — the parent handles flow control and summary.
+This is the canonical handoff block for the skill. Mode-specific Next Actions exist in `discover-mode.md` (post-discover variant emphasising journey walks) and `browser-review.md` (post-page-review variant gated by review-source signals) for situations where the standalone block doesn't fit the mode's deliverable — they render their own independent `AskUserQuestion` call instead of this one, never merged with it. When invoked by a parent (`/review` or `/init`), omit Next Actions — the parent handles flow control and summary.
 
 ## Component-Skill Contract
 

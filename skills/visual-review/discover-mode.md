@@ -36,6 +36,8 @@ Scan the codebase to build a map of what exists before opening the browser.
 
 ## Phase 2: Journey Candidates
 
+**Left as prose, not a blocking prompt:** this list is dynamically sized (N candidates, no fixed cap) and the skill auto-proceeds without waiting for a reply — the "say skip {numbers}" mechanism is a free-text opt-out on an already-in-progress action, not a blocking fixed-option choice, so it isn't converted (see spec 10 Gotchas).
+
 From the codebase scan, compile a list of candidate journeys. Each candidate is a hypothesis: "a {persona} probably does {goal} by going through {these pages}."
 
 Present the candidates as numbered options:
@@ -142,10 +144,13 @@ Present uncovered pages and gaps as a batch:
 | 1 | {page/route} | Not a journey — utility page |
 | 2 | {missing flow} | Capture to INBOX |
 | 3 | {page/route} | Create a journey — needs exploration |
-
-1. Apply all recommendations **(Recommended)**
-2. Override specific items (tell me which #s to change)
 ```
+
+The table renders as markdown, as above. Immediately below it, call `AskUserQuestion` with:
+
+- `question`: `"How do you want to handle these findings?"`, `header`: `"Findings"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Apply all recommendations"`
+- Option 2 — `label`: `"Override specific items"`, `description`: `"tell me which #s to change"`
 
 ## Phase 6: Handoff
 
@@ -155,5 +160,7 @@ Commit journey files with message: "Add {N} user journeys from discovery (brownf
 
 Discover mode emphasises journey-walk follow-up because it just created journey files. Render this block in place of the canonical SKILL.md `## Next Actions` when reporting discover-mode results; otherwise defer to SKILL.md.
 
-1. `/claude-tweaks:visual-review journey:{name}` — test a specific journey against its expectations **(Recommended)**
-2. `/claude-tweaks:visual-review {url}` — review a specific page
+Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+
+- Option 1 — `label`: `"Test a journey (Recommended)"`, `description`: `"/claude-tweaks:visual-review journey:{name} — test a specific journey against its expectations"`
+- Option 2 — `label`: `"Review a page"`, `description`: `"/claude-tweaks:visual-review {url} — review a specific page"`
