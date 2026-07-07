@@ -352,7 +352,7 @@ Note: consent lives in the working tree, not .git/ — a fresh git worktree
 (via /build worktree or /flow worktree) won't have this enabled until you
 run /impeccable hooks on inside it again.
 
-1. Yes — run /impeccable hooks on (Recommended)
+1. Yes — run /impeccable hooks on **(Recommended)**
 2. Skip — enable later, or per-worktree, as needed
 ```
 
