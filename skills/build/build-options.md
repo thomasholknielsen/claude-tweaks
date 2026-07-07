@@ -44,31 +44,26 @@ When `.claude-tweaks/policy.yml` sets `worktree.always: true`, the Git axis abov
 
 1. **Spec number** (e.g., `42`, `73`) → **Spec mode** — full lifecycle with prerequisites, INDEX.md tracking, and spec compliance
 2. **Design doc path** (e.g., `docs/superpowers/specs/2026-02-21-meal-planning-design.md`) → **Design mode** — build directly from the design doc, skipping spec machinery
-3. **Topic name** (e.g., `meal planning`) → search for a matching design doc in `docs/superpowers/specs/*-design.md` AND a matching spec in `specs/`. If both exist, present numbered options:
+3. **Topic name** (e.g., `meal planning`) → search for a matching design doc in `docs/superpowers/specs/*-design.md` AND a matching spec in `specs/`. If both exist, call `AskUserQuestion` with:
 
-```
-Found both a spec and a design doc for "{topic}":
-1. Spec mode (spec {N}: {title}) — Full lifecycle with prerequisites and tracking
-2. Design mode ({design doc filename}) — Build directly, skip spec machinery
-```
+- `question`: `"Found both a spec and a design doc for '{topic}'. Which did you mean?"`, `header`: `"Build mode"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Spec mode"`, `description`: `"spec {N}: {title} — Full lifecycle with prerequisites and tracking"`
+- Option 2 — `label`: `"Design mode"`, `description`: `"{design doc filename} — Build directly, skip spec machinery"`
 
 If only one exists, use it.
 4. **No arguments** → check conversation context or recent git activity for clues. Ask if unclear.
 
 ### Prompt for build options
 
-When execution strategy AND git strategy are both missing from arguments, ask once — the two choices are correlated (the 2x2 above already enumerates the combinations), so they are one decision:
+When execution strategy AND git strategy are both missing from arguments, ask once — the two choices are correlated (the 2x2 above already enumerates the combinations), so they are one decision. Call `AskUserQuestion` with:
 
-```
-How should this build run?
+- `question`: `"How should this build run?"`, `header`: `"Build strategy"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Subagent + worktree (Recommended)"`, `description`: `"Automated review chain, isolated workspace"`
+- Option 2 — `label`: `"Subagent + current-branch"`, `description`: `"Automated review chain, no isolation"`
+- Option 3 — `label`: `"Batched + worktree"`, `description`: `"Human reviews every 3 tasks, isolated workspace"`
+- Option 4 — `label`: `"Batched + current-branch"`, `description`: `"Human reviews every 3 tasks, no isolation"`
 
-1. Subagent + worktree **(Recommended)** — automated review chain, isolated workspace
-2. Subagent + current-branch — automated review chain, no isolation
-3. Batched + worktree — human reviews every 3 tasks, isolated workspace
-4. Batched + current-branch — human reviews every 3 tasks, no isolation
-```
-
-When only ONE was provided as an argument (e.g., `/build 42 batched`), ask just for the missing one with a simple 2-option prompt. Skip the prompt entirely if both were provided.
+When only ONE was provided as an argument (e.g., `/build 42 batched`), call `AskUserQuestion` for just the missing one with a simple 2-option question instead. Skip the call entirely if both were provided.
 
 **In `auto` mode**, skip this prompt and use the CLAUDE.md / fallback values without asking (per the Pipeline Config Manifesto contract — see `_shared/auto-mode-contract.md`).
 

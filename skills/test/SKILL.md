@@ -2,7 +2,7 @@
 name: claude-tweaks:test
 description: Use when you need to run verification checks (types, lint, tests) or validate QA stories — the mechanical "does it work?" gate.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
+> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 
 # Test — Verification Gate
@@ -209,12 +209,12 @@ When a pipeline run directory exists, apply the `/test` row from the silences ta
 
 > **Prompt ordering:** Per CLAUDE.md's "never present more than one batch decision table per message" rule — if both lint/type and QA failures are present, present the lint/type prompt first, resolve, then present the QA prompt. Never combine them into a single message.
 
-```
-{N} failure(s) found.
-1. Fix automatically — I'll address these failures now **(Recommended when failures are mechanical: lint/type/simple test failures)**
-2. Show details only — I'll investigate but not change code
-3. Skip — I'll fix these manually
-```
+Call `AskUserQuestion` with:
+
+- `question`: `"{N} failure(s) found. How do you want to handle them?"`, `header`: `"Fix failures"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Fix automatically"`, `description`: `"I'll address these failures now"`. Suffixed `(Recommended)` when failures are mechanical (lint/type/simple test failures) — not unconditionally.
+- Option 2 — `label`: `"Show details only"`, `description`: `"I'll investigate but not change code"`
+- Option 3 — `label`: `"Skip"`, `description`: `"I'll fix these manually"`
 
 If the user chooses to fix:
 - **Mechanical failures (lint/type):** make the changes directly, re-run the failed checks, report results.
@@ -223,14 +223,12 @@ If the user chooses to fix:
 
 **Auto-fix for lint/type-only failures (interactive default):** When failures are exclusively lint errors or type errors (no test failures), auto-fix and re-verify without asking. State: "Auto-fixing {N} lint/type errors" and re-run the failed checks. If re-verification passes, proceed. If re-verification fails or new issues appear, stop and present the 3-option choice above. For test failures or mixed failure types (lint + test), always present the choice — and resolve test failures via reproduce-first debugging, not blind patching.
 
-**QA failures** are not auto-fixable — they indicate broken user-facing behavior that requires investigation. For QA failures:
+**QA failures** are not auto-fixable — they indicate broken user-facing behavior that requires investigation. For QA failures, call `AskUserQuestion` with:
 
-```
-{N} QA story failure(s) found. QA failures require investigation — they cannot be auto-fixed.
-1. Show failure details — I'll investigate the root cause via reproduce-first debugging (`/superpowers:systematic-debugging`) **(Recommended)**
-2. Re-run failed stories — `/claude-tweaks:test qa retry={RUN_DIR}`
-3. Skip — I'll investigate manually
-```
+- `question`: `"{N} QA story failure(s) found. QA failures require investigation — they cannot be auto-fixed. What do you want to do?"`, `header`: `"QA failures"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Show failure details (Recommended)"`, `description`: `"I'll investigate the root cause via reproduce-first debugging (/superpowers:systematic-debugging)"`
+- Option 2 — `label`: `"Re-run failed stories"`, `description`: `"/claude-tweaks:test qa retry={RUN_DIR}"`
+- Option 3 — `label`: `"Skip"`, `description`: `"I'll investigate manually"`
 
 When investigating a QA failure (option 1), use `/superpowers:systematic-debugging` — a QA story failure is already a reproduction; confirm it reproduces, find the cause, then fix. Do not patch the symptom (e.g., loosening a selector) without confirming the underlying behavior is correct.
 
@@ -238,12 +236,21 @@ When investigating a QA failure (option 1), use `/superpowers:systematic-debuggi
 
 Pick the row matching the mode just completed:
 
-| Mode + outcome | Recommended next |
+| Mode + outcome | Next |
 |---|---|
-| Standard / All / QA passed (or PASS_WITH_CAVEATS) | `/claude-tweaks:review {spec}` — code review quality gate **(Recommended)** |
-| Standard / All passed AND UI files changed AND browser available | `/claude-tweaks:review {spec} full` — code + visual review |
+| Standard / All / QA passed (or PASS_WITH_CAVEATS) | Genuine choice — see below |
 | Verification failed (types/lint/tests) | Fix the failures, then re-run `/claude-tweaks:test` |
 | QA failed | Investigate failures (Fix Mode option 1), then `/claude-tweaks:test qa retry={RUN_DIR}` |
+
+**On any pass outcome** (the first row), the "plain code review" and "code + visual review" rows are not two separate situations — they're two alternative commands for the same outcome. Call `AskUserQuestion` with exactly 2 options:
+
+- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Code review"`, `description`: `"/claude-tweaks:review {spec} — code review quality gate"`
+- Option 2 — `label`: `"Code + visual review"`, `description`: `"/claude-tweaks:review {spec} full — code + visual review"`
+
+Whichever matches the current run's actual signal gets `(Recommended)` on its label — UI files changed AND browser available → Option 2; otherwise → Option 1.
+
+**The other two rows are not a user choice** — "Verification failed" and "QA failed" are single deterministic next steps. Leave them as plain prose instructions; do not force them into a one-option `AskUserQuestion` call.
 
 ## Component-Skill Contract
 

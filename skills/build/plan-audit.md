@@ -37,14 +37,17 @@ Read `scope-creep` from `config.yml` (resolve the run dir via `_shared/pipeline-
 
 ### Interactive mode (or `stop-and-ask` policy)
 
-Present the list and ask:
+Present the list:
 
 ```
 Scope keywords match {N} file(s) not in the plan:
 - {file 1}
 - {file 2}
-
-1. Add to plan and continue **(Recommended)** — I'll add these as new tasks to the plan
-2. Continue without — I've checked, these are intentionally excluded
-3. Stop — let me revise the plan manually
 ```
+
+Then call `AskUserQuestion` with:
+
+- `question`: `"Scope keywords match {N} file(s) not in the plan. What do you want to do?"`, `header`: `"Scope creep"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Add to plan (Recommended)"`, `description`: `"I'll add these as new tasks to the plan"`
+- Option 2 — `label`: `"Continue without"`, `description`: `"I've checked, these are intentionally excluded"`
+- Option 3 — `label`: `"Stop"`, `description`: `"Let me revise the plan manually"`

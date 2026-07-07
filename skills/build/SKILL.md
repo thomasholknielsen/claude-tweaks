@@ -2,7 +2,7 @@
 name: claude-tweaks:build
 description: Use when implementing a spec or design doc end-to-end. Accepts a spec number for full lifecycle tracking, or a design doc path to skip /claude-tweaks:specify and build directly from brainstorming output.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
+> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 
 # Build — Implement a spec end-to-end with worktree, plan audit, and lifecycle tracking
@@ -165,7 +165,7 @@ Audit the plan against the actual repo before dispatching execution. Two checks:
 - **Check A (always):** verify every path in the plan's Files: sections exists (or its parent directory exists for Create).
 - **Check B (conditional):** when the plan declares `Scope keywords:`, grep the repo for each keyword and list any matched files not in the plan.
 
-**Auto mode:** apply the `scope-creep` policy from `config.yml` (default `add-to-plan`). **Interactive mode:** present a numbered prompt with "Add to plan and continue / Continue without / Stop."
+**Auto mode:** apply the `scope-creep` policy from `config.yml` (default `add-to-plan`). **Interactive mode:** call `AskUserQuestion` with three options: "Add to plan and continue" (Recommended), "Continue without", "Stop".
 
 **Skip this step entirely when** the plan has fewer than 3 file references AND no `Scope keywords:` field is present.
 
@@ -275,15 +275,7 @@ These apply in **subagent** execution strategy. In **batched** strategy, autonom
 
 ## Next Actions
 
-Generate 2-4 numbered options based on context. Example rendering (the signal-to-option table below is the lookup the generator uses to populate the numbered list):
-
-```
-1. /claude-tweaks:review 42 full — code + visual review **(Recommended)**
-2. /claude-tweaks:test qa — validate 7 QA stories before review
-3. /superpowers:finishing-a-development-branch — merge, PR, or discard the feature branch
-```
-
-Signal-to-option lookup:
+Generate 2-4 options based on context. The signal-to-option lookup table below stays as-is — it's the assistant's own logic for picking which options apply to the current build's signals, never itself shown to the user or converted into an `AskUserQuestion` option:
 
 | Signal | Option |
 |--------|--------|
@@ -291,6 +283,12 @@ Signal-to-option lookup:
 | No browser or no UI | `/claude-tweaks:review {N}` — code review **(Recommended)** |
 | QA stories exist (`stories/*.yaml` or `stories/*.yml`) | `/claude-tweaks:test qa` — validate {X} QA stories before review |
 | Worktree mode | `/superpowers:finishing-a-development-branch` — merge, PR, or discard the feature branch **(Recommended in worktree mode)** |
+
+Once the signals are resolved, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+
+- Option 1 — switches on the browser-availability signal exactly as the table above (do not collapse the two branches into always-`full`): when UI changed AND a browser is available, `label`: `"Code + visual review"`, `description`: `"/claude-tweaks:review {N} full — code + visual review"`; otherwise `label`: `"Code review"`, `description`: `"/claude-tweaks:review {N} — code review"`. Suffixed `(Recommended)` unless worktree mode makes option 3 the recommendation instead.
+- Option 2 — `label`: `"QA validation"`, `description`: `"/claude-tweaks:test qa — validate {X} QA stories before review"`
+- Option 3 — `label`: `"Finish branch"`, `description`: `"/superpowers:finishing-a-development-branch — merge, PR, or discard the feature branch"`, suffixed `(Recommended)` when in worktree mode instead of option 1
 
 ## Component-Skill Contract
 

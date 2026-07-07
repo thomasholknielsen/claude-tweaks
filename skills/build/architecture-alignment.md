@@ -29,10 +29,13 @@ Architecture deviations — {N} found. Recommended classifications pre-filled:
 |---|-----------|--------------------|----------------|-------------|
 | 1 | {short label} | {spec text} | {actual} | {Beneficial / Fix now / Update the spec} |
 | 2 | ... | ... | ... | ... |
-
-1. Apply all **(Recommended)**
-2. Override specific rows (tell me which #s to reclassify and to what)
 ```
+
+The table renders as markdown, as above. Immediately below it, call `AskUserQuestion` with:
+
+- `question`: `"How do you want to handle these deviations?"`, `header`: `"Deviations"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Apply all"`
+- Option 2 — `label`: `"Override specific rows"`, `description`: `"Tell me which #s to reclassify and to what"`
 
 After resolution, apply each row's classification per the table above. "Beneficial" still requires action — never just "note it"; that loses the insight.
 

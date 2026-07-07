@@ -2,7 +2,7 @@
 name: claude-tweaks:specify
 description: Use when converting a brainstorming design document into agent-sized work units (specs). Takes a design doc and decomposes it into self-contained specifications.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
+> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 
 # Specify — Decompose a design doc into agent-sized work units
@@ -61,13 +61,11 @@ Input is polymorphic — see the canonical definition in the Granularity Contrac
 4. **Topic name with no matching design doc** — invoke superpowers `/superpowers:brainstorming` via the Skill tool with the topic as input (this is the polymorphic-input branch defined above). The brainstorming session produces a design doc at `docs/superpowers/specs/YYYY-MM-DD-{topic}-design.md` (or wherever superpowers writes it). Wait for `/superpowers:brainstorming` to complete, then continue with the produced design doc as the input. **Do not** prompt the user to "run brainstorm first" — that defeats the contract.
 5. **INBOX reference** (e.g., `"Voice shopping list"`) — find the entry in `specs/INBOX.md`, then check if a design doc exists for it. If found, read it. If not found, treat as a topic name (case 4 — invoke `/superpowers:brainstorming`).
 
-**Ambiguous input handling:** A topic name that *could* also be interpreted as a path (e.g., a topic with a `/` in it like "auth/login flow") is ambiguous. Stop and ask:
+**Ambiguous input handling:** A topic name that *could* also be interpreted as a path (e.g., a topic with a `/` in it like "auth/login flow") is ambiguous. Stop and call `AskUserQuestion` with:
 
-```
-"{input}" could be a topic name or a path. Which did you mean?
-1. Topic name — invoke /superpowers:brainstorming to produce a design doc
-2. Design doc path — read the file directly
-```
+- `question`: `"'{input}' could be a topic name or a path. Which did you mean?"`, `header`: `"Input type"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Topic name"`, `description`: `"invoke /superpowers:brainstorming to produce a design doc"`
+- Option 2 — `label`: `"Design doc path"`, `description`: `"read the file directly"`
 
 This explicit disambiguation prevents the silent wrong-path failure flagged by past polymorphic-input edge cases.
 
@@ -129,12 +127,15 @@ Overlap analysis — {M} overlap(s) found:
 | 1 | "{section A}" | Spec {N}: "{title}" | Already exists | Skip | (1) skip / (2) extend / (3) companion / (4) replace |
 | 2 | "{section B}" | Spec {N}: "{title}" | Partial overlap | Companion (Recommended) | (1) skip / (2) extend / (3) companion / (4) replace |
 | ...|
-
-1. Apply all recommended **(Recommended)**
-2. Override specific items (tell me which #s to change and to what)
 ```
 
-The recommendation column pre-fills based on coverage type: `Already exists` → Skip; `Partial overlap` → Companion. The user can hit "1" to accept all in one decision, or call out specific overrides. Policy-driven equivalent in auto mode (above).
+The table renders as markdown, as above. Immediately below it, call `AskUserQuestion` with:
+
+- `question`: `"How do you want to handle these overlaps?"`, `header`: `"Overlaps"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"Apply all recommended"`
+- Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which #s to change and to what"`
+
+The recommendation column pre-fills based on coverage type: `Already exists` → Skip; `Partial overlap` → Companion. The user can pick "Apply all recommended" to accept all in one decision, or "Override specific items" and follow up with which #s to change in ordinary free-text conversation. Policy-driven equivalent in auto mode (above).
 
 For **Gap** items, proceed directly to Step 2 (decompose into work units).
 
@@ -394,12 +395,16 @@ By the time Next Actions renders, this commit has already happened.
 
 Self-routing — render based on what was produced. The specs are **already committed** (Step 9) — never offer "commit then flow" or "have me commit these specs" as an option; that decision is closed before Next Actions renders. Options are purely about *which* specs to pipeline and in *what order*.
 
-| Situation | Next Actions block |
+This "Situation → options" table is the assistant's own lookup logic to pick which situation applies — it stays internal and is never itself shown to the user or converted into an `AskUserQuestion` option.
+
+| Situation | Options |
 |---|---|
 | Single spec produced | 1. `/claude-tweaks:flow {N}` — automated pipeline for spec {N}: "{title}" **(Recommended)**<br>2. `/claude-tweaks:build {N}` — build only (no test/review/wrap-up)<br>3. `/claude-tweaks:help` — pipeline dashboard |
 | Multiple specs produced from a single phase / single-phase doc | 1. `/claude-tweaks:flow {N1},{N2},...,{Nk}` — sequential pipeline, all specs **(Recommended)**<br>2. `/claude-tweaks:flow {N1}` — pipeline just the highest-priority spec<br>3. `/claude-tweaks:help` — pipeline dashboard |
 | Phase-N decomposition with remaining phases in design doc | 1. `/claude-tweaks:flow {N1},{N2},...` — pipeline this phase's specs **(Recommended)**<br>2. `/claude-tweaks:specify {doc} phase-{N+1}` — decompose next phase<br>3. `/claude-tweaks:help` — pipeline dashboard |
 | All phases decomposed in one run (large multi-phase decomposition) | 1. `/claude-tweaks:flow {first-phase-spec-ids}` — pipeline phase 1 specs first **(Recommended)**<br>2. `/claude-tweaks:flow {all-spec-ids}` — pipeline everything sequentially (long-running)<br>3. `/claude-tweaks:help` — see the full dependency graph before deciding |
+
+Once the matching situation is resolved, replace the rendering of its numbered list with a call to `AskUserQuestion`: `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and one option per entry in that row — `label`: a short one-line summary (e.g. "Pipeline this spec", "Build only", "Pipeline dashboard"), `description`: the full command text from that entry, the entry marked `(Recommended)` in the table gets `(Recommended)` suffixed on its label.
 
 Always recommend `/flow` over `/build` — `/flow` is the canonical path through the pipeline, and the new shape gate (Step 2.6 in `/flow`) accepts well-structured specs of any size.
 

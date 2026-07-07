@@ -1,7 +1,7 @@
 ---
 tier: 3
-status: not-started
-progress: 0
+status: complete
+progress: 100
 blocked-by: [5]
 surface: backend
 ---
@@ -39,19 +39,19 @@ Applies the `AskUserQuestion` convention established in Spec 05 to the `specify`
 
 ## Deliverables
 
-- [ ] Replace the Interaction style directive blockquote (line 5) in `skills/specify/SKILL.md`, `skills/build/SKILL.md`, and `skills/test/SKILL.md` with the canonical text from Spec 05.
-- [ ] Convert `specify/SKILL.md`'s "Ambiguous input handling" 2-option prompt to an `AskUserQuestion` call.
-- [ ] Convert `specify/SKILL.md`'s overlap-analysis batch table's terminal 2-option decision ("Apply all recommended" / "Override specific items") to an `AskUserQuestion` call; the batch table itself stays as markdown.
-- [ ] Convert `specify/SKILL.md`'s `## Next Actions` section: each of the 4 situational renderings becomes an `AskUserQuestion` call with that situation's options.
-- [ ] Update `build/SKILL.md` Common Step 1.5's one-line "Interactive mode" description to say the 3-option prompt ("Add to plan and continue / Continue without / Stop") is presented via `AskUserQuestion`.
-- [ ] Convert `build/plan-audit.md`'s own copy of this same 3-option prompt (the full procedure, not just SKILL.md's one-line summary) to an `AskUserQuestion` call with the same 3 options, first suffixed `(Recommended)`. This is the same decision as the deliverable above, implemented in the file that actually contains its full logic — do not treat SKILL.md's summary-line update as sufficient on its own.
-- [ ] Convert `build/SKILL.md`'s `## Next Actions` worked example and its signal-to-option lookup table's rendering into an `AskUserQuestion` call.
-- [ ] Convert `build-options.md`'s "Topic name" 2-option prompt (spec mode vs. design mode) to an `AskUserQuestion` call.
-- [ ] Convert `build-options.md`'s "Prompt for build options" 4-option (execution × git) prompt, and its 2-option fallback (when only one axis is missing), to `AskUserQuestion` calls.
-- [ ] Convert `architecture-alignment.md`'s batch table's terminal 2-option decision ("Apply all" / "Override specific rows") to an `AskUserQuestion` call; the deviations table itself stays as markdown.
-- [ ] Convert `test/SKILL.md`'s Step 3 Fix Mode 3-option prompt ("Fix automatically" / "Show details only" / "Skip") to an `AskUserQuestion` call.
-- [ ] Convert `test/SKILL.md`'s QA-failures 3-option prompt ("Show failure details" / "Re-run failed stories" / "Skip") to an `AskUserQuestion` call.
-- [ ] Convert `test/SKILL.md`'s `## Next Actions` section: each of the 4 situational rows becomes an `AskUserQuestion` call (rows that are not user decisions, like "Verification failed → fix and re-run", stay as prose instructions, not a choice — see Gotchas).
+- [x] Replace the Interaction style directive blockquote (line 5) in `skills/specify/SKILL.md`, `skills/build/SKILL.md`, and `skills/test/SKILL.md` with the canonical text from Spec 05.
+- [x] Convert `specify/SKILL.md`'s "Ambiguous input handling" 2-option prompt to an `AskUserQuestion` call.
+- [x] Convert `specify/SKILL.md`'s overlap-analysis batch table's terminal 2-option decision ("Apply all recommended" / "Override specific items") to an `AskUserQuestion` call; the batch table itself stays as markdown.
+- [x] Convert `specify/SKILL.md`'s `## Next Actions` section: each of the 4 situational renderings becomes an `AskUserQuestion` call with that situation's options.
+- [x] Update `build/SKILL.md` Common Step 1.5's one-line "Interactive mode" description to say the 3-option prompt ("Add to plan and continue / Continue without / Stop") is presented via `AskUserQuestion`.
+- [x] Convert `build/plan-audit.md`'s own copy of this same 3-option prompt (the full procedure, not just SKILL.md's one-line summary) to an `AskUserQuestion` call with the same 3 options, first suffixed `(Recommended)`. This is the same decision as the deliverable above, implemented in the file that actually contains its full logic — do not treat SKILL.md's summary-line update as sufficient on its own.
+- [x] Convert `build/SKILL.md`'s `## Next Actions` worked example and its signal-to-option lookup table's rendering into an `AskUserQuestion` call.
+- [x] Convert `build-options.md`'s "Topic name" 2-option prompt (spec mode vs. design mode) to an `AskUserQuestion` call.
+- [x] Convert `build-options.md`'s "Prompt for build options" 4-option (execution × git) prompt, and its 2-option fallback (when only one axis is missing), to `AskUserQuestion` calls.
+- [x] Convert `architecture-alignment.md`'s batch table's terminal 2-option decision ("Apply all" / "Override specific rows") to an `AskUserQuestion` call; the deviations table itself stays as markdown.
+- [x] Convert `test/SKILL.md`'s Step 3 Fix Mode 3-option prompt ("Fix automatically" / "Show details only" / "Skip") to an `AskUserQuestion` call.
+- [x] Convert `test/SKILL.md`'s QA-failures 3-option prompt ("Show failure details" / "Re-run failed stories" / "Skip") to an `AskUserQuestion` call.
+- [x] Convert `test/SKILL.md`'s `## Next Actions` section: each of the 4 situational rows becomes an `AskUserQuestion` call (rows that are not user decisions, like "Verification failed → fix and re-run", stay as prose instructions, not a choice — see Gotchas).
 
 ## Acceptance Criteria
 
