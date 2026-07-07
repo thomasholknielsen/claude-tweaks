@@ -41,6 +41,7 @@ Reference table for every Impeccable command, categorized by how the wrapper dis
 | `init` | Never (in flow) | Runs once via `/init` Impeccable setup phase (formerly `teach`, now a deprecated alias); never auto from `/flow` |
 | `document` | Never (in flow) | Manual standalone only |
 | `live` | Never (in flow) | Manual standalone only |
+| `hooks` | Never (in flow) | Manual — one-time per-worktree consent toggle (`hooks on\|off\|status`); never auto-invoked. See `skills/build/worktree-setup.md` for the per-worktree consent note. |
 
 ## Review dispatch — what the wrapper invokes in `review` mode
 
