@@ -17,7 +17,9 @@ function runValidateFindings(root, findingsFile, extraArgs = []) {
 function validFinding(overrides = {}) {
   return {
     kind: 'patch',
-    skill: 'auth',
+    target: 'auth',
+    assetType: 'skill',
+    category: 'drift',
     section: 'Key Patterns',
     classification: 'restructural',
     confidence: 'high',
@@ -46,8 +48,8 @@ test('validate-findings: valid finding emits one payload on stdout', () => {
 
 test('validate-findings: malformed finding is dropped with a stderr reason, valid ones survive', () => {
   const root = tmp();
-  const malformed = { kind: 'patch', skill: 'auth' }; // missing required fields
-  const good = validFinding({ skill: 'billing', description: 'other issue' });
+  const malformed = { kind: 'patch', target: 'auth' }; // missing required fields
+  const good = validFinding({ target: 'billing', description: 'other issue' });
   const findingsFile = path.join(root, 'findings.json');
   fs.writeFileSync(findingsFile, JSON.stringify([malformed, good]));
 
@@ -63,19 +65,19 @@ test('validate-findings: --dry-run emits payloads but writes no state', () => {
   const findingsFile = path.join(root, 'findings.json');
   fs.writeFileSync(findingsFile, JSON.stringify([validFinding()]));
 
-  const result = runValidateFindings(root, findingsFile, ['--dry-run', '--skill', 'auth', '--gap-scan']);
+  const result = runValidateFindings(root, findingsFile, ['--dry-run', '--target', 'auth', '--kind', 'skill', '--gap-scan']);
   assert.strictEqual(result.status, 0);
   assert.strictEqual(JSON.parse(result.stdout).length, 1);
   assert.strictEqual(fs.existsSync(path.join(root, '.claude-tweaks', 'harness-health', 'cache.json')), false);
   assert.strictEqual(fs.existsSync(path.join(root, '.claude-tweaks', 'harness-health', 'cursors.json')), false);
 });
 
-test('validate-findings: --skill <id> records the audit cursor for that skill', () => {
+test('validate-findings: --target <id> --kind <kind> records the audit cursor under the namespaced key', () => {
   const root = tmp();
   const findingsFile = path.join(root, 'findings.json');
   fs.writeFileSync(findingsFile, JSON.stringify([])); // an empty array is valid — still records the audit
 
-  const result = runValidateFindings(root, findingsFile, ['--skill', 'auth']);
+  const result = runValidateFindings(root, findingsFile, ['--target', 'auth', '--kind', 'skill']);
   assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
   const cursors = JSON.parse(fs.readFileSync(path.join(root, '.claude-tweaks', 'harness-health', 'cursors.json'), 'utf8'));
   assert.ok(typeof cursors['skill:auth'].lastAuditedMs === 'number');

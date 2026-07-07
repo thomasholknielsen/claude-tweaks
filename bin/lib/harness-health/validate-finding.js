@@ -5,11 +5,13 @@
 // Returns { ok:true, value } or { ok:false, errors:string[] }.
 
 const KIND_VALUES = new Set(['patch', 'new-skill']);
+const ASSET_TYPE_VALUES = new Set(['skill', 'rule', 'claude-md']);
+const CATEGORY_VALUES = new Set(['drift', 'template-conformance', 'best-practice']);
 const CLASSIFICATION_VALUES = new Set(['additive', 'restructural']);
 const CONFIDENCE_VALUES = new Set(['high', 'med', 'low']);
 const REVERSIBILITY_VALUES = new Set(['high', 'med', 'low']);
 
-const REQUIRED_STRINGS = ['kind', 'skill', 'description', 'reason', 'classification', 'confidence', 'reversibility'];
+const REQUIRED_STRINGS = ['kind', 'target', 'assetType', 'category', 'description', 'reason', 'classification', 'confidence', 'reversibility'];
 
 function validateFinding(obj) {
   const errors = [];
@@ -26,6 +28,12 @@ function validateFinding(obj) {
 
   if (typeof obj.kind === 'string' && !KIND_VALUES.has(obj.kind)) {
     errors.push(`kind: must be one of ${[...KIND_VALUES].join('|')} (got "${obj.kind}")`);
+  }
+  if (typeof obj.assetType === 'string' && !ASSET_TYPE_VALUES.has(obj.assetType)) {
+    errors.push(`assetType: must be one of ${[...ASSET_TYPE_VALUES].join('|')} (got "${obj.assetType}")`);
+  }
+  if (typeof obj.category === 'string' && !CATEGORY_VALUES.has(obj.category)) {
+    errors.push(`category: must be one of ${[...CATEGORY_VALUES].join('|')} (got "${obj.category}")`);
   }
   if (typeof obj.classification === 'string' && !CLASSIFICATION_VALUES.has(obj.classification)) {
     errors.push(`classification: must be one of ${[...CLASSIFICATION_VALUES].join('|')} (got "${obj.classification}")`);
@@ -58,4 +66,7 @@ function validateFinding(obj) {
   return { ok: true, errors: [], value: { ...obj } };
 }
 
-module.exports = { validateFinding, KIND_VALUES, CLASSIFICATION_VALUES, CONFIDENCE_VALUES, REVERSIBILITY_VALUES };
+module.exports = {
+  validateFinding, KIND_VALUES, ASSET_TYPE_VALUES, CATEGORY_VALUES,
+  CLASSIFICATION_VALUES, CONFIDENCE_VALUES, REVERSIBILITY_VALUES,
+};

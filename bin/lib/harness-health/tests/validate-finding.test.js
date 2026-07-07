@@ -5,7 +5,9 @@ const { validateFinding } = require('../validate-finding');
 function validPatch(overrides = {}) {
   return {
     kind: 'patch',
-    skill: 'auth',
+    target: 'auth',
+    assetType: 'skill',
+    category: 'drift',
     section: 'Key Patterns',
     classification: 'additive',
     confidence: 'high',
@@ -21,7 +23,9 @@ function validPatch(overrides = {}) {
 function validNewSkill(overrides = {}) {
   return {
     kind: 'new-skill',
-    skill: 'queue-retry-pattern',
+    target: 'queue-retry-pattern',
+    assetType: 'skill',
+    category: 'drift',
     classification: 'additive',
     confidence: 'med',
     reversibility: 'high',
@@ -35,7 +39,7 @@ function validNewSkill(overrides = {}) {
 test('validateFinding accepts a well-formed patch finding', () => {
   const result = validateFinding(validPatch());
   assert.strictEqual(result.ok, true);
-  assert.strictEqual(result.value.skill, 'auth');
+  assert.strictEqual(result.value.target, 'auth');
 });
 
 test('validateFinding accepts a well-formed new-skill finding', () => {
@@ -61,6 +65,18 @@ test('validateFinding rejects an unknown kind', () => {
   const result = validateFinding(validPatch({ kind: 'bogus' }));
   assert.strictEqual(result.ok, false);
   assert.ok(result.errors.some((e) => e.startsWith('kind:')));
+});
+
+test('validateFinding rejects an unknown assetType', () => {
+  const result = validateFinding(validPatch({ assetType: 'agent' }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.startsWith('assetType:')));
+});
+
+test('validateFinding rejects an unknown category', () => {
+  const result = validateFinding(validPatch({ category: 'vibes' }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.startsWith('category:')));
 });
 
 test('validateFinding rejects an unknown classification/confidence/reversibility', () => {

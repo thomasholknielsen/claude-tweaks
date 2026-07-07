@@ -9,7 +9,7 @@ const {
 const { decide } = require('./lib/harness-health/dedup');
 const { validateFinding } = require('./lib/harness-health/validate-finding');
 const { toIssuePayload } = require('./lib/harness-health/issue-payload');
-const { selectTarget, listSkills } = require('./lib/harness-health/scope');
+const { selectTarget, listTargets } = require('./lib/harness-health/scope');
 const { STALE_DAYS } = require('./lib/harness-health/score');
 
 function parseArgs(argv) {
@@ -18,7 +18,8 @@ function parseArgs(argv) {
     const a = argv[i];
     if (a === '--dry-run') args.dryRun = true;
     else if (a === '--root') args.root = argv[++i];
-    else if (a === '--skill') args.skill = argv[++i];
+    else if (a === '--target') args.target = argv[++i];
+    else if (a === '--kind') args.kind = argv[++i];
     else if (a === '--issues') args.issues = argv[++i];
     else if (a === '--gap-scan') args.gapScan = true;
     else if (a === '--run-id') args.runId = argv[++i];
@@ -59,8 +60,10 @@ function cmdNextTarget(args) {
   const gapScan = readGapScanCursor(root);
   const gapScanDue = gapScan.lastScannedMs == null || (now - gapScan.lastScannedMs) / 86400000 > STALE_DAYS;
 
-  if (args.skill) {
-    const found = listSkills(root).find((s) => s.id === args.skill) || null;
+  if (args.target) {
+    // --kind disambiguates when a skill/rule/CLAUDE.md id collides; without it,
+    // the first match in listTargets' skill->rule->claude-md order wins.
+    const found = listTargets(root).find((t) => t.id === args.target && (!args.kind || t.kind === args.kind)) || null;
     const target = found ? { ...found, why: 'manual' } : null;
     process.stdout.write(JSON.stringify({ target, gapScanDue }, null, 2) + '\n');
     return;
@@ -70,16 +73,16 @@ function cmdNextTarget(args) {
   let cursors = readCursors(root);
 
   if (budget === 1) {
-    const target = selectTarget(root, cursors, { now });
+    const target = selectTarget(root, cursors, { now, kind: args.kind });
     process.stdout.write(JSON.stringify({ target, gapScanDue }, null, 2) + '\n');
     return;
   }
 
   // budget > 1: iterate, simulating post-audit cursor state in-memory so each
-  // pick is a different skill (mirrors recon's next-slice --budget).
+  // pick is a different target (mirrors recon's next-slice --budget).
   const targets = [];
   for (let i = 0; i < budget; i++) {
-    const target = selectTarget(root, cursors, { now });
+    const target = selectTarget(root, cursors, { now, kind: args.kind });
     if (!target) break;
     targets.push(target);
     const key = `${target.kind}:${target.id}`;
@@ -93,7 +96,7 @@ function cmdValidateFindings(args) {
   const findingsPath = args._[1];
   if (!findingsPath) {
     process.stderr.write(
-      'usage: harness-health.js validate-findings <findings.json> [--root <dir>] [--issues <file>] [--skill <id>] [--gap-scan] [--run-id <id>] [--dry-run]\n',
+      'usage: harness-health.js validate-findings <findings.json> [--root <dir>] [--issues <file>] [--target <id>] [--kind <skill|rule|claude-md>] [--gap-scan] [--run-id <id>] [--dry-run]\n',
     );
     process.exit(2);
   }
@@ -115,12 +118,13 @@ function cmdValidateFindings(args) {
     const v = validateFinding(f);
     if (!v.ok) {
       process.stderr.write(
-        `[harness-health] validate-findings: dropped finding for skill "${(f && f.skill) || '?'}": ${v.errors.join('; ')}\n`,
+        `[harness-health] validate-findings: dropped finding for target "${(f && f.target) || '?'}": ${v.errors.join('; ')}\n`,
       );
       continue;
     }
     const id = fingerprint({
-      skill: v.value.skill,
+      assetType: v.value.assetType,
+      target: v.value.target,
       section: v.value.section || v.value.kind,
       description: v.value.description,
     });
@@ -146,7 +150,7 @@ function cmdValidateFindings(args) {
 
   if (!args.dryRun) {
     writeCache(root, cache);
-    if (args.skill) recordAudit(root, `skill:${args.skill}`, {});
+    if (args.target && args.kind) recordAudit(root, `${args.kind}:${args.target}`, {});
     if (args.gapScan) recordGapScan(root, {});
     recordRun(root, args.runId, [...seen]);
   }
@@ -215,7 +219,9 @@ function main(argv) {
   if (cmd === 'mark') return cmdMark(args);
   process.stderr.write(
     'usage: harness-health.js <command> [options]\n' +
-    'commands: next-target [--skill <id>], validate-findings <file> [--skill <id>] [--gap-scan], churn-report [--fail-on-high-churn <r>], mark <fingerprint> <applied|declined>\n',
+    'commands: next-target [--target <id>] [--kind <skill|rule|claude-md>] [--budget <n>], ' +
+    'validate-findings <file> [--target <id>] [--kind <skill|rule|claude-md>] [--gap-scan], ' +
+    'churn-report [--fail-on-high-churn <r>], mark <fingerprint> <applied|declined>\n',
   );
   process.exit(2);
 }

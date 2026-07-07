@@ -41,7 +41,7 @@ test('a finding marked declined is suppressed by a later validate-findings run o
   const root = tmp();
   const findingsFile = path.join(root, 'findings.json');
   const finding = {
-    kind: 'patch', skill: 'auth', section: 'Auth', classification: 'restructural',
+    kind: 'patch', target: 'auth', assetType: 'skill', category: 'drift', section: 'Auth', classification: 'restructural',
     confidence: 'high', reversibility: 'med', description: 'x', oldString: 'a', newString: 'b', reason: 'y',
   };
   fs.writeFileSync(findingsFile, JSON.stringify([finding]));

@@ -14,7 +14,7 @@ function runNextTarget(args, root) {
   return JSON.parse(raw);
 }
 
-test('next-target returns { target: null, gapScanDue: true } for a project with no skills yet', () => {
+test('next-target returns { target: null, gapScanDue: true } for a project with no targets yet', () => {
   const root = tmp();
   const result = runNextTarget([], root);
   assert.strictEqual(result.target, null);
@@ -31,14 +31,33 @@ test('next-target picks a never-audited skill as stale', () => {
   assert.strictEqual(result.target.why, 'stale');
 });
 
-test('next-target --skill <id> bypasses selection and returns why: "manual"', () => {
+test('next-target --target <id> bypasses selection and returns why: "manual"', () => {
   const root = tmp();
   fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
   fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth');
   fs.writeFileSync(path.join(root, '.claude', 'skills', 'billing.md'), '# billing');
-  const result = runNextTarget(['--skill', 'billing'], root);
+  const result = runNextTarget(['--target', 'billing'], root);
   assert.strictEqual(result.target.id, 'billing');
   assert.strictEqual(result.target.why, 'manual');
+});
+
+test('next-target --target <id> --kind <kind> disambiguates a skill/rule id collision', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
+  fs.mkdirSync(path.join(root, '.claude', 'rules'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth');
+  fs.writeFileSync(path.join(root, '.claude', 'rules', 'auth.md'), '---\npaths:\n  - src/auth/**\n---\n');
+  const result = runNextTarget(['--target', 'auth', '--kind', 'rule'], root);
+  assert.strictEqual(result.target.kind, 'rule');
+});
+
+test('next-target --kind filters the auto-selected pool to one kind', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth');
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), '# Project\n');
+  const result = runNextTarget(['--kind', 'claude-md'], root);
+  assert.strictEqual(result.target.kind, 'claude-md');
 });
 
 test('next-target gapScanDue is false right after a gap scan was recorded (via --gap-scan on validate-findings)', () => {

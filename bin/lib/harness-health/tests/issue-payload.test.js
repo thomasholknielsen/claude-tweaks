@@ -6,7 +6,9 @@ function patchFinding(overrides = {}) {
   return {
     id: 'skillhealth-abc12345',
     kind: 'patch',
-    skill: 'auth',
+    target: 'auth',
+    assetType: 'skill',
+    category: 'drift',
     section: 'Key Patterns',
     classification: 'restructural',
     confidence: 'high',
@@ -23,7 +25,9 @@ function newSkillFinding(overrides = {}) {
   return {
     id: 'skillhealth-def67890',
     kind: 'new-skill',
-    skill: 'queue-retry-pattern',
+    target: 'queue-retry-pattern',
+    assetType: 'skill',
+    category: 'drift',
     classification: 'additive',
     confidence: 'med',
     reversibility: 'high',
@@ -62,7 +66,9 @@ test('toIssuePayload for a patch finding carries structured decision fields matc
   const payload = toIssuePayload(finding);
   assert.strictEqual(payload.id, finding.id);
   assert.strictEqual(payload.kind, finding.kind);
-  assert.strictEqual(payload.skill, finding.skill);
+  assert.strictEqual(payload.target, finding.target);
+  assert.strictEqual(payload.assetType, finding.assetType);
+  assert.strictEqual(payload.category, finding.category);
   assert.strictEqual(payload.classification, finding.classification);
   assert.strictEqual(payload.confidence, finding.confidence);
   assert.strictEqual(payload.reversibility, finding.reversibility);
@@ -75,8 +81,18 @@ test('toIssuePayload for a new-skill finding carries structured decision fields 
   const payload = toIssuePayload(finding);
   assert.strictEqual(payload.id, finding.id);
   assert.strictEqual(payload.kind, finding.kind);
-  assert.strictEqual(payload.skill, finding.skill);
+  assert.strictEqual(payload.target, finding.target);
+  assert.strictEqual(payload.assetType, finding.assetType);
+  assert.strictEqual(payload.category, finding.category);
   assert.strictEqual(payload.classification, finding.classification);
   assert.strictEqual(payload.confidence, finding.confidence);
   assert.strictEqual(payload.reversibility, finding.reversibility);
+});
+
+test('toIssuePayload title reflects asset type and category', () => {
+  const rule = toIssuePayload(patchFinding({ assetType: 'rule', target: 'api-errors', section: 'paths glob' }));
+  assert.ok(rule.title.startsWith('Rule drift:'), rule.title);
+
+  const claudeMd = toIssuePayload(patchFinding({ assetType: 'claude-md', target: 'CLAUDE', section: 'Conventions', category: 'best-practice' }));
+  assert.ok(claudeMd.title.startsWith('CLAUDE.md best-practice:'), claudeMd.title);
 });
