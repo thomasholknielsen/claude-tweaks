@@ -55,14 +55,12 @@ Synthesize Phase 2 findings into a structured profile:
 {Prioritized list — see Phase 4}
 ```
 
-Present as numbered options:
+Call `AskUserQuestion`:
 
-```
-Does this profile look accurate?
-1. Looks good — proceed to skill generation
-2. Needs corrections — I'll tell you what to fix
-3. Missing context — let me add team conventions you can't see in the code
-```
+- `question`: `"Does this profile look accurate?"`, `header`: `"Profile review"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Looks good"`, `description`: `"Proceed to skill generation"`
+- Option 2 — `label`: `"Needs corrections"`, `description`: `"I'll tell you what to fix"`
+- Option 3 — `label`: `"Missing context"`, `description`: `"Let me add team conventions you can't see in the code"`
 
 Also ask: **"Are there team conventions or preferences that aren't visible in the code?"** (e.g., PR review process, deploy cadence, on-call expectations, style preferences debated but never codified)
 
@@ -94,7 +92,14 @@ CLAUDE.md sections required by the current claude-tweaks contract that are missi
 | `## Auto-mode policy` block (7 levers) | v4.6+ | `claude-md-template.md` Auto-mode policy block |
 | Pipeline run directory reference | v4.6+ | `claude-md-template.md` Pipeline section (sentence) |
 
-Present as batch — `1. Apply all contract patches  2. Choose per-item  3. Skip` — since patch bodies are template-sourced.
+Call `AskUserQuestion`:
+
+- `question`: `"How do you want to handle the Contract Drift patches?"`, `header`: `"Contract drift"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Apply all"`, `description`: `"Apply all contract patches"`
+- Option 2 — `label`: `"Choose per-item"`, `description`: `"Tell me which patches to apply"`
+- Option 3 — `label`: `"Skip"`, `description`: `"Don't apply contract patches"`
+
+Patch bodies are template-sourced.
 
 **Sequencing:** Present Contract Drift batch first; after resolution, present Stale/Drifted/Gaps batch. Per CLAUDE.md interaction patterns, never present more than one batch decision table per message.
 
@@ -135,7 +140,12 @@ Patterns found in the codebase with no corresponding config:
 | ... | ... |
 ```
 
-Ask: **"Here's what I found. Which items should I fix? All stale + drifted? Specific ones?"**
+Call `AskUserQuestion`. This site has no existing enumerated options to port — a genuine new-but-consistent option set matching the sibling Contract Drift decision's "Apply all / per-item override / Skip" vocabulary above, not a straight reformat:
+
+- `question`: `"Here's what I found. Which items should I fix?"`, `header`: `"Stale / drifted / gaps"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Apply all recommended fixes (Recommended)"`, `description`: `"Fix all stale and drifted items"`
+- Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which items to fix"`
+- Option 3 — `label`: `"Skip — review later"`, `description`: `"Leave these for a future /init update run"`
 
 Wait for confirmation before proceeding.
 
@@ -166,12 +176,10 @@ Use this template when presenting scored skill candidates (see `phase-4-scoring.
 - `/claude-tweaks:review` — validates implementation quality against project conventions
 ```
 
-Present as numbered options:
+Call `AskUserQuestion`:
 
-```
-Which skills should I generate?
-1. All Priority 1 skills **(Recommended)**
-2. All Priority 1 + Priority 2
-3. Let me pick specific ones (list the numbers)
-4. None for now — I'll generate them later
-```
+- `question`: `"Which skills should I generate?"`, `header`: `"Skill manifest"`, `multiSelect`: `false`
+- Option 1 — `label`: `"All Priority 1 (Recommended)"`, `description`: `"Generate all Priority 1 skills"`
+- Option 2 — `label`: `"Priority 1 + 2"`, `description`: `"Generate all Priority 1 and Priority 2 skills"`
+- Option 3 — `label`: `"Pick specific ones"`, `description`: `"List the skill names to generate"`
+- Option 4 — `label`: `"None for now"`, `description`: `"I'll generate them later"`

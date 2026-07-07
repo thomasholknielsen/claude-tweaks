@@ -2,7 +2,7 @@
 name: claude-tweaks:capture
 description: Use when capturing ideas that need specification later — brain dumps, half-formed features, things to not forget
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
+> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 
 # Capture — Quickly note an idea for later specification
@@ -97,17 +97,15 @@ In auto mode, apply the silences-table row for /capture from `_shared/auto-mode-
 AUTO {time} — Routing: defaulted to inbox (no --route provided). Reversibility: high (entry stays in INBOX; user can re-route via /tidy at any time).
 ```
 
-In interactive mode (or when explicitly opted in), present:
+In interactive mode (or when explicitly opted in), present "Added to INBOX: '{item title}'" and call `AskUserQuestion`:
 
-```
-Added to INBOX: "{item title}"
+- `question`: `"What should happen with this?"`, `header`: `"Route idea"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Challenge first"`, `description`: `"Run /claude-tweaks:challenge to stress-test assumptions, then /superpowers:brainstorming, then /claude-tweaks:specify"`
+- Option 2 — `label`: `"Brainstorm directly"`, `description`: `"Run /superpowers:brainstorming to explore the idea now, then /claude-tweaks:specify"`
+- Option 3 — `label`: `"Keep in INBOX"`, `description`: `"Not ready yet, will be reviewed during /claude-tweaks:tidy"`
+- Option 4 (conditional) — `label`: `"Merge into spec {N}"`, `description`: `"This belongs in an existing spec"`
 
-What should happen with this?
-1. Challenge first — Run /claude-tweaks:challenge to stress-test assumptions, then /superpowers:brainstorming, then /claude-tweaks:specify
-2. Brainstorm directly — Run /superpowers:brainstorming to explore the idea now, then /claude-tweaks:specify
-3. Keep in INBOX — Not ready yet, will be reviewed during /claude-tweaks:tidy
-4. Merge into spec {N} — This belongs in an existing spec (if a related spec is obvious)
-```
+The call has 4 options only when Option 4 is visible; otherwise build it with the first 3 options only — never include Option 4 with a placeholder value.
 
 > **Option 4 visibility:** Only show option 4 when a spec name in `specs/` matches the topic keywords from the INBOX item. Without a candidate match, option 4 is omitted entirely — manual disambiguation against an unspecified spec number is worse than no option at all.
 
@@ -130,12 +128,13 @@ Periodically (or when inbox gets long), use `/claude-tweaks:tidy` to batch-revie
 
 ## Next Actions
 
-When invoked by a parent skill, omit this block — the parent owns the handoff. When invoked directly by a user:
+When invoked by a parent skill, omit this block — the parent owns the handoff. When invoked directly by a user, call `AskUserQuestion`:
 
-1. `/claude-tweaks:capture {next idea}` — capture another idea while you're in brainstorming flow **(Recommended)**
-2. `/claude-tweaks:tidy` — review and triage INBOX (promote, merge, or drop stale items)
-3. `/claude-tweaks:specify "{title}"` — promote this idea straight to a spec (uses the entry's title — INBOX entries are addressed by title, not numeric index)
-4. `/claude-tweaks:challenge "{title}"` — debias and stress-test assumptions before specifying
+- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Capture another idea (Recommended)"`, `description`: `"/claude-tweaks:capture {next idea} — capture another idea while you're in brainstorming flow"`
+- Option 2 — `label`: `"Tidy backlog"`, `description`: `"/claude-tweaks:tidy — review and triage INBOX (promote, merge, or drop stale items)"`
+- Option 3 — `label`: `"Specify"`, `description`: `"/claude-tweaks:specify \"{title}\" — promote this idea straight to a spec (uses the entry's title — INBOX entries are addressed by title, not numeric index)"`
+- Option 4 — `label`: `"Challenge"`, `description`: `"/claude-tweaks:challenge \"{title}\" — debias and stress-test assumptions before specifying"`
 
 ## Component-Skill Contract
 

@@ -2,7 +2,7 @@
 name: claude-tweaks:challenge
 description: Use when you need to challenge assumptions and remove bias from a problem statement before brainstorming. Takes an INBOX item or topic and produces a debiased problem framing.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
+> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 
 # Challenge — Cognitive Debiasing Partner
@@ -257,11 +257,12 @@ Look at the saved brief with fresh eyes. Fix issues inline — no subagent, no s
 
 ## Next Actions
 
-After saving the brief, hand off to brainstorming. If the user wants to adjust the reframing or re-examine from a different lens, they can say so — otherwise, proceed.
+After saving the brief, hand off to brainstorming. If the user wants to adjust the reframing or re-examine from a different lens, they can say so — otherwise, proceed. Call `AskUserQuestion`:
 
-1. `/superpowers:brainstorming` — explore solutions for the reframed problem **(Recommended)** — after brainstorm produces the design doc, run `/claude-tweaks:specify` next (not `/superpowers:writing-plans` — specify handles decomposition into agent-sized specs before planning)
-2. Re-examine — revisit a specific lens or adjust the reframing
-3. Save and resume later — keep the brief on disk; pick up at brainstorming when ready
+- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Brainstorm (Recommended)"`, `description`: `"/superpowers:brainstorming — explore solutions for the reframed problem. After brainstorm produces the design doc, run /claude-tweaks:specify next (not /superpowers:writing-plans — specify handles decomposition into agent-sized specs before planning)"`
+- Option 2 — `label`: `"Re-examine"`, `description`: `"Revisit a specific lens or adjust the reframing"`
+- Option 3 — `label`: `"Save and resume later"`, `description`: `"Keep the brief on disk; pick up at brainstorming when ready"`
 
 ## Component-Skill Contract
 

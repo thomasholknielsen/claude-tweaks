@@ -210,10 +210,13 @@ Init is about fast-start — get the registry wired up and move on. Doc content 
    | 3 | docs/api.md | Exists | Missing 5 endpoints | `src/routes/**` | Register |
    | 4 | CONTRIBUTING.md | Exists | Accurate | — | Register |
    | 5 | docs/getting-started.md | Missing | — | `Dockerfile`, `.env*` | — |
-
-   1. Apply all **(Recommended)**
-   2. Override specific items
    ```
+
+   Then call `AskUserQuestion`:
+
+   - `question`: `"How do you want to handle these doc registry entries?"`, `header`: `"Doc registry"`, `multiSelect`: `false`
+   - Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Register all doc entries as shown"`
+   - Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which #s to change"`
 
    All existing docs are registered as-is — init does not modify them. The Assessment column captures findings for the INBOX items in step 8.
 

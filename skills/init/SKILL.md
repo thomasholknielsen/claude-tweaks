@@ -2,7 +2,7 @@
 name: claude-tweaks:init
 description: Use when initializing the workflow system for a project — bootstraps structure, analyzes the codebase, generates CLAUDE.md with adaptive philosophy, skills, and rules. Re-run to find drift, gaps, and stale configuration.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
+> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 
 # Init — Project Bootstrap + Intelligent Configuration
@@ -127,24 +127,22 @@ After Phase 0 completes, present the scope selection — unless `$ARGUMENTS` alr
 
 **Not silenced by `auto`.** The scope-selection gate is on the "What `auto` does NOT silence" list in `_shared/auto-mode-contract.md` — it is a project-shape governance decision that requires explicit user input regardless of `auto` state. The prompt below always renders unless `$ARGUMENTS` already specified a scope.
 
-```
-Bootstrap complete. How much setup do you want? (See "Phases at a Glance" above for the full table; Phase 8 is auto-marked "Skip — no UI detected" when reconnaissance finds no user-facing surface.)
+Call `AskUserQuestion` (see "Phases at a Glance" above for the full table; Phase 8 is auto-marked "Skip — no UI detected" when reconnaissance finds no user-facing surface):
 
-1. Auto — run all included phases without stopping **(Recommended)**
-2. Interactive — pause for confirmation between phases
-3. Essentials — reconnaissance + CLAUDE.md only (phases 2, 3, 5)
-4. Done — just needed the bootstrap structure
-```
+- `question`: `"Bootstrap complete. How much setup do you want?"`, `header`: `"Setup scope"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Auto (Recommended)"`, `description`: `"Run all included phases without stopping"`
+- Option 2 — `label`: `"Interactive"`, `description`: `"Pause for confirmation between phases"`
+- Option 3 — `label`: `"Essentials"`, `description`: `"Reconnaissance + CLAUDE.md only (phases 2, 3, 5)"`
+- Option 4 — `label`: `"Done"`, `description`: `"Just needed the bootstrap structure"`
 
 **Option 1 (Auto):** Run all included phases end-to-end. Phase 3 auto-confirms classification when detection confidence is `high` and signals are consistent (otherwise presents the confirmation gate as a KEPT-PROMPT). Phase 4 still presents the skill selection (governance decision — never silenceable). Phase 9 still presents the final summary for confirmation (governance decision). All other phases run without pausing.
 
-**Option 2 (Interactive):** After each phase completes, present its output and ask:
-```
-Phase {N} complete. Continue to Phase {N+1} ({description})?
-1. Continue **(Recommended)**
-2. Skip Phase {N+1} — move to {N+2}
-3. Done — stop here
-```
+**Option 2 (Interactive):** After each phase completes, present its output, then call `AskUserQuestion`. This is a template — re-issue it once per phase (not a single static site), substituting `{N}`, `{N+1}`, `{description}`, and `{N+2}` each time:
+
+- `question`: `"Phase {N} complete. Continue to Phase {N+1} ({description})?"`, `header`: `"Phase gate"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Continue (Recommended)"`, `description`: `"Proceed to Phase {N+1} ({description})"`
+- Option 2 — `label`: `"Skip Phase {N+1}"`, `description`: `"Move to Phase {N+2}"`
+- Option 3 — `label`: `"Done"`, `description`: `"Stop here"`
 
 **Option 3 (Essentials):** Runs phases 2, 3, 5 only. Produces CLAUDE.md with proper philosophy and Don'ts. Defers skills, rules, journeys, and doc registry for later (suggest re-running `/init` or using goal-based arguments).
 
@@ -371,16 +369,24 @@ Execute only after user confirmation.
 
 ## Next Actions
 
-Pick the recommended action based on which signals fired during this run. Resolve signals top-to-bottom; the first matching row is the recommendation.
+Resolve the recommended action from the signals that fired during this run. This lookup table is the assistant's own resolution logic — it stays internal and is never itself shown to the user or converted into an `AskUserQuestion` option. Resolve signals top-to-bottom; the first matching row is the recommendation. The signal rows are not exhaustive over every possible post-init state (e.g. Update Mode completing normally with zero drift and no INBOX writes matches none of them) — when no signal row matches, use the Fallback row so there is always a defined recommendation.
 
 | Signal | Recommended Next Action |
 |--------|------------------------|
-| Update Mode ran AND total drift count > 0 | `/claude-tweaks:tidy` — clean up drifted/stale config and INBOX items before resuming feature work **(Recommended)** |
-| INBOX has items written this run (deferred skills, pain points, doc work, skeleton enrichment) | `/claude-tweaks:tidy` — triage what /init just captured **(Recommended)** |
-| Initial Mode ran AND INBOX is empty | `/claude-tweaks:capture {idea}` — capture the first idea or feature into INBOX for triage **(Recommended)** |
-| Everything is clean (Update Mode early-exit OR Initial Mode with nothing routed to INBOX) | `/claude-tweaks:help` — see the full lifecycle overview and current pipeline status **(Recommended)** |
-| Always (any state) | `/claude-tweaks:specify {first feature topic}` — jump straight to specifying the first lifecycle feature |
-| Always (any state) | `/claude-tweaks:tidy` — review INBOX and DEFERRED items |
+| Update Mode ran AND total drift count > 0 | `/claude-tweaks:tidy` — clean up drifted/stale config and INBOX items before resuming feature work |
+| INBOX has items written this run (deferred skills, pain points, doc work, skeleton enrichment) | `/claude-tweaks:tidy` — triage what /init just captured |
+| Initial Mode ran AND INBOX is empty | `/claude-tweaks:capture {idea}` — capture the first idea or feature into INBOX for triage |
+| Everything is clean (Update Mode early-exit OR Initial Mode with nothing routed to INBOX) | `/claude-tweaks:help` — see the full lifecycle overview and current pipeline status |
+| Fallback (no row above matches) | `/claude-tweaks:help` — see the full lifecycle overview and current pipeline status |
+
+Once resolved to a single recommended row, call `AskUserQuestion` with exactly 3 options — the resolved recommendation, plus the two "Always" actions below:
+
+- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
+- Option 1 — the resolved recommendation from the table above, `label`: a short one-line summary of it suffixed `(Recommended)`, `description`: the full command text from the matched row
+- Option 2 — `label`: `"Specify next feature"`, `description`: `"/claude-tweaks:specify {first feature topic} — jump straight to specifying the first lifecycle feature"`
+- Option 3 — `label`: `"Tidy backlog"`, `description`: `"/claude-tweaks:tidy — review INBOX and DEFERRED items"`
+
+If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it and Option 3 refer to the same command — collapse them into a single `(Recommended)` option rather than presenting `/claude-tweaks:tidy` twice, leaving 2 options for that call instead of 3.
 
 ## Anti-Patterns
 

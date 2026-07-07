@@ -1,7 +1,7 @@
 ---
 tier: 3
-status: not-started
-progress: 0
+status: complete
+progress: 100
 blocked-by: [5]
 surface: backend
 ---
@@ -38,18 +38,18 @@ Applies the canonical `AskUserQuestion` convention (established in Spec 05) to t
 
 ## Deliverables
 
-- [ ] Replace the Interaction style directive blockquote in `init/SKILL.md`, `capture/SKILL.md`, and `challenge/SKILL.md` (one line each) with Spec 05's canonical wording.
-- [ ] Convert `init/SKILL.md`'s "Scope Selection Gate" (lines 130-137) to one `AskUserQuestion` call: 4 options (Auto/Interactive/Essentials/Done), "Auto" labeled `(Recommended)`.
-- [ ] Convert `init/SKILL.md`'s per-phase "Continue to Phase N+1?" template (lines 141-147) to an `AskUserQuestion` call template: 3 options (Continue/Skip/Done), "Continue" labeled `(Recommended)`. Since this is a template re-rendered once per phase (not a single static site), document the conversion as a template the skill re-issues each time Option 2 (Interactive) is active.
-- [ ] Convert `init/SKILL.md`'s `## Next Actions` (lines 372-383) to one `AskUserQuestion` call: resolve the signal-to-recommendation table to find the one matching recommended row, then present exactly 3 options — the resolved recommendation (labeled `(Recommended)`), `/claude-tweaks:specify {first feature topic}`, and `/claude-tweaks:tidy` (the two "Always" rows). The four signal rows are not exhaustive over every possible post-init state (e.g. Update Mode completing normally with zero drift and no INBOX writes matches none of them) — add a fallback row, `/claude-tweaks:help` labeled `(Recommended)`, used whenever no signal row matches, so the call always has a defined recommended option.
-- [ ] Convert `init/docs-structure.md`'s "Present batch" (lines 199-216) per Pattern B: the Doc/Status/Assessment/Auto-detect/Action table stays as markdown; the terminal decision (`Apply all` / `Override specific items`) becomes one `AskUserQuestion` call with those 2 options.
-- [ ] Convert `init/profile-templates.md`'s "Does this profile look accurate?" (lines 58-65) to one `AskUserQuestion` call: 3 options (Looks good/Needs corrections/Missing context).
-- [ ] Convert `init/profile-templates.md`'s Contract Drift terminal decision (lines 96-97) to one `AskUserQuestion` call: 3 options (Apply all contract patches/Choose per-item/Skip).
-- [ ] Convert `init/profile-templates.md`'s Stale/Drifted/Gaps prompt (line 138) from its current open-ended free-text question to an explicit `AskUserQuestion` call with 3 options: `Apply all recommended fixes **(Recommended)**`, `Override specific items`, `Skip — review later`. This is a genuine behavior addition (the template currently has no enumerated options here) — not a straight port, since there's nothing to port from; document this explicitly as a new-but-consistent option set matching the sibling "Apply all / override" pattern used two sections earlier in the same file.
-- [ ] Convert `init/profile-templates.md`'s Phase 4 Skill Manifest prompt (lines 169-177) to one `AskUserQuestion` call: 4 options (All P1/All P1+P2/pick specific/None).
-- [ ] Convert `capture/SKILL.md`'s Routing prompt (lines 102-110) to one `AskUserQuestion` call: 4 options, with option 4 ("Merge into spec {N}") included only when the Component-Skill Contract's visibility condition (line 112: a matching spec exists) is true — when false, the call has 3 options, not 4 with a placeholder.
-- [ ] Convert `capture/SKILL.md`'s `## Next Actions` (lines 131-138) to one `AskUserQuestion` call: 4 options, "capture another idea" labeled `(Recommended)`. Preserve the existing Component-Skill Contract gating (omit entirely, i.e. skip the call, when `$PIPELINE_RUN_DIR` is set).
-- [ ] Convert `challenge/SKILL.md`'s `## Next Actions` (lines 258-264) to one `AskUserQuestion` call: 3 options, "brainstorming" labeled `(Recommended)`. Preserve the same Component-Skill Contract gating.
+- [x] Replace the Interaction style directive blockquote in `init/SKILL.md`, `capture/SKILL.md`, and `challenge/SKILL.md` (one line each) with Spec 05's canonical wording.
+- [x] Convert `init/SKILL.md`'s "Scope Selection Gate" (lines 130-137) to one `AskUserQuestion` call: 4 options (Auto/Interactive/Essentials/Done), "Auto" labeled `(Recommended)`.
+- [x] Convert `init/SKILL.md`'s per-phase "Continue to Phase N+1?" template (lines 141-147) to an `AskUserQuestion` call template: 3 options (Continue/Skip/Done), "Continue" labeled `(Recommended)`. Since this is a template re-rendered once per phase (not a single static site), document the conversion as a template the skill re-issues each time Option 2 (Interactive) is active.
+- [x] Convert `init/SKILL.md`'s `## Next Actions` (lines 372-383) to one `AskUserQuestion` call: resolve the signal-to-recommendation table to find the one matching recommended row, then present exactly 3 options — the resolved recommendation (labeled `(Recommended)`), `/claude-tweaks:specify {first feature topic}`, and `/claude-tweaks:tidy` (the two "Always" rows). The four signal rows are not exhaustive over every possible post-init state (e.g. Update Mode completing normally with zero drift and no INBOX writes matches none of them) — add a fallback row, `/claude-tweaks:help` labeled `(Recommended)`, used whenever no signal row matches, so the call always has a defined recommended option.
+- [x] Convert `init/docs-structure.md`'s "Present batch" (lines 199-216) per Pattern B: the Doc/Status/Assessment/Auto-detect/Action table stays as markdown; the terminal decision (`Apply all` / `Override specific items`) becomes one `AskUserQuestion` call with those 2 options.
+- [x] Convert `init/profile-templates.md`'s "Does this profile look accurate?" (lines 58-65) to one `AskUserQuestion` call: 3 options (Looks good/Needs corrections/Missing context).
+- [x] Convert `init/profile-templates.md`'s Contract Drift terminal decision (lines 96-97) to one `AskUserQuestion` call: 3 options (Apply all contract patches/Choose per-item/Skip).
+- [x] Convert `init/profile-templates.md`'s Stale/Drifted/Gaps prompt (line 138) from its current open-ended free-text question to an explicit `AskUserQuestion` call with 3 options: `Apply all recommended fixes **(Recommended)**`, `Override specific items`, `Skip — review later`. This is a genuine behavior addition (the template currently has no enumerated options here) — not a straight port, since there's nothing to port from; document this explicitly as a new-but-consistent option set matching the sibling "Apply all / override" pattern used two sections earlier in the same file.
+- [x] Convert `init/profile-templates.md`'s Phase 4 Skill Manifest prompt (lines 169-177) to one `AskUserQuestion` call: 4 options (All P1/All P1+P2/pick specific/None).
+- [x] Convert `capture/SKILL.md`'s Routing prompt (lines 102-110) to one `AskUserQuestion` call: 4 options, with option 4 ("Merge into spec {N}") included only when the Component-Skill Contract's visibility condition (line 112: a matching spec exists) is true — when false, the call has 3 options, not 4 with a placeholder.
+- [x] Convert `capture/SKILL.md`'s `## Next Actions` (lines 131-138) to one `AskUserQuestion` call: 4 options, "capture another idea" labeled `(Recommended)`. Preserve the existing Component-Skill Contract gating (omit entirely, i.e. skip the call, when `$PIPELINE_RUN_DIR` is set).
+- [x] Convert `challenge/SKILL.md`'s `## Next Actions` (lines 258-264) to one `AskUserQuestion` call: 3 options, "brainstorming" labeled `(Recommended)`. Preserve the same Component-Skill Contract gating.
 
 ## Acceptance Criteria
 
