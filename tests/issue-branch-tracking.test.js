@@ -60,3 +60,22 @@ test('generateWorkflowYaml output has no tab characters and starts with the work
   assert.ok(yaml.startsWith('name: Track issue fixes across branches'));
   assert.ok(!yaml.includes('\t'), 'YAML must not contain tab characters');
 });
+
+test('generateWorkflowYaml guards both extract-step ISSUES=$(...) pipelines with || true so pipefail cannot fail the step on a no-match push', () => {
+  const yaml = generateWorkflowYaml();
+  const guardedNeedle = "tr '\\n' ' ' || true)";
+  const guardedOccurrences = yaml.split(guardedNeedle).length - 1;
+  assert.strictEqual(
+    guardedOccurrences,
+    2,
+    'both extract-step ISSUES=$(...) lines must end in `|| true)` immediately after tr \'\\n\' \' \''
+  );
+
+  const unguardedNeedle = "tr '\\n' ' ')";
+  const unguardedOccurrences = yaml.split(unguardedNeedle).length - 1;
+  assert.strictEqual(
+    unguardedOccurrences,
+    0,
+    'no extract-step ISSUES=$(...) line may be missing the || true guard (would fail the job under pipefail on a no-match push)'
+  );
+});
