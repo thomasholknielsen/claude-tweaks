@@ -210,6 +210,15 @@ Read `/tmp/code-health-payloads.json`. The command:
 
 **Step 9 — FILE / REOPEN ISSUES.**
 
+Before filing, ensure the criterion label carries a real description rather than the blank one `gh issue create` would auto-vivify on first use. For each payload's criterion, check whether the label already exists and create it with a description if not:
+
+```bash
+LABEL="code-health:<criterion>"
+DESCRIPTION="<the criterion's description field from bin/lib/code-health/criteria.js — read it via: node -e \"const {getCriterion}=require('\${CLAUDE_PLUGIN_ROOT}/bin/lib/code-health/criteria.js'); console.log(getCriterion('<criterion>').description)\">"
+gh label list --search "$LABEL" --json name -q '.[].name' | grep -qx "$LABEL" || \
+  gh label create "$LABEL" --description "$DESCRIPTION"
+```
+
 For each payload in `/tmp/code-health-payloads.json`, call `gh issue create`. The engine is emit-only; filing is always done by the skill:
 
 ```bash
@@ -217,7 +226,8 @@ gh issue create \
   --title "<payload.title>" \
   --body "<payload.body>" \
   --label code-health \
-  --label "code-health:<severity>" \
+  --label "code-health:risk-<tier>" \
+  --label "code-health:effort-<tier>" \
   --label "code-health:<criterion>"
 ```
 

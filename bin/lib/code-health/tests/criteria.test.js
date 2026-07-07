@@ -166,3 +166,12 @@ test('security-logic universal criterion has confidenceFloor high', () => {
   const c = getCriterion('security-logic');
   assert.strictEqual(c.confidenceFloor, 'high');
 });
+
+test('every criterion has a non-empty description', () => {
+  for (const c of CRITERIA) {
+    assert.ok(
+      typeof c.description === 'string' && c.description.trim().length > 0,
+      `criterion ${c.id} is missing a description`,
+    );
+  }
+});
