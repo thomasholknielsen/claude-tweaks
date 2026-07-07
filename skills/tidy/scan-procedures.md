@@ -161,7 +161,7 @@ GitHub mutations recommended here (Close (GitHub), Resolve thread) execute only 
 
 ### Step 4.8a: Code-health severity-policy reconciliation (one-time)
 
-Code-health's default filing threshold changed to high/critical only (`/claude-tweaks:code-health`'s `--min-severity`, default `high`) — issues filed before that change may still carry `code-health:low` or `code-health:medium` from when everything filed regardless of severity. This is a one-time backstop, not a recurring behavior: once an issue is relabelled `code-health:remembered`, it's excluded from this check on every future `/tidy` run (see the query below), so this step is self-limiting and naturally becomes a no-op once the existing backlog is caught up.
+Code-health's default filing threshold changed to high-risk only (`/claude-tweaks:code-health`'s `--min-risk`, default `high`) — issues filed before that change may still carry `code-health:low` or `code-health:medium` from when everything filed regardless of severity. This is a one-time backstop, not a recurring behavior: once an issue is relabelled `code-health:remembered`, it's excluded from this check on every future `/tidy` run (see the query below), so this step is self-limiting and naturally becomes a no-op once the existing backlog is caught up.
 
 Scoped strictly to issues carrying the `code-health` label — this does not touch harness-health-labelled issues or any other tracker content.
 
@@ -172,7 +172,7 @@ gh issue list --label code-health --state open --json number,title,labels \
 
 For each issue this returns:
 - Add the `code-health:remembered` label.
-- Comment: `Relabelled to code-health:remembered — code-health's default filing threshold is now high/critical only; this issue predates that change. Still valid work, just not held to the same urgency as a fresh high/critical finding.`
+- Comment: `Relabelled to code-health:remembered — code-health's default filing threshold is now high-risk only; this issue predates that change. Still valid work, just not held to the same urgency as a fresh high-risk finding.`
 
 This mutation follows the same staged/batch-approval path as the rest of Step 4.8 — it is proposed here, not applied until Step 6 batch approval, and is staged at every aggressiveness level in auto mode.
 
