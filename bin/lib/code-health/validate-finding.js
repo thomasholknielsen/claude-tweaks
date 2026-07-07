@@ -5,7 +5,7 @@
 // Zero deps; accumulates all errors in one pass so the caller logs one line per drop.
 
 const SEVERITY_VALUES = new Set(['low', 'medium', 'high', 'critical']);
-const CONFIDENCE_VALUES = new Set(['high', 'med', 'low']);
+const CONFIDENCE_VALUES = new Set(['high', 'medium', 'low']);
 const CATEGORY_VALUES = new Set([
   'Architecture', 'Security', 'Convention', 'Performance',
   'Error handling', 'Test quality', 'Coverage', 'UX', 'Docs',

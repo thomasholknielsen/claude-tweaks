@@ -50,7 +50,7 @@ test('validateFinding: bad severity enum fails', () => {
 });
 
 test('validateFinding: bad confidence enum fails', () => {
-  const result = validateFinding(validFinding({ confidence: 'medium' }));
+  const result = validateFinding(validFinding({ confidence: 'med' }));
   assert.strictEqual(result.ok, false);
   assert.ok(result.errors.some((e) => e.startsWith('confidence')));
 });
@@ -72,7 +72,7 @@ test('validateFinding: files must be a non-empty array', () => {
 });
 
 test('validateFinding: accumulates all errors in one pass', () => {
-  const result = validateFinding({ severity: 'urgent', confidence: 'medium' });
+  const result = validateFinding({ severity: 'urgent', confidence: 'med' });
   assert.strictEqual(result.ok, false);
   // Many required-string errors + two enum errors; should be well over 5.
   assert.ok(result.errors.length >= 5, `got ${result.errors.length}`);
@@ -138,13 +138,13 @@ test('validateFindingV2: bad severity enum fails', () => {
 });
 
 test('validateFindingV2: bad confidence enum fails', () => {
-  const result = validateFindingV2(validV2Finding({ confidence: 'medium' }));
+  const result = validateFindingV2(validV2Finding({ confidence: 'med' }));
   assert.strictEqual(result.ok, false);
   assert.ok(result.errors.some((e) => e.startsWith('confidence')));
 });
 
 test('validateFindingV2: accumulates all errors in one pass', () => {
-  const result = validateFindingV2({ severity: 'urgent', confidence: 'medium' });
+  const result = validateFindingV2({ severity: 'urgent', confidence: 'med' });
   assert.strictEqual(result.ok, false);
   assert.ok(result.errors.length >= 5, `got ${result.errors.length}: ${result.errors.join('; ')}`);
 });

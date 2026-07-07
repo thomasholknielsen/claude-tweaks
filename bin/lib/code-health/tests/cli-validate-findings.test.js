@@ -145,14 +145,14 @@ test('applyConfidenceFloor passes a high-confidence finding for a high-floor cri
   assert.strictEqual(result.pass, true);
 });
 
-test('applyConfidenceFloor drops a med-confidence finding for a high-floor criterion', () => {
-  const result = applyConfidenceFloor({ confidence: 'med' }, 'high');
+test('applyConfidenceFloor drops a medium-confidence finding for a high-floor criterion', () => {
+  const result = applyConfidenceFloor({ confidence: 'medium' }, 'high');
   assert.strictEqual(result.pass, false);
   assert.ok(result.reason.includes('below floor'));
 });
 
-test('applyConfidenceFloor drops a low-confidence finding for a med-floor criterion', () => {
-  const result = applyConfidenceFloor({ confidence: 'low' }, 'med');
+test('applyConfidenceFloor drops a low-confidence finding for a medium-floor criterion', () => {
+  const result = applyConfidenceFloor({ confidence: 'low' }, 'medium');
   assert.strictEqual(result.pass, false);
 });
 

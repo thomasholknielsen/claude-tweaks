@@ -16,7 +16,7 @@ test('every criterion has id, appliesTo, confidenceFloor', () => {
       `criterion ${c.id} has invalid appliesTo: ${JSON.stringify(c.appliesTo)}`,
     );
     assert.ok(
-      c.confidenceFloor === 'high' || c.confidenceFloor === 'med' || c.confidenceFloor === 'low',
+      c.confidenceFloor === 'high' || c.confidenceFloor === 'medium' || c.confidenceFloor === 'low',
       `criterion ${c.id} has invalid confidenceFloor: ${c.confidenceFloor}`,
     );
   }
@@ -150,8 +150,8 @@ test('each domain criterion has a confidenceFloor', () => {
   for (const id of domainIds) {
     const c = getCriterion(id);
     assert.ok(c, `getCriterion('${id}') must return a criterion`);
-    assert.ok(['low', 'med', 'high'].includes(c.confidenceFloor),
-      `${id}.confidenceFloor must be 'low'|'med'|'high', got ${c.confidenceFloor}`);
+    assert.ok(['low', 'medium', 'high'].includes(c.confidenceFloor),
+      `${id}.confidenceFloor must be 'low'|'medium'|'high', got ${c.confidenceFloor}`);
   }
 });
 

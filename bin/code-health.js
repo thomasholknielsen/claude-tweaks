@@ -12,7 +12,7 @@ const { classifyArea } = require('./lib/code-health/area-type');
 const { listSlices, contentHash, selectSlice } = require('./lib/code-health/scope');
 
 // Confidence ordering for floor comparison. Higher index = higher confidence.
-const CONFIDENCE_ORDER = ['low', 'med', 'high'];
+const CONFIDENCE_ORDER = ['low', 'medium', 'high'];
 
 // Returns { pass: true } or { pass: false, reason: string }.
 function applyConfidenceFloor(finding, criterionFloor) {
