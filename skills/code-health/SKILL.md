@@ -150,6 +150,8 @@ For each finding, emit exactly this shape:
 }
 ```
 
+**Some criterion fragments (e.g. `criteria-review-quality.md`, `criteria-security-logic.md`) reference a `critical` or `info` tier inherited from `/claude-tweaks:review`'s broader 5-tier scale.** Code-health's own schema accepts only `low|medium|high` for `severity` — never emit `critical` or `info`. When a fragment's calibration language points toward `critical`, map it to `severity: high` (code-health has no higher tier); treat anything a fragment would call `info` as not worth filing at all rather than as a `low` finding.
+
 **Severity, likelihood, and effort are three separate, simpler judgments — do not conflate them:**
 
 - **`severity`** — impact *if* the pattern manifests. Unchanged meaning from before.
@@ -322,7 +324,7 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | Calling the network from `code-health.js` or `criteria.js` | The engine is emit-only and unit-testable. The skill hands payloads to `gh`; the engine never does. |
 | Treating the cache as durable state | The cache is a rebuildable optimization. GitHub issue state is the source of truth for cross-run memory. |
 | Filing a finding with `confidence: 'low'` for a noisy criterion | Noisy criteria (`security-logic`, `config-secrets`, `input-validation`, `resilience`) require `confidence: 'high'` to file. The confidence floor is enforced by the skill judgment, not the engine — the engine validates the shape, not the policy. |
-| Skipping the verify gate before filing | Files plausible-but-wrong findings. Every surviving finding must pass all three verify questions — real, actionable, reproducible — before reaching dedup. |
+| Skipping the verify gate before filing | Files plausible-but-wrong findings. Every surviving finding must pass all five verify questions — real, actionable, reproducible, likelihood justified, effort consistent — before reaching dedup. |
 | Filing `gh issue create` directly off a `--dry-run` payload without a matching non-`--dry-run` `validate-findings` call | Breaks rotation state silently — cursors and the run-log never persist, so `next-slice` re-selects the same slice next time. Always follow a `--dry-run` preview with the real call before filing. |
 | Splitting one recurring root cause into N near-duplicate issues instead of bundling | Floods the tracker with issues that are really one fix applied at N call sites. Use `relatedAnchors` to cover every occurrence in a single finding instead. |
 
