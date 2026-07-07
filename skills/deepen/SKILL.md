@@ -2,7 +2,7 @@
 name: claude-tweaks:deepen
 description: Use when you want an architectural-depth pass on recently changed code — finds shallow modules (interface nearly as complex as implementation) and proposes deepening or collapsing them, ranked by leverage. Catches architecture entropy that line-level simplification misses. Works standalone or surfaced as a Next Action by /claude-tweaks:review and /claude-tweaks:reflect.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
+> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 
 # Deepen — Architectural Depth Pass
@@ -137,13 +137,12 @@ If no changes were made: "No depth changes — abstractions reviewed are earning
 
 ## Next Actions
 
-When invoked directly (not by a parent skill), end with:
+When invoked directly (not by a parent skill), call `AskUserQuestion`:
 
-```
-1. `/claude-tweaks:test` — verify the refactor end-to-end **(Recommended)**
-2. `/claude-tweaks:review {spec}` — re-review the changed architecture
-3. `/claude-tweaks:simplify` — line-level cleanup on the refactored files
-```
+- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Verify refactor (Recommended)"`, `description`: `"/claude-tweaks:test — verify the refactor end-to-end"`
+- Option 2 — `label`: `"Re-review architecture"`, `description`: `"/claude-tweaks:review {spec} — re-review the changed architecture"`
+- Option 3 — `label`: `"Line-level cleanup"`, `description`: `"/claude-tweaks:simplify — line-level cleanup on the refactored files"`
 
 When invoked by a parent, omit Next Actions — the parent handles flow control.
 

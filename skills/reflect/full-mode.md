@@ -46,10 +46,13 @@ Collect all insights from the four lenses and the tradeoff review into a single 
 | 2 | {description} | Implement now -> Skill: {name} |
 | 3 | {description} | Defer — bigger, not relevant now |
 | 4 | {description} | Capture to INBOX — needs brainstorming |
-
-1. Apply all recommendations **(Recommended)**
-2. Override specific items (tell me which #s to change)
 ```
+
+The table renders as markdown, as above. Immediately below it, call `AskUserQuestion` with:
+
+- `question`: `"How do you want to handle these insights?"`, `header`: `"Insights"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Apply all recommendations"`
+- Option 2 — `label`: `"Override specific items"`, `description`: `"tell me which #s to change"`
 
 **Routing guide:**
 

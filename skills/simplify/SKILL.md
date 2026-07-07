@@ -2,7 +2,7 @@
 name: claude-tweaks:simplify
 description: Use when you want to simplify recently changed code — catches unnecessary complexity from iterative development, verbose debugging patterns, and cross-file inconsistencies. Works standalone or as a step within /claude-tweaks:build and /claude-tweaks:review.
 ---
-> **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
+> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 
 # Simplify — Code Simplification
@@ -140,12 +140,11 @@ No simplifications needed — code is already clean.
 
 ## Next Actions
 
-When invoked directly (not by a parent skill), end with:
+When invoked directly (not by a parent skill), call `AskUserQuestion`:
 
-```
-1. `/claude-tweaks:review {spec}` — code review quality gate **(Recommended)**
-2. `/claude-tweaks:test` — verify changes
-```
+- `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Full review (Recommended)"`, `description`: `"/claude-tweaks:review {spec} — code review quality gate"`
+- Option 2 — `label`: `"Verify changes"`, `description`: `"/claude-tweaks:test — verify changes"`
 
 When invoked by a parent, omit Next Actions — the parent handles flow control.
 

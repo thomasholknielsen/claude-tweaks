@@ -1,7 +1,7 @@
 ---
 tier: 3
-status: not-started
-progress: 0
+status: complete
+progress: 100
 blocked-by: [5]
 surface: backend
 ---
@@ -43,15 +43,15 @@ Propagates the `AskUserQuestion` convention established in Spec 05 into three of
 
 ## Deliverables
 
-- [ ] Replace `skills/reflect/SKILL.md` line 5's directive blockquote with Spec 05's canonical text.
-- [ ] Convert `skills/reflect/SKILL.md`'s `## Next Actions` block (lines 145-153) to instruct one `AskUserQuestion` call with the same 3 options (labels: short one-line summaries, e.g. "Full review" — not the bare skill name; descriptions: the full pre-filled commands), first option's label suffixed `(Recommended)`. This label convention matches the worked example below and Spec 05's canonical wording exactly — the two must not diverge. Preserve the Component-Skill Contract's `$PIPELINE_RUN_DIR` omission conditional unchanged.
-- [ ] Convert `skills/reflect/hindsight-mode.md`'s terminal 2-option decision (lines 43-45) to instruct one `AskUserQuestion` call with options "Apply all recommendations" (label suffixed `(Recommended)`) and "Override specific items" (description: "tell me which #s to change"). The `### Implementation Hindsight` table above it (lines 34-41) stays as markdown, unchanged. Both currently sit inside one continuous code fence (lines 33-45) — close that fence immediately after the table's last row (after line 41) and present the `AskUserQuestion` instruction as unfenced prose below it; the fence was wrapping literal template output, and the decision is now a meta-instruction to call a tool, not literal output.
-- [ ] Convert `skills/reflect/full-mode.md`'s terminal 2-option decision (lines 50-52) identically — same two options, same wording, same fence-splitting treatment (close the fence after the table's last row, instruction as unfenced prose). The `### Reflection Insights` table above it (lines 41-48) stays as markdown, unchanged. Line 74's "always present the batch table" requirement is preserved unchanged.
-- [ ] Replace `skills/simplify/SKILL.md` line 5's directive blockquote with Spec 05's canonical text.
-- [ ] Convert `skills/simplify/SKILL.md`'s `## Next Actions` block (lines 141-150) to one `AskUserQuestion` call with the same 2 options, first marked `(Recommended)`. Preserve the Component-Skill Contract's omission conditional unchanged.
-- [ ] Replace `skills/deepen/SKILL.md` line 5's directive blockquote with Spec 05's canonical text.
-- [ ] Convert `skills/deepen/SKILL.md`'s `## Next Actions` block (lines 138-146) to one `AskUserQuestion` call with the same 3 options, first marked `(Recommended)`. Preserve the Component-Skill Contract's omission + analysis-only conditional (lines 150-158) unchanged.
-- [ ] Leave `skills/deepen/SKILL.md`'s Step 3 candidate-selection prompt (lines 70-83) untouched per Non-Goals — do not attempt a partial or lossy `AskUserQuestion` conversion of this site.
+- [x] Replace `skills/reflect/SKILL.md` line 5's directive blockquote with Spec 05's canonical text.
+- [x] Convert `skills/reflect/SKILL.md`'s `## Next Actions` block (lines 145-153) to instruct one `AskUserQuestion` call with the same 3 options (labels: short one-line summaries, e.g. "Full review" — not the bare skill name; descriptions: the full pre-filled commands), first option's label suffixed `(Recommended)`. This label convention matches the worked example below and Spec 05's canonical wording exactly — the two must not diverge. Preserve the Component-Skill Contract's `$PIPELINE_RUN_DIR` omission conditional unchanged.
+- [x] Convert `skills/reflect/hindsight-mode.md`'s terminal 2-option decision (lines 43-45) to instruct one `AskUserQuestion` call with options "Apply all recommendations" (label suffixed `(Recommended)`) and "Override specific items" (description: "tell me which #s to change"). The `### Implementation Hindsight` table above it (lines 34-41) stays as markdown, unchanged. Both currently sit inside one continuous code fence (lines 33-45) — close that fence immediately after the table's last row (after line 41) and present the `AskUserQuestion` instruction as unfenced prose below it; the fence was wrapping literal template output, and the decision is now a meta-instruction to call a tool, not literal output.
+- [x] Convert `skills/reflect/full-mode.md`'s terminal 2-option decision (lines 50-52) identically — same two options, same wording, same fence-splitting treatment (close the fence after the table's last row, instruction as unfenced prose). The `### Reflection Insights` table above it (lines 41-48) stays as markdown, unchanged. Line 74's "always present the batch table" requirement is preserved unchanged.
+- [x] Replace `skills/simplify/SKILL.md` line 5's directive blockquote with Spec 05's canonical text.
+- [x] Convert `skills/simplify/SKILL.md`'s `## Next Actions` block (lines 141-150) to one `AskUserQuestion` call with the same 2 options, first marked `(Recommended)`. Preserve the Component-Skill Contract's omission conditional unchanged.
+- [x] Replace `skills/deepen/SKILL.md` line 5's directive blockquote with Spec 05's canonical text.
+- [x] Convert `skills/deepen/SKILL.md`'s `## Next Actions` block (lines 138-146) to one `AskUserQuestion` call with the same 3 options, first marked `(Recommended)`. Preserve the Component-Skill Contract's omission + analysis-only conditional (lines 150-158) unchanged.
+- [x] Leave `skills/deepen/SKILL.md`'s Step 3 candidate-selection prompt (lines 70-83) untouched per Non-Goals — do not attempt a partial or lossy `AskUserQuestion` conversion of this site.
 
 ## Acceptance Criteria
 
