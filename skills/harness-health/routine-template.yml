@@ -1,6 +1,6 @@
 template_version: 1
-routine_name: skill-health-daily
-prompt: "/claude-tweaks:skill-health"
+routine_name: harness-health-daily
+prompt: "/claude-tweaks:harness-health"
 model: claude-sonnet-5
 allowed_tools: [Bash, Read, Grep, Glob, Edit]
 mcp_connections: []
@@ -8,12 +8,13 @@ default_schedule:
   cron_expression: "0 5 * * *"
   description: "off-peak anchor, UTC — confirm against your local timezone at creation time"
 notes: >
-  Unlike recon, skill-health has a genuine stage-vs-auto-apply decision (additive +
-  high-confidence + high-reversibility patches auto-apply; everything else files as
-  an issue) — the same situation tidy is in, not recon's report-only case. A bare
-  firing has zero conversation history and no CLI arg to signal auto mode, so this
-  routine only auto-applies safely when the target project's CLAUDE.md already sets
+  Unlike recon, harness-health has a genuine stage-vs-auto-apply decision (additive +
+  high-confidence + high-reversibility patches on skills/rules auto-apply; everything
+  else, and every CLAUDE.md finding regardless of confidence, files as an issue) — the
+  same situation tidy is in, not recon's report-only case. A bare firing has zero
+  conversation history and no CLI arg to signal auto mode, so this routine only
+  auto-applies safely when the target project's CLAUDE.md already sets
   `auto-mode: default-on`; otherwise it degrades to filing everything as an issue
   instead of blocking. See skills/_shared/auto-mode-contract.md. Default budget is
-  1 skill-target per firing — see skills/skill-health/SKILL.md's Routine
+  1 target per firing — see skills/harness-health/SKILL.md's Routine
   Configuration section for tuning guidance this template doesn't restate.
