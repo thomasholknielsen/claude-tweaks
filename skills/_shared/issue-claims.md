@@ -181,10 +181,10 @@ Fail-closed on claiming; never block the session.
 
 | Skill | Role |
 |---|---|
-| `/claude-tweaks:flow` (`from-recon.md` Step 2.5) | Claims each pulled issue before spec derivation; releases on console decline; failure cards offer release |
+| `/claude-tweaks:flow` (`from-code-health.md` Step 2.5) | Claims each pulled issue before spec derivation; releases on console decline; failure cards offer release |
 | `/claude-tweaks:wrap-up` (`cleanup-procedures.md` item 8 / Section E) | Releases claims with the branch outcome as reason |
 | `/claude-tweaks:tidy` (`scan-procedures.md` Step 4.7) | Sweeps stale/orphaned claims; releases only after batch approval |
 
-**Non-consumers (deliberate):** `/recon` files issues but never works them — a concurrent-
+**Non-consumers (deliberate):** `/code-health` files issues but never works them — a concurrent-
 filing race costs at worst one duplicate issue, caught by dedup next run. Interactive
 single-spec `/build` does not claim — the user is present and collision is visible.

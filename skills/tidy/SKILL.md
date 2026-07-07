@@ -72,7 +72,7 @@ Read `scan-procedures.md` in this skill's directory for the full classification 
 | 4.5 | `git worktree list`, `git branch --list "build/*"` | `[git]` |
 | 4.6 | `docs/REGISTRY.md` | `[registry]` |
 | 4.7 | `gh api git/matching-refs/claims/` + issue comments | `[claim]` |
-| 4.8 | `gh pr list` / `gh issue list --label recon` / `gh issue list --label harness-health` per `_shared/github-pr-scan.md` (`repo-wide` scope) | `[pr]`, `[gh-issue]` |
+| 4.8 | `gh pr list` / `gh issue list --label code-health` / `gh issue list --label harness-health` per `_shared/github-pr-scan.md` (`repo-wide` scope) | `[pr]`, `[gh-issue]` |
 | 5 (sequential, after Step 2) | Specs not yet built | (sizing flags appended to `[spec]` rows) |
 | 5.5 (sequential, after Steps 2-4.8) | Recent git history of review/wrap-up commits | `[pattern]`, `[health]` |
 
@@ -270,11 +270,11 @@ This resolves the account- and project-specific values a portable template can't
 | `/claude-tweaks:build` | /claude-tweaks:tidy cleans up leftover worktrees and `build/*` branches from previous builds |
 | `/claude-tweaks:init` | /claude-tweaks:tidy Step 4.6 audits doc registry health — flags stale entries, gaps, pattern drift. Suggests `/init update` for tier drift. |
 | `/claude-tweaks:ledger` | /ledger creates the per-feature ledger files /tidy scans for stale or orphaned open items during periodic hygiene. /tidy may surface ledgers whose related spec is complete but whose items were never resolved. |
-| `/claude-tweaks:recon` | `/recon` files improvement findings as `recon`-labelled GitHub issues; `/tidy` Step 4.8 audits them — stale/superseded issues are closed (with comment) after batch approval, still-valid ones suggested for `/flow --from-recon` or captured to INBOX. |
-| `/claude-tweaks:harness-health` | `/harness-health` files skill/rule/CLAUDE.md drift findings as `harness-health`-labelled GitHub issues; `/tidy` Step 4.8 audits them alongside recon issues — stale/superseded ones closed after batch approval, still-valid ones suggested for direct application or re-judging. |
+| `/claude-tweaks:code-health` | `/code-health` files improvement findings as `code-health`-labelled GitHub issues; `/tidy` Step 4.8 audits them — stale/superseded issues are closed (with comment) after batch approval, still-valid ones suggested for `/flow --from-code-health` or captured to INBOX. |
+| `/claude-tweaks:harness-health` | `/harness-health` files skill/rule/CLAUDE.md drift findings as `harness-health`-labelled GitHub issues; `/tidy` Step 4.8 audits them alongside code-health issues — stale/superseded ones closed after batch approval, still-valid ones suggested for direct application or re-judging. |
 | `/claude-tweaks:routine` | `/routine create tidy` instantiates tidy's `routine-template.yml` into a live, scheduled cloud Routine — the mechanism behind this skill's own "Routine Configuration" section. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. The aggressiveness-routing table in Step 6 (conservative / moderate / aggressive) implements the contract's reversibility/confidence floors for tidy actions. |
 | `_shared/pipeline-run-dir.md` | Standalone-auto fallback (Step 6) creates `.claude-tweaks/pipelines/{ts}-tidy-standalone/` with `decisions.md` + `staged/` per this shared procedure. /tidy is on the standalone-auto allowlist. |
 | `_shared/subagent-output-contract.md` | Steps 1-4.8 dispatch parallel Task agents per this contract — minimal input, status line first (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`), Template A inlined verbatim. Model tier: Fast. |
 | `_shared/issue-claims.md` | Step 4.7 sweeps `refs/claims/*` for stale and orphaned claims per this contract — release only after batch approval, never autonomous. |
-| `_shared/github-pr-scan.md` | Step 4.8 sweeps open PRs, recon issues, and harness-health issues per this shared procedure (`repo-wide` scope) — detection ladder, staleness thresholds, findings table, severity mapping |
+| `_shared/github-pr-scan.md` | Step 4.8 sweeps open PRs, code-health issues, and harness-health issues per this shared procedure (`repo-wide` scope) — detection ladder, staleness thresholds, findings table, severity mapping |

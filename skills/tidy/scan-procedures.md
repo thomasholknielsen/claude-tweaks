@@ -152,31 +152,31 @@ batch approval — breaking a lock is never autonomous in /tidy.
 
 Scan per `_shared/github-pr-scan.md`, **`repo-wide`** scope. The dispatcher inlines that file's Detection Ladder, `repo-wide` scope section (including its findings table), and Output Contract into this agent's prompt. The detection ladder makes this fail-open — skip with a single info row when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
 
-The `repo-wide` findings table maps each finding to a recommendation from the Action Vocabulary: stale/superseded open PRs → Close (GitHub); threads addressed by later commits → Resolve thread; unaddressed threads and still-valid recon or harness-health issues → Capture or a suggested local command; merged PRs with surviving local branches → corroborates Step 4.5 `[git]` rows (the dispatcher merges overlapping recommendations at assembly).
+The `repo-wide` findings table maps each finding to a recommendation from the Action Vocabulary: stale/superseded open PRs → Close (GitHub); threads addressed by later commits → Resolve thread; unaddressed threads and still-valid code-health or harness-health issues → Capture or a suggested local command; merged PRs with surviving local branches → corroborates Step 4.5 `[git]` rows (the dispatcher merges overlapping recommendations at assembly).
 
 GitHub mutations recommended here (Close (GitHub), Resolve thread) execute only after Step 6 batch approval and are staged at every aggressiveness level in auto mode — outward-facing actions are never autonomous in /tidy.
 
 → Collect each as: `[pr] PR #{n}: {title} — {issue} — {recommendation}`
 → Collect each as: `[gh-issue] #{n}: {title} — {issue} — {recommendation}`
 
-### Step 4.8a: Recon severity-policy reconciliation (one-time)
+### Step 4.8a: Code-health severity-policy reconciliation (one-time)
 
-Recon's default filing threshold changed to high/critical only (`/claude-tweaks:recon`'s `--min-severity`, default `high`) — issues filed before that change may still carry `recon:low` or `recon:medium` from when everything filed regardless of severity. This is a one-time backstop, not a recurring behavior: once an issue is relabelled `recon:remembered`, it's excluded from this check on every future `/tidy` run (see the query below), so this step is self-limiting and naturally becomes a no-op once the existing backlog is caught up.
+Code-health's default filing threshold changed to high/critical only (`/claude-tweaks:code-health`'s `--min-severity`, default `high`) — issues filed before that change may still carry `code-health:low` or `code-health:medium` from when everything filed regardless of severity. This is a one-time backstop, not a recurring behavior: once an issue is relabelled `code-health:remembered`, it's excluded from this check on every future `/tidy` run (see the query below), so this step is self-limiting and naturally becomes a no-op once the existing backlog is caught up.
 
-Scoped strictly to issues carrying the `recon` label — this does not touch harness-health-labelled issues or any other tracker content.
+Scoped strictly to issues carrying the `code-health` label — this does not touch harness-health-labelled issues or any other tracker content.
 
 ```bash
-gh issue list --label recon --state open --json number,title,labels \
-  --jq '.[] | select((.labels | map(.name) | any(. == "recon:low" or . == "recon:medium")) and (.labels | map(.name) | any(. == "recon:remembered") | not))'
+gh issue list --label code-health --state open --json number,title,labels \
+  --jq '.[] | select((.labels | map(.name) | any(. == "code-health:low" or . == "code-health:medium")) and (.labels | map(.name) | any(. == "code-health:remembered") | not))'
 ```
 
 For each issue this returns:
-- Add the `recon:remembered` label.
-- Comment: `Relabelled to recon:remembered — recon's default filing threshold is now high/critical only; this issue predates that change. Still valid work, just not held to the same urgency as a fresh high/critical finding.`
+- Add the `code-health:remembered` label.
+- Comment: `Relabelled to code-health:remembered — code-health's default filing threshold is now high/critical only; this issue predates that change. Still valid work, just not held to the same urgency as a fresh high/critical finding.`
 
 This mutation follows the same staged/batch-approval path as the rest of Step 4.8 — it is proposed here, not applied until Step 6 batch approval, and is staged at every aggressiveness level in auto mode.
 
-→ Collect each as: `[gh-issue] #{n}: {title} — recon:remembered backfill — Relabel + comment (severity-policy reconciliation)`
+→ Collect each as: `[gh-issue] #{n}: {title} — code-health:remembered backfill — Relabel + comment (severity-policy reconciliation)`
 
 ## Step 5: Spec Sizing Review
 

@@ -46,11 +46,11 @@ Emit `[pr]` rows per the Output Contract.
 
 ## Scope: `repo-wide` (consumed by /tidy Step 4.8)
 
-Full sweep of open PRs, recon-labelled issues, and harness-health-labelled issues.
+Full sweep of open PRs, code-health-labelled issues, and harness-health-labelled issues.
 
 1. **Open PRs** — `gh pr list --state open --json number,title,updatedAt,isDraft,reviewDecision,headRefName,url` → classify each per the Staleness Thresholds.
 2. **Unresolved threads per open PR** — the same GraphQL query as `current-pr` item 2, once per open PR.
-3. **Recon issues** — `gh issue list --label recon --state open --json number,title,updatedAt,url`.
+3. **Code-health issues** — `gh issue list --label code-health --state open --json number,title,updatedAt,url`.
 4. **Merged/closed PRs with local remnants** — `gh pr list --state merged --limit 50 --json number,headRefName`; cross-check each `headRefName` against `git -C "{REPO_ROOT}" branch --list` output.
 5. **Harness-health issues** — `gh issue list --label harness-health --state open --json number,title,updatedAt,url`.
 
@@ -63,8 +63,8 @@ Findings and recommendations (tidy Action Vocabulary):
 | Merged/closed PR whose head branch or worktree still exists locally | Corroborates Step 4.5 `[git]` cleanup — dispatcher merges at assembly |
 | Unresolved review thread addressed by a later commit (evidence: commit touching the flagged lines) | Resolve thread |
 | Unresolved review thread not addressed | Capture to INBOX or run `/review` — local action |
-| Recon issue stale (>4 weeks, flagged code since changed/removed) | Close (GitHub) — superseded |
-| Recon issue still valid | Suggest `/flow --from-recon` or Capture to INBOX |
+| Code-health issue stale (>4 weeks, flagged code since changed/removed) | Close (GitHub) — superseded |
+| Code-health issue still valid | Suggest `/flow --from-code-health` or Capture to INBOX |
 | Harness-health issue stale (>4 weeks, the referenced target or code has since changed again) | Close (GitHub) — superseded |
 | Harness-health issue still valid | Suggest applying the patch directly, or `/claude-tweaks:harness-health --target <name> --kind <skill\|rule\|claude-md>` to re-judge |
 

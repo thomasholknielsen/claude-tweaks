@@ -71,7 +71,7 @@ Pipeline complete for specs 157, 159, 160. The pipeline auto-resolved {N} decisi
 | 11 | 157 | doc | docs/api.md | Document new /auth/refresh endpoint |
 | 12 | 159 | claude.md | Commands | Add `npm run lint:fix` to test workflow |
 
-#### Issue closures (from-recon runs — closes on YOUR merge/push, not by the pipeline)
+#### Issue closures (from-code-health runs — closes on YOUR merge/push, not by the pipeline)
 
 | # | Spec | Issue | Closes via |
 |---|---|---|---|

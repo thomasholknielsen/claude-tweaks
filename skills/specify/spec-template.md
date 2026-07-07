@@ -208,7 +208,7 @@ Keeping them separate means a frontend spec with no creative intent (`surface: f
 
 ### `recon-issue:` and `recon-fingerprint:` fields
 
-Present only on specs derived from a GitHub issue — either directly (`/specify <issue-url>`, SKILL.md "Resolve the input" case 1) or via `/flow --from-recon`'s batch path (`flow/from-recon.md` Step 3, which stamps these itself rather than routing through case 1 — see that file).
+Present only on specs derived from a GitHub issue — either directly (`/specify <issue-url>`, SKILL.md "Resolve the input" case 1) or via `/flow --from-code-health`'s batch path (`flow/from-code-health.md` Step 3, which stamps these itself rather than routing through case 1 — see that file).
 
 ```yaml
 recon-issue: 142            # the GitHub issue number this spec resolves
