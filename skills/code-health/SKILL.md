@@ -1,22 +1,22 @@
 ---
-name: claude-tweaks:recon
-description: Use when you want a proactive, report-only sweep of a repository that surfaces improvement opportunities and files them as deduplicated GitHub issues. An LLM judges the code; deterministic helpers handle scope rotation, content-hash skip, fingerprinting, dedup, and issue filing. Never edits code. Keywords - recon, sweep, repo audit, technical debt, proactive, github issues, scheduled, routine.
+name: claude-tweaks:code-health
+description: Use when you want a proactive, report-only sweep of a repository that surfaces improvement opportunities and files them as deduplicated GitHub issues. An LLM judges the code; deterministic helpers handle scope rotation, content-hash skip, fingerprinting, dedup, and issue filing. Never edits code. Keywords - code-health, sweep, repo audit, technical debt, proactive, github issues, scheduled, routine.
 ---
 > **Interaction style:** Present decisions as numbered options so the user can reply with just a number. For multi-item decisions, present a table with recommended actions and offer "apply all / override." Never present more than one batch decision table per message — resolve each before showing the next. End skills with a Next Actions block (context-specific numbered options with one recommended), not a navigation menu.
 
-# Recon — LLM-as-Code-Judge, Proactive Repo Improvement
+# Code-Health — LLM-as-Code-Judge, Proactive Repo Improvement
 
 A recurring watchman doing rounds: reads one directory slice, judges it against the universal criteria catalog, fingerprints each finding, dedups against open GitHub issues, and files the work worth doing. The LLM is the spine. Deterministic helpers handle fingerprint, dedup, and issue-payload projection. It never edits code.
 
 ```
-              [ /claude-tweaks:recon ] <- utility (no fixed lifecycle position)
+              [ /claude-tweaks:code-health ] <- utility (no fixed lifecycle position)
                            |  judges the slice; surfaces findings
                            v
-findings -> validate-findings -> file GitHub issue (label: recon) -> /claude-tweaks:specify -> /claude-tweaks:build / /claude-tweaks:flow
+findings -> validate-findings -> file GitHub issue (label: code-health) -> /claude-tweaks:specify -> /claude-tweaks:build / /claude-tweaks:flow
          +- fuzzy / not-yet -> /claude-tweaks:capture (INBOX)
 ```
 
-The plugin reacts to changes you make; `/recon` surfaces the changes worth making.
+The plugin reacts to changes you make; `/code-health` surfaces the changes worth making.
 
 ## When to Use
 
@@ -25,7 +25,7 @@ The plugin reacts to changes you make; `/recon` surfaces the changes worth makin
 - You want findings deduplicated against work already tracked — never re-flood the tracker.
 - You want to run on demand against a specific area, or let `next-slice` pick the highest-priority area automatically.
 
-Not for: auto-fixing (report-only), CI gating (CI stays reactive), or replacing INBOX/specs (recon owns no backlog — it routes findings into the stores that already exist).
+Not for: auto-fixing (report-only), CI gating (CI stays reactive), or replacing INBOX/specs (code-health owns no backlog — it routes findings into the stores that already exist).
 
 ## Input
 
@@ -44,7 +44,7 @@ Not for: auto-fixing (report-only), CI gating (CI stays reactive), or replacing 
 Unless `--area` was provided, call the engine to pick the next slice to judge:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" next-slice --root .
+node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" next-slice --root .
 ```
 
 The command prints `{ id, path, why }` JSON, or `null` if nothing is due. Read the output:
@@ -66,13 +66,13 @@ If the path does not exist, stop and report the error. Set `AREA` and `ROOT` for
 
 **Step 2 — GATHER OPEN ISSUES for dedup.**
 
-Collect existing `recon`-labelled issues so the engine can skip/reopen correctly:
+Collect existing `code-health`-labelled issues so the engine can skip/reopen correctly:
 
 ```bash
-gh issue list --label recon --state all --json number,state,labels,body --limit 500 > /tmp/recon-issues-raw.json
+gh issue list --label code-health --state all --json number,state,labels,body --limit 500 > /tmp/code-health-issues-raw.json
 ```
 
-Parse each issue body for the fingerprint marker `<!-- recon-fingerprint: recon-XXXXXXXX -->` and build an array of `{ number, state, labels, fingerprint }` objects. Write to `/tmp/recon-open.json`. If `gh` is unavailable or the repo has no recon issues, skip this step and set `ISSUES_FILE=""` — the run dedups against the local cache only.
+Parse each issue body for the fingerprint marker `<!-- code-health-fingerprint: codehealth-XXXXXXXX -->` and build an array of `{ number, state, labels, fingerprint }` objects. Write to `/tmp/code-health-open.json`. If `gh` is unavailable or the repo has no code-health issues, skip this step and set `ISSUES_FILE=""` — the run dedups against the local cache only.
 
 **Step 3 — READ THE SLICE.**
 
@@ -90,17 +90,17 @@ Read each file in full. Hold the full content in context — this is the materia
 Call the `classify` command to determine the area's type:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" classify --root . --area "<slice-id>"
+node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" classify --root . --area "<slice-id>"
 ```
 
-The command prints `{ areaId, types }`. Use the `types` array to select the applicable criteria via `criteriaForArea(types)` from `bin/lib/recon/criteria.js`. Types are additive — a `['frontend', 'library']` area gets universal criteria plus `a11y` and `api-stability`.
+The command prints `{ areaId, types }`. Use the `types` array to select the applicable criteria via `criteriaForArea(types)` from `bin/lib/code-health/criteria.js`. Types are additive — a `['frontend', 'library']` area gets universal criteria plus `a11y` and `api-stability`.
 
 If `types` is `[]` (unknown area), apply universal criteria only: `architecture-depth`, `simplification`, `review-quality`, `scalability`, `security-logic`, `bad-practice`, `doc-freshness`, `dead-code`, `test-quality`, `resilience`, `observability`, `config-secrets`, `dependency-health`, `input-validation`, `naming-clarity`.
 
 You can verify the catalog at any time:
 
 ```bash
-node -e "const {criteriaForArea}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/recon/criteria.js'); console.log(criteriaForArea([]).map(c=>c.id).join(', '))"
+node -e "const {criteriaForArea}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/code-health/criteria.js'); console.log(criteriaForArea([]).map(c=>c.id).join(', '))"
 ```
 
 Load each selected criterion's fragment file (the `fragment` field in the catalog) and embed it in the judge prompt for Step 5. Fragments live under `skills/_shared/` — read each one and include its content so the judge has the calibration text inline.
@@ -154,10 +154,10 @@ For each finding, emit exactly this shape:
 - Format: `relative/file/path#NearestNamedSymbol`
 - `NearestNamedSymbol` is the name of the nearest enclosing function, class, const, or section header.
 - No line numbers. No surrounding prose. No absolute paths.
-- Examples: `src/api/user.js#getUser`, `lib/parser.js#Parser`, `bin/recon.js#cmdRun`
+- Examples: `src/api/user.js#getUser`, `lib/parser.js#Parser`, `bin/code-health.js#cmdRun`
 - When a finding is module-level (no named symbol), use the file itself: `src/api/user.js#module`
 
-Write the array to `/tmp/recon-findings.json`.
+Write the array to `/tmp/code-health-findings.json`.
 
 **Step 7 — VERIFY GATE: sanity-check surviving findings before dedup.**
 
@@ -174,36 +174,36 @@ The verify gate is a judgment step, not a mechanical check. It cannot be automat
 **Step 8 — VALIDATE, FINGERPRINT, DEDUP.**
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" validate-findings /tmp/recon-findings.json \
+node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" validate-findings /tmp/code-health-findings.json \
   --root "${ROOT:-$PWD}" \
   --slice "${SLICE_ID}" \
   --run-id "${RUN_ID}" \
   ${ISSUES_FILE:+--issues "$ISSUES_FILE"} \
   ${MIN_SEVERITY:+--min-severity "$MIN_SEVERITY"} \
   ${DRY_RUN:+--dry-run} \
-  > /tmp/recon-payloads.json
+  > /tmp/code-health-payloads.json
 ```
 
 `SLICE_ID` is the `id` field from the `next-slice` output in Step 1 (or the `--area` value when using manual override). `RUN_ID` is the run identifier for this sweep (ISO timestamp or any stable string unique per run).
 
-Read `/tmp/recon-payloads.json`. The command:
+Read `/tmp/code-health-payloads.json`. The command:
 - Validates each finding (drops malformed ones with a logged reason on stderr).
 - Fingerprints via `criterion + areaId + normalizeAnchor(anchor)`.
-- Deduplicates against open `recon` issues and the local cache.
+- Deduplicates against open `code-health` issues and the local cache.
 - Writes the updated cache and records the run-log + slice cursor (unless `--dry-run`).
 - Emits gh-ready payloads on stdout as a JSON array.
 
 **Step 9 — FILE / REOPEN ISSUES.**
 
-For each payload in `/tmp/recon-payloads.json`, call `gh issue create`. The engine is emit-only; filing is always done by the skill:
+For each payload in `/tmp/code-health-payloads.json`, call `gh issue create`. The engine is emit-only; filing is always done by the skill:
 
 ```bash
 gh issue create \
   --title "<payload.title>" \
   --body "<payload.body>" \
-  --label recon \
-  --label "recon:<severity>" \
-  --label "recon:<criterion>"
+  --label code-health \
+  --label "code-health:<severity>" \
+  --label "code-health:<criterion>"
 ```
 
 For `reopen` decisions (a finding matching a closed non-`wontfix` issue has reappeared), reopen the issue and comment:
@@ -218,12 +218,12 @@ In `--dry-run` mode, print the payloads and the `gh` commands that would run, bu
 **Step 9.5 — Confirm cursor + run-log persistence.**
 
 `validate-findings` requires `--slice <id>` on a real (non-`--dry-run`) run — it exits 2 without it (Step 8). Given `--slice` and `--run-id`, the engine:
-- Writes the run's fingerprint set to `.claude-tweaks/recon/runs/<run-id>.json` (used by `churn-report`).
-- Records the slice's content-hash (`lastHash`) and sweep timestamp (`lastSweptMs`) to `.claude-tweaks/recon/cursors.json`.
+- Writes the run's fingerprint set to `.claude-tweaks/code-health/runs/<run-id>.json` (used by `churn-report`).
+- Records the slice's content-hash (`lastHash`) and sweep timestamp (`lastSweptMs`) to `.claude-tweaks/code-health/cursors.json`.
 
 The next `next-slice` call will read these cursors and skip the slice unless its source files have changed since `lastHash` was recorded, or more than 30 days have passed (`stale` threshold).
 
-**Mandatory readback check:** immediately after a real (non-`--dry-run`) `validate-findings` call, read `.claude-tweaks/recon/cursors.json` and confirm the just-swept slice id now has a `lastSweptMs` from this run (within the last few minutes). If it's missing or stale, **do not report the sweep as complete** — tell the user the persistence write appears to have failed (permissions, disk, or an unexpected error the engine logged to stderr as non-fatal) before proceeding. This is the safety net for the one failure mode no CLI flag can prevent: filing issues from a `--dry-run` preview without ever making the matching real call.
+**Mandatory readback check:** immediately after a real (non-`--dry-run`) `validate-findings` call, read `.claude-tweaks/code-health/cursors.json` and confirm the just-swept slice id now has a `lastSweptMs` from this run (within the last few minutes). If it's missing or stale, **do not report the sweep as complete** — tell the user the persistence write appears to have failed (permissions, disk, or an unexpected error the engine logged to stderr as non-fatal) before proceeding. This is the safety net for the one failure mode no CLI flag can prevent: filing issues from a `--dry-run` preview without ever making the matching real call.
 
 In `--dry-run` mode, neither the run-log nor the cursors are written — the run is truly a no-op for all persistence, and this readback check does not apply.
 
@@ -233,15 +233,15 @@ Report: how many findings were emitted, how many survived dedup, how many issues
 
 ## Routine Configuration
 
-`/recon` ships a routine template (`skills/recon/routine-template.yml`) designed for small, predictable sips: one slice per run, so a scheduled firing is cheap and a skipped one is harmless. Instantiate it for the current project with:
+`/code-health` ships a routine template (`skills/code-health/routine-template.yml`) designed for small, predictable sips: one slice per run, so a scheduled firing is cheap and a skipped one is harmless. Instantiate it for the current project with:
 
 ```
-/claude-tweaks:routine create recon
+/claude-tweaks:routine create code-health
 ```
 
 This resolves the account- and project-specific values a portable template can't hardcode (which environment, which repo) and creates a live cloud Routine via `RemoteTrigger` directly — see `skills/routine/SKILL.md` for the full mechanism. Add `--dry-run` to inspect the assembled configuration before anything is created.
 
-**Headless run flow:** SCOPE(`next-slice`) → CLASSIFY → JUDGE → `validate-findings` → file issues. Triage happens later in GitHub — the Routine does not wait for interactive input. The template's prompt omits `--area` so `next-slice` always picks the highest-priority slice automatically. Recon's own `--budget` flag (default 1 slice per run) governs how deep each firing goes — raise it via a manual `/claude-tweaks:recon --budget <n>` run if you want a one-off deeper sweep; the routine itself always uses the template's single-slice default, and token cost scales with whatever budget is in effect for that invocation.
+**Headless run flow:** SCOPE(`next-slice`) → CLASSIFY → JUDGE → `validate-findings` → file issues. Triage happens later in GitHub — the Routine does not wait for interactive input. The template's prompt omits `--area` so `next-slice` always picks the highest-priority slice automatically. Code-health's own `--budget` flag (default 1 slice per run) governs how deep each firing goes — raise it via a manual `/claude-tweaks:code-health --budget <n>` run if you want a one-off deeper sweep; the routine itself always uses the template's single-slice default, and token cost scales with whatever budget is in effect for that invocation.
 
 A skipped run (e.g., `next-slice` returns `null` because all slices are fresh) is harmless — rotation resumes from the same position on the next window.
 
@@ -249,14 +249,14 @@ A skipped run (e.g., `next-slice` returns `null` because all slices are fresh) i
 
 ## Regression and Critical Gating
 
-Use `status [--fail-on regressed|critical]` to integrate recon state into CI or pre-push hooks.
+Use `status [--fail-on regressed|critical]` to integrate code-health state into CI or pre-push hooks.
 
 ```bash
 # Exit 1 if any regressed entries exist in the cache (a closed issue re-opened)
-node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" status --fail-on regressed
+node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" status --fail-on regressed
 
 # Exit 1 if any open critical-severity entries exist in the cache
-node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" status --fail-on critical
+node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" status --fail-on critical
 ```
 
 Exit-code behavior:
@@ -272,10 +272,10 @@ Use `churn-report [--fail-on-high-churn <r>]` to detect runs where the fingerpri
 
 ```bash
 # Print a churn report across all consecutive run pairs
-node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" churn-report
+node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" churn-report
 
 # Exit 1 when appeared + disappeared / union ratio exceeds 0.5 (50 %)
-node "${CLAUDE_PLUGIN_ROOT}/bin/recon.js" churn-report --fail-on-high-churn 0.5
+node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" churn-report --fail-on-high-churn 0.5
 ```
 
 Exit-code behavior:
@@ -286,14 +286,14 @@ Use in post-run validation or a weekly cron step to catch accidental anchor or c
 
 ## Next Actions
 
-1. `/claude-tweaks:specify <issue-url-or-title>` — promote a filed recon issue into an agent-sized spec. **(Recommended when high-severity issues were filed.)**
+1. `/claude-tweaks:specify <issue-url-or-title>` — promote a filed code-health issue into an agent-sized spec. **(Recommended when high-severity issues were filed.)**
 2. `/claude-tweaks:capture <finding>` — park a fuzzy or below-threshold finding in INBOX for later triage.
-3. `/claude-tweaks:recon --area <other-path>` — re-run on a different directory slice.
+3. `/claude-tweaks:code-health --area <other-path>` — re-run on a different directory slice.
 4. `/claude-tweaks:tidy` — fold the new issues into a backlog-hygiene pass alongside INBOX and deferred items.
 
 ## Component-Skill Contract
 
-When `$PIPELINE_RUN_DIR` is set, `/claude-tweaks:recon` is running inside a pipeline (invoked by `/claude-tweaks:flow` or another pipeline orchestrator). In that case omit the `## Next Actions` block — the parent owns the handoff.
+When `$PIPELINE_RUN_DIR` is set, `/claude-tweaks:code-health` is running inside a pipeline (invoked by `/claude-tweaks:flow` or another pipeline orchestrator). In that case omit the `## Next Actions` block — the parent owns the handoff.
 
 Direct invocation may pass `--source <parent-skill>` as an explicit fallback when ambiguity exists (rare; `$PIPELINE_RUN_DIR` is the primary signal). Standalone (no `$PIPELINE_RUN_DIR`) is the common case and renders Next Actions as usual.
 
@@ -301,12 +301,12 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 
 | Pattern | Why It Fails |
 |---------|--------------|
-| Editing code to "just fix" a finding during a recon run | Recon is report-only. Fixing belongs to `/build` / `/flow` after a finding is promoted to a spec via `/specify`. |
+| Editing code to "just fix" a finding during a code-health run | Code-health is report-only. Fixing belongs to `/build` / `/flow` after a finding is promoted to a spec via `/specify`. |
 | Filing every finding regardless of severity or confidence | Floods the tracker. Below-threshold or low-confidence findings are remembered in the cache, not filed. |
 | Re-filing a finding that already has an open issue | Duplicates the tracker. Always run `validate-findings` with `--issues` before filing. |
 | Hashing the prose description instead of the anchor | The dedup contract requires a stable structural anchor (`relfile#NearestSymbol`), not a content hash. Prose changes every run. |
 | Emitting a line number in the anchor | Line numbers move when code is edited, breaking dedup. The anchor format is `file#Symbol` — no `:12`, no `:12:3`. |
-| Calling the network from `recon.js` or `criteria.js` | The engine is emit-only and unit-testable. The skill hands payloads to `gh`; the engine never does. |
+| Calling the network from `code-health.js` or `criteria.js` | The engine is emit-only and unit-testable. The skill hands payloads to `gh`; the engine never does. |
 | Treating the cache as durable state | The cache is a rebuildable optimization. GitHub issue state is the source of truth for cross-run memory. |
 | Filing a finding with `confidence: 'low'` for a noisy criterion | Noisy criteria (`security-logic`, `config-secrets`, `input-validation`, `resilience`) require `confidence: 'high'` to file. The confidence floor is enforced by the skill judgment, not the engine — the engine validates the shape, not the policy. |
 | Skipping the verify gate before filing | Files plausible-but-wrong findings. Every surviving finding must pass all three verify questions — real, actionable, reproducible — before reaching dedup. |
@@ -317,11 +317,11 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 
 | Skill | Relationship |
 |-------|-------------|
-| `/claude-tweaks:specify` | Recon findings are pre-specs — a filed `recon` issue body is `/specify`-shaped (Current State / Deliverables / Acceptance Criteria), so `/specify` consumes it with near-zero translation. |
+| `/claude-tweaks:specify` | Code-health findings are pre-specs — a filed `code-health` issue body is `/specify`-shaped (Current State / Deliverables / Acceptance Criteria), so `/specify` consumes it with near-zero translation. |
 | `/claude-tweaks:capture` | Fuzzy or below-threshold findings route to INBOX via `/capture` instead of inflating the tracker. |
-| `/claude-tweaks:tidy` | `/tidy` Step 4.8 audits open `recon`-labelled issues in its hygiene pass — stale/superseded ones are closed (with comment) after batch approval; still-valid ones are suggested for `/flow --from-recon` or captured to INBOX. |
-| `/claude-tweaks:flow` | `/flow --from-recon` pulls the `recon`-labelled issues this skill files (via `--from-recon`, now one of three issue-sourced selectors) and runs them as a multi-spec batch (derive specs via `/specify` -> build/test/review/polish/wrap-up). Batch consumers claim each issue per `_shared/issue-claims.md` before deriving specs, so concurrent runs never double-build. |
-| `/claude-tweaks:review` | `/review` judges diffs reactively; `/recon` judges latent code proactively. Both reuse the same criteria fragments from `skills/_shared/`. |
-| `/claude-tweaks:deepen` | `/deepen` applies the architecture-depth criterion reactively to code you are changing; `/recon` applies it proactively on a schedule. Both read `criteria-architecture-depth.md`. |
-| `/claude-tweaks:routine` | `/routine create recon` instantiates recon's `routine-template.yml` into a live, scheduled cloud Routine — the mechanism behind this skill's own "Routine Configuration" section. |
-| `/claude-tweaks:simplify` | `/simplify` applies the simplification criterion reactively; `/recon` applies it proactively. Both read `criteria-simplification.md`. |
+| `/claude-tweaks:tidy` | `/tidy` Step 4.8 audits open `code-health`-labelled issues in its hygiene pass — stale/superseded ones are closed (with comment) after batch approval; still-valid ones are suggested for `/flow --from-recon` or captured to INBOX. |
+| `/claude-tweaks:flow` | `/flow --from-recon` pulls the `code-health`-labelled issues this skill files (via `--from-recon`, now one of three issue-sourced selectors) and runs them as a multi-spec batch (derive specs via `/specify` -> build/test/review/polish/wrap-up). Batch consumers claim each issue per `_shared/issue-claims.md` before deriving specs, so concurrent runs never double-build. |
+| `/claude-tweaks:review` | `/review` judges diffs reactively; `/code-health` judges latent code proactively. Both reuse the same criteria fragments from `skills/_shared/`. |
+| `/claude-tweaks:deepen` | `/deepen` applies the architecture-depth criterion reactively to code you are changing; `/code-health` applies it proactively on a schedule. Both read `criteria-architecture-depth.md`. |
+| `/claude-tweaks:routine` | `/routine create code-health` instantiates code-health's `routine-template.yml` into a live, scheduled cloud Routine — the mechanism behind this skill's own "Routine Configuration" section. |
+| `/claude-tweaks:simplify` | `/simplify` applies the simplification criterion reactively; `/code-health` applies it proactively. Both read `criteria-simplification.md`. |

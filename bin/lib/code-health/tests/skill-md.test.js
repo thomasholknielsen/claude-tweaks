@@ -3,20 +3,20 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-const SKILL = path.resolve(__dirname, '..', '..', '..', '..', 'skills', 'recon', 'SKILL.md');
+const SKILL = path.resolve(__dirname, '..', '..', '..', '..', 'skills', 'code-health', 'SKILL.md');
 const read = () => fs.readFileSync(SKILL, 'utf8');
 
 test('frontmatter declares the canonical name', () => {
-  assert.match(read(), /name:\s*claude-tweaks:recon/);
+  assert.match(read(), /name:\s*claude-tweaks:code-health/);
 });
 
 test('carries the standard interaction-style directive', () => {
   assert.ok(read().includes('> **Interaction style:**'));
 });
 
-test('invokes the CLI via ${CLAUDE_PLUGIN_ROOT}/bin/recon.js (not $SKILL_DIR)', () => {
+test('invokes the CLI via ${CLAUDE_PLUGIN_ROOT}/bin/code-health.js (not $SKILL_DIR)', () => {
   const body = read();
-  assert.ok(body.includes('${CLAUDE_PLUGIN_ROOT}/bin/recon.js'));
+  assert.ok(body.includes('${CLAUDE_PLUGIN_ROOT}/bin/code-health.js'));
   assert.ok(!body.includes('$SKILL_DIR'), 'must not use the non-existent $SKILL_DIR variable (PORT.md delta #9)');
 });
 
@@ -51,9 +51,9 @@ test('Relationship table references specify, capture, tidy, flow', () => {
   }
 });
 
-// ── v2 recon SKILL.md anchors ──────────────────────────────────────────────
+// ── v2 code-health SKILL.md anchors ─────────────────────────────────────────
 
-const skillMdPath = path.join(__dirname, '..', '..', '..', '..', 'skills', 'recon', 'SKILL.md');
+const skillMdPath = path.join(__dirname, '..', '..', '..', '..', 'skills', 'code-health', 'SKILL.md');
 
 test('v2 SKILL.md: exists', () => {
   assert.ok(fs.existsSync(skillMdPath), `SKILL.md not found at ${skillMdPath}`);
@@ -70,7 +70,7 @@ test('v2 SKILL.md: exists', () => {
 });
 
 ['validate-findings', '$PIPELINE_RUN_DIR', '--dry-run', 'criteriaForArea', 'anchor',
- 'recon-fingerprint', 'NearestNamedSymbol', '--min-severity',
+ 'code-health-fingerprint', 'NearestNamedSymbol', '--min-severity',
  'Multi-slice runs', 'Mandatory readback check', 'relatedAnchors', 'Bundling rule',
 ].forEach((token) => {
   test(`v2 SKILL.md: contains required token '${token}'`, () => {

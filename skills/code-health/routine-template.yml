@@ -1,6 +1,6 @@
 template_version: 1
-routine_name: recon-daily
-prompt: "/claude-tweaks:recon"
+routine_name: code-health-daily
+prompt: "/claude-tweaks:code-health"
 model: claude-sonnet-5
 allowed_tools: [Bash, Read, Grep, Glob]
 mcp_connections: []
@@ -8,7 +8,7 @@ default_schedule:
   cron_expression: "0 3 * * *"
   description: "off-peak anchor, UTC — confirm against your local timezone at creation time"
 notes: >
-  Recon's own next-slice rotation makes a skipped or repeated firing harmless — no
+  Code-health's own next-slice rotation makes a skipped or repeated firing harmless — no
   --area flag is passed, so next-slice always picks the highest-priority slice
-  automatically. See skills/recon/SKILL.md's "Routine Configuration" section for
+  automatically. See skills/code-health/SKILL.md's "Routine Configuration" section for
   the --budget / token-cap tuning guidance this template doesn't need to restate.
