@@ -152,7 +152,7 @@ batch approval — breaking a lock is never autonomous in /tidy.
 
 Scan per `_shared/github-pr-scan.md`, **`repo-wide`** scope. The dispatcher inlines that file's Detection Ladder, `repo-wide` scope section (including its findings table), and Output Contract into this agent's prompt. The detection ladder makes this fail-open — skip with a single info row when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
 
-The `repo-wide` findings table maps each finding to a recommendation from the Action Vocabulary: stale/superseded open PRs → Close (GitHub); threads addressed by later commits → Resolve thread; unaddressed threads and still-valid recon or skill-health issues → Capture or a suggested local command; merged PRs with surviving local branches → corroborates Step 4.5 `[git]` rows (the dispatcher merges overlapping recommendations at assembly).
+The `repo-wide` findings table maps each finding to a recommendation from the Action Vocabulary: stale/superseded open PRs → Close (GitHub); threads addressed by later commits → Resolve thread; unaddressed threads and still-valid recon or harness-health issues → Capture or a suggested local command; merged PRs with surviving local branches → corroborates Step 4.5 `[git]` rows (the dispatcher merges overlapping recommendations at assembly).
 
 GitHub mutations recommended here (Close (GitHub), Resolve thread) execute only after Step 6 batch approval and are staged at every aggressiveness level in auto mode — outward-facing actions are never autonomous in /tidy.
 
@@ -163,7 +163,7 @@ GitHub mutations recommended here (Close (GitHub), Resolve thread) execute only 
 
 Recon's default filing threshold changed to high/critical only (`/claude-tweaks:recon`'s `--min-severity`, default `high`) — issues filed before that change may still carry `recon:low` or `recon:medium` from when everything filed regardless of severity. This is a one-time backstop, not a recurring behavior: once an issue is relabelled `recon:remembered`, it's excluded from this check on every future `/tidy` run (see the query below), so this step is self-limiting and naturally becomes a no-op once the existing backlog is caught up.
 
-Scoped strictly to issues carrying the `recon` label — this does not touch skill-health-labelled issues or any other tracker content.
+Scoped strictly to issues carrying the `recon` label — this does not touch harness-health-labelled issues or any other tracker content.
 
 ```bash
 gh issue list --label recon --state open --json number,title,labels \

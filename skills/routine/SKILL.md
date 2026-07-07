@@ -175,4 +175,4 @@ Standalone invocation (no `--source` flag) is the common case and renders Next A
 | `skills/_shared/routine-template-schema.md` | Canonical schema for both the template and the instantiated record — referenced, not duplicated, here. |
 | `/claude-tweaks:init` | Phase 0.96 discovers skills with a `routine-template.yml` and no existing record, then invokes `/claude-tweaks:routine create <skill> --source init` for each the user selects — pure discovery + handoff, no logic duplicated. |
 | `/claude-tweaks:tidy` | Tidy is this skill's second consumer — `skills/tidy/routine-template.yml` relies on tidy's own Standalone-auto support for safe unattended execution. |
-| `/claude-tweaks:skill-health` | Fourth consumer — `skills/skill-health/routine-template.yml` audits `.claude/skills/*.md` for drift and new-skill gaps, sharing its judgment procedure with `/init` and `/wrap-up`. |
+| `/claude-tweaks:harness-health` | Fourth consumer — `skills/harness-health/routine-template.yml` audits `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md for drift, template-conformance, and best-practice gaps, sharing its judgment procedure with `/init` and `/wrap-up`. |

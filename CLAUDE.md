@@ -20,7 +20,7 @@ A Claude Code plugin (v5.7.0) containing markdown skill files that guide Claude 
 .claude-plugin/plugin.json        → Plugin manifest (name, version, description)
 skills/{name}/SKILL.md            → Skill definition (frontmatter + body)
 skills/{name}/*.md                → Sub-files lazy-loaded by the skill
-skills/_shared/*.md               → Cross-skill shared content (subagent contract, auto-mode contract, auto-decision log, browser detection, pipeline run dir, dev URL detection, git discipline, design-wrapper handling, multi-agent coordination, decision records / ADR gate, **shared analysis criteria: architecture-depth / simplification / review-quality**, skill-health-analysis (canonical skill-drift judge shared by /init, /wrap-up, and /skill-health), issue-claims contract (refs/claims/* atomic lock), github-pr-scan (GitHub PR/issue state for /tidy Step 4.8 + /help Stage 4.5))
+skills/_shared/*.md               → Cross-skill shared content (subagent contract, auto-mode contract, auto-decision log, browser detection, pipeline run dir, dev URL detection, git discipline, design-wrapper handling, multi-agent coordination, decision records / ADR gate, **shared analysis criteria: architecture-depth / simplification / review-quality**, harness-health-analysis (canonical harness-drift judge shared by /init, /wrap-up, and /harness-health), issue-claims contract (refs/claims/* atomic lock), github-pr-scan (GitHub PR/issue state for /tidy Step 4.8 + /help Stage 4.5))
 agents/{name}.md                  → Agent definitions (frontmatter + body)
 hooks/hooks.json                  → Hook definitions (SessionStart/SessionEnd/PreCompact continuity + PreToolUse/PostToolUse/SubagentStop enforcement, all via bin/hooks.js)
 bin/hooks.js                      → Hook dispatcher (one entry point for all hook events + record-worktree/close-run subcommands)
@@ -35,7 +35,7 @@ LICENSE                           → MIT
 
 **Lifecycle:** init, capture, challenge, specify, build, test, stories, review, wrap-up
 **Component:** reflect, simplify, deepen, journeys, visual-review, design
-**Utility:** help, tidy, flow, browse, ledger, version, research, recon, routine, skill-health
+**Utility:** help, tidy, flow, browse, ledger, version, research, recon, routine, harness-health
 
 ### Skills with sub-files
 
@@ -168,11 +168,11 @@ Referenced by (worktree assignment, enforcement, and `events.jsonl` consumption)
 
 ```bash
 claude --plugin-dir ./              # Local development — load plugin from current directory
-npm test                            # Runs node --test over tests/ AND bin/lib/recon/tests/ AND bin/lib/issues/tests/ AND bin/lib/skill-health/tests/
+npm test                            # Runs node --test over tests/ AND bin/lib/recon/tests/ AND bin/lib/issues/tests/ AND bin/lib/harness-health/tests/
 node --test bin/lib/recon/tests/*.test.js   # Recon unit suite only
 node bin/recon.js <cmd>             # Recon CLI: validate-findings, classify, next-slice, status, churn-report, pull-issues
-node --test bin/lib/skill-health/tests/*.test.js   # Skill-health unit suite only
-node bin/skill-health.js <cmd>       # Skill-health CLI: next-target, validate-findings, mark, churn-report
+node --test bin/lib/harness-health/tests/*.test.js   # Harness-health unit suite only
+node bin/harness-health.js <cmd>     # Harness-health CLI: next-target, validate-findings, mark, churn-report
 ```
 
 ### Subagent Contract (v4.2+)
@@ -208,7 +208,7 @@ claude-tweaks pipelines have at most two stops in `auto` mode: a **Pipeline Conf
 - Don't auto-resolve a decision without writing to the auto-decision log — silent automation without an audit trail is forbidden
 - Don't spread parsed external JSON after derived/trusted fields — `{ ...parsedFields, derivedField }`, never `{ derivedField, ...parsedFields }`; parsed data silently overrides whatever follows it (bit the claim-marker parser: a spoofed `"kind"` in comment JSON overrode the regex-derived kind)
 - Don't leave any cross-file promise — a deferred action, a staged artifact awaiting review, a documented lifecycle step (label removal, cleanup, close-the-loop) — without the same change-set adding the consumer that acts on it. The promise and its executor are a cross-file invariant; task-scoped review only sees one file at a time, so this recurred four separate times across one program (claim-release deferred to a console step that didn't exist; staged translations no console read; a closing carrier homed in a section current-branch mode skips; a documented label-removal instruction absent from every executing procedure) before whole-branch review caught each one. When a plan says "X happens elsewhere," grep for where "elsewhere" actually reads it before considering the task done.
-- Don't consider a producer/consumer task pair complete just because each task's own review passed — verify the producer's actual output shape satisfies every field the consumer's documented workflow reads from it. Task-scoped review only sees one task's diff at a time and can't catch a shape mismatch across the task boundary; only a whole-branch review (or an explicit cross-check while planning) will. This bit skill-health: `issue-payload.js`'s payload dropped `classification`/`confidence`/`reversibility`/`oldString`/`newString`/`id`, while `skill-health/SKILL.md`'s Step 7 branched on exactly those fields to decide auto-apply vs. file — both tasks passed their own review, and the gap survived until the final whole-branch pass caught it.
+- Don't consider a producer/consumer task pair complete just because each task's own review passed — verify the producer's actual output shape satisfies every field the consumer's documented workflow reads from it. Task-scoped review only sees one task's diff at a time and can't catch a shape mismatch across the task boundary; only a whole-branch review (or an explicit cross-check while planning) will. This bit harness-health (as skill-health, before its rename): `issue-payload.js`'s payload dropped `classification`/`confidence`/`reversibility`/`oldString`/`newString`/`id`, while `harness-health/SKILL.md`'s Step 7 branched on exactly those fields to decide auto-apply vs. file — both tasks passed their own review, and the gap survived until the final whole-branch pass caught it.
 - Don't run merges or branch deletes in the main checkout without verifying `git branch --show-current` in the same compound command — concurrent sessions switch its branch underfoot. Prefer checkout-free fast-forward ref updates (`git push . <sha>:main`, rejects non-ff) over `git checkout main && git merge` — but note `git push` refuses to update a branch that IS currently checked out ("refusing to update checked out branch"); when `main` is checked out, fall back to a branch-guarded `git merge --ff-only <branch>` run inside that checkout instead
 - Don't suggest a `.gitignore` block (in `/init`'s bootstrap steps or elsewhere) that blanket-ignores a directory this plugin also needs a committable child of — git's `!` negation cannot reliably re-include a subdirectory of an already-ignored parent, so a blanket rule silently and permanently defeats "safe to commit" state living underneath it. This bit `.claude-tweaks/routines/{name}.yml` (documented as safe to commit) under a blanket `.claude-tweaks/` suggestion for a full release cycle before being caught. List transient subdirectories explicitly instead of ignoring the parent.
 - Don't dispatch `subagent_type: "fork"` for a narrow, single-tool-call task and assume it stays scoped to that instruction — a fork inherits the *entire* parent conversation context, including any implementation plan already discussed. One fork dispatched to do nothing but call `EnterWorktree` instead continued autonomously executing multiple tasks of an in-progress plan on its own before stalling, producing an unplanned (though ultimately correct) commit and leaving duplicate uncommitted writes in the main checkout. Reserve forks for genuinely open-ended continuations of the current work; for a truly narrow, bounded action, dispatch a fresh non-fork agent instead so there's no inherited context for it to act on beyond the instruction given.

@@ -399,4 +399,4 @@ When `$PIPELINE_RUN_DIR` is unset, `/wrap-up` runs standalone — render Next Ac
 | `_shared/decision-records.md` | Canonical 3-factor ADR gate, location convention, and template applied by Step 6.3 |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
 | `_shared/issue-claims.md` | Cleanup item 8 (Section E of `cleanup-procedures.md`) releases claims for specs with `recon-issue:` frontmatter, with the branch outcome as the release reason. |
-| `/claude-tweaks:skill-health` and `_shared/skill-health-analysis.md` | Step 7's 7.3-7.5 apply this shared procedure instead of an inline copy — sharing its judgment logic and its `.claude-tweaks/skill-health/` cursor/cache state with `/claude-tweaks:init` and the standalone `/claude-tweaks:skill-health` routine. |
+| `/claude-tweaks:harness-health` and `_shared/harness-health-analysis.md` | Step 7's 7.3-7.5 apply this shared procedure instead of an inline copy — sharing its judgment logic and its `.claude-tweaks/harness-health/` cursor/cache state with `/claude-tweaks:init` and the standalone `/claude-tweaks:harness-health` routine. |

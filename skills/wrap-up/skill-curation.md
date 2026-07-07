@@ -26,14 +26,14 @@ Regardless of seeds, look at the work itself:
 
 ## 7.3-7.5: Judge Each Relevant Skill and New-Skill Candidates
 
-Apply the full procedure in `_shared/skill-health-analysis.md` (Steps 1-6: evidence pre-checks, the 6-dimension check, new-skill gap detection, the new-skill qualification gate, the verify gate, and quality gates) to every skill in the read set (seeded + scanned from 7.2) and to any new-skill candidates discovered there. That file is the single canonical procedure — also read by `/claude-tweaks:init` (Phase 3/6) and the standalone `/claude-tweaks:skill-health` routine — so a skill's drift verdict doesn't depend on which of the three ever looked at it.
+Apply the full procedure in `_shared/harness-health-analysis.md` (Steps 1-6: evidence pre-checks, the 8-dimension check, new-skill gap detection, the new-skill qualification gate, the verify gate, and quality gates) to every skill in the read set (seeded + scanned from 7.2) and to any new-skill candidates discovered there. That file is the single canonical procedure — also read by `/claude-tweaks:init` (Phase 3/6) and the standalone `/claude-tweaks:harness-health` routine — so a skill's drift verdict doesn't depend on which of the three ever looked at it.
 
 Emit findings in the Finding Shape that file defines. A proposed new-skill candidate is **never auto-created** — it is always staged for an explicit decision (7.6). For approved candidates, note the skill name and scope; the actual skill file is created during SKILL.md Step 10 execution.
 
-**Record the audit.** For each skill analyzed in this pass — whether or not a patch was proposed — record it in the shared cursor so `/claude-tweaks:skill-health`'s rotation and `/claude-tweaks:init`'s classification skip a skill wrap-up just reviewed:
+**Record the audit.** For each skill analyzed in this pass — whether or not a patch was proposed — record it in the shared cursor so `/claude-tweaks:harness-health`'s rotation and `/claude-tweaks:init`'s classification skip a skill wrap-up just reviewed:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/skill-health.js" validate-findings <findings-for-that-skill.json> --root . --skill <skill-id>
+node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" validate-findings <findings-for-that-skill.json> --root . --target <skill-id> --kind skill
 ```
 
 An empty findings array is valid here — it still records `lastAuditedSha`/`lastAuditedMs` for that skill.
