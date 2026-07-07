@@ -78,7 +78,7 @@ test('validate-findings: --skill <id> records the audit cursor for that skill', 
   const result = runValidateFindings(root, findingsFile, ['--skill', 'auth']);
   assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
   const cursors = JSON.parse(fs.readFileSync(path.join(root, '.claude-tweaks', 'harness-health', 'cursors.json'), 'utf8'));
-  assert.ok(typeof cursors.auth.lastAuditedMs === 'number');
+  assert.ok(typeof cursors['skill:auth'].lastAuditedMs === 'number');
 });
 
 test('validate-findings: --gap-scan records the global gap-scan cursor', () => {

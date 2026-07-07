@@ -33,28 +33,28 @@ test('readCursors returns {} when the cursors file does not exist', () => {
   assert.deepStrictEqual(readCursors(root), {});
 });
 
-test('recordAudit writes a per-skill cursor entry', () => {
+test('recordAudit writes a per-key cursor entry', () => {
   const root = tmp();
-  recordAudit(root, 'auth', { sha: 'abc123', whenMs: 5000 });
+  recordAudit(root, 'skill:auth', { sha: 'abc123', whenMs: 5000 });
   const cursors = readCursors(root);
-  assert.deepStrictEqual(cursors.auth, { lastAuditedSha: 'abc123', lastAuditedMs: 5000 });
+  assert.deepStrictEqual(cursors['skill:auth'], { lastAuditedSha: 'abc123', lastAuditedMs: 5000 });
 });
 
 test('recordAudit defaults whenMs to now when omitted', () => {
   const root = tmp();
   const before = Date.now();
-  recordAudit(root, 'auth', {});
+  recordAudit(root, 'skill:auth', {});
   const cursors = readCursors(root);
-  assert.ok(cursors.auth.lastAuditedMs >= before);
+  assert.ok(cursors['skill:auth'].lastAuditedMs >= before);
 });
 
-test("recordAudit for one skill does not clobber another skill's entry", () => {
+test("recordAudit for one key does not clobber another key's entry", () => {
   const root = tmp();
-  recordAudit(root, 'auth', { sha: 'a1', whenMs: 1000 });
-  recordAudit(root, 'billing', { sha: 'b1', whenMs: 2000 });
+  recordAudit(root, 'skill:auth', { sha: 'a1', whenMs: 1000 });
+  recordAudit(root, 'skill:billing', { sha: 'b1', whenMs: 2000 });
   const cursors = readCursors(root);
-  assert.strictEqual(cursors.auth.lastAuditedSha, 'a1');
-  assert.strictEqual(cursors.billing.lastAuditedSha, 'b1');
+  assert.strictEqual(cursors['skill:auth'].lastAuditedSha, 'a1');
+  assert.strictEqual(cursors['skill:billing'].lastAuditedSha, 'b1');
 });
 
 test('readGapScanCursor returns nulls when never recorded', () => {

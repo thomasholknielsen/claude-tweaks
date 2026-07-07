@@ -82,7 +82,8 @@ function cmdNextTarget(args) {
     const target = selectTarget(root, cursors, { now });
     if (!target) break;
     targets.push(target);
-    cursors = { ...cursors, [target.id]: { ...(cursors[target.id] || {}), lastAuditedMs: now } };
+    const key = `${target.kind}:${target.id}`;
+    cursors = { ...cursors, [key]: { ...(cursors[key] || {}), lastAuditedMs: now } };
   }
   process.stdout.write(JSON.stringify({ targets, gapScanDue }, null, 2) + '\n');
 }
@@ -145,7 +146,7 @@ function cmdValidateFindings(args) {
 
   if (!args.dryRun) {
     writeCache(root, cache);
-    if (args.skill) recordAudit(root, args.skill, {});
+    if (args.skill) recordAudit(root, `skill:${args.skill}`, {});
     if (args.gapScan) recordGapScan(root, {});
     recordRun(root, args.runId, [...seen]);
   }

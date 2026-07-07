@@ -43,14 +43,15 @@ function writeCursors(root, cursors) {
   return p;
 }
 
-// Record that `skillId` was audited. Shared by wrap-up, init, and the routine —
-// whichever consumer analyzes a skill writes its cursor here so the others'
+// Record that `key` (a fully-formed cursor key, e.g. "skill:auth" or
+// "rule:api-errors") was audited. Shared by wrap-up, init, and the routine —
+// whichever consumer analyzes a target writes its cursor here so the others'
 // rotation/classification skips it.
-function recordAudit(root, skillId, { sha = null, whenMs = Date.now() } = {}) {
+function recordAudit(root, key, { sha = null, whenMs = Date.now() } = {}) {
   const cursors = readCursors(root);
-  cursors[skillId] = { lastAuditedSha: sha, lastAuditedMs: whenMs };
+  cursors[key] = { lastAuditedSha: sha, lastAuditedMs: whenMs };
   writeCursors(root, cursors);
-  return cursors[skillId];
+  return cursors[key];
 }
 
 // Gap-scan cursor is a single global entry (key "__gapScan"), not per-skill.
