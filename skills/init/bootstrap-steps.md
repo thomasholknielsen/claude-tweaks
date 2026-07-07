@@ -342,6 +342,24 @@ The `/claude-tweaks:design` wrapper reads this flag as Layer 1 of its detection 
 
 **Failure handling:** If the plugin install fails, do not abort `/init` — surface the failure and continue with `design-integration: disabled` until the user resolves it. The wrapper's availability checks gracefully skip when dependencies are absent.
 
+**Automatic design hook (optional, separate offer).** After the install sequence completes for option 1 or 2 (Impeccable is installed either way), offer the automatic detection hook as its own follow-up. This is a materially different kind of decision from the context-file setup above — automatic runtime behavior during editing, not one-time context generation — so it gets its own prompt rather than a fourth item bolted onto the three-option choice above:
+
+```
+Enable Impeccable's automatic design hook? It runs the anti-pattern detector
+after every UI edit and surfaces findings inline — no slash command needed.
+
+Note: consent lives in the working tree, not .git/ — a fresh git worktree
+(via /build worktree or /flow worktree) won't have this enabled until you
+run /impeccable hooks on inside it again.
+
+1. Yes — run /impeccable hooks on (Recommended)
+2. Skip — enable later, or per-worktree, as needed
+```
+
+On option 1, run `/impeccable:impeccable hooks on` via the Skill tool. This writes hook consent into `.impeccable/config.local.json` in the current working tree only — it does not carry over to worktrees created later by `/build worktree` or `/flow worktree` (see `skills/build/worktree-setup.md` for the per-worktree note). No CLAUDE.md flag is needed for this choice — Impeccable's own `.impeccable/config.local.json` is the on/off state, checked directly by Impeccable, not by this wrapper.
+
+Skip this offer entirely when Impeccable was not installed (option 3 was chosen above, or the install failed) — there is nothing to enable.
+
 ---
 
 ## Step 0.95 — Diagram Design (Recommended Companion)
