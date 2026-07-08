@@ -106,7 +106,7 @@ Everything below was checked against the current codebase and found accurate. Su
 | Git repo | yes |
 | Node (statusline) | v{X} present |
 | Statusline | wired to claude-tweaks wrapper |
-| Workflow dirs (`specs/`, `docs/`, `.worktrees/`) | present |
+| Workflow dirs (`specs/`, `docs/`) | present |
 
 **Contract markers (claude-tweaks v{X.Y}+)**
 | Marker | Status |

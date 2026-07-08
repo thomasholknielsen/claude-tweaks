@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { makeFinding } = require('../finding');
 
-const SKIP_DIRS = new Set(['node_modules', '.git', '.worktrees', 'dist', 'build', 'coverage', '.claude-tweaks']);
+const SKIP_DIRS = new Set(['node_modules', '.git', '.worktrees', '.claude', 'dist', 'build', 'coverage', '.claude-tweaks']);
 const DEFAULT_THRESHOLD = 300;
 // ~1000 lines at the default threshold of 300
 const CRITICAL_MULTIPLIER = 3.33;

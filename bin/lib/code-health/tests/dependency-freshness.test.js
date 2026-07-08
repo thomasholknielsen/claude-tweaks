@@ -27,3 +27,12 @@ test('flags wildcard and latest ranges, ignores pinned ranges', () => {
 test('no package.json yields no findings', () => {
   assert.strictEqual(lens.run(AREA, tmp()).length, 0);
 });
+
+test('skips .claude (other sessions\' live worktrees under .claude/worktrees/)', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, '.claude', 'worktrees', 'foo'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude', 'worktrees', 'foo', 'package.json'), JSON.stringify({
+    dependencies: { wild: '*' },
+  }));
+  assert.strictEqual(lens.run(AREA, root).length, 0);
+});

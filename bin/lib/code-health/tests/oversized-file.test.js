@@ -30,3 +30,10 @@ test('respects .claude-tweaks self-pollution guard', () => {
   fs.writeFileSync(path.join(root, '.claude-tweaks', 'recon-cache.json'), 'x\n'.repeat(900));
   assert.strictEqual(lens.run(AREA, root, { threshold: 300 }).length, 0);
 });
+
+test('skips .claude (other sessions\' live worktrees under .claude/worktrees/)', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, '.claude', 'worktrees', 'foo'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude', 'worktrees', 'foo', 'big.js'), 'x\n'.repeat(900));
+  assert.strictEqual(lens.run(AREA, root, { threshold: 300 }).length, 0);
+});

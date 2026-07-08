@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { makeFinding } = require('../finding');
 
-const SKIP_DIRS = new Set(['node_modules', '.git', '.worktrees', 'dist', 'build', 'coverage', '.claude-tweaks']);
+const SKIP_DIRS = new Set(['node_modules', '.git', '.worktrees', '.claude', 'dist', 'build', 'coverage', '.claude-tweaks']);
 const CODE_EXT = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
 const DECL_EXPORT = /^export\s+(?:const|let|var|function|class)\s+(\w+)/;
 const NAMED_EXPORT = /export\s*\{([^}]+)\}/g;

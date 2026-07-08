@@ -37,3 +37,10 @@ test('import type { X } does not count as dead export', () => {
   const findings = lens.run(AREA, root);
   assert.strictEqual(findings.length, 0, 'Foo should not be flagged as dead when imported via import type');
 });
+
+test('skips .claude (other sessions\' live worktrees under .claude/worktrees/)', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, '.claude', 'worktrees', 'foo'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude', 'worktrees', 'foo', 'x.js'), 'export const orphan = 1;\n');
+  assert.strictEqual(lens.run(AREA, root).length, 0);
+});
