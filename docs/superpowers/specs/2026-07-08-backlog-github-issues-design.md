@@ -64,7 +64,12 @@ single check that replaces both the old string-match and the separate
 "gh authenticated" check. `gh` itself resolves the host from the remote and
 works transparently against GHE once authenticated for that host, so this
 one check is host-agnostic by construction. This fix benefits every existing
-consumer of the Detection Ladder pattern, not just this feature.
+consumer of the Detection Ladder pattern, not just this feature. Found while
+researching for the implementation plan: `skills/init/bootstrap-steps.md`
+Step 9 and Step 14 have the identical bug as two independent inline checks
+(not routed through the Detection Ladder at all) — same root cause, same
+fix, folded in alongside the Detection Ladder fix since it's mechanical,
+not a new design decision.
 
 ### Labels
 
