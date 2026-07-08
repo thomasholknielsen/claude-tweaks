@@ -44,3 +44,10 @@ test('skips node_modules and .git', () => {
   fs.writeFileSync(path.join(root, 'node_modules', 'p', 'i.js'), '// TODO: vendored\n');
   assert.strictEqual(lens.run(AREA, root).length, 0);
 });
+
+test('skips .claude (other sessions\' live worktrees under .claude/worktrees/)', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, '.claude', 'worktrees', 'foo'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude', 'worktrees', 'foo', 'i.js'), '// TODO: in another session\'s worktree\n');
+  assert.strictEqual(lens.run(AREA, root).length, 0);
+});

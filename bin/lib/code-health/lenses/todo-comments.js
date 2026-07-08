@@ -5,7 +5,7 @@ const { makeFinding } = require('../finding');
 const PATTERN = /\b(TODO|FIXME|HACK)\b[:\s]+(.+)/;
 // SKIP_DIRS includes .claude-tweaks so a run never scans its own output
 // (PORT.md delta #2 — the self-pollution guard).
-const SKIP_DIRS = new Set(['node_modules', '.git', '.worktrees', 'dist', 'build', 'coverage', '.claude-tweaks']);
+const SKIP_DIRS = new Set(['node_modules', '.git', '.worktrees', '.claude', 'dist', 'build', 'coverage', '.claude-tweaks']);
 
 function* walk(dir) {
   let entries;
