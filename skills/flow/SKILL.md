@@ -183,9 +183,9 @@ Follow the polish-phase decision tree in `steps-and-gates.md`. Mechanics specifi
 - Append a ledger entry per command invoked (phase: `design`, status: `fixed` for auto-fit successes, `observation` for reported issues). Ledger entries flow through to wrap-up's skill update analysis.
 - When `/design polish` returns a non-empty `commands_invoked` (and therefore a `decision_summary` field — see `skills/design/modes/polish.md` Step 7), append one entry to the auto-decision log at `{run-dir}/decisions.md`, under a `## /flow` heading (create the heading if absent, per the append-only protocol in `_shared/auto-decision-log.md`):
   ```
-  - AUTO {HH:MM:SS} — Polish phase: {decision_summary}. Files: {files_modified, comma-joined}. Reversibility: high (worktree file edits, revertible via git).
+  - AUTO {HH:MM:SS} — Polish phase: {decision_summary} Files: {files_modified, comma-joined}. Reversibility: high (worktree file edits, revertible via git).
   ```
-  This is one entry per polish-phase dispatch, not one per command — `decision_summary` already summarizes every command that ran. Skip this entirely when `commands_invoked` is empty (no `decision_summary` was returned, so there is nothing to log).
+  This is one entry per polish-phase dispatch, not one per command — `decision_summary` already summarizes every command that ran. Skip this entirely when `commands_invoked` is empty (no `decision_summary` was returned, so there is nothing to log). No commit ref is included — polish's changes are uncommitted at this point (Impeccable edits the working tree directly; see `impeccable-cli.md`).
 - When polish modified code, set the in-memory `re_verify_ran: true` marker and invoke `/claude-tweaks:test skip-qa`. The wrapper runs types + lint + tests, skips QA story validation (irrelevant after stylistic-only polish), but still runs the Design CLI gate (CLI is not QA).
 - One-cycle cap: if the marker is already set, surface "re-verify cycle cap exceeded" and stop — defensive against the decision tree re-entering re-verify.
 
