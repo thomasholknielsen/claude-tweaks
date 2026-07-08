@@ -59,28 +59,79 @@ consumer of the Detection Ladder pattern, not just this feature.
 
 ### Labels
 
-Two new bare labels — `inbox`, `deferred` — matching this codebase's
-existing convention (`code-health`, `harness-health`, `agent:go` are all
-bare, no `claude-tweaks:` prefix). Bootstrapped with real descriptions the
-same way `/claude-tweaks:code-health` already does (check-if-exists,
-create-with-description-if-not, before first use). Mutually exclusive: an
-issue carries at most one of the two, reflecting which stage of the backlog
-it's in.
+Rethought from first principles rather than porting the two-file split
+1:1. Five labels, split by whether the concept is backlog-specific or
+genuinely shared across every issue type this plugin manages:
+
+**Backlog-specific:**
+- `backlog` — presence filter, every issue originating from
+  `/claude-tweaks:capture` or `/tidy`'s Defer action.
+- `backlog:category-{product|technical|legal|infrastructure}` — same four
+  values as today's INBOX `**Category:**` field, now a real label instead
+  of unfilterable prose.
+- `backlog:priority-{high|medium|low}` — **optional**, never set at
+  capture (keeps `/capture` low-friction), only ever set/updated during
+  `/tidy` triage with a pre-filled suggestion. Absence is a legitimate
+  "unprioritized" state, not an error.
+
+**Generic (no `backlog:` prefix, deliberately — see below):**
+- `parked` — "evaluated and intentionally postponed." Replaces the earlier
+  `deferred` stage label. There is **no `inbox` label at all**: an issue
+  is "inbox" simply by being `backlog`-labeled, open, and lacking `parked`
+  — inbox was never a state worth asserting, just the absence of one.
+- `status:in-progress` — added when an issue-claim ref is acquired
+  (`_shared/issue-claims.md`), removed when it's released. Lives in the
+  shared claim protocol, not in this feature's code, so it applies to
+  *every* claim consumer — code-health, harness-health, backlog-origin
+  issues alike — not just this feature. Closes a real gap `issue-claims.md`
+  already names: the claim ref is "invisible in the GitHub UI" today, for
+  every issue type, not only backlog's. Implementing this generically costs
+  *less* than scoping it to backlog only would (no source check needed —
+  every claim gets the label, unconditionally) and gives every existing
+  issue producer GitHub-UI-visible in-progress status as a free byproduct.
+
+Category and priority stay backlog-specific rather than generic — code-health
+already has its own non-overlapping axes (`code-health:<criterion>`,
+evidence-graded severity) that would duplicate, not unify with, a generic
+category/priority label.
+
+**Trigger type is not a label at all.** Rather than a
+`parked:until-touch`/`-schedule`/`-event` sub-taxonomy (an earlier draft of
+this design), the trigger type is inferred directly from which structured
+signal is present on the parked issue — nothing to keep in sync, nothing
+that can drift from the data it describes:
+
+- **A GitHub Milestone is attached** → revisit near/at that milestone. This
+  is the answer to "I want to defer this to a moment in time, like before
+  launch" — `/claude-tweaks:flow --from-milestone <m>` already exists and
+  already pulls a milestone's open issues with zero new code. Mechanically:
+  `gh issue edit --milestone "name"` attaches by name but requires the
+  milestone to already exist — there is no `gh milestone` command group, so
+  creating a new one goes through `gh api repos/{owner}/{repo}/milestones -f
+  title="name"` directly (check existence first via `gh api
+  repos/{owner}/{repo}/milestones --jq '.[].title'`).
+- **A `**Watched paths:**` field is present in the body** → revisit when
+  those paths are touched (git-log-checkable, no LLM read needed to know
+  *whether* to look, only to judge what was found).
+- **Neither** → prose-only `**Trigger:**` condition, LLM-judged every
+  sweep — today's behavior, unchanged. All three of the real DEFERRED
+  entries in this repo are this type, so this is the common case, not a
+  fallback path that never runs.
+
+All five labels are bootstrapped with real descriptions the same way
+`/claude-tweaks:code-health` already does (check-if-exists,
+create-with-description-if-not, before first use).
 
 ### Issue body templates
 
-Same fields as today's markdown entries, as issue body sections instead of
-a `##` block:
-
-- **inbox issue** — title = short entry title; body carries
-  `**Category:**` / `**Related:**` + `Context:` + `Scope:`, same ~5-line-cap
-  philosophy as today's INBOX entries (labels now carry the
-  machine-filterable metadata that free-text `**Category:**` used to
-  approximate).
-- **deferred issue** — title = short entry title; body carries
-  `**Origin:**` + `Context:` + `**Trigger:**` + `Options considered:` — a
-  near-direct lift, since real DEFERRED.md entries already read almost
-  exactly like this.
+- **inbox-stage issue** — title = short entry title; body carries
+  `**Related:**` + `Context:` + `Scope:` (Category moved to a label, no
+  longer body prose), same ~5-line-cap philosophy as today's INBOX entries.
+- **parked issue** — title = short entry title; body carries `**Origin:**`
+  + `Context:` + `**Trigger:**` + `Options considered:` (near-direct lift
+  from real DEFERRED.md entries), plus an optional `**Watched paths:**`
+  field when the trigger type is touch-based. Milestone assignment is a
+  GitHub-native attribute, not a body field.
 
 Both templates are pure functions (`{title, body, labels}` in, no network),
 living alongside `bin/lib/code-health/issue-payload.js` and
@@ -91,24 +142,28 @@ codebase's established emit-only pattern.
 ### `/claude-tweaks:capture` changes
 
 Step 1 (`Append entry to specs/INBOX.md`) becomes: attempt `gh issue create
---label inbox` with the templated body (falling back per "Resilient local
-fallback" below); title/body built from the same `$ARGUMENTS` parsing that
-exists today (`<idea text> [--route=...] [--title=...]`). The routing prompt
-(challenge / brainstorm / keep-in-inbox / merge-into-spec-N) is unchanged in
-shape — "keep in inbox" now means "leave the issue open, labeled `inbox`."
+--label backlog --label backlog:category-<value>` with the templated body
+(falling back per "Resilient local fallback" below); title/body built from
+the same `$ARGUMENTS` parsing that exists today (`<idea text> [--route=...]
+[--title=...]`). The routing prompt (challenge / brainstorm / keep-in-inbox
+/ merge-into-spec-N) is unchanged in shape — "keep in inbox" now means
+"leave the issue open, `backlog`-labeled, no `parked` label" (nothing to
+add — that *is* the inbox state).
 
 ### `/claude-tweaks:tidy` changes
 
-**Scan.** Fold two more `gh issue list --label` queries (`inbox`,
-`deferred`, both `--state open`) into `_shared/github-pr-scan.md`'s
-`repo-wide` scope, alongside its existing code-health/harness-health issue
-queries — one canonical GitHub-listing procedure instead of a second
-parallel one. When `backlog-backend: local-files`, `specs/INBOX.md`/
-`specs/DEFERRED.md` are scanned exactly as they are today (unchanged). When
-`backlog-backend: github-issues`, the files are scanned too, but under a
-different rule: **any non-empty entry found there is unsynced by
-definition** — see "Resilient local fallback" below for why that single
-rule is enough, without needing to distinguish how the entry got there.
+**Scan.** Fold one `gh issue list --label backlog --state open` query into
+`_shared/github-pr-scan.md`'s `repo-wide` scope, alongside its existing
+code-health/harness-health issue queries — one canonical GitHub-listing
+procedure instead of a second parallel one. (One query, not two — client-side
+split by presence/absence of `parked` gives the inbox/parked buckets,
+instead of querying each stage separately.) When `backlog-backend:
+local-files`, `specs/INBOX.md`/`specs/DEFERRED.md` are scanned exactly as
+they are today (unchanged). When `backlog-backend: github-issues`, the
+files are scanned too, but under a different rule: **any non-empty entry
+found there is unsynced by definition** — see "Resilient local fallback"
+below for why that single rule is enough, without needing to distinguish
+how the entry got there.
 
 **Triage actions**, mapped from today's Action Vocabulary table onto issue
 mutations — this reuses a pattern `/tidy` already runs today for stale
@@ -118,44 +173,52 @@ not a new capability:
 | Action | Today (file-based) | New (issue-based) |
 |---|---|---|
 | Keep | no-op | no-op, issue stays open |
-| Promote | remove from source, hand to brainstorm/specify | hand issue number to `/claude-tweaks:specify` directly (existing case-1 issue-ingestion path, unchanged) — see "Cradle-to-grave label lifecycle" for the label side-effect this now needs |
-| Defer (inbox → deferred) | move entry between files | swap `inbox` label for `deferred`, add trigger condition as a body edit/comment |
+| Promote | remove from source, hand to brainstorm/specify | hand issue number to `/claude-tweaks:specify` directly (existing case-1 issue-ingestion path, unchanged) — see "Lifecycle labels" for the side-effect this now needs |
+| Defer (inbox → parked) | move entry between files | add `parked`; if the trigger names a moment in time, attach a GitHub Milestone (create it first if it doesn't exist); if it names specific files, add `**Watched paths:**` to the body; otherwise leave the prose-only `**Trigger:**` as-is |
 | Merge into spec N | remove from source | `gh issue close` + comment naming the target spec |
 | Delete | remove from source | `gh issue close --reason "not planned"` + comment |
 | **Sync to GitHub** (new) | n/a | create the issue now from the locally-stored entry, remove it from the local file on success |
 
-### Cradle-to-grave label lifecycle
+### Lifecycle labels: `parked` and `status:in-progress`
 
 Walking the full lifecycle surfaces a gap the table above doesn't cover on
-its own: once `/claude-tweaks:specify` promotes an inbox/deferred issue into
-a spec, the `inbox`/`deferred` label must be **removed** — otherwise
-`/tidy`'s backlog scan re-surfaces the same item as "untriaged" on every
-pass while it's actively being built. But if that spec is later **declined
-at the Review Console or abandoned at a failed gate** (both existing,
-already-modeled outcomes in `_shared/issue-claims.md`'s release-triggers
-table), the issue would end up with no label at all — invisible to both the
-backlog scan and in-progress tracking, and not closed either. That's the
+its own: once `/claude-tweaks:specify` promotes a parked issue into a spec,
+`parked` must be **removed** — otherwise `/tidy`'s backlog scan re-surfaces
+the same item as still-parked on every pass while it's actively being
+built. (Inbox-stage promotions need no such step — there was never a label
+to remove.) But if that spec is later **declined at the Review Console or
+abandoned at a failed gate** (both existing, already-modeled outcomes in
+`_shared/issue-claims.md`'s release-triggers table), the issue would end up
+unlabeled — invisible to the backlog scan, not closed either. That's the
 exact "cross-file promise with no consumer" failure pattern this repo's own
 CLAUDE.md warns against.
 
-Fix — a new frontmatter field, `recon-prior-label: inbox | deferred`,
-joining the existing `recon-issue:`/`recon-fingerprint:`/`code-health-effort:`
-set:
+Fix — a new frontmatter field, `recon-was-parked: true`, joining the
+existing `recon-issue:`/`recon-fingerprint:`/`code-health-effort:` set.
+Simpler than an earlier draft's `recon-prior-label: inbox|deferred`: since
+inbox has no label, there's only ever one thing to remember (was it parked,
+yes or no), not which of two label values to restore. Milestone attachment
+and any `**Watched paths:**` body content are never touched at promotion,
+so there's nothing else to preserve or restore for them either.
 
 | Stage | Label state | Where |
 |---|---|---|
-| Captured | `inbox` added | `/claude-tweaks:capture` |
-| Triaged → parked | `inbox` → `deferred` | `/claude-tweaks:tidy` Defer action |
-| Triaged → promoted | label **removed**; spec stamped with `recon-prior-label: inbox\|deferred` | `/claude-tweaks:specify`'s issue-ingestion step, and `/claude-tweaks:flow`'s batch equivalent in `flow/from-code-health.md` |
-| Merged | issue closes via existing close-via-merge (`Fixes #N`) — terminal | unchanged |
-| **Declined / abandoned before merge** | prior label **restored** from `recon-prior-label:` | claim-release step, `wrap-up/cleanup-procedures.md` Section E — extended to check the release reason (`declined at review console` / `abandoned: spec {spec}`, not `merged:`/`pr-opened:`) and restore the label. **Must land in both places this release logic is duplicated today** — the single-spec path and `flow/multispec-review-console.md`'s consolidated multi-spec path — or one silently drifts from the other. |
-| Missed restoration (defense-in-depth) | flagged, not auto-fixed | `/claude-tweaks:tidy` Step 4.7's existing stale-claim sweep gets a backstop check: open issue, no `inbox`/`deferred` label, no active claim, no linked open/merged PR → "likely missed label restoration," same shape as the sweep's existing (already-open, in this repo's own DEFERRED.md) backstop for missed `agent:go` removal |
+| Captured | `backlog` + category (+ optional priority); no `parked`, no `status:in-progress` — this **is** inbox | `/claude-tweaks:capture` |
+| Triaged → parked | `parked` added; milestone/`Watched paths:`/prose trigger set per the table above | `/claude-tweaks:tidy` Defer action |
+| Triaged → promoted | `parked` removed *iff present*; spec stamped `recon-was-parked: true` *iff it was* | `/claude-tweaks:specify`'s issue-ingestion step, and `/claude-tweaks:flow`'s batch equivalent in `flow/from-code-health.md` |
+| Claim acquired (build starts) | `status:in-progress` added | the shared claim-acquisition step in `_shared/issue-claims.md`'s protocol (`flow/from-code-health.md` Step 2.5, and wherever the direct single-issue `/specify` path acquires its claim) — generic, applies to every claim consumer, not backlog-specific |
+| Merged | issue closes via existing close-via-merge (`Fixes #N`) — terminal; `status:in-progress` moot | unchanged |
+| **Declined / abandoned before merge** | `status:in-progress` removed; `parked` restored *iff* `recon-was-parked: true` | claim-release step, `wrap-up/cleanup-procedures.md` Section E — extended to check the release reason (`declined at review console` / `abandoned: spec {spec}`, not `merged:`/`pr-opened:`) and act. **Must land in both places this release logic is duplicated today** — the single-spec path and `flow/multispec-review-console.md`'s consolidated multi-spec path — or one silently drifts from the other. |
+| Missed restoration (defense-in-depth) | flagged, not auto-fixed | `/claude-tweaks:tidy` Step 4.7's existing stale-claim sweep gets two backstop checks, same shape as its existing (already-open, in this repo's own DEFERRED.md) backstop for missed `agent:go` removal: (1) open issue, `recon-was-parked: true` on its spec, no `parked` label, no active claim, no linked open/merged PR → "likely missed `parked` restoration"; (2) `status:in-progress` present but no active claim ref → "likely missed `status:in-progress` removal" |
 
-For any promoted issue that never carried `inbox`/`deferred` in the first
-place — code-health-originated issues, or an arbitrary human-filed issue
-promoted directly by number — `recon-prior-label` is simply absent, and the
-restoration step is a no-op. Safe and additive: no existing frontmatter
-field is touched, no existing promotion path changes behavior.
+For any promoted issue that was never `parked` in the first place —
+code-health-originated issues, inbox-stage promotions, or an arbitrary
+human-filed issue promoted directly by number — `recon-was-parked` is
+simply absent, and the restoration step is a no-op. Safe and additive: no
+existing frontmatter field is touched, no existing promotion path changes
+behavior. `status:in-progress`'s add/remove is likewise additive to the
+claim protocol — existing claim consumers keep working exactly as before,
+they just also become visible in the GitHub UI now.
 
 ### Resilient local fallback
 
@@ -176,25 +239,32 @@ never touches it, and its scan behaves exactly as it does today.
 
 When a repo's `backlog-backend` first switches to `github-issues` (at
 `/claude-tweaks:init` or its Update-Mode drift pass), offer a one-time batch
-migration: every current `INBOX.md`/`DEFERRED.md` entry becomes an issue via
-the templates above, through the standard batch-table + apply-all/override
-UI, then the files are cleared. Declining the offer leaves the files as-is —
-the same scan rule above still surfaces every entry left behind as
-`[unsynced]` on the next `/tidy` run, with the identical Sync to GitHub
-action, so a declined migration behaves exactly like a transient-failure
-fallback write from the scan's point of view. Nothing is silently dropped
-either way, and the two paths need no separate handling.
+migration: every current INBOX.md entry becomes an inbox-stage issue
+(`backlog` + inferred category); every DEFERRED.md entry becomes a `parked`
+issue, with trigger type judged the same way `/tidy`'s Defer action would
+judge it live (names specific files → `Watched paths:`; names a moment in
+time → offer to attach/create a milestone; otherwise prose-only) — through
+the standard batch-table + apply-all/override UI, then the files are
+cleared. Declining the offer leaves the files as-is — the same scan rule
+above still surfaces every entry left behind as `[unsynced]` on the next
+`/tidy` run, with the identical Sync to GitHub action, so a declined
+migration behaves exactly like a transient-failure fallback write from the
+scan's point of view. Nothing is silently dropped either way, and the two
+paths need no separate handling.
 
 ### What's reused unchanged
 
 `/claude-tweaks:specify`'s issue-ref ingestion (Resolve-the-input case 1),
 `recon-issue:` frontmatter and the close-via-merge mechanism,
-`_shared/issue-claims.md`'s ref-based locking, `/claude-tweaks:flow
---from-label inbox`/`--from-label deferred` (already generic, zero new
-code), and `/code-health`'s label-bootstrap pattern. This design's actual
-new surface area is small: two labels, two payload templates, one new
-frontmatter field, one Detection Ladder fix, and the label-lifecycle edits
-listed above.
+`/claude-tweaks:flow --from-label backlog` and `--from-milestone` (already
+generic, zero new code — the milestone selector in particular is the entire
+mechanism behind "defer to a moment in time"), and `/code-health`'s
+label-bootstrap pattern. `_shared/issue-claims.md`'s ref-based locking is
+reused with one small, deliberately generic addition (`status:in-progress`,
+described above) that benefits every consumer of the protocol, not just
+this feature. This design's actual new surface area is small: five labels,
+two payload templates, one new frontmatter field, one Detection Ladder fix,
+and the label-lifecycle edits listed above.
 
 ## Out of scope (YAGNI)
 
@@ -205,17 +275,27 @@ listed above.
   installs into has its own independent GitHub backend. The remaining
   Projects capabilities (typed custom fields, built-in status automation,
   single-repo kanban) are largely redundant with what `/tidy` already does
-  directly to issue labels/state. Revisit if a cross-repo need materializes,
-  or if day-to-day use makes the visual-board gap acutely felt.
-- **Per-project configuration of label names.** `inbox`/`deferred` are fixed
-  names, not configurable — no evidence of a need for that yet.
+  directly to issue labels/state, and priority/category now have a
+  label-based home anyway. Revisit if a cross-repo need materializes, or if
+  day-to-day use makes the visual-board gap acutely felt.
+- **A `parked:until-*` trigger-type sub-label taxonomy.** Considered and
+  dropped in favor of inferring trigger type from whichever structured
+  signal (milestone / `Watched paths:` / neither) is actually present —
+  a label asserting the trigger type could drift from the real data; an
+  inferred value can't.
+- **Genericizing `backlog:category-*`/`backlog:priority-*` beyond
+  backlog-origin issues.** code-health already has its own non-overlapping
+  criterion/severity axes; unifying would duplicate, not simplify.
+- **Per-project configuration of label names.** The five labels above are
+  fixed names, not configurable — no evidence of a need for that yet.
 - **A renewal/heartbeat mechanism for unsynced local entries.** They're
   surfaced every `/tidy` run until resolved; no separate TTL/staleness model
   needed beyond that (unlike issue claims, which do need a TTL because
   they're a concurrency lock, not a to-do list).
-- **Migrating `code-health`/`harness-health`-filed issues into this label
-  scheme.** They have their own severity/criterion label taxonomy already
-  wired into `/flow`'s selectors; no reason to touch it.
+- **New automation that reads `status:in-progress` programmatically**
+  beyond the Step 4.7 consistency backstop already described above. The
+  label's job is human GitHub-UI visibility; anything more is a separate
+  future feature, not required for this one.
 
 ## Key decisions (from brainstorming)
 
@@ -224,17 +304,21 @@ listed above.
 | Backend selection strategy | Configured (`policy.yml`) + resilient local fallback, not pure per-call detection and not a bare config with no safety net |
 | Scope | Both INBOX and DEFERRED together (structurally similar, same four pain points) |
 | Existing-content migration | One-time offered batch migration at backend switch-over, not mandatory, not silent |
-| GitHub Projects | Dropped — no cross-repo use case, remaining value redundant with existing `/tidy` mechanics |
-| Label naming | Bare `inbox`/`deferred`, matching existing bare-label convention (`code-health`, `agent:go`) |
-| Promoted-issue label handling | Removed at promotion, restored on decline/abandon via new `recon-prior-label:` frontmatter — closes an orphaned-issue gap the initial design missed |
+| GitHub Projects | Dropped — no cross-repo use case, remaining value redundant with existing `/tidy` mechanics and the new label taxonomy |
+| Inbox modeling | No `inbox` label — inbox is the absence of `parked` on an open `backlog`-labeled issue, not an asserted state |
+| Trigger-type modeling | Inferred from structured signal (milestone / `Watched paths:` / prose), not a label — avoids a value that could drift from the data |
+| "Defer to a moment in time" | Reuses GitHub's native Milestone field + the already-existing `/flow --from-milestone` selector, not a custom date field |
+| `status:in-progress` scope | Implemented once, generically, in the shared `_shared/issue-claims.md` protocol — benefits every claim consumer (code-health, harness-health, backlog) for less code than scoping it to backlog alone would cost |
+| Category/priority scope | Stay backlog-specific — code-health's criterion/severity axes already cover that need for code-health issues, non-overlapping |
+| Promoted-issue label handling | `parked` removed at promotion (only if present), restored on decline/abandon via new `recon-was-parked: true` frontmatter — simpler than an earlier draft's two-value `recon-prior-label` since inbox never had a label to begin with |
 | GHE fix | Replace `github.com` string-match with a real `gh repo view` capability probe |
 
 ## Testing / verification approach
 
 1. **Pure logic, unit-tested (`node --test`).** Issue payload template
-   builders (`bin/lib/issues/backlog.js`: inbox/deferred `{title, body,
-   labels}` construction) and `recon-prior-label` extraction/application
-   logic — all emit-only, no network, mirroring the existing
+   builders (`bin/lib/issues/backlog.js`: inbox-stage and parked `{title,
+   body, labels}` construction) and `recon-was-parked` extraction/
+   application logic — all emit-only, no network, mirroring the existing
    `bin/lib/code-health/issue-payload.js` / `bin/lib/issues/ingest.js` test
    pattern.
 2. **Detection Ladder fix.** Verified against this repo's real
@@ -245,12 +329,20 @@ listed above.
    explicitly in the PR rather than claiming full verification, same as the
    non-default-branch tracking design's precedent for an unverifiable-
    without-a-live-instance case.
-3. **End-to-end.** Exercise `/claude-tweaks:capture` → issue created →
-   `/claude-tweaks:tidy` scan sees it → Promote → `/claude-tweaks:specify`
-   consumes it → label removed, `recon-prior-label` stamped, against this
-   repo's real GitHub backend (already `gh`-authenticated) as part of
-   implementation, not just unit tests.
-4. **Decline/abandon path.** Explicitly exercise the restoration branch —
-   promote an inbox item, decline the resulting spec at the Review Console,
-   confirm the `inbox` label reappears on the issue — since this is exactly
-   the path most likely to silently regress.
+3. **End-to-end, inbox path.** Exercise `/claude-tweaks:capture` → issue
+   created with `backlog`+category labels → `/claude-tweaks:tidy` scan sees
+   it (no `parked`) → Promote → `/claude-tweaks:specify` consumes it → no
+   label removal needed, no `recon-was-parked` stamped, against this repo's
+   real GitHub backend as part of implementation, not just unit tests.
+4. **End-to-end, parked + restoration path.** Defer an item (confirm
+   `parked` added, milestone/`Watched paths:` set correctly per trigger
+   type) → Promote (confirm `parked` removed, `recon-was-parked: true`
+   stamped) → decline the resulting spec at the Review Console → confirm
+   `parked` reappears on the issue. This is exactly the path most likely to
+   silently regress, since it's the one requiring the restoration step to
+   actually fire.
+5. **`status:in-progress` visibility.** Exercise a claim acquire/release
+   cycle end-to-end and confirm the label appears and disappears on the
+   issue (`gh issue view --json labels`) — this is new GitHub-UI-facing
+   behavior with no prior test coverage to extend, so it needs its own
+   explicit check.
