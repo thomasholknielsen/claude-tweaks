@@ -229,7 +229,7 @@ This skill is a **component skill** (utility wrapper) — invoked by `/claude-tw
 
 | Skill | Relationship |
 |-------|-------------|
-| `/claude-tweaks:init` | Adds Impeccable setup phase (Phase 0.9 — install + teach + `design-integration` flag). Writes the kill-switch flag this wrapper reads in Layer 1. |
+| `/claude-tweaks:init` | Adds Impeccable setup phase (Phase 0.9 — install + init + `design-integration` flag). Writes the kill-switch flag this wrapper reads in Layer 1. |
 | `/claude-tweaks:test` | Invokes `test` mode after the standard verification suite. Errors fail the gate; warnings/skips do not. |
 | `/claude-tweaks:review` | Invokes `review` mode during code review. Findings appear as a "Design Quality" section in the review summary — advisory, not blocking. The `review` mode also writes an audit cache (`docs/plans/...-audit.json`) consumed by `polish`. |
 | `/claude-tweaks:build` | Invokes `pre-build` mode before implementation to lazy-load Impeccable references and project design context into the build subagent's context. |

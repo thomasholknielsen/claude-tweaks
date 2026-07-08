@@ -1,5 +1,7 @@
 # Impeccable CLI — Invocation + JSON Parsing
 
+*Last verified against Impeccable skill 3.9.1 / CLI 3.2.0 (2026-07-07).*
+
 Reference for the wrapper's `test` mode dispatch. The Impeccable CLI is a deterministic Node binary that scans frontend files for design anti-patterns without LLM cost.
 
 ## Invocation
@@ -13,7 +15,7 @@ npx impeccable detect --fast --json <file1> <file2> ... <fileN>
 | Flag | Why |
 |------|-----|
 | `detect` | Subcommand — runs the deterministic anti-pattern scanner |
-| `--fast` | Skip slow heuristic passes (the wrapper's test mode is meant to gate quickly) |
+| `--fast` | No-op as of CLI 3.x — the detector always full-scans regardless of this flag. Kept in the invocation for now; harmless either way, and removing it is a separate, non-urgent cleanup. |
 | `--json` | Machine-readable output — required for parsing |
 | `<files>` | Space-separated list of files to scan; passed positionally |
 
@@ -141,5 +143,5 @@ Wrapper returns:
 
 ## Open items (tracked in parent design doc)
 
-- **Schema stability** — the CLI may change output between releases. The wrapper's defensive parsing handles unknown/missing fields, but breaking changes (e.g., renamed `severity` values) would require pinning a CLI version. Re-validate sample output after every Impeccable major version bump.
+- **Schema stability** — the CLI may change output between releases. The wrapper's defensive parsing handles unknown/missing fields, but breaking changes (e.g., renamed `severity` values) would require pinning a CLI version. Re-validate sample output after every Impeccable major version bump. Last re-validated 2026-07-07 against skill 3.9.1 / CLI 3.2.0 (see header note) — **the schema HAS drifted and defensive parsing is NOT currently sufficient** (discrepancy first found in commit `ebf5762`): live CLI 3.2.0 output is a bare JSON array, not the `{files_scanned, findings: [...]}` wrapper documented above; findings use `antipattern`/`description` fields instead of `rule`/`message`; and the CLI exits non-zero whenever any finding is present (any severity), which collides with this file's own "non-zero exit → malformed output → skip" rule above and would let a real failing gate get silently misreported as a skip. This is not fixed here — see `specs/DEFERRED.md`'s "Impeccable CLI schema has drifted from documented shape" entry for the dedicated follow-up.
 - **Log path** — the wrapper does not currently log invocations. The parent design proposes `~/.claude-tweaks/logs/design.jsonl` for token-cost instrumentation. That path is harness-owned (skill content must not write there); add only when the harness gains a logger for this purpose.

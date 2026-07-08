@@ -34,10 +34,10 @@ Reference files live inside the Impeccable plugin's skill directory. The wrapper
 
 ### Step 4: Load project design context (when present)
 
-- **Canonical paths:** `PRODUCT.md` and `DESIGN.md` at the project root. These are written by `/impeccable:impeccable teach` (PRODUCT) and `/impeccable:impeccable document` (DESIGN). Confirmed against Impeccable's official documentation (https://impeccable.style/).
+- **Canonical paths:** `PRODUCT.md` and `DESIGN.md` at the project root. These are written by `/impeccable:impeccable init` (PRODUCT) and `/impeccable:impeccable document` (DESIGN). Confirmed against Impeccable's official documentation (https://impeccable.style/).
 - **Fallback discovery:** If neither file is present at root, glob `docs/design/*.md` and `docs/PRODUCT.md`, `docs/DESIGN.md` as a defensive secondary location.
 
-Missing files are not errors — they mean `/impeccable:impeccable teach` and `document` have not been run yet. Read each discovered file and include it in the loaded set.
+Missing files are not errors — they mean `/impeccable:impeccable init` and `document` have not been run yet. Read each discovered file and include it in the loaded set.
 
 ## Output to caller
 

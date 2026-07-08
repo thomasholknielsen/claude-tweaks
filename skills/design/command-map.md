@@ -38,9 +38,10 @@ Reference table for every Impeccable command, categorized by how the wrapper dis
 | `overdrive` | Manual-only | Not auto-dispatched — surfaced as a `survey` recommendation only |
 | `extract` | Manual-only | Not auto-dispatched — surfaced as a `survey` recommendation only |
 | `craft` | Never (in flow) | Manual standalone only |
-| `teach` | Never (in flow) | Runs once via `/init` Impeccable setup phase; never auto from `/flow` |
+| `init` | Never (in flow) | Runs once via `/init` Impeccable setup phase (formerly `teach`, now a deprecated alias); never auto from `/flow` |
 | `document` | Never (in flow) | Manual standalone only |
 | `live` | Never (in flow) | Manual standalone only |
+| `hooks` | Never (in flow) | Manual — one-time per-worktree consent toggle (`hooks on\|off\|status`); never auto-invoked. See `skills/build/worktree-setup.md` for the per-worktree consent note. |
 
 ## Review dispatch — what the wrapper invokes in `review` mode
 
@@ -134,4 +135,4 @@ Each observation maps to one creative command:
 - **Auto-fit** commands are deterministic enough that always running them on frontend code is net-positive.
 - **Issue-driven** commands are too noisy to run unconditionally — only run when there's a matching audit signal.
 - **Intent-driven** commands are creative direction — running them without explicit intent produces non-deterministic creative drift across runs.
-- **Never (in flow)** commands either set up shared context once (`teach`) or are fundamentally manual (`craft`, `document`, `live`).
+- **Never (in flow)** commands either set up shared context once (`init`) or are fundamentally manual (`craft`, `document`, `live`).
