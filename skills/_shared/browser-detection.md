@@ -1,6 +1,6 @@
 # Browser Detection — Shared
 
-Detection + install procedure for `agent-browser`, used by /browse, /init, /visual-review. The single supported backend is `agent-browser`; do not prompt the user for a backend choice.
+Detection + install procedure for `agent-browser`, used by /browse, /init, /visual-review. `agent-browser` is the only backend this procedure detects, installs, or auto-selects; do not prompt the user for a backend choice. (The narrow, human-invoked `/browse backend=chrome` escape hatch is a separate, manual path — see CLAUDE.md's `Don'ts` — and out of scope for this file.)
 
 ## Detect
 
