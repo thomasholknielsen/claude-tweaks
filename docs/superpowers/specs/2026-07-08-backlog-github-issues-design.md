@@ -29,14 +29,23 @@ independent GitHub backend with no cross-repo board use case today.
 
 ## Solution
 
-### Backend selection (`.claude-tweaks/policy.yml`)
+### Backend selection (CLAUDE.md flag)
 
-New key `backlog-backend: github-issues | local-files`, same pattern as the
-existing `design-integration:`/`diagram-integration:` flags. Set once by
-`/claude-tweaks:init` (default recommendation: `github-issues` when a GitHub
-remote + authenticated `gh` are detected at init time, else `local-files`),
-re-asked by Update-Mode's existing drift pass if GitHub availability has
-changed since (e.g. a local-only repo later pushed to GitHub, or vice versa).
+New flag `backlog-backend: github-issues | local-files` under a
+`## Backlog integration` section in CLAUDE.md — the same location and
+mechanics as the existing `design-integration:`/`diagram-integration:`
+flags (**not** `.claude-tweaks/policy.yml`: that file is read by
+`bin/lib/policy.js`'s hardcoded no-YAML-dependency regex parser
+specifically because hooks are plain Node processes with no LLM in the loop
+to read CLAUDE.md prose — `worktree.always` needs that because a
+`PreToolUse` hook enforces it. `backlog-backend` is read by skills during
+ordinary LLM-driven execution, exactly like `design-integration`, so it
+belongs in CLAUDE.md, not policy.yml). Set once by `/claude-tweaks:init`
+(default recommendation: `github-issues` when a GitHub remote +
+authenticated `gh` are detected at init time, else `local-files`), re-asked
+by Update-Mode's existing drift pass if GitHub availability has changed
+since (e.g. a local-only repo later pushed to GitHub, or vice versa) — the
+same re-run/upgrade-path pattern `design-integration` already uses.
 
 This is a **configured-backend-with-resilient-fallback** design (not pure
 per-call detection, not a bare config with no safety net): the config picks
@@ -301,7 +310,7 @@ and the label-lifecycle edits listed above.
 
 | Decision | Choice |
 |---|---|
-| Backend selection strategy | Configured (`policy.yml`) + resilient local fallback, not pure per-call detection and not a bare config with no safety net |
+| Backend selection strategy | Configured (CLAUDE.md flag) + resilient local fallback, not pure per-call detection and not a bare config with no safety net |
 | Scope | Both INBOX and DEFERRED together (structurally similar, same four pain points) |
 | Existing-content migration | One-time offered batch migration at backend switch-over, not mandatory, not silent |
 | GitHub Projects | Dropped — no cross-repo use case, remaining value redundant with existing `/tidy` mechanics and the new label taxonomy |
