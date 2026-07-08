@@ -258,7 +258,9 @@ grep -c "^### Worktree Policy Finalization$" skills/init/SKILL.md
 grep -c "Worktree Policy Finalization" skills/init/SKILL.md
 grep -c "Finalizing the worktree.always Decision" skills/init/SKILL.md
 ```
-Expected: `1`, `1`, `1`, `3` (one from its own heading, one from the Step 6 summary line's forward-reference, one from the Phase-0-tail section's forward-reference), `3` (one from its own heading, one from the Step 6 summary line's forward-reference, one from the Phase-9 section's back-reference).
+Expected: `1`, `1`, `1`, `4`, `5`.
+
+Note: these two counts were `3`/`3` at original plan-authoring time, but two post-review fix rounds (covering the Scope Selection Gate's "Done" paths — see the progress ledger) added more cross-references after that count was verified. Current state, verified directly against the live file (not re-derived by hand): "Worktree Policy Finalization" appears at `SKILL.md:94` (Step 6 summary), `:134` and `:136` (Phase-0-tail section, both added/reworded by the fix rounds), and `:365` (its own heading) = 4. "Finalizing the worktree.always Decision" appears at `:94` (Step 6 summary), `:132` (its own heading), `:163` (Option 2's nested-gate anchor note, added by a fix round), `:167` (Option 4's note), and `:367` (Phase 9 section's back-reference) = 5. If this task's implementer finds different counts, that means the file changed again since this note was written — trust the live `grep`, not this number, and flag the discrepancy rather than silently reconciling it.
 
 - [ ] **Step 4: Run the full test suite as a regression guard**
 
