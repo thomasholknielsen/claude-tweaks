@@ -7,6 +7,7 @@ const { MAX_STALE_DAYS } = require('./score');
 
 const SKIP_DIRS = new Set([
   '.claude-tweaks', '.git', 'node_modules', 'dist', 'build', 'coverage', '.next', '.turbo',
+  '.claude', '.worktrees',
 ]);
 const SOURCE_EXTS = new Set(['.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs']);
 
@@ -47,6 +48,8 @@ function sourceFiles(absDir) {
         '-not', '-path', `${absDir}/dist/*`,
         '-not', '-path', `${absDir}/build/*`,
         '-not', '-path', `${absDir}/coverage/*`,
+        '-not', '-path', `${absDir}/.claude/*`,
+        '-not', '-path', `${absDir}/.worktrees/*`,
       ],
       { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
     );

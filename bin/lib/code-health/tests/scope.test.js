@@ -32,6 +32,17 @@ test('listSlices includes immediate subdirs, excludes SKIP_DIRS', () => {
   assert.ok(ids.includes('.'), '. (root) must be included');
 });
 
+test('listSlices excludes .claude and .worktrees (other sessions\' live worktrees)', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'src'));
+  fs.mkdirSync(path.join(root, '.claude', 'worktrees', 'foo'), { recursive: true });
+  fs.mkdirSync(path.join(root, '.worktrees', 'bar'), { recursive: true });
+  const ids = listSlices(root).map((s) => s.id).sort();
+  assert.ok(ids.includes('src'), 'src should be included');
+  assert.ok(!ids.includes('.claude'), '.claude must be excluded');
+  assert.ok(!ids.includes('.worktrees'), '.worktrees must be excluded');
+});
+
 test('listSlices slice.path is the absolute path', () => {
   const root = tmp();
   fs.mkdirSync(path.join(root, 'pkg'));
@@ -104,6 +115,16 @@ test('contentHash does NOT change when .claude-tweaks content changes', () => {
   fs.writeFileSync(path.join(root, '.claude-tweaks', 'cache.json'), '{}');
   const h2 = contentHash(root);
   assert.strictEqual(h1, h2, '.claude-tweaks must be excluded from the hash');
+});
+
+test('contentHash does NOT change when .claude/worktrees content changes (other sessions\' live worktrees)', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'a.js'), 'const x = 1;\n');
+  const h1 = contentHash(root);
+  fs.mkdirSync(path.join(root, '.claude', 'worktrees', 'foo'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude', 'worktrees', 'foo', 'b.js'), 'const y = 2;\n');
+  const h2 = contentHash(root);
+  assert.strictEqual(h1, h2, '.claude must be excluded from the hash');
 });
 
 test('contentHash returns a stable hash for a dir with no source files', () => {
