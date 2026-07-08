@@ -707,9 +707,11 @@ Use the appropriate value:
 | Option 1 (GitHub issues) | `github-issues` |
 | Option 2 (Local files) | `local-files` |
 
-`/claude-tweaks:capture` and `/claude-tweaks:tidy` read this flag to decide where a new
-entry lands. Missing flag is treated identically to `local-files` — the GitHub-backed
-path only activates when explicitly enabled by `/init`, matching `design-integration`'s
+Once implemented, `/claude-tweaks:capture` and `/claude-tweaks:tidy` will read this flag
+to decide where a new entry lands — see the backlog-on-GitHub-issues design doc
+(`docs/superpowers/specs/2026-07-08-backlog-github-issues-design.md`) for Phase 2/3 of
+that work. Missing flag is treated identically to `local-files` — the GitHub-backed path
+only activates when explicitly enabled by `/init`, matching `design-integration`'s
 missing-flag convention.
 
 **Re-run behavior (Update-Mode drift).** When `/init` is re-run on a project where
