@@ -15,6 +15,8 @@ Two orthogonal choices control how `/build` runs. Combine them freely:
 
 When `.claude-tweaks/policy.yml` sets `worktree.always: true`, the Git axis above collapses to `worktree` only — `current-branch` is not offered by the prompt, is rejected if passed explicitly, and every invocation example and default-resolution rule below that mentions `current-branch` is inapplicable for a project with this policy on. The mechanical PreToolUse gate denies any edit outside a worktree regardless of what this file's defaults say (see `_shared/git-discipline.md`).
 
+When `.claude-tweaks/policy.yml` sets `execution.always: subagent`, the Execution axis above collapses to `subagent` only — `batched` is not offered by the prompt and is rejected if passed explicitly, and every invocation example and default-resolution rule below that mentions `batched` is inapplicable for a project with this policy on. Unlike `worktree.always`, this has no mechanical backstop — there is no interceptable tool call for "which execution strategy did the assistant choose" — so this lever is honored by the assistant reading `.claude-tweaks/policy.yml`, the same as every other auto-mode-contract lever (see `_shared/git-discipline.md` for the full enforcement-asymmetry note).
+
 ```
 /claude-tweaks:build 42                         → subagent + worktree (default)
 /claude-tweaks:build 42 current-branch          → subagent + current branch (no isolation)
@@ -26,6 +28,7 @@ When `.claude-tweaks/policy.yml` sets `worktree.always: true`, the Git axis abov
 
 ### Default resolution
 
+0. **Policy lever lock** (checked first): `.claude-tweaks/policy.yml`'s `execution.always: <value>` and/or `worktree.always: true` fix their respective axis outright — a locked axis is never asked about, and an explicit CLI argument that contradicts it (`batched` under `execution.always`, `current-branch` under `worktree.always`) is rejected rather than silently honored. The remaining precedence order below applies only to axes not locked by policy.
 1. Explicit arguments (`/claude-tweaks:build 42 batched current-branch`) — always win
 2. CLAUDE.md settings — project-level defaults:
    ```
@@ -55,7 +58,9 @@ If only one exists, use it.
 
 ### Prompt for build options
 
-When execution strategy AND git strategy are both missing from arguments, ask once — the two choices are correlated (the 2x2 above already enumerates the combinations), so they are one decision. Call `AskUserQuestion` with:
+Before checking `$ARGUMENTS`, resolve any axis locked by policy: `execution.always` fixes Execution to `subagent`; `worktree.always: true` fixes Git to `worktree`. A policy-locked axis is never asked about, in any mode — auto or interactive — and counts as already resolved for the rest of this section.
+
+When execution strategy AND git strategy are both still unresolved after policy and arguments, ask once — the two choices are correlated (the 2x2 above already enumerates the combinations), so they are one decision. Call `AskUserQuestion` with:
 
 - `question`: `"How should this build run?"`, `header`: `"Build strategy"`, `multiSelect`: `false`
 - Option 1 — `label`: `"Subagent + worktree (Recommended)"`, `description`: `"Automated review chain, isolated workspace"`
@@ -63,9 +68,9 @@ When execution strategy AND git strategy are both missing from arguments, ask on
 - Option 3 — `label`: `"Batched + worktree"`, `description`: `"Human reviews every 3 tasks, isolated workspace"`
 - Option 4 — `label`: `"Batched + current-branch"`, `description`: `"Human reviews every 3 tasks, no isolation"`
 
-When only ONE was provided as an argument (e.g., `/build 42 batched`), call `AskUserQuestion` for just the missing one with a simple 2-option question instead. Skip the call entirely if both were provided.
+When only ONE axis is still unresolved (whether because an argument supplied the other, or policy locked it), call `AskUserQuestion` for just that one with a simple 2-option question instead. Skip the call entirely if both are resolved.
 
-**In `auto` mode**, skip this prompt and use the CLAUDE.md / fallback values without asking (per the Pipeline Config Manifesto contract — see `_shared/auto-mode-contract.md`).
+**In `auto` mode**, skip this prompt and use the CLAUDE.md / fallback values for any axis not already resolved by policy or an explicit argument (per the Pipeline Config Manifesto contract — see `_shared/auto-mode-contract.md`).
 
 ## Spec vs Design mode
 
