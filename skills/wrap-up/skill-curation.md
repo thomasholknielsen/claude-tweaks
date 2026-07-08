@@ -80,6 +80,8 @@ The table renders as markdown, as above. Immediately below it, call `AskUserQues
 - Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Apply all skill and config updates"`
 - Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which #s to change"`
 
+If "Override specific items" is chosen, the follow-up is ordinary free-text chat in the next message, per CLAUDE.md's Multi-item decisions convention — not the tool's `Other` field.
+
 Below the table, show the full Update Mode patches for each row so the user can see exactly what will change.
 
 Wait for resolution before proceeding to SKILL.md Step 8 (interactive mode only).

@@ -45,6 +45,8 @@ After Phase 1, only items the agent could not fix remain `open`. Present the ful
 | {N} | {phase} | {description} | {specific blocker — must be one of the legitimate-defer reasons} |
 ```
 
+Immediately below the table, before starting the drill, tell the user once: *"No item here has a safe default, so each gets its own question below — but if several should get the same treatment, say so in your answer to the first one (e.g. via 'Other') and I'll apply it to the rest."* This is the only place the hint appears — it is not repeated per item, and it is plain text, not a presented button (see Guardrail below).
+
 Both `specs/DEFERRED.md` and `specs/INBOX.md` are valid destinations — the user picks per item. Rough guidance to surface alongside each row if helpful (not a rule):
 
 - **DEFERRED.md** when the item has a clear trigger ("revisit after P5 ships," "when consumer X exists")

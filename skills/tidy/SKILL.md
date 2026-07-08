@@ -185,7 +185,7 @@ Immediately after presenting the report above, call `AskUserQuestion`:
 - Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Apply all recommendations shown above"`
 - Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which #s to change"`
 
-If "Override specific items" is chosen, the follow-up (#s and target values) is ordinary free-text conversation in the next message, per Spec 05's Pattern B convention — not the tool's built-in `Other` field.
+If "Override specific items" is chosen, the follow-up (#s and target values) is ordinary free-text conversation in the next message, per CLAUDE.md's Multi-item decisions convention — not the tool's built-in `Other` field.
 
 Items recommended as "Keep" are included for visibility but require no action. Only items with an active recommendation (delete, promote, fix, run) are executed.
 

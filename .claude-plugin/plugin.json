@@ -1,7 +1,7 @@
 {
   "name": "claude-tweaks",
   "description": "A structured workflow system for Claude Code — from idea capture through build, review, and wrap-up. Includes an LLM-as-judge recurring code-health sweep, browser automation, and QA pipeline.",
-  "version": "5.19.0",
+  "version": "5.19.1",
   "author": {
     "name": "Thomas Holk Nielsen",
     "url": "https://github.com/thomasholknielsen"
