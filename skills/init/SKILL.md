@@ -91,7 +91,7 @@ Confirm the directory is a git repo; warn if not (review and wrap-up will be deg
 
 ### Step 6: Worktree Configuration
 
-Ensure `.worktrees/` exists in the project root; suggest migration if a legacy `.claude/worktrees/` is found. Read `bootstrap-steps.md` (Step 6) for the full procedure.
+Ensure `.worktrees/` exists in the project root; suggest migration if a legacy `.claude/worktrees/` is found. Also offers the `worktree.always` policy opt-in (recommended default: on) — the decision is queued here but the file write is deferred to avoid this same run denying its own later writes; see "Finalizing the worktree.always Decision" and "Worktree Policy Finalization" below. Read `bootstrap-steps.md` (Step 6) for the full procedure.
 
 ### Step 7: Browser Integration
 
@@ -126,6 +126,14 @@ Always offered (not gated) — detect which claude-tweaks skills ship a `routine
 ### Step 14: Non-Default-Branch Issue Tracking (Optional Companion)
 
 Offer only on projects with a GitHub remote — writes `.github/workflows/track-issue-fixes.yml`, which labels (`fix-on-<branch>`) and comments on issues fixed on non-default branches, then strips those labels once the fix reaches the default branch and GitHub closes the issue natively. Idempotent: skipped silently once the workflow file exists. Read `bootstrap-steps.md` (Step 14) for the full procedure.
+
+---
+
+### Finalizing the worktree.always Decision
+
+If Step 6 (`bootstrap-steps.md`) queued a `worktree.always` decision and `$ARGUMENTS` was `bootstrap` (this invocation stops after Phase 0 — see "Input" above), write it now, as the last action before stopping: create `.claude-tweaks/` if it doesn't exist, then write or update the `worktree.always:` line in `.claude-tweaks/policy.yml` (merge into existing content — preserve every other line in the file untouched; create the file with just that one line if it didn't exist). If the decision was "Yes," tell the user: "`worktree.always` is now enforced — your next edit requires an isolated worktree; run `/superpowers:using-git-worktrees` first."
+
+For every other scope, this decision is instead finalized at the end of Phase 9 — see "Worktree Policy Finalization" there.
 
 ---
 
@@ -352,6 +360,14 @@ Both modes lead with a **Verified & Consistent** section — an affirmative repo
 
 For the complete summary templates for both modes, read `summary-templates.md` in this skill's directory.
 
+### Worktree Policy Finalization
+
+If Step 6 (`bootstrap-steps.md`) queued a `worktree.always` decision, write it now — this is the deferred write described in Step 6, deferred specifically so this run's own Steps 7-14 and Phases 1-8.5 writes were never blocked by a policy that turned on mid-run. (The `bootstrap`-only scope already wrote its queued decision immediately after Step 14 — see "Finalizing the worktree.always Decision" after Phase 0 — so there is nothing to do here for that scope.)
+
+Create `.claude-tweaks/` if it doesn't exist. Read `.claude-tweaks/policy.yml` if present; if it has an existing `worktree.always:` line, replace that line, otherwise append a new `worktree.always: {true|false}` line (create the file with just that line if it didn't exist). Preserve every other line in the file untouched.
+
+If the decision was "Yes," add one line to the Phase 9 summary: "`worktree.always` is now enforced — your next edit requires an isolated worktree; run `/superpowers:using-git-worktrees` first."
+
 ### Actions Performed
 
 After writing files, surface what was created. Generate the table from the actual artifacts produced this run (only include rows for actions that actually occurred):
@@ -364,6 +380,7 @@ After writing files, surface what was created. Generate the table from the actua
 | Design integration | Set `design-integration: {enabled/plugin-only/disabled}` in CLAUDE.md | Step 10 |
 | shadcn integration | Set `shadcn-integration: {enabled/cli-only/disabled}` in CLAUDE.md | Step 12 |
 | Routines | Instantiated {N} routine(s): `{list}` (or "Offered, none set up") | Step 13 |
+| Worktree policy | Set `worktree.always: {true/false}` in `.claude-tweaks/policy.yml` (only if Step 6 asked this run) | Step 6 |
 | Classification | Confirmed maturity `{value}`, doc tier `{N}` | Phase 3 |
 | CLAUDE.md | Wrote {N} lines (Initial) / Applied {N} patches (Update) | Phase 5 |
 | Skills | Generated {N} SKILL.md files: `{list}` | Phase 6 |
