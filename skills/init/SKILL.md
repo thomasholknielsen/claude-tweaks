@@ -364,14 +364,6 @@ Both modes lead with a **Verified & Consistent** section — an affirmative repo
 
 For the complete summary templates for both modes, read `summary-templates.md` in this skill's directory.
 
-### Worktree Policy Finalization
-
-If Step 6 (`bootstrap-steps.md`) queued a `worktree.always` decision, write it now — this is the deferred write described in Step 6, deferred specifically so this run's own Steps 7-14 and Phases 1-8.5 writes were never blocked by a policy that turned on mid-run. (The `bootstrap`-only scope already wrote its queued decision immediately after Step 14 — see "Finalizing the worktree.always Decision" after Phase 0 — so there is nothing to do here for that scope.)
-
-Create `.claude-tweaks/` if it doesn't exist. Read `.claude-tweaks/policy.yml` if present; if it has an existing `worktree.always:` line, replace that line, otherwise append a new `worktree.always: {true|false}` line (create the file with just that line if it didn't exist). Preserve every other line in the file untouched.
-
-If the decision was "Yes," add one line to the Phase 9 summary: "`worktree.always` is now enforced — your next edit requires an isolated worktree; run `/superpowers:using-git-worktrees` first."
-
 ### Actions Performed
 
 After writing files, surface what was created. Generate the table from the actual artifacts produced this run (only include rows for actions that actually occurred):
@@ -384,7 +376,7 @@ After writing files, surface what was created. Generate the table from the actua
 | Design integration | Set `design-integration: {enabled/plugin-only/disabled}` in CLAUDE.md | Step 10 |
 | shadcn integration | Set `shadcn-integration: {enabled/cli-only/disabled}` in CLAUDE.md | Step 12 |
 | Routines | Instantiated {N} routine(s): `{list}` (or "Offered, none set up") | Step 13 |
-| Worktree policy | Set `worktree.always: {true/false}` in `.claude-tweaks/policy.yml` (only if Step 6 asked this run) | Step 6 |
+| Worktree policy | Set `worktree.always: {true/false}` in `.claude-tweaks/policy.yml` (only if Step 6 asked this run) — written last, after every other row above, to avoid mid-run self-lockout; see "Worktree Policy Finalization" below | Step 6 |
 | Classification | Confirmed maturity `{value}`, doc tier `{N}` | Phase 3 |
 | CLAUDE.md | Wrote {N} lines (Initial) / Applied {N} patches (Update) | Phase 5 |
 | Skills | Generated {N} SKILL.md files: `{list}` | Phase 6 |
@@ -394,6 +386,14 @@ After writing files, surface what was created. Generate the table from the actua
 | INBOX | Added {N} items (deferred skills, pain points, doc work, skeleton enrichment) | Phases 4-8.5 |
 
 Execute only after user confirmation.
+
+### Worktree Policy Finalization
+
+Write this AFTER every write in the Actions Performed table above has completed — it must be the very last filesystem action of the entire `/init` invocation. If Step 6 (`bootstrap-steps.md`) queued a `worktree.always` decision, write it now: this is the deferred write described in Step 6, deferred specifically so this run's own Steps 7-14, Phases 1-8.5, and this same Phase 9's own confirmed generated-file writes (the Actions Performed table above) were never blocked by a policy that turned on mid-run. (The `bootstrap`-only scope already wrote its queued decision immediately after Step 14 — see "Finalizing the worktree.always Decision" after Phase 0 — so there is nothing to do here for that scope.)
+
+Create `.claude-tweaks/` if it doesn't exist. Read `.claude-tweaks/policy.yml` if present; if it has an existing `worktree.always:` line, replace that line, otherwise append a new `worktree.always: {true|false}` line (create the file with just that line if it didn't exist). Preserve every other line in the file untouched.
+
+If the decision was "Yes," tell the user: "`worktree.always` is now enforced — your next edit requires an isolated worktree; run `/superpowers:using-git-worktrees` first."
 
 ---
 
