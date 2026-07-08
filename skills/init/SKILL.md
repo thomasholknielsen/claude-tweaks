@@ -131,9 +131,9 @@ Offer only on projects with a GitHub remote — writes `.github/workflows/track-
 
 ### Finalizing the worktree.always Decision
 
-If Step 6 (`bootstrap-steps.md`) queued a `worktree.always` decision and `$ARGUMENTS` was `bootstrap` (this invocation stops after Phase 0 — see "Input" above), write it now, as the last action before stopping: create `.claude-tweaks/` if it doesn't exist, then write or update the `worktree.always:` line in `.claude-tweaks/policy.yml` (merge into existing content — preserve every other line in the file untouched; create the file with just that one line if it didn't exist). If the decision was "Yes," tell the user: "`worktree.always` is now enforced — your next edit requires an isolated worktree; run `/superpowers:using-git-worktrees` first."
+If Step 6 (`bootstrap-steps.md`) queued a `worktree.always` decision, write it as the last action of whichever point this invocation actually stops at without reaching Phase 9. There are two such stopping points: here, immediately, if `$ARGUMENTS` was `bootstrap` (this invocation stops after Phase 0 — see "Input" above); or at the Scope Selection Gate below, if the user selects Option 4 ("Done") — see that option's own note for the second trigger. Both mean the invocation stops before Phase 9 ever runs. In either case: create `.claude-tweaks/` if it doesn't exist, then write or update the `worktree.always:` line in `.claude-tweaks/policy.yml` (merge into existing content — preserve every other line in the file untouched; create the file with just that one line if it didn't exist). If the decision was "Yes," tell the user: "`worktree.always` is now enforced — your next edit requires an isolated worktree; run `/superpowers:using-git-worktrees` first."
 
-For every other scope, this decision is instead finalized at the end of Phase 9 — see "Worktree Policy Finalization" there.
+For every other scope or gate outcome, this decision is instead finalized at the end of Phase 9 — see "Worktree Policy Finalization" there.
 
 ---
 
@@ -162,7 +162,7 @@ Call `AskUserQuestion` (see "Phases at a Glance" above for the full table; Phase
 
 **Option 3 (Essentials):** Runs phases 2, 3, 5 only. Produces CLAUDE.md with proper philosophy and Don'ts. Defers skills, rules, journeys, and doc registry for later (suggest re-running `/init` or using goal-based arguments).
 
-**Option 4 (Done):** Stop after Phase 0. The user has the directory structure, starter files, and dependencies — they'll configure manually or run `/init` again later.
+**Option 4 (Done):** Stop after Phase 0. The user has the directory structure, starter files, and dependencies — they'll configure manually or run `/init` again later. If Step 6 queued a `worktree.always` decision, write it now — see "Finalizing the worktree.always Decision" above; this is the second of that section's two triggers (the first being `$ARGUMENTS was bootstrap`), both of which stop the invocation before Phase 9 ever runs.
 
 ### Phase dependencies
 
