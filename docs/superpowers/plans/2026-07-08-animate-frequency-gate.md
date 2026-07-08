@@ -74,7 +74,7 @@ Run:
 grep -n "Frequency Gate" skills/design/command-map.md
 ```
 
-Expected output: two matches — the `**Frequency Gate guardrail (\`animate\` only).**` heading line and the blockquote line starting `> "Apply a frequency gate before animating:`.
+Expected output: one match — the `**Frequency Gate guardrail (\`animate\` only).**` heading line. (The blockquote line intentionally uses lowercase "a frequency gate" as normal prose, so this case-sensitive grep will not also match it — that's expected, not a bug. Use the next command to confirm the blockquote text itself landed.)
 
 Run:
 
@@ -164,7 +164,7 @@ Run:
 grep -rn "Frequency Gate" skills/
 ```
 
-Expected output: exactly two files listed — `skills/design/command-map.md` (2 matches, from Task 1) and `skills/design/modes/polish.md` (1 match, from this task's Step 1). No other file in `skills/` should mention it (confirms the change stayed scoped to the two files this plan targets).
+Expected output: exactly two files listed, one match each — `skills/design/command-map.md` (the `**Frequency Gate guardrail (\`animate\` only).**` heading from Task 1; the blockquote below it intentionally uses lowercase "a frequency gate" as prose, so it will not appear in this case-sensitive grep — that's expected, not a bug) and `skills/design/modes/polish.md` (the `**Frequency Gate guardrail.**` heading from this task's Step 1). No other file in `skills/` should mention it (confirms the change stayed scoped to the two files this plan targets).
 
 - [ ] **Step 4: Run the existing test suite to confirm no unrelated breakage**
 
