@@ -141,6 +141,16 @@ Every spec section must contain content that `/superpowers:writing-plans` can ac
 
 If you would need `/superpowers:writing-plans` to guess, the spec is incomplete — finish it before handing off. Vagueness here compounds into plan failures downstream.
 
+## Delete + Tombstone Acceptance Criteria
+
+A spec that both (a) requires deleting a symbol and asserting a grep for it returns zero matches, and (b) requires leaving a tombstone comment naming that symbol (e.g., `// removed: parseLegacyConfig — see spec 311`) is structurally self-defeating: the tombstone comment is itself a match for the grep it's supposed to satisfy. This is not a one-off — any "delete + tombstone comment" acceptance criterion pair hits it.
+
+When a spec calls for both deletion and a tombstone comment, do one of:
+- **Scope the grep to exclude the tombstone** — e.g., `grep -rn "parseLegacyConfig" src/ | grep -v "// removed:"` returns zero matches. Default to this: it keeps the tombstone's full diagnostic value (naming exactly what was removed and why) without weakening the "fully deleted" guarantee the AC exists to provide.
+- **Word the tombstone without the exact symbol name** (e.g., "see CHANGELOG.md for what was removed here") only when the exact name isn't operationally necessary for future readers — this is the fallback, not the default, since it loses the tombstone's specificity.
+
+Never write a bare "zero matches anywhere" AC alongside a tombstone requirement without picking one of these — it fails at review time every time.
+
 ## Why Each Section Matters for `/superpowers:writing-plans`
 
 | Section | What `/superpowers:writing-plans` does with it |

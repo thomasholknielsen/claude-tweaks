@@ -119,6 +119,16 @@ multispec:
 
 ## Execution
 
+### Pre-flight Verify Sweep (once, before spec 1)
+
+Before spec 1's pipeline begins — after the shared worktree exists and is checked out (`worktree` mode), or in the current checkout otherwise — run `test/verification.md` Steps 1-2 (type check, lint, tests) **once** against the unmodified base, before any spec's build touches the code.
+
+Why: without this, a batch of N specs independently re-diagnoses the same pre-existing failure from scratch up to N times — each spec's own `/test` step finds the same broken check and re-derives its root cause, with no shared record because the only trace lives in gitignored report files.
+
+Record any failures as ledger items in the **parent** run directory (not a per-spec subdir): phase `test`, status `open`, description naming the failing check and its root cause if apparent. If the sweep finds zero failures, skip the ledger write and proceed silently — do not add a "sweep clean" entry.
+
+This does not replace each spec's own `/test` gate — every spec still runs verification normally. It establishes the baseline so a spec whose `/test` run hits a failure already recorded here cites the existing ledger entry (`Pre-existing — see ledger #{N}, batch pre-flight sweep`) instead of re-diagnosing it, per `test/verification.md`'s "Pre-existing failures (multi-spec batches)" note.
+
 Run each spec's full pipeline in order (spec 42 → spec 45 → spec 48). Each spec completes its pipeline (build → test → review → wrap-up) before the next begins.
 
 For each per-spec invocation, `/flow` exports four environment variables:

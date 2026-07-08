@@ -29,6 +29,10 @@ When running inside a `/claude-tweaks:flow` pipeline and the previous step alrea
 
 **Note:** Skipping verification does not skip QA. When `/claude-tweaks:test` receives `VERIFICATION_PASSED=true` and QA stories exist, it skips this procedure but still runs QA story validation separately.
 
+### Pre-existing failures (multi-spec batches)
+
+In a multi-spec `/flow` run, `flow/multi-spec.md`'s pre-flight verify sweep runs this procedure once against the unmodified base, before spec 1's build begins, and records any failures to the parent run directory's ledger (phase `test`, status `open`). Before diagnosing a verification failure for an individual spec, check that ledger for an existing entry describing the same failure — if found, cite it (`Pre-existing — see ledger #{N}, batch pre-flight sweep`) instead of independently re-deriving the same root cause. Only diagnose failures not already covered by the sweep.
+
 ## Step 3: Report
 
 Present results in a consistent format:

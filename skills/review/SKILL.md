@@ -127,6 +127,14 @@ If infrastructure or deployment changes are detected (Terraform, CDK, Docker, CI
 
 This classification guides which review lenses to apply — a pure UI change doesn't need a database review.
 
+### Reusing a Prior Whole-Branch Review
+
+In a multi-spec batch (`/claude-tweaks:flow --from-code-health`, or any run where several specs share one worktree/branch), a later spec's review may be tempted to cite an earlier spec's already-completed whole-branch review instead of re-dispatching. Only reuse it when the scope is **byte-identical**: the exact same commit range this review would otherwise cover, with zero delta — nothing has landed on the branch since the cited review's `HEAD`.
+
+If the current diff is instead an **overlapping superset** — the branch has moved forward since the cited review ran (new commits from this spec or another), even a small amount — the cited review does not cover that delta. Do not treat "we reviewed the branch already" as covering commits that landed after its `HEAD`. Instead: cite the prior review for the range it actually covered, and run a supplementary review scoped to just the delta (`git diff <cited-review-HEAD>..<current-HEAD>`) — not a fresh full whole-branch review.
+
+When it's unclear which case applies, default to overlapping superset (the conservative assumption) and run the supplementary check. Confirm byte-identical scope explicitly (diff the two commit ranges) before skipping re-dispatch — an unverified assumption of "same scope" is exactly how partial coverage escapes review.
+
 ## Step 3: Code Review
 
 Review changed files through these lenses. Skip lenses that don't apply to the type of change (e.g., skip "Performance" for a docs-only change).
