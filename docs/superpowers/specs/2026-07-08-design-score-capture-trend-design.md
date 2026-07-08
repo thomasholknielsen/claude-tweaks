@@ -121,6 +121,7 @@ Every failure mode in this design degrades gracefully and never blocks the revie
 | History file write fails (disk full, permission denied) | One-time skip, review proceeds; no `score_trend` for this run beyond what could be computed before the failed write |
 | History file missing or empty (first-ever run) | Both score types report `previous: null`, `delta: null` — "first captured score" |
 | History file contains malformed JSON lines | Skip malformed lines when scanning for the most recent prior value per score type; do not fail the whole read |
+| Two concurrent branches each append a line before either merges (this repo runs under `worktree.always` with frequent parallel sessions) | Trivial keep-both resolution at merge — an append-only JSONL conflict at EOF resolves by keeping both new lines, no structural merge needed. The log is advisory history, not a single authoritative value, so an out-of-order interleave costs nothing beyond one run's delta comparing against a slightly older `previous` than the true latest — acceptable, not worth added complexity (e.g. timestamp-based tie-breaking) to prevent |
 
 ## Testing
 
