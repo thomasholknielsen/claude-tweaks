@@ -206,4 +206,4 @@ This skill is a **component skill** — invoked by `/claude-tweaks:build` (Commo
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
 | `_shared/auto-decision-log.md` | Canonical schema and path for the auto-decision log written in Step 3.5 (`{run-dir}/decisions.md` under `## /journeys`). |
 | `_shared/diagram-integration-check.md` | Step 3.6 reads this for the flag check and signal→type mapping. Soft-hook only — emits a recommendation, never invokes the companion plugin. |
-| `cathrynlavery/diagram-design` (companion) | Step 3.6 emits "consider a diagram here" recommendations when journey signals match (multi-persona → swimlane, decision branches → flowchart, multi-actor → sequence). Gated by `diagram-integration: enabled` in CLAUDE.md (written by `/init` Phase 0.95). |
+| `cathrynlavery/diagram-design` (companion) | Step 3.6 emits "consider a diagram here" recommendations when journey signals match (multi-persona → swimlane, decision branches → flowchart, multi-actor → sequence). Gated by `diagram-integration: enabled` in CLAUDE.md (written by `/init` Step 11). |

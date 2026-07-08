@@ -24,7 +24,7 @@ Read the project's CLAUDE.md and look for a `diagram-integration:` line (typical
 | `disabled` | Skip silently — do not emit a recommendation |
 | *(missing)* | Skip silently — treat as `disabled` |
 
-The flag is set by `/init` Phase 0.95. Pre-v4.7 projects will have it missing; that is correct silent-skip behavior, not an error.
+The flag is set by `/init` Step 11. Pre-v4.7 projects will have it missing; that is correct silent-skip behavior, not an error.
 
 ## Step 2: Map signal → diagram type
 

@@ -67,57 +67,65 @@ If no arguments, analyze the current working directory. Phase 0 runs first, then
 
 Fast, idempotent structural setup. Creates directories, starter files, and verifies dependencies. Skips anything that already exists.
 
-### Step 0.1: Check Plugin Dependencies
+**Core Bootstrap (Steps 1–8):**
 
-Verify Superpowers plugin and the built-in code-simplifier subagent are available. Read `bootstrap-steps.md` (Step 0.1) for the dependency list, detection commands, and install hint.
+### Step 1: Check Plugin Dependencies
 
-### Step 0.2: Create Directory Structure
+Verify Superpowers plugin and the built-in code-simplifier subagent are available. Read `bootstrap-steps.md` (Step 1) for the dependency list, detection commands, and install hint.
 
-Create the required workflow directories — idempotent, only creates what's missing. Read `bootstrap-steps.md` (Step 0.2) for the directory taxonomy and per-directory rationale.
+### Step 2: Create Directory Structure
 
-### Step 0.3: Create Starter Files
+Create the required workflow directories — idempotent, only creates what's missing. Read `bootstrap-steps.md` (Step 2) for the directory taxonomy and per-directory rationale.
 
-Create `specs/INBOX.md`, `specs/DEFERRED.md`, and `specs/INDEX.md` — only if missing, never overwrite. Read `bootstrap-steps.md` (Step 0.3) for the canonical starter content.
+### Step 3: Create Starter Files
 
-### Step 0.4: Suggest .gitignore Entries
+Create `specs/INBOX.md`, `specs/DEFERRED.md`, and `specs/INDEX.md` — only if missing, never overwrite. Read `bootstrap-steps.md` (Step 3) for the canonical starter content.
 
-Suggest entries for transient workflow artifacts; never modify `.gitignore` without asking. Read `bootstrap-steps.md` (Step 0.4) for the full suggested block and the stories-commit prompt.
+### Step 4: Suggest .gitignore Entries
 
-### Step 0.45: GitHub Issue Form Template (Optional)
+Suggest entries for transient workflow artifacts; never modify `.gitignore` without asking. Read `bootstrap-steps.md` (Step 4) for the full suggested block and the stories-commit prompt.
 
-GitHub issue form template offer (agent-task.yml). Read `bootstrap-steps.md` (Step 0.45) for the full procedure.
+### Step 5: Verify Git
 
-### Step 0.5: Verify Git
+Confirm the directory is a git repo; warn if not (review and wrap-up will be degraded). Read `bootstrap-steps.md` (Step 5) for the full procedure.
 
-Confirm the directory is a git repo; warn if not (review and wrap-up will be degraded). Read `bootstrap-steps.md` (Step 0.5) for the full procedure.
+### Step 6: Worktree Configuration
 
-### Step 0.6: Worktree Configuration
+Ensure `.worktrees/` exists in the project root; suggest migration if a legacy `.claude/worktrees/` is found. Read `bootstrap-steps.md` (Step 6) for the full procedure.
 
-Ensure `.worktrees/` exists in the project root; suggest migration if a legacy `.claude/worktrees/` is found. Read `bootstrap-steps.md` (Step 0.6) for the full procedure.
+### Step 7: Browser Integration
 
-### Step 0.7: Browser Integration
+Detect `agent-browser`; surface the install command if missing. Never block init, never auto-install, never prompt for backend choice. Read `bootstrap-steps.md` (Step 7) for the full procedure.
 
-Detect `agent-browser`; surface the install command if missing. Never block init, never auto-install, never prompt for backend choice. Read `bootstrap-steps.md` (Step 0.7) for the full procedure.
+### Step 8: Statusline & Dependencies
 
-### Step 0.8: Statusline & Dependencies
+Detect Node (and optionally git), install the statusline wrapper at `~/.claude-tweaks/bin/statusline.js`, and prompt before wiring `statusLine.command` in `~/.claude/settings.json` — never overwrite a non-claude-tweaks command. Read `bootstrap-steps.md` (Step 8) for the full procedure (detection, package-manager prompts, settings.json migration matrix, NO_COLOR opt-out).
 
-Detect Node (and optionally git), install the statusline wrapper at `~/.claude-tweaks/bin/statusline.js`, and prompt before wiring `statusLine.command` in `~/.claude/settings.json` — never overwrite a non-claude-tweaks command. Read `bootstrap-steps.md` (Step 0.8) for the full procedure (detection, package-manager prompts, settings.json migration matrix, NO_COLOR opt-out).
+**Optional Enhancements (Steps 9–14):**
 
-### Step 0.9: Impeccable Design Integration (Optional)
+### Step 9: GitHub Issue Form Template (Optional)
 
-When Phase 2 detects frontend signals, present the three-option Impeccable setup prompt (Full / Plugin-only / Skip) and write the `design-integration` flag to CLAUDE.md — the `/claude-tweaks:design` wrapper reads this as Layer 1 of its detection logic. Read `bootstrap-steps.md` (Step 0.9) for the full procedure (frontend-detection list, install sequence, flag-value table, re-run behavior, failure handling).
+GitHub issue form template offer (agent-task.yml). Read `bootstrap-steps.md` (Step 9) for the full procedure.
 
-### Step 0.95: Diagram Design (Recommended Companion)
+### Step 10: Impeccable Design Integration (Optional)
 
-Always offered (not frontend-gated). Present the two-option diagram-design setup prompt (Install / Skip) and write the `diagram-integration` flag to CLAUDE.md under the existing `## Design integration` section. Soft-hook nudges in `/specify`, `/build`, and `/review` read this flag to decide whether to surface "consider a diagram here" recommendations. Read `bootstrap-steps.md` (Step 0.95) for the full procedure.
+When Phase 2 detects frontend signals, present the three-option Impeccable setup prompt (Full / Plugin-only / Skip) and write the `design-integration` flag to CLAUDE.md — the `/claude-tweaks:design` wrapper reads this as Layer 1 of its detection logic. Read `bootstrap-steps.md` (Step 10) for the full procedure (frontend-detection list, install sequence, flag-value table, re-run behavior, failure handling).
 
-### Step 0.96: Routine Installation (Optional Companion)
+### Step 11: Diagram Design (Recommended Companion)
 
-Always offered (not gated) — detect which claude-tweaks skills ship a `routine-template.yml` without an existing instantiated record for this project, and offer to walk through `/claude-tweaks:routine create <skill> --source init` for each. Idempotent: skills with an existing record are never re-offered. Read `bootstrap-steps.md` (Step 0.96) for the full procedure.
+Always offered (not frontend-gated). Present the two-option diagram-design setup prompt (Install / Skip) and write the `diagram-integration` flag to CLAUDE.md under the existing `## Design integration` section. Soft-hook nudges in `/specify`, `/build`, and `/review` read this flag to decide whether to surface "consider a diagram here" recommendations. Read `bootstrap-steps.md` (Step 11) for the full procedure.
 
-### Step 0.97: Non-Default-Branch Issue Tracking (Optional Companion)
+### Step 12: shadcn Bootstrap (Optional)
 
-Offer only on projects with a GitHub remote — writes `.github/workflows/track-issue-fixes.yml`, which labels (`fix-on-<branch>`) and comments on issues fixed on non-default branches, then strips those labels once the fix reaches the default branch and GitHub closes the issue natively. Idempotent: skipped silently once the workflow file exists. Read `bootstrap-steps.md` (Step 0.97) for the full procedure.
+When frontend signals are detected and `components.json` doesn't exist (or exists without full AI-agent wiring), present the shadcn/ui setup prompt (Full / CLI-only / Skip, or the narrower "wire remaining layers" offer when the CLI is already initialized) and write the `shadcn-integration` flag to CLAUDE.md. Currently write-only — no other skill reads the flag yet. Read `bootstrap-steps.md` (Step 12) for the full procedure (framework/package-manager detection, install sequence, MCP/skills wiring, flag-value table, re-run behavior, failure handling).
+
+### Step 13: Routine Installation (Optional Companion)
+
+Always offered (not gated) — detect which claude-tweaks skills ship a `routine-template.yml` without an existing instantiated record for this project, and offer to walk through `/claude-tweaks:routine create <skill> --source init` for each. Idempotent: skills with an existing record are never re-offered. Read `bootstrap-steps.md` (Step 13) for the full procedure.
+
+### Step 14: Non-Default-Branch Issue Tracking (Optional Companion)
+
+Offer only on projects with a GitHub remote — writes `.github/workflows/track-issue-fixes.yml`, which labels (`fix-on-<branch>`) and comments on issues fixed on non-default branches, then strips those labels once the fix reaches the default branch and GitHub closes the issue natively. Idempotent: skipped silently once the workflow file exists. Read `bootstrap-steps.md` (Step 14) for the full procedure.
 
 ---
 
@@ -350,11 +358,12 @@ After writing files, surface what was created. Generate the table from the actua
 
 | Action | Detail | Ref |
 |--------|--------|-----|
-| Bootstrap | Created `specs/`, `docs/`, `docs/journeys/`, `.worktrees/`, etc. (only missing dirs) | Phase 0.2 |
-| Starter files | Wrote `specs/INBOX.md`, `specs/DEFERRED.md`, `specs/INDEX.md` (only if missing) | Phase 0.3 |
-| Statusline | Installed wrapper at `~/.claude-tweaks/bin/statusline.js`; wired `~/.claude/settings.json` | Phase 0.8 |
-| Design integration | Set `design-integration: {enabled/plugin-only/disabled}` in CLAUDE.md | Phase 0.9 |
-| Routines | Instantiated {N} routine(s): `{list}` (or "Offered, none set up") | Phase 0.96 |
+| Bootstrap | Created `specs/`, `docs/`, `docs/journeys/`, `.worktrees/`, etc. (only missing dirs) | Step 2 |
+| Starter files | Wrote `specs/INBOX.md`, `specs/DEFERRED.md`, `specs/INDEX.md` (only if missing) | Step 3 |
+| Statusline | Installed wrapper at `~/.claude-tweaks/bin/statusline.js`; wired `~/.claude/settings.json` | Step 8 |
+| Design integration | Set `design-integration: {enabled/plugin-only/disabled}` in CLAUDE.md | Step 10 |
+| shadcn integration | Set `shadcn-integration: {enabled/cli-only/disabled}` in CLAUDE.md | Step 12 |
+| Routines | Instantiated {N} routine(s): `{list}` (or "Offered, none set up") | Step 13 |
 | Classification | Confirmed maturity `{value}`, doc tier `{N}` | Phase 3 |
 | CLAUDE.md | Wrote {N} lines (Initial) / Applied {N} patches (Update) | Phase 5 |
 | Skills | Generated {N} SKILL.md files: `{list}` | Phase 6 |
@@ -430,12 +439,13 @@ If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it
 | `/claude-tweaks:wrap-up` | Captures learnings after features — keeps generated skills alive and accurate. Step 7 references `skill-template.md` from /claude-tweaks:init's directory. /wrap-up Step 6 maintains the doc registry created by /init. |
 | `/claude-tweaks:tidy` | /tidy Step 4.6 audits doc registry health — flags stale entries, gaps, pattern drift. Suggests `/init update` for tier drift. |
 | `/claude-tweaks:browse` | Depends on `agent-browser`, which /claude-tweaks:init detects (and surfaces install instructions for) in Phase 0 |
-| `/claude-tweaks:design` | Phase 0.9 sets up Impeccable design integration (install plugin + CLI, optionally run `init`) and writes the `design-integration` kill-switch flag to CLAUDE.md that the wrapper reads as Layer 1 of its detection logic. |
-| `cathrynlavery/diagram-design` (companion) | Phase 0.95 offers to install the external `diagram-design` plugin and writes the `diagram-integration` flag to CLAUDE.md. Soft-hook nudges in `/specify`, `/build`, and `/review` read the flag to decide whether to surface "consider a diagram here" recommendations. |
+| `/claude-tweaks:design` | Step 10 sets up Impeccable design integration (install plugin + CLI, optionally run `init`) and writes the `design-integration` kill-switch flag to CLAUDE.md that the wrapper reads as Layer 1 of its detection logic. |
+| `cathrynlavery/diagram-design` (companion) | Step 11 offers to install the external `diagram-design` plugin and writes the `diagram-integration` flag to CLAUDE.md. Soft-hook nudges in `/specify`, `/build`, and `/review` read the flag to decide whether to surface "consider a diagram here" recommendations. |
+| `shadcn/ui` (companion) | Step 12 offers to bootstrap the shadcn CLI, wire its official MCP server into `.mcp.json`, and install shadcn's official Skill (`skills add shadcn/ui`) for live Claude Code project context. Writes the `shadcn-integration` flag to CLAUDE.md — currently write-only, no other skill reads it yet. |
 | `/superpowers:using-git-worktrees` | /claude-tweaks:init optionally configures the worktree directory that `using-git-worktrees` needs |
 | `/claude-tweaks:stories` | /init Phase 8 (journey discovery) feeds /stories — discovered journeys become input for story generation |
 | `/claude-tweaks:version` | /version reads the same `plugin.json` that /init may print during bootstrap |
-| `/claude-tweaks:routine` | Phase 0.96 discovers claude-tweaks skills shipping a `routine-template.yml` with no existing instantiated record, and offers to invoke `/claude-tweaks:routine create <skill> --source init` for each — pure discovery + handoff. |
+| `/claude-tweaks:routine` | Step 13 discovers claude-tweaks skills shipping a `routine-template.yml` with no existing instantiated record, and offers to invoke `/claude-tweaks:routine create <skill> --source init` for each — pure discovery + handoff. |
 | `/claude-tweaks:harness-health` and `_shared/harness-health-analysis.md` | Phase 6's drift-patch procedure and Phase 3/1u's skill classification apply this shared procedure instead of an inline copy, sharing its judgment logic and `.claude-tweaks/harness-health/` cursor/cache state with `/claude-tweaks:wrap-up` Step 7 and the standalone routine. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. Phase 3 classification auto-confirm follows the contract's confidence-gated pattern. |
 | All workflow skills | Depend on the structure /claude-tweaks:init creates |

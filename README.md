@@ -6,6 +6,12 @@ A structured workflow system for Claude Code — from idea capture through build
 
 Claude Code is powerful but unstructured. claude-tweaks adds a complete development lifecycle: capture ideas, challenge assumptions, decompose into specs, build with quality gates, and learn from what was built. Every finding is explicitly resolved — nothing silently drops.
 
+### What's new in v5.18.0 — shadcn/ui bootstrap + Phase 0 step renumbering
+
+`/init` gains a new Optional Enhancement step: on a detected frontend project without `components.json`, it offers to bootstrap [shadcn/ui](https://ui.shadcn.com/) — CLI init, plus wiring shadcn's own first-party MCP server into `.mcp.json` and installing shadcn's official Skill (`skills add shadcn/ui`), both of which give Claude Code live project context so it stops guessing at component APIs. Writes a `shadcn-integration: enabled | cli-only | disabled` flag to CLAUDE.md's `## Design integration` section (currently write-only — no other skill reads it yet). See `/init` Step 12.
+
+Also folded in: Phase 0's internal step numbering (previously `Step 0.1`–`Step 0.97`, an ad-hoc decimal scheme approaching its practical ceiling) is now two clean sequential groups — Core Bootstrap (Steps 1–8) and Optional Enhancements (Steps 9–14, order-agnostic and append-only). Every cross-reference in this README and the plugin's skill files has been updated to match.
+
 ### What's new in v5.15.0 — code-health: risk-based triage + closing-keyword safety net
 
 `/claude-tweaks:recon` is renamed to `/claude-tweaks:code-health` (bare rename, no migration shim — see CLAUDE.md's `recon-issue:`/`recon-fingerprint:` note). Findings now carry a `likelihood` and `effort` alongside `severity`; a new deterministic helper (`bin/lib/code-health/risk.js`) computes a `risk` tier (`severity × likelihood`, product-bucketed) the same way `dedup.js#decide()` already computes decisions — never LLM-judged. GitHub labels move from `code-health:{severity}` to `code-health:risk-{tier}` + `code-health:effort-{tier}` (criterion labels are kept, now with real descriptions); filing and CI gates move from `--min-severity`/`--fail-on critical` to `--min-risk`/`--fail-on risk-high`. Downstream, `/flow --from-code-health` sorts batches by risk, offers `--quick-wins` (risk:high AND effort:low), and `/build` reads the `code-health-effort:` frontmatter to pick its implementer's model tier. Separately, a new harness-wide PostToolUse hook (warn tier, not gated on a resolved pipeline run) flags any commit that references a bare `#N` issue number without an immediately-preceding GitHub closing keyword — catching ad hoc fix commits that would otherwise silently leave the issue open.
@@ -40,7 +46,7 @@ As of v4.15.0 this delegates to Claude Code's built-in `/deep-research` Dynamic 
 - **`/journeys` Step 3.6** (new) — when a journey crosses 2+ personas, has 3+ named decision branches, or sequences 2+ external services, suggests the matching diagram type (swimlane / flowchart / sequence) before commit.
 - **`/review` Lens 3i-diagram** (extension) — when the diff added structural complexity but `docs/diagrams/` has no matching file, emits one informational Lens 3i finding ("Visual documentation gap"). Mirrors the existing "doc-update missed" pattern.
 
-All three hooks are gated by `diagram-integration: enabled` in CLAUDE.md, written by `/init` Phase 0.95 (always offered — not frontend-gated). Disabled / missing flag = silent no-op everywhere. claude-tweaks never invokes the plugin directly; the user accepts conversationally and diagram-design's skill auto-triggers. Shared procedure lives at `skills/_shared/diagram-integration-check.md` — flag-read, signal→type mapping (10 types), canonical phrasing, output convention.
+All three hooks are gated by `diagram-integration: enabled` in CLAUDE.md, written by `/init` Step 11 (always offered — not frontend-gated). Disabled / missing flag = silent no-op everywhere. claude-tweaks never invokes the plugin directly; the user accepts conversationally and diagram-design's skill auto-triggers. Shared procedure lives at `skills/_shared/diagram-integration-check.md` — flag-read, signal→type mapping (10 types), canonical phrasing, output convention.
 
 See [CHANGELOG.md](CHANGELOG.md) for earlier release notes (v4.6, v4.5, v4.2, v4.1) and v3→v4 upgrade guidance.
 
@@ -213,7 +219,7 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 
 The wrapper produces three independent surfacing anchors so creative commands cannot get buried: intent dispatch in polish, the Creative Opportunities block in `/visual-review`, and the Creative Opportunities block in `/flow`'s pipeline summary.
 
-Handles 3-layer detection (kill-switch / spec frontmatter / file-extension sniff) so non-frontend specs skip cleanly. Set up by `/init` Step 0.9. Per-spec caches (`*-audit.json`, `*-recommendations.json`, `*-declined.json`) live in `docs/plans/` and are cleaned up by `/wrap-up`.
+Handles 3-layer detection (kill-switch / spec frontmatter / file-extension sniff) so non-frontend specs skip cleanly. Set up by `/init` Step 10. Per-spec caches (`*-audit.json`, `*-recommendations.json`, `*-declined.json`) live in `docs/plans/` and are cleaned up by `/wrap-up`.
 
 ## Common workflows
 
@@ -256,7 +262,7 @@ Handles 3-layer detection (kill-switch / spec frontmatter / file-extension sniff
 |---------------|--------|----------|
 | [Superpowers](https://github.com/obra/superpowers) | `/plugin install superpowers@claude-plugins-official` | Yes — brainstorming, planning, subagent execution, worktree management, systematic debugging |
 | agent-browser | `npm install -g agent-browser` | Optional — browser automation for /stories, /visual-review, /review qa |
-| Node 18+ | brew/winget/scoop install nodejs | Yes — statusline. `/claude-tweaks:init` Step 0.8 offers to install via your package manager. |
+| Node 18+ | brew/winget/scoop install nodejs | Yes — statusline. `/claude-tweaks:init` Step 8 offers to install via your package manager. |
 | git CLI | brew/winget/apt install git | Optional — required only for the git segment in the statusline; everything else degrades gracefully. |
 
 ## Configuration

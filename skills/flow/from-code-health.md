@@ -233,7 +233,7 @@ labels.
    **Non-default-branch note:** the mapping above assumes the merge/push lands directly
    on the default branch. If your project's workflow lands fixes on an integration branch
    first (`dev`, `staging`), that push produces no GitHub signal at all until it later
-   reaches default — `/init` Step 0.97 offers a companion GitHub Actions workflow
+   reaches default — `/init` Step 14 offers a companion GitHub Actions workflow
    (`.github/workflows/track-issue-fixes.yml`) that labels + comments on those issues in
    the meantime, then cleans up once the default-branch merge actually closes them.
 
