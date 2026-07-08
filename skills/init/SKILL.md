@@ -93,7 +93,7 @@ Confirm the directory is a git repo; warn if not (review and wrap-up will be deg
 
 ### Step 6: Worktree Configuration
 
-Ensure `.worktrees/` exists in the project root; suggest migration if a legacy `.claude/worktrees/` is found. Also offers the `worktree.always` policy opt-in (recommended default: on) — the decision is queued here but the file write is deferred to avoid this same run denying its own later writes; see "Finalizing the worktree.always Decision" and "Worktree Policy Finalization" below. Read `bootstrap-steps.md` (Step 6) for the full procedure.
+Ensure `.worktrees/` exists in the project root for the git-fallback path; leave any `.claude/worktrees/` directory alone as a separate, harness-owned convention that needs no migration. Also offers the `worktree.always` policy opt-in (recommended default: on) — the decision is queued here but the file write is deferred to avoid this same run denying its own later writes; see "Finalizing the worktree.always Decision" and "Worktree Policy Finalization" below. Read `bootstrap-steps.md` (Step 6) for the full procedure.
 
 ### Step 7: Browser Integration
 
