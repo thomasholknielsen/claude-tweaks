@@ -101,7 +101,7 @@ Detect `agent-browser`; surface the install command if missing. Never block init
 
 Detect Node (and optionally git), install the statusline wrapper at `~/.claude-tweaks/bin/statusline.js`, and prompt before wiring `statusLine.command` in `~/.claude/settings.json` — never overwrite a non-claude-tweaks command. Read `bootstrap-steps.md` (Step 8) for the full procedure (detection, package-manager prompts, settings.json migration matrix, NO_COLOR opt-out).
 
-**Optional Enhancements (Steps 9–14):**
+**Optional Enhancements (Steps 9–15):**
 
 ### Step 9: GitHub Issue Form Template (Optional)
 
@@ -126,6 +126,10 @@ Always offered (not gated) — detect which claude-tweaks skills ship a `routine
 ### Step 14: Non-Default-Branch Issue Tracking (Optional Companion)
 
 Offer only on projects with a GitHub remote — writes `.github/workflows/track-issue-fixes.yml`, which labels (`fix-on-<branch>`) and comments on issues fixed on non-default branches, then strips those labels once the fix reaches the default branch and GitHub closes the issue natively. Idempotent: skipped silently once the workflow file exists. Read `bootstrap-steps.md` (Step 14) for the full procedure.
+
+### Step 15: Backlog Backend (Optional)
+
+Decide whether `/claude-tweaks:capture` and `/claude-tweaks:tidy` back the INBOX/DEFERRED backlog with GitHub issues or the classic local markdown files, and write the `backlog-backend` flag to CLAUDE.md — gated on the same GHE-safe two-tier remote check Step 9 uses. Read `bootstrap-steps.md` (Step 15) for the full procedure.
 
 ---
 
@@ -363,6 +367,7 @@ After writing files, surface what was created. Generate the table from the actua
 | Statusline | Installed wrapper at `~/.claude-tweaks/bin/statusline.js`; wired `~/.claude/settings.json` | Step 8 |
 | Design integration | Set `design-integration: {enabled/plugin-only/disabled}` in CLAUDE.md | Step 10 |
 | shadcn integration | Set `shadcn-integration: {enabled/cli-only/disabled}` in CLAUDE.md | Step 12 |
+| Backlog integration | Set `backlog-backend: {github-issues/local-files}` in CLAUDE.md | Step 15 |
 | Routines | Instantiated {N} routine(s): `{list}` (or "Offered, none set up") | Step 13 |
 | Classification | Confirmed maturity `{value}`, doc tier `{N}` | Phase 3 |
 | CLAUDE.md | Wrote {N} lines (Initial) / Applied {N} patches (Update) | Phase 5 |
