@@ -67,6 +67,8 @@ If no arguments, analyze the current working directory. Phase 0 runs first, then
 
 Fast, idempotent structural setup. Creates directories, starter files, and verifies dependencies. Skips anything that already exists.
 
+**Core Bootstrap (Steps 1–8):**
+
 ### Step 1: Check Plugin Dependencies
 
 Verify Superpowers plugin and the built-in code-simplifier subagent are available. Read `bootstrap-steps.md` (Step 1) for the dependency list, detection commands, and install hint.
@@ -83,10 +85,6 @@ Create `specs/INBOX.md`, `specs/DEFERRED.md`, and `specs/INDEX.md` — only if m
 
 Suggest entries for transient workflow artifacts; never modify `.gitignore` without asking. Read `bootstrap-steps.md` (Step 4) for the full suggested block and the stories-commit prompt.
 
-### Step 9: GitHub Issue Form Template (Optional)
-
-GitHub issue form template offer (agent-task.yml). Read `bootstrap-steps.md` (Step 9) for the full procedure.
-
 ### Step 5: Verify Git
 
 Confirm the directory is a git repo; warn if not (review and wrap-up will be degraded). Read `bootstrap-steps.md` (Step 5) for the full procedure.
@@ -102,6 +100,12 @@ Detect `agent-browser`; surface the install command if missing. Never block init
 ### Step 8: Statusline & Dependencies
 
 Detect Node (and optionally git), install the statusline wrapper at `~/.claude-tweaks/bin/statusline.js`, and prompt before wiring `statusLine.command` in `~/.claude/settings.json` — never overwrite a non-claude-tweaks command. Read `bootstrap-steps.md` (Step 8) for the full procedure (detection, package-manager prompts, settings.json migration matrix, NO_COLOR opt-out).
+
+**Optional Enhancements (Steps 9–14):**
+
+### Step 9: GitHub Issue Form Template (Optional)
+
+GitHub issue form template offer (agent-task.yml). Read `bootstrap-steps.md` (Step 9) for the full procedure.
 
 ### Step 10: Impeccable Design Integration (Optional)
 
