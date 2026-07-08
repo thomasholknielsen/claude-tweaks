@@ -34,6 +34,8 @@ Two orthogonal axes (execution × git) combine freely. Default is `subagent` + `
 
 When `.claude-tweaks/policy.yml` sets `worktree.always: true`, the Git axis has only one value: `current-branch` is not offered and is rejected if passed explicitly — the mechanical PreToolUse gate would deny any edit outside a worktree regardless (see `_shared/git-discipline.md`).
 
+When `.claude-tweaks/policy.yml` sets `execution.always: subagent`, the Execution axis has only one value: `batched` is not offered and is rejected if passed explicitly — unlike the Git axis, there is no mechanical backstop for this one (see `_shared/git-discipline.md`).
+
 Read `build-options.md` in this skill's directory for the full options matrix, invocation grammar (six combinations), default-resolution order, the build-options prompt template, the spec-vs-design mode table, and the input-resolution rules. `$ARGUMENTS` = spec number / design doc path / topic name, optionally followed by execution strategy, git strategy, and/or `auto`.
 
 ## Workflow
