@@ -382,7 +382,7 @@ Pass the spec number (or paths) used for this review run. The wrapper resolves c
 
 | Wrapper return | Review behavior |
 |----------------|-----------------|
-| `{result: "advisory", findings: [...]}` | Include findings in the summary as a "Design Quality" section (see Step 7's template). Findings are advisory — they inform the verdict, but no auto-fixes. |
+| `{result: "advisory", findings: [...], score_trend?: {...}}` | Include findings in the summary as a "Design Quality" section (see Step 7's template). When `score_trend` is present, the section also renders a Design/Audit Health trend line above the findings table (current score vs. the last captured score, per `review-summary-template.md`). Findings are advisory — they inform the verdict, but no auto-fixes. |
 | `{skipped: ...}` | Omit the "Design Quality" section from the summary. Note the skip reason in the summary footer. |
 | `{deferred: ...}` (should not happen for `review` mode) | Treat as skip and omit the section. |
 
