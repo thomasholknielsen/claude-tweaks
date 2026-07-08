@@ -191,6 +191,10 @@ claude-tweaks pipelines have at most two stops in `auto` mode: a **Pipeline Conf
 
 **Per-pipeline run directory** (collision-safe across parallel agents): `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/` contains `config.yml` (Manifesto answers), `decisions.md` (audit log), and `staged/` (proposals awaiting Review Console). Skills locate the active run via `PIPELINE_RUN_DIR` env var or by selecting the most recent matching run. **Project policy** lives in CLAUDE.md or `.claude-tweaks/policy.yml` — read as defaults by the Manifesto, overridable per-run.
 
+## Backlog integration
+
+backlog-backend: github-issues
+
 ## Don'ts
 
 - Don't add "What's Next?" / "Pick an action" navigation menus at the end of skills — use `### Next Actions` blocks with numbered options and pre-filled commands

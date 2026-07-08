@@ -667,3 +667,57 @@ failure and continue `/init` — never abort the rest of bootstrap on this step.
 **Re-run behavior:** the idempotency check above means this step is silent on repeat
 `/init` runs once the workflow file exists. Declining is fine — it's offered again on
 the next `/init` run.
+
+---
+
+### Step 15 — Backlog Backend (detailed procedure)
+
+`/claude-tweaks:capture` and `/claude-tweaks:tidy` back the INBOX/DEFERRED backlog with
+either GitHub issues or the classic local markdown files
+(`specs/INBOX.md`/`specs/DEFERRED.md`). Decide the backend once here so every future
+capture/defer/tidy run is consistent — no split-brain between issue-backed and
+file-backed entries for the same repo.
+
+**Gate:** run the same GHE-safe two-tier check Step 9 uses. When it succeeds (a
+GitHub-flavored remote is reachable), default the recommendation to option 1 below;
+otherwise default to option 2.
+
+**Present:**
+
+```
+How should claude-tweaks store captured ideas and deferred work?
+
+1. GitHub issues (Recommended when a GitHub remote is available) — filterable,
+   visible outside the repo, works with /flow --from-label and --from-milestone
+2. Local markdown files (specs/INBOX.md, specs/DEFERRED.md) — no GitHub dependency
+```
+
+**Write the flag to CLAUDE.md.** Add (or update) a `## Backlog integration` section:
+
+```markdown
+## Backlog integration
+
+backlog-backend: github-issues
+```
+
+Use the appropriate value:
+
+| Choice | Flag value |
+|--------|-----------|
+| Option 1 (GitHub issues) | `github-issues` |
+| Option 2 (Local files) | `local-files` |
+
+`/claude-tweaks:capture` and `/claude-tweaks:tidy` read this flag to decide where a new
+entry lands. Missing flag is treated identically to `local-files` — the GitHub-backed
+path only activates when explicitly enabled by `/init`, matching `design-integration`'s
+missing-flag convention.
+
+**Re-run behavior (Update-Mode drift).** When `/init` is re-run on a project where
+`backlog-backend: github-issues` is already set, this step is a no-op. When the flag is
+`local-files`, re-run the Gate check — if a GitHub remote has since become available (the
+project was local-only at the last `/init` and has since been pushed), offer the upgrade
+path back to `github-issues`. When the flag is **missing** (pre-this-feature projects),
+present the first-run prompt above — same as a fresh init.
+
+**Failure handling:** if writing the CLAUDE.md section fails, surface the failure and
+continue `/init` — never abort the rest of bootstrap on this step.
