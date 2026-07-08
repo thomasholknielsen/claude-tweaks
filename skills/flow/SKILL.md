@@ -122,7 +122,7 @@ When a gate fails, the pipeline stops immediately and renders a failure card. Tw
    2. CLAUDE.md `git-strategy` setting — project-level default (see `/claude-tweaks:build` default resolution)
    3. Fallback: `worktree`
 
-   Do NOT prompt the user for git strategy — resolve it silently from the above. This is passed through to `/claude-tweaks:build` and controls isolation. Flow always uses `subagent` execution — no prompt needed for execution strategy.
+   Do NOT prompt the user for git strategy — resolve it silently from the above. This is passed through to `/claude-tweaks:build` and controls isolation. Flow always uses `subagent` execution — no prompt needed for execution strategy. Pass `subagent` as an explicit argument in the `/claude-tweaks:build` invocation (Step 4) rather than relying on `/build`'s own default-resolution chain — this keeps flow's execution-strategy guarantee independent of whatever CLAUDE.md or `.claude-tweaks/policy.yml` might otherwise resolve to for a standalone `/build` call.
 4. Validate step list is in lifecycle order and apply the auto-inserts and override rules from `steps-and-gates.md` ("Step Arguments" section): auto-insert `test` before `review`, treat literal `re-verify` as a no-op, and drop `polish` when `no-polish` is set.
 5. If spec mode: check prerequisites are met (same as `/claude-tweaks:build` Spec Step 1)
 6. If a path was given in the argument: confirm it's a spec, not a design doc (Step 2.7 enforces). If a topic name was given: resolve to a spec; if only a design doc exists for that topic, stop and present the routing message.
