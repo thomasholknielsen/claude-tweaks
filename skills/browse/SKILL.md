@@ -41,8 +41,11 @@ Conventions skill for browser automation. Defines session naming, screenshot/tra
 | `--session <name> click "<selector>"` | `--session checkout-flow click "button[name='Pay']"` | Operate within a named session |
 | `set viewport <wxh>` | `set viewport 1280x800` | Adjust viewport for the active session |
 | `set device "<name>"` | `set device "iPhone 14"` | Emulate a device profile |
+| `backend=chrome <URL or task>` | `backend=chrome https://app.example.com/settings` | Routes through the native `mcp__claude-in-chrome__*` tools (user's live authenticated Chrome session) instead of `agent-browser`. Human-invoked only. |
 
 See `agent-browser-reference.md` in this skill's directory for the full operation vocabulary (snapshot, find, fill, type, vitals, trace, batch, react, auth vault, viewport/device flags).
+
+`backend=chrome` is a narrow escape hatch, not a second backend: it covers navigate, read page, click, type/fill, and screenshot only — no vitals, trace, react introspection, or auth vault (the session is already authenticated, so the vault has no job). It is never auto-selected and must never be used by `/stories`, `/visual-review`, `/review`, `qa-agent`, `/flow`, or a Routine — those stay `agent-browser`-only, per `CLAUDE.md`'s `Don'ts`.
 
 ## Conventions Defined Here
 
@@ -170,6 +173,7 @@ Call `AskUserQuestion`:
 | Generic session names (`test`, `session1`) | Names show up in dashboards and trace paths — derive from purpose |
 | Forgetting to close sessions | Leaked sessions consume memory — always `close` at the end of a run |
 | Skipping the trace on failure | Failure reports without a trace path are not actionable — capture before closing |
+| A consumer skill routes through `backend=chrome` | Breaks portability to hosted Routines — `agent-browser` is the only backend that works headless; this flag is human-invoked only |
 
 ## Relationship to Other Skills
 
