@@ -2,6 +2,10 @@
 
 Loaded by `/init` Phase 0 when the corresponding tool/feature is being set up. Each step is independent — read only the section(s) needed for the step currently executing. In Update Mode most of these are no-ops (already configured); the SKILL.md decides whether to load this file at all.
 
+## Core Bootstrap Steps
+
+Order-dependent — later steps may assume earlier ones completed. Steps 1-8 run unconditionally and idempotently (only act on missing state).
+
 ### Step 1 — Check Plugin Dependencies (detailed procedure)
 
 ### Required: Superpowers
@@ -133,49 +137,6 @@ Do not modify `.gitignore` without asking — the user may have opinions about w
 
 ---
 
-### Step 9 — GitHub issue form template (agent-task)
-
-Offer only when the project has a GitHub remote (`git remote get-url origin` matches
-`github.com`). Check whether `.github/ISSUE_TEMPLATE/agent-task.yml` exists; if absent,
-offer to install it. The form makes human-filed issues pipeline-ready at filing time: its
-three sections match what `/claude-tweaks:flow`'s issue-sourced batches consume with zero
-translation (`bin/lib/issues/ingest.js` `isFormShaped` — GitHub renders the labels as `###`
-headings, which the detector accepts).
-
-```yaml
-name: Agent task
-description: File a task an agent pipeline can build directly (claude-tweaks issue-sourced batch)
-title: "[task] "
-body:
-  - type: textarea
-    id: current-state
-    attributes:
-      label: Current State
-      description: What exists today, and what is wrong or missing
-    validations:
-      required: true
-  - type: textarea
-    id: deliverables
-    attributes:
-      label: Deliverables
-      description: What should exist when this is done
-    validations:
-      required: true
-  - type: textarea
-    id: acceptance-criteria
-    attributes:
-      label: Acceptance Criteria
-      description: How to verify it is done
-    validations:
-      required: true
-```
-
-Write the YAML exactly as above to `.github/ISSUE_TEMPLATE/agent-task.yml`. Declining is
-fine — freeform issues still work via the translation step (`from-code-health.md` Step 2.6); the
-form just removes the translation judgment.
-
----
-
 ### Step 5 — Verify Git (detailed procedure)
 
 The workflow system relies on git for change tracking (`/claude-tweaks:review` uses `git diff`, `/claude-tweaks:wrap-up` checks recent commits).
@@ -270,6 +231,53 @@ Read `~/.claude/settings.json` and look for `statusLine.command`:
 When migrating from a versioned path, announce: "Migrating to wrapper at `<wrapper_path>` — future plugin upgrades won't need /init to bump this again. The wrapper resolves the latest cached version on every render."
 
 **Set `NO_COLOR=1` to disable color** if requested — universal env var, no claude-tweaks-specific override.
+
+---
+
+## Optional Enhancement Steps
+
+Order-agnostic and append-only — each step below is an independent "detect condition → offer → write artifact → idempotent" companion integration. New enhancements are added at the end of this group; no renumbering is needed for future additions.
+
+### Step 9 — GitHub issue form template (agent-task)
+
+Offer only when the project has a GitHub remote (`git remote get-url origin` matches
+`github.com`). Check whether `.github/ISSUE_TEMPLATE/agent-task.yml` exists; if absent,
+offer to install it. The form makes human-filed issues pipeline-ready at filing time: its
+three sections match what `/claude-tweaks:flow`'s issue-sourced batches consume with zero
+translation (`bin/lib/issues/ingest.js` `isFormShaped` — GitHub renders the labels as `###`
+headings, which the detector accepts).
+
+```yaml
+name: Agent task
+description: File a task an agent pipeline can build directly (claude-tweaks issue-sourced batch)
+title: "[task] "
+body:
+  - type: textarea
+    id: current-state
+    attributes:
+      label: Current State
+      description: What exists today, and what is wrong or missing
+    validations:
+      required: true
+  - type: textarea
+    id: deliverables
+    attributes:
+      label: Deliverables
+      description: What should exist when this is done
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: How to verify it is done
+    validations:
+      required: true
+```
+
+Write the YAML exactly as above to `.github/ISSUE_TEMPLATE/agent-task.yml`. Declining is
+fine — freeform issues still work via the translation step (`from-code-health.md` Step 2.6); the
+form just removes the translation judgment.
 
 ---
 
