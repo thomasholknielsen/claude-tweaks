@@ -115,6 +115,10 @@ When Phase 2 detects frontend signals, present the three-option Impeccable setup
 
 Always offered (not frontend-gated). Present the two-option diagram-design setup prompt (Install / Skip) and write the `diagram-integration` flag to CLAUDE.md under the existing `## Design integration` section. Soft-hook nudges in `/specify`, `/build`, and `/review` read this flag to decide whether to surface "consider a diagram here" recommendations. Read `bootstrap-steps.md` (Step 11) for the full procedure.
 
+### Step 12: shadcn Bootstrap (Optional)
+
+When frontend signals are detected and `components.json` doesn't exist (or exists without full AI-agent wiring), present the shadcn/ui setup prompt (Full / CLI-only / Skip, or the narrower "wire remaining layers" offer when the CLI is already initialized) and write the `shadcn-integration` flag to CLAUDE.md. Currently write-only — no other skill reads the flag yet. Read `bootstrap-steps.md` (Step 12) for the full procedure (framework/package-manager detection, install sequence, MCP/skills wiring, flag-value table, re-run behavior, failure handling).
+
 ### Step 13: Routine Installation (Optional Companion)
 
 Always offered (not gated) — detect which claude-tweaks skills ship a `routine-template.yml` without an existing instantiated record for this project, and offer to walk through `/claude-tweaks:routine create <skill> --source init` for each. Idempotent: skills with an existing record are never re-offered. Read `bootstrap-steps.md` (Step 13) for the full procedure.
@@ -358,6 +362,7 @@ After writing files, surface what was created. Generate the table from the actua
 | Starter files | Wrote `specs/INBOX.md`, `specs/DEFERRED.md`, `specs/INDEX.md` (only if missing) | Step 3 |
 | Statusline | Installed wrapper at `~/.claude-tweaks/bin/statusline.js`; wired `~/.claude/settings.json` | Step 8 |
 | Design integration | Set `design-integration: {enabled/plugin-only/disabled}` in CLAUDE.md | Step 10 |
+| shadcn integration | Set `shadcn-integration: {enabled/cli-only/disabled}` in CLAUDE.md | Step 12 |
 | Routines | Instantiated {N} routine(s): `{list}` (or "Offered, none set up") | Step 13 |
 | Classification | Confirmed maturity `{value}`, doc tier `{N}` | Phase 3 |
 | CLAUDE.md | Wrote {N} lines (Initial) / Applied {N} patches (Update) | Phase 5 |
@@ -436,6 +441,7 @@ If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it
 | `/claude-tweaks:browse` | Depends on `agent-browser`, which /claude-tweaks:init detects (and surfaces install instructions for) in Phase 0 |
 | `/claude-tweaks:design` | Step 10 sets up Impeccable design integration (install plugin + CLI, optionally run `init`) and writes the `design-integration` kill-switch flag to CLAUDE.md that the wrapper reads as Layer 1 of its detection logic. |
 | `cathrynlavery/diagram-design` (companion) | Step 11 offers to install the external `diagram-design` plugin and writes the `diagram-integration` flag to CLAUDE.md. Soft-hook nudges in `/specify`, `/build`, and `/review` read the flag to decide whether to surface "consider a diagram here" recommendations. |
+| `shadcn/ui` (companion) | Step 12 offers to bootstrap the shadcn CLI, wire its official MCP server into `.mcp.json`, and install its official `shadcn/skills` package for live Claude Code project context. Writes the `shadcn-integration` flag to CLAUDE.md — currently write-only, no other skill reads it yet. |
 | `/superpowers:using-git-worktrees` | /claude-tweaks:init optionally configures the worktree directory that `using-git-worktrees` needs |
 | `/claude-tweaks:stories` | /init Phase 8 (journey discovery) feeds /stories — discovered journeys become input for story generation |
 | `/claude-tweaks:version` | /version reads the same `plugin.json` that /init may print during bootstrap |
