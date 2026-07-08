@@ -43,6 +43,8 @@ If `$ARGUMENTS` is provided, treat it as:
 - `journeys` — run Phases 0 + 8 (bootstrap + journey discovery)
 - `docs` — run Phases 0 + 2 + 3 + 8.5 (bootstrap + doc registry)
 
+Every scope above still runs Phase 9 as its terminal summary/confirm/write step, except `bootstrap` (which stops the invocation after Phase 0) — this includes the goal-based scopes (`config`, `skills`, `journeys`, `docs`) even though none of them list Phase 9 explicitly in their phase subset above. The interactive Scope Selection Gate's own early-stop choices (Option 4 "Done," and Option 2 Interactive's per-phase "Done") are the other paths that stop before Phase 9; see "Finalizing the worktree.always Decision" for why this distinction matters.
+
 If no arguments, analyze the current working directory. Phase 0 runs first, then a scope selection gate determines which remaining phases to run (see "Scope Selection Gate" below).
 
 ## Phases at a Glance
@@ -91,7 +93,7 @@ Confirm the directory is a git repo; warn if not (review and wrap-up will be deg
 
 ### Step 6: Worktree Configuration
 
-Ensure `.worktrees/` exists in the project root; suggest migration if a legacy `.claude/worktrees/` is found. Read `bootstrap-steps.md` (Step 6) for the full procedure.
+Ensure `.worktrees/` exists in the project root; suggest migration if a legacy `.claude/worktrees/` is found. Also offers the `worktree.always` policy opt-in (recommended default: on) — the decision is queued here but the file write is deferred to avoid this same run denying its own later writes; see "Finalizing the worktree.always Decision" and "Worktree Policy Finalization" below. Read `bootstrap-steps.md` (Step 6) for the full procedure.
 
 ### Step 7: Browser Integration
 
@@ -129,6 +131,14 @@ Offer only on projects with a GitHub remote — writes `.github/workflows/track-
 
 ---
 
+### Finalizing the worktree.always Decision
+
+If Step 6 (`bootstrap-steps.md`) queued a `worktree.always` decision, it must be written to `.claude-tweaks/policy.yml` exactly once, as the very last filesystem action before this `/init` invocation ends — for whatever reason it ends. Phase 9's "Worktree Policy Finalization" (below) is the normal place this happens: per "Input" above, every scope reaches Phase 9 except `bootstrap`, including the goal-based scopes (`config`/`skills`/`journeys`/`docs`) even though none of them list Phase 9 in their own phase subset. The known early-exit paths that stop the invocation before Phase 9 ever runs are: `$ARGUMENTS` was `bootstrap` (stops after Phase 0); the Scope Selection Gate's Option 4 ("Done"); or Option 2 (Interactive)'s own per-phase gate, if the user selects "Done" ("Stop here") after any phase. These are the known cases, not necessarily an exhaustive list of every way this invocation could ever end — whatever the actual reason this invocation is ending, write the decision right there, immediately before it ends: create `.claude-tweaks/` if it doesn't exist, then write or update the `worktree.always:` line in `.claude-tweaks/policy.yml` (merge into existing content — preserve every other line in the file untouched; create the file with just that one line if it didn't exist). If the decision was "Yes," tell the user: "`worktree.always` is now enforced — your next edit requires an isolated worktree; run `/superpowers:using-git-worktrees` first."
+
+If this invocation instead reaches Phase 9, the decision is finalized there — see "Worktree Policy Finalization."
+
+---
+
 ## Scope Selection Gate
 
 After Phase 0 completes, present the scope selection — unless `$ARGUMENTS` already specified a goal-based scope (e.g., `bootstrap`, `config`, `skills`, `journeys`, `docs`), in which case skip this gate and run the corresponding phases.
@@ -152,9 +162,11 @@ Call `AskUserQuestion` (see "Phases at a Glance" above for the full table; Phase
 - Option 2 — `label`: `"Skip Phase {N+1}"`, `description`: `"Move to Phase {N+2}"`
 - Option 3 — `label`: `"Done"`, `description`: `"Stop here"`
 
+If the user selects this template's "Done" and Step 6 queued a `worktree.always` decision, write it now — see "Finalizing the worktree.always Decision" above.
+
 **Option 3 (Essentials):** Runs phases 2, 3, 5 only. Produces CLAUDE.md with proper philosophy and Don'ts. Defers skills, rules, journeys, and doc registry for later (suggest re-running `/init` or using goal-based arguments).
 
-**Option 4 (Done):** Stop after Phase 0. The user has the directory structure, starter files, and dependencies — they'll configure manually or run `/init` again later.
+**Option 4 (Done):** Stop after Phase 0. The user has the directory structure, starter files, and dependencies — they'll configure manually or run `/init` again later. If Step 6 queued a `worktree.always` decision, write it now — see "Finalizing the worktree.always Decision" above.
 
 ### Phase dependencies
 
@@ -346,7 +358,7 @@ For the complete procedure (registry format, tier definitions, standard folder t
 
 ## Phase 9: Present Summary and Confirm
 
-Present a consolidated summary of all work done across Phase 0 (bootstrap) and Phases 1-8 (configuration). Wait for user confirmation before writing generated files.
+Present a consolidated summary of all work done across Phase 0 (bootstrap) and Phases 1-8 (configuration). Wait for user confirmation before writing generated files. This phase is the terminal step for every scope except `bootstrap` — see "Input" above — including the goal-based scopes (`config`/`skills`/`journeys`/`docs`) and the Scope Selection Gate's Option 1 (Auto) and Option 3 (Essentials), even though none of the goal-based scopes list Phase 9 explicitly in their own phase subset.
 
 Both modes lead with a **Verified & Consistent** section — an affirmative report of what was checked and found healthy (dependencies present, contract markers up to date, config items still accurate, detections confirmed), not just what changed or was created. This is required, not optional: Update Mode in particular often proposes few or no changes, and the user needs to see *what was audited and deliberately left alone*. The early-exit fast path (Phase 1u.6) carries its own shorter Verified & Consistent block.
 
@@ -364,6 +376,7 @@ After writing files, surface what was created. Generate the table from the actua
 | Design integration | Set `design-integration: {enabled/plugin-only/disabled}` in CLAUDE.md | Step 10 |
 | shadcn integration | Set `shadcn-integration: {enabled/cli-only/disabled}` in CLAUDE.md | Step 12 |
 | Routines | Instantiated {N} routine(s): `{list}` (or "Offered, none set up") | Step 13 |
+| Worktree policy | Set `worktree.always: {true/false}` in `.claude-tweaks/policy.yml` (only if Step 6 asked this run) — written last, after every other row above, to avoid mid-run self-lockout; see "Worktree Policy Finalization" below | Step 6 |
 | Classification | Confirmed maturity `{value}`, doc tier `{N}` | Phase 3 |
 | CLAUDE.md | Wrote {N} lines (Initial) / Applied {N} patches (Update) | Phase 5 |
 | Skills | Generated {N} SKILL.md files: `{list}` | Phase 6 |
@@ -373,6 +386,14 @@ After writing files, surface what was created. Generate the table from the actua
 | INBOX | Added {N} items (deferred skills, pain points, doc work, skeleton enrichment) | Phases 4-8.5 |
 
 Execute only after user confirmation.
+
+### Worktree Policy Finalization
+
+Write this AFTER every write in the Actions Performed table above has completed — it must be the very last filesystem action of the entire `/init` invocation. If Step 6 (`bootstrap-steps.md`) queued a `worktree.always` decision, write it now: this is the deferred write described in Step 6, deferred specifically so this run's own Steps 7-14, Phases 1-8.5, and this same Phase 9's own confirmed generated-file writes (the Actions Performed table above) were never blocked by a policy that turned on mid-run. (The `bootstrap`-only scope already wrote its queued decision immediately after Step 14 — see "Finalizing the worktree.always Decision" after Phase 0 — so there is nothing to do here for that scope.)
+
+Create `.claude-tweaks/` if it doesn't exist. Read `.claude-tweaks/policy.yml` if present; if it has an existing `worktree.always:` line, replace that line, otherwise append a new `worktree.always: {true|false}` line (create the file with just that line if it didn't exist). Preserve every other line in the file untouched.
+
+If the decision was "Yes," tell the user: "`worktree.always` is now enforced — your next edit requires an isolated worktree; run `/superpowers:using-git-worktrees` first."
 
 ---
 
