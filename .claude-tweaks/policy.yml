@@ -1,1 +1,2 @@
 worktree.always: true
+execution.always: subagent

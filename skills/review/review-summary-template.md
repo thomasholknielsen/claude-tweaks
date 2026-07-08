@@ -60,6 +60,8 @@ Possible QA statuses:
 
 {Include when the design wrapper returned `result: advisory` with findings. Omit when the wrapper skipped (non-frontend, no Impeccable, kill-switch disabled).}
 
+{If the wrapper returned `score_trend`: render one line above the findings table — **Design Health:** {critique.current}/{critique.max} ({arrow}{delta} from {previous}/{max}, or "first captured score" when `previous` is null) · **Audit Health:** {audit.current}/{audit.max} ({same format}), where `{arrow}` is `↑` for a positive delta, `↓` for a negative delta (render the absolute value), or `→` for zero change. Omit either clause when that score type's key is absent from `score_trend`. Omit this line entirely when `score_trend` is absent from the wrapper's return.}
+
 | File | Source | Severity | Category | Finding | Suggestion |
 |------|--------|----------|----------|---------|------------|
 | {file} | {critique/audit} | {info/warning/error} | {category} | {message} | {suggestion if present} |

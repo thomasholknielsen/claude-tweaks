@@ -61,9 +61,27 @@ Read the spec's `design-intent:` frontmatter (the canonical field definition liv
 
 **Multi-intent ordering.** When the user declared comma-separated intents (e.g., `design-intent: bold, delightful`), invoke commands in the order declared. The fixed `delight` → `animate` pairing for `delightful` is preserved even when interleaved with other intents — treat `delightful` as a single dispatch unit that produces two commands. The wrapper does not run a re-verify cycle between intent commands; the polish phase as a whole shares a single re-verify cycle (capped by `/flow`'s polish phase, see flow's polish-phase decision tree).
 
+**Frequency Gate guardrail.** The `animate` command's target argument always carries a fixed Frequency Gate guardrail suffix, appended after the file list — see `../command-map.md`'s `### Step 3 — Intent-driven` section for the exact text and rationale. Do not treat `animate`'s target as a bare file list when reasoning about this dispatch; the suffix is not optional and is not gated by audit findings or `design-intent` value.
+
 **Manual-only commands.** `colorize`, `extract`, and `overdrive` are not intent-driven in this phase. They surface only via `survey` mode recommendations. Do not auto-dispatch them from `polish`.
 
 **No declined-recommendation suppression in polish.** Declined-recommendation tracking applies to `survey` mode only — `polish` always honors the explicit `design-intent:` declaration. The user changes intent dispatch behavior by editing the spec frontmatter, not by declining recommendations.
+
+### Step 7: Build `decision_summary`
+
+When `commands_invoked` is non-empty, build a single-sentence summary for the caller to log to the auto-decision log: `"Dispatched {N} Impeccable commands on {M} files — {category list}."` where `N` is the total count of entries in `commands_invoked`, `M` is the count of unique files across all invoked commands, and `{category list}` is built by grouping `commands_invoked` entries by their `category` field, semicolon-separated, in the order auto-fit, issue-driven, intent-driven — skip any category with zero entries:
+
+- **auto-fit** clause: `auto-fit: {comma-separated command names}` (no trigger — auto-fit never has one)
+- **issue-driven** clause: `issue-driven: {command} ({trigger})` per distinct command, comma-separated within the clause when more than one dispatched
+- **intent-driven** clause: same shape as issue-driven — `intent-driven: {command} ({trigger})`, comma-separated within the clause when more than one dispatched
+
+Worked example — 3 auto-fit commands (`polish`, `clarify`, `harden`), 1 issue-driven (`typeset`, triggered by `audit:typography`), 1 intent-driven (`bolder`, triggered by `intent:bold`), across 3 files:
+
+```
+Dispatched 5 Impeccable commands on 3 files — auto-fit: polish, clarify, harden; issue-driven: typeset (audit:typography); intent-driven: bolder (intent:bold).
+```
+
+When `commands_invoked` is empty, do not build `decision_summary` — omit the field entirely from the output.
 
 ## Output to caller
 
@@ -78,7 +96,8 @@ Read the spec's `design-intent:` frontmatter (the canonical field definition liv
     { "command": "/impeccable:impeccable delight", "files": ["..."], "category": "intent-driven", "trigger": "intent:delightful" },
     { "command": "/impeccable:impeccable animate", "files": ["..."], "category": "intent-driven", "trigger": "intent:delightful" }
   ],
-  "files_modified": [ "<path>", ... ]
+  "files_modified": [ "<path>", ... ],
+  "decision_summary": "Dispatched 5 Impeccable commands on 3 files — auto-fit: polish; issue-driven: typeset (audit:typography); intent-driven: bolder (intent:bold), delight (intent:delightful), animate (intent:delightful)."
 }
 ```
 
@@ -94,4 +113,6 @@ Or, when no commands ran (skip from preconditions, or zero files in scope, or no
 }
 ```
 
-`polish` is the **first wrapper mode that modifies code.** Callers (`/flow` polish phase) must follow up with re-verification (types/lint/tests) when `files_modified` is non-empty.
+Note `decision_summary` is absent from the empty-`commands_invoked` case above — there is nothing to log.
+
+`polish` is the **first wrapper mode that modifies code.** Callers (`/flow` polish phase) must follow up with re-verification (types/lint/tests) when `files_modified` is non-empty. When `decision_summary` is present, callers must also append it to the auto-decision log (see `_shared/auto-mode-contract.md`).
