@@ -433,7 +433,7 @@ claude-tweaks integrates [shadcn/ui](https://ui.shadcn.com/) — a CLI-driven co
 system distributed as copy-paste source files rather than an npm package. As of CLI v4
 (~March 2026), shadcn ships three AI-agent-facing layers: the CLI itself (`init`/`add`),
 a first-party MCP server (search/browse/view/install/audit registry items), and an
-installable `shadcn/skills` package that injects live project context into Claude Code
+installable Skill (`skills add shadcn/ui`) that injects live project context into Claude Code
 so it stops guessing at component APIs. This step wires all three, mirroring Step 10's
 (Impeccable) install-and-flag pattern.
 
@@ -480,7 +480,7 @@ discovers and installs components correctly instead of guessing.
    | `vite` | `vite` |
    | `astro` | `astro` |
    | `@remix-run/react` or `react-router` | `react-router` |
-   | `@tanstack/react-start` | `tanstack-start` |
+   | `@tanstack/react-start` | `start` |
    | `laravel/framework` in `composer.json`, or an `artisan` file at root | `laravel` |
    | None matched | Omit `-t`; let the CLI prompt interactively |
 
@@ -565,7 +565,9 @@ shadcn-integration: enabled
 | Case C | No write — the flag should already read `enabled` from a prior run; leave untouched |
 
 **Scope note:** this flag is currently write-only — no other claude-tweaks skill reads
-it yet. It exists so re-running `/init` is idempotent, the same role `design-integration`
+it yet. Re-run idempotency for this step comes entirely from the filesystem checks above
+(Case A/B/C), not from this flag. The flag is reserved for a future consumer (e.g. `/design`
+preferring shadcn components when it reads `enabled`), the same role `design-integration`
 plays for Step 10.
 
 **Failure handling:** If any install command fails (network error, package-manager
