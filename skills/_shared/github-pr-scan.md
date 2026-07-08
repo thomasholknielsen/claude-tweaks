@@ -8,9 +8,9 @@ Run these checks in order before any scan. On the first failure, emit the single
 
 | # | Check | Command | On failure, emit Finding / Evidence |
 |---|-------|---------|-------------------------------------|
-| 1 | GitHub remote exists | `git -C "{REPO_ROOT}" remote get-url origin` output contains `github.com` | `GitHub scan skipped` / `no GitHub remote` |
+| 1 | GitHub remote exists | `git -C "{REPO_ROOT}" remote get-url origin` exits 0 (any host — no longer string-matched against `github.com`, which false-negated on GitHub Enterprise hosts like `github.mycompany.com`) | `GitHub scan skipped` / `no GitHub remote` |
 | 2 | gh CLI installed | `command -v gh` exits 0 | `GitHub scan skipped` / `gh CLI not installed` |
-| 3 | gh authenticated | `gh auth status` exits 0 | `GitHub scan skipped` / `gh not authenticated` |
+| 3 | gh authenticated + repo reachable | `gh repo view --json owner,name` exits 0 (resolves the host from the remote automatically — works identically for github.com and GitHub Enterprise once authenticated for that host; replaces the old bare `gh auth status` check) | `GitHub scan skipped` / `gh not authenticated or repo unreachable` |
 
 The skip row uses severity `info` and Path:Line `(github)`.
 

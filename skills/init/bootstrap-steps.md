@@ -240,8 +240,13 @@ Order-agnostic and append-only — each step below is an independent "detect con
 
 ### Step 9 — GitHub issue form template (agent-task)
 
-Offer only when the project has a GitHub remote (`git remote get-url origin` matches
-`github.com`). Check whether `.github/ISSUE_TEMPLATE/agent-task.yml` exists; if absent,
+Offer only when the project has a GitHub-flavored remote — a two-tier check that stays
+GHE-safe without requiring `gh` as a hard new dependency for what is otherwise a pure
+file-write step: when `gh` is installed and authenticated, confirm via `gh repo view
+--json owner,name` succeeding (works for GitHub Enterprise, not just github.com); when
+`gh` isn't available, fall back to just checking a remote exists (`git remote get-url
+origin` exits 0) — a non-GitHub git host would simply see the offer and decline it, which
+costs nothing. Check whether `.github/ISSUE_TEMPLATE/agent-task.yml` exists; if absent,
 offer to install it. The form makes human-filed issues pipeline-ready at filing time: its
 three sections match what `/claude-tweaks:flow`'s issue-sourced batches consume with zero
 translation (`bin/lib/issues/ingest.js` `isFormShaped` — GitHub renders the labels as `###`
@@ -608,8 +613,9 @@ Set any of these up now?
 
 ### Step 14 — Non-default-branch issue tracking (companion workflow)
 
-Offer only when the project has a GitHub remote (`git remote get-url origin` matches
-`github.com`) — same gate Step 9 uses. Check whether
+Offer only when the project has a GitHub-flavored remote — same two-tier, GHE-safe gate
+Step 9 uses (`gh repo view` when available, remote-exists fallback otherwise). Check
+whether
 `.github/workflows/track-issue-fixes.yml` already exists; if present, skip this step
 silently (idempotent — no re-prompt on `/init` re-run).
 
