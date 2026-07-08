@@ -19,3 +19,13 @@
 **Trigger:** Revisit before trusting `/claude-tweaks:test`'s deterministic Impeccable gate against any project running current Impeccable CLI (3.x). Also revisit proactively whenever someone next touches the `/design test`/`review`/`audit` modes.
 
 **Options considered:** (a) rewrite `impeccable-cli.md`'s schema section to match the new bare-array/`antipattern`-field shape and update `test.md`'s pass/fail logic accordingly, verified against real CLI output; (b) pin the wrapper to invoke an older CLI version if one is still available; (c) treat this as a signal to move toward Impeccable's own new automatic hook (see `skills/build/worktree-setup.md`'s "Impeccable hook consent" section) as the primary detection mechanism instead of the CLI-based `test` mode, if the hook's own output format proves more stable.
+
+### Fix flaky `tests/statusline.test.js` "render under 500ms" timing assertion
+
+**Origin:** Observed repeatedly during the Impeccable re-baseline work (2026-07-07/08) — passes reliably in isolation but intermittently fails under full-suite load.
+
+**Context:** The test asserts the statusline renders under a fixed 500ms budget. In isolation (`node --test tests/statusline.test.js`) it consistently passes at ~100-130ms. Under the full suite (`npm test`, 631 tests), it intermittently fails with recorded durations up to ~900ms — CPU contention from the rest of the suite, not an actual regression in the statusline renderer. Re-run in isolation every time it was observed failing during this work, and it passed 100% of those checks.
+
+**Trigger:** Revisit when someone next touches `tests/statusline.test.js` or the statusline renderer itself, or if the flake rate becomes disruptive enough to affect CI/PR checks reliably.
+
+**Options considered:** (a) raise the timing budget to absorb reasonable CI/load-time jitter; (b) mock/stub the slow dependency so the test measures logic time, not wall-clock render time under contention; (c) move performance assertions to a separate, non-gating benchmark suite rather than the main correctness suite.
