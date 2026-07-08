@@ -104,6 +104,12 @@ Read `design-intent:` from spec frontmatter (written by `/specify`). For each de
 
 **Multi-intent ordering.** When multiple intents dispatch, run them in the order declared by the user. The pairing for `delightful` (`delight` first, then `animate`) is fixed — `delight` adds personality content (empty states, microcopy), `animate` adds motion to the interactions; reversing them risks animating placeholder content. The intent dispatches share the polish phase's single re-verify cap (one re-verify cycle per `/flow` run regardless of how many intent commands ran).
 
+**Frequency Gate guardrail (`animate` only).** Every `animate` dispatch — currently the `design-intent: delightful` path, and any future auto-fit or issue-driven dispatch of `animate` should this wrapper ever add one — appends a fixed guidance suffix to the target argument, after the file list:
+
+> "Apply a frequency gate before animating: keyboard-initiated actions and actions triggered 100+ times per day get no animation (instant state change only); daily/occasional actions get subtle, fast motion; rare (monthly-or-less) actions may receive expressive motion. Decide whether to animate first, using this gate — then apply your own duration/easing rules."
+
+This is a fixed guardrail, not creative drift — same category as Impeccable's own mandatory `prefers-reduced-motion` rule baked into every `animate` call. It does not depend on audit signal or `design-intent` value to apply; append it every time this wrapper dispatches `animate`. `delight` does not carry this suffix: `delight` covers content and personality (copy, illustration, celebratory moments) with its own restraint framework, and a trigger-frequency gate keyed to "keyboard-initiated → never" would conflict with moments `delight` deliberately wants to celebrate (e.g. a first-time keyboard-shortcut reveal).
+
 **Manual-only commands.** `colorize`, `extract`, and `overdrive` are not intent-driven. They remain manual-only and are surfaced as `survey`-mode recommendations when their "would help" criteria match. This keeps the auto-dispatch surface conservative — the three excluded commands produce the most aggressive creative drift (overdrive especially), so they require explicit user invocation rather than frontmatter consent.
 
 ## Survey mode
@@ -124,7 +130,7 @@ Each observation maps to one creative command:
 | Visual weight imbalanced — multiple competing high-contrast elements | `quieter` | Reduce noise so the primary action wins |
 | Component clutter — many small UI elements doing redundant work | `distill` | Strip to essence; intent-only avoids `/simplify` overlap |
 | Empty state shows only "No items" or similar bare text | `delight` | Empty states are personality opportunities |
-| Page has interactive controls (toggles, hovers) but no transitions | `animate` | Static interactions feel unpolished |
+| Page has interactive controls (toggles, hovers) but no transitions | `animate` | Static interactions feel unpolished — but skip if the control is keyboard-initiated or fires 100+ times/day |
 | Heavy monochrome — no strategic accent color | `colorize` | Strategic color anchors attention |
 | First-run flow with no guidance or progressive disclosure | `onboard` | First-run UX is a teaching surface |
 | Long-form content with weak hierarchy — wall of text, no pull-quotes | `extract` | Surface key content from prose |
