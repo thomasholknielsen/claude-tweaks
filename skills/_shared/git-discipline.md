@@ -8,6 +8,8 @@ During worktree-mode pipeline runs, the wrong-checkout commit rule is mechanical
 
 Independent of any pipeline run, a project can opt into `worktree.always: true` in `.claude-tweaks/policy.yml` — when set, the same PreToolUse hook denies any `Edit`, `Write`, `NotebookEdit`, or `git commit` whose target isn't already inside a linked git worktree, even before `/build` or `/flow` has ever run. Unlike E1, this check needs no recorded run state; it fires from the first prompt of a session. `/init` Phase 0 Step 6 offers this opt-in during bootstrap (recommended by default, re-offered on later re-runs if declined) — the flag can also be hand-edited into `policy.yml` directly. Set up the worktree first via `/superpowers:using-git-worktrees`, then retry the edit inside it.
 
+A sibling lever, `execution.always: subagent` in the same file, pins `/claude-tweaks:build`'s execution-strategy axis to `subagent` — `batched` is never offered by the build-strategy prompt and is rejected if passed explicitly (see `/claude-tweaks:build`'s Build Options). Unlike `worktree.always`, this lever has no mechanical `PreToolUse` backstop: there is no interceptable tool call for "which execution strategy did the assistant choose," the way there is for "which directory did this edit land in." Enforcement here is the same as every other lever in the auto-mode-contract system (scope-creep, review-severity-floor, etc.) — the assistant reads `.claude-tweaks/policy.yml` and follows it, with no code-level fallback if it doesn't.
+
 ## Rules — NON-NEGOTIABLE
 
 These apply in ALL modes. They exist because multiple processes may commit to the same branch simultaneously, and because shared history must not be rewritten.
