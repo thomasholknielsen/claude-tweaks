@@ -2,7 +2,7 @@
 
 Loaded by `/init` Phase 0 when the corresponding tool/feature is being set up. Each step is independent — read only the section(s) needed for the step currently executing. In Update Mode most of these are no-ops (already configured); the SKILL.md decides whether to load this file at all.
 
-## Step 0.1 — Check Plugin Dependencies (detailed procedure)
+### Step 1 — Check Plugin Dependencies (detailed procedure)
 
 ### Required: Superpowers
 
@@ -23,7 +23,7 @@ Note: `code-simplifier` is a built-in subagent type (`subagent_type="code-simpli
 
 ---
 
-## Step 0.2 — Create Directory Structure (detailed procedure)
+### Step 2 — Create Directory Structure (detailed procedure)
 
 Check and create the required directories (only create what's missing):
 
@@ -39,7 +39,7 @@ docs/journeys/              → User and developer journey files (created by /jo
 
 ---
 
-## Step 0.3 — Starter files (detailed content)
+### Step 3 — Starter files (detailed content)
 
 Create these files **only if missing** — never overwrite existing content. Each file is idempotent and safe to skip on Update Mode runs.
 
@@ -93,7 +93,7 @@ Tiered roadmap of work units. Use `/claude-tweaks:specify` to add specs, `/claud
 
 ---
 
-## Step 0.4 — .gitignore suggestions (detailed content)
+### Step 4 — .gitignore suggestions (detailed content)
 
 Check whether `.gitignore` exists and already covers workflow artifacts. Suggest entries for transient files that shouldn't be committed:
 
@@ -133,7 +133,7 @@ Do not modify `.gitignore` without asking — the user may have opinions about w
 
 ---
 
-## Step 0.45 — GitHub issue form template (agent-task)
+### Step 9 — GitHub issue form template (agent-task)
 
 Offer only when the project has a GitHub remote (`git remote get-url origin` matches
 `github.com`). Check whether `.github/ISSUE_TEMPLATE/agent-task.yml` exists; if absent,
@@ -176,7 +176,7 @@ form just removes the translation judgment.
 
 ---
 
-## Step 0.5 — Verify Git (detailed procedure)
+### Step 5 — Verify Git (detailed procedure)
 
 The workflow system relies on git for change tracking (`/claude-tweaks:review` uses `git diff`, `/claude-tweaks:wrap-up` checks recent commits).
 
@@ -185,7 +185,7 @@ The workflow system relies on git for change tracking (`/claude-tweaks:review` u
 
 ---
 
-## Step 0.6 — Worktree Configuration (detailed procedure)
+### Step 6 — Worktree Configuration (detailed procedure)
 
 `/claude-tweaks:build worktree` and `/claude-tweaks:flow worktree` use `/superpowers:using-git-worktrees` to create isolated workspaces. The standard worktree directory is `.worktrees/` in the project root — this matches superpowers v5.1.0's preferred path and is the only directory `/superpowers:finishing-a-development-branch` will clean up.
 
@@ -200,7 +200,7 @@ The workflow system relies on git for change tracking (`/claude-tweaks:review` u
 
 ---
 
-## Step 0.7 — Browser / agent-browser (detailed procedure)
+### Step 7 — Browser / agent-browser (detailed procedure)
 
 Browser integration lets Claude Code interact with web pages — useful for testing UIs, running QA stories, scraping docs, and verifying deployments. The single supported backend is `agent-browser`.
 
@@ -214,7 +214,7 @@ Init-specific contract:
 
 ---
 
-## Step 0.8 — Statusline & Dependencies (detailed procedure)
+### Step 8 — Statusline & Dependencies (detailed procedure)
 
 claude-tweaks ships a multi-segment statusline. This requires Node and (optionally) git for the branch segment.
 
@@ -273,7 +273,7 @@ When migrating from a versioned path, announce: "Migrating to wrapper at `<wrapp
 
 ---
 
-## Step 0.9 — Impeccable Design Integration (detailed procedure)
+### Step 10 — Impeccable Design Integration (detailed procedure)
 
 claude-tweaks v4.5+ integrates [Impeccable](https://impeccable.style/) — a frontend-design plugin that ships LLM commands (`critique`, `audit`, `polish`, `bolder`, `delight`, etc.) and a deterministic Node CLI (`impeccable detect`) for catching design anti-patterns. The integration is opt-in and only runs on frontend projects.
 
@@ -362,7 +362,7 @@ Skip this offer entirely when Impeccable was not installed (option 3 was chosen 
 
 ---
 
-## Step 0.95 — Diagram Design (Recommended Companion)
+### Step 11 — Diagram Design (Recommended Companion)
 
 claude-tweaks recommends [`cathrynlavery/diagram-design`](https://github.com/cathrynlavery/diagram-design) — a single-skill Claude Code plugin (MIT, no CLI, no setup) that generates 14 types of editorial HTML+SVG diagrams (architecture, flowchart, sequence, state, ER, timeline, swimlane, quadrant, nested, tree, org chart, layer stack, venn, pyramid). Soft-hook nudges in `/specify`, `/build`, and `/review` surface "consider a diagram here" recommendations when a spec describes flows or structures that benefit from a visual.
 
@@ -419,7 +419,7 @@ The soft-hook nudges in `/specify`, `/build`, and `/review` read this flag and s
 
 ---
 
-## Step 0.96 — Routine Installation (detailed procedure)
+### Step 13 — Routine Installation (detailed procedure)
 
 claude-tweaks skills can ship a `routine-template.yml` (schema: `skills/_shared/routine-template-schema.md`) enabling `/claude-tweaks:routine create <skill>` to instantiate a scheduled cloud Routine for this project — e.g. code-health's nightly LLM-as-judge sweep, or tidy's periodic backlog hygiene pass. This step surfaces that option right after bootstrap instead of leaving it to be discovered later.
 
@@ -449,10 +449,10 @@ Set any of these up now?
 
 ---
 
-## Step 0.97 — Non-default-branch issue tracking (companion workflow)
+### Step 14 — Non-default-branch issue tracking (companion workflow)
 
 Offer only when the project has a GitHub remote (`git remote get-url origin` matches
-`github.com`) — same gate Step 0.45 uses. Check whether
+`github.com`) — same gate Step 9 uses. Check whether
 `.github/workflows/track-issue-fixes.yml` already exists; if present, skip this step
 silently (idempotent — no re-prompt on `/init` re-run).
 

@@ -162,7 +162,7 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 
 ## Component-Skill Contract
 
-When invoked with `--source init` (used by `/claude-tweaks:init`'s Phase 0.96), `/claude-tweaks:routine` is running as a component of `/init`'s bootstrap flow — omit the `## Next Actions` block, since `/init` owns the overall handoff. `/init` does not set `$PIPELINE_RUN_DIR` (it is not a `/flow`-style pipeline orchestrator), so `--source init` is the sole signal for this caller, not merely a fallback for a rare ambiguity — unlike most component-skill contracts in this plugin, `$PIPELINE_RUN_DIR` is not the primary signal here.
+When invoked with `--source init` (used by `/claude-tweaks:init`'s Step 13), `/claude-tweaks:routine` is running as a component of `/init`'s bootstrap flow — omit the `## Next Actions` block, since `/init` owns the overall handoff. `/init` does not set `$PIPELINE_RUN_DIR` (it is not a `/flow`-style pipeline orchestrator), so `--source init` is the sole signal for this caller, not merely a fallback for a rare ambiguity — unlike most component-skill contracts in this plugin, `$PIPELINE_RUN_DIR` is not the primary signal here.
 
 Standalone invocation (no `--source` flag) is the common case and renders Next Actions as usual.
 
@@ -185,6 +185,6 @@ Standalone invocation (no `--source` flag) is the common case and renders Next A
 | `/claude-tweaks:flow` | `skills/flow/routine-template.yml` is a consumer — a headless issue dispatcher; `/routine create flow` instantiates it. Unlike code-health's report-only template it carries write tools. |
 | `/schedule` (built-in) | `/routine` assembles the same `RemoteTrigger` body `/schedule` would build conversationally, but non-interactively from a template. `/schedule` remains the tool for one-off/exploratory routines and for listing, running, or inspecting a routine. Deletion always requires the web console at claude.ai/code/routines. |
 | `skills/_shared/routine-template-schema.md` | Canonical schema for both the template and the instantiated record — referenced, not duplicated, here. |
-| `/claude-tweaks:init` | Phase 0.96 discovers skills with a `routine-template.yml` and no existing record, then invokes `/claude-tweaks:routine create <skill> --source init` for each the user selects — pure discovery + handoff, no logic duplicated. |
+| `/claude-tweaks:init` | Step 13 discovers skills with a `routine-template.yml` and no existing record, then invokes `/claude-tweaks:routine create <skill> --source init` for each the user selects — pure discovery + handoff, no logic duplicated. |
 | `/claude-tweaks:tidy` | Tidy is this skill's second consumer — `skills/tidy/routine-template.yml` relies on tidy's own Standalone-auto support for safe unattended execution. |
 | `/claude-tweaks:harness-health` | Fourth consumer — `skills/harness-health/routine-template.yml` audits `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md for drift, template-conformance, and best-practice gaps, sharing its judgment procedure with `/init` and `/wrap-up`. |

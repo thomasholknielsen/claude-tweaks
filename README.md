@@ -40,7 +40,7 @@ As of v4.15.0 this delegates to Claude Code's built-in `/deep-research` Dynamic 
 - **`/journeys` Step 3.6** (new) — when a journey crosses 2+ personas, has 3+ named decision branches, or sequences 2+ external services, suggests the matching diagram type (swimlane / flowchart / sequence) before commit.
 - **`/review` Lens 3i-diagram** (extension) — when the diff added structural complexity but `docs/diagrams/` has no matching file, emits one informational Lens 3i finding ("Visual documentation gap"). Mirrors the existing "doc-update missed" pattern.
 
-All three hooks are gated by `diagram-integration: enabled` in CLAUDE.md, written by `/init` Phase 0.95 (always offered — not frontend-gated). Disabled / missing flag = silent no-op everywhere. claude-tweaks never invokes the plugin directly; the user accepts conversationally and diagram-design's skill auto-triggers. Shared procedure lives at `skills/_shared/diagram-integration-check.md` — flag-read, signal→type mapping (10 types), canonical phrasing, output convention.
+All three hooks are gated by `diagram-integration: enabled` in CLAUDE.md, written by `/init` Step 11 (always offered — not frontend-gated). Disabled / missing flag = silent no-op everywhere. claude-tweaks never invokes the plugin directly; the user accepts conversationally and diagram-design's skill auto-triggers. Shared procedure lives at `skills/_shared/diagram-integration-check.md` — flag-read, signal→type mapping (10 types), canonical phrasing, output convention.
 
 See [CHANGELOG.md](CHANGELOG.md) for earlier release notes (v4.6, v4.5, v4.2, v4.1) and v3→v4 upgrade guidance.
 
@@ -213,7 +213,7 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 
 The wrapper produces three independent surfacing anchors so creative commands cannot get buried: intent dispatch in polish, the Creative Opportunities block in `/visual-review`, and the Creative Opportunities block in `/flow`'s pipeline summary.
 
-Handles 3-layer detection (kill-switch / spec frontmatter / file-extension sniff) so non-frontend specs skip cleanly. Set up by `/init` Step 0.9. Per-spec caches (`*-audit.json`, `*-recommendations.json`, `*-declined.json`) live in `docs/plans/` and are cleaned up by `/wrap-up`.
+Handles 3-layer detection (kill-switch / spec frontmatter / file-extension sniff) so non-frontend specs skip cleanly. Set up by `/init` Step 10. Per-spec caches (`*-audit.json`, `*-recommendations.json`, `*-declined.json`) live in `docs/plans/` and are cleaned up by `/wrap-up`.
 
 ## Common workflows
 
@@ -256,7 +256,7 @@ Handles 3-layer detection (kill-switch / spec frontmatter / file-extension sniff
 |---------------|--------|----------|
 | [Superpowers](https://github.com/obra/superpowers) | `/plugin install superpowers@claude-plugins-official` | Yes — brainstorming, planning, subagent execution, worktree management, systematic debugging |
 | agent-browser | `npm install -g agent-browser` | Optional — browser automation for /stories, /visual-review, /review qa |
-| Node 18+ | brew/winget/scoop install nodejs | Yes — statusline. `/claude-tweaks:init` Step 0.8 offers to install via your package manager. |
+| Node 18+ | brew/winget/scoop install nodejs | Yes — statusline. `/claude-tweaks:init` Step 8 offers to install via your package manager. |
 | git CLI | brew/winget/apt install git | Optional — required only for the git segment in the statusline; everything else degrades gracefully. |
 
 ## Configuration

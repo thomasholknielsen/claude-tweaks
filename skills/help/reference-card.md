@@ -49,8 +49,8 @@ External Claude Code plugins claude-tweaks integrates with. `/claude-tweaks:init
 
 | Plugin | What it adds | Set up by |
 |--------|-------------|-----------|
-| [`pbakaus/impeccable`](https://github.com/pbakaus/impeccable) | Frontend design-quality LLM commands + deterministic CLI. Wired into `/test`, `/review`, `/build`, `/specify`, `/flow`, `/visual-review` via `/claude-tweaks:design`. Frontend projects only. | `/init` Phase 0.9 (writes `design-integration:` flag) |
-| [`cathrynlavery/diagram-design`](https://github.com/cathrynlavery/diagram-design) | 14 types of editorial HTML+SVG diagrams (architecture, flowchart, sequence, ER, state, …). Soft-hook nudges in `/specify`, `/build`, `/review` surface "consider a diagram here" recommendations. All projects. | `/init` Phase 0.95 (writes `diagram-integration:` flag) |
+| [`pbakaus/impeccable`](https://github.com/pbakaus/impeccable) | Frontend design-quality LLM commands + deterministic CLI. Wired into `/test`, `/review`, `/build`, `/specify`, `/flow`, `/visual-review` via `/claude-tweaks:design`. Frontend projects only. | `/init` Step 10 (writes `design-integration:` flag) |
+| [`cathrynlavery/diagram-design`](https://github.com/cathrynlavery/diagram-design) | 14 types of editorial HTML+SVG diagrams (architecture, flowchart, sequence, ER, state, …). Soft-hook nudges in `/specify`, `/build`, `/review` surface "consider a diagram here" recommendations. All projects. | `/init` Step 11 (writes `diagram-integration:` flag) |
 
 ## Common Workflows
 
