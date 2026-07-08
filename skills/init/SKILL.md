@@ -131,9 +131,9 @@ Offer only on projects with a GitHub remote — writes `.github/workflows/track-
 
 ### Finalizing the worktree.always Decision
 
-If Step 6 (`bootstrap-steps.md`) queued a `worktree.always` decision, write it as the last action of whichever point this invocation actually stops at without reaching Phase 9. There are two such stopping points: here, immediately, if `$ARGUMENTS` was `bootstrap` (this invocation stops after Phase 0 — see "Input" above); or at the Scope Selection Gate below, if the user selects Option 4 ("Done") — see that option's own note for the second trigger. Both mean the invocation stops before Phase 9 ever runs. In either case: create `.claude-tweaks/` if it doesn't exist, then write or update the `worktree.always:` line in `.claude-tweaks/policy.yml` (merge into existing content — preserve every other line in the file untouched; create the file with just that one line if it didn't exist). If the decision was "Yes," tell the user: "`worktree.always` is now enforced — your next edit requires an isolated worktree; run `/superpowers:using-git-worktrees` first."
+If Step 6 (`bootstrap-steps.md`) queued a `worktree.always` decision, it must be written to `.claude-tweaks/policy.yml` exactly once, as the very last filesystem action before this `/init` invocation ends — for whatever reason it ends. Phase 9's "Worktree Policy Finalization" (below) is the normal place this happens, since Phase 9 is the terminal phase for every scope that reaches it. But several paths end the invocation before Phase 9 ever runs — for example: `$ARGUMENTS` was `bootstrap` (stops after Phase 0); the Scope Selection Gate's Option 4 ("Done"); or Option 2 (Interactive)'s own per-phase gate, if the user selects "Done" ("Stop here") after any phase. These are examples, not an exhaustive list — whatever the actual reason this invocation is ending, write the decision right there, immediately before it ends: create `.claude-tweaks/` if it doesn't exist, then write or update the `worktree.always:` line in `.claude-tweaks/policy.yml` (merge into existing content — preserve every other line in the file untouched; create the file with just that one line if it didn't exist). If the decision was "Yes," tell the user: "`worktree.always` is now enforced — your next edit requires an isolated worktree; run `/superpowers:using-git-worktrees` first."
 
-For every other scope or gate outcome, this decision is instead finalized at the end of Phase 9 — see "Worktree Policy Finalization" there.
+If this invocation instead reaches Phase 9, the decision is finalized there — see "Worktree Policy Finalization."
 
 ---
 
@@ -160,9 +160,11 @@ Call `AskUserQuestion` (see "Phases at a Glance" above for the full table; Phase
 - Option 2 — `label`: `"Skip Phase {N+1}"`, `description`: `"Move to Phase {N+2}"`
 - Option 3 — `label`: `"Done"`, `description`: `"Stop here"`
 
+If the user selects this template's "Done" and Step 6 queued a `worktree.always` decision, write it now — see "Finalizing the worktree.always Decision" above.
+
 **Option 3 (Essentials):** Runs phases 2, 3, 5 only. Produces CLAUDE.md with proper philosophy and Don'ts. Defers skills, rules, journeys, and doc registry for later (suggest re-running `/init` or using goal-based arguments).
 
-**Option 4 (Done):** Stop after Phase 0. The user has the directory structure, starter files, and dependencies — they'll configure manually or run `/init` again later. If Step 6 queued a `worktree.always` decision, write it now — see "Finalizing the worktree.always Decision" above; this is the second of that section's two triggers (the first being `$ARGUMENTS was bootstrap`), both of which stop the invocation before Phase 9 ever runs.
+**Option 4 (Done):** Stop after Phase 0. The user has the directory structure, starter files, and dependencies — they'll configure manually or run `/init` again later. If Step 6 queued a `worktree.always` decision, write it now — see "Finalizing the worktree.always Decision" above.
 
 ### Phase dependencies
 
