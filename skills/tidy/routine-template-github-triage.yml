@@ -1,0 +1,24 @@
+template_version: 1
+routine_name: tidy-github-triage
+prompt: "/claude-tweaks:tidy --scope=github"
+model: claude-sonnet-5
+allowed_tools: [Bash, Read, Grep, Glob, Edit, Write, Task]
+mcp_connections: []
+default_schedule:
+  cron_expression: "0 */3 * * *"
+  description: "off-peak-ish anchor, UTC, every 3 hours — confirm against your local timezone at creation time"
+notes: >
+  A frequent, cheap companion to the base tidy-weekly routine
+  (skills/tidy/routine-template.yml) — this variant runs only Step 4.8's GitHub
+  PR/issue triage (--scope=github), skipping specs/docs/plans/worktrees/registry/claims
+  entirely, so it's safe to fire far more often without paying for a full sweep. Both
+  routines can be instantiated in the same project simultaneously: tidy-weekly for
+  periodic full-backlog hygiene, tidy-github-triage for keeping GitHub issue/PR state
+  fresh in between. Like the base template, this only runs safely unattended when the
+  target project's own CLAUDE.md already sets `auto-mode: default-on` — see
+  skills/tidy/SKILL.md's "Standalone auto" fallback and
+  skills/_shared/auto-mode-contract.md for the mode-precedence rules. `Task` is
+  included in allowed_tools so the scoped scan can still dispatch as a parallel Task
+  agent per skills/tidy/SKILL.md's Parallel execution note; if Task-based subagent
+  dispatch isn't supported in a given cloud routine session, it degrades to running
+  sequentially, same as the base template.
