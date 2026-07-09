@@ -692,11 +692,23 @@ either GitHub issues or the classic local markdown files
 capture/defer/tidy run is consistent — no split-brain between issue-backed and
 file-backed entries for the same repo.
 
-**Gate:** run the same GHE-safe two-tier check Step 9 uses. When it succeeds (a
-GitHub-flavored remote is reachable), default the recommendation to option 1 below;
-otherwise default to option 2.
+**Gate:** run the same GHE-safe two-tier check Step 9 uses.
 
-**Present:**
+**When the gate succeeds** (a GitHub-flavored remote is reachable): skip the prompt
+below entirely and go straight to "Write the flag to CLAUDE.md" with
+`backlog-backend: github-issues`. GitHub issues is the richer, proven path
+(filterable, visible outside the repo, works with `/flow --from-label` and
+`--from-milestone`) — asking a neutral A/B question when the better option is
+unambiguously available is unnecessary friction, not a meaningful decision. A user
+who wants local files anyway (e.g. a public repo where backlog items shouldn't be
+GitHub-visible) can still hand-edit CLAUDE.md's `backlog-backend` value afterward —
+`/claude-tweaks:capture` and `/claude-tweaks:tidy` always honor whatever the flag
+says, regardless of how it was set.
+
+**When the gate fails** (no GitHub-flavored remote): present the choice below,
+defaulted to option 2 — unchanged from today.
+
+**Present (gate-fails case only):**
 
 ```
 How should claude-tweaks store captured ideas and deferred work?
@@ -729,8 +741,10 @@ the GitHub-backed path only activates when explicitly enabled by `/init`, matchi
 `design-integration`'s missing-flag convention.
 
 **Existing-content migration.** Whenever this step newly sets `backlog-backend:
-github-issues` (fresh init choosing option 1, first run on a pre-existing project, or the
-upgrade path below) and `specs/INBOX.md` and/or `specs/DEFERRED.md` contain entries beyond
+github-issues` (a fresh init resolving to `github-issues` — whether via the silent
+gate-succeeds default or an explicit choice in the gate-fails prompt — a first run on a
+pre-existing project, or the upgrade path below) and `specs/INBOX.md` and/or
+`specs/DEFERRED.md` contain entries beyond
 their header line, offer a one-time batch migration before finishing this step:
 
 ```
