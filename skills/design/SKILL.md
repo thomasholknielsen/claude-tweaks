@@ -230,7 +230,7 @@ This skill is a **component skill** (utility wrapper) — invoked by `/claude-tw
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:init` | Adds Impeccable setup phase (Step 10 — install + init + `design-integration` flag). Writes the kill-switch flag this wrapper reads in Layer 1. |
-| `/claude-tweaks:test` | Invokes `test` mode after the standard verification suite. Errors fail the gate; warnings/skips do not. |
+| `/claude-tweaks:test` | Invokes `test` mode after the standard verification suite. Findings with `severity: warning` fail the gate; `advisory` findings and skips do not. |
 | `/claude-tweaks:review` | Invokes `review` mode during code review. Findings appear as a "Design Quality" section in the review summary — advisory, not blocking. The `review` mode also writes an audit cache (`docs/plans/...-audit.json`) consumed by `polish`. |
 | `/claude-tweaks:build` | Invokes `pre-build` mode before implementation to lazy-load Impeccable references and project design context into the build subagent's context. |
 | `/claude-tweaks:flow` | Invokes `polish` mode in the polish phase between review and wrap-up (auto-fit + issue-driven + intent-driven). The polish phase modifies code; flow's re-verify gate runs `/test skip-qa` afterward. Flow's pipeline summary also invokes `survey` mode against the full diff to render the Creative Opportunities block. Flow handles decline detection by comparing the recommendations cache from the previous run against the new diff. |
