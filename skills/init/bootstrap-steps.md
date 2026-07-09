@@ -746,15 +746,19 @@ issues now?
 On "Migrate all": for each `specs/INBOX.md` entry, build the payload via `inboxIssuePayload`
 (category parsed from the entry's `**Category:**` field) and `gh issue create` with
 `backlog` + `backlog:category-<value>` labels. For each `specs/DEFERRED.md` entry, judge
-trigger type the same way `/claude-tweaks:tidy`'s Defer action would judge it live: names
+trigger type the same way `/claude-tweaks:tidy`'s Sync to GitHub action would judge it
+live (reading the entry's existing `**Trigger:**` prose, not deciding one fresh — that's
+what makes this a Sync to GitHub case, not a Defer case): names
 specific files → pass as `watchedPaths` to `parkedIssuePayload`; names a moment in time →
 build via `parkedIssuePayload` without `watchedPaths`, then attach/create a GitHub
 Milestone (`gh api repos/{owner}/{repo}/milestones --jq '.[].title'` to check existence,
 `gh api repos/{owner}/{repo}/milestones -f title="{name}"` to create,
 `gh issue edit {n} --milestone "{name}"` to attach); otherwise build via
-`parkedIssuePayload` with the prose `**Trigger:**` carried over unchanged. Every
-`parkedIssuePayload`-built issue gets `backlog` + `parked` + category labels. Bootstrap
-the `backlog`, `parked`, and each used `backlog:category-<value>` label with a real
+`parkedIssuePayload` with the prose `**Trigger:**` carried over unchanged. Unlike
+`specs/INBOX.md`, `specs/DEFERRED.md` entries carry no structured category field — judge
+category live from the entry's content, using the same four-value taxonomy INBOX entries
+use. Every `parkedIssuePayload`-built issue gets `backlog` + `parked` + category labels.
+Bootstrap the `backlog`, `parked`, and each used `backlog:category-<value>` label with a real
 description first (check-then-create, same pattern as Step 9's `.github/ISSUE_TEMPLATE`
 bootstrap). Present the batch as a table (entry → resulting issue number) before clearing
 the source files — this is the same batch-table + apply-all/override interaction
