@@ -381,3 +381,26 @@ test('selectTarget Phase 2 uses a design-artifact candidate pathGlobs, not conte
   assert.strictEqual(result.id, 'DESIGN');
   assert.strictEqual(result.why, 'hotspot');
 });
+
+test('selectTarget lets PRODUCT win via hotspot from its own content-scraped paths despite empty pathGlobs', () => {
+  const root = tmp();
+  initGitRepo(root);
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), '## Design integration\n\ndesign-integration: enabled\n');
+  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'src', 'pricing.js'), 'export const price = 1;\n');
+  fs.writeFileSync(path.join(root, 'PRODUCT.md'), 'Pricing logic lives in `src/pricing.js`.');
+  commit(root, 'first');
+  const sinceMs = Date.now() - 86400000;
+  fs.writeFileSync(path.join(root, 'src', 'pricing.js'), 'export const price = 2;\n');
+  commit(root, 'second');
+  const result = selectTarget(root, { 'design-artifact:PRODUCT': { lastAuditedMs: sinceMs } }, {
+    now: Date.now(),
+    kind: 'design-artifact',
+  });
+  assert.ok(result !== null, 'must pick PRODUCT via paths scraped from its own prose, since its pathGlobs is always []');
+  assert.strictEqual(result.kind, 'design-artifact');
+  assert.strictEqual(result.id, 'PRODUCT');
+  assert.strictEqual(result.why, 'hotspot');
+  assert.deepStrictEqual(result.pathGlobs, [], 'the returned target.pathGlobs must stay the static [], not the scraped paths');
+  assert.ok(result.churnCount > 0, `expected churnCount > 0 from the scraped-path churn, got ${result.churnCount}`);
+});
