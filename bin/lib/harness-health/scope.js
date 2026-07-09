@@ -74,6 +74,26 @@ function listClaudeMd(root) {
   return [{ kind: 'claude-md', id: 'CLAUDE', path: filePath }];
 }
 
+// ─── listMemory ──────────────────────────────────────────────────────────────
+// Returns [{ kind: 'memory', id, path }] for each `- [Title](file.md) — hook`
+// bullet in <memoryDir>/MEMORY.md, sorted by id. [] if MEMORY.md is missing or
+// unreadable — a project with no memory yet is a valid state, not an error.
+// memoryDir is always an explicit, caller-supplied path (see selectMemoryTarget
+// below) — never derived from a repo root.
+function listMemory(memoryDir) {
+  let content;
+  try { content = fs.readFileSync(path.join(memoryDir, 'MEMORY.md'), 'utf8'); } catch { return []; }
+  const results = [];
+  for (const line of content.split('\n')) {
+    const m = line.match(/^-\s*\[.*?\]\(([^)]+)\)/);
+    if (!m) continue;
+    const href = m[1];
+    const id = href.endsWith('.md') ? href.slice(0, -3) : href;
+    results.push({ kind: 'memory', id, path: path.join(memoryDir, href) });
+  }
+  return results.sort((a, b) => (a.id < b.id ? -1 : 1));
+}
+
 // ─── readDesignIntegrationFlag ─────────────────────────────────────────────
 // Parses CLAUDE.md's `design-integration:` value. Returns 'disabled' when
 // CLAUDE.md is missing/unreadable or the flag is absent — mirrors the design
@@ -226,4 +246,5 @@ module.exports = {
   listSkills, parseRulePaths, listRules, listClaudeMd, listTargets,
   extractDomainPaths, domainChurn, selectTarget,
   readDesignIntegrationFlag, listDesignArtifacts,
+  listMemory,
 };

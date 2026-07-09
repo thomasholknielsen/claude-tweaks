@@ -8,6 +8,7 @@ const {
   listSkills, extractDomainPaths, domainChurn, selectTarget,
   listRules, parseRulePaths, listClaudeMd, listTargets,
   readDesignIntegrationFlag, listDesignArtifacts,
+  listMemory,
 } = require('../scope');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'harness-health-scope-')); }
@@ -114,6 +115,36 @@ test('listClaudeMd returns a single kind: claude-md item when CLAUDE.md exists',
   assert.strictEqual(result[0].kind, 'claude-md');
   assert.strictEqual(result[0].id, 'CLAUDE');
   assert.strictEqual(result[0].path, path.join(root, 'CLAUDE.md'));
+});
+
+// ─── listMemory ─────────────────────────────────────────────────────────────
+
+test('listMemory returns [] when MEMORY.md does not exist', () => {
+  const root = tmp();
+  assert.deepStrictEqual(listMemory(root), []);
+});
+
+test('listMemory parses `- [Title](file.md) — hook` bullets into memory targets', () => {
+  const root = tmp();
+  fs.writeFileSync(
+    path.join(root, 'MEMORY.md'),
+    '# Memory Index\n\n' +
+    '- [Design feedback style](design-feedback-style.md) — reviews design choices for real\n' +
+    '- [Brainstorming interaction style](brainstorming-interaction-style.md) — wants breadth of options\n',
+  );
+  const targets = listMemory(root);
+  assert.deepStrictEqual(targets.map((t) => t.id), ['brainstorming-interaction-style', 'design-feedback-style']);
+  assert.strictEqual(targets[0].kind, 'memory');
+  assert.strictEqual(targets[0].path, path.join(root, 'brainstorming-interaction-style.md'));
+});
+
+test('listMemory ignores non-bullet lines (headings, blank lines, prose)', () => {
+  const root = tmp();
+  fs.writeFileSync(
+    root && path.join(root, 'MEMORY.md'),
+    '# Memory Index\n\nSome intro prose that is not a bullet.\n\n- [Only entry](only-entry.md) — the one real bullet\n',
+  );
+  assert.deepStrictEqual(listMemory(root).map((t) => t.id), ['only-entry']);
 });
 
 // ─── readDesignIntegrationFlag / listDesignArtifacts ──────────────────────
