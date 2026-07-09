@@ -29,9 +29,10 @@ Not for: one-off or exploratory routines you don't want templated (use `/schedul
 
 | Argument | Behavior |
 |---|---|
-| `create <skill>` | Instantiate `<skill>`'s routine template into a live routine for the current project. Routes to the UPDATE workflow automatically if an instantiated record already exists for this project+skill. |
+| `create <skill>` | Instantiate `<skill>`'s routine template into a live routine for the current project. Routes to the UPDATE workflow automatically if an instantiated record already exists for this project+skill+variant combination. |
 | `update <skill>` | Re-sync an existing routine against its (possibly changed) template. |
-| `status <skill>` | Show the instantiated record alongside live routine state. |
+| `status <skill>` | Show the instantiated record(s) alongside live routine state. With no `--variant`, lists every instantiated variant found for `<skill>`. |
+| `--variant <name>` | Use `skills/{skill}/routine-template-<name>.yml` instead of the default `skills/{skill}/routine-template.yml`. Combine with `create`/`update`/`status`. Omit for the default template — fully backward compatible with every existing consumer (code-health, flow, harness-health), none of which ship a variant. |
 | `--dry-run` (combine with `create`/`update`) | Assemble and display the `RemoteTrigger` body; never make a `create`/`update` call (read-only `list`/`get` calls to resolve values are still permitted), never write or rewrite the instantiated record. |
 | `--source <parent-skill>` | Used by a parent skill (e.g. `/claude-tweaks:init`) to identify itself as the caller; see Component-Skill Contract below. |
 
@@ -39,7 +40,7 @@ Not for: one-off or exploratory routines you don't want templated (use `/schedul
 
 ### CREATE `<skill>`
 
-**Step 1 — Load the template.** Read `${CLAUDE_PLUGIN_ROOT}/skills/{skill}/routine-template.yml`. If it doesn't exist, stop: "`{skill}` has no routine-template.yml — it doesn't support routines yet." The field schema is documented once in `skills/_shared/routine-template-schema.md` — read it if any field's meaning is unclear.
+**Step 1 — Load the template.** When `--variant=<name>` was passed, read `${CLAUDE_PLUGIN_ROOT}/skills/{skill}/routine-template-<name>.yml`; if it doesn't exist, stop: "`{skill}` has no routine-template-{name}.yml — check the variant name." Otherwise (no `--variant`), read `${CLAUDE_PLUGIN_ROOT}/skills/{skill}/routine-template.yml` exactly as before; if it doesn't exist, stop: "`{skill}` has no routine-template.yml — it doesn't support routines yet." The field schema — identical for the default template and every named variant — is documented once in `skills/_shared/routine-template-schema.md` — read it if any field's meaning is unclear.
 
 **Step 2 — Resolve the repo URL and derive the project-prefixed name.**
 
@@ -51,7 +52,7 @@ Normalize to full HTTPS the same way `/schedule` does: accept `org/repo`, `git@g
 
 Derive `REPO_SLUG` from the resolved URL's `{repo}` segment: lowercase it, replace any run of characters outside `[a-z0-9]` with a single `-`, and trim leading/trailing `-`. Set `PREFIXED_NAME = "{REPO_SLUG}-{template.routine_name}"` (e.g. repo `claude-tweaks` + `routine_name: code-health-daily` → `claude-tweaks-code-health-daily`). Use `PREFIXED_NAME` everywhere the rest of this workflow refers to the routine's name or the record's filename — never the template's bare `routine_name` alone.
 
-**Step 3 — Idempotency check.** Check whether `.claude-tweaks/routines/{PREFIXED_NAME}.yml` already exists in the current project. If it does, stop this workflow and continue at UPDATE below instead — never create a second routine for the same project+skill.
+**Step 3 — Idempotency check.** Check whether `.claude-tweaks/routines/{PREFIXED_NAME}.yml` already exists in the current project. If it does, stop this workflow and continue at UPDATE below instead — never create a second routine for the same project+skill+variant combination. (`PREFIXED_NAME` already encodes the loaded template's `routine_name`, which differs per variant by construction — creating `tidy` with `--variant=github-triage` while `tidy-weekly`'s record already exists is a legitimate second instance, not a duplicate; see the Anti-Patterns table below.)
 
 **Step 4 — Resolve `environment_id`.** Check `.claude-tweaks/routine-environment-cache.yml` in the current project first. If it exists and contains an `environment_id` value, offer it as the default (let the user override). Otherwise, load the tool with `ToolSearch select:RemoteTrigger`, then call `{action: "list"}`. If existing routines are returned, read `job_config.ccr.environment_id` off the most recently created one and offer it as the default (let the user override). If none exist yet, ask the user directly which environment to use — present whatever environment names/IDs are available in context; if none are, ask the user to name one (they can check via `/schedule` once if unsure). Do not cache this value anywhere under `~/.claude-tweaks/` — that path is harness-owned, not skill-owned.
 
@@ -120,7 +121,7 @@ Report the console URL to the user.
 
 ### UPDATE `<skill>`
 
-**Step 1.** Load the template at `${CLAUDE_PLUGIN_ROOT}/skills/{skill}/routine-template.yml` (if missing, stop with the same message as CREATE Step 1). Resolve the repo URL and derive `PREFIXED_NAME` the same way as CREATE Step 2. Require an existing `.claude-tweaks/routines/{PREFIXED_NAME}.yml` for the current project (routed here automatically from CREATE's idempotency check, or invoked directly). If none exists, tell the user to run `create <skill>` first and stop.
+**Step 1.** Load the template the same way as CREATE Step 1 (respecting `--variant` if passed; if missing, stop with the same message). Resolve the repo URL and derive `PREFIXED_NAME` the same way as CREATE Step 2. Require an existing `.claude-tweaks/routines/{PREFIXED_NAME}.yml` for the current project (routed here automatically from CREATE's idempotency check, or invoked directly). If none exists, tell the user to run `create <skill> [--variant=<name>]` first and stop.
 
 **Step 2.** Compare the template's `template_version` (already read in Step 1) against the instantiated record's `template_version` — if they match and the user hasn't asked to change anything else, report "already in sync" and stop.
 
@@ -142,7 +143,9 @@ If `--dry-run` was passed: show the diff and stop. Do not call `RemoteTrigger`. 
 
 ### STATUS `<skill>`
 
-**Step 1.** Read the template at `${CLAUDE_PLUGIN_ROOT}/skills/{skill}/routine-template.yml`. Resolve the repo URL and derive `PREFIXED_NAME` the same way as CREATE Step 2, then read `.claude-tweaks/routines/{PREFIXED_NAME}.yml`. If missing, report that no routine has been created for `<skill>` in this project and suggest `create <skill>`. Stop.
+**Step 1.** When `--variant=<name>` was passed, load the template and resolve `PREFIXED_NAME`/record path exactly as CREATE Steps 1-2, then read that single `.claude-tweaks/routines/{PREFIXED_NAME}.yml`; if missing, report no routine for `<skill> --variant=<name>` and suggest `create <skill> --variant=<name>`. Stop.
+
+When `--variant` is omitted: glob `${CLAUDE_PLUGIN_ROOT}/skills/{skill}/routine-template.yml` and `${CLAUDE_PLUGIN_ROOT}/skills/{skill}/routine-template-*.yml` to enumerate every template `<skill>` ships, read each one's `routine_name`, and derive `REPO_SLUG` (same recipe as CREATE Step 2) to check which of `.claude-tweaks/routines/{REPO_SLUG}-{routine_name}.yml` exist. If none exist, report that no routine has been created for `<skill>` in this project and suggest `create <skill>`. Stop. If exactly one exists, proceed with that single instance for the rest of this workflow, exactly as before. If more than one exists, run Steps 2-3.5 below once per existing instance and present all of them together, each labeled by its variant name (or "default" for the base template).
 
 **Step 2.** Call `RemoteTrigger {action: "get", trigger_id: <record.routine_id>}` for live state — enabled/disabled, schedule, and any last/next run fields the response carries. If the `get` call fails because the routine no longer exists, report the record as stale and offer to delete `.claude-tweaks/routines/{PREFIXED_NAME}.yml` and re-run `create <skill>`.
 
@@ -172,7 +175,7 @@ Standalone invocation (no `--source` flag) is the common case and renders Next A
 |---------|--------------|
 | Writing `environment_id` or a repo URL into a skill's `routine-template.yml` | Templates ship with the plugin across every project and account — baking in one account's environment or one project's repo makes the template wrong everywhere else. |
 | Skipping the review gate because the assembled body "looks right" | `RemoteTrigger create` has no delete counterpart — a mistaken routine runs on a live schedule until manually removed at claude.ai/code/routines. |
-| Creating a second routine when an instantiated record already exists | Always check `.claude-tweaks/routines/{name}.yml` first and route to `update` — duplicate routines double-run the same work. |
+| Creating a second routine for the same project+skill+**variant** when an instantiated record already exists | Always check `.claude-tweaks/routines/{name}.yml` first and route to `update` — duplicate routines double-run the same work. A second routine for a **different** variant of the same skill (e.g. `tidy-weekly` and `tidy-github-triage` coexisting) is not a duplicate — it's a distinct `PREFIXED_NAME`, and both instances legitimately run side by side. |
 | Committing account-specific values into the instantiated record | The record schema deliberately excludes `environment_id` and MCP credentials — it's meant to be safe to commit. |
 | Treating `--dry-run`'s assembled body as already created | Nothing is created, updated, or written until the non-dry-run path completes its final API call and record write. |
 | Caching `environment_id` under `~/.claude-tweaks/` | That path is harness-owned runtime state, not skill-owned — cache it in the project-local `.claude-tweaks/routine-environment-cache.yml` file instead (checked before falling back to `RemoteTrigger list`, per CREATE Step 4). |
