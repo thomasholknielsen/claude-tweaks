@@ -20,7 +20,7 @@ finding -> validate-findings -> auto-apply (skill/rule, additive+high-confidence
 
 - You want skill, rule, and CLAUDE.md documentation to stay accurate between spec completions and full `/init` re-runs, without driving each check yourself.
 - You want a scheduled Routine that periodically rotates through skills, rules, and CLAUDE.md and flags drift, structural decay, or best-practice gaps as they're found.
-- You want to check one specific target right now (`--target <name> [--kind <skill|rule|claude-md>]`).
+- You want to check one specific target right now (`--target <name> [--kind <skill|rule|claude-md|design-artifact>]`).
 
 Not for: code-quality findings (`/claude-tweaks:code-health`'s job — including cases where a rule's `paths:` glob is still correct but the code doesn't comply with it). Not a replacement for `/claude-tweaks:wrap-up` Step 7 or `/claude-tweaks:init`'s Update Mode — both consume the same shared procedure this skill does (currently against skills only), on their own scope models (a finished spec's diff; a whole-codebase reconnaissance) rather than this skill's churn/staleness rotation. Not for auditing memory (`~/.claude/projects/*/memory/`) — out of scope; see the harness-health design doc for why.
 
@@ -29,7 +29,7 @@ Not for: code-quality findings (`/claude-tweaks:code-health`'s job — including
 `$ARGUMENTS` may contain:
 
 - `--target <id>` — manual override: audit one specific target directly, bypassing `next-target` selection.
-- `--kind <skill|rule|claude-md>` — disambiguate `--target` when an id collides across kinds, or (without `--target`) restrict auto-selection to one kind.
+- `--kind <skill|rule|claude-md|design-artifact>` — disambiguate `--target` when an id collides across kinds, or (without `--target`) restrict auto-selection to one kind.
 - `--dry-run` — emit findings; never write cursor/cache state; never call `gh` or `Edit`.
 - `--budget <n>` — audit up to `n` targets in one firing (default 1).
 - `--root <dir>` — audit a project elsewhere (default: current working directory).
@@ -58,7 +58,15 @@ Read the file at `target.path` in full. If none of `.claude/skills/`, `.claude/r
 
 **Step 3 — JUDGE the target.**
 
-Apply the full procedure in `_shared/harness-health-analysis.md` (the 8-dimension check, evidence pre-checks, verify gate, concrete gap signals — using `target.kind` to select which dimensions and origin-template references apply) to the target. Emit findings as a JSON array in the Finding Shape that file defines, with `assetType` set to `target.kind` and `target` set to `target.id`. Write the array to `/tmp/harness-health-findings.json`.
+When `target.kind === 'design-artifact'`, skip the full procedure below — construct one finding directly, without a content read:
+
+1. Map `target.id` to its regenerate command: `PRODUCT` → `/impeccable:impeccable init`, `DESIGN` → `/impeccable:impeccable document`.
+2. Build `oldString` from `target.why`: `"Unaudited for {target.daysSinceLastAudit} days"` when `why: "stale"`, or `"{target.churnCount} commits touching {target.pathGlobs joined with ', '}, since last audit"` when `why: "hotspot"`.
+3. Emit one finding: `{ kind: "patch", assetType: "design-artifact", target: target.id, category: "drift", section: "Freshness", oldString: <from step 2>, newString: "Run {regenerate command}", classification: "restructural", confidence: "high", reversibility: "high", reason: <one sentence restating the oldString evidence>, description: "Re-run {regenerate command} to refresh {target.id === 'PRODUCT' ? 'PRODUCT.md' : 'DESIGN.md'}, confirm the regenerated content still matches the project's actual state, and close this issue." }`. Write it (as a single-element array, or appended to an existing array if the gap scan also ran this firing) to `/tmp/harness-health-findings.json`.
+
+This branch doesn't need `_shared/harness-health-analysis.md`'s 8-dimension check — the 8 dimensions (template conformance, best-practice fit, cross-skill overlap, etc.) are skill/rule/claude-md-specific and don't map onto a project-root design-context file. `_shared/harness-health-analysis.md` is shared by `/wrap-up` and `/init`, neither of which ever passes a `design-artifact` target, so this branch lives here rather than in the shared file.
+
+For every other `target.kind`, apply the full procedure in `_shared/harness-health-analysis.md` (the 8-dimension check, evidence pre-checks, verify gate, concrete gap signals — using `target.kind` to select which dimensions and origin-template references apply) to the target. Emit findings as a JSON array in the Finding Shape that file defines, with `assetType` set to `target.kind` and `target` set to `target.id`. Write the array to `/tmp/harness-health-findings.json`.
 
 **Step 4 — GAP SCAN (when due, per Step 1's `gapScanDue`).**
 
@@ -92,6 +100,7 @@ Each payload in `/tmp/harness-health-payloads.json` carries structured fields, n
 
 For each payload:
 - If `payload.assetType === 'claude-md'` — **always file it, regardless of classification/confidence/reversibility.** CLAUDE.md governs every future session's behavior; an unattended routine auto-editing it carries outsized blast radius compared to one skill's documentation. This overrides the additive/high/high rule below.
+- If `payload.assetType === 'design-artifact'` — **always file it, regardless of classification/confidence/reversibility.** Regenerating means re-running an interactive interview (`init`) or a full codebase scan (`document`), not a safe mechanical text patch — human review belongs before either lands.
 - Otherwise, if `payload.classification === "additive"`, `payload.confidence === "high"`, and `payload.reversibility === "high"` — apply it directly with `Edit` (using `payload.oldString`/`payload.newString` exactly), commit: `git commit -am "harness-health: apply additive patch to {target} ({section})"`, then mark it applied so it doesn't get re-proposed: `node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" mark "${payload.id}" applied --root .`.
 - Otherwise (restructural patches, any new-skill candidate, lower confidence/reversibility, or any CLAUDE.md finding) — file it: `gh issue create --title "<payload.title>" --body "<payload.body>" --label harness-health --label "<payload.labels[1]>"`.
 
@@ -143,7 +152,7 @@ Additive+high-confidence+high-reversibility patches on **skills and rules** auto
 Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
 
 - Option 1 — `label`: `"Schedule a Routine"`, `description`: `"/claude-tweaks:routine create harness-health — schedule this as a recurring Routine"`. Suffix the label `(Recommended)` after a first standalone run confirms the output looks right.
-- Option 2 — `label`: `"Audit one target"`, `description`: `"/claude-tweaks:harness-health --target <name> --kind <skill|rule|claude-md> — audit one specific target right now"`
+- Option 2 — `label`: `"Audit one target"`, `description`: `"/claude-tweaks:harness-health --target <name> --kind <skill|rule|claude-md|design-artifact> — audit one specific target right now"`
 - Option 3 — `label`: `"Backlog hygiene"`, `description`: `"/claude-tweaks:tidy — fold any filed harness-health issues into a backlog-hygiene pass"`
 
 ## Component-Skill Contract
