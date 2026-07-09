@@ -164,6 +164,17 @@ order of the canonical list guarantees this):
    carries `agent:go`: `gh issue edit "$ISSUE" --remove-label agent:go` (reversible; log to
    `decisions.md`). Leave the label on `abandoned:` — it is the standing retry request. Skip
    silently when the label is absent.
-7. Log each release to `decisions.md` (status `AUTO`, reason string as detail).
+7. **Remove `status:in-progress`; restore `parked` if applicable.** Always remove
+   `status:in-progress` (`gh issue edit "$ISSUE" --remove-label status:in-progress`) —
+   best-effort, log a warning and continue on failure. Then, only when the outcome reason is
+   `abandoned: spec {spec}` (i.e. NOT `merged:`/`pr-opened:`) AND the spec's frontmatter carries
+   `recon-was-parked: true`: restore `parked` — bootstrap the label if missing (same
+   check-then-create pattern as `backlog`), then `gh issue edit "$ISSUE" --add-label parked`.
+   Skip restoration silently when `recon-was-parked` is absent, or when the outcome was
+   `merged:`/`pr-opened:` (the spec shipped or is under review — the issue should stay
+   unparked). Best-effort — on failure, log a warning and continue; `/tidy` Step 4.7's backstop
+   check catches a restoration that silently failed.
+8. Log each release, `status:in-progress` removal, and `parked` restoration to `decisions.md`
+   (status `AUTO`, reason string as detail).
 
 If no spec has `recon-issue:` frontmatter, skip silently.
