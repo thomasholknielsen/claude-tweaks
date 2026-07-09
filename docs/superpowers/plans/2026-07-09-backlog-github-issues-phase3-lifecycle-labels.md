@@ -286,13 +286,14 @@ labels shape against. Confirm the assumption a different way — `gh issue view`
 of full label objects (`[{"name": "...", "color": "...", ...}, ...]`), never bare strings:
 
 ```bash
-gh issue view --help | grep -A2 '\-\-json'
+gh issue view --help | grep -A2 'JSON FIELDS'
 ```
 
-Expected: the `--json` flag help text lists `labels` as an available field (confirms the field
-name is correct); the object-array shape itself is standard, documented `gh` CLI/GitHub REST
-API behavior, not something that varies per-repo. Do **not** run `gh issue edit` against a real
-issue here — there is no real issue in this repo to safely mutate.
+Expected: the `JSON FIELDS` section of the help text lists `labels` as an available field
+(confirms the field name is correct); the object-array shape itself is standard, documented
+`gh` CLI/GitHub REST API behavior, not something that varies per-repo. Do **not** run
+`gh issue edit` against a real issue here — there is no real issue in this repo to safely
+mutate.
 
 - [ ] **Step 7: Commit**
 
