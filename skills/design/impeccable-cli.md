@@ -95,7 +95,7 @@ The schema above reflects verified live CLI 3.2.0 output and source. The CLI may
 4. **`severity` not in `{warning, advisory}`** → treat as `warning` (fail-safe — unknown is more serious, not less).
 5. **Exit code 0** → treat as zero findings, regardless of stdout content (the CLI's own "nothing found" signal).
 6. **Exit code 2** → expect a non-empty JSON array on stdout; parse per rules 1-4 above.
-7. **Any other exit code, or stdout that fails to parse as JSON under rules 5-6** → malformed output; return:
+7. **Any other exit code, or stdout that fails to parse as JSON under rule 6** → malformed output; return:
 
 ```json
 {
