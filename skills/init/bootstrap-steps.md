@@ -721,12 +721,57 @@ Use the appropriate value:
 | Option 1 (GitHub issues) | `github-issues` |
 | Option 2 (Local files) | `local-files` |
 
-Once implemented, `/claude-tweaks:capture` and `/claude-tweaks:tidy` will read this flag
-to decide where a new entry lands — see the backlog-on-GitHub-issues design doc
-(`docs/superpowers/specs/2026-07-08-backlog-github-issues-design.md`) for Phase 2/3 of
-that work. Missing flag is treated identically to `local-files` — the GitHub-backed path
-only activates when explicitly enabled by `/init`, matching `design-integration`'s
-missing-flag convention.
+`/claude-tweaks:capture` and `/claude-tweaks:tidy` read this flag to decide where a new
+entry lands and how backlog items are triaged — see the backlog-on-GitHub-issues design
+doc (`docs/superpowers/specs/2026-07-08-backlog-github-issues-design.md`) for the full
+mechanics (Phase 3 still owes the `parked`/`status:in-progress` lifecycle-label wiring at
+promotion and claim acquisition). Missing flag is treated identically to `local-files` —
+the GitHub-backed path only activates when explicitly enabled by `/init`, matching
+`design-integration`'s missing-flag convention.
+
+**Existing-content migration.** Whenever this step newly sets `backlog-backend:
+github-issues` (fresh init choosing option 1, first run on a pre-existing project, or the
+upgrade path below) and `specs/INBOX.md` and/or `specs/DEFERRED.md` contain entries beyond
+their header line, offer a one-time batch migration before finishing this step:
+
+```
+Found {X} INBOX item(s) and {Y} deferred item(s) in local files. Migrate them to GitHub
+issues now?
+
+1. Migrate all (Recommended) — creates {X+Y} issues, then clears the local files
+2. Skip — leave the files as-is; /claude-tweaks:tidy will flag every entry as
+   unsynced on its next run and offer the same migration per-item
+```
+
+On "Migrate all": for each `specs/INBOX.md` entry, build the payload via `inboxIssuePayload`
+(category parsed from the entry's `**Category:**` field) and `gh issue create` with
+`backlog` + `backlog:category-<value>` labels. For each `specs/DEFERRED.md` entry, judge
+trigger type the same way `/claude-tweaks:tidy`'s Defer action would judge it live: names
+specific files → pass as `watchedPaths` to `parkedIssuePayload`; names a moment in time →
+build via `parkedIssuePayload` without `watchedPaths`, then attach/create a GitHub
+Milestone (`gh api repos/{owner}/{repo}/milestones --jq '.[].title'` to check existence,
+`gh api repos/{owner}/{repo}/milestones -f title="{name}"` to create,
+`gh issue edit {n} --milestone "{name}"` to attach); otherwise build via
+`parkedIssuePayload` with the prose `**Trigger:**` carried over unchanged. Every
+`parkedIssuePayload`-built issue gets `backlog` + `parked` + category labels. Bootstrap
+the `backlog`, `parked`, and each used `backlog:category-<value>` label with a real
+description first (check-then-create, same pattern as Step 9's `.github/ISSUE_TEMPLATE`
+bootstrap). Present the batch as a table (entry → resulting issue number) before clearing
+the source files — this is the same batch-table + apply-all/override interaction
+`/claude-tweaks:tidy` Step 6 already uses, not a new UI pattern.
+
+Clear `specs/INBOX.md`/`specs/DEFERRED.md` back to their bare header (`# Inbox` /
+`# Deferred Work`, no entries) only after every migrated entry's `gh issue create` has
+confirmed success — migration is all-or-nothing per file, matching the Action Vocabulary's
+atomicity rule (`/claude-tweaks:tidy`'s "Sync to GitHub" action, which this migration is a
+batch form of). If any single `gh issue create` fails mid-batch, leave the failed entries
+(and only those) in the local file and report which ones — they'll be flagged unsynced by
+`/claude-tweaks:tidy` and can be retried per-item via its Sync to GitHub action.
+
+On "Skip": leave the files as-is. `/claude-tweaks:tidy`'s scan already treats any non-empty
+local-file content as unsynced once `backlog-backend: github-issues`, offering the
+identical Sync to GitHub action per-item on its next run — a declined migration behaves
+exactly like a transient-failure fallback write from the scan's point of view.
 
 **Re-run behavior (Update-Mode drift).** When `/init` is re-run on a project where
 `backlog-backend: github-issues` is already set, this step is a no-op. When the flag is
