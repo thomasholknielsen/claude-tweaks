@@ -26,7 +26,7 @@ Periodic backlog hygiene to keep the spec system healthy. Run when the backlog f
 
 ## Input
 
-`$ARGUMENTS` is not used by /tidy. The skill scans `specs/INBOX.md`, `specs/DEFERRED.md`, `specs/`, design docs, plans, worktrees, and the doc registry from their canonical locations; an aggressiveness override (when needed) is read from the active pipeline run's `config.yml` (Manifesto `tidy-aggressiveness` lever), not from arguments.
+`$ARGUMENTS` is not used by /tidy. The skill scans `specs/INBOX.md`, `specs/DEFERRED.md` (or `backlog`-labeled GitHub issues, per `backlog-backend` — see `scan-procedures.md` Steps 1/1.5 and 4.8), `specs/`, design docs, plans, worktrees, and the doc registry from their canonical locations; an aggressiveness override (when needed) is read from the active pipeline run's `config.yml` (Manifesto `tidy-aggressiveness` lever), not from arguments.
 
 ## Steps 1-4.8: Scan Everything
 
@@ -86,14 +86,17 @@ Every recommendation in the tidy report uses one of these actions. Each action i
 
 | Action | What It Means | Execution | Removes from Source? |
 |--------|--------------|-----------|---------------------|
-| **Delete** | Item is no longer needed — stale, already implemented, or out of scope | Remove entry from source file | Yes |
-| **Defer** | Valid but not timely — park with a trigger condition | (1) Add to `specs/DEFERRED.md` with `**Deferred:** {date} \| **From:** {source} \| **Trigger:** {condition}`, (2) remove from source | Yes — moves to DEFERRED.md |
-| **Merge** | Scope belongs in an existing spec | (1) Integrate scope into target spec's **Deliverables**, **Acceptance Criteria**, and **Technical Approach** — not as an appendix, as first-class spec content, (2) update target spec's `Last Updated`, (3) remove from source | Yes |
-| **Promote** | Ready for the brainstorm → specify pipeline | Tag in INBOX as `**Promoted:** {date} — awaiting brainstorm`. Do NOT remove from INBOX | No — stays in INBOX with tag |
+| **Delete** | Item is no longer needed — stale, already implemented, or out of scope | `local-files`: remove entry from source file. `github-issues`: `gh issue close --reason "not planned"` + comment explaining why. | Yes (file) / issue closes (GitHub) |
+| **Defer** | Valid but not timely — park with a trigger condition | `local-files`: (1) add to `specs/DEFERRED.md` with `**Deferred:** {date} \| **From:** {source} \| **Trigger:** {condition}`, (2) remove from source. `github-issues`: (1) build the parked body via `parkedIssuePayload` (origin = the inbox issue's own reference, context carried over, trigger + options considered supplied at triage), write it to a temp file, (2) `gh issue edit {n} --body-file <temp file>`, (3) bootstrap the `parked` label if missing (same check-then-create pattern as `backlog`), then `gh issue edit {n} --add-label parked`, (4) if the trigger names a moment in time, attach a GitHub Milestone: `gh api repos/{owner}/{repo}/milestones --jq '.[].title'` to check existence, `gh api repos/{owner}/{repo}/milestones -f title="{name}"` to create if absent, `gh issue edit {n} --milestone "{name}"` to attach, (5) if the trigger names specific files, pass them as `watchedPaths` to `parkedIssuePayload` in step (1) so the generated body already carries `**Watched paths:**` | Yes (file) / issue stays open, relabeled (GitHub) |
+| **Merge** | Scope belongs in an existing spec | Both backends: (1) integrate scope into target spec's **Deliverables**, **Acceptance Criteria**, and **Technical Approach** — not as an appendix, as first-class spec content, (2) update target spec's `Last Updated`. `local-files`: (3) remove from source. `github-issues`: (3) `gh issue close --reason "not planned"` + comment naming the target spec (`Merged into spec {N}.`) | Yes (file) / issue closes (GitHub) |
+| **Promote** | Ready for the brainstorm → specify pipeline | `local-files`: tag in INBOX as `**Promoted:** {date} — awaiting brainstorm`. Do NOT remove from INBOX. `github-issues`: no mutation — the open issue is already the durable pointer; recommend `/claude-tweaks:specify #{n}` directly (existing issue-ingestion path). Removing `parked` at promotion (and restoring it on decline) is Phase 3 scope — not yet implemented. | No (file, stays tagged) / No (issue, stays open) |
 | **Keep** | No action needed | None | No |
+| **Sync to GitHub** | A local `specs/INBOX.md`/`specs/DEFERRED.md` entry exists while `backlog-backend: github-issues` — mirror it to an issue now | INBOX entry: build via `inboxIssuePayload` (category parsed from the entry's `**Category:**` field), bootstrap labels, `gh issue create` with `backlog` + `backlog:category-<value>` labels. DEFERRED entry: judge trigger type live — names files → pass as `watchedPaths`; names a moment in time → build via `parkedIssuePayload` then attach/create a milestone; otherwise carry the prose `**Trigger:**` over unchanged — build via `parkedIssuePayload`, `gh issue create` with `backlog` + `parked` + category labels. Either way: remove the entry from the local file only after `gh issue create` confirms success. | Yes — moves to GitHub, removed from local file |
 | **Close (GitHub)** | Open PR or issue is stale or superseded — close it upstream | (1) Comment on the PR/issue explaining why (the comment is the audit trail — never close silently), (2) `gh pr close {n}` / `gh issue close {n}` | N/A — GitHub state |
 | **Resolve thread** | Review-thread concern was addressed by a later commit | GraphQL `resolveReviewThread` mutation — only with commit evidence (a commit touching the flagged lines) | N/A — GitHub state |
 | **Capture** | PR feedback or GitHub issue needs local follow-up | Add a structured entry to `specs/INBOX.md` referencing the PR/thread/issue URL | No — creates an INBOX entry |
+
+`Capture`, `Close (GitHub)`, and `Resolve thread` are unaffected by `backlog-backend` — they're not part of the backlog-issues design (`docs/superpowers/specs/2026-07-08-backlog-github-issues-design.md`).
 
 ### Why "Promote" keeps the item in INBOX
 
@@ -120,6 +123,9 @@ For each finding, route by recommendation type:
 | **Delete** (any case requiring judgment — old plans whose spec status is unclear, design docs with no specs) | Stage | Auto-apply | Auto-apply |
 | **Merge** (INBOX item overlaps existing spec) | Stage | Auto-apply | Auto-apply |
 | **Promote** (ready for brainstorm pipeline) | Stage | Stage | Auto-apply |
+| **Defer** (`local-files` — pure file move) | Stage | Auto-apply | Auto-apply |
+| **Defer** (`github-issues` — label + possible milestone creation, outward-facing) | Stage | Stage | Stage — visible to collaborators; never auto-applied per the auto-mode contract's reversibility floor |
+| **Sync to GitHub** (local entry exists under `backlog-backend: github-issues`) | Stage | Stage | Stage — creates GitHub-visible state; never auto-applied per the auto-mode contract's reversibility floor |
 | **Run `/review {N}`** (spec appears complete) | Stage | Stage | Stage — never auto-run a downstream skill |
 | **Fix now** (circular dependencies, registry entries pointing to non-existent files) | Stage | Stage | Stage — fixing requires judgment about which side to keep |
 | **Re-evaluate scope** (spec 4+ weeks in progress) | Stage | Stage | Stage — never auto-edit specs |
@@ -153,7 +159,7 @@ Present all collected findings as a single report. Every item has a pre-filled r
 | 3 | INBOX | "{title}" (clean, ready) | Promote — tag, awaiting brainstorm |
 | 4 | INBOX | "{title}" (overlaps spec {N}) | Merge → Spec {N} |
 | 5 | INBOX | "{title}" (valid, not timely) | Defer — trigger: {condition} |
-| 6 | Deferred | "{title}" (trigger met) | Promote — move to INBOX for brainstorm |
+| 6 | Deferred | "{title}" (trigger met) | Promote — ready for brainstorm/specify |
 | 7 | Spec | Spec {N} (appears complete) | Run `/review {N}` |
 | 8 | Spec | Spec {N} (4+ weeks in progress) | Re-evaluate scope |
 | 9 | Dependency | Circular: {A} ↔ {B} | Fix now |
@@ -161,6 +167,7 @@ Present all collected findings as a single report. Every item has a pre-filled r
 | 11 | Plan | "{filename}" (orphaned) | Delete |
 | 12 | Worktree | "{path}" (merged) | Remove |
 | 13 | Branch | "build/{name}" (merged) | Delete |
+| 14 | INBOX (unsynced) | "{title}" — local-only under `backlog-backend: github-issues` | Sync to GitHub |
 
 ### Cross-Spec Patterns (if any)
 
@@ -208,7 +215,9 @@ After all actions are applied, verify every decision was fully executed. Present
 ### Verification
 
 - [x] Deleted: "{title}" — removed from INBOX
-- [x] Deferred: "{title}" — in DEFERRED.md (trigger: {condition}), removed from INBOX
+- [x] Deferred: "{title}" — in DEFERRED.md (trigger: {condition}), removed from INBOX (`local-files`)
+- [x] Deferred: "{title}" — issue #{n} relabeled `parked`{, milestone "{name}" attached} (`github-issues`)
+- [x] Synced to GitHub: "{title}" — issue #{n} created ({backlog|backlog+parked} labels), removed from {INBOX.md|DEFERRED.md}
 - [x] Merged: "{title}" → Spec {N} — integrated into Deliverables/AC, removed from INBOX
 - [x] Promoted: "{title}" — tagged in INBOX, still present
 - [x] Captured: "{title}" — added to INBOX with source URL (PR/thread/issue link)
@@ -260,6 +269,7 @@ Call `AskUserQuestion`:
 | Removing INBOX items marked as "Promote" | Promoted items stay in INBOX until a spec file exists. The INBOX entry is the tracking artifact — removing it drops the item on the floor. |
 | Appending a "Merged Scope" section to a spec | Merged content must be integrated into existing Deliverables, Acceptance Criteria, and Technical Approach. Appendix sections create second-class content that `/superpowers:writing-plans` may miss. |
 | Committing without running verification | Always verify every action landed (Step 7.5) before committing. Partial execution creates orphaned or lost items. |
+| Clearing a local entry before `gh issue create` confirms success | Sync to GitHub and Defer (`github-issues` backend) both write to GitHub before touching the local file — if the local entry is removed first and the GitHub write fails, the item is lost entirely, not just unsynced. |
 | Auto-running downstream skills like `/review` or `/build` | /tidy never invokes downstream skills autonomously. Recommendations like `Run /review {N}` are staged for the user — they require human judgment about timing and scope. |
 | Escalating `git branch -d` to `git branch -D` when delete refuses | `-d` refusing means the branch has unmerged work. Surface as `unmerged — manual review required`; never destructive-delete autonomously. |
 | Closing a PR/issue without a comment | Silent closes destroy the audit trail and confuse collaborators. Comment first, then close — the comment is the record of why. |
