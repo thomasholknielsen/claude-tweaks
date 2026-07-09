@@ -63,7 +63,7 @@ Read the spec's `design-intent:` frontmatter (the canonical field definition liv
 
 **Frequency Gate guardrail.** The `animate` command's target argument always carries a fixed Frequency Gate guardrail suffix, appended after the file list — see `../command-map.md`'s `### Step 3 — Intent-driven` section for the exact text and rationale. Do not treat `animate`'s target as a bare file list when reasoning about this dispatch; the suffix is not optional and is not gated by audit findings or `design-intent` value.
 
-**Manual-only commands.** `colorize`, `extract`, and `overdrive` are not intent-driven in this phase. They surface only via `survey` mode recommendations. Do not auto-dispatch them from `polish`.
+**Manual-only commands.** `colorize`, `extract`, and `overdrive` are not intent-driven in this phase. They surface via `survey` mode recommendations (`extract` also surfaces via `/claude-tweaks:tidy` Step 5.5's cross-spec pattern scan, same Design Quality category recurring across 3+ specs); `colorize` and `overdrive` surface only that way. Do not auto-dispatch them from `polish`.
 
 **No declined-recommendation suppression in polish.** Declined-recommendation tracking applies to `survey` mode only — `polish` always honors the explicit `design-intent:` declaration. The user changes intent dispatch behavior by editing the spec frontmatter, not by declining recommendations.
 

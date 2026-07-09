@@ -209,7 +209,7 @@ Scan recent git history for recurring findings across review summaries and wrap-
 1. Search recent commits for review and wrap-up artifacts:
    - `git log --all --oneline --grep="review" --grep="wrap-up" --since="4 weeks ago"` (or check `docs/plans/*-review-summary*` and recent wrap-up commits)
 2. Read the review summaries and wrap-up reflections referenced in those commits
-3. Extract findings by category (Security, Convention, Performance, Error Handling, Architecture, Test Quality)
+3. Extract findings by category (Security, Convention, Performance, Error Handling, Architecture, Test Quality) from the Code Review Findings section. Also read each review summary's Design Quality section (present when `/claude-tweaks:review` Step 6.5 ran and Impeccable returned findings) and extract those findings by their own `category` field — a separate vocabulary (Impeccable's categories: typography, spacing, color, component, and others), not the Code Review Findings taxonomy above.
 
 ### What to look for
 
@@ -219,6 +219,7 @@ Scan recent git history for recurring findings across review summaries and wrap-
 | Same file flagged across specs | `src/utils/validate.ts` modified and reviewed in 4 specs | Refactor — this file may be a responsibility magnet |
 | Same gotcha rediscovered | "Use upsert not delete+insert" in 3 spec Gotchas | Add to CLAUDE.md as a project convention |
 | Recurring deferred items with similar themes | "Add error boundary" deferred in 3 specs | Promote to its own spec — it's not going away |
+| Same Design Quality category recurring in 3+ reviews | "component" findings in specs 41, 44, 47's Design Quality sections (a card/button/layout pattern reimplemented each time) | Run `/impeccable:impeccable extract` — this pattern is being reimplemented, not reused |
 
 → Collect each as: `[pattern] {description} — seen in {spec list} — {recommendation}`
 
