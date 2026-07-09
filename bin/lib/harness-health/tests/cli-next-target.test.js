@@ -90,3 +90,21 @@ test('next-target without --budget still returns a single target object (default
   assert.ok(!Array.isArray(result.target), 'default (no --budget) must not change the existing target shape');
   assert.strictEqual(result.target.id, 'auth');
 });
+
+test('next-target --kind design-artifact surfaces a stale PRODUCT.md when design-integration is enabled', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), '## Design integration\n\ndesign-integration: enabled\n');
+  fs.writeFileSync(path.join(root, 'PRODUCT.md'), '# Product context');
+  const result = runNextTarget(['--kind', 'design-artifact'], root);
+  assert.strictEqual(result.target.kind, 'design-artifact');
+  assert.strictEqual(result.target.id, 'PRODUCT');
+  assert.strictEqual(result.target.why, 'stale');
+});
+
+test('next-target does not surface design artifacts when design-integration is not enabled', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), '## Design integration\n\ndesign-integration: disabled\n');
+  fs.writeFileSync(path.join(root, 'PRODUCT.md'), '# Product context');
+  const result = runNextTarget(['--kind', 'design-artifact'], root);
+  assert.strictEqual(result.target, null);
+});
