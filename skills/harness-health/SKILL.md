@@ -12,8 +12,8 @@ A recurring watchman for `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE
               [ /claude-tweaks:harness-health ] <- utility (no fixed lifecycle position)
                            |  picks a target via next-target; judges via the shared fragment
                            v
-finding -> validate-findings -> auto-apply (skill/rule, additive+high-confidence+high-reversibility)
-                              OR file GitHub issue (harness-health label; always for CLAUDE.md)
+finding -> validate-findings -> auto-apply (skill/rule/memory, additive+high-confidence+high-reversibility)
+                              OR file GitHub issue (harness-health label; always for CLAUDE.md and design-artifact)
 ```
 
 ## When to Use
