@@ -120,8 +120,8 @@ For each finding, route by recommendation type:
 |---|---|---|---|
 | **Keep** | Auto (no-op) | Auto (no-op) | Auto (no-op) |
 | **Delete** (stale temp files, broken symlinks, marked-as-specified design docs, merged worktrees/branches, orphaned plans whose related spec is complete) | Auto-apply | Auto-apply | Auto-apply |
-| **Delete** (any case requiring judgment — old plans whose spec status is unclear, design docs with no specs) | Stage | Auto-apply | Auto-apply |
-| **Merge** (INBOX item overlaps existing spec) | Stage | Auto-apply | Auto-apply |
+| **Delete** (any case requiring judgment, excluding backlog issues — old plans whose spec status is unclear, design docs with no specs; see the dedicated backlog-issue Delete row below for `github-issues`-backend backlog findings) | Stage | Auto-apply | Auto-apply |
+| **Merge** (INBOX item overlaps existing spec, `local-files` backend — see the dedicated backlog-issue Merge row below for `github-issues`) | Stage | Auto-apply | Auto-apply |
 | **Promote** (ready for brainstorm pipeline) | Stage | Stage | Auto-apply |
 | **Defer** (`local-files` — pure file move) | Stage | Auto-apply | Auto-apply |
 | **Defer** (`github-issues` — label + possible milestone creation, outward-facing) | Stage | Stage | Stage — visible to collaborators; never auto-applied per the auto-mode contract's reversibility floor |
