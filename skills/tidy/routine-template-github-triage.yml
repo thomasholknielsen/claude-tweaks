@@ -10,8 +10,8 @@ default_schedule:
 notes: >
   A frequent, cheap companion to the base tidy-weekly routine
   (skills/tidy/routine-template.yml) — this variant runs only Step 4.8's GitHub
-  PR/issue triage (--scope=github), skipping specs/docs/plans/worktrees/registry/claims
-  entirely, so it's safe to fire far more often without paying for a full sweep. Both
+  PR/issue triage (--scope=github), skipping everything except Step 4.8, so it's
+  safe to fire far more often without paying for a full sweep. Both
   routines can be instantiated in the same project simultaneously: tidy-weekly for
   periodic full-backlog hygiene, tidy-github-triage for keeping GitHub issue/PR state
   fresh in between. Like the base template, this only runs safely unattended when the

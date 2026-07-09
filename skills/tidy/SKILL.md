@@ -23,7 +23,7 @@ Periodic backlog hygiene to keep the spec system healthy. Run when the backlog f
 - After completing a batch of specs (check what's unblocked)
 - Monthly hygiene pass
 - When `/claude-tweaks:help` flags issues
-- Just want a narrower check (e.g. `/claude-tweaks:tidy --scope=github` for GitHub issue triage only, skipping specs/docs/plans/worktrees/registry) — see "Scope Selection" below
+- Just want a narrower check (e.g. `/claude-tweaks:tidy --scope=github` for GitHub issue triage only, skipping everything except Step 4.8) — see "Scope Selection" below
 
 ## Input
 

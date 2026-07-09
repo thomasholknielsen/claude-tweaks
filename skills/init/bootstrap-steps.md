@@ -607,7 +607,7 @@ ls "${CLAUDE_PLUGIN_ROOT}"/skills/*/routine-template.yml "${CLAUDE_PLUGIN_ROOT}"
 
 For each match, note the candidate skill name (the directory under `skills/`) and, for a `routine-template-<variant>.yml` match, the variant name (everything between `routine-template-` and `.yml`). Read each candidate's `routine_name` field.
 
-Derive `REPO_SLUG` once, the same way `/claude-tweaks:routine`'s own CREATE Step 2 does: resolve `git remote get-url origin`, take the resolved URL's `{repo}` segment, lowercase it, replace any run of characters outside `[a-z0-9]` with a single `-`, trim leading/trailing `-`. For each candidate, a record already exists iff `.claude-tweaks/routines/{REPO_SLUG}-{routine_name}.yml` exists in the current project — check per candidate, not per skill, since a skill with a default template plus a variant can have zero, one, or both already instantiated; the instantiated record's own `template:` field only names the skill, not which variant, so filename existence (not field content) is the correct check here. Only offer candidates without a matching record. If no candidates remain, skip this step silently.
+Derive `REPO_SLUG` once, the same way `/claude-tweaks:routine`'s own CREATE Step 2 does: resolve `git remote get-url origin`, take the resolved URL's `{repo}` segment, lowercase it, replace any run of characters outside `[a-z0-9]` with a single `-`, trim leading/trailing `-`. For each candidate, a record already exists iff `.claude-tweaks/routines/{REPO_SLUG}-{routine_name}.yml` exists in the current project — check per candidate, not per skill, since a skill with a default template plus a variant can have zero, one, or both already instantiated; the instantiated record's own `template:` field only names the skill, not which variant, so filename existence (not field content) is the correct check here. If `git remote get-url origin` fails (no remote configured), treat every candidate as un-instantiated and offer them all — `/claude-tweaks:routine`'s own CREATE workflow (Step 2) handles the actual missing-remote stop later, at the point the user selects a candidate to create. Only offer candidates without a matching record. If no candidates remain, skip this step silently.
 
 **Present:**
 
@@ -797,7 +797,8 @@ exactly like a transient-failure fallback write from the scan's point of view.
 `local-files`, re-run the Gate check — if a GitHub remote has since become available (the
 project was local-only at the last `/init` and has since been pushed), offer the upgrade
 path back to `github-issues`. When the flag is **missing** (pre-this-feature projects),
-present the first-run prompt above — same as a fresh init.
+apply the same Gate-based handling a fresh init uses above: silently set `github-issues`
+when the gate succeeds, present the gate-fails prompt otherwise.
 
 **Failure handling:** if writing the CLAUDE.md section fails, surface the failure and
 continue `/init` — never abort the rest of bootstrap on this step.
