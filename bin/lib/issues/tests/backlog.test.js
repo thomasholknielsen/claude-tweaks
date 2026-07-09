@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { categoryLabel, inboxIssuePayload, parkedIssuePayload, extractWatchedPaths, CATEGORIES } = require('../backlog');
+const { categoryLabel, inboxIssuePayload, parkedIssuePayload, extractWatchedPaths, classifyBacklogIssue, CATEGORIES } = require('../backlog');
 
 test('CATEGORIES lists the four backlog categories', () => {
   assert.deepStrictEqual(CATEGORIES, ['product', 'technical', 'legal', 'infrastructure']);
@@ -119,4 +119,92 @@ test('extractWatchedPaths returns null for a body with other bold fields but no 
 test('extractWatchedPaths returns null for non-string input', () => {
   assert.strictEqual(extractWatchedPaths(undefined), null);
   assert.strictEqual(extractWatchedPaths(null), null);
+});
+
+// ── classifyBacklogIssue ─────────────────────────────────────────────────
+
+const OPEN_INBOX_ISSUE = {
+  number: 101,
+  title: 'Voice command to add item to shopping list',
+  labels: [{ name: 'backlog' }, { name: 'backlog:category-product' }],
+  body: '**Related:** none\n\nContext: came up in a call\n\nScope: needs a new intent',
+  milestone: null,
+  updatedAt: '2026-07-01T00:00:00Z',
+  url: 'https://github.com/acme/repo/issues/101',
+};
+
+const PARKED_ISSUE = {
+  number: 102,
+  title: 'Revisit /deepen boundary',
+  labels: [{ name: 'backlog' }, { name: 'parked' }, { name: 'backlog:category-technical' }, { name: 'backlog:priority-low' }],
+  body: '**Origin:** ADR 0001\n\nContext: shipped standalone\n\n**Trigger:** if skill count grows\n\nOptions considered: merge into /simplify',
+  milestone: { title: 'Before launch' },
+  updatedAt: '2026-06-14T00:00:00Z',
+  url: 'https://github.com/acme/repo/issues/102',
+};
+
+const PARKED_WITH_WATCHED_PATHS = {
+  number: 103,
+  title: 'Load-tolerant statusline perf assertion',
+  labels: [{ name: 'backlog' }, { name: 'parked' }, { name: 'backlog:category-technical' }],
+  body: '**Origin:** flake report\n\nContext: flakes under load\n\n**Trigger:** touching statusline.test.js\n\n**Watched paths:** tests/statusline.test.js, bin/statusline.js\n\nOptions considered: CPU time instead of wall clock',
+  milestone: null,
+  updatedAt: '2026-07-04T00:00:00Z',
+  url: 'https://github.com/acme/repo/issues/103',
+};
+
+test('classifyBacklogIssue: open backlog issue with no parked label is stage "inbox"', () => {
+  assert.strictEqual(classifyBacklogIssue(OPEN_INBOX_ISSUE).stage, 'inbox');
+});
+
+test('classifyBacklogIssue: issue carrying the parked label is stage "parked"', () => {
+  assert.strictEqual(classifyBacklogIssue(PARKED_ISSUE).stage, 'parked');
+});
+
+test('classifyBacklogIssue extracts category from the backlog:category-* label', () => {
+  assert.strictEqual(classifyBacklogIssue(OPEN_INBOX_ISSUE).category, 'product');
+});
+
+test('classifyBacklogIssue category is null when no category label is present', () => {
+  const noCategoryIssue = { ...OPEN_INBOX_ISSUE, labels: [{ name: 'backlog' }] };
+  assert.strictEqual(classifyBacklogIssue(noCategoryIssue).category, null);
+});
+
+test('classifyBacklogIssue extracts priority from the backlog:priority-* label', () => {
+  assert.strictEqual(classifyBacklogIssue(PARKED_ISSUE).priority, 'low');
+});
+
+test('classifyBacklogIssue priority is null when no priority label is present', () => {
+  assert.strictEqual(classifyBacklogIssue(OPEN_INBOX_ISSUE).priority, null);
+});
+
+test('classifyBacklogIssue surfaces the attached milestone title', () => {
+  assert.strictEqual(classifyBacklogIssue(PARKED_ISSUE).milestone, 'Before launch');
+});
+
+test('classifyBacklogIssue milestone is null when none is attached', () => {
+  assert.strictEqual(classifyBacklogIssue(OPEN_INBOX_ISSUE).milestone, null);
+});
+
+test('classifyBacklogIssue extracts watchedPaths from the body via extractWatchedPaths', () => {
+  assert.deepStrictEqual(classifyBacklogIssue(PARKED_WITH_WATCHED_PATHS).watchedPaths, ['tests/statusline.test.js', 'bin/statusline.js']);
+});
+
+test('classifyBacklogIssue watchedPaths is null when the body has no Watched paths field', () => {
+  assert.strictEqual(classifyBacklogIssue(PARKED_ISSUE).watchedPaths, null);
+});
+
+test('classifyBacklogIssue passes through number, title, updatedAt, and url unchanged', () => {
+  const result = classifyBacklogIssue(OPEN_INBOX_ISSUE);
+  assert.strictEqual(result.number, 101);
+  assert.strictEqual(result.title, 'Voice command to add item to shopping list');
+  assert.strictEqual(result.updatedAt, '2026-07-01T00:00:00Z');
+  assert.strictEqual(result.url, 'https://github.com/acme/repo/issues/101');
+});
+
+test('classifyBacklogIssue handles bare-string labels (not {name} objects)', () => {
+  const bareLabels = { ...OPEN_INBOX_ISSUE, labels: ['backlog', 'backlog:category-product'] };
+  const result = classifyBacklogIssue(bareLabels);
+  assert.strictEqual(result.stage, 'inbox');
+  assert.strictEqual(result.category, 'product');
 });

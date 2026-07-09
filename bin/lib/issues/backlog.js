@@ -54,4 +54,31 @@ function extractWatchedPaths(body) {
   return m[1].split(',').map((p) => p.trim()).filter(Boolean);
 }
 
-module.exports = { CATEGORIES, categoryLabel, inboxIssuePayload, parkedIssuePayload, extractWatchedPaths };
+function labelNames(labels) {
+  return (labels || []).map((l) => (typeof l === 'string' ? l : l.name)).filter(Boolean);
+}
+
+// issue: { number, title, labels, body, milestone, updatedAt, url } — shaped like
+// `gh issue list --json number,title,labels,body,milestone,updatedAt,url` output.
+// Returns { number, title, stage: 'inbox'|'parked', category, priority, milestone,
+// watchedPaths, updatedAt, url } — category/priority/milestone/watchedPaths are null
+// when absent.
+function classifyBacklogIssue({ number, title, labels, body, milestone, updatedAt, url }) {
+  const names = labelNames(labels);
+  const stage = names.includes('parked') ? 'parked' : 'inbox';
+  const categoryLabelName = names.find((n) => n.startsWith('backlog:category-'));
+  const priorityLabelName = names.find((n) => n.startsWith('backlog:priority-'));
+  return {
+    number,
+    title,
+    stage,
+    category: categoryLabelName ? categoryLabelName.slice('backlog:category-'.length) : null,
+    priority: priorityLabelName ? priorityLabelName.slice('backlog:priority-'.length) : null,
+    milestone: milestone ? milestone.title : null,
+    watchedPaths: extractWatchedPaths(body),
+    updatedAt,
+    url,
+  };
+}
+
+module.exports = { CATEGORIES, categoryLabel, inboxIssuePayload, parkedIssuePayload, extractWatchedPaths, classifyBacklogIssue };
