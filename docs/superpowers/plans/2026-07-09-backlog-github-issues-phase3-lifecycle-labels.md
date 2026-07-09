@@ -14,7 +14,7 @@ No task touches `bin/lib/`. Every mutation in this phase is a reversible label a
 
 - No new npm runtime dependencies.
 - No `bin/lib/` changes in this phase. `bin/lib/issues/claims.js` (`claimPayload`/`releasePayload`/`claimStatus`) and `bin/lib/issues/backlog.js` (`classifyBacklogIssue` et al.) are reused exactly as they already exist from Phases 1–2 — this phase's new mutations are plain `gh issue edit --add-label`/`--remove-label` calls, not payload-builder calls.
-- New label: `status:in-progress`. Description: `"Actively claimed and being built by an autonomous claude-tweaks run (visibility mirror of refs/claims/issue-<n>; see _shared/issue-claims.md)."` Bootstrap with the same check-then-create pattern used everywhere else in this codebase: `gh label list --search "$LABEL" --json name -q '.[].name' | grep -qx "$LABEL" || gh label create "$LABEL" --description "$DESCRIPTION"`.
+- New label: `status:in-progress`. Description: `"Claimed and being built by an autonomous claude-tweaks run — see _shared/issue-claims.md"` (90 characters — GitHub's label API rejects descriptions over 100 characters with an HTTP 422; keep any future edit to this string under that cap). Bootstrap with the same check-then-create pattern used everywhere else in this codebase: `gh label list --search "$LABEL" --json name -q '.[].name' | grep -qx "$LABEL" || gh label create "$LABEL" --description "$DESCRIPTION"`.
 - New spec frontmatter field: `recon-was-parked:`. Only ever written as `true`; there is no explicit `false` — absence means "not applicable," the same missing-field convention `design-intent:`, `recon-issue:`, `recon-fingerprint:`, and `code-health-effort:` already use.
 - Every label mutation added in this phase (`status:in-progress` add/remove, `parked` remove/restore) is **best-effort and non-blocking**: on `gh` failure, log a warning and continue — never fail the claim, the release, or the pipeline over a label edit. This is a deliberate, stated tradeoff: Task 4's two backstop checks exist specifically to catch a mutation that silently failed, so best-effort-with-a-backstop is the intended design, not a gap.
 - `status:in-progress` only ever gets added by an actual claim-acquiring consumer. Per `_shared/issue-claims.md`'s existing "Non-consumers (deliberate)" note, `/specify`'s direct single-issue path and interactive `/build` do not claim issues — this phase does not change that. The only claim-acquisition call site today is `flow/from-code-health.md` Step 2.5.
@@ -57,7 +57,7 @@ Replace with:
 
    ```bash
    gh label list --search status:in-progress --json name -q '.[].name' | grep -qx status:in-progress || \
-     gh label create status:in-progress --description "Actively claimed and being built by an autonomous claude-tweaks run (visibility mirror of refs/claims/issue-<n>; see _shared/issue-claims.md)."
+     gh label create status:in-progress --description "Claimed and being built by an autonomous claude-tweaks run — see _shared/issue-claims.md"
    gh issue edit "$ISSUE" --add-label status:in-progress
    ```
 
@@ -125,7 +125,7 @@ real during its own Task 2 verification):
 
 ```bash
 gh label list --search status:in-progress --json name -q '.[].name' | grep -qx status:in-progress || \
-  gh label create status:in-progress --description "Actively claimed and being built by an autonomous claude-tweaks run (visibility mirror of refs/claims/issue-<n>; see _shared/issue-claims.md)."
+  gh label create status:in-progress --description "Claimed and being built by an autonomous claude-tweaks run — see _shared/issue-claims.md"
 gh label list --search status:in-progress --json name,description
 ```
 

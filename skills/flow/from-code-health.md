@@ -187,7 +187,7 @@ labels.
 
    ```bash
    gh label list --search status:in-progress --json name -q '.[].name' | grep -qx status:in-progress || \
-     gh label create status:in-progress --description "Actively claimed and being built by an autonomous claude-tweaks run (visibility mirror of refs/claims/issue-<n>; see _shared/issue-claims.md)."
+     gh label create status:in-progress --description "Claimed and being built by an autonomous claude-tweaks run — see _shared/issue-claims.md"
    gh issue edit "$ISSUE" --add-label status:in-progress
    ```
 
