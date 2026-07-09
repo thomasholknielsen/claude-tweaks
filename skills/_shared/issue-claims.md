@@ -54,6 +54,26 @@ routine's run id when headless); `sessionId` is `CLAUDE_CODE_SESSION_ID` — the
 `record-worktree` stamps. If the comment post fails after the ref succeeds, the claim stands:
 retry once, warn, proceed.
 
+## The status label
+
+`status:in-progress` is a second, purely cosmetic visibility layer on top of the ref lock — a
+label so the claim shows up in GitHub's own issue list/board UI, not just via `gh api
+git/matching-refs/claims/`. It carries no locking semantics: the ref claim/release is atomic
+regardless of whether the label add/remove succeeds.
+
+- **Added** alongside claim acquisition — bootstrap-then-add, the same check-then-create
+  pattern every label in this codebase uses (see `flow/from-code-health.md` Step 2.5, the one
+  claim-acquiring consumer today).
+- **Removed** alongside claim release — every release removes it, regardless of outcome
+  (`wrap-up/cleanup-procedures.md` Section E, its duplicate in
+  `flow/multispec-review-console.md`, and the declined-at-console release in
+  `flow/from-code-health.md`).
+- Best-effort in both directions: a failed add/remove never blocks the claim, the release, or
+  the pipeline. `/tidy` Step 4.7 flags an issue that still carries the label with no active
+  claim as a backstop.
+- Generic to the protocol, like the ref/comment mechanism above — any future claim consumer
+  gets this for free, not just backlog-originated issues.
+
 ## Reading claim state
 
 Fetch comments and fold them through `claimStatus` (accepts raw `gh` comment objects):

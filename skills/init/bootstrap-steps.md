@@ -724,8 +724,7 @@ Use the appropriate value:
 `/claude-tweaks:capture` and `/claude-tweaks:tidy` read this flag to decide where a new
 entry lands and how backlog items are triaged — see the backlog-on-GitHub-issues design
 doc (`docs/superpowers/specs/2026-07-08-backlog-github-issues-design.md`) for the full
-mechanics (Phase 3 still owes the `parked`/`status:in-progress` lifecycle-label wiring at
-promotion and claim acquisition). Missing flag is treated identically to `local-files` —
+mechanics. Missing flag is treated identically to `local-files` —
 the GitHub-backed path only activates when explicitly enabled by `/init`, matching
 `design-integration`'s missing-flag convention.
 

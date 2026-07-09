@@ -4,7 +4,7 @@ Invoked via `/claude-tweaks:design test <files>`. Returns `{mode, result, files_
 
 ## When this runs
 
-Called by `/claude-tweaks:test` after the standard verification suite (types/lint/tests). Acts as a frontend anti-pattern gate via the deterministic Impeccable CLI. Errors fail the gate; warnings/skips do not.
+Called by `/claude-tweaks:test` after the standard verification suite (types/lint/tests). Acts as a frontend anti-pattern gate via the deterministic Impeccable CLI. Findings with `severity: warning` fail the gate; `advisory` findings and skips do not.
 
 ## Preconditions
 
@@ -39,14 +39,19 @@ npx impeccable detect --fast --json <files>
 
 ### Step 5: Parse JSON output
 
-Parse per `../impeccable-cli.md`'s schema rules into normalized findings.
+1. Capture stdout and the process exit code from Step 4's invocation.
+2. Exit code `0` → treat as zero findings; skip to Step 6 with an empty findings list.
+3. Exit code `2` → parse stdout as JSON per `../impeccable-cli.md`'s schema rules 1-4 into normalized findings.
+4. Any other exit code, or a parse failure under step 3 → return the malformed-output skip object from `../impeccable-cli.md`'s rule 7 immediately; do not proceed to Step 6.
+
+`files_scanned` is the count of files in the list resolved by Steps 2-3 — the CLI's own output never includes this field.
 
 ### Step 6: Compute pass/fail
 
-- **pass** — zero findings, or all findings are `severity: warning`
-- **fail** — any finding with `severity: error`
+- **pass** — zero findings, or all findings are `severity: advisory`
+- **fail** — any finding with `severity: warning`
 
-Warnings are included in the findings list but do not cause `result: fail`. Callers may surface warnings informationally.
+`advisory` findings are included in the findings list but do not cause `result: fail`. Callers may surface them informationally.
 
 ## Output to caller
 
@@ -55,7 +60,7 @@ Warnings are included in the findings list but do not cause `result: fail`. Call
   "mode": "test",
   "result": "pass" | "fail",
   "files_scanned": <int>,
-  "findings": [ { "file": "...", "rule": "...", "severity": "...", "line": <int>, "message": "..." }, ... ]
+  "findings": [ { "antipattern": "...", "name": "...", "description": "...", "severity": "...", "file": "...", "line": <int>, "snippet": "..." }, ... ]
 }
 ```
 
