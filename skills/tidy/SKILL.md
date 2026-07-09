@@ -23,16 +23,39 @@ Periodic backlog hygiene to keep the spec system healthy. Run when the backlog f
 - After completing a batch of specs (check what's unblocked)
 - Monthly hygiene pass
 - When `/claude-tweaks:help` flags issues
+- Just want a narrower check (e.g. `/claude-tweaks:tidy --scope=github` for GitHub issue triage only, skipping specs/docs/plans/worktrees/registry) — see "Scope Selection" below
 
 ## Input
 
-`$ARGUMENTS` is not used by /tidy. The skill scans `specs/INBOX.md`, `specs/DEFERRED.md` (or `backlog`-labeled GitHub issues, per `backlog-backend` — see `scan-procedures.md` Steps 1/1.5 and 4.8), `specs/`, design docs, plans, worktrees, and the doc registry from their canonical locations; an aggressiveness override (when needed) is read from the active pipeline run's `config.yml` (Manifesto `tidy-aggressiveness` lever), not from arguments.
+`$ARGUMENTS` is parsed as `[--scope=<name>[,<name>...]]`. With no `--scope` argument, /tidy scans everything — `specs/INBOX.md`, `specs/DEFERRED.md` (or `backlog`-labeled GitHub issues, per `backlog-backend` — see `scan-procedures.md` Steps 1/1.5 and 4.8), `specs/`, design docs, plans, worktrees, and the doc registry from their canonical locations — exactly as before `--scope` existed. `--scope` narrows the run to a subset of that sweep; see "Scope Selection" below for the full taxonomy and rules. An aggressiveness override (when needed) is read from the active pipeline run's `config.yml` (Manifesto `tidy-aggressiveness` lever), not from arguments — unaffected by `--scope`.
+
+## Scope Selection
+
+By default (no `--scope` argument) /tidy runs every scan step below — the full sweep, unchanged from before this feature existed. `--scope=<name>[,<name>...]` (comma-separated, no spaces) narrows a run to just the named step groups:
+
+| Scope | Steps covered |
+|---|---|
+| `inbox` | 1, 1.5 |
+| `specs` | 2, 5 |
+| `docs` | 3 |
+| `plans` | 4 |
+| `git` | 4.5 |
+| `registry` | 4.6 |
+| `claims` | 4.7 |
+| `github` | 4.8 |
+| `patterns` | 5.5 |
+
+Rules:
+
+- **Unknown scope name** — stop before dispatching anything and report the invalid name(s) alongside this table. Do not partially run a request that mixes one valid and one invalid name.
+- **`patterns` implies `specs`.** Step 5.5 reads Step 2's results (see the Steps 1-4.8 table's dependency note below), so `--scope=patterns` silently also runs `specs` even though it wasn't named — this matches the full sweep's existing sequential ordering, where Steps 5 and 5.5 already run after Step 2 for the same reason. No other scope pulls in another.
+- **Scoped runs use the identical Step 6 report/approval, Step 7 execution, and Step 7.5 verification** as a full sweep — only the set of findings feeding them is narrower. The Step 7 commit message names the scope explicitly (see Step 7.5 below); an unscoped full run's commit message is unchanged.
 
 ## Steps 1-4.8: Scan Everything
 
 > **No decisions during scanning.** Steps 1-4.8 silently collect all findings. Everything is presented as one batch in Step 6 for approval. This replaces the previous per-item decision model.
 
-> **Parallel execution:** Dispatch Steps 1, 1.5, 2, 3, 4, 4.5, 4.6, 4.7, and 4.8 as parallel Task agents — each scan is independent (INBOX, Deferred, Specs, Design Docs + Briefs, Plans, Git, Doc Registry, Issue Claims, GitHub PRs/Issues). Each agent returns findings in the `[type] item — detail — recommendation` format. Step 3's classification tables are inlined directly into its agent prompt (see Step 3 below) so subagents have everything they need. After parallel scans complete, run Step 5 and Step 5.5 sequentially — they depend on Step 2's spec scan results. Assemble all findings into the Step 6 report.
+> **Parallel execution:** Dispatch every step selected by the active scope (all of Steps 1, 1.5, 2, 3, 4, 4.5, 4.6, 4.7, and 4.8 for an unscoped/full run; a `--scope`-filtered subset otherwise, per "Scope Selection" above) as parallel Task agents — each scan is independent (INBOX, Deferred, Specs, Design Docs + Briefs, Plans, Git, Doc Registry, Issue Claims, GitHub PRs/Issues). Each agent returns findings in the `[type] item — detail — recommendation` format. Step 3's classification tables are inlined directly into its agent prompt (see Step 3 below) so subagents have everything they need. After the selected parallel scans complete, run Step 5 and/or Step 5.5 sequentially when either is in scope — they depend on Step 2's spec scan results, which is why `patterns` alone still pulls in `specs` (per "Scope Selection" above). Assemble all findings into the Step 6 report.
 >
 > **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input, status line first, output template inlined verbatim. Model tier: Fast.
 >
@@ -230,7 +253,7 @@ After all actions are applied, verify every decision was fully executed. Present
 
 If any verification fails, fix it before committing. Do not commit partial state.
 
-Commit with a message summarizing the tidy-up.
+Commit with a message summarizing the tidy-up. For a scoped run (`--scope` was passed), prefix the message with the scope, e.g. `Tidy (scope: github): closed 2 stale issues, promoted #142` — see "Scope Selection" above. An unscoped full run's commit message is unchanged (no scope prefix).
 
 ## Routine Configuration
 
@@ -277,6 +300,7 @@ Call `AskUserQuestion`:
 | Escalating `git branch -d` to `git branch -D` when delete refuses | `-d` refusing means the branch has unmerged work. Surface as `unmerged — manual review required`; never destructive-delete autonomously. |
 | Closing a PR/issue without a comment | Silent closes destroy the audit trail and confuse collaborators. Comment first, then close — the comment is the record of why. |
 | Resolving review threads without commit evidence | Resolving unaddressed feedback is worse than leaving it open — the concern disappears without being fixed. Evidence means a commit touching the flagged lines. |
+| Running `--scope=patterns` and assuming Step 2 didn't run | Step 5.5 depends on Step 2's spec-scan results — `patterns` silently pulls in `specs` too, even though it wasn't named. See "Scope Selection." |
 
 ## Relationship to Other Skills
 
