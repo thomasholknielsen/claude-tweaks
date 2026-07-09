@@ -181,6 +181,19 @@ labels.
      surfaces it.
    - **Any other failure:** drop the brief, log, continue — partial batch over hung batch.
 
+   **Add the `status:in-progress` label** whenever a claim is freshly held this step (the 201
+   case above, or the stale-claim break-and-recreate case above) — a visibility mirror of the
+   ref lock, not part of the lock itself:
+
+   ```bash
+   gh label list --search status:in-progress --json name -q '.[].name' | grep -qx status:in-progress || \
+     gh label create status:in-progress --description "Actively claimed and being built by an autonomous claude-tweaks run (visibility mirror of refs/claims/issue-<n>; see _shared/issue-claims.md)."
+   gh issue edit "$ISSUE" --add-label status:in-progress
+   ```
+
+   Best-effort: on failure, log a warning and continue — the ref is the actual lock, and
+   `/tidy` Step 4.7 has a backstop check for a label that never got applied.
+
    If every brief is dropped, stop and report: "All pulled code-health issues are claimed by other
    runs — nothing to build. Stale claims are recoverable via /claude-tweaks:tidy (Step 4.7)."
 
