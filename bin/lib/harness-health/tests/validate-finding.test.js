@@ -112,3 +112,8 @@ test('validateFinding rejects a new-skill finding missing proposedBody', () => {
   assert.strictEqual(result.ok, false);
   assert.ok(result.errors.some((e) => e.startsWith('proposedBody:')));
 });
+
+test('validateFinding accepts assetType: memory', () => {
+  const result = validateFinding(validPatch({ assetType: 'memory', target: 'design-feedback-style' }));
+  assert.strictEqual(result.ok, true);
+});

@@ -106,3 +106,11 @@ test('toIssuePayload title uses the Design Context label for a design-artifact f
   assert.ok(payload.body.includes('Unaudited for 120 days'));
   assert.ok(payload.body.includes('Run /impeccable:impeccable init'));
 });
+
+test('toIssuePayload renders a Memory label for assetType: memory', () => {
+  const payload = toIssuePayload({
+    ...patchFinding({ assetType: 'memory', target: 'design-feedback-style' }),
+    id: 'harnesshealth-abc12345',
+  });
+  assert.match(payload.title, /^Memory /);
+});
