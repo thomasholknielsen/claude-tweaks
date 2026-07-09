@@ -286,15 +286,15 @@ Read the `backlog-backend` field from the project's CLAUDE.md (under a `## Backl
 
 **When `backlog-backend: github-issues`:**
 
-1. Bootstrap the `backlog` label and the specific `backlog:category-<value>` label about to be used (not all four category labels up front):
+1. Bootstrap the `backlog` label and the specific `backlog:category-<value>` label about to be used (not all four category labels up front). Two explicit blocks, not a packed-string loop — a `name:description` delimiter would collide with the literal `:` inside `backlog:category-<value>` itself:
 
    ```bash
-   for LABEL_DESC in "backlog:Captured idea or deferred work, tracked via /claude-tweaks:capture and /claude-tweaks:tidy" "backlog:category-${CATEGORY}:${CATEGORY}-category backlog item"; do
-     LABEL="${LABEL_DESC%%:*}"
-     DESCRIPTION="${LABEL_DESC#*:}"
-     gh label list --search "$LABEL" --json name -q '.[].name' | grep -qx "$LABEL" || \
-       gh label create "$LABEL" --description "$DESCRIPTION"
-   done
+   gh label list --search backlog --json name -q '.[].name' | grep -qx backlog || \
+     gh label create backlog --description "Captured idea or deferred work, tracked via /claude-tweaks:capture and /claude-tweaks:tidy"
+
+   CATEGORY_LABEL="backlog:category-${CATEGORY}"
+   gh label list --search "$CATEGORY_LABEL" --json name -q '.[].name' | grep -qx "$CATEGORY_LABEL" || \
+     gh label create "$CATEGORY_LABEL" --description "${CATEGORY}-category backlog item"
    ```
 
 2. Build the payload and create the issue (`$TITLE`/`$RELATED`/`$CONTEXT`/`$SCOPE`/`$CATEGORY` are the same fields the Entry Format below has always asked for — only their destination changed):
@@ -405,20 +405,21 @@ Use the Edit tool with this exact old_string/new_string pair.
 
 - [ ] **Step 6: Verify against this repo's real GitHub backend**
 
-This repo already has `backlog-backend: github-issues` set (Phase 1). Confirm the label-bootstrap command is syntactically correct and idempotent:
+This repo already has `backlog-backend: github-issues` set (Phase 1). Confirm the label-bootstrap commands are syntactically correct and idempotent:
 
 ```bash
 CATEGORY=technical
-for LABEL_DESC in "backlog:Captured idea or deferred work, tracked via /claude-tweaks:capture and /claude-tweaks:tidy" "backlog:category-${CATEGORY}:${CATEGORY}-category backlog item"; do
-  LABEL="${LABEL_DESC%%:*}"
-  DESCRIPTION="${LABEL_DESC#*:}"
-  gh label list --search "$LABEL" --json name -q '.[].name' | grep -qx "$LABEL" || \
-    gh label create "$LABEL" --description "$DESCRIPTION"
-done
+gh label list --search backlog --json name -q '.[].name' | grep -qx backlog || \
+  gh label create backlog --description "Captured idea or deferred work, tracked via /claude-tweaks:capture and /claude-tweaks:tidy"
+
+CATEGORY_LABEL="backlog:category-${CATEGORY}"
+gh label list --search "$CATEGORY_LABEL" --json name -q '.[].name' | grep -qx "$CATEGORY_LABEL" || \
+  gh label create "$CATEGORY_LABEL" --description "${CATEGORY}-category backlog item"
+
 gh label list --search backlog --json name,description
 ```
 
-Expected: prints `backlog` and `backlog:category-technical`, each with a non-empty `description` — confirms the bootstrap loop actually creates both labels correctly (not just the first). Do **not** run an actual `gh issue create` here — that would create real noise in this repo's issue tracker outside of a real capture; the label bootstrap is the verifiable side effect for this task.
+Expected: prints `backlog` and `backlog:category-technical`, each with a non-empty `description` — confirms both labels are created correctly. Do **not** run an actual `gh issue create` here — that would create real noise in this repo's issue tracker outside of a real capture; the label bootstrap is the verifiable side effect for this task.
 
 - [ ] **Step 7: Commit**
 
