@@ -4,7 +4,7 @@ Canonical procedure for judging whether a project's harness documentation — `.
 
 | Consumer | Supplies |
 |---|---|
-| `/claude-tweaks:harness-health` | One target per firing (any of skill/rule/claude-md), selected by churn/staleness rotation (`next-target`) |
+| `/claude-tweaks:harness-health` | One target per firing (skill/rule/claude-md/design-artifact via churn/staleness rotation, `next-target`); memory only via an explicit `--kind memory --memory-dir <path>` invocation, never auto-selected |
 | `/claude-tweaks:wrap-up` Step 7 | A finished spec's changed skill files + ledger/reflection seeds (skill-only this phase — see Scope note below) |
 | `/claude-tweaks:init` Phase 3/6 | Whole-codebase Phase 2 reconnaissance (skill-only this phase — see Scope note below) |
 
@@ -50,7 +50,7 @@ For a new-skill candidate, use `"kind": "new-skill"` and replace `section`/`oldS
 }
 ```
 
-Required fields for every finding: `kind` (`patch` | `new-skill`), `target` (the artifact's id — a skill/rule filename stem, or `"CLAUDE"` for CLAUDE.md), `assetType` (`skill` | `rule` | `claude-md`), `category` (`drift` | `template-conformance` | `best-practice`), `classification` (`additive` | `restructural`), `confidence` (`high` | `med` | `low`), `reversibility` (`high` | `med` | `low`), `description`, `reason`. `kind: "patch"` additionally requires `section`, `oldString` (empty string `""` allowed for a pure addition with nothing to replace), and `newString`. `kind: "new-skill"` additionally requires `proposedBody`. **`new-skill` is the only artifact-creation kind** — rules and CLAUDE.md never get a `"new-rule"` or `"new-claude-md-section"` kind; a "missing pattern" finding against an existing rule or CLAUDE.md is always a `kind: "patch"` addition to that file's existing content (see Step 3).
+Required fields for every finding: `kind` (`patch` | `new-skill`), `target` (the artifact's id — a skill/rule filename stem, `"CLAUDE"` for CLAUDE.md, `"PRODUCT"`/`"DESIGN"` for a design artifact, or a memory entry's filename stem), `assetType` (`skill` | `rule` | `claude-md` | `design-artifact` | `memory`), `category` (`drift` | `template-conformance` | `best-practice`), `classification` (`additive` | `restructural`), `confidence` (`high` | `med` | `low`), `reversibility` (`high` | `med` | `low`), `description`, `reason`. `kind: "patch"` additionally requires `section`, `oldString` (empty string `""` allowed for a pure addition with nothing to replace), and `newString`. `kind: "new-skill"` additionally requires `proposedBody`. **`new-skill` is the only artifact-creation kind** — rules and CLAUDE.md never get a `"new-rule"` or `"new-claude-md-section"` kind; a "missing pattern" finding against an existing rule or CLAUDE.md is always a `kind: "patch"` addition to that file's existing content (see Step 3).
 
 `category` distinguishes *why* a finding exists, so a human skimming filed issues can tell them apart at a glance:
 - **`drift`** — the document no longer matches the codebase's current reality.
@@ -140,6 +140,32 @@ Always reason about *why* the ratio is low before emitting a finding — never r
 - **Don'ts are guardrails, not wishes** — every Don't must describe an *existing* pattern (grep-checkable, same evidence style as dimension 2), never aspirational infrastructure.
 - **Philosophy matches current maturity** — re-derive today's maturity signal (the classification `/claude-tweaks:init` Phase 2h would compute right now) and compare it to what the Philosophy section says; flags e.g. a project that shipped to real users since the CLAUDE.md was written but still reads "Greenfield."
 - **Project Defaults / claude-tweaks Pipeline sections in sync with the installed plugin version** — does the documented auto-mode-policy lever list match what the currently installed claude-tweaks plugin version actually supports? This one is checked against the plugin's own evolving contract (its bundled `_shared/auto-mode-contract.md`), not the target project's own source — a genuinely different kind of drift from every other check in this file.
+
+## Memory-Specific Checks (`kind: memory` targets)
+
+A `memory` target skips the 8-dimension check above entirely — its checks are narrower and more mechanical, closer in spirit to the `design-artifact` branch than to a full skill/rule/CLAUDE.md audit. `assetType` is `"memory"`; `target` is the memory file's id (its filename stem, from `MEMORY.md`'s link).
+
+1. **Index line-length check.** Each `MEMORY.md` bullet line has a fixed 150-character budget — not project-configurable like the checks above, since this is a cross-project harness convention rather than a per-project stylistic choice:
+   ```bash
+   awk '{ if (length($0) > 150) print NR": "length($0)" chars" }' MEMORY.md
+   ```
+   A flagged line is mechanical evidence for a `template-conformance` finding — tighten the index entry to a true one-line hook.
+2. **Fact-currency check.** Read the memory file's full body and extract concrete, checkable claims: referenced file/skill paths, specific IDs, status words (`pending`, `shipped`, `scheduled`, `in progress`), dated claims. Verify each against current reality:
+   - A referenced path/command is exactly Step 1's stale-example check, applied to this file's body instead of a skill's.
+   - A status word (`pending`, `shipped`) is checked against `git log --oneline --grep` for the described change, or against whether the file/skill it predicts now actually exists.
+   Where a claim genuinely cannot be checked mechanically, skip it — the same opportunistic-assist caveat Step 1 already states for checks 1-2. A contradicted claim is high-confidence evidence for a `drift` finding.
+3. **Duplication-with-checked-in-content check.** Grep the memory file's distinctive phrases (named files, function names, specific facts) against skill/rule content:
+   ```bash
+   grep -rl "<distinctive phrase from the memory file>" skills/ .claude/rules/ 2>/dev/null
+   ```
+   A hit is evidence for a `drift` finding recommending the memory entry shrink to a pointer/reference rather than a restated copy.
+4. **Runbook-shape heuristic** (informational only — this phase detects and flags, it does not promote). Count fenced code blocks:
+   ```bash
+   grep -c '^```' "<memory-file-path>"
+   ```
+   Two or more fenced blocks, or several lines that look like shell commands, is evidence worth noting in the finding's `reason` field: "reads like an operational runbook, consider promoting to `docs/`" — no automated doc creation this phase.
+
+**Apply-or-file posture for memory findings.** Additive+high-confidence+high-reversibility findings (trim an index line, correct a fact the fact-currency check contradicts) apply directly via `Edit` — but skip the `git commit` step every other additive auto-apply takes: a memory file is not part of this repo's git tree, so there is nothing to commit. Still run `mark applied` so the proposal doesn't get re-staged. Restructural findings (delete, merge two overlapping memories, "consider promoting") always surface to the human, the same posture CLAUDE.md findings get, per `skills/harness-health/SKILL.md` Step 7.
 
 **Bounded sub-file reads.** If the target references sub-files (lazy-loaded content, e.g. `init`'s 11 sub-files or `build`'s 6), do not read all of them by default — read only the sub-files whose content plausibly relates to what changed (matched by filename/section keyword against the change source: churned domain paths for the routine, the spec's changed files for wrap-up, Phase 2 findings for init). Note explicitly which sub-files were skipped and why, so a human reviewing the finding can request a deeper read if needed.
 
