@@ -64,8 +64,8 @@ Read `scan-procedures.md` in this skill's directory for the full classification 
 
 | Step | Data source | Output prefix |
 |------|-------------|--------------|
-| 1 | `specs/INBOX.md` | `[inbox]` |
-| 1.5 | `specs/DEFERRED.md` | `[deferred]` |
+| 1 | `specs/INBOX.md` (`local-files`) or unsynced-check only (`github-issues` — see Step 4.8) | `[inbox]` / `[unsynced]` |
+| 1.5 | `specs/DEFERRED.md` (`local-files`) or unsynced-check only (`github-issues` — see Step 4.8) | `[deferred]` / `[unsynced]` |
 | 2 | `specs/INDEX.md` + spec files | `[spec]`, `[dependency]` |
 | 3 | `docs/superpowers/specs/*-design.md`, `docs/plans/*-brief.md` | `[doc]` |
 | 4 | `docs/superpowers/plans/`, `~/.claude/plans/` | `[plan]` |

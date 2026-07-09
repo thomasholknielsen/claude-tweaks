@@ -8,7 +8,9 @@ Step numbering matches `SKILL.md`. The order below mirrors execution order.
 
 ## Step 1: Audit the INBOX
 
-Read `specs/INBOX.md` and classify each entry:
+First, read the `backlog-backend` field from the project's CLAUDE.md (`## Backlog integration` section). A missing flag = `local-files`.
+
+**`backlog-backend: local-files` (or missing):** unchanged — read `specs/INBOX.md` and classify each entry:
 
 | Age | Classification | Default Recommendation |
 |-----|---------------|----------------------|
@@ -18,9 +20,15 @@ Read `specs/INBOX.md` and classify each entry:
 
 → Collect each as: `[inbox] {title} — {age} — {recommendation}`
 
+**`backlog-backend: github-issues`:** the GitHub-side inbox scan runs inside Step 4.8's `repo-wide` backlog-issues query instead (one query shared with Step 1.5, split client-side by stage) — this step does not re-query GitHub. Instead, read `specs/INBOX.md` and flag any non-empty entry found there as unsynced — under this backend, a local-file entry existing at all means an issue-creation write failed or a migration was declined, per the Resilient local fallback design:
+
+→ Collect each as: `[unsynced] {title} — local-only, not yet mirrored to GitHub — Sync to GitHub`
+
+An empty `specs/INBOX.md` (only the `# Inbox` header, no entries) produces no findings.
+
 ## Step 1.5: Audit Deferred Work
 
-Read `specs/DEFERRED.md` and classify each entry:
+**`backlog-backend: local-files` (or missing):** unchanged — read `specs/DEFERRED.md` and classify each entry:
 
 | Trigger Status | Default Recommendation |
 |---------------|----------------------|
@@ -30,6 +38,12 @@ Read `specs/DEFERRED.md` and classify each entry:
 | No clear trigger | Move to INBOX or delete |
 
 → Collect each as: `[deferred] {title} — from spec {N} — {recommendation}`
+
+**`backlog-backend: github-issues`:** the GitHub-side parked scan runs inside Step 4.8, same as Step 1's equivalent note. Read `specs/DEFERRED.md` and flag any non-empty entry as unsynced, same rule as Step 1:
+
+→ Collect each as: `[unsynced] {title} — local-only, not yet mirrored to GitHub — Sync to GitHub`
+
+An empty `specs/DEFERRED.md` (only the `# Deferred Work` header, no entries) produces no findings.
 
 ## Step 2: Audit Existing Specs
 
@@ -226,6 +240,6 @@ Patterns and health observations are informational — they surface systemic iss
 
 | Collection prefix | Renders in Step 6 table | Notes |
 |---|---|---|
-| `[inbox]`, `[deferred]`, `[spec]`, `[dependency]`, `[doc]`, `[plan]`, `[git]`, `[registry]`, `[claim]`, `[pr]`, `[gh-issue]` | Actions table | Each row gets a pre-filled recommendation. |
+| `[inbox]`, `[deferred]`, `[unsynced]`, `[spec]`, `[dependency]`, `[doc]`, `[plan]`, `[git]`, `[registry]`, `[claim]`, `[pr]`, `[gh-issue]` | Actions table | Each row gets a pre-filled recommendation. |
 | `[pattern]` | Cross-Spec Patterns table | Informational; presented separately. |
 | `[health]` | Summary section | Project-level observations. |
