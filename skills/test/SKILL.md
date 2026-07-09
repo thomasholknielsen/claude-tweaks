@@ -156,8 +156,8 @@ Invoke `/claude-tweaks:design test <changed-files>`. Resolve `<changed-files>` f
 
 | Wrapper return | Test gate behavior |
 |----------------|-------------------|
-| `{result: "pass", findings: [...]}` (zero findings or warnings only) | Proceed. Surface warnings in the test output as informational. |
-| `{result: "fail", findings: [...]}` (any `severity: error`) | **Fail the test gate.** Surface the findings table in the test report. Do NOT auto-fix — design findings require human judgment. |
+| `{result: "pass", findings: [...]}` (zero findings, or advisory only) | Proceed. Surface advisory findings in the test output as informational. |
+| `{result: "fail", findings: [...]}` (any `severity: warning`) | **Fail the test gate.** Surface the findings table in the test report. Do NOT auto-fix — design findings require human judgment. |
 | `{skipped: ...}` | Note the skip in test output and proceed. |
 | `{deferred: ...}` (should not happen for `test` mode) | Treat as skip and proceed. |
 
@@ -166,17 +166,17 @@ See `_shared/design-wrapper-handling.md` for the canonical return-shape contract
 **Reporting:** Include a "Design CLI" row in the verification results table:
 
 ```markdown
-| Design CLI | {pass/fail/skipped} | {Xs} | {N findings: Y errors, Z warnings} or {skip reason} |
+| Design CLI | {pass/fail/skipped} | {Xs} | {N findings: Y warning, Z advisory} or {skip reason} |
 ```
 
-If errors are present, append a Design Findings section before the standard test-failure section:
+If `severity: warning` findings are present, append a Design Findings section before the standard test-failure section:
 
 ```markdown
 ### Design Findings (Impeccable CLI)
 
-| File | Line | Rule | Severity | Message |
-|------|------|------|----------|---------|
-| {file} | {line} | {rule} | error | {message} |
+| File | Line | Antipattern | Severity | Description |
+|------|------|-------------|----------|-------------|
+| {file} | {line} | {antipattern} | warning | {description} |
 ```
 
 ## Step 2: Report
@@ -284,7 +284,7 @@ Whichever matches the current run's actual signal gets `(Recommended)` on its la
 | `/claude-tweaks:flow` | /flow chains build → [stories →] test → review → polish → re-verify → wrap-up. /test is the mechanical gate between build/stories and review. The polish-phase re-verify gate invokes `/test skip-qa` to verify polish modifications without re-running browser QA. |
 | `/claude-tweaks:help` | /help can recommend /test when code changes exist but no review is warranted |
 | `/claude-tweaks:ledger` | Manages the open items ledger. /test appends QA findings and observations with phase `test/qa`. |
-| `/claude-tweaks:design` | /test invokes `/claude-tweaks:design test <files>` as Step 1.5 after the standard suite. Errors fail the gate; warnings and skips do not. The wrapper handles its own detection and availability checks. |
+| `/claude-tweaks:design` | /test invokes `/claude-tweaks:design test <files>` as Step 1.5 after the standard suite. Findings with `severity: warning` fail the gate; `advisory` findings and skips do not. The wrapper handles its own detection and availability checks. |
 | `/claude-tweaks:browse` | /browse may invoke /test indirectly when story validation requires browser-driven QA — both share `dev-url-detection.md` from `skills/_shared/`. |
 | `/claude-tweaks:journeys` | /journeys feeds journey files into /stories which /test qa consumes; `journey={name}` filter lets /test run only the QA stories tied to a single journey. |
 | `/claude-tweaks:reflect` | /reflect may surface implementation findings that reference /test verification gaps; /test does not invoke /reflect, but reflection insights can call for new test coverage. |

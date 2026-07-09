@@ -128,7 +128,7 @@ Each mode's full procedure (steps, decision tables, output format) lives in its 
 
 ### Mode: `test <files>` — Active
 
-Runs `npx impeccable detect --fast --json` as a frontend anti-pattern gate. Errors fail the gate; warnings do not. Read `modes/test.md` in this skill's directory for the full procedure.
+Runs `npx impeccable detect --fast --json` as a frontend anti-pattern gate. Findings with `severity: warning` fail the gate; `advisory` findings do not. Read `modes/test.md` in this skill's directory for the full procedure.
 
 ### Mode: `review <spec>` — Active
 

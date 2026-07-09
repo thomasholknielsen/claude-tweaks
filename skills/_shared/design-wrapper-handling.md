@@ -9,7 +9,7 @@ Referenced from `/build` (Common Step 1.7 / pre-build), `/test` (Step 1.5 / test
 | Shape | When | What the caller does |
 |-------|------|---------------------|
 | `{result: "ok" \| "pass" \| "advisory", ...}` | The mode ran and produced output | Act on the output per the mode's contract (inject references, fail on errors, surface findings — see each caller's mode-specific table). |
-| `{result: "fail", findings: [...]}` | The mode ran and found blocking issues (e.g., `test` mode found `severity: error`) | Fail the caller's gate. Surface findings to the user. Do not auto-fix — design findings require human judgment. |
+| `{result: "fail", findings: [...]}` | The mode ran and found blocking issues (e.g., `test` mode found `severity: warning`) | Fail the caller's gate. Surface findings to the user. Do not auto-fix — design findings require human judgment. |
 | `{skipped: {reason: ...}}` | Non-frontend project, Impeccable not installed, kill-switch disabled, no UI files in diff, or other legitimate skip condition | Note the skip in the caller's log and proceed. **Skip is not a failure.** |
 | `{deferred: {reason: ...}}` | Decision deferred (currently: only `survey` mode is ever deferred; other modes treating this as skip is correct) | Treat as skip and proceed. |
 
