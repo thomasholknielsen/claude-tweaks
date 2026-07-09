@@ -188,8 +188,7 @@ merged), and it has no active claim (cross-reference against this step's own cla
 above — `claimed && !stale` for `refs/claims/issue-{n}`). Recommend the same
 `gh issue edit {n} --add-label parked` command the release step itself would run.
 
-→ Collect each as: `[claim] issue #{n} — spec {spec} has recon-was-parked: true, no parked
-label, no active claim, no linked PR — likely missed parked restoration`
+→ Collect each as: `[claim] issue #{n} — spec {spec} has recon-was-parked: true, no parked label, no active claim, no linked PR — likely missed parked restoration`
 
 ### Backstop: missed `status:in-progress` removal
 
@@ -202,8 +201,7 @@ missed removal when the issue carries `status:in-progress` but has no active cla
 (`claimed && !stale`) for its number. Recommend the same
 `gh issue edit {n} --remove-label status:in-progress` command the release step itself would run.
 
-→ Collect each as: `[claim] issue #{n} — status:in-progress present, no active claim — likely
-missed status:in-progress removal`
+→ Collect each as: `[claim] issue #{n} — status:in-progress present, no active claim — likely missed status:in-progress removal`
 
 ## Step 4.8: Audit GitHub PRs and Issues
 
