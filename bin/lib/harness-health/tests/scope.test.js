@@ -7,6 +7,7 @@ const { execFileSync } = require('child_process');
 const {
   listSkills, extractDomainPaths, domainChurn, selectTarget,
   listRules, parseRulePaths, listClaudeMd, listTargets,
+  readDesignIntegrationFlag, listDesignArtifacts,
 } = require('../scope');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'harness-health-scope-')); }
@@ -115,6 +116,82 @@ test('listClaudeMd returns a single kind: claude-md item when CLAUDE.md exists',
   assert.strictEqual(result[0].path, path.join(root, 'CLAUDE.md'));
 });
 
+// ─── readDesignIntegrationFlag / listDesignArtifacts ──────────────────────
+
+test('readDesignIntegrationFlag returns disabled when CLAUDE.md does not exist', () => {
+  const root = tmp();
+  assert.strictEqual(readDesignIntegrationFlag(root), 'disabled');
+});
+
+test('readDesignIntegrationFlag parses the design-integration value from CLAUDE.md', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), '# Project\n\n## Design integration\n\ndesign-integration: enabled\n');
+  assert.strictEqual(readDesignIntegrationFlag(root), 'enabled');
+});
+
+test('readDesignIntegrationFlag returns disabled when the flag is absent from CLAUDE.md', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), '# Project\n\nNo design flag here.\n');
+  assert.strictEqual(readDesignIntegrationFlag(root), 'disabled');
+});
+
+test('listDesignArtifacts returns [] when design-integration is not enabled', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), '## Design integration\n\ndesign-integration: plugin-only\n');
+  fs.writeFileSync(path.join(root, 'PRODUCT.md'), '# Product context');
+  assert.deepStrictEqual(listDesignArtifacts(root), []);
+});
+
+test('listDesignArtifacts returns [] when CLAUDE.md is absent, even if PRODUCT.md/DESIGN.md exist', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'PRODUCT.md'), '# Product context');
+  assert.deepStrictEqual(listDesignArtifacts(root), []);
+});
+
+test('listDesignArtifacts finds PRODUCT.md and DESIGN.md at the project root when enabled', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), '## Design integration\n\ndesign-integration: enabled\n');
+  fs.writeFileSync(path.join(root, 'PRODUCT.md'), '# Product context');
+  fs.writeFileSync(path.join(root, 'DESIGN.md'), '# Design system');
+  const artifacts = listDesignArtifacts(root);
+  assert.deepStrictEqual(artifacts.map((a) => a.id).sort(), ['DESIGN', 'PRODUCT']);
+  assert.ok(artifacts.every((a) => a.kind === 'design-artifact'));
+});
+
+test('listDesignArtifacts omits a file that is absent at every canonical and fallback path', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), '## Design integration\n\ndesign-integration: enabled\n');
+  fs.writeFileSync(path.join(root, 'PRODUCT.md'), '# Product context');
+  const artifacts = listDesignArtifacts(root);
+  assert.deepStrictEqual(artifacts.map((a) => a.id), ['PRODUCT']);
+});
+
+test('listDesignArtifacts falls back to docs/design/ then docs/ when root files are absent', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), '## Design integration\n\ndesign-integration: enabled\n');
+  fs.mkdirSync(path.join(root, 'docs', 'design'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'docs', 'design', 'PRODUCT.md'), '# fallback product');
+  fs.writeFileSync(path.join(root, 'docs', 'DESIGN.md'), '# fallback design');
+  const artifacts = listDesignArtifacts(root);
+  const product = artifacts.find((a) => a.id === 'PRODUCT');
+  const design = artifacts.find((a) => a.id === 'DESIGN');
+  assert.strictEqual(product.path, path.join(root, 'docs', 'design', 'PRODUCT.md'));
+  assert.strictEqual(design.path, path.join(root, 'docs', 'DESIGN.md'));
+});
+
+test('listDesignArtifacts gives PRODUCT empty pathGlobs and DESIGN the frontend-signal glob list', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), '## Design integration\n\ndesign-integration: enabled\n');
+  fs.writeFileSync(path.join(root, 'PRODUCT.md'), '# p');
+  fs.writeFileSync(path.join(root, 'DESIGN.md'), '# d');
+  const artifacts = listDesignArtifacts(root);
+  const product = artifacts.find((a) => a.id === 'PRODUCT');
+  const design = artifacts.find((a) => a.id === 'DESIGN');
+  assert.deepStrictEqual(product.pathGlobs, []);
+  assert.ok(design.pathGlobs.includes('components/'));
+  assert.ok(design.pathGlobs.includes('*.tsx'));
+});
+
 // ─── listTargets ────────────────────────────────────────────────────────────
 
 test('listTargets aggregates skills, rules, and CLAUDE.md, each correctly tagged', () => {
@@ -129,6 +206,14 @@ test('listTargets aggregates skills, rules, and CLAUDE.md, each correctly tagged
     targets.map((t) => `${t.kind}:${t.id}`).sort(),
     ['claude-md:CLAUDE', 'rule:api-errors', 'skill:auth'],
   );
+});
+
+test('listTargets includes design artifacts when design-integration is enabled', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), '## Design integration\n\ndesign-integration: enabled\n');
+  fs.writeFileSync(path.join(root, 'PRODUCT.md'), '# p');
+  const targets = listTargets(root);
+  assert.ok(targets.some((t) => t.kind === 'design-artifact' && t.id === 'PRODUCT'));
 });
 
 // ─── domainChurn ───────────────────────────────────────────────────────────
@@ -242,4 +327,80 @@ test('selectTarget --kind filter restricts the pool to one kind', () => {
   const result = selectTarget(root, {}, { now: Date.now(), kind: 'claude-md' });
   assert.ok(result !== null);
   assert.strictEqual(result.kind, 'claude-md');
+});
+
+test('selectTarget reports daysSinceLastAudit: null for a never-audited (no cursor) stale pick', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth');
+  const result = selectTarget(root, {}, { now: Date.now() });
+  assert.strictEqual(result.why, 'stale');
+  assert.strictEqual(result.daysSinceLastAudit, null);
+});
+
+test('selectTarget reports a numeric daysSinceLastAudit for a stale pick with a prior cursor', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth');
+  const staleMs = Date.now() - (90 + 10) * 86400000;
+  const result = selectTarget(root, { 'skill:auth': { lastAuditedMs: staleMs } }, { now: Date.now() });
+  assert.strictEqual(result.why, 'stale');
+  assert.ok(result.daysSinceLastAudit >= 100, `expected >= 100, got ${result.daysSinceLastAudit}`);
+});
+
+test('selectTarget reports churnCount on a hotspot pick', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth');
+  const recentMs = Date.now() - 1 * 86400000;
+  const result = selectTarget(root, { 'skill:auth': { lastAuditedMs: recentMs } }, {
+    now: Date.now(),
+    signals: { 'skill:auth': 7 },
+  });
+  assert.strictEqual(result.why, 'hotspot');
+  assert.strictEqual(result.churnCount, 7);
+});
+
+test('selectTarget Phase 2 uses a design-artifact candidate pathGlobs, not content-scraped paths', () => {
+  const root = tmp();
+  initGitRepo(root);
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), '## Design integration\n\ndesign-integration: enabled\n');
+  fs.mkdirSync(path.join(root, 'components'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'components', 'Button.tsx'), 'export const Button = () => null;\n');
+  fs.writeFileSync(path.join(root, 'DESIGN.md'), 'No backtick file references in this prose at all.');
+  commit(root, 'first');
+  const sinceMs = Date.now() - 86400000;
+  fs.writeFileSync(path.join(root, 'components', 'Button.tsx'), 'export const Button = () => <button />;\n');
+  commit(root, 'second');
+  const recentMs = Date.now() - 1 * 86400000;
+  const result = selectTarget(root, { 'design-artifact:DESIGN': { lastAuditedMs: sinceMs } }, {
+    now: Date.now(),
+    kind: 'design-artifact',
+  });
+  assert.ok(result !== null, 'must pick DESIGN via its curated pathGlobs, not via content-scraping (which would find zero backtick paths and score 0 churn)');
+  assert.strictEqual(result.id, 'DESIGN');
+  assert.strictEqual(result.why, 'hotspot');
+});
+
+test('selectTarget lets PRODUCT win via hotspot from its own content-scraped paths despite empty pathGlobs', () => {
+  const root = tmp();
+  initGitRepo(root);
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), '## Design integration\n\ndesign-integration: enabled\n');
+  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'src', 'pricing.js'), 'export const price = 1;\n');
+  fs.writeFileSync(path.join(root, 'PRODUCT.md'), 'Pricing logic lives in `src/pricing.js`.');
+  commit(root, 'first');
+  const sinceMs = Date.now() - 86400000;
+  fs.writeFileSync(path.join(root, 'src', 'pricing.js'), 'export const price = 2;\n');
+  commit(root, 'second');
+  const result = selectTarget(root, { 'design-artifact:PRODUCT': { lastAuditedMs: sinceMs } }, {
+    now: Date.now(),
+    kind: 'design-artifact',
+  });
+  assert.ok(result !== null, 'must pick PRODUCT via paths scraped from its own prose, since its pathGlobs is always []');
+  assert.strictEqual(result.kind, 'design-artifact');
+  assert.strictEqual(result.id, 'PRODUCT');
+  assert.strictEqual(result.why, 'hotspot');
+  assert.deepStrictEqual(result.pathGlobs, [], 'the returned target.pathGlobs must stay the static [], not the scraped paths');
+  assert.ok(result.churnCount > 0, `expected churnCount > 0 from the scraped-path churn, got ${result.churnCount}`);
 });

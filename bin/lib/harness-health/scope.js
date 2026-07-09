@@ -74,11 +74,66 @@ function listClaudeMd(root) {
   return [{ kind: 'claude-md', id: 'CLAUDE', path: filePath }];
 }
 
+// ─── readDesignIntegrationFlag ─────────────────────────────────────────────
+// Parses CLAUDE.md's `design-integration:` value. Returns 'disabled' when
+// CLAUDE.md is missing/unreadable or the flag is absent — mirrors the design
+// wrapper's own "missing flag = disabled" rule (skills/design/SKILL.md Layer 1).
+function readDesignIntegrationFlag(root) {
+  let content;
+  try { content = fs.readFileSync(path.join(root, 'CLAUDE.md'), 'utf8'); } catch { return 'disabled'; }
+  const m = content.match(/^design-integration:\s*(\S+)/m);
+  return m ? m[1] : 'disabled';
+}
+
+// ─── DESIGN_DOMAIN_PATHS ────────────────────────────────────────────────────
+// Frontend-signal git pathspecs, matching the file/directory signals /init's
+// bootstrap uses for frontend detection. DESIGN.md documents the visual
+// system, so churn here since its last regeneration is a meaningful
+// staleness proxy.
+const DESIGN_DOMAIN_PATHS = [
+  '*.tsx', '*.jsx', '*.vue', '*.svelte', '*.css',
+  'components/', 'pages/', 'app/', 'routes/', 'views/', 'ui/',
+];
+
+// ─── listDesignArtifacts ────────────────────────────────────────────────────
+// Returns [{ kind: 'design-artifact', id: 'PRODUCT'|'DESIGN', path, pathGlobs }]
+// for PRODUCT.md/DESIGN.md, gated on design-integration being exactly
+// 'enabled' ('plugin-only' and 'disabled' both skip — matches the design
+// wrapper's Layer 1). Resolves each file at the project root first, then
+// docs/design/<filename>, then docs/<filename> as fallbacks (a deterministic
+// equivalent of the LLM-oriented glob description in
+// skills/design/modes/pre-build.md's own fallback discovery step). A file
+// absent at every location is simply omitted — not an error, not a finding.
+// pathGlobs reuses the same field name (and, in selectTarget, the same
+// domain-path branch) as a rule's pathGlobs — see selectTarget below.
+function listDesignArtifacts(root) {
+  if (readDesignIntegrationFlag(root) !== 'enabled') return [];
+
+  const candidates = [
+    { id: 'PRODUCT', filename: 'PRODUCT.md', pathGlobs: [] },
+    { id: 'DESIGN', filename: 'DESIGN.md', pathGlobs: DESIGN_DOMAIN_PATHS },
+  ];
+
+  const results = [];
+  for (const c of candidates) {
+    const searchPaths = [
+      path.join(root, c.filename),
+      path.join(root, 'docs', 'design', c.filename),
+      path.join(root, 'docs', c.filename),
+    ];
+    const resolved = searchPaths.find((p) => fs.existsSync(p));
+    if (resolved) {
+      results.push({ kind: 'design-artifact', id: c.id, path: resolved, pathGlobs: c.pathGlobs });
+    }
+  }
+  return results;
+}
+
 // ─── listTargets ────────────────────────────────────────────────────────────
-// Aggregates listSkills + listRules + listClaudeMd into one flat pool for the
-// unified rotation/selection algorithm.
+// Aggregates listSkills + listRules + listClaudeMd + listDesignArtifacts into
+// one flat pool for the unified rotation/selection algorithm.
 function listTargets(root) {
-  return [...listSkills(root), ...listRules(root), ...listClaudeMd(root)];
+  return [...listSkills(root), ...listRules(root), ...listClaudeMd(root), ...listDesignArtifacts(root)];
 }
 
 // ─── extractDomainPaths ────────────────────────────────────────────────────────
@@ -138,7 +193,7 @@ function selectTarget(root, cursors, opts = {}) {
     const lastAuditedMs = cursor && cursor.lastAuditedMs != null ? cursor.lastAuditedMs : null;
     const daysSince = lastAuditedMs === null ? Infinity : (now - lastAuditedMs) / 86400000;
     if (daysSince > STALE_DAYS) {
-      return { ...candidate, why: 'stale' };
+      return { ...candidate, why: 'stale', daysSinceLastAudit: Number.isFinite(daysSince) ? Math.round(daysSince) : null };
     }
   }
 
@@ -154,7 +209,7 @@ function selectTarget(root, cursors, opts = {}) {
     } else {
       let content;
       try { content = fs.readFileSync(candidate.path, 'utf8'); } catch { content = ''; }
-      const domainPaths = candidate.kind === 'rule' && candidate.pathGlobs && candidate.pathGlobs.length > 0
+      const domainPaths = (candidate.kind === 'rule' || candidate.kind === 'design-artifact') && candidate.pathGlobs && candidate.pathGlobs.length > 0
         ? candidate.pathGlobs
         : extractDomainPaths(content);
       churn = domainChurn(root, domainPaths, sinceMs);
@@ -164,10 +219,11 @@ function selectTarget(root, cursors, opts = {}) {
 
   if (scored.length === 0) return null;
   scored.sort((a, b) => (b.churn !== a.churn ? b.churn - a.churn : (a.candidate.id < b.candidate.id ? -1 : 1)));
-  return { ...scored[0].candidate, why: 'hotspot' };
+  return { ...scored[0].candidate, why: 'hotspot', churnCount: scored[0].churn };
 }
 
 module.exports = {
   listSkills, parseRulePaths, listRules, listClaudeMd, listTargets,
   extractDomainPaths, domainChurn, selectTarget,
+  readDesignIntegrationFlag, listDesignArtifacts,
 };

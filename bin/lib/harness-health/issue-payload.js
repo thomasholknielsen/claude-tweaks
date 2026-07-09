@@ -3,7 +3,7 @@
 // Project a finding into a GitHub issue payload. Emit-only — never calls the
 // network. The skill hands the payload to the gh CLI itself.
 
-const ASSET_TYPE_LABELS = { skill: 'Skill', rule: 'Rule', 'claude-md': 'CLAUDE.md' };
+const ASSET_TYPE_LABELS = { skill: 'Skill', rule: 'Rule', 'claude-md': 'CLAUDE.md', 'design-artifact': 'Design Context' };
 const CATEGORY_LABELS = { drift: 'drift', 'template-conformance': 'structure', 'best-practice': 'best-practice' };
 
 function toIssuePayload(finding) {

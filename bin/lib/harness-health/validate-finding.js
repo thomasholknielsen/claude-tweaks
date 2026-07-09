@@ -5,7 +5,7 @@
 // Returns { ok:true, value } or { ok:false, errors:string[] }.
 
 const KIND_VALUES = new Set(['patch', 'new-skill']);
-const ASSET_TYPE_VALUES = new Set(['skill', 'rule', 'claude-md']);
+const ASSET_TYPE_VALUES = new Set(['skill', 'rule', 'claude-md', 'design-artifact']);
 const CATEGORY_VALUES = new Set(['drift', 'template-conformance', 'best-practice']);
 const CLASSIFICATION_VALUES = new Set(['additive', 'restructural']);
 const CONFIDENCE_VALUES = new Set(['high', 'med', 'low']);

@@ -96,7 +96,7 @@ function cmdValidateFindings(args) {
   const findingsPath = args._[1];
   if (!findingsPath) {
     process.stderr.write(
-      'usage: harness-health.js validate-findings <findings.json> [--root <dir>] [--issues <file>] [--target <id>] [--kind <skill|rule|claude-md>] [--gap-scan] [--run-id <id>] [--dry-run]\n',
+      'usage: harness-health.js validate-findings <findings.json> [--root <dir>] [--issues <file>] [--target <id>] [--kind <skill|rule|claude-md|design-artifact>] [--gap-scan] [--run-id <id>] [--dry-run]\n',
     );
     process.exit(2);
   }
@@ -219,8 +219,8 @@ function main(argv) {
   if (cmd === 'mark') return cmdMark(args);
   process.stderr.write(
     'usage: harness-health.js <command> [options]\n' +
-    'commands: next-target [--target <id>] [--kind <skill|rule|claude-md>] [--budget <n>], ' +
-    'validate-findings <file> [--target <id>] [--kind <skill|rule|claude-md>] [--gap-scan], ' +
+    'commands: next-target [--target <id>] [--kind <skill|rule|claude-md|design-artifact>] [--budget <n>], ' +
+    'validate-findings <file> [--target <id>] [--kind <skill|rule|claude-md|design-artifact>] [--gap-scan], ' +
     'churn-report [--fail-on-high-churn <r>], mark <fingerprint> <applied|declined>\n',
   );
   process.exit(2);
