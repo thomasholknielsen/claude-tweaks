@@ -52,12 +52,12 @@ Read the `backlog-backend` field from the project's CLAUDE.md (under a `## Backl
 1. Bootstrap the `backlog` label and the specific `backlog:category-<value>` label about to be used (not all four category labels up front):
 
    ```bash
-   for LABEL_DESC in "backlog:Captured idea or deferred work, tracked via /claude-tweaks:capture and /claude-tweaks:tidy" "backlog:category-${CATEGORY}:${CATEGORY}-category backlog item"; do
-     LABEL="${LABEL_DESC%%:*}"
-     DESCRIPTION="${LABEL_DESC#*:}"
-     gh label list --search "$LABEL" --json name -q '.[].name' | grep -qx "$LABEL" || \
-       gh label create "$LABEL" --description "$DESCRIPTION"
-   done
+   gh label list --search backlog --json name -q '.[].name' | grep -qx backlog || \
+     gh label create backlog --description "Captured idea or deferred work, tracked via /claude-tweaks:capture and /claude-tweaks:tidy"
+
+   CATEGORY_LABEL="backlog:category-${CATEGORY}"
+   gh label list --search "$CATEGORY_LABEL" --json name -q '.[].name' | grep -qx "$CATEGORY_LABEL" || \
+     gh label create "$CATEGORY_LABEL" --description "${CATEGORY}-category backlog item"
    ```
 
 2. Build the payload and create the issue (`$TITLE`/`$RELATED`/`$CONTEXT`/`$SCOPE`/`$CATEGORY` are the same fields the Entry Format below has always asked for — only their destination changed):
