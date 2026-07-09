@@ -81,11 +81,32 @@ Before forming any finding, run these mechanical checks and treat their output a
    ```
    Zero matches is strong, mechanical evidence the rule's domain no longer exists (a renamed/removed directory) — a high-confidence `drift` finding proposing either an updated glob or retiring the rule.
 
-4. **CLAUDE.md line-budget check** (CLAUDE.md only, new). `/init`'s own template caps CLAUDE.md at 150 lines:
+4. **Tiered line-budget check** (CLAUDE.md and rules, revised). Budget scales with how unconditionally a file loads, not with what kind of file it is:
+   - **Always-loaded tier** — CLAUDE.md, and any `.claude/rules/*.md` file whose `paths:` frontmatter is absent or empty (`parseRulePaths` in `bin/lib/harness-health/scope.js` already returns `[]` for exactly this case — it loads every session identically to CLAUDE.md). Budget: the `harness-health.always-loaded-budget` line in `.claude-tweaks/policy.yml`, or 150 if the file or key is absent.
+   - **Scoped tier** — any rule with a non-empty `paths:` list. Budget: the `harness-health.scoped-rule-budget` line in `.claude-tweaks/policy.yml`, or 30 if the file or key is absent.
+
    ```bash
-   wc -l CLAUDE.md
+   wc -l <target-path>
+   cat .claude-tweaks/policy.yml 2>/dev/null | grep '^harness-health\.'
    ```
-   Over budget is mechanical, high-confidence evidence for a `template-conformance` finding — content belongs in a skill or rule instead, per `skills/init/claude-md-template.md`'s own "Under 150 lines" principle.
+
+   Classify the target's tier, resolve its budget from the grep output (falling back to the stated default when the file or key is absent — exactly how `execution.always` is already read elsewhere in this plugin, no code involved), then compare. Over budget is mechanical, high-confidence evidence for a `template-conformance` finding — content belongs in a skill instead (always-loaded tier), or needs tightening/splitting (scoped tier), per `skills/init/claude-md-template.md`'s "Under 150 lines" principle and `skills/init/rules-template.md`'s budget guidance.
+5. **Unscoped-rule structural check** (rules only, new). Parse the rule's frontmatter for a `paths:` key:
+   ```bash
+   sed -n '/^---$/,/^---$/p' "<rule-path>"
+   ```
+   A rule with no `paths:` key, or an empty list, is a mechanical, always-high-confidence `template-conformance` finding on its own — independent of line count — citing `skills/init/rules-template.md`'s "Only create rules for conventions that are path-specific; project-wide conventions belong in CLAUDE.md" contract. A 10-line unscoped rule still gets flagged; it is a structural violation regardless of size, just a cheap one to fix.
+6. **Self-referential count/date check** (any kind, new). Grep the target for a hand-typed, self-tracking claim:
+   ```bash
+   grep -nE 'as of [0-9]{4}-[0-9]{2}-[0-9]{2}|currently [0-9]+ (items?|entries|rules)|pruned from [0-9]+' "<target-path>"
+   ```
+   A match is mechanical evidence for a `best-practice` finding — a hand-typed count or date claim drifts the moment reality changes, because nothing recomputes it. Recommend removing the claim, or replacing it with a pointer to a live check (`/claude-tweaks:harness-health --target <name>`) instead of a hardcoded number.
+7. **Narrative-density heuristic** (any kind, new, approximate). For a file or section whose stated shape is a terse list (a rule file's body; a `## Don'ts`-style section), compute average words-per-bullet-line:
+   ```bash
+   grep -c '^- ' "<target-path>"
+   wc -w "<target-path>"
+   ```
+   Divide word count by bullet count for a rough average. Above roughly 40 words/bullet is evidence — not a verdict — that specific bullets have drifted from a terse constraint into an incident narrative. Feed this as an anchor into dimension 8's existing best-practice judgment rather than treating it as a standalone finding; tune the threshold from real findings over time.
 
 Checks 1-2 are optional assists — skip gracefully if a referenced path/command genuinely can't be checked mechanically (e.g., a described convention with no clean grep signature). A finding grounded in one of these checks is higher-confidence than one based on reading alone.
 
@@ -113,7 +134,7 @@ For rules and CLAUDE.md, dimensions 7 and 8 read from the *same* origin-template
 Always reason about *why* the ratio is low before emitting a finding — never report the raw ratio as if a low number were self-evidently a documentation problem.
 
 **CLAUDE.md-specific checks unlocked by dimension 7/8 (concrete, largely mechanical):**
-- **Line budget** — Step 1's `wc -l` check vs. 150 lines.
+- **Line budget** — Step 1's tiered `wc -l` check vs. the `harness-health.always-loaded-budget` policy line (default 150).
 - **Observed-not-aspirational** — flag language ("should", "TODO", "need to add") describing infrastructure that doesn't exist yet; that belongs in the project's INBOX, not CLAUDE.md.
 - **Working Approach present verbatim** — `skills/init/claude-md-template.md` mandates this section be included unmodified in every generated CLAUDE.md; a structural presence check.
 - **Don'ts are guardrails, not wishes** — every Don't must describe an *existing* pattern (grep-checkable, same evidence style as dimension 2), never aspirational infrastructure.
