@@ -220,6 +220,15 @@ labels.
    implementer dispatches. When `effort` is `high`, also carry forward the same
    possible-decomposition note `/specify`'s own Rules section describes for its direct-issue path.
 
+   **Parked-issue promotion.** Check the raw issue's labels (already fetched in Step 1 — reuse
+   the `byNumber` lookup pattern from the effort-extraction snippet above) for `parked`. When
+   present: remove it now (`gh issue edit "$ISSUE" --remove-label parked`) and additionally stamp
+   `recon-was-parked: true` on the generated spec — the same mutation and field `/specify`'s own
+   Step 3 Rules perform for its direct single-issue path, applied here for the batch path. Write
+   the field regardless of whether the removal call succeeded — best-effort, log a warning and
+   continue on failure; `/tidy` Step 4.7's backstop check catches a removal that silently failed.
+   Omit the field when the issue never carried `parked`.
+
 4. **Run the multi-spec batch.** Feed the derived spec numbers into the standard Multi-Spec
    Sequential Flow (see `multi-spec.md`) — dependency-aware ordering, shared worktree, deferred
    per-spec consoles, one consolidated Review Console at the end. Nothing about the batch pipeline
