@@ -21,15 +21,17 @@ finding -> validate-findings -> auto-apply (skill/rule, additive+high-confidence
 - You want skill, rule, and CLAUDE.md documentation to stay accurate between spec completions and full `/init` re-runs, without driving each check yourself.
 - You want a scheduled Routine that periodically rotates through skills, rules, and CLAUDE.md and flags drift, structural decay, or best-practice gaps as they're found.
 - You want to check one specific target right now (`--target <name> [--kind <skill|rule|claude-md|design-artifact>]`).
+- You want to spot-check your own memory directory for format-budget violations, stale or contradicted facts, or duplication with checked-in docs (`--kind memory --memory-dir <path>`), interactively — never via a scheduled Routine.
 
-Not for: code-quality findings (`/claude-tweaks:code-health`'s job — including cases where a rule's `paths:` glob is still correct but the code doesn't comply with it). Not a replacement for `/claude-tweaks:wrap-up` Step 7 or `/claude-tweaks:init`'s Update Mode — both consume the same shared procedure this skill does (currently against skills only), on their own scope models (a finished spec's diff; a whole-codebase reconnaissance) rather than this skill's churn/staleness rotation. Not for auditing memory (`~/.claude/projects/*/memory/`) — out of scope; see the harness-health design doc for why.
+Not for: code-quality findings (`/claude-tweaks:code-health`'s job — including cases where a rule's `paths:` glob is still correct but the code doesn't comply with it). Not a replacement for `/claude-tweaks:wrap-up` Step 7 or `/claude-tweaks:init`'s Update Mode — both consume the same shared procedure this skill does (currently against skills only), on their own scope models (a finished spec's diff; a whole-codebase reconnaissance) rather than this skill's churn/staleness rotation. Memory (`~/.claude/projects/{slug}/memory/`) is not auto-audited — reachable only via an explicit `--kind memory --memory-dir <path>` invocation, never through the automatic rotation a scheduled Routine uses, since memory lives outside the repo with no git churn signal and is not expected to be reachable from a Routine's execution environment.
 
 ## Input
 
 `$ARGUMENTS` may contain:
 
 - `--target <id>` — manual override: audit one specific target directly, bypassing `next-target` selection.
-- `--kind <skill|rule|claude-md|design-artifact>` — disambiguate `--target` when an id collides across kinds, or (without `--target`) restrict auto-selection to one kind.
+- `--kind <skill|rule|claude-md|design-artifact|memory>` — disambiguate `--target` when an id collides across kinds, or (without `--target`) restrict auto-selection to one kind. `memory` is never auto-selected without this flag — it is excluded from the default rotation pool entirely.
+- `--memory-dir <path>` — required when `--kind memory` is used. The invoking assistant's own memory directory path, exactly as stated in its own system prompt's auto-memory section for this project. Never derive or guess this path.
 - `--dry-run` — emit findings; never write cursor/cache state; never call `gh` or `Edit`.
 - `--budget <n>` — audit up to `n` targets in one firing (default 1).
 - `--root <dir>` — audit a project elsewhere (default: current working directory).
@@ -39,8 +41,10 @@ Not for: code-quality findings (`/claude-tweaks:code-health`'s job — including
 **Step 1 — SELECT: pick the next target(s).**
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" next-target --root . ${TARGET:+--target "$TARGET"} ${KIND:+--kind "$KIND"} ${BUDGET:+--budget "$BUDGET"}
+node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" next-target --root . ${TARGET:+--target "$TARGET"} ${KIND:+--kind "$KIND"} ${BUDGET:+--budget "$BUDGET"} ${MEMORY_DIR:+--memory-dir "$MEMORY_DIR"}
 ```
+
+To audit memory, the human must explicitly ask for it — set `KIND=memory` and `MEMORY_DIR=<your own memory directory path, from your system prompt>` before invoking. Never set these automatically or infer them from context.
 
 Without `--budget` (or `--budget 1`), prints `{ target: { kind, id, path, why } | null, gapScanDue: boolean }` — a single target. With `--budget <n>` where `n > 1`, prints `{ targets: [{ kind, id, path, why }, ...], gapScanDue: boolean }` instead — up to `n` targets, each a different id (possibly mixing kinds). When `targets` is present, run Steps 2-3 once per entry before moving on to Step 4 (gap scan runs once per firing regardless of budget, not once per target).
 
@@ -49,6 +53,7 @@ Read the `why` field on whichever target(s) came back:
 - `why: "stale"` — this target has not been audited in over 90 days regardless of domain churn.
 - `why: "hotspot"` — this target's domain paths (backtick-quoted references for skills/CLAUDE.md; the `paths:` frontmatter glob for rules) have the highest git churn since its last audit among targets with any churn at all.
 - `why: "manual"` — `--target` was passed, bypassing selection.
+- Memory targets (`kind: memory`) only ever produce `why: "stale"` or `why: "manual"` — never `"hotspot"`, since memory has no git churn signal.
 
 If there is no target to deep-audit this firing (`target` is `null`, or `targets` is empty) but `gapScanDue` is `true`, skip straight to Step 4 (gap detection) — the gap scan is still due even with nothing else to audit.
 
@@ -66,7 +71,9 @@ When `target.kind === 'design-artifact'`, skip the full procedure below — cons
 
 This branch doesn't need `_shared/harness-health-analysis.md`'s 8-dimension check — the 8 dimensions (template conformance, best-practice fit, cross-skill overlap, etc.) are skill/rule/claude-md-specific and don't map onto a project-root design-context file. `_shared/harness-health-analysis.md` is shared by `/wrap-up` and `/init`, neither of which ever passes a `design-artifact` target, so this branch lives here rather than in the shared file.
 
-For every other `target.kind`, apply the full procedure in `_shared/harness-health-analysis.md` (the 8-dimension check, evidence pre-checks, verify gate, concrete gap signals — using `target.kind` to select which dimensions and origin-template references apply) to the target. Emit findings as a JSON array in the Finding Shape that file defines, with `assetType` set to `target.kind` and `target` set to `target.id`. Write the array to `/tmp/harness-health-findings.json`.
+When `target.kind === 'memory'`, also skip the 8-dimension check — read the target file's full body and apply `_shared/harness-health-analysis.md`'s "Memory-Specific Checks" section instead, a narrower, more mechanical procedure suited to an index entry rather than a multi-section document. Emit findings the same way (Finding Shape, `assetType: "memory"`, `target: target.id`), appended to the same findings array.
+
+For every other `target.kind` (skill, rule, claude-md), apply the full procedure in `_shared/harness-health-analysis.md` (the 8-dimension check, evidence pre-checks, verify gate, concrete gap signals — using `target.kind` to select which dimensions and origin-template references apply) to the target. Emit findings as a JSON array in the Finding Shape that file defines, with `assetType` set to `target.kind` and `target` set to `target.id`. Write the array to `/tmp/harness-health-findings.json`.
 
 **Step 4 — GAP SCAN (when due, per Step 1's `gapScanDue`).**
 
@@ -101,7 +108,7 @@ Each payload in `/tmp/harness-health-payloads.json` carries structured fields, n
 For each payload:
 - If `payload.assetType === 'claude-md'` — **always file it, regardless of classification/confidence/reversibility.** CLAUDE.md governs every future session's behavior; an unattended routine auto-editing it carries outsized blast radius compared to one skill's documentation. This overrides the additive/high/high rule below.
 - If `payload.assetType === 'design-artifact'` — **always file it, regardless of classification/confidence/reversibility.** Regenerating means re-running an interactive interview (`init`) or a full codebase scan (`document`), not a safe mechanical text patch — human review belongs before either lands.
-- Otherwise, if `payload.classification === "additive"`, `payload.confidence === "high"`, and `payload.reversibility === "high"` — apply it directly with `Edit` (using `payload.oldString`/`payload.newString` exactly), commit: `git commit -am "harness-health: apply additive patch to {target} ({section})"`, then mark it applied so it doesn't get re-proposed: `node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" mark "${payload.id}" applied --root .`.
+- Otherwise, if `payload.classification === "additive"`, `payload.confidence === "high"`, and `payload.reversibility === "high"` — apply it directly with `Edit` (using `payload.oldString`/`payload.newString` exactly). For every `assetType` except `memory`, commit: `git commit -am "harness-health: apply additive patch to {target} ({section})"`. For `payload.assetType === 'memory'`, skip the commit — a memory file lives outside this repo's git tree, so there is nothing to commit. Either way, mark it applied so it doesn't get re-proposed: `node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" mark "${payload.id}" applied --root .`.
 - Otherwise (restructural patches, any new-skill candidate, lower confidence/reversibility, or any CLAUDE.md finding) — file it: `gh issue create --title "<payload.title>" --body "<payload.body>" --label harness-health --label "<payload.labels[1]>"`.
 
 In `--dry-run` mode, print what would be applied/filed but do not call `Edit`, `git commit`, `gh`, or `mark`.
@@ -174,6 +181,7 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | Treating the local cache as durable state | The cache is a rebuildable optimization — GitHub issue state is the source of truth for cross-run memory, same as `/code-health`. |
 | Editing code to "fix" what a skill, rule, or CLAUDE.md describes | This skill only ever touches harness documentation, never the code it describes. |
 | Proposing a "new-rule" or "new-claude-md-section" finding | Gap detection (proposing a brand-new artifact) is skill-only this phase — rules and CLAUDE.md only ever get `patch` findings against their existing content. |
+| Folding memory into `listTargets`'s default pool | A bare Routine firing has no way to know it shouldn't touch memory — the exclusion has to be structural (a separate lister, a separate CLI branch), not a documented convention alone. |
 
 ## Relationship to Other Skills
 
