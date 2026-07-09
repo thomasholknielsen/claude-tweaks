@@ -36,7 +36,7 @@ Reference table for every Impeccable command, categorized by how the wrapper dis
 | `onboard` | Intent-driven | When `design-intent: onboarding` is declared |
 | `colorize` | Manual-only | Not auto-dispatched — surfaced as a `survey` recommendation only |
 | `overdrive` | Manual-only | Not auto-dispatched — surfaced as a `survey` recommendation only |
-| `extract` | Manual-only | Not auto-dispatched — surfaced as a `survey` recommendation only |
+| `extract` | Manual-only | Not auto-dispatched by this wrapper — surfaced as a `survey` recommendation, and also by `/claude-tweaks:tidy` Step 5.5's cross-spec pattern scan (same Design Quality category recurring across 3+ specs) |
 | `craft` | Never (in flow) | Manual standalone only |
 | `init` | Never (in flow) | Runs once via `/init` Impeccable setup phase (formerly `teach`, now a deprecated alias); never auto from `/flow` |
 | `document` | Never (in flow) | Manual standalone only |
@@ -110,13 +110,13 @@ Read `design-intent:` from spec frontmatter (written by `/specify`). For each de
 
 This is a fixed guardrail, not creative drift — same category as Impeccable's own mandatory `prefers-reduced-motion` rule baked into every `animate` call. It does not depend on audit signal or `design-intent` value to apply; append it every time this wrapper dispatches `animate`. `delight` does not carry this suffix: `delight` covers content and personality (copy, illustration, celebratory moments) with its own restraint framework, and a trigger-frequency gate keyed to "keyboard-initiated → never" would conflict with moments `delight` deliberately wants to celebrate (e.g. a first-time keyboard-shortcut reveal).
 
-**Manual-only commands.** `colorize`, `extract`, and `overdrive` are not intent-driven. They remain manual-only and are surfaced as `survey`-mode recommendations when their "would help" criteria match. This keeps the auto-dispatch surface conservative — the three excluded commands produce the most aggressive creative drift (overdrive especially), so they require explicit user invocation rather than frontmatter consent.
+**Manual-only commands.** `colorize`, `extract`, and `overdrive` are not intent-driven. They remain manual-only and are surfaced as `survey`-mode recommendations when their "would help" criteria match (`extract` also surfaces via `/claude-tweaks:tidy` Step 5.5's cross-spec pattern scan, same Design Quality category recurring across 3+ specs). This keeps the auto-dispatch surface conservative — the three excluded commands produce the most aggressive creative drift (overdrive especially), so they require explicit user invocation rather than frontmatter consent.
 
 ## Survey mode
 
 `survey` mode inspects rendered screenshots (when invoked from `/visual-review`) or the full diff (when invoked from `/flow`'s pipeline summary) to **recommend** which creative commands the user might want to run manually. It never invokes commands directly — pure read-only output.
 
-The recommendation set spans both intent-driven commands (`bolder`, `quieter`, `distill`, `delight`, `animate`, `onboard`) and the manual-only commands (`colorize`, `extract`, `overdrive`). Survey is the surfacing channel for the manual-only set — without it, those commands would have no automatic discoverability.
+The recommendation set spans both intent-driven commands (`bolder`, `quieter`, `distill`, `delight`, `animate`, `onboard`) and the manual-only commands (`colorize`, `extract`, `overdrive`). Survey is the surfacing channel for the manual-only set — without it, `colorize` and `overdrive` would have no automatic discoverability (`extract` also surfaces via `/claude-tweaks:tidy` Step 5.5's cross-spec pattern scan, same Design Quality category recurring across 3+ specs).
 
 Output feeds the "Creative Opportunities" blocks in `/visual-review` and `/flow` pipeline summary. Recommendations the user previously declined for the same spec are suppressed via the declined-recommendations cache (see `modes/survey.md`).
 
