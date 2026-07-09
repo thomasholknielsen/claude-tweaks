@@ -1,6 +1,6 @@
 # Impeccable CLI — Invocation + JSON Parsing
 
-*Last verified against Impeccable skill 3.9.1 / CLI 3.2.0 (2026-07-07).*
+*Last verified against Impeccable CLI 3.2.0 (2026-07-09), verified directly against live output and the installed package source.*
 
 Reference for the wrapper's `test` mode dispatch. The Impeccable CLI is a deterministic Node binary that scans frontend files for design anti-patterns without LLM cost.
 
@@ -31,7 +31,7 @@ If the file list is empty after filtering, the wrapper returns `{skipped: "no fr
 
 ### Working directory
 
-Run the CLI from the project root (the directory containing the spec/CLAUDE.md). File paths in the output will be relative to this directory.
+Run the CLI from the project root (the directory containing the spec/CLAUDE.md) so relative `<files>` arguments resolve correctly. File paths in the output are absolute (the CLI resolves each target with `path.resolve()` before scanning), regardless of the working directory used to invoke it.
 
 ### Timeout
 
@@ -49,61 +49,53 @@ Timeout is treated as a skip, not a failure — same rationale as the availabili
 
 ## Expected JSON output schema
 
-The CLI emits a single JSON object on stdout. Expected shape:
+The CLI emits a single JSON array on stdout — one element per finding, no top-level wrapper object. Expected shape:
 
 ```json
-{
-  "files_scanned": 12,
-  "findings": [
-    {
-      "file": "src/components/Hero.tsx",
-      "rule": "purple-gradient",
-      "severity": "error",
-      "line": 47,
-      "message": "Avoid the default purple→pink gradient — overused and recognizable as AI-default."
-    },
-    {
-      "file": "src/components/Card.tsx",
-      "rule": "fixed-pixel-padding",
-      "severity": "warning",
-      "line": 12,
-      "message": "Padding hard-coded in pixels — prefer spacing tokens."
-    }
-  ]
-}
+[
+  {
+    "antipattern": "ai-color-palette",
+    "name": "AI color palette",
+    "description": "Purple/violet gradients and cyan-on-dark are the most recognizable tells of AI-generated UIs. Choose a distinctive, intentional palette.",
+    "severity": "warning",
+    "file": "/project/src/components/Hero.tsx",
+    "line": 47,
+    "snippet": "from-purple-500 gradient"
+  }
+]
 ```
 
 ### Field reference
 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
-| `files_scanned` | integer | Yes | Total files the CLI inspected |
-| `findings` | array | Yes | May be empty (zero findings = pass) |
-| `findings[].file` | string | Yes | Path relative to project root |
-| `findings[].rule` | string | Yes | Rule identifier (use for de-dup, grouping) |
-| `findings[].severity` | string | Yes | One of `error`, `warning`, `info` |
-| `findings[].line` | integer | No | Line number (omitted for file-level findings) |
-| `findings[].message` | string | Yes | Human-readable description |
+| `antipattern` | string | Yes | Rule identifier (use for de-dup, grouping) |
+| `name` | string | Yes | Short human-readable rule name |
+| `description` | string | Yes | Full explanation of the anti-pattern |
+| `severity` | string | Yes | `warning` (default — most rules) or `advisory` (9 specific rule ids: `repeated-section-kickers`, `numbered-section-markers`, `design-system-color`, `design-system-radius`, `gpt-thin-border-wide-shadow`, `repeating-stripes-gradient`, `codex-grid-background`, `theater-slop-phrase`, `image-hover-transform`) |
+| `file` | string | Yes | Absolute path (the CLI resolves before scanning) |
+| `line` | integer | Yes | Line number; `0` for file-level findings (the CLI always sets this field, defaulting to `0`) |
+| `snippet` | string | Yes | The matched text/pattern that triggered the finding |
 
 ### Severity-to-result mapping
 
-| Highest severity in findings | Wrapper result |
-|------------------------------|----------------|
-| No findings | `pass` |
-| `info` only | `pass` (informational, surfaced in output but not gate-blocking) |
-| `warning` only | `pass` (warnings appear in output, do not fail the gate) |
-| Any `error` | `fail` (gate fails, caller blocks pipeline) |
+| Findings present | Wrapper result |
+|-------------------|----------------|
+| None (`[]`) | `pass` |
+| `advisory` only | `pass` (surfaced in output, does not block) |
+| Any `warning` | `fail` (gate fails, caller blocks pipeline) |
 
 ### Schema version compatibility
 
-The schema above reflects what the wrapper was built against. The CLI may evolve. Defensive parsing rules:
+The schema above reflects verified live CLI 3.2.0 output and source. The CLI may evolve. Defensive parsing rules:
 
-1. **Unknown top-level fields** → ignore (do not fail).
-2. **Unknown finding fields** → ignore (do not fail).
-3. **Missing `files_scanned`** → fall back to counting unique values of `findings[].file`; emit a warning.
-4. **Missing `findings`** → treat as `findings: []` (pass result).
-5. **Severity values not in {`error`, `warning`, `info`}** → treat as `error` (fail-safe — unknown severity is more serious, not less).
-6. **Malformed JSON / non-zero exit** → return:
+1. **Unknown finding fields** → ignore (do not fail).
+2. **Top-level JSON is an array** → treat directly as the findings list (this is the real, verified shape).
+3. **Top-level JSON is an object exposing a `findings` array** → use `.findings` as the findings list, ignore other top-level fields (forward-compatibility only — not the current real shape, but cheap to keep in case a future CLI version reintroduces a wrapper).
+4. **`severity` not in `{warning, advisory}`** → treat as `warning` (fail-safe — unknown is more serious, not less).
+5. **Exit code 0** → treat as zero findings, regardless of stdout content (the CLI's own "nothing found" signal).
+6. **Exit code 2** → expect a non-empty JSON array on stdout; parse per rules 1-4 above.
+7. **Any other exit code, or stdout that fails to parse as JSON under rules 5-6** → malformed output; return:
 
 ```json
 {
@@ -118,11 +110,18 @@ Malformed output is treated as a skip, not a fail — same rationale as availabi
 ## Sample invocation (canonical)
 
 ```bash
-$ npx impeccable detect --fast --json src/components/Hero.tsx src/components/Card.tsx
-{"files_scanned":2,"findings":[
-  {"file":"src/components/Hero.tsx","rule":"purple-gradient","severity":"error","line":47,"message":"..."},
-  {"file":"src/components/Card.tsx","rule":"fixed-pixel-padding","severity":"warning","line":12,"message":"..."}
-]}
+$ npx impeccable detect --fast --json src/components/Hero.tsx
+[
+  {
+    "antipattern": "ai-color-palette",
+    "name": "AI color palette",
+    "description": "Purple/violet gradients and cyan-on-dark are the most recognizable tells of AI-generated UIs. Choose a distinctive, intentional palette.",
+    "severity": "warning",
+    "file": "/project/src/components/Hero.tsx",
+    "line": 47,
+    "snippet": "from-purple-500 gradient"
+  }
+]
 ```
 
 Wrapper returns:
@@ -131,17 +130,16 @@ Wrapper returns:
 {
   "mode": "test",
   "result": "fail",
-  "files_scanned": 2,
+  "files_scanned": 1,
   "findings": [
-    { "file": "src/components/Hero.tsx", "rule": "purple-gradient", "severity": "error", "line": 47, "message": "..." },
-    { "file": "src/components/Card.tsx", "rule": "fixed-pixel-padding", "severity": "warning", "line": 12, "message": "..." }
+    { "antipattern": "ai-color-palette", "name": "AI color palette", "description": "Purple/violet gradients and cyan-on-dark are the most recognizable tells of AI-generated UIs. Choose a distinctive, intentional palette.", "severity": "warning", "file": "/project/src/components/Hero.tsx", "line": 47, "snippet": "from-purple-500 gradient" }
   ]
 }
 ```
 
-**Result rules:** Any `severity: error` sets `result: fail`. Otherwise `result: pass`. Warnings appear in the findings list but never promote the result. Empty `findings: []` is a pass.
+**Result rules:** Any `severity: warning` sets `result: fail`. Otherwise `result: pass`. `advisory` findings appear in the findings list but never promote the result. Empty findings (`[]`) is a pass.
 
 ## Open items (tracked in parent design doc)
 
-- **Schema stability** — the CLI may change output between releases. The wrapper's defensive parsing handles unknown/missing fields, but breaking changes (e.g., renamed `severity` values) would require pinning a CLI version. Re-validate sample output after every Impeccable major version bump. Last re-validated 2026-07-07 against skill 3.9.1 / CLI 3.2.0 (see header note) — **the schema HAS drifted and defensive parsing is NOT currently sufficient** (discrepancy first found in commit `ebf5762`): live CLI 3.2.0 output is a bare JSON array, not the `{files_scanned, findings: [...]}` wrapper documented above; findings use `antipattern`/`description` fields instead of `rule`/`message`; and the CLI exits non-zero whenever any finding is present (any severity), which collides with this file's own "non-zero exit → malformed output → skip" rule above and would let a real failing gate get silently misreported as a skip. This is not fixed here — see `specs/DEFERRED.md`'s "Impeccable CLI schema has drifted from documented shape" entry for the dedicated follow-up.
+- **Schema stability** — the CLI may change output between releases. The wrapper's defensive parsing handles unknown/missing fields, but breaking changes (e.g., renamed `severity` values) would require pinning a CLI version. This schema was last re-verified directly against live CLI output and installed package source on 2026-07-09 (CLI 3.2.0) — re-verify the same way after any future Impeccable CLI major version bump, the way the 2026-07-07 drift was originally caught.
 - **Log path** — the wrapper does not currently log invocations. The parent design proposes `~/.claude-tweaks/logs/design.jsonl` for token-cost instrumentation. That path is harness-owned (skill content must not write there); add only when the harness gains a logger for this purpose.
