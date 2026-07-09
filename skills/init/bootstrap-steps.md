@@ -597,27 +597,29 @@ the honestly-reached partial state) rather than aborting the rest of bootstrap.
 
 ### Step 13 — Routine Installation (detailed procedure)
 
-claude-tweaks skills can ship a `routine-template.yml` (schema: `skills/_shared/routine-template-schema.md`) enabling `/claude-tweaks:routine create <skill>` to instantiate a scheduled cloud Routine for this project — e.g. code-health's nightly LLM-as-judge sweep, or tidy's periodic backlog hygiene pass. This step surfaces that option right after bootstrap instead of leaving it to be discovered later.
+claude-tweaks skills can ship one or more routine templates (schema: `skills/_shared/routine-template-schema.md`) — a skill's default template at `skills/{skill}/routine-template.yml`, plus optional named variants at `skills/{skill}/routine-template-<variant>.yml` — each enabling `/claude-tweaks:routine create <skill> [--variant=<name>]` to instantiate a scheduled cloud Routine for this project. Examples: code-health's nightly LLM-as-judge sweep, tidy's periodic backlog hygiene pass, or tidy's frequent GitHub-issue-triage variant. This step surfaces that option right after bootstrap instead of leaving it to be discovered later.
 
 **Detect candidates:**
 
 ```bash
-ls "${CLAUDE_PLUGIN_ROOT}"/skills/*/routine-template.yml 2>/dev/null
+ls "${CLAUDE_PLUGIN_ROOT}"/skills/*/routine-template.yml "${CLAUDE_PLUGIN_ROOT}"/skills/*/routine-template-*.yml 2>/dev/null
 ```
 
-For each match, note the candidate skill name (the directory under `skills/`). Then glob `.claude-tweaks/routines/*.yml` in the current project and read each match's `template:` field (per `skills/_shared/routine-template-schema.md`'s instantiated-record schema — `template` names the skill the record came from). Build the set of skill names that already have a record this way, and only offer candidates NOT in that set. This is prefix-agnostic — it never needs to re-derive the project-prefixed record filename (`PREFIXED_NAME`, computed by `/routine` itself) inside init — and makes the step idempotent and safe on every `/init` re-run. If no candidates remain (none shipped, or every candidate already has a record), skip this step silently.
+For each match, note the candidate skill name (the directory under `skills/`) and, for a `routine-template-<variant>.yml` match, the variant name (everything between `routine-template-` and `.yml`). Read each candidate's `routine_name` field.
+
+Derive `REPO_SLUG` once, the same way `/claude-tweaks:routine`'s own CREATE Step 2 does: resolve `git remote get-url origin`, take the resolved URL's `{repo}` segment, lowercase it, replace any run of characters outside `[a-z0-9]` with a single `-`, trim leading/trailing `-`. For each candidate, a record already exists iff `.claude-tweaks/routines/{REPO_SLUG}-{routine_name}.yml` exists in the current project — check per candidate, not per skill, since a skill with a default template plus a variant can have zero, one, or both already instantiated; the instantiated record's own `template:` field only names the skill, not which variant, so filename existence (not field content) is the correct check here. Only offer candidates without a matching record. If no candidates remain, skip this step silently.
 
 **Present:**
 
 ```
-{N} claude-tweaks skill(s) support scheduled cloud Routines: {list, e.g. "code-health (nightly repo sweep), tidy (periodic backlog hygiene)"}.
+{N} claude-tweaks routine(s) available to set up: {list, e.g. "code-health (nightly repo sweep), tidy (periodic backlog hygiene), tidy --variant=github-triage (frequent GitHub issue triage)"}.
 
 Set any of these up now?
 1. Yes — walk me through each **(Recommended)**
-2. Not now — I'll use `/claude-tweaks:routine create <skill>` later
+2. Not now — I'll use `/claude-tweaks:routine create <skill> [--variant=<name>]` later
 ```
 
-**For option 1:** For each skill the user selects, invoke `/claude-tweaks:routine create <skill> --source init` directly. `/routine`'s own CREATE workflow (template load, repo/name resolution, idempotency check, environment/schedule resolution, review gate) handles everything end-to-end, including the mandatory explicit confirmation before any live `RemoteTrigger` call — the invocation may also include `--dry-run` if the user wants to inspect the assembled configuration first without creating anything live. `/init` does not reimplement, shortcut, or pre-answer any part of that workflow — it only discovers candidates and hands off.
+**For option 1:** For each candidate the user selects, invoke `/claude-tweaks:routine create <skill> [--variant=<name>] --source init` directly (omit `--variant` for a default-template candidate). `/routine`'s own CREATE workflow (template load, repo/name resolution, idempotency check, environment/schedule resolution, review gate) handles everything end-to-end, including the mandatory explicit confirmation before any live `RemoteTrigger` call — the invocation may also include `--dry-run` if the user wants to inspect the assembled configuration first without creating anything live. `/init` does not reimplement, shortcut, or pre-answer any part of that workflow — it only discovers candidates and hands off.
 
 **For option 2:** Note the skipped candidates and continue. The same offer reappears on the next `/init` run for any candidate still missing a record.
 
