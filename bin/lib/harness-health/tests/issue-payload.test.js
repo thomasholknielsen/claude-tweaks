@@ -96,3 +96,13 @@ test('toIssuePayload title reflects asset type and category', () => {
   const claudeMd = toIssuePayload(patchFinding({ assetType: 'claude-md', target: 'CLAUDE', section: 'Conventions', category: 'best-practice' }));
   assert.ok(claudeMd.title.startsWith('CLAUDE.md best-practice:'), claudeMd.title);
 });
+
+test('toIssuePayload title uses the Design Context label for a design-artifact finding', () => {
+  const payload = toIssuePayload(patchFinding({
+    assetType: 'design-artifact', target: 'PRODUCT', section: 'Freshness',
+    oldString: 'Unaudited for 120 days', newString: 'Run /impeccable:impeccable init',
+  }));
+  assert.ok(payload.title.startsWith('Design Context drift:'), payload.title);
+  assert.ok(payload.body.includes('Unaudited for 120 days'));
+  assert.ok(payload.body.includes('Run /impeccable:impeccable init'));
+});

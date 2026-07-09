@@ -42,6 +42,11 @@ test('validateFinding accepts a well-formed patch finding', () => {
   assert.strictEqual(result.value.target, 'auth');
 });
 
+test('validateFinding accepts assetType: design-artifact', () => {
+  const result = validateFinding(validPatch({ assetType: 'design-artifact', target: 'PRODUCT', section: 'Freshness' }));
+  assert.strictEqual(result.ok, true);
+});
+
 test('validateFinding accepts a well-formed new-skill finding', () => {
   const result = validateFinding(validNewSkill());
   assert.strictEqual(result.ok, true);
