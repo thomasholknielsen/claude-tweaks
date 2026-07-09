@@ -162,6 +162,49 @@ batch approval — breaking a lock is never autonomous in /tidy.
 
 → Collect each as: `[claim] refs/claims/issue-{n} — {status} — {recommendation}`
 
+### Backstop: missed `parked` restoration
+
+Find specs still on disk that were promoted from a `parked` issue but never got the
+restoration finished — a defense-in-depth flag for a mutation that silently failed at claim
+release (Phase 3), same shape as the already-drafted `agent:go` missed-removal backstop in
+`specs/INBOX.md`. Both checks below are flagged only — recommendations execute after Step 6
+batch approval, same as every other Step 4.7 mutation.
+
+```bash
+grep -l "^recon-was-parked: true$" specs/*.md 2>/dev/null | while read -r spec; do
+  n=$(grep -m1 "^recon-issue:" "$spec" | sed 's/^recon-issue: *//')
+  [ -z "$n" ] && continue
+  gh issue view "$n" --json state,labels,closedByPullRequestsReferences
+done
+```
+
+(`closedByPullRequestsReferences` is a native `gh issue view --json` field — no raw GraphQL
+needed; the issue-side mirror of `closingIssuesReferences`, which `_shared/github-pr-scan.md`
+already reads from the PR side via `gh pr view --json`.)
+
+For each result: flag as a likely missed restoration when the issue is `OPEN`, its labels do
+not include `parked`, `closedByPullRequestsReferences` is empty (no linked PR, open or
+merged), and it has no active claim (cross-reference against this step's own claim listing
+above — `claimed && !stale` for `refs/claims/issue-{n}`). Recommend the same
+`gh issue edit {n} --add-label parked` command the release step itself would run.
+
+→ Collect each as: `[claim] issue #{n} — spec {spec} has recon-was-parked: true, no parked
+label, no active claim, no linked PR — likely missed parked restoration`
+
+### Backstop: missed `status:in-progress` removal
+
+```bash
+gh issue list --label status:in-progress --state open --json number,title -q '.[] | "\(.number) \(.title)"'
+```
+
+For each result, cross-reference against this step's own claim listing above: flag as a likely
+missed removal when the issue carries `status:in-progress` but has no active claim
+(`claimed && !stale`) for its number. Recommend the same
+`gh issue edit {n} --remove-label status:in-progress` command the release step itself would run.
+
+→ Collect each as: `[claim] issue #{n} — status:in-progress present, no active claim — likely
+missed status:in-progress removal`
+
 ## Step 4.8: Audit GitHub PRs and Issues
 
 Scan per `_shared/github-pr-scan.md`, **`repo-wide`** scope. The dispatcher inlines that file's Detection Ladder, `repo-wide` scope section (including its findings table), and Output Contract into this agent's prompt. The detection ladder makes this fail-open — skip with a single info row when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
