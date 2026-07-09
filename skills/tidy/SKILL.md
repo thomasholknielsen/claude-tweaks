@@ -72,7 +72,7 @@ Read `scan-procedures.md` in this skill's directory for the full classification 
 | 4.5 | `git worktree list`, `git branch --list "build/*"` | `[git]` |
 | 4.6 | `docs/REGISTRY.md` | `[registry]` |
 | 4.7 | `gh api git/matching-refs/claims/` + issue comments | `[claim]` |
-| 4.8 | `gh pr list` / `gh issue list --label code-health` / `gh issue list --label harness-health` per `_shared/github-pr-scan.md` (`repo-wide` scope) | `[pr]`, `[gh-issue]` |
+| 4.8 | `gh pr list` / `gh issue list --label code-health` / `gh issue list --label harness-health` / `gh issue list --label backlog` (`github-issues` only — see Steps 1/1.5) per `_shared/github-pr-scan.md` (`repo-wide` scope) | `[pr]`, `[gh-issue]`, `[inbox]`/`[deferred]` (`github-issues` only) |
 | 5 (sequential, after Step 2) | Specs not yet built | (sizing flags appended to `[spec]` rows) |
 | 5.5 (sequential, after Steps 2-4.8) | Recent git history of review/wrap-up commits | `[pattern]`, `[health]` |
 

@@ -41,7 +41,7 @@ When `$ARGUMENTS` is empty, prompt the user for the idea body.
 |------|------|
 | 1 | Add the entry — GitHub issue or `specs/INBOX.md` append, per Backend Selection below. |
 | 2 | Route per `--route` arg, or via the Routing Prompt below. |
-| 3 | Commit (when this is a standalone invocation; component-skill callers commit themselves). Issue-backend captures have nothing new to commit unless the fallback path wrote to `specs/INBOX.md`. |
+| 3 | Commit (when this is a standalone invocation; component-skill callers commit themselves). Issue-backend captures have nothing new to commit unless the fallback path wrote to `specs/INBOX.md`, or the route was `merge:N` (which edits the target spec locally regardless of backend). |
 
 ## Backend Selection
 
@@ -165,7 +165,7 @@ The call has 4 options only when Option 4 is visible; otherwise build it with th
 |---|---|---|
 | `challenge` / `brainstorm` | Opens the child skill with the INBOX entry text as input | Opens the child skill with the issue title + body as input (reference `#{issue-number}`) |
 | `inbox` (keep) | No further action — entry stays in `specs/INBOX.md` | No further action — the issue is already open, `backlog`-labeled, with no `parked` label. That **is** the inbox state; there is nothing to add. |
-| `merge:N` | Integrate into spec N's Deliverables/AC/Technical Approach, remove entry from `specs/INBOX.md` | Integrate into spec N the same way, then `gh issue close --reason "not planned"` and comment naming the target spec (`Merged into spec {N}.`) — mirrors `/claude-tweaks:tidy`'s Merge action |
+| `merge:N` | Integrate into spec N's Deliverables/AC/Technical Approach, remove entry from `specs/INBOX.md` | Integrate into spec N the same way, then comment naming the target spec (`Merged into spec {N}.`), then `gh issue close {n} --reason "not planned"` — mirrors `/claude-tweaks:tidy`'s Merge action |
 
 This ensures every captured idea has an explicit next step — either immediate action or a conscious decision to park it.
 

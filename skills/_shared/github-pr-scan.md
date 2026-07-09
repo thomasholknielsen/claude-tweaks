@@ -53,9 +53,10 @@ Full sweep of open PRs, code-health-labelled issues, and harness-health-labelled
 3. **Code-health issues** — `gh issue list --label code-health --state open --json number,title,updatedAt,url`.
 4. **Merged/closed PRs with local remnants** — `gh pr list --state merged --limit 50 --json number,headRefName`; cross-check each `headRefName` against `git -C "{REPO_ROOT}" branch --list` output.
 5. **Harness-health issues** — `gh issue list --label harness-health --state open --json number,title,updatedAt,url`.
-6. **Backlog issues** (only when this repo's CLAUDE.md sets `backlog-backend: github-issues` — read it directly from CLAUDE.md's `## Backlog integration` section, same as `/tidy` Steps 1/1.5; skip this item entirely under `local-files` or a missing flag) — `gh issue list --label backlog --state open --json number,title,body,labels,milestone,updatedAt,url`, then classify each issue:
+6. **Backlog issues** (only when this repo's CLAUDE.md sets `backlog-backend: github-issues` — read it directly from CLAUDE.md's `## Backlog integration` section, same as `/tidy` Steps 1/1.5; skip this item entirely under `local-files` or a missing flag) — write the query's output to a temp file, then classify each issue:
 
    ```bash
+   gh issue list --label backlog --state open --json number,title,body,labels,milestone,updatedAt,url > /tmp/backlog-issues.json
    node -e "const {classifyBacklogIssue}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/backlog.js');
      const issues=JSON.parse(require('fs').readFileSync(0,'utf8'));
      console.log(JSON.stringify(issues.map(classifyBacklogIssue)))" < /tmp/backlog-issues.json
