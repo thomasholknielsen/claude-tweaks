@@ -21,7 +21,7 @@ Quick capture for ideas that aren't ready for full specification. Part of the wo
 - "We should probably..." or "Don't forget to..." moments
 - Anything that would otherwise be lost or forgotten
 
-> **INBOX vs DEFERRED:** Use `/claude-tweaks:capture` for new ideas and half-formed features. Work deferred from an active build/review goes to `specs/DEFERRED.md` instead — it carries origin context, file references, and timing triggers that INBOX entries don't have.
+> **INBOX vs DEFERRED:** Use `/claude-tweaks:capture` for new ideas and half-formed features. Work deferred from an active build/review goes through `/claude-tweaks:tidy`'s Defer action instead — `specs/DEFERRED.md` under `backlog-backend: local-files`, or the `parked` label under `backlog-backend: github-issues`. Either way it carries origin context, file references, and timing triggers that INBOX entries don't have.
 
 ## Input
 
@@ -39,15 +39,62 @@ When `$ARGUMENTS` is empty, prompt the user for the idea body.
 
 | Step | What |
 |------|------|
-| 1 | Append entry to `specs/INBOX.md` per the Entry Format below. |
+| 1 | Add the entry — GitHub issue or `specs/INBOX.md` append, per Backend Selection below. |
 | 2 | Route per `--route` arg, or via the Routing Prompt below. |
-| 3 | Commit (when this is a standalone invocation; component-skill callers commit themselves). |
+| 3 | Commit (when this is a standalone invocation; component-skill callers commit themselves). Issue-backend captures have nothing new to commit unless the fallback path wrote to `specs/INBOX.md`. |
 
-## File Location
+## Backend Selection
 
-`specs/INBOX.md` — single file, append-only during capture.
+Read the `backlog-backend` field from the project's CLAUDE.md (under a `## Backlog integration` section, written by `/claude-tweaks:init` Step 15). A missing flag is treated as `local-files` — same missing-flag convention as `design-integration`.
+
+**When `backlog-backend: github-issues`:**
+
+1. Bootstrap the `backlog` label and the specific `backlog:category-<value>` label about to be used (not all four category labels up front):
+
+   ```bash
+   for LABEL_DESC in "backlog:Captured idea or deferred work, tracked via /claude-tweaks:capture and /claude-tweaks:tidy" "backlog:category-${CATEGORY}:${CATEGORY}-category backlog item"; do
+     LABEL="${LABEL_DESC%%:*}"
+     DESCRIPTION="${LABEL_DESC#*:}"
+     gh label list --search "$LABEL" --json name -q '.[].name' | grep -qx "$LABEL" || \
+       gh label create "$LABEL" --description "$DESCRIPTION"
+   done
+   ```
+
+2. Build the payload and create the issue (`$TITLE`/`$RELATED`/`$CONTEXT`/`$SCOPE`/`$CATEGORY` are the same fields the Entry Format below has always asked for — only their destination changed):
+
+   ```bash
+   node -e "const {inboxIssuePayload}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/backlog.js');
+     const p=inboxIssuePayload({title:process.argv[1],related:process.argv[2],context:process.argv[3],scope:process.argv[4],category:process.argv[5]});
+     require('fs').writeFileSync('/tmp/capture-payload.json', JSON.stringify(p))" "$TITLE" "$RELATED" "$CONTEXT" "$SCOPE" "$CATEGORY"
+
+   gh issue create \
+     --title "$(node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/capture-payload.json','utf8')).title)")" \
+     --body "$(node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/capture-payload.json','utf8')).body)")" \
+     --label backlog \
+     --label "backlog:category-$CATEGORY"
+   ```
+
+3. **On failure** (GitHub unreachable, `gh` broken, transient API error): fall back to the local-files path below and tell the user issue creation failed and the entry landed in `specs/INBOX.md` instead. No special marker is needed — `/claude-tweaks:tidy`'s scan already treats any non-empty `specs/INBOX.md` content as unsynced once `backlog-backend: github-issues`, and offers a Sync to GitHub action to resolve it later.
+
+**When `backlog-backend: local-files` (or the flag is missing):**
+
+Append the entry to `specs/INBOX.md` per the Entry Format below — unchanged from today.
 
 ## Entry Format
+
+**`backlog-backend: github-issues`** — issue title = short entry title; issue body:
+
+```markdown
+**Related:** {optional spec numbers or "none"}
+
+Context: 1-2 sentences on why this came up or what triggered it
+
+Scope: Rough sense of what it might involve (can be vague)
+```
+
+Category is a label (`backlog:category-{product|technical|legal|infrastructure}`), not body prose.
+
+**`backlog-backend: local-files`** — same fields, appended to `specs/INBOX.md`:
 
 ```markdown
 ## [Short Title]
@@ -61,10 +108,13 @@ Scope: Rough sense of what it might involve (can be vague)
 
 ### Hard cap: ~5 lines per entry
 
-If it takes more than 5 lines to describe, it's past the inbox stage — run `/superpowers:brainstorming` on it instead.
+If it takes more than 5 lines to describe, it's past the inbox stage — run `/superpowers:brainstorming` on it instead. Applies to both backends.
 
 ## Adding an Entry
 
+**`github-issues`:** run Backend Selection above; don't overthink — capture the essence.
+
+**`local-files`:**
 1. Open `specs/INBOX.md`
 2. Append new entry at the bottom
 3. Don't overthink — capture the essence
@@ -109,6 +159,14 @@ The call has 4 options only when Option 4 is visible; otherwise build it with th
 
 > **Option 4 visibility:** Only show option 4 when a spec name in `specs/` matches the topic keywords from the INBOX item. Without a candidate match, option 4 is omitted entirely — manual disambiguation against an unspecified spec number is worse than no option at all.
 
+### Route execution, by backend
+
+| Route | `local-files` | `github-issues` |
+|---|---|---|
+| `challenge` / `brainstorm` | Opens the child skill with the INBOX entry text as input | Opens the child skill with the issue title + body as input (reference `#{issue-number}`) |
+| `inbox` (keep) | No further action — entry stays in `specs/INBOX.md` | No further action — the issue is already open, `backlog`-labeled, with no `parked` label. That **is** the inbox state; there is nothing to add. |
+| `merge:N` | Integrate into spec N's Deliverables/AC/Technical Approach, remove entry from `specs/INBOX.md` | Integrate into spec N the same way, then `gh issue close --reason "not planned"` and comment naming the target spec (`Merged into spec {N}.`) — mirrors `/claude-tweaks:tidy`'s Merge action |
+
 This ensures every captured idea has an explicit next step — either immediate action or a conscious decision to park it.
 
 **Good entries:**
@@ -133,7 +191,7 @@ When invoked by a parent skill, omit this block — the parent owns the handoff.
 - `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
 - Option 1 — `label`: `"Capture another idea (Recommended)"`, `description`: `"/claude-tweaks:capture {next idea} — capture another idea while you're in brainstorming flow"`
 - Option 2 — `label`: `"Tidy backlog"`, `description`: `"/claude-tweaks:tidy — review and triage INBOX (promote, merge, or drop stale items)"`
-- Option 3 — `label`: `"Specify"`, `description`: `"/claude-tweaks:specify \"{title}\" — promote this idea straight to a spec (uses the entry's title — INBOX entries are addressed by title, not numeric index)"`
+- Option 3 — `label`: `"Specify"`, `description`: `"/claude-tweaks:specify {ref} — promote this idea straight to a spec ({ref} is '#{issue-number}' under backlog-backend: github-issues, or the entry's quoted title under local-files)"`
 - Option 4 — `label`: `"Challenge"`, `description`: `"/claude-tweaks:challenge \"{title}\" — debias and stress-test assumptions before specifying"`
 
 ## Component-Skill Contract
