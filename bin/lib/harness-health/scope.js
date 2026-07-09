@@ -94,6 +94,27 @@ function listMemory(memoryDir) {
   return results.sort((a, b) => (a.id < b.id ? -1 : 1));
 }
 
+// ─── selectMemoryTarget ──────────────────────────────────────────────────────
+// Mirrors selectTarget's Phase 1 (force-pick anything unaudited past
+// STALE_DAYS) only — no Phase 2 hotspot/churn scoring, since memory has no git
+// churn signal. Returns null (not an error) when nothing is due, same as
+// selectTarget. Cursor key is namespaced "memory:<id>", same convention every
+// other kind uses.
+function selectMemoryTarget(memoryDir, cursors, opts = {}) {
+  const now = opts.now != null ? opts.now : Date.now();
+  const candidates = listMemory(memoryDir);
+  for (const candidate of candidates) {
+    const key = `${candidate.kind}:${candidate.id}`;
+    const cursor = cursors[key];
+    const lastAuditedMs = cursor && cursor.lastAuditedMs != null ? cursor.lastAuditedMs : null;
+    const daysSince = lastAuditedMs === null ? Infinity : (now - lastAuditedMs) / 86400000;
+    if (daysSince > STALE_DAYS) {
+      return { ...candidate, why: 'stale', daysSinceLastAudit: Number.isFinite(daysSince) ? Math.round(daysSince) : null };
+    }
+  }
+  return null;
+}
+
 // ─── readDesignIntegrationFlag ─────────────────────────────────────────────
 // Parses CLAUDE.md's `design-integration:` value. Returns 'disabled' when
 // CLAUDE.md is missing/unreadable or the flag is absent — mirrors the design
@@ -246,5 +267,5 @@ module.exports = {
   listSkills, parseRulePaths, listRules, listClaudeMd, listTargets,
   extractDomainPaths, domainChurn, selectTarget,
   readDesignIntegrationFlag, listDesignArtifacts,
-  listMemory,
+  listMemory, selectMemoryTarget,
 };

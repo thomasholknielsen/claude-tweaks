@@ -8,8 +8,9 @@ const {
   listSkills, extractDomainPaths, domainChurn, selectTarget,
   listRules, parseRulePaths, listClaudeMd, listTargets,
   readDesignIntegrationFlag, listDesignArtifacts,
-  listMemory,
+  listMemory, selectMemoryTarget,
 } = require('../scope');
+const { STALE_DAYS } = require('../score');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'harness-health-scope-')); }
 
@@ -145,6 +146,50 @@ test('listMemory ignores non-bullet lines (headings, blank lines, prose)', () =>
     '# Memory Index\n\nSome intro prose that is not a bullet.\n\n- [Only entry](only-entry.md) — the one real bullet\n',
   );
   assert.deepStrictEqual(listMemory(root).map((t) => t.id), ['only-entry']);
+});
+
+// ─── selectMemoryTarget ──────────────────────────────────────────────────────
+
+test('selectMemoryTarget returns null when there are no memory entries', () => {
+  const root = tmp();
+  assert.strictEqual(selectMemoryTarget(root, {}), null);
+});
+
+test('selectMemoryTarget picks a never-audited entry as stale', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'MEMORY.md'), '- [Only entry](only-entry.md) — hook\n');
+  const target = selectMemoryTarget(root, {});
+  assert.strictEqual(target.kind, 'memory');
+  assert.strictEqual(target.id, 'only-entry');
+  assert.strictEqual(target.why, 'stale');
+});
+
+test('selectMemoryTarget returns null when every entry was audited recently (no hotspot fallback)', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'MEMORY.md'), '- [Only entry](only-entry.md) — hook\n');
+  const now = Date.now();
+  const cursors = { 'memory:only-entry': { lastAuditedMs: now - 1000 } };
+  assert.strictEqual(selectMemoryTarget(root, cursors, { now }), null);
+});
+
+test('selectMemoryTarget force-picks past STALE_DAYS even with a recorded cursor', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'MEMORY.md'), '- [Only entry](only-entry.md) — hook\n');
+  const now = Date.now();
+  const cursors = { 'memory:only-entry': { lastAuditedMs: now - (STALE_DAYS + 1) * 86400000 } };
+  const target = selectMemoryTarget(root, cursors, { now });
+  assert.strictEqual(target.why, 'stale');
+  assert.strictEqual(target.daysSinceLastAudit, STALE_DAYS + 1);
+});
+
+test('listTargets never includes a kind: memory entry, even when MEMORY.md exists alongside it', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth');
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), '# Project\n');
+  fs.writeFileSync(path.join(root, 'MEMORY.md'), '- [Only entry](only-entry.md) — hook\n');
+  const kinds = listTargets(root).map((t) => t.kind);
+  assert.ok(!kinds.includes('memory'), 'listTargets must never surface a memory target — it is reachable only via an explicit --kind memory invocation');
 });
 
 // ─── readDesignIntegrationFlag / listDesignArtifacts ──────────────────────
