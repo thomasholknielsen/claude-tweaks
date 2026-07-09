@@ -15,7 +15,7 @@ Three distinct gaps, one root cause (nothing mechanically enforces a budget or s
 ## Scope
 
 **In scope:**
-- Generalize `.claude-tweaks/policy.yml` reading from a single-purpose parser to a flat-key reader; add two new harness-health budget keys.
+- Document two new harness-health budget keys in `.claude-tweaks/policy.yml`, read as LLM-prose (no code) following the existing `execution.always` convention.
 - New Step 1 mechanical evidence checks in `_shared/harness-health-analysis.md`: tiered line-budget (by load-frequency, not file kind), unscoped-rule structural check, self-referential count/date anti-pattern check, narrative-density heuristic.
 - New `--kind memory` for `/claude-tweaks:harness-health`, reachable only via explicit invocation (structurally excluded from the unified rotation pool `listTargets` builds, and therefore never reachable through a bare Routine firing) — with its own lister, its own reduced evidence-check set, and its own apply-or-file posture.
 
@@ -25,46 +25,15 @@ Three distinct gaps, one root cause (nothing mechanically enforces a budget or s
 - General two-sided duplication detection between two checked-in files (rule vs. skill, skill vs. skill) — the memory-vs-checked-in-content check (Part 3) is narrower and tractable because memory is the only side that needs correcting; a symmetric detector is a harder, separate problem.
 - Any change to `design-artifact` handling — unaffected by this design.
 
-## Part 1 — Policy plumbing
+## Part 1 — Policy plumbing (documentation only, no code)
 
-`bin/lib/policy.js` currently exports one single-purpose function, `isWorktreeAlwaysOn(repoRoot)`, matching one exact regex line. Generalize to a flat-key reader:
+`.claude-tweaks/policy.yml` already has a precedent for exactly this shape of key: `execution.always` is an informational lever with zero JS consumers — it gates no hook, and is read entirely as prose by the LLM (`build-options.md`, `git-discipline.md`, `manifesto.md` each instruct the assistant to check the raw file directly). `worktree.always` is the one key with JS code (`bin/lib/policy.js`'s `isWorktreeAlwaysOn`), because it gates a mechanical PreToolUse hook — a deterministic enforcement point, not an LLM judgment call.
 
-```js
-function readPolicy(repoRoot) {
-  const raw = readPolicyFile(repoRoot);
-  if (!raw) return {};
-  const result = {};
-  for (const line of raw.split('\n')) {
-    const m = line.match(/^([\w.-]+):\s*(.+)$/);
-    if (m) result[m[1]] = m[2].trim();
-  }
-  return result;
-}
+The two new budget keys below are informational thresholds an LLM judge reads while executing Step 1's evidence checks (already pure prose today — "run `wc -l CLAUDE.md`, compare against 150" is a bash-command recipe, not a code call). They follow the `execution.always` pattern: no new code, just two new keys documented where they're consumed (Step 1 of `_shared/harness-health-analysis.md`), with instructions for the judge to check `.claude-tweaks/policy.yml` for an override line and fall back to the stated default when the file or key is absent. `bin/lib/policy.js` is untouched by this design.
 
-function getPolicyValue(repoRoot, key, defaultValue) {
-  const policy = readPolicy(repoRoot);
-  return Object.prototype.hasOwnProperty.call(policy, key) ? policy[key] : defaultValue;
-}
-
-function getPolicyNumber(repoRoot, key, defaultValue) {
-  const raw = getPolicyValue(repoRoot, key, null);
-  if (raw === null) return defaultValue;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : defaultValue;
-}
-
-function isWorktreeAlwaysOn(repoRoot) {
-  return getPolicyValue(repoRoot, 'worktree.always', 'false') === 'true';
-}
-```
-
-`isWorktreeAlwaysOn`'s existing three call sites (`bin/lib/hooks/pre-tool-use.js`, `bin/lib/hooks/worktree-detect.js`, `bin/lib/hooks/session-start.js`) are unchanged — same function name, same signature, reimplemented on top of the generic primitive. Not a compatibility shim; it's the natural reuse of a more general function.
-
-New keys, read via `getPolicyNumber`:
+New keys:
 - `harness-health.always-loaded-budget: <n>` — default `150` (preserves today's hardcoded behavior when the key is absent).
 - `harness-health.scoped-rule-budget: <n>` — default `30`.
-
-Documented alongside the checks that read them (Step 1 of `_shared/harness-health-analysis.md`), matching how `worktree.always`/`execution.always` are already documented next to their own consumers rather than in one central registry.
 
 ## Part 2 — Tiered budget & structural checks (`_shared/harness-health-analysis.md` Step 1)
 
@@ -107,7 +76,6 @@ All four are new *evidence*, consumed by the existing Step 2 (8-dimension check)
 
 ## Testing approach
 
-- `tests/policy.test.js`: extend for `readPolicy`/`getPolicyValue`/`getPolicyNumber` (missing file, missing key, non-numeric value, present override), plus a regression test that `isWorktreeAlwaysOn`'s behavior is unchanged.
 - `bin/lib/harness-health/tests/scope.test.js`: tiered-budget classification (a rule with empty `paths:` → always-loaded tier; a rule with globs → scoped tier), and a new `listMemory`/`selectMemoryTarget` suite covering stale-only selection (no hotspot phase) — and, critically, a test asserting `listTargets(root)`'s output never includes a `kind: 'memory'` entry, so the "never auto-selected" guarantee has a regression test, not just a design intent.
 - `bin/lib/harness-health/tests/validate-finding.test.js`: extend `assetType` enum validation to accept `memory`; extend fingerprinting tests for the new asset type.
 - The four new Step 1 checks (tiered budget, unscoped-rule, self-referential count, narrative-density) are prose-level judge instructions, not unit-testable code — verified via `--dry-run` runs during development, the same convention the rest of `_shared/harness-health-analysis.md` already established.
