@@ -9,7 +9,9 @@ const {
 const { decide } = require('./lib/harness-health/dedup');
 const { validateFinding } = require('./lib/harness-health/validate-finding');
 const { toIssuePayload } = require('./lib/harness-health/issue-payload');
-const { selectTarget, listTargets } = require('./lib/harness-health/scope');
+const {
+  selectTarget, listTargets, listMemory, selectMemoryTarget,
+} = require('./lib/harness-health/scope');
 const { STALE_DAYS } = require('./lib/harness-health/score');
 
 function parseArgs(argv) {
@@ -20,6 +22,7 @@ function parseArgs(argv) {
     else if (a === '--root') args.root = argv[++i];
     else if (a === '--target') args.target = argv[++i];
     else if (a === '--kind') args.kind = argv[++i];
+    else if (a === '--memory-dir') args.memoryDir = argv[++i];
     else if (a === '--issues') args.issues = argv[++i];
     else if (a === '--gap-scan') args.gapScan = true;
     else if (a === '--run-id') args.runId = argv[++i];
@@ -60,6 +63,40 @@ function cmdNextTarget(args) {
   const gapScan = readGapScanCursor(root);
   const gapScanDue = gapScan.lastScannedMs == null || (now - gapScan.lastScannedMs) / 86400000 > STALE_DAYS;
 
+  if (args.kind === 'memory') {
+    if (!args.memoryDir) {
+      process.stderr.write('harness-health.js: next-target --kind memory requires --memory-dir <path>\n');
+      process.exit(2);
+    }
+    let memCursors = readCursors(root);
+
+    if (args.target) {
+      const found = listMemory(args.memoryDir).find((t) => t.id === args.target) || null;
+      const target = found ? { ...found, why: 'manual' } : null;
+      process.stdout.write(JSON.stringify({ target, gapScanDue }, null, 2) + '\n');
+      return;
+    }
+
+    const memBudget = Number.isFinite(args.budget) && args.budget > 0 ? args.budget : 1;
+
+    if (memBudget === 1) {
+      const target = selectMemoryTarget(args.memoryDir, memCursors, { now });
+      process.stdout.write(JSON.stringify({ target, gapScanDue }, null, 2) + '\n');
+      return;
+    }
+
+    const memTargets = [];
+    for (let i = 0; i < memBudget; i++) {
+      const target = selectMemoryTarget(args.memoryDir, memCursors, { now });
+      if (!target) break;
+      memTargets.push(target);
+      const key = `${target.kind}:${target.id}`;
+      memCursors = { ...memCursors, [key]: { ...(memCursors[key] || {}), lastAuditedMs: now } };
+    }
+    process.stdout.write(JSON.stringify({ targets: memTargets, gapScanDue }, null, 2) + '\n');
+    return;
+  }
+
   if (args.target) {
     // --kind disambiguates when a skill/rule/CLAUDE.md id collides; without it,
     // the first match in listTargets' skill->rule->claude-md order wins.
@@ -96,7 +133,7 @@ function cmdValidateFindings(args) {
   const findingsPath = args._[1];
   if (!findingsPath) {
     process.stderr.write(
-      'usage: harness-health.js validate-findings <findings.json> [--root <dir>] [--issues <file>] [--target <id>] [--kind <skill|rule|claude-md|design-artifact>] [--gap-scan] [--run-id <id>] [--dry-run]\n',
+      'usage: harness-health.js validate-findings <findings.json> [--root <dir>] [--issues <file>] [--target <id>] [--kind <skill|rule|claude-md|design-artifact|memory>] [--gap-scan] [--run-id <id>] [--dry-run]\n',
     );
     process.exit(2);
   }
@@ -219,8 +256,8 @@ function main(argv) {
   if (cmd === 'mark') return cmdMark(args);
   process.stderr.write(
     'usage: harness-health.js <command> [options]\n' +
-    'commands: next-target [--target <id>] [--kind <skill|rule|claude-md|design-artifact>] [--budget <n>], ' +
-    'validate-findings <file> [--target <id>] [--kind <skill|rule|claude-md|design-artifact>] [--gap-scan], ' +
+    'commands: next-target [--target <id>] [--kind <skill|rule|claude-md|design-artifact|memory>] [--memory-dir <path>] [--budget <n>], ' +
+    'validate-findings <file> [--target <id>] [--kind <skill|rule|claude-md|design-artifact|memory>] [--gap-scan], ' +
     'churn-report [--fail-on-high-churn <r>], mark <fingerprint> <applied|declined>\n',
   );
   process.exit(2);

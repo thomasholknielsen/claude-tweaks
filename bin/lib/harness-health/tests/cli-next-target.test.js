@@ -108,3 +108,46 @@ test('next-target does not surface design artifacts when design-integration is n
   const result = runNextTarget(['--kind', 'design-artifact'], root);
   assert.strictEqual(result.target, null);
 });
+
+test('next-target --kind memory --memory-dir <dir> picks a never-audited memory entry as stale', () => {
+  const root = tmp();
+  const memoryDir = tmp();
+  fs.writeFileSync(path.join(memoryDir, 'MEMORY.md'), '- [Only entry](only-entry.md) — hook\n');
+  const result = runNextTarget(['--kind', 'memory', '--memory-dir', memoryDir], root);
+  assert.strictEqual(result.target.kind, 'memory');
+  assert.strictEqual(result.target.id, 'only-entry');
+  assert.strictEqual(result.target.why, 'stale');
+});
+
+test('next-target --kind memory --target <id> --memory-dir <dir> bypasses selection with why: manual', () => {
+  const root = tmp();
+  const memoryDir = tmp();
+  fs.writeFileSync(
+    path.join(memoryDir, 'MEMORY.md'),
+    '- [First entry](first-entry.md) — hook\n- [Second entry](second-entry.md) — hook\n',
+  );
+  const result = runNextTarget(['--kind', 'memory', '--target', 'second-entry', '--memory-dir', memoryDir], root);
+  assert.strictEqual(result.target.id, 'second-entry');
+  assert.strictEqual(result.target.why, 'manual');
+});
+
+test('next-target --kind memory without --memory-dir exits 2 with a clear usage error', () => {
+  const root = tmp();
+  assert.throws(
+    () => execFileSync('node', [CLI, 'next-target', '--root', root, '--kind', 'memory'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }),
+    (err) => {
+      assert.strictEqual(err.status, 2);
+      assert.match(err.stderr.toString(), /--memory-dir/);
+      return true;
+    },
+  );
+});
+
+test('next-target (bare, no --kind) never surfaces a memory target even when MEMORY.md exists at --root', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'MEMORY.md'), '- [Only entry](only-entry.md) — hook\n');
+  fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth');
+  const result = runNextTarget([], root);
+  assert.notStrictEqual(result.target && result.target.kind, 'memory');
+});
