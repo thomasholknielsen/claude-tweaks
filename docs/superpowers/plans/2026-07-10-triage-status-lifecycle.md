@@ -1920,6 +1920,74 @@ git commit -m "Specify the fast-track auto-merge's mechanical procedure and fix 
 
 ---
 
+### Task 17: Verify the main checkout's branch before the fast-track merge
+
+**Files:**
+- Modify: `skills/triage/SKILL.md`
+- Modify: `skills/wrap-up/review-console.md`
+
+Found during Task 16's final review. Both new `git merge --no-ff` snippets
+merge into whatever branch the main checkout currently happens to be on,
+with no verification — this is exactly the failure mode CLAUDE.md's own
+Don'ts section warns about ("Don't run merges... in the main checkout
+without verifying `git branch --show-current` in the same compound command
+— concurrent sessions switch its branch underfoot"). The pattern being
+mirrored (`flow/worktree-merge.md`) has the same gap, but that path always
+has a human present who'd notice a merge landing somewhere unexpected — the
+fast-track path has nobody watching, making this the single highest-stakes
+place in the whole design for this check to be missing.
+
+- [ ] **Step 1: `skills/triage/SKILL.md`**
+
+Find this exact block (search for `git merge --no-ff`):
+
+```
+```bash
+git merge --no-ff "$BRANCH" -m "[fast-lane] {one-line summary}
+
+Fixes #{issue}"
+git push
+```
+```
+
+Replace it with:
+
+```
+```bash
+DEFAULT_BRANCH=$(gh api "repos/{owner}/{repo}" -q .default_branch)
+CURRENT=$(git branch --show-current)
+if [ "$CURRENT" != "$DEFAULT_BRANCH" ]; then
+  echo "Main checkout is on '$CURRENT', not '$DEFAULT_BRANCH' — a concurrent session switched it. Abort, do not merge." >&2
+  exit 1
+fi
+git merge --no-ff "$BRANCH" -m "[fast-lane] {one-line summary}
+
+Fixes #{issue}"
+git push
+```
+```
+
+- [ ] **Step 2: `skills/wrap-up/review-console.md`**
+
+Apply the identical substitution — find the same `git merge --no-ff` block
+in this file and replace it with the same corrected block from Step 1
+(byte-identical, since both files currently share this exact snippet
+verbatim).
+
+- [ ] **Step 3: Verify**
+
+Run: `grep -n "DEFAULT_BRANCH=\$(gh api" skills/triage/SKILL.md skills/wrap-up/review-console.md`
+Expected: one match per file.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add skills/triage/SKILL.md skills/wrap-up/review-console.md
+git commit -m "Verify the main checkout's branch before the fast-track auto-merge"
+```
+
+---
+
 ## Final verification
 
 - [ ] Run the full test suite and confirm no regressions beyond the
