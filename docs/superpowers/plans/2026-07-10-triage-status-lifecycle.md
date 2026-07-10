@@ -1667,6 +1667,259 @@ git commit -m "Second cross-reference sweep — retire remaining --from-label/--
 
 ---
 
+### Task 15: Sweep `README.md` — the whole-branch review's most significant find
+
+**Files:**
+- Modify: `README.md`
+- Modify: `CLAUDE.md`
+
+Found during the final whole-branch review. `README.md` was never in scope of
+any of the first 14 tasks (none of them touched it), so it still describes
+the retired `/flow --from-label`/`--from-issues`/`agent:eligible`/`agent:go`
+mechanism as current, present-tense capability, and has no entry at all for
+the new `/claude-tweaks:triage` skill — a real user-facing documentation gap
+this project's own CLAUDE.md Don'ts explicitly warn about ("don't forget to
+update README.md... when adding or changing skills").
+
+- [ ] **Step 1: Rewrite the stale clause in `/claude-tweaks:code-health`'s README entry**
+
+Replace:
+
+```
+Any issues — not just code-health's — can feed the pipeline: `/flow --from-label <label>` or `--from-issues <n,...>` batch-build labelled or hand-picked issues, and `/init` offers a GitHub issue form so human-filed issues arrive pipeline-ready. For projects that land fixes on an integration branch before the default branch, `/init` also offers a companion GitHub Actions workflow that labels and comments on the affected issues until the fix reaches default and GitHub's native close fires. Label an issue `agent:eligible` + `agent:go` and a scheduled dispatcher (`/routine create flow`) builds it hands-off — the labels are maintainer signatures, so drive-by issues can't dispatch themselves.
+```
+
+with:
+
+```
+Any issues code-health files feed into `/claude-tweaks:triage`, which authorizes and dispatches them for autonomous building (see below) — `/flow` itself never selects issues. `/init` offers a GitHub issue form so human-filed issues arrive pipeline-ready. For projects that land fixes on an integration branch before the default branch, `/init` also offers a companion GitHub Actions workflow that labels and comments on the affected issues until the fix reaches default and GitHub's native close fires.
+```
+
+(Leave the rest of this entry — the SCOPE → CLASSIFY → JUDGE workflow, claim
+locking, stale-claim sweeping — untouched; only this one clause describes
+retired behavior.)
+
+- [ ] **Step 2: Add a `/claude-tweaks:triage` entry**
+
+Insert this new entry immediately after the (now-corrected)
+`/claude-tweaks:code-health` entry and before `/claude-tweaks:routine`:
+
+```markdown
+
+**`/claude-tweaks:triage`** — Authorizes GitHub issues for autonomous building and dispatches already-authorized ones to `/flow`. Bare invocation is interactive: pulls untiered `code-health`/`harness-health` issues, computes a mechanical recommendation (risk:low + effort:low → fast-track, else → approved) from code-health's own risk/effort labels, and applies one of three `status:*` tier labels (`needs-review`/`approved`/`fast-track`) after a single batch confirm — a human always executes the actual label write, even when the recommendation is accepted as-is. `triage dispatch` is the headless subcommand a scheduled Routine fires: it claims already-tiered issues (`refs/claims/issue-{N}`, same atomic lock as code-health) and hands each to `/claude-tweaks:flow #{issue}` for pure execution. A `fast-track` issue whose run comes back completely clean (zero hard-gate failures, zero review findings ≥ medium, diff within a small blast-radius cap) merges without waiting for a live approval; anything less than clean falls back to the normal wait. A failed build downgrades `fast-track` to `approved` (no repeat unsupervised attempts) and, after a configurable retry ceiling, strips the tier and flags `status:blocked` for a human to look at. Only the interactive invocation ever grants a tier — `dispatch` may only downgrade or strip one it reads, never originate authorization from nothing.
+```
+
+- [ ] **Step 3: Fix `CLAUDE.md`'s `/help` sub-file stage-count nit**
+
+Replace:
+
+```
+| help | reference-card.md, context-flow.md, status-scan.md | Quick reference card (single source of truth for the command catalog); artifact flow documentation; pipeline status scan parallel-dispatch procedure (Stages 1-7, incl. Stage 4.5 current-PR scan) |
+```
+
+with:
+
+```
+| help | reference-card.md, context-flow.md, status-scan.md | Quick reference card (single source of truth for the command catalog); artifact flow documentation; pipeline status scan parallel-dispatch procedure (Stages 1-7 incl. sub-stages 1.5/4.5/4.6, current-PR scan, and triage-queue counts) |
+```
+
+- [ ] **Step 4: Verify no stray references remain in README.md**
+
+Run: `grep -n "agent:eligible\|agent:go\b\|--from-label\|--from-issues\|--from-milestone\|/routine create flow" README.md`
+Expected: no output. (Line 17's historical v5.15.0 changelog entry describing
+these as what *shipped in that release* is out of scope — that's a record of
+past behavior, not a claim about current capability, and this project's own
+convention treats changelog entries as historical record, not live
+documentation to be rewritten.)
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add README.md CLAUDE.md
+git commit -m "Sweep README.md for /claude-tweaks:triage — the whole-branch review's most significant find"
+```
+
+---
+
+### Task 16: Fix the fast-track auto-merge's missing mechanical procedure
+
+**Files:**
+- Modify: `skills/triage/SKILL.md`
+- Modify: `skills/wrap-up/review-console.md`
+- Modify: `bin/lib/issues/retry.js`
+- Modify: `bin/lib/issues/tests/retry.test.js`
+
+Found during the final whole-branch review. The auto-merge gate's own text
+says "merge immediately (tag the merge commit `[fast-lane]`)" but never
+specifies *how* — the only existing merge machinery
+(`/superpowers:finishing-a-development-branch`, invoked from
+`wrap-up/cleanup-procedures.md` Section C) is interactive, presenting
+merge/PR/discard options to a human who isn't there during a headless
+`dispatch` run. Worse, that path's own "Merge locally" option is a bare
+fast-forward `git merge` with **no merge commit at all** on the common case —
+exactly why `cleanup-procedures.md` Section C uses an empty *carrier* commit
+for the closing keyword rather than tagging the merge commit itself. On a
+fast-forward, there is no commit for `[fast-lane]` to land on, and `/help`
+Stage 4.6's "auto-merged this week" count (which greps the default branch for
+`[fast-lane]`-tagged commits) would silently undercount.
+
+The fix mirrors `flow/worktree-merge.md`'s already-established pattern for
+another headless-adjacent case (parallel worktree reconciliation): an
+explicit `git merge --no-ff` guarantees a real merge commit exists, which
+both carries the `[fast-lane]` tag and the `Fixes #{issue}` closing keyword
+in the same commit message — no separate carrier commit needed for this path.
+
+- [ ] **Step 1: Read the current "Auto-merge gate" section in `skills/triage/SKILL.md`**
+
+Find the paragraph beginning "**All four pass:**" (search for `[fast-lane]`)
+to confirm its exact current wording before editing.
+
+- [ ] **Step 2: Replace the vague "merge immediately" instruction with an explicit procedure**
+
+Replace:
+
+```
+**All four pass:** merge without waiting for a live approval. Tag the merge
+commit `[fast-lane]`. Log to `decisions.md`:
+`AUTO {time} — Fast-lane auto-merge: issue #{n}, {lines} lines across {files} files, zero findings >= medium. Reversibility: high (git revert).`
+Attach the full Review-Console-equivalent summary (whatever Auto-applied /
+Skill updates / Configuration updates sections wrap-up already produced) to a
+`PushNotification` as a non-blocking FYI — nothing wrap-up found is dropped,
+only the wait for a click is skipped.
+```
+
+with:
+
+```
+**All four pass:** merge directly, bypassing the interactive
+`/superpowers:finishing-a-development-branch` handoff entirely (there is no
+human present to answer its merge/PR/discard prompt during a headless
+`dispatch` run). Before merging, clear this run's worktree assignment the
+same way `flow/worktree-merge.md`'s reconciliation does (`node
+"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"`) so the
+merge itself, landing in the main checkout, isn't denied as a wrong-checkout
+commit. Then, from the main checkout:
+
+```bash
+git merge --no-ff "$BRANCH" -m "[fast-lane] {one-line summary}
+
+Fixes #{issue}"
+git push
+```
+
+The explicit `--no-ff` guarantees a real merge commit exists even when the
+branch would otherwise fast-forward — this is what the `[fast-lane]` tag
+lands on, and the same commit message carries the `Fixes #{issue}` closing
+keyword per "Close-via-merge" in `_shared/issue-claims.md`, so no separate
+carrier commit is needed for this path. **If the merge conflicts:** conflict
+resolution requires judgment a headless run can't supply — abort the merge
+(`git merge --abort`) and fall back to Standard (present the normal Review
+Console, wait for a human), logging why the fast-lane path was abandoned.
+
+Log to `decisions.md`:
+`AUTO {time} — Fast-lane auto-merge: issue #{n}, {lines} lines across {files} files, zero findings >= medium. Merge commit: {sha}. Reversibility: high (git revert).`
+Attach the full Review-Console-equivalent summary (whatever Auto-applied /
+Skill updates / Configuration updates sections wrap-up already produced) to a
+`PushNotification` as a non-blocking FYI — nothing wrap-up found is dropped,
+only the wait for a click is skipped.
+```
+
+- [ ] **Step 3: Apply the same fix to `skills/wrap-up/review-console.md`'s "Fast-track short-circuit" section**
+
+Find the equivalent "**All four pass:**" paragraph in this file (search for
+`[fast-lane]`) and apply the same substantive fix — merge mechanics
+(worktree-assignment clear, `git merge --no-ff` with the `Fixes #{issue}`
+keyword, conflict fallback to Standard) — adjusted to fit this file's own
+surrounding wording rather than a verbatim copy-paste of Step 2's text.
+
+- [ ] **Step 4: Fix `retry.js`'s inaccurate terminal comment wording (Minor finding)**
+
+The comment `attemptFailedCommentBody` generates always ends "Claim
+released, will retry." — true for a comment posted below the retry ceiling,
+false for the comment posted on the attempt that *hits* the ceiling (no
+retry follows; the tier gets stripped and `status:blocked` set instead).
+
+Update the function to accept whether this attempt hit the ceiling and vary
+its closing clause accordingly:
+
+```js
+// bin/lib/issues/retry.js
+function attemptFailedCommentBody({ attemptNumber, reason, ceilingHit }) {
+  const closing = ceilingHit
+    ? 'Retry ceiling reached — no further automatic retries.'
+    : 'Claim released, will retry.';
+  return `Attempt ${attemptNumber} failed: ${reason}. ${closing}`;
+}
+```
+
+Update `bin/lib/issues/tests/retry.test.js`'s existing
+`attemptFailedCommentBody` test to also cover the `ceilingHit: true` case
+(add a new test rather than modifying the existing one, which should keep
+asserting the default/`false` case):
+
+```js
+test('attemptFailedCommentBody varies its closing line when the ceiling was hit', () => {
+  const body = attemptFailedCommentBody({ attemptNumber: 3, reason: 'test gate failed', ceilingHit: true });
+  assert.strictEqual(body, 'Attempt 3 failed: test gate failed. Retry ceiling reached — no further automatic retries.');
+});
+```
+
+Run `node --test bin/lib/issues/tests/retry.test.js` and confirm all tests
+(the existing ones plus the new one) pass.
+
+- [ ] **Step 5: Wire up (or remove) `hasHitRetryCeiling` — it's currently dead code with a latent off-by-one trap (Minor finding)**
+
+`skills/triage/SKILL.md`'s dispatch Step 4 inlines its own ceiling check
+(`attemptNumber >= ceiling`, where `attemptNumber` already accounts for the
+current attempt) rather than calling `retry.js`'s own exported
+`hasHitRetryCeiling(comments, ceiling)`, which compares an *already-posted*
+comment count against the ceiling. These only agree if `hasHitRetryCeiling`
+is called strictly *after* posting the current attempt's comment — call it
+before, and it's off by one. Since nothing currently calls it, this is a
+trap for a future caller, not a live bug — but leaving an untested-in-context
+export around is worse than removing it.
+
+Update `skills/triage/SKILL.md`'s dispatch Step 4 (the same JSON-emitting
+`node -e` snippet from Step 2's `ceilingHit` computation) to call
+`hasHitRetryCeiling` explicitly instead of reimplementing the comparison
+inline, making the call-timing dependency visible in the one place that
+matters:
+
+```js
+const { countFailedAttempts, hasHitRetryCeiling } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/retry.js');
+const comments = require(process.argv[1]);
+const attemptNumber = countFailedAttempts(comments) + 1;
+const ceiling = Number(process.argv[2] || 3);
+// hasHitRetryCeiling counts existing comments only — call it against attemptNumber's
+// equivalent by treating "this attempt" as already-counted (attemptNumber IS that count).
+const ceilingHit = attemptNumber >= ceiling; // equivalent to hasHitRetryCeiling if comments included this attempt's own (not-yet-posted) comment
+console.log(JSON.stringify({ attemptNumber, ceilingHit }));
+```
+
+Read the current exact text of this snippet in `skills/triage/SKILL.md`
+first (search for `countFailedAttempts`) — apply the substantive change
+(explicitly reference `hasHitRetryCeiling` in the destructure and in a
+one-line comment explaining the timing relationship, per above) to whatever
+the actual current text is, rather than assuming it matches the snippet
+above verbatim.
+
+- [ ] **Step 6: Verify**
+
+Run: `node --test bin/lib/issues/tests/retry.test.js`
+Expected: all tests pass, including the new ceiling-hit wording test.
+
+Run: `grep -n "merge immediately" skills/triage/SKILL.md skills/wrap-up/review-console.md`
+Expected: no output (replaced by the explicit procedure in both files).
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add skills/triage/SKILL.md skills/wrap-up/review-console.md bin/lib/issues/retry.js bin/lib/issues/tests/retry.test.js
+git commit -m "Specify the fast-track auto-merge's mechanical procedure and fix retry.js's minor findings"
+```
+
+---
+
 ## Final verification
 
 - [ ] Run the full test suite and confirm no regressions beyond the
