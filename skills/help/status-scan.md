@@ -2,7 +2,7 @@
 
 Stage-by-stage scan procedure run by `/claude-tweaks:help` (default invocation, or `status` argument). Lazy-loaded from `SKILL.md` Section 2.
 
-> **Parallel execution:** Dispatch Stages 1-7 (including Stages 4.5 and 4.6) as parallel Task agents — each stage scans an independent data source and returns counts, flags, and recommendations. The orchestrator assembles the dashboard after all agents complete.
+> **Parallel execution:** Dispatch Stages 1-7 including sub-stages 1.5, 4.5, and 4.6 as parallel Task agents — each stage scans an independent data source and returns counts, flags, and recommendations. The orchestrator assembles the dashboard after all agents complete.
 >
 > **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input (scope + path + literal output template, no conversation), status line first (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`), then Template A.
 >
@@ -155,7 +155,7 @@ Render as three lines on the dashboard:
 
 - Pending authorization: **{N} issues awaiting your decision** — run `/claude-tweaks:triage` (omit this line when N is 0)
 - Blocked: **{N} issues hit their retry ceiling** — run `/claude-tweaks:triage` to review (omit this line when N is 0)
-- Auto-merged this week: **{N} fast-lane merges** (omit this line when N is 0)
+- Auto-merged this week: **{N} fast-lane merges** on the default branch in the last 7 days (omit this line when N is 0)
 
 ### Ready to Build (priority order)
 | Spec | Title | Tier | Has Plan? |
