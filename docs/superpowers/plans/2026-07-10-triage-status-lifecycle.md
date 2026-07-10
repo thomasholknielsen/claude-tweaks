@@ -930,12 +930,32 @@ with:
 7. **Remove the tier label** for each issue released with a `merged:` or `pr-opened:` outcome that carries `status:approved` or `status:fast-track`: `gh issue edit "$ISSUE" --remove-label status:approved` (or `status:fast-track`, whichever is present) — reversible, log each removal to `decisions.md`. Skip issues released as `abandoned:` (the label is the retry request) and issues without a tier label. See "Dispatch authorization" in `_shared/issue-claims.md`.
 ```
 
-- [ ] **Step 3: Verify no stray references remain**
+- [ ] **Step 3: Fix the "Issue closures" section heading**
 
-Run: `grep -n "agent:go\|agent:eligible" skills/flow/multispec-review-console.md`
+Replace:
+
+```
+#### Issue closures (from-code-health runs — closes on YOUR merge/push, not by the pipeline)
+```
+
+with:
+
+```
+#### Issue closures (issue-derived specs — closes on YOUR merge/push, not by the pipeline)
+```
+
+Found during Task 6's own review — a whole-repo grep for `from-code-health`
+scoped to `skills/flow/` turned up this heading alongside two files already
+covered by Task 12 (`failure-cards.md`, `worktree-merge.md`); this file's own
+occurrence wasn't caught by Steps 1-2 above since those only touch the
+label-removal steps, not this heading.
+
+- [ ] **Step 4: Verify no stray references remain**
+
+Run: `grep -n "agent:go\|agent:eligible\|from-code-health" skills/flow/multispec-review-console.md`
 Expected: no output
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add skills/flow/multispec-review-console.md
