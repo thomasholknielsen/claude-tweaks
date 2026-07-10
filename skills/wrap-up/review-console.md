@@ -30,9 +30,12 @@ a live approval is skipped. Log to `decisions.md`:
 **Any layer fails:** proceed to render the console normally, exactly as a
 `status:approved` issue would — no different from any other pipeline run.
 
-This check does not apply to `MULTISPEC_REVIEW_DEFER=1` runs — the
-consolidated multi-spec console (`flow/multispec-review-console.md`) performs
-its own equivalent check across all specs in the batch.
+This check does not apply to `MULTISPEC_REVIEW_DEFER=1` runs — a `status:fast-track`
+issue that ends up inside a human-run multi-spec batch (rather than dispatched
+single-issue by `/claude-tweaks:triage dispatch`, which is the only path this
+design's fast-lane treatment targets) still gets the normal, fully-blocking
+consolidated Review Console, same as any other spec in the batch. No
+equivalent auto-merge gate exists for the multi-spec console today.
 
 ## Multi-spec defer protocol
 
