@@ -161,13 +161,13 @@ When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
    " "/tmp/dispatch-comments-${ISSUE}.json" "$TRIAGE_RETRY_CEILING" > "/tmp/attempt-info-${ISSUE}.json"
    ```
 
-3. Post the failure comment, using the `attemptNumber` just computed:
+3. Post the failure comment, using the `attemptNumber` and `ceilingHit` just computed:
 
    ```bash
    node -e "
      const { attemptFailedCommentBody } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/retry.js');
-     const { attemptNumber } = require(process.argv[1]);
-     console.log(attemptFailedCommentBody({ attemptNumber, reason: process.argv[2] }));
+     const { attemptNumber, ceilingHit } = require(process.argv[1]);
+     console.log(attemptFailedCommentBody({ attemptNumber, reason: process.argv[2], ceilingHit }));
    " "/tmp/attempt-info-${ISSUE}.json" "$REASON" > /tmp/attempt-comment.md
    gh issue comment "$ISSUE" --body-file /tmp/attempt-comment.md
    ```
@@ -221,8 +221,9 @@ lands on, and the same commit message carries the `Fixes #{issue}` closing
 keyword per "Close-via-merge" in `_shared/issue-claims.md`, so no separate
 carrier commit is needed for this path. **If the merge conflicts:** conflict
 resolution requires judgment a headless run can't supply — abort the merge
-(`git merge --abort`) and fall back to Standard (present the normal Review
-Console, wait for a human), logging why the fast-lane path was abandoned.
+(`git merge --abort`) and fall back to the normal `status:approved` path
+(present the Review Console, wait for a human), logging why the fast-lane
+path was abandoned.
 
 Log to `decisions.md`:
 `AUTO {time} — Fast-lane auto-merge: issue #{n}, {lines} lines across {files} files, zero findings >= medium. Merge commit: {sha}. Reversibility: high (git revert).`
