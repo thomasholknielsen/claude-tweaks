@@ -165,8 +165,10 @@ Headless agents building arbitrary issue content is a prompt-injection surface: 
 body is untrusted input, and a drive-by issue must not be able to opt itself into autonomous
 execution. The gate is GitHub's own permission model — **applying a label requires triage
 permission, so a label is a maintainer's signature**. Authorization is one of three
-mutually-exclusive `status:*` tier labels, all written exclusively by `/claude-tweaks:triage`'s
-interactive (bare) invocation — never by `dispatch` mode, never by the agent itself:
+mutually-exclusive `status:*` tier labels, all *granted* exclusively by `/claude-tweaks:triage`'s
+interactive (bare) invocation. `dispatch` mode may later downgrade or strip a tier it reads (see
+below), but it never grants a tier to an issue that didn't already carry one, and the agent
+itself never originates a grant:
 
 - `status:needs-review` — the triager flagged this issue as warranting a closer human look.
   It never reaches `/flow` — no autonomous run selects on this label.
@@ -181,9 +183,12 @@ interactive (bare) invocation — never by `dispatch` mode, never by the agent i
   to `status:approved` before the next retry — a retry that wasn't clean the first time
   never gets another unsupervised shot at auto-merge.
 
-Removing a tier label on success (or downgrading `fast-track` → `approved` on failure) is a
-reversible write, logged to `decisions.md`. `/claude-tweaks:triage dispatch` never applies
-`status:needs-review`/`status:approved`/`status:fast-track` — only reads them.
+Removing a tier label on success, downgrading `fast-track` → `approved` on failure, or
+stripping the tier entirely and adding `status:blocked` at the retry ceiling (see
+`skills/triage/SKILL.md`'s dispatch Step 4) are all reversible writes `/claude-tweaks:triage
+dispatch` performs directly, logged to `decisions.md`. What `dispatch` never does is *grant* a
+tier to an issue that didn't already carry one — every write above only ever removes or
+downgrades trust that was already present; it never originates authorization from nothing.
 
 ## Failure posture
 
