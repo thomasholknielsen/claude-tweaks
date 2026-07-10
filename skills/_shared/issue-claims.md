@@ -183,12 +183,14 @@ itself never originates a grant:
   to `status:approved` before the next retry — a retry that wasn't clean the first time
   never gets another unsupervised shot at auto-merge.
 
-Removing a tier label on success, downgrading `fast-track` → `approved` on failure, or
-stripping the tier entirely and adding `status:blocked` at the retry ceiling (see
-`skills/triage/SKILL.md`'s dispatch Step 4) are all reversible writes `/claude-tweaks:triage
-dispatch` performs directly, logged to `decisions.md`. What `dispatch` never does is *grant* a
-tier to an issue that didn't already carry one — every write above only ever removes or
-downgrades trust that was already present; it never originates authorization from nothing.
+Downgrading `fast-track` → `approved` on failure, or stripping the tier entirely and adding
+`status:blocked` at the retry ceiling (see `skills/triage/SKILL.md`'s dispatch Step 4), are
+reversible writes `/claude-tweaks:triage dispatch` performs directly, logged to
+`decisions.md`. Removing a tier label on *success* is a different owner's job — `/wrap-up`
+(or the multi-spec Review Console) removes it after a `merged:`/`pr-opened:` release, per the
+Release triggers table above. What `dispatch` never does, in any of its own writes above, is
+*grant* a tier to an issue that didn't already carry one — it only ever removes or downgrades
+trust that was already present; it never originates authorization from nothing.
 
 ## Failure posture
 
