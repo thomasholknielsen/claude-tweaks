@@ -1,8 +1,8 @@
 // bin/lib/issues/ingest.js
 // Pure: turn `gh issue list/view --json number,title,body,labels` output into
-// pipeline briefs for any selector (--from-issues, --from-label, --from-code-health).
+// pipeline briefs for any selector (--from-issues, --from-label, or code-health's own label default).
 // The SKILL.md runs gh and passes the parsed array — no network here.
-// Contract: skills/_shared/issue-claims.md; consumed by skills/flow/from-code-health.md.
+// Contract: skills/_shared/issue-claims.md; consumed by bin/lib/code-health/pull-issues.js.
 'use strict';
 
 const SEVERITY_RANK = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };

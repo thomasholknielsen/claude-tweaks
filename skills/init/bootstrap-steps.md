@@ -700,8 +700,9 @@ file-backed entries for the same repo.
 **When the gate succeeds** (a GitHub-flavored remote is reachable): skip the prompt
 below entirely and go straight to "Write the flag to CLAUDE.md" with
 `backlog-backend: github-issues`. GitHub issues is the richer, proven path
-(filterable, visible outside the repo, works with `/flow --from-label` and
-`--from-milestone`) — asking a neutral A/B question when the better option is
+(filterable, visible outside the repo, works with `/claude-tweaks:triage` for
+authorization and headless dispatch) — asking a neutral A/B question when the
+better option is
 unambiguously available is unnecessary friction, not a meaningful decision. A user
 who wants local files anyway (e.g. a public repo where backlog items shouldn't be
 GitHub-visible) can still hand-edit CLAUDE.md's `backlog-backend` value afterward —
@@ -717,7 +718,8 @@ defaulted to option 2 — unchanged from today.
 How should claude-tweaks store captured ideas and deferred work?
 
 1. GitHub issues (Recommended when a GitHub remote is available) — filterable,
-   visible outside the repo, works with /flow --from-label and --from-milestone
+   visible outside the repo, works with /claude-tweaks:triage for authorization
+   and headless dispatch
 2. Local markdown files (specs/INBOX.md, specs/DEFERRED.md) — no GitHub dependency
 ```
 
