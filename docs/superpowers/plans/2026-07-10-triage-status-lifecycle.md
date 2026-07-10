@@ -1646,7 +1646,17 @@ the actual current consumer before committing.
 - [ ] **Step 5: Verify no stray references remain**
 
 Run: `grep -rln "agent:eligible\|agent:go\b\|agent:fast\b\|from-code-health\|--from-code-health\|--from-label\|--from-milestone\|--require-eligible" skills/ bin/ 2>/dev/null`
-Expected: no output.
+
+Expected: exactly two files, both legitimate (not retired-flag references) —
+`bin/lib/issues/ingest.js` (this task's own Step 4 comment fix uses
+`--from-label` generically, describing `issuesToBriefs`'s still-live,
+still-generic label-selector parameter shape — not claiming `/flow` still has
+this flag) and `bin/lib/issues/tests/ingest.test.js` (pre-existing test
+fixtures using `agent:go`/`agent:eligible` as arbitrary example label
+strings for that same generic function — assessed as a false alarm during
+Task 12's review, not something this plan touches). Any *other* file appearing
+in this grep's output is a real, unaddressed gap — investigate before
+proceeding.
 
 - [ ] **Step 6: Commit**
 
@@ -1670,7 +1680,10 @@ git commit -m "Second cross-reference sweep — retire remaining --from-label/--
   the deleted `from-code-health.md`, or the retired `/flow` selector flags:
 
   Run: `grep -rln "agent:eligible\|agent:go\b\|agent:fast\b\|from-code-health\|--from-code-health\|--from-label\|--from-milestone\|--require-eligible" skills/ bin/ 2>/dev/null`
-  Expected: no output.
+  Expected: exactly `bin/lib/issues/ingest.js` and
+  `bin/lib/issues/tests/ingest.test.js` — both legitimate generic uses
+  unrelated to `/flow`'s retired flags (see Task 14 Step 5 for why). Any
+  other file appearing here is a real, unaddressed gap.
 
 - [ ] Confirm `skills/flow/from-code-health.md` and
   `skills/flow/routine-template.yml` no longer exist and
