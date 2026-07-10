@@ -65,11 +65,11 @@ tier to the weekly sweep's more analytical findings), and for `local-files`
 backend projects, maintain one rolling digest artifact (a single GitHub issue,
 or a committed file under `local-files`) that each firing *updates in place*,
 never recreates, with three sections: "Auto-applied," "Auto-mutated with
-evidence," and "Still needs your review." The last section also surfaces the
-Dispatcher's pending-authorization queue size (see
-`2026-07-10-dispatcher-status-lifecycle-design.md`), so a human has one
+evidence," and "Still needs your review." The last section also surfaces
+`/claude-tweaks:triage`'s pending-authorization queue size (see
+`2026-07-10-triage-status-lifecycle-design.md`), so a human has one
 consolidated place for everything currently awaiting their attention, rather
-than checking `/tidy`'s digest and the Dispatcher's queue separately.
+than checking `/tidy`'s digest and `/claude-tweaks:triage`'s queue separately.
 
 `PushNotification` fires only when the digest's "still needs your review"
 section is non-empty — never on an all-clear firing, keeping the signal
@@ -101,7 +101,7 @@ archiving the run directory the same way `/wrap-up` already archives completed
   entirely judgment calls even in their own classification tables — nothing
   here proposes auto-mutating them. This pilot stays scoped to `--scope=github`.
 - **Bulk authorization tooling.** Covered by
-  `2026-07-10-dispatcher-status-lifecycle-design.md` instead — this design is
+  `2026-07-10-triage-status-lifecycle-design.md` instead — this design is
   about `/tidy`'s own GitHub-hygiene findings (PRs, threads, stale/superseded
   issues), not about authorizing issues for building.
 

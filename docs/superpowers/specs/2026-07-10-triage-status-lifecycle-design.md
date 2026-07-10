@@ -1,4 +1,4 @@
-# Dispatcher skill + unified status lifecycle — Design
+# Triage skill + unified status lifecycle — Design
 
 ## Problem
 
@@ -31,25 +31,26 @@ that becoming an AI auto-authorizing its own work?
 
 ## Solution
 
-### A. New skill: `/claude-tweaks:dispatch` (name TBD — flag for review)
+### A. New skill: `/claude-tweaks:triage`
 
-Owns everything `/flow`'s issue-sourced batch mode used to. Two modes:
+Owns everything `/flow`'s issue-sourced batch mode used to. One skill, two
+invocation shapes:
 
-**Triage** (interactive, human-run periodically): pulls every code-health/
-harness-health issue carrying no `status:*` tier label yet. For each, computes
-a recommended tier via the Tier Rule (Solution C) and renders the standard
-batch table (issue #, title, risk, effort, recommended tier) with one
-`AskUserQuestion` apply-all/override gate. On confirm, writes the resulting
-`status:*` label via `gh issue edit`.
+**Bare invocation, `/claude-tweaks:triage`** (interactive, human-run
+periodically): pulls every code-health/harness-health issue carrying no
+`status:*` tier label yet. For each, computes a recommended tier via the Tier
+Rule (Solution C) and renders the standard batch table (issue #, title, risk,
+effort, recommended tier) with one `AskUserQuestion` apply-all/override gate.
+On confirm, writes the resulting `status:*` label via `gh issue edit`.
 
-**Dispatch** (headless, runs on the routine's cron): pulls every issue labeled
-`status:approved` or `status:fast-track`, claims each
-(`refs/claims/issue-<n>`, `status:in-progress` alongside), and hands it to
-`/claude-tweaks:flow <issue-ref>` for pure execution — no filtering logic of
-its own beyond "does it carry a tier label."
+**`/claude-tweaks:triage dispatch`** (headless, runs on the routine's cron):
+pulls every issue labeled `status:approved` or `status:fast-track`, claims
+each (`refs/claims/issue-<n>`, `status:in-progress` alongside), and hands it
+to `/claude-tweaks:flow <issue-ref>` for pure execution — no filtering logic
+of its own beyond "does it carry a tier label."
 
-`flow/routine-template.yml` is retargeted to invoke the Dispatcher's Dispatch
-mode instead of calling `/claude-tweaks:flow --from-label agent:go
+`flow/routine-template.yml` is retargeted to invoke `/claude-tweaks:triage
+dispatch` instead of calling `/claude-tweaks:flow --from-label agent:go
 --require-eligible` directly.
 
 ### B. `/flow` becomes a pure executor
@@ -57,34 +58,34 @@ mode instead of calling `/claude-tweaks:flow --from-label agent:go
 Remove the entire issue-sourced-batch mode: `--from-code-health`, `--from-label`,
 `--from-issues`, `--from-milestone`, `--quick-wins`, `--require-eligible`, and
 `from-code-health.md` in full. `/flow` accepts a spec number (existing,
-unchanged) or an issue reference handed to it by the Dispatcher — in the
-latter case it runs the existing `/specify`-derive-then-build procedure for
-that one issue and nothing else. `/flow` never selects, filters, sorts, or
-batches issues itself again.
+unchanged) or an issue reference handed to it by `/claude-tweaks:triage
+dispatch` — in the latter case it runs the existing `/specify`-derive-then-
+build procedure for that one issue and nothing else. `/flow` never selects,
+filters, sorts, or batches issues itself again.
 
 ### C. Unified `status:*` lifecycle — replaces `agent:eligible`/`agent:go`/`agent:fast`
 
 One namespace holding two coexisting concerns, not one linear enum: a **tier**
 (persists across a run, human-set only, mutually exclusive with the other tier
-values) and a transient **execution marker** (dispatcher-set, coexists
-alongside whichever tier is present).
+values) and a transient **execution marker** (set by the dispatch mode,
+coexists alongside whichever tier is present).
 
 | Label | Kind | Meaning |
 |---|---|---|
-| *(none)* | — | Never triaged — today's bypass/manual state, invisible to the Dispatcher |
+| *(none)* | — | Never triaged — today's bypass/manual state, invisible to `/claude-tweaks:triage` |
 | `status:needs-review` | tier | Triager flagged this — signals warrant a closer human look before authorizing anything. Never reaches `/flow`. |
 | `status:approved` | tier | Build it, full pipeline, human approves the merge (was `agent:go`) |
 | `status:fast-track` | tier | Build it, full pipeline, auto-merge only if the run comes back clean (was `agent:go` + `agent:fast` combined) |
 | `status:in-progress` | execution | Currently claimed and being built — cosmetic mirror of the claim ref, no locking semantics of its own |
 | `status:blocked` | execution | Hit the retry ceiling — needs a human look, no longer retrying automatically |
 
-**Tier Rule** (mechanical, the only rule Triage's recommendation uses — no
-separate discretionary judgment layered on top): `risk:low AND effort:low →
-fast-track`, else `→ approved`. (Code-health's `confidence` score is a
-pre-filing decision input, not a persisted label — every filed issue already
-cleared whatever confidence bar applied before it existed, so the rule only
-ever checks the two labels that actually exist on the issue: `risk-<tier>` and
-`effort-<tier>`.)
+**Tier Rule** (mechanical, the only rule the bare invocation's recommendation
+uses — no separate discretionary judgment layered on top): `risk:low AND
+effort:low → fast-track`, else `→ approved`. (Code-health's `confidence` score
+is a pre-filing decision input, not a persisted label — every filed issue
+already cleared whatever confidence bar applied before it existed, so the
+rule only ever checks the two labels that actually exist on the issue:
+`risk-<tier>` and `effort-<tier>`.)
 
 The human still explicitly executes the batch-confirm that writes the label —
 even when that's a single "apply all recommended" click every time. This is
@@ -94,9 +95,9 @@ rule can decide the recommendation, but only a human action writes it.
 
 **`agent:eligible` is dropped.** Its only justification — a general-purpose
 check usable with *any* `/flow` selector — no longer applies once selection
-lives solely in the Dispatcher, which only ever pulls on the tier labels. A
-second label serving the same purpose as `agent:go` bought nothing once there
-was exactly one selection path left.
+lives solely in `/claude-tweaks:triage`, which only ever pulls on the tier
+labels. A second label serving the same purpose as `agent:go` bought nothing
+once there was exactly one selection path left.
 
 **Failure-downgrade rule:** any failed run downgrades `fast-track` →
 `approved`. A retry that didn't come back clean the first time doesn't get
@@ -104,12 +105,12 @@ another unsupervised shot at auto-merge — its next attempt, however it turns
 out, waits for a human's merge approval.
 
 **Retry ceiling:** after N=3 consecutive failures (configurable via a
-CLAUDE.md/`policy.yml` flag, `dispatch-retry-ceiling`, default 3), the
-Dispatcher strips the tier label, sets `status:blocked`, and sends a
+CLAUDE.md/`policy.yml` flag, `triage-retry-ceiling`, default 3), the dispatch
+mode strips the tier label, sets `status:blocked`, and sends a
 `PushNotification`. Each failed attempt first posts a comment (`Attempt {n}
 failed: {reason}. Claim released, will retry.`) rather than writing to a
-hidden marker — the Dispatcher counts these comments to track the ceiling, and
-a human glancing at the issue sees exactly what happened on every attempt
+hidden marker — the dispatch mode counts these comments to track the ceiling,
+and a human glancing at the issue sees exactly what happened on every attempt
 without needing to reconstruct it from `decisions.md`.
 
 ### D. Auto-merge gate model (fast-track only)
@@ -151,10 +152,10 @@ merge needs no action but is worth passive awareness of.
 ### E. `/help` dashboard additions
 
 A new stage in `help/status-scan.md` surfacing three cheap counts (detail
-stays `/tidy`'s and the Dispatcher's job, not `/help`'s): pending-authorization
-backlog size ("N issues awaiting your decision — run `/claude-tweaks:dispatch
-triage`"), `status:blocked` count, and a rolling "N auto-merged this week
-(fast-lane)" line.
+stays `/tidy`'s and `/claude-tweaks:triage`'s job, not `/help`'s):
+pending-authorization backlog size ("N issues awaiting your decision — run
+`/claude-tweaks:triage`"), `status:blocked` count, and a rolling "N
+auto-merged this week (fast-lane)" line.
 
 ## Out of scope (YAGNI)
 
@@ -164,15 +165,17 @@ triage`"), `status:blocked` count, and a rolling "N auto-merged this week
 - **Automated escalation beyond `status:blocked`.** Hitting the retry ceiling
   strips the tier and notifies — it doesn't attempt any smarter recovery
   (e.g. auto-filing a follow-up issue). A human decides what happens next.
-- **Letting the Dispatcher itself add `status:fast-track`/`status:approved`.**
-  Only Triage mode (human-confirmed) ever writes a tier label — the Dispatcher
-  in headless Dispatch mode only ever reads them.
+- **Letting the headless dispatch mode itself add `status:fast-track`/
+  `status:approved`.** Only the interactive (bare) invocation, human-confirmed,
+  ever writes a tier label — `/claude-tweaks:triage dispatch` only ever reads
+  them.
 
 ## Key decisions (from conversation)
 
 | Decision | Choice |
 |---|---|
-| Selection logic's home | New `/claude-tweaks:dispatch` skill (Triage + Dispatch modes), not `/flow` |
+| Selection logic's home | New `/claude-tweaks:triage` skill (bare invocation = interactive triage, `dispatch` subcommand = headless), not `/flow` |
+| Skill name | `triage`, not `dispatch` — names the interesting decision (assess risk/effort, decide treatment) rather than the mechanical hand-off that follows it |
 | `/flow`'s scope | Pure executor — accepts a spec number or a handed-off issue reference, never selects/filters/sorts issues itself |
 | Label namespace | Unified under `status:*`, not a separate `agent:*` namespace |
 | Tier vs. execution state | Two coexisting concerns under one prefix (tier persists, execution marker is transient), not one linear FSM |
@@ -185,13 +188,15 @@ triage`"), `status:blocked` count, and a rolling "N auto-merged this week
 
 ## Testing / verification approach
 
-1. Author the new `/claude-tweaks:dispatch` skill's Triage mode against a repo
-   with a mix of `risk-low`/`effort-low` and higher-tier code-health issues —
-   confirm the recommended-tier column matches the Tier Rule exactly, and that
-   applying "recommended" writes the correct `status:*` label per issue.
-2. Confirm Dispatch mode only ever pulls `status:approved`/`status:fast-track`
-   issues, claims each, and hands off to `/flow <issue-ref>` — verify it never
-   reads `risk-<tier>`/`effort-<tier>` itself (that's Triage's job only).
+1. Author the new `/claude-tweaks:triage` skill's bare (interactive) invocation
+   against a repo with a mix of `risk-low`/`effort-low` and higher-tier
+   code-health issues — confirm the recommended-tier column matches the Tier
+   Rule exactly, and that applying "recommended" writes the correct `status:*`
+   label per issue.
+2. Confirm `/claude-tweaks:triage dispatch` only ever pulls
+   `status:approved`/`status:fast-track` issues, claims each, and hands off to
+   `/flow <issue-ref>` — verify it never reads `risk-<tier>`/`effort-<tier>`
+   itself (that's the interactive invocation's job only).
 3. Run a fast-track issue through a deliberately "dirty" pipeline (inject a
    Medium-severity review finding) — confirm it falls back to Standard and
    parks at Review Console rather than auto-merging.
