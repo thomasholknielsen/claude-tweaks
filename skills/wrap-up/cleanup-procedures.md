@@ -126,8 +126,10 @@ If no `ephemeral-server.txt` exists, skip this section silently (the run used an
 
 ## E. Issue claim release (v5.3.0)
 
-If the spec's frontmatter carries `recon-issue: <n>` (stamped by `/flow --from-code-health` spec
-derivation), the pipeline holds `refs/claims/issue-<n>` per `_shared/issue-claims.md`.
+If the spec's frontmatter carries `recon-issue: <n>` (stamped by `/specify`'s issue-ingestion
+path — either invoked directly on an issue reference, or via `/claude-tweaks:flow #{issue}`'s
+hand-off, which itself calls `/specify #{issue}`), the pipeline holds `refs/claims/issue-<n>`
+per `_shared/issue-claims.md`.
 Release it only after the branch outcome is known (item 5 completes first — the execution
 order of the canonical list guarantees this):
 
@@ -160,10 +162,11 @@ order of the canonical list guarantees this):
 5. A 404/422 from the ref delete means the claim was already released or swept — log it and
    still post the release comment (the comment trail should record the outcome). Any other
    failure: retry once, then log and continue — TTL is the backstop, never block wrap-up.
-6. **Remove the dispatch label** when the outcome was `merged:` or `pr-opened:` and the issue
-   carries `agent:go`: `gh issue edit "$ISSUE" --remove-label agent:go` (reversible; log to
-   `decisions.md`). Leave the label on `abandoned:` — it is the standing retry request. Skip
-   silently when the label is absent.
+6. **Remove the tier label** when the outcome was `merged:` or `pr-opened:` and the issue
+   carries `status:approved` or `status:fast-track`: `gh issue edit "$ISSUE" --remove-label status:approved`
+   (or `status:fast-track`, whichever is present) (reversible; log to `decisions.md`). Leave
+   the label on `abandoned:` — it is the standing retry request. Skip silently when no tier
+   label is present.
 7. **Remove `status:in-progress`; restore `parked` if applicable.** Always remove
    `status:in-progress` (`gh issue edit "$ISSUE" --remove-label status:in-progress`) —
    best-effort, log a warning and continue on failure. Then, only when the outcome reason is
