@@ -66,8 +66,9 @@ regardless of whether the label add/remove succeeds.
   Step 2, the one claim-acquiring consumer today).
 - **Removed** alongside claim release — every release removes it, regardless of outcome
   (`wrap-up/cleanup-procedures.md` Section E, its duplicate in
-  `flow/multispec-review-console.md`, and the declined-at-console release in
-  `/claude-tweaks:flow`'s own issue-mode handling).
+  `flow/multispec-review-console.md`, and — for a single-spec issue-mode run the user chooses
+  not to merge — the same Section E `abandoned:` path any single-spec `/wrap-up` already uses;
+  there is no separate flow-owned "console decline" mechanism for issue-mode).
 - Best-effort in both directions: a failed add/remove never blocks the claim, the release, or
   the pipeline. `/tidy` Step 4.7 flags an issue that still carries the label with no active
   claim as a backstop.
@@ -112,7 +113,8 @@ live, skip the issue, and let `/tidy`'s sweep surface it for human judgment.
 |---|---|---|
 | Spec merged / PR opened / discarded | `/wrap-up` cleanup item 8 | `merged: spec {spec}` / `pr-opened: spec {spec}` / `abandoned: spec {spec}` |
 | User declines the brief at the Review Console | `/flow` | `declined at review console` |
-| Pipeline stops at a gate, user chooses not to resume | `/flow` failure card (offered, not automatic) | `failed: {gate}` |
+| Interactive `/flow` run stops at a gate, user chooses not to resume | `/flow` failure card (offered, not automatic) | `failed: {gate}` |
+| Handed-off issue-mode run fails a HARD-GATE (headless `dispatch`, no human present) | `/claude-tweaks:triage dispatch` Step 4 (automatic, unconditional) | `failed: {gate}` |
 | Stale or orphaned claim in hygiene pass | `/tidy` Step 4.7 (after batch approval) | `swept: stale claim` / `swept: issue closed` |
 | Tier-label removal (`status:approved`/`status:fast-track`) after a `merged:`/`pr-opened:` release | Console dispatch-label step (multi-spec) / `/wrap-up` Section E step 6 (single-spec) | — (label edit, not a claim release) |
 | Interrupted session | nobody — TTL ages it out; `/tidy` sweeps it | — |
@@ -214,7 +216,7 @@ Fail-closed on claiming; never block the session.
 | Skill | Role |
 |---|---|
 | `/claude-tweaks:triage` (`SKILL.md`'s `dispatch` mode Step 2) | Claims each pulled `status:approved`/`status:fast-track` issue before handing off to `/flow`; releases on failure (per the retry-ceiling procedure) |
-| `/claude-tweaks:flow` (issue-reference mode) | Releases on console decline; failure cards offer release. Never claims — `/claude-tweaks:triage dispatch` always claims before invoking `/flow #{issue}`. |
+| `/claude-tweaks:flow` (issue-reference mode) | Releases via `/wrap-up`'s generic Section E `abandoned:` path when the user doesn't merge, and via failure-card-offered release on a gate failure. Never claims — `/claude-tweaks:triage dispatch` always claims before invoking `/flow #{issue}`. |
 | `/claude-tweaks:wrap-up` (`cleanup-procedures.md` item 8 / Section E) | Releases claims with the branch outcome as reason |
 | `/claude-tweaks:tidy` (`scan-procedures.md` Step 4.7) | Sweeps stale/orphaned claims; releases only after batch approval |
 
