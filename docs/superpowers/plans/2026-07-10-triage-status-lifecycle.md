@@ -950,12 +950,44 @@ covered by Task 12 (`failure-cards.md`, `worktree-merge.md`); this file's own
 occurrence wasn't caught by Steps 1-2 above since those only touch the
 label-removal steps, not this heading.
 
-- [ ] **Step 4: Verify no stray references remain**
+- [ ] **Step 4: Remove a now-dead guard clause (both occurrences)**
 
-Run: `grep -n "agent:go\|agent:eligible\|from-code-health" skills/flow/multispec-review-console.md`
+This file's "On approval" step 7 and "On override" step 6 (identical wording,
+two occurrences) each end with "Skip briefs already released at console
+decline." That guard existed for the old `--from-code-health` batch mode,
+which let a user decline an issue-derived brief *before it was even built* —
+releasing its claim at that point. That whole pre-build decline checkpoint no
+longer exists: `/claude-tweaks:triage` authorizes issues up front via labels,
+and `/flow`'s issue-mode is single-issue, claimed by `triage dispatch` before
+`/flow` ever runs. The clause now guards against a state that can never occur
+in the current design — remove it rather than pointing it at a mechanism that
+isn't there. (`recon-issue:`-carrying specs can still appear in an ordinary
+human-run multi-spec batch — e.g. someone manually running `/specify #123`
+then including the resulting spec in `/flow 42,50,48` — this step's actual
+release logic, unrelated to the removed clause, still applies to that case
+unchanged.)
+
+Replace (both occurrences — identical text each time):
+
+```
+Release each issue claim this run holds (specs with `recon-issue:` frontmatter): use the outcome-mapped reason and procedure from `wrap-up/cleanup-procedures.md` Section E (merged → `merged: spec {spec}`, PR → `pr-opened: spec {spec}`, discarded → `abandoned: spec {spec}`). Skip briefs already released at console decline. Log each release to `decisions.md`. Include the work-ready `link` (the branch-finish outcome's merge commit sha or PR URL (from the previous step)) via `releasePayload`'s `link` param, and honor the ownership check in Section E — a successor's claim is never deleted.
+```
+
+with:
+
+```
+Release each issue claim this run holds (specs with `recon-issue:` frontmatter): use the outcome-mapped reason and procedure from `wrap-up/cleanup-procedures.md` Section E (merged → `merged: spec {spec}`, PR → `pr-opened: spec {spec}`, discarded → `abandoned: spec {spec}`). Log each release to `decisions.md`. Include the work-ready `link` (the branch-finish outcome's merge commit sha or PR URL (from the previous step)) via `releasePayload`'s `link` param, and honor the ownership check in Section E — a successor's claim is never deleted.
+```
+
+(The only change is dropping the "Skip briefs already released at console
+decline." sentence — everything else in both occurrences stays identical.)
+
+- [ ] **Step 5: Verify no stray references remain**
+
+Run: `grep -n "agent:go\|agent:eligible\|from-code-health\|console decline" skills/flow/multispec-review-console.md`
 Expected: no output
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add skills/flow/multispec-review-console.md
@@ -1414,6 +1446,75 @@ Expected: no output.
 ```bash
 git add skills/init/bootstrap-steps.md skills/flow/failure-cards.md skills/flow/worktree-merge.md skills/help/context-flow.md skills/help/reference-card.md skills/code-health/SKILL.md skills/tidy/SKILL.md skills/tidy/scan-procedures.md skills/review/SKILL.md skills/specify/SKILL.md skills/specify/spec-template.md skills/routine/SKILL.md
 git commit -m "Sweep remaining cross-references to the retired --from-code-health / agent:go"
+```
+
+---
+
+### Task 13: Update `CLAUDE.md`'s own skill inventory
+
+**Files:**
+- Modify: `CLAUDE.md`
+
+Found during Task 7's final re-review — the project's own root documentation
+still lists the retired skill and flags. `CLAUDE.md` is checked into the
+codebase and is the first thing a future reader (human or agent) consults;
+leaving it stale here is exactly the kind of cross-file promise this project's
+own conventions warn against breaking.
+
+- [ ] **Step 1: Add `triage` to the skill directory list, bump the count**
+
+Replace:
+
+```
+### Skill directories (25 total)
+
+**Lifecycle:** init, capture, challenge, specify, build, test, stories, review, wrap-up
+**Component:** reflect, simplify, deepen, journeys, visual-review, design
+**Utility:** help, tidy, flow, browse, ledger, version, research, code-health, routine, harness-health
+```
+
+with:
+
+```
+### Skill directories (26 total)
+
+**Lifecycle:** init, capture, challenge, specify, build, test, stories, review, wrap-up
+**Component:** reflect, simplify, deepen, journeys, visual-review, design
+**Utility:** help, tidy, flow, browse, ledger, version, research, code-health, routine, harness-health, triage
+```
+
+`triage` fits the Utility category — no fixed lifecycle position, same as
+`tidy`/`code-health`/`routine`.
+
+- [ ] **Step 2: Fix the `flow` row in "Skills with sub-files"**
+
+Replace:
+
+```
+| flow | manifesto.md, multi-spec.md, multispec-review-console.md, steps-and-gates.md, survey.md, validation.md, worktree-merge.md, failure-cards.md, from-code-health.md | Pipeline Config Manifesto; multi-spec batching; consolidated multi-spec Review Console; Allowed Steps + Step Arguments + Gate Behavior + polish-phase decision tree (single canonical home); Creative Opportunities + Depth Opportunities survey ownership (end-of-run analysis-only surveys; Depth surfaces `/deepen` candidates without auto-refactoring); pre-flight validation; worktree-merge handoff; on-failure card templates (generic + polish-broke-verification) loaded only when a gate fails; issue-sourced batches (`--from-code-health`/`--from-label`/`--from-issues`) → claim → /specify briefs → multi-spec batch procedure, freeform-issue translation (Step 2.5 claims each issue per _shared/issue-claims.md before spec derivation); close-via-merge mapping (issues close on the user's merge, never `gh issue close`); --from-milestone + --require-eligible selectors; dispatch routine template (agent:go/agent:eligible lifecycle) |
+```
+
+with:
+
+```
+| flow | manifesto.md, multi-spec.md, multispec-review-console.md, steps-and-gates.md, survey.md, validation.md, worktree-merge.md, failure-cards.md | Pipeline Config Manifesto; multi-spec batching; consolidated multi-spec Review Console; Allowed Steps + Step Arguments + Gate Behavior + polish-phase decision tree (single canonical home); Creative Opportunities + Depth Opportunities survey ownership (end-of-run analysis-only surveys; Depth surfaces `/deepen` candidates without auto-refactoring); pre-flight validation; worktree-merge handoff; on-failure card templates (generic + polish-broke-verification) loaded only when a gate fails; close-via-merge mapping (issues close on the user's merge, never `gh issue close`); pure executor — accepts a spec number or an issue reference (`#<issue>`) handed off by `/claude-tweaks:triage dispatch`, never selects/filters/claims issues itself |
+```
+
+Note `from-code-health.md` is dropped from the sub-file list entirely (the
+file no longer exists), and the whole issue-sourced-batch/`--from-milestone`/
+`--require-eligible`/`agent:go`/`agent:eligible` clause is replaced — that
+logic no longer lives in `/flow` at all.
+
+- [ ] **Step 3: Verify no stray references remain**
+
+Run: `grep -n "agent:go\|agent:eligible\|from-code-health\|require-eligible" CLAUDE.md`
+Expected: no output.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add CLAUDE.md
+git commit -m "Update CLAUDE.md's skill inventory for /claude-tweaks:triage"
 ```
 
 ---
