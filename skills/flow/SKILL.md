@@ -42,14 +42,8 @@ All bracketed tokens are optional and order-independent. `worktree` is the defau
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `<spec>` | Yes* | Spec number (e.g., `42`) or comma-separated spec numbers (e.g., `42,45,48`). **Design docs are not accepted** — run `/claude-tweaks:specify {design-doc}` first to decompose into specs. See Step 2.7. *Not required when an issue-selector flag (`--from-code-health`, `--from-label`, `--from-issues`, or `--from-milestone`) is set. |
-| `--from-code-health` | No | **Alternative spec source.** Alias for `--from-label code-health` — pull open `code-health`-labelled GitHub issues, turn each into a `/claude-tweaks:specify` brief, and run the derived specs through the multi-spec batch. Pair with `--min-severity <sev>` to filter. Needs the `gh` CLI (hard gate if absent). See `from-code-health.md`. |
-| `--from-label <label>` | No | **Alternative spec source.** Pull ALL open issues carrying `<label>` and run them as an issue-sourced batch (claim → brief → `/specify` → multi-spec). Form-shaped bodies (Current State / Deliverables / Acceptance Criteria) convert with zero translation; freeform bodies get an LLM translation surfaced at the Review Console. Needs `gh`. See `from-code-health.md`. |
-| `--from-issues <n,...>` | No | **Alternative spec source.** Pull specific open issues by number (comma-separated) regardless of labels, and run them as an issue-sourced batch. Same claim/translation behavior as `--from-label`. Needs `gh`. See `from-code-health.md`. |
-| `--from-milestone <m>` | No | **Alternative spec source.** Pull all open issues in milestone `<m>` and run them as an issue-sourced batch. Same claim/translation behavior as `--from-label`. Needs `gh`. See `from-code-health.md`. |
-| `--require-eligible` | No | **Issue-sourced batches only.** Keep only issues carrying the `agent:eligible` label — the authorization gate autonomous runs MUST pass (see "Dispatch authorization" in `_shared/issue-claims.md`). Interactive runs may pass it to preview what a dispatcher would build. |
-| `--min-severity <sev>` | No | **Issue-sourced batches only.** Filter pulled issues by the `code-health:<sev>` label (`critical`/`high`/`medium`/`low`). Issues without a `code-health:<sev>` label rank as `info` and are excluded by any higher floor. Default: no floor. |
-| `--quick-wins` | No | **Issue-sourced batches only.** Narrow the pulled batch to `risk:high AND effort:low` — a deliberate "just the easy high-value stuff" run. Issues without both a `code-health:risk-<tier>` and a `code-health:effort-<tier>` label never match (this is a no-op filter for non-code-health issue sources). Combines with `--min-severity`/`--require-eligible` as an additional AND condition, not a replacement. See `from-code-health.md`. |
+| `<spec>` | Yes* | Spec number (e.g., `42`) or comma-separated spec numbers (e.g., `42,45,48`). **Design docs are not accepted** — run `/claude-tweaks:specify {design-doc}` first to decompose into specs. See Step 2.7. *Not required when an issue reference (`#<n>`) is passed instead. |
+| `#<issue>` | No | **Alternative input, handed off by `/claude-tweaks:triage dispatch`.** An issue reference (e.g. `#123`). Flow derives a spec via `/claude-tweaks:specify #{issue}` (the existing issue-ingestion path), carries `recon-issue`/`recon-fingerprint` frontmatter forward, then runs the standard single-spec pipeline. `/flow` never selects, filters, or claims issues itself — see `/claude-tweaks:triage` for authorization and selection. |
 | `worktree` | No | Use worktree git strategy — isolated workspace on a feature branch (this is the default for flow). See "Parallel Development with Worktrees" below. |
 | `current-branch` | No | Override the default and commit directly on the current branch instead of creating a worktree. |
 | `no-stories` | No | Skip automatic story generation even if UI files changed. By default, flow auto-generates stories when the build produces UI file changes. |
@@ -70,7 +64,7 @@ Flow always uses **subagent** execution strategy — its purpose is hands-off au
 2. **Multiple spec numbers** (e.g., `42,45,48`) → **Multi-spec mode** — runs each spec sequentially in one terminal (see Multi-Spec Sequential Flow below). For true parallel execution, use separate terminals with `worktree` mode.
 3. **Topic name** (e.g., `meal planning`) → search `specs/` for a matching spec. If found, use spec mode. If only a design doc exists at `docs/superpowers/specs/*-design.md`, **stop and route to `/claude-tweaks:specify`** (see Step 2.7) — design docs are no longer executable directly by `/flow`.
 4. **Design doc path** → **rejected** at Step 2.7 with a routing message to `/claude-tweaks:specify`. Design-mode flow was removed because it bypassed the granularity contract — design docs describe multi-phase programs, not agent-sized work units.
-5. **`--from-code-health` / `--from-label <label>` / `--from-issues <n,...>` / `--from-milestone <m>`** → **Issue-batch mode** — ignore any spec numbers; assemble the spec list by pulling the selected GitHub issues → claim each → `/specify` briefs → derived specs, then run the standard multi-spec batch. `--from-code-health` is an alias for `--from-label code-health`. See `from-code-health.md` for the full procedure.
+5. **Issue reference** (e.g. `#123`) → **Issue mode** — derive a spec via `/claude-tweaks:specify #{issue}`, then run the standard single-spec pipeline. This is the only `/flow` entry point that does not take a spec number directly; the spec is *derived* from the issue at the start of the run. `/claude-tweaks:triage dispatch` is the only intended caller of this form — it has already claimed the issue before invoking `/flow`.
 
 ### Automatic story generation
 
@@ -309,14 +303,6 @@ For mode-selection guidance (worktree vs current-branch), the merge reconciliati
 
 ---
 
-## Routine Configuration
-
-`/flow` ships a routine template (`skills/flow/routine-template.yml`) — a scheduled headless issue dispatcher. Instantiate with `/claude-tweaks:routine create flow` (add `--dry-run` to inspect first); the label lifecycle and full dispatch procedure live in `from-code-health.md`'s "Dispatch Configuration" section.
-
-**Unattended execution:** each firing that finds eligible `agent:go` issues runs the pipeline hands-off and ends at its consolidated Review Console, awaiting your answer in the cloud session — approval there triggers branch finish, claim release, and dispatch-label removal. A never-answered console is not fatal: the run's claims age out after the TTL (72h default) and a later firing supersedes it by breaking the stale claims. A firing with no eligible issues is a cheap no-op.
-
-> **Billing note:** Routines run inside the subscription; verify automation-credit specifics against the live account.
-
 ## Next Actions
 
 Next Actions in `/flow` are outcome-conditional and rendered as part of the Pipeline Summary (Step 5 success template) or Failure Card (see `failure-cards.md`). See `## Pipeline Summary template` above for the canonical `AskUserQuestion` call on success; see `failure-cards.md` for the per-failure-shape Next Actions blocks. There is no standalone Next Actions block here — the rendered block fires inside the success or failure template that matches the pipeline outcome.
@@ -366,8 +352,8 @@ Next Actions in `/flow` are outcome-conditional and rendered as part of the Pipe
 | `/claude-tweaks:ledger` | Manages the open items ledger. /flow creates the ledger (Step 1), carries it across phases, and runs the resolve gate (Step 5). |
 | `/claude-tweaks:design` | /flow invokes `/claude-tweaks:design polish <spec>` after review verdict PASS (auto-fit + issue-driven + intent-driven dispatch — v4.5.0). The wrapper handles its own detection (non-frontend skips); when polish modifies code, /flow follows up with `/test skip-qa` (re-verify gate, one-cycle cap). The `no-polish` argument removes the polish phase entirely. /flow's pipeline summary also invokes `/claude-tweaks:design survey <full-diff>` to render the Creative Opportunities block (anchor 3 of v4.5.0's creative surfacing system); /flow handles decline detection by comparing the prior recommendations cache against the new diff before each survey call. |
 | `/claude-tweaks:journeys` | /journeys produces journey files that /flow's auto-stories step (post-build) ingests so derived stories carry `journey:` field and inherited source files. |
-| `/claude-tweaks:code-health` | `/flow --from-code-health` pulls the `code-health`-labelled GitHub issues `/code-health` files, derives specs via `/specify`, and runs them as a multi-spec batch. `/flow` consumes code-health's output; it never files or closes code-health issues (filing is code-health's job; closing is a user action at the Review Console). See `from-code-health.md`. |
+| `/claude-tweaks:triage` | `triage dispatch` claims an authorized issue and invokes `/claude-tweaks:flow #{issue}` — `/flow` never selects, filters, sorts, or claims issues itself anymore; that logic lives entirely in `/claude-tweaks:triage`. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling in /flow. Governs the bookend architecture (Step 3 Manifesto = begin stop, /wrap-up Review Console = end stop), what `auto` silences, and what it never silences. |
 | `_shared/pipeline-run-dir.md` | /flow creates the pipeline run directory at Step 3 (Manifesto) and exports `PIPELINE_RUN_DIR` to every downstream skill per this shared procedure. Multi-spec runs use the per-spec subdirectory layout documented in `multi-spec.md`, also rooted in this contract. |
-| `_shared/issue-claims.md` | `--from-code-health` Step 2.5 claims each pulled issue (`refs/claims/issue-{issue}`) before spec derivation; the console releases declined briefs; failure cards offer release on abandon. |
-| `/claude-tweaks:routine` | `/routine create flow` instantiates `skills/flow/routine-template.yml` — the scheduled issue dispatcher (agent:go + agent:eligible → headless issue-sourced batch). |
+| `_shared/issue-claims.md` | `/flow` no longer claims issues itself — `/claude-tweaks:triage dispatch` claims before handing off. `/flow`'s own release/decline handling (console declines, failure-card offers) still applies to any issue-mode run per this shared protocol. |
+| `/claude-tweaks:routine` | `/flow` no longer ships its own routine template — `/routine create triage` instantiates the scheduled headless dispatcher instead (see `/claude-tweaks:triage`). |
