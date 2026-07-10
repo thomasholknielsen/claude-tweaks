@@ -55,22 +55,15 @@ Steps must follow lifecycle order. Invalid orderings are rejected.
 
 **`no-polish` argument behavior:** When `no-polish` is set, the polish phase (and its re-verify gate) is removed from the pipeline. The default pipeline becomes `build,test,review,wrap-up` (the pre-Phase-2 default). `no-polish` overrides any explicit `polish` in the step list — the user's explicit step request wins on the rest of the pipeline, but polish is unconditionally dropped.
 
-### Issue-sourced spec source (`--from-code-health` / `--from-label` / `--from-issues` / `--from-milestone`)
+### Issue-reference input (`#<issue>`)
 
-These are not steps — they are alternative *spec sources* resolved before Step 1.
-`--from-label <label>` pulls any open, labelled issue set (via `gh`); `--from-issues <n,...>`
-pulls specific issue numbers; `--from-milestone <m>` pulls a milestone's open issues;
-`--from-code-health` is a preserved alias for `--from-label code-health`.
-Each pulled issue maps to a `/claude-tweaks:specify` brief via `issuesToBriefs`
-(`bin/lib/issues/ingest.js`), derives specs, then runs the normal step pipeline
-(`build,test,review,polish,wrap-up`) as a multi-spec batch. `--min-severity <sev>` floors on
-the `code-health:<sev>` label (unlabeled issues rank `info`). `--quick-wins` narrows the pulled
-batch to `risk:high AND effort:low` (a no-op filter for issues without code-health's own
-`code-health:risk-<tier>`/`code-health:effort-<tier>` labels). `--require-eligible` restricts any
-selector to `agent:eligible`-labelled issues — mandatory for autonomous dispatch. The full
-procedure lives in `from-code-health.md`; the step pipeline and gates are unchanged. A
-missing/unauthenticated `gh` CLI is a hard gate (`auto` does not silence a missing dependency).
-See `from-code-health.md` for the full procedure.
+Not a step — an alternative *spec source*, resolved before Step 1, used only
+by `/claude-tweaks:triage dispatch`'s hand-off. `/flow` derives a spec via
+`/claude-tweaks:specify #{issue}` (the existing issue-ingestion path), then
+runs the normal step pipeline (`build,test,review,polish,wrap-up`) as a
+single-spec run — the step pipeline and gates are unchanged. `/flow` performs
+no selection, filtering, or claiming of its own; see `/claude-tweaks:triage`
+for that logic.
 
 ## Gate Behavior
 
