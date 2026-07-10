@@ -51,7 +51,7 @@ For the canonical cheat sheet — lifecycle, component, and utility commands; co
 
 *(Skip if `$ARGUMENTS` = `commands`)*
 
-Read `status-scan.md` in this skill's directory for the full parallel-dispatch procedure (Stages 1-7, incl. Stage 4.5 current-PR scan and Stage 4.6 triage-queue counts; dispatch contract, agent template, and dashboard rendering). The orchestrator dispatches all eight stages in parallel and assembles the dashboard after all agents complete.
+Read `status-scan.md` in this skill's directory for the full parallel-dispatch procedure (Stages 1-7 including sub-stages 1.5, 4.5, and 4.6; dispatch contract, agent template, and dashboard rendering). The orchestrator dispatches all ten stages in parallel and assembles the dashboard after all agents complete.
 
 ---
 
