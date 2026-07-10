@@ -1135,9 +1135,13 @@ git commit -m "Fix the canonical status:* tier-label removal in cleanup-procedur
 - Modify: `skills/review/SKILL.md`
 - Modify: `skills/specify/SKILL.md`
 - Modify: `skills/specify/spec-template.md`
+- Modify: `skills/routine/SKILL.md`
 
 Found via a whole-repo grep during pre-flight review — these files reference
-the retired flag/file but were outside Tasks 1-11's scope.
+the retired flag/file but were outside Tasks 1-11's scope. `skills/routine/SKILL.md`
+was found later, during Task 4's own review (its Relationship-to-Other-Skills
+table still names `/claude-tweaks:flow` as the consumer of the now-moved
+routine template).
 
 - [ ] **Step 1: `skills/init/bootstrap-steps.md` — two citations**
 
@@ -1366,15 +1370,29 @@ with:
 | `recon-was-parked:` | Whether the source issue carried the `parked` label at ingestion time (removed at promotion — see "Restore-on-promotion bookkeeping" in this skill's `SKILL.md` Step 3; the same procedure applies whether `/specify` was invoked directly or via `/claude-tweaks:flow`'s issue-mode hand-off) | The claim-release restoration steps (`wrap-up/cleanup-procedures.md` Section E, its `flow/multispec-review-console.md` duplicate, and `/claude-tweaks:flow`'s own declined-at-console release) restore `parked` on the issue iff this is `true` and the release outcome is not `merged:`/`pr-opened:` |
 ```
 
-- [ ] **Step 12: Verify no stray references remain across the whole repo**
+- [ ] **Step 12: `skills/routine/SKILL.md` — one Relationship-table row**
+
+Replace:
+
+```
+| `/claude-tweaks:flow` | `skills/flow/routine-template.yml` is a consumer — a headless issue dispatcher; `/routine create flow` instantiates it. Unlike code-health's report-only template it carries write tools. |
+```
+
+with:
+
+```
+| `/claude-tweaks:triage` | `skills/triage/routine-template.yml` is a consumer — a headless issue dispatcher (`dispatch` subcommand); `/routine create triage` instantiates it. Unlike code-health's report-only template it carries write tools. |
+```
+
+- [ ] **Step 13: Verify no stray references remain across the whole repo**
 
 Run: `grep -rln "agent:eligible\|agent:go\b\|agent:fast\b\|from-code-health\|--from-code-health" skills/ bin/ 2>/dev/null`
 Expected: no output.
 
-- [ ] **Step 13: Commit**
+- [ ] **Step 14: Commit**
 
 ```bash
-git add skills/init/bootstrap-steps.md skills/flow/failure-cards.md skills/flow/worktree-merge.md skills/help/context-flow.md skills/help/reference-card.md skills/code-health/SKILL.md skills/tidy/SKILL.md skills/tidy/scan-procedures.md skills/review/SKILL.md skills/specify/SKILL.md skills/specify/spec-template.md
+git add skills/init/bootstrap-steps.md skills/flow/failure-cards.md skills/flow/worktree-merge.md skills/help/context-flow.md skills/help/reference-card.md skills/code-health/SKILL.md skills/tidy/SKILL.md skills/tidy/scan-procedures.md skills/review/SKILL.md skills/specify/SKILL.md skills/specify/spec-template.md skills/routine/SKILL.md
 git commit -m "Sweep remaining cross-references to the retired --from-code-health / agent:go"
 ```
 
