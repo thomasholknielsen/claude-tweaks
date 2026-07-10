@@ -165,10 +165,12 @@ auto-merged this week (fast-lane)" line.
 - **Automated escalation beyond `status:blocked`.** Hitting the retry ceiling
   strips the tier and notifies — it doesn't attempt any smarter recovery
   (e.g. auto-filing a follow-up issue). A human decides what happens next.
-- **Letting the headless dispatch mode itself add `status:fast-track`/
-  `status:approved`.** Only the interactive (bare) invocation, human-confirmed,
-  ever writes a tier label — `/claude-tweaks:triage dispatch` only ever reads
-  them.
+- **Letting the headless dispatch mode itself grant `status:fast-track`/
+  `status:approved`/`status:needs-review` to an issue that didn't already carry
+  one.** Only the interactive (bare) invocation, human-confirmed, ever *grants*
+  a tier. `/claude-tweaks:triage dispatch` may only *downgrade or strip* a tier
+  it reads (`fast-track` → `approved` on failure, per the rule above; removed +
+  `status:blocked` at the retry ceiling) — it revokes trust, it never grants it.
 
 ## Key decisions (from conversation)
 
