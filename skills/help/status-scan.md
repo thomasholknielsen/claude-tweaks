@@ -73,6 +73,30 @@ Scan per `_shared/github-pr-scan.md`, **`current-pr`** scope. The dispatcher inl
 - Repo-wide stale-PR count (total open, count stale) — routed to Stage 7's maintenance signals, not the Current PR dashboard section
 - No PR on the branch → single info row (`No open PR for current branch`); the dashboard omits the Current PR section
 
+## Stage 4.6: Triage Queue (GitHub)
+
+Cheap counts only — detail stays `/claude-tweaks:triage`'s and `/tidy`'s job,
+not `/help`'s. Skip silently (same fail-open detection ladder as Stage 4.5)
+when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
+
+```bash
+gh issue list --label code-health --state open --json number,labels --limit 200 > /tmp/help-triage-ch.json
+gh issue list --label harness-health --state open --json number,labels --limit 200 > /tmp/help-triage-hh.json
+node -e "
+  const all = [...require('/tmp/help-triage-ch.json'), ...require('/tmp/help-triage-hh.json')];
+  const names = i => (i.labels || []).map(l => (typeof l === 'string' ? l : l.name));
+  const untiered = all.filter(i => !names(i).some(n => n === 'status:needs-review' || n === 'status:approved' || n === 'status:fast-track')).length;
+  console.log(untiered);
+"
+gh issue list --label status:blocked --state open --json number --limit 200 -q 'length'
+```
+
+Render as three lines on the dashboard:
+
+- Pending authorization: **N issues awaiting your decision** — run `/claude-tweaks:triage` (omit this line when N is 0)
+- Blocked: **N issues hit their retry ceiling** — run `/claude-tweaks:triage` to review (omit this line when N is 0)
+- Auto-merged this week: **N fast-lane merges** (count `[fast-lane]`-tagged commits on the default branch in the last 7 days via `git log --oneline --since="7 days ago" --grep="\[fast-lane\]"`; omit this line when N is 0)
+
 ## Stage 5: Specs Awaiting Review
 
 - Find specs that appear fully implemented but haven't been reviewed yet
