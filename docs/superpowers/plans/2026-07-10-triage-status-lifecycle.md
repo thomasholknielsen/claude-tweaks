@@ -1048,6 +1048,327 @@ git commit -m "Add the fast-track auto-merge short-circuit to the Review Console
 
 ---
 
+### Task 11: Fix the canonical `agent:go` removal in `wrap-up/cleanup-procedures.md` Section E
+
+**Files:**
+- Modify: `skills/wrap-up/cleanup-procedures.md`
+
+This is the file `flow/multispec-review-console.md` (Task 8) points to as the
+canonical source ("per `wrap-up/cleanup-procedures.md` Section E") — Task 8
+only fixed the duplicate description, not the original.
+
+- [ ] **Step 1: Update the `recon-issue:` provenance note**
+
+Replace:
+
+```
+If the spec's frontmatter carries `recon-issue: <n>` (stamped by `/flow --from-code-health` spec
+derivation), the pipeline holds `refs/claims/issue-<n>` per `_shared/issue-claims.md`.
+```
+
+with:
+
+```
+If the spec's frontmatter carries `recon-issue: <n>` (stamped by `/specify`'s issue-ingestion
+path — either invoked directly on an issue reference, or via `/claude-tweaks:flow #{issue}`'s
+hand-off, which itself calls `/specify #{issue}`), the pipeline holds `refs/claims/issue-<n>`
+per `_shared/issue-claims.md`.
+```
+
+- [ ] **Step 2: Update step 6's tier-label removal**
+
+Replace:
+
+```
+6. **Remove the dispatch label** when the outcome was `merged:` or `pr-opened:` and the issue
+   carries `agent:go`: `gh issue edit "$ISSUE" --remove-label agent:go` (reversible; log to
+   `decisions.md`). Leave the label on `abandoned:` — it is the standing retry request. Skip
+   silently when the label is absent.
+```
+
+with:
+
+```
+6. **Remove the tier label** when the outcome was `merged:` or `pr-opened:` and the issue
+   carries `status:approved` or `status:fast-track`: `gh issue edit "$ISSUE" --remove-label status:approved`
+   (or `status:fast-track`, whichever is present) (reversible; log to `decisions.md`). Leave
+   the label on `abandoned:` — it is the standing retry request. Skip silently when no tier
+   label is present.
+```
+
+- [ ] **Step 3: Verify no stray references remain**
+
+Run: `grep -n "agent:go\|agent:eligible\|from-code-health" skills/wrap-up/cleanup-procedures.md`
+Expected: no output.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add skills/wrap-up/cleanup-procedures.md
+git commit -m "Fix the canonical status:* tier-label removal in cleanup-procedures.md Section E"
+```
+
+---
+
+### Task 12: Cross-reference sweep — retire remaining stale mentions of `--from-code-health` / `agent:go` / `from-code-health.md`
+
+**Files:**
+- Modify: `skills/init/bootstrap-steps.md`
+- Modify: `skills/flow/failure-cards.md`
+- Modify: `skills/flow/worktree-merge.md`
+- Modify: `skills/help/context-flow.md`
+- Modify: `skills/help/reference-card.md`
+- Modify: `skills/code-health/SKILL.md`
+- Modify: `skills/tidy/SKILL.md`
+- Modify: `skills/tidy/scan-procedures.md`
+- Modify: `skills/review/SKILL.md`
+- Modify: `skills/specify/SKILL.md`
+- Modify: `skills/specify/spec-template.md`
+
+Found via a whole-repo grep during pre-flight review — these files reference
+the retired flag/file but were outside Tasks 1-11's scope.
+
+- [ ] **Step 1: `skills/init/bootstrap-steps.md` — two citations**
+
+Replace:
+
+```
+Write the YAML exactly as above to `.github/ISSUE_TEMPLATE/agent-task.yml`. Declining is
+fine — freeform issues still work via the translation step (`from-code-health.md` Step 2.6); the
+form just removes the translation judgment.
+```
+
+with:
+
+```
+Write the YAML exactly as above to `.github/ISSUE_TEMPLATE/agent-task.yml`. Declining is
+fine — freeform issues still work via `/specify`'s own issue-ingestion path (`SKILL.md`
+"Resolve the input" case 1 already handles a freeform body with "more editorializing," per
+that section); the form just removes the translation judgment.
+```
+
+Replace:
+
+```
+No `gh issue close` call anywhere in the workflow — the default-branch merge remains
+the sole closing action, consistent with claude-tweaks' own close-via-merge rule (see
+`_shared/issue-claims.md` and `flow/from-code-health.md` Step 5).
+```
+
+with:
+
+```
+No `gh issue close` call anywhere in the workflow — the default-branch merge remains
+the sole closing action, consistent with claude-tweaks' own close-via-merge rule (see
+"Close-via-merge" in `_shared/issue-claims.md`).
+```
+
+- [ ] **Step 2: `skills/flow/failure-cards.md`**
+
+Replace:
+
+```
+**Claims held by `--from-code-health` runs:** when the stopped run holds issue claims
+(`refs/claims/issue-{issue}`, per `_shared/issue-claims.md`), the card must OFFER release —
+never auto-release. Resuming is the recommended next action, and a resumed run needs its
+claims intact; an unreleased claim ages out via TTL anyway.
+```
+
+with:
+
+```
+**Claims held by an issue-mode run:** when the stopped run holds issue claims
+(`refs/claims/issue-{issue}`, claimed by `/claude-tweaks:triage dispatch` before hand-off, per
+`_shared/issue-claims.md`), the card must OFFER release — never auto-release. Resuming is the
+recommended next action, and a resumed run needs its claims intact; an unreleased claim ages
+out via TTL anyway.
+```
+
+- [ ] **Step 3: `skills/flow/worktree-merge.md`**
+
+Replace:
+
+```
+1. Merge into the base branch. For from-code-health runs (any spec on the branch has `recon-issue:`
+   frontmatter), the merge commit message must carry the closing keywords — one line per issue
+   (see "Close-via-merge" in `_shared/issue-claims.md`):
+```
+
+with:
+
+```
+1. Merge into the base branch. For issue-derived runs (any spec on the branch has `recon-issue:`
+   frontmatter), the merge commit message must carry the closing keywords — one line per issue
+   (see "Close-via-merge" in `_shared/issue-claims.md`):
+```
+
+- [ ] **Step 4: `skills/help/context-flow.md`**
+
+Replace:
+
+```
+Codebase                     ──→ Findings cache               ──→ GitHub Issues (durable)         ──→ Build pipeline
+.claude-tweaks/code-health/      .claude-tweaks/code-health/      gh issues (label: code-health)      /flow --from-code-health
+  /code-health                   cache.json + runs/               ↓ (or)                              specs/NN-*.md via /specify
+                                                                  INBOX / /specify                    /build
+```
+
+with:
+
+```
+Codebase                     ──→ Findings cache               ──→ GitHub Issues (durable)         ──→ Triage + Build pipeline
+.claude-tweaks/code-health/      .claude-tweaks/code-health/      gh issues (label: code-health)      /claude-tweaks:triage → /flow #{issue}
+  /code-health                   cache.json + runs/               ↓ (or)                              specs/NN-*.md via /specify
+                                                                  INBOX / /specify                    /build
+```
+
+- [ ] **Step 5: `skills/help/reference-card.md`**
+
+Replace:
+
+```
+| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → polish → wrap-up (+ end-of-run depth survey); issue-sourced batches via `--from-code-health` / `--from-label <label>` / `--from-issues <n,...>` / `--from-milestone <m>` (+ `--require-eligible`) | spec #(s), doc path + `auto` `worktree`/`current-branch` `no-stories` `no-polish` `no-deepen` `keep-going` `[step]` (single = resume) |
+```
+
+with:
+
+```
+| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → polish → wrap-up (+ end-of-run depth survey); pure executor — never selects issues itself | spec #(s), doc path, or `#<issue>` (handed off by `/claude-tweaks:triage dispatch`) + `auto` `worktree`/`current-branch` `no-stories` `no-polish` `no-deepen` `keep-going` `[step]` (single = resume) |
+| `/claude-tweaks:triage` | Authorizes GitHub issues for autonomous building (bare = interactive batch tiering) and dispatches already-tiered issues to `/flow` headlessly (`dispatch` subcommand) | *(none)* or `dispatch` |
+```
+
+- [ ] **Step 6: `skills/code-health/SKILL.md` — two Relationship-table rows**
+
+Replace:
+
+```
+| `/claude-tweaks:tidy` | `/tidy` Step 4.8 audits open `code-health`-labelled issues in its hygiene pass — stale/superseded ones are closed (with comment) after batch approval; still-valid ones are suggested for `/flow --from-code-health` or captured to INBOX. |
+| `/claude-tweaks:flow` | `/flow --from-code-health` pulls the `code-health`-labelled issues this skill files (via `--from-code-health`, now one of three issue-sourced selectors) and runs them as a multi-spec batch (derive specs via `/specify` -> build/test/review/polish/wrap-up). Batch consumers claim each issue per `_shared/issue-claims.md` before deriving specs, so concurrent runs never double-build. |
+```
+
+with:
+
+```
+| `/claude-tweaks:tidy` | `/tidy` Step 4.8 audits open `code-health`-labelled issues in its hygiene pass — stale/superseded ones are closed (with comment) after batch approval; still-valid ones are suggested for `/claude-tweaks:triage` or captured to INBOX. |
+| `/claude-tweaks:triage` | Triage's bare invocation is the primary consumer of code-health's `risk-<tier>`/`effort-<tier>` labels — the Tier Rule reads them directly to recommend an authorization tier. `triage dispatch` claims each authorized issue and hands it to `/claude-tweaks:flow #{issue}` for pure execution — `/flow` no longer selects or claims issues itself. |
+```
+
+- [ ] **Step 7: `skills/tidy/SKILL.md` — one Relationship-table row**
+
+Replace:
+
+```
+| `/claude-tweaks:code-health` | `/code-health` files improvement findings as `code-health`-labelled GitHub issues; `/tidy` Step 4.8 audits them — stale/superseded issues are closed (with comment) after batch approval, still-valid ones suggested for `/flow --from-code-health` or captured to INBOX. |
+```
+
+with:
+
+```
+| `/claude-tweaks:code-health` | `/code-health` files improvement findings as `code-health`-labelled GitHub issues; `/tidy` Step 4.8 audits them — stale/superseded issues are closed (with comment) after batch approval, still-valid ones suggested for `/claude-tweaks:triage` or captured to INBOX. |
+```
+
+- [ ] **Step 8: `skills/tidy/scan-procedures.md`**
+
+Replace:
+
+```
+Find specs still on disk that were promoted from a `parked` issue but never got the
+restoration finished — a defense-in-depth flag for a mutation that silently failed at claim
+release (Phase 3), same shape as the already-drafted `agent:go` missed-removal backstop in
+`specs/INBOX.md`. Both checks below are flagged only — recommendations execute after Step 6
+batch approval, same as every other Step 4.7 mutation.
+```
+
+with:
+
+```
+Find specs still on disk that were promoted from a `parked` issue but never got the
+restoration finished — a defense-in-depth flag for a mutation that silently failed at claim
+release (Phase 3), same shape as the already-drafted `status:in-progress` missed-removal
+backstop above. Both checks below are flagged only — recommendations execute after Step 6
+batch approval, same as every other Step 4.7 mutation.
+```
+
+- [ ] **Step 9: `skills/review/SKILL.md`**
+
+Replace:
+
+```
+In a multi-spec batch (`/claude-tweaks:flow --from-code-health`, or any run where several specs share one worktree/branch), a later spec's review may be tempted to cite an earlier spec's already-completed whole-branch review instead of re-dispatching. Only reuse it when the scope is **byte-identical**: the exact same commit range this review would otherwise cover, with zero delta — nothing has landed on the branch since the cited review's `HEAD`.
+```
+
+with:
+
+```
+In a multi-spec batch (`/claude-tweaks:flow 42,45,48`, or any run where several specs share one worktree/branch), a later spec's review may be tempted to cite an earlier spec's already-completed whole-branch review instead of re-dispatching. Only reuse it when the scope is **byte-identical**: the exact same commit range this review would otherwise cover, with zero delta — nothing has landed on the branch since the cited review's `HEAD`.
+```
+
+- [ ] **Step 10: `skills/specify/SKILL.md` — two citations**
+
+Replace the parenthetical at the end of the "GitHub issue reference" bullet:
+
+```
+(This is a distinct path from `/flow --from-code-health`, which pulls issues itself and passes `/specify` the already-extracted title + body text directly, then stamps this same frontmatter in `from-code-health.md` Step 3 — it never reaches this case.)
+```
+
+with:
+
+```
+(`/claude-tweaks:flow #{issue}` — the hand-off `/claude-tweaks:triage dispatch` uses — routes through this exact same case, calling `/claude-tweaks:specify #{issue}` directly rather than pre-extracting title/body itself; there is no longer a separate batch-derivation path.)
+```
+
+Replace:
+
+```
+- **Write issue-tracking frontmatter when the input resolved from a GitHub issue reference** (Resolve-the-input case 1) — write `recon-issue: <number>` on the generated spec, plus `recon-fingerprint: <fp>` when a fingerprint marker was found in the issue body, plus `code-health-effort: <tier>` when the issue carried a `code-health:effort-<tier>` label. This is what lets `/wrap-up`'s close-via-merge and issue-claim-release steps, and `/build`'s effort-based model-tier selection, engage for specs built directly from a single issue, not just via `/flow --from-code-health`'s batch path.
+```
+
+with:
+
+```
+- **Write issue-tracking frontmatter when the input resolved from a GitHub issue reference** (Resolve-the-input case 1) — write `recon-issue: <number>` on the generated spec, plus `recon-fingerprint: <fp>` when a fingerprint marker was found in the issue body, plus `code-health-effort: <tier>` when the issue carried a `code-health:effort-<tier>` label. This is what lets `/wrap-up`'s close-via-merge and issue-claim-release steps, and `/build`'s effort-based model-tier selection, engage — whether `/specify` was invoked directly on an issue reference or via `/claude-tweaks:flow #{issue}`'s hand-off.
+```
+
+- [ ] **Step 11: `skills/specify/spec-template.md` — two citations**
+
+Replace:
+
+```
+Present only on specs derived from a GitHub issue — either directly (`/specify <issue-url>`, SKILL.md "Resolve the input" case 1) or via `/flow --from-code-health`'s batch path (`flow/from-code-health.md` Step 3, which stamps these itself rather than routing through case 1 — see that file).
+```
+
+with:
+
+```
+Present only on specs derived from a GitHub issue — via `/specify <issue-url>` directly, or via `/claude-tweaks:flow #{issue}`'s hand-off (which itself calls `/specify #{issue}`) — both routes stamp these fields through the same "Resolve the input" case 1 procedure in `SKILL.md`.
+```
+
+Replace this table row:
+
+```
+| `recon-was-parked:` | Whether the source issue carried the `parked` label at ingestion time (removed at promotion — see "Restore-on-promotion bookkeeping" in this skill's `SKILL.md` Step 3, and its batch-path equivalent in `flow/from-code-health.md` Step 3) | The claim-release restoration steps (`wrap-up/cleanup-procedures.md` Section E, its `flow/multispec-review-console.md` duplicate, and the declined-at-console release in `flow/from-code-health.md`) restore `parked` on the issue iff this is `true` and the release outcome is not `merged:`/`pr-opened:` |
+```
+
+with:
+
+```
+| `recon-was-parked:` | Whether the source issue carried the `parked` label at ingestion time (removed at promotion — see "Restore-on-promotion bookkeeping" in this skill's `SKILL.md` Step 3; the same procedure applies whether `/specify` was invoked directly or via `/claude-tweaks:flow`'s issue-mode hand-off) | The claim-release restoration steps (`wrap-up/cleanup-procedures.md` Section E, its `flow/multispec-review-console.md` duplicate, and `/claude-tweaks:flow`'s own declined-at-console release) restore `parked` on the issue iff this is `true` and the release outcome is not `merged:`/`pr-opened:` |
+```
+
+- [ ] **Step 12: Verify no stray references remain across the whole repo**
+
+Run: `grep -rln "agent:eligible\|agent:go\b\|agent:fast\b\|from-code-health\|--from-code-health" skills/ bin/ 2>/dev/null`
+Expected: no output.
+
+- [ ] **Step 13: Commit**
+
+```bash
+git add skills/init/bootstrap-steps.md skills/flow/failure-cards.md skills/flow/worktree-merge.md skills/help/context-flow.md skills/help/reference-card.md skills/code-health/SKILL.md skills/tidy/SKILL.md skills/tidy/scan-procedures.md skills/review/SKILL.md skills/specify/SKILL.md skills/specify/spec-template.md
+git commit -m "Sweep remaining cross-references to the retired --from-code-health / agent:go"
+```
+
+---
+
 ## Final verification
 
 - [ ] Run the full test suite and confirm no regressions beyond the
@@ -1057,9 +1378,10 @@ git commit -m "Add the fast-track auto-merge short-circuit to the Review Console
   Expected: all `bin/lib/issues/tests/*` pass, including the two new files
   from Tasks 1-2.
 
-- [ ] Confirm no file in the repository still references the retired labels:
+- [ ] Confirm no file in the repository still references the retired labels
+  or the deleted `from-code-health.md`:
 
-  Run: `grep -rln "agent:eligible\|agent:go\b" skills/ bin/ 2>/dev/null`
+  Run: `grep -rln "agent:eligible\|agent:go\b\|agent:fast\b\|from-code-health\|--from-code-health" skills/ bin/ 2>/dev/null`
   Expected: no output.
 
 - [ ] Confirm `skills/flow/from-code-health.md` and
