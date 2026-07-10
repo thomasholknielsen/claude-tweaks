@@ -150,11 +150,14 @@ When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
    ```bash
    gh api "repos/{owner}/{repo}/issues/${ISSUE}/comments?per_page=100" > "/tmp/dispatch-comments-${ISSUE}.json"
    node -e "
-     const { countFailedAttempts } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/retry.js');
+     const { countFailedAttempts, hasHitRetryCeiling } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/retry.js');
      const comments = require(process.argv[1]);
      const attemptNumber = countFailedAttempts(comments) + 1;
      const ceiling = Number(process.argv[2] || 3);
-     console.log(JSON.stringify({ attemptNumber, ceilingHit: attemptNumber >= ceiling }));
+     // hasHitRetryCeiling counts existing comments only — call it against attemptNumber's
+     // equivalent by treating this attempt as already-counted (attemptNumber IS that count).
+     const ceilingHit = attemptNumber >= ceiling; // equivalent to hasHitRetryCeiling if comments included this attempt's own (not-yet-posted) comment
+     console.log(JSON.stringify({ attemptNumber, ceilingHit }));
    " "/tmp/dispatch-comments-${ISSUE}.json" "$TRIAGE_RETRY_CEILING" > "/tmp/attempt-info-${ISSUE}.json"
    ```
 
@@ -196,9 +199,33 @@ Console, check all four layers before presenting it for approval:
    (default 40) changed lines across `triage-fast-track-max-files` (default 2)
    files.
 
-**All four pass:** merge without waiting for a live approval. Tag the merge
-commit `[fast-lane]`. Log to `decisions.md`:
-`AUTO {time} — Fast-lane auto-merge: issue #{n}, {lines} lines across {files} files, zero findings >= medium. Reversibility: high (git revert).`
+**All four pass:** merge directly, bypassing the interactive
+`/superpowers:finishing-a-development-branch` handoff entirely (there is no
+human present to answer its merge/PR/discard prompt during a headless
+`dispatch` run). Before merging, clear this run's worktree assignment the
+same way `flow/worktree-merge.md`'s reconciliation does (`node
+"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"`) so the
+merge itself, landing in the main checkout, isn't denied as a wrong-checkout
+commit. Then, from the main checkout:
+
+```bash
+git merge --no-ff "$BRANCH" -m "[fast-lane] {one-line summary}
+
+Fixes #{issue}"
+git push
+```
+
+The explicit `--no-ff` guarantees a real merge commit exists even when the
+branch would otherwise fast-forward — this is what the `[fast-lane]` tag
+lands on, and the same commit message carries the `Fixes #{issue}` closing
+keyword per "Close-via-merge" in `_shared/issue-claims.md`, so no separate
+carrier commit is needed for this path. **If the merge conflicts:** conflict
+resolution requires judgment a headless run can't supply — abort the merge
+(`git merge --abort`) and fall back to Standard (present the normal Review
+Console, wait for a human), logging why the fast-lane path was abandoned.
+
+Log to `decisions.md`:
+`AUTO {time} — Fast-lane auto-merge: issue #{n}, {lines} lines across {files} files, zero findings >= medium. Merge commit: {sha}. Reversibility: high (git revert).`
 Attach the full Review-Console-equivalent summary (whatever Auto-applied /
 Skill updates / Configuration updates sections wrap-up already produced) to a
 `PushNotification` as a non-blocking FYI — nothing wrap-up found is dropped,

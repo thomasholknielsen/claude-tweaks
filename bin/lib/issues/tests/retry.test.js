@@ -8,6 +8,11 @@ test('attemptFailedCommentBody formats the human-readable retry comment', () => 
   assert.strictEqual(body, 'Attempt 2 failed: test gate failed (3 type errors). Claim released, will retry.');
 });
 
+test('attemptFailedCommentBody varies its closing line when the ceiling was hit', () => {
+  const body = attemptFailedCommentBody({ attemptNumber: 3, reason: 'test gate failed', ceilingHit: true });
+  assert.strictEqual(body, 'Attempt 3 failed: test gate failed. Retry ceiling reached — no further automatic retries.');
+});
+
 test('countFailedAttempts counts only matching comments', () => {
   const comments = [
     { body: 'Attempt 1 failed: build error. Claim released, will retry.' },

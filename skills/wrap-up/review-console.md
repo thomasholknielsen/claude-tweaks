@@ -19,13 +19,38 @@ the four-layer gate before presenting this console:
 3. **Runtime cleanliness** — `/review`'s Step 3 Routing produced nothing at Medium severity or above
 4. **Blast radius** — the diff stays within `triage-fast-track-max-lines`/`triage-fast-track-max-files` (CLAUDE.md/`policy.yml` flags, defaults 40/2) and touches only files the original issue's fingerprint/anchor pointed at
 
-**All four pass:** skip the blocking wait — merge immediately (tag the merge
-commit `[fast-lane]`) — but still generate this console's full content
-(Auto-applied / Skill updates / Configuration updates sections, per "Present
-the console" below) and attach it to a `PushNotification` as a non-blocking
-FYI. Nothing this console would have shown is discarded — only the wait for
-a live approval is skipped. Log to `decisions.md`:
-`AUTO {time} — Fast-lane auto-merge: issue #{n}, {lines} lines across {files} files, zero findings >= medium. Reversibility: high (git revert).`
+**All four pass:** skip the blocking wait and merge directly — bypass the
+interactive `/superpowers:finishing-a-development-branch` handoff entirely,
+since no human is present to answer its merge/PR/discard prompt during a
+headless `dispatch` run. Before merging, clear this run's worktree
+assignment the same way `flow/worktree-merge.md`'s reconciliation does
+(`node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"`) so
+the merge itself, landing in the main checkout, isn't denied as a
+wrong-checkout commit. Then, from the main checkout:
+
+```bash
+git merge --no-ff "$BRANCH" -m "[fast-lane] {one-line summary}
+
+Fixes #{issue}"
+git push
+```
+
+The explicit `--no-ff` guarantees a real merge commit exists even when the
+branch would otherwise fast-forward — this is what the `[fast-lane]` tag
+lands on, and the same commit message carries the `Fixes #{issue}` closing
+keyword per "Close-via-merge" in `_shared/issue-claims.md`. Still generate
+this console's full content (Auto-applied / Skill updates / Configuration
+updates sections, per "Present the console" below) and attach it to a
+`PushNotification` as a non-blocking FYI. Nothing this console would have
+shown is discarded — only the wait for a live approval is skipped.
+
+**If the merge conflicts:** conflict resolution requires judgment a headless
+run can't supply — abort the merge (`git merge --abort`) and fall back to
+rendering the console normally, exactly as a `status:approved` issue would,
+logging why the fast-lane path was abandoned.
+
+Log to `decisions.md`:
+`AUTO {time} — Fast-lane auto-merge: issue #{n}, {lines} lines across {files} files, zero findings >= medium. Merge commit: {sha}. Reversibility: high (git revert).`
 
 **Any layer fails:** proceed to render the console normally, exactly as a
 `status:approved` issue would — no different from any other pipeline run.

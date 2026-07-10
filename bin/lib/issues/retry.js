@@ -7,8 +7,11 @@
 
 const ATTEMPT_RE = /^Attempt (\d+) failed: /;
 
-function attemptFailedCommentBody({ attemptNumber, reason }) {
-  return `Attempt ${attemptNumber} failed: ${reason}. Claim released, will retry.`;
+function attemptFailedCommentBody({ attemptNumber, reason, ceilingHit }) {
+  const closing = ceilingHit
+    ? 'Retry ceiling reached — no further automatic retries.'
+    : 'Claim released, will retry.';
+  return `Attempt ${attemptNumber} failed: ${reason}. ${closing}`;
 }
 
 function countFailedAttempts(comments) {
