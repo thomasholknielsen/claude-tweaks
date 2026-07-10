@@ -1519,6 +1519,144 @@ git commit -m "Update CLAUDE.md's skill inventory for /claude-tweaks:triage"
 
 ---
 
+### Task 14: Second cross-reference sweep — `--from-label`/`--from-milestone` and a reintroduced stale claim
+
+**Files:**
+- Modify: `skills/_shared/github-pr-scan.md`
+- Modify: `skills/init/bootstrap-steps.md`
+- Modify: `skills/specify/spec-template.md`
+- Modify: `bin/lib/issues/ingest.js`
+
+Found during Task 12's own review. Task 12's final verification grep
+(`agent:eligible|agent:go\b|agent:fast\b|from-code-health|--from-code-health`)
+never covered `--from-label`/`--from-milestone`/`--require-eligible` — a real
+gap in that grep's coverage, not a failure by Task 12 to do what it said. This
+task also fixes a stale claim that Task 12's own Step 11 fix accidentally
+reintroduced (see Step 3 below).
+
+- [ ] **Step 1: `skills/_shared/github-pr-scan.md` — stale recommendation**
+
+Replace:
+
+```
+| Code-health issue still valid | Suggest `/flow --from-code-health` or Capture to INBOX |
+```
+
+with:
+
+```
+| Code-health issue still valid | Suggest `/claude-tweaks:triage` or Capture to INBOX |
+```
+
+- [ ] **Step 2: `skills/init/bootstrap-steps.md` — two `--from-label`/`--from-milestone` mentions**
+
+Replace:
+
+```
+below entirely and go straight to "Write the flag to CLAUDE.md" with
+`backlog-backend: github-issues`. GitHub issues is the richer, proven path
+(filterable, visible outside the repo, works with `/flow --from-label` and
+`--from-milestone`) — asking a neutral A/B question when the better option is
+```
+
+with:
+
+```
+below entirely and go straight to "Write the flag to CLAUDE.md" with
+`backlog-backend: github-issues`. GitHub issues is the richer, proven path
+(filterable, visible outside the repo, works with `/claude-tweaks:triage` for
+authorization and headless dispatch) — asking a neutral A/B question when the
+better option is
+```
+
+Replace:
+
+```
+1. GitHub issues (Recommended when a GitHub remote is available) — filterable,
+   visible outside the repo, works with /flow --from-label and --from-milestone
+```
+
+with:
+
+```
+1. GitHub issues (Recommended when a GitHub remote is available) — filterable,
+   visible outside the repo, works with /claude-tweaks:triage for authorization
+   and headless dispatch
+```
+
+- [ ] **Step 3: `skills/specify/spec-template.md` — two remaining issues**
+
+First, the `--from-label` mention. Replace:
+
+```
+Omit all four fields for specs not derived from a GitHub issue — there is no "none" sentinel; absence is the signal (same convention as `design-intent:`'s missing-field handling, but unlike it, absence here means "not applicable" rather than a default value). `code-health-effort:` is additionally omitted for specs derived from a non-code-health issue (e.g. a hand-filed bug report pulled via `--from-label`) even when `recon-issue:`/`recon-fingerprint:` are present, since only code-health's own findings carry an effort judgment.
+```
+
+with:
+
+```
+Omit all four fields for specs not derived from a GitHub issue — there is no "none" sentinel; absence is the signal (same convention as `design-intent:`'s missing-field handling, but unlike it, absence here means "not applicable" rather than a default value). `code-health-effort:` is additionally omitted for specs derived from a non-code-health issue (e.g. a hand-filed bug report resolved directly by issue reference) even when `recon-issue:`/`recon-fingerprint:` are present, since only code-health's own findings carry an effort judgment.
+```
+
+Second, a stale claim Task 12's own Step 11 fix reintroduced: the same
+"console decline" mechanism thoroughly debunked and corrected across
+`skills/_shared/issue-claims.md` (see that file's Consumers table and "The
+status label" section) resurfaces here in different words. Replace:
+
+```
+| `recon-was-parked:` | Whether the source issue carried the `parked` label at ingestion time (removed at promotion — see "Restore-on-promotion bookkeeping" in this skill's `SKILL.md` Step 3; the same procedure applies whether `/specify` was invoked directly or via `/claude-tweaks:flow`'s issue-mode hand-off) | The claim-release restoration steps (`wrap-up/cleanup-procedures.md` Section E, its `flow/multispec-review-console.md` duplicate, and `/claude-tweaks:flow`'s own declined-at-console release) restore `parked` on the issue iff this is `true` and the release outcome is not `merged:`/`pr-opened:` |
+```
+
+with:
+
+```
+| `recon-was-parked:` | Whether the source issue carried the `parked` label at ingestion time (removed at promotion — see "Restore-on-promotion bookkeeping" in this skill's `SKILL.md` Step 3; the same procedure applies whether `/specify` was invoked directly or via `/claude-tweaks:flow`'s issue-mode hand-off) | The claim-release restoration steps (`wrap-up/cleanup-procedures.md` Section E — whose generic `abandoned:` path also covers a single-spec issue-mode run the user doesn't merge, per `_shared/issue-claims.md` — and its `flow/multispec-review-console.md` duplicate) restore `parked` on the issue iff this is `true` and the release outcome is not `merged:`/`pr-opened:` |
+```
+
+- [ ] **Step 4: `bin/lib/issues/ingest.js` — stale header comments**
+
+Replace:
+
+```
+// pipeline briefs for any selector (--from-issues, --from-label, --from-code-health).
+```
+
+with:
+
+```
+// pipeline briefs for any selector (--from-issues, --from-label, or code-health's own label default).
+```
+
+Replace:
+
+```
+// Contract: skills/_shared/issue-claims.md; consumed by skills/flow/from-code-health.md.
+```
+
+with:
+
+```
+// Contract: skills/_shared/issue-claims.md; consumed by bin/lib/code-health/pull-issues.js.
+```
+
+Comment-only change — `issuesToBriefs` itself is unchanged and still generic;
+verify this by reading `bin/lib/code-health/pull-issues.js` to confirm it's
+the actual current consumer before committing.
+
+- [ ] **Step 5: Verify no stray references remain**
+
+Run: `grep -rln "agent:eligible\|agent:go\b\|agent:fast\b\|from-code-health\|--from-code-health\|--from-label\|--from-milestone\|--require-eligible" skills/ bin/ 2>/dev/null`
+Expected: no output.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add skills/_shared/github-pr-scan.md skills/init/bootstrap-steps.md skills/specify/spec-template.md bin/lib/issues/ingest.js
+git commit -m "Second cross-reference sweep — retire remaining --from-label/--from-milestone mentions and a reintroduced stale claim"
+```
+
+---
+
 ## Final verification
 
 - [ ] Run the full test suite and confirm no regressions beyond the
@@ -1528,10 +1666,10 @@ git commit -m "Update CLAUDE.md's skill inventory for /claude-tweaks:triage"
   Expected: all `bin/lib/issues/tests/*` pass, including the two new files
   from Tasks 1-2.
 
-- [ ] Confirm no file in the repository still references the retired labels
-  or the deleted `from-code-health.md`:
+- [ ] Confirm no file in the repository still references the retired labels,
+  the deleted `from-code-health.md`, or the retired `/flow` selector flags:
 
-  Run: `grep -rln "agent:eligible\|agent:go\b\|agent:fast\b\|from-code-health\|--from-code-health" skills/ bin/ 2>/dev/null`
+  Run: `grep -rln "agent:eligible\|agent:go\b\|agent:fast\b\|from-code-health\|--from-code-health\|--from-label\|--from-milestone\|--require-eligible" skills/ bin/ 2>/dev/null`
   Expected: no output.
 
 - [ ] Confirm `skills/flow/from-code-health.md` and
