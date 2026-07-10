@@ -8,6 +8,32 @@ The Review Console is the **second bookend** of the pipeline (see `_shared/auto-
 - **`auto` or `hybrid` mode with `MULTISPEC_REVIEW_DEFER=1`** — **skip**. The consolidated multi-spec Review Console at `/flow` end-of-run will read this spec's `decisions.md` + `staged/` and surface everything in one place. See `flow/multispec-review-console.md` in the `/claude-tweaks:flow` skill's directory.
 - **`interactive` mode** — skip; decisions were resolved in-flow
 
+## Fast-track short-circuit
+
+When this run's spec carries `recon-issue:` frontmatter for an issue tagged
+`status:fast-track` (see `skills/triage/SKILL.md`'s auto-merge gate), check
+the four-layer gate before presenting this console:
+
+1. **Authorization** — `status:fast-track` was present when dispatched (true by construction)
+2. **Pre-scored eligibility** — true by construction (the Tier Rule only recommends `fast-track` for `risk:low`+`effort:low`)
+3. **Runtime cleanliness** — `/review`'s Step 3 Routing produced nothing at Medium severity or above
+4. **Blast radius** — the diff stays within `triage-fast-track-max-lines`/`triage-fast-track-max-files` (CLAUDE.md/`policy.yml` flags, defaults 40/2) and touches only files the original issue's fingerprint/anchor pointed at
+
+**All four pass:** skip the blocking wait — merge immediately (tag the merge
+commit `[fast-lane]`) — but still generate this console's full content
+(Auto-applied / Skill updates / Configuration updates sections, per "Present
+the console" below) and attach it to a `PushNotification` as a non-blocking
+FYI. Nothing this console would have shown is discarded — only the wait for
+a live approval is skipped. Log to `decisions.md`:
+`AUTO {time} — Fast-lane auto-merge: issue #{n}, {lines} lines across {files} files, zero findings >= medium. Reversibility: high (git revert).`
+
+**Any layer fails:** proceed to render the console normally, exactly as a
+`status:approved` issue would — no different from any other pipeline run.
+
+This check does not apply to `MULTISPEC_REVIEW_DEFER=1` runs — the
+consolidated multi-spec console (`flow/multispec-review-console.md`) performs
+its own equivalent check across all specs in the batch.
+
 ## Multi-spec defer protocol
 
 When `MULTISPEC_REVIEW_DEFER=1` is set (by `/flow` multi-spec orchestration):
