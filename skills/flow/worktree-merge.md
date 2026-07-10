@@ -36,7 +36,7 @@ Before the merge/finish handoff begins, clear each run's worktree assignment —
 
 For each completed branch (in order):
 
-1. Merge into the base branch. For from-code-health runs (any spec on the branch has `recon-issue:`
+1. Merge into the base branch. For issue-derived runs (any spec on the branch has `recon-issue:`
    frontmatter), the merge commit message must carry the closing keywords — one line per issue
    (see "Close-via-merge" in `_shared/issue-claims.md`):
 

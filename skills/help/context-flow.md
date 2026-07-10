@@ -14,8 +14,8 @@ This design means:
 ## Artifact Flow
 
 ```
-Codebase                     ──→ Findings cache               ──→ GitHub Issues (durable)         ──→ Build pipeline
-.claude-tweaks/code-health/      .claude-tweaks/code-health/      gh issues (label: code-health)      /flow --from-code-health
+Codebase                     ──→ Findings cache               ──→ GitHub Issues (durable)         ──→ Triage + Build pipeline
+.claude-tweaks/code-health/      .claude-tweaks/code-health/      gh issues (label: code-health)      /claude-tweaks:triage → /flow #{issue}
   /code-health                   cache.json + runs/               ↓ (or)                              specs/NN-*.md via /specify
                                                                   INBOX / /specify                    /build
 ```

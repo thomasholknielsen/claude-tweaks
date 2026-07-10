@@ -295,8 +295,9 @@ body:
 ```
 
 Write the YAML exactly as above to `.github/ISSUE_TEMPLATE/agent-task.yml`. Declining is
-fine — freeform issues still work via the translation step (`from-code-health.md` Step 2.6); the
-form just removes the translation judgment.
+fine — freeform issues still work via `/specify`'s own issue-ingestion path (`SKILL.md`
+"Resolve the input" case 1 already handles a freeform body with "more editorializing," per
+that section); the form just removes the translation judgment.
 
 ---
 
@@ -675,7 +676,7 @@ The generated workflow ships two jobs, both triggered on `push`:
 
 No `gh issue close` call anywhere in the workflow — the default-branch merge remains
 the sole closing action, consistent with claude-tweaks' own close-via-merge rule (see
-`_shared/issue-claims.md` and `flow/from-code-health.md` Step 5).
+"Close-via-merge" in `_shared/issue-claims.md`).
 
 **Failure handling:** if writing the file fails (e.g. permissions), surface the
 failure and continue `/init` — never abort the rest of bootstrap on this step.

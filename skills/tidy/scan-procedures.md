@@ -166,8 +166,8 @@ batch approval — breaking a lock is never autonomous in /tidy.
 
 Find specs still on disk that were promoted from a `parked` issue but never got the
 restoration finished — a defense-in-depth flag for a mutation that silently failed at claim
-release (Phase 3), same shape as the already-drafted `agent:go` missed-removal backstop in
-`specs/INBOX.md`. Both checks below are flagged only — recommendations execute after Step 6
+release (Phase 3), same shape as the already-drafted `status:in-progress` missed-removal
+backstop below. Both checks below are flagged only — recommendations execute after Step 6
 batch approval, same as every other Step 4.7 mutation.
 
 ```bash
