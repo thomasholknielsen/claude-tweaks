@@ -112,7 +112,6 @@ live, skip the issue, and let `/tidy`'s sweep surface it for human judgment.
 | Trigger | Owner | Reason string |
 |---|---|---|
 | Spec merged / PR opened / discarded | `/wrap-up` cleanup item 8 | `merged: spec {spec}` / `pr-opened: spec {spec}` / `abandoned: spec {spec}` |
-| User declines the brief at the Review Console | `/flow` | `declined at review console` |
 | Interactive `/flow` run stops at a gate, user chooses not to resume | `/flow` failure card (offered, not automatic) | `failed: {gate}` |
 | Handed-off issue-mode run fails a HARD-GATE (headless `dispatch`, no human present) | `/claude-tweaks:triage dispatch` Step 4 (automatic, unconditional) | `failed: {gate}` |
 | Stale or orphaned claim in hygiene pass | `/tidy` Step 4.7 (after batch approval) | `swept: stale claim` / `swept: issue closed` |
