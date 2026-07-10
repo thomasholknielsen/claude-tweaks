@@ -89,13 +89,17 @@ node -e "
   console.log(untiered);
 "
 gh issue list --label status:blocked --state open --json number --limit 200 -q 'length'
+SINCE=$(node -e "console.log(new Date(Date.now() - 7*24*60*60*1000).toISOString())")
+gh api "repos/{owner}/{repo}/commits?since=${SINCE}" -q '[.[] | select(.commit.message | contains("[fast-lane]"))] | length'
 ```
+
+The commits query counts `[fast-lane]`-tagged commits on the repo's *default* branch — never the current worktree's own branch, which typically won't contain them yet (this project enforces `worktree.always`, so `/help` is commonly invoked from inside a feature-branch worktree whose branch forked before any recent auto-merges landed). The commits endpoint defaults to the default branch when no `sha=` param is given, so this is correct regardless of which branch/worktree `/help` itself runs from. `SINCE` is computed via `node` rather than shell `date` arithmetic, which differs between BSD/macOS and GNU date.
 
 Render as three lines on the dashboard:
 
 - Pending authorization: **N issues awaiting your decision** — run `/claude-tweaks:triage` (omit this line when N is 0)
 - Blocked: **N issues hit their retry ceiling** — run `/claude-tweaks:triage` to review (omit this line when N is 0)
-- Auto-merged this week: **N fast-lane merges** (count `[fast-lane]`-tagged commits on the default branch in the last 7 days via `git log --oneline --since="7 days ago" --grep="\[fast-lane\]"`; omit this line when N is 0)
+- Auto-merged this week: **N fast-lane merges** on the default branch in the last 7 days (omit this line when N is 0)
 
 ## Stage 5: Specs Awaiting Review
 
@@ -144,6 +148,14 @@ Render as three lines on the dashboard:
 | CI checks | {N failing, M pending} | {Fix before merge / —} |
 | Unresolved threads | {N} | {Address or resolve / —} |
 | Linked issues | {#12, #14} | Closed on merge |
+
+### Triage Queue
+
+*(Omit this section entirely when Stage 4.6 reports all three counts as 0, or the GitHub scan was skipped.)*
+
+- Pending authorization: **{N} issues awaiting your decision** — run `/claude-tweaks:triage`
+- Blocked: **{N} issues hit their retry ceiling** — run `/claude-tweaks:triage` to review
+- Auto-merged this week: **{N} fast-lane merges**
 
 ### Ready to Build (priority order)
 | Spec | Title | Tier | Has Plan? |
