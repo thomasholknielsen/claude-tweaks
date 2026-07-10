@@ -13,7 +13,7 @@
 - Every new/modified skill file follows this plugin's SKILL.md conventions: YAML frontmatter (`name`, `description`), the standard interaction-style directive, an Anti-Patterns table, a Relationship-to-Other-Skills table.
 - Pure logic lives in `bin/lib/issues/*.js`, tested via `node --test` — never inline shell one-offs for anything with real branching logic.
 - `agent:eligible`/`agent:go`/`agent:fast` are fully retired — no code path may reference them after this plan completes.
-- Only the interactive (bare) invocation of `/claude-tweaks:triage` ever writes a `status:needs-review`/`status:approved`/`status:fast-track` label. The headless `dispatch` mode only ever reads them. This is a hard security invariant, not a style preference.
+- Only the interactive (bare) invocation of `/claude-tweaks:triage` ever *grants* a `status:needs-review`/`status:approved`/`status:fast-track` label an issue didn't already have. The headless `dispatch` mode may only *downgrade or strip* a tier it reads (`fast-track`→`approved` on failure; removed + `status:blocked` at the retry ceiling) — it revokes trust, it never grants it. This is a hard security invariant, not a style preference.
 - Every `gh` label bootstrap follows the existing check-then-create pattern used throughout this codebase (`gh label list --search <name> --json name -q '.[].name' | grep -qx <name> || gh label create <name> --description "..."`).
 - Design source of truth: `docs/superpowers/specs/2026-07-10-triage-status-lifecycle-design.md`.
 
@@ -386,31 +386,37 @@ When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
 
 1. Release the claim (reason: `failed: {gate}`, per `_shared/issue-claims.md`'s
    Release triggers table).
-2. Post a failure comment:
-
-   ```bash
-   node -e "
-     const { attemptFailedCommentBody } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/retry.js');
-     console.log(attemptFailedCommentBody({ attemptNumber: process.argv[1], reason: process.argv[2] }));
-   " "$ATTEMPT_NUMBER" "$REASON" > /tmp/attempt-comment.md
-   gh issue comment "$ISSUE" --body-file /tmp/attempt-comment.md
-   ```
-
-3. Check the ceiling (read `triage-retry-ceiling` from CLAUDE.md/`policy.yml`, default 3):
+2. Fetch existing comments and compute this attempt's number and whether it
+   hits the ceiling (read `triage-retry-ceiling` from CLAUDE.md/`policy.yml`,
+   default 3), in one pass — fetching comments *before* posting this attempt's
+   comment is what makes the attempt number and ceiling check correct:
 
    ```bash
    gh api "repos/{owner}/{repo}/issues/${ISSUE}/comments?per_page=100" > "/tmp/dispatch-comments-${ISSUE}.json"
    node -e "
-     const { hasHitRetryCeiling } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/retry.js');
+     const { countFailedAttempts } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/retry.js');
      const comments = require(process.argv[1]);
-     console.log(hasHitRetryCeiling(comments, Number(process.argv[2] || 3)));
-   " "/tmp/dispatch-comments-${ISSUE}.json" "$TRIAGE_RETRY_CEILING"
+     const attemptNumber = countFailedAttempts(comments) + 1;
+     const ceiling = Number(process.argv[2] || 3);
+     console.log(JSON.stringify({ attemptNumber, ceilingHit: attemptNumber >= ceiling }));
+   " "/tmp/dispatch-comments-${ISSUE}.json" "$TRIAGE_RETRY_CEILING" > "/tmp/attempt-info-${ISSUE}.json"
    ```
 
-4. **If the ceiling was hit:** strip whichever tier label the issue carries,
+3. Post the failure comment, using the `attemptNumber` just computed:
+
+   ```bash
+   node -e "
+     const { attemptFailedCommentBody } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/retry.js');
+     const { attemptNumber } = require(process.argv[1]);
+     console.log(attemptFailedCommentBody({ attemptNumber, reason: process.argv[2] }));
+   " "/tmp/attempt-info-${ISSUE}.json" "$REASON" > /tmp/attempt-comment.md
+   gh issue comment "$ISSUE" --body-file /tmp/attempt-comment.md
+   ```
+
+4. **If `ceilingHit` was `true`:** strip whichever tier label the issue carries,
    add `status:blocked`, send a `PushNotification` ("Issue #{n} hit its retry
    ceiling — needs a look: {title}").
-5. **If not:** leave the tier label in place — the next `dispatch` firing
+5. **If `false`:** leave the tier label in place — the next `dispatch` firing
    pulls it again naturally (the claim was already released).
 
 **Failure-downgrade rule:** whenever a `status:fast-track` issue's run fails
@@ -457,7 +463,9 @@ Read from CLAUDE.md or `.claude-tweaks/policy.yml`:
 
 ## Next Actions
 
-When invoked by a parent skill, omit this block. When invoked directly:
+Render only for the bare (interactive) invocation — there is no human present
+to answer `AskUserQuestion` during a headless `dispatch` firing, so `dispatch`
+mode never renders this block:
 
 - `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
 - Option 1 — `label`: `"Run triage again (Recommended)"`, `description`: `"/claude-tweaks:triage — review any remaining untiered issues"`
@@ -468,7 +476,7 @@ When invoked by a parent skill, omit this block. When invoked directly:
 
 | Pattern | Why It Fails |
 |---------|--------------|
-| Applying `status:approved`/`status:fast-track`/`status:needs-review` from inside `dispatch` mode | Only the interactive, human-confirmed bare invocation ever writes a tier label — this is the security boundary (GitHub's own triage-permission model), not a discretionary nicety. `dispatch` mode only ever reads tier labels. |
+| `dispatch` mode granting a tier an issue didn't already have (newly applying `status:needs-review`/`status:approved`/`status:fast-track`) | Only the interactive, human-confirmed bare invocation ever grants a tier — this is the security boundary (GitHub's own triage-permission model), not a discretionary nicety. `dispatch` mode may only downgrade or strip a tier it reads (`fast-track`→`approved` on failure, or removed + `status:blocked` at the retry ceiling) — it revokes trust, it never grants it. |
 | Deriving the recommended tier from anything other than `risk-<tier>`/`effort-<tier>` | The Tier Rule is deliberately narrow and mechanical — no LLM judgment re-enters at the gate itself. |
 | Skipping the batch-confirm because the recommendation "looks obviously right" | The human action, however trivial, is the load-bearing security signature — never skip it, even for an all-"Fast-track" batch. |
 | Letting a fast-track issue auto-merge on a retry after a prior failure | The failure-downgrade rule exists specifically to prevent this — any failure permanently downgrades that issue's current authorization to `approved`. |
@@ -533,8 +541,11 @@ notes: >
   skips claimed issues), and a failed run retries at a later firing once its
   claim ages out (TTL) — up to the triage-retry-ceiling policy flag, after which
   the issue is relabeled status:blocked and stops auto-retrying. Only this
-  skill's bare (interactive) invocation ever writes a status:needs-review/
-  status:approved/status:fast-track label — dispatch mode only ever reads them.
+  skill's bare (interactive) invocation ever grants a status:needs-review/
+  status:approved/status:fast-track label an issue didn't already have —
+  dispatch mode may only downgrade or strip a tier it reads (fast-track to
+  approved on failure, or removed plus status:blocked at the retry ceiling);
+  it revokes trust, never grants it.
   A fast-track issue whose run comes back clean (per the four-layer auto-merge
   gate) merges without waiting at the Review Console; anything less than clean
   falls back to a normal wait. Each firing that dispatches work ends at its
