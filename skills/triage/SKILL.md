@@ -209,6 +209,12 @@ merge itself, landing in the main checkout, isn't denied as a wrong-checkout
 commit. Then, from the main checkout:
 
 ```bash
+DEFAULT_BRANCH=$(gh api "repos/{owner}/{repo}" -q .default_branch)
+CURRENT=$(git branch --show-current)
+if [ "$CURRENT" != "$DEFAULT_BRANCH" ]; then
+  echo "Main checkout is on '$CURRENT', not '$DEFAULT_BRANCH' — a concurrent session switched it. Abort, do not merge." >&2
+  exit 1
+fi
 git merge --no-ff "$BRANCH" -m "[fast-lane] {one-line summary}
 
 Fixes #{issue}"
