@@ -111,7 +111,7 @@ Every recommendation in the tidy report uses one of these actions. Each action i
 | **Delete** | Item is no longer needed — stale, already implemented, or out of scope | `local-files`: remove entry from source file. `github-issues`: (1) comment explaining why (audit trail — never close silently), (2) `gh issue close {n} --reason "not planned"`. | Yes (file) / issue closes (GitHub) |
 | **Defer** | Valid but not timely — park with a trigger condition | `local-files`: set `**Stage:** parked` and add `**From:** {source} \| **Trigger:** {condition}` fields (plus a `**Deferred:** {date}` line) to the existing `specs/backlog/{slug}.md` in place — no file removal, same file, updated. `github-issues`: (1) build the parked body via `parkedIssuePayload` (origin = the inbox issue's own reference, context carried over, trigger + options considered supplied at triage), write it to a temp file, (2) `gh issue edit {n} --body-file <temp file>`, (3) bootstrap the `parked` label if missing (same check-then-create pattern as `backlog`), then `gh issue edit {n} --add-label parked`, (4) if the trigger names a moment in time, attach a GitHub Milestone: `gh api repos/{owner}/{repo}/milestones --jq '.[].title'` to check existence, `gh api repos/{owner}/{repo}/milestones -f title="{name}"` to create if absent, `gh issue edit {n} --milestone "{name}"` to attach, (5) if the trigger names specific files, pass them as `watchedPaths` to `parkedIssuePayload` in step (1) so the generated body already carries `**Watched paths:**` | No (file, same file updated in place) / issue stays open, relabeled (GitHub) |
 | **Merge** | Scope belongs in an existing spec | Both backends: (1) integrate scope into target spec's **Deliverables**, **Acceptance Criteria**, and **Technical Approach** — not as an appendix, as first-class spec content, (2) update target spec's `Last Updated`. `local-files`: (3) remove from source. `github-issues`: (3) comment naming the target spec (`Merged into spec {N}.`), (4) `gh issue close {n} --reason "not planned"`. | Yes (file) / issue closes (GitHub) |
-| **Promote** | Ready for the brainstorm → specify pipeline | `local-files`: tag in INBOX as `**Promoted:** {date} — awaiting brainstorm`. Do NOT remove from INBOX. `github-issues`: no mutation here — the open issue is already the durable pointer; recommend `/claude-tweaks:specify #{n}` directly (existing issue-ingestion path). `/specify` itself removes `parked` (if present) and stamps `recon-was-parked: true` on the generated spec at spec-write time (Step 3) — see `spec-template.md`'s frontmatter reference; restoration on decline/abandon happens later, at claim release (`_shared/issue-claims.md`, `wrap-up/cleanup-procedures.md` Section E). | No (file, stays tagged) / No (issue, stays open — mutation deferred to `/specify`) |
+| **Promote** | Ready for the brainstorm → specify pipeline | `local-files`: add a `**Promoted:** {date} — awaiting brainstorm` line to the existing `specs/backlog/{slug}.md` entry. Do NOT delete the entry. `github-issues`: no mutation here — the open issue is already the durable pointer; recommend `/claude-tweaks:specify #{n}` directly (existing issue-ingestion path). `/specify` itself removes `parked` (if present) and stamps `recon-was-parked: true` on the generated spec at spec-write time (Step 3) — see `spec-template.md`'s frontmatter reference; restoration on decline/abandon happens later, at claim release (`_shared/issue-claims.md`, `wrap-up/cleanup-procedures.md` Section E). | No (file, stays tagged) / No (issue, stays open — mutation deferred to `/specify`) |
 | **Keep** | No action needed | None | No |
 | **Sync to GitHub** | A local `specs/backlog/{slug}.md` entry exists while `backlog-backend: github-issues` — mirror it to an issue now | Inbox-stage entry: build via `inboxIssuePayload` (category from the entry's `**Category:**` field), bootstrap labels, `gh issue create` with `backlog` + `backlog:category-<value>` labels. Parked-stage entry: judge trigger type live — names files → pass as `watchedPaths`; names a moment in time → build via `parkedIssuePayload` then attach/create a milestone; otherwise carry the prose `**Trigger:**` over unchanged — build via `parkedIssuePayload` (category from the entry's own `**Category:**` field, which every entry carries regardless of stage), `gh issue create` with `backlog` + `parked` + category labels. Either way: delete `specs/backlog/{slug}.md` only after `gh issue create` confirms success. | Yes — moves to GitHub, entry file deleted |
 | **Close (GitHub)** | Open PR or issue is stale or superseded — close it upstream | (1) Comment on the PR/issue explaining why (the comment is the audit trail — never close silently), (2) `gh pr close {n}` / `gh issue close {n}` | N/A — GitHub state |
@@ -120,9 +120,9 @@ Every recommendation in the tidy report uses one of these actions. Each action i
 
 `Capture`, `Close (GitHub)`, and `Resolve thread` are unaffected by `backlog-backend` — they're not part of the backlog-issues design (`docs/superpowers/specs/2026-07-08-backlog-github-issues-design.md`).
 
-### Why "Promote" keeps the item in INBOX
+### Why "Promote" keeps the entry in place
 
-The lifecycle is: INBOX → brainstorm → design doc → specify → spec file. "Promote" means the item is ready to enter that pipeline, but until a spec file exists, the INBOX entry is the only tracking artifact. Removing it creates a gap where the item exists nowhere — decided on but with no durable record. The INBOX entry stays as a pointer until `/claude-tweaks:specify` creates the spec, at which point `/claude-tweaks:specify` Step 8 removes it from INBOX.
+The lifecycle is: backlog entry (inbox stage) → brainstorm → design doc → specify → spec file. "Promote" means the item is ready to enter that pipeline, but until a spec file exists, the `specs/backlog/{slug}.md` entry is the only tracking artifact. Removing it creates a gap where the item exists nowhere — decided on but with no durable record. The entry stays as a pointer until `/claude-tweaks:specify` creates the spec, at which point `/claude-tweaks:specify` Step 8 deletes it.
 
 ### Merge means integrate, not append
 
@@ -143,7 +143,7 @@ For each finding, route by recommendation type:
 | **Keep** | Auto (no-op) | Auto (no-op) | Auto (no-op) |
 | **Delete** (stale temp files, broken symlinks, marked-as-specified design docs, merged worktrees/branches, orphaned plans whose related spec is complete) | Auto-apply | Auto-apply | Auto-apply |
 | **Delete** (any case requiring judgment, excluding backlog issues — old plans whose spec status is unclear, design docs with no specs; see the dedicated backlog-issue Delete row below for `github-issues`-backend backlog findings) | Stage | Auto-apply | Auto-apply |
-| **Merge** (INBOX item overlaps existing spec, `local-files` backend — see the dedicated backlog-issue Merge row below for `github-issues`) | Stage | Auto-apply | Auto-apply |
+| **Merge** (backlog item overlaps existing spec, `local-files` backend — see the dedicated backlog-issue Merge row below for `github-issues`) | Stage | Auto-apply | Auto-apply |
 | **Promote** (ready for brainstorm pipeline) | Stage | Stage | Auto-apply |
 | **Defer** (`local-files` — pure file move) | Stage | Auto-apply | Auto-apply |
 | **Defer** (`github-issues` — label + possible milestone creation, outward-facing) | Stage | Stage | Stage — visible to collaborators; never auto-applied per the auto-mode contract's reversibility floor |
@@ -159,8 +159,8 @@ For each finding, route by recommendation type:
 
 **Log entries:** Write each auto-resolution to `{run-dir}/decisions.md` per `_shared/auto-decision-log.md`. Example entries:
 ```
-AUTO 11:14:32 — Step 6: deleted stale INBOX entry "{title}" (5 weeks old). Reversibility: med (commit {hash}).
-STAGED 11:14:35 — Step 6: merge proposal for INBOX "{title}" into spec 42. Stage path: staged/tidy-merge-1.md.
+AUTO 11:14:32 — Step 6: deleted stale backlog entry "{title}" (5 weeks old). Reversibility: med (commit {hash}).
+STAGED 11:14:35 — Step 6: merge proposal for backlog entry "{title}" into spec 42. Stage path: staged/tidy-merge-1.md.
 ```
 
 Auto-applied items are committed. Staged items surface at the Wrap-Up Review Console for batch approval (`/wrap-up` Step 8.6) when `/tidy` runs as part of a pipeline.
@@ -178,12 +178,12 @@ Present all collected findings as a single report. Every item has a pre-filled r
 
 | # | Type | Item | Recommendation |
 |---|------|------|---------------|
-| 1 | INBOX | "{title}" (4+ weeks) | Delete — stale |
-| 2 | INBOX | "{title}" (2 weeks) | Keep — still fresh |
-| 3 | INBOX | "{title}" (clean, ready) | Promote — tag, awaiting brainstorm |
-| 4 | INBOX | "{title}" (overlaps spec {N}) | Merge → Spec {N} |
-| 5 | INBOX | "{title}" (valid, not timely) | Defer — trigger: {condition} |
-| 6 | Deferred | "{title}" (trigger met) | Promote — ready for brainstorm/specify |
+| 1 | Backlog | "{title}" (4+ weeks) | Delete — stale |
+| 2 | Backlog | "{title}" (2 weeks) | Keep — still fresh |
+| 3 | Backlog | "{title}" (clean, ready) | Promote — tag, awaiting brainstorm |
+| 4 | Backlog | "{title}" (overlaps spec {N}) | Merge → Spec {N} |
+| 5 | Backlog | "{title}" (valid, not timely) | Defer — trigger: {condition} |
+| 6 | Backlog | "{title}" (trigger met) | Promote — ready for brainstorm/specify |
 | 7 | Spec | Spec {N} (appears complete) | Run `/review {N}` |
 | 8 | Spec | Spec {N} (4+ weeks in progress) | Re-evaluate scope |
 | 9 | Dependency | Circular: {A} ↔ {B} | Fix now |
@@ -191,7 +191,7 @@ Present all collected findings as a single report. Every item has a pre-filled r
 | 11 | Plan | "{filename}" (orphaned) | Delete |
 | 12 | Worktree | "{path}" (merged) | Remove |
 | 13 | Branch | "build/{name}" (merged) | Delete |
-| 14 | INBOX (unsynced) | "{title}" — local-only under `backlog-backend: github-issues` | Sync to GitHub |
+| 14 | Backlog (unsynced) | "{title}" — local-only under `backlog-backend: github-issues` | Sync to GitHub |
 
 ### Cross-Spec Patterns (if any)
 
@@ -203,8 +203,8 @@ Present all collected findings as a single report. Every item has a pre-filled r
 *Patterns are informational — they highlight systemic issues across multiple specs. Address them to prevent the same findings from recurring.*
 
 ### Summary
-- INBOX: {X} items ({Y} stale, {Z} ready to promote)
-- Deferred: {X} items ({Y} actionable, {Z} stale)
+- Backlog (inbox stage): {X} items ({Y} stale, {Z} ready to promote)
+- Backlog (parked stage): {X} items ({Y} actionable, {Z} stale)
 - Specs: {A} total, {B} appear complete, {C} need attention
 - Plans to clean: {D} design docs, {E} execution plans
 - Git cleanup: {F} worktrees, {G} build branches
@@ -224,7 +224,7 @@ Items recommended as "Keep" are included for visibility but require no action. O
 
 ## Step 7: Execute Approved Actions
 
-Execute each approved action per the Action Vocabulary table — that table is the canonical reference for per-action execution rules (remove from source / write to DEFERRED.md / integrate into target spec / tag with `**Promoted:**`). Every action must be atomic: complete all its execution steps or none.
+Execute each approved action per the Action Vocabulary table — that table is the canonical reference for per-action execution rules (delete the entry / flip `**Stage:** parked` in place / integrate into target spec / tag with `**Promoted:**`). Every action must be atomic: complete all its execution steps or none.
 
 Cross-action housekeeping (apply once per run after all actions execute):
 
@@ -296,7 +296,7 @@ Call `AskUserQuestion`:
 | Promoting INBOX items directly to specs without brainstorming | Brainstorming catches assumptions that skip straight to implementation |
 | Keeping everything "just in case" | Stale items create noise and slow down `/claude-tweaks:help` |
 | Presenting items one-at-a-time for individual decisions | Scan silently, present one batch report, let the user approve all or override specific items. Per-item prompts scale badly. |
-| Removing INBOX items marked as "Promote" | Promoted items stay in INBOX until a spec file exists. The INBOX entry is the tracking artifact — removing it drops the item on the floor. |
+| Deleting backlog entries marked as "Promote" | Promoted items stay in `specs/backlog/` until a spec file exists. The entry is the tracking artifact — deleting it drops the item on the floor. |
 | Appending a "Merged Scope" section to a spec | Merged content must be integrated into existing Deliverables, Acceptance Criteria, and Technical Approach. Appendix sections create second-class content that `/superpowers:writing-plans` may miss. |
 | Committing without running verification | Always verify every action landed (Step 7.5) before committing. Partial execution creates orphaned or lost items. |
 | Clearing a local entry before `gh issue create` confirms success | Sync to GitHub writes to GitHub before touching the local file — if the local entry is removed first and the GitHub write fails, the item is lost entirely, not just unsynced. |
@@ -312,7 +312,7 @@ Call `AskUserQuestion`:
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:capture` | Feeds the INBOX that /claude-tweaks:tidy audits |
-| `/claude-tweaks:specify` | /claude-tweaks:tidy flags unspecified design docs for /claude-tweaks:specify. /claude-tweaks:specify Step 8 removes promoted items from INBOX after creating the spec |
+| `/claude-tweaks:specify` | /claude-tweaks:tidy flags unspecified design docs for /claude-tweaks:specify. /claude-tweaks:specify Step 8 deletes the promoted backlog entry after creating the spec |
 | `/claude-tweaks:review` | /claude-tweaks:tidy flags specs that appear complete but lack review, and scans review summaries for cross-spec patterns (recurring findings, flagged files) |
 | `/claude-tweaks:wrap-up` | /claude-tweaks:tidy flags reviewed specs that need wrap-up, and scans wrap-up reflections for cross-spec patterns (recurring gotchas, deferred themes) |
 | `/claude-tweaks:help` | /claude-tweaks:help suggests /claude-tweaks:tidy when maintenance signals are detected |
