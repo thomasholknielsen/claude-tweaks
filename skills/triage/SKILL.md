@@ -93,12 +93,19 @@ field (which answers this one batch question, not a per-item list).
 ### Step 4: Apply
 
 ```bash
-gh label list --search "tier:approved" --json name -q '.[].name' | grep -qx tier:approved || \
-  gh label create tier:approved --description "Triage authorized this for building - human approves the merge"
-gh label list --search "tier:fast-track" --json name -q '.[].name' | grep -qx tier:fast-track || \
-  gh label create tier:fast-track --description "Triage authorized this for building - auto-merges if the run comes back clean"
-gh label list --search "tier:needs-review" --json name -q '.[].name' | grep -qx tier:needs-review || \
-  gh label create tier:needs-review --description "Triage flagged this - needs a closer human look before authorizing"
+node -e "
+  const { ensureLabelPayload } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/labels.js');
+  const labels = [
+    ['tier:approved', 'Triage authorized this for building - human approves the merge'],
+    ['tier:fast-track', 'Triage authorized this for building - auto-merges if the run comes back clean'],
+    ['tier:needs-review', 'Triage flagged this - needs a closer human look before authorizing'],
+  ];
+  console.log(JSON.stringify(labels.map(([n, d]) => ensureLabelPayload(n, d))));
+" > /tmp/triage-tier-label-payloads.json
+node -e "const ls=require('/tmp/triage-tier-label-payloads.json'); ls.forEach(l => console.log(l.name + '\t' + l.description))" | while IFS=$'\t' read -r NAME DESCRIPTION; do
+  gh label list --search "$NAME" --json name -q '.[].name' | grep -qx "$NAME" || \
+    gh label create "$NAME" --description "$DESCRIPTION"
+done
 if gh issue view "$ISSUE" --json labels -q '.labels[].name' | grep -qx status:blocked; then
   gh issue edit "$ISSUE" --remove-label status:blocked --add-label "tier:{tier}"
 else
@@ -148,8 +155,9 @@ Resolve the sha once per run, then for each issue attempt the atomic ref creatio
 (`claimPayload`):
 
 ```bash
+DESCRIPTION=$(node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/labels.js').ensureLabelPayload('status:in-progress', 'Claimed and being built by an autonomous claude-tweaks run').description)")
 gh label list --search "status:in-progress" --json name -q '.[].name' | grep -qx status:in-progress || \
-  gh label create status:in-progress --description "Claimed and being built by an autonomous claude-tweaks run"
+  gh label create status:in-progress --description "$DESCRIPTION"
 gh issue edit "$ISSUE" --add-label status:in-progress
 ```
 
@@ -291,10 +299,19 @@ When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
    gh issue comment "$ISSUE" --body-file /tmp/attempt-comment.md
    ```
 
-5. **If `ceilingHit` was `true`:** strip whichever tier label the issue carries,
-   add `status:blocked`, send a `PushNotification` ("Issue #{n} hit its retry
-   ceiling — needs a look: {title}"). The Failure-downgrade rule below is moot
-   here — whatever tier existed is already being stripped.
+5. **If `ceilingHit` was `true`:** bootstrap `status:blocked` if it doesn't already exist —
+   `gh label create` does not auto-vivify a label on first `--add-label`, and nothing else in
+   this file creates this one:
+
+   ```bash
+   DESCRIPTION=$(node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/labels.js').ensureLabelPayload('status:blocked', 'Hit its retry ceiling under autonomous dispatch - needs a human look').description)")
+   gh label list --search "status:blocked" --json name -q '.[].name' | grep -qx status:blocked || \
+     gh label create status:blocked --description "$DESCRIPTION"
+   ```
+
+   Then strip whichever tier label the issue carries, add `status:blocked`, send a
+   `PushNotification` ("Issue #{n} hit its retry ceiling — needs a look: {title}"). The
+   Failure-downgrade rule below is moot here — whatever tier existed is already being stripped.
 6. **If `false`:** apply the Failure-downgrade rule first, *then* leave the
    (possibly just-downgraded) tier label in place — the next `dispatch`
    firing pulls it again naturally (the claim was already released):
@@ -314,7 +331,10 @@ runs, never to `tier:fast-track` unconditionally.
 
 ## Consolidated Review Console (dispatch only)
 
-After every group from Step 3 reports back (`DONE`, `DONE_WITH_CONCERNS`, or `BLOCKED`), render **one** Review Console for the whole firing instead of the human seeing one per issue. Reuse `flow/multispec-review-console.md`'s table format and Hard Requirements (every entry surfaced, `Spec`/`Issue` column mandatory, sort order: reversibility:low first, then severity:high first, tiebreaker issue number ascending) — read every group's manifest/`decisions.md` (a bundle's is the standard multi-spec manifest; a singleton's is the degenerate one-item case) and consolidate.
+After every group from Step 3 reports back (`DONE`, `DONE_WITH_CONCERNS`, or `BLOCKED`), render **one** Review Console for the whole firing instead of the human seeing one per issue. Reuse `flow/multispec-review-console.md`'s table format and Hard Requirements (every entry surfaced, `Spec`/`Issue` column mandatory, sort order: reversibility:low first, then severity:high first, tiebreaker issue number ascending) — read every group's manifest/`decisions.md` and consolidate:
+
+- **A bundle's** run dir already has the standard multi-spec layout (`manifest.yml` enumerating `spec-{N}/` subdirectories, each with its own `decisions.md`/`staged/`) — read it exactly as `multispec-review-console.md` describes.
+- **A singleton's** run dir is an ordinary, unchanged single-spec run — its `decisions.md`/`staged/` live at the run dir's *top level*, not under a `spec-{N}/` subdirectory (there is no `manifest.yml`). Read those top-level files directly. For the mandatory `Spec`/`Issue` column, use the issue number from the group's `GROUP:` output line (Step 3's template) — a singleton has no spec-based attribution scheme to fall back on.
 
 The auto-merge gate (below) is evaluated per issue, not per group, before this console renders — a bundle where one issue auto-merged cleanly and the other didn't shows the auto-merged one as an FYI row (already merged) and the other as a normal pending-approval row in the same console.
 

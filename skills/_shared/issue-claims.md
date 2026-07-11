@@ -49,8 +49,11 @@ Marker shapes (emitted by `claimPayload` / `releasePayload`):
 <!-- agent-claim-release: {"runId":"...","reason":"...","releasedAt":"<ISO>"} -->
 ```
 
-Identity: `runId` is the pipeline run directory id (`{ISO-timestamp}-{spec-slug}`, or the
-routine's run id when headless); `sessionId` is `CLAUDE_CODE_SESSION_ID` — the same identity
+Identity: `runId` is the pipeline run directory id (`{ISO-timestamp}-{spec-slug}`) for a
+pipeline-owned run. For a headless routine with no pipeline (`/claude-tweaks:triage dispatch`,
+the one such consumer today), `runId` is that firing's standalone-auto run dir basename per
+`_shared/pipeline-run-dir.md` (e.g. `{ISO-timestamp}-triage-standalone`) — not a separately
+maintained "routine id." `sessionId` is `CLAUDE_CODE_SESSION_ID` — the same identity
 `record-worktree` stamps. If the comment post fails after the ref succeeds, the claim stands:
 retry once, warn, proceed.
 
@@ -128,6 +131,22 @@ through `claimStatus` and confirm `claim.runId` equals this run's `$RUN_ID`. A m
 a successor broke the stale claim and now holds the lock — skip the delete, log, and post
 nothing. `/tidy`'s sweep is exempt: it releases *other* runs' stale claims by design, after
 batch approval.
+
+**Known gap — dispatch's success path.** `/claude-tweaks:triage dispatch` claims with the
+*dispatch firing's* `$RUN_ID`, but a successful run's release happens inside `/wrap-up`
+(cleanup Section E), running under the handed-off `/flow`/`/specify` pipeline's *own*, later,
+differently-named run dir — a different `$RUN_ID` than the one that made the claim. The
+ownership check as written will not match on this path, so it skips the delete and the release
+comment (treating the dispatch firing as "a successor" even though it's the same logical run).
+Practical impact is bounded: the issue still closes correctly via `Fixes #N` in the merge, the
+stale ref self-heals via TTL (72h) plus `/tidy`'s sweep, and the failure path (dispatch's own
+`triage/SKILL.md` Step 4) is unaffected since it releases from the same thread that claimed.
+What's actually lost is the release audit comment and prompt ref cleanup on the common,
+successful case. Fixing this properly needs the dispatch firing's `$RUN_ID` threaded through
+`/flow`'s hand-off into `/wrap-up`'s release call (as an explicit param, since `/flow` creates
+its own `PIPELINE_RUN_DIR` and has no reason to reuse dispatch's) — cross-cutting enough
+(`flow/SKILL.md`, `cleanup-procedures.md`, `multispec-review-console.md`) to warrant its own
+follow-up rather than a change bundled into whatever else happens to touch this file.
 
 **Work-ready evidence.** Pass `releasePayload` a `link` (merge commit URL/sha or PR URL) when
 one exists — it lands in the release marker and human line, making the issue's comment trail
