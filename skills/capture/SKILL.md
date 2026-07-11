@@ -225,7 +225,7 @@ Parent invocation of `/capture` is signaled by `$PIPELINE_RUN_DIR` being set in 
 | `/claude-tweaks:specify` | Converts `/superpowers:brainstorming` output into specs |
 | `/claude-tweaks:tidy` | Reviews INBOX for stale items — promotes, merges, or deletes |
 | `/claude-tweaks:review` | May create INBOX items for new ideas discovered during review |
-| `/claude-tweaks:wrap-up` | May create INBOX items for genuinely new ideas; leftover work goes to DEFERRED.md |
+| `/claude-tweaks:wrap-up` | May create INBOX items for genuinely new ideas; leftover work goes to specs/backlog/ (Stage: parked) |
 | `/claude-tweaks:build` | Calls /capture during Common Step 4 (design mode) to file blocked items and follow-up ideas before they slip |
 | `/claude-tweaks:init` | After bootstrap, /init suggests /capture as the entry point for parking ideas that surface during setup but aren't ready to specify |
 | `/claude-tweaks:reflect` | Surfaces tangential ideas at the Wrap-Up Review Console (writes direct to INBOX, not via /capture) |
