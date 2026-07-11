@@ -7,8 +7,9 @@
 const CATEGORY_VALUES = new Set(['drift', 'coverage', 'regression-suspected']);
 const SECTION_VALUES = new Set(['files-frontmatter', 'self-review', 'coverage', 'live-check']);
 const CONFIDENCE_VALUES = new Set(['high', 'med', 'low']);
+const SEVERITY_VALUES = new Set(['high', 'med', 'low']);
 
-const REQUIRED_STRINGS = ['journey', 'category', 'section', 'description', 'reason', 'confidence', 'recommendation'];
+const REQUIRED_STRINGS = ['journey', 'category', 'section', 'description', 'reason', 'confidence', 'severity', 'recommendation'];
 
 function validateFinding(obj) {
   const errors = [];
@@ -32,9 +33,12 @@ function validateFinding(obj) {
   if (typeof obj.confidence === 'string' && !CONFIDENCE_VALUES.has(obj.confidence)) {
     errors.push(`confidence: must be one of ${[...CONFIDENCE_VALUES].join('|')} (got "${obj.confidence}")`);
   }
+  if (typeof obj.severity === 'string' && !SEVERITY_VALUES.has(obj.severity)) {
+    errors.push(`severity: must be one of ${[...SEVERITY_VALUES].join('|')} (got "${obj.severity}")`);
+  }
 
   if (errors.length > 0) return { ok: false, errors };
   return { ok: true, errors: [], value: { ...obj } };
 }
 
-module.exports = { validateFinding, CATEGORY_VALUES, SECTION_VALUES, CONFIDENCE_VALUES };
+module.exports = { validateFinding, CATEGORY_VALUES, SECTION_VALUES, CONFIDENCE_VALUES, SEVERITY_VALUES };
