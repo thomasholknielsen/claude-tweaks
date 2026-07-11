@@ -21,7 +21,7 @@ file-existence + self-review + coverage -> finding -> validate-findings -> file 
 - You want a scheduled Routine that periodically rotates through journeys and flags drift or coverage gaps as they're found.
 - You want to check one specific journey right now (`--target <name>`).
 
-Not for: creating or updating journey content (`/claude-tweaks:journeys`' job) or generating story coverage (`/claude-tweaks:stories`' job) — this skill only judges and files; it never writes to `docs/journeys/` or the stories directory itself.
+Not for: creating or updating journey content (`/claude-tweaks:journeys`' job) or generating story coverage (`/claude-tweaks:stories`' job) — this skill only judges and files; it never writes journey files or story YAMLs itself. (The deep tier's `_shared/dev-url-detection.md` call does write `stories/servers.yml` — dev-server URL cache, not journey/story content — see Step 3.5.)
 
 ## Input
 
@@ -41,7 +41,7 @@ Not for: creating or updating journey content (`/claude-tweaks:journeys`' job) o
 node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" next-target --root . ${TARGET:+--target "$TARGET"} ${BUDGET:+--budget "$BUDGET"}
 ```
 
-Without `--budget` (or `--budget 1`), prints `{ target: {...}|null, coverageScanDue: boolean }`. With `--budget <n>` where `n > 1`, prints `{ targets: [...], coverageScanDue: boolean }` instead — run Steps 2-6 once per entry before moving on.
+Without `--budget` (or `--budget 1`), prints `{ target: {...}|null, coverageScanDue: boolean }`. With `--budget <n>` where `n > 1`, prints `{ targets: [...], coverageScanDue: boolean }` instead — run Steps 2-6 once per entry before moving on. `--budget` only governs the light tier's rotation; Step 3.5 (the deep tier, `--deep` only) re-resolves its own single target independently and runs at most once per firing regardless of `--budget`.
 
 Read the `why` field on whichever target came back:
 - If `target` is `null` and `coverageScanDue` is `false`: nothing is due this firing. Report this to the user and stop.
@@ -62,7 +62,7 @@ Collect all findings from both checks (may be zero, one, or several) into a JSON
 
 **Step 3 — COVERAGE SCAN (when `coverageScanDue`, per Step 1).**
 
-Run the computation in `_shared/journey-coverage-check.md` across all journeys and all stories (not just the Step 1 target — this is a whole-library scan). For each uncovered-journey-step result, emit a finding: `{ journey: "<journey name>", category: "coverage", section: "coverage", description: "{M} uncovered steps ({step numbers})", reason: "no story in the stories directory has journey: {journey name} covering these steps", confidence: "high", recommendation: "Run /claude-tweaks:stories journey={journey name}" }`. For each orphaned-story-with-URL-match result, emit a finding with `journey` set to the *suggested* journey (not an existing journey's own drift, but still filed the same way): `description: "Story '{storyId}' matches journey '{journey}' but has no journey: field"`, `recommendation: "Add journey: {journey} to {storyFile}"`. Skip orphaned stories with no match entirely (informational only, never a finding, per the shared fragment).
+Run the computation in `_shared/journey-coverage-check.md` across all journeys and all stories (not just the Step 1 target — this is a whole-library scan). For each uncovered-journey-step result, emit a finding: `{ journey: "<journey name>", category: "coverage", section: "coverage", description: "{M} uncovered steps ({step numbers})", reason: "no story in the stories directory has journey: {journey name} covering these steps", confidence: "high", recommendation: "Run /claude-tweaks:stories journey={journey name}" }`. For each orphaned-story-with-URL-match result, emit a finding with `journey` set to the *suggested* journey (not an existing journey's own drift, but still filed the same way): `{ journey: "<suggested journey>", category: "coverage", section: "coverage", description: "Story '{storyId}' matches journey '{journey}' but has no journey: field", reason: "story '{storyId}''s URL {url} matches a step in journey '{journey}', but the story has no journey: field linking them", confidence: "med", recommendation: "Add journey: {journey} to {storyFile}" }`. Skip orphaned stories with no match entirely (informational only, never a finding, per the shared fragment).
 
 Append these findings to the same array from Step 2 (Steps 2 and 3 can both produce findings in the same firing; Step 2 is skipped entirely when Step 1 returned `target: null`).
 
@@ -133,6 +133,14 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" validate-findings /tmp/journe
 
 **Step 6 — FILE.**
 
+Before filing, ensure each payload's category sub-label exists (it won't on first use in a fresh repo — `gh issue create` fails against a nonexistent label):
+
+```bash
+LABEL="journey-health:<category>"
+gh label list --search "$LABEL" --json name -q '.[].name' | grep -qx "$LABEL" || \
+  gh label create "$LABEL" --description "journey-health finding category: <category>"
+```
+
 For each payload in `/tmp/journey-health-payloads-light.json` and (when Step 3.5 ran) `/tmp/journey-health-payloads-deep.json`: `gh issue create --title "<payload.title>" --body "<payload.body>" --label journey-health --label "<payload.labels[1]>"`. `/journey-health` never edits journey files, stories, or code — every finding files, unconditionally.
 
 In `--dry-run` mode, print what would be filed but do not call `gh`.
@@ -157,7 +165,7 @@ For "dismiss," run `node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" mark "<pa
 
 **Step 7 — SUMMARIZE.**
 
-Report: which journey (if any) was audited, whether the coverage scan ran, how many findings were emitted, how many filed vs skipped by dedup. List any new issue URLs.
+Report: which journey (if any) was audited, whether the coverage scan ran, how many findings were emitted, how many filed vs skipped by dedup. When Step 3.5 ran, also report: which journey was deep-audited (or that nothing was due, or that it was skipped for missing `files:` entries), and the drift-vs-regression verdict for any live-check failure. List any new issue URLs.
 
 ## Routine Configuration
 

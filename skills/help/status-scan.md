@@ -82,8 +82,9 @@ when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
 ```bash
 gh issue list --label code-health --state open --json number,labels --limit 200 > /tmp/help-triage-ch.json
 gh issue list --label harness-health --state open --json number,labels --limit 200 > /tmp/help-triage-hh.json
+gh issue list --label journey-health --state open --json number,labels --limit 200 > /tmp/help-triage-jh.json
 node -e "
-  const all = [...require('/tmp/help-triage-ch.json'), ...require('/tmp/help-triage-hh.json')];
+  const all = [...require('/tmp/help-triage-ch.json'), ...require('/tmp/help-triage-hh.json'), ...require('/tmp/help-triage-jh.json')];
   const names = i => (i.labels || []).map(l => (typeof l === 'string' ? l : l.name));
   const untiered = all.filter(i => !names(i).some(n => n === 'status:needs-review' || n === 'status:approved' || n === 'status:fast-track')).length;
   console.log(untiered);
