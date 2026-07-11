@@ -167,24 +167,6 @@ test('security-logic universal criterion has confidenceFloor high', () => {
   assert.strictEqual(c.confidenceFloor, 'high');
 });
 
-test('every criterion has a non-empty description', () => {
-  for (const c of CRITERIA) {
-    assert.ok(
-      typeof c.description === 'string' && c.description.trim().length > 0,
-      `criterion ${c.id} is missing a description`,
-    );
-  }
-});
-
-// Every description ends up as a `gh label create --description` value — GitHub's cap is
-// 100 characters (see commit 54ab897, which hit and fixed this exact bug once already for
-// status:in-progress). A description over the cap makes the label bootstrap 422 on first use
-// and silently breaks issue filing for that criterion.
-test('every criterion description stays under GitHub\'s 100-char label-description cap', () => {
-  for (const c of CRITERIA) {
-    assert.ok(
-      c.description.length <= 100,
-      `criterion ${c.id}'s description is ${c.description.length} chars, over GitHub's 100-char label-description cap: "${c.description}"`,
-    );
-  }
-});
+// description was removed from CRITERIA entries — criteria no longer bootstrap their own
+// GitHub label (see bin/lib/code-health/issue-payload.js); the 100-char-cap check now lives
+// in bin/lib/issues/tests/labels.test.js as a property of ensureLabelPayload itself.

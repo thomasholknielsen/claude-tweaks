@@ -53,7 +53,6 @@ test('validate-findings: valid finding emits one payload on stdout', () => {
   assert.ok(payloads[0].title === f.title, 'title mismatch');
   assert.ok(Array.isArray(payloads[0].labels), 'labels must be an array');
   assert.ok(payloads[0].labels.includes('code-health'), 'missing code-health label');
-  assert.ok(payloads[0].labels.includes('code-health:simplification'), 'missing criterion label');
   assert.ok(payloads[0].body.includes('<!-- code-health-fingerprint: codehealth-'), 'fingerprint marker missing');
 });
 

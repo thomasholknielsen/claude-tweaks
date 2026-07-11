@@ -210,14 +210,29 @@ Read `/tmp/code-health-payloads.json`. The command:
 
 **Step 9 — FILE / REOPEN ISSUES.**
 
-Before filing, ensure the criterion label carries a real description rather than the blank one `gh issue create` would auto-vivify on first use. For each payload's criterion, check whether the label already exists and create it with a description if not:
+Before filing, bootstrap the three label families this run needs with real descriptions — using the shared helper so a too-long description fails loudly here rather than as a 422 on `gh issue create`:
 
 ```bash
-LABEL="code-health:<criterion>"
-DESCRIPTION="<the criterion's description field from bin/lib/code-health/criteria.js — read it via: node -e \"const {getCriterion}=require('\${CLAUDE_PLUGIN_ROOT}/bin/lib/code-health/criteria.js'); console.log(getCriterion('<criterion>').description)\">"
-gh label list --search "$LABEL" --json name -q '.[].name' | grep -qx "$LABEL" || \
-  gh label create "$LABEL" --description "$DESCRIPTION"
+node -e "
+  const { ensureLabelPayload } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/labels.js');
+  const labels = [
+    ['code-health', 'Filed by the code-health engine — a systematic maintainability finding'],
+    ['code-health:risk-low', \"Risk tier if this finding's suggested fix goes wrong\"],
+    ['code-health:risk-medium', \"Risk tier if this finding's suggested fix goes wrong\"],
+    ['code-health:risk-high', \"Risk tier if this finding's suggested fix goes wrong\"],
+    ['code-health:effort-low', \"Estimated effort to implement this finding's suggested fix\"],
+    ['code-health:effort-medium', \"Estimated effort to implement this finding's suggested fix\"],
+    ['code-health:effort-high', \"Estimated effort to implement this finding's suggested fix\"],
+  ];
+  console.log(JSON.stringify(labels.map(([n, d]) => ensureLabelPayload(n, d))));
+" > /tmp/code-health-label-payloads.json
+node -e "const ls=require('/tmp/code-health-label-payloads.json'); ls.forEach(l => console.log(l.name + '\t' + l.description))" | while IFS=$'\t' read -r NAME DESCRIPTION; do
+  gh label list --search "$NAME" --json name -q '.[].name' | grep -qx "$NAME" || \
+    gh label create "$NAME" --description "$DESCRIPTION"
+done
 ```
+
+There is no per-criterion label anymore — the criterion is already in the issue body's header line (`**Criterion:** ...`), and nothing reads it back off a label; this is also the label class that hit GitHub's 100-char cap (see `bin/lib/code-health/issue-payload.js`).
 
 For each payload in `/tmp/code-health-payloads.json`, call `gh issue create`. The engine is emit-only; filing is always done by the skill:
 
@@ -227,8 +242,7 @@ gh issue create \
   --body "<payload.body>" \
   --label code-health \
   --label "code-health:risk-<tier>" \
-  --label "code-health:effort-<tier>" \
-  --label "code-health:<criterion>"
+  --label "code-health:effort-<tier>"
 ```
 
 For `reopen` decisions (a finding matching a closed non-`wontfix` issue has reappeared), reopen the issue and comment:
