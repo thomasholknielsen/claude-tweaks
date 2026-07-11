@@ -157,7 +157,7 @@ gh label list --search "$LABEL" --json name -q '.[].name' | grep -qx "$LABEL" ||
   gh label create "$LABEL" --description "journey-health finding severity: <severity>"
 ```
 
-For each payload in `/tmp/journey-health-payloads-light.json` and (when Step 3.5 ran) `/tmp/journey-health-payloads-deep.json`: `gh issue create --title "<payload.title>" --body "<payload.body>" --label journey-health --label "<payload.labels[1]>"`. `/journey-health` never edits journey files, stories, or code — every finding files, unconditionally.
+For each payload in `/tmp/journey-health-payloads-light.json` and (when Step 3.5 ran) `/tmp/journey-health-payloads-deep.json`: `gh issue create --title "<payload.title>" --body "<payload.body>" --label journey-health --label "<payload.labels[1]>" --label "<payload.labels[2]>"`. `/journey-health` never edits journey files, stories, or code — every finding files, unconditionally.
 
 In `--dry-run` mode, print what would be filed but do not call `gh`.
 
