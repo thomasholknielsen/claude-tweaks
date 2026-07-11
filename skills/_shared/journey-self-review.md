@@ -1,6 +1,6 @@
 # Journey Self-Review Criteria
 
-Shared checklist for judging whether a journey file (`docs/journeys/{name}.md`) still holds together — used at *write time* by `/claude-tweaks:journeys` Step 3.5 (right after creating or updating a journey) and at *audit time* by `/claude-tweaks:journey-health`'s light tier (periodically, for journeys nobody has touched recently). Both consumers apply the same four checks; each layers its own response on top (`/journeys` fixes inline or stages/blocks; `journey-health` files a GitHub issue).
+Shared checklist for judging whether a journey file (`docs/journeys/{name}.md`) still holds together — used at *write time* by `/claude-tweaks:journeys` Step 3.5 (right after creating or updating a journey) and at *audit time* by `/claude-tweaks:journey-health`'s light tier (periodically, for journeys nobody has touched recently). Both consumers apply the same four checks; each layers its own response mechanism on top, documented in that consumer's own workflow.
 
 ## The four checks
 
@@ -11,4 +11,4 @@ Shared checklist for judging whether a journey file (`docs/journeys/{name}.md`) 
 
 ## Structural validity (checked first, both consumers)
 
-A journey file is structurally invalid when it's missing required frontmatter, missing the `## Steps` heading, or has no steps at all. Both consumers treat this as a harder failure than the four content checks above — `/journeys` BLOCKs on it (Step 3.5); `journey-health` files it as a `category: drift, section: self-review` finding with `confidence: high` regardless of anything else.
+A journey file is structurally invalid when it's missing required frontmatter, missing the `## Steps` heading, or has no steps at all. Both consumers treat this as a harder failure than the four content checks above, escalating it more strongly than an ordinary check violation — see each consumer's own workflow for its exact response.
