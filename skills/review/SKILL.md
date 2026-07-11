@@ -455,6 +455,8 @@ See `review-summary-template.md` in this skill's directory for the full Next Act
 | `/claude-tweaks:visual-review` | Invoked BY /review (Step 6) for browser-based visual inspection. In full mode, runs after code review. In visual/journey/discover modes, /review delegates entirely. |
 | `/claude-tweaks:init` | Phase 8 delegates to `/visual-review discover` for brownfield journey bootstrapping. Phase 0 configures the browser backends that visual review depends on. /init creates the doc registry that lens 3i uses for documentation freshness checks. |
 | `/claude-tweaks:stories` | Generates the YAML stories that /test validates. /review consumes /test results (including QA) via `TEST_PASSED`. /review also checks journey-to-story coverage in code review lens 3g-cov — uncovered journey steps and orphaned stories are surfaced as informational findings. |
+| `/claude-tweaks:journey-health` | Shares `_shared/journey-coverage-check.md`'s coverage computation for its decoupled coverage-scan tier — /review's 3g-cov lens stays inline/informational; journey-health adds cursor-tracking and issue-filing on top. |
+| `_shared/journey-coverage-check.md` | Canonical coverage computation lens 3g-cov applies — shared with `/claude-tweaks:journey-health`'s coverage scan. |
 | `/claude-tweaks:browse` | Used by visual, journey, and discover modes for browser interaction |
 | `specs/DEFERRED.md` | /claude-tweaks:review routes implementation-related deferrals here (with origin, files, trigger) |
 | `/claude-tweaks:flow` | Invokes /review in **full** mode by default (code + visual). Flow handles browser detection and falls back to code mode when no browser backend is available. |
