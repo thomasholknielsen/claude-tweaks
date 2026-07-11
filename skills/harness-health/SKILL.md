@@ -6,14 +6,13 @@ description: Use when you want to check whether a project's harness documentatio
 
 # Harness Health — Keep Skills, Rules, and CLAUDE.md Honest
 
-A recurring watchman for `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md: picks one target to audit against the codebase (or the next new-skill gap to check for), judges it via the shared `_shared/harness-health-analysis.md` procedure, and either auto-applies a safe patch or files a `harness-health`-labelled GitHub issue. CLAUDE.md findings always file as an issue — never auto-applied. Never edits code — only harness documentation.
+A recurring watchman for `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md: picks one target to audit against the codebase (or the next new-skill gap to check for), judges it via the shared `_shared/harness-health-analysis.md` procedure, and files a `harness-health`-labelled GitHub issue. Never edits code — only harness documentation.
 
 ```
               [ /claude-tweaks:harness-health ] <- utility (no fixed lifecycle position)
                            |  picks a target via next-target; judges via the shared fragment
                            v
-finding -> validate-findings -> auto-apply (skill/rule/memory, additive+high-confidence+high-reversibility)
-                              OR file GitHub issue (harness-health label; always for CLAUDE.md and design-artifact)
+finding -> validate-findings -> file GitHub issue (harness-health label)
 ```
 
 ## When to Use
@@ -101,17 +100,13 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" validate-findings /tmp/harnes
 
 `TARGET_ID`/`TARGET_KIND` are `target.id`/`target.kind` from Step 1 (omit both if Step 1 returned `target: null` and only the gap scan ran — pass both together or neither, since cursor recording needs the namespaced `kind:id` key). `GAP_SCAN_RAN` is passed whenever Step 4 actually ran this firing. The command validates each finding, fingerprints via `assetType + target + section + normalizedDescription`, dedups against open `harness-health` issues and the local cache, records the audit cursor for `${TARGET_KIND}:${TARGET_ID}` (and the gap-scan cursor when `--gap-scan` was passed) unless `--dry-run`, and emits gh-ready payloads on stdout.
 
-**Step 7 — APPLY or FILE.**
+**Step 7 — FILE.**
 
-Each payload in `/tmp/harness-health-payloads.json` carries structured fields, not just the GitHub issue text — `id`, `kind`, `target`, `assetType`, `category`, `section`, `classification`, `confidence`, `reversibility`, `oldString`, `newString` are all present directly on the payload object (not just embedded in `payload.body`'s markdown).
+Each payload in `/tmp/harness-health-payloads.json` carries structured fields, not just the GitHub issue text — `id`, `kind`, `target`, `assetType`, `category`, `section`, `classification`, `confidence`, `reversibility`, `oldString`, `newString` are all present directly on the payload object (not just embedded in `payload.body`'s markdown). These stay on the payload as triage metadata — nothing here branches on them anymore.
 
-For each payload:
-- If `payload.assetType === 'claude-md'` — **always file it, regardless of classification/confidence/reversibility.** CLAUDE.md governs every future session's behavior; an unattended routine auto-editing it carries outsized blast radius compared to one skill's documentation. This overrides the additive/high/high rule below.
-- If `payload.assetType === 'design-artifact'` — **always file it, regardless of classification/confidence/reversibility.** Regenerating means re-running an interactive interview (`init`) or a full codebase scan (`document`), not a safe mechanical text patch — human review belongs before either lands.
-- Otherwise, if `payload.classification === "additive"`, `payload.confidence === "high"`, and `payload.reversibility === "high"` — apply it directly with `Edit` (using `payload.oldString`/`payload.newString` exactly). For every `assetType` except `memory`, commit: `git commit -am "harness-health: apply additive patch to {target} ({section})"`. For `payload.assetType === 'memory'`, skip the commit — a memory file lives outside this repo's git tree, so there is nothing to commit. Either way, mark it applied so it doesn't get re-proposed: `node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" mark "${payload.id}" applied --root .`.
-- Otherwise (restructural patches, any new-skill candidate, lower confidence/reversibility, or any CLAUDE.md finding) — file it: `gh issue create --title "<payload.title>" --body "<payload.body>" --label harness-health --label "<payload.labels[1]>"`.
+For each payload, file it: `gh issue create --title "<payload.title>" --body "<payload.body>" --label harness-health --label "<payload.labels[1]>"`. This applies uniformly — CLAUDE.md findings, design-artifact findings, additive skill/rule patches, restructural patches, and new-skill candidates all file the same way. `/harness-health` never edits anything directly; matching `/code-health`, it only ever judges and files.
 
-In `--dry-run` mode, print what would be applied/filed but do not call `Edit`, `git commit`, `gh`, or `mark`.
+In `--dry-run` mode, print what would be filed but do not call `gh`.
 
 **Step 8 — SUMMARIZE.**
 
@@ -122,21 +117,20 @@ In interactive mode, route surviving findings through a two-tier decision:
 1. Render all findings as a markdown batch table:
 
    ```
-   | # | Title | Category | Classification | Confidence | Reversibility | Recommended |
-   |---|-------|----------|-----------------|------------|----------------|-------------|
-   | 1 | {title} | {category} | {classification} | {confidence} | {reversibility} | {Apply now|File issue} |
+   | # | Title | Category | Classification | Confidence | Reversibility |
+   |---|-------|----------|-----------------|------------|----------------|
+   | 1 | {title} | {category} | {classification} | {confidence} | {reversibility} |
    ```
 
-   Pre-fill the Recommended column per Step 7's own existing auto-apply policy: additive + high-confidence + high-reversibility → `"Apply now"` (never for `assetType: claude-md`, which always recommends `"File issue"` per Step 7); everything else → `"File issue"`.
+   `classification`/`confidence`/`reversibility` stay visible as triage metadata — every row files the same way, so there is no per-row recommendation column to pre-fill.
 
 2. Call `AskUserQuestion` with `question`: `"How do you want to handle these findings?"`, `header`: `"Findings"`, `multiSelect`: `false`, and:
-   - Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"Apply / file each finding per the Recommended column above"`
+   - Option 1 — `label`: `"File all (Recommended)"`, `description`: `"File every finding above as a GitHub harness-health issue"`
    - Option 2 — `label`: `"Route individually"`, `description`: `"Decide each finding one at a time"`
 
 3. If "Route individually" was chosen, call `AskUserQuestion` once per finding — `question`: `"How do you want to handle finding #{N}: {title}?"`, `header`: `"Finding #{N}"`, `multiSelect`: `false`, and:
-   - Option 1 — `label`: `"Apply now"`, `description`: `"Apply this patch directly"`
-   - Option 2 — `label`: `"File issue"`, `description`: `"File as a GitHub harness-health issue"`
-   - Option 3 — `label`: `"Dismiss"`, `description`: `"Run mark declined so it doesn't reappear"`
+   - Option 1 — `label`: `"File issue"`, `description`: `"File as a GitHub harness-health issue"`
+   - Option 2 — `label`: `"Dismiss"`, `description`: `"Run mark declined so it doesn't reappear"`
 
 For "dismiss," run `node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" mark "<payload.id>" declined --root .` so the same proposal doesn't reappear on a future firing.
 
@@ -148,9 +142,9 @@ For "dismiss," run `node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" mark "<pa
 /claude-tweaks:routine create harness-health
 ```
 
-**Headless run flow:** SELECT(`next-target`) → JUDGE → validate-findings → apply/file. A firing with nothing due (`target: null`, `gapScanDue: false`) is a cheap no-op.
+**Headless run flow:** SELECT(`next-target`) → JUDGE → validate-findings → file. A firing with nothing due (`target: null`, `gapScanDue: false`) is a cheap no-op.
 
-Additive+high-confidence+high-reversibility patches on **skills and rules** auto-apply and commit directly — this depends on the target project's CLAUDE.md already setting `auto-mode: default-on` (same situation `/tidy`'s routine is in, not `/code-health`'s report-only case — see `_shared/auto-mode-contract.md`). Without that project policy, everything files as an issue instead of blocking on an unanswerable prompt. **CLAUDE.md findings always file as an issue, regardless of this policy.**
+Report-only, matching `/code-health` — every finding files as a `harness-health`-labelled GitHub issue, with no `Edit` in `allowed_tools` and no project-policy dependency to reason about.
 
 > **Billing note:** Routines run inside the subscription; verify automation-credit specifics against the live account.
 
@@ -172,8 +166,7 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 
 | Pattern | Why It Fails |
 |---------|--------------|
-| Auto-applying a CLAUDE.md patch | CLAUDE.md findings always file as an issue for human review, regardless of classification/confidence/reversibility — it governs every future session's behavior, so an unattended bad edit has outsized blast radius. |
-| Auto-applying a restructural patch (skill/rule) | Only additive+high-confidence+high-reversibility patches auto-apply — restructural changes always go through a filed issue for human review. |
+| Applying any patch directly instead of filing an issue | `/harness-health` never edits anything — every finding, regardless of `assetType`/classification/confidence/reversibility, files as a GitHub issue for human review. Matches `/code-health`'s report-only contract. |
 | Treating a rule's low compliance ratio as automatic drift | A low adherence ratio can mean the code violates a still-correct rule (a `/code-health` code-quality problem) rather than the rule being stale — always reason about *why* the ratio is low before emitting a finding. |
 | Re-proposing a patch already marked `declined` in the cache | The decline-memory cache exists specifically so a rejected proposal doesn't reappear every firing forever. |
 | Skipping the verify gate under time pressure | Unattended firings compound false positives into staged noise if a misread isn't caught before staging — the verify gate in `_shared/harness-health-analysis.md` is not optional. |
