@@ -167,6 +167,27 @@ Auto-applied items are committed. Staged items surface at the Wrap-Up Review Con
 
 **Standalone auto:** When `/tidy` runs standalone in `auto` mode (no parent pipeline run dir), follow the Standalone auto fallback in `_shared/pipeline-run-dir.md` — create `.claude-tweaks/pipelines/{ISO-timestamp}-tidy-standalone/` with `decisions.md` and `staged/`. The audit log stays on. Apply `tidy-aggressiveness` from CLAUDE.md as the routing key. Present staged items in a Pending Review section at the end of the report (this is the bookend-end for the standalone run; no separate Review Console).
 
+#### Evidence tier (`--scope=github` routine firings only)
+
+When this Standalone-auto firing's scope includes `github` (Step 4.8 ran), read `tidy-routine-autonomy` from CLAUDE.md (default `conservative`). Under `conservative`, nothing in this subsection applies — every GitHub-mutation finding routes through the table above exactly as always (all four "Stage — never auto-applied" rows stay staged).
+
+Under `evidence-based`, before staging any of the following four finding shapes, check whether it carries the specific cite-able evidence listed. If it does, auto-apply the mutation instead of staging it, and log the evidence literally:
+
+| Finding shape | Evidence required | Auto-applied action |
+|---|---|---|
+| Unresolved review thread whose flagged file:line a later commit touches | The commit SHA that touches those lines | Resolve thread (GraphQL `resolveReviewThread`) |
+| Parked backlog issue, `milestoneDueOn` is in the past | The due date itself | `gh issue edit {n} --remove-label parked`, then comment citing the due date |
+| Parked backlog issue, a `watchedPaths` entry has a matching commit in `git log` since the issue was parked | The commit SHA `git log` returns | `gh issue edit {n} --remove-label parked`, then comment citing the commit SHA and touched path |
+| Code-health/harness-health issue whose flagged code is demonstrably removed or rewritten since filing (a diff shows the flagged lines gone or materially changed) | The diff reference (commit range or PR number) | `gh issue close {n} --reason "not planned"` after a comment citing the diff reference |
+
+These four are the only shapes this tier ever touches. Every other GitHub-mutation finding — stale-PR close-or-resume, PR-superseded-by-equivalent-work, backlog inbox item past 4 weeks (delete-or-promote), and any "still valid" code-health/harness-health assessment — is a judgment call per `_shared/github-pr-scan.md`'s own findings table and stays staged regardless of `tidy-routine-autonomy`.
+
+Log entries follow the same format as the table above, e.g.:
+```
+AUTO 03:14:02 — Step 6 (evidence tier): resolved thread on PR #88 — commit a1b2c3d touches src/auth.ts:42-48 (the flagged lines). Reversibility: low (GitHub state; thread can be manually re-opened).
+AUTO 03:14:09 — Step 6 (evidence tier): removed `parked` label from issue #142 — milestone "Q3 launch" due date 2026-08-01 has passed. Reversibility: med (label re-addable; commented with cited evidence).
+```
+
 ### Interactive mode (batch approval)
 
 Present all collected findings as a single report. Every item has a pre-filled recommendation from the scanning steps.
