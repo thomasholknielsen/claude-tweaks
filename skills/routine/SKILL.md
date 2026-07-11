@@ -66,7 +66,7 @@ This file is project-local and must stay gitignored — it exists purely to spar
 
 **Step 5 — Resolve the schedule.**
 
-**5a. Parse the template's `default_schedule.cron_expression` back into a cadence.** Given the 5-field cron string `M H DOM MON DOW` (always UTC), classify it against these patterns in order — the first match wins:
+**5a. Parse a cron expression back into a cadence** (here, the template's `default_schedule.cron_expression`; UPDATE Step 3 reuses this same sub-step against the instantiated record's `schedule` field instead — the classification logic below is source-agnostic, it only looks at the cron string itself). Given the 5-field cron string `M H DOM MON DOW` (always UTC), classify it against these patterns in order — the first match wins:
 
 | # | Pattern (MON/DOM/DOW fixed values, H/M shape) | Cadence | Parsed value |
 |---|---|---|---|
