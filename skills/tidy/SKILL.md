@@ -169,6 +169,8 @@ Auto-applied items are committed. Staged items surface at the Wrap-Up Review Con
 
 #### Evidence tier (`--scope=github` routine firings only)
 
+This subsection applies only inside the Standalone-auto path above — an interactive invocation or a `/tidy` run embedded in a larger pipeline never reads `tidy-routine-autonomy` and never auto-mutates on evidence; those runs always route through the aggressiveness table exactly as documented there, unaffected by this flag's value.
+
 When this Standalone-auto firing's scope includes `github` (Step 4.8 ran), read `tidy-routine-autonomy` from CLAUDE.md (default `conservative`). Under `conservative`, nothing in this subsection applies — every GitHub-mutation finding routes through the table above exactly as always (all four "Stage — never auto-applied" rows stay staged).
 
 Under `evidence-based`, before staging any of the following four finding shapes, check whether it carries the specific cite-able evidence listed. If it does, auto-apply the mutation instead of staging it, and log the evidence literally:
@@ -180,7 +182,7 @@ Under `evidence-based`, before staging any of the following four finding shapes,
 | Parked backlog issue, a `watchedPaths` entry has a matching commit in `git log` since the issue was parked | The commit SHA `git log` returns | `gh issue edit {n} --remove-label parked`, then comment citing the commit SHA and touched path |
 | Code-health/harness-health issue whose flagged code is demonstrably removed or rewritten since filing (a diff shows the flagged lines gone or materially changed) | The diff reference (commit range or PR number) | `gh issue close {n} --reason "not planned"` after a comment citing the diff reference |
 
-These four are the only shapes this tier ever touches. Every other GitHub-mutation finding — stale-PR close-or-resume, PR-superseded-by-equivalent-work, backlog inbox item past 4 weeks (delete-or-promote), and any "still valid" code-health/harness-health assessment — is a judgment call per `_shared/github-pr-scan.md`'s own findings table and stays staged regardless of `tidy-routine-autonomy`.
+These four are the only shapes this tier ever touches. Every other GitHub-mutation finding — stale-PR close-or-resume, PR-superseded-by-equivalent-work, backlog inbox item past 4 weeks (delete-or-promote), and any "still valid" code-health/harness-health assessment — is a judgment call per `_shared/github-pr-scan.md`'s own findings table and stays staged regardless of `tidy-routine-autonomy`. Note that removing the `parked` label is the entire mutation for the two Promote-evidence rows above — this tier never auto-runs `/claude-tweaks:specify`; the issue simply becomes visible as a plain `backlog`-labeled issue again, same as if a human had removed `parked` by hand.
 
 Log entries follow the same format as the table above, e.g.:
 ```
