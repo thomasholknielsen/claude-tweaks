@@ -1,6 +1,6 @@
 ---
 name: claude-tweaks:harness-health
-description: Use when you want to check whether a project's harness documentation — `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md — still accurately describes the codebase, still conforms to its own origin template, and still follows best practices for getting the harness to perform well; or find a reusable pattern with no skill covering it. Runs standalone or on a schedule via a Routine. Never edits code — only harness documentation, and never auto-applies to CLAUDE.md. Keywords - harness health, skill health, skill drift, rule drift, CLAUDE.md drift, best practice, template conformance, new-skill gap, scheduled, routine.
+description: Use when you want to check whether a project's harness documentation — `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md — still accurately describes the codebase, still conforms to its own origin template, and still follows best practices for getting the harness to perform well; or find a reusable pattern with no skill covering it. Runs standalone or on a schedule via a Routine. Never edits code — only harness documentation. Keywords - harness health, skill health, skill drift, rule drift, CLAUDE.md drift, best practice, template conformance, new-skill gap, scheduled, routine.
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -31,7 +31,7 @@ Not for: code-quality findings (`/claude-tweaks:code-health`'s job — including
 - `--target <id>` — manual override: audit one specific target directly, bypassing `next-target` selection.
 - `--kind <skill|rule|claude-md|design-artifact|memory>` — disambiguate `--target` when an id collides across kinds, or (without `--target`) restrict auto-selection to one kind. `memory` is never auto-selected without this flag — it is excluded from the default rotation pool entirely.
 - `--memory-dir <path>` — required when `--kind memory` is used. The invoking assistant's own memory directory path, exactly as stated in its own system prompt's auto-memory section for this project. Never derive or guess this path.
-- `--dry-run` — emit findings; never write cursor/cache state; never call `gh` or `Edit`.
+- `--dry-run` — emit findings; never write cursor/cache state; never call `gh`.
 - `--budget <n>` — audit up to `n` targets in one firing (default 1).
 - `--root <dir>` — audit a project elsewhere (default: current working directory).
 
@@ -110,7 +110,7 @@ In `--dry-run` mode, print what would be filed but do not call `gh`.
 
 **Step 8 — SUMMARIZE.**
 
-Report: which target(s) were audited (or that only the gap scan ran), how many findings were emitted, how many auto-applied vs filed vs skipped by dedup. List any new issue URLs.
+Report: which target(s) were audited (or that only the gap scan ran), how many findings were emitted, how many filed vs skipped by dedup. List any new issue URLs.
 
 In interactive mode, route surviving findings through a two-tier decision:
 
@@ -144,7 +144,7 @@ For "dismiss," run `node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" mark "<pa
 
 **Headless run flow:** SELECT(`next-target`) → JUDGE → validate-findings → file. A firing with nothing due (`target: null`, `gapScanDue: false`) is a cheap no-op.
 
-Report-only, matching `/code-health` — every finding files as a `harness-health`-labelled GitHub issue, with no `Edit` in `allowed_tools` and no project-policy dependency to reason about.
+Report-only, matching `/code-health` — every finding files as a `harness-health`-labelled GitHub issue, with no `Edit` call anywhere in its documented workflow.
 
 > **Billing note:** Routines run inside the subscription; verify automation-credit specifics against the live account.
 
