@@ -86,7 +86,7 @@ Where `ISO-timestamp` is `YYYY-MM-DDTHHMMSS` (no colons; portable across filesys
 2. Else picking the most recent directory in `.claude-tweaks/pipelines/` whose `spec-slug` matches the current spec or topic
 3. Else falling back to `interactive` mode (no policy available — no auto-decisions allowed)
 
-**Cleanup:** the Wrap-Up Review Console moves completed runs to `.claude-tweaks/pipelines/archive/{run-id}/` on successful pipeline closure (preserving the audit trail). `/tidy` may compact archive entries older than 30 days into a single summary.
+**Cleanup:** the Wrap-Up Review Console moves completed runs to `.claude-tweaks/pipelines/archive/{run-id}/` on successful pipeline closure (preserving the audit trail). `/tidy`'s Standalone-auto path additionally compacts standalone run directories older than 30 days into a monthly rollup — see `_shared/auto-decision-log.md`'s Archival section for the exact behavior.
 
 **Gitignore:** `.claude-tweaks/` is runtime state — `/init` adds it to `.gitignore`. Pipeline runs are not committed history; the auto-decision log is for the user, not the repo.
 
