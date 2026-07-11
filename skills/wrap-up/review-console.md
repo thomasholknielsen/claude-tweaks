@@ -105,7 +105,7 @@ See `_shared/pipeline-run-dir.md` for the resolution order and bash snippet. If 
 ```markdown
 ### Wrap-Up Review Console
 
-The pipeline auto-resolved {N} decisions and staged {M} items for your review. Sections 1–6 resolve via one batch choice; queue writes (Section 7) require per-item approval because `_shared/auto-mode-contract.md` lists INBOX/DEFERRED writes as not-silenced by `auto`.
+The pipeline auto-resolved {N} decisions and staged {M} items for your review. Sections 1–6 resolve via one batch choice; queue writes (Section 7) require per-item approval because `_shared/auto-mode-contract.md` lists `specs/backlog/` writes (parked/inbox) as not-silenced by `auto`.
 
 #### Auto-applied (already in commits — override = revert)
 
@@ -170,12 +170,12 @@ Render the cleanup rows from the canonical list in `cleanup-procedures.md`, filt
 
 #### Queue writes — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")
 
-Render this section only when leftover routing or other steps have proposed writes to `specs/INBOX.md` or `specs/DEFERRED.md`. Each row gets its own prompt — bulk approval is forbidden per `_shared/auto-mode-contract.md`.
+Render this section only when leftover routing or other steps have proposed writes to `specs/backlog/` (new-file creates or `**Stage:**` changes). Each row gets its own prompt — bulk approval is forbidden per `_shared/auto-mode-contract.md`.
 
 | Q# | Destination | What | Source |
 |---|---|---|---|
-| Q1 | DEFERRED | "Add OAuth refresh edge case" — blocked on /auth provider docs | Step 4 leftover routing, section "Edge cases" |
-| Q2 | INBOX | "Investigate token rotation strategy" — surfaced by /reflect Step 3 | reflect insight stage file |
+| Q1 | backlog (parked) | "Add OAuth refresh edge case" — blocked on /auth provider docs | Step 4 leftover routing, section "Edge cases" |
+| Q2 | backlog (inbox) | "Investigate token rotation strategy" — surfaced by /reflect Step 3 | reflect insight stage file |
 
 Below each table, show the full patch / diff for each pending item so the user can see exactly what will change.
 ```
@@ -193,14 +193,14 @@ Queue writes (Q1, Q2) are handled separately below — they are never part of th
 
 After the user selects option 1 or 2, prompt the queue writes individually — one small `AskUserQuestion` call per `Q#` item, issued separately (never batched into a single call's multiple questions).
 
-For each `Q#` item, call `AskUserQuestion` with `question`: the queue-write line (e.g. `"Queue write Q1 → specs/DEFERRED.md: \"Add OAuth refresh edge case\" — blocked on /auth provider docs."`), `header`: `"Queue write {Q#}"`, `multiSelect`: `false`:
+For each `Q#` item, call `AskUserQuestion` with `question`: the queue-write line (e.g. `"Queue write Q1 → specs/backlog/add-oauth-refresh-edge-case.md (Stage: parked): \"Add OAuth refresh edge case\" — blocked on /auth provider docs."`), `header`: `"Queue write {Q#}"`, `multiSelect`: `false`:
 - Option 1 — `label`: `"Apply"`, `description`: `"Write to {destination}: \"{content}\""`
 - Option 2 — `label`: `"Skip"`, `description`: `"Drop this proposal"`
 - Option 3 — `label`: `"Edit"`, `description`: `"Modify before writing"`
 
 Applied to this example's two queue writes:
-- Q1 — `question`: `"Queue write Q1 → specs/DEFERRED.md: \"Add OAuth refresh edge case\" — blocked on /auth provider docs."`, `header`: `"Queue write Q1"`; Option 1 description: `"Write to specs/DEFERRED.md: \"Add OAuth refresh edge case\" — blocked on /auth provider docs"`
-- Q2 — `question`: `"Queue write Q2 → specs/INBOX.md: \"Investigate token rotation strategy\" — surfaced by /reflect Step 3."`, `header`: `"Queue write Q2"`; Option 1 description: `"Write to specs/INBOX.md: \"Investigate token rotation strategy\" — surfaced by /reflect Step 3"`
+- Q1 — `question`: `"Queue write Q1 → specs/backlog/add-oauth-refresh-edge-case.md (Stage: parked): \"Add OAuth refresh edge case\" — blocked on /auth provider docs."`, `header`: `"Queue write Q1"`; Option 1 description: `"Write to specs/backlog/add-oauth-refresh-edge-case.md (Stage: parked): \"Add OAuth refresh edge case\" — blocked on /auth provider docs"`
+- Q2 — `question`: `"Queue write Q2 → specs/backlog/investigate-token-rotation-strategy.md (Stage: inbox): \"Investigate token rotation strategy\" — surfaced by /reflect Step 3."`, `header`: `"Queue write Q2"`; Option 1 description: `"Write to specs/backlog/investigate-token-rotation-strategy.md (Stage: inbox): \"Investigate token rotation strategy\" — surfaced by /reflect Step 3"`
 
 None of these three options carries `(Recommended)` — the source text requires explicit per-item attention, and these calls are never combined into a single multi-question `AskUserQuestion` call across multiple `Q#` items (that would functionally reintroduce bulk approval by letting the user answer several at once without individually attending to each).
 
@@ -235,4 +235,4 @@ If `decisions.md` has zero entries AND `staged/` is empty AND there are no skill
 
 - The console MUST present every entry from `decisions.md` (auto-applied + staged + kept-prompt), every file in `staged/`, every cleanup action that would otherwise run in Step 10, and every queue-write proposal. Silently dropping any item is forbidden.
 - **Sort order within each section:** reversibility:low first (highest-stakes revert), then reversibility:med, then reversibility:high. Within the same reversibility, severity:high first.
-- **Queue writes are per-item only.** Never group them under "Approve all" — this enforces the contract's not-silenced rule for INBOX/DEFERRED writes.
+- **Queue writes are per-item only.** Never group them under "Approve all" — this enforces the contract's not-silenced rule for `specs/backlog/` writes.
