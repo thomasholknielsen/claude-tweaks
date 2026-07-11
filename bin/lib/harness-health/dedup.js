@@ -10,11 +10,16 @@
 // Decision logic:
 //   open issue match           -> skip      (already staged, don't re-file)
 //   wontfix-labelled issue     -> suppress  (standing decision — never re-propose)
-//   closed non-wontfix match   -> skip      (assume applied via commit)
+//   closed non-wontfix match   -> skip      (assume resolved)
 //   'declined' in local cache  -> suppress  (user rejected this exact proposal)
-//   'applied' in local cache   -> skip      (already auto-applied and committed)
 //   'staged' in local cache    -> skip      (already filed, unresolved)
 //   otherwise                  -> file
+//
+// harness-health never applies anything itself (report-only, matching
+// code-health), so there is no 'applied' cache status to check. A cache
+// entry written before this change (status: 'applied') simply doesn't match
+// any branch below and falls through to 'file' — a harmless re-proposal of
+// something already resolved, not a crash.
 function decide(finding, issueIndex, cache) {
   const fp = finding.id;
   const match = issueIndex && fp && issueIndex[fp];
@@ -24,7 +29,6 @@ function decide(finding, issueIndex, cache) {
   }
   const cached = cache && fp && cache[fp];
   if (cached && cached.status === 'declined') return { action: 'suppress' };
-  if (cached && cached.status === 'applied') return { action: 'skip' };
   if (cached && cached.status === 'staged') return { action: 'skip' };
   return { action: 'file' };
 }

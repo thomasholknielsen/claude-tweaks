@@ -231,7 +231,7 @@ function cmdChurnReport(args) {
   }
 }
 
-const MARK_STATUSES = new Set(['applied', 'declined']);
+const MARK_STATUSES = new Set(['declined']);
 
 function cmdMark(args) {
   const root = args.root || process.cwd();
@@ -258,7 +258,7 @@ function main(argv) {
     'usage: harness-health.js <command> [options]\n' +
     'commands: next-target [--target <id>] [--kind <skill|rule|claude-md|design-artifact|memory>] [--memory-dir <path>] [--budget <n>], ' +
     'validate-findings <file> [--target <id>] [--kind <skill|rule|claude-md|design-artifact|memory>] [--gap-scan], ' +
-    'churn-report [--fail-on-high-churn <r>], mark <fingerprint> <applied|declined>\n',
+    'churn-report [--fail-on-high-churn <r>], mark <fingerprint> <declined>\n',
   );
   process.exit(2);
 }

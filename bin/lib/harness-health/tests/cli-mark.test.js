@@ -9,13 +9,10 @@ const CLI = path.resolve(__dirname, '..', '..', '..', 'harness-health.js');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'harness-health-mark-')); }
 
-test('mark writes an applied status to the cache', () => {
+test('mark exits non-zero for "applied" now that harness-health is report-only', () => {
   const root = tmp();
-  const raw = execFileSync('node', [CLI, 'mark', 'skillhealth-abc12345', 'applied', '--root', root], { encoding: 'utf8' });
-  const result = JSON.parse(raw);
-  assert.strictEqual(result.status, 'applied');
-  const cache = JSON.parse(fs.readFileSync(path.join(root, '.claude-tweaks', 'harness-health', 'cache.json'), 'utf8'));
-  assert.strictEqual(cache['skillhealth-abc12345'].status, 'applied');
+  const result = spawnSync('node', [CLI, 'mark', 'skillhealth-abc12345', 'applied', '--root', root], { encoding: 'utf8' });
+  assert.notStrictEqual(result.status, 0);
 });
 
 test('mark writes a declined status to the cache', () => {
