@@ -227,6 +227,19 @@ Last updated: {ISO timestamp}
 
 After the digest is written, call `PushNotification` at most once per firing, and only when the "Still needs your review" section is non-empty after this firing's updates (i.e. at least one row exists there, whether newly added or pre-existing). Compose the notification body from the count and the top finding, e.g. `"{N} items need your review — {top finding title}. See the Tidy GitHub-Triage Digest."` Never fire when "Still needs your review" is empty (an all-clear firing) — this keeps the signal high-value; a routine firing every 3 hours that notified on every run would train the user to ignore it.
 
+#### Archival compaction (every Standalone-auto firing, any scope)
+
+Unlike the evidence tier, digest, and notification subsections above (which are `--scope=github`-specific), this compaction sweep runs on every Standalone-auto `/tidy` firing regardless of scope — it's about aging out prior standalone runs, not about this run's own findings.
+
+Before writing this run's own report, scan `.claude-tweaks/pipelines/` for standalone run directories (matching `*-standalone`) whose ISO-timestamp prefix is more than 30 days old. For each:
+
+1. Read its `decisions.md`.
+2. Append its content to `.claude-tweaks/pipelines/archive/index-{YYYY-MM}.md` (the month derived from the run's own timestamp, not today's date — a run compacted late still files under the month it actually ran), creating the file if absent. Prefix the appended block with the run's own directory name as a header so entries stay attributable.
+3. Move the run directory to `.claude-tweaks/pipelines/archive/{run-id}/` (same target `/wrap-up` uses for completed pipeline runs — see `wrap-up/cleanup-procedures.md` Section B).
+4. Log one `AUTO` line to *this* firing's own `decisions.md`: `AUTO {time} — Archival: compacted {run-id} (age: {N} days) into index-{YYYY-MM}.md. Reversibility: high (archive is additive, nothing deleted).`
+
+Skipped staged items inside a compacted run are preserved verbatim in the archive (not silently dropped) — same rule `/wrap-up`'s own archival already follows.
+
 ### Interactive mode (batch approval)
 
 Present all collected findings as a single report. Every item has a pre-filled recommendation from the scanning steps.
