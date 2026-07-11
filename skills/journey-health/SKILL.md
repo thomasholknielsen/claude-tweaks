@@ -1,0 +1,169 @@
+---
+name: claude-tweaks:journey-health
+description: Use when you want to check whether docs/journeys/*.md files still accurately describe the codebase and still back reliable agent e2e testing — picks one journey to audit (or the coverage scan, when due), judges it via file-existence + self-review + coverage checks, and always files a journey-health-labelled GitHub issue. Runs standalone or on a schedule via a Routine. Never edits journeys, stories, or code. Keywords - journey health, journey drift, journey staleness, agent e2e testing, coverage gap, scheduled, routine.
+---
+> **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
+
+# Journey Health — Keep Journeys Honest for Agent E2E Testing
+
+A recurring watchman for `docs/journeys/*.md`: picks one journey to audit against the codebase, judges it, and always files a `journey-health`-labelled GitHub issue. Never edits journey files, stories, or code — every fix routes through `/claude-tweaks:journeys` or `/claude-tweaks:stories`, invoked by a human or `/triage dispatch` → `/flow`.
+
+```
+              [ /claude-tweaks:journey-health ] <- utility (no fixed lifecycle position)
+                           |  next-target picks a journey; coverage scan runs when due
+                           v
+file-existence + self-review + coverage -> finding -> validate-findings -> file GitHub issue
+```
+
+## When to Use
+
+- You want journey documentation to stay accurate — and the QA stories/agent e2e checks built on it to stay trustworthy — without manually re-walking every journey.
+- You want a scheduled Routine that periodically rotates through journeys and flags drift or coverage gaps as they're found.
+- You want to check one specific journey right now (`--target <name>`).
+
+Not for: creating or updating journey content (`/claude-tweaks:journeys`' job) or generating story coverage (`/claude-tweaks:stories`' job) — this skill only judges and files; it never writes to `docs/journeys/` or the stories directory itself.
+
+## Input
+
+`$ARGUMENTS` may contain:
+
+- `--target <journey-name>` — manual override: audit one specific journey directly, bypassing `next-target` selection.
+- `--dry-run` — emit findings; never write cursor/cache state; never call `gh`.
+- `--budget <n>` — audit up to `n` journeys in one firing (default 1).
+- `--root <dir>` — audit a project elsewhere (default: current working directory).
+
+## Workflow
+
+**Step 1 — SELECT: pick the next journey.**
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" next-target --root . ${TARGET:+--target "$TARGET"} ${BUDGET:+--budget "$BUDGET"}
+```
+
+Without `--budget` (or `--budget 1`), prints `{ target: {...}|null, coverageScanDue: boolean }`. With `--budget <n>` where `n > 1`, prints `{ targets: [...], coverageScanDue: boolean }` instead — run Steps 2-6 once per entry before moving on.
+
+Read the `why` field on whichever target came back:
+- If `target` is `null` and `coverageScanDue` is `false`: nothing is due this firing. Report this to the user and stop.
+- `why: "stale"` — this journey has not been audited in over 30 days regardless of churn.
+- `why: "hotspot"` — this journey's `files:` frontmatter paths have the highest git churn since its last light-tier audit among journeys with any churn at all.
+- `why: "manual"` — `--target` was passed, bypassing selection.
+
+If `target` is `null` but `coverageScanDue` is `true`, skip straight to Step 3 (coverage scan) — the coverage scan is still due even with nothing else to audit.
+
+**Step 2 — LIGHT TIER JUDGE (when a target was selected).**
+
+Read the target's journey file (`target.path`) in full.
+
+1. **File-existence check.** For each path in `target.filesFrontmatter`, check whether it still exists in the repo (`Read` or a quick `test -f`). For each missing path, emit a finding: `{ journey: target.id, category: "drift", section: "files-frontmatter", description: "files: entry '{path}' no longer exists", reason: "<how you confirmed it's missing>", confidence: "high", recommendation: "Run /claude-tweaks:journeys {target.id} to prune the dead entry" }`.
+2. **Self-review criteria.** Apply the four checks (and the structural-validity check) in `_shared/journey-self-review.md` against the journey file's actual content. For each violated check, emit a finding: `{ journey: target.id, category: "drift", section: "self-review", description: "<which check failed and why>", reason: "<the specific text/evidence>", confidence: "high"|"med", recommendation: "Run /claude-tweaks:journeys {target.id} to fix {check name}" }`. A structural-validity failure (missing frontmatter, missing `## Steps`, no steps) always gets `confidence: "high"`.
+
+Collect all findings from both checks (may be zero, one, or several) into a JSON array.
+
+**Step 3 — COVERAGE SCAN (when `coverageScanDue`, per Step 1).**
+
+Run the computation in `_shared/journey-coverage-check.md` across all journeys and all stories (not just the Step 1 target — this is a whole-library scan). For each uncovered-journey-step result, emit a finding: `{ journey: "<journey name>", category: "coverage", section: "coverage", description: "{M} uncovered steps ({step numbers})", reason: "no story in the stories directory has journey: {journey name} covering these steps", confidence: "high", recommendation: "Run /claude-tweaks:stories journey={journey name}" }`. For each orphaned-story-with-URL-match result, emit a finding with `journey` set to the *suggested* journey (not an existing journey's own drift, but still filed the same way): `description: "Story '{storyId}' matches journey '{journey}' but has no journey: field"`, `recommendation: "Add journey: {journey} to {storyFile}"`. Skip orphaned stories with no match entirely (informational only, never a finding, per the shared fragment).
+
+Append these findings to the same array from Step 2 (Steps 2 and 3 can both produce findings in the same firing; Step 2 is skipped entirely when Step 1 returned `target: null`).
+
+Write the full findings array (from Steps 2 and 3 combined) to `/tmp/journey-health-findings.json`. If neither step produced any findings, write `[]`.
+
+**Step 4 — GATHER OPEN ISSUES for dedup.**
+
+```bash
+gh issue list --label journey-health --state all --json number,state,labels,body --limit 500 > /tmp/journey-health-issues-raw.json
+```
+
+Parse each issue body for the fingerprint marker `<!-- journey-health-fingerprint: journeyhealth-XXXXXXXX -->` and build an array of `{ number, state, labels, fingerprint }` objects. Write to `/tmp/journey-health-issues.json`. If `gh` is unavailable or the repo has no `journey-health` issues yet, skip this step and set `ISSUES_FILE=""` — the run dedups against the local cache only.
+
+**Step 5 — VALIDATE, FINGERPRINT, DEDUP.**
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" validate-findings /tmp/journey-health-findings.json \
+  --root "${ROOT:-$PWD}" \
+  ${ISSUES_FILE:+--issues "$ISSUES_FILE"} \
+  ${TARGET_ID:+--target "$TARGET_ID"} \
+  ${COVERAGE_SCAN_RAN:+--coverage-scan} \
+  ${DRY_RUN:+--dry-run} \
+  > /tmp/journey-health-payloads.json
+```
+
+`TARGET_ID` is `target.id` from Step 1 (omit if Step 1 returned `target: null` and only the coverage scan ran). `COVERAGE_SCAN_RAN` is passed whenever Step 3 actually ran this firing. The command validates each finding, fingerprints via `journey + category + section + normalizedDescription`, dedups against open `journey-health` issues and the local cache, records the light-tier cursor for `TARGET_ID` (and the coverage-scan cursor when `--coverage-scan` was passed) unless `--dry-run`, and emits gh-ready payloads on stdout.
+
+**Step 6 — FILE.**
+
+For each payload in `/tmp/journey-health-payloads.json`: `gh issue create --title "<payload.title>" --body "<payload.body>" --label journey-health --label "<payload.labels[1]>"`. `/journey-health` never edits journey files, stories, or code — every finding files, unconditionally.
+
+In `--dry-run` mode, print what would be filed but do not call `gh`.
+
+In interactive mode, render surviving findings as a markdown batch table before filing:
+
+```
+| # | Journey | Category | Section | Confidence | Recommendation |
+|---|---------|----------|---------|------------|----------------|
+| 1 | {journey} | {category} | {section} | {confidence} | {recommendation} |
+```
+
+Then call `AskUserQuestion` with `question`: `"File these findings as GitHub issues?"`, `header`: `"Findings"`, `multiSelect`: `false`, and:
+- Option 1 — `label`: `"File all (Recommended)"`, `description`: `"File every finding above as a journey-health-labelled GitHub issue"`
+- Option 2 — `label`: `"Route individually"`, `description`: `"Decide each finding one at a time"`
+
+If "Route individually" was chosen, call `AskUserQuestion` once per finding — `question`: `"How do you want to handle finding #{N}: {journey}/{section}?"`, `header`: `"Finding #{N}"`, `multiSelect`: `false`, and:
+- Option 1 — `label`: `"File issue"`, `description`: `"File as a GitHub journey-health issue"`
+- Option 2 — `label`: `"Dismiss"`, `description`: `"Run mark declined so it doesn't reappear"`
+
+For "dismiss," run `node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" mark "<payload.id>" declined --root .` so the same proposal doesn't reappear on a future firing.
+
+**Step 7 — SUMMARIZE.**
+
+Report: which journey (if any) was audited, whether the coverage scan ran, how many findings were emitted, how many filed vs skipped by dedup. List any new issue URLs.
+
+## Routine Configuration
+
+`/journey-health` ships a routine template (`skills/journey-health/routine-template.yml`) designed for small, predictable sips: one journey per run, so a scheduled firing is cheap and a skipped one is harmless. Instantiate it for the current project with:
+
+```
+/claude-tweaks:routine create journey-health
+```
+
+**Headless run flow:** SELECT(`next-target`) → LIGHT TIER JUDGE → COVERAGE SCAN (when due) → validate-findings → file. A firing with nothing due (`target: null`, `coverageScanDue: false`) is a cheap no-op.
+
+Report-only, matching `/code-health` and `/harness-health` — every finding files as a `journey-health`-labelled GitHub issue, with no `Edit` in `allowed_tools`.
+
+> **Billing note:** Routines run inside the subscription; verify automation-credit specifics against the live account.
+
+## Next Actions
+
+Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+
+- Option 1 — `label`: `"Schedule a Routine"`, `description`: `"/claude-tweaks:routine create journey-health — schedule this as a recurring Routine"`. Suffix the label `(Recommended)` after a first standalone run confirms the output looks right.
+- Option 2 — `label`: `"Audit one journey"`, `description`: `"/claude-tweaks:journey-health --target <name> — audit one specific journey right now"`
+- Option 3 — `label`: `"Backlog hygiene"`, `description`: `"/claude-tweaks:tidy — fold any filed journey-health issues into a backlog-hygiene pass"`
+
+## Component-Skill Contract
+
+When `$PIPELINE_RUN_DIR` is set, `/claude-tweaks:journey-health` is running inside a pipeline (invoked by `/claude-tweaks:flow` or another pipeline orchestrator). In that case omit the `## Next Actions` block — the parent owns the handoff.
+
+Direct invocation may pass `--source <parent-skill>` as an explicit fallback when ambiguity exists (rare; `$PIPELINE_RUN_DIR` is the primary signal). Standalone (no `$PIPELINE_RUN_DIR`) is the common case and renders Next Actions as usual.
+
+## Anti-Patterns
+
+| Pattern | Why It Fails |
+|---------|--------------|
+| Editing a journey file, story YAML, or code directly | `/journey-health` only ever judges and files — every fix routes through `/claude-tweaks:journeys` or `/claude-tweaks:stories`, invoked by a human or `/triage dispatch` → `/flow`. |
+| Treating a `files:` entry that exists but is content-stale the same as a missing one | Missing-on-disk is a mechanical, high-confidence file-existence finding. Content drift (the step no longer matches what the file does) is a self-review or deep-tier finding, not a file-existence one — don't conflate the two `section` values. |
+| Re-proposing a patch already marked `declined` in the cache | The decline-memory cache exists specifically so a rejected proposal doesn't reappear every firing forever. |
+| Skipping the coverage scan because a per-journey target was already selected this firing | The coverage scan is a decoupled, whole-library check (its own cursor) — run it whenever `coverageScanDue` is true, independent of which single journey `next-target` picked. |
+| Treating the local cache as durable state | The cache is a rebuildable optimization — GitHub issue state is the source of truth for cross-run memory, same as `/code-health`/`/harness-health`. |
+
+## Relationship to Other Skills
+
+| Skill | Relationship |
+|-------|-------------|
+| `/claude-tweaks:journeys` | Produces and updates the journey files this skill audits. `/journey-health` never edits them — it files an issue recommending `/claude-tweaks:journeys {name}` be re-run. Shares `_shared/journey-self-review.md`'s four checks (write-time here, audit-time in `/journey-health`). |
+| `/claude-tweaks:stories` | Produces the QA story YAMLs this skill's coverage scan checks against. Coverage-gap findings recommend `/claude-tweaks:stories journey={name}`. |
+| `/claude-tweaks:review` | Shares `_shared/journey-coverage-check.md`'s coverage computation with lens `3g-cov` — `/review`'s lens stays inline/informational; this skill adds cursor-tracking and issue-filing on top. |
+| `/claude-tweaks:routine` | `/routine create journey-health` instantiates this skill's `routine-template.yml` into a live, scheduled cloud Routine. |
+| `/claude-tweaks:tidy` | Step 4.8 sweeps `journey-health`-labelled issues alongside `code-health`/`harness-health` ones, using the same stale/superseded triage. |
+| `/claude-tweaks:triage` | Filed `journey-health` issues resolve through `/triage dispatch` → `/flow`, or manually — same path `code-health`/`harness-health` issues already take. |
+| `_shared/journey-self-review.md` | Canonical four-check + structural-validity criteria this skill's light tier applies — shared with `/claude-tweaks:journeys` Step 3.5. |
+| `_shared/journey-coverage-check.md` | Canonical coverage computation this skill's coverage scan applies — shared with `/claude-tweaks:review`'s `3g-cov` lens. |
