@@ -66,6 +66,13 @@ function extractKeyFiles(issue) {
   }
 
   if (names.includes('harness-health')) {
+    // A new-skill candidate proposes content, it doesn't concern an existing
+    // file — its header line ("**New skill candidate** | ...") has no colon
+    // inside the bold run, so HARNESS_HEADER_RE fails to match it and would
+    // otherwise scan forward into the embedded proposedBody markdown (which
+    // commonly contains its own bold, colon-terminated, line-starting labels)
+    // and return a wrong, unrelated file path. Short-circuit instead.
+    if (names.includes('harness-health:new-skill')) return [];
     const targetHeader = HARNESS_HEADER_RE.exec(body);
     return targetHeader ? [targetHeader[1]] : [];
   }

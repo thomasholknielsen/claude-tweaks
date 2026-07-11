@@ -120,6 +120,35 @@ test('extracts the target from a harness-health issue body', () => {
   assert.deepStrictEqual(extractKeyFiles(issue), ['skills/triage/SKILL.md']);
 });
 
+test('returns [] for a harness-health new-skill candidate, not a scraped path from its embedded proposedBody', () => {
+  // Real shape from bin/lib/harness-health/issue-payload.js:14-19 — the header
+  // line has no colon inside the bold run ("**New skill candidate**", not
+  // "**Something:**"), so it can't match HARNESS_HEADER_RE. The proposed
+  // skill's own body is embedded verbatim afterward and commonly contains its
+  // own bold, colon-terminated, line-starting labels (SKILL.md frontmatter
+  // convention) — without the new-skill short-circuit, extraction would fall
+  // through to the first such line and return an unrelated, wrong path.
+  const issue = {
+    labels: ['harness-health', 'harness-health:new-skill'],
+    body: [
+      '<!-- harness-health-fingerprint: hh-abc123 -->',
+      '',
+      '**New skill candidate** | **Confidence:** high',
+      '',
+      '## Current State',
+      '',
+      'Gap: no skill covers X.',
+      '',
+      '## Deliverables',
+      '',
+      'Proposed new skill `skills/example/SKILL.md`:',
+      '',
+      '**Trigger:** the misleading bold line an unfixed regex would latch onto',
+    ].join('\n'),
+  };
+  assert.deepStrictEqual(extractKeyFiles(issue), []);
+});
+
 test('returns [] when the issue carries neither code-health nor harness-health labels', () => {
   const issue = { labels: ['backlog'], body: 'Files: a.js' };
   assert.deepStrictEqual(extractKeyFiles(issue), []);
