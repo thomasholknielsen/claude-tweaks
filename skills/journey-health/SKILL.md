@@ -45,6 +45,7 @@ Without `--budget` (or `--budget 1`), prints `{ target: {...}|null, coverageScan
 
 Read the `why` field on whichever target came back:
 - If `target` is `null` and `coverageScanDue` is `false`: nothing is due this firing. Report this to the user and stop.
+- `why: "deleted-file"` — this journey has a `files:` entry that no longer exists on disk (`target.missingFiles` lists which). Takes priority over staleness and churn — light tier only, always checked before Phase 1/2.
 - `why: "stale"` — this journey has not been audited in over 30 days regardless of churn.
 - `why: "hotspot"` — this journey's `files:` frontmatter paths have the highest git churn since its last light-tier audit among journeys with any churn at all.
 - `why: "manual"` — `--target` was passed, bypassing selection.
@@ -55,14 +56,14 @@ If `target` is `null` but `coverageScanDue` is `true`, skip straight to Step 3 (
 
 Read the target's journey file (`target.path`) in full.
 
-1. **File-existence check.** For each path in `target.filesFrontmatter`, check whether it still exists in the repo (`Read` or a quick `test -f`). For each missing path, emit a finding: `{ journey: target.id, category: "drift", section: "files-frontmatter", description: "files: entry '{path}' no longer exists", reason: "<how you confirmed it's missing>", confidence: "high", recommendation: "Run /claude-tweaks:journeys {target.id} to prune the dead entry" }`.
-2. **Self-review criteria.** Apply the four checks (and the structural-validity check) in `_shared/journey-self-review.md` against the journey file's actual content. For each violated check, emit a finding: `{ journey: target.id, category: "drift", section: "self-review", description: "<which check failed and why>", reason: "<the specific text/evidence>", confidence: "high"|"med", recommendation: "Run /claude-tweaks:journeys {target.id} to fix {check name}" }`. A structural-validity failure (missing frontmatter, missing `## Steps`, no steps) always gets `confidence: "high"`.
+1. **File-existence check.** For each path in `target.filesFrontmatter`, check whether it still exists in the repo (`Read` or a quick `test -f`). For each missing path, emit a finding: `{ journey: target.id, category: "drift", section: "files-frontmatter", description: "files: entry '{path}' no longer exists", reason: "<how you confirmed it's missing>", confidence: "high", severity: "high", recommendation: "Run /claude-tweaks:journeys {target.id} to prune the dead entry" }`. A missing declared file is never low-severity — it means the journey's documented domain mapping is flat-out wrong.
+2. **Self-review criteria.** Apply the four checks (and the structural-validity check) in `_shared/journey-self-review.md` against the journey file's actual content. For each violated check, emit a finding: `{ journey: target.id, category: "drift", section: "self-review", description: "<which check failed and why>", reason: "<the specific text/evidence>", confidence: "high"|"med", severity: "high"|"med"|"low", recommendation: "Run /claude-tweaks:journeys {target.id} to fix {check name}" }`. A structural-validity failure (missing frontmatter, missing `## Steps`, no steps) always gets `confidence: "high"`, `severity: "high"`. A real-but-non-structural check failure (persona, origin coverage, outcome clarity) gets `severity: "med"`. Purely cosmetic wording drift gets `severity: "low"`.
 
 Collect all findings from both checks (may be zero, one, or several) into a JSON array.
 
 **Step 3 — COVERAGE SCAN (when `coverageScanDue`, per Step 1).**
 
-Run the computation in `_shared/journey-coverage-check.md` across all journeys and all stories (not just the Step 1 target — this is a whole-library scan). For each uncovered-journey-step result, emit a finding: `{ journey: "<journey name>", category: "coverage", section: "coverage", description: "{M} uncovered steps ({step numbers})", reason: "no story in the stories directory has journey: {journey name} covering these steps", confidence: "high", recommendation: "Run /claude-tweaks:stories journey={journey name}" }`. For each orphaned-story-with-URL-match result, emit a finding with `journey` set to the *suggested* journey (not an existing journey's own drift, but still filed the same way): `{ journey: "<suggested journey>", category: "coverage", section: "coverage", description: "Story '{storyId}' matches journey '{journey}' but has no journey: field", reason: "story '{storyId}''s URL {url} matches a step in journey '{journey}', but the story has no journey: field linking them", confidence: "med", recommendation: "Add journey: {journey} to {storyFile}" }`. Skip orphaned stories with no match entirely (informational only, never a finding, per the shared fragment).
+Run the computation in `_shared/journey-coverage-check.md` across all journeys and all stories (not just the Step 1 target — this is a whole-library scan). For each uncovered-journey-step result, emit a finding: `{ journey: "<journey name>", category: "coverage", section: "coverage", description: "{M} uncovered steps ({step numbers})", reason: "no story in the stories directory has journey: {journey name} covering these steps", confidence: "high", severity: "high"|"med"|"low", recommendation: "Run /claude-tweaks:stories journey={journey name}" }`. Severity scales with how much of the journey is uncovered: `"high"` when every documented step is uncovered (zero story coverage for this journey at all), `"low"` when exactly one step is uncovered, `"med"` for anything in between. For each orphaned-story-with-URL-match result, emit a finding with `journey` set to the *suggested* journey (not an existing journey's own drift, but still filed the same way): `{ journey: "<suggested journey>", category: "coverage", section: "coverage", description: "Story '{storyId}' matches journey '{journey}' but has no journey: field", reason: "story '{storyId}''s URL {url} matches a step in journey '{journey}', but the story has no journey: field linking them", confidence: "med", severity: "low", recommendation: "Add journey: {journey} to {storyFile}" }`. Skip orphaned stories with no match entirely (informational only, never a finding, per the shared fragment).
 
 Append these findings to the same array from Step 2 (Steps 2 and 3 can both produce findings in the same firing; Step 2 is skipped entirely when Step 1 returned `target: null`).
 
@@ -82,15 +83,26 @@ If `target` is `null`, report "nothing due for the deep tier" and skip the rest 
 
 Otherwise:
 
+0. **Check for recent QA evidence.** Glob `screenshots/qa/*/report.json`, take the most recent by timestamp prefix. If none exists, skip to sub-step 1. Read the stories directory and collect the `id` of every story with `journey: {target.id}`, reusing `_shared/journey-coverage-check.md`'s cross-reference (don't recompute it independently). If the journey has no stories at all, skip to sub-step 1 — there is no possible QA evidence to check.
+
+   Otherwise, read that report.json and run:
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" qa-evidence <report.json path> --story-ids "<comma-separated story ids>"
+   ```
+   This prints `{ verdict: "satisfied"|"regression"|"inconclusive", finding?: {...}, reason?: "..." }`.
+   - `verdict: "satisfied"` — the deep audit is satisfied by this evidence. Skip sub-steps 1-3 entirely (no dev URL, no live test/visual-review). The deep findings array stays empty. Continue to sub-step 4.
+   - `verdict: "regression"` — take the printed `finding`, add `journey: target.id` to it, append it to the deep findings array. Skip sub-steps 1-3 entirely. Continue to sub-step 4.
+   - `verdict: "inconclusive"` — fall through to sub-step 1 and drive live verification as normal. The `reason` is worth noting in the eventual summary, but does not block proceeding.
+
 1. **Resolve a dev URL.** Follow `_shared/dev-url-detection.md` in auto mode — this starts an ephemeral server on a free port with no prompt when no server is already running and a dev command is known. Record whether this procedure started the server (`SERVER_STARTED`).
 2. **Check for story coverage.** Read the stories directory for any story with `journey: {target.id}`.
    - Stories exist → drive `/claude-tweaks:test journey={target.id}` against the resolved dev URL.
    - No stories → fall back to `/claude-tweaks:visual-review journey:{target.id}` against the resolved dev URL.
 3. **On failure, judge drift vs. regression** — don't assume either. Compare the failure evidence (a changed selector, a renamed route, a UI element that no longer exists) against the journey file's documented steps:
-   - **Confirmed drift** (the app's structure changed and the journey/story text is what's stale): emit `{ journey: target.id, category: "drift", section: "live-check", description: "<what changed>", reason: "<the failure evidence>", confidence: "high"|"med", recommendation: "Run /claude-tweaks:journeys {target.id} — <what needs updating>" }`.
-   - **Confirmed regression** (the app's actual behavior broke, journey/story text still accurately describes the intended flow): emit `{ journey: target.id, category: "regression-suspected", section: "live-check", description: "<what broke>", reason: "<the failure evidence>", confidence: "high"|"med", recommendation: "File as a product bug — journey/story text is accurate, the implementation regressed" }`.
-   - If genuinely ambiguous, emit the drift-leaning finding with `confidence: "med"` and say so explicitly in `reason` — never silently pick one.
-4. **Clean up.** If `SERVER_STARTED` is `true`, stop the ephemeral server now (`lsof -ti tcp:{port} | xargs kill`) — this is a standalone invocation with no `/wrap-up` to do it later, per `_shared/dev-url-detection.md`'s "Standalone" cleanup rule.
+   - **Confirmed drift** (the app's structure changed and the journey/story text is what's stale): emit `{ journey: target.id, category: "drift", section: "live-check", description: "<what changed>", reason: "<the failure evidence>", confidence: "high"|"med", severity: "high"|"med", recommendation: "Run /claude-tweaks:journeys {target.id} — <what needs updating>" }`. `severity: "high"` when the journey can no longer complete at all; `"med"` for a partial or cosmetic break.
+   - **Confirmed regression** (the app's actual behavior broke, journey/story text still accurately describes the intended flow): emit `{ journey: target.id, category: "regression-suspected", section: "live-check", description: "<what broke>", reason: "<the failure evidence>", confidence: "high"|"med", severity: "high"|"med", recommendation: "File as a product bug — journey/story text is accurate, the implementation regressed" }`. Same severity guidance as the drift case above.
+   - If genuinely ambiguous, emit the drift-leaning finding with `confidence: "med"`, `severity: "med"`, and say so explicitly in `reason` — never silently pick one.
+4. **Clean up.** If `SERVER_STARTED` is `true`, stop the ephemeral server now (`lsof -ti tcp:{port} | xargs kill`) — this is a standalone invocation with no `/wrap-up` to do it later, per `_shared/dev-url-detection.md`'s "Standalone" cleanup rule. (`SERVER_STARTED` is never `true` when sub-step 0 satisfied or resolved the deep tier via QA evidence, since sub-step 1 never ran on that path — this cleanup correctly no-ops.)
 
 Write any Step 3.5 findings to `/tmp/journey-health-findings-deep.json` (or skip creating this file entirely if Step 3.5 didn't run or produced nothing).
 
@@ -133,12 +145,16 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" validate-findings /tmp/journe
 
 **Step 6 — FILE.**
 
-Before filing, ensure each payload's category sub-label exists (it won't on first use in a fresh repo — `gh issue create` fails against a nonexistent label):
+Before filing, ensure each payload's category and severity sub-labels exist (they won't on first use in a fresh repo — `gh issue create` fails against a nonexistent label):
 
 ```bash
 LABEL="journey-health:<category>"
 gh label list --search "$LABEL" --json name -q '.[].name' | grep -qx "$LABEL" || \
   gh label create "$LABEL" --description "journey-health finding category: <category>"
+
+LABEL="journey-health:<severity>"
+gh label list --search "$LABEL" --json name -q '.[].name' | grep -qx "$LABEL" || \
+  gh label create "$LABEL" --description "journey-health finding severity: <severity>"
 ```
 
 For each payload in `/tmp/journey-health-payloads-light.json` and (when Step 3.5 ran) `/tmp/journey-health-payloads-deep.json`: `gh issue create --title "<payload.title>" --body "<payload.body>" --label journey-health --label "<payload.labels[1]>"`. `/journey-health` never edits journey files, stories, or code — every finding files, unconditionally.
@@ -148,9 +164,9 @@ In `--dry-run` mode, print what would be filed but do not call `gh`.
 In interactive mode, render surviving findings as a markdown batch table before filing:
 
 ```
-| # | Journey | Category | Section | Confidence | Recommendation |
-|---|---------|----------|---------|------------|----------------|
-| 1 | {journey} | {category} | {section} | {confidence} | {recommendation} |
+| # | Journey | Category | Section | Severity | Confidence | Recommendation |
+|---|---------|----------|---------|----------|------------|----------------|
+| 1 | {journey} | {category} | {section} | {severity} | {confidence} | {recommendation} |
 ```
 
 Then call `AskUserQuestion` with `question`: `"File these findings as GitHub issues?"`, `header`: `"Findings"`, `multiSelect`: `false`, and:
