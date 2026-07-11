@@ -81,7 +81,7 @@ Create the required workflow directories — idempotent, only creates what's mis
 
 ### Step 3: Create Starter Files
 
-Create `specs/INBOX.md`, `specs/DEFERRED.md`, and `specs/INDEX.md` — only if missing, never overwrite. Read `bootstrap-steps.md` (Step 3) for the canonical starter content.
+Create `specs/backlog/` (empty directory) and `specs/INDEX.md` — only if missing, never overwrite. Read `bootstrap-steps.md` (Step 3) for the canonical starter content.
 
 ### Step 4: Suggest .gitignore Entries
 
@@ -375,7 +375,7 @@ After writing files, surface what was created. Generate the table from the actua
 | Action | Detail | Ref |
 |--------|--------|-----|
 | Bootstrap | Created `specs/`, `docs/`, `docs/journeys/`, `.worktrees/`, etc. (only missing dirs) | Step 2 |
-| Starter files | Wrote `specs/INBOX.md`, `specs/DEFERRED.md`, `specs/INDEX.md` (only if missing) | Step 3 |
+| Starter files | Wrote `specs/backlog/`, `specs/INDEX.md` (only if missing) | Step 3 |
 | Statusline | Installed wrapper at `~/.claude-tweaks/bin/statusline.js`; wired `~/.claude/settings.json` | Step 8 |
 | Design integration | Set `design-integration: {enabled/plugin-only/disabled}` in CLAUDE.md | Step 10 |
 | shadcn integration | Set `shadcn-integration: {enabled/cli-only/disabled}` in CLAUDE.md | Step 12 |
@@ -427,7 +427,7 @@ If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Modifying existing INBOX.md or INDEX.md content | Phase 0 is additive — it creates missing files but must not overwrite user content |
+| Modifying existing backlog entries (`specs/backlog/*.md`) or INDEX.md content | Phase 0 is additive — it creates missing files but must not overwrite user content |
 | Skipping CLAUDE.md generation | Without CLAUDE.md, /claude-tweaks:review can't find verification commands |
 | Running init in a non-git directory without warning | /claude-tweaks:review and /claude-tweaks:wrap-up depend on git — the user should know about degraded behavior |
 | Installing browser tools without asking | Browser integration is optional — surface the install command but never run `npm install` automatically |

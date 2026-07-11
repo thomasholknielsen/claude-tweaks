@@ -222,7 +222,7 @@ Init is about fast-start — get the registry wired up and move on. Doc content 
 
 7. **Create `docs/REGISTRY.md`** with approved entries (existing docs only — missing docs are not added until they're created).
 
-8. **Capture doc work as INBOX items** — For each finding from the assessment (stale, thin, misplaced, missing), create an INBOX entry in `specs/INBOX.md` with the Phase 2 context baked in:
+8. **Capture doc work as backlog entries** — For each finding from the assessment (stale, thin, misplaced, missing), create a `specs/backlog/{slug}.md` entry (`**Stage:** inbox`) with the Phase 2 context baked in:
 
    ```markdown
    ### Refresh docs/api.md — missing 5 endpoints

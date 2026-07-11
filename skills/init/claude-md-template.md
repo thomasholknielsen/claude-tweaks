@@ -192,7 +192,7 @@ These apply regardless of project maturity:
 - **Do it properly.** No display-only workarounds for data model issues, no "good enough" shortcuts that leave technical debt. If a value needs renaming, rename it everywhere including the database. If a type needs changing, change it at the source.
 - **Assume zero cost.** Decide as if implementation is free. Never choose an inferior design because the better one "isn't worth the effort."
 - **Assume zero time.** Decide as if implementation is instant. Never choose a shortcut because the proper approach "takes too long."
-- **No implicit deferrals.** When something needs doing, either do it now or explicitly add it to specs/INBOX.md with scope and context. Never silently skip work or leave TODO comments without a corresponding INBOX entry.
+- **No implicit deferrals.** When something needs doing, either do it now or explicitly add a backlog entry (`specs/backlog/{slug}.md`, `**Stage:** inbox`) with scope and context. Never silently skip work or leave TODO comments without a corresponding backlog entry.
 
 ### Maturity-dependent principles (adapt to classification)
 
