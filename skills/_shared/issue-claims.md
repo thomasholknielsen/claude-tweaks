@@ -140,7 +140,8 @@ ownership check as written will not match on this path, so it skips the delete a
 comment (treating the dispatch firing as "a successor" even though it's the same logical run).
 Practical impact is bounded: the issue still closes correctly via `Fixes #N` in the merge, the
 stale ref self-heals via TTL (72h) plus `/tidy`'s sweep, and the failure path (dispatch's own
-`triage/SKILL.md` Step 4) is unaffected since it releases from the same thread that claimed.
+`triage/SKILL.md` Step 4) is unaffected since it releases with the same `$RUN_ID` that made
+the claim (threaded explicitly into the group's Task agent), not merely the same thread.
 What's actually lost is the release audit comment and prompt ref cleanup on the common,
 successful case. Fixing this properly needs the dispatch firing's `$RUN_ID` threaded through
 `/flow`'s hand-off into `/wrap-up`'s release call (as an explicit param, since `/flow` creates
