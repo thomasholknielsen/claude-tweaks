@@ -76,6 +76,41 @@ Full sweep of open PRs, code-health-labelled issues, and harness-health-labelled
 
    This is a maintenance signal only — `/tidy` never applies a tier label itself (`/claude-tweaks:triage` owns that). Surface the count in the digest's "Still needs your review" section (see `tidy/SKILL.md`'s digest section) as `**Pending authorization:** {N} issues awaiting a tier label`.
 
+## Scope: `triage-queue` (consumed by /help Stage 4.6)
+
+Three cheap counts for the dashboard's Triage Queue section. This scope exists so `/help` never hand-writes its own query for these numbers — see the fix this closes: Stage 4.6 previously computed "pending authorization" without excluding `status:blocked`, so a blocked issue counted as both pending AND blocked on the same dashboard.
+
+1. **Pending authorization** — code-health + harness-health issues carrying none of `tier:needs-review`, `tier:approved`, `tier:fast-track`, **and not carrying** `status:blocked`. (The exclusion is the fix: a blocked issue already had its decision and failed out — it is not "pending your initial decision.")
+
+   ```bash
+   gh issue list --label code-health --state open --json number,labels --limit 200 > /tmp/triage-queue-ch.json
+   gh issue list --label harness-health --state open --json number,labels --limit 200 > /tmp/triage-queue-hh.json
+   node -e "
+     const all = [...require('/tmp/triage-queue-ch.json'), ...require('/tmp/triage-queue-hh.json')];
+     const names = i => (i.labels || []).map(l => (typeof l === 'string' ? l : l.name));
+     const pending = all.filter(i => {
+       const n = names(i);
+       const hasTier = n.some(x => x === 'tier:needs-review' || x === 'tier:approved' || x === 'tier:fast-track');
+       const blocked = n.includes('status:blocked');
+       return !hasTier && !blocked;
+     }).length;
+     console.log(pending);
+   "
+   ```
+
+2. **Blocked** — `gh issue list --label status:blocked --state open --json number --limit 200 -q 'length'`
+
+3. **Auto-merged this week** — `[fast-lane]`-tagged commits on the *default* branch (never the current worktree's own branch — see the note on `worktree.always` below), last 7 days:
+
+   ```bash
+   SINCE=$(node -e "console.log(new Date(Date.now() - 7*24*60*60*1000).toISOString())")
+   gh api "repos/{owner}/{repo}/commits?since=${SINCE}&per_page=100" -q '[.[] | select(.commit.message | contains("[fast-lane]"))] | length'
+   ```
+
+   The commits endpoint defaults to the default branch when no `sha=` param is given — correct regardless of which branch/worktree `/help` itself runs from under `worktree.always`. `SINCE` is computed via `node`, not shell `date` arithmetic, which differs between BSD/macOS and GNU date.
+
+Render as three lines: `Pending authorization: **{N}** issues awaiting your decision` / `Blocked: **{N}** issues hit their retry ceiling` / `Auto-merged this week: **{N}** fast-lane merges` — omit any line whose count is 0.
+
 Findings and recommendations (tidy Action Vocabulary):
 
 | Finding | Recommendation |
