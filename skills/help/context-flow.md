@@ -17,16 +17,16 @@ This design means:
 Codebase                     ──→ Findings cache               ──→ GitHub Issues (durable)         ──→ Triage + Build pipeline
 .claude-tweaks/code-health/      .claude-tweaks/code-health/      gh issues (label: code-health)      /claude-tweaks:triage → /flow #{issue}
   /code-health                   cache.json + runs/               ↓ (or)                              specs/NN-*.md via /specify
-                                                                  INBOX / /specify                    /build
+                                                                  specs/backlog/ / /specify           /build
 ```
 
 ```
-INBOX item          ──→ Brief               ──→ Design Doc          ──→ Spec              ──→ Code + Journey
-specs/INBOX.md         docs/plans/*-brief.md   docs/superpowers/specs/*-design.md  specs/NN-*.md         src/ + docs/journeys/
+Backlog entry (inbox)  ──→ Brief               ──→ Design Doc          ──→ Spec              ──→ Code + Journey
+specs/backlog/*.md        docs/plans/*-brief.md   docs/superpowers/specs/*-design.md  specs/NN-*.md         src/ + docs/journeys/
   /capture               /challenge              /superpowers:brainstorming            /specify              /build
                                                                          ↓                     ↓
                                                                    (deletes brief           Deferred items
-                                                                    + design doc)           specs/DEFERRED.md
+                                                                    + design doc)           specs/backlog/ (Stage: parked)
 ```
 
 ```
@@ -44,11 +44,11 @@ src/ + journeys    stories/*.yaml     types + lint + tests + QA     code + visua
 | Skill | Reads | Writes | Deletes |
 |-------|-------|--------|---------|
 | `/code-health` | Codebase files (via LLM judge + optional tool assists), `.claude-tweaks/code-health/cache.json` (prior findings), `.claude-tweaks/code-health/cursors.json` (per-area sweep state), `--issues <file>` (open issue index from `gh issue list`) | `.claude-tweaks/code-health/cache.json` (fingerprint + status), `.claude-tweaks/code-health/cursors.json` (per-area `lastHash` + `lastSweptMs`), `.claude-tweaks/code-health/runs/` (run logs for churn tracking), GitHub issues via `gh issue create` (durable sink) | — |
-| `/init` | `~/.claude/plugins/`, entire codebase, CLAUDE.md, config files, git state | `specs/`, `docs/plans/`, `docs/journeys/`, `specs/INBOX.md`, `specs/DEFERRED.md`, `specs/INDEX.md`, CLAUDE.md, `.claude/skills/*.md`, `.claude/rules/`, `docs/journeys/*.md` | — |
-| `/capture` | — | `specs/INBOX.md` (append) | — |
-| `/challenge` | `specs/INBOX.md` | `docs/plans/*-brief.md` | — |
+| `/init` | `~/.claude/plugins/`, entire codebase, CLAUDE.md, config files, git state | `specs/`, `docs/plans/`, `docs/journeys/`, `specs/backlog/`, `specs/INDEX.md`, CLAUDE.md, `.claude/skills/*.md`, `.claude/rules/`, `docs/journeys/*.md` | — |
+| `/capture` | — | `specs/backlog/{slug}.md` (create, `**Stage:** inbox`) | — |
+| `/challenge` | `specs/backlog/*.md` | `docs/plans/*-brief.md` | — |
 | `/superpowers:brainstorming` | `docs/plans/*-brief.md` | `docs/superpowers/specs/*-design.md` | — |
-| `/specify` | `*-design.md`, `*-brief.md`, `specs/INDEX.md` | `specs/NN-*.md`, `specs/INDEX.md` | `*-design.md`, `*-brief.md`, INBOX entry |
+| `/specify` | `*-design.md`, `*-brief.md`, `specs/INDEX.md` | `specs/NN-*.md`, `specs/INDEX.md` | `*-design.md`, `*-brief.md`, `specs/backlog/{slug}.md` entry |
 | `/build` | `specs/NN-*.md`, `docs/plans/*.md` | Code, plan files, ledger items. Invokes `/journeys` for journey files and `/simplify` for code cleanup. Worktree mode also produces transient worktree directories and feature branches. | — |
 | `/journeys` | Changed files (from parent or git diff), `docs/journeys/*.md` | `docs/journeys/*.md` | — |
 | `/simplify` | Changed files (from parent or git diff) | Simplified code (in-place) | — |
@@ -62,7 +62,7 @@ src/ + journeys    stories/*.yaml     types + lint + tests + QA     code + visua
 | `/stories` | Existing `stories/*.yaml`, `stories/auth.yml` (for auth profiles), `docs/journeys/*.md` (for journey-aware generation), site via `/browse`, component source files (for source analysis) | `stories/*.yaml` (with `source_files:` and `journey:` fields), `stories/auth.yml` (created on first auth detection) | — |
 | `/review` | Code (via git diff), `specs/NN-*.md`, `docs/journeys/*.md`, `stories/*.yaml` (for journey-story coverage), `TEST_PASSED` from /test, ledger (including QA entries with phase `test/qa`), QA screenshots + page inventories (for UX analysis lens) | Review summary, ledger items. Invokes `/reflect` (hindsight mode), `/simplify`, and `/visual-review`. | — |
 | `/visual-review` | Running app (via browser), `docs/journeys/*.md` (journey mode), QA data (optional enrichment), source files (for reconnaissance) | Visual review report, journey file updates, `screenshots/` | — |
-| `/wrap-up` | `specs/NN-*.md`, review output, plan files, ledger, `.claude/skills/*.md` (relevant skills from ledger entries) | CLAUDE.md updates, skill updates, `DEFERRED.md`, `docs/decisions/*.md` (ADRs, Step 6.3). Invokes `/reflect` (full mode). | Spec file, plan files, ledger |
+| `/wrap-up` | `specs/NN-*.md`, review output, plan files, ledger, `.claude/skills/*.md` (relevant skills from ledger entries) | CLAUDE.md updates, skill updates, `specs/backlog/{slug}.md` (create/update, `**Stage:** parked`), `docs/decisions/*.md` (ADRs, Step 6.3). Invokes `/reflect` (full mode). | Spec file, plan files, ledger |
 | `/tidy` | All artifacts | Cleanup actions | Stale artifacts |
 
 ## Open Items Ledger

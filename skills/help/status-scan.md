@@ -6,7 +6,7 @@ Stage-by-stage scan procedure run by `/claude-tweaks:help` (default invocation, 
 >
 > **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input (scope + path + literal output template, no conversation), status line first (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`), then Template A.
 >
-> **Model tier:** Fast (Haiku) — each stage scan is a mechanical read/grep over a single data source (INBOX, DEFERRED, design docs, specs, plans, registry, current PR via gh). No synthesis at the per-stage level; the orchestrator assembles the dashboard.
+> **Model tier:** Fast (Haiku) — each stage scan is a mechanical read/grep over a single data source (backlog inbox-stage entries, backlog parked-stage entries, design docs, specs, plans, registry, current PR via gh). No synthesis at the per-stage level; the orchestrator assembles the dashboard.
 >
 > **Output template (each agent must follow exactly):**
 >
@@ -16,16 +16,16 @@ Stage-by-stage scan procedure run by `/claude-tweaks:help` (default invocation, 
 >
 > | Severity | Path:Line | Finding | Evidence |
 > |---|---|---|---|
-> | medium | specs/INBOX.md | 14 items, 3 stale | lines 12, 28, 41 are 4+ weeks old |
+> | medium | specs/backlog/ | 14 items, 3 stale | 3 entries' `**Added:**` dates are 4+ weeks old |
 >
 > Severity scale: critical / high / medium / low / info
 > If no findings: return literal text "No findings."
 > Do not add narration, headers, or summaries before or after the table.
 > ```
 
-**Dispatcher column mapping (status-scan use):** Severity = recommendation urgency (`info` for nothing-to-do, `low` for routine, `medium` for needs-attention, `high` for blocking). Path:Line = the artifact (`specs/INBOX.md:42`, `docs/journeys/checkout.md`, etc.). Finding = the count or flag (`14 items, 3 stale`). Evidence = the specific items or signals.
+**Dispatcher column mapping (status-scan use):** Severity = recommendation urgency (`info` for nothing-to-do, `low` for routine, `medium` for needs-attention, `high` for blocking). Path:Line = the artifact (`specs/backlog/{slug}.md`, `docs/journeys/checkout.md`, etc.). Finding = the count or flag (`14 items, 3 stale`). Evidence = the specific items or signals.
 
-## Stage 1: INBOX (`specs/INBOX.md`)
+## Stage 1: INBOX (`specs/backlog/*.md`, `**Stage:** inbox`)
 
 - Count total items
 - Flag stale items (> 4 weeks old)
@@ -33,7 +33,7 @@ Stage-by-stage scan procedure run by `/claude-tweaks:help` (default invocation, 
 - Identify items marked as related to existing specs
 - Flag items with baked-in assumptions (solution-oriented phrasing) → candidates for `/claude-tweaks:challenge`
 
-## Stage 1.5: Deferred Work (`specs/DEFERRED.md`)
+## Stage 1.5: Deferred Work (`specs/backlog/*.md`, `**Stage:** parked`)
 
 - Count total deferred items
 - Check triggers against current state:

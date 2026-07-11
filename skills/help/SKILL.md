@@ -131,7 +131,7 @@ For a detailed explanation of how context flows between skills via artifacts, re
 | `/claude-tweaks:review` | /claude-tweaks:help flags specs awaiting review |
 | `/claude-tweaks:wrap-up` | /claude-tweaks:help flags specs awaiting wrap-up |
 | `/claude-tweaks:tidy` | /claude-tweaks:help suggests /claude-tweaks:tidy when maintenance is needed |
-| `specs/DEFERRED.md` | /claude-tweaks:help scans deferred items and flags those with met triggers |
+| `specs/backlog/*.md` (`**Stage:** parked`) | /claude-tweaks:help scans deferred items and flags those with met triggers |
 | `/claude-tweaks:flow` | /claude-tweaks:help lists /claude-tweaks:flow as an automation option for ready specs |
 | `/claude-tweaks:browse` | Utility skill — /claude-tweaks:help lists it in the utility skills table |
 | `/claude-tweaks:stories` | Lifecycle skill — /claude-tweaks:help lists it between /test and /review |
@@ -141,7 +141,7 @@ For a detailed explanation of how context flows between skills via artifacts, re
 | `/claude-tweaks:deepen` | Component skill — /claude-tweaks:help lists it in the component skills table |
 | `/claude-tweaks:journeys` | Component skill — /claude-tweaks:help lists it in the component skills table |
 | `/claude-tweaks:visual-review` | Component skill — /claude-tweaks:help lists it in the component skills table |
-| `/claude-tweaks:init` | /init configures the workflow system that /help reports on — /help reads the same artifact paths /init bootstraps (INBOX, DEFERRED, specs, plans, docs registry) |
+| `/claude-tweaks:init` | /init configures the workflow system that /help reports on — /help reads the same artifact paths /init bootstraps (`specs/backlog/`, specs, plans, docs registry) |
 | `/claude-tweaks:version` | /version prints the installed plugin version; /help surfaces version-aware command syntax and points at /version for the canonical answer |
 | `/claude-tweaks:design` | Utility wrapper — /help lists it in the utility skills table. /design is invoked by /build (Common Step 1.7 pre-build), /test (Step 1.5 CLI gate), /review (Step 6.5 advisory pass), /flow (polish phase), and /visual-review; standalone usage is rare. |
 | `/claude-tweaks:research` | Utility skill — /help lists it in the utility skills table. /research has no fixed lifecycle position; /help may surface it as an option when an INBOX item or pending spec would benefit from prior-art research. |

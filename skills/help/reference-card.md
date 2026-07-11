@@ -158,7 +158,7 @@ Consumed artifacts are deleted — specs and code are the durable outputs.
 
 **Doctrine preserved (still per-item user input, even in auto):**
 - Ledger resolve gate Phase 2 (open items)
-- `specs/INBOX.md` / `specs/DEFERRED.md` writes
+- `specs/backlog/` writes (inbox or parked stage)
 - `/challenge` lenses
 - `/init` Phase 4 / 8 / 9 governance gates
 - All HARD-GATE / BLOCKED / STOP conditions
