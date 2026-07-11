@@ -12,5 +12,5 @@ notes: >
   nothing auto-applies. Light-tier checks only (file-existence, self-review,
   coverage scan); the deep tier is interactive-only (`--deep`) until a
   validation spike confirms cloud-Routine feasibility for a background dev
-  server + agent-browser session. See journey-health/SKILL.md's Step 4
-  (added once the deep tier ships) for details.
+  server + agent-browser session. See journey-health/SKILL.md's Step 3.5
+  for details.

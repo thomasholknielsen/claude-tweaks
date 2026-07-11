@@ -31,6 +31,7 @@ Not for: creating or updating journey content (`/claude-tweaks:journeys`' job) o
 - `--dry-run` — emit findings; never write cursor/cache state; never call `gh`.
 - `--budget <n>` — audit up to `n` journeys in one firing (default 1).
 - `--root <dir>` — audit a project elsewhere (default: current working directory).
+- `--deep` — also run the deep tier (Step 3.5): actually execute the selected journey's QA stories or walk it live, catching drift/regressions a static check can't. Interactive only — no scheduled Routine drives this yet (see Routine Configuration).
 
 ## Workflow
 
@@ -65,7 +66,33 @@ Run the computation in `_shared/journey-coverage-check.md` across all journeys a
 
 Append these findings to the same array from Step 2 (Steps 2 and 3 can both produce findings in the same firing; Step 2 is skipped entirely when Step 1 returned `target: null`).
 
-Write the full findings array (from Steps 2 and 3 combined) to `/tmp/journey-health-findings.json`. If neither step produced any findings, write `[]`.
+Write the combined Steps 2-3 findings array to `/tmp/journey-health-findings-light.json`. If neither step produced any findings, write `[]`.
+
+**Step 3.5 — DEEP TIER (only when `--deep` was passed).**
+
+Re-resolve the target for the deep tier — deep and light tiers use independent cursors, so re-run Step 1's `next-target` call with `--tier deep` (this may select a different journey than Step 1's light-tier pick, or the same one, depending on each tier's own churn/staleness state):
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" next-target --root . --tier deep ${TARGET:+--target "$TARGET"}
+```
+
+If `target` is `null`, report "nothing due for the deep tier" and skip the rest of this step.
+
+**Skip condition:** read the selected journey's `files:` frontmatter. If any entry doesn't exist on disk, skip the deep tier for this journey entirely — file-existence drift must be fixed (via the light tier's finding, already emitted in Step 2) before a live run is worth attempting. Do not advance the deep-tier cursor when skipping this way; log the gap.
+
+Otherwise:
+
+1. **Resolve a dev URL.** Follow `_shared/dev-url-detection.md` in auto mode — this starts an ephemeral server on a free port with no prompt when no server is already running and a dev command is known. Record whether this procedure started the server (`SERVER_STARTED`).
+2. **Check for story coverage.** Read the stories directory for any story with `journey: {target.id}`.
+   - Stories exist → drive `/claude-tweaks:test journey={target.id}` against the resolved dev URL.
+   - No stories → fall back to `/claude-tweaks:visual-review journey:{target.id}` against the resolved dev URL.
+3. **On failure, judge drift vs. regression** — don't assume either. Compare the failure evidence (a changed selector, a renamed route, a UI element that no longer exists) against the journey file's documented steps:
+   - **Confirmed drift** (the app's structure changed and the journey/story text is what's stale): emit `{ journey: target.id, category: "drift", section: "live-check", description: "<what changed>", reason: "<the failure evidence>", confidence: "high"|"med", recommendation: "Run /claude-tweaks:journeys {target.id} — <what needs updating>" }`.
+   - **Confirmed regression** (the app's actual behavior broke, journey/story text still accurately describes the intended flow): emit `{ journey: target.id, category: "regression-suspected", section: "live-check", description: "<what broke>", reason: "<the failure evidence>", confidence: "high"|"med", recommendation: "File as a product bug — journey/story text is accurate, the implementation regressed" }`.
+   - If genuinely ambiguous, emit the drift-leaning finding with `confidence: "med"` and say so explicitly in `reason` — never silently pick one.
+4. **Clean up.** If `SERVER_STARTED` is `true`, stop the ephemeral server now (`lsof -ti tcp:{port} | xargs kill`) — this is a standalone invocation with no `/wrap-up` to do it later, per `_shared/dev-url-detection.md`'s "Standalone" cleanup rule.
+
+Write any Step 3.5 findings to `/tmp/journey-health-findings-deep.json` (or skip creating this file entirely if Step 3.5 didn't run or produced nothing).
 
 **Step 4 — GATHER OPEN ISSUES for dedup.**
 
@@ -77,21 +104,36 @@ Parse each issue body for the fingerprint marker `<!-- journey-health-fingerprin
 
 **Step 5 — VALIDATE, FINGERPRINT, DEDUP.**
 
+Findings from Steps 2-3 (light tier) and Step 3.5 (deep tier) use different `--tier`/`--target` cursor keys and must never share one `validate-findings` call — each tier's own target needs its own cursor recorded independently (same discipline `/code-health`'s multi-slice `--budget` runs use: one call per distinct target).
+
+Always run the light-tier call, even when its findings file is `[]`:
+
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" validate-findings /tmp/journey-health-findings.json \
-  --root "${ROOT:-$PWD}" \
+node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" validate-findings /tmp/journey-health-findings-light.json \
+  --root "${ROOT:-$PWD}" --tier light \
   ${ISSUES_FILE:+--issues "$ISSUES_FILE"} \
-  ${TARGET_ID:+--target "$TARGET_ID"} \
+  ${LIGHT_TARGET_ID:+--target "$LIGHT_TARGET_ID"} \
   ${COVERAGE_SCAN_RAN:+--coverage-scan} \
   ${DRY_RUN:+--dry-run} \
-  > /tmp/journey-health-payloads.json
+  > /tmp/journey-health-payloads-light.json
 ```
 
-`TARGET_ID` is `target.id` from Step 1 (omit if Step 1 returned `target: null` and only the coverage scan ran). `COVERAGE_SCAN_RAN` is passed whenever Step 3 actually ran this firing. The command validates each finding, fingerprints via `journey + category + section + normalizedDescription`, dedups against open `journey-health` issues and the local cache, records the light-tier cursor for `TARGET_ID` (and the coverage-scan cursor when `--coverage-scan` was passed) unless `--dry-run`, and emits gh-ready payloads on stdout.
+Run the deep-tier call only when Step 3.5 actually ran and produced a findings file:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" validate-findings /tmp/journey-health-findings-deep.json \
+  --root "${ROOT:-$PWD}" --tier deep \
+  ${ISSUES_FILE:+--issues "$ISSUES_FILE"} \
+  --target "$DEEP_TARGET_ID" \
+  ${DRY_RUN:+--dry-run} \
+  > /tmp/journey-health-payloads-deep.json
+```
+
+`LIGHT_TARGET_ID`/`DEEP_TARGET_ID` are the respective `target.id` values from Step 1 and Step 3.5 (omit `LIGHT_TARGET_ID` if Step 1 returned `target: null` and only the coverage scan ran; `DEEP_TARGET_ID` is required whenever the deep-tier call runs at all, since Step 3.5 always resolves a concrete journey before producing findings). Both commands validate, fingerprint, dedup, and record their own tier's cursor unless `--dry-run`, and both emit gh-ready payloads on stdout.
 
 **Step 6 — FILE.**
 
-For each payload in `/tmp/journey-health-payloads.json`: `gh issue create --title "<payload.title>" --body "<payload.body>" --label journey-health --label "<payload.labels[1]>"`. `/journey-health` never edits journey files, stories, or code — every finding files, unconditionally.
+For each payload in `/tmp/journey-health-payloads-light.json` and (when Step 3.5 ran) `/tmp/journey-health-payloads-deep.json`: `gh issue create --title "<payload.title>" --body "<payload.body>" --label journey-health --label "<payload.labels[1]>"`. `/journey-health` never edits journey files, stories, or code — every finding files, unconditionally.
 
 In `--dry-run` mode, print what would be filed but do not call `gh`.
 
@@ -154,6 +196,7 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | Re-proposing a patch already marked `declined` in the cache | The decline-memory cache exists specifically so a rejected proposal doesn't reappear every firing forever. |
 | Skipping the coverage scan because a per-journey target was already selected this firing | The coverage scan is a decoupled, whole-library check (its own cursor) — run it whenever `coverageScanDue` is true, independent of which single journey `next-target` picked. |
 | Treating the local cache as durable state | The cache is a rebuildable optimization — GitHub issue state is the source of truth for cross-run memory, same as `/code-health`/`/harness-health`. |
+| Running the deep tier's dev server without stopping it afterward | This is always a standalone invocation (no `/wrap-up` to clean up later) — Step 3.5 must stop any ephemeral server it started before returning, per `_shared/dev-url-detection.md`'s "Standalone" cleanup rule. |
 
 ## Relationship to Other Skills
 
@@ -161,6 +204,8 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 |-------|-------------|
 | `/claude-tweaks:journeys` | Produces and updates the journey files this skill audits. `/journey-health` never edits them — it files an issue recommending `/claude-tweaks:journeys {name}` be re-run. Shares `_shared/journey-self-review.md`'s four checks (write-time here, audit-time in `/journey-health`). |
 | `/claude-tweaks:stories` | Produces the QA story YAMLs this skill's coverage scan checks against. Coverage-gap findings recommend `/claude-tweaks:stories journey={name}`. |
+| `/claude-tweaks:test` | The deep tier drives `/test journey={name}` when stories exist for the selected journey — this is the "agent e2e testing" this skill exists to protect. |
+| `/claude-tweaks:visual-review` | The deep tier falls back to `/visual-review journey:{name}` when no stories exist yet for the selected journey. |
 | `/claude-tweaks:review` | Shares `_shared/journey-coverage-check.md`'s coverage computation with lens `3g-cov` — `/review`'s lens stays inline/informational; this skill adds cursor-tracking and issue-filing on top. |
 | `/claude-tweaks:routine` | `/routine create journey-health` instantiates this skill's `routine-template.yml` into a live, scheduled cloud Routine. |
 | `/claude-tweaks:tidy` | Step 4.8 sweeps `journey-health`-labelled issues alongside `code-health`/`harness-health` ones, using the same stale/superseded triage. |
