@@ -19,6 +19,8 @@ Eight cleanup actions, executed in order (Step 10) and surfaced together (Step 5
 
 The detailed procedures for items 3–5, 7, and 8 follow. Items 1, 2, and 6 are simple enough to execute inline at Step 10 without a sub-procedure.
 
+**Item 1's `spec-based work` condition is deliberate, not an oversight, for conversation-based work** (brainstorm → `/superpowers:writing-plans` → `/superpowers:subagent-driven-development`, no `/specify` involved — see `/claude-tweaks:wrap-up` Step 1's work-context table). With no spec file, the execution plan under `docs/superpowers/plans/` is the only durable record of what was built and why — deleting it would leave nothing behind. Leave these plans in place; do not delete them just because the work is done.
+
 ## Multi-spec defer behavior
 
 Under `MULTISPEC_REVIEW_DEFER=1`, Step 10 SKIPS state-changing cleanups marked "Yes" in the table above (items 3, 4, 5, 7, and 8). Those defer to `/flow`'s consolidated multi-spec Review Console at end-of-run. Items 1, 2, and 6 still execute — they are idempotent and do not interfere with parent-orchestrated cleanup of design caches, run dirs, or worktrees.
