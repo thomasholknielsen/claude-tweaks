@@ -85,7 +85,7 @@ gh issue list --label harness-health --state open --json number,labels --limit 2
 node -e "
   const all = [...require('/tmp/help-triage-ch.json'), ...require('/tmp/help-triage-hh.json')];
   const names = i => (i.labels || []).map(l => (typeof l === 'string' ? l : l.name));
-  const untiered = all.filter(i => !names(i).some(n => n === 'status:needs-review' || n === 'status:approved' || n === 'status:fast-track')).length;
+  const untiered = all.filter(i => !names(i).some(n => n === 'tier:needs-review' || n === 'tier:approved' || n === 'tier:fast-track')).length;
   console.log(untiered);
 "
 gh issue list --label status:blocked --state open --json number --limit 200 -q 'length'

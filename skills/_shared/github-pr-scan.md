@@ -64,10 +64,10 @@ Full sweep of open PRs, code-health-labelled issues, and harness-health-labelled
 
    One query, split client-side by `stage` (`inbox` / `parked`) — not two separate queries.
 
-7. **Pending-authorization queue size** — `/claude-tweaks:triage` (`skills/triage/SKILL.md` Step 1) tiers **code-health and harness-health issues only** — it never touches `backlog`-labeled issues, which have their own separate inbox/parked lifecycle unrelated to build-authorization tiers. Reuse items 3 and 5's JSON output directly (both now carry `labels`) — count how many of those already-fetched issues lack all three current tier labels (`status:needs-review`, `status:approved`, `status:fast-track` — read the exact current set from `skills/triage/SKILL.md`, do not hardcode a stale list here). Not gated on `backlog-backend` — code-health/harness-health issues exist regardless of which backlog backend is active.
+7. **Pending-authorization queue size** — `/claude-tweaks:triage` (`skills/triage/SKILL.md` Step 1) tiers **code-health and harness-health issues only** — it never touches `backlog`-labeled issues, which have their own separate inbox/parked lifecycle unrelated to build-authorization tiers. Reuse items 3 and 5's JSON output directly (both now carry `labels`) — count how many of those already-fetched issues lack all three current tier labels (`tier:needs-review`, `tier:approved`, `tier:fast-track` — read the exact current set from `skills/triage/SKILL.md`, do not hardcode a stale list here). Not gated on `backlog-backend` — code-health/harness-health issues exist regardless of which backlog backend is active.
 
    ```bash
-   jq -s '[.[0][], .[1][]] | map(select((.labels | map(.name) | any(. == "status:needs-review" or . == "status:approved" or . == "status:fast-track")) | not)) | length' \
+   jq -s '[.[0][], .[1][]] | map(select((.labels | map(.name) | any(. == "tier:needs-review" or . == "tier:approved" or . == "tier:fast-track")) | not)) | length' \
      <(echo "$CODE_HEALTH_ISSUES_JSON") \
      <(echo "$HARNESS_HEALTH_ISSUES_JSON")
    ```

@@ -187,8 +187,8 @@ first — the execution order of the canonical list guarantees this):
    still post the release comment (the comment trail should record the outcome). Any other
    failure: retry once, then log and continue — TTL is the backstop, never block wrap-up.
 6. **Remove the tier label** when the outcome was `merged:` or `pr-opened:` and the issue
-   carries `status:approved` or `status:fast-track`: `gh issue edit "$ISSUE" --remove-label status:approved`
-   (or `status:fast-track`, whichever is present) (reversible; log to `decisions.md`). Leave
+   carries `tier:approved` or `tier:fast-track`: `gh issue edit "$ISSUE" --remove-label tier:approved`
+   (or `tier:fast-track`, whichever is present) (reversible; log to `decisions.md`). Leave
    the label on `abandoned:` — it is the standing retry request. Skip silently when no tier
    label is present.
 7. **Remove `status:in-progress`; restore `parked` if applicable.** Always remove

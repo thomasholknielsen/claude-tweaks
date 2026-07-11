@@ -1,6 +1,6 @@
 ---
 name: claude-tweaks:triage
-description: Use when you want to authorize GitHub issues for autonomous building, or when a scheduled routine needs to pick up already-authorized issues and hand them to /flow. Bare invocation is interactive batch authorization (needs-review / approved / fast-track); `triage dispatch` is the headless mode a routine fires. Keywords - triage, authorize, dispatch, status:approved, status:fast-track, autonomous issue building.
+description: Use when you want to authorize GitHub issues for autonomous building, or when a scheduled routine needs to pick up already-authorized issues and hand them to /flow. Bare invocation is interactive batch authorization (needs-review / approved / fast-track); `triage dispatch` is the headless mode a routine fires. Keywords - triage, authorize, dispatch, tier:approved, tier:fast-track, autonomous issue building.
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -52,8 +52,8 @@ gh issue list --label harness-health --state open --json number,title,body,label
 node -e "console.log(JSON.stringify([...require('/tmp/triage-code-health.json'), ...require('/tmp/triage-harness-health.json')]))" > /tmp/triage-all.json
 ```
 
-Filter out any issue already carrying `status:needs-review`, `status:approved`,
-or `status:fast-track` — those have already been tiered by a prior triage run.
+Filter out any issue already carrying `tier:needs-review`, `tier:approved`,
+or `tier:fast-track` — those have already been tiered by a prior triage run.
 
 ### Step 2: Compute the recommended tier
 
@@ -83,9 +83,9 @@ node -e "
 Then one `AskUserQuestion`:
 
 - `question`: `"Apply the recommended tier to all, or override specific issues?"`, `header`: `"Triage batch"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"Write status:approved / status:fast-track per the table above"`
+- Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"Write tier:approved / tier:fast-track per the table above"`
 - Option 2 — `label`: `"Override specific items"`, `description`: `"I'll specify #-by-# corrections in my next message"`
-- Option 3 — `label`: `"Flag some for review instead"`, `description`: `"Mark specific issues status:needs-review rather than authorizing them"`
+- Option 3 — `label`: `"Flag some for review instead"`, `description`: `"Mark specific issues tier:needs-review rather than authorizing them"`
 
 Overrides are ordinary free-text in the user's next message, not the `Other`
 field (which answers this one batch question, not a per-item list).
@@ -93,16 +93,16 @@ field (which answers this one batch question, not a per-item list).
 ### Step 4: Apply
 
 ```bash
-gh label list --search "status:approved" --json name -q '.[].name' | grep -qx status:approved || \
-  gh label create status:approved --description "Triage authorized this for building - human approves the merge"
-gh label list --search "status:fast-track" --json name -q '.[].name' | grep -qx status:fast-track || \
-  gh label create status:fast-track --description "Triage authorized this for building - auto-merges if the run comes back clean"
-gh label list --search "status:needs-review" --json name -q '.[].name' | grep -qx status:needs-review || \
-  gh label create status:needs-review --description "Triage flagged this - needs a closer human look before authorizing"
+gh label list --search "tier:approved" --json name -q '.[].name' | grep -qx tier:approved || \
+  gh label create tier:approved --description "Triage authorized this for building - human approves the merge"
+gh label list --search "tier:fast-track" --json name -q '.[].name' | grep -qx tier:fast-track || \
+  gh label create tier:fast-track --description "Triage authorized this for building - auto-merges if the run comes back clean"
+gh label list --search "tier:needs-review" --json name -q '.[].name' | grep -qx tier:needs-review || \
+  gh label create tier:needs-review --description "Triage flagged this - needs a closer human look before authorizing"
 if gh issue view "$ISSUE" --json labels -q '.labels[].name' | grep -qx status:blocked; then
-  gh issue edit "$ISSUE" --remove-label status:blocked --add-label "status:{tier}"
+  gh issue edit "$ISSUE" --remove-label status:blocked --add-label "tier:{tier}"
 else
-  gh issue edit "$ISSUE" --add-label "status:{tier}"
+  gh issue edit "$ISSUE" --add-label "tier:{tier}"
 fi
 ```
 
@@ -113,15 +113,15 @@ forever despite the fresh authorization.
 
 Log each to `decisions.md` (this run's standalone-auto run dir per
 `_shared/pipeline-run-dir.md` — triage has no parent pipeline):
-`AUTO {time} — Triage: applied status:{tier} to issue #{n} (risk:{riskTier}, effort:{effortTier}).`
+`AUTO {time} — Triage: applied tier:{tier} to issue #{n} (risk:{riskTier}, effort:{effortTier}).`
 
 ## Workflow — `dispatch` (headless)
 
 ### Step 1: Pull tiered, unclaimed issues
 
 ```bash
-gh issue list --label status:approved --state open --json number,title,labels --limit 100 > /tmp/dispatch-approved.json
-gh issue list --label status:fast-track --state open --json number,title,labels --limit 100 > /tmp/dispatch-fast-track.json
+gh issue list --label tier:approved --state open --json number,title,labels --limit 100 > /tmp/dispatch-approved.json
+gh issue list --label tier:fast-track --state open --json number,title,labels --limit 100 > /tmp/dispatch-fast-track.json
 node -e "console.log(JSON.stringify([...require('/tmp/dispatch-approved.json'), ...require('/tmp/dispatch-fast-track.json')]))" > /tmp/dispatch-all.json
 ```
 
@@ -222,24 +222,24 @@ When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
    firing pulls it again naturally (the claim was already released):
 
    ```bash
-   if gh issue view "$ISSUE" --json labels -q '.labels[].name' | grep -qx status:fast-track; then
-     gh issue edit "$ISSUE" --remove-label status:fast-track --add-label status:approved
+   if gh issue view "$ISSUE" --json labels -q '.labels[].name' | grep -qx tier:fast-track; then
+     gh issue edit "$ISSUE" --remove-label tier:fast-track --add-label tier:approved
    fi
    ```
 
-**Failure-downgrade rule:** whenever a `status:fast-track` issue's run fails for *any* reason —
+**Failure-downgrade rule:** whenever a `tier:fast-track` issue's run fails for *any* reason —
 including a sub-ceiling failure handled by item 6 above, not only the ceiling-hit case — downgrade
-it to `status:approved` before the next retry. A retry that didn't come back clean the first
+it to `tier:approved` before the next retry. A retry that didn't come back clean the first
 time never gets another unsupervised shot at auto-merge. This is not a separate, optional step:
 item 6's "leave the tier label in place" refers to whatever tier remains *after* this downgrade
-runs, never to `status:fast-track` unconditionally.
+runs, never to `tier:fast-track` unconditionally.
 
 ## Auto-merge gate (fast-track only)
 
-When a `status:fast-track` issue's `/flow` run reaches `/wrap-up`'s Review
+When a `tier:fast-track` issue's `/flow` run reaches `/wrap-up`'s Review
 Console, check all four layers before presenting it for approval:
 
-1. **Authorization** — `status:fast-track` was present when dispatched
+1. **Authorization** — `tier:fast-track` was present when dispatched
    (true by construction).
 2. **Pre-scored eligibility** — true by construction (the Tier Rule only
    ever recommends `fast-track` for `risk:low`+`effort:low`).
@@ -278,7 +278,7 @@ lands on, and the same commit message carries the `Fixes #{issue}` closing
 keyword per "Close-via-merge" in `_shared/issue-claims.md`, so no separate
 carrier commit is needed for this path. **If the merge conflicts:** conflict
 resolution requires judgment a headless run can't supply — abort the merge
-(`git merge --abort`) and fall back to the normal `status:approved` path
+(`git merge --abort`) and fall back to the normal `tier:approved` path
 (present the Review Console, wait for a human), logging why the fast-lane
 path was abandoned.
 
@@ -289,7 +289,7 @@ Skill updates / Configuration updates sections wrap-up already produced) to a
 `PushNotification` as a non-blocking FYI — nothing wrap-up found is dropped,
 only the wait for a click is skipped.
 
-**Any layer fails:** proceed exactly as `status:approved` would — present the
+**Any layer fails:** proceed exactly as `tier:approved` would — present the
 normal Review Console, wait for a human.
 
 ## Configuration
@@ -317,7 +317,7 @@ mode never renders this block:
 
 | Pattern | Why It Fails |
 |---------|--------------|
-| `dispatch` mode granting a tier an issue didn't already have (newly applying `status:needs-review`/`status:approved`/`status:fast-track`) | Only the interactive, human-confirmed bare invocation ever grants a tier — this is the security boundary (GitHub's own triage-permission model), not a discretionary nicety. `dispatch` mode may only downgrade or strip a tier it reads (`fast-track`→`approved` on failure, or removed + `status:blocked` at the retry ceiling) — it revokes trust, it never grants it. |
+| `dispatch` mode granting a tier an issue didn't already have (newly applying `tier:needs-review`/`tier:approved`/`tier:fast-track`) | Only the interactive, human-confirmed bare invocation ever grants a tier — this is the security boundary (GitHub's own triage-permission model), not a discretionary nicety. `dispatch` mode may only downgrade or strip a tier it reads (`fast-track`→`approved` on failure, or removed + `status:blocked` at the retry ceiling) — it revokes trust, it never grants it. |
 | Deriving the recommended tier from anything other than `risk-<tier>`/`effort-<tier>` | The Tier Rule is deliberately narrow and mechanical — no LLM judgment re-enters at the gate itself. |
 | Skipping the batch-confirm because the recommendation "looks obviously right" | The human action, however trivial, is the load-bearing security signature — never skip it, even for an all-"Fast-track" batch. |
 | Letting a fast-track issue auto-merge on a retry after a prior failure | The failure-downgrade rule exists specifically to prevent this — any failure permanently downgrades that issue's current authorization to `approved`. |

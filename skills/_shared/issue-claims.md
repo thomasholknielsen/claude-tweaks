@@ -120,7 +120,7 @@ live, skip the issue, and let `/tidy`'s sweep surface it for human judgment.
 | Interactive `/flow` run stops at a gate, user chooses not to resume | `/flow` failure card (offered, not automatic) | `failed: {gate}` |
 | Handed-off issue-mode run fails a HARD-GATE (headless `dispatch`, no human present) | `/claude-tweaks:triage dispatch` Step 4 (automatic, unconditional) | `failed: {gate}` |
 | Stale or orphaned claim in hygiene pass | `/tidy` Step 4.7 (after batch approval) | `swept: stale claim` / `swept: issue closed` |
-| Tier-label removal (`status:approved`/`status:fast-track`) after a `merged:`/`pr-opened:` release | Console dispatch-label step (multi-spec) / `/wrap-up` Section E step 6 (single-spec) | — (label edit, not a claim release) |
+| Tier-label removal (`tier:approved`/`tier:fast-track`) after a `merged:`/`pr-opened:` release | Console dispatch-label step (multi-spec) / `/wrap-up` Section E step 6 (single-spec) | — (label edit, not a claim release) |
 | Interrupted session | nobody — TTL ages it out; `/tidy` sweeps it | — |
 
 **Ownership rule.** Before a this-run release deletes the ref, fold the issue's comments
@@ -171,27 +171,27 @@ Headless agents building arbitrary issue content is a prompt-injection surface: 
 body is untrusted input, and a drive-by issue must not be able to opt itself into autonomous
 execution. The gate is GitHub's own permission model — **applying a label requires triage
 permission, so a label is a maintainer's signature**. Authorization is one of three
-mutually-exclusive `status:*` tier labels, all *granted* exclusively by `/claude-tweaks:triage`'s
+mutually-exclusive `tier:*` labels, all *granted* exclusively by `/claude-tweaks:triage`'s
 interactive (bare) invocation. `dispatch` mode may later downgrade or strip a tier it reads (see
 below), but it never grants a tier to an issue that didn't already carry one, and the agent
 itself never originates a grant:
 
-- `status:needs-review` — the triager flagged this issue as warranting a closer human look.
+- `tier:needs-review` — the triager flagged this issue as warranting a closer human look.
   It never reaches `/flow` — no autonomous run selects on this label, and bare triage's Step 1
   permanently excludes it from future untiered batches. There is deliberately no in-tool path
   back to `approved`/`fast-track` — a maintainer removing the label directly on GitHub *is* the
   re-review decision, not a bypass of one (the same "a label is a maintainer's signature"
   model this whole section describes), and it re-surfaces the issue on the next bare `/triage`
   run automatically.
-- `status:approved` — authorized to build. `/claude-tweaks:triage dispatch` selects on this
-  (alongside `status:fast-track`, below), claims the issue, and hands it to `/flow #{issue}`.
+- `tier:approved` — authorized to build. `/claude-tweaks:triage dispatch` selects on this
+  (alongside `tier:fast-track`, below), claims the issue, and hands it to `/flow #{issue}`.
   Label = standing request, claim = in flight: the claim ref prevents double-dispatch across
   firings, and the label persists until *successful* wrap-up — a failed run retries at a
   later firing once its claim ages out, up to the `triage-retry-ceiling` policy flag.
-- `status:fast-track` — authorized to build *and* to auto-merge without waiting for a live
+- `tier:fast-track` — authorized to build *and* to auto-merge without waiting for a live
   Review Console approval, but only if the run comes back completely clean (see the
   four-layer auto-merge gate in `skills/triage/SKILL.md`). Any run failure downgrades this
-  to `status:approved` before the next retry — a retry that wasn't clean the first time
+  to `tier:approved` before the next retry — a retry that wasn't clean the first time
   never gets another unsupervised shot at auto-merge.
 
 Downgrading `fast-track` → `approved` on failure, or stripping the tier entirely and adding
@@ -224,7 +224,7 @@ Fail-closed on claiming; never block the session.
 
 | Skill | Role |
 |---|---|
-| `/claude-tweaks:triage` (`SKILL.md`'s `dispatch` mode Step 2) | Claims each pulled `status:approved`/`status:fast-track` issue before handing off to `/flow`; releases on failure (per the retry-ceiling procedure) |
+| `/claude-tweaks:triage` (`SKILL.md`'s `dispatch` mode Step 2) | Claims each pulled `tier:approved`/`tier:fast-track` issue before handing off to `/flow`; releases on failure (per the retry-ceiling procedure) |
 | `/claude-tweaks:flow` (issue-reference mode) | Releases via `/wrap-up`'s generic Section E `abandoned:` path when the user doesn't merge, and via failure-card-offered release on a gate failure. Never claims — `/claude-tweaks:triage dispatch` always claims before invoking `/flow #{issue}`. |
 | `/claude-tweaks:wrap-up` (`cleanup-procedures.md` item 8 / Section E) | Releases claims with the branch outcome as reason |
 | `/claude-tweaks:tidy` (`scan-procedures.md` Step 4.7) | Sweeps stale/orphaned claims; releases only after batch approval |
