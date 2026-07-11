@@ -131,7 +131,7 @@ Offer only on projects with a GitHub remote — writes `.github/workflows/track-
 
 ### Step 15: Backlog Backend (Optional)
 
-Decide whether `/claude-tweaks:capture` and `/claude-tweaks:tidy` back the INBOX/DEFERRED backlog with GitHub issues or the classic local markdown files, and write the `backlog-backend` flag to CLAUDE.md — gated on the same GHE-safe two-tier remote check Step 9 uses. Read `bootstrap-steps.md` (Step 15) for the full procedure.
+Decide whether `/claude-tweaks:capture` and `/claude-tweaks:tidy` back the backlog with GitHub issues or one local markdown file per entry, and write the `backlog-backend` flag to CLAUDE.md — gated on the same GHE-safe two-tier remote check Step 9 uses. Read `bootstrap-steps.md` (Step 15) for the full procedure.
 
 ---
 
