@@ -27,7 +27,7 @@ Periodic backlog hygiene to keep the spec system healthy. Run when the backlog f
 
 ## Input
 
-`$ARGUMENTS` is parsed as `[--scope=<name>[,<name>...]]`. With no `--scope` argument, /tidy scans everything — `specs/INBOX.md`, `specs/DEFERRED.md` (or `backlog`-labeled GitHub issues, per `backlog-backend` — see `scan-procedures.md` Steps 1/1.5 and 4.8), `specs/`, design docs, plans, worktrees, and the doc registry from their canonical locations — exactly as before `--scope` existed. `--scope` narrows the run to a subset of that sweep; see "Scope Selection" below for the full taxonomy and rules. An aggressiveness override (when needed) is read from the active pipeline run's `config.yml` (Manifesto `tidy-aggressiveness` lever), not from arguments — unaffected by `--scope`.
+`$ARGUMENTS` is parsed as `[--scope=<name>[,<name>...]]`. With no `--scope` argument, /tidy scans everything — `specs/backlog/` (or `backlog`-labeled GitHub issues, per `backlog-backend` — see `scan-procedures.md` Step 1 and 4.8), `specs/`, design docs, plans, worktrees, and the doc registry from their canonical locations — exactly as before `--scope` existed. `--scope` narrows the run to a subset of that sweep; see "Scope Selection" below for the full taxonomy and rules. An aggressiveness override (when needed) is read from the active pipeline run's `config.yml` (Manifesto `tidy-aggressiveness` lever), not from arguments — unaffected by `--scope`.
 
 ## Scope Selection
 
@@ -35,7 +35,7 @@ By default (no `--scope` argument) /tidy runs every scan step below — the full
 
 | Scope | Steps covered |
 |---|---|
-| `inbox` | 1, 1.5 |
+| `inbox` | 1 |
 | `specs` | 2, 5 |
 | `docs` | 3 |
 | `plans` | 4 |
@@ -55,11 +55,11 @@ Rules:
 
 > **No decisions during scanning.** Steps 1-4.8 silently collect all findings. Everything is presented as one batch in Step 6 for approval. This replaces the previous per-item decision model.
 
-> **Parallel execution:** Dispatch every step selected by the active scope (all of Steps 1, 1.5, 2, 3, 4, 4.5, 4.6, 4.7, and 4.8 for an unscoped/full run; a `--scope`-filtered subset otherwise, per "Scope Selection" above) as parallel Task agents — each scan is independent (INBOX, Deferred, Specs, Design Docs + Briefs, Plans, Git, Doc Registry, Issue Claims, GitHub PRs/Issues). Each agent returns findings in the `[type] item — detail — recommendation` format. Step 3's classification tables are inlined directly into its agent prompt (see Step 3 below) so subagents have everything they need. After the selected parallel scans complete, run Step 5 and/or Step 5.5 sequentially when either is in scope — they depend on Step 2's spec scan results, which is why `patterns` alone still pulls in `specs` (per "Scope Selection" above). Assemble all findings into the Step 6 report.
+> **Parallel execution:** Dispatch every step selected by the active scope (all of Steps 1, 2, 3, 4, 4.5, 4.6, 4.7, and 4.8 for an unscoped/full run; a `--scope`-filtered subset otherwise, per "Scope Selection" above) as parallel Task agents — each scan is independent (Backlog, Specs, Design Docs + Briefs, Plans, Git, Doc Registry, Issue Claims, GitHub PRs/Issues). Each agent returns findings in the `[type] item — detail — recommendation` format. Step 3's classification tables are inlined directly into its agent prompt (see Step 3 below) so subagents have everything they need. After the selected parallel scans complete, run Step 5 and/or Step 5.5 sequentially when either is in scope — they depend on Step 2's spec scan results, which is why `patterns` alone still pulls in `specs` (per "Scope Selection" above). Assemble all findings into the Step 6 report.
 >
 > **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input, status line first, output template inlined verbatim. Model tier: Fast.
 >
-> **Model tier:** Fast (Haiku) — each scan is a mechanical read of a single data source (INBOX file, DEFERRED file, spec directory, design-doc directory, plan directory, `git worktree list` + branches, REGISTRY, issue-claim refs + comments, gh PR/issue queries). No cross-cutting analysis at the per-scan level; Step 5/5.5 do the synthesis sequentially in the main thread.
+> **Model tier:** Fast (Haiku) — each scan is a mechanical read of a single data source (the `specs/backlog/` directory, spec directory, design-doc directory, plan directory, `git worktree list` + branches, REGISTRY, issue-claim refs + comments, gh PR/issue queries). No cross-cutting analysis at the per-scan level; Step 5/5.5 do the synthesis sequentially in the main thread.
 >
 > **Output template (each agent must follow exactly):**
 >
@@ -79,7 +79,7 @@ Rules:
 >
 > Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the Template A table verbatim. Agents do not invent a new schema.
 >
-> **Tidy-specific column semantics (for the dispatcher, not the agents):** when the dispatcher receives Template A rows back from each scan agent, it interprets the four standard columns in this skill's vocabulary — Severity = recommendation urgency (`info` for Keep, `low` for routine cleanup, `medium` for Promote/Merge/Defer, `high` for stale-Delete or registry break); Path:Line = the artifact (`specs/INBOX.md:42`, `specs/DEFERRED.md`, `docs/REGISTRY.md`, worktree path); Finding = `[type] item — short detail` (e.g., `[inbox] "Build redis cache" — 5 weeks old`); Evidence = the recommendation (`Delete — stale` / `Promote — ready for brainstorm` / `Merge → Spec 42`). The dispatcher merges all agents' Template A tables into the Step 6 report using these semantics. **Template A itself is unchanged** — the remapping is purely how the dispatcher reads it.
+> **Tidy-specific column semantics (for the dispatcher, not the agents):** when the dispatcher receives Template A rows back from each scan agent, it interprets the four standard columns in this skill's vocabulary — Severity = recommendation urgency (`info` for Keep, `low` for routine cleanup, `medium` for Promote/Merge/Defer, `high` for stale-Delete or registry break); Path:Line = the artifact (`specs/backlog/{slug}.md`, `docs/REGISTRY.md`, worktree path); Finding = `[type] item — short detail` (e.g., `[inbox] "Build redis cache" — 5 weeks old`); Evidence = the recommendation (`Delete — stale` / `Promote — ready for brainstorm` / `Merge → Spec 42`). The dispatcher merges all agents' Template A tables into the Step 6 report using these semantics. **Template A itself is unchanged** — the remapping is purely how the dispatcher reads it.
 
 ### Scan steps (data sources + collection format)
 
@@ -87,8 +87,7 @@ Read `scan-procedures.md` in this skill's directory for the full classification 
 
 | Step | Data source | Output prefix |
 |------|-------------|--------------|
-| 1 | `specs/INBOX.md` (`local-files`) or unsynced-check only (`github-issues` — see Step 4.8) | `[inbox]` / `[unsynced]` |
-| 1.5 | `specs/DEFERRED.md` (`local-files`) or unsynced-check only (`github-issues` — see Step 4.8) | `[deferred]` / `[unsynced]` |
+| 1 | `specs/backlog/*.md` (`local-files`) or unsynced-check only (`github-issues` — see Step 4.8) | `[inbox]` / `[deferred]` / `[unsynced]` |
 | 2 | `specs/INDEX.md` + spec files | `[spec]`, `[dependency]` |
 | 3 | `docs/superpowers/specs/*-design.md`, `docs/plans/*-brief.md` | `[doc]` |
 | 4 | `docs/superpowers/plans/`, `~/.claude/plans/` | `[plan]` |
@@ -110,14 +109,14 @@ Every recommendation in the tidy report uses one of these actions. Each action i
 | Action | What It Means | Execution | Removes from Source? |
 |--------|--------------|-----------|---------------------|
 | **Delete** | Item is no longer needed — stale, already implemented, or out of scope | `local-files`: remove entry from source file. `github-issues`: (1) comment explaining why (audit trail — never close silently), (2) `gh issue close {n} --reason "not planned"`. | Yes (file) / issue closes (GitHub) |
-| **Defer** | Valid but not timely — park with a trigger condition | `local-files`: (1) add to `specs/DEFERRED.md` with `**Deferred:** {date} \| **From:** {source} \| **Trigger:** {condition}`, (2) remove from source. `github-issues`: (1) build the parked body via `parkedIssuePayload` (origin = the inbox issue's own reference, context carried over, trigger + options considered supplied at triage), write it to a temp file, (2) `gh issue edit {n} --body-file <temp file>`, (3) bootstrap the `parked` label if missing (same check-then-create pattern as `backlog`), then `gh issue edit {n} --add-label parked`, (4) if the trigger names a moment in time, attach a GitHub Milestone: `gh api repos/{owner}/{repo}/milestones --jq '.[].title'` to check existence, `gh api repos/{owner}/{repo}/milestones -f title="{name}"` to create if absent, `gh issue edit {n} --milestone "{name}"` to attach, (5) if the trigger names specific files, pass them as `watchedPaths` to `parkedIssuePayload` in step (1) so the generated body already carries `**Watched paths:**` | Yes (file) / issue stays open, relabeled (GitHub) |
+| **Defer** | Valid but not timely — park with a trigger condition | `local-files`: set `**Stage:** parked` and add `**From:** {source} \| **Trigger:** {condition}` fields (plus a `**Deferred:** {date}` line) to the existing `specs/backlog/{slug}.md` in place — no file removal, same file, updated. `github-issues`: (1) build the parked body via `parkedIssuePayload` (origin = the inbox issue's own reference, context carried over, trigger + options considered supplied at triage), write it to a temp file, (2) `gh issue edit {n} --body-file <temp file>`, (3) bootstrap the `parked` label if missing (same check-then-create pattern as `backlog`), then `gh issue edit {n} --add-label parked`, (4) if the trigger names a moment in time, attach a GitHub Milestone: `gh api repos/{owner}/{repo}/milestones --jq '.[].title'` to check existence, `gh api repos/{owner}/{repo}/milestones -f title="{name}"` to create if absent, `gh issue edit {n} --milestone "{name}"` to attach, (5) if the trigger names specific files, pass them as `watchedPaths` to `parkedIssuePayload` in step (1) so the generated body already carries `**Watched paths:**` | No (file, same file updated in place) / issue stays open, relabeled (GitHub) |
 | **Merge** | Scope belongs in an existing spec | Both backends: (1) integrate scope into target spec's **Deliverables**, **Acceptance Criteria**, and **Technical Approach** — not as an appendix, as first-class spec content, (2) update target spec's `Last Updated`. `local-files`: (3) remove from source. `github-issues`: (3) comment naming the target spec (`Merged into spec {N}.`), (4) `gh issue close {n} --reason "not planned"`. | Yes (file) / issue closes (GitHub) |
 | **Promote** | Ready for the brainstorm → specify pipeline | `local-files`: tag in INBOX as `**Promoted:** {date} — awaiting brainstorm`. Do NOT remove from INBOX. `github-issues`: no mutation here — the open issue is already the durable pointer; recommend `/claude-tweaks:specify #{n}` directly (existing issue-ingestion path). `/specify` itself removes `parked` (if present) and stamps `recon-was-parked: true` on the generated spec at spec-write time (Step 3) — see `spec-template.md`'s frontmatter reference; restoration on decline/abandon happens later, at claim release (`_shared/issue-claims.md`, `wrap-up/cleanup-procedures.md` Section E). | No (file, stays tagged) / No (issue, stays open — mutation deferred to `/specify`) |
 | **Keep** | No action needed | None | No |
-| **Sync to GitHub** | A local `specs/INBOX.md`/`specs/DEFERRED.md` entry exists while `backlog-backend: github-issues` — mirror it to an issue now | INBOX entry: build via `inboxIssuePayload` (category parsed from the entry's `**Category:**` field), bootstrap labels, `gh issue create` with `backlog` + `backlog:category-<value>` labels. DEFERRED entry: judge trigger type live — names files → pass as `watchedPaths`; names a moment in time → build via `parkedIssuePayload` then attach/create a milestone; otherwise carry the prose `**Trigger:**` over unchanged. `specs/DEFERRED.md` carries no structured category field (unlike INBOX.md's `**Category:**` line) — judge category live from the entry's content, same four-value taxonomy — build via `parkedIssuePayload`, `gh issue create` with `backlog` + `parked` + category labels. Either way: remove the entry from the local file only after `gh issue create` confirms success. | Yes — moves to GitHub, removed from local file |
+| **Sync to GitHub** | A local `specs/backlog/{slug}.md` entry exists while `backlog-backend: github-issues` — mirror it to an issue now | Inbox-stage entry: build via `inboxIssuePayload` (category from the entry's `**Category:**` field), bootstrap labels, `gh issue create` with `backlog` + `backlog:category-<value>` labels. Parked-stage entry: judge trigger type live — names files → pass as `watchedPaths`; names a moment in time → build via `parkedIssuePayload` then attach/create a milestone; otherwise carry the prose `**Trigger:**` over unchanged — build via `parkedIssuePayload` (category from the entry's own `**Category:**` field, which every entry carries regardless of stage), `gh issue create` with `backlog` + `parked` + category labels. Either way: delete `specs/backlog/{slug}.md` only after `gh issue create` confirms success. | Yes — moves to GitHub, entry file deleted |
 | **Close (GitHub)** | Open PR or issue is stale or superseded — close it upstream | (1) Comment on the PR/issue explaining why (the comment is the audit trail — never close silently), (2) `gh pr close {n}` / `gh issue close {n}` | N/A — GitHub state |
 | **Resolve thread** | Review-thread concern was addressed by a later commit | GraphQL `resolveReviewThread` mutation — only with commit evidence (a commit touching the flagged lines) | N/A — GitHub state |
-| **Capture** | PR feedback or GitHub issue needs local follow-up | Add a structured entry to `specs/INBOX.md` referencing the PR/thread/issue URL | No — creates an INBOX entry |
+| **Capture** | PR feedback or GitHub issue needs local follow-up | Create a `specs/backlog/{slug}.md` entry (`**Stage:** inbox`) referencing the PR/thread/issue URL | No — creates a backlog entry |
 
 `Capture`, `Close (GitHub)`, and `Resolve thread` are unaffected by `backlog-backend` — they're not part of the backlog-issues design (`docs/superpowers/specs/2026-07-08-backlog-github-issues-design.md`).
 
@@ -156,7 +155,7 @@ For each finding, route by recommendation type:
 | **Re-evaluate scope** (spec 4+ weeks in progress) | Stage | Stage | Stage — never auto-edit specs |
 | **Add rule to CLAUDE.md** (cross-spec patterns) | Stage | Stage | Stage — CLAUDE.md never edited autonomously |
 | **Close (GitHub) / Resolve thread** (outward-facing GitHub mutations) | Stage | Stage | Stage — visible to collaborators and may trigger notifications; never auto-applied per the auto-mode contract's reversibility floor |
-| **Capture** (PR/issue → INBOX entry) | Stage | Stage | Stage — INBOX writes are on the auto-mode contract's never-silenced list |
+| **Capture** (PR/issue → backlog entry) | Stage | Stage | Stage — backlog inbox-entry writes are on the auto-mode contract's never-silenced list |
 
 **Log entries:** Write each auto-resolution to `{run-dir}/decisions.md` per `_shared/auto-decision-log.md`. Example entries:
 ```
@@ -239,13 +238,13 @@ After all actions are applied, verify every decision was fully executed. Present
 ```markdown
 ### Verification
 
-- [x] Deleted: "{title}" — removed from INBOX
-- [x] Deferred: "{title}" — in DEFERRED.md (trigger: {condition}), removed from INBOX (`local-files`)
+- [x] Deleted: "{title}" — `specs/backlog/{slug}.md` removed
+- [x] Deferred: "{title}" — `specs/backlog/{slug}.md` now `**Stage:** parked` (trigger: {condition}) (`local-files`)
 - [x] Deferred: "{title}" — issue #{n} relabeled `parked`{, milestone "{name}" attached} (`github-issues`)
-- [x] Synced to GitHub: "{title}" — issue #{n} created ({backlog|backlog+parked} labels), removed from {INBOX.md|DEFERRED.md}
-- [x] Merged: "{title}" → Spec {N} — integrated into Deliverables/AC, removed from INBOX
-- [x] Promoted: "{title}" — tagged in INBOX, still present
-- [x] Captured: "{title}" — added to INBOX with source URL (PR/thread/issue link)
+- [x] Synced to GitHub: "{title}" — issue #{n} created ({backlog|backlog+parked} labels), `specs/backlog/{slug}.md` deleted
+- [x] Merged: "{title}" → Spec {N} — integrated into Deliverables/AC, `specs/backlog/{slug}.md` removed
+- [x] Promoted: "{title}" — tagged in `specs/backlog/{slug}.md`, still present
+- [x] Captured: "{title}" — new `specs/backlog/{slug}.md` with source URL (PR/thread/issue link)
 - [x] Closed (GitHub): PR #{n} / issue #{n} — explanatory comment posted, state re-queried as `CLOSED` (`gh pr view {n} --json state` / `gh issue view {n} --json state`)
 - [x] Resolved thread: PR #{n} — thread re-queried as `isResolved: true`
 - [ ] FAILED: "{title}" — {what went wrong}
@@ -317,7 +316,7 @@ Call `AskUserQuestion`:
 | `/claude-tweaks:review` | /claude-tweaks:tidy flags specs that appear complete but lack review, and scans review summaries for cross-spec patterns (recurring findings, flagged files) |
 | `/claude-tweaks:wrap-up` | /claude-tweaks:tidy flags reviewed specs that need wrap-up, and scans wrap-up reflections for cross-spec patterns (recurring gotchas, deferred themes) |
 | `/claude-tweaks:help` | /claude-tweaks:help suggests /claude-tweaks:tidy when maintenance signals are detected |
-| `specs/DEFERRED.md` | /claude-tweaks:tidy audits deferred items — promotes, merges, moves to INBOX, or deletes |
+| `specs/backlog/*.md` (`**Stage:** parked`) | /claude-tweaks:tidy audits deferred items — promotes, merges, moves back to inbox stage, or deletes |
 | `/claude-tweaks:build` | /claude-tweaks:tidy cleans up leftover worktrees and `build/*` branches from previous builds |
 | `/claude-tweaks:init` | /claude-tweaks:tidy Step 4.6 audits doc registry health — flags stale entries, gaps, pattern drift. Suggests `/init update` for tier drift. |
 | `/claude-tweaks:ledger` | /ledger creates the per-feature ledger files /tidy scans for stale or orphaned open items during periodic hygiene. /tidy may surface ledgers whose related spec is complete but whose items were never resolved. |
