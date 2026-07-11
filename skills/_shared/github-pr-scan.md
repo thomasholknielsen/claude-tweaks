@@ -68,11 +68,11 @@ Full sweep of open PRs, code-health-labelled issues, and harness-health-labelled
 
    ```bash
    jq -s '[.[0][], .[1][]] | map(select((.labels | map(.name) | any(. == "status:needs-review" or . == "status:approved" or . == "status:fast-track")) | not)) | length' \
-     <<< "$CODE_HEALTH_ISSUES_JSON" \
-     <<< "$HARNESS_HEALTH_ISSUES_JSON"
+     <(echo "$CODE_HEALTH_ISSUES_JSON") \
+     <(echo "$HARNESS_HEALTH_ISSUES_JSON")
    ```
 
-   (`$CODE_HEALTH_ISSUES_JSON` / `$HARNESS_HEALTH_ISSUES_JSON` are items 3 and 5's own `gh issue list` output, already captured earlier in this same scan — do not re-query. If testing this snippet standalone/in isolation outside a live scan, substitute `<(gh issue list --label code-health --state open --json number,labels)` and the harness-health equivalent for the two `<<<` lines.)
+   (`$CODE_HEALTH_ISSUES_JSON` / `$HARNESS_HEALTH_ISSUES_JSON` are items 3 and 5's own `gh issue list` output, already captured earlier in this same scan — do not re-query. Each is passed to `jq -s` as its own positional input via process substitution, which is what makes `.[0]`/`.[1]` valid; a repeated `<<<` here-string redirection is NOT equivalent — bash keeps only the last one, silently dropping the first document. If testing this snippet standalone/in isolation outside a live scan, substitute `<(gh issue list --label code-health --state open --json number,labels)` and the harness-health equivalent for the two `echo` calls.)
 
    This is a maintenance signal only — `/tidy` never applies a tier label itself (`/claude-tweaks:triage` owns that). Surface the count in the digest's "Still needs your review" section (see `tidy/SKILL.md`'s digest section) as `**Pending authorization:** {N} issues awaiting a tier label`.
 
