@@ -190,6 +190,39 @@ AUTO 03:14:02 — Step 6 (evidence tier): resolved thread on PR #88 — commit a
 AUTO 03:14:09 — Step 6 (evidence tier): removed `parked` label from issue #142 — milestone "Q3 launch" due date 2026-08-01 has passed. Reversibility: med (label re-addable; commented with cited evidence).
 ```
 
+#### Rolling digest (`--scope=github` routine firings only)
+
+Every Standalone-auto `--scope=github` firing updates one rolling digest artifact in place — never creates a new one per firing.
+
+**Identity:**
+- `backlog-backend: github-issues` (or any project with a reachable GitHub remote, regardless of backlog backend — this is about where the digest lives, not the backlog storage choice): find the digest issue via `gh issue list --search "Tidy GitHub-Triage Digest in:title" --state open --json number,title,body`, then confirm the match by checking its body contains the exact marker `<!-- tidy-digest-marker -->` (title alone is not sufficient — do not match on title only). If found, `gh issue edit {n} --body-file <file>`. If not found (first-ever firing, or the issue was manually closed), `gh issue create --title "Tidy GitHub-Triage Digest" --body-file <file>` once.
+- `backlog-backend: local-files` with no reachable GitHub remote: rewrite `.claude-tweaks/tidy-digest.md` in place and commit it.
+
+**Structure**, exactly three sections in this order:
+
+```markdown
+<!-- tidy-digest-marker -->
+# Tidy GitHub-Triage Digest
+
+Last updated: {ISO timestamp}
+
+## Auto-applied
+
+- {finding} — {action} — {timestamp}
+
+## Auto-mutated with evidence
+
+- {finding} — {action} — evidence: {literal evidence cited} — {timestamp}
+
+## Still needs your review
+
+- {finding} — {recommendation} — (still open as of {timestamp})
+
+**Pending authorization:** {N} issues awaiting a tier label
+```
+
+**Dedup (applies to "Still needs your review" only — the other two sections are a fresh append per firing, since they're already-resolved actions, not open items):** before adding a row, compute its key as `{PR or issue number}:{finding-type}` (e.g. `142:stale-pr`, `88:unresolved-thread`). Read the digest's current "Still needs your review" section and check for a row with a matching key (match on the PR/issue number and finding-type substring in the existing row text — both are always present in the rendered row). If found, update only that row's `(still open as of {timestamp})` suffix to the current firing's timestamp — do not add a second row, do not treat this as a new finding for notification purposes (see the PushNotification subsection below). If not found, append a new row — this is either a genuinely new finding or one whose finding-type changed materially for the same number (e.g. a PR that was `Review` last firing is now `CI-red` — different finding-type key, so a new row, which does count as new for notification purposes).
+
 ### Interactive mode (batch approval)
 
 Present all collected findings as a single report. Every item has a pre-filled recommendation from the scanning steps.
