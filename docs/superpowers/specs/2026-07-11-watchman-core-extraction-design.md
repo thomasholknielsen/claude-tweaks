@@ -8,7 +8,7 @@ Direct diffing of the three engines' current files (not assumption from naming) 
 
 | Module | Verdict | Evidence |
 |---|---|---|
-| `cache.js` — path/read/write primitives | **Identical 3-way** | `cachePath`/`readCache`/`writeCache`/`cursorsPath`/`readCursors`/`writeCursors`/`runsDir`/`readRuns` are byte-identical modulo the hardcoded skill-name string, across code-health, harness-health, journey-health. |
+| `cache.js` — path/read/write primitives | **Identical 3-way, with one comparator discrepancy** | `cachePath`/`readCache`/`writeCache`/`cursorsPath`/`readCursors`/`writeCursors`/`runsDir` are byte-identical modulo the hardcoded skill-name string, across all three. `readRuns`' sort comparator differs: harness-health/journey-health use a proper 3-way comparator (`x<y?-1:x>y?1:0`); code-health uses a 2-way comparator (`x<y?-1:1`, never `0`) that only diverges on an exact-millisecond `runAt` tie — unreachable by any current caller, untested anywhere. The shared module canonicalizes on the correct 3-way form. |
 | `cache.js` — `recordAudit` / cursor shape | **Domain-specific, keep local** | Cursor fields differ per skill: harness-health tracks `lastAuditedSha`; journey-health tracks per-tier `lastLightAuditMs`/`lastDeepAuditMs` (merged, not overwritten); code-health has no `recordAudit` equivalent at all. |
 | `cache.js` — `recordRun` / `computeChurn` | **Identical between harness-health & journey-health; code-health differs** | harness-health's and journey-health's versions are byte-identical (simple: persist fingerprints, done). code-health's `recordRun` also sweeps `areasSwept`/`hashes` into cursors as a side effect, and its `computeChurn` returns an extra `stayed` field — real behavior, not copy-paste noise. |
 | `fingerprint.js` | **Identical logic, different field names, between harness-health & journey-health; code-health differs** | Both twins do `destructure → basis array → JSON.stringify → sha1(8 hex)`, differing only in which fields they destructure and their id prefix. code-health has a genuinely different v1/v2 dual-form (lens-based vs. LLM-judge criterion+anchor) that the other two never needed. |
@@ -17,11 +17,11 @@ Direct diffing of the three engines' current files (not assumption from naming) 
 
 ## Goal
 
-Extract only the verified-identical logic into `bin/lib/_shared/watchman-core/`, with **zero changes to any call site outside `bin/lib/{code-health,harness-health,journey-health}/`** — every consuming skill's own `cache.js`/`fingerprint.js`/`dedup.js` keeps its current public API (same exported names, same signatures), so CLI files, SKILL.md references, and other tests are unaffected. This is an internal-only refactor; existing per-skill test suites, unmodified, are the regression bar.
+Extract only the verified-identical logic into `bin/lib/watchman-core/`, with **zero changes to any call site outside `bin/lib/{code-health,harness-health,journey-health}/`** — every consuming skill's own `cache.js`/`fingerprint.js`/`dedup.js` keeps its current public API (same exported names, same signatures), so CLI files, SKILL.md references, and other tests are unaffected. This is an internal-only refactor; existing per-skill test suites, unmodified, are the regression bar.
 
 ## Components
 
-### `bin/lib/_shared/watchman-core/cache.js`
+### `bin/lib/watchman-core/cache.js`
 
 ```js
 'use strict';
@@ -69,7 +69,10 @@ function createCache(skillName) {
         catch { return null; }
       })
       .filter((r) => r && Array.isArray(r.fingerprints) && r.runId)
-      .sort((a, b) => ((a.runAt || '') < (b.runAt || '') ? -1 : 1));
+      .sort((a, b) => {
+        const x = a.runAt || '', y = b.runAt || '';
+        return x < y ? -1 : x > y ? 1 : 0;
+      });
   }
   return { cachePath, readCache, writeCache, cursorsPath, readCursors, writeCursors, runsDir, readRuns };
 }
@@ -77,7 +80,7 @@ function createCache(skillName) {
 module.exports = { createCache };
 ```
 
-### `bin/lib/_shared/watchman-core/runs.js`
+### `bin/lib/watchman-core/runs.js`
 
 ```js
 'use strict';
@@ -114,7 +117,7 @@ module.exports = { recordRun, computeChurn };
 
 Note: `recordRun` here takes `runsDir` directly (not `root`) so it composes with `createCache(skillName).runsDir(root)` without re-deriving the path.
 
-### `bin/lib/_shared/watchman-core/fingerprint.js`
+### `bin/lib/watchman-core/fingerprint.js`
 
 ```js
 'use strict';
@@ -136,7 +139,7 @@ function fingerprintFromBasis(prefix, basis) {
 module.exports = { normalizeText, fingerprintFromBasis };
 ```
 
-### `bin/lib/_shared/watchman-core/dedup.js`
+### `bin/lib/watchman-core/dedup.js`
 
 Verbatim current `decide()` body (unchanged logic, generalized comments):
 
@@ -184,7 +187,7 @@ module.exports = { decide };
 **`harness-health/fingerprint.js`**:
 ```js
 'use strict';
-const { normalizeText, fingerprintFromBasis } = require('../_shared/watchman-core/fingerprint');
+const { normalizeText, fingerprintFromBasis } = require('../watchman-core/fingerprint');
 
 function normalizeDescription(description) { return normalizeText(description); }
 
@@ -198,7 +201,7 @@ module.exports = { fingerprint, normalizeDescription };
 **`journey-health/fingerprint.js`**:
 ```js
 'use strict';
-const { normalizeText, fingerprintFromBasis } = require('../_shared/watchman-core/fingerprint');
+const { normalizeText, fingerprintFromBasis } = require('../watchman-core/fingerprint');
 
 function normalizeDescription(description) { return normalizeText(description); }
 
@@ -212,7 +215,7 @@ module.exports = { fingerprint, normalizeDescription };
 **`harness-health/dedup.js`** and **`journey-health/dedup.js`** — one-line re-export:
 ```js
 'use strict';
-module.exports = require('../_shared/watchman-core/dedup');
+module.exports = require('../watchman-core/dedup');
 ```
 
 `code-health/fingerprint.js` and `code-health/dedup.js` are **not touched** — they stay exactly as they are.
@@ -220,8 +223,8 @@ module.exports = require('../_shared/watchman-core/dedup');
 ## Testing
 
 - Existing test suites (`cache.test.js`, `dedup.test.js`, `fingerprint.test.js` under each skill's `tests/`) must pass **unmodified** — they exercise the public API surface, which does not change. This is the primary regression check.
-- New tests: `bin/lib/_shared/watchman-core/tests/{cache,runs,fingerprint,dedup}.test.js`, covering the factory and pure functions directly.
-- `package.json`'s `test` script gains one glob: `bin/lib/_shared/watchman-core/tests/*.test.js`.
+- New tests: `bin/lib/watchman-core/tests/{cache,runs,fingerprint,dedup}.test.js`, covering the factory and pure functions directly.
+- `package.json`'s `test` script gains one glob: `bin/lib/watchman-core/tests/*.test.js`.
 
 ## Out of scope
 
