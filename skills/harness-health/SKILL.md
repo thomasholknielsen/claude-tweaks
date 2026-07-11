@@ -103,6 +103,25 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" validate-findings /tmp/harnes
 
 **Step 7 — APPLY or FILE.**
 
+Before filing anything this firing, bootstrap harness-health's labels with real descriptions — this project's other issue-filing skills (code-health) already do this; harness-health previously did not, leaving every one of its labels with GitHub's blank auto-vivified description:
+
+```bash
+node -e "\
+  const { ensureLabelPayload } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/labels.js');\
+  const labels = [\
+    ['harness-health', 'Filed by the harness-health engine — a plugin harness maintenance finding'],\
+    ['harness-health:additive', 'Safe, mechanical patch — additive change with no removed behavior'],\
+    ['harness-health:restructural', 'Structural change requiring human review before applying'],\
+    ['harness-health:new-skill', 'Proposes a new skill candidate surfaced by harness-health'],\
+  ];\
+  console.log(JSON.stringify(labels.map(([n, d]) => ensureLabelPayload(n, d))));\
+" > /tmp/harness-health-label-payloads.json
+node -e "const ls=require('/tmp/harness-health-label-payloads.json'); ls.forEach(l => console.log(l.name + '\t' + l.description))" | while IFS=$'\t' read -r NAME DESCRIPTION; do\
+  gh label list --search "$NAME" --json name -q '.[].name' | grep -qx "$NAME" || \\\
+    gh label create "$NAME" --description "$DESCRIPTION"\
+done
+```
+
 Each payload in `/tmp/harness-health-payloads.json` carries structured fields, not just the GitHub issue text — `id`, `kind`, `target`, `assetType`, `category`, `section`, `classification`, `confidence`, `reversibility`, `oldString`, `newString` are all present directly on the payload object (not just embedded in `payload.body`'s markdown).
 
 For each payload:
