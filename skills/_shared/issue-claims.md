@@ -88,8 +88,13 @@ node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.
 Paths in these snippets must be absolute (`/tmp/...` or a run-dir path) — `require()` inside
 `node -e` resolves relative paths against the eval context, not the working directory.
 
-Output: `{claimed, claim, stale}`. `claimed: true` with `stale: true` means the claim is
-breakable, not absent.
+Output: `{claimed, claim, stale}` when a claim is active; `{claimed: false, claim: null,
+stale: false, everReleased}` when it isn't. `claimed: true` with `stale: true` means the claim
+is breakable, not absent. `everReleased` only appears on the `claimed: false` shape and
+distinguishes two 422 outcomes that would otherwise look identical: `true` means the last
+marker found was a valid release (the ref-delete failed after the release comment posted —
+safe to break); `false` means no marker was ever found at all (comment-post failed after an
+earlier claim, or the marker is corrupted — treat as live, never break on this signal alone).
 
 ## TTL and staleness
 
@@ -172,7 +177,12 @@ below), but it never grants a tier to an issue that didn't already carry one, an
 itself never originates a grant:
 
 - `status:needs-review` — the triager flagged this issue as warranting a closer human look.
-  It never reaches `/flow` — no autonomous run selects on this label.
+  It never reaches `/flow` — no autonomous run selects on this label, and bare triage's Step 1
+  permanently excludes it from future untiered batches. There is deliberately no in-tool path
+  back to `approved`/`fast-track` — a maintainer removing the label directly on GitHub *is* the
+  re-review decision, not a bypass of one (the same "a label is a maintainer's signature"
+  model this whole section describes), and it re-surfaces the issue on the next bare `/triage`
+  run automatically.
 - `status:approved` — authorized to build. `/claude-tweaks:triage dispatch` selects on this
   (alongside `status:fast-track`, below), claims the issue, and hands it to `/flow #{issue}`.
   Label = standing request, claim = in flight: the claim ref prevents double-dispatch across
@@ -200,10 +210,10 @@ Fail-closed on claiming; never block the session.
 | Failure | Behavior |
 |---|---|
 | `gh` missing/unauthenticated | Consumer's existing hard gate (auto never silences a missing dependency) |
-| Claim ref 422, live claim | Skip the issue, log `AUTO`, continue |
-| Claim ref 422, stale claim | Break: delete ref → recreate → takeover comment |
-| Claim ref 422, unreadable claim | Treat as live: skip, log; `/tidy` surfaces it |
-| Claim ref 422, comments fold to released (ref delete failed earlier) | Treat as stale: break (delete ref, recreate, takeover comment) |
+| Claim ref 422, live claim (`claimed:true, stale:false`) | Skip the issue, log `AUTO`, continue |
+| Claim ref 422, stale claim (`claimed:true, stale:true`) | Break: delete ref → recreate → takeover comment |
+| Claim ref 422, unreadable claim (`claimed:false, everReleased:false`) | Treat as live: skip, log; `/tidy` surfaces it |
+| Claim ref 422, comments fold to released (`claimed:false, everReleased:true`; ref delete failed earlier) | Treat as stale: break (delete ref, recreate, takeover comment) |
 | Comment fails after ref succeeds | Ref is the lock — retry once, warn, proceed |
 | Release fails | Log; TTL is the backstop |
 | Release attempted but claim's `runId` is not this run's | Skip the delete, log — a successor holds the lock (ownership rule) |

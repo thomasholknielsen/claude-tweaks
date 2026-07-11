@@ -3,7 +3,8 @@
 // Universal criteria catalog for code-health v2.
 // P1 populates all 15 universal criteria. Domain criteria (a11y, i18n, etc.) are added in P2.
 // Each entry: { id, description, appliesTo, fragment, confidenceFloor }
-//   description:   real, human-readable one-liner used as the GitHub label description
+//   description:   real, human-readable one-liner used as the GitHub label description —
+//                  must stay under GitHub's 100-char label-description cap (see criteria.test.js)
 //   appliesTo:      'universal' | string[]  (area type strings, e.g. ['frontend','library'])
 //   fragment:       path relative to skills/_shared/ for a criteria detail file, or null
 //   confidenceFloor:'high' | 'medium' | 'low'  — minimum confidence to FILE a finding for this criterion
@@ -11,7 +12,7 @@
 const CRITERIA = [
   {
     id: 'architecture-depth',
-    description: 'Shallow modules whose interface is nearly as complex as their implementation — leverage, not line count',
+    description: 'Shallow modules whose interface is nearly as complex as their implementation',
     appliesTo: 'universal',
     fragment: 'criteria-architecture-depth.md',
     confidenceFloor: 'medium',
@@ -25,7 +26,7 @@ const CRITERIA = [
   },
   {
     id: 'review-quality',
-    description: 'What a calibrated senior engineer would flag in code review — architecture, security, convention, performance',
+    description: 'What a calibrated senior engineer would flag in code review — architecture, security, convention',
     appliesTo: 'universal',
     fragment: 'criteria-review-quality.md',
     confidenceFloor: 'medium',

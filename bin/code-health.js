@@ -233,7 +233,15 @@ function cmdValidateFindings(args) {
     seen.add(finding.id);
 
     const decision = decide(finding, issueIndex, cache, { threshold: args['min-risk'] || 'high' });
-    if (decision.action === 'skip' || decision.action === 'suppress') continue;
+    if (decision.action === 'suppress') {
+      // A wontfix match is a standing decision meant to survive into gh-unavailable runs
+      // (dedup.js's `cached.status === 'wontfix'` cache-only fallback depends on this write
+      // existing — without it, that fallback path can never fire, and a wontfix'd finding can
+      // get re-filed the next time gh is unreachable).
+      cache[finding.id] = { status: 'wontfix', issue: decision.issue || null, severity: finding.severity, risk: finding.risk };
+      continue;
+    }
+    if (decision.action === 'skip') continue;
 
     if (decision.action === 'file' || decision.action === 'reopen') {
       cache[finding.id] = decision.action === 'reopen'

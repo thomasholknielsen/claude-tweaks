@@ -99,8 +99,17 @@ gh label list --search "status:fast-track" --json name -q '.[].name' | grep -qx 
   gh label create status:fast-track --description "Triage authorized this for building - auto-merges if the run comes back clean"
 gh label list --search "status:needs-review" --json name -q '.[].name' | grep -qx status:needs-review || \
   gh label create status:needs-review --description "Triage flagged this - needs a closer human look before authorizing"
-gh issue edit "$ISSUE" --add-label "status:{tier}"
+if gh issue view "$ISSUE" --json labels -q '.labels[].name' | grep -qx status:blocked; then
+  gh issue edit "$ISSUE" --remove-label status:blocked --add-label "status:{tier}"
+else
+  gh issue edit "$ISSUE" --add-label "status:{tier}"
+fi
 ```
+
+A `status:blocked` issue reaching this step means a human is re-tiering something that
+previously hit its retry ceiling — always strip `status:blocked` when granting a new tier, or
+the issue ends up carrying both labels and `dispatch`'s Step 1 skip rule silently ignores it
+forever despite the fresh authorization.
 
 Log each to `decisions.md` (this run's standalone-auto run dir per
 `_shared/pipeline-run-dir.md` — triage has no parent pipeline):
@@ -122,12 +131,38 @@ human, never auto-retried).
 
 ### Step 2: Claim each (per `_shared/issue-claims.md`)
 
-Resolve the sha once per run, then for each issue attempt the atomic ref
-creation exactly as `_shared/issue-claims.md`'s "The lock" section describes.
-On success: bootstrap-then-add `status:in-progress`, post the claim comment
-(`claimPayload`). On 422 (contested): fold through `claimStatus` — live claim
-→ skip; stale claim → break and take over. Any other failure → skip, log,
-continue.
+Resolve the sha once per run, then for each issue attempt the atomic ref creation exactly as
+`_shared/issue-claims.md`'s "The lock" section describes (`gh api repos/{owner}/{repo}/git/refs
+-f ref=refs/claims/issue-${ISSUE} -f sha=${SHA}`).
+
+**On success (201):** bootstrap-then-add `status:in-progress`, then post the claim comment
+(`claimPayload`):
+
+```bash
+gh label list --search "status:in-progress" --json name -q '.[].name' | grep -qx status:in-progress || \
+  gh label create status:in-progress --description "Claimed and being built by an autonomous claude-tweaks run"
+gh issue edit "$ISSUE" --add-label status:in-progress
+```
+
+**On 422 (contested):** fetch comments and fold through `claimStatus` exactly as
+`_shared/issue-claims.md`'s "Reading claim state" section describes, then branch on the full
+returned shape — do not collapse to a two-way live/stale fold, the fourth row below is not the
+same as the third even though a bare `claimed:false` looks identical without it:
+
+```bash
+gh api "repos/{owner}/{repo}/issues/${ISSUE}/comments?per_page=100" > "/tmp/dispatch-claim-${ISSUE}.json"
+node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
+  console.log(JSON.stringify(c.claimStatus(require(process.argv[1]),Date.now())))" "/tmp/dispatch-claim-${ISSUE}.json"
+```
+
+| Result | Meaning | Action |
+|---|---|---|
+| `claimed:true, stale:false` | Live claim | Skip, log, continue |
+| `claimed:true, stale:true` | Stale claim | Break: delete ref, recreate, post takeover comment |
+| `claimed:false, everReleased:false` | Unreadable/never-claimed | Treat as live: skip, log, continue — `/tidy` surfaces it |
+| `claimed:false, everReleased:true` | Comments fold to released (ref delete failed on an earlier release) | Treat as stale: break (delete ref, recreate, takeover comment) |
+
+Any other `gh` failure during claim: skip, log, continue.
 
 ### Step 3: Hand off to `/flow`
 
@@ -140,9 +175,15 @@ issue-ingestion path) and runs the standard pipeline.
 
 When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
 
-1. Release the claim (reason: `failed: {gate}`, per `_shared/issue-claims.md`'s
-   Release triggers table).
-2. Fetch existing comments and compute this attempt's number and whether it
+1. Before releasing, fold this issue's comments through `claimStatus` (per `_shared/issue-claims.md`'s
+   Ownership rule) and confirm `claim.runId` equals this run's `$RUN_ID`. A mismatch means a
+   successor already broke the stale claim and now holds the lock — skip the rest of this step
+   entirely (no release, no label changes, no comment), log, and move to the next issue.
+2. Release the claim (reason: `failed: {gate}`, per `_shared/issue-claims.md`'s
+   Release triggers table), then remove `status:in-progress`
+   (`gh issue edit "$ISSUE" --remove-label status:in-progress`, best-effort — log a warning and
+   continue on failure, the same as every other release site).
+3. Fetch existing comments and compute this attempt's number and whether it
    hits the ceiling (read `triage-retry-ceiling` from CLAUDE.md/`policy.yml`,
    default 3), in one pass — fetching comments *before* posting this attempt's
    comment is what makes the attempt number and ceiling check correct:
@@ -161,7 +202,7 @@ When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
    " "/tmp/dispatch-comments-${ISSUE}.json" "$TRIAGE_RETRY_CEILING" > "/tmp/attempt-info-${ISSUE}.json"
    ```
 
-3. Post the failure comment, using the `attemptNumber` and `ceilingHit` just computed:
+4. Post the failure comment, using the `attemptNumber` and `ceilingHit` just computed:
 
    ```bash
    node -e "
@@ -172,16 +213,26 @@ When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
    gh issue comment "$ISSUE" --body-file /tmp/attempt-comment.md
    ```
 
-4. **If `ceilingHit` was `true`:** strip whichever tier label the issue carries,
+5. **If `ceilingHit` was `true`:** strip whichever tier label the issue carries,
    add `status:blocked`, send a `PushNotification` ("Issue #{n} hit its retry
-   ceiling — needs a look: {title}").
-5. **If `false`:** leave the tier label in place — the next `dispatch` firing
-   pulls it again naturally (the claim was already released).
+   ceiling — needs a look: {title}"). The Failure-downgrade rule below is moot
+   here — whatever tier existed is already being stripped.
+6. **If `false`:** apply the Failure-downgrade rule first, *then* leave the
+   (possibly just-downgraded) tier label in place — the next `dispatch`
+   firing pulls it again naturally (the claim was already released):
 
-**Failure-downgrade rule:** whenever a `status:fast-track` issue's run fails
-for *any* reason, downgrade it to `status:approved` before the next retry —
-remove `status:fast-track`, add `status:approved`. A retry that didn't come
-back clean the first time never gets another unsupervised shot at auto-merge.
+   ```bash
+   if gh issue view "$ISSUE" --json labels -q '.labels[].name' | grep -qx status:fast-track; then
+     gh issue edit "$ISSUE" --remove-label status:fast-track --add-label status:approved
+   fi
+   ```
+
+**Failure-downgrade rule:** whenever a `status:fast-track` issue's run fails for *any* reason —
+including a sub-ceiling failure handled by item 6 above, not only the ceiling-hit case — downgrade
+it to `status:approved` before the next retry. A retry that didn't come back clean the first
+time never gets another unsupervised shot at auto-merge. This is not a separate, optional step:
+item 6's "leave the tier label in place" refers to whatever tier remains *after* this downgrade
+runs, never to `status:fast-track` unconditionally.
 
 ## Auto-merge gate (fast-track only)
 
