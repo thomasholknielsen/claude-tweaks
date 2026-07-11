@@ -164,14 +164,80 @@ node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.
 
 Any other `gh` failure during claim: skip, log, continue.
 
-### Step 3: Hand off to `/flow`
+### Step 2.5: Group claimed issues by file overlap
 
-For each successfully claimed issue, invoke `/claude-tweaks:flow #{issue}`
-(the pure-executor issue-reference form — see `flow/SKILL.md`). `/flow`
-derives a spec via `/claude-tweaks:specify #{issue}` (the existing
-issue-ingestion path) and runs the standard pipeline.
+Claimed issues that touch the same code should build on each other's commits in one shared worktree, not diverge across isolated parallel worktrees. Extract each claimed issue's key files straight from its body (no spec exists yet at this point — extraction happens before any spec derivation) and partition:
+
+```bash
+> /tmp/dispatch-claimed-issues.ndjson
+for ISSUE in $CLAIMED_ISSUES; do   # $CLAIMED_ISSUES: issue numbers successfully claimed in Step 2
+  gh api "repos/{owner}/{repo}/issues/${ISSUE}" --jq '{id:.number,body:.body,labels:[.labels[].name]}' >> /tmp/dispatch-claimed-issues.ndjson
+done
+node -e "
+  const fs = require('fs');
+  const { extractKeyFiles, groupByFileOverlap } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
+  const issues = fs.readFileSync('/tmp/dispatch-claimed-issues.ndjson', 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse);
+  const items = issues.map((i) => ({ id: i.id, keyFiles: extractKeyFiles(i) }));
+  console.log(JSON.stringify(groupByFileOverlap(items)));
+" > /tmp/dispatch-groups.json
+```
+
+`/tmp/dispatch-groups.json` is an array of groups, each an array of issue numbers. A group of size 1 is a **singleton** (dispatched as plain issue-mode `/flow #{issue}`, unchanged from before this design); a group of size 2+ is a **bundle** (each member gets its own spec derived first, then the bundle runs as one multi-spec `/flow` invocation — see Step 3).
+
+### Step 3: Dispatch groups, capped-concurrent
+
+Work through `/tmp/dispatch-groups.json` at up to `triage-dispatch-max-concurrent` groups running at once (default 3 — see Configuration). Each group becomes one Task agent with its own worktree (created via `/superpowers:using-git-worktrees` exactly as a normal `/flow` invocation would — do not pre-create or share a worktree path across groups). Queued groups start as soon as a slot frees up; there is no per-firing timeout, only the concurrency throttle — nothing elsewhere in this codebase imposes one (existing parallel-Task dispatch sites, e.g. `/help`'s Stage 1-7, already wait for all dispatched agents regardless of duration).
+
+**Singleton group** `[123]` — the agent's job is exactly today's single-issue dispatch: invoke `/claude-tweaks:flow #123` (issue-mode derives its own spec internally, per `flow/SKILL.md`).
+
+**Bundle group** `[123, 456]` — `/flow` has no multi-issue form (verified: multi-spec mode takes spec numbers, not issue references — `flow/SKILL.md`'s multi-spec syntax is `/claude-tweaks:flow 42,45,48`). The agent derives a spec per member first, then runs the bundle as one multi-spec invocation:
+
+```bash
+for ISSUE in 123 456; do
+  /claude-tweaks:specify "#${ISSUE}"   # derives a spec, carries recon-issue/recon-fingerprint frontmatter forward
+  # capture the resulting spec number from specify's own summary output
+done
+# once every member has a spec:
+/claude-tweaks:flow "${SPEC_1},${SPEC_2}"   # multi-spec, one shared worktree — see multi-spec.md
+```
+
+Each group's `Task()` prompt (per `_shared/subagent-output-contract.md`'s input discipline — minimal input, literal output template inlined, no conversation history):
+
+```
+Task scope: Execute claude-tweaks pipeline work for this group of already-claimed GitHub
+issues: {issue list}. Singleton -> run `/claude-tweaks:flow #{issue}`. Bundle (2+ issues) ->
+for each issue run `/claude-tweaks:specify "#{issue}"` to derive a spec, then run
+`/claude-tweaks:flow "{spec1},{spec2},...}"` once with the resulting spec numbers
+comma-joined. Handle any HARD-GATE failure per skills/triage/SKILL.md's Step 4 (retry
+ceiling / failure-downgrade rule) before finishing -- do not leave a failed issue's claim
+or label state unresolved.
+
+Working directory: create your own worktree via /superpowers:using-git-worktrees; do not
+reuse a path from another group. Echo `pwd` and `git rev-parse --show-toplevel` before any
+commit and verify both resolve to your own worktree.
+
+Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS
+/ NEEDS_CONTEXT / BLOCKED.
+
+OUTPUT FORMAT (required), after the status line -- return ONLY these lines, no preamble:
+
+GROUP: {comma-joined issue numbers}
+OUTCOME: {merged | pr-opened | pending-review | failed | blocked}
+MANIFEST: {path to this group's run-dir manifest.yml/decisions.md; for a singleton, the
+  single-spec run dir path}
+
+One line per issue in this group that hit a HARD-GATE or the retry ceiling (omit if none):
+ISSUE #{n}: {failed:{gate} | blocked:retry-ceiling}
+
+[Use: Standard model -- this dispatch wraps full pipeline execution, not analysis; the
+pipeline's own steps select their own models as usual.]
+```
+
+This is a new dispatch shape for this codebase -- none of Templates A/B/C in `_shared/subagent-output-contract.md` fit an agent that executes a full pipeline rather than returning findings/locations/a yes-no, so this task defines its own minimal template inline here rather than forcing a template mismatch. The universal parts of the contract still apply: the four-value status line, minimal input, and literal (not referenced) output format.
 
 ### Step 4: On pipeline failure — retry ceiling
+
+This procedure now runs inside each group's own Task agent (Step 3), against that agent's own issue(s) — not in dispatch's main thread. The mechanics below (ownership check, release, retry-ceiling math, failure-downgrade rule) are unchanged; only who executes them changed.
 
 When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
 
@@ -233,6 +299,14 @@ it to `tier:approved` before the next retry. A retry that didn't come back clean
 time never gets another unsupervised shot at auto-merge. This is not a separate, optional step:
 item 6's "leave the tier label in place" refers to whatever tier remains *after* this downgrade
 runs, never to `tier:fast-track` unconditionally.
+
+## Consolidated Review Console (dispatch only)
+
+After every group from Step 3 reports back (`DONE`, `DONE_WITH_CONCERNS`, or `BLOCKED`), render **one** Review Console for the whole firing instead of the human seeing one per issue. Reuse `flow/multispec-review-console.md`'s table format and Hard Requirements (every entry surfaced, `Spec`/`Issue` column mandatory, sort order: reversibility:low first, then severity:high first, tiebreaker issue number ascending) — read every group's manifest/`decisions.md` (a bundle's is the standard multi-spec manifest; a singleton's is the degenerate one-item case) and consolidate.
+
+The auto-merge gate (below) is evaluated per issue, not per group, before this console renders — a bundle where one issue auto-merged cleanly and the other didn't shows the auto-merged one as an FYI row (already merged) and the other as a normal pending-approval row in the same console.
+
+If every group's manifest shows zero decisions, zero staged items, and zero HARD-GATE failures across the whole firing, skip the console entirely — log "Dispatch firing: nothing to review" (same empty-console fast path as `multispec-review-console.md`).
 
 ## Auto-merge gate (fast-track only)
 
@@ -301,6 +375,7 @@ Read from CLAUDE.md or `.claude-tweaks/policy.yml`:
 | `triage-retry-ceiling` | `3` | Consecutive failures before a dispatched issue gets `status:blocked` and stops auto-retrying. |
 | `triage-fast-track-max-lines` | `40` | Blast-radius cap on changed lines for a fast-track auto-merge. |
 | `triage-fast-track-max-files` | `2` | Blast-radius cap on changed files for a fast-track auto-merge. |
+| `triage-dispatch-max-concurrent` | `3` | Maximum groups (bundles or singleton issues) a dispatch firing runs at once; remaining groups queue for a freed slot. |
 
 ## Next Actions
 
