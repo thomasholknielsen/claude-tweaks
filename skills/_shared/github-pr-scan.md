@@ -64,6 +64,15 @@ Full sweep of open PRs, code-health-labelled issues, and harness-health-labelled
 
    One query, split client-side by `stage` (`inbox` / `parked`) — not two separate queries.
 
+7. **Pending-authorization queue size** (only under `backlog-backend: github-issues`, same gate as item 6) — count open `backlog`-labeled issues carrying none of the tier labels (`status:needs-review`, `status:approved`, `status:fast-track` — read the exact current set from `skills/triage/SKILL.md`, do not hardcode a stale list here):
+
+   ```bash
+   gh issue list --label backlog --state open --json number,labels \
+     --jq '[.[] | select((.labels | map(.name) | any(. == "status:needs-review" or . == "status:approved" or . == "status:fast-track")) | not)] | length'
+   ```
+
+   This is a maintenance signal only — `/tidy` never applies a tier label itself (`/claude-tweaks:triage` owns that). Surface the count in the digest's "Still needs your review" section (see `tidy/SKILL.md`'s digest section) as `**Pending authorization:** {N} issues awaiting a tier label`.
+
 Findings and recommendations (tidy Action Vocabulary):
 
 | Finding | Recommendation |
@@ -78,20 +87,21 @@ Findings and recommendations (tidy Action Vocabulary):
 | Harness-health issue stale (>4 weeks, the referenced target or code has since changed again) | Close (GitHub) — superseded |
 | Harness-health issue still valid | Suggest applying the patch directly, or `/claude-tweaks:harness-health --target <name> --kind <skill\|rule\|claude-md>` to re-judge |
 | Backlog issue, stage `inbox`, age per Staleness Thresholds | `< 2 weeks`: Keep. `2-4 weeks`: Keep (unless clearly stale). `> 4 weeks`: Delete or Promote — judgment call, same as `/tidy`'s inbox-stage backlog audit |
-| Backlog issue, stage `parked`, milestone attached | Trigger met when the milestone is due/closed — Promote. Otherwise Keep. |
-| Backlog issue, stage `parked`, `watchedPaths` present | Trigger met when `git log` shows recent commits touching any watched path — Promote. Otherwise Keep. |
+| Backlog issue, stage `parked`, milestone attached | Trigger met when `milestoneDueOn` (from `classifyBacklogIssue`) is in the past — Promote (evidence: the due date; qualifies for the evidence tier, see `tidy/SKILL.md`). Otherwise Keep. |
+| Backlog issue, stage `parked`, `watchedPaths` present | Trigger met when `git log` shows recent commits touching any watched path — Promote (evidence: the commit SHA; qualifies for the evidence tier, see `tidy/SKILL.md`). Otherwise Keep. |
 | Backlog issue, stage `parked`, neither milestone nor `watchedPaths` | Prose-only `**Trigger:**` in the body, judged live each sweep — same as today's parked-stage backlog audit |
 
 Emit `[pr]` and `[gh-issue]` rows per the Output Contract — **except** backlog-issue findings, which emit `[inbox]` / `[deferred]` rows instead (see Output Contract below), reusing `/tidy`'s existing file-scan prefixes so Step 6 renders them into the Actions table exactly like the rows they replace.
 
 ## Output Contract
 
-Two collection prefixes for PR/code-health/harness-health findings, plus two conditional ones for backlog findings (`repo-wide` scope only, `backlog-backend: github-issues` only) — all emitted as standard Template A rows (`_shared/subagent-output-contract.md`) so existing dispatchers consume them unchanged:
+Two collection prefixes for PR/code-health/harness-health findings, plus three conditional ones for backlog and queue-size findings (`repo-wide` scope only, `backlog-backend: github-issues` only) — all emitted as standard Template A rows (`_shared/subagent-output-contract.md`) so existing dispatchers consume them unchanged:
 
 - `[pr]` — pull-request findings: `[pr] PR #{n}: {title} — {issue} — {recommendation}`
 - `[gh-issue]` — code-health/harness-health issue findings: `[gh-issue] #{n}: {title} — {issue} — {recommendation}`
 - `[inbox]` — backlog issue, stage `inbox`: `[inbox] {title} — {age} — {recommendation}` (mirrors `/tidy` Step 1's file-based row shape exactly)
-- `[deferred]` — backlog issue, stage `parked`: `[deferred] {title} — from issue #{n} — {recommendation}` (mirrors `/tidy` Step 1.5's file-based row shape; `#{n}` stands in for `spec {N}` since a parked issue has no originating spec)
+- `[deferred]` — backlog issue, stage `parked`: `[deferred] {title} — from issue #{n} — {recommendation}` (mirrors `/tidy` Step 1's file-based row shape; `#{n}` stands in for `spec {N}` since a parked issue has no originating spec)
+- `[queue]` — pending-authorization queue size (item 7 above, `repo-wide` scope only, `backlog-backend: github-issues` only): `[queue] {N} issues awaiting a tier label`
 
 Severity mapping (Template A Severity column):
 
