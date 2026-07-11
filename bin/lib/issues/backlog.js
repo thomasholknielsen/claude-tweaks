@@ -62,8 +62,8 @@ function labelNames(labels) {
 // issue: { number, title, labels, body, milestone, updatedAt, url } — shaped like
 // `gh issue list --json number,title,labels,body,milestone,updatedAt,url` output.
 // Returns { number, title, stage: 'inbox'|'parked', category, priority, milestone,
-// watchedPaths, updatedAt, url } — category/priority/milestone/watchedPaths are null
-// when absent.
+// milestoneDueOn, watchedPaths, updatedAt, url } — category/priority/milestone/
+// milestoneDueOn/watchedPaths are null when absent.
 function classifyBacklogIssue({ number, title, labels, body, milestone, updatedAt, url }) {
   const names = labelNames(labels);
   const stage = names.includes('parked') ? 'parked' : 'inbox';
@@ -76,6 +76,7 @@ function classifyBacklogIssue({ number, title, labels, body, milestone, updatedA
     category: categoryLabelName ? categoryLabelName.slice('backlog:category-'.length) : null,
     priority: priorityLabelName ? priorityLabelName.slice('backlog:priority-'.length) : null,
     milestone: milestone ? milestone.title : null,
+    milestoneDueOn: milestone && milestone.dueOn ? milestone.dueOn : null,
     watchedPaths: extractWatchedPaths(body),
     updatedAt,
     url,
