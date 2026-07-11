@@ -42,7 +42,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/claude-tweaks:version` | Print the installed plugin version | *(none)*, `plain`, `full` |
 | `/claude-tweaks:code-health` | LLM-as-judge recurring sweep — applies criteria holistically to a directory slice, deduplicates against open GitHub issues, files pre-specs as GitHub issues. Scheduled Routine. Never edits code. | `--area <path>`, `--dry-run`, `--root <dir>` |
 | `/claude-tweaks:routine` | Instantiate a skill's routine template (e.g. code-health's) into a live cloud Routine via `RemoteTrigger` — template-driven, resolves project/account values with minimal prompts | `create <skill>`, `update <skill>`, `status <skill>`, `--variant=<name>`, `--dry-run` |
-| `/claude-tweaks:harness-health` | Recurring watchman auditing `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md for drift, template-conformance, and best-practice gaps, sharing its judgment procedure with `/init`/`/wrap-up`. Scheduled Routine. Never edits code; CLAUDE.md findings never auto-apply. | `--target <name>`, `--kind <skill\|rule\|claude-md\|design-artifact\|memory>`, `--memory-dir <path>`, `--dry-run`, `--budget <n>`, `--root <dir>` |
+| `/claude-tweaks:harness-health` | Recurring watchman auditing `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md for drift, template-conformance, and best-practice gaps, sharing its judgment procedure with `/init`/`/wrap-up`. Scheduled Routine. Never edits anything — always files a GitHub issue. | `--target <name>`, `--kind <skill\|rule\|claude-md\|design-artifact\|memory>`, `--memory-dir <path>`, `--dry-run`, `--budget <n>`, `--root <dir>` |
 
 ## Recommended Companion Tools
 

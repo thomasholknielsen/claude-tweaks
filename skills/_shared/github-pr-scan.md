@@ -76,7 +76,7 @@ Findings and recommendations (tidy Action Vocabulary):
 | Code-health issue stale (>4 weeks, flagged code since changed/removed) | Close (GitHub) — superseded |
 | Code-health issue still valid | Suggest `/claude-tweaks:triage` or Capture to INBOX |
 | Harness-health issue stale (>4 weeks, the referenced target or code has since changed again) | Close (GitHub) — superseded |
-| Harness-health issue still valid | Suggest applying the patch directly, or `/claude-tweaks:harness-health --target <name> --kind <skill\|rule\|claude-md>` to re-judge |
+| Harness-health issue still valid | Suggest `/claude-tweaks:triage` or Capture — same as a still-valid code-health issue (harness-health never applies patches directly) |
 | Backlog issue, stage `inbox`, age per Staleness Thresholds | `< 2 weeks`: Keep. `2-4 weeks`: Keep (unless clearly stale). `> 4 weeks`: Delete or Promote — judgment call, same as `/tidy`'s file-based INBOX audit |
 | Backlog issue, stage `parked`, milestone attached | Trigger met when the milestone is due/closed — Promote. Otherwise Keep. |
 | Backlog issue, stage `parked`, `watchedPaths` present | Trigger met when `git log` shows recent commits touching any watched path — Promote. Otherwise Keep. |
