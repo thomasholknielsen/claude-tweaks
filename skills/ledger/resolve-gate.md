@@ -86,7 +86,7 @@ Neither Step 2a nor Step 2b carries a `(Recommended)` option either — same rea
 For each item, apply the user-chosen disposition. **Each `specs/backlog/{slug}.md` entry (`Stage: parked` or `Stage: inbox`) requires the user's explicit choice for that specific item — never bulk-write without their per-item input.**
 
 - `Fix anyway` → return to Phase 1 for that item, fix, commit, mark `fixed`
-- `Defer` → create `specs/backlog/{slug}.md` with `**Stage:** parked`, origin (this pipeline), affected files, and the user-stated trigger. Update ledger status to `deferred`
+- `Defer` → create `specs/backlog/{slug}.md` with `**Stage:** parked`, a `**Deferred:**` date stamped now, origin (this pipeline), affected files, and the user-stated trigger. Update ledger status to `deferred`
 - `Send to Inbox` → create `specs/backlog/{slug}.md` with `**Stage:** inbox`, origin (this pipeline), and short context. Update ledger status to `deferred` (with note `→ backlog (inbox)` in Resolution column)
 - `Accept` → record the user's stated reason in Resolution column. Update status to `accepted`
 - `Acknowledge` → record as `acknowledged` (ops items only)

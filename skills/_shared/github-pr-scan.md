@@ -77,10 +77,10 @@ Findings and recommendations (tidy Action Vocabulary):
 | Code-health issue still valid | Suggest `/claude-tweaks:triage` or Capture to INBOX |
 | Harness-health issue stale (>4 weeks, the referenced target or code has since changed again) | Close (GitHub) — superseded |
 | Harness-health issue still valid | Suggest applying the patch directly, or `/claude-tweaks:harness-health --target <name> --kind <skill\|rule\|claude-md>` to re-judge |
-| Backlog issue, stage `inbox`, age per Staleness Thresholds | `< 2 weeks`: Keep. `2-4 weeks`: Keep (unless clearly stale). `> 4 weeks`: Delete or Promote — judgment call, same as `/tidy`'s file-based INBOX audit |
+| Backlog issue, stage `inbox`, age per Staleness Thresholds | `< 2 weeks`: Keep. `2-4 weeks`: Keep (unless clearly stale). `> 4 weeks`: Delete or Promote — judgment call, same as `/tidy`'s inbox-stage backlog audit |
 | Backlog issue, stage `parked`, milestone attached | Trigger met when the milestone is due/closed — Promote. Otherwise Keep. |
 | Backlog issue, stage `parked`, `watchedPaths` present | Trigger met when `git log` shows recent commits touching any watched path — Promote. Otherwise Keep. |
-| Backlog issue, stage `parked`, neither milestone nor `watchedPaths` | Prose-only `**Trigger:**` in the body, judged live each sweep — same as today's file-based DEFERRED audit |
+| Backlog issue, stage `parked`, neither milestone nor `watchedPaths` | Prose-only `**Trigger:**` in the body, judged live each sweep — same as today's parked-stage backlog audit |
 
 Emit `[pr]` and `[gh-issue]` rows per the Output Contract — **except** backlog-issue findings, which emit `[inbox]` / `[deferred]` rows instead (see Output Contract below), reusing `/tidy`'s existing file-scan prefixes so Step 6 renders them into the Actions table exactly like the rows they replace.
 

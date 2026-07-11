@@ -164,7 +164,7 @@ docs/
 
 ## Registry Creation Procedure (Phase 8.5)
 
-Init is about fast-start — get the registry wired up and move on. Doc content work (refreshing stale docs, generating missing docs, reorganizing) is captured as INBOX items with Phase 2 context baked in, so it flows through the normal pipeline.
+Init is about fast-start — get the registry wired up and move on. Doc content work (refreshing stale docs, generating missing docs, reorganizing) is captured as backlog entries with Phase 2 context baked in, so it flows through the normal pipeline.
 
 1. **Inventory existing docs** — Glob for `README.md`, `CONTRIBUTING.md`, `docs/**/*.md`, `*.md` in root. Exclude `CHANGELOG.md`, `LICENSE`, `node_modules`, generated files, and workflow artifacts (`specs/`, `docs/plans/`, `docs/journeys/`).
 
@@ -218,7 +218,7 @@ Init is about fast-start — get the registry wired up and move on. Doc content 
    - Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Register all doc entries as shown"`
    - Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which #s to change"`
 
-   All existing docs are registered as-is — init does not modify them. The Assessment column captures findings for the INBOX items in step 8.
+   All existing docs are registered as-is — init does not modify them. The Assessment column captures findings for the backlog entries in step 8.
 
 7. **Create `docs/REGISTRY.md`** with approved entries (existing docs only — missing docs are not added until they're created).
 
@@ -244,19 +244,19 @@ Init is about fast-start — get the registry wired up and move on. Doc content 
    Rename for consistency across projects using the workflow system.
    ```
 
-   **INBOX item rules:**
+   **Backlog entry rules:**
    - Include specific findings from the assessment (which commands are stale, which endpoints are missing, which sections to split)
    - Include the Phase 2 data sources so the work can be done without re-analyzing the codebase
-   - One INBOX item per doc action (don't bundle "refresh api.md + create getting-started.md" into one item)
-   - Skip INBOX items for docs classified as **Accurate** — nothing to do
+   - One backlog entry per doc action (don't bundle "refresh api.md + create getting-started.md" into one item)
+   - Skip a backlog entry for docs classified as **Accurate** — nothing to do
    - Group related items when they depend on each other (e.g., "split README" and "create getting-started.md" reference each other)
 
-   Present the INBOX items as a summary after the registry:
+   Present the backlog entries as a summary after the registry:
 
    ```
    ### Doc Work Captured
 
-   {N} items added to INBOX for documentation improvements:
+   {N} items added to the backlog for documentation improvements:
    - Refresh: docs/api.md (missing endpoints), README.md (stale commands)
    - Create: docs/getting-started.md
    - Reorganize: docs/setup.md → docs/getting-started.md

@@ -143,7 +143,7 @@ No further prompt. Proceed directly to the routed skill or commit.
 
 ### Routing prompt (when `--route` not provided)
 
-In auto mode, apply the silences-table row for /capture from `_shared/auto-mode-contract.md`: if `--route` was passed, honor it; otherwise default to `inbox` (the most conservative route — the item stays parked for periodic review at `/tidy`, no INBOX/DEFERRED write that wouldn't have happened anyway). Log:
+In auto mode, apply the silences-table row for /capture from `_shared/auto-mode-contract.md`: if `--route` was passed, honor it; otherwise default to `inbox` (the most conservative route — the item stays parked for periodic review at `/tidy`, no backlog write that wouldn't have happened anyway). Log:
 ```
 AUTO {time} — Routing: defaulted to inbox (no --route provided). Reversibility: high (entry stays in INBOX; user can re-route via /tidy at any time).
 ```

@@ -100,7 +100,7 @@ If "Override specific items" is chosen, the follow-up is ordinary free-text chat
 
 **When "Fix now" isn't possible**, route to the right destination:
 
-- **Defer** (`specs/backlog/`, `**Stage:** parked`) — the fix is understood but it's bigger and not relevant to the current work. Include origin spec, affected files, and trigger for when to revisit.
+- **Defer** (`specs/backlog/`, `**Stage:** parked`) — the fix is understood but it's bigger and not relevant to the current work. Include a `**Deferred:**` date stamped now, origin spec, affected files, and trigger for when to revisit.
 - **Capture to INBOX** — the finding is complex or uncertain and needs brainstorming/exploration before it can be acted on. This enters the full capture → challenge → `/superpowers:brainstorming` pipeline.
 
 **Deferral gate:** An item may only be deferred if it meets ALL of these:

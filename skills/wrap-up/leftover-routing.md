@@ -38,7 +38,7 @@ For each unfinished section that genuinely cannot be finished, present a numbere
 ### Routing options
 
 1. **Merge into an existing spec** — work fits naturally into another spec's scope
-2. **Create a `specs/backlog/{slug}.md` entry with `**Stage:** parked`** — work needs its own context (include origin spec, files, trigger)
+2. **Create a `specs/backlog/{slug}.md` entry with `**Stage:** parked`** — work needs its own context (include a `**Deferred:**` date stamped now, origin spec, files, trigger)
 3. **Create a `specs/backlog/{slug}.md` entry with `**Stage:** inbox`** — genuinely new idea discovered during implementation, not part of this spec's planned scope
 4. **Drop entirely** — no longer relevant
 5. **Finish now** — agent attempts completion in this pipeline (returns to fix-exhaust)

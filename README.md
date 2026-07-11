@@ -65,7 +65,7 @@ See [CHANGELOG.md](CHANGELOG.md) for earlier release notes (v4.6, v4.5, v4.2, v4
   SKILL                      ARTIFACT                 SUPERPOWERS USED
   ─────                      ────────                 ────────────────
 
-  capture ──────────────►  INBOX item
+  capture ──────────────►  Backlog entry (inbox)
      │
   challenge ────────────►  Brief
      │
