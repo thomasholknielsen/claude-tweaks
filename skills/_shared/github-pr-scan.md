@@ -64,15 +64,15 @@ Full sweep of open PRs, code-health-labelled issues, and harness-health-labelled
 
    One query, split client-side by `stage` (`inbox` / `parked`) — not two separate queries.
 
-7. **Pending-authorization queue size** — `/claude-tweaks:triage` (`skills/triage/SKILL.md` Step 1) tiers **code-health and harness-health issues only** — it never touches `backlog`-labeled issues, which have their own separate inbox/parked lifecycle unrelated to build-authorization tiers. Reuse items 3 and 5's JSON output directly (both now carry `labels` — no new `gh issue list` call needed) and count how many lack all three current tier labels (`status:needs-review`, `status:approved`, `status:fast-track` — read the exact current set from `skills/triage/SKILL.md`, do not hardcode a stale list here). Not gated on `backlog-backend` — code-health/harness-health issues exist regardless of which backlog backend is active.
+7. **Pending-authorization queue size** — `/claude-tweaks:triage` (`skills/triage/SKILL.md` Step 1) tiers **code-health and harness-health issues only** — it never touches `backlog`-labeled issues, which have their own separate inbox/parked lifecycle unrelated to build-authorization tiers. Reuse items 3 and 5's JSON output directly (both now carry `labels`) — count how many of those already-fetched issues lack all three current tier labels (`status:needs-review`, `status:approved`, `status:fast-track` — read the exact current set from `skills/triage/SKILL.md`, do not hardcode a stale list here). Not gated on `backlog-backend` — code-health/harness-health issues exist regardless of which backlog backend is active.
 
    ```bash
    jq -s '[.[0][], .[1][]] | map(select((.labels | map(.name) | any(. == "status:needs-review" or . == "status:approved" or . == "status:fast-track")) | not)) | length' \
-     <(gh issue list --label code-health --state open --json number,labels) \
-     <(gh issue list --label harness-health --state open --json number,labels)
+     <<< "$CODE_HEALTH_ISSUES_JSON" \
+     <<< "$HARNESS_HEALTH_ISSUES_JSON"
    ```
 
-   (This re-issues the two list calls in a minimal `number,labels`-only shape purely to keep this snippet self-contained and copy-pasteable in isolation; when both items 3 and 5 already ran earlier in the same scan, feed their existing JSON output into the same `jq` filter instead of re-querying.)
+   (`$CODE_HEALTH_ISSUES_JSON` / `$HARNESS_HEALTH_ISSUES_JSON` are items 3 and 5's own `gh issue list` output, already captured earlier in this same scan — do not re-query. If testing this snippet standalone/in isolation outside a live scan, substitute `<(gh issue list --label code-health --state open --json number,labels)` and the harness-health equivalent for the two `<<<` lines.)
 
    This is a maintenance signal only — `/tidy` never applies a tier label itself (`/claude-tweaks:triage` owns that). Surface the count in the digest's "Still needs your review" section (see `tidy/SKILL.md`'s digest section) as `**Pending authorization:** {N} issues awaiting a tier label`.
 
