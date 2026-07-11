@@ -104,7 +104,7 @@ Otherwise:
    - If genuinely ambiguous, emit the drift-leaning finding with `confidence: "med"`, `severity: "med"`, and say so explicitly in `reason` — never silently pick one.
 4. **Clean up.** If `SERVER_STARTED` is `true`, stop the ephemeral server now (`lsof -ti tcp:{port} | xargs kill`) — this is a standalone invocation with no `/wrap-up` to do it later, per `_shared/dev-url-detection.md`'s "Standalone" cleanup rule. (`SERVER_STARTED` is never `true` when sub-step 0 satisfied or resolved the deep tier via QA evidence, since sub-step 1 never ran on that path — this cleanup correctly no-ops.)
 
-Write any Step 3.5 findings to `/tmp/journey-health-findings-deep.json` (or skip creating this file entirely if Step 3.5 didn't run or produced nothing).
+Write Step 3.5's findings to `/tmp/journey-health-findings-deep.json` whenever the **Otherwise:** block above ran — including an empty array `[]` (the QA-evidence-satisfied path and a clean live-verification pass both produce no findings, but the file must still be written so the deep-tier call below runs and the cursor advances). Skip creating this file entirely only when Step 3.5 didn't run at all (`--deep` wasn't passed), resolved `target: null`, or hit the **Skip condition** (missing declared file) — none of those three cases reach the **Otherwise:** block, and none of them should advance the deep-tier cursor.
 
 **Step 4 — GATHER OPEN ISSUES for dedup.**
 
@@ -130,7 +130,7 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" validate-findings /tmp/journe
   > /tmp/journey-health-payloads-light.json
 ```
 
-Run the deep-tier call only when Step 3.5 actually ran and produced a findings file:
+Run the deep-tier call whenever `/tmp/journey-health-findings-deep.json` exists (i.e., whenever Step 3.5 reached the **Otherwise:** block, even if the file is `[]`) — this is required for `recordAudit` to fire and the deep cursor to advance on every path through that block (QA-evidence-satisfied, QA-evidence-regression, or live-verification):
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" validate-findings /tmp/journey-health-findings-deep.json \
