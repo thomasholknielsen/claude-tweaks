@@ -223,18 +223,9 @@ The severity scale, category enum, per-lens floors, and the CALIBRATION filter a
 
 Check coverage between journey files and story YAML files. This lens is informational — coverage gaps do not block the review.
 
-> **Parallel execution:** Use parallel tool calls aggressively — all Read operations on journey files and story YAML files are independent and should run concurrently.
+Run the computation in `_shared/journey-coverage-check.md` (shared with `/claude-tweaks:journey-health`'s coverage scan; that file also documents the skip condition and parallel-execution note).
 
-**Skip this lens when** no journey files exist in `docs/journeys/` or no story YAML files exist in the stories directory.
-
-1. Read all journey files from `docs/journeys/*.md`. Parse each for: journey name, step URLs, `files:` frontmatter.
-2. Read all story YAML files from `stories/*.yaml` (or the configured stories directory). Collect the `journey:` field from each story.
-3. Cross-reference:
-   - For each journey, find stories with `journey: {journey-name}`. Count stories and check which journey step URLs are covered.
-   - Identify **orphaned stories** — stories with no `journey:` field, or whose `journey:` value references a non-existent journey file.
-   - For orphaned stories, check their URL against journey step URLs to suggest potential links.
-
-4. Add findings to the code review findings table:
+Add findings to the code review findings table:
 
    **Uncovered journey steps:**
    ```
