@@ -32,13 +32,13 @@ The plugin enforces a 2-tier artifact taxonomy:
 | Strategic | Design doc (one file, multi-phase OK as `## Phase N` sections) | `/superpowers:brainstorming` (superpowers, unchanged) — produces a single design doc by convention | `/claude-tweaks:specify` |
 | Executional | Spec (one file per agent-sized work unit) | `/claude-tweaks:specify` | `/claude-tweaks:flow`, `/claude-tweaks:build` |
 
-`/claude-tweaks:specify` is the canonical entry point — its polymorphic input accepts a design doc path, a topic, or an INBOX reference. For a bare topic it invokes `/superpowers:brainstorming` internally, then decomposes the resulting design doc. The contract holds at two enforcement points: this skill's phase-aware decomposition and `/flow`'s Step 2.7 design-doc rejection. See the "Background" section near the end of this file for the historical context on why `/superpowers:writing-plans` is bypassed.
+`/claude-tweaks:specify` is the canonical entry point — its polymorphic input accepts a design doc path, a topic, or a backlog reference. For a bare topic it invokes `/superpowers:brainstorming` internally, then decomposes the resulting design doc. The contract holds at two enforcement points: this skill's phase-aware decomposition and `/flow`'s Step 2.7 design-doc rejection. See the "Background" section near the end of this file for the historical context on why `/superpowers:writing-plans` is bypassed.
 
 ## Input
 
 `$ARGUMENTS` = `<design-doc-or-topic> [phase-N]`
 
-The first argument is a path to a design doc, a topic name, or an INBOX item reference. The optional second argument `phase-N` (where N is a phase number from the design doc's `## Phase N` sections) scopes decomposition to one phase only — useful when running phases incrementally or in parallel.
+The first argument is a path to a design doc, a topic name, or a backlog item reference. The optional second argument `phase-N` (where N is a phase number from the design doc's `## Phase N` sections) scopes decomposition to one phase only — useful when running phases incrementally or in parallel.
 
 Input is polymorphic — see the canonical definition in the Granularity Contract section above. The resolution steps below handle each input shape.
 
@@ -59,7 +59,7 @@ Input is polymorphic — see the canonical definition in the Granularity Contrac
 2. **Design doc path** (e.g., `docs/superpowers/specs/2026-02-21-meal-planning-design.md`) — read it directly. Disambiguation rule: a string containing `/` or ending in `.md`, that didn't match case 1 above, is treated as a path.
 3. **Topic name** (e.g., `meal planning`) — search `docs/superpowers/specs/*-design.md` for a matching design doc. If found, read it directly.
 4. **Topic name with no matching design doc** — invoke superpowers `/superpowers:brainstorming` via the Skill tool with the topic as input (this is the polymorphic-input branch defined above). The brainstorming session produces a design doc at `docs/superpowers/specs/YYYY-MM-DD-{topic}-design.md` (or wherever superpowers writes it). Wait for `/superpowers:brainstorming` to complete, then continue with the produced design doc as the input. **Do not** prompt the user to "run brainstorm first" — that defeats the contract.
-5. **INBOX reference** (e.g., `"Voice shopping list"`) — find the entry in `specs/INBOX.md`, then check if a design doc exists for it. If found, read it. If not found, treat as a topic name (case 4 — invoke `/superpowers:brainstorming`).
+5. **Backlog reference** (e.g., `"Voice shopping list"`) — find the matching `specs/backlog/{slug}.md` entry (`**Stage:** inbox`), then check if a design doc exists for it. If found, read it. If not found, treat as a topic name (case 4 — invoke `/superpowers:brainstorming`).
 
 **Ambiguous input handling:** A topic name that *could* also be interpreted as a path (e.g., a topic with a `/` in it like "auth/login flow") is ambiguous. Stop and call `AskUserQuestion` with:
 
@@ -338,11 +338,11 @@ git commit -m "docs(specs): mark phase-{N} specified in design doc"
 
 When fully consumed, do NOT keep these around. They create dangling references and stale artifacts. The specs are the durable record.
 
-## Step 8: Clean Up INBOX
+## Step 8: Clean Up the Backlog Entry
 
-If the work originated from an INBOX item:
+If the work originated from a `specs/backlog/` entry:
 
-- Remove the entry from `specs/INBOX.md`
+- Delete the `specs/backlog/{slug}.md` file
 - It has been promoted — the specs are the durable artifact now
 
 ---
@@ -368,7 +368,7 @@ Present a summary:
 ### Artifacts Removed
 - Design doc: `docs/superpowers/specs/{filename}` (absorbed into specs)
 - Brainstorming brief: `docs/plans/{filename}` (absorbed into spec Gotchas) — if it existed
-- INBOX entry: {title} (promoted)
+- Backlog entry: {title} (promoted)
 
 ### Diagram suggestions (optional — render only when Step 2.5d emitted any)
 - {one or two `**Diagram suggestion:** …` blocks per the format in `_shared/diagram-integration-check.md`}
@@ -438,7 +438,7 @@ Always recommend `/flow` over `/build` — `/flow` is the canonical path through
 | `/superpowers:executing-plans` | Executes specs AFTER /claude-tweaks:specify — uses the plan from `/superpowers:writing-plans` (via `/claude-tweaks:build` batched execution strategy) |
 | `/claude-tweaks:build` | Runs AFTER /claude-tweaks:specify — takes a single spec and implements it |
 | `/claude-tweaks:capture` | Feeds INBOX items that may trigger brainstorming → /claude-tweaks:specify |
-| `/claude-tweaks:tidy` | Reviews specs created by /claude-tweaks:specify for staleness. /claude-tweaks:tidy tags INBOX items as `**Promoted:**` — /claude-tweaks:specify Step 8 removes them from INBOX after creating the spec |
+| `/claude-tweaks:tidy` | Reviews specs created by /claude-tweaks:specify for staleness. /claude-tweaks:tidy tags backlog entries as `**Promoted:**` — /claude-tweaks:specify Step 8 deletes the promoted `specs/backlog/{slug}.md` entry after creating the spec |
 | `/claude-tweaks:help` | Shows which specs from /claude-tweaks:specify are ready for /claude-tweaks:build — also uses Key Files for implicit dependency detection |
 | `/claude-tweaks:design` | /specify invokes `/claude-tweaks:design shape <topic>` (Step 2.5b) on frontend design docs to enrich the design doc with UX/UI planning. /specify writes `surface:` and `design-intent:` frontmatter (Step 2.5c + Step 3) on every generated spec; the design wrapper reads `surface:` for Layer 2 detection and reads `design-intent:` for `polish` mode's intent-driven dispatch (active in v4.5.0). |
 | `_shared/diagram-integration-check.md` | Step 2.5d reads this for the flag check and signal→type mapping. Soft-hook only — emits a recommendation, never invokes the companion plugin. |

@@ -35,7 +35,7 @@ The user is about to invest significant time brainstorming and specifying a feat
 
 ### Resolve the input:
 
-1. **INBOX reference** (e.g., `"Voice shopping list"`) — find the entry in `specs/INBOX.md` and use it as the problem statement
+1. **Backlog reference** (e.g., `"Voice shopping list"`) — find the matching `specs/backlog/{slug}.md` file (`**Stage:** inbox`) and use its body as the problem statement
 2. **Topic** (e.g., `"meal planning"`) — use the topic as the problem statement
 3. **No arguments** — ask the user what they want to challenge
 

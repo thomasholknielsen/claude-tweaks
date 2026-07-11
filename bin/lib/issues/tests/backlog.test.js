@@ -153,6 +153,11 @@ const PARKED_WITH_WATCHED_PATHS = {
   url: 'https://github.com/acme/repo/issues/103',
 };
 
+const PARKED_ISSUE_WITH_DUE_DATE = {
+  ...PARKED_ISSUE,
+  milestone: { title: 'Before launch', dueOn: '2026-08-01T00:00:00Z' },
+};
+
 test('classifyBacklogIssue: open backlog issue with no parked label is stage "inbox"', () => {
   assert.strictEqual(classifyBacklogIssue(OPEN_INBOX_ISSUE).stage, 'inbox');
 });
@@ -184,6 +189,18 @@ test('classifyBacklogIssue surfaces the attached milestone title', () => {
 
 test('classifyBacklogIssue milestone is null when none is attached', () => {
   assert.strictEqual(classifyBacklogIssue(OPEN_INBOX_ISSUE).milestone, null);
+});
+
+test('classifyBacklogIssue surfaces the attached milestone due date', () => {
+  assert.strictEqual(classifyBacklogIssue(PARKED_ISSUE_WITH_DUE_DATE).milestoneDueOn, '2026-08-01T00:00:00Z');
+});
+
+test('classifyBacklogIssue milestoneDueOn is null when the milestone has no due date', () => {
+  assert.strictEqual(classifyBacklogIssue(PARKED_ISSUE).milestoneDueOn, null);
+});
+
+test('classifyBacklogIssue milestoneDueOn is null when no milestone is attached', () => {
+  assert.strictEqual(classifyBacklogIssue(OPEN_INBOX_ISSUE).milestoneDueOn, null);
 });
 
 test('classifyBacklogIssue extracts watchedPaths from the body via extractWatchedPaths', () => {

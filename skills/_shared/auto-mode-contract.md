@@ -86,7 +86,7 @@ Where `ISO-timestamp` is `YYYY-MM-DDTHHMMSS` (no colons; portable across filesys
 2. Else picking the most recent directory in `.claude-tweaks/pipelines/` whose `spec-slug` matches the current spec or topic
 3. Else falling back to `interactive` mode (no policy available — no auto-decisions allowed)
 
-**Cleanup:** the Wrap-Up Review Console moves completed runs to `.claude-tweaks/pipelines/archive/{run-id}/` on successful pipeline closure (preserving the audit trail). `/tidy` may compact archive entries older than 30 days into a single summary.
+**Cleanup:** the Wrap-Up Review Console moves completed runs to `.claude-tweaks/pipelines/archive/{run-id}/` on successful pipeline closure (preserving the audit trail). `/tidy`'s Standalone-auto path additionally compacts standalone run directories older than 30 days into a monthly rollup — see `_shared/auto-decision-log.md`'s Archival section for the exact behavior.
 
 **Gitignore:** `.claude-tweaks/` is runtime state — `/init` adds it to `.gitignore`. Pipeline runs are not committed history; the auto-decision log is for the user, not the repo.
 
@@ -126,10 +126,10 @@ The hook surface (`bin/hooks.js`, see CLAUDE.md Conventions → Hooks) mechanize
 
 ### Never-reversible (auto-FORBIDDEN, regardless of mode)
 
-- Deleting INBOX entries
+- Deleting `specs/backlog/` entries
 - Closing ledger items as `fixed` / `accepted` / `dropped` (Phase 2 of the resolve gate)
 - `git push` to shared branches
-- Writing to `specs/DEFERRED.md` or `specs/INBOX.md`
+- Writing to `specs/backlog/`
 - Network calls beyond reads (no API writes, no message sends)
 - Modifying CLAUDE.md project-policy values
 - Deleting specs
@@ -171,8 +171,8 @@ The hook surface (`bin/hooks.js`, see CLAUDE.md Conventions → Hooks) mechanize
 | Item | Why mandatory |
 |---|---|
 | Ledger resolve gate Phase 2 (every open item, per-item) | Items represent unfinished work — silently dropping them is the bug `auto` is *not* allowed to introduce |
-| `specs/INBOX.md` writes | Each entry needs explicit user approval — INBOX is the user's queue, not the model's |
-| `specs/DEFERRED.md` writes | Same — deferral is a user decision |
+| `specs/backlog/` writes (inbox stage) | Each entry needs explicit user approval — the backlog is the user's queue, not the model's |
+| `specs/backlog/` writes (parked stage) | Same — deferral is a user decision |
 | `/challenge`'s Listen + Reflect-back steps | The user-engagement entry points where the problem statement is supplied and confirmed. After Reflect-back, lens proposers + the aggregator run autonomously per Mode 4 (Layered MoA) — those are not user-prompt cycles. |
 | `/init` Phase 4 (skill manifest), Phase 8 (Impeccable), Phase 9 (final confirmation), scope-selection gate | Project-shape governance decisions are user-only |
 | HARD-GATE / BLOCKED / STOP conditions | `/review` Step 1 spec compliance, `/review` Step 1.5 test gate, `/flow` Step 2.6 hard fails, `/flow` Step 2.7 design-doc rejection, `/build` Design Step 3 plan validation, `/build` Common Step 1.5 plan audit hard-fails. These prevent degraded output. |
@@ -245,7 +245,7 @@ These are the failure modes this contract prevents. If you (the model) catch you
 | Inserting a "Pipeline reality check" or "I want to surface a concern before we proceed" mid-pipeline | The user said `auto`. Concerns belong in the ledger or final summary, not as blocking prompts. |
 | Offering "three paths forward" when the skill prescribes one | If the skill defines a default, take it. If not, that's a skill bug — fix the skill. |
 | Treating `auto` as authorization to bulk-resolve the ledger | The resolve gate Phase 2 is non-negotiable. Per-item input always. |
-| Writing to INBOX/DEFERRED autonomously because a finding "obviously belongs there" | Each entry needs user approval. "Obvious" is the model's judgment, not the user's. |
+| Writing to `specs/backlog/` autonomously because a finding "obviously belongs there" | Each entry needs user approval. "Obvious" is the model's judgment, not the user's. |
 | Adding more model-side reality-checks "to be safe" | The contract is the safety. Model-added prompts under `auto` are contract violations. |
 | Stopping the pipeline because of context-window concerns the user didn't raise | Pre-emptive stops violate `auto`. Loud failure at gates only. |
 | Re-asking a question the user already answered with `auto` or in the Config Manifesto | If the user answered upstream, don't ask again per skill. |

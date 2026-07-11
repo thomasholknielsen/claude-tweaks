@@ -7,8 +7,8 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | Command | What it does | Takes |
 |---------|-------------|-------|
 | `/claude-tweaks:init` | Bootstrap structure, generate CLAUDE.md, skills, rules | path, URL, update |
-| `/claude-tweaks:capture` | Brain-dump idea into INBOX | idea text |
-| `/claude-tweaks:challenge` | Debias assumptions before brainstorming | `quick`, INBOX item, topic |
+| `/claude-tweaks:capture` | Brain-dump idea into the backlog | idea text |
+| `/claude-tweaks:challenge` | Debias assumptions before brainstorming | `quick`, backlog item, topic |
 | `/superpowers:brainstorming` | Brainstorm solutions (Superpowers plugin) | topic |
 | `/claude-tweaks:specify` | Decompose design doc into agent-sized specs | design doc, topic |
 | `/claude-tweaks:build` | Implement a spec or design doc | spec #, doc path + `auto`, `batched`, `worktree` |
@@ -118,12 +118,12 @@ or standalone:
 ## Artifact Lifecycle
 
 ```
-INBOX → Brief → Design Doc → Spec → Code → Stories → TEST_PASSED → Review → Polish (frontend) → Done
+Backlog entry (inbox) → Brief → Design Doc → Spec → Code → Stories → TEST_PASSED → Review → Polish (frontend) → Done
 ```
 
 | Skill | Creates | Deletes |
 |-------|---------|---------|
-| `/claude-tweaks:capture` | INBOX item | — |
+| `/claude-tweaks:capture` | Backlog entry (inbox) | — |
 | `/claude-tweaks:challenge` | Brief | — |
 | `/superpowers:brainstorming` | Design Doc | — |
 | `/claude-tweaks:specify` | Spec | Brief, Design Doc |
@@ -159,7 +159,7 @@ Consumed artifacts are deleted — specs and code are the durable outputs.
 
 **Doctrine preserved (still per-item user input, even in auto):**
 - Ledger resolve gate Phase 2 (open items)
-- `specs/INBOX.md` / `specs/DEFERRED.md` writes
+- `specs/backlog/` writes (inbox or parked stage)
 - `/challenge` lenses
 - `/init` Phase 4 / 8 / 9 governance gates
 - All HARD-GATE / BLOCKED / STOP conditions

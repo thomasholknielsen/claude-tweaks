@@ -178,8 +178,8 @@ This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step
 | `/claude-tweaks:deepen` | The structural-debt lens (premature abstractions, wrong boundaries) seeds /deepen candidates — when /reflect surfaces module-level structural debt, it recommends `/claude-tweaks:deepen` for a dedicated depth pass rather than resolving it inline |
 | `/claude-tweaks:test` | /reflect may trigger re-verification after "Change now" fixes |
 | `/claude-tweaks:ledger` | /reflect writes findings to the ledger using the phase provided by the parent (or `reflect` when standalone) |
-| `/claude-tweaks:capture` | /reflect may create INBOX items for complex insights needing brainstorming |
+| `/claude-tweaks:capture` | /reflect may create a `specs/backlog/{slug}.md` entry with `**Stage:** inbox` for complex insights needing brainstorming |
 | `/claude-tweaks:help` | /help references /reflect in the workflow diagram and reference card. |
-| `specs/DEFERRED.md` | /reflect routes deferred improvements here (with origin, files, trigger) |
+| `specs/backlog/*.md` (`**Stage:** parked`) | /reflect routes deferred improvements here (with origin, files, trigger) |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
 | `_shared/auto-decision-log.md` | Canonical schema and path for the auto-decision log written in Step 3 (`{run-dir}/decisions.md`). |

@@ -49,7 +49,7 @@ The table renders as markdown, as above. Immediately below it, call `AskUserQues
 
 **Recommendation rules:**
 - **Change now** — the strong default. If the improvement is clear, make the change. Most hindsight findings are small enough to fix in a few minutes.
-- **Defer** (DEFERRED.md) — the improvement is understood but it's bigger and not relevant to the current work. Include origin, files, trigger.
+- **Defer** (`specs/backlog/`, `**Stage:** parked`) — the improvement is understood but it's bigger and not relevant to the current work. Include a `**Deferred:**` date stamped now, origin, files, trigger.
 - **Capture to INBOX** — the finding is complex or uncertain and needs brainstorming/exploration before it can be acted on.
 - **Accept as-is** — only when the current approach is genuinely better, or the finding is a false positive. Not a valid option for genuine improvements.
 

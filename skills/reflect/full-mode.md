@@ -68,7 +68,7 @@ The table renders as markdown, as above. Immediately below it, call `AskUserQues
 
 **Recommendation rules:**
 - **Implement now** — the strong default. If an insight leads to a concrete change (update CLAUDE.md, update a skill, add a rule, update memory), make the change.
-- **Defer** (DEFERRED.md) — the insight leads to a known improvement but it's bigger and not relevant to the current work. Include origin, context, trigger.
+- **Defer** (`specs/backlog/`, `**Stage:** parked`) — the insight leads to a known improvement but it's bigger and not relevant to the current work. Include a `**Deferred:**` date stamped now, origin, context, trigger.
 - **Capture to INBOX** — the insight is complex or uncertain and needs brainstorming/exploration before it can be acted on.
 - **Don't capture** — only for insights that are genuinely not actionable (one-off observations, context-specific facts, things already documented elsewhere). Must state why.
 

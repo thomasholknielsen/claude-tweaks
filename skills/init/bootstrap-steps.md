@@ -32,7 +32,7 @@ Note: `code-simplifier` is a built-in subagent type (`subagent_type="code-simpli
 Check and create the required directories (only create what's missing):
 
 ```
-specs/                      → Spec files and INBOX
+specs/                      → Spec files and backlog entries (specs/backlog/)
 docs/                       → Documentation root (REGISTRY.md created in Phase 8.5)
 docs/superpowers/specs/     → Design docs (from /superpowers:brainstorming)
 docs/superpowers/plans/     → Execution plans (from /superpowers:writing-plans)
@@ -45,29 +45,9 @@ docs/journeys/              → User and developer journey files (created by /jo
 
 ### Step 3 — Starter files (detailed content)
 
-Create these files **only if missing** — never overwrite existing content. Each file is idempotent and safe to skip on Update Mode runs.
+Create these **only if missing** — never overwrite existing content. Idempotent and safe to skip on Update Mode runs.
 
-**`specs/INBOX.md`:**
-
-```markdown
-# INBOX
-
-Ideas and features captured for future specification. Use `/claude-tweaks:capture` to add items, `/claude-tweaks:tidy` to review.
-
-<!-- Add new entries at the bottom using /claude-tweaks:capture -->
-```
-
-**`specs/DEFERRED.md`:**
-
-```markdown
-# Deferred Work
-
-Work deferred from builds and reviews with context for when to pick it up. Items here came from active implementation — they have origin specs, file references, and timing triggers.
-
-Unlike INBOX (raw ideas), deferred items have rich context and specific triggers for when they should be revisited.
-
-<!-- Items are added by /claude-tweaks:build, /claude-tweaks:review, and /claude-tweaks:wrap-up -->
-```
+**`specs/backlog/`:** create the empty directory (`mkdir -p specs/backlog`) if it doesn't already exist. No starter file inside it — entries are one file per idea or deferral, written by `/claude-tweaks:capture` and `/claude-tweaks:tidy`'s Defer action; an empty directory needs no header content the way a shared file did.
 
 **`specs/INDEX.md`:**
 
@@ -689,11 +669,10 @@ the next `/init` run.
 
 ### Step 15 — Backlog Backend (detailed procedure)
 
-`/claude-tweaks:capture` and `/claude-tweaks:tidy` back the INBOX/DEFERRED backlog with
-either GitHub issues or the classic local markdown files
-(`specs/INBOX.md`/`specs/DEFERRED.md`). Decide the backend once here so every future
-capture/defer/tidy run is consistent — no split-brain between issue-backed and
-file-backed entries for the same repo.
+`/claude-tweaks:capture` and `/claude-tweaks:tidy` back the backlog with either GitHub
+issues or one local markdown file per entry (`specs/backlog/{slug}.md`). Decide the
+backend once here so every future capture/defer/tidy run is consistent — no split-brain
+between issue-backed and file-backed entries for the same repo.
 
 **Gate:** run the same GHE-safe two-tier check Step 9 uses.
 
@@ -720,7 +699,7 @@ How should claude-tweaks store captured ideas and deferred work?
 1. GitHub issues (Recommended when a GitHub remote is available) — filterable,
    visible outside the repo, works with /claude-tweaks:triage for authorization
    and headless dispatch
-2. Local markdown files (specs/INBOX.md, specs/DEFERRED.md) — no GitHub dependency
+2. Local markdown files (specs/backlog/*.md, one file per entry) — no GitHub dependency
 ```
 
 **Write the flag to CLAUDE.md.** Add (or update) a `## Backlog integration` section:
@@ -748,50 +727,51 @@ the GitHub-backed path only activates when explicitly enabled by `/init`, matchi
 **Existing-content migration.** Whenever this step newly sets `backlog-backend:
 github-issues` (a fresh init resolving to `github-issues` — whether via the silent
 gate-succeeds default or an explicit choice in the gate-fails prompt — a first run on a
-pre-existing project, or the upgrade path below) and `specs/INBOX.md` and/or
-`specs/DEFERRED.md` contain entries beyond
-their header line, offer a one-time batch migration before finishing this step:
+pre-existing project, or the upgrade path below) and `specs/backlog/` contains one or
+more entry files, offer a one-time batch migration before finishing this step:
 
 ```
-Found {X} INBOX item(s) and {Y} deferred item(s) in local files. Migrate them to GitHub
-issues now?
+Found {X} inbox-stage and {Y} parked-stage entries in specs/backlog/. Migrate them to
+GitHub issues now?
 
-1. Migrate all (Recommended) — creates {X+Y} issues, then clears the local files
+1. Migrate all (Recommended) — creates {X+Y} issues, then deletes the migrated files
 2. Skip — leave the files as-is; /claude-tweaks:tidy will flag every entry as
    unsynced on its next run and offer the same migration per-item
 ```
 
-On "Migrate all": for each `specs/INBOX.md` entry, build the payload via `inboxIssuePayload`
-(category parsed from the entry's `**Category:**` field) and `gh issue create` with
-`backlog` + `backlog:category-<value>` labels. For each `specs/DEFERRED.md` entry, judge
-trigger type the same way `/claude-tweaks:tidy`'s Sync to GitHub action would judge it
-live (reading the entry's existing `**Trigger:**` prose, not deciding one fresh — that's
-what makes this a Sync to GitHub case, not a Defer case): names
-specific files → pass as `watchedPaths` to `parkedIssuePayload`; names a moment in time →
-build via `parkedIssuePayload` without `watchedPaths`, then attach/create a GitHub
-Milestone (`gh api repos/{owner}/{repo}/milestones --jq '.[].title'` to check existence,
+On "Migrate all": for each entry with `**Stage:** inbox`, build the payload via
+`inboxIssuePayload` (category from the entry's `**Category:**` field, which every entry
+carries regardless of stage) and `gh issue create` with `backlog` +
+`backlog:category-<value>` labels. For each entry with `**Stage:** parked`, judge trigger
+type the same way `/claude-tweaks:tidy`'s Sync to GitHub action would judge it live
+(reading the entry's existing `**Trigger:**` prose, not deciding one fresh — that's what
+makes this a Sync to GitHub case, not a Defer case): names specific files → pass as
+`watchedPaths` to `parkedIssuePayload`; names a moment in time → build via
+`parkedIssuePayload` without `watchedPaths`, then attach/create a GitHub Milestone
+(`gh api repos/{owner}/{repo}/milestones --jq '.[].title'` to check existence,
 `gh api repos/{owner}/{repo}/milestones -f title="{name}"` to create,
 `gh issue edit {n} --milestone "{name}"` to attach); otherwise build via
-`parkedIssuePayload` with the prose `**Trigger:**` carried over unchanged. Unlike
-`specs/INBOX.md`, `specs/DEFERRED.md` entries carry no structured category field — judge
-category live from the entry's content, using the same four-value taxonomy INBOX entries
-use. Every `parkedIssuePayload`-built issue gets `backlog` + `parked` + category labels.
-Bootstrap the `backlog`, `parked`, and each used `backlog:category-<value>` label with a real
-description first (check-then-create, same pattern as Step 9's `.github/ISSUE_TEMPLATE`
-bootstrap). Present the batch as a table (entry → resulting issue number) before clearing
-the source files — this is the same batch-table + apply-all/override interaction
+`parkedIssuePayload` with the prose `**Trigger:**` carried over unchanged. Every entry —
+inbox or parked — already carries a `**Category:**` field set at capture time, so there is
+no live category judgment needed here (unlike the old two-file design, where
+`DEFERRED.md` entries had no structured category field). Every `parkedIssuePayload`-built
+issue gets `backlog` + `parked` + category labels. Bootstrap the `backlog`, `parked`, and
+each used `backlog:category-<value>` label with a real description first
+(check-then-create, same pattern as Step 9's `.github/ISSUE_TEMPLATE` bootstrap). Present
+the batch as a table (entry file → resulting issue number) before deleting the migrated
+files — this is the same batch-table + apply-all/override interaction
 `/claude-tweaks:tidy` Step 6 already uses, not a new UI pattern.
 
-Clear `specs/INBOX.md`/`specs/DEFERRED.md` back to their bare header (`# Inbox` /
-`# Deferred Work`, no entries) only after every migrated entry's `gh issue create` has
-confirmed success — migration is all-or-nothing per file, matching the Action Vocabulary's
-atomicity rule (`/claude-tweaks:tidy`'s "Sync to GitHub" action, which this migration is a
-batch form of). If any single `gh issue create` fails mid-batch, leave the failed entries
-(and only those) in the local file and report which ones — they'll be flagged unsynced by
-`/claude-tweaks:tidy` and can be retried per-item via its Sync to GitHub action.
+Delete each migrated entry's `specs/backlog/{slug}.md` file only after its own
+`gh issue create` has confirmed success — migration is atomic per entry, matching the
+Action Vocabulary's atomicity rule (`/claude-tweaks:tidy`'s "Sync to GitHub" action, which
+this migration is a batch form of). If any single `gh issue create` fails mid-batch, leave
+the failed entries' files in place (and only those) and report which ones — they'll be
+flagged unsynced by `/claude-tweaks:tidy` and can be retried per-item via its Sync to
+GitHub action.
 
-On "Skip": leave the files as-is. `/claude-tweaks:tidy`'s scan already treats any non-empty
-local-file content as unsynced once `backlog-backend: github-issues`, offering the
+On "Skip": leave the files as-is. `/claude-tweaks:tidy`'s scan already treats any entry
+found in `specs/backlog/` as unsynced once `backlog-backend: github-issues`, offering the
 identical Sync to GitHub action per-item on its next run — a declined migration behaves
 exactly like a transient-failure fallback write from the scan's point of view.
 

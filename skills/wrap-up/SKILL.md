@@ -126,7 +126,7 @@ Check if the work introduced project-wide conventions:
 4. Stack changes (new dependencies actually added)
 5. Path-scoped rules for `.claude/rules/`
 
-Before adding to CLAUDE.md, check the size budget — keep it concise. Move detailed content to skills or rules. Route improvement ideas to INBOX, not CLAUDE.md.
+Before adding to CLAUDE.md, check the size budget — keep it concise. Move detailed content to skills or rules. Route improvement ideas to the backlog (`specs/backlog/`, `**Stage:** inbox`), not CLAUDE.md.
 
 → Collect each needed update as: `[claude.md] {section} — {what to add/change}` or `[rule] {path scope} — {convention}`
 
@@ -178,7 +178,7 @@ Run the resolve gate from `/claude-tweaks:ledger` (see ledger skill for the thre
 - Phase 1 must run before any user-facing output. The agent fixes everything that qualifies for fix-now, commits, then presents only the genuine residue.
 - Phase 2 always requires explicit per-item user input for `fix` / `defer` / `accept` decisions. Status `acknowledged` (informational, e.g., ops items the user has read) may be applied in bulk via a single explicit "I've read every item" choice. Never bulk-resolve `fix` / `defer` / `accept`. Never assume "obvious" defers. Never offer a "Fix all (Recommended)" or "Defer all" shortcut — those bias the user toward whichever bulk action is easier to type.
 - `auto` mode does NOT silence this gate.
-- Both `specs/DEFERRED.md` and `specs/INBOX.md` are valid routing destinations, but every individual entry requires an explicit per-item user choice — neither file is ever written autonomously.
+- Both `**Stage:** parked` and `**Stage:** inbox` are valid routing destinations within `specs/backlog/`, but every individual entry requires an explicit per-item user choice — no entry is ever written autonomously.
 
 ### Bulk-resolve fast path (terminal-status only)
 
@@ -396,8 +396,8 @@ When `$PIPELINE_RUN_DIR` is unset, `/wrap-up` runs standalone — render Next Ac
 | `/claude-tweaks:test` | Indirect dependency — /test passes before /review, which passes before /wrap-up. Open QA ledger entries (`test/qa` phase) carried forward from /test surface in Step 8.5's resolve gate as items requiring per-item user decision. |
 | `/claude-tweaks:review` (visual modes) | Visual complement — findings from visual review may feed into wrap-up's reflection lenses |
 | `/claude-tweaks:reflect` | Invoked BY /wrap-up (Step 3) in full mode. Handles all four reflection lenses, tradeoff review, insight routing, and ledger writes with phase `wrap-up`. |
-| `/claude-tweaks:capture` | /claude-tweaks:wrap-up may create INBOX items for genuinely new ideas discovered during implementation |
-| `specs/DEFERRED.md` | /claude-tweaks:wrap-up routes leftover work here (with origin spec, files, trigger) |
+| `/claude-tweaks:capture` | /claude-tweaks:wrap-up may create a `specs/backlog/{slug}.md` entry with `**Stage:** inbox` for genuinely new ideas discovered during implementation |
+| `specs/backlog/*.md` (`**Stage:** parked`) | /claude-tweaks:wrap-up routes leftover work here (with origin spec, files, trigger) |
 | `/claude-tweaks:help` | /claude-tweaks:wrap-up suggests running /claude-tweaks:help to see what's unblocked |
 | `/claude-tweaks:tidy` | /claude-tweaks:wrap-up cleans artifacts for a single spec — /claude-tweaks:tidy does periodic bulk cleanup |
 | `/claude-tweaks:build` | Runs BEFORE /claude-tweaks:review — produces the code and journeys that wrap-up reflects on. `build/skill` ledger entries from Step 4.5 feed into Step 7 skill analysis (alongside `[skill: …]`-tagged entries from any other phase). |

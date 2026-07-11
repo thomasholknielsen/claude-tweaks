@@ -21,7 +21,7 @@ Quick capture for ideas that aren't ready for full specification. Part of the wo
 - "We should probably..." or "Don't forget to..." moments
 - Anything that would otherwise be lost or forgotten
 
-> **INBOX vs DEFERRED:** Use `/claude-tweaks:capture` for new ideas and half-formed features. Work deferred from an active build/review goes through `/claude-tweaks:tidy`'s Defer action instead — `specs/DEFERRED.md` under `backlog-backend: local-files`, or the `parked` label under `backlog-backend: github-issues`. Either way it carries origin context, file references, and timing triggers that INBOX entries don't have.
+> **Inbox vs parked:** Use `/claude-tweaks:capture` for new ideas and half-formed features — these land as `**Stage:** inbox`. Work deferred from an active build/review goes through `/claude-tweaks:tidy`'s Defer action instead — the same `specs/backlog/{slug}.md` entry flips to `**Stage:** parked` under `backlog-backend: local-files`, or the `parked` label is added under `backlog-backend: github-issues`. Either way it carries origin context, file references, and timing triggers that a fresh inbox-stage entry doesn't have.
 
 ## Input
 
@@ -39,9 +39,9 @@ When `$ARGUMENTS` is empty, prompt the user for the idea body.
 
 | Step | What |
 |------|------|
-| 1 | Add the entry — GitHub issue or `specs/INBOX.md` append, per Backend Selection below. |
+| 1 | Add the entry — GitHub issue or a new `specs/backlog/{slug}.md` file (`**Stage:** inbox`), per Backend Selection below. |
 | 2 | Route per `--route` arg, or via the Routing Prompt below. |
-| 3 | Commit (when this is a standalone invocation; component-skill callers commit themselves). Issue-backend captures have nothing new to commit unless the fallback path wrote to `specs/INBOX.md`, or the route was `merge:N` (which edits the target spec locally regardless of backend). |
+| 3 | Commit (when this is a standalone invocation; component-skill callers commit themselves). Issue-backend captures have nothing new to commit unless the fallback path wrote a `specs/backlog/{slug}.md` file, or the route was `merge:N` (which edits the target spec locally regardless of backend). |
 
 ## Backend Selection
 
@@ -74,11 +74,11 @@ Read the `backlog-backend` field from the project's CLAUDE.md (under a `## Backl
      --label "backlog:category-$CATEGORY"
    ```
 
-3. **On failure** (GitHub unreachable, `gh` broken, transient API error): fall back to the local-files path below and tell the user issue creation failed and the entry landed in `specs/INBOX.md` instead. No special marker is needed — `/claude-tweaks:tidy`'s scan already treats any non-empty `specs/INBOX.md` content as unsynced once `backlog-backend: github-issues`, and offers a Sync to GitHub action to resolve it later.
+3. **On failure** (GitHub unreachable, `gh` broken, transient API error): fall back to the local-files path below and tell the user issue creation failed and the entry landed in a new `specs/backlog/{slug}.md` file (`**Stage:** inbox`) instead. No special marker is needed — `/claude-tweaks:tidy`'s scan already treats any entry found in `specs/backlog/` as unsynced once `backlog-backend: github-issues`, and offers a Sync to GitHub action to resolve it later.
 
 **When `backlog-backend: local-files` (or the flag is missing):**
 
-Append the entry to `specs/INBOX.md` per the Entry Format below — unchanged from today.
+Create a new `specs/backlog/{slug}.md` file per the Entry Format below. Derive `{slug}` from the title: lowercase, replace runs of non-alphanumeric characters with a single `-`, trim leading/trailing `-`, truncate to 60 characters; on a collision with an existing file, append `-2`, `-3`, etc.
 
 ## Entry Format
 
@@ -94,11 +94,12 @@ Scope: Rough sense of what it might involve (can be vague)
 
 Category is a label (`backlog:category-{product|technical|legal|infrastructure}`), not body prose.
 
-**`backlog-backend: local-files`** — same fields, appended to `specs/INBOX.md`:
+**`backlog-backend: local-files`** — same fields, written to a new `specs/backlog/{slug}.md`:
 
 ```markdown
 ## [Short Title]
 
+**Stage:** inbox
 **Added:** YYYY-MM-DD | **Category:** {product | technical | legal | infrastructure} | **Related:** (optional spec numbers or "none")
 
 Context: 1-2 sentences on why this came up or what triggered it
@@ -115,8 +116,8 @@ If it takes more than 5 lines to describe, it's past the inbox stage — run `/s
 **`github-issues`:** run Backend Selection above; don't overthink — capture the essence.
 
 **`local-files`:**
-1. Open `specs/INBOX.md`
-2. Append new entry at the bottom
+1. Derive the slug from the title (see Entry Format above) and create `specs/backlog/{slug}.md`
+2. Write the entry per the Entry Format above, with `**Stage:** inbox`
 3. Don't overthink — capture the essence
 
 ## Immediate Routing
@@ -142,7 +143,7 @@ No further prompt. Proceed directly to the routed skill or commit.
 
 ### Routing prompt (when `--route` not provided)
 
-In auto mode, apply the silences-table row for /capture from `_shared/auto-mode-contract.md`: if `--route` was passed, honor it; otherwise default to `inbox` (the most conservative route — the item stays parked for periodic review at `/tidy`, no INBOX/DEFERRED write that wouldn't have happened anyway). Log:
+In auto mode, apply the silences-table row for /capture from `_shared/auto-mode-contract.md`: if `--route` was passed, honor it; otherwise default to `inbox` (the most conservative route — the item stays parked for periodic review at `/tidy`, no backlog write that wouldn't have happened anyway). Log:
 ```
 AUTO {time} — Routing: defaulted to inbox (no --route provided). Reversibility: high (entry stays in INBOX; user can re-route via /tidy at any time).
 ```
@@ -164,8 +165,8 @@ The call has 4 options only when Option 4 is visible; otherwise build it with th
 | Route | `local-files` | `github-issues` |
 |---|---|---|
 | `challenge` / `brainstorm` | Opens the child skill with the INBOX entry text as input | Opens the child skill with the issue title + body as input (reference `#{issue-number}`) |
-| `inbox` (keep) | No further action — entry stays in `specs/INBOX.md` | No further action — the issue is already open, `backlog`-labeled, with no `parked` label. That **is** the inbox state; there is nothing to add. |
-| `merge:N` | Integrate into spec N's Deliverables/AC/Technical Approach, remove entry from `specs/INBOX.md` | Integrate into spec N the same way, then comment naming the target spec (`Merged into spec {N}.`), then `gh issue close {n} --reason "not planned"` — mirrors `/claude-tweaks:tidy`'s Merge action |
+| `inbox` (keep) | No further action — entry stays as-is in `specs/backlog/{slug}.md` (`**Stage:** inbox`) | No further action — the issue is already open, `backlog`-labeled, with no `parked` label. That **is** the inbox state; there is nothing to add. |
+| `merge:N` | Integrate into spec N's Deliverables/AC/Technical Approach, delete `specs/backlog/{slug}.md` | Integrate into spec N the same way, then comment naming the target spec (`Merged into spec {N}.`), then `gh issue close {n} --reason "not planned"` — mirrors `/claude-tweaks:tidy`'s Merge action |
 
 This ensures every captured idea has an explicit next step — either immediate action or a conscious decision to park it.
 
@@ -196,7 +197,7 @@ When invoked by a parent skill, omit this block — the parent owns the handoff.
 
 ## Component-Skill Contract
 
-This skill is a **component skill** — directly invoked by `/claude-tweaks:build` (Common Step 4, design-mode follow-up capture). `/claude-tweaks:visual-review`, `/claude-tweaks:reflect`, and `/claude-tweaks:wrap-up` write to `specs/INBOX.md` directly without going through this skill, so they are NOT capture parents — they only recommend `/capture` in Next Actions for the user's next session.
+This skill is a **component skill** — directly invoked by `/claude-tweaks:build` (Common Step 4, design-mode follow-up capture). `/claude-tweaks:visual-review`, `/claude-tweaks:reflect`, and `/claude-tweaks:wrap-up` write a new `specs/backlog/{slug}.md` (`**Stage:** inbox`) directly without going through this skill, so they are NOT capture parents — they only recommend `/capture` in Next Actions for the user's next session.
 
 Capture is also a parent of `/challenge` when `--route=challenge` is set — when invoking `/challenge`, capture sets `$PIPELINE_RUN_DIR` to a standalone run dir (per `_shared/pipeline-run-dir.md` step 3) if not already set, so the child's auto-mode and audit-log behavior resolves correctly.
 
@@ -223,13 +224,13 @@ Parent invocation of `/capture` is signaled by `$PIPELINE_RUN_DIR` being set in 
 | `/superpowers:brainstorming` | Explores promoted INBOX items — produces design docs |
 | `/claude-tweaks:specify` | Converts `/superpowers:brainstorming` output into specs |
 | `/claude-tweaks:tidy` | Reviews INBOX for stale items — promotes, merges, or deletes |
-| `/claude-tweaks:review` | May create INBOX items for new ideas discovered during review |
-| `/claude-tweaks:wrap-up` | May create INBOX items for genuinely new ideas; leftover work goes to DEFERRED.md |
+| `/claude-tweaks:review` | May create a `specs/backlog/{slug}.md` entry (`**Stage:** inbox`) for new ideas discovered during review |
+| `/claude-tweaks:wrap-up` | May create a `specs/backlog/{slug}.md` entry (`**Stage:** inbox`) for genuinely new ideas; leftover work goes to a `**Stage:** parked` entry in the same directory |
 | `/claude-tweaks:build` | Calls /capture during Common Step 4 (design mode) to file blocked items and follow-up ideas before they slip |
 | `/claude-tweaks:init` | After bootstrap, /init suggests /capture as the entry point for parking ideas that surface during setup but aren't ready to specify |
-| `/claude-tweaks:reflect` | Surfaces tangential ideas at the Wrap-Up Review Console (writes direct to INBOX, not via /capture) |
-| `/claude-tweaks:visual-review` | UI ideas surfaced during visual review (creative improvements, follow-ups) land in INBOX via /capture instead of inflating the current spec |
-| `specs/DEFERRED.md` | Structured deferral for build/review work — carries origin, files, and triggers that INBOX doesn't |
+| `/claude-tweaks:reflect` | Surfaces tangential ideas at the Wrap-Up Review Console (writes a new `specs/backlog/{slug}.md` entry directly, not via /capture) |
+| `/claude-tweaks:visual-review` | UI ideas surfaced during visual review (creative improvements, follow-ups) land in `specs/backlog/` (`**Stage:** inbox`) via /capture instead of inflating the current spec |
+| `specs/backlog/*.md` (`**Stage:** parked`) | Structured deferral for build/review work — carries origin, files, and triggers that a fresh inbox-stage entry doesn't |
 | `/claude-tweaks:research` | Research findings can be captured as INBOX items; invoke `/research` when an INBOX idea needs evidence before specifying. |
 | `/claude-tweaks:code-health` | `/code-health` routes fuzzy or below-threshold findings to INBOX via `/capture` instead of filing a GitHub issue, so they get human triage before promotion. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |

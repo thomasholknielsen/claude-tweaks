@@ -6,11 +6,13 @@ Step numbering matches `SKILL.md`. The order below mirrors execution order.
 
 ---
 
-## Step 1: Audit the INBOX
+## Step 1: Audit the Backlog
 
 First, read the `backlog-backend` field from the project's CLAUDE.md (`## Backlog integration` section). A missing flag = `local-files`.
 
-**`backlog-backend: local-files` (or missing):** unchanged — read `specs/INBOX.md` and classify each entry:
+**`backlog-backend: local-files` (or missing):** read every `specs/backlog/*.md` file once, and split entries by their `**Stage:**` field client-side — the same "one query, split by stage" pattern Step 4.8's `repo-wide` scan already uses for GitHub backlog issues.
+
+For entries with `**Stage:** inbox`, classify by age (`**Added:**` date):
 
 | Age | Classification | Default Recommendation |
 |-----|---------------|----------------------|
@@ -20,30 +22,23 @@ First, read the `backlog-backend` field from the project's CLAUDE.md (`## Backlo
 
 → Collect each as: `[inbox] {title} — {age} — {recommendation}`
 
-**`backlog-backend: github-issues`:** the GitHub-side inbox scan runs inside Step 4.8's `repo-wide` backlog-issues query instead (one query shared with Step 1.5, split client-side by stage) — this step does not re-query GitHub. Instead, read `specs/INBOX.md` and flag any non-empty entry found there as unsynced — under this backend, a local-file entry existing at all means an issue-creation write failed or a migration was declined, per the Resilient local fallback design:
-
-→ Collect each as: `[unsynced] {title} — local-only, not yet mirrored to GitHub — Sync to GitHub`
-
-An empty `specs/INBOX.md` (only the `# Inbox` header, no entries) produces no findings.
-
-## Step 1.5: Audit Deferred Work
-
-**`backlog-backend: local-files` (or missing):** unchanged — read `specs/DEFERRED.md` and classify each entry:
+For entries with `**Stage:** parked`, judge the `**Trigger:**` field live — the same judgment `/claude-tweaks:tidy`'s "Sync to GitHub" action already applies on the GitHub side: parse as a date first (compare to today's date); if that fails, check whether it names file paths (checked against `git log`, same as "Sync to GitHub"'s `watchedPaths` handling); otherwise treat as free prose. Classify:
 
 | Trigger Status | Default Recommendation |
 |---------------|----------------------|
-| Trigger met (referenced spec complete) | Promote to spec or merge |
-| Trigger not met, < 4 weeks | Keep |
+| Date-shaped trigger, date has passed | Promote to spec or merge |
+| Path-shaped trigger, a named path has changed since `**Deferred:**` (per `git log`) | Promote to spec or merge |
+| Trigger not met (future date, or named paths unchanged), < 4 weeks since `**Deferred:**` | Keep |
 | Trigger not met, > 4 weeks | Re-evaluate or delete |
-| No clear trigger | Move to INBOX or delete |
+| Prose trigger, no clear date/path condition | Move to inbox stage or delete |
 
 → Collect each as: `[deferred] {title} — from spec {N} — {recommendation}`
 
-**`backlog-backend: github-issues`:** the GitHub-side parked scan runs inside Step 4.8, same as Step 1's equivalent note. Read `specs/DEFERRED.md` and flag any non-empty entry as unsynced, same rule as Step 1:
+**`backlog-backend: github-issues`:** the GitHub-side inbox and parked scans run inside Step 4.8's `repo-wide` backlog-issues query instead (one query shared across both stages, split client-side) — this step does not re-query GitHub. Instead, read every `specs/backlog/*.md` file and flag any found as unsynced — under this backend, a local backlog entry existing at all means an issue-creation write failed or a migration was declined, per the Resilient local fallback design:
 
 → Collect each as: `[unsynced] {title} — local-only, not yet mirrored to GitHub — Sync to GitHub`
 
-An empty `specs/DEFERRED.md` (only the `# Deferred Work` header, no entries) produces no findings.
+No entries in `specs/backlog/` (missing or empty directory) produces no findings.
 
 ## Step 2: Audit Existing Specs
 
@@ -213,25 +208,6 @@ GitHub mutations recommended here (Close (GitHub), Resolve thread) execute only 
 
 → Collect each as: `[pr] PR #{n}: {title} — {issue} — {recommendation}`
 → Collect each as: `[gh-issue] #{n}: {title} — {issue} — {recommendation}`
-
-### Step 4.8a: Code-health severity-policy reconciliation (one-time)
-
-Code-health's default filing threshold changed to high-risk only (`/claude-tweaks:code-health`'s `--min-risk`, default `high`) — issues filed before that change may still carry `code-health:low` or `code-health:medium` from when everything filed regardless of severity. This is a one-time backstop, not a recurring behavior: once an issue is relabelled `code-health:remembered`, it's excluded from this check on every future `/tidy` run (see the query below), so this step is self-limiting and naturally becomes a no-op once the existing backlog is caught up.
-
-Scoped strictly to issues carrying the `code-health` label — this does not touch harness-health-labelled issues or any other tracker content.
-
-```bash
-gh issue list --label code-health --state open --json number,title,labels \
-  --jq '.[] | select((.labels | map(.name) | any(. == "code-health:low" or . == "code-health:medium")) and (.labels | map(.name) | any(. == "code-health:remembered") | not))'
-```
-
-For each issue this returns:
-- Add the `code-health:remembered` label.
-- Comment: `Relabelled to code-health:remembered — code-health's default filing threshold is now high-risk only; this issue predates that change. Still valid work, just not held to the same urgency as a fresh high-risk finding.`
-
-This mutation follows the same staged/batch-approval path as the rest of Step 4.8 — it is proposed here, not applied until Step 6 batch approval, and is staged at every aggressiveness level in auto mode.
-
-→ Collect each as: `[gh-issue] #{n}: {title} — code-health:remembered backfill — Relabel + comment (severity-policy reconciliation)`
 
 ## Step 5: Spec Sizing Review
 

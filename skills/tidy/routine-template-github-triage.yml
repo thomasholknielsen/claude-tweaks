@@ -21,4 +21,9 @@ notes: >
   included in allowed_tools so the scoped scan can still dispatch as a parallel Task
   agent per skills/tidy/SKILL.md's Parallel execution note; if Task-based subagent
   dispatch isn't supported in a given cloud routine session, it degrades to running
-  sequentially, same as the base template.
+  sequentially, same as the base template. Set `tidy-routine-autonomy: evidence-based`
+  in this project's CLAUDE.md to let cite-able-evidence findings (thread resolved by
+  commit, milestone/watched-path trigger met, superseded code-health issue) auto-apply
+  on this routine's firings instead of only staging to the rolling digest — see
+  skills/tidy/SKILL.md's "Evidence tier" subsection. Default is `conservative`
+  (everything stages, matching pre-this-feature behavior).

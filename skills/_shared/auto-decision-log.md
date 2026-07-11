@@ -110,7 +110,7 @@ On successful pipeline closure, `/wrap-up` moves the run directory to:
 
 The archive preserves the decision log, the staged directory (if any items were skipped at review), and the config snapshot. Users can review past pipelines or feed patterns back into project policy.
 
-`/tidy` may compact archive entries older than 30 days into `.claude-tweaks/pipelines/archive/index-{YYYY-MM}.md` (planned — not yet implemented).
+`/tidy` compacts archive entries older than 30 days: any standalone run directory under `.claude-tweaks/pipelines/` whose ISO-timestamp prefix is more than 30 days old gets its `decisions.md` content folded into `.claude-tweaks/pipelines/archive/index-{YYYY-MM}.md` (one monthly rollup file, appended per compacted run — keyed by the run's own timestamp so entries stay chronologically traceable), then the run directory itself moves to `.claude-tweaks/pipelines/archive/{run-id}/` — the same archive root completed pipeline runs already use. See `tidy/SKILL.md`'s "Archival compaction" subsection for the exact procedure.
 
 ## Anti-Patterns
 
