@@ -93,6 +93,14 @@ Call `AskUserQuestion`: `question`: `"Also publish this as a shareable Artifact 
 
 If Step 4 resolved to `docs/diagrams/{slug}.html` (the context-free fallback path) and no `REGISTRY.md` row for `docs/diagrams/` exists yet, add one: `| docs/diagrams/ | Generated visual diagrams | — |` (no Auto-detect — matches `architecture.md`/`decisions/*.md` treatment). Diagrams placed under `docs/journeys/` or `docs/plans/` need no new row — they ride along with that doc's existing registry entry.
 
+## Next Actions
+
+After generating (and, if accepted, publishing), call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+
+- Option 1 — `label`: `"Generate another diagram (Recommended if more signals matched)"`, `description`: `"/claude-tweaks:visualize <type> <topic> — generate another diagram"`
+- Option 2 — `label`: `"Continue the calling flow"`, `description`: `"Return to wherever this was invoked from (journey commit, spec summary, review findings)"`
+- Option 3 (only when persisted) — `label`: `"View the file"`, `description`: `"Open {path} to see the generated diagram"`
+
 ## Component-Skill Contract
 
 When `$PIPELINE_RUN_DIR` is set, `/claude-tweaks:visualize` is running inside a pipeline (invoked by `/claude-tweaks:journeys`, `/claude-tweaks:specify`, `/claude-tweaks:review`, or another pipeline orchestrator). In that case omit the `## Next Actions` block — the parent owns the handoff.
@@ -119,11 +127,3 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `/claude-tweaks:design` | Not invoked directly — this skill reads `DESIGN.md`/`DESIGN.json` (written by `/impeccable:impeccable document`, the same files `/design pre-build` mode lazy-loads) but does not go through the `/design` wrapper, since it needs the raw token data, not a critique/audit/polish action. |
 | `/claude-tweaks:init` | Step 11 offers to enable diagram suggestions (writes `diagram-suggestions: enabled/disabled` to CLAUDE.md — no install step, this skill is native). |
 | `skills/_shared/visual-html-output.md` | Shared core this skill consumes for token extraction, wrapper adapters, MDX/Nextra compatibility, and the persist-vs-ephemeral decision. |
-
-## Next Actions
-
-After generating (and, if accepted, publishing), call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
-
-- Option 1 — `label`: `"Generate another diagram (Recommended if more signals matched)"`, `description`: `"/claude-tweaks:visualize <type> <topic> — generate another diagram"`
-- Option 2 — `label`: `"Continue the calling flow"`, `description`: `"Return to wherever this was invoked from (journey commit, spec summary, review findings)"`
-- Option 3 (only when persisted) — `label`: `"View the file"`, `description`: `"Open {path} to see the generated diagram"`
