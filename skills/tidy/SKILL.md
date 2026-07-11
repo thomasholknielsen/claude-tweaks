@@ -223,6 +223,10 @@ Last updated: {ISO timestamp}
 
 **Dedup (applies to "Still needs your review" only — the other two sections are a fresh append per firing, since they're already-resolved actions, not open items):** before adding a row, compute its key as `{PR or issue number}:{finding-type}` (e.g. `142:stale-pr`, `88:unresolved-thread`). Read the digest's current "Still needs your review" section and check for a row with a matching key (match on the PR/issue number and finding-type substring in the existing row text — both are always present in the rendered row). If found, update only that row's `(still open as of {timestamp})` suffix to the current firing's timestamp — do not add a second row, do not treat this as a new finding for notification purposes (see the PushNotification subsection below). If not found, append a new row — this is either a genuinely new finding or one whose finding-type changed materially for the same number (e.g. a PR that was `Review` last firing is now `CI-red` — different finding-type key, so a new row, which does count as new for notification purposes).
 
+#### Notification (`--scope=github` routine firings only)
+
+After the digest is written, call `PushNotification` at most once per firing, and only when the "Still needs your review" section is non-empty after this firing's updates (i.e. at least one row exists there, whether newly added or pre-existing). Compose the notification body from the count and the top finding, e.g. `"{N} items need your review — {top finding title}. See the Tidy GitHub-Triage Digest."` Never fire when "Still needs your review" is empty (an all-clear firing) — this keeps the signal high-value; a routine firing every 3 hours that notified on every run would train the user to ignore it.
+
 ### Interactive mode (batch approval)
 
 Present all collected findings as a single report. Every item has a pre-filled recommendation from the scanning steps.
