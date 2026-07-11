@@ -94,7 +94,7 @@ Read `scan-procedures.md` in this skill's directory for the full classification 
 | 4.5 | `git worktree list`, `git branch --list "build/*"` | `[git]` |
 | 4.6 | `docs/REGISTRY.md` | `[registry]` |
 | 4.7 | `gh api git/matching-refs/claims/` + issue comments | `[claim]` |
-| 4.8 | `gh pr list` / `gh issue list --label code-health` / `gh issue list --label harness-health` / `gh issue list --label backlog` (`github-issues` only — see Steps 1/1.5) per `_shared/github-pr-scan.md` (`repo-wide` scope) | `[pr]`, `[gh-issue]`, `[inbox]`/`[deferred]` (`github-issues` only) |
+| 4.8 | `gh pr list` / `gh issue list --label code-health` / `gh issue list --label harness-health` / `gh issue list --label backlog` (`github-issues` only — see Step 1) per `_shared/github-pr-scan.md` (`repo-wide` scope) | `[pr]`, `[gh-issue]`, `[inbox]`/`[deferred]` (`github-issues` only) |
 | 5 (sequential, after Step 2) | Specs not yet built | (sizing flags appended to `[spec]` rows) |
 | 5.5 (sequential, after Steps 2-4.8) | Recent git history of review/wrap-up commits | `[pattern]`, `[health]` |
 
@@ -104,7 +104,7 @@ Steps 5 and 5.5 require Step 2's spec scan results, so run them sequentially in 
 
 ## Action Vocabulary
 
-Every recommendation in the tidy report uses one of these actions. Each action is atomic — either fully executed or not at all. Do not commit partial state (e.g., removing from INBOX without creating the destination artifact).
+Every recommendation in the tidy report uses one of these actions. Each action is atomic — either fully executed or not at all. Do not commit partial state (e.g., deleting a backlog entry without creating the destination artifact).
 
 | Action | What It Means | Execution | Removes from Source? |
 |--------|--------------|-----------|---------------------|
@@ -126,7 +126,7 @@ The lifecycle is: backlog entry (inbox stage) → brainstorm → design doc → 
 
 ### Merge means integrate, not append
 
-When merging an INBOX or deferred item into an existing spec, the merged content must be indistinguishable from original spec content. Add new deliverables to the Deliverables checklist, new assertions to Acceptance Criteria, new architectural notes to Technical Approach, and new caveats to Gotchas. Do NOT create a "Merged Scope" appendix section at the bottom of the spec — that creates second-class content that `/superpowers:writing-plans` may miss or treat differently.
+When merging a backlog entry (inbox or parked stage) into an existing spec, the merged content must be indistinguishable from original spec content. Add new deliverables to the Deliverables checklist, new assertions to Acceptance Criteria, new architectural notes to Technical Approach, and new caveats to Gotchas. Do NOT create a "Merged Scope" appendix section at the bottom of the spec — that creates second-class content that `/superpowers:writing-plans` may miss or treat differently.
 
 ---
 
@@ -293,7 +293,7 @@ Call `AskUserQuestion`:
 | Pattern | Why It Fails |
 |---------|-------------|
 | Deleting specs without checking if they're implemented | Always scan the codebase first — the spec may be partially or fully built |
-| Promoting INBOX items directly to specs without brainstorming | Brainstorming catches assumptions that skip straight to implementation |
+| Promoting backlog items directly to specs without brainstorming | Brainstorming catches assumptions that skip straight to implementation |
 | Keeping everything "just in case" | Stale items create noise and slow down `/claude-tweaks:help` |
 | Presenting items one-at-a-time for individual decisions | Scan silently, present one batch report, let the user approve all or override specific items. Per-item prompts scale badly. |
 | Deleting backlog entries marked as "Promote" | Promoted items stay in `specs/backlog/` until a spec file exists. The entry is the tracking artifact — deleting it drops the item on the floor. |
@@ -311,7 +311,7 @@ Call `AskUserQuestion`:
 
 | Skill | Relationship |
 |-------|-------------|
-| `/claude-tweaks:capture` | Feeds the INBOX that /claude-tweaks:tidy audits |
+| `/claude-tweaks:capture` | Feeds the backlog entries that /claude-tweaks:tidy audits |
 | `/claude-tweaks:specify` | /claude-tweaks:tidy flags unspecified design docs for /claude-tweaks:specify. /claude-tweaks:specify Step 8 deletes the promoted backlog entry after creating the spec |
 | `/claude-tweaks:review` | /claude-tweaks:tidy flags specs that appear complete but lack review, and scans review summaries for cross-spec patterns (recurring findings, flagged files) |
 | `/claude-tweaks:wrap-up` | /claude-tweaks:tidy flags reviewed specs that need wrap-up, and scans wrap-up reflections for cross-spec patterns (recurring gotchas, deferred themes) |
@@ -320,7 +320,7 @@ Call `AskUserQuestion`:
 | `/claude-tweaks:build` | /claude-tweaks:tidy cleans up leftover worktrees and `build/*` branches from previous builds |
 | `/claude-tweaks:init` | /claude-tweaks:tidy Step 4.6 audits doc registry health — flags stale entries, gaps, pattern drift. Suggests `/init update` for tier drift. |
 | `/claude-tweaks:ledger` | /ledger creates the per-feature ledger files /tidy scans for stale or orphaned open items during periodic hygiene. /tidy may surface ledgers whose related spec is complete but whose items were never resolved. |
-| `/claude-tweaks:code-health` | `/code-health` files improvement findings as `code-health`-labelled GitHub issues; `/tidy` Step 4.8 audits them — stale/superseded issues are closed (with comment) after batch approval, still-valid ones suggested for `/claude-tweaks:triage` or captured to INBOX. |
+| `/claude-tweaks:code-health` | `/code-health` files improvement findings as `code-health`-labelled GitHub issues; `/tidy` Step 4.8 audits them — stale/superseded issues are closed (with comment) after batch approval, still-valid ones suggested for `/claude-tweaks:triage` or captured to the backlog. |
 | `/claude-tweaks:harness-health` | `/harness-health` files skill/rule/CLAUDE.md drift findings as `harness-health`-labelled GitHub issues; `/tidy` Step 4.8 audits them alongside code-health issues — stale/superseded ones closed after batch approval, still-valid ones suggested for direct application or re-judging. |
 | `/claude-tweaks:routine` | `/routine create tidy` instantiates tidy's `routine-template.yml` into a live, scheduled cloud Routine — the mechanism behind this skill's own "Routine Configuration" section. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. The aggressiveness-routing table in Step 6 (conservative / moderate / aggressive) implements the contract's reversibility/confidence floors for tidy actions. |
