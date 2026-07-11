@@ -1,5 +1,5 @@
 // bin/lib/issues/backlog.js
-// Pure: build GitHub issue payloads for the backlog (INBOX/DEFERRED) system, and
+// Pure: build GitHub issue payloads for the backlog, and
 // extract the Watched paths field back out of a parked issue's body. The SKILL.md
 // runs gh and passes results back — no network here.
 // Contract: skills/_shared/issue-claims.md; design doc:
@@ -29,7 +29,8 @@ function inboxIssuePayload({ title, related, context, scope, category }) {
 // opts: { title, origin, context, trigger, optionsConsidered, category, watchedPaths? }
 // watchedPaths, when a non-empty array, adds a **Watched paths:** field between
 // Trigger and Options considered.
-// Returns { title, body, labels } for a fresh parked issue (e.g. DEFERRED.md migration).
+// Returns { title, body, labels } for a fresh parked issue (e.g. migrating a
+// specs/backlog/{slug}.md entry with Stage: parked).
 function parkedIssuePayload({ title, origin, context, trigger, optionsConsidered, category, watchedPaths }) {
   const lines = [
     `**Origin:** ${origin}`,
