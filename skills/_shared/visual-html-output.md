@@ -8,6 +8,13 @@ Read the project's `DESIGN.md` (canonical path: project root; fallback: `docs/de
 
 Map each `colors.<slug>` entry to a CSS custom property named `--<slug>` (kebab-case slugs pass through unchanged, e.g. `colors.basil-green` → `--basil-green`). Map `typography.<role>.fontFamily`/`fontSize`/`fontWeight`/`lineHeight`/`letterSpacing` to `--font-<role>-family`, `--font-<role>-size`, `--font-<role>-weight`, `--font-<role>-line-height`, `--font-<role>-letter-spacing`.
 
+### Deriving light/dark values from a flat token list
+
+`DESIGN.md`'s `colors:` frontmatter has no explicit per-token light/dark pairing — it's a flat list of named tokens. To populate the three-part CSS shape (Step 2's pattern, applied to real values instead of the neutral fallback):
+
+1. If the project's colors follow a recognizable light/dark naming pattern (a "dark" family — names containing `dark`, `midnight`, `night`, or similar — pairing a base "light" family by shared semantic role, e.g. `linen-cream` / `midnight-forest` both serving a "surface background" role), map the light-family token's value into the base `:root` block and its dark-family counterpart's value into the `:root[data-theme="dark"]` block, for matching semantic roles (background, text, border, accent).
+2. If no clear light/dark pairing exists in the extracted colors, use the same value in both blocks. This is a safe, harmless default — the diagram just won't visually differentiate between light and dark mode, not a failure.
+
 ## Step 2: Fallback when DESIGN.md is absent
 
 If no `DESIGN.md` is found at any of the three paths, before generating, call `AskUserQuestion`:
@@ -54,7 +61,7 @@ If Impeccable itself isn't installed (no `/impeccable:impeccable*` skill resolve
 
 ## Step 3: Core fragment
 
-Generate the visual content (an `<svg>...</svg>` for diagrams) plus a single scoped `<style>` block defining the tokens from Step 1 or Step 2's neutral fallback, using the `:root` / `:root[data-theme="dark"]` / `@media (prefers-color-scheme: dark)` shape shown above. Prefix every custom class name in the fragment with a unique per-diagram slug (e.g. `.vz-{slug}-node`, not bare `.node`) so multiple diagrams embedded in the same host document never collide.
+Generate the visual content (an `<svg>...</svg>` for diagrams) plus a single scoped `<style>` block defining the tokens from Step 1 (real extracted values, paired light/dark per the rule above) or Step 2's neutral fallback (synthetic values), using the same `:root` / `:root[data-theme="dark"]` / `@media (prefers-color-scheme: dark)` shape in either case. Prefix every custom class name in the fragment with a unique per-diagram slug (e.g. `.vz-{slug}-node`, not bare `.node`) so multiple diagrams embedded in the same host document never collide.
 
 This SVG+style pair is the **core** — every wrapper below reuses it byte-for-byte. Never regenerate it per-wrapper; regenerating independently per consumer is exactly how the standalone file and the Artifact-published version would drift apart.
 
