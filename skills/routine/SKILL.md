@@ -64,7 +64,38 @@ environment_id: "<confirmed environment_id>"
 
 This file is project-local and must stay gitignored — it exists purely to spare a second skill in the same project from re-deriving the same environment, never to make the value portable across projects or accounts.
 
-**Step 5 — Resolve the schedule.** Present the template's `default_schedule.cron_expression` (always UTC) and ask the user to confirm it actually lands off-peak in their own timezone, or supply a different cron expression. Use the same UTC-conversion-and-confirm discipline `/schedule` itself uses: state the conversion explicitly ("9am Europe/Copenhagen = 7am UTC, so `0 7 * * *`") before locking it in. Minimum interval is 1 hour — reject anything tighter and ask for a looser schedule.
+**Step 5 — Resolve the schedule.**
+
+**5a. Parse the template's `default_schedule.cron_expression` back into a cadence.** Given the 5-field cron string `M H DOM MON DOW` (always UTC), classify it against these patterns in order — the first match wins:
+
+| # | Pattern (MON/DOM/DOW fixed values, H/M shape) | Cadence | Parsed value |
+|---|---|---|---|
+| 1 | `MON=*`, `DOM=*`, `DOW=*`, `H` matches `*/N` | Every N hours | N |
+| 2 | `MON=*`, `DOM=*`, `DOW=*`, `H`/`M` plain integers | Daily | time `H:M` UTC |
+| 3 | `MON=*`, `DOM=*`, `DOW=1-5`, `H`/`M` plain integers | Weekdays only | time `H:M` UTC |
+| 4 | `MON=*`, `DOM=*`, `DOW` a single digit 0-6, `H`/`M` plain integers | Weekly | day = DOW (0=Sun..6=Sat), time `H:M` UTC |
+| 5 | `MON=*`, `DOW=*`, `DOM` a plain integer 1-31, `H`/`M` plain integers | Monthly | day-of-month = DOM, time `H:M` UTC |
+| 6 | Anything else | (no match) | none — no cadence pre-selected |
+
+**5b. Present the cadence picker.** Call `AskUserQuestion` with `question`: `"How often should this routine run?"`, `header`: `"Cadence"`, `multiSelect`: `false`, and exactly these 6 options (mark the one 5a matched with `(Recommended)` in its label; if 5a found no match, none of the 6 carries `(Recommended)`):
+
+- Option 1 — `label`: `"Every N hours"`, `description`: `"Fires every N hours starting from UTC midnight (e.g. N=3 fires at 00:00, 03:00, 06:00 UTC, ...)"`
+- Option 2 — `label`: `"Daily"`, `description`: `"Fires once a day at a UTC time you choose"`
+- Option 3 — `label`: `"Weekdays only"`, `description`: `"Fires Monday-Friday at a UTC time you choose, skips weekends"`
+- Option 4 — `label`: `"Weekly"`, `description`: `"Fires once a week on a day you choose, at a UTC time you choose"`
+- Option 5 — `label`: `"Monthly"`, `description`: `"Fires once a month on a day-of-month you choose, at a UTC time you choose"`
+- Option 6 — `label`: `"Custom cron expression"`, `description`: `"Type a 5-field cron expression directly — for anything the structured options above don't cover"`
+
+**5c. Per-cadence follow-up**, based on which option was chosen in 5b:
+
+- **Every N hours:** call `AskUserQuestion` with `question`: `"Every how many hours?"`, `header`: `"Interval"`, `multiSelect`: `false`; if 5a pre-selected this cadence, pre-fill the recommended value from the parsed N. Accept a free-text number via the tool's `Other` field (there is no fixed small set of sensible N values to enumerate as options — offer 2 or 3 common values as options, e.g. `"3"`, `"6"`, `"12"`, each undescribed beyond the number, plus rely on `Other` for anything else). Reject N < 1 with the same rejection wording the existing minimum-interval check uses today ("reject anything tighter and ask for a looser schedule"). Resulting cron: `0 */N * * *`. No time-of-day follow-up for this cadence (see Global Constraints in the plan this step was implemented from for why).
+- **Daily:** ask for a UTC time-of-day (`HH:MM`, 24-hour). If 5a pre-selected this cadence, pre-fill the recommendation from the parsed `H:M`. State the conversion example explicitly in the prompt text, exactly as today's Step 5 did: "e.g. 9am Europe/Copenhagen = 7am UTC, so you'd enter `07:00` here." Resulting cron: `M H * * *`.
+- **Weekdays only:** same UTC time-of-day prompt as Daily. Resulting cron: `M H * * 1-5`.
+- **Weekly:** first ask for a day of week (Sunday through Saturday; if 5a pre-selected this cadence, pre-fill the recommendation from the parsed day), then the same UTC time-of-day prompt as Daily. Resulting cron: `M H * * D` (D = 0-6, Sunday=0).
+- **Monthly:** first ask for a day-of-month (1-31; if 5a pre-selected this cadence, pre-fill the recommendation from the parsed day), then the same UTC time-of-day prompt as Daily. Resulting cron: `M H D * *`.
+- **Custom cron expression:** unchanged from today — ask the user to type a 5-field cron expression directly. No parsing, no pre-selection, no time-of-day sub-prompt.
+
+**5d. Validate and lock in.** For every cadence except Custom, the resulting cron is assembled mechanically from the 5c inputs per the "Resulting cron" formulas above — no further confirmation prompt beyond what 5b/5c already gathered (mirrors today's single-confirm fast path when accepting the recommended cadence-as-is). For Custom, validate the typed cron against the same 1-hour minimum interval floor as today — reject anything tighter and ask for a looser schedule, identical wording to before this change.
 
 **Step 6 — Assemble the `RemoteTrigger create` body.**
 
