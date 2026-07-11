@@ -117,6 +117,15 @@ Log each to `decisions.md` (this run's standalone-auto run dir per
 
 ## Workflow — `dispatch` (headless)
 
+Resolve this firing's `$RUN_ID` once, before Step 1, via the standalone-auto run-dir
+resolution in `_shared/pipeline-run-dir.md` (triage has no parent pipeline) — `$RUN_ID` is
+that run directory's basename (e.g. `2026-07-11T140322-triage-standalone`). Every claim this
+firing makes in Step 2 embeds this same value as `claimPayload`'s `runId`, and every group's
+Task agent in Step 3 receives it explicitly (Task agents don't inherit shell variables — per
+`_shared/subagent-output-contract.md`'s Input Discipline, a dispatched agent is a clean room)
+so Step 4's ownership check (`claim.runId === $RUN_ID`), now performed inside that agent
+rather than in this thread, compares against the firing that actually claimed the issue.
+
 ### Step 1: Pull tiered, unclaimed issues
 
 ```bash
@@ -205,12 +214,15 @@ Each group's `Task()` prompt (per `_shared/subagent-output-contract.md`'s input 
 
 ```
 Task scope: Execute claude-tweaks pipeline work for this group of already-claimed GitHub
-issues: {issue list}. Singleton -> run `/claude-tweaks:flow #{issue}`. Bundle (2+ issues) ->
+issues: {issue list}. This dispatch firing's run id, for the ownership check in Step 4, is:
+{RUN_ID} -- the same value already embedded as runId in each of this group's issues' claim
+markers by Step 2. Singleton -> run `/claude-tweaks:flow #{issue}`. Bundle (2+ issues) ->
 for each issue run `/claude-tweaks:specify "#{issue}"` to derive a spec, then run
-`/claude-tweaks:flow "{spec1},{spec2},...}"` once with the resulting spec numbers
+`/claude-tweaks:flow "{spec1},{spec2},..."` once with the resulting spec numbers
 comma-joined. Handle any HARD-GATE failure per skills/triage/SKILL.md's Step 4 (retry
 ceiling / failure-downgrade rule) before finishing -- do not leave a failed issue's claim
-or label state unresolved.
+or label state unresolved. Step 4's ownership check compares each issue's claim.runId
+against the {RUN_ID} given above, not any run id you generate yourself.
 
 Working directory: create your own worktree via /superpowers:using-git-worktrees; do not
 reuse a path from another group. Echo `pwd` and `git rev-parse --show-toplevel` before any
