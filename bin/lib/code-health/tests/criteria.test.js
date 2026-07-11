@@ -167,11 +167,6 @@ test('security-logic universal criterion has confidenceFloor high', () => {
   assert.strictEqual(c.confidenceFloor, 'high');
 });
 
-test('every criterion has a non-empty description', () => {
-  for (const c of CRITERIA) {
-    assert.ok(
-      typeof c.description === 'string' && c.description.trim().length > 0,
-      `criterion ${c.id} is missing a description`,
-    );
-  }
-});
+// description was removed from CRITERIA entries — criteria no longer bootstrap their own
+// GitHub label (see bin/lib/code-health/issue-payload.js); the 100-char-cap check now lives
+// in bin/lib/issues/tests/labels.test.js as a property of ensureLabelPayload itself.

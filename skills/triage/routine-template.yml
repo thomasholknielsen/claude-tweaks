@@ -8,21 +8,21 @@ default_schedule:
   cron_expression: "0 4 * * 1-5"
   description: "weekday off-peak anchor, UTC — confirm against your local timezone at creation time"
 notes: >
-  Headless issue dispatcher: each firing pulls status:approved/status:fast-track
+  Headless issue dispatcher: each firing pulls tier:approved/tier:fast-track
   issues, claims them, and hands each to /claude-tweaks:flow #{issue} for pure
   execution. The claim ref makes overlapping firings harmless (a second firing
   skips claimed issues), and a failed run retries at a later firing once its
   claim ages out (TTL) — up to the triage-retry-ceiling policy flag, after which
   the issue is relabeled status:blocked and stops auto-retrying. Only this
-  skill's bare (interactive) invocation ever grants a status:needs-review/
-  status:approved/status:fast-track label an issue didn't already have —
+  skill's bare (interactive) invocation ever grants a tier:needs-review/
+  tier:approved/tier:fast-track label an issue didn't already have —
   dispatch mode may only downgrade or strip a tier it reads (fast-track to
   approved on failure, or removed plus status:blocked at the retry ceiling);
   it revokes trust, never grants it.
   A fast-track issue whose run comes back clean (per the four-layer auto-merge
   gate) merges without waiting at the Review Console; anything less than clean
   falls back to a normal wait. Each firing that dispatches work ends at its
-  consolidated Review Console (for status:approved issues, or any status:fast-track
+  consolidated Review Console (for tier:approved issues, or any tier:fast-track
   issue that didn't come back clean) awaiting the user's answer in the cloud
   session; an unanswered console's claims age out via TTL and a later firing
   supersedes the run. A firing with no eligible issues is a cheap no-op.

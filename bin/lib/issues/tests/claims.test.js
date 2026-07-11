@@ -99,9 +99,28 @@ function claimBodyAt(now, { runId = 'run-1', ttlHours } = {}) {
   return claimPayload({ issueNumber: 1, sha: 'x', runId, sessionId: 's', ttlHours, now }).commentBody;
 }
 
-test('claimStatus: no comments → unclaimed', () => {
-  assert.deepStrictEqual(claimStatus([], T0), { claimed: false, claim: null, stale: false });
-  assert.deepStrictEqual(claimStatus(undefined, T0), { claimed: false, claim: null, stale: false });
+test('claimStatus: no comments → unclaimed, never released', () => {
+  assert.deepStrictEqual(claimStatus([], T0), { claimed: false, claim: null, stale: false, everReleased: false });
+  assert.deepStrictEqual(claimStatus(undefined, T0), { claimed: false, claim: null, stale: false, everReleased: false });
+});
+
+test('claimStatus: garbage-only comments → unclaimed, never released (same shape as no comments)', () => {
+  const s = claimStatus(['just chatter', '<!-- agent-claim: not-json -->'], T0);
+  assert.strictEqual(s.claimed, false);
+  assert.strictEqual(s.everReleased, false);
+});
+
+test('claimStatus: comments fold to released → everReleased true, distinguishing it from never-claimed', () => {
+  const release = releasePayload({ issueNumber: 1, runId: 'run-1', reason: 'merged', now: T0 + 1 * H }).commentBody;
+  const s = claimStatus([claimBodyAt(T0), release], T0 + 2 * H);
+  assert.strictEqual(s.claimed, false);
+  assert.strictEqual(s.everReleased, true);
+});
+
+test('claimStatus: active claim → everReleased is not part of the claimed:true shape', () => {
+  const s = claimStatus([claimBodyAt(T0)], T0 + 1 * H);
+  assert.strictEqual(s.claimed, true);
+  assert.strictEqual('everReleased' in s, false);
 });
 
 test('claimStatus: live claim → claimed, not stale', () => {

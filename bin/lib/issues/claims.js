@@ -78,16 +78,25 @@ function isStale(claim, now) {
 // comments: array of body strings or {body} objects, chronological (gh api order).
 // Folds markers in order: a claim activates, a release clears. `claimed` is true
 // even when stale — staleness signals breakability, not absence.
+//
+// When claimed is false, `everReleased` distinguishes two outcomes a bare 422 can't tell
+// apart on its own (see `_shared/issue-claims.md`'s Failure-posture table): `true` means the
+// last marker seen was a valid release (the ref-delete failed after the release comment
+// posted — safe to break: delete, recreate, takeover comment). `false` means no marker was
+// ever found at all (comment-post failed after an earlier claim, or the marker is corrupted) —
+// treat as live: skip, log; never break on this signal alone.
 function claimStatus(comments, now) {
   let active = null;
+  let lastMarkerKind = null;
   for (const item of comments || []) {
     const body = typeof item === 'string' ? item : item && item.body;
     const marker = parseClaimMarker(body);
     if (!marker) continue;
+    lastMarkerKind = marker.kind;
     if (marker.kind === 'claim') active = marker;
     else active = null;
   }
-  if (!active) return { claimed: false, claim: null, stale: false };
+  if (!active) return { claimed: false, claim: null, stale: false, everReleased: lastMarkerKind === 'release' };
   return { claimed: true, claim: active, stale: isStale(active, now) };
 }
 

@@ -1,6 +1,6 @@
 # GitHub PR Scan — Shared Procedure
 
-Single source of truth for scanning GitHub pull-request and issue state. Consumed by `/claude-tweaks:help` (Stage 4.5, **`current-pr`** scope) and `/claude-tweaks:tidy` (Step 4.8, **`repo-wide`** scope). Subagents cannot read this file — the dispatcher inlines the relevant scope section, plus the Detection Ladder and Output Contract, into the scan agent's prompt (the same pattern as `tidy/scan-procedures.md`).
+Single source of truth for scanning GitHub pull-request and issue state. Consumed by `/claude-tweaks:help` (Stage 4.5, **`current-pr`** scope; Stage 4.6, **`triage-queue`** scope) and `/claude-tweaks:tidy` (Step 4.8, **`repo-wide`** scope). Subagents cannot read this file — the dispatcher inlines the relevant scope section, plus the Detection Ladder and Output Contract, into the scan agent's prompt (the same pattern as `tidy/scan-procedures.md`).
 
 ## Detection Ladder (fail-open)
 
@@ -65,10 +65,10 @@ Full sweep of open PRs, code-health-labelled issues, harness-health-labelled iss
 
    One query, split client-side by `stage` (`inbox` / `parked`) — not two separate queries.
 
-8. **Pending-authorization queue size** — `/claude-tweaks:triage` (`skills/triage/SKILL.md` Step 1) tiers **code-health and harness-health issues only** — it never touches `backlog`-labeled issues, which have their own separate inbox/parked lifecycle unrelated to build-authorization tiers. Reuse items 3 and 5's JSON output directly (both now carry `labels`) — count how many of those already-fetched issues lack all three current tier labels (`status:needs-review`, `status:approved`, `status:fast-track` — read the exact current set from `skills/triage/SKILL.md`, do not hardcode a stale list here). Not gated on `backlog-backend` — code-health/harness-health issues exist regardless of which backlog backend is active.
+8. **Pending-authorization queue size** — `/claude-tweaks:triage` (`skills/triage/SKILL.md` Step 1) tiers **code-health and harness-health issues only** — it never touches `backlog`-labeled issues, which have their own separate inbox/parked lifecycle unrelated to build-authorization tiers, and `journey-health` issues aren't wired into triage's tiering flow (yet), so they're excluded here too. Reuse items 3 and 5's JSON output directly (both now carry `labels`) — count how many of those already-fetched issues lack all three current tier labels (`tier:needs-review`, `tier:approved`, `tier:fast-track` — read the exact current set from `skills/triage/SKILL.md`, do not hardcode a stale list here). Not gated on `backlog-backend` — code-health/harness-health issues exist regardless of which backlog backend is active.
 
    ```bash
-   jq -s '[.[0][], .[1][]] | map(select((.labels | map(.name) | any(. == "status:needs-review" or . == "status:approved" or . == "status:fast-track")) | not)) | length' \
+   jq -s '[.[0][], .[1][]] | map(select((.labels | map(.name) | any(. == "tier:needs-review" or . == "tier:approved" or . == "tier:fast-track")) | not)) | length' \
      <(echo "$CODE_HEALTH_ISSUES_JSON") \
      <(echo "$HARNESS_HEALTH_ISSUES_JSON")
    ```
@@ -76,6 +76,41 @@ Full sweep of open PRs, code-health-labelled issues, harness-health-labelled iss
    (`$CODE_HEALTH_ISSUES_JSON` / `$HARNESS_HEALTH_ISSUES_JSON` are items 3 and 5's own `gh issue list` output, already captured earlier in this same scan — do not re-query. Each is passed to `jq -s` as its own positional input via process substitution, which is what makes `.[0]`/`.[1]` valid; a repeated `<<<` here-string redirection is NOT equivalent — bash keeps only the last one, silently dropping the first document. If testing this snippet standalone/in isolation outside a live scan, substitute `<(gh issue list --label code-health --state open --json number,labels)` and the harness-health equivalent for the two `echo` calls.)
 
    This is a maintenance signal only — `/tidy` never applies a tier label itself (`/claude-tweaks:triage` owns that). Surface the count in the digest's "Still needs your review" section (see `tidy/SKILL.md`'s digest section) as `**Pending authorization:** {N} issues awaiting a tier label`.
+
+## Scope: `triage-queue` (consumed by /help Stage 4.6)
+
+Three cheap counts for the dashboard's Triage Queue section. This scope exists so `/help` never hand-writes its own query for these numbers — see the fix this closes: Stage 4.6 previously computed "pending authorization" without excluding `status:blocked`, so a blocked issue counted as both pending AND blocked on the same dashboard.
+
+1. **Pending authorization** — code-health + harness-health issues carrying none of `tier:needs-review`, `tier:approved`, `tier:fast-track`, **and not carrying** `status:blocked`. (The exclusion is the fix: a blocked issue already had its decision and failed out — it is not "pending your initial decision.")
+
+   ```bash
+   gh issue list --label code-health --state open --json number,labels --limit 200 > /tmp/triage-queue-ch.json
+   gh issue list --label harness-health --state open --json number,labels --limit 200 > /tmp/triage-queue-hh.json
+   node -e "
+     const all = [...require('/tmp/triage-queue-ch.json'), ...require('/tmp/triage-queue-hh.json')];
+     const names = i => (i.labels || []).map(l => (typeof l === 'string' ? l : l.name));
+     const pending = all.filter(i => {
+       const n = names(i);
+       const hasTier = n.some(x => x === 'tier:needs-review' || x === 'tier:approved' || x === 'tier:fast-track');
+       const blocked = n.includes('status:blocked');
+       return !hasTier && !blocked;
+     }).length;
+     console.log(pending);
+   "
+   ```
+
+2. **Blocked** — `gh issue list --label status:blocked --state open --json number --limit 200 -q 'length'`
+
+3. **Auto-merged this week** — `[fast-lane]`-tagged commits on the *default* branch (never the current worktree's own branch — see the note on `worktree.always` below), last 7 days:
+
+   ```bash
+   SINCE=$(node -e "console.log(new Date(Date.now() - 7*24*60*60*1000).toISOString())")
+   gh api "repos/{owner}/{repo}/commits?since=${SINCE}&per_page=100" -q '[.[] | select(.commit.message | contains("[fast-lane]"))] | length'
+   ```
+
+   The commits endpoint defaults to the default branch when no `sha=` param is given — correct regardless of which branch/worktree `/help` itself runs from under `worktree.always`. `SINCE` is computed via `node`, not shell `date` arithmetic, which differs between BSD/macOS and GNU date.
+
+Render as three lines: `Pending authorization: **{N}** issues awaiting your decision` / `Blocked: **{N}** issues hit their retry ceiling` / `Auto-merged this week: **{N}** fast-lane merges` — omit any line whose count is 0.
 
 Findings and recommendations (tidy Action Vocabulary):
 

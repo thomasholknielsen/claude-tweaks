@@ -11,10 +11,10 @@ The Review Console is the **second bookend** of the pipeline (see `_shared/auto-
 ## Fast-track short-circuit
 
 When this run's spec carries `recon-issue:` frontmatter for an issue tagged
-`status:fast-track` (see `skills/triage/SKILL.md`'s auto-merge gate), check
+`tier:fast-track` (see `skills/triage/SKILL.md`'s auto-merge gate), check
 the four-layer gate before presenting this console:
 
-1. **Authorization** — `status:fast-track` was present when dispatched (true by construction)
+1. **Authorization** — `tier:fast-track` was present when dispatched (true by construction)
 2. **Pre-scored eligibility** — true by construction (the Tier Rule only recommends `fast-track` for `risk:low`+`effort:low`)
 3. **Runtime cleanliness** — `/review`'s Step 3 Routing produced nothing at Medium severity or above
 4. **Blast radius** — the diff stays within `triage-fast-track-max-lines`/`triage-fast-track-max-files` (CLAUDE.md/`policy.yml` flags, defaults 40/2) and touches only files the original issue's fingerprint/anchor pointed at
@@ -52,16 +52,16 @@ shown is discarded — only the wait for a live approval is skipped.
 
 **If the merge conflicts:** conflict resolution requires judgment a headless
 run can't supply — abort the merge (`git merge --abort`) and fall back to
-rendering the console normally, exactly as a `status:approved` issue would,
+rendering the console normally, exactly as a `tier:approved` issue would,
 logging why the fast-lane path was abandoned.
 
 Log to `decisions.md`:
 `AUTO {time} — Fast-lane auto-merge: issue #{n}, {lines} lines across {files} files, zero findings >= medium. Merge commit: {sha}. Reversibility: high (git revert).`
 
 **Any layer fails:** proceed to render the console normally, exactly as a
-`status:approved` issue would — no different from any other pipeline run.
+`tier:approved` issue would — no different from any other pipeline run.
 
-This check does not apply to `MULTISPEC_REVIEW_DEFER=1` runs — a `status:fast-track`
+This check does not apply to `MULTISPEC_REVIEW_DEFER=1` runs — a `tier:fast-track`
 issue that ends up inside a human-run multi-spec batch (rather than dispatched
 single-issue by `/claude-tweaks:triage dispatch`, which is the only path this
 design's fast-lane treatment targets) still gets the normal, fully-blocking
