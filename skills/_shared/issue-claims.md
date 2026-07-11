@@ -132,22 +132,20 @@ a successor broke the stale claim and now holds the lock — skip the delete, lo
 nothing. `/tidy`'s sweep is exempt: it releases *other* runs' stale claims by design, after
 batch approval.
 
-**Known gap — dispatch's success path.** `/claude-tweaks:triage dispatch` claims with the
-*dispatch firing's* `$RUN_ID`, but a successful run's release happens inside `/wrap-up`
-(cleanup Section E), running under the handed-off `/flow`/`/specify` pipeline's *own*, later,
-differently-named run dir — a different `$RUN_ID` than the one that made the claim. The
-ownership check as written will not match on this path, so it skips the delete and the release
-comment (treating the dispatch firing as "a successor" even though it's the same logical run).
-Practical impact is bounded: the issue still closes correctly via `Fixes #N` in the merge, the
-stale ref self-heals via TTL (72h) plus `/tidy`'s sweep, and the failure path (dispatch's own
-`triage/SKILL.md` Step 4) is unaffected since it releases with the same `$RUN_ID` that made
-the claim (threaded explicitly into the group's Task agent), not merely the same thread.
-What's actually lost is the release audit comment and prompt ref cleanup on the common,
-successful case. Fixing this properly needs the dispatch firing's `$RUN_ID` threaded through
-`/flow`'s hand-off into `/wrap-up`'s release call (as an explicit param, since `/flow` creates
-its own `PIPELINE_RUN_DIR` and has no reason to reuse dispatch's) — cross-cutting enough
-(`flow/SKILL.md`, `cleanup-procedures.md`, `multispec-review-console.md`) to warrant its own
-follow-up rather than a change bundled into whatever else happens to touch this file.
+**Dispatch's success path.** `/claude-tweaks:triage dispatch` claims with the *dispatch firing's*
+`$RUN_ID`, but a successful run's release happens inside `/wrap-up` (cleanup Section E), running
+under the handed-off `/flow`/`/specify` pipeline's *own*, later, differently-named run dir — a
+different `$RUN_ID` than the one that made the claim, if `/wrap-up` used its own `PIPELINE_RUN_DIR`
+for the comparison. It doesn't: `triage/SKILL.md` Step 3 exports `CLAIM_RUN_ID` (the dispatch
+firing's run id) before invoking `/flow`, `/flow` threads it through unchanged to every per-spec
+`/wrap-up` it runs (see `flow/multi-spec.md`'s env-var table for the multi-spec/bundle case), and
+`cleanup-procedures.md` Section E resolves `$RUN_ID` as `${CLAIM_RUN_ID:-$(basename
+"$PIPELINE_RUN_DIR")}` — the dispatch-provided value when present, falling back to the pipeline's
+own run id for any non-dispatch-originated release (a human running `/flow #{issue}` directly, or
+a spec merely *derived from* an issue with no live claim). The failure path (dispatch's own
+`triage/SKILL.md` Step 4) already worked the same way — releasing with the same `$RUN_ID` that
+made the claim, threaded explicitly into the group's Task agent — this closes the equivalent gap
+on the success path.
 
 **Work-ready evidence.** Pass `releasePayload` a `link` (merge commit URL/sha or PR URL) when
 one exists — it lands in the release marker and human line, making the issue's comment trail

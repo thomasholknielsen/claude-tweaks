@@ -131,7 +131,7 @@ This does not replace each spec's own `/test` gate — every spec still runs ver
 
 Run each spec's full pipeline in order (spec 42 → spec 45 → spec 48). Each spec completes its pipeline (build → test → review → wrap-up) before the next begins.
 
-For each per-spec invocation, `/flow` exports four environment variables:
+For each per-spec invocation, `/flow` exports these environment variables (the last is conditional on the caller, not always set):
 
 | Variable | Value | Purpose |
 |---|---|---|
@@ -140,6 +140,7 @@ For each per-spec invocation, `/flow` exports four environment variables:
 | `MULTISPEC_PARENT_DIR` | `{parent}/` | Pointer to the parent run dir — read by the consolidated console at end-of-run |
 | `MULTISPEC_KEEP_GOING` | `1` (when `keep-going` arg set) | Signals per-spec pipelines to continue the multi-spec run after this spec's HARD-GATE failure |
 | `MULTISPEC_SHARED_WORKTREE` | `1` (when `worktree` strategy resolved) | Signals per-spec `/build` Common Step 1 to skip worktree creation — the run's single shared worktree already exists and the pipeline is running inside it |
+| `CLAIM_RUN_ID` | passed through unchanged (when `/flow`'s own caller set it — e.g. `/claude-tweaks:triage dispatch` for a bundle group) | Signals each spec's `/wrap-up` Section E to use this value, not `PIPELINE_RUN_DIR`'s own id, for the issue-claim release ownership check — see `_shared/issue-claims.md`'s Identity section |
 
 ### Shared worktree (sequential multi-spec)
 

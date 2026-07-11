@@ -167,9 +167,18 @@ first — the execution order of the canonical list guarantees this):
    `$LINK` is the final wrap-up commit sha — and that wrap-up commit's MESSAGE must carry the
    closing keywords (one `Fixes #{issue}` line per resolved issue; see Section C's carrier
    note). This applies per spec's own wrap-up commit in multi-spec current-branch runs.
-3. **Ownership check (per `_shared/issue-claims.md`, "Release triggers").** Fetch the issue's
-   comments and fold through `claimStatus`. If `claim.runId` is not this run's `$RUN_ID`, a
-   successor holds the lock — skip the delete AND the comment, log
+3. **Ownership check (per `_shared/issue-claims.md`, "Release triggers").** Resolve `$RUN_ID`
+   first: `RUN_ID="${CLAIM_RUN_ID:-$(basename "$PIPELINE_RUN_DIR")}"`. `CLAIM_RUN_ID` is set by
+   `/flow` whenever *its own* caller set it (dispatch always does for both issue-mode singletons
+   and multi-spec bundles — see `triage/SKILL.md` Step 3) — the issue was claimed under that run
+   id, a different and earlier one than this pipeline's own `PIPELINE_RUN_DIR`, so using the
+   latter here would make every dispatch-originated release wrongly conclude "a successor holds
+   the lock" and skip the delete and the comment on every success. A spec reaching this point
+   through any other path (a human running `/flow #{issue}` directly, or a spec merely *derived
+   from* an issue with no live claim) falls back to this pipeline's own run id — the only value
+   used here before this distinction existed. Fetch the issue's comments and fold through
+   `claimStatus`. If `claim.runId` is not the resolved `$RUN_ID`, a successor holds the lock —
+   skip the delete AND the comment, log
    `AUTO — skipped release of issue #{issue}: claim held by run {claim.runId}`, and continue.
 4. Generate the release comment with `releasePayload`, delete the ref, post the comment:
 

@@ -205,7 +205,16 @@ node -e "
 
 Work through `/tmp/dispatch-groups.json` at up to `triage-dispatch-max-concurrent` groups running at once (default 3 — see Configuration). Each group becomes one Task agent with its own worktree (created via `/superpowers:using-git-worktrees` exactly as a normal `/flow` invocation would — do not pre-create or share a worktree path across groups). Queued groups start as soon as a slot frees up; there is no per-firing timeout, only the concurrency throttle — nothing elsewhere in this codebase imposes one (existing parallel-Task dispatch sites, e.g. `/help`'s Stage 1-7, already wait for all dispatched agents regardless of duration).
 
-**Singleton group** `[123]` — the agent's job is exactly today's single-issue dispatch: invoke `/claude-tweaks:flow #123` (issue-mode derives its own spec internally, per `flow/SKILL.md`).
+Export `CLAIM_RUN_ID="{RUN_ID}"` (this dispatch firing's run id — the same value already embedded
+in each issue's claim marker by Step 2) before invoking `/flow`, for both shapes below. `/flow`
+threads it through to `/wrap-up`'s release step (`cleanup-procedures.md` Section E /
+`multispec-review-console.md`) so the success-path ownership check compares against the run that
+actually made the claim, not `/flow`'s own (different, later-created) pipeline run dir — see
+`_shared/issue-claims.md`'s Identity section.
+
+**Singleton group** `[123]` — the agent's job is exactly today's single-issue dispatch: invoke
+`CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow #123` (issue-mode derives its own spec internally,
+per `flow/SKILL.md`).
 
 **Bundle group** `[123, 456]` — `/flow` has no multi-issue form (verified: multi-spec mode takes spec numbers, not issue references — `flow/SKILL.md`'s multi-spec syntax is `/claude-tweaks:flow 42,45,48`). The agent derives a spec per member first, then runs the bundle as one multi-spec invocation:
 
@@ -215,7 +224,7 @@ for ISSUE in 123 456; do
   # capture the resulting spec number from specify's own summary output
 done
 # once every member has a spec:
-/claude-tweaks:flow "${SPEC_1},${SPEC_2}"   # multi-spec, one shared worktree — see multi-spec.md
+CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow "${SPEC_1},${SPEC_2}"   # multi-spec, one shared worktree — see multi-spec.md
 ```
 
 Each group's `Task()` prompt (per `_shared/subagent-output-contract.md`'s input discipline — minimal input, literal output template inlined, no conversation history):
@@ -224,13 +233,15 @@ Each group's `Task()` prompt (per `_shared/subagent-output-contract.md`'s input 
 Task scope: Execute claude-tweaks pipeline work for this group of already-claimed GitHub
 issues: {issue list}. This dispatch firing's run id, for the ownership check in Step 4, is:
 {RUN_ID} -- the same value already embedded as runId in each of this group's issues' claim
-markers by Step 2. Singleton -> run `/claude-tweaks:flow #{issue}`. Bundle (2+ issues) ->
-for each issue run `/claude-tweaks:specify "#{issue}"` to derive a spec, then run
-`/claude-tweaks:flow "{spec1},{spec2},..."` once with the resulting spec numbers
-comma-joined. Handle any HARD-GATE failure per skills/triage/SKILL.md's Step 4 (retry
-ceiling / failure-downgrade rule) before finishing -- do not leave a failed issue's claim
-or label state unresolved. Step 4's ownership check compares each issue's claim.runId
-against the {RUN_ID} given above, not any run id you generate yourself.
+markers by Step 2. Singleton -> run `CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow #{issue}`.
+Bundle (2+ issues) -> for each issue run `/claude-tweaks:specify "#{issue}"` to derive a spec,
+then run `CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow "{spec1},{spec2},..."` once with the
+resulting spec numbers comma-joined. The `CLAIM_RUN_ID` export matters on the success path too,
+not just failures below -- `/flow` threads it to `/wrap-up`'s release step so its ownership
+check compares against the run that actually claimed the issue. Handle any HARD-GATE failure
+per skills/triage/SKILL.md's Step 4 (retry ceiling / failure-downgrade rule) before finishing --
+do not leave a failed issue's claim or label state unresolved. Step 4's ownership check compares
+each issue's claim.runId against the {RUN_ID} given above, not any run id you generate yourself.
 
 Working directory: create your own worktree via /superpowers:using-git-worktrees; do not
 reuse a path from another group. Echo `pwd` and `git rev-parse --show-toplevel` before any
