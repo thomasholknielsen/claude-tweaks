@@ -79,11 +79,15 @@ function cmdNextTarget(args) {
 
   // budget > 1: iterate, simulating post-audit cursor state in-memory so each
   // pick is a different journey (mirrors harness-health's next-target --budget).
+  // alreadyPicked additionally guards Phase 0 (deleted-file force-select),
+  // which ignores cursors and would otherwise repeat the same pick every slot.
   const targets = [];
+  const alreadyPicked = new Set();
   for (let i = 0; i < budget; i++) {
-    const target = selectTarget(root, cursors, { now, tier });
+    const target = selectTarget(root, cursors, { now, tier, alreadyPicked });
     if (!target) break;
     targets.push(target);
+    alreadyPicked.add(target.id);
     const auditField = tier === 'deep' ? 'lastDeepAuditMs' : 'lastLightAuditMs';
     cursors = { ...cursors, [target.id]: { ...(cursors[target.id] || {}), [auditField]: now } };
   }
