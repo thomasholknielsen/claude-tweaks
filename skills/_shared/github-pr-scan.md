@@ -50,9 +50,9 @@ Full sweep of open PRs, code-health-labelled issues, and harness-health-labelled
 
 1. **Open PRs** — `gh pr list --state open --json number,title,updatedAt,isDraft,reviewDecision,headRefName,url` → classify each per the Staleness Thresholds.
 2. **Unresolved threads per open PR** — the same GraphQL query as `current-pr` item 2, once per open PR.
-3. **Code-health issues** — `gh issue list --label code-health --state open --json number,title,updatedAt,url`.
+3. **Code-health issues** — `gh issue list --label code-health --state open --json number,title,labels,updatedAt,url`.
 4. **Merged/closed PRs with local remnants** — `gh pr list --state merged --limit 50 --json number,headRefName`; cross-check each `headRefName` against `git -C "{REPO_ROOT}" branch --list` output.
-5. **Harness-health issues** — `gh issue list --label harness-health --state open --json number,title,updatedAt,url`.
+5. **Harness-health issues** — `gh issue list --label harness-health --state open --json number,title,labels,updatedAt,url`.
 6. **Backlog issues** (only when this repo's CLAUDE.md sets `backlog-backend: github-issues` — read it directly from CLAUDE.md's `## Backlog integration` section, same as `/tidy` Steps 1/1.5; skip this item entirely under `local-files` or a missing flag) — write the query's output to a temp file, then classify each issue:
 
    ```bash
@@ -64,12 +64,15 @@ Full sweep of open PRs, code-health-labelled issues, and harness-health-labelled
 
    One query, split client-side by `stage` (`inbox` / `parked`) — not two separate queries.
 
-7. **Pending-authorization queue size** (only under `backlog-backend: github-issues`, same gate as item 6) — count open `backlog`-labeled issues carrying none of the tier labels (`status:needs-review`, `status:approved`, `status:fast-track` — read the exact current set from `skills/triage/SKILL.md`, do not hardcode a stale list here):
+7. **Pending-authorization queue size** — `/claude-tweaks:triage` (`skills/triage/SKILL.md` Step 1) tiers **code-health and harness-health issues only** — it never touches `backlog`-labeled issues, which have their own separate inbox/parked lifecycle unrelated to build-authorization tiers. Reuse items 3 and 5's JSON output directly (both now carry `labels` — no new `gh issue list` call needed) and count how many lack all three current tier labels (`status:needs-review`, `status:approved`, `status:fast-track` — read the exact current set from `skills/triage/SKILL.md`, do not hardcode a stale list here). Not gated on `backlog-backend` — code-health/harness-health issues exist regardless of which backlog backend is active.
 
    ```bash
-   gh issue list --label backlog --state open --json number,labels \
-     --jq '[.[] | select((.labels | map(.name) | any(. == "status:needs-review" or . == "status:approved" or . == "status:fast-track")) | not)] | length'
+   jq -s '[.[0][], .[1][]] | map(select((.labels | map(.name) | any(. == "status:needs-review" or . == "status:approved" or . == "status:fast-track")) | not)) | length' \
+     <(gh issue list --label code-health --state open --json number,labels) \
+     <(gh issue list --label harness-health --state open --json number,labels)
    ```
+
+   (This re-issues the two list calls in a minimal `number,labels`-only shape purely to keep this snippet self-contained and copy-pasteable in isolation; when both items 3 and 5 already ran earlier in the same scan, feed their existing JSON output into the same `jq` filter instead of re-querying.)
 
    This is a maintenance signal only — `/tidy` never applies a tier label itself (`/claude-tweaks:triage` owns that). Surface the count in the digest's "Still needs your review" section (see `tidy/SKILL.md`'s digest section) as `**Pending authorization:** {N} issues awaiting a tier label`.
 
@@ -95,13 +98,13 @@ Emit `[pr]` and `[gh-issue]` rows per the Output Contract — **except** backlog
 
 ## Output Contract
 
-Two collection prefixes for PR/code-health/harness-health findings, plus three conditional ones for backlog and queue-size findings (`repo-wide` scope only, `backlog-backend: github-issues` only) — all emitted as standard Template A rows (`_shared/subagent-output-contract.md`) so existing dispatchers consume them unchanged:
+Two collection prefixes for PR/code-health/harness-health findings, plus two conditional ones for backlog findings (`repo-wide` scope only, `backlog-backend: github-issues` only), plus one queue-size prefix (`repo-wide` scope only, unconditional — code-health/harness-health issues exist regardless of backlog backend) — all emitted as standard Template A rows (`_shared/subagent-output-contract.md`) so existing dispatchers consume them unchanged:
 
 - `[pr]` — pull-request findings: `[pr] PR #{n}: {title} — {issue} — {recommendation}`
 - `[gh-issue]` — code-health/harness-health issue findings: `[gh-issue] #{n}: {title} — {issue} — {recommendation}`
 - `[inbox]` — backlog issue, stage `inbox`: `[inbox] {title} — {age} — {recommendation}` (mirrors `/tidy` Step 1's file-based row shape exactly)
 - `[deferred]` — backlog issue, stage `parked`: `[deferred] {title} — from issue #{n} — {recommendation}` (mirrors `/tidy` Step 1's file-based row shape; `#{n}` stands in for `spec {N}` since a parked issue has no originating spec)
-- `[queue]` — pending-authorization queue size (item 7 above, `repo-wide` scope only, `backlog-backend: github-issues` only): `[queue] {N} issues awaiting a tier label`
+- `[queue]` — pending-authorization queue size (item 7 above, `repo-wide` scope only, derived from the code-health/harness-health issues items 3 and 5 already fetched): `[queue] {N} issues awaiting a tier label`
 
 Severity mapping (Template A Severity column):
 
