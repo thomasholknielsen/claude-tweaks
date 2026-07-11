@@ -1,0 +1,16 @@
+template_version: 1
+routine_name: journey-health-daily
+prompt: "/claude-tweaks:journey-health"
+model: claude-sonnet-5
+allowed_tools: [Bash, Read, Grep, Glob]
+mcp_connections: []
+default_schedule:
+  cron_expression: "0 4 * * *"
+  description: "off-peak anchor, UTC — confirm against your local timezone at creation time"
+notes: >
+  Report-only, like code-health and harness-health — no Edit in allowed_tools,
+  nothing auto-applies. Light-tier checks only (file-existence, self-review,
+  coverage scan); the deep tier is interactive-only (`--deep`) until a
+  validation spike confirms cloud-Routine feasibility for a background dev
+  server + agent-browser session. See journey-health/SKILL.md's Step 3.5
+  for details.

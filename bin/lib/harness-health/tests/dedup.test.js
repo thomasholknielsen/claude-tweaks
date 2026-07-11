@@ -27,9 +27,9 @@ test('decide suppresses a finding the local cache marked declined', () => {
   assert.deepStrictEqual(decide({ id: 'skillhealth-abc' }, {}, cache), { action: 'suppress' });
 });
 
-test('decide skips a finding the local cache marked applied', () => {
+test('decide files a finding when the local cache carries a stale "applied" status (pre-report-only cache entries fall through to file, not error)', () => {
   const cache = { 'skillhealth-abc': { status: 'applied', lastSeenMs: 1 } };
-  assert.deepStrictEqual(decide({ id: 'skillhealth-abc' }, {}, cache), { action: 'skip' });
+  assert.deepStrictEqual(decide({ id: 'skillhealth-abc' }, {}, cache), { action: 'file' });
 });
 
 test('decide skips a finding the local cache marked staged (avoid re-filing while unresolved)', () => {

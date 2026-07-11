@@ -1,30 +1,27 @@
 #!/usr/bin/env node
 'use strict';
 const fs = require('fs');
-const { fingerprint } = require('./lib/harness-health/fingerprint');
+const { fingerprint } = require('./lib/journey-health/fingerprint');
 const {
   readCache, writeCache, readCursors, recordAudit,
-  readGapScanCursor, recordGapScan, recordRun, readRuns, computeChurn,
-} = require('./lib/harness-health/cache');
-const { decide } = require('./lib/harness-health/dedup');
-const { validateFinding } = require('./lib/harness-health/validate-finding');
-const { toIssuePayload } = require('./lib/harness-health/issue-payload');
-const {
-  selectTarget, listTargets, listMemory, selectMemoryTarget,
-} = require('./lib/harness-health/scope');
-const { STALE_DAYS } = require('./lib/harness-health/score');
+  readCoverageScanCursor, recordCoverageScan, recordRun, readRuns, computeChurn,
+} = require('./lib/journey-health/cache');
+const { decide } = require('./lib/journey-health/dedup');
+const { validateFinding } = require('./lib/journey-health/validate-finding');
+const { toIssuePayload } = require('./lib/journey-health/issue-payload');
+const { selectTarget, listJourneys } = require('./lib/journey-health/scope');
+const { STALE_DAYS_LIGHT } = require('./lib/journey-health/score');
 
 function parseArgs(argv) {
-  const args = { _: [], root: process.cwd(), dryRun: false, runId: new Date().toISOString() };
+  const args = { _: [], root: process.cwd(), dryRun: false, runId: new Date().toISOString(), tier: 'light' };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--dry-run') args.dryRun = true;
     else if (a === '--root') args.root = argv[++i];
     else if (a === '--target') args.target = argv[++i];
-    else if (a === '--kind') args.kind = argv[++i];
-    else if (a === '--memory-dir') args.memoryDir = argv[++i];
+    else if (a === '--tier') args.tier = argv[++i];
     else if (a === '--issues') args.issues = argv[++i];
-    else if (a === '--gap-scan') args.gapScan = true;
+    else if (a === '--coverage-scan') args.coverageScan = true;
     else if (a === '--run-id') args.runId = argv[++i];
     else if (a === '--fail-on-high-churn') args['fail-on-high-churn'] = argv[++i];
     else if (a === '--budget') args.budget = Number(argv[++i]);
@@ -41,11 +38,11 @@ function loadIssueIndex(file) {
   try {
     arr = JSON.parse(fs.readFileSync(file, 'utf8'));
   } catch {
-    process.stderr.write(`[harness-health] validate-findings: could not read or parse --issues file: ${file} — dedup falls back to the local cache only\n`);
+    process.stderr.write(`[journey-health] validate-findings: could not read or parse --issues file: ${file} — dedup falls back to the local cache only\n`);
     return {};
   }
   if (!Array.isArray(arr)) {
-    process.stderr.write(`[harness-health] validate-findings: --issues file must contain a JSON array: ${file} — dedup falls back to the local cache only\n`);
+    process.stderr.write(`[journey-health] validate-findings: --issues file must contain a JSON array: ${file} — dedup falls back to the local cache only\n`);
     return {};
   }
   const index = {};
@@ -60,49 +57,14 @@ function loadIssueIndex(file) {
 function cmdNextTarget(args) {
   const root = args.root || process.cwd();
   const now = Date.now();
-  const gapScan = readGapScanCursor(root);
-  const gapScanDue = gapScan.lastScannedMs == null || (now - gapScan.lastScannedMs) / 86400000 > STALE_DAYS;
-
-  if (args.kind === 'memory') {
-    if (!args.memoryDir) {
-      process.stderr.write('harness-health.js: next-target --kind memory requires --memory-dir <path>\n');
-      process.exit(2);
-    }
-    let memCursors = readCursors(root);
-
-    if (args.target) {
-      const found = listMemory(args.memoryDir).find((t) => t.id === args.target) || null;
-      const target = found ? { ...found, why: 'manual' } : null;
-      process.stdout.write(JSON.stringify({ target, gapScanDue }, null, 2) + '\n');
-      return;
-    }
-
-    const memBudget = Number.isFinite(args.budget) && args.budget > 0 ? args.budget : 1;
-
-    if (memBudget === 1) {
-      const target = selectMemoryTarget(args.memoryDir, memCursors, { now });
-      process.stdout.write(JSON.stringify({ target, gapScanDue }, null, 2) + '\n');
-      return;
-    }
-
-    const memTargets = [];
-    for (let i = 0; i < memBudget; i++) {
-      const target = selectMemoryTarget(args.memoryDir, memCursors, { now });
-      if (!target) break;
-      memTargets.push(target);
-      const key = `${target.kind}:${target.id}`;
-      memCursors = { ...memCursors, [key]: { ...(memCursors[key] || {}), lastAuditedMs: now } };
-    }
-    process.stdout.write(JSON.stringify({ targets: memTargets, gapScanDue }, null, 2) + '\n');
-    return;
-  }
+  const tier = args.tier === 'deep' ? 'deep' : 'light';
+  const coverageScan = readCoverageScanCursor(root);
+  const coverageScanDue = coverageScan.lastScannedMs == null || (now - coverageScan.lastScannedMs) / 86400000 > STALE_DAYS_LIGHT;
 
   if (args.target) {
-    // --kind disambiguates when a skill/rule/CLAUDE.md id collides; without it,
-    // the first match in listTargets' skill->rule->claude-md order wins.
-    const found = listTargets(root).find((t) => t.id === args.target && (!args.kind || t.kind === args.kind)) || null;
+    const found = listJourneys(root).find((t) => t.id === args.target) || null;
     const target = found ? { ...found, why: 'manual' } : null;
-    process.stdout.write(JSON.stringify({ target, gapScanDue }, null, 2) + '\n');
+    process.stdout.write(JSON.stringify({ target, coverageScanDue }, null, 2) + '\n');
     return;
   }
 
@@ -110,22 +72,22 @@ function cmdNextTarget(args) {
   let cursors = readCursors(root);
 
   if (budget === 1) {
-    const target = selectTarget(root, cursors, { now, kind: args.kind });
-    process.stdout.write(JSON.stringify({ target, gapScanDue }, null, 2) + '\n');
+    const target = selectTarget(root, cursors, { now, tier });
+    process.stdout.write(JSON.stringify({ target, coverageScanDue }, null, 2) + '\n');
     return;
   }
 
   // budget > 1: iterate, simulating post-audit cursor state in-memory so each
-  // pick is a different target (mirrors recon's next-slice --budget).
+  // pick is a different journey (mirrors harness-health's next-target --budget).
   const targets = [];
   for (let i = 0; i < budget; i++) {
-    const target = selectTarget(root, cursors, { now, kind: args.kind });
+    const target = selectTarget(root, cursors, { now, tier });
     if (!target) break;
     targets.push(target);
-    const key = `${target.kind}:${target.id}`;
-    cursors = { ...cursors, [key]: { ...(cursors[key] || {}), lastAuditedMs: now } };
+    const auditField = tier === 'deep' ? 'lastDeepAuditMs' : 'lastLightAuditMs';
+    cursors = { ...cursors, [target.id]: { ...(cursors[target.id] || {}), [auditField]: now } };
   }
-  process.stdout.write(JSON.stringify({ targets, gapScanDue }, null, 2) + '\n');
+  process.stdout.write(JSON.stringify({ targets, coverageScanDue }, null, 2) + '\n');
 }
 
 function cmdValidateFindings(args) {
@@ -133,7 +95,7 @@ function cmdValidateFindings(args) {
   const findingsPath = args._[1];
   if (!findingsPath) {
     process.stderr.write(
-      'usage: harness-health.js validate-findings <findings.json> [--root <dir>] [--issues <file>] [--target <id>] [--kind <skill|rule|claude-md|design-artifact|memory>] [--gap-scan] [--run-id <id>] [--dry-run]\n',
+      'usage: journey-health.js validate-findings <findings.json> [--root <dir>] [--issues <file>] [--target <id>] [--tier light|deep] [--coverage-scan] [--run-id <id>] [--dry-run]\n',
     );
     process.exit(2);
   }
@@ -155,14 +117,14 @@ function cmdValidateFindings(args) {
     const v = validateFinding(f);
     if (!v.ok) {
       process.stderr.write(
-        `[harness-health] validate-findings: dropped finding for target "${(f && f.target) || '?'}": ${v.errors.join('; ')}\n`,
+        `[journey-health] validate-findings: dropped finding for journey "${(f && f.journey) || '?'}": ${v.errors.join('; ')}\n`,
       );
       continue;
     }
     const id = fingerprint({
-      assetType: v.value.assetType,
-      target: v.value.target,
-      section: v.value.section || v.value.kind,
+      journey: v.value.journey,
+      category: v.value.category,
+      section: v.value.section,
       description: v.value.description,
     });
     survivors.push({ ...v.value, id });
@@ -187,14 +149,14 @@ function cmdValidateFindings(args) {
 
   if (!args.dryRun) {
     writeCache(root, cache);
-    if (args.target && args.kind) recordAudit(root, `${args.kind}:${args.target}`, {});
-    if (args.gapScan) recordGapScan(root, {});
+    if (args.target) recordAudit(root, args.target, args.tier === 'deep' ? 'deep' : 'light', {});
+    if (args.coverageScan) recordCoverageScan(root, {});
     recordRun(root, args.runId, [...seen]);
   }
 
   process.stdout.write(JSON.stringify(payloads, null, 2) + '\n');
   process.stderr.write(
-    `[harness-health] validate-findings: ${survivors.length} valid finding(s), ${payloads.length} payload(s) after dedup\n`,
+    `[journey-health] validate-findings: ${survivors.length} valid finding(s), ${payloads.length} payload(s) after dedup\n`,
   );
 }
 
@@ -238,7 +200,7 @@ function cmdMark(args) {
   const fp = args._[1];
   const status = args._[2];
   if (!fp || !MARK_STATUSES.has(status)) {
-    process.stderr.write(`usage: harness-health.js mark <fingerprint> <${[...MARK_STATUSES].join('|')}> [--root <dir>]\n`);
+    process.stderr.write(`usage: journey-health.js mark <fingerprint> <${[...MARK_STATUSES].join('|')}> [--root <dir>]\n`);
     process.exit(2);
   }
   const cache = readCache(root);
@@ -255,9 +217,9 @@ function main(argv) {
   if (cmd === 'churn-report') return cmdChurnReport(args);
   if (cmd === 'mark') return cmdMark(args);
   process.stderr.write(
-    'usage: harness-health.js <command> [options]\n' +
-    'commands: next-target [--target <id>] [--kind <skill|rule|claude-md|design-artifact|memory>] [--memory-dir <path>] [--budget <n>], ' +
-    'validate-findings <file> [--target <id>] [--kind <skill|rule|claude-md|design-artifact|memory>] [--gap-scan], ' +
+    'usage: journey-health.js <command> [options]\n' +
+    'commands: next-target [--target <id>] [--tier light|deep] [--budget <n>], ' +
+    'validate-findings <file> [--target <id>] [--tier light|deep] [--coverage-scan], ' +
     'churn-report [--fail-on-high-churn <r>], mark <fingerprint> <declined>\n',
   );
   process.exit(2);
