@@ -11,6 +11,7 @@ const { validateFinding } = require('./lib/journey-health/validate-finding');
 const { toIssuePayload } = require('./lib/journey-health/issue-payload');
 const { selectTarget, listJourneys } = require('./lib/journey-health/scope');
 const { STALE_DAYS_LIGHT } = require('./lib/journey-health/score');
+const { evaluateQaEvidence } = require('./lib/journey-health/qa-evidence');
 
 function parseArgs(argv) {
   const args = { _: [], root: process.cwd(), dryRun: false, runId: new Date().toISOString(), tier: 'light' };
@@ -25,6 +26,8 @@ function parseArgs(argv) {
     else if (a === '--run-id') args.runId = argv[++i];
     else if (a === '--fail-on-high-churn') args['fail-on-high-churn'] = argv[++i];
     else if (a === '--budget') args.budget = Number(argv[++i]);
+    else if (a === '--story-ids') args.storyIds = argv[++i];
+    else if (a === '--now') args.now = Number(argv[++i]);
     else args._.push(a);
   }
   return args;
@@ -213,6 +216,25 @@ function cmdMark(args) {
   process.stdout.write(JSON.stringify(cache[fp], null, 2) + '\n');
 }
 
+function cmdQaEvidence(args) {
+  const reportPath = args._[1];
+  if (!reportPath) {
+    process.stderr.write('usage: journey-health.js qa-evidence <report.json> --story-ids <id1,id2,...> [--now <ms>]\n');
+    process.exit(2);
+  }
+  let report;
+  try {
+    report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+  } catch {
+    process.stderr.write(`qa-evidence: could not read or parse report file: ${reportPath}\n`);
+    process.exit(1);
+  }
+  const storyIds = args.storyIds ? args.storyIds.split(',').map((s) => s.trim()).filter(Boolean) : [];
+  const now = args.now != null ? args.now : Date.now();
+  const result = evaluateQaEvidence(storyIds, report, { now });
+  process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+}
+
 function main(argv) {
   const args = parseArgs(argv);
   const cmd = args._[0];
@@ -220,10 +242,12 @@ function main(argv) {
   if (cmd === 'validate-findings') return cmdValidateFindings(args);
   if (cmd === 'churn-report') return cmdChurnReport(args);
   if (cmd === 'mark') return cmdMark(args);
+  if (cmd === 'qa-evidence') return cmdQaEvidence(args);
   process.stderr.write(
     'usage: journey-health.js <command> [options]\n' +
     'commands: next-target [--target <id>] [--tier light|deep] [--budget <n>], ' +
     'validate-findings <file> [--target <id>] [--tier light|deep] [--coverage-scan], ' +
+    'qa-evidence <report.json> --story-ids <id1,id2,...> [--now <ms>], ' +
     'churn-report [--fail-on-high-churn <r>], mark <fingerprint> <declined>\n',
   );
   process.exit(2);
@@ -231,4 +255,4 @@ function main(argv) {
 
 if (require.main === module) main(process.argv.slice(2));
 
-module.exports = { parseArgs, cmdNextTarget, cmdValidateFindings, cmdChurnReport, cmdMark, main };
+module.exports = { parseArgs, cmdNextTarget, cmdValidateFindings, cmdChurnReport, cmdMark, cmdQaEvidence, main };
