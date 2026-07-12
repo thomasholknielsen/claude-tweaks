@@ -41,3 +41,15 @@ If `git log` shows the commit on an unexpected branch, do NOT try to undo with `
 1. Check `git rev-parse --show-toplevel` and `git branch --show-current` to confirm where you are.
 2. If the commit is on the wrong branch but the work is correct, cherry-pick it to the right branch.
 3. If the wrong-branch commit must be removed, surface the problem to the user — never silently rewrite history.
+
+## Realigning a diverged local branch to origin (without `git reset`)
+
+If a local branch (e.g. `main`) has diverged from its remote counterpart — commits landed on both sides, so neither is a fast-forward of the other — and you've confirmed (a) the working tree is clean and (b) the local-only commits' content is already fully present upstream (e.g. an equivalent commit was cherry-picked and pushed separately), realign the local ref without `git reset --hard`:
+
+```bash
+git checkout --detach HEAD          # move off the branch first — its ref is untouched
+git branch -f main origin/main      # force the (now-unchecked-out) branch ref to match origin
+git checkout main                   # switch back; branch now matches origin exactly
+```
+
+This only discards the *local branch pointer's* view of those superseded commits — nothing is lost, since their content is already safely on origin, and the orphaned commits remain reachable via `git reflog` until GC. Do not use this when the local-only commits contain content that is NOT already present elsewhere — that is exactly the "wipes concurrent work" case the NEVER-`git reset` rule exists to prevent.
