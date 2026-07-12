@@ -102,19 +102,10 @@ field (which answers this one batch question, not a per-item list).
 ### Step 4: Apply
 
 ```bash
-node -e "
-  const { ensureLabelPayload } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/labels.js');
-  const labels = [
-    ['tier:approved', 'Triage authorized this for building - human approves the merge'],
-    ['tier:fast-track', 'Triage authorized this for building - auto-merges if the run comes back clean'],
-    ['tier:needs-review', 'Triage flagged this - needs a closer human look before authorizing'],
-  ];
-  console.log(JSON.stringify(labels.map(([n, d]) => ensureLabelPayload(n, d))));
-" > /tmp/triage-tier-label-payloads.json
-node -e "const ls=require('/tmp/triage-tier-label-payloads.json'); ls.forEach(l => console.log(l.name + '\t' + l.description))" | while IFS=$'\t' read -r NAME DESCRIPTION; do
-  gh label list --search "$NAME" --json name -q '.[].name' | grep -qx "$NAME" || \
-    gh label create "$NAME" --description "$DESCRIPTION"
-done
+# Bootstrap per _shared/label-bootstrap.md, LABELS_JSON =
+# [['tier:approved', 'Triage authorized this for building - human approves the merge'],
+#  ['tier:fast-track', 'Triage authorized this for building - auto-merges if the run comes back clean'],
+#  ['tier:needs-review', 'Triage flagged this - needs a closer human look before authorizing']]
 if gh issue view "$ISSUE" --json labels -q '.labels[].name' | grep -qx status:blocked; then
   gh issue edit "$ISSUE" --remove-label status:blocked --add-label "tier:{tier}"
 else
@@ -169,9 +160,8 @@ gh api "repos/{owner}/{repo}/git/refs" -f "ref=refs/claims/issue-${ISSUE}" -f "s
 (`claimPayload`):
 
 ```bash
-DESCRIPTION=$(node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/labels.js').ensureLabelPayload('status:in-progress', 'Claimed and being built by an autonomous claude-tweaks run').description)")
-gh label list --search "status:in-progress" --json name -q '.[].name' | grep -qx status:in-progress || \
-  gh label create status:in-progress --description "$DESCRIPTION"
+# Bootstrap per _shared/label-bootstrap.md, LABELS_JSON =
+# [['status:in-progress', 'Claimed and being built by an autonomous claude-tweaks run']]
 gh issue edit "$ISSUE" --add-label status:in-progress
 ```
 
@@ -332,9 +322,8 @@ When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
    this file creates this one:
 
    ```bash
-   DESCRIPTION=$(node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/labels.js').ensureLabelPayload('status:blocked', 'Hit its retry ceiling under autonomous dispatch - needs a human look').description)")
-   gh label list --search "status:blocked" --json name -q '.[].name' | grep -qx status:blocked || \
-     gh label create status:blocked --description "$DESCRIPTION"
+   # Bootstrap per _shared/label-bootstrap.md, LABELS_JSON =
+   # [['status:blocked', 'Hit its retry ceiling under autonomous dispatch - needs a human look']]
    ```
 
    Then strip whichever tier label the issue carries, add `status:blocked`, send a

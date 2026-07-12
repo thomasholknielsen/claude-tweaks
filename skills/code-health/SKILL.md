@@ -213,23 +213,14 @@ Read `/tmp/code-health-payloads.json`. The command:
 Before filing, bootstrap the three label families this run needs with real descriptions — using the shared helper so a too-long description fails loudly here rather than as a 422 on `gh issue create`:
 
 ```bash
-node -e "
-  const { ensureLabelPayload } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/labels.js');
-  const labels = [
-    ['code-health', 'Filed by the code-health engine — a systematic maintainability finding'],
-    ['code-health:risk-low', \"Risk tier if this finding's suggested fix goes wrong\"],
-    ['code-health:risk-medium', \"Risk tier if this finding's suggested fix goes wrong\"],
-    ['code-health:risk-high', \"Risk tier if this finding's suggested fix goes wrong\"],
-    ['code-health:effort-low', \"Estimated effort to implement this finding's suggested fix\"],
-    ['code-health:effort-medium', \"Estimated effort to implement this finding's suggested fix\"],
-    ['code-health:effort-high', \"Estimated effort to implement this finding's suggested fix\"],
-  ];
-  console.log(JSON.stringify(labels.map(([n, d]) => ensureLabelPayload(n, d))));
-" > /tmp/code-health-label-payloads.json
-node -e "const ls=require('/tmp/code-health-label-payloads.json'); ls.forEach(l => console.log(l.name + '\t' + l.description))" | while IFS=$'\t' read -r NAME DESCRIPTION; do
-  gh label list --search "$NAME" --json name -q '.[].name' | grep -qx "$NAME" || \
-    gh label create "$NAME" --description "$DESCRIPTION"
-done
+# Bootstrap per _shared/label-bootstrap.md, LABELS_JSON =
+# [['code-health', 'Filed by the code-health engine - a systematic maintainability finding'],
+#  ['code-health:risk-low', "Risk tier if this finding's suggested fix goes wrong"],
+#  ['code-health:risk-medium', "Risk tier if this finding's suggested fix goes wrong"],
+#  ['code-health:risk-high', "Risk tier if this finding's suggested fix goes wrong"],
+#  ['code-health:effort-low', "Estimated effort to implement this finding's suggested fix"],
+#  ['code-health:effort-medium', "Estimated effort to implement this finding's suggested fix"],
+#  ['code-health:effort-high', "Estimated effort to implement this finding's suggested fix"]]
 ```
 
 There is no per-criterion label anymore — the criterion is already in the issue body's header line (`**Criterion:** ...`), and nothing reads it back off a label; this is also the label class that hit GitHub's 100-char cap (see `bin/lib/code-health/issue-payload.js`).

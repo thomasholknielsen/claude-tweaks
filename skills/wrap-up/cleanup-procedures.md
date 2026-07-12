@@ -217,7 +217,7 @@ stop before attempting any release.
    `abandoned: spec {spec}` (i.e. NOT `merged:`/`pr-opened:`) AND `reconWasParked` is `true`
    in `${RUN_DIR}/claim-frontmatter-${ISSUE}.json` (item 6's capture — the spec file itself is
    already gone by this point, do not try to re-read it): restore `parked` — bootstrap the
-   label if missing (same check-then-create pattern as `backlog`), then `gh issue edit "$ISSUE"
+   label if missing (per _shared/label-bootstrap.md, LABELS_JSON = [['parked', 'Deferred backlog entry, waiting on a trigger condition']]), then `gh issue edit "$ISSUE"
    --add-label parked`. Skip restoration silently when the capture file is absent or
    `reconWasParked` is `false`, or when the outcome was `merged:`/`pr-opened:` (the spec shipped
    or is under review — the issue should stay unparked). Best-effort — on failure, log a
