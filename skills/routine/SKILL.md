@@ -34,6 +34,8 @@ Not for: one-off or exploratory routines you don't want templated (use `/schedul
 | `status <skill>` | Show the instantiated record(s) alongside live routine state. With no `--variant`, lists every instantiated variant found for `<skill>`. |
 | `--variant <name>` | Use `skills/{skill}/routine-template-<name>.yml` instead of the default `skills/{skill}/routine-template.yml`. Combine with `create`/`update`/`status`. Omit for the default template — fully backward compatible with every existing consumer (code-health, flow, harness-health), none of which ship a variant. |
 | `--dry-run` (combine with `create`/`update`) | Assemble and display the `RemoteTrigger` body; never make a `create`/`update` call (read-only `list`/`get` calls to resolve values are still permitted), never write or rewrite the instantiated record. |
+| `--defaults` (combine with `create`) | Skip Step 5's interactive cadence picker (use the template's own `default_schedule.cron_expression` verbatim) and Step 7's interactive confirm (proceed straight to creation once the body is assembled) — for non-interactive/batch creation. Environment still resolves via Step 4 (cache, `list`, or `--environment`); if none of those yields a value, `--defaults` does not suppress that one unavoidable prompt. |
+| `--environment <id>` (combine with `--defaults`, or standalone) | Use this environment ID directly in Step 4, skipping cache/list lookup. |
 | `--source <parent-skill>` | Used by a parent skill (e.g. `/claude-tweaks:init`) to identify itself as the caller; see Component-Skill Contract below. |
 
 ## Workflow
@@ -54,12 +56,12 @@ Derive `REPO_SLUG` from the resolved URL's `{repo}` segment: lowercase it, repla
 
 **Step 3 — Idempotency check.** Check whether `.claude-tweaks/routines/{PREFIXED_NAME}.yml` already exists in the current project. If it does, stop this workflow and continue at UPDATE below instead — never create a second routine for the same project+skill+variant combination. (`PREFIXED_NAME` already encodes the loaded template's `routine_name`, which differs per variant by construction — creating `tidy` with `--variant=github-triage` while `tidy-weekly`'s record already exists is a legitimate second instance, not a duplicate; see the Anti-Patterns table below.)
 
-**Step 4 — Resolve `environment_id`.** Check `.claude-tweaks/routine-environment-cache.yml` in the current project first. If it exists and contains an `environment_id` value, offer it as the default (let the user override). Otherwise, load the tool with `ToolSearch select:RemoteTrigger`, then call `{action: "list"}`. If existing routines are returned, read `job_config.ccr.environment_id` off the most recently created one and offer it as the default (let the user override). If none exist yet, ask the user directly which environment to use — present whatever environment names/IDs are available in context; if none are, ask the user to name one (they can check via `/schedule` once if unsure). Do not cache this value anywhere under `~/.claude-tweaks/` — that path is harness-owned, not skill-owned.
+**Step 4 — Resolve `environment_id`.** If `--environment <id>` was passed, use it directly — skip every other source below. Otherwise: check `.claude-tweaks/routine-environment-cache.yml` in the current project first. If it exists and contains an `environment_id` value, use it silently — no confirmation prompt. Otherwise, load the tool with `ToolSearch select:RemoteTrigger`, then call `{action: "list"}`. If existing routines are returned, read `job_config.ccr.environment_id` off the most recently created one and use it silently. If none of these three sources yields a value, ask the user directly which environment to use — present whatever environment names/IDs are available in context; if none are, ask the user to name one (they can check via `/schedule` once if unsure). Do not cache this value anywhere under `~/.claude-tweaks/` — that path is harness-owned, not skill-owned.
 
-After the user confirms an environment (whether sourced from the cache, `list`, or direct input), write it to `.claude-tweaks/routine-environment-cache.yml` (skip this write if `--dry-run` was passed):
+After an environment is resolved (from `--environment`, the cache, `list`, or direct user input), write it to `.claude-tweaks/routine-environment-cache.yml` (skip this write if `--dry-run` was passed):
 
 ```yaml
-environment_id: "<confirmed environment_id>"
+environment_id: "<resolved environment_id>"
 ```
 
 This file is project-local and must stay gitignored — it exists purely to spare a second skill in the same project from re-deriving the same environment, never to make the value portable across projects or accounts.
