@@ -131,6 +131,7 @@ For a detailed explanation of how context flows between skills via artifacts, re
 | `/claude-tweaks:review` | /claude-tweaks:help flags specs awaiting review |
 | `/claude-tweaks:wrap-up` | /claude-tweaks:help flags specs awaiting wrap-up |
 | `/claude-tweaks:tidy` | /claude-tweaks:help suggests /claude-tweaks:tidy when maintenance is needed |
+| `/claude-tweaks:triage` | Surfaces pending-authorization count, `status:blocked` count, and rolling auto-merge count on the dashboard (Stage 4.6, `triage-queue` scope) — the reciprocal of `triage/SKILL.md`'s own `/claude-tweaks:help` row. |
 | `specs/backlog/*.md` (`**Stage:** parked`) | /claude-tweaks:help scans deferred items and flags those with met triggers |
 | `/claude-tweaks:flow` | /claude-tweaks:help lists /claude-tweaks:flow as an automation option for ready specs |
 | `/claude-tweaks:browse` | Utility skill — /claude-tweaks:help lists it in the utility skills table |
