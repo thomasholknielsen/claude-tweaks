@@ -6,9 +6,16 @@ Used by `/claude-tweaks:visualize` Step 6 when the user accepts the "publish as 
 
 Reuse the exact core fragment from `SKILL.md` Step 3 (or `d2-enhanced-path.md` Step 3/4 for the enhanced path) — do not regenerate. Wrap it per `visual-html-output.md` Step 4's Artifact row: `<title>{Diagram Title}</title>{core}` — no `<!DOCTYPE>`, `<html>`, `<head>`, or `<body>` tags.
 
-## Step 2: Write to the stable sidecar path
+## Step 2: Write to the stable sidecar path, recovering any prior URL first
 
-Write the fragment to `{same-directory-as-main-file}/{slug}.artifact.html` — e.g. if the main diagram is `docs/journeys/checkout-flow-swimlane.html`, the sidecar is `docs/journeys/checkout-flow-swimlane.artifact.html`. This path must stay stable across regenerations of the same diagram, since the `Artifact` tool only republishes to the same URL when called again with the same `file_path`.
+Write the Step 1 fragment to `{same-directory-as-main-file}/{slug}.artifact.html` — e.g. if the main diagram is `docs/journeys/checkout-flow-swimlane.html`, the sidecar is `docs/journeys/checkout-flow-swimlane.artifact.html`. This path must stay stable across regenerations of the same diagram.
+
+Stable `file_path` alone is not enough to update an existing Artifact across sessions: the `Artifact` tool only treats a call as an update to a prior publish when that prior publish happened in the *same* conversation. A future session (e.g. the user regenerating this diagram next week) has no memory of the URL, so before overwriting the sidecar file, check whether it already exists from a prior publish:
+
+- If it exists, read its first line. If that line is an HTML comment of the form `<!-- artifact-url: {url} -->`, extract `{url}` — this is the URL returned by the last successful publish, possibly in an earlier session.
+- If the file doesn't exist yet, or its first line isn't that comment, there is no prior URL to recover — this is effectively a first publish.
+
+Carry whatever URL (or absence of one) forward into Step 4.
 
 ## Step 3: Pick the favicon
 
@@ -24,7 +31,20 @@ Write the fragment to `{same-directory-as-main-file}/{slug}.artifact.html` — e
 
 This lookup is fixed — the `Artifact` tool requires the favicon to stay stable across redeploys of the same artifact, so never pick a new one on a re-publish of the same diagram.
 
-## Step 4: Call the Artifact tool
+## Step 4: Call the Artifact tool, then write the returned URL back
+
+- If Step 2 recovered a prior URL, pass it as `url` so the tool updates that existing artifact instead of minting a new one:
+
+```
+Artifact({
+  file_path: "{sidecar path from Step 2}",
+  description: "{Diagram type} diagram: {topic}",
+  favicon: "{favicon from Step 3}",
+  url: "{prior URL from Step 2}"
+})
+```
+
+- If Step 2 found no prior URL (first publish for this diagram), omit `url` entirely from the call, same as before:
 
 ```
 Artifact({
@@ -33,6 +53,8 @@ Artifact({
   favicon: "{favicon from Step 3}"
 })
 ```
+
+After the call succeeds, it returns the artifact's URL. Write (or overwrite) a `<!-- artifact-url: {returned URL} -->` comment as the very first line of the sidecar file — whether this was the first publish or an update — so the next publish of this diagram, in this session or a future one, can find it in Step 2.
 
 ## Step 5: Log if inside a pipeline
 
