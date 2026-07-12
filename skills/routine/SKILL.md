@@ -169,11 +169,11 @@ Report the console URL to the user.
 
 **Step 4.** Assemble the body the same way as CREATE's body-assembly step, then show a diff between the recorded config (schedule, template version, resolved values) and the freshly assembled one. If nothing changed, report that and stop.
 
-**Step 5.** Review gate — same standard as CREATE's review gate: show the diff, then call `AskUserQuestion` with `question`: `"Update this routine?"`, `header`: `"Confirm routine"`, `multiSelect`: `false`, and:
-- Option 1 — `label`: `"Update"`, `description`: `"Proceed with the assembled RemoteTrigger body shown above"`
+**Step 5.** Review gate — same standard as CREATE's Step 7: show the diff, then call `AskUserQuestion` with `question`: `"Update this routine?"`, `header`: `"Confirm routine"`, `multiSelect`: `false`, and:
+- Option 1 — `label`: `"Yes, update (Recommended)"`, `description`: `"Proceed with the assembled RemoteTrigger body shown above"`
 - Option 2 — `label`: `"Cancel"`, `description`: `"Do not update anything"`
 
-**Neither option carries `(Recommended)`** — same reasoning as CREATE Step 7 (live, billed infrastructure with no delete API).
+Marking "Yes, update" as `(Recommended)` follows the same reasoning as CREATE Step 7's confirm — the diff is always shown before this call, so the safety property (review before commit) is preserved even with a marked default.
 
 If `--dry-run` was passed: show the diff and stop. Do not call `RemoteTrigger`. Do not rewrite the instantiated record.
 
@@ -219,6 +219,7 @@ Standalone invocation (no `--source` flag) is the common case and renders Next A
 | Committing account-specific values into the instantiated record | The record schema deliberately excludes `environment_id` and MCP credentials — it's meant to be safe to commit. |
 | Treating `--dry-run`'s assembled body as already created | Nothing is created, updated, or written until the non-dry-run path completes its final API call and record write. |
 | Caching `environment_id` under `~/.claude-tweaks/` | That path is harness-owned runtime state, not skill-owned — cache it in the project-local `.claude-tweaks/routine-environment-cache.yml` file instead (checked before falling back to `RemoteTrigger list`, per CREATE Step 4). |
+| Using `--defaults` to skip review on a single ad hoc `create` invocation the user hasn't already confirmed at a higher level | `--defaults` is `/init`'s sanctioned non-interactive entry point for a batch the user already confirmed via a multiSelect picklist (see the `/claude-tweaks:init` row below) — using it standalone removes the one safety check this billed, undeletable action has, for no batching benefit. |
 
 ## Relationship to Other Skills
 
@@ -228,7 +229,7 @@ Standalone invocation (no `--source` flag) is the common case and renders Next A
 | `/claude-tweaks:triage` | `skills/triage/routine-template.yml` is a consumer — a headless issue dispatcher (`dispatch` subcommand); `/routine create triage` instantiates it. Unlike code-health's report-only template it carries write tools. |
 | `/schedule` (built-in) | `/routine` assembles the same `RemoteTrigger` body `/schedule` would build conversationally, but non-interactively from a template. `/schedule` remains the tool for one-off/exploratory routines and for listing, running, or inspecting a routine. Deletion always requires the web console at claude.ai/code/routines. |
 | `skills/_shared/routine-template-schema.md` | Canonical schema for both the template and the instantiated record — referenced, not duplicated, here. |
-| `/claude-tweaks:init` | Step 13 discovers skills with a `routine-template.yml` (plus any named `routine-template-<variant>.yml` siblings) and no existing record, then invokes `/claude-tweaks:routine create <skill> [--variant=<name>] --source init` for each the user selects — pure discovery + handoff, no logic duplicated. |
+| `/claude-tweaks:init` | Step 13 discovers skills with a `routine-template.yml` (plus any named `routine-template-<variant>.yml` siblings) and no existing record, presents them as a single multiSelect picklist with their default schedules, resolves environment once, then invokes `/claude-tweaks:routine create <skill> [--variant=<name>] --defaults --environment=<id> --source init` for each selected candidate — pure discovery + handoff, no logic duplicated; `--defaults` is `/routine`'s own sanctioned non-interactive entry point, not a shortcut `/init` invented around it. |
 | `/claude-tweaks:tidy` | Tidy is this skill's second consumer — `skills/tidy/routine-template.yml` relies on tidy's own Standalone-auto support for safe unattended execution. Tidy also ships this skill's first named variant, `skills/tidy/routine-template-github-triage.yml` (`--variant=github-triage`), a frequent `--scope=github`-only companion to the weekly full sweep. |
 | `/claude-tweaks:harness-health` | Fourth consumer — `skills/harness-health/routine-template.yml` audits `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md for drift, template-conformance, and best-practice gaps, sharing its judgment procedure with `/init` and `/wrap-up`. |
 | `/claude-tweaks:journey-health` | Fifth consumer — `skills/journey-health/routine-template.yml` audits `docs/journeys/*.md` for drift and coverage gaps (light tier only; the deep tier is interactive-only, pending a cloud-Routine feasibility spike). |
