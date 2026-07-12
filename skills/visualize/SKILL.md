@@ -87,7 +87,7 @@ Apply `visual-html-output.md` Step 4's adapters. Always write the standalone-fil
 
 ### Step 6: Offer to publish via Artifact
 
-Call `AskUserQuestion`: `question`: `"Also publish this as a shareable Artifact link?"`, `header`: `"Artifact"`, options `"Yes"` / `"No"` — no default marked Recommended; this is a genuine toss-up, not a best-practice call. On `"Yes"`, read `artifact-publish.md` in this skill's directory.
+If the `Artifact` tool is not available in the current session (plan/org gating, Agent SDK, or any other reason it doesn't appear in the available tools), skip this step silently — do not mention Artifact publishing at all. Otherwise, call `AskUserQuestion`: `question`: `"Also publish this as a shareable Artifact link?"`, `header`: `"Artifact"`, options `"Yes"` / `"No"` — no default marked Recommended; this is a genuine toss-up, not a best-practice call. On `"Yes"`, read `artifact-publish.md` in this skill's directory.
 
 ### Step 7: Registry update (persisted diagrams only)
 
