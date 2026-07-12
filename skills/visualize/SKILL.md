@@ -46,7 +46,7 @@ Generates a self-contained HTML+SVG diagram, themed from the project's own desig
 `<topic>` is free text describing what to diagram. If `$ARGUMENTS` is empty, ask the user for both.
 
 Flags:
-- `--source <caller>` — set by soft-hook callers (`journeys`, `specify`, `review`) to select default placement (Step 4) without prompting.
+- `--source <caller>` — set by soft-hook callers (`journeys`, `specify`, `review`) to select default placement (Step 3) without prompting.
 
 ## Workflow
 
@@ -66,13 +66,9 @@ Both paths continue to Step 2 (token extraction) next — the enhanced path need
 
 ### Step 2: Token extraction and theming (both paths)
 
-Read `skills/_shared/visual-html-output.md` Steps 1-2. Extract tokens from `DESIGN.md`/`DESIGN.json` when present; otherwise run the fallback `AskUserQuestion` (once per session — see the dedupe rule in that file). Then branch: for the enhanced path (resolved in Step 1), read `d2-enhanced-path.md` in this skill's directory, then continue at this file's Step 4; for the baseline path, continue to Step 3 below.
+Read `skills/_shared/visual-html-output.md` Steps 1-2. Extract tokens from `DESIGN.md`/`DESIGN.json` when present; otherwise run the fallback `AskUserQuestion` (once per session — see the dedupe rule in that file). Then continue to Step 3 (resolve placement) — both paths need this before proceeding, since the enhanced path needs a known destination path before it writes its versioned `.d2`/`.svg` source files.
 
-### Step 3: Generate the core fragment (baseline path)
-
-Author the `<svg>` content directly for the diagram type and topic, binding every color to `var(--token-name)` from Step 2's extracted (or neutral fallback) palette. Follow `visual-html-output.md` Step 3's scoping rule — every custom class prefixed with a unique per-diagram slug.
-
-### Step 4: Resolve placement
+### Step 3: Resolve placement
 
 | Caller (`--source`) | Placement |
 |---|---|
@@ -81,9 +77,15 @@ Author the `<svg>` content directly for the diagram type and topic, binding ever
 | `review` | Ephemeral by default; ask before persisting near `docs/architecture.md` |
 | *(none — direct invocation)* | Run `visual-html-output.md` Step 7's `AskUserQuestion`; "Save as a project doc" resolves to `docs/diagrams/{slug}.html` |
 
+Now branch: for the enhanced path (resolved in Step 1), read `d2-enhanced-path.md` in this skill's directory — it now has a resolved destination path to write to — then continue to Step 5. For the baseline path, continue to Step 4 below.
+
+### Step 4: Generate the core fragment (baseline path)
+
+Author the `<svg>` content directly for the diagram type and topic, binding every color to `var(--token-name)` from Step 2's extracted (or neutral fallback) palette. Follow `visual-html-output.md` Step 3's scoping rule — every custom class prefixed with a unique per-diagram slug.
+
 ### Step 5: Write wrapper outputs
 
-Apply `visual-html-output.md` Step 4's adapters. Always write the standalone-file wrapper to the path from Step 4. Write the markdown-embed wrapper's content inline in this skill's own response (for the user to copy into a doc) rather than as a separate file — it's a snippet, not a standalone artifact.
+Apply `visual-html-output.md` Step 4's adapters. Always write the standalone-file wrapper to the path from Step 3. Write the markdown-embed wrapper's content inline in this skill's own response (for the user to copy into a doc) rather than as a separate file — it's a snippet, not a standalone artifact.
 
 ### Step 6: Offer to publish via Artifact
 
@@ -91,7 +93,7 @@ If the `Artifact` tool is not available in the current session (plan/org gating,
 
 ### Step 7: Registry update (persisted diagrams only)
 
-If Step 4 resolved to `docs/diagrams/{slug}.html` (the context-free fallback path) and no `REGISTRY.md` row for `docs/diagrams/` exists yet, add one: `| docs/diagrams/ | Generated visual diagrams | — |` (no Auto-detect — matches `architecture.md`/`decisions/*.md` treatment). Diagrams placed under `docs/journeys/` or `docs/plans/` need no new row — they ride along with that doc's existing registry entry.
+If Step 3 resolved to `docs/diagrams/{slug}.html` (the context-free fallback path) and no `REGISTRY.md` row for `docs/diagrams/` exists yet, add one: `| docs/diagrams/ | Generated visual diagrams | — |` (no Auto-detect — matches `architecture.md`/`decisions/*.md` treatment). Diagrams placed under `docs/journeys/` or `docs/plans/` need no new row — they ride along with that doc's existing registry entry.
 
 ## Next Actions
 
@@ -111,11 +113,11 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 
 | Pattern | Why It Fails |
 |---------|--------------|
-| Regenerating the core fragment separately per wrapper | The standalone file, markdown embed, and Artifact-published version drift apart. Generate once (Step 3), wrap three ways (Step 5). |
+| Regenerating the core fragment separately per wrapper | The standalone file, markdown embed, and Artifact-published version drift apart. Generate once (Step 4), wrap three ways (Step 5). |
 | Re-asking the DESIGN.md fallback question every invocation | Annoys a user who's already decided not to use Impeccable. Dedupe per session (`visual-html-output.md` Step 2). |
 | Forcing a baseline-only type through the D2 enhanced path | Timeline/swimlane/venn/pyramid have no graph-shaped representation — this fights the tool the same way theming fights Mermaid/D2's own engines. |
 | Auto-invoking the `Artifact` tool without asking | Publishing is always an explicit `AskUserQuestion` — never automatic, and silently skipped (not failed) if the tool isn't present in the session. |
-| Writing every diagram to a single central `docs/diagrams/` folder regardless of caller | Co-locate with what the diagram illustrates (Step 4) — `docs/diagrams/` is the fallback for context-free invocations only. |
+| Writing every diagram to a single central `docs/diagrams/` folder regardless of caller | Co-locate with what the diagram illustrates (Step 3) — `docs/diagrams/` is the fallback for context-free invocations only. |
 
 ## Relationship to Other Skills
 
@@ -126,4 +128,5 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `/claude-tweaks:review` | Lens 3i-diagram invokes this skill with `--source review` as an informational finding when the diff added structural complexity with no matching diagram on disk. |
 | `/claude-tweaks:design` | Not invoked directly — this skill reads `DESIGN.md`/`DESIGN.json` (written by `/impeccable:impeccable document`, the same files `/design pre-build` mode lazy-loads) but does not go through the `/design` wrapper, since it needs the raw token data, not a critique/audit/polish action. |
 | `/claude-tweaks:init` | Step 11 offers to enable diagram suggestions (writes `diagram-suggestions: enabled/disabled` to CLAUDE.md — no install step, this skill is native). |
+| `/claude-tweaks:help` | /help references /visualize in the workflow diagram and reference card. |
 | `skills/_shared/visual-html-output.md` | Shared core this skill consumes for token extraction, wrapper adapters, MDX/Nextra compatibility, and the persist-vs-ephemeral decision. |
