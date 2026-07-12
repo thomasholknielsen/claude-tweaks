@@ -62,11 +62,11 @@ Resolve `<type>` from Input. Look up the generation path — **enhanced** when t
 | `quadrant` | Enhanced (tentative — confirm against current D2 docs; fall back to baseline if unsupported) | Grid layout |
 | `timeline`, `swimlane`, `venn`, `pyramid` | Baseline only | No native fit |
 
-For the enhanced path, read `d2-enhanced-path.md` in this skill's directory, then continue at this file's Step 4. For the baseline path, continue directly below.
+Both paths continue to Step 2 (token extraction) next — the enhanced path needs tokens too, for re-theming the D2 render.
 
-### Step 2: Token extraction and theming (baseline path)
+### Step 2: Token extraction and theming (both paths)
 
-Read `skills/_shared/visual-html-output.md` Steps 1-2. Extract tokens from `DESIGN.md`/`DESIGN.json` when present; otherwise run the fallback `AskUserQuestion` (once per session — see the dedupe rule in that file).
+Read `skills/_shared/visual-html-output.md` Steps 1-2. Extract tokens from `DESIGN.md`/`DESIGN.json` when present; otherwise run the fallback `AskUserQuestion` (once per session — see the dedupe rule in that file). Then branch: for the enhanced path (resolved in Step 1), read `d2-enhanced-path.md` in this skill's directory, then continue at this file's Step 4; for the baseline path, continue to Step 3 below.
 
 ### Step 3: Generate the core fragment (baseline path)
 
