@@ -148,8 +148,13 @@ human, never auto-retried).
 ### Step 2: Claim each (per `_shared/issue-claims.md`)
 
 Resolve the sha once per run, then for each issue attempt the atomic ref creation exactly as
-`_shared/issue-claims.md`'s "The lock" section describes (`gh api repos/{owner}/{repo}/git/refs
--f ref=refs/claims/issue-${ISSUE} -f sha=${SHA}`).
+`_shared/issue-claims.md`'s "The lock" section describes:
+
+```bash
+DEFAULT_BRANCH=$(gh api "repos/{owner}/{repo}" -q .default_branch)
+SHA=$(gh api "repos/{owner}/{repo}/commits/${DEFAULT_BRANCH}" -q .sha)
+gh api "repos/{owner}/{repo}/git/refs" -f "ref=refs/claims/issue-${ISSUE}" -f "sha=${SHA}"
+```
 
 **On success (201):** bootstrap-then-add `status:in-progress`, then post the claim comment
 (`claimPayload`):
