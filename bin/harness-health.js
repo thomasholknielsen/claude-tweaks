@@ -189,9 +189,18 @@ function cmdValidateFindings(args) {
 
   if (!args.dryRun) {
     writeCache(root, cache);
-    if (args.target && args.kind) recordAudit(root, `${args.kind}:${args.target}`, {});
-    if (args.gapScan) recordGapScan(root, {});
-    recordRun(root, args.runId, [...seen]);
+    // Cursor/audit-log persistence is a rebuildable optimization (GitHub issue state is the
+    // source of truth), so a persistence failure must never block emitting the payloads —
+    // mirrors the pattern already hardened in bin/code-health.js's own recordRun call.
+    try {
+      if (args.target && args.kind) recordAudit(root, `${args.kind}:${args.target}`, {});
+      if (args.gapScan) recordGapScan(root, {});
+      recordRun(root, args.runId, [...seen]);
+    } catch (err) {
+      process.stderr.write(
+        `[harness-health] validate-findings: cursor/run-log persistence failed (non-fatal, payloads still emitted): ${err.message}\n`,
+      );
+    }
   }
 
   process.stdout.write(JSON.stringify(payloads, null, 2) + '\n');

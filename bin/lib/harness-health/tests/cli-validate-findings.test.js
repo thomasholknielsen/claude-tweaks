@@ -170,3 +170,20 @@ test('validate-findings: a finding matching a closed non-wontfix issue is reopen
   assert.strictEqual(cache[fp].status, 'regressed');
   assert.strictEqual(cache[fp].issue, 9);
 });
+
+test('validate-findings: a recordRun failure is non-fatal — payloads still emit on stdout', () => {
+  const root = tmp();
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([validFinding()]));
+
+  // Pre-create the runs directory's path as a regular file, so recordRun's own
+  // fs.mkdirSync(runsDir, {recursive: true}) throws instead of succeeding.
+  fs.mkdirSync(path.join(root, '.claude-tweaks', 'harness-health'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude-tweaks', 'harness-health', 'runs'), 'blocks the runs directory');
+
+  const result = runValidateFindings(root, findingsFile, ['--run-id', 'test-run-1']);
+  assert.strictEqual(result.status, 0, `expected non-fatal exit, got stderr: ${result.stderr}`);
+  const payloads = JSON.parse(result.stdout);
+  assert.strictEqual(payloads.length, 1, 'payload must still emit despite the persistence failure');
+  assert.ok(result.stderr.includes('non-fatal'), `expected a non-fatal warning in stderr, got: ${result.stderr}`);
+});
