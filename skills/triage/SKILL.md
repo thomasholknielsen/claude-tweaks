@@ -282,9 +282,12 @@ When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
    successor already broke the stale claim and now holds the lock — skip the rest of this step
    entirely (no release, no label changes, no comment), log, and move to the next issue.
 2. Release the claim (reason: `failed: {gate}`, per `_shared/issue-claims.md`'s
-   Release triggers table), then remove `status:in-progress`
+   Release triggers table), then remove `status:in-progress` the same way
+   `wrap-up/cleanup-procedures.md` Section E step 7 does
    (`gh issue edit "$ISSUE" --remove-label status:in-progress`, best-effort — log a warning and
-   continue on failure, the same as every other release site).
+   continue on failure). This is a cross-reference, not a restatement — if Section E's mechanics
+   for this step ever change, this step must be re-verified against it rather than assumed
+   still correct.
 3. Fetch existing comments and compute this attempt's number and whether it
    hits the ceiling (read `triage-retry-ceiling` from CLAUDE.md/`policy.yml`,
    default 3), in one pass — fetching comments *before* posting this attempt's
