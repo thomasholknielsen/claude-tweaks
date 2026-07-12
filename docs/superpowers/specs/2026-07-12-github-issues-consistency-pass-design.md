@@ -19,7 +19,8 @@ This design closes out the 13 open + 2 partial findings and addresses all three 
 
 ### Group A — Tiering & dedup (structural)
 
-- `bin/lib/issues/tier.js` gains a `KIND_ADAPTERS` table: `code-health` maps to the existing risk/effort label extractor; a new `harness-health` adapter maps `harness-health:additive` → risk-equivalent `low` (fast-track-eligible) and `harness-health:restructural` → `approved`. `recommendTier` stays kind-agnostic — it only ever consumes the common `{riskTier, effortTier}` shape, never label strings directly.
+- `bin/lib/issues/tier.js` gains a `KIND_ADAPTERS` table: `code-health` maps to the existing risk/effort label extractor; a new `harness-health` adapter maps `harness-health:additive` → `{riskTier: 'low', effortTier: 'low'}` (satisfies `recommendTier`'s existing both-low fast-track condition) and `harness-health:restructural` → `{riskTier: 'high', effortTier: 'high'}` (falls through to `approved`). `extractRiskEffort` tries each adapter's label patterns in turn and returns the first match — an issue's labels only ever match one kind's adapter, so no explicit kind input is needed. `recommendTier` itself stays kind-agnostic — it only ever consumes the common `{riskTier, effortTier}` shape, never label strings directly.
+- A harness-health issue carrying `harness-health:new-skill` (proposals, not additive/restructural patches) intentionally matches neither adapter branch and keeps today's blank/`approved` fallback — new-skill proposals should never be fast-track-eligible, so this is the correct behavior, not a gap to close.
 - `triage/SKILL.md`'s batch-table rendering (lines 62-66) picks up the new recommendation automatically once `extractRiskEffort` is kind-aware — no separate table-rendering change needed beyond passing the issue's labels through.
 - `bin/lib/watchman-core/dedup.js` gains a `closed non-wontfix match → reopen` branch, mirroring `code-health/dedup.js`'s own (independent) reopen branch — without risk-threshold gating, since watchman-core's consumers (harness-health, journey-health) have no risk field to threshold against.
 - `bin/harness-health.js:179` and `bin/journey-health.js:148` handle `decision.action === 'reopen'` (treat like `file`: push the payload, write `status: 'regressed'` to cache) — matching the pattern `bin/code-health.js:246-249` already uses for its own reopen branch.
@@ -58,7 +59,7 @@ This design closes out the 13 open + 2 partial findings and addresses all three 
 
 ## Testing
 
-Run the full suite (`npm test`) after each group lands. Group A additionally needs new unit tests for the `KIND_ADAPTERS` tiering path and the `reopen` branch (both the `watchman-core/dedup.js` decision and the two consumer wire-ups). Group E's two items are test-only.
+Run the full suite (`npm test`) after each group lands. Group A additionally needs new unit tests for the `KIND_ADAPTERS` tiering path (including the `harness-health:new-skill` non-match case) and the `reopen` branch (both the `watchman-core/dedup.js` decision and the two consumer wire-ups). Within Group E, the `isStale`/`ttlHours` and `dedup.js`/`fingerprint` bullets are test-only additions; the `harness-health.js` try/catch and `backlog.js` classification bullets are behavior changes verified by the full suite like every other group.
 
 ## Out of scope
 
