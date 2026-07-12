@@ -68,9 +68,13 @@ Full sweep of open PRs, code-health-labelled issues, harness-health-labelled iss
 8. **Pending-authorization queue size** — `/claude-tweaks:triage` (`skills/triage/SKILL.md` Step 1) tiers **code-health and harness-health issues only** — it never touches `backlog`-labeled issues, which have their own separate inbox/parked lifecycle unrelated to build-authorization tiers, and `journey-health` issues aren't wired into triage's tiering flow (yet), so they're excluded here too. Reuse items 3 and 5's JSON output directly (both now carry `labels`) — count how many of those already-fetched issues lack all three current tier labels (`tier:needs-review`, `tier:approved`, `tier:fast-track` — read the exact current set from `skills/triage/SKILL.md`, do not hardcode a stale list here). Not gated on `backlog-backend` — code-health/harness-health issues exist regardless of which backlog backend is active.
 
    ```bash
-   jq -s '[.[0][], .[1][]] | map(select((.labels | map(.name) | any(. == "tier:needs-review" or . == "tier:approved" or . == "tier:fast-track")) | not)) | length' \
+   jq -s '[.[0][], .[1][]] | map(select((.labels | map(.name) | any(. == "tier:needs-review" or . == "tier:approved" or . == "tier:fast-track" or . == "status:blocked")) | not)) | length' \
      <(echo "$CODE_HEALTH_ISSUES_JSON") \
      <(echo "$HARNESS_HEALTH_ISSUES_JSON")
+
+   The exclusion also covers `status:blocked` — an issue that already hit its retry ceiling has
+   had its decision made and failed out; it is not "pending your initial decision" (same fix
+   already applied to the `triage-queue` scope below, consumed by `/help`).
    ```
 
    (`$CODE_HEALTH_ISSUES_JSON` / `$HARNESS_HEALTH_ISSUES_JSON` are items 3 and 5's own `gh issue list` output, already captured earlier in this same scan — do not re-query. Each is passed to `jq -s` as its own positional input via process substitution, which is what makes `.[0]`/`.[1]` valid; a repeated `<<<` here-string redirection is NOT equivalent — bash keeps only the last one, silently dropping the first document. If testing this snippet standalone/in isolation outside a live scan, substitute `<(gh issue list --label code-health --state open --json number,labels)` and the harness-health equivalent for the two `echo` calls.)
