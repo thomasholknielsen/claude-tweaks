@@ -210,3 +210,13 @@ test('releasePayload without link has no link key and an unchanged human line', 
   assert.strictEqual('link' in m, false);
   assert.ok(p.commentBody.endsWith('merged: spec 12.'));
 });
+
+test('malformed (non-number, non-missing) ttlHours falls back to the 72h default', () => {
+  const claimWithStringTtl = { runId: 'r1', claimedAt: new Date(T0).toISOString(), ttlHours: 'not-a-number' };
+  assert.strictEqual(isStale(claimWithStringTtl, T0 + 72 * H - 1), false);
+  assert.strictEqual(isStale(claimWithStringTtl, T0 + 72 * H), true);
+
+  const claimWithNullTtl = { runId: 'r1', claimedAt: new Date(T0).toISOString(), ttlHours: null };
+  assert.strictEqual(isStale(claimWithNullTtl, T0 + 72 * H - 1), false);
+  assert.strictEqual(isStale(claimWithNullTtl, T0 + 72 * H), true);
+});
