@@ -6,16 +6,18 @@ Used by `/claude-tweaks:visualize` Step 6 when the user accepts the "publish as 
 
 Reuse the exact core fragment from `SKILL.md` Step 3 (or `d2-enhanced-path.md` Step 3/4 for the enhanced path) — do not regenerate. Wrap it per `visual-html-output.md` Step 4's Artifact row: `<title>{Diagram Title}</title>{core}` — no `<!DOCTYPE>`, `<html>`, `<head>`, or `<body>` tags.
 
-## Step 2: Write to the stable sidecar path, recovering any prior URL first
+## Step 2: Recover any prior URL, then write to the stable sidecar path
 
-Write the Step 1 fragment to `{same-directory-as-main-file}/{slug}.artifact.html` — e.g. if the main diagram is `docs/journeys/checkout-flow-swimlane.html`, the sidecar is `docs/journeys/checkout-flow-swimlane.artifact.html`. This path must stay stable across regenerations of the same diagram.
+The sidecar path is `{same-directory-as-main-file}/{slug}.artifact.html` — e.g. if the main diagram is `docs/journeys/checkout-flow-swimlane.html`, the sidecar is `docs/journeys/checkout-flow-swimlane.artifact.html`. This path must stay stable across regenerations of the same diagram.
 
-Stable `file_path` alone is not enough to update an existing Artifact across sessions: the `Artifact` tool only treats a call as an update to a prior publish when that prior publish happened in the *same* conversation. A future session (e.g. the user regenerating this diagram next week) has no memory of the URL, so before overwriting the sidecar file, check whether it already exists from a prior publish:
+Stable `file_path` alone is not enough to update an existing Artifact across sessions: the `Artifact` tool only treats a call as an update to a prior publish when that prior publish happened in the *same* conversation. A future session (e.g. the user regenerating this diagram next week) has no memory of the URL, so **before writing anything**, check whether the sidecar file already exists from a prior publish:
 
 - If it exists, read its first line. If that line is an HTML comment of the form `<!-- artifact-url: {url} -->`, extract `{url}` — this is the URL returned by the last successful publish, possibly in an earlier session.
 - If the file doesn't exist yet, or its first line isn't that comment, there is no prior URL to recover — this is effectively a first publish.
 
 Carry whatever URL (or absence of one) forward into Step 4.
+
+Only now, after that check, write the Step 1 fragment to the sidecar path above — this is where the file actually gets written or overwritten, safely after any prior URL has already been read.
 
 ## Step 3: Pick the favicon
 
