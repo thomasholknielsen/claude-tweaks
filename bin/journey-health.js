@@ -148,8 +148,10 @@ function cmdValidateFindings(args) {
     const decision = decide(finding, issueIndex, cache);
     if (decision.action === 'skip' || decision.action === 'suppress') continue;
 
-    if (decision.action === 'file') {
-      cache[finding.id] = { status: 'staged', lastSeenMs: Date.now() };
+    if (decision.action === 'file' || decision.action === 'reopen') {
+      cache[finding.id] = decision.action === 'reopen'
+        ? { status: 'regressed', issue: decision.issue || null, lastSeenMs: Date.now() }
+        : { status: 'staged', lastSeenMs: Date.now() };
       payloads.push(toIssuePayload(finding));
     }
   }

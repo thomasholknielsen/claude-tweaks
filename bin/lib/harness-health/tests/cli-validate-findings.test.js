@@ -148,3 +148,25 @@ test('churn-report: a real run followed by churn-report prints a table row', () 
   assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
   assert.ok(result.stdout.includes('run-1'));
 });
+
+test('validate-findings: a finding matching a closed non-wontfix issue is reopened, not dropped', () => {
+  const root = tmp();
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([validFinding()]));
+
+  const first = runValidateFindings(root, findingsFile);
+  const firstPayloads = JSON.parse(first.stdout);
+  const fp = firstPayloads[0].body.match(/<!--\s*harness-health-fingerprint:\s*(harnesshealth-[0-9a-f]{8})\s*-->/)[1];
+
+  const issuesFile = path.join(root, 'issues.json');
+  fs.writeFileSync(issuesFile, JSON.stringify([{ number: 9, state: 'closed', labels: ['harness-health'], fingerprint: fp }]));
+
+  const second = runValidateFindings(root, findingsFile, ['--issues', issuesFile]);
+  assert.strictEqual(second.status, 0, `stderr: ${second.stderr}`);
+  const payloads = JSON.parse(second.stdout);
+  assert.strictEqual(payloads.length, 1, 'a regressed finding must still emit a payload, not be silently dropped');
+
+  const cache = JSON.parse(fs.readFileSync(path.join(root, '.claude-tweaks', 'harness-health', 'cache.json'), 'utf8'));
+  assert.strictEqual(cache[fp].status, 'regressed');
+  assert.strictEqual(cache[fp].issue, 9);
+});

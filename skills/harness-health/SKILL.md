@@ -125,6 +125,15 @@ Each payload in `/tmp/harness-health-payloads.json` carries structured fields, n
 
 For each payload, file it: `gh issue create --title "<payload.title>" --body "<payload.body>" --label harness-health --label "<payload.labels[1]>"`. This applies uniformly — CLAUDE.md findings, design-artifact findings, additive skill/rule patches, restructural patches, and new-skill candidates all file the same way. `/harness-health` never edits anything directly; matching `/code-health`, it only ever judges and files.
 
+For a payload whose fingerprint marker (`<!-- harness-health-fingerprint: {id} -->`, embedded in `payload.body`) matches a `status: "regressed"` entry in `.claude-tweaks/harness-health/cache.json` after this run, the finding was previously closed and has reappeared — reopen the existing issue instead of filing a new one:
+
+```bash
+gh issue reopen <issue_number>
+gh issue comment <issue_number> --body "Regressed: this finding reappeared. Run: ${RUN_ID}"
+```
+
+`<issue_number>` is that cache entry's `issue` field. In `--dry-run` mode, print the payload and the `gh` commands that would run, but do not call `gh`.
+
 In `--dry-run` mode, print what would be filed but do not call `gh`.
 
 **Step 8 — SUMMARIZE.**

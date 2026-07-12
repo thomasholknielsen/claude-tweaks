@@ -72,3 +72,25 @@ test('validate-findings exits non-zero for a missing findings file argument', ()
   const result = spawnSync('node', [CLI, 'validate-findings', '--root', root], { encoding: 'utf8' });
   assert.notStrictEqual(result.status, 0);
 });
+
+test('validate-findings: a finding matching a closed non-wontfix issue is reopened, not dropped', () => {
+  const root = tmp();
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([finding()]));
+
+  const first = spawnSync('node', [CLI, 'validate-findings', findingsFile, '--root', root], { encoding: 'utf8' });
+  const firstPayloads = JSON.parse(first.stdout);
+  const fp = firstPayloads[0].body.match(/<!--\s*journey-health-fingerprint:\s*(journeyhealth-[0-9a-f]{8})\s*-->/)[1];
+
+  const issuesFile = path.join(root, 'issues.json');
+  fs.writeFileSync(issuesFile, JSON.stringify([{ number: 9, state: 'closed', labels: ['journey-health'], fingerprint: fp }]));
+
+  const second = spawnSync('node', [CLI, 'validate-findings', findingsFile, '--root', root, '--issues', issuesFile], { encoding: 'utf8' });
+  assert.strictEqual(second.status, 0, `stderr: ${second.stderr}`);
+  const payloads = JSON.parse(second.stdout);
+  assert.strictEqual(payloads.length, 1, 'a regressed finding must still emit a payload, not be silently dropped');
+
+  const cache = JSON.parse(fs.readFileSync(path.join(root, '.claude-tweaks', 'journey-health', 'cache.json'), 'utf8'));
+  assert.strictEqual(cache[fp].status, 'regressed');
+  assert.strictEqual(cache[fp].issue, 9);
+});

@@ -159,6 +159,15 @@ gh label list --search "$LABEL" --json name -q '.[].name' | grep -qx "$LABEL" ||
 
 For each payload in `/tmp/journey-health-payloads-light.json` and (when Step 3.5 ran) `/tmp/journey-health-payloads-deep.json`: `gh issue create --title "<payload.title>" --body "<payload.body>" --label journey-health --label "<payload.labels[1]>" --label "<payload.labels[2]>"`. `/journey-health` never edits journey files, stories, or code — every finding files, unconditionally.
 
+For a payload whose fingerprint marker (`<!-- journey-health-fingerprint: {id} -->`, embedded in `payload.body`) matches a `status: "regressed"` entry in `.claude-tweaks/journey-health/cache.json` after this run, the finding was previously closed and has reappeared — reopen the existing issue instead of filing a new one:
+
+```bash
+gh issue reopen <issue_number>
+gh issue comment <issue_number> --body "Regressed: this finding reappeared. Run: ${RUN_ID}"
+```
+
+`<issue_number>` is that cache entry's `issue` field. In `--dry-run` mode, print the payload and the `gh` commands that would run, but do not call `gh`.
+
 In `--dry-run` mode, print what would be filed but do not call `gh`.
 
 In interactive mode, render surviving findings as a markdown batch table before filing:
