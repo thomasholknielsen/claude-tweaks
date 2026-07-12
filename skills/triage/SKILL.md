@@ -442,7 +442,7 @@ mode never renders this block:
 | Pattern | Why It Fails |
 |---------|--------------|
 | `dispatch` mode granting a tier an issue didn't already have (newly applying `tier:needs-review`/`tier:approved`/`tier:fast-track`) | Only the interactive, human-confirmed bare invocation ever grants a tier — this is the security boundary (GitHub's own triage-permission model), not a discretionary nicety. `dispatch` mode may only downgrade or strip a tier it reads (`fast-track`→`approved` on failure, or removed + `status:blocked` at the retry ceiling) — it revokes trust, it never grants it. |
-| Deriving the recommended tier from anything other than `risk-<tier>`/`effort-<tier>` | The Tier Rule is deliberately narrow and mechanical — no LLM judgment re-enters at the gate itself. |
+| Deriving the recommended tier from anything other than the issue's own mechanical labels (`risk-<tier>`/`effort-<tier>`, `harness-health:additive`/`restructural`) | The Tier Rule is deliberately narrow and mechanical — no LLM judgment re-enters at the gate itself. |
 | Skipping the batch-confirm because the recommendation "looks obviously right" | The human action, however trivial, is the load-bearing security signature — never skip it, even for an all-"Fast-track" batch. |
 | Letting a fast-track issue auto-merge on a retry after a prior failure | The failure-downgrade rule exists specifically to prevent this — any failure permanently downgrades that issue's current authorization to `approved`. |
 | Auto-merging when the diff exceeds the blast-radius cap, even with zero review findings | Tests and review can't catch everything a human glance would — the cap is an independent check, not redundant with cleanliness. |
@@ -455,6 +455,7 @@ mode never renders this block:
 |-------|-------------|
 | `/claude-tweaks:flow` | `triage dispatch` claims issues and hands each to `/flow #{issue}` for pure execution — `/flow` never selects, filters, or sorts issues itself. `/flow`'s own routine template was retired; `/claude-tweaks:routine create triage` is the scheduled headless entry point now. |
 | `/claude-tweaks:code-health` | Triage's bare invocation is the primary consumer of code-health's `risk-<tier>`/`effort-<tier>` labels — the Tier Rule reads them directly. Triage never files or closes code-health issues. |
+| `/claude-tweaks:harness-health` | Triage's bare invocation is also a consumer of harness-health's `harness-health:additive`/`harness-health:restructural` classification labels — the Tier Rule reads them directly, recommending fast-track for additive and approved for restructural. Triage never files or closes harness-health issues. |
 | `/claude-tweaks:specify` | `/flow`'s issue-reference form derives a spec via `/claude-tweaks:specify #{issue}` (the existing issue-ingestion path) before running the normal pipeline. |
 | `_shared/issue-claims.md` | `dispatch` mode claims each issue it pulls before handing off, per this shared protocol; releases follow the same triggers table. |
 | `/claude-tweaks:tidy` | Step 4.8 surfaces the pending-authorization queue size (issues with no tier label yet) as a maintenance signal, including in the `--scope=github` routine's rolling digest; `/tidy` never applies a tier label itself. `status:blocked` counts are `/help`'s signal, not `/tidy`'s — see the `/claude-tweaks:help` row below. |

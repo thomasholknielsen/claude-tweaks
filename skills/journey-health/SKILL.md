@@ -166,9 +166,7 @@ gh issue reopen <issue_number>
 gh issue comment <issue_number> --body "Regressed: this finding reappeared. Run: ${RUN_ID}"
 ```
 
-`<issue_number>` is that cache entry's `issue` field. In `--dry-run` mode, print the payload and the `gh` commands that would run, but do not call `gh`.
-
-In `--dry-run` mode, print what would be filed but do not call `gh`.
+`<issue_number>` is that cache entry's `issue` field. In `--dry-run` mode, print what would be filed or reopened, and the `gh` commands that would run, but do not call `gh`.
 
 In interactive mode, render surviving findings as a markdown batch table before filing:
 

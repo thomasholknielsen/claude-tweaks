@@ -123,9 +123,7 @@ gh issue reopen <issue_number>
 gh issue comment <issue_number> --body "Regressed: this finding reappeared. Run: ${RUN_ID}"
 ```
 
-`<issue_number>` is that cache entry's `issue` field. In `--dry-run` mode, print the payload and the `gh` commands that would run, but do not call `gh`.
-
-In `--dry-run` mode, print what would be filed but do not call `gh`.
+`<issue_number>` is that cache entry's `issue` field. In `--dry-run` mode, print what would be filed or reopened, and the `gh` commands that would run, but do not call `gh`.
 
 **Step 8 — SUMMARIZE.**
 
@@ -203,4 +201,5 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `/claude-tweaks:init` | Phase 6 (Update Mode skill patches) and Phase 3/1u's skill classification apply the same shared procedure on whole-codebase reconnaissance, sharing the same cursor/cache state. |
 | `_shared/harness-health-analysis.md` | The canonical judge this skill, `/wrap-up`, and `/init` all read — the 8-dimension check, evidence pre-checks, verify gate, patch format, and new-skill gate live there, not here. |
 | `/claude-tweaks:tidy` | Step 4.8 sweeps `harness-health`-labelled issues alongside `code-health`-labelled ones, using the same stale/superseded triage. |
+| `/claude-tweaks:triage` | The Tier Rule in triage's bare invocation reads this skill's `harness-health:additive`/`harness-health:restructural` classification labels directly, recommending fast-track for additive and approved for restructural — the harness-health-side counterpart to how triage reads code-health's `risk-<tier>`/`effort-<tier>` labels. Triage never files or closes harness-health issues. |
 | `/claude-tweaks:routine` | `/routine create harness-health` instantiates this skill's `routine-template.yml` into a live, scheduled cloud Routine. |

@@ -65,8 +65,9 @@ git/matching-refs/claims/`. It carries no locking semantics: the ref claim/relea
 regardless of whether the label add/remove succeeds.
 
 - **Added** alongside claim acquisition — bootstrap-then-add, the same check-then-create
-  pattern every label in this codebase uses (see `skills/triage/SKILL.md`'s `dispatch` mode
-  Step 2, the one claim-acquiring consumer today).
+  pattern every label in this codebase uses (see `_shared/label-bootstrap.md` for the
+  canonical snippet; `skills/triage/SKILL.md`'s `dispatch` mode Step 2 is the one
+  claim-acquiring consumer today).
 - **Removed** alongside claim release — every release removes it, regardless of outcome
   (`wrap-up/cleanup-procedures.md` Section E, its duplicate in
   `flow/multispec-review-console.md`, and — for a single-spec issue-mode run the user chooses
