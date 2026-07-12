@@ -1,6 +1,6 @@
 # D2 Enhanced Path — Diagrams-as-Code Source + Re-themed Render
 
-Used by `/claude-tweaks:visualize` Step 1 when the `d2` binary is installed and the diagram type has a D2-native mapping (see the table in `SKILL.md` Step 1).
+Used by `/claude-tweaks:visualize` — the enhanced/baseline decision is made in Step 1, and this file is read from Step 3 once placement is resolved.
 
 ## Step 1: Author the D2 source
 
@@ -23,6 +23,6 @@ D2's own theme system doesn't bind live CSS variables. Post-process the rendered
 3. Replace each matched `fill="#..."` / `stroke="#..."` with `fill="var(--token-name)"` / `stroke="var(--token-name)"`.
 4. Wrap the re-themed SVG as the core fragment per `visual-html-output.md` Step 3 (same scoped-class-prefix rule applies).
 
-## Step 4: Continue at SKILL.md Step 4
+## Step 4: Continue at SKILL.md Step 5
 
 Placement, wrapper generation, and the Artifact offer proceed identically to the baseline path from here.
