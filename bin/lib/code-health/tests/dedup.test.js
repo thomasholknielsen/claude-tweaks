@@ -45,3 +45,15 @@ test('new finding below threshold -> remember', () => {
 test('threshold is overridable', () => {
   assert.deepStrictEqual(decide(F('recon-ggg', 'medium'), {}, {}, { threshold: 'medium' }), { action: 'file' });
 });
+
+test('decide uses finding.fingerprint over finding.id when both are present', () => {
+  const finding = { id: 'wrong-key', fingerprint: 'recon-hhh', risk: 'high' };
+  const index = { 'recon-hhh': { number: 11, state: 'open', labels: [] } };
+  assert.deepStrictEqual(decide(finding, index, {}), { action: 'skip', issue: 11 });
+});
+
+test('decide falls back to finding.id when finding.fingerprint is absent', () => {
+  const finding = { id: 'recon-iii', risk: 'high' };
+  const index = { 'recon-iii': { number: 12, state: 'open', labels: [] } };
+  assert.deepStrictEqual(decide(finding, index, {}), { action: 'skip', issue: 12 });
+});
