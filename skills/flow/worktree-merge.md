@@ -29,7 +29,7 @@ Before the merge/finish handoff begins, clear each run's worktree assignment —
 
 ### Merge Order
 
-1. Sort completed branches by diff size (smallest first — run `git diff --stat main..{branch}` and read the summary line at the end of its output)
+1. Sort completed branches by diff size (smallest first — run `git diff --stat {base-branch}..{branch}` and read the summary line at the end of its output)
 2. Merge branches sequentially into the base branch
 
 ### Merge Procedure
