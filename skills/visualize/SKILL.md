@@ -75,7 +75,7 @@ Read `skills/_shared/visual-html-output.md` Steps 1-2. Extract tokens from `DESI
 | `journeys` | `docs/journeys/{journey-name}-{type}.html` |
 | `specify` | `docs/plans/{spec-slug}-{type}.html` |
 | `review` | Ephemeral by default; ask before persisting near `docs/architecture.md` |
-| *(none — direct invocation)* | Run `visual-html-output.md` Step 7's `AskUserQuestion`; "Save as a project doc" resolves to `docs/diagrams/{slug}.html` |
+| *(none — direct invocation)* | Run `visual-html-output.md` Step 6's `AskUserQuestion`; "Save as a project doc" resolves to `docs/diagrams/{slug}.html` |
 
 Now branch: for the enhanced path (resolved in Step 1), read `d2-enhanced-path.md` in this skill's directory — it now has a resolved destination path to write to — then continue to Step 5. For the baseline path, continue to Step 4 below.
 
