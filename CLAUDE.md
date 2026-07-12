@@ -31,10 +31,10 @@ README.md                         → User-facing documentation
 LICENSE                           → MIT
 ```
 
-### Skill directories (27 total)
+### Skill directories (28 total)
 
 **Lifecycle:** init, capture, challenge, specify, build, test, stories, review, wrap-up
-**Component:** reflect, simplify, deepen, journeys, visual-review, design
+**Component:** reflect, simplify, deepen, journeys, visual-review, design, visualize
 **Utility:** help, tidy, flow, browse, ledger, version, research, code-health, routine, harness-health, journey-health, triage
 
 ### Skills with sub-files
@@ -57,6 +57,7 @@ LICENSE                           → MIT
 | ledger | resolve-gate.md | Three-phase nothing-left-behind resolve gate (fix-exhaust → per-item user input → apply) referenced by /wrap-up Step 8.5 and /flow Step 5 |
 | flow | manifesto.md, multi-spec.md, multispec-review-console.md, steps-and-gates.md, survey.md, validation.md, worktree-merge.md, failure-cards.md | Pipeline Config Manifesto; multi-spec batching; consolidated multi-spec Review Console; Allowed Steps + Step Arguments + Gate Behavior + polish-phase decision tree (single canonical home); Creative Opportunities + Depth Opportunities survey ownership (end-of-run analysis-only surveys; Depth surfaces `/deepen` candidates without auto-refactoring); pre-flight validation; worktree-merge handoff; on-failure card templates (generic + polish-broke-verification) loaded only when a gate fails; close-via-merge mapping (issues close on the user's merge, never `gh issue close`); pure executor — accepts a spec number or an issue reference (`#<issue>`) handed off by `/claude-tweaks:triage dispatch`, never selects/filters/claims issues itself |
 | design | command-map.md, frontend-detection.md, impeccable-cli.md, modes/{test,review,shape,pre-build,polish,survey,reset-recommendations}.md | Canonical dispatch tables (auto-fit / issue-driven / intent-driven / survey "would help" criteria); frontend-vs-backend detection rules; Impeccable CLI invocation patterns; per-mode full procedures (steps, decision rules, output format) lazy-loaded by the active mode |
+| visualize | d2-enhanced-path.md, artifact-publish.md | D2 CLI invocation + re-theming procedure (loaded only when the `d2` binary is installed and the diagram type maps to it); Artifact-publish adapter with favicon table (loaded only when the user accepts the publish offer) |
 | help | reference-card.md, context-flow.md, status-scan.md | Quick reference card (single source of truth for the command catalog); artifact flow documentation; pipeline status scan parallel-dispatch procedure (Stages 1-7 incl. sub-stages 1.5/4.5/4.6, current-PR scan, and triage-queue counts) |
 | research | methodology.md | Delegates to Claude Code's built-in `/deep-research` Dynamic Workflow when available; otherwise runs the lean inline model-driven method in `methodology.md` (decompose → parallel search → adversarial verify → synthesize). Citation-audited markdown reports under `.claude-tweaks/research/`. |
 

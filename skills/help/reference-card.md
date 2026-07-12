@@ -26,6 +26,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/claude-tweaks:deepen` | Architectural depth pass — finds shallow modules, proposes deepening/collapsing ranked by leverage | file paths, spec #, or auto from git diff |
 | `/claude-tweaks:journeys` | Create/update user journey documentation | spec #, file paths |
 | `/claude-tweaks:visual-review` | Browser-based UI inspection, journey walks, discovery | URL, `journey:{name}`, `discover` |
+| `/claude-tweaks:visualize` | Themed diagram generation — architecture, flowchart, sequence, state, ER, timeline, swimlane, quadrant, nested, tree, org chart, layers, venn, pyramid | `<type> <topic>` |
 
 ## Utility
 
@@ -52,7 +53,6 @@ External tools claude-tweaks integrates with — Claude Code plugins and standal
 | Tool | What it adds | Set up by |
 |--------|-------------|-----------|
 | [`pbakaus/impeccable`](https://github.com/pbakaus/impeccable) | Frontend design-quality LLM commands + deterministic CLI. Wired into `/test`, `/review`, `/build`, `/specify`, `/flow`, `/visual-review` via `/claude-tweaks:design`. Frontend projects only. | `/init` Step 10 (writes `design-integration:` flag, read downstream) |
-| [`cathrynlavery/diagram-design`](https://github.com/cathrynlavery/diagram-design) | 14 types of editorial HTML+SVG diagrams (architecture, flowchart, sequence, ER, state, …). Soft-hook nudges in `/specify`, `/build`, `/review` surface "consider a diagram here" recommendations. All projects. | `/init` Step 11 (writes `diagram-integration:` flag, read downstream) |
 | [`shadcn/ui`](https://ui.shadcn.com/) | CLI-driven component system + its own official MCP server and Skill for AI-agent context. Frontend projects only. | `/init` Step 12 (writes `shadcn-integration:` flag — currently write-only, not yet read downstream) |
 
 ## Common Workflows
