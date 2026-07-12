@@ -91,10 +91,15 @@ If no pipeline run directory exists (interactive mode, or pre-v4.6 pipeline), sk
 If the build used worktree git strategy, clean up the worktree directory:
 
 1. Run `git worktree list` to find worktrees associated with this spec's feature branch.
-2. **Stamp the closing-keyword carrier commit.** When any spec on the branch carries
-   `recon-issue:` frontmatter, and *before* handing off to
-   `/superpowers:finishing-a-development-branch`, commit an empty carrier commit on the feature
-   branch from inside the worktree:
+2. **Stamp the closing-keyword carrier commit — worktree strategy, single-terminal path only.**
+   Skip this step entirely when this run is part of a multi-terminal-parallel dispatch destined
+   for `flow/worktree-merge.md`'s reconciliation merge (the run was launched via
+   `/claude-tweaks:flow {spec} worktree` alongside sibling terminals, not a solo worktree run) —
+   that merge stamps its own `Fixes #{issue}` lines directly (`--no-ff`, per "Close-via-merge" in
+   `_shared/issue-claims.md`), and a carrier commit here would double-stamp the closing
+   reference. Otherwise, when any spec on the branch carries `recon-issue:` frontmatter, and
+   *before* handing off to `/superpowers:finishing-a-development-branch`, commit an empty
+   carrier commit on the feature branch from inside the worktree:
 
    ```bash
    git commit --allow-empty -m "$(printf 'Fixes #%s\n' "${ISSUES[@]}")"
