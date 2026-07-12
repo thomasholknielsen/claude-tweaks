@@ -344,10 +344,11 @@ grep -rn '`Artifact`' --include="*.md" . \
   | grep -v node_modules \
   | grep -v 'docs/superpowers/plans/2026-07-11-visualize-diagram-generation.md' \
   | grep -v 'docs/superpowers/specs/2026-07-11-visualize-diagram-generation-design.md' \
-  | grep -v 'docs/superpowers/specs/2026-07-12-drop-artifact-tool-dependency-design.md'
+  | grep -v 'docs/superpowers/specs/2026-07-12-drop-artifact-tool-dependency-design.md' \
+  | grep -v 'docs/superpowers/plans/2026-07-12-drop-artifact-tool-dependency.md'
 grep -n '"version"' .claude-plugin/plugin.json
 ```
-Expected: first `grep` outputs nothing (zero remaining live references outside the three excluded historical/design docs). Second `grep` shows `"version": "5.28.0",`.
+Expected: first `grep` outputs nothing (zero remaining live references outside the four excluded historical/design/plan docs). Second `grep` shows `"version": "5.28.0",`.
 
 - [ ] **Step 8: Run the full test suite as a regression baseline**
 
