@@ -157,6 +157,12 @@ calls `/specify #{issue}`) — item 6's capture exists precisely so this section
 the frontmatter directly. Release it only after the branch outcome is known (item 5 completes
 first — the execution order of the canonical list guarantees this):
 
+Before any step below runs a `gh` command, run the Detection Ladder from
+`_shared/github-pr-scan.md` (checks 1-3). A ladder failure here is a hard gate, not a fail-open
+skip — Section E exists specifically to write GitHub state (release claims, remove labels); if
+`gh` is unavailable there is nothing safe to degrade to. Report the specific failing check and
+stop before attempting any release.
+
 1. **Multi-spec defer check:** if `MULTISPEC_REVIEW_DEFER=1`, skip this section — the parent
    `/flow` releases all claims once after its consolidated Review Console and merge.
 2. Map the outcome from `/superpowers:finishing-a-development-branch` to a release reason:

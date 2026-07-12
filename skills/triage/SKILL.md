@@ -42,6 +42,15 @@ off — it never derives a spec or writes application code.
 | *(none)* | Bare invocation — interactive batch triage |
 | `dispatch` | Headless mode — pulls tiered issues, claims each, hands off to `/flow` |
 
+## Preflight
+
+Before either workflow below runs any `gh` command, run the Detection Ladder from
+`_shared/github-pr-scan.md` (checks 1-3: GitHub remote exists, `gh` CLI installed, `gh`
+authenticated + repo reachable). Unlike `/tidy`/`/help`'s use of this ladder (which fail-open
+into a skipped scan), `/triage` treats any ladder failure as a hard gate — this skill's entire
+purpose is writing GitHub state, so there is no meaningful degraded mode to fall back into.
+Report the specific failing check and stop.
+
 ## Workflow — Bare invocation (interactive triage)
 
 ### Step 1: Pull untiered issues

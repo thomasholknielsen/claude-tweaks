@@ -113,6 +113,13 @@ Populate this footer from `manifest.yml` — any spec with `status: failed`, `no
 Below each table, show the full patch / diff for each pending item.
 ```
 
+## Preflight
+
+Before "On approval" or "On override" below runs any `gh` command, run the Detection Ladder
+from `_shared/github-pr-scan.md` (checks 1-3). A ladder failure is a hard gate here, matching
+`wrap-up/cleanup-procedures.md` Section E's own posture — this console's entire approval path
+writes GitHub state (releases, tier-label removal), so there is no fail-open degraded mode.
+
 ## On approval (option 1)
 
 1. For each `spec-{N}/staged/` patch: `git apply` (each spec already has its own commit context — patches apply against the cumulative pipeline state)
