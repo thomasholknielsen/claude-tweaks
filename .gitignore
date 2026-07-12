@@ -3,6 +3,7 @@
 .claude/settings.local.json
 .superpowers/sdd/
 node_modules/
+package-lock.json
 .DS_Store
 .claude-tweaks/pipelines/
 .claude-tweaks/research/

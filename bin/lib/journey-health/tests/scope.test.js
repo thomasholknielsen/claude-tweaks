@@ -15,6 +15,11 @@ function writeJourney(root, name, filesFrontmatter) {
     ? `---\nfiles:\n${filesFrontmatter.map((f) => `  - ${f}`).join('\n')}\n---\n`
     : '';
   fs.writeFileSync(path.join(dir, `${name}.md`), `${frontmatter}\n# ${name}\n`, 'utf8');
+  for (const relPath of filesFrontmatter) {
+    const filePath = path.join(root, relPath);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, '', 'utf8');
+  }
 }
 
 test('parseJourneyFiles returns [] when there is no frontmatter', () => {
@@ -99,5 +104,40 @@ test('selectTarget returns null when no candidate is stale and none has churn', 
   const now = Date.now();
   const cursors = { 'checkout-flow': { lastLightAuditMs: now - 1 * 86400000 } };
   const result = selectTarget(root, cursors, { now, tier: 'light', signals: {} });
+  assert.strictEqual(result, null);
+});
+
+test('selectTarget force-picks a journey with a missing declared file on the light tier, ahead of staleness', () => {
+  const root = tmp();
+  writeJourney(root, 'checkout-flow', ['src/checkout/Cart.tsx']);
+  fs.rmSync(path.join(root, 'src/checkout/Cart.tsx'));
+  const now = Date.now();
+  // Not stale (audited "now"), no churn signal — would otherwise return null.
+  const cursors = { 'checkout-flow': { lastLightAuditMs: now } };
+  const result = selectTarget(root, cursors, { now, tier: 'light', signals: {} });
+  assert.strictEqual(result.id, 'checkout-flow');
+  assert.strictEqual(result.why, 'deleted-file');
+  assert.deepStrictEqual(result.missingFiles, ['src/checkout/Cart.tsx']);
+});
+
+test('selectTarget does not force-pick a missing-file journey on the deep tier', () => {
+  const root = tmp();
+  writeJourney(root, 'checkout-flow', ['src/checkout/Cart.tsx']);
+  fs.rmSync(path.join(root, 'src/checkout/Cart.tsx'));
+  const now = Date.now();
+  const cursors = { 'checkout-flow': { lastDeepAuditMs: now } };
+  const result = selectTarget(root, cursors, { now, tier: 'deep', signals: {} });
+  assert.strictEqual(result, null);
+});
+
+test('selectTarget respects alreadyPicked so Phase 0 does not repeat the same deleted-file journey within a batch', () => {
+  const root = tmp();
+  writeJourney(root, 'checkout-flow', ['src/checkout/Cart.tsx']);
+  fs.rmSync(path.join(root, 'src/checkout/Cart.tsx'));
+  writeJourney(root, 'signup-flow', ['src/signup/Form.tsx']);
+  const now = Date.now();
+  const cursors = { 'checkout-flow': { lastLightAuditMs: now }, 'signup-flow': { lastLightAuditMs: now } };
+  const alreadyPicked = new Set(['checkout-flow']);
+  const result = selectTarget(root, cursors, { now, tier: 'light', signals: {}, alreadyPicked });
   assert.strictEqual(result, null);
 });

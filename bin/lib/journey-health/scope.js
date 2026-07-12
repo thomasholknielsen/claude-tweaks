@@ -77,11 +77,36 @@ function selectTarget(root, cursors, opts = {}) {
   const now = opts.now != null ? opts.now : Date.now();
   const tier = opts.tier === 'deep' ? 'deep' : 'light';
   const signals = opts.signals || null; // test injection hook — churn override by id
+  // Within-batch dedup for --budget > 1 callers, Phase 0 only. Phases 1/2
+  // already self-exclude a just-picked journey via the cursor bump the
+  // --budget loop applies after every pick (daysSince/churn-since-bump both
+  // read as ~0) — Phase 0 ignores cursors entirely (it's a raw existence
+  // check), so it needs its own exclusion signal or it would return the same
+  // deleted-file journey on every remaining slot in the batch.
+  const alreadyPicked = opts.alreadyPicked || null;
   const staleDays = tier === 'deep' ? STALE_DAYS_DEEP : STALE_DAYS_LIGHT;
   const auditField = tier === 'deep' ? 'lastDeepAuditMs' : 'lastLightAuditMs';
 
   const candidates = listJourneys(root);
   if (candidates.length === 0) return null;
+
+  // Phase 0 (light tier only): force-pick any journey with a declared file
+  // that no longer exists. This is a stronger, more certain signal than
+  // staleness or churn, and requires no LLM judgment to detect — a plain
+  // existence check. Deep tier does not get this phase: its own
+  // post-selection "skip condition" (SKILL.md Step 3.5) already handles a
+  // broken journey without permanently parking the deep-tier rotation on it.
+  if (tier === 'light') {
+    for (const candidate of candidates) {
+      if (alreadyPicked && alreadyPicked.has(candidate.id)) continue;
+      const missing = candidate.filesFrontmatter.filter(
+        (relPath) => !fs.existsSync(path.join(root, relPath)),
+      );
+      if (missing.length > 0) {
+        return { ...candidate, why: 'deleted-file', missingFiles: missing };
+      }
+    }
+  }
 
   // Phase 1: force-pick any journey unaudited on this tier past staleDays.
   for (const candidate of candidates) {

@@ -13,7 +13,7 @@ function finding(overrides = {}) {
   return {
     journey: 'checkout-flow', category: 'drift', section: 'self-review',
     description: 'Persona is a placeholder', reason: 'Step 2 has no named persona',
-    confidence: 'high', recommendation: 'Run /claude-tweaks:journeys checkout-flow',
+    confidence: 'high', severity: 'high', recommendation: 'Run /claude-tweaks:journeys checkout-flow',
     ...overrides,
   };
 }

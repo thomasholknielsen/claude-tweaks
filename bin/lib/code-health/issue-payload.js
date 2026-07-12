@@ -35,7 +35,8 @@ function toIssuePayload(finding) {
 }
 
 // v2: body uses anchor (Current State), suggestedApproach (Deliverables), acceptance (Acceptance Criteria).
-// Labels include the criterion.
+// The criterion is not a label — it's already in the body's header line; nothing reads
+// it back off a label, and per-criterion labels are the class that hit GitHub's 100-char cap.
 function toIssuePayloadV2(finding) {
   const marker = `<!-- code-health-fingerprint: ${finding.id} -->`;
   const relatedLines = Array.isArray(finding.relatedAnchors) && finding.relatedAnchors.length > 0
@@ -67,7 +68,7 @@ function toIssuePayloadV2(finding) {
   return {
     title: finding.title,
     body,
-    labels: ['code-health', `code-health:risk-${finding.risk}`, `code-health:effort-${finding.effort}`, `code-health:${finding.criterion}`],
+    labels: ['code-health', `code-health:risk-${finding.risk}`, `code-health:effort-${finding.effort}`],
   };
 }
 

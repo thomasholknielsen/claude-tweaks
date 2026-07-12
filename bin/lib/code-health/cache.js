@@ -1,57 +1,20 @@
+'use strict';
 const fs = require('fs');
 const path = require('path');
+const { createCache } = require('../watchman-core/cache');
 
 // Gitignored, rebuildable-from-issues dedup cache.
 // Canonical path: <root>/.claude-tweaks/code-health/cache.json (contract §cache.js)
 // Shape: { "<fingerprint>": { status: 'open'|'wontfix'|'closed'|'remembered'|'regressed', issue: <number|null> } }
 
-function cachePath(root) {
-  return path.join(root, '.claude-tweaks', 'code-health', 'cache.json');
-}
-
-function readCache(root) {
-  try {
-    return JSON.parse(fs.readFileSync(cachePath(root), 'utf8'));
-  } catch {
-    return {}; // missing or corrupt -> empty (the cache is an optimization, not state)
-  }
-}
-
-function writeCache(root, cache) {
-  const p = cachePath(root);
-  fs.mkdirSync(path.dirname(p), { recursive: true });
-  fs.writeFileSync(p, JSON.stringify(cache, null, 2) + '\n', 'utf8');
-  return p;
-}
-
-function runsDir(rootDir) {
-  return path.join(rootDir, '.claude-tweaks', 'code-health', 'runs');
-}
-
-function cursorsPath(rootDir) {
-  return path.join(rootDir, '.claude-tweaks', 'code-health', 'cursors.json');
-}
-
-function readCursors(rootDir) {
-  try {
-    return JSON.parse(fs.readFileSync(cursorsPath(rootDir), 'utf8'));
-  } catch {
-    return {}; // missing or corrupt -> empty
-  }
-}
-
-function writeCursors(rootDir, cursors) {
-  const p = cursorsPath(rootDir);
-  fs.mkdirSync(path.dirname(p), { recursive: true });
-  fs.writeFileSync(p, JSON.stringify(cursors, null, 2) + '\n', 'utf8');
-}
+const core = createCache('code-health');
 
 // Persist the fingerprint set this run produced. runId is an ISO-ish timestamp;
 // colons are valid on Linux/macOS so the runId round-trips into the filename.
 // arg: { fingerprints, areasSwept, hashes } — areasSwept is the list of area ids swept this run;
 // hashes is an optional map of areaId -> content hash to persist as lastHash on each cursor.
 function recordRun(rootDir, runId, { fingerprints, areasSwept = [], hashes = {} } = {}) {
-  const dir = runsDir(rootDir);
+  const dir = core.runsDir(rootDir);
   fs.mkdirSync(dir, { recursive: true });
   const record = { runId, runAt: new Date().toISOString(), fingerprints: [...fingerprints] };
   fs.writeFileSync(path.join(dir, `${runId}.json`), JSON.stringify(record, null, 2) + '\n', 'utf8');
@@ -59,7 +22,7 @@ function recordRun(rootDir, runId, { fingerprints, areasSwept = [], hashes = {} 
   // Persist per-area sweep cursors so the round-robin coverage floor rotates.
   if (areasSwept.length > 0) {
     const now = Date.now();
-    const cursors = readCursors(rootDir);
+    const cursors = core.readCursors(rootDir);
     for (const areaId of areasSwept) {
       const existing = cursors[areaId] || {};
       cursors[areaId] = {
@@ -68,31 +31,10 @@ function recordRun(rootDir, runId, { fingerprints, areasSwept = [], hashes = {} 
         ...(hashes && hashes[areaId] != null ? { lastHash: hashes[areaId] } : {}),
       };
     }
-    writeCursors(rootDir, cursors);
+    core.writeCursors(rootDir, cursors);
   }
 
   return record;
-}
-
-// All run records, oldest first (by runAt).
-function readRuns(rootDir) {
-  let entries;
-  try {
-    entries = fs.readdirSync(runsDir(rootDir));
-  } catch {
-    return [];
-  }
-  return entries
-    .filter((f) => f.endsWith('.json'))
-    .map((f) => {
-      try {
-        return JSON.parse(fs.readFileSync(path.join(runsDir(rootDir), f), 'utf8'));
-      } catch {
-        return null;
-      }
-    })
-    .filter((r) => r && Array.isArray(r.fingerprints) && r.runId)
-    .sort((a, b) => ((a.runAt || '') < (b.runAt || '') ? -1 : 1));
 }
 
 // Churn vs the prior run. ratio = (appeared + disappeared) / |prior ∪ current|.
@@ -114,4 +56,15 @@ function computeChurn(currentFps, priorRun) {
   return { appeared, disappeared, stayed, ratio };
 }
 
-module.exports = { cachePath, readCache, writeCache, runsDir, cursorsPath, readCursors, writeCursors, recordRun, readRuns, computeChurn };
+module.exports = {
+  cachePath: core.cachePath,
+  readCache: core.readCache,
+  writeCache: core.writeCache,
+  runsDir: core.runsDir,
+  cursorsPath: core.cursorsPath,
+  readCursors: core.readCursors,
+  writeCursors: core.writeCursors,
+  recordRun,
+  readRuns: core.readRuns,
+  computeChurn,
+};

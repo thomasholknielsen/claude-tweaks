@@ -56,7 +56,19 @@ Stage-by-stage scan procedure run by `/claude-tweaks:help` (default invocation, 
 - Check YAML frontmatter for `status: not-started` with empty or satisfied `blocked-by`
 - Check which tier they're in (lower tier = higher priority)
 - Check if a plan already exists in `docs/plans/` (ready for immediate `/claude-tweaks:build`)
-- **Implicit dependency check:** Extract `Key Files` from each ready spec and each in-progress (or other not-started) spec. If a ready spec shares Key Files with any non-completed spec, flag it in the "Needs Attention" table — building it now risks merge conflicts or duplicated work. This is the same algorithm that `/claude-tweaks:specify` runs at spec creation time, re-run here to catch conflicts from specs that started building since then.
+- **Implicit dependency check:** extract `Key Files` from each ready spec and each in-progress (or other not-started) spec, then call the shared grouping primitive — the same one `/claude-tweaks:specify` uses at spec creation time (`bin/lib/issues/grouping.js`), re-run here to catch conflicts from specs that started building since then:
+
+  ```bash
+  node -e "
+    const { groupByFileOverlap } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
+    const specs = require('/tmp/help-specs-key-files.json'); // [{id, keyFiles}], excludes completed specs
+    const groups = groupByFileOverlap(specs);
+    const conflicts = groups.filter(g => g.length > 1);
+    console.log(JSON.stringify(conflicts));
+  "
+  ```
+
+  A ready spec appearing in any group of size > 1 shares files with another non-completed spec — flag it in the "Needs Attention" table, listing the other group members as the conflicting specs.
 
 ## Stage 4: Specs In Progress
 
@@ -79,28 +91,7 @@ Cheap counts only — detail stays `/claude-tweaks:triage`'s and `/tidy`'s job,
 not `/help`'s. Skip silently (same fail-open detection ladder as Stage 4.5)
 when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
 
-```bash
-gh issue list --label code-health --state open --json number,labels --limit 200 > /tmp/help-triage-ch.json
-gh issue list --label harness-health --state open --json number,labels --limit 200 > /tmp/help-triage-hh.json
-gh issue list --label journey-health --state open --json number,labels --limit 200 > /tmp/help-triage-jh.json
-node -e "
-  const all = [...require('/tmp/help-triage-ch.json'), ...require('/tmp/help-triage-hh.json'), ...require('/tmp/help-triage-jh.json')];
-  const names = i => (i.labels || []).map(l => (typeof l === 'string' ? l : l.name));
-  const untiered = all.filter(i => !names(i).some(n => n === 'status:needs-review' || n === 'status:approved' || n === 'status:fast-track')).length;
-  console.log(untiered);
-"
-gh issue list --label status:blocked --state open --json number --limit 200 -q 'length'
-SINCE=$(node -e "console.log(new Date(Date.now() - 7*24*60*60*1000).toISOString())")
-gh api "repos/{owner}/{repo}/commits?since=${SINCE}&per_page=100" -q '[.[] | select(.commit.message | contains("[fast-lane]"))] | length'
-```
-
-The commits query counts `[fast-lane]`-tagged commits on the repo's *default* branch — never the current worktree's own branch, which typically won't contain them yet (this project enforces `worktree.always`, so `/help` is commonly invoked from inside a feature-branch worktree whose branch forked before any recent auto-merges landed). The commits endpoint defaults to the default branch when no `sha=` param is given, so this is correct regardless of which branch/worktree `/help` itself runs from. `SINCE` is computed via `node` rather than shell `date` arithmetic, which differs between BSD/macOS and GNU date.
-
-Render as three lines on the dashboard:
-
-- Pending authorization: **N issues awaiting your decision** — run `/claude-tweaks:triage` (omit this line when N is 0)
-- Blocked: **N issues hit their retry ceiling** — run `/claude-tweaks:triage` to review (omit this line when N is 0)
-- Auto-merged this week: **N fast-lane merges** on the default branch in the last 7 days (omit this line when N is 0)
+Scan per `_shared/github-pr-scan.md`, **`triage-queue`** scope. The dispatcher inlines that file's Detection Ladder, `triage-queue` scope section, and the three-line render format into this agent's prompt — subagents cannot read sibling files. This is the single source for these three counts; this stage does not compute them independently (previously it did, and its own version double-counted `status:blocked` issues inside "pending authorization" — the shared scope excludes them). Scoped to `code-health`/`harness-health` only, matching what `/claude-tweaks:triage` Step 1 actually tiers — `journey-health` issues aren't wired into that tiering flow (yet), so they're intentionally excluded from this count too.
 
 ## Stage 5: Specs Awaiting Review
 

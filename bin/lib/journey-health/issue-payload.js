@@ -12,7 +12,7 @@ function toIssuePayload(finding) {
   const body = [
     marker,
     '',
-    `**Journey:** ${finding.journey} | **Section:** ${finding.section} | **Category:** ${finding.category} | **Confidence:** ${finding.confidence}`,
+    `**Journey:** ${finding.journey} | **Section:** ${finding.section} | **Category:** ${finding.category} | **Severity:** ${finding.severity} | **Confidence:** ${finding.confidence}`,
     '',
     '## Description',
     '',
@@ -36,10 +36,11 @@ function toIssuePayload(finding) {
     journey: finding.journey,
     category: finding.category,
     section: finding.section,
+    severity: finding.severity,
     confidence: finding.confidence,
     title,
     body,
-    labels: ['journey-health', `journey-health:${finding.category}`],
+    labels: ['journey-health', `journey-health:${finding.category}`, `journey-health:${finding.severity}`],
   };
 }
 

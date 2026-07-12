@@ -53,7 +53,6 @@ test('validate-findings: valid finding emits one payload on stdout', () => {
   assert.ok(payloads[0].title === f.title, 'title mismatch');
   assert.ok(Array.isArray(payloads[0].labels), 'labels must be an array');
   assert.ok(payloads[0].labels.includes('code-health'), 'missing code-health label');
-  assert.ok(payloads[0].labels.includes('code-health:simplification'), 'missing criterion label');
   assert.ok(payloads[0].body.includes('<!-- code-health-fingerprint: codehealth-'), 'fingerprint marker missing');
 });
 
@@ -114,6 +113,55 @@ test('validate-findings: finding already open in issue index is skipped (dedup)'
   assert.strictEqual(secondResult.status, 0);
   const secondPayloads = JSON.parse(secondResult.stdout);
   assert.strictEqual(secondPayloads.length, 0, 'open finding must be skipped (dedup)');
+});
+
+test('validate-findings: a wontfix-labelled match is suppressed AND persisted to cache as wontfix', () => {
+  const root = tmp();
+  const f = validFinding({ severity: 'high' });
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([f]));
+
+  // First run to learn the fingerprint.
+  const firstResult = runValidateFindings(root, findingsFile, ['--slice', 'src/api', '--run-id', 'r-wontfix-1']);
+  const firstPayloads = JSON.parse(firstResult.stdout);
+  const fp = firstPayloads[0].body.match(/<!--\s*code-health-fingerprint:\s*(codehealth-[0-9a-f]{8})\s*-->/)[1];
+
+  // Build an issue index pretending the matching issue was closed wontfix.
+  const issuesFile = path.join(root, 'issues.json');
+  fs.writeFileSync(issuesFile, JSON.stringify([{ number: 7, state: 'closed', labels: ['code-health', 'wontfix'], fingerprint: fp }]));
+
+  const secondResult = runValidateFindings(
+    root, findingsFile, ['--issues', issuesFile, '--slice', 'src/api', '--run-id', 'r-wontfix-2'],
+  );
+  assert.strictEqual(secondResult.status, 0, `stderr: ${secondResult.stderr}`);
+  const secondPayloads = JSON.parse(secondResult.stdout);
+  assert.strictEqual(secondPayloads.length, 0, 'wontfix match must be suppressed, not re-filed');
+
+  const cache = JSON.parse(fs.readFileSync(path.join(root, '.claude-tweaks', 'code-health', 'cache.json'), 'utf8'));
+  assert.strictEqual(cache[fp].status, 'wontfix', 'wontfix suppression must be persisted to cache so the offline (gh-unavailable) dedup fallback can find it');
+  assert.strictEqual(cache[fp].issue, 7);
+});
+
+test('validate-findings: a cache-only wontfix (no gh issue index) still suppresses on a later run', () => {
+  const root = tmp();
+  const f = validFinding({ severity: 'high' });
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([f]));
+
+  const firstResult = runValidateFindings(root, findingsFile, ['--slice', 'src/api', '--run-id', 'r-cache-wontfix-1']);
+  const firstPayloads = JSON.parse(firstResult.stdout);
+  const fp = firstPayloads[0].body.match(/<!--\s*code-health-fingerprint:\s*(codehealth-[0-9a-f]{8})\s*-->/)[1];
+
+  const issuesFile = path.join(root, 'issues.json');
+  fs.writeFileSync(issuesFile, JSON.stringify([{ number: 7, state: 'closed', labels: ['wontfix'], fingerprint: fp }]));
+  runValidateFindings(root, findingsFile, ['--issues', issuesFile, '--slice', 'src/api', '--run-id', 'r-cache-wontfix-2']);
+
+  // Third run with NO issues file (simulating gh being unavailable) must still suppress,
+  // because the cache alone now carries status:'wontfix' for this fingerprint.
+  const thirdResult = runValidateFindings(root, findingsFile, ['--slice', 'src/api', '--run-id', 'r-cache-wontfix-3']);
+  assert.strictEqual(thirdResult.status, 0, `stderr: ${thirdResult.stderr}`);
+  const thirdPayloads = JSON.parse(thirdResult.stdout);
+  assert.strictEqual(thirdPayloads.length, 0, 'cache-only wontfix must suppress re-filing even when gh/issue-index is unavailable');
 });
 
 test('validate-findings: exits non-zero when findings file is missing', () => {

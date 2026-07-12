@@ -185,18 +185,29 @@ Each is independently buildable with clear dependencies (73 → 74 → 75).
 
 ### Implicit Dependency Detection
 
-After decomposing into work units, before writing spec files, check each new work unit's planned Key Files against the file reference map from Step 1.
+After decomposing into work units, before writing spec files, build the input set — every new work unit plus every **non-completed** existing spec (from the file reference map in Step 1), each as `{id, keyFiles}` — and partition it with the shared grouping primitive:
+
+```bash
+node -e "
+  const { groupByFileOverlap } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
+  const items = require('/tmp/specify-key-files.json'); // [{id, keyFiles}] — new work units + non-completed specs
+  console.log(JSON.stringify(groupByFileOverlap(items).filter(g => g.length > 1)));
+"
+```
+
+Each returned group of size > 1 is a set of specs/work-units sharing at least one file, directly or transitively. Classify each new work unit's group membership:
 
 | Overlap Type | Meaning | Action |
 |-------------|---------|--------|
-| New spec's files overlap with a **completed** spec | No conflict — completed specs are done | No action |
-| New spec's files overlap with a **not-started** spec | Potential conflict — both will modify the same files | Add to `blocked-by` or reorder to avoid concurrent modification |
-| New spec's files overlap with an **in-progress** spec | Active conflict — concurrent changes to the same files | Add to `blocked-by` — wait for the in-progress spec to finish |
-| Two **new** specs from this decomposition share files | Internal conflict within the batch | Add explicit dependency between them and order accordingly |
+| Grouped with a **not-started** spec | Potential conflict — both will modify the same files | Add to `blocked-by` or reorder to avoid concurrent modification |
+| Grouped with an **in-progress** spec | Active conflict — concurrent changes to the same files | Add to `blocked-by` — wait for the in-progress spec to finish |
+| Grouped with another **new** spec from this decomposition | Internal conflict within the batch | Add explicit dependency between them and order accordingly |
+
+(Completed specs are excluded from the input set entirely — no group they'd appear in needs action.)
 
 Present any detected implicit dependencies as part of the Step 9 summary. These are flagged alongside the explicit `blocked-by` relationships from the tier/prerequisite analysis.
 
-> **Algorithm shared with /claude-tweaks:help:** Both /specify and /help use the same implicit dependency check — compare Key Files from the target spec against Key Files from all non-completed specs. /specify runs this at creation time; /help re-runs it at dashboard time to catch new conflicts from specs that started building after /specify ran.
+> **Algorithm shared with /claude-tweaks:help:** both /specify and /help call the same `groupByFileOverlap` (`bin/lib/issues/grouping.js`) — /specify runs it at creation time; /help re-runs it at dashboard time to catch new conflicts from specs that started building after /specify ran. Also reused by `/claude-tweaks:triage dispatch` to group claimed issues before parallel execution (see `triage/SKILL.md`).
 
 > **Why this matters:** Explicit `blocked-by` captures logical dependencies (spec B needs spec A's API). File-based overlap captures physical dependencies (both specs modify the same file). Missing the physical dependency leads to merge conflicts and duplicated work during concurrent builds.
 

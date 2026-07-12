@@ -11,6 +11,7 @@ function finding(overrides = {}) {
     description: 'files: entry no longer exists',
     reason: 'src/checkout/OldCart.tsx was deleted in a1b2c3d',
     confidence: 'high',
+    severity: 'high',
     recommendation: 'Run /claude-tweaks:journeys checkout-flow',
     ...overrides,
   };
@@ -31,9 +32,9 @@ test('toIssuePayload maps regression-suspected to the "regression" title label',
   assert.strictEqual(payload.title, 'Journey regression: checkout-flow — live-check');
 });
 
-test('toIssuePayload sets both the journey-health label and a category-specific label', () => {
+test('toIssuePayload sets the journey-health, category, and severity labels', () => {
   const payload = toIssuePayload(finding());
-  assert.deepStrictEqual(payload.labels, ['journey-health', 'journey-health:drift']);
+  assert.deepStrictEqual(payload.labels, ['journey-health', 'journey-health:drift', 'journey-health:high']);
 });
 
 test('toIssuePayload includes description, reason, and recommendation in the body', () => {

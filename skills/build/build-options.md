@@ -8,7 +8,7 @@ Two orthogonal choices control how `/build` runs. Combine them freely:
 
 | Axis | Option | Behavior | Best for |
 |------|--------|----------|----------|
-| **Execution** | `subagent` (default) | Invokes `/superpowers:subagent-driven-development`. Fresh subagent per task; automated spec reviewer + code quality reviewer + final review. No human in the loop. Push commits promptly. | Solo work, trusted pipeline |
+| **Execution** | `subagent` (default) | Invokes `/superpowers:subagent-driven-development`. Fresh subagent per task; one automated reviewer per task returns both a spec-compliance and a quality verdict, then a single whole-branch review runs at the end. No human in the loop. Push commits promptly. | Solo work, trusted pipeline |
 | **Execution** | `batched` | Invokes `/superpowers:executing-plans`. Executes 3 tasks per batch, pauses for human review after each batch. User approves, requests changes, or skips tasks. Push after each approved batch. | Complex specs, unfamiliar code, hands-on review |
 | **Git** | `worktree` (default) | Before execution, invokes `/superpowers:using-git-worktrees` to create an isolated workspace with dependency install and baseline test verification. All commits land in the worktree on a feature branch. At handoff, delegates to `/superpowers:finishing-a-development-branch` (merge, PR, keep, or discard). | Parallel work, team projects, risky changes, safe automation |
 | **Git** | `current-branch` | Commits land directly on the current branch. No isolation — simple and fast. | Quick local edits, no isolation needed |

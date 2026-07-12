@@ -10,6 +10,7 @@ function validFinding(overrides = {}) {
     description: 'Persona is a placeholder',
     reason: 'Step 2 says "User clicks Buy" with no named persona',
     confidence: 'high',
+    severity: 'high',
     recommendation: 'Run /claude-tweaks:journeys checkout-flow',
     ...overrides,
   };
@@ -56,4 +57,10 @@ test('validateFinding accepts all three valid categories', () => {
   for (const category of ['drift', 'coverage', 'regression-suspected']) {
     assert.strictEqual(validateFinding(validFinding({ category })).ok, true, category);
   }
+});
+
+test('validateFinding rejects an invalid severity', () => {
+  const result = validateFinding(validFinding({ severity: 'bogus' }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.startsWith('severity:')));
 });

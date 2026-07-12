@@ -13,11 +13,32 @@ Eight cleanup actions, executed in order (Step 10) and surfaced together (Step 5
 | 3 | Design wrapper caches | Section A below — delete `*-audit.json`, `*-recommendations.json`, `*-declined.json` in `docs/plans/` | design wrapper active | **Yes — defer to parent `/flow` console** |
 | 4 | Pipeline run directory | Section B below — archive (do not delete) to `.claude-tweaks/pipelines/archive/{run-id}/` | run dir exists | **Yes — parent `/flow` owns archival** |
 | 5 | Git worktree | Section C below — complete feature branch via `/superpowers:finishing-a-development-branch`, then remove worktree + delete merged branch | worktree strategy | **Yes — defer to parent `/flow` console** |
-| 6 | Spec lifecycle (file + INDEX) | Delete the spec file (if 100% complete) or update its status; update `specs/INDEX.md` (remove completed entries) | spec-based work | No (idempotent — the spec being deleted does not interact with parent multi-spec archival) |
+| 6 | Spec lifecycle (file + INDEX) | **Before deleting**, capture the spec's `recon-issue:` and `recon-was-parked:` frontmatter values (if present) — item 8's Section E needs them and the file won't exist to re-read once this step deletes it. Then delete the spec file (if 100% complete) or update its status; update `specs/INDEX.md` (remove completed entries) | spec-based work | No (idempotent — the spec being deleted does not interact with parent multi-spec archival) |
 | 7 | Ephemeral dev server | Section D below — kill the auto-started dev server tracked in `{run-id}/ephemeral-server.txt` | `ephemeral-server.txt` exists | **Yes — server stays up across specs; parent `/flow` kills it once after the consolidated console** |
 | 8 | Issue claim release | Section E below — release `refs/claims/issue-{n}` for each spec with `recon-issue:` frontmatter | spec frontmatter has `recon-issue:` | **Yes — defer to parent `/flow` console** (release follows the merge decision; releasing before the consolidated console would let another agent grab the issue while the work sits unmerged) |
 
-The detailed procedures for items 3–5, 7, and 8 follow. Items 1, 2, and 6 are simple enough to execute inline at Step 10 without a sub-procedure.
+The detailed procedures for items 3–5, 7, and 8 follow. Items 1 and 2 are simple enough to execute inline at Step 10 without a sub-procedure. Item 6 needs one — see the frontmatter-capture note immediately below the table — because it must hand a value forward to item 8 before deleting the file that value lives in.
+
+**Item 6's frontmatter capture.** Before deleting the spec file, read its `recon-issue:` and
+`recon-was-parked:` frontmatter and persist them to the run directory — item 8 (Section E)
+needs both, and for a `MULTISPEC_REVIEW_DEFER=1` run item 8 doesn't execute until a *separate*,
+later invocation (the parent `/flow` console), by which point this spec's file is long gone.
+A same-run in-memory capture is not enough; it has to survive to that later read:
+
+```bash
+RECON_ISSUE=$(grep -m1 '^recon-issue:' "$SPEC_FILE" | sed 's/^recon-issue: *//')
+if [ -n "$RECON_ISSUE" ]; then
+  RECON_WAS_PARKED=$(grep -qx 'recon-was-parked: true' "$SPEC_FILE" && echo true || echo false)
+  node -e "require('fs').writeFileSync(process.argv[1], JSON.stringify({reconIssue: Number(process.argv[2]), reconWasParked: process.argv[3] === 'true'}))" \
+    "${RUN_DIR}/claim-frontmatter-${RECON_ISSUE}.json" "$RECON_ISSUE" "$RECON_WAS_PARKED"
+fi
+```
+
+Skip the write entirely when `recon-issue:` is absent — same "absence is the signal" convention
+`recon-was-parked:` itself already uses. This file lives alongside `decisions.md`/`config.yml`
+in the run directory, so it survives exactly as long as item 8 needs it to (the run directory
+itself isn't archived until item 4, which is *also* deferred under multispec until after the
+console runs).
 
 ## Multi-spec defer behavior
 
@@ -126,12 +147,15 @@ If no `ephemeral-server.txt` exists, skip this section silently (the run used an
 
 ## E. Issue claim release (v5.3.0)
 
-If the spec's frontmatter carries `recon-issue: <n>` (stamped by `/specify`'s issue-ingestion
-path — either invoked directly on an issue reference, or via `/claude-tweaks:flow #{issue}`'s
-hand-off, which itself calls `/specify #{issue}`), the pipeline holds `refs/claims/issue-<n>`
-per `_shared/issue-claims.md`.
-Release it only after the branch outcome is known (item 5 completes first — the execution
-order of the canonical list guarantees this):
+If `${RUN_DIR}/claim-frontmatter-*.json` exists for this spec (item 6's capture — read
+`reconIssue`/`reconWasParked` from there, never from the spec file itself, which item 6 already
+deleted by the time this section runs), the pipeline holds `refs/claims/issue-<n>` (`<n>` =
+`reconIssue`) per `_shared/issue-claims.md`. This mirrors what `recon-issue: <n>` in the spec's
+frontmatter would have said (stamped by `/specify`'s issue-ingestion path — either invoked
+directly on an issue reference, or via `/claude-tweaks:flow #{issue}`'s hand-off, which itself
+calls `/specify #{issue}`) — item 6's capture exists precisely so this section never has to read
+the frontmatter directly. Release it only after the branch outcome is known (item 5 completes
+first — the execution order of the canonical list guarantees this):
 
 1. **Multi-spec defer check:** if `MULTISPEC_REVIEW_DEFER=1`, skip this section — the parent
    `/flow` releases all claims once after its consolidated Review Console and merge.
@@ -143,9 +167,18 @@ order of the canonical list guarantees this):
    `$LINK` is the final wrap-up commit sha — and that wrap-up commit's MESSAGE must carry the
    closing keywords (one `Fixes #{issue}` line per resolved issue; see Section C's carrier
    note). This applies per spec's own wrap-up commit in multi-spec current-branch runs.
-3. **Ownership check (per `_shared/issue-claims.md`, "Release triggers").** Fetch the issue's
-   comments and fold through `claimStatus`. If `claim.runId` is not this run's `$RUN_ID`, a
-   successor holds the lock — skip the delete AND the comment, log
+3. **Ownership check (per `_shared/issue-claims.md`, "Release triggers").** Resolve `$RUN_ID`
+   first: `RUN_ID="${CLAIM_RUN_ID:-$(basename "$PIPELINE_RUN_DIR")}"`. `CLAIM_RUN_ID` is set by
+   `/flow` whenever *its own* caller set it (dispatch always does for both issue-mode singletons
+   and multi-spec bundles — see `triage/SKILL.md` Step 3) — the issue was claimed under that run
+   id, a different and earlier one than this pipeline's own `PIPELINE_RUN_DIR`, so using the
+   latter here would make every dispatch-originated release wrongly conclude "a successor holds
+   the lock" and skip the delete and the comment on every success. A spec reaching this point
+   through any other path (a human running `/flow #{issue}` directly, or a spec merely *derived
+   from* an issue with no live claim) falls back to this pipeline's own run id — the only value
+   used here before this distinction existed. Fetch the issue's comments and fold through
+   `claimStatus`. If `claim.runId` is not the resolved `$RUN_ID`, a successor holds the lock —
+   skip the delete AND the comment, log
    `AUTO — skipped release of issue #{issue}: claim held by run {claim.runId}`, and continue.
 4. Generate the release comment with `releasePayload`, delete the ref, post the comment:
 
@@ -163,20 +196,22 @@ order of the canonical list guarantees this):
    still post the release comment (the comment trail should record the outcome). Any other
    failure: retry once, then log and continue — TTL is the backstop, never block wrap-up.
 6. **Remove the tier label** when the outcome was `merged:` or `pr-opened:` and the issue
-   carries `status:approved` or `status:fast-track`: `gh issue edit "$ISSUE" --remove-label status:approved`
-   (or `status:fast-track`, whichever is present) (reversible; log to `decisions.md`). Leave
+   carries `tier:approved` or `tier:fast-track`: `gh issue edit "$ISSUE" --remove-label tier:approved`
+   (or `tier:fast-track`, whichever is present) (reversible; log to `decisions.md`). Leave
    the label on `abandoned:` — it is the standing retry request. Skip silently when no tier
    label is present.
 7. **Remove `status:in-progress`; restore `parked` if applicable.** Always remove
    `status:in-progress` (`gh issue edit "$ISSUE" --remove-label status:in-progress`) —
    best-effort, log a warning and continue on failure. Then, only when the outcome reason is
-   `abandoned: spec {spec}` (i.e. NOT `merged:`/`pr-opened:`) AND the spec's frontmatter carries
-   `recon-was-parked: true`: restore `parked` — bootstrap the label if missing (same
-   check-then-create pattern as `backlog`), then `gh issue edit "$ISSUE" --add-label parked`.
-   Skip restoration silently when `recon-was-parked` is absent, or when the outcome was
-   `merged:`/`pr-opened:` (the spec shipped or is under review — the issue should stay
-   unparked). Best-effort — on failure, log a warning and continue; `/tidy` Step 4.7's backstop
-   check catches a restoration that silently failed.
+   `abandoned: spec {spec}` (i.e. NOT `merged:`/`pr-opened:`) AND `reconWasParked` is `true`
+   in `${RUN_DIR}/claim-frontmatter-${ISSUE}.json` (item 6's capture — the spec file itself is
+   already gone by this point, do not try to re-read it): restore `parked` — bootstrap the
+   label if missing (same check-then-create pattern as `backlog`), then `gh issue edit "$ISSUE"
+   --add-label parked`. Skip restoration silently when the capture file is absent or
+   `reconWasParked` is `false`, or when the outcome was `merged:`/`pr-opened:` (the spec shipped
+   or is under review — the issue should stay unparked). Best-effort — on failure, log a
+   warning and continue; `/tidy` Step 4.7's backstop check catches a restoration that silently
+   failed.
 8. Log each release, `status:in-progress` removal, and `parked` restoration to `decisions.md`
    (status `AUTO`, reason string as detail).
 
