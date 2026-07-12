@@ -6,6 +6,10 @@ A structured workflow system for Claude Code — from idea capture through build
 
 Claude Code is powerful but unstructured. claude-tweaks adds a complete development lifecycle: capture ideas, challenge assumptions, decompose into specs, build with quality gates, and learn from what was built. Every finding is explicitly resolved — nothing silently drops.
 
+### What's new in v5.27.0 — Native diagram generation replaces the Diagram Design companion
+
+**`/claude-tweaks:visualize`** replaces the external `diagram-design` companion-plugin integration introduced in v4.7 with a fully native skill — no separate plugin install. It generates self-contained HTML+SVG diagrams (architecture, flowchart, sequence, state, ER, timeline, swimlane, quadrant, nested, tree, org chart, layers, venn, pyramid), themed from the project's own `DESIGN.md` tokens (or a neutral default skin when Impeccable isn't set up). An optional D2-backed enhanced rendering path handles diagrams-as-code source generation for types with a native D2 construct, and an optional `Artifact`-publish channel offers a shareable link. The same three soft-hook call sites — `/journeys` Step 3.6, `/specify` Step 2.5d, `/review` Lens 3i-diagram — now suggest invoking it directly, gated by `diagram-suggestions: enabled` in CLAUDE.md (renamed from `diagram-integration:`), written by `/init` Step 11. Diagrams co-locate with what they illustrate (`docs/journeys/`, `docs/plans/`) rather than a single central folder; `docs/diagrams/` is the fallback for context-free, direct invocations.
+
 ### What's new in v5.18.0 — shadcn/ui bootstrap + Phase 0 step renumbering
 
 `/init` gains a new Optional Enhancement step: on a detected frontend project without `components.json`, it offers to bootstrap [shadcn/ui](https://ui.shadcn.com/) — CLI init, plus wiring shadcn's own first-party MCP server into `.mcp.json` and installing shadcn's official Skill (`skills add shadcn/ui`), both of which give Claude Code live project context so it stops guessing at component APIs. Writes a `shadcn-integration: enabled | cli-only | disabled` flag to CLAUDE.md's `## Design integration` section (currently write-only — no other skill reads it yet). See `/init` Step 12.
@@ -40,13 +44,7 @@ Code-health v2 replaces the v1 mechanical-lens spine with an LLM-as-judge model:
 
 As of v4.15.0 this delegates to Claude Code's built-in `/deep-research` Dynamic Workflow when available, with a lean inline fallback otherwise. Reports land under `.claude-tweaks/research/`.
 
-**Diagram Design companion plugin** — a soft-hook integration with [`cathrynlavery/diagram-design`](https://github.com/cathrynlavery/diagram-design) (MIT, separately installed). Unlike Impeccable (wrapped via `/claude-tweaks:design`) or research (which delegates to the built-in `/deep-research`), diagram-design has no callable surface — it's a pure-skill plugin that auto-triggers from its YAML description. claude-tweaks adds *contextual nudges* at three lifecycle moments:
-
-- **`/specify` Step 2.5d** (new, all surfaces) — when the design doc describes state machines, schemas, multi-actor flows, decision trees, or layered architecture, the spec summary surfaces "consider a {type} diagram" with a suggested output path (`docs/diagrams/{slug}.html`). Un-gated from frontend — backend specs get architecture / ER / state diagrams too. Caps at 2 suggestions per spec.
-- **`/journeys` Step 3.6** (new) — when a journey crosses 2+ personas, has 3+ named decision branches, or sequences 2+ external services, suggests the matching diagram type (swimlane / flowchart / sequence) before commit.
-- **`/review` Lens 3i-diagram** (extension) — when the diff added structural complexity but `docs/diagrams/` has no matching file, emits one informational Lens 3i finding ("Visual documentation gap"). Mirrors the existing "doc-update missed" pattern.
-
-All three hooks are gated by `diagram-integration: enabled` in CLAUDE.md, written by `/init` Step 11 (always offered — not frontend-gated). Disabled / missing flag = silent no-op everywhere. claude-tweaks never invokes the plugin directly; the user accepts conversationally and diagram-design's skill auto-triggers. Shared procedure lives at `skills/_shared/diagram-integration-check.md` — flag-read, signal→type mapping (10 types), canonical phrasing, output convention.
+**`/claude-tweaks:visualize`** — native diagram generation, replacing the former `diagram-design` companion-plugin integration. Generates self-contained HTML+SVG diagrams (architecture, flowchart, sequence, state, ER, timeline, swimlane, quadrant, nested, tree, org chart, layers, venn, pyramid), themed from the project's own `DESIGN.md` tokens (or a neutral default skin when Impeccable isn't set up), with an optional D2-backed enhanced rendering path and an optional `Artifact`-publish channel. Soft-hook nudges in `/journeys` Step 3.6, `/specify` Step 2.5d, and `/review` Lens 3i-diagram suggest invoking it — gated by `diagram-suggestions: enabled` in CLAUDE.md, written by `/init` Step 11. Diagrams co-locate with what they illustrate (`docs/journeys/`, `docs/plans/`) rather than a single central folder; `docs/diagrams/` is the fallback for context-free, direct invocations.
 
 See [CHANGELOG.md](CHANGELOG.md) for earlier release notes (v4.6, v4.5, v4.2, v4.1) and v3→v4 upgrade guidance.
 
@@ -74,6 +72,7 @@ See [CHANGELOG.md](CHANGELOG.md) for earlier release notes (v4.6, v4.5, v4.2, v4
      │
   specify ──────────────►  Spec               (writes surface: + design-intent: frontmatter)
      │  calls: design shape (frontend only — appends Impeccable shape output to design doc)
+     │  calls: visualize (diagram suggestion, all surfaces)
      │                     (deletes Brief + Design Doc)
      │
   ┈┈ /claude-tweaks:flow automates below (worktree mode default) ┈┈
@@ -82,6 +81,7 @@ See [CHANGELOG.md](CHANGELOG.md) for earlier release notes (v4.6, v4.5, v4.2, v4
      │  calls: design pre-build (lazy-load Impeccable references)
      │         simplify,                             executing-plans
      │         journeys                              using-git-worktrees ⚙
+     │           calls: visualize (diagram suggestion)
      ┊  (if UI changed)
   stories ──────────────►  Story YAML
      │
@@ -90,6 +90,7 @@ See [CHANGELOG.md](CHANGELOG.md) for earlier release notes (v4.6, v4.5, v4.2, v4
      │
   review ───────────────►  Review Summary     ◄───  dispatching-parallel-agents
      │  calls: design review (Impeccable critique + audit — advisory)
+     │         visualize (diagram gap finding — Lens 3i-diagram),
      │         reflect,
      │         simplify,
      │         visual-review (calls: design survey — Creative Opportunities)

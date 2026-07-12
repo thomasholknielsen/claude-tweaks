@@ -141,6 +141,7 @@ For a detailed explanation of how context flows between skills via artifacts, re
 | `/claude-tweaks:deepen` | Component skill — /claude-tweaks:help lists it in the component skills table |
 | `/claude-tweaks:journeys` | Component skill — /claude-tweaks:help lists it in the component skills table |
 | `/claude-tweaks:visual-review` | Component skill — /claude-tweaks:help lists it in the component skills table |
+| `/claude-tweaks:visualize` | Component skill — /claude-tweaks:help lists it in the component skills table |
 | `/claude-tweaks:init` | /init configures the workflow system that /help reports on — /help reads the same artifact paths /init bootstraps (`specs/backlog/`, specs, plans, docs registry) |
 | `/claude-tweaks:version` | /version prints the installed plugin version; /help surfaces version-aware command syntax and points at /version for the canonical answer |
 | `/claude-tweaks:design` | Utility wrapper — /help lists it in the utility skills table. /design is invoked by /build (Common Step 1.7 pre-build), /test (Step 1.5 CLI gate), /review (Step 6.5 advisory pass), /flow (polish phase), and /visual-review; standalone usage is rare. |

@@ -259,9 +259,9 @@ Run the UX analysis procedure from `ux-analysis.md` in this skill's directory. O
 
 These findings are informational — they don't block the review. They ensure wrap-up doesn't miss doc updates that build skipped.
 
-#### 3i-diagram: Visual documentation gap (informational, companion plugin)
+#### 3i-diagram: Visual documentation gap (informational)
 
-Soft-hook for `cathrynlavery/diagram-design`. Read the flag from CLAUDE.md (Step 1 of `_shared/diagram-integration-check.md`). **Skip silently when** `diagram-integration` is `disabled` or missing.
+Read the `diagram-suggestions` flag from CLAUDE.md (written by `/init` Step 11). **Skip silently when** `diagram-suggestions` is `disabled` or missing.
 
 When `enabled`, scan the diff for **structural complexity** signals:
 
@@ -272,18 +272,18 @@ When `enabled`, scan the diff for **structural complexity** signals:
 | New API routes / message handlers in 3+ service directories, OR a workflow file orchestrating 3+ services | `multi-actor` |
 | 3+ new top-level directories under `src/` or new module boundaries | `architecture` |
 
-If a signal matches **and** `docs/diagrams/` is missing OR contains no file whose name matches the changed area, emit ONE informational finding per matched signal (max 2 total to avoid noise):
+If a signal matches **and** the co-located diagram location for this change (`docs/journeys/`, `docs/plans/`, or `docs/diagrams/` — see `/claude-tweaks:visualize`'s placement table) is missing OR contains no file whose name matches the changed area, emit ONE informational finding per matched signal (max 2 total to avoid noise):
 
 ```
-| {N} | Visual documentation gap: change added a {signal-description}; no diagram in `docs/diagrams/`. Consider a {type} diagram ({plugin}). | Low | Docs | {representative-file} | Suggest to user in wrap-up |
+| {N} | Visual documentation gap: change added a {signal-description}; no matching diagram found. Consider `/claude-tweaks:visualize {type} {topic}`. | Low | Docs | {representative-file} | Suggest to user in wrap-up |
 ```
 
-Format the recommendation body per Step 3 of `_shared/diagram-integration-check.md`. Like other Lens 3i findings, these are informational and don't block review — they're a documentation gap, not a code defect. The user (or Claude) can act on the recommendation in wrap-up by asking diagram-design to draw the diagram.
+Like other Lens 3i findings, these are informational and don't block review — they're a documentation gap, not a code defect. The user (or Claude) can act on the recommendation in wrap-up by invoking `/claude-tweaks:visualize`.
 
 **Skip conditions:**
-- `diagram-integration` is `disabled` or missing → emit nothing
+- `diagram-suggestions` is `disabled` or missing → emit nothing
 - Signal detection produced no matches → emit nothing (most reviews trigger zero diagram findings; this is correct)
-- `docs/diagrams/` already contains a file matching the changed area → emit nothing (the diagram exists; we're not gating on freshness for diagrams since they're hand-drawn)
+- A matching diagram already exists → emit nothing (we're not gating on freshness for diagrams since they're hand-drawn)
 
 ### Step 3.5: Cross-Lens Debate
 
@@ -474,5 +474,4 @@ See `review-summary-template.md` in this skill's directory for the full Next Act
 | `_shared/criteria-review-quality.md` | The shared review-quality criteria (severity scale, category enum, per-lens floors, CALIBRATION filter) — single source of truth read by both /review's Step 3 lenses and /code-health's review-quality lens. The CALIBRATION block in step3-routing.md is the byte-identical inlined-for-dispatch copy. |
 | `_shared/multi-agent-coordination.md` | Canonical primitive for Reproduction (Mode 1, Step 3 per-lens dispatch) and Debate (Mode 2, Step 3.5 cross-lens contradiction resolution). The deterministic comparison + resolve helpers live in `bin/lib/coordination.js`. |
 | `_shared/subagent-output-contract.md` | Per-lens reviewer agents emit Template A; debate agents inline a custom verdict template. The status line and model-tier conventions follow this contract. |
-| `_shared/diagram-integration-check.md` | Lens 3i-diagram reads this for the flag check and signal→type mapping. Soft-hook only — emits one informational finding per matched signal, never invokes the companion plugin. |
-| `cathrynlavery/diagram-design` (companion) | Lens 3i-diagram emits "Visual documentation gap" informational findings when the diff added structural complexity (state machine, data model, multi-actor flow, architecture) but `docs/diagrams/` has no matching file. Gated by `diagram-integration: enabled` in CLAUDE.md (written by `/init` Step 11). |
+| `/claude-tweaks:visualize` | Lens 3i-diagram emits "Visual documentation gap" informational findings when the diff added structural complexity (state machine, data model, multi-actor flow, architecture) but no matching diagram file exists. Gated by `diagram-suggestions: enabled` in CLAUDE.md (written by `/init` Step 11). |
