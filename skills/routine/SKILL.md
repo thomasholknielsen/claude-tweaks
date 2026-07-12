@@ -129,15 +129,20 @@ A typed cron expression via `Other` on the 5b question bypasses 5c entirely — 
 
 If `template.mcp_connections` is non-empty, add a top-level `mcp_connections` array with `{connector_uuid, name, url}` entries (same shape `/schedule` uses) — warn the user if a named connector isn't currently connected, and direct them to https://claude.ai/customize/connectors.
 
-**Step 7 — Review gate.** Show the full assembled body before doing anything with it, along with the template's `notes` field (if present) so the user sees any tuning guidance before confirming. This creates live, billed infrastructure with no delete API — always confirm explicitly here, regardless of how automated everything upstream was.
+**Step 7 — Preview and confirm.** Render the resolved schedule (human-readable, e.g. "Nightly at 03:00 UTC") and environment (e.g. "environment `env-abc123` (cached)") as plain text, along with the template's `notes` field (if present) so the user sees any tuning guidance before confirming. This creates live, billed infrastructure with no delete API, so the preview must always be shown — regardless of how automated everything upstream was.
 
-Call `AskUserQuestion` with `question`: `"Create this routine?"`, `header`: `"Confirm routine"`, `multiSelect`: `false`, and:
-- Option 1 — `label`: `"Create"`, `description`: `"Proceed with the assembled RemoteTrigger body shown above"`
-- Option 2 — `label`: `"Cancel"`, `description`: `"Do not create anything"`
+If `--dry-run` was passed: print the assembled body and stop here. Do not call `RemoteTrigger`. Do not write an instantiated record. (This check applies whether or not `--defaults` was also passed — `--dry-run` always wins.)
 
-**Neither option carries `(Recommended)`** — this is a consequential, hard-to-reverse action (live, billed infrastructure with no delete API), so the tool's normal "mark a recommended default" convention is deliberately not followed here.
+If `--defaults` was passed (and not `--dry-run`): skip the `AskUserQuestion` call below — proceed straight to Step 8. The preview above is still shown, as a report rather than a prompt.
 
-If `--dry-run` was passed: print the assembled body and stop. Do not call `RemoteTrigger`. Do not write an instantiated record.
+Otherwise, call `AskUserQuestion` with `question`: `"Create this routine with these settings?"`, `header`: `"Confirm routine"`, `multiSelect`: `false`, and:
+- Option 1 — `label`: `"Yes, create with defaults (Recommended)"`, `description`: `"Proceed with the settings shown above"`
+- Option 2 — `label`: `"Customize schedule or environment"`, `description`: `"Change the cadence, time, or environment before creating"`
+- Option 3 — `label`: `"Cancel"`, `description`: `"Do not create anything"`
+
+Marking "Yes, create with defaults" as `(Recommended)` is a deliberate change from this step's earlier no-bias convention — acceptable because the full assembled preview is always shown as part of the same round-trip; the safety property (review before commit) is preserved, only the bias-avoidance styling is relaxed.
+
+Selecting **Customize** re-asks environment (present the value resolved in Step 4 as the recommended option, still overridable) and runs the cadence picker (5b/5c), then re-renders this same preview and confirm with the customized values. Selecting **Yes** or **Cancel** proceeds exactly as before — Step 8 (create) or stop.
 
 **Step 8 — Create.** Call `RemoteTrigger {action: "create", body: <assembled body>}`. Read the routine/trigger ID and the claude.ai routine URL from the response (the tool appends a summary line with both).
 
