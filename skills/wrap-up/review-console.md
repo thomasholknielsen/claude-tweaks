@@ -58,6 +58,13 @@ logging why the fast-lane path was abandoned.
 Log to `decisions.md`:
 `AUTO {time} — Fast-lane auto-merge: issue #{n}, {lines} lines across {files} files, zero findings >= medium. Merge commit: {sha}. Reversibility: high (git revert).`
 
+**Release-reason mapping.** This direct merge counts as the `merged:` outcome for Section E's
+release-reason mapping (`skills/wrap-up/cleanup-procedures.md` Section E step 2) — the fast-lane
+path never runs `/superpowers:finishing-a-development-branch`, so Section E's usual "map the
+outcome from that skill" instruction has nothing to read here; treat a successful fast-lane
+merge exactly as if that skill had reported `merged`, with `$LINK` set to this merge's commit
+sha.
+
 **Any layer fails:** proceed to render the console normally, exactly as a
 `tier:approved` issue would — no different from any other pipeline run.
 
