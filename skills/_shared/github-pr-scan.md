@@ -57,11 +57,13 @@ Full sweep of open PRs, code-health-labelled issues, harness-health-labelled iss
 7. **Backlog issues** (only when this repo's CLAUDE.md sets `backlog-backend: github-issues` — read it directly from CLAUDE.md's `## Backlog integration` section, same as `/tidy` Steps 1/1.5; skip this item entirely under `local-files` or a missing flag) — write the query's output to a temp file, then classify each issue:
 
    ```bash
-   gh issue list --label backlog --state open --json number,title,body,labels,milestone,updatedAt,url > /tmp/backlog-issues.json
+   gh issue list --label backlog --state open --json number,title,body,labels,milestone,updatedAt,url,state > /tmp/backlog-issues.json
    node -e "const {classifyBacklogIssue}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/backlog.js');
      const issues=JSON.parse(require('fs').readFileSync(0,'utf8'));
      console.log(JSON.stringify(issues.map(classifyBacklogIssue)))" < /tmp/backlog-issues.json
    ```
+
+   `classifyBacklogIssue`'s result also carries `state` and `isBacklogLabeled` now — callers that want strict filtering can check both explicitly.
 
    One query, split client-side by `stage` (`inbox` / `parked`) — not two separate queries.
 

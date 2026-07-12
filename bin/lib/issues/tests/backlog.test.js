@@ -225,3 +225,22 @@ test('classifyBacklogIssue handles bare-string labels (not {name} objects)', () 
   assert.strictEqual(result.stage, 'inbox');
   assert.strictEqual(result.category, 'product');
 });
+
+test('classifyBacklogIssue: a closed issue is never classified as inbox or parked stage — callers must filter it out, but the field says so explicitly', () => {
+  const closedIssue = { ...OPEN_INBOX_ISSUE, state: 'closed' };
+  assert.strictEqual(classifyBacklogIssue(closedIssue).state, 'closed');
+});
+
+test('classifyBacklogIssue: an issue without the backlog label still classifies but flags isBacklogLabeled: false', () => {
+  const noBacklogLabel = { ...OPEN_INBOX_ISSUE, labels: [{ name: 'backlog:category-product' }] };
+  assert.strictEqual(classifyBacklogIssue(noBacklogLabel).isBacklogLabeled, false);
+});
+
+test('classifyBacklogIssue: an issue with the backlog label flags isBacklogLabeled: true', () => {
+  assert.strictEqual(classifyBacklogIssue(OPEN_INBOX_ISSUE).isBacklogLabeled, true);
+});
+
+test('classifyBacklogIssue: state defaults to null when the field is absent (caller pre-gh-3 compatibility)', () => {
+  const { state: _drop, ...withoutState } = OPEN_INBOX_ISSUE;
+  assert.strictEqual(classifyBacklogIssue(withoutState).state, null);
+});

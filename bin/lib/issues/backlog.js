@@ -59,12 +59,17 @@ function labelNames(labels) {
   return (labels || []).map((l) => (typeof l === 'string' ? l : l.name)).filter(Boolean);
 }
 
-// issue: { number, title, labels, body, milestone, updatedAt, url } — shaped like
-// `gh issue list --json number,title,labels,body,milestone,updatedAt,url` output.
+// issue: { number, title, labels, body, milestone, updatedAt, url, state? } — shaped like
+// `gh issue list --json number,title,labels,body,milestone,updatedAt,url,state` output.
 // Returns { number, title, stage: 'inbox'|'parked', category, priority, milestone,
-// milestoneDueOn, watchedPaths, updatedAt, url } — category/priority/milestone/
-// milestoneDueOn/watchedPaths are null when absent.
-function classifyBacklogIssue({ number, title, labels, body, milestone, updatedAt, url }) {
+// milestoneDueOn, watchedPaths, updatedAt, url, state, isBacklogLabeled } —
+// category/priority/milestone/milestoneDueOn/watchedPaths are null when absent; `state` is
+// null when the caller didn't fetch it (pre-existing callers that omit the field from their
+// own `--json` list still get a defined, non-throwing result). `isBacklogLabeled` lets a
+// caller explicitly filter out an issue that reached this function without actually carrying
+// the `backlog` label, instead of implicitly trusting that every caller pre-filters —
+// previously this function assumed its sole caller always pre-filtered by `--label backlog`.
+function classifyBacklogIssue({ number, title, labels, body, milestone, updatedAt, url, state }) {
   const names = labelNames(labels);
   const stage = names.includes('parked') ? 'parked' : 'inbox';
   const categoryLabelName = names.find((n) => n.startsWith('backlog:category-'));
@@ -80,6 +85,8 @@ function classifyBacklogIssue({ number, title, labels, body, milestone, updatedA
     watchedPaths: extractWatchedPaths(body),
     updatedAt,
     url,
+    state: state || null,
+    isBacklogLabeled: names.includes('backlog'),
   };
 }
 
