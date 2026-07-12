@@ -3,7 +3,14 @@
 const path = require('path');
 
 // Quote-aware top-level split: a single pass tracks single/double-quote state
-// and only cuts at separators (&&, ||, ;, |) that are outside any quote span.
+// and only cuts at separators (&&, ||, ;, |, newline) that are outside any
+// quote span. Newline is a segment boundary because gitTargets only ever
+// inspects t[0] of each segment to detect a `cd`/`git` command — a bare
+// newline (not `&&`/`;`) between two statements otherwise merges them into
+// one segment, silently hiding a `cd` that isn't the segment's first token
+// (e.g. `VAR="x"\ncd "$VAR" && git commit` — the `cd` never gets seen, so
+// the effective cwd used for the commit target stays whatever it was before
+// this segment, not where the command will actually run).
 // This protects the safety invariant — ambiguity resolves to allow — by
 // preventing quoted text (e.g. a commit message containing "&& git -C /x push")
 // from being misparsed as additional shell segments that fabricate a target.
@@ -40,7 +47,7 @@ function splitSegments(command) {
     }
     if (ch === '&' && str[i + 1] === '&') { segments.push(current); current = ''; i += 1; continue; }
     if (ch === '|' && str[i + 1] === '|') { segments.push(current); current = ''; i += 1; continue; }
-    if (ch === ';' || ch === '|') { segments.push(current); current = ''; continue; }
+    if (ch === ';' || ch === '|' || ch === '\n') { segments.push(current); current = ''; continue; }
     current += ch;
   }
   segments.push(current);

@@ -19,6 +19,30 @@ test('cd chains update the effective cwd', () => {
   ]);
 });
 
+test('a cd on its own line, preceded by an unrelated statement joined only by a newline, still updates the effective cwd', () => {
+  assert.deepStrictEqual(
+    gitTargets('VAR="unrelated"\ncd /wt/spec-1 && git add f.js && git commit -m "x"', '/repo'),
+    [{ action: 'commit', dir: '/wt/spec-1' }],
+  );
+});
+
+test('a shell-variable cd on its own line, preceded by an unrelated statement, is unresolvable — no target (never falls back to the stale cwd)', () => {
+  assert.deepStrictEqual(
+    gitTargets('MKT="/wt/spec-1"\ncd "$MKT" && git commit -m "x"', '/repo'),
+    [],
+  );
+});
+
+test('a newline inside a quoted commit message does not fabricate a segment boundary', () => {
+  assert.deepStrictEqual(
+    gitTargets('git commit -m "line one\nline two" && git push', '/repo'),
+    [
+      { action: 'commit', dir: '/repo' },
+      { action: 'push', dir: '/repo' },
+    ],
+  );
+});
+
 test('push is reported; other subcommands are not', () => {
   assert.deepStrictEqual(gitTargets('git push origin main', '/repo'), [{ action: 'push', dir: '/repo' }]);
   assert.deepStrictEqual(gitTargets('git status && git log --oneline -3', '/repo'), []);
