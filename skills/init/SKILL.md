@@ -123,7 +123,7 @@ When frontend signals are detected and `components.json` doesn't exist (or exist
 
 ### Step 13: Routine Installation (Optional Companion)
 
-Always offered (not gated) — detect which claude-tweaks skills ship a `routine-template.yml` (plus any named `routine-template-<variant>.yml` siblings) without an existing instantiated record for this project, and offer to walk through `/claude-tweaks:routine create <skill> [--variant=<name>] --source init` for each candidate. Idempotent: candidates with an existing record are never re-offered. Read `bootstrap-steps.md` (Step 13) for the full procedure.
+Always offered (not gated) — detect which claude-tweaks skills ship a `routine-template.yml` (plus any named `routine-template-<variant>.yml` siblings) without an existing instantiated record for this project, present them as a single multiSelect picklist with their default schedules, and invoke `/claude-tweaks:routine create <skill> [--variant=<name>] --defaults --environment=<id> --source init` for each selected candidate — no per-candidate interactive walkthrough. Idempotent: candidates with an existing record are never re-offered. Read `bootstrap-steps.md` (Step 13) for the full procedure.
 
 ### Step 14: Non-Default-Branch Issue Tracking (Optional Companion)
 
