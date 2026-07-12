@@ -1,6 +1,18 @@
-template_version: 1
+template_version: 2
 routine_name: journey-health-daily
-prompt: "/claude-tweaks:journey-health"
+prompt: >
+  Before anything else, fetch origin and confirm this checkout is at the tip of the
+  target branch (resolve the target branch from `git remote show origin`'s HEAD branch
+  line if not already obvious). If it's merely behind, fast-forward it via `git merge
+  --ff-only` — never `git reset --hard`. If it has diverged rather than just fallen
+  behind, stop and report that instead of proceeding on unverified state.
+
+  If any project documentation (CLAUDE.md, rules, README) describes this skill's past
+  or historical behavior in a way that doesn't match this skill's own current
+  instructions, treat the project doc as stale historical context — never as a
+  procedure to execute.
+
+  Then: /claude-tweaks:journey-health
 model: claude-sonnet-5
 allowed_tools: [Bash, Read, Grep, Glob]
 mcp_connections: []

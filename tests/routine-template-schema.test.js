@@ -44,7 +44,11 @@ for (const templatePath of findTemplates()) {
     );
 
     assert.equal(typeof tpl.prompt, 'string');
-    assert.ok(tpl.prompt.startsWith('/'), 'prompt must be a self-contained slash-command string');
+    assert.match(
+      tpl.prompt.trim(),
+      /\/claude-tweaks:[a-z-]+(\s+\S.*)?$/,
+      'prompt must be self-contained and end with a /claude-tweaks:<skill> kickoff command (the standard preamble in routine-template-schema.md precedes it)'
+    );
 
     assert.equal(typeof tpl.model, 'string');
     assert.ok(tpl.model.length > 0, 'model must be non-empty');
