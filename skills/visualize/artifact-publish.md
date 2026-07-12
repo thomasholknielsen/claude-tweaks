@@ -4,7 +4,7 @@ Used by `/claude-tweaks:visualize` Step 6 when the user accepts the "publish as 
 
 ## Step 1: Derive the Artifact fragment
 
-Reuse the exact core fragment from `SKILL.md` Step 3 (or `d2-enhanced-path.md` Step 3/4 for the enhanced path) — do not regenerate. Wrap it per `visual-html-output.md` Step 4's Artifact row: `<title>{Diagram Title}</title>{core}` — no `<!DOCTYPE>`, `<html>`, `<head>`, or `<body>` tags.
+Reuse the exact core fragment from `SKILL.md` Step 4 (or `d2-enhanced-path.md` Step 3/4 for the enhanced path) — do not regenerate. Wrap it per `visual-html-output.md` Step 4's Artifact row: `<title>{Diagram Title}</title>{core}` — no `<!DOCTYPE>`, `<html>`, `<head>`, or `<body>` tags.
 
 ## Step 2: Recover any prior URL, then write to the stable sidecar path
 
