@@ -285,6 +285,14 @@ claude-tweaks branches each worktree from your **current local HEAD** — the br
 
 The harness **default is `fresh`**, which branches from `origin/<default-branch>`. On a project whose integration branch is local and ahead of the remote default (e.g. a long-lived `dev`), `fresh` silently branches from a **stale** commit, and your work lands on the wrong base. Set `baseRef: "head"`. As a safety net, `/build` Common Step 1 verifies the worktree's actual base immediately after creation and stops if it doesn't match your HEAD.
 
+### Worktree sessions and `claude --resume`
+
+Because `worktree.always` forces nearly every session to enter a worktree on its first edit, this is worth knowing up front: entering a worktree mid-session (via `EnterWorktree`, or `Agent` with `isolation: "worktree"`) pivots that session's own storage into a project bucket keyed by the worktree's path, not the parent project's. `claude --resume` run from the parent project directory no longer lists it.
+
+This is a known, accepted limitation in Claude Code itself — not something claude-tweaks controls or can work around. Anthropic has closed it as duplicate/not-planned: [#30906](https://github.com/anthropics/claude-code/issues/30906) ("Worktree cwd is not restored on session resume"), [#42596](https://github.com/anthropics/claude-code/issues/42596) ("Worktree sessions are transient and cannot be resumed"), [#48835](https://github.com/anthropics/claude-code/issues/48835) (silent `--resume` failure). Related open feature requests: #28019, #58591, #61366.
+
+If you need to resume a session after it entered a worktree, `cd` into the worktree directory first and resume from there, or look for it under that worktree's own encoded project bucket. If resumability matters more than in-session automation for a given task, create the worktree manually (`git worktree add`, then `cd` in and launch `claude`) instead of letting a skill enter one for you mid-session.
+
 ## Local development
 
 ```bash
