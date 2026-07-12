@@ -16,9 +16,17 @@ test('decide suppresses when the matching issue is labelled wontfix', () => {
   assert.deepStrictEqual(decide({ id: 'journeyhealth-abc' }, issueIndex, {}), { action: 'suppress', issue: 7 });
 });
 
-test('decide skips when the matching issue is closed (assumed resolved)', () => {
+test('decide reopens when the matching issue is closed and not wontfix (regressed)', () => {
   const issueIndex = { 'journeyhealth-abc': { number: 7, state: 'closed', labels: [] } };
-  assert.deepStrictEqual(decide({ id: 'journeyhealth-abc' }, issueIndex, {}), { action: 'skip', issue: 7 });
+  const result = decide({ id: 'journeyhealth-abc' }, issueIndex, {});
+  assert.strictEqual(result.action, 'reopen');
+  assert.strictEqual(result.issue, 7);
+  assert.ok(typeof result.note === 'string' && result.note.length > 0);
+});
+
+test('decide still suppresses a closed match that carries wontfix', () => {
+  const issueIndex = { 'journeyhealth-abc': { number: 7, state: 'closed', labels: ['wontfix'] } };
+  assert.deepStrictEqual(decide({ id: 'journeyhealth-abc' }, issueIndex, {}), { action: 'suppress', issue: 7 });
 });
 
 test('decide suppresses a finding the local cache marked declined', () => {
