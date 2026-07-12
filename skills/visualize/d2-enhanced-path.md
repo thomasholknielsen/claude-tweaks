@@ -25,4 +25,4 @@ D2's own theme system doesn't bind live CSS variables. Post-process the rendered
 
 ## Step 4: Continue at SKILL.md Step 5
 
-Placement, wrapper generation, and the Artifact offer proceed identically to the baseline path from here.
+Placement and wrapper generation proceed identically to the baseline path from here.

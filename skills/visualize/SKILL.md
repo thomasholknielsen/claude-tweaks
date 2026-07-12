@@ -7,7 +7,7 @@ description: Use when you want a themed, project-local visual diagram — archit
 
 # Visualize — Themed Diagram Generation
 
-Generates a self-contained HTML+SVG diagram, themed from the project's own design tokens, embeddable in project docs and optionally publishable via the `Artifact` tool.
+Generates a self-contained HTML+SVG diagram, themed from the project's own design tokens, embeddable in project docs.
 
 ```
                        [ /claude-tweaks:visualize ] ← utility (no fixed lifecycle position)
@@ -87,17 +87,13 @@ Author the `<svg>` content directly for the diagram type and topic, binding ever
 
 Apply `visual-html-output.md` Step 4's adapters. Always write the standalone-file wrapper to the path from Step 3. Write the markdown-embed wrapper's content inline in this skill's own response (for the user to copy into a doc) rather than as a separate file — it's a snippet, not a standalone artifact.
 
-### Step 6: Offer to publish via Artifact
-
-If the `Artifact` tool is not available in the current session (plan/org gating, Agent SDK, or any other reason it doesn't appear in the available tools), skip this step silently — do not mention Artifact publishing at all. Otherwise, call `AskUserQuestion`: `question`: `"Also publish this as a shareable Artifact link?"`, `header`: `"Artifact"`, options `"Yes"` / `"No"` — no default marked Recommended; this is a genuine toss-up, not a best-practice call. On `"Yes"`, read `artifact-publish.md` in this skill's directory.
-
-### Step 7: Registry update (persisted diagrams only)
+### Step 6: Registry update (persisted diagrams only)
 
 If Step 3 resolved to `docs/diagrams/{slug}.html` (the context-free fallback path) and no `REGISTRY.md` row for `docs/diagrams/` exists yet, add one: `| docs/diagrams/ | Generated visual diagrams | — |` (no Auto-detect — matches `architecture.md`/`decisions/*.md` treatment). Diagrams placed under `docs/journeys/` or `docs/plans/` need no new row — they ride along with that doc's existing registry entry.
 
 ## Next Actions
 
-After generating (and, if accepted, publishing), call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+After generating, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
 
 - Option 1 — `label`: `"Generate another diagram (Recommended if more signals matched)"`, `description`: `"/claude-tweaks:visualize <type> <topic> — generate another diagram"`
 - Option 2 — `label`: `"Continue the calling flow"`, `description`: `"Return to wherever this was invoked from (journey commit, spec summary, review findings)"`
@@ -113,10 +109,9 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 
 | Pattern | Why It Fails |
 |---------|--------------|
-| Regenerating the core fragment separately per wrapper | The standalone file, markdown embed, and Artifact-published version drift apart. Generate once (Step 4), wrap three ways (Step 5). |
+| Regenerating the core fragment separately per wrapper | The standalone file and markdown embed drift apart. Generate once (Step 4), wrap two ways (Step 5). |
 | Re-asking the DESIGN.md fallback question every invocation | Annoys a user who's already decided not to use Impeccable. Dedupe per session (`visual-html-output.md` Step 2). |
 | Forcing a baseline-only type through the D2 enhanced path | Timeline/swimlane/venn/pyramid have no graph-shaped representation — this fights the tool the same way theming fights Mermaid/D2's own engines. |
-| Auto-invoking the `Artifact` tool without asking | Publishing is always an explicit `AskUserQuestion` — never automatic, and silently skipped (not failed) if the tool isn't present in the session. |
 | Writing every diagram to a single central `docs/diagrams/` folder regardless of caller | Co-locate with what the diagram illustrates (Step 3) — `docs/diagrams/` is the fallback for context-free invocations only. |
 
 ## Relationship to Other Skills
