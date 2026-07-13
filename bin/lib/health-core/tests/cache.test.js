@@ -6,7 +6,7 @@ const os = require('os');
 const path = require('path');
 const { createCache } = require('../cache');
 
-function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'watchman-core-cache-')); }
+function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'health-core-cache-')); }
 
 test('cachePath is namespaced under .claude-tweaks/<skillName>/cache.json', () => {
   const core = createCache('some-skill');

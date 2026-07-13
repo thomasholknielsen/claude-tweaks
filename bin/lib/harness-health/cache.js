@@ -1,52 +1,53 @@
 'use strict';
-const { createCache } = require('../watchman-core/cache');
-const { recordRun, computeChurn } = require('../watchman-core/runs');
+const { createCache } = require('../health-core/cache');
+const { createDurableState } = require('../health-core/durable-state');
 
-// Gitignored, rebuildable-from-issues state. Canonical path:
-// <root>/.claude-tweaks/harness-health/{cache,cursors}.json and .../runs/*.json
+// Local, gitignored: cache.json only (rebuildable-from-issues dedup state).
+// Canonical path: <root>/.claude-tweaks/harness-health/cache.json
+//
+// Cursors (per-target audit + gap-scan), the retry queue, and run history
+// are durable instead — they live on the health-state branch (see
+// _shared/health-state.md), not local disk, since local disk doesn't
+// survive a scheduled cloud-routine firing's container recycling.
 
 const core = createCache('harness-health');
+const durable = createDurableState('harness-health');
 
-// Record that `key` (a fully-formed cursor key, e.g. "skill:auth" or
-// "rule:api-errors") was audited. Shared by wrap-up, init, and the routine —
-// whichever consumer analyzes a target writes its cursor here so the others'
-// rotation/classification skips it.
-function recordAudit(root, key, { sha = null, whenMs = Date.now() } = {}) {
-  const cursors = core.readCursors(root);
-  cursors[key] = { lastAuditedSha: sha, lastAuditedMs: whenMs };
-  core.writeCursors(root, cursors);
-  return cursors[key];
-}
-
-// Gap-scan cursor is a single global entry (key "__gapScan"), not per-skill.
-function readGapScanCursor(root) {
-  const cursors = core.readCursors(root);
-  return cursors.__gapScan || { lastScannedSha: null, lastScannedMs: null };
-}
-
-function recordGapScan(root, { sha = null, whenMs = Date.now() } = {}) {
-  const cursors = core.readCursors(root);
-  cursors.__gapScan = { lastScannedSha: sha, lastScannedMs: whenMs };
-  core.writeCursors(root, cursors);
-  return cursors.__gapScan;
-}
-
-function boundRecordRun(root, runId, fingerprints) {
-  return recordRun(core.runsDir(root), runId, fingerprints);
+// Pure: computes the next durable-state object for a validate-findings run.
+// current: { cursors, retryQueue, runs } — the current durable health-state
+// shape (as returned by readDurableState). Unlike code-health, harness-health
+// has no `remembered` tier (every surviving finding files unconditionally),
+// so there is no remembered-delta to merge here.
+// opts: { target, kind, gapScan, runRecord, now? }
+//
+// This is the exact logic bin/harness-health.js's cmdValidateFindings hands
+// to writeDurableState as its mutator — extracted here (no git, no gh, no
+// I/O) so its behaviors (target+kind cursor set, gap-scan cursor set,
+// unrelated cursor keys preserved, run-history append) can be unit tested
+// directly with plain-object fixtures, the same way code-health's
+// buildValidateFindingsUpdate is tested in
+// bin/lib/code-health/tests/build-validate-findings-update.test.js — see
+// bin/lib/harness-health/tests/build-validate-findings-update.test.js.
+// Every CLI-level test that reaches cmdValidateFindings's persistence step
+// fails its `git fetch origin health-state` first (no real GitHub-hosted
+// remote configured in any test), so the mutator itself is never actually
+// invoked by any CLI-level test.
+function buildValidateFindingsUpdate(current, { target, kind, gapScan, runRecord, now = Date.now() }) {
+  const cursors = { ...current.cursors };
+  if (target && kind) {
+    cursors[`${kind}:${target}`] = { lastAuditedSha: null, lastAuditedMs: now };
+  }
+  if (gapScan) {
+    cursors.__gapScan = { lastScannedSha: null, lastScannedMs: now };
+  }
+  return { ...current, cursors, runs: [...current.runs, runRecord] };
 }
 
 module.exports = {
   cachePath: core.cachePath,
   readCache: core.readCache,
   writeCache: core.writeCache,
-  cursorsPath: core.cursorsPath,
-  readCursors: core.readCursors,
-  writeCursors: core.writeCursors,
-  recordAudit,
-  readGapScanCursor,
-  recordGapScan,
-  runsDir: core.runsDir,
-  recordRun: boundRecordRun,
-  readRuns: core.readRuns,
-  computeChurn,
+  readDurableState: durable.readState,
+  writeDurableState: durable.writeState,
+  buildValidateFindingsUpdate,
 };

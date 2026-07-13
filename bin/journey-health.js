@@ -3,15 +3,18 @@
 const fs = require('fs');
 const { fingerprint } = require('./lib/journey-health/fingerprint');
 const {
-  readCache, writeCache, readCursors, recordAudit,
-  readCoverageScanCursor, recordCoverageScan, recordRun, readRuns, computeChurn,
+  readCache, writeCache, readDurableState, writeDurableState, buildValidateFindingsUpdate,
 } = require('./lib/journey-health/cache');
+const { computeChurn } = require('./lib/health-core/runs');
+const { makeRetryQueueCommands } = require('./lib/health-core/retry-cli');
 const { decide } = require('./lib/journey-health/dedup');
 const { validateFinding } = require('./lib/journey-health/validate-finding');
 const { toIssuePayload } = require('./lib/journey-health/issue-payload');
 const { selectTarget, listJourneys } = require('./lib/journey-health/scope');
 const { STALE_DAYS_LIGHT } = require('./lib/journey-health/score');
 const { evaluateQaEvidence } = require('./lib/journey-health/qa-evidence');
+
+const retryQueueCommands = makeRetryQueueCommands({ readDurableState, writeDurableState });
 
 function parseArgs(argv) {
   const args = { _: [], root: process.cwd(), dryRun: false, runId: new Date().toISOString(), tier: 'light' };
@@ -61,7 +64,7 @@ function cmdNextTarget(args) {
   const root = args.root || process.cwd();
   const now = Date.now();
   const tier = args.tier === 'deep' ? 'deep' : 'light';
-  const coverageScan = readCoverageScanCursor(root);
+  const coverageScan = readDurableState(root).cursors.__coverageScan || { lastScannedMs: null };
   const coverageScanDue = coverageScan.lastScannedMs == null || (now - coverageScan.lastScannedMs) / 86400000 > STALE_DAYS_LIGHT;
 
   if (args.target) {
@@ -72,7 +75,7 @@ function cmdNextTarget(args) {
   }
 
   const budget = Number.isFinite(args.budget) && args.budget > 0 ? args.budget : 1;
-  let cursors = readCursors(root);
+  let cursors = readDurableState(root).cursors;
 
   if (budget === 1) {
     const target = selectTarget(root, cursors, { now, tier });
@@ -158,9 +161,16 @@ function cmdValidateFindings(args) {
 
   if (!args.dryRun) {
     writeCache(root, cache);
-    if (args.target) recordAudit(root, args.target, args.tier === 'deep' ? 'deep' : 'light', {});
-    if (args.coverageScan) recordCoverageScan(root, {});
-    recordRun(root, args.runId, [...seen]);
+    // Cursor/audit-log persistence is a rebuildable optimization (GitHub issue state is the
+    // source of truth), so a persistence failure must never block emitting the payloads —
+    // mirrors the pattern already hardened in bin/harness-health.js's own writeDurableState call.
+    const runRecord = { runId: args.runId, runAt: new Date().toISOString(), fingerprints: [...seen] };
+    const result = writeDurableState(root, (current) => buildValidateFindingsUpdate(
+      current, { target: args.target, tier: args.tier, coverageScan: args.coverageScan, runRecord },
+    ));
+    if (!result.ok) {
+      process.stderr.write(`[journey-health] validate-findings: health-state persistence failed after retries: ${result.error}\n`);
+    }
   }
 
   process.stdout.write(JSON.stringify(payloads, null, 2) + '\n');
@@ -171,7 +181,7 @@ function cmdValidateFindings(args) {
 
 function cmdChurnReport(args) {
   const root = args.root || process.cwd();
-  const runs = readRuns(root);
+  const runs = readDurableState(root).runs;
   if (runs.length === 0) {
     process.stdout.write('no run logs found\n');
     return;
@@ -245,12 +255,21 @@ function main(argv) {
   if (cmd === 'churn-report') return cmdChurnReport(args);
   if (cmd === 'mark') return cmdMark(args);
   if (cmd === 'qa-evidence') return cmdQaEvidence(args);
+  // args._[0] is always 'retry-queue' itself (parseArgs pushes every positional,
+  // including the top-level subcommand, into args._) — the drain/update word
+  // right after it is args._[1], the same offset validate-findings uses for its
+  // own findings-file positional. retryQueueCommands.update() expects its own
+  // args._ re-based so index 1 lands on the results-file path, so slice off
+  // the leading 'retry-queue' entry before handing args to it.
+  if (cmd === 'retry-queue' && args._[1] === 'drain') return retryQueueCommands.drain(args);
+  if (cmd === 'retry-queue' && args._[1] === 'update') return retryQueueCommands.update({ ...args, _: args._.slice(1) });
   process.stderr.write(
     'usage: journey-health.js <command> [options]\n' +
     'commands: next-target [--target <id>] [--tier light|deep] [--budget <n>], ' +
     'validate-findings <file> [--target <id>] [--tier light|deep] [--coverage-scan], ' +
     'qa-evidence <report.json> --story-ids <id1,id2,...> [--now <ms>], ' +
-    'churn-report [--fail-on-high-churn <r>], mark <fingerprint> <declined>\n',
+    'churn-report [--fail-on-high-churn <r>], mark <fingerprint> <declined>, ' +
+    'retry-queue drain, retry-queue update <results.json>\n',
   );
   process.exit(2);
 }

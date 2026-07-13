@@ -3,9 +3,10 @@
 const fs = require('fs');
 const { fingerprint } = require('./lib/harness-health/fingerprint');
 const {
-  readCache, writeCache, readCursors, recordAudit,
-  readGapScanCursor, recordGapScan, recordRun, readRuns, computeChurn,
+  readCache, writeCache, readDurableState, writeDurableState, buildValidateFindingsUpdate,
 } = require('./lib/harness-health/cache');
+const { computeChurn } = require('./lib/health-core/runs');
+const { makeRetryQueueCommands } = require('./lib/health-core/retry-cli');
 const { decide } = require('./lib/harness-health/dedup');
 const { validateFinding } = require('./lib/harness-health/validate-finding');
 const { toIssuePayload } = require('./lib/harness-health/issue-payload');
@@ -13,6 +14,8 @@ const {
   selectTarget, listTargets, listMemory, selectMemoryTarget,
 } = require('./lib/harness-health/scope');
 const { STALE_DAYS } = require('./lib/harness-health/score');
+
+const retryQueueCommands = makeRetryQueueCommands({ readDurableState, writeDurableState });
 
 function parseArgs(argv) {
   const args = { _: [], root: process.cwd(), dryRun: false, runId: new Date().toISOString() };
@@ -60,7 +63,7 @@ function loadIssueIndex(file) {
 function cmdNextTarget(args) {
   const root = args.root || process.cwd();
   const now = Date.now();
-  const gapScan = readGapScanCursor(root);
+  const gapScan = readDurableState(root).cursors.__gapScan || { lastScannedSha: null, lastScannedMs: null };
   const gapScanDue = gapScan.lastScannedMs == null || (now - gapScan.lastScannedMs) / 86400000 > STALE_DAYS;
 
   if (args.kind === 'memory') {
@@ -68,7 +71,7 @@ function cmdNextTarget(args) {
       process.stderr.write('harness-health.js: next-target --kind memory requires --memory-dir <path>\n');
       process.exit(2);
     }
-    let memCursors = readCursors(root);
+    let memCursors = readDurableState(root).cursors;
 
     if (args.target) {
       const found = listMemory(args.memoryDir).find((t) => t.id === args.target) || null;
@@ -107,7 +110,7 @@ function cmdNextTarget(args) {
   }
 
   const budget = Number.isFinite(args.budget) && args.budget > 0 ? args.budget : 1;
-  let cursors = readCursors(root);
+  let cursors = readDurableState(root).cursors;
 
   if (budget === 1) {
     const target = selectTarget(root, cursors, { now, kind: args.kind });
@@ -191,15 +194,13 @@ function cmdValidateFindings(args) {
     writeCache(root, cache);
     // Cursor/audit-log persistence is a rebuildable optimization (GitHub issue state is the
     // source of truth), so a persistence failure must never block emitting the payloads —
-    // mirrors the pattern already hardened in bin/code-health.js's own recordRun call.
-    try {
-      if (args.target && args.kind) recordAudit(root, `${args.kind}:${args.target}`, {});
-      if (args.gapScan) recordGapScan(root, {});
-      recordRun(root, args.runId, [...seen]);
-    } catch (err) {
-      process.stderr.write(
-        `[harness-health] validate-findings: cursor/run-log persistence failed (non-fatal, payloads still emitted): ${err.message}\n`,
-      );
+    // mirrors the pattern already hardened in bin/code-health.js's own writeDurableState call.
+    const runRecord = { runId: args.runId, runAt: new Date().toISOString(), fingerprints: [...seen] };
+    const result = writeDurableState(root, (current) => buildValidateFindingsUpdate(
+      current, { target: args.target, kind: args.kind, gapScan: args.gapScan, runRecord },
+    ));
+    if (!result.ok) {
+      process.stderr.write(`[harness-health] validate-findings: health-state persistence failed after retries: ${result.error}\n`);
     }
   }
 
@@ -211,7 +212,7 @@ function cmdValidateFindings(args) {
 
 function cmdChurnReport(args) {
   const root = args.root || process.cwd();
-  const runs = readRuns(root);
+  const runs = readDurableState(root).runs;
   if (runs.length === 0) {
     process.stdout.write('no run logs found\n');
     return;
@@ -265,11 +266,20 @@ function main(argv) {
   if (cmd === 'validate-findings') return cmdValidateFindings(args);
   if (cmd === 'churn-report') return cmdChurnReport(args);
   if (cmd === 'mark') return cmdMark(args);
+  // args._[0] is always 'retry-queue' itself (parseArgs pushes every positional,
+  // including the top-level subcommand, into args._) — the drain/update word
+  // right after it is args._[1], the same offset validate-findings uses for its
+  // own findings-file positional. retryQueueCommands.update() expects its own
+  // args._ re-based so index 1 lands on the results-file path, so slice off
+  // the leading 'retry-queue' entry before handing args to it.
+  if (cmd === 'retry-queue' && args._[1] === 'drain') return retryQueueCommands.drain(args);
+  if (cmd === 'retry-queue' && args._[1] === 'update') return retryQueueCommands.update({ ...args, _: args._.slice(1) });
   process.stderr.write(
     'usage: harness-health.js <command> [options]\n' +
     'commands: next-target [--target <id>] [--kind <skill|rule|claude-md|design-artifact|memory>] [--memory-dir <path>] [--budget <n>], ' +
     'validate-findings <file> [--target <id>] [--kind <skill|rule|claude-md|design-artifact|memory>] [--gap-scan], ' +
-    'churn-report [--fail-on-high-churn <r>], mark <fingerprint> <declined>\n',
+    'churn-report [--fail-on-high-churn <r>], mark <fingerprint> <declined>, ' +
+    'retry-queue drain, retry-queue update <results.json>\n',
   );
   process.exit(2);
 }

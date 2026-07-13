@@ -4,7 +4,6 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { listSlices, contentHash, selectSlice, listWorkspaceSlices } = require('../scope');
-const { writeCursors } = require('../cache');
 
 const MAX_STALE_DAYS = 30; // mirrors score.js constant
 

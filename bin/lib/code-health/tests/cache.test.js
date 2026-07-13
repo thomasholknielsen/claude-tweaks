@@ -31,45 +31,39 @@ test('readCache returns {} on corrupt JSON rather than throwing', () => {
   assert.deepStrictEqual(readCache(root), {});
 });
 
-const { recordRun, readCursors, writeCursors } = require('../cache');
+// recordRun/readCursors/writeCursors (local-disk cursor persistence) were
+// removed by the health-state migration — cursors now live on the durable
+// health-state branch (bin/lib/health-core/durable-state.js), not local disk.
+// The cursor-merge semantics these tests used to cover directly (preserve an
+// existing lastHash when an area isn't in areasSwept; only touch swept areas),
+// plus the remembered-delta merge and run-history append, now live in the
+// pure, separately-exported buildValidateFindingsUpdate (defined in this
+// module, ../cache.js), which bin/code-health.js's cmdValidateFindings hands
+// to writeDurableState as its mutator. It is unit tested directly with
+// plain-object fixtures in
+// bin/lib/code-health/tests/build-validate-findings-update.test.js — no
+// git/gh involved. That extraction was necessary because durable-integration.test.js
+// and bin/lib/code-health/tests/cli-nextslice.test.js only ever exercise the
+// read side (readDurableState) or retry-queue drain: every CLI-level test
+// that reaches cmdValidateFindings's persistence step fails its `git fetch
+// origin health-state` first (no real GitHub-hosted remote configured in any
+// test), so the mutator itself was never actually invoked by any prior test —
+// despite an earlier version of this comment claiming otherwise. The write
+// path's own git/gh mechanics (blob/tree/commit/ref calls) are covered by
+// bin/lib/health-core/tests/durable-state.test.js's fake-runner tests, using
+// trivial synthetic mutators (not this one); those tests cannot be
+// re-exercised for real without live GitHub credentials.
 
-function tmp2() { return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-cache2-')); }
+const { readDurableState, writeDurableState } = require('../cache');
 
-test('writeCursors is exported and round-trips via readCursors', () => {
-  const root = tmp2();
-  const cursors = { 'src': { lastSweptMs: 1000, lastHash: 'abc123' } };
-  writeCursors(root, cursors);
-  assert.deepStrictEqual(readCursors(root), cursors);
-});
-
-test('recordRun with hashes persists lastHash into cursors', () => {
-  const root = tmp2();
-  const runId = 'test-run-1';
-  recordRun(root, runId, {
-    fingerprints: ['recon-aabbccdd'],
-    areasSwept: ['src'],
-    hashes: { src: 'sha1-of-src-contents' },
-  });
-  const cursors = readCursors(root);
-  assert.strictEqual(cursors['src'].lastHash, 'sha1-of-src-contents');
-  assert.ok(typeof cursors['src'].lastSweptMs === 'number');
-});
-
-test('recordRun without hashes leaves existing lastHash untouched', () => {
-  const root = tmp2();
-  writeCursors(root, { 'lib': { lastSweptMs: 5000, lastHash: 'existing-hash' } });
-  recordRun(root, 'run-2', { fingerprints: [], areasSwept: ['lib'] });
-  const cursors = readCursors(root);
-  assert.strictEqual(cursors['lib'].lastHash, 'existing-hash');
-});
-
-test('recordRun with hashes for an area not in areasSwept is ignored', () => {
-  const root = tmp2();
-  recordRun(root, 'run-3', {
-    fingerprints: [],
-    areasSwept: ['a'],
-    hashes: { a: 'hash-a', b: 'hash-b-should-be-ignored' },
-  });
-  const cursors = readCursors(root);
-  assert.ok(!cursors['b'], 'only swept areas get cursors written');
+test('readDurableState/writeDurableState are bound to the code-health skill name', () => {
+  // cache.js's exports are already bound instances (createDurableState('code-health', ...)
+  // called once at module load) — this test only proves the shape is right
+  // (both are functions). Their actual read/write behavior against a
+  // fresh/empty branch, a populated branch, CAS retries, and bootstrap is
+  // exercised thoroughly, with a real fake command-runner, by
+  // bin/lib/health-core/tests/durable-state.test.js — no need to duplicate
+  // that here.
+  assert.strictEqual(typeof readDurableState, 'function');
+  assert.strictEqual(typeof writeDurableState, 'function');
 });

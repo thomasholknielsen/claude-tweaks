@@ -16,8 +16,9 @@ This design means:
 ```
 Codebase                     ──→ Findings cache               ──→ GitHub Issues (durable)         ──→ Triage + Build pipeline
 .claude-tweaks/code-health/      .claude-tweaks/code-health/      gh issues (label: code-health)      /claude-tweaks:triage → /flow #{issue}
-  /code-health                   cache.json + runs/               ↓ (or)                              specs/NN-*.md via /specify
-                                                                  specs/backlog/ / /specify           /build
+  /code-health                   cache.json (local) +             ↓ (or)                              specs/NN-*.md via /specify
+                                  health-state branch              specs/backlog/ / /specify           /build
+                                  cursors/runs.json (durable)
 ```
 
 ```
@@ -43,7 +44,7 @@ src/ + journeys    stories/*.yaml     types + lint + tests + QA     code + visua
 
 | Skill | Reads | Writes | Deletes |
 |-------|-------|--------|---------|
-| `/code-health` | Codebase files (via LLM judge + optional tool assists), `.claude-tweaks/code-health/cache.json` (prior findings), `.claude-tweaks/code-health/cursors.json` (per-area sweep state), `--issues <file>` (open issue index from `gh issue list`) | `.claude-tweaks/code-health/cache.json` (fingerprint + status), `.claude-tweaks/code-health/cursors.json` (per-area `lastHash` + `lastSweptMs`), `.claude-tweaks/code-health/runs/` (run logs for churn tracking), GitHub issues via `gh issue create` (durable sink) | — |
+| `/code-health` | Codebase files (via LLM judge + optional tool assists), `.claude-tweaks/code-health/cache.json` (prior findings), `health-state` branch `code-health/cursors.json` (per-area sweep state, see `_shared/health-state.md`), `--issues <file>` (open issue index from `gh issue list`) | `.claude-tweaks/code-health/cache.json` (fingerprint + status, local-only), `health-state` branch `code-health/cursors.json` (per-area `lastHash` + `lastSweptMs`) and `code-health/runs.json` (run history for churn tracking, capped at 90 records) — both durable, see `_shared/health-state.md`, GitHub issues via `gh issue create` (durable sink) | — |
 | `/init` | `~/.claude/plugins/`, entire codebase, CLAUDE.md, config files, git state | `specs/`, `docs/plans/`, `docs/journeys/`, `specs/backlog/`, `specs/INDEX.md`, CLAUDE.md, `.claude/skills/*.md`, `.claude/rules/`, `docs/journeys/*.md` | — |
 | `/capture` | — | `specs/backlog/{slug}.md` (create, `**Stage:** inbox`) | — |
 | `/challenge` | `specs/backlog/*.md` | `docs/plans/*-brief.md` | — |

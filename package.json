@@ -4,6 +4,6 @@
   "version": "4.18.0",
   "description": "claude-tweaks plugin — test harness only; the plugin itself ships no runtime npm deps.",
   "scripts": {
-    "test": "node --test tests/ bin/lib/code-health/tests/*.test.js bin/lib/issues/tests/*.test.js bin/lib/harness-health/tests/*.test.js bin/lib/journey-health/tests/*.test.js bin/lib/watchman-core/tests/*.test.js"
+    "test": "node --test tests/ bin/lib/code-health/tests/*.test.js bin/lib/issues/tests/*.test.js bin/lib/harness-health/tests/*.test.js bin/lib/journey-health/tests/*.test.js bin/lib/health-core/tests/*.test.js"
   }
 }

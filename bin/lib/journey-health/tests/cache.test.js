@@ -3,12 +3,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const {
-  cachePath, readCache, writeCache,
-  cursorsPath, readCursors, writeCursors,
-  recordAudit, readCoverageScanCursor, recordCoverageScan,
-  recordRun, readRuns, computeChurn,
-} = require('../cache');
+const { cachePath, readCache, writeCache } = require('../cache');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'journey-health-cache-')); }
 
@@ -28,92 +23,42 @@ test('cachePath points under .claude-tweaks/journey-health/cache.json', () => {
   assert.strictEqual(cachePath(root), path.join(root, '.claude-tweaks', 'journey-health', 'cache.json'));
 });
 
-test('readCursors returns {} when the cursors file does not exist', () => {
-  const root = tmp();
-  assert.deepStrictEqual(readCursors(root), {});
-});
+// readCursors/writeCursors/recordAudit/readCoverageScanCursor/recordCoverageScan/
+// recordRun/readRuns/computeChurn (local-disk cursor + run-log persistence)
+// were removed by the health-state migration — cursors and run history now
+// live on the durable health-state branch
+// (bin/lib/health-core/durable-state.js), not local disk. The cursor-merge
+// semantics these tests used to cover directly (set a per-journey light/deep
+// audit cursor without clobbering the sibling tier, set the coverage-scan
+// cursor, leave unrelated cursor keys untouched) now live in the pure,
+// separately-exported buildValidateFindingsUpdate (defined in this module,
+// ../cache.js), which bin/journey-health.js's cmdValidateFindings hands to
+// writeDurableState as its mutator. It is unit tested directly with
+// plain-object fixtures in
+// bin/lib/journey-health/tests/build-validate-findings-update.test.js — no
+// git/gh involved. That extraction was necessary because
+// bin/lib/journey-health/tests/durable-integration.test.js and the CLI-level
+// tests in cli-validate-findings.test.js only ever exercise the read side
+// (readDurableState) or a run that fails its `git fetch origin health-state`
+// (no real GitHub-hosted remote configured in any test) and never actually
+// invokes the mutator itself. The write path's own git/gh mechanics
+// (blob/tree/commit/ref calls) are covered by
+// bin/lib/health-core/tests/durable-state.test.js's fake-runner tests, using
+// trivial synthetic mutators (not this one); those tests cannot be
+// re-exercised for real without live GitHub credentials. computeChurn is a
+// pure function shared with harness-health and is fully covered by
+// bin/lib/health-core/tests/runs.test.js — no need to duplicate it here.
 
-test('recordAudit writes a light-tier cursor entry', () => {
-  const root = tmp();
-  recordAudit(root, 'checkout-flow', 'light', { hash: 'h1', whenMs: 5000 });
-  const cursors = readCursors(root);
-  assert.deepStrictEqual(cursors['checkout-flow'], { lastLightAuditMs: 5000, lastLightHash: 'h1' });
-});
+const { readDurableState, writeDurableState } = require('../cache');
 
-test('recordAudit writes a deep-tier cursor entry', () => {
-  const root = tmp();
-  recordAudit(root, 'checkout-flow', 'deep', { hash: 'h2', whenMs: 9000 });
-  const cursors = readCursors(root);
-  assert.deepStrictEqual(cursors['checkout-flow'], { lastDeepAuditMs: 9000, lastDeepHash: 'h2' });
-});
-
-test('recordAudit for light tier does not clobber an existing deep-tier entry, and vice versa', () => {
-  const root = tmp();
-  recordAudit(root, 'checkout-flow', 'deep', { hash: 'd1', whenMs: 1000 });
-  recordAudit(root, 'checkout-flow', 'light', { hash: 'l1', whenMs: 2000 });
-  const cursors = readCursors(root);
-  assert.deepStrictEqual(cursors['checkout-flow'], {
-    lastDeepAuditMs: 1000, lastDeepHash: 'd1',
-    lastLightAuditMs: 2000, lastLightHash: 'l1',
-  });
-});
-
-test("recordAudit for one journey does not clobber another journey's entry", () => {
-  const root = tmp();
-  recordAudit(root, 'checkout-flow', 'light', { hash: 'a1', whenMs: 1000 });
-  recordAudit(root, 'signup-flow', 'light', { hash: 'b1', whenMs: 2000 });
-  const cursors = readCursors(root);
-  assert.strictEqual(cursors['checkout-flow'].lastLightHash, 'a1');
-  assert.strictEqual(cursors['signup-flow'].lastLightHash, 'b1');
-});
-
-test('recordAudit defaults whenMs to now when omitted', () => {
-  const root = tmp();
-  const before = Date.now();
-  recordAudit(root, 'checkout-flow', 'light', {});
-  const cursors = readCursors(root);
-  assert.ok(cursors['checkout-flow'].lastLightAuditMs >= before);
-});
-
-test('readCoverageScanCursor returns null when never recorded', () => {
-  const root = tmp();
-  assert.deepStrictEqual(readCoverageScanCursor(root), { lastScannedMs: null });
-});
-
-test('recordCoverageScan then readCoverageScanCursor round-trips and does not appear in per-journey keys', () => {
-  const root = tmp();
-  recordCoverageScan(root, { whenMs: 9000 });
-  assert.deepStrictEqual(readCoverageScanCursor(root), { lastScannedMs: 9000 });
-  const cursors = readCursors(root);
-  assert.strictEqual(cursors.__coverageScan.lastScannedMs, 9000);
-});
-
-test('readRuns returns [] when no run logs exist', () => {
-  const root = tmp();
-  assert.deepStrictEqual(readRuns(root), []);
-});
-
-test('recordRun then readRuns round-trips, sorted oldest first', () => {
-  const root = tmp();
-  recordRun(root, 'run-2', ['journeyhealth-b']);
-  const start = Date.now();
-  while (Date.now() === start) { /* spin past this millisecond */ }
-  recordRun(root, 'run-1', ['journeyhealth-a']);
-  const runs = readRuns(root);
-  assert.strictEqual(runs.length, 2);
-  assert.strictEqual(runs[0].runId, 'run-2');
-  assert.strictEqual(runs[1].runId, 'run-1');
-});
-
-test('computeChurn: no prior run treats every fingerprint as appeared, giving ratio 1', () => {
-  const result = computeChurn(['a', 'b'], null);
-  assert.deepStrictEqual(result.appeared, ['a', 'b']);
-  assert.deepStrictEqual(result.disappeared, []);
-  assert.strictEqual(result.ratio, 1);
-});
-
-test('computeChurn: identical current and prior gives ratio 0', () => {
-  const prior = { fingerprints: ['a', 'b'] };
-  const result = computeChurn(['a', 'b'], prior);
-  assert.strictEqual(result.ratio, 0);
+test('readDurableState/writeDurableState are exported and bound to journey-health', () => {
+  // cache.js's exports are already bound instances (createDurableState('journey-health')
+  // called once at module load) — this test only proves the shape is right
+  // (both are functions). Their actual read/write behavior against a
+  // fresh/empty branch, a populated branch, CAS retries, and bootstrap is
+  // exercised thoroughly, with a real fake command-runner, by
+  // bin/lib/health-core/tests/durable-state.test.js — no need to duplicate
+  // that here.
+  assert.strictEqual(typeof readDurableState, 'function');
+  assert.strictEqual(typeof writeDurableState, 'function');
 });

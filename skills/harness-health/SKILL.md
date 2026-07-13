@@ -6,7 +6,7 @@ description: Use when you want to check whether a project's harness documentatio
 
 # Harness Health — Keep Skills, Rules, and CLAUDE.md Honest
 
-A recurring watchman for `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md: picks one target to audit against the codebase (or the next new-skill gap to check for), judges it via the shared `_shared/harness-health-analysis.md` procedure, and files a `harness-health`-labelled GitHub issue. Never edits code — only harness documentation.
+A recurring health check for `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md: picks one target to audit against the codebase (or the next new-skill gap to check for), judges it via the shared `_shared/harness-health-analysis.md` procedure, and files a `harness-health`-labelled GitHub issue. Never edits code — only harness documentation.
 
 ```
               [ /claude-tweaks:harness-health ] <- utility (no fixed lifecycle position)
@@ -102,6 +102,20 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" validate-findings /tmp/harnes
 
 **Step 7 — FILE.**
 
+Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures (see `_shared/health-state.md`):
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" retry-queue drain --root . > /tmp/harness-health-retry-payloads.json
+```
+
+For each payload in `/tmp/harness-health-retry-payloads.json`, attempt `gh issue create` exactly as below. Track every attempt's outcome (retry-queue payloads AND any brand-new payload from this step's own filing loop that fails) as `[{ fingerprint, payload, ok: true }]` or `[{ fingerprint, payload, ok: false, error: "<gh's error output>" }]`, write to `/tmp/harness-health-retry-results.json`, then:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" retry-queue update /tmp/harness-health-retry-results.json --root . > /tmp/harness-health-escalated.json
+```
+
+If `/tmp/harness-health-escalated.json` is non-empty, file (or update) a `harness-health:filing-failed` issue for each entry, naming the stuck fingerprint and its failure history — bootstrap that label the same way as the others below.
+
 Before filing anything this firing, bootstrap harness-health's labels with real descriptions — this project's other issue-filing skills (code-health) already do this; harness-health previously did not, leaving every one of its labels with GitHub's blank auto-vivified description:
 
 ```bash
@@ -161,7 +175,7 @@ For "dismiss," run `node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" mark "<pa
 
 **Headless run flow:** SELECT(`next-target`) → JUDGE → validate-findings → file. A firing with nothing due (`target: null`, `gapScanDue: false`) is a cheap no-op.
 
-Report-only, matching `/code-health` — every finding files as a `harness-health`-labelled GitHub issue, with no `Edit` call anywhere in its documented workflow.
+Report-only, matching `/code-health` — every finding files as a `harness-health`-labelled GitHub issue, with no `Edit` call anywhere in its documented workflow. Rotation cursors and the filing retry queue live on the durable `health-state` branch (`_shared/health-state.md`), surviving container recycling across scheduled firings — a skipped or failed firing does not lose progress.
 
 > **Billing note:** Routines run inside the subscription; verify automation-credit specifics against the live account.
 

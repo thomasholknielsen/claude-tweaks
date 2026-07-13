@@ -6,7 +6,7 @@ description: Use when you want a proactive, report-only sweep of a repository th
 
 # Code-Health — LLM-as-Code-Judge, Proactive Repo Improvement
 
-A recurring watchman doing rounds: reads one directory slice, judges it against the universal criteria catalog, fingerprints each finding, dedups against open GitHub issues, and files the work worth doing. The LLM is the spine. Deterministic helpers handle fingerprint, dedup, and issue-payload projection. It never edits code.
+A recurring health check doing rounds: reads one directory slice, judges it against the universal criteria catalog, fingerprints each finding, dedups against open GitHub issues, and files the work worth doing. The LLM is the spine. Deterministic helpers handle fingerprint, dedup, and issue-payload projection. It never edits code.
 
 ```
               [ /claude-tweaks:code-health ] <- utility (no fixed lifecycle position)
@@ -210,6 +210,20 @@ Read `/tmp/code-health-payloads.json`. The command:
 
 **Step 9 — FILE / REOPEN ISSUES.**
 
+Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures (see `_shared/health-state.md`):
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" retry-queue drain --root . > /tmp/code-health-retry-payloads.json
+```
+
+For each payload in `/tmp/code-health-retry-payloads.json`, attempt `gh issue create` exactly as below. Track the outcome of every attempt (this firing's retry-queue payloads AND any brand-new payload from Step 9's own filing loop that fails) as `[{ fingerprint, payload, ok: true }]` or `[{ fingerprint, payload, ok: false, error: "<gh's error output>" }]`, write to `/tmp/code-health-retry-results.json`, then:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" retry-queue update /tmp/code-health-retry-results.json --root . > /tmp/code-health-escalated.json
+```
+
+This records successes (removed from the queue) and failures (added/incremented) in one durable write. If `/tmp/code-health-escalated.json` is non-empty, file (or update) a `code-health:filing-failed` issue for each entry, naming the stuck fingerprint and its failure history — bootstrap that label the same way as the others below.
+
 Before filing, bootstrap the three label families this run needs with real descriptions — using the shared helper so a too-long description fails loudly here rather than as a 422 on `gh issue create`:
 
 ```bash
@@ -245,17 +259,17 @@ gh issue comment <issue_number> --body "Regressed: this finding reappeared. Run:
 
 In `--dry-run` mode, print the payloads and the `gh` commands that would run, but do not call `gh`.
 
-**Step 9.5 — Confirm cursor + run-log persistence.**
+**Step 9.5 — Confirm health-state persistence.**
 
-`validate-findings` requires `--slice <id>` on a real (non-`--dry-run`) run — it exits 2 without it (Step 8). Given `--slice` and `--run-id`, the engine:
-- Writes the run's fingerprint set to `.claude-tweaks/code-health/runs/<run-id>.json` (used by `churn-report`).
-- Records the slice's content-hash (`lastHash`) and sweep timestamp (`lastSweptMs`) to `.claude-tweaks/code-health/cursors.json`.
+Cursor, run-log, and remembered-cache persistence now happens against the durable `health-state`
+branch, not local disk — see `_shared/health-state.md` for the mechanism. `validate-findings`
+handles this internally (via `bin/lib/health-core/durable-state.js`) whenever it's run without
+`--dry-run` and `--slice` is set; a persistence failure after retries is reported to stderr but
+never blocks payload emission (a lost bookkeeping write just means the next firing might redo
+some rotation work, which is safe).
 
-The next `next-slice` call will read these cursors and skip the slice unless its source files have changed since `lastHash` was recorded, or more than 30 days have passed (`stale` threshold).
-
-**Mandatory readback check:** immediately after a real (non-`--dry-run`) `validate-findings` call, read `.claude-tweaks/code-health/cursors.json` and confirm the just-swept slice id now has a `lastSweptMs` from this run (within the last few minutes). If it's missing or stale, **do not report the sweep as complete** — tell the user the persistence write appears to have failed (permissions, disk, or an unexpected error the engine logged to stderr as non-fatal) before proceeding. This is the safety net for the one failure mode no CLI flag can prevent: filing issues from a `--dry-run` preview without ever making the matching real call.
-
-In `--dry-run` mode, neither the run-log nor the cursors are written — the run is truly a no-op for all persistence, and this readback check does not apply.
+In `--dry-run` mode, neither the local cache nor the durable health-state write happens — the
+run is truly a no-op for all persistence.
 
 **Step 10 — SUMMARIZE.**
 
@@ -295,7 +309,7 @@ This resolves the account- and project-specific values a portable template can't
 
 **Headless run flow:** SCOPE(`next-slice`) → CLASSIFY → JUDGE → `validate-findings` → file issues. Triage happens later in GitHub — the Routine does not wait for interactive input. The template's prompt omits `--area` so `next-slice` always picks the highest-priority slice automatically. Code-health's own `--budget` flag (default 1 slice per run) governs how deep each firing goes — raise it via a manual `/claude-tweaks:code-health --budget <n>` run if you want a one-off deeper sweep; the routine itself always uses the template's single-slice default, and token cost scales with whatever budget is in effect for that invocation.
 
-A skipped run (e.g., `next-slice` returns `null` because all slices are fresh) is harmless — rotation resumes from the same position on the next window.
+A skipped run (e.g., `next-slice` returns `null` because all slices are fresh) is harmless — rotation resumes from the same position on the next window. This is now actually true across a scheduled cloud-routine's container recycling too: rotation cursors, the sub-threshold remembered cache, and the filing retry queue all live on the durable `health-state` branch (`_shared/health-state.md`), not local disk that a fresh container wouldn't have.
 
 > **Billing note:** Routines run inside the subscription; verify automation-credit specifics against the live account.
 

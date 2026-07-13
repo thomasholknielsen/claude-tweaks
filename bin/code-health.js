@@ -3,7 +3,9 @@
 const fs = require('fs');
 const path = require('path');
 const { fingerprint } = require('./lib/code-health/fingerprint');
-const { readCache, writeCache, readRuns, computeChurn, recordRun, readCursors } = require('./lib/code-health/cache');
+const {
+  readCache, writeCache, computeChurn, readDurableState, writeDurableState, buildValidateFindingsUpdate,
+} = require('./lib/code-health/cache');
 const { decide, RISK_RANK } = require('./lib/code-health/dedup');
 const { computeRisk } = require('./lib/code-health/risk');
 const { validateFindingV2 } = require('./lib/code-health/validate-finding');
@@ -11,6 +13,9 @@ const { toIssuePayloadV2 } = require('./lib/code-health/issue-payload');
 const { getCriterion } = require('./lib/code-health/criteria');
 const { classifyArea } = require('./lib/code-health/area-type');
 const { listSlices, contentHash, selectSlice } = require('./lib/code-health/scope');
+const { makeRetryQueueCommands } = require('./lib/health-core/retry-cli');
+
+const retryQueueCommands = makeRetryQueueCommands({ readDurableState, writeDurableState });
 
 // Confidence ordering for floor comparison. Higher index = higher confidence.
 const CONFIDENCE_ORDER = ['low', 'medium', 'high'];
@@ -70,12 +75,13 @@ function loadIssueIndex(file) {
 function cmdStatus(args) {
   const cache = readCache(args.root);
   const findings = Object.values(cache);
+  const remembered = Object.keys(readDurableState(args.root).remembered).length;
   const counts = {
     open: findings.filter((f) => f.status === 'open').length,
     regressed: findings.filter((f) => f.status === 'regressed').length,
     closed: findings.filter((f) => f.status === 'closed').length,
     wontfix: findings.filter((f) => f.status === 'wontfix').length,
-    remembered: findings.filter((f) => f.status === 'remembered').length,
+    remembered,
     riskHigh: findings.filter((f) => f.status === 'open' && f.risk === 'high').length,
   };
   const line = `open:${counts.open} regressed:${counts.regressed} closed:${counts.closed} ` +
@@ -93,7 +99,7 @@ function cmdStatus(args) {
 }
 
 function cmdChurnReport(args) {
-  const runs = readRuns(args.root);
+  const runs = readDurableState(args.root).runs;
   if (runs.length === 0) {
     process.stdout.write('no run logs found\n');
     return;
@@ -226,6 +232,8 @@ function cmdValidateFindings(args) {
   // 3. Dedup against the issue index and local cache.
   const cache = readCache(root);
   const issueIndex = loadIssueIndex(args.issues);
+  const durableState = readDurableState(root);
+  const rememberedDelta = {};
   const payloads = [];
   const seen = new Set();
   for (const finding of survivors) {
@@ -249,24 +257,35 @@ function cmdValidateFindings(args) {
         : { status: 'open', issue: null, severity: finding.severity, risk: finding.risk };
       payloads.push(toIssuePayloadV2(finding));
     } else if (decision.action === 'remember') {
-      if (!cache[finding.id]) cache[finding.id] = { status: 'remembered', issue: null, severity: finding.severity, risk: finding.risk };
+      if (!durableState.remembered[finding.id] && !rememberedDelta[finding.id]) {
+        rememberedDelta[finding.id] = { status: 'remembered', issue: null, severity: finding.severity, risk: finding.risk };
+      }
     }
   }
 
-  // 4. Persist cache (unless dry-run).
+  // 4. Persist local cache (open/closed/wontfix/regressed — unaffected by the
+  // health-state migration, including the pre-existing dry-run contract: a
+  // dry-run must write neither the local cache nor the durable health-state
+  // update) and, unless dry-run, the durable cursor/run/remembered update in
+  // a single batched health-state write.
   if (!args.dryRun) {
     writeCache(root, cache);
-    // Persist the run-log (for churn) and the swept slice's cursor (for rotation/change-skip).
-    // Best-effort: cursors and run-logs are a rebuildable optimization (GitHub issue state is
-    // the source of truth), so a persistence failure must never block emitting the payloads.
     try {
       const sliceId = args.slice;
       const areasSwept = sliceId ? [sliceId] : [];
       const hashes = sliceId ? { [sliceId]: contentHash(path.resolve(root, sliceId)) } : {};
-      recordRun(root, args.runId, { fingerprints: [...seen], areasSwept, hashes });
+      const runRecord = { runId: args.runId, runAt: new Date().toISOString(), fingerprints: [...seen] };
+      const result = writeDurableState(root, (current) => buildValidateFindingsUpdate(
+        current, { areasSwept, hashes, rememberedDelta, runRecord },
+      ));
+      if (!result.ok) {
+        process.stderr.write(
+          `[code-health] validate-findings: health-state persistence failed after retries (non-fatal, payloads still emitted): ${result.error}\n`,
+        );
+      }
     } catch (err) {
       process.stderr.write(
-        `[code-health] validate-findings: run/cursor persistence failed (non-fatal, payloads still emitted): ${err.message}\n`,
+        `[code-health] validate-findings: health-state persistence threw (non-fatal, payloads still emitted): ${err.message}\n`,
       );
     }
   }
@@ -282,8 +301,7 @@ function cmdValidateFindings(args) {
 function cmdNextSlice(args) {
   const root = args.root || process.cwd();
   const budget = Number.isFinite(args.budget) && args.budget > 0 ? args.budget : 1;
-  const { readCursors } = require('./lib/code-health/cache');
-  let cursors = readCursors(root);
+  let cursors = readDurableState(root).cursors;
   const now = Date.now();
 
   if (budget === 1) {
@@ -324,9 +342,19 @@ function main(argv) {
   if (cmd === 'validate-findings') return cmdValidateFindings(args);
   if (cmd === 'classify') return cmdClassify(args);
   if (cmd === 'next-slice') return cmdNextSlice(args);
+  // args._[0] is always 'retry-queue' itself (parseArgs pushes every positional,
+  // including the top-level subcommand, into args._) — the drain/update word
+  // right after it is args._[1], the same offset validate-findings uses for its
+  // own findings-file positional. retryQueueCommands.update() expects its own
+  // args._ re-based so index 1 lands on the results-file path (mirroring how a
+  // stand-alone "update <results.json>" invocation would parse), so slice off
+  // the leading 'retry-queue' entry before handing args to it.
+  if (cmd === 'retry-queue' && args._[1] === 'drain') return retryQueueCommands.drain(args);
+  if (cmd === 'retry-queue' && args._[1] === 'update') return retryQueueCommands.update({ ...args, _: args._.slice(1) });
   process.stderr.write(
     'usage: code-health.js <command> [options]\n' +
-    'commands: validate-findings [--slice <id>], classify, next-slice, status, churn-report, pull-issues\n',
+    'commands: validate-findings [--slice <id>], classify, next-slice, status, churn-report, pull-issues, ' +
+    'retry-queue drain, retry-queue update <results.json>\n',
   );
   process.exit(2);
 }

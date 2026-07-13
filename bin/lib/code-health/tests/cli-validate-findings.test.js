@@ -217,13 +217,36 @@ test('applyConfidenceFloor passes when criterionFloor is undefined (no floor set
 });
 
 // ── Cursor + run-log persistence (Commit 1) ──────────────────────────────────
-
-const { readRuns } = require('../cache');
-
-test('validate-findings: persists cursor + run-log on a real run with --slice', () => {
+//
+// Cursors and run-logs are now durable (health-state branch), not local disk
+// (readRuns/recordRun no longer exist — see bin/lib/code-health/cache.js).
+// The write path (gh api blob/tree/commit/ref calls) requires a real
+// GitHub-hosted remote + gh auth to actually persist, which this sandboxed
+// test's tmp root doesn't have — cmdValidateFindings's writeDurableState call
+// is wrapped in a try/catch specifically so that failure is non-fatal (see
+// bin/code-health.js's step-4 comment), so what's left to verify here at the
+// CLI level is that a real run with --slice still succeeds and still emits
+// its payload/cache side effects even when durable persistence can't
+// complete. That means NONE of the tests below ever actually invoke the
+// writeDurableState mutator (they all fail its `git fetch origin
+// health-state` first, same as every test in this file) — despite an earlier
+// version of this comment implying full coverage existed elsewhere. What IS
+// exercised for real, without gh, via a locally-seeded health-state branch:
+// the read side of cursor/run persistence, in
+// bin/lib/code-health/tests/cli-nextslice.test.js (cursors) and
+// bin/lib/code-health/tests/churn-v2.test.js (runs); and the write path's own
+// git/gh mechanics (blob/tree/commit/ref calls), via trivial synthetic
+// mutators, in bin/lib/health-core/tests/durable-state.test.js's fake-runner
+// tests. Neither of those covers the actual per-run merge semantics
+// (selective per-swept-area cursor update, remembered-delta merge, run
+// append) that cmdValidateFindings's mutator performs — that logic is now
+// extracted as the pure buildValidateFindingsUpdate (bin/lib/code-health/cache.js)
+// and unit tested directly in
+// bin/lib/code-health/tests/build-validate-findings-update.test.js.
+test('validate-findings: a real run with --slice still succeeds when durable persistence cannot complete', () => {
   const root = tmp();
   // Use areaId '.' so the slice path is root itself (which exists).
-  const f = validFinding({ areaId: '.', anchor: 'index.js#module' });
+  const f = validFinding({ areaId: '.', anchor: 'index.js#module', severity: 'high' });
   const findingsFile = path.join(root, 'findings.json');
   // Write a source file so contentHash has something to hash.
   fs.writeFileSync(path.join(root, 'index.js'), 'module.exports = 1;\n');
@@ -232,19 +255,15 @@ test('validate-findings: persists cursor + run-log on a real run with --slice', 
   const result = runValidateFindings(root, findingsFile, ['--slice', '.', '--run-id', 'test-run-1']);
   assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
 
-  // cursors.json must be written
-  const cursorsFile = path.join(root, '.claude-tweaks', 'code-health', 'cursors.json');
-  assert.ok(fs.existsSync(cursorsFile), 'cursors.json must exist after a real run with --slice');
-  const cursors = JSON.parse(fs.readFileSync(cursorsFile, 'utf8'));
-  assert.ok(typeof cursors['.'].lastHash === 'string' && cursors['.'].lastHash.length > 0,
-    'cursors["."].lastHash must be a non-empty string');
-  assert.ok(typeof cursors['.'].lastSweptMs === 'number',
-    'cursors["."].lastSweptMs must be a number');
+  const payloads = JSON.parse(result.stdout);
+  assert.strictEqual(payloads.length, 1, 'high severity must still file even though durable persistence is unreachable here');
 
-  // run-log must be written under runs/
-  const runs = readRuns(root);
-  assert.ok(runs.length > 0, 'a run-log must be written to runs/');
-  assert.strictEqual(runs[0].runId, 'test-run-1');
+  // cursors.json/runs/ are no longer written to local disk at all.
+  assert.strictEqual(
+    fs.existsSync(path.join(root, '.claude-tweaks', 'code-health', 'cursors.json')),
+    false,
+    'cursors are durable now — no local cursors.json is ever written',
+  );
 });
 
 test('validate-findings: --dry-run with --slice writes neither cursors nor cache', () => {
@@ -269,33 +288,17 @@ test('validate-findings: --dry-run with --slice writes neither cursors nor cache
   );
 });
 
-test('validate-findings: next-slice skips the just-recorded unchanged slice', () => {
-  const root = tmp();
-  // Create a single source file so the root slice (.) has content to hash.
-  fs.writeFileSync(path.join(root, 'index.js'), 'module.exports = 1;\n');
-  // We also need a git repo so next-slice doesn't churn-fail silently.
-  const { execFileSync: exec } = require('child_process');
-  try {
-    exec('git', ['-C', root, 'init'], { stdio: 'ignore' });
-    exec('git', ['-C', root, 'add', '.'], { stdio: 'ignore' });
-    exec('git', ['-C', root, 'commit', '-m', 'init', '--allow-empty-message', '--no-verify'], { stdio: 'ignore' });
-  } catch { /* ignore git failures in CI */ }
-
-  const f = validFinding({ areaId: '.', anchor: 'index.js#module' });
-  const findingsFile = path.join(root, 'findings.json');
-  fs.writeFileSync(findingsFile, JSON.stringify([f]));
-
-  // Record the slice via validate-findings.
-  const vfResult = runValidateFindings(root, findingsFile, ['--slice', '.', '--run-id', 'r1']);
-  assert.strictEqual(vfResult.status, 0, `validate-findings stderr: ${vfResult.stderr}`);
-
-  // next-slice should now return null (slice recorded, hash unchanged).
-  const nsResult = spawnSync('node', [CLI, 'next-slice', '--root', root], { encoding: 'utf8' });
-  assert.strictEqual(nsResult.status, 0, `next-slice stderr: ${nsResult.stderr}`);
-  const sliceOut = JSON.parse(nsResult.stdout);
-  assert.strictEqual(sliceOut, null,
-    `next-slice must return null after recording the only slice — got: ${JSON.stringify(sliceOut)}`);
-});
+// The original version of this test recorded a slice via validate-findings
+// (a real write through writeDurableState) and then asserted next-slice
+// skipped it (a real read through readDurableState) — proving the two
+// commands round-trip through the same persisted cursor. That write leg now
+// requires a real GitHub-hosted remote + gh auth (see the comment above),
+// which isn't available in this sandboxed suite, so the round-trip can't be
+// exercised end-to-end here. The read leg (next-slice skipping a slice whose
+// durable cursor already shows an unchanged hash) is still verified for real,
+// without gh, via a locally-seeded health-state branch: see
+// 'next-slice returns null when the only slice has an unchanged hash' in
+// bin/lib/code-health/tests/cli-nextslice.test.js.
 
 // ── Risk filter (min-risk) ────────────────────────────────────────────────────
 
@@ -310,9 +313,12 @@ test('validate-findings: default min-risk is high — a medium finding is rememb
   const payloads = JSON.parse(result.stdout);
   assert.strictEqual(payloads.length, 0, 'medium severity must not file under the default (high) threshold');
 
+  // 'remember' decisions no longer touch the local cache.json at all — they
+  // move to the durable remembered store (bin/lib/code-health/cache.js's
+  // readDurableState/writeDurableState). Local cache.json stays empty for a
+  // remembered-only run.
   const cache = JSON.parse(fs.readFileSync(path.join(root, '.claude-tweaks', 'code-health', 'cache.json'), 'utf8'));
-  const entry = Object.values(cache)[0];
-  assert.strictEqual(entry.status, 'remembered');
+  assert.deepStrictEqual(cache, {}, 'a remembered finding must not be persisted to the local cache.json');
 });
 
 test('validate-findings: high severity still files under the default threshold', () => {
