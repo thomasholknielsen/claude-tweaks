@@ -1742,7 +1742,7 @@ Note what's removed: `cursorsPath`, `readCursors`, `writeCursors`, `recordAudit`
 
 - [ ] **Step 4: Update `bin/harness-health.js`**
 
-Read the current file's imports (line 6-7) and `cmdNextTarget` (uses `readGapScanCursor`, `readCursors`), and `cmdValidateFindings`'s persistence block (documented in this plan's context: lines ~194-198, calling `recordAudit`, `recordGapScan`, `recordRun`).
+Read the current file's imports (line 6-7), `cmdNextTarget` (uses `readGapScanCursor`, `readCursors`), `cmdValidateFindings`'s persistence block (documented in this plan's context: lines ~194-198, calling `recordAudit`, `recordGapScan`, `recordRun`), AND `cmdChurnReport` (calls `readRuns(root)` — this function is NOT mentioned elsewhere in this task but MUST be updated too, since `readRuns` no longer exists after Step 3's rewrite; this exact gap was found and fixed during Task 4's code-health implementation — `readRuns` was similarly orphaned in `cmdChurnReport` there).
 
 Change the import block (lines 6-7):
 
@@ -1757,7 +1757,27 @@ to:
   readCache, writeCache, readDurableState, writeDurableState,
 ```
 
+and add, as a separate `require` line right below it (`computeChurn` is a pure churn-ratio calculation with no I/O, unrelated to where cursor/run state lives — today it reaches this file only via `cache.js`'s re-export of `health-core/runs.js`, and Step 3's rewrite drops that re-export along with everything else local-disk-related, so this file needs to import it directly instead):
+
+```js
+const { computeChurn } = require('./lib/health-core/runs');
+```
+
 In `cmdNextTarget`, change every `readGapScanCursor(root)` call to `(readDurableState(root).cursors.__gapScan || { lastScannedSha: null, lastScannedMs: null })`, and every `readCursors(root)` call to `readDurableState(root).cursors`. (Read the current function body first — there are two `readCursors`-shaped reads noted in this plan's context: one via `readGapScanCursor` at line 63/71 for a `memCursors` variable, one directly at line 110 — apply the same substitution to both, since both are read-only lookups against the same durable cursors object.)
+
+In `cmdChurnReport`, change:
+
+```js
+  const runs = readRuns(root);
+```
+
+to:
+
+```js
+  const runs = readDurableState(root).runs;
+```
+
+`computeChurn(runs[i].fingerprints, prior)` (used later in the same function) needs no other change — it now resolves to the directly-imported pure function above instead of the dropped `cache.js` re-export, with identical behavior.
 
 Find the existing persistence block (documented in this plan's context):
 
@@ -1799,14 +1819,16 @@ const { makeRetryQueueCommands } = require('./lib/health-core/retry-cli');
 const retryQueueCommands = makeRetryQueueCommands({ readDurableState, writeDurableState });
 ```
 
-Wire both into the dispatch, following whatever the file's existing `if (cmd === ...)` chain looks like (read it first) — add:
+Read this file's own subcommand-dispatch section first and confirm how `cmd` is extracted — in code-health's own CLI, `parseArgs` pushes every positional token onto `args._`, including the subcommand word itself, so `cmd` there is `args._[0]` (confirm this file follows the identical convention before proceeding — it's the same `parseArgs` shape across all three CLIs). That means for `retry-queue drain`, `args._[0]` is always the literal string `'retry-queue'` (already matched by the `cmd === 'retry-queue'` check), never `'drain'`/`'update'` — the actual subcommand word one position later is `args._[1]`, the same offset `validate-findings <findings.json>`'s own positional already uses via `args._[1]`. Wire both into the dispatch, following whatever the file's existing `if (cmd === ...)` chain looks like — add:
 
 ```js
-  if (cmd === 'retry-queue' && args._[0] === 'drain') return retryQueueCommands.drain(args);
-  if (cmd === 'retry-queue' && args._[0] === 'update') return retryQueueCommands.update(args);
+  if (cmd === 'retry-queue' && args._[1] === 'drain') return retryQueueCommands.drain(args);
+  if (cmd === 'retry-queue' && args._[1] === 'update') return retryQueueCommands.update({ ...args, _: args._.slice(1) });
 ```
 
-immediately before the final `process.stderr.write('usage: ...')` fallback, and add `retry-queue drain`/`retry-queue update <results.json>` to that usage string's command list. `makeRetryQueueCommands`'s `drain`/`update` are already fully tested in `bin/lib/health-core/tests/retry-cli.test.js` (Task 2) — this step is pure wiring.
+The `update` line rebases `args._` (drops the leading `'retry-queue'` entry) before handing off, since `retryQueueCommands.update(args)` internally reads `args._[1]` expecting ITS OWN `args._[0]` to be `'update'` and `args._[1]` to be the results-file path — without the rebase, `retryQueueCommands.update`'s internal `args._[1]` would resolve to the literal word `'update'` instead of the file path.
+
+Add both lines immediately before the final `process.stderr.write('usage: ...')` fallback, and add `retry-queue drain`/`retry-queue update <results.json>` to that usage string's command list. `makeRetryQueueCommands`'s `drain`/`update` are already fully tested in `bin/lib/health-core/tests/retry-cli.test.js` (Task 2) — this step is pure wiring, but the dispatch condition and the `update` rebase above are new logic specific to this CLI and need their own test coverage (see Step 7's integration test).
 
 - [ ] **Step 6: Run the cache.js test to verify it passes**
 
@@ -1999,6 +2021,8 @@ Note what's removed: `cursorsPath`, `readCursors`, `writeCursors`, `recordAudit`
 
 - [ ] **Step 4: Update `bin/journey-health.js`**
 
+Read `cmdChurnReport` too (calls `readRuns(root)`) — this function is NOT otherwise mentioned in this task but MUST be updated, since `readRuns` no longer exists after Step 3's rewrite; this exact gap was found during Task 4's (code-health's) implementation and re-confirmed present in Task 6 (harness-health) before that task was dispatched.
+
 Change the import block (lines 6-7):
 
 ```js
@@ -2012,7 +2036,27 @@ to:
   readCache, writeCache, readDurableState, writeDurableState,
 ```
 
+and add, as a separate `require` line right below it (`computeChurn` is a pure churn-ratio calculation with no I/O — today it reaches this file only via `cache.js`'s re-export of `health-core/runs.js`, and Step 3's rewrite drops that re-export, so this file needs to import it directly instead):
+
+```js
+const { computeChurn } = require('./lib/health-core/runs');
+```
+
 In `cmdNextTarget`, change every `readCoverageScanCursor(root)` call to `(readDurableState(root).cursors.__coverageScan || { lastScannedMs: null })`, and every `readCursors(root)` call to `readDurableState(root).cursors` (lines 64/75 per this plan's earlier grep — read the function body first to confirm both call sites before editing).
+
+In `cmdChurnReport`, change:
+
+```js
+  const runs = readRuns(root);
+```
+
+to:
+
+```js
+  const runs = readDurableState(root).runs;
+```
+
+`computeChurn(runs[i].fingerprints, prior)` (used later in the same function) needs no other change — it now resolves to the directly-imported pure function above instead of the dropped `cache.js` re-export, with identical behavior.
 
 Find the existing persistence block (documented in this plan's context):
 
@@ -2058,14 +2102,16 @@ const { makeRetryQueueCommands } = require('./lib/health-core/retry-cli');
 const retryQueueCommands = makeRetryQueueCommands({ readDurableState, writeDurableState });
 ```
 
-Wire both into the dispatch chain the same way as Tasks 4/6:
+Read this file's own subcommand-dispatch section first and confirm how `cmd` is extracted (`args._[0]`, the same convention as code-health's and harness-health's CLIs — `parseArgs` pushes every positional token onto `args._`, including the subcommand word itself). That means for `retry-queue drain`, `args._[0]` is always the literal string `'retry-queue'` (already matched by `cmd === 'retry-queue'`), never `'drain'`/`'update'` — the subcommand word one position later is `args._[1]`, the same offset this file's own `validate-findings <findings.json>` positional already uses. Wire both into the dispatch chain the same way as Tasks 4/6:
 
 ```js
-  if (cmd === 'retry-queue' && args._[0] === 'drain') return retryQueueCommands.drain(args);
-  if (cmd === 'retry-queue' && args._[0] === 'update') return retryQueueCommands.update(args);
+  if (cmd === 'retry-queue' && args._[1] === 'drain') return retryQueueCommands.drain(args);
+  if (cmd === 'retry-queue' && args._[1] === 'update') return retryQueueCommands.update({ ...args, _: args._.slice(1) });
 ```
 
-and add both to the usage string's command list. `makeRetryQueueCommands`'s `drain`/`update` are already fully tested in `bin/lib/health-core/tests/retry-cli.test.js` (Task 2) — this step is pure wiring.
+The `update` line rebases `args._` (drops the leading `'retry-queue'` entry) before handing off, since `retryQueueCommands.update(args)` internally reads `args._[1]` expecting its OWN `args._[0]` to be `'update'` and `args._[1]` to be the results-file path — without the rebase, that internal `args._[1]` would resolve to the literal word `'update'` instead of the file path.
+
+Add both lines and add both to the usage string's command list. `makeRetryQueueCommands`'s `drain`/`update` are already fully tested in `bin/lib/health-core/tests/retry-cli.test.js` (Task 2) — this step is pure wiring, but the dispatch condition and the `update` rebase above are new logic specific to this CLI and need their own test coverage (see Step 7's integration test).
 
 - [ ] **Step 6: Run the cache.js test to verify it passes**
 
