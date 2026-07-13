@@ -1,22 +1,16 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
-const { recordRun, readRuns, computeChurn } = require('../../bin/lib/code-health/cache');
+const { computeChurn } = require('../../bin/lib/code-health/cache');
 
-function tmpRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-churn-'));
-}
-
-test('recordRun then readRuns round-trips fingerprints', () => {
-  const root = tmpRoot();
-  recordRun(root, '2026-06-14T100000', { fingerprints: ['fp-a', 'fp-b'], areasSwept: [] });
-  const runs = readRuns(root);
-  assert.strictEqual(runs.length, 1);
-  assert.deepStrictEqual(runs[0].fingerprints.sort(), ['fp-a', 'fp-b']);
-});
+// recordRun/readRuns (local-disk run-log persistence) were removed by the
+// health-state migration — run history now lives on the durable health-state
+// branch (bin/lib/health-core/durable-state.js). See
+// bin/lib/code-health/tests/churn-v2.test.js for real, gh-free coverage of
+// the durable read path (a locally-seeded health-state branch) and
+// bin/lib/health-core/tests/durable-state.test.js for the write mechanics
+// (fake-runner). computeChurn itself is a pure function, unaffected by the
+// migration — the tests below still exercise it directly.
 
 test('computeChurn uses union denominator — complete turnover is ratio 1.0', () => {
   const c = computeChurn(['fp-c', 'fp-d'], { fingerprints: ['fp-a', 'fp-b'] });

@@ -6,38 +6,45 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { recordRun, readRuns, computeChurn } = require('../cache');
+const { computeChurn } = require('../cache');
 const CLI = path.resolve(__dirname, '..', '..', '..', 'code-health.js');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-churn-v2-')); }
 
-test('recordRun with hashes round-trips through readRuns', () => {
-  const root = tmp();
-  recordRun(root, 'run-001', {
-    fingerprints: ['recon-aaaa0001', 'recon-bbbb0002'],
-    areasSwept: ['src/api'],
-    hashes: { 'src/api': 'abc123def456' },
-  });
-  const runs = readRuns(root);
-  assert.strictEqual(runs.length, 1);
-  assert.deepStrictEqual(runs[0].fingerprints, ['recon-aaaa0001', 'recon-bbbb0002']);
-  // hashes stored in cursor; run-log may or may not include it — assert fingerprints are intact
-});
+// recordRun/readRuns (local-disk run-log persistence) were removed by the
+// health-state migration — run history now lives on the durable health-state
+// branch (bin/lib/health-core/durable-state.js), not local disk. Its write
+// path (gh api blob/tree/commit/ref calls) requires live GitHub credentials
+// and is covered by bin/lib/health-core/tests/durable-state.test.js's
+// fake-runner tests; the read path is pure git plumbing (fetch + show), so
+// it's exercised for real below via a local bare git remote seeded directly
+// with runs.json (no gh/network needed) — the same technique
+// bin/lib/code-health/tests/cli-nextslice.test.js uses for cursors.
+function seedDurableRuns(root, runs) {
+  const bareDir = fs.mkdtempSync(path.join(os.tmpdir(), 'recon-churn-bare-'));
+  execFileSync('git', ['init', '--bare', '-q', bareDir]);
+  const seedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'recon-churn-seed-'));
+  execFileSync('git', ['init', '-q', seedDir]);
+  execFileSync('git', ['-C', seedDir, 'checkout', '-q', '-b', 'health-state']);
+  fs.mkdirSync(path.join(seedDir, 'code-health'), { recursive: true });
+  fs.writeFileSync(path.join(seedDir, 'code-health', 'runs.json'), JSON.stringify(runs));
+  execFileSync('git', ['-C', seedDir, 'add', '-A']);
+  execFileSync(
+    'git',
+    ['-C', seedDir, '-c', 'user.email=test@example.com', '-c', 'user.name=test', 'commit', '-q', '-m', 'seed'],
+  );
+  execFileSync('git', ['-C', seedDir, 'push', '-q', bareDir, 'health-state']);
+  execFileSync('git', ['init', '-q'], { cwd: root });
+  execFileSync('git', ['remote', 'add', 'origin', bareDir], { cwd: root });
+}
 
 test('computeChurn works over consecutive v2 run-logs', () => {
-  const root = tmp();
-  recordRun(root, 'run-001', {
-    fingerprints: ['recon-aaaa0001', 'recon-bbbb0002'],
-    areasSwept: ['src/api'],
-    hashes: { 'src/api': 'abc123' },
-  });
-  recordRun(root, 'run-002', {
-    fingerprints: ['recon-aaaa0001', 'recon-cccc0003'],
-    areasSwept: ['src/lib'],
-    hashes: { 'src/lib': 'def456' },
-  });
-  const runs = readRuns(root);
-  assert.strictEqual(runs.length, 2);
+  // Run records constructed directly (computeChurn is a pure function over
+  // fingerprint arrays; it never needed recordRun/readRuns's disk round-trip).
+  const runs = [
+    { runId: 'run-001', runAt: '2026-01-01T00:00:00.000Z', fingerprints: ['recon-aaaa0001', 'recon-bbbb0002'] },
+    { runId: 'run-002', runAt: '2026-01-02T00:00:00.000Z', fingerprints: ['recon-aaaa0001', 'recon-cccc0003'] },
+  ];
   const churn = computeChurn(runs[1].fingerprints, runs[0]);
   assert.deepStrictEqual(churn.appeared, ['recon-cccc0003']);
   assert.deepStrictEqual(churn.disappeared, ['recon-bbbb0002']);
@@ -48,16 +55,20 @@ test('computeChurn works over consecutive v2 run-logs', () => {
 
 test('churn-report CLI exits 1 when ratio exceeds threshold', () => {
   const root = tmp();
-  recordRun(root, 'run-001', { fingerprints: ['recon-aaaa0001', 'recon-bbbb0002'], areasSwept: ['src'], hashes: {} });
-  recordRun(root, 'run-002', { fingerprints: ['recon-cccc0003', 'recon-dddd0004'], areasSwept: ['src'], hashes: {} });
+  seedDurableRuns(root, [
+    { runId: 'run-001', runAt: '2026-01-01T00:00:00.000Z', fingerprints: ['recon-aaaa0001', 'recon-bbbb0002'] },
+    { runId: 'run-002', runAt: '2026-01-02T00:00:00.000Z', fingerprints: ['recon-cccc0003', 'recon-dddd0004'] },
+  ]);
   const result = spawnSync('node', [CLI, 'churn-report', '--root', root, '--fail-on-high-churn', '0.5'], { encoding: 'utf8' });
-  assert.strictEqual(result.status, 1, `stdout: ${result.stdout}`);
+  assert.strictEqual(result.status, 1, `stdout: ${result.stdout} stderr: ${result.stderr}`);
 });
 
 test('churn-report CLI exits 0 when ratio is below threshold', () => {
   const root = tmp();
-  recordRun(root, 'run-001', { fingerprints: ['recon-aaaa0001', 'recon-bbbb0002'], areasSwept: ['src'], hashes: {} });
-  recordRun(root, 'run-002', { fingerprints: ['recon-aaaa0001', 'recon-bbbb0002'], areasSwept: ['src'], hashes: {} });
+  seedDurableRuns(root, [
+    { runId: 'run-001', runAt: '2026-01-01T00:00:00.000Z', fingerprints: ['recon-aaaa0001', 'recon-bbbb0002'] },
+    { runId: 'run-002', runAt: '2026-01-02T00:00:00.000Z', fingerprints: ['recon-aaaa0001', 'recon-bbbb0002'] },
+  ]);
   const result = spawnSync('node', [CLI, 'churn-report', '--root', root, '--fail-on-high-churn', '0.5'], { encoding: 'utf8' });
-  assert.strictEqual(result.status, 0);
+  assert.strictEqual(result.status, 0, `stdout: ${result.stdout} stderr: ${result.stderr}`);
 });

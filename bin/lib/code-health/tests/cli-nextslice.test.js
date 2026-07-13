@@ -5,7 +5,6 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { contentHash } = require('../scope');
-const { writeCursors } = require('../cache');
 
 const CLI = path.resolve(__dirname, '..', '..', '..', 'code-health.js');
 
@@ -13,6 +12,31 @@ function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-ns-')); }
 function runNextSlice(args, root) {
   const raw = execFileSync('node', [CLI, 'next-slice', '--root', root, ...args], { encoding: 'utf8' });
   return JSON.parse(raw);
+}
+
+// Cursors are now durable (health-state branch), not local disk (writeCursors
+// no longer exists — see bin/lib/code-health/cache.js). readDurableState's
+// read path is pure git plumbing (fetch + show), so it CAN be exercised for
+// real without gh/network: seed a local bare repo as `origin`, commit the
+// cursors file directly onto a `health-state` branch, and point `root`'s own
+// `origin` remote at it. Only the WRITE path (gh api blob/tree/commit/ref
+// calls) requires live GitHub credentials — this helper never touches it.
+function seedDurableCursors(root, cursors) {
+  const bareDir = fs.mkdtempSync(path.join(os.tmpdir(), 'recon-ns-bare-'));
+  execFileSync('git', ['init', '--bare', '-q', bareDir]);
+  const seedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'recon-ns-seed-'));
+  execFileSync('git', ['init', '-q', seedDir]);
+  execFileSync('git', ['-C', seedDir, 'checkout', '-q', '-b', 'health-state']);
+  fs.mkdirSync(path.join(seedDir, 'code-health'), { recursive: true });
+  fs.writeFileSync(path.join(seedDir, 'code-health', 'cursors.json'), JSON.stringify(cursors));
+  execFileSync('git', ['-C', seedDir, 'add', '-A']);
+  execFileSync(
+    'git',
+    ['-C', seedDir, '-c', 'user.email=test@example.com', '-c', 'user.name=test', 'commit', '-q', '-m', 'seed'],
+  );
+  execFileSync('git', ['-C', seedDir, 'push', '-q', bareDir, 'health-state']);
+  execFileSync('git', ['init', '-q'], { cwd: root });
+  execFileSync('git', ['remote', 'add', 'origin', bareDir], { cwd: root });
 }
 
 test('next-slice returns a slice object for a new repo', () => {
@@ -28,7 +52,7 @@ test('next-slice returns null when the only slice has an unchanged hash', () => 
   const root = tmp();
   fs.writeFileSync(path.join(root, 'a.js'), 'const x = 1;\n');
   const hash = contentHash(root);
-  writeCursors(root, { '.': { lastSweptMs: Date.now(), lastHash: hash } });
+  seedDurableCursors(root, { '.': { lastSweptMs: Date.now(), lastHash: hash } });
   const result = runNextSlice([], root);
   assert.strictEqual(result, null, 'unchanged recently-judged slice must yield null');
 });
@@ -54,7 +78,7 @@ test('next-slice exits 0 and writes nothing to disk', () => {
   fs.writeFileSync(path.join(root, 'a.js'), 'const x = 1;\n');
   // A hash-matched cursor means nothing is due
   const hash = contentHash(root);
-  writeCursors(root, { '.': { lastSweptMs: Date.now(), lastHash: hash } });
+  seedDurableCursors(root, { '.': { lastSweptMs: Date.now(), lastHash: hash } });
   // Must exit 0 even when returning null
   const raw = execFileSync('node', [CLI, 'next-slice', '--root', root], { encoding: 'utf8' });
   assert.strictEqual(JSON.parse(raw), null);

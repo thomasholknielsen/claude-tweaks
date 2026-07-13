@@ -2,40 +2,20 @@
 const fs = require('fs');
 const path = require('path');
 const { createCache } = require('../health-core/cache');
+const { createDurableState } = require('../health-core/durable-state');
 
-// Gitignored, rebuildable-from-issues dedup cache.
+// Local, gitignored: cache.json only (open/closed/wontfix/regressed dedup —
+// rebuildable from `gh issue list`, so it's fine to stay local/ephemeral).
 // Canonical path: <root>/.claude-tweaks/code-health/cache.json (contract §cache.js)
-// Shape: { "<fingerprint>": { status: 'open'|'wontfix'|'closed'|'remembered'|'regressed', issue: <number|null> } }
+// Shape: { "<fingerprint>": { status: 'open'|'wontfix'|'closed'|'regressed', issue: <number|null> } }
+//
+// Cursors, the sub-threshold "remembered" cache, the retry queue, and run
+// history are durable instead — they live on the health-state branch (see
+// _shared/health-state.md), not local disk, since local disk doesn't survive
+// a scheduled cloud-routine firing's container recycling between runs.
 
 const core = createCache('code-health');
-
-// Persist the fingerprint set this run produced. runId is an ISO-ish timestamp;
-// colons are valid on Linux/macOS so the runId round-trips into the filename.
-// arg: { fingerprints, areasSwept, hashes } — areasSwept is the list of area ids swept this run;
-// hashes is an optional map of areaId -> content hash to persist as lastHash on each cursor.
-function recordRun(rootDir, runId, { fingerprints, areasSwept = [], hashes = {} } = {}) {
-  const dir = core.runsDir(rootDir);
-  fs.mkdirSync(dir, { recursive: true });
-  const record = { runId, runAt: new Date().toISOString(), fingerprints: [...fingerprints] };
-  fs.writeFileSync(path.join(dir, `${runId}.json`), JSON.stringify(record, null, 2) + '\n', 'utf8');
-
-  // Persist per-area sweep cursors so the round-robin coverage floor rotates.
-  if (areasSwept.length > 0) {
-    const now = Date.now();
-    const cursors = core.readCursors(rootDir);
-    for (const areaId of areasSwept) {
-      const existing = cursors[areaId] || {};
-      cursors[areaId] = {
-        ...existing,
-        lastSweptMs: now,
-        ...(hashes && hashes[areaId] != null ? { lastHash: hashes[areaId] } : {}),
-      };
-    }
-    core.writeCursors(rootDir, cursors);
-  }
-
-  return record;
-}
+const durable = createDurableState('code-health', { includeRemembered: true });
 
 // Churn vs the prior run. ratio = (appeared + disappeared) / |prior ∪ current|.
 // PORT.md delta #5: union denominator, NOT max(prior, current).
@@ -60,11 +40,7 @@ module.exports = {
   cachePath: core.cachePath,
   readCache: core.readCache,
   writeCache: core.writeCache,
-  runsDir: core.runsDir,
-  cursorsPath: core.cursorsPath,
-  readCursors: core.readCursors,
-  writeCursors: core.writeCursors,
-  recordRun,
-  readRuns: core.readRuns,
   computeChurn,
+  readDurableState: durable.readState,
+  writeDurableState: durable.writeState,
 };

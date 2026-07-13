@@ -19,6 +19,33 @@ function writeV2Cache(root, entries) {
   fs.writeFileSync(p, JSON.stringify(cache, null, 2) + '\n', 'utf8');
 }
 
+// 'remembered' entries no longer live in local cache.json (see
+// bin/lib/code-health/cache.js / bin/code-health.js's cmdValidateFindings) —
+// they live in the durable remembered.json on the health-state branch instead
+// (cmdStatus derives its remembered count from readDurableState(root).remembered).
+// readDurableState's read path is pure git plumbing (fetch + show), so it can
+// be exercised for real without gh/network: seed a local bare repo as
+// `origin` and commit remembered.json directly onto a health-state branch —
+// the same technique bin/lib/code-health/tests/cli-nextslice.test.js uses for
+// cursors and bin/lib/code-health/tests/churn-v2.test.js uses for runs.
+function seedDurableRemembered(root, remembered) {
+  const bareDir = fs.mkdtempSync(path.join(os.tmpdir(), 'recon-status-bare-'));
+  execFileSync('git', ['init', '--bare', '-q', bareDir]);
+  const seedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'recon-status-seed-'));
+  execFileSync('git', ['init', '-q', seedDir]);
+  execFileSync('git', ['-C', seedDir, 'checkout', '-q', '-b', 'health-state']);
+  fs.mkdirSync(path.join(seedDir, 'code-health'), { recursive: true });
+  fs.writeFileSync(path.join(seedDir, 'code-health', 'remembered.json'), JSON.stringify(remembered));
+  execFileSync('git', ['-C', seedDir, 'add', '-A']);
+  execFileSync(
+    'git',
+    ['-C', seedDir, '-c', 'user.email=test@example.com', '-c', 'user.name=test', 'commit', '-q', '-m', 'seed'],
+  );
+  execFileSync('git', ['-C', seedDir, 'push', '-q', bareDir, 'health-state']);
+  execFileSync('git', ['init', '-q'], { cwd: root });
+  execFileSync('git', ['remote', 'add', 'origin', bareDir], { cwd: root });
+}
+
 test('status prints open and regressed counts from v2 cache', () => {
   const root = tmp();
   writeV2Cache(root, [
@@ -32,13 +59,15 @@ test('status prints open and regressed counts from v2 cache', () => {
   assert.ok(out.includes('closed:1'), `expected closed:1 in: ${out}`);
 });
 
-test('status prints the remembered count from v2 cache', () => {
+test('status prints the remembered count from the durable remembered store', () => {
   const root = tmp();
   writeV2Cache(root, [
     { fp: 'recon-aaaabbbb', status: 'open', severity: 'medium' },
-    { fp: 'recon-ccccdddd', status: 'remembered', severity: 'medium' },
-    { fp: 'recon-eeeeffff', status: 'remembered', severity: 'low' },
   ]);
+  seedDurableRemembered(root, {
+    'recon-ccccdddd': { status: 'remembered', issue: null, severity: 'medium', risk: null },
+    'recon-eeeeffff': { status: 'remembered', issue: null, severity: 'low', risk: null },
+  });
   const out = execFileSync('node', [CLI, 'status', '--root', root], { encoding: 'utf8' });
   assert.ok(out.includes('open:1'), `expected open:1 in: ${out}`);
   assert.ok(out.includes('remembered:2'), `expected remembered:2 in: ${out}`);
