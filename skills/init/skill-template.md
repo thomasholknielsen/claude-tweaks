@@ -52,7 +52,17 @@ For approved gap skills that qualify as new-skill candidates (per the shared fra
 
 ### Cursor Participation
 
-Before classifying a skill in Phase 1u/Phase 3, check `.claude-tweaks/harness-health/cursors.json` under the `skill:<id>` key: a skill with `lastAuditedMs` within the last 90 days was recently verified by `/claude-tweaks:wrap-up` or the `/claude-tweaks:harness-health` routine — mark it "recently verified — skipped" rather than re-judging it from scratch in Phase 2. After Phase 6 patches a drifted skill, record the audit so wrap-up and the routine see it too:
+Before classifying a skill in Phase 1u/Phase 3, check whether the skill was recently audited: a skill with `lastAuditedMs` within the last 90 days was recently verified by `/claude-tweaks:wrap-up` or the `/claude-tweaks:harness-health` routine — mark it "recently verified — skipped" rather than re-judging it from scratch in Phase 2.
+
+Harness-health's cursors now live on the durable `health-state` git branch, not local disk — see `_shared/health-state.md` for the storage contract. This makes the read side a best-effort optimization rather than a guaranteed local file check: there is no local `cursors.json` to read directly, and no single-purpose CLI command reads one cursor entry in isolation. To check a specific `skill:<id>` entry, either read the branch directly with git plumbing (no `gh` needed for a read):
+
+```bash
+git fetch origin health-state && git show origin/health-state:harness-health/cursors.json
+```
+
+...and parse the `skill:<id>` key's `lastAuditedMs` out of the resulting JSON — or, if the `health-state` branch isn't readily fetchable in the current environment (e.g. no network, no remote configured), treat this check as skippable and fall through to judging the skill from scratch in Phase 2. Either way, the 90-day freshness semantics are unchanged — only where and how the cursor is read has moved.
+
+After Phase 6 patches a drifted skill, record the audit so wrap-up and the routine see it too (this write path is unchanged — `bin/harness-health.js` handles the durable-state read-modify-write internally):
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" validate-findings <findings.json> --root . --target <skill-id> --kind skill
