@@ -1,6 +1,6 @@
 # Visual HTML Output — Shared Core Procedure
 
-Reusable procedure for producing themed, self-contained HTML+SVG visual output: token extraction from Impeccable's `DESIGN.md`, the core-fragment/wrapper-adapter pattern, MDX/Nextra docs-server compatibility, the `Artifact` publish adapter, and the persist-vs-ephemeral decision. Referenced by `/claude-tweaks:visualize` (diagrams). Any future skill producing themed HTML report output (e.g. a `/code-health`, `/harness-health`, `/journey-health`, or `/review` report mode) can invoke this file directly — it has no callable surface of its own, every step below is executed by the calling skill.
+Reusable procedure for producing themed, self-contained HTML+SVG visual output: token extraction from Impeccable's `DESIGN.md`, the core-fragment/wrapper-adapter pattern, MDX/Nextra docs-server compatibility, and the persist-vs-ephemeral decision. Referenced by `/claude-tweaks:visualize` (diagrams). Any future skill producing themed HTML report output (e.g. a `/code-health`, `/harness-health`, `/journey-health`, or `/review` report mode) can invoke this file directly — it has no callable surface of its own, every step below is executed by the calling skill.
 
 ## Step 1: Token extraction
 
@@ -63,7 +63,7 @@ If Impeccable itself isn't installed (no `/impeccable:impeccable*` skill resolve
 
 Generate the visual content (an `<svg>...</svg>` for diagrams) plus a single scoped `<style>` block defining the tokens from Step 1 (real extracted values, paired light/dark per the rule above) or Step 2's neutral fallback (synthetic values), using the same `:root` / `:root[data-theme="dark"]` / `@media (prefers-color-scheme: dark)` shape in either case. Prefix every custom class name in the fragment with a unique per-diagram slug (e.g. `.vz-{slug}-node`, not bare `.node`) so multiple diagrams embedded in the same host document never collide.
 
-This SVG+style pair is the **core** — every wrapper below reuses it byte-for-byte. Never regenerate it per-wrapper; regenerating independently per consumer is exactly how the standalone file and the Artifact-published version would drift apart.
+This SVG+style pair is the **core** — every wrapper below reuses it byte-for-byte. Never regenerate it per-wrapper; regenerating independently per consumer is exactly how the standalone file and the markdown embed would drift apart.
 
 ## Step 4: Wrapper adapters
 
@@ -71,7 +71,6 @@ This SVG+style pair is the **core** — every wrapper below reuses it byte-for-b
 |---|---|
 | Standalone local file | `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>{Diagram Title}</title></head><body>{core}{handshake script from Step 5}</body></html>` |
 | Markdown embed | Bare `{core}` — no title, no handshake script, pasted directly into the doc |
-| Artifact publish | `<title>{Diagram Title}</title>{core}` — no `<!DOCTYPE>`/`<html>`/`<head>`/`<body>`, per the `Artifact` tool's own contract (see `skills/visualize/artifact-publish.md`) |
 
 ## Step 5: MDX/Nextra docs-server compatibility
 
@@ -128,15 +127,11 @@ Copy the generated file into your docs app's static-asset directory
   <EmbedFrame src="/path/to/the-diagram.html" title="..." />
 ```
 
-## Step 6: Artifact publish (delegate)
-
-Offering to publish via the `Artifact` tool is a distinct procedure — read `skills/visualize/artifact-publish.md` only when the user accepts the offer.
-
-## Step 7: Persist-vs-ephemeral
+## Step 6: Persist-vs-ephemeral
 
 | Context | Default | Still asks? |
 |---|---|---|
 | Invoked via a soft-hook caller already producing a doc (e.g. `/journeys`, `/specify`, `/review`) | Save as project doc | No |
 | Invoked directly, ad-hoc, no calling context | — | Yes — `AskUserQuestion`: `"Save as a project doc"` / `"Just show me now (not saved)"` / `"Both"` |
 
-"Just show me now" still writes the core fragment + standalone wrapper to a scratch path first — the `Artifact` tool needs a real file on disk regardless of whether the output is meant to be a durable project doc. It just never lands under a project's `docs/` tree, is never registered in `REGISTRY.md`, and the MDX-embed reference snippet from Step 5 is not offered (there's nothing to embed if it isn't staying in the project).
+"Just show me now" still writes the core fragment + standalone wrapper to a scratch path first, so there's something the user can open locally regardless of whether the output is meant to be a durable project doc. It just never lands under a project's `docs/` tree, is never registered in `REGISTRY.md`, and the MDX-embed reference snippet from Step 5 is not offered (there's nothing to embed if it isn't staying in the project).
