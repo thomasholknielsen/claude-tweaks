@@ -1,2 +1,2 @@
 'use strict';
-module.exports = require('../watchman-core/dedup');
+module.exports = require('../health-core/dedup');

@@ -1,7 +1,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { createCache } = require('../watchman-core/cache');
+const { createCache } = require('../health-core/cache');
 
 // Gitignored, rebuildable-from-issues dedup cache.
 // Canonical path: <root>/.claude-tweaks/code-health/cache.json (contract §cache.js)

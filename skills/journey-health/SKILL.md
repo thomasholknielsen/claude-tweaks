@@ -6,7 +6,7 @@ description: Use when you want to check whether docs/journeys/*.md files still a
 
 # Journey Health — Keep Journeys Honest for Agent E2E Testing
 
-A recurring watchman for `docs/journeys/*.md`: picks one journey to audit against the codebase, judges it, and always files a `journey-health`-labelled GitHub issue. Never edits journey files, stories, or code — every fix routes through `/claude-tweaks:journeys` or `/claude-tweaks:stories`, invoked by a human or `/triage dispatch` → `/flow`.
+A recurring health check for `docs/journeys/*.md`: picks one journey to audit against the codebase, judges it, and always files a `journey-health`-labelled GitHub issue. Never edits journey files, stories, or code — every fix routes through `/claude-tweaks:journeys` or `/claude-tweaks:stories`, invoked by a human or `/triage dispatch` → `/flow`.
 
 ```
               [ /claude-tweaks:journey-health ] <- utility (no fixed lifecycle position)

@@ -1,5 +1,5 @@
 'use strict';
-const { normalizeText, fingerprintFromBasis } = require('../watchman-core/fingerprint');
+const { normalizeText, fingerprintFromBasis } = require('../health-core/fingerprint');
 
 // Collapse whitespace and lowercase so cosmetic rewording doesn't mint a new id.
 function normalizeDescription(description) { return normalizeText(description); }

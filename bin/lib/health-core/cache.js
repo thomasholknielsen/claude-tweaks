@@ -2,8 +2,8 @@
 const fs = require('fs');
 const path = require('path');
 
-// Generic gitignored cache/cursor/runs persistence shared by the health
-// watchmen (code-health, harness-health, journey-health). Each skill's own
+// Generic gitignored cache/cursor/runs persistence shared by the three
+// health skills (code-health, harness-health, journey-health). Each skill's own
 // cache.js binds `skillName` once via createCache() and layers its own
 // recordAudit()/cursor-shape logic on top — the shape of a cursor entry is
 // domain-specific per skill; this module only owns where/how the JSON lives

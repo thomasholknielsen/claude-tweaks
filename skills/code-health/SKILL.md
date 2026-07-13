@@ -6,7 +6,7 @@ description: Use when you want a proactive, report-only sweep of a repository th
 
 # Code-Health — LLM-as-Code-Judge, Proactive Repo Improvement
 
-A recurring watchman doing rounds: reads one directory slice, judges it against the universal criteria catalog, fingerprints each finding, dedups against open GitHub issues, and files the work worth doing. The LLM is the spine. Deterministic helpers handle fingerprint, dedup, and issue-payload projection. It never edits code.
+A recurring health check doing rounds: reads one directory slice, judges it against the universal criteria catalog, fingerprints each finding, dedups against open GitHub issues, and files the work worth doing. The LLM is the spine. Deterministic helpers handle fingerprint, dedup, and issue-payload projection. It never edits code.
 
 ```
               [ /claude-tweaks:code-health ] <- utility (no fixed lifecycle position)

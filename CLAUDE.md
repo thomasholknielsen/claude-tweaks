@@ -25,7 +25,7 @@ agents/{name}.md                  → Agent definitions (frontmatter + body)
 hooks/hooks.json                  → Hook definitions (SessionStart/SessionEnd/PreCompact continuity + PreToolUse/PostToolUse/SubagentStop enforcement, all via bin/hooks.js)
 bin/hooks.js                      → Hook dispatcher (one entry point for all hook events + record-worktree/close-run subcommands)
 bin/                              → Node executables (statusline, deps check)
-bin/lib/                          → Shared Node helpers (color, deps, coordination, issue claims + ingestion, policy). Multi-file modules live directly at bin/lib/{name}/ (e.g. bin/lib/issues/, bin/lib/hooks/, bin/lib/watchman-core/) — flat sibling directories, NOT a nested _shared/ wrapper. That convention is specific to skills/_shared/; don't assume it applies here.
+bin/lib/                          → Shared Node helpers (color, deps, coordination, issue claims + ingestion, policy). Multi-file modules live directly at bin/lib/{name}/ (e.g. bin/lib/issues/, bin/lib/hooks/, bin/lib/health-core/) — flat sibling directories, NOT a nested _shared/ wrapper. That convention is specific to skills/_shared/; don't assume it applies here.
 tests/                            → Node test files (node --test runner)
 README.md                         → User-facing documentation
 LICENSE                           → MIT

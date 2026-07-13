@@ -6,7 +6,7 @@ description: Use when you want to check whether a project's harness documentatio
 
 # Harness Health — Keep Skills, Rules, and CLAUDE.md Honest
 
-A recurring watchman for `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md: picks one target to audit against the codebase (or the next new-skill gap to check for), judges it via the shared `_shared/harness-health-analysis.md` procedure, and files a `harness-health`-labelled GitHub issue. Never edits code — only harness documentation.
+A recurring health check for `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md: picks one target to audit against the codebase (or the next new-skill gap to check for), judges it via the shared `_shared/harness-health-analysis.md` procedure, and files a `harness-health`-labelled GitHub issue. Never edits code — only harness documentation.
 
 ```
               [ /claude-tweaks:harness-health ] <- utility (no fixed lifecycle position)

@@ -6,7 +6,7 @@ const os = require('os');
 const path = require('path');
 const { recordRun, computeChurn } = require('../runs');
 
-function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'watchman-core-runs-')); }
+function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'health-core-runs-')); }
 
 test('recordRun writes a run file under the given runsDir', () => {
   const dir = path.join(tmp(), 'runs');

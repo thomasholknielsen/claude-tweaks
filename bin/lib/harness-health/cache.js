@@ -1,6 +1,6 @@
 'use strict';
-const { createCache } = require('../watchman-core/cache');
-const { recordRun, computeChurn } = require('../watchman-core/runs');
+const { createCache } = require('../health-core/cache');
+const { recordRun, computeChurn } = require('../health-core/runs');
 
 // Gitignored, rebuildable-from-issues state. Canonical path:
 // <root>/.claude-tweaks/harness-health/{cache,cursors}.json and .../runs/*.json
