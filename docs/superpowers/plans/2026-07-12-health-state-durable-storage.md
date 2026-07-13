@@ -247,6 +247,8 @@ Claude-Session: https://claude.ai/code/session_01CErp2mNj92Dnyp3f8MgKJb"
 **Files:**
 - Create: `bin/lib/health-core/durable-state.js`
 - Create: `bin/lib/health-core/tests/durable-state.test.js`
+- Create: `bin/lib/health-core/retry-cli.js`
+- Create: `bin/lib/health-core/tests/retry-cli.test.js`
 
 **Interfaces:**
 - Consumes: nothing new (uses Node's `child_process.execFileSync` by default)
@@ -259,9 +261,11 @@ Claude-Session: https://claude.ai/code/session_01CErp2mNj92Dnyp3f8MgKJb"
   - `enqueueRetry(queue, entry, { now } = {}) -> array` — `entry: { fingerprint, payload, lastError? }`
   - `dequeueRetry(queue, fingerprint) -> array`
   - `shouldEscalate(entry) -> boolean`
-  - `createDurableState(skillName, { run } = {}) -> { readState(root), writeState(root, mutatorFn) }`
-    - `readState(root) -> { cursors: object, remembered: object, retryQueue: array, runs: array }`
+  - `createDurableState(skillName, { run, includeRemembered = false } = {}) -> { readState(root), writeState(root, mutatorFn) }`
+    - `includeRemembered` must be `true` for code-health (the only skill with a sub-threshold "remembered" tier) and omitted (defaults `false`) for harness-health/journey-health — this is a property of the skill established once at `createDurableState` call time, not inferred per-write from data shape, specifically so a skill that never opts in can never accidentally get a `remembered.json` file written to its branch directory.
+    - `readState(root) -> { cursors: object, retryQueue: array, runs: array }` — plus a `remembered: object` key, present only when `includeRemembered` is `true`.
     - `writeState(root, mutatorFn) -> { ok: boolean, error?: string }` — `mutatorFn` receives the current state object (same shape as `readState`'s return) and must return the next state object in the same shape.
+  - `bin/lib/health-core/retry-cli.js`'s `makeRetryQueueCommands({ readDurableState, writeDurableState }) -> { drain(args), update(args) }` — the shared CLI command implementations for `retry-queue drain`/`retry-queue update`, used identically by `bin/code-health.js`, `bin/harness-health.js`, and `bin/journey-health.js` (Tasks 4, 6, 8) instead of each CLI restating the same logic.
 
 - [ ] **Step 1: Write the failing tests for the pure helpers**
 
@@ -450,7 +454,12 @@ Append to `bin/lib/health-core/tests/durable-state.test.js`:
 
 ```js
 // --- createDurableState: fake runner records every (cmd, args, opts) call and
-// returns canned responses keyed by a simple pattern match on args. ---
+// returns canned responses keyed by a simple pattern match on args. `returns`/
+// `throws` may be a plain value OR a function of (cmd, args) called lazily on
+// each match — use a function whenever a rule needs to react to prior calls
+// (a counter, a flag flipped by an earlier matched rule) so the state change
+// happens when the fake is actually invoked by the code under test, not once
+// eagerly while the script array literal is being built. ---
 
 function fakeRunner(script) {
   const calls = [];
@@ -458,8 +467,9 @@ function fakeRunner(script) {
     calls.push({ cmd, args, opts });
     for (const rule of script) {
       if (rule.match(cmd, args)) {
-        if (rule.throws) throw new Error(rule.throws);
-        return rule.returns;
+        const throwsVal = typeof rule.throws === 'function' ? rule.throws(cmd, args) : rule.throws;
+        if (throwsVal) throw new Error(throwsVal);
+        return typeof rule.returns === 'function' ? rule.returns(cmd, args) : rule.returns;
       }
     }
     throw new Error(`fakeRunner: no rule matched ${cmd} ${JSON.stringify(args)}`);
@@ -471,11 +481,11 @@ function matchArgs(args, needle) {
   return args.join(' ').includes(needle);
 }
 
-test('readState returns empty defaults when the branch does not exist yet', () => {
+test('readState returns empty defaults when the branch does not exist yet (includeRemembered:true skill)', () => {
   const { run } = fakeRunner([
     { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), throws: "couldn't find remote ref health-state" },
   ]);
-  const ds = createDurableState('code-health', { run });
+  const ds = createDurableState('code-health', { run, includeRemembered: true });
   const state = ds.readState('/repo');
   assert.deepStrictEqual(state, { cursors: {}, remembered: {}, retryQueue: [], runs: [] });
 });
@@ -488,12 +498,23 @@ test('readState parses each file via git show, defaulting missing files to {}/[]
     { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'retry-queue.json'), returns: '[]' },
     { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'runs.json'), returns: '[]' },
   ]);
-  const ds = createDurableState('code-health', { run });
+  const ds = createDurableState('code-health', { run, includeRemembered: true });
   const state = ds.readState('/repo');
   assert.deepStrictEqual(state.cursors, { '.': { lastSweptMs: 1 } });
   assert.deepStrictEqual(state.remembered, {});
   assert.deepStrictEqual(state.retryQueue, []);
   assert.deepStrictEqual(state.runs, []);
+});
+
+test('readState omits the remembered key entirely for a skill that does not opt in (includeRemembered defaults to false)', () => {
+  const { run } = fakeRunner([
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), returns: '' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show'), throws: 'fatal: path does not exist' },
+  ]);
+  const ds = createDurableState('harness-health', { run });
+  const state = ds.readState('/repo');
+  assert.deepStrictEqual(state, { cursors: {}, retryQueue: [], runs: [] });
+  assert.ok(!('remembered' in state), 'a skill that never opts in must never see a remembered key at all');
 });
 
 test('writeState succeeds on the first attempt: fetch, read, build blobs/tree/commit, non-force ref update', () => {
@@ -508,10 +529,10 @@ test('writeState succeeds on the first attempt: fetch, read, build blobs/tree/co
     { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/commits'), returns: 'commit-sha-2\n' },
     {
       match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/refs/heads/health-state') && matchArgs(args, 'PATCH'),
-      returns: (() => { written.updated = true; return ''; })(),
+      returns: () => { written.updated = true; return ''; },
     },
   ]);
-  const ds = createDurableState('code-health', { run });
+  const ds = createDurableState('code-health', { run, includeRemembered: true });
   const result = ds.writeState('/repo', (current) => ({ ...current, cursors: { '.': { lastSweptMs: 2 } } }));
   assert.deepStrictEqual(result, { ok: true });
   assert.strictEqual(written.updated, true);
@@ -529,14 +550,14 @@ test('writeState retries on a rejected (non-fast-forward) ref update, then succe
     { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/commits'), returns: 'commit-sha-2\n' },
     {
       match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/refs/heads/health-state') && matchArgs(args, 'PATCH'),
-      returns: (() => {
+      returns: () => {
         refAttempts += 1;
         if (refAttempts === 1) throw new Error('422 Reference update failed (non-fast-forward)');
         return '';
-      })(),
+      },
     },
   ]);
-  const ds = createDurableState('code-health', { run });
+  const ds = createDurableState('code-health', { run, includeRemembered: true });
   const result = ds.writeState('/repo', (current) => ({ ...current, cursors: { '.': { lastSweptMs: 2 } } }));
   assert.deepStrictEqual(result, { ok: true });
   assert.strictEqual(refAttempts, 2, 'must retry the whole read-modify-write cycle after a rejection');
@@ -556,30 +577,93 @@ test('writeState gives up gracefully (no throw) after MAX_CAS_ATTEMPTS exhausted
       throws: '422 Reference update failed (non-fast-forward)',
     },
   ]);
-  const ds = createDurableState('code-health', { run });
+  const ds = createDurableState('code-health', { run, includeRemembered: true });
   const result = ds.writeState('/repo', (current) => current);
   assert.strictEqual(result.ok, false);
   assert.ok(result.error, 'must report why it gave up');
 });
 
-test('writeState bootstraps the branch when it does not exist yet (create-if-absent, tolerating a 422 race)', () => {
-  const calls = [];
-  const { run } = (function () {
-    let bootstrapped = false;
-    return fakeRunner([
-      {
-        match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && !matchArgs(args, '^{tree}'),
-        returns: (() => { calls.push('rev-parse-commit'); return bootstrapped ? 'commit-sha-1\n' : (() => { throw new Error('unknown revision'); })(); })(),
+test('writeState bootstraps the branch when it does not exist yet, then completes the write on the bootstrapped branch', () => {
+  let branchCreated = false;
+  const { run, calls } = fakeRunner([
+    {
+      match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'),
+      returns: () => {
+        if (!branchCreated) throw new Error("couldn't find remote ref health-state");
+        return '';
       },
-    ]);
-  })();
-  // This scenario is exercised at a coarser grain in the integration check
-  // (see the Testing approach note in the design spec) — the unit test here
-  // only needs to prove ensureBranch is invoked before the main write loop,
-  // which the "writeState succeeds on the first attempt" test already does
-  // implicitly by not requiring a pre-existing branch. No additional
-  // assertion beyond the module loading without error.
-  assert.strictEqual(typeof createDurableState, 'function');
+    },
+    {
+      match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse'),
+      returns: (cmd, args) => {
+        if (!branchCreated) throw new Error('unknown revision');
+        return matchArgs(args, '^{tree}') ? 'tree-sha-1\n' : 'commit-sha-1\n';
+      },
+    },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show'), throws: 'fatal: path does not exist' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/blobs'), returns: 'blob-sha\n' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/trees'), returns: 'tree-sha-2\n' },
+    {
+      match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/commits'),
+      returns: () => { branchCreated = true; return 'commit-sha\n'; },
+    },
+    {
+      match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'repos/{owner}/{repo}/git/refs') && !matchArgs(args, 'heads'),
+      returns: '',
+    },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/refs/heads/health-state') && matchArgs(args, 'PATCH'), returns: '' },
+  ]);
+  const ds = createDurableState('code-health', { run, includeRemembered: true });
+  const result = ds.writeState('/repo', (current) => current);
+  assert.deepStrictEqual(result, { ok: true });
+  assert.ok(branchCreated, 'ensureBranch must have created the bootstrap commit before the main write proceeded');
+  const refCreateCall = calls.find(
+    (c) => c.cmd === 'gh' && c.args.includes('repos/{owner}/{repo}/git/refs'),
+  );
+  assert.ok(refCreateCall, 'must have called the plain git/refs create endpoint during bootstrap, distinct from the git/refs/heads/health-state PATCH');
+});
+
+test('writeState never includes a remembered.json blob for a skill that does not opt in', () => {
+  const { run, calls } = fakeRunner([
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && matchArgs(args, '^{tree}'), returns: 'tree-sha-1\n' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && !matchArgs(args, '^{tree}'), returns: 'commit-sha-1\n' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), returns: '' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show'), throws: 'fatal: path does not exist' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/blobs'), returns: 'blob-sha\n' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/trees'), returns: 'tree-sha-2\n' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/commits'), returns: 'commit-sha-2\n' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/refs/heads/health-state') && matchArgs(args, 'PATCH'), returns: '' },
+  ]);
+  const ds = createDurableState('harness-health', { run });
+  const result = ds.writeState('/repo', (current) => current);
+  assert.deepStrictEqual(result, { ok: true });
+  const treeCall = calls.find((c) => c.cmd === 'gh' && c.args.includes('repos/{owner}/{repo}/git/trees'));
+  const paths = JSON.parse(treeCall.opts.input).tree.map((e) => e.path).sort();
+  assert.deepStrictEqual(paths, ['harness-health/cursors.json', 'harness-health/retry-queue.json', 'harness-health/runs.json']);
+});
+
+test('writeState includes a remembered.json blob only for a skill that opts in', () => {
+  const { run, calls } = fakeRunner([
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && matchArgs(args, '^{tree}'), returns: 'tree-sha-1\n' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && !matchArgs(args, '^{tree}'), returns: 'commit-sha-1\n' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), returns: '' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show'), throws: 'fatal: path does not exist' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/blobs'), returns: 'blob-sha\n' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/trees'), returns: 'tree-sha-2\n' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/commits'), returns: 'commit-sha-2\n' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/refs/heads/health-state') && matchArgs(args, 'PATCH'), returns: '' },
+  ]);
+  const ds = createDurableState('code-health', { run, includeRemembered: true });
+  const result = ds.writeState('/repo', (current) => current);
+  assert.deepStrictEqual(result, { ok: true });
+  const treeCall = calls.find((c) => c.cmd === 'gh' && c.args.includes('repos/{owner}/{repo}/git/trees'));
+  const paths = JSON.parse(treeCall.opts.input).tree.map((e) => e.path).sort();
+  assert.deepStrictEqual(paths, [
+    'code-health/cursors.json',
+    'code-health/remembered.json',
+    'code-health/retry-queue.json',
+    'code-health/runs.json',
+  ]);
 });
 ```
 
@@ -597,7 +681,7 @@ function defaultRun(cmd, args, opts = {}) {
   return execFileSync(cmd, args, { encoding: 'utf8', ...opts });
 }
 
-function createDurableState(skillName, { run = defaultRun } = {}) {
+function createDurableState(skillName, { run = defaultRun, includeRemembered = false } = {}) {
   function showFile(root, relPath, fallback) {
     try {
       const out = run('git', ['-C', root, 'show', `origin/${HEALTH_STATE_BRANCH}:${relPath}`]);
@@ -625,18 +709,25 @@ function createDurableState(skillName, { run = defaultRun } = {}) {
 
   // Reads never throw: a missing branch/file degrades to the empty default,
   // matching cache.js's existing "corrupt/missing JSON -> {}" convention.
+  // `remembered` is only ever present when this skill opted in via
+  // includeRemembered — a skill that didn't must never see the key at all,
+  // so harness-health/journey-health can't accidentally pick up a spurious
+  // remembered.json (see buildFiles below, which gates on the same flag).
   function readState(root) {
     try {
       run('git', ['-C', root, 'fetch', 'origin', HEALTH_STATE_BRANCH]);
     } catch {
-      return { cursors: {}, remembered: {}, retryQueue: [], runs: [] };
+      return includeRemembered
+        ? { cursors: {}, remembered: {}, retryQueue: [], runs: [] }
+        : { cursors: {}, retryQueue: [], runs: [] };
     }
-    return {
+    const state = {
       cursors: showFile(root, statePath(skillName, 'cursors.json'), {}),
-      remembered: showFile(root, statePath(skillName, 'remembered.json'), {}),
       retryQueue: showFile(root, statePath(skillName, 'retry-queue.json'), []),
       runs: showFile(root, statePath(skillName, 'runs.json'), []),
     };
+    if (includeRemembered) state.remembered = showFile(root, statePath(skillName, 'remembered.json'), {});
+    return state;
   }
 
   function createBlob(root, content) {
@@ -698,8 +789,14 @@ function createDurableState(skillName, { run = defaultRun } = {}) {
       { path: statePath(skillName, 'retry-queue.json'), content: JSON.stringify(next.retryQueue, null, 2) },
       { path: statePath(skillName, 'runs.json'), content: JSON.stringify(pruneRuns(next.runs), null, 2) },
     ];
-    if (next.remembered) {
-      files.push({ path: statePath(skillName, 'remembered.json'), content: JSON.stringify(next.remembered, null, 2) });
+    // Gated on the skill-level includeRemembered flag, NOT on truthiness of
+    // next.remembered — an empty {} is truthy, so inferring from data shape
+    // would write a spurious remembered.json for every skill (harness-health,
+    // journey-health included) the first time any mutator merely spreads
+    // ...current without deleting the key. includeRemembered is decided once,
+    // at createDurableState call time, precisely to rule that out.
+    if (includeRemembered) {
+      files.push({ path: statePath(skillName, 'remembered.json'), content: JSON.stringify(next.remembered || {}, null, 2) });
     }
     return files;
   }
@@ -762,18 +859,189 @@ Expected: all tests PASS (the pure-helper tests from Step 1 plus the `createDura
 Run: `npm test`
 Expected: all tests pass, including the new `durable-state.test.js` file.
 
-- [ ] **Step 10: Commit**
+- [ ] **Step 10: Write the failing tests for the shared retry-queue CLI helper**
+
+`bin/code-health.js`, `bin/harness-health.js`, and `bin/journey-health.js` each need identical `retry-queue drain`/`retry-queue update` command logic — drain reads the queue and prints its payloads; update folds this firing's filing results back into the queue (enqueue/dequeue/escalate) and persists in one `writeState` call. Rather than each of the three CLIs (Tasks 4, 6, 8) restating this, it lives once here, in the same shared module as the state it operates on.
+
+Create `bin/lib/health-core/tests/retry-cli.test.js`:
+
+```js
+'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { makeRetryQueueCommands } = require('../retry-cli');
+
+function fakeDurableState(initial) {
+  let state = { retryQueue: [], ...initial };
+  return {
+    readDurableState: () => state,
+    writeDurableState: (root, mutatorFn) => {
+      state = mutatorFn(state);
+      return { ok: true };
+    },
+  };
+}
+
+function captureStdout(fn) {
+  const original = process.stdout.write.bind(process.stdout);
+  let out = '';
+  process.stdout.write = (chunk) => { out += chunk; return true; };
+  try {
+    fn();
+  } finally {
+    process.stdout.write = original;
+  }
+  return out;
+}
+
+test('drain prints the payload of every queued entry', () => {
+  const ds = fakeDurableState({
+    retryQueue: [
+      { fingerprint: 'a', payload: { title: 'A' }, firstFailedAt: 'x', attempts: 1, lastError: null },
+      { fingerprint: 'b', payload: { title: 'B' }, firstFailedAt: 'x', attempts: 1, lastError: null },
+    ],
+  });
+  const { drain } = makeRetryQueueCommands(ds);
+  const out = captureStdout(() => drain({ root: '/repo' }));
+  assert.deepStrictEqual(JSON.parse(out), [{ title: 'A' }, { title: 'B' }]);
+});
+
+test('drain prints [] when the queue is empty', () => {
+  const ds = fakeDurableState({ retryQueue: [] });
+  const { drain } = makeRetryQueueCommands(ds);
+  const out = captureStdout(() => drain({ root: '/repo' }));
+  assert.deepStrictEqual(JSON.parse(out), []);
+});
+
+test('update dequeues successes and enqueues failures, printing entries that just crossed the escalation threshold', () => {
+  const ds = fakeDurableState({
+    retryQueue: [
+      { fingerprint: 'stuck', payload: { title: 'Stuck' }, firstFailedAt: 'x', attempts: 2, lastError: 'timeout' },
+    ],
+  });
+  const { update } = makeRetryQueueCommands(ds);
+  const resultsPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'retry-cli-')), 'results.json');
+  fs.writeFileSync(resultsPath, JSON.stringify([
+    { fingerprint: 'stuck', payload: { title: 'Stuck' }, ok: false, error: 'still failing' },
+    { fingerprint: 'fresh', payload: { title: 'Fresh' }, ok: true },
+  ]));
+  const out = captureStdout(() => update({ root: '/repo', _: ['update', resultsPath] }));
+  const escalated = JSON.parse(out);
+  assert.strictEqual(escalated.length, 1);
+  assert.strictEqual(escalated[0].fingerprint, 'stuck');
+  assert.strictEqual(escalated[0].attempts, 3);
+});
+
+test('update prints [] when nothing crosses the escalation threshold', () => {
+  const ds = fakeDurableState({ retryQueue: [] });
+  const { update } = makeRetryQueueCommands(ds);
+  const resultsPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'retry-cli-')), 'results.json');
+  fs.writeFileSync(resultsPath, JSON.stringify([{ fingerprint: 'new', payload: { title: 'New' }, ok: false, error: 'timeout' }]));
+  const out = captureStdout(() => update({ root: '/repo', _: ['update', resultsPath] }));
+  assert.deepStrictEqual(JSON.parse(out), []);
+});
+```
+
+- [ ] **Step 11: Run the tests to verify they fail**
+
+Run: `node --test bin/lib/health-core/tests/retry-cli.test.js`
+Expected: FAIL — `Cannot find module '../retry-cli'`.
+
+- [ ] **Step 12: Implement `bin/lib/health-core/retry-cli.js`**
+
+```js
+'use strict';
+const fs = require('fs');
+const { enqueueRetry, dequeueRetry, shouldEscalate } = require('./durable-state');
+
+// Shared retry-queue CLI command bodies for code-health, harness-health, and
+// journey-health — each CLI calls makeRetryQueueCommands bound to its own
+// readDurableState/writeDurableState (from its own cache.js) and wires the
+// two returned functions to its `retry-queue drain`/`retry-queue update`
+// subcommands. One implementation instead of three near-identical copies.
+function makeRetryQueueCommands({ readDurableState, writeDurableState }) {
+  function drain(args) {
+    const root = args.root || process.cwd();
+    const { retryQueue } = readDurableState(root);
+    process.stdout.write(JSON.stringify(retryQueue.map((e) => e.payload), null, 2) + '\n');
+  }
+
+  // results: [{ fingerprint, payload, ok: true }] or
+  // [{ fingerprint, payload, ok: false, error }] — one entry per payload this
+  // firing just attempted to file (retry-queue drain results and/or brand-new
+  // findings that failed this firing's own filing step). Prints the entries
+  // that just crossed the 3-strikes escalation threshold, for the calling
+  // skill to file a {skill}:filing-failed issue for each.
+  function update(args) {
+    const root = args.root || process.cwd();
+    const resultsPath = args._[1];
+    if (!resultsPath) {
+      process.stderr.write('usage: <cli>.js retry-queue update <results.json> [--root <dir>]\n');
+      process.exit(2);
+    }
+    let results;
+    try {
+      results = JSON.parse(fs.readFileSync(resultsPath, 'utf8'));
+    } catch (err) {
+      process.stderr.write(`retry-queue update: could not read or parse ${resultsPath}: ${err.message}\n`);
+      process.exit(1);
+    }
+    const escalated = [];
+    const result = writeDurableState(root, (current) => {
+      let queue = current.retryQueue;
+      for (const r of results) {
+        if (r.ok) {
+          queue = dequeueRetry(queue, r.fingerprint);
+        } else {
+          queue = enqueueRetry(queue, { fingerprint: r.fingerprint, payload: r.payload, lastError: r.error });
+          const entry = queue.find((e) => e.fingerprint === r.fingerprint);
+          if (shouldEscalate(entry)) escalated.push(entry);
+        }
+      }
+      return { ...current, retryQueue: queue };
+    });
+    if (!result.ok) {
+      process.stderr.write(`retry-queue update: health-state persistence failed after retries: ${result.error}\n`);
+    }
+    process.stdout.write(JSON.stringify(escalated, null, 2) + '\n');
+  }
+
+  return { drain, update };
+}
+
+module.exports = { makeRetryQueueCommands };
+```
+
+- [ ] **Step 13: Run the tests to verify they pass**
+
+Run: `node --test bin/lib/health-core/tests/retry-cli.test.js`
+Expected: PASS (all 4 tests from Step 10).
+
+- [ ] **Step 14: Run the whole suite to confirm no regressions**
+
+Run: `npm test`
+Expected: all tests pass, including the new `retry-cli.test.js` file.
+
+- [ ] **Step 15: Commit**
 
 ```bash
-git add bin/lib/health-core/durable-state.js bin/lib/health-core/tests/durable-state.test.js
-git commit -m "Add bin/lib/health-core/durable-state.js: durable health-state branch storage
+git add bin/lib/health-core/durable-state.js bin/lib/health-core/tests/durable-state.test.js bin/lib/health-core/retry-cli.js bin/lib/health-core/tests/retry-cli.test.js
+git commit -m "Add bin/lib/health-core/durable-state.js and retry-cli.js: durable health-state branch storage
 
 Pure helpers (pruneRuns, enqueueRetry, dequeueRetry, shouldEscalate) plus
 createDurableState, an impure module (execFileSync git/gh calls behind an
 injectable runner, matching scope.js's existing precedent) that reads and
-writes cursors/remembered/retry-queue/run-history against a dedicated
+writes cursors/retry-queue/run-history (and, for skills that opt in via
+includeRemembered, the sub-threshold remembered cache) against a dedicated
 health-state branch instead of local disk. GitHub's fast-forward-only ref
 update provides compare-and-swap for free.
+
+retry-cli.js's makeRetryQueueCommands gives code-health, harness-health, and
+journey-health one shared retry-queue drain/update implementation instead of
+each CLI restating the same logic.
 
 Claude-Session: https://claude.ai/code/session_01CErp2mNj92Dnyp3f8MgKJb"
 ```
@@ -825,8 +1093,8 @@ journey-health/runs.json
 
 ## Mechanism
 
-`bin/lib/health-core/durable-state.js`'s `createDurableState(skillName)` returns
-`{ readState(root), writeState(root, mutatorFn) }`:
+`bin/lib/health-core/durable-state.js`'s `createDurableState(skillName, { includeRemembered } = {})`
+returns `{ readState(root), writeState(root, mutatorFn) }`:
 
 - **`readState`** — `git fetch origin health-state`, then `git show origin/health-state:<path>`
   per file. Degrades to `{}`/`[]` defaults if the branch or a file doesn't exist yet — never
@@ -840,8 +1108,18 @@ journey-health/runs.json
   just means the next firing might redo some rotation/retry work, which is safe (GitHub-issue
   fingerprint dedup means a redundant re-file attempt resolves to `skip`, never a duplicate
   issue).
+- `includeRemembered` (default `false`) gates whether `remembered.json` is ever read or written
+  at all for this skill — a property decided once, at `createDurableState` call time, not
+  inferred per-write from whether the in-memory state object happens to carry a `remembered`
+  key. Only `code-health` passes `{ includeRemembered: true }`; `harness-health` and
+  `journey-health` never opt in, so they can never accidentally pick up a stray
+  `remembered.json`.
 - Each skill's own `bin/lib/{skill}/cache.js` calls these instead of the old local
   `readCursors`/`writeCursors` — same call shape, new storage underneath.
+- **`bin/lib/health-core/retry-cli.js`**'s `makeRetryQueueCommands({ readDurableState, writeDurableState })`
+  gives the retry-queue drain/update commands (below) one shared implementation, bound to each
+  skill's own `readDurableState`/`writeDurableState` — `code-health`, `harness-health`, and
+  `journey-health`'s CLIs each call this instead of restating the same logic three times.
 
 This is impure (real `git`/`gh` calls via an injectable runner), unlike `bin/lib/issues/claims.js`'s
 deliberately emit-only design — issue claim/release is a decision-laden, audit-visible action
@@ -934,8 +1212,8 @@ Claude-Session: https://claude.ai/code/session_01CErp2mNj92Dnyp3f8MgKJb"
 - Test: `bin/lib/code-health/tests/durable-integration.test.js` (new)
 
 **Interfaces:**
-- Consumes: `bin/lib/health-core/durable-state.js`'s `createDurableState`, `enqueueRetry`, `dequeueRetry`, `shouldEscalate`, `pruneRuns` (Task 2)
-- Produces: `bin/lib/code-health/cache.js` exports `readDurableState(root)` and `writeDurableState(root, mutatorFn)` (thin bindings over `createDurableState('code-health')`), used by `bin/code-health.js`. `bin/code-health.js` gains two new subcommands: `retry-queue drain` and `retry-queue update`.
+- Consumes: `bin/lib/health-core/durable-state.js`'s `createDurableState` (Task 2, called with `{ includeRemembered: true }` — code-health is the only skill with a sub-threshold remembered tier) and `bin/lib/health-core/retry-cli.js`'s `makeRetryQueueCommands` (Task 2)
+- Produces: `bin/lib/code-health/cache.js` exports `readDurableState(root)` and `writeDurableState(root, mutatorFn)` (thin bindings over `createDurableState('code-health', { includeRemembered: true })`), used by `bin/code-health.js`. `bin/code-health.js` gains two new subcommands, `retry-queue drain` and `retry-queue update`, wired directly to `makeRetryQueueCommands({ readDurableState, writeDurableState })`'s returned `drain`/`update` functions — no code-health-specific reimplementation.
 
 - [ ] **Step 1: Check whether `recordRun`'s cursor-writing logic already has isolated tests**
 
@@ -998,7 +1276,7 @@ const { createDurableState } = require('../health-core/durable-state');
 // a scheduled cloud-routine firing's container recycling between runs.
 
 const core = createCache('code-health');
-const durable = createDurableState('code-health');
+const durable = createDurableState('code-health', { includeRemembered: true });
 
 // Churn vs the prior run. ratio = (appeared + disappeared) / |prior ∪ current|.
 // PORT.md delta #5: union denominator, NOT max(prior, current).
@@ -1168,56 +1446,14 @@ And immediately before the dedup loop begins (where `const cache = readCache(roo
 
 Also update `decide()`'s call site — it currently passes the local `cache` for the wontfix-fallback check, which is unaffected since `remembered` entries never lived in the wontfix-check path; no change needed there.
 
-- [ ] **Step 8: Add the `retry-queue drain` and `retry-queue update` subcommands**
+- [ ] **Step 8: Wire the `retry-queue drain` and `retry-queue update` subcommands to the shared helper**
 
-Add two new functions above the `main()` function in `bin/code-health.js`:
+Add this near the other `require`s at the top of `bin/code-health.js`:
 
 ```js
-function cmdRetryQueueDrain(args) {
-  const root = args.root || process.cwd();
-  const { retryQueue } = readDurableState(root);
-  process.stdout.write(JSON.stringify(retryQueue.map((e) => e.payload), null, 2) + '\n');
-}
+const { makeRetryQueueCommands } = require('./lib/health-core/retry-cli');
 
-// results: [{ fingerprint, ok: true }] or [{ fingerprint, ok: false, error }],
-// one entry per payload the skill just attempted to file (queue drain results
-// and/or brand-new findings that failed validate-findings' own filing step).
-// Prints the fingerprints that just crossed the 3-strikes escalation
-// threshold, for the skill to file a {skill}:filing-failed issue for each.
-function cmdRetryQueueUpdate(args) {
-  const root = args.root || process.cwd();
-  const resultsPath = args._[1];
-  if (!resultsPath) {
-    process.stderr.write('usage: code-health.js retry-queue update <results.json> [--root <dir>]\n');
-    process.exit(2);
-  }
-  const { enqueueRetry, dequeueRetry, shouldEscalate } = require('./lib/health-core/durable-state');
-  let results;
-  try {
-    results = JSON.parse(fs.readFileSync(resultsPath, 'utf8'));
-  } catch (err) {
-    process.stderr.write(`retry-queue update: could not read or parse ${resultsPath}: ${err.message}\n`);
-    process.exit(1);
-  }
-  const escalated = [];
-  const result = writeDurableState(root, (current) => {
-    let queue = current.retryQueue;
-    for (const r of results) {
-      if (r.ok) {
-        queue = dequeueRetry(queue, r.fingerprint);
-      } else {
-        queue = enqueueRetry(queue, { fingerprint: r.fingerprint, payload: r.payload, lastError: r.error });
-        const entry = queue.find((e) => e.fingerprint === r.fingerprint);
-        if (shouldEscalate(entry)) escalated.push(entry);
-      }
-    }
-    return { ...current, retryQueue: queue };
-  });
-  if (!result.ok) {
-    process.stderr.write(`retry-queue update: health-state persistence failed after retries: ${result.error}\n`);
-  }
-  process.stdout.write(JSON.stringify(escalated, null, 2) + '\n');
-}
+const retryQueueCommands = makeRetryQueueCommands({ readDurableState, writeDurableState });
 ```
 
 Wire both into the command dispatch at the bottom of the file. Find:
@@ -1238,8 +1474,8 @@ Add two lines and update the usage string:
   if (cmd === 'validate-findings') return cmdValidateFindings(args);
   if (cmd === 'classify') return cmdClassify(args);
   if (cmd === 'next-slice') return cmdNextSlice(args);
-  if (cmd === 'retry-queue' && args._[0] === 'drain') return cmdRetryQueueDrain(args);
-  if (cmd === 'retry-queue' && args._[0] === 'update') return cmdRetryQueueUpdate(args);
+  if (cmd === 'retry-queue' && args._[0] === 'drain') return retryQueueCommands.drain(args);
+  if (cmd === 'retry-queue' && args._[0] === 'update') return retryQueueCommands.update(args);
 ```
 
 and:
@@ -1252,7 +1488,7 @@ and:
   );
 ```
 
-`parseArgs` already collects positional args after the subcommand name into `args._`, so `args._[0]` here is `"drain"`/`"update"` (the word right after `retry-queue` on the command line) — the same pattern `validate-findings <findings.json>` already uses via `args._[1]`.
+`parseArgs` already collects positional args after the subcommand name into `args._`, so `args._[0]` here is `"drain"`/`"update"` (the word right after `retry-queue` on the command line) — the same pattern `validate-findings <findings.json>` already uses via `args._[1]`. `makeRetryQueueCommands`'s `drain`/`update` (Task 2) are already fully tested against a fake `readDurableState`/`writeDurableState` pair in `bin/lib/health-core/tests/retry-cli.test.js` — this step is pure wiring, no new logic to test here beyond confirming the CLI dispatches correctly (covered by Step 10's integration test below).
 
 - [ ] **Step 9: Update `cmdStatus` to report the durable remembered count**
 
@@ -1449,8 +1685,8 @@ Claude-Session: https://claude.ai/code/session_01CErp2mNj92Dnyp3f8MgKJb"
 - Test: `bin/lib/harness-health/tests/durable-integration.test.js` (new)
 
 **Interfaces:**
-- Consumes: `bin/lib/health-core/durable-state.js` (Task 2)
-- Produces: `bin/lib/harness-health/cache.js` exports `readDurableState(root)`/`writeDurableState(root, mutatorFn)`. `bin/harness-health.js` gains `retry-queue drain`/`retry-queue update` subcommands, matching code-health's shape from Task 4 (harness-health has no `remembered` tier — confirmed in the spec by grepping for `min-risk`/`remember` in its `SKILL.md`, no matches).
+- Consumes: `bin/lib/health-core/durable-state.js`'s `createDurableState` and `bin/lib/health-core/retry-cli.js`'s `makeRetryQueueCommands` (Task 2)
+- Produces: `bin/lib/harness-health/cache.js` exports `readDurableState(root)`/`writeDurableState(root, mutatorFn)` (bound via `createDurableState('harness-health')` — no `includeRemembered`, since harness-health has no `remembered` tier, confirmed in the spec by grepping for `min-risk`/`remember` in its `SKILL.md`, no matches). `bin/harness-health.js` gains `retry-queue drain`/`retry-queue update` subcommands wired directly to `makeRetryQueueCommands({ readDurableState, writeDurableState })`, same shared implementation code-health uses (Task 4) — no harness-health-specific reimplementation.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1553,63 +1789,24 @@ Replace with:
 
 (Note: today's `recordAudit(root, key, { sha, whenMs })` accepted an optional `sha` that every call site in `cmdValidateFindings` already passes as the default `{}` — i.e. `sha: null` in practice at every current call site. This rewrite preserves that observed behavior exactly; it does not add sha-tracking that wasn't already being exercised.)
 
-- [ ] **Step 5: Add `retry-queue drain`/`retry-queue update` subcommands**
+- [ ] **Step 5: Wire the `retry-queue drain`/`retry-queue update` subcommands to the shared helper**
 
-Add, following the exact same shape as code-health's Task 4 Step 8 (adapted for the `harness-health` skill name and its own findings/payload shape):
+Add this near the other `require`s at the top of `bin/harness-health.js`:
 
 ```js
-function cmdRetryQueueDrain(args) {
-  const root = args.root || process.cwd();
-  const { retryQueue } = readDurableState(root);
-  process.stdout.write(JSON.stringify(retryQueue.map((e) => e.payload), null, 2) + '\n');
-}
+const { makeRetryQueueCommands } = require('./lib/health-core/retry-cli');
 
-function cmdRetryQueueUpdate(args) {
-  const root = args.root || process.cwd();
-  const resultsPath = args._[1];
-  if (!resultsPath) {
-    process.stderr.write('usage: harness-health.js retry-queue update <results.json> [--root <dir>]\n');
-    process.exit(2);
-  }
-  const { enqueueRetry, dequeueRetry, shouldEscalate } = require('./lib/health-core/durable-state');
-  let results;
-  try {
-    results = JSON.parse(fs.readFileSync(resultsPath, 'utf8'));
-  } catch (err) {
-    process.stderr.write(`retry-queue update: could not read or parse ${resultsPath}: ${err.message}\n`);
-    process.exit(1);
-  }
-  const escalated = [];
-  const result = writeDurableState(root, (current) => {
-    let queue = current.retryQueue;
-    for (const r of results) {
-      if (r.ok) {
-        queue = dequeueRetry(queue, r.fingerprint);
-      } else {
-        queue = enqueueRetry(queue, { fingerprint: r.fingerprint, payload: r.payload, lastError: r.error });
-        const entry = queue.find((e) => e.fingerprint === r.fingerprint);
-        if (shouldEscalate(entry)) escalated.push(entry);
-      }
-    }
-    return { ...current, retryQueue: queue };
-  });
-  if (!result.ok) {
-    process.stderr.write(`retry-queue update: health-state persistence failed after retries: ${result.error}\n`);
-  }
-  process.stdout.write(JSON.stringify(escalated, null, 2) + '\n');
-}
+const retryQueueCommands = makeRetryQueueCommands({ readDurableState, writeDurableState });
 ```
-
-Confirm `fs` is already required at the top of `bin/harness-health.js` (it is, for reading the findings file in `cmdValidateFindings`) — no new require needed.
 
 Wire both into the dispatch, following whatever the file's existing `if (cmd === ...)` chain looks like (read it first) — add:
 
 ```js
-  if (cmd === 'retry-queue' && args._[0] === 'drain') return cmdRetryQueueDrain(args);
-  if (cmd === 'retry-queue' && args._[0] === 'update') return cmdRetryQueueUpdate(args);
+  if (cmd === 'retry-queue' && args._[0] === 'drain') return retryQueueCommands.drain(args);
+  if (cmd === 'retry-queue' && args._[0] === 'update') return retryQueueCommands.update(args);
 ```
 
-immediately before the final `process.stderr.write('usage: ...')` fallback, and add `retry-queue drain`/`retry-queue update <results.json>` to that usage string's command list.
+immediately before the final `process.stderr.write('usage: ...')` fallback, and add `retry-queue drain`/`retry-queue update <results.json>` to that usage string's command list. `makeRetryQueueCommands`'s `drain`/`update` are already fully tested in `bin/lib/health-core/tests/retry-cli.test.js` (Task 2) — this step is pure wiring.
 
 - [ ] **Step 6: Run the cache.js test to verify it passes**
 
@@ -1745,8 +1942,8 @@ Claude-Session: https://claude.ai/code/session_01CErp2mNj92Dnyp3f8MgKJb"
 - Test: `bin/lib/journey-health/tests/durable-integration.test.js` (new)
 
 **Interfaces:**
-- Consumes: `bin/lib/health-core/durable-state.js` (Task 2)
-- Produces: `bin/lib/journey-health/cache.js` exports `readDurableState(root)`/`writeDurableState(root, mutatorFn)`. `bin/journey-health.js` gains `retry-queue drain`/`retry-queue update` subcommands, same shape as Tasks 4/6.
+- Consumes: `bin/lib/health-core/durable-state.js`'s `createDurableState` and `bin/lib/health-core/retry-cli.js`'s `makeRetryQueueCommands` (Task 2)
+- Produces: `bin/lib/journey-health/cache.js` exports `readDurableState(root)`/`writeDurableState(root, mutatorFn)` (bound via `createDurableState('journey-health')` — no `includeRemembered`, journey-health has no remembered tier either). `bin/journey-health.js` gains `retry-queue drain`/`retry-queue update` subcommands wired directly to `makeRetryQueueCommands({ readDurableState, writeDurableState })`, same shared implementation as Tasks 4/6 — no journey-health-specific reimplementation.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1851,61 +2048,24 @@ Replace with:
 
 (Preserving today's observed behavior: every current call site passes `hash: null` implicitly via the default `{}` third argument to `recordAudit`, same reasoning as harness-health's Task 6 Step 4 note.)
 
-- [ ] **Step 5: Add `retry-queue drain`/`retry-queue update` subcommands**
+- [ ] **Step 5: Wire the `retry-queue drain`/`retry-queue update` subcommands to the shared helper**
 
-Same shape as Tasks 4/6, adapted for `journey-health`:
-
-```js
-function cmdRetryQueueDrain(args) {
-  const root = args.root || process.cwd();
-  const { retryQueue } = readDurableState(root);
-  process.stdout.write(JSON.stringify(retryQueue.map((e) => e.payload), null, 2) + '\n');
-}
-
-function cmdRetryQueueUpdate(args) {
-  const root = args.root || process.cwd();
-  const resultsPath = args._[1];
-  if (!resultsPath) {
-    process.stderr.write('usage: journey-health.js retry-queue update <results.json> [--root <dir>]\n');
-    process.exit(2);
-  }
-  const { enqueueRetry, dequeueRetry, shouldEscalate } = require('./lib/health-core/durable-state');
-  let results;
-  try {
-    results = JSON.parse(fs.readFileSync(resultsPath, 'utf8'));
-  } catch (err) {
-    process.stderr.write(`retry-queue update: could not read or parse ${resultsPath}: ${err.message}\n`);
-    process.exit(1);
-  }
-  const escalated = [];
-  const result = writeDurableState(root, (current) => {
-    let queue = current.retryQueue;
-    for (const r of results) {
-      if (r.ok) {
-        queue = dequeueRetry(queue, r.fingerprint);
-      } else {
-        queue = enqueueRetry(queue, { fingerprint: r.fingerprint, payload: r.payload, lastError: r.error });
-        const entry = queue.find((e) => e.fingerprint === r.fingerprint);
-        if (shouldEscalate(entry)) escalated.push(entry);
-      }
-    }
-    return { ...current, retryQueue: queue };
-  });
-  if (!result.ok) {
-    process.stderr.write(`retry-queue update: health-state persistence failed after retries: ${result.error}\n`);
-  }
-  process.stdout.write(JSON.stringify(escalated, null, 2) + '\n');
-}
-```
-
-Confirm `fs` is already required at the top of `bin/journey-health.js` (it is). Wire both into the dispatch chain the same way as Tasks 4/6:
+Add this near the other `require`s at the top of `bin/journey-health.js`:
 
 ```js
-  if (cmd === 'retry-queue' && args._[0] === 'drain') return cmdRetryQueueDrain(args);
-  if (cmd === 'retry-queue' && args._[0] === 'update') return cmdRetryQueueUpdate(args);
+const { makeRetryQueueCommands } = require('./lib/health-core/retry-cli');
+
+const retryQueueCommands = makeRetryQueueCommands({ readDurableState, writeDurableState });
 ```
 
-and add both to the usage string's command list.
+Wire both into the dispatch chain the same way as Tasks 4/6:
+
+```js
+  if (cmd === 'retry-queue' && args._[0] === 'drain') return retryQueueCommands.drain(args);
+  if (cmd === 'retry-queue' && args._[0] === 'update') return retryQueueCommands.update(args);
+```
+
+and add both to the usage string's command list. `makeRetryQueueCommands`'s `drain`/`update` are already fully tested in `bin/lib/health-core/tests/retry-cli.test.js` (Task 2) — this step is pure wiring.
 
 - [ ] **Step 6: Run the cache.js test to verify it passes**
 
@@ -2030,7 +2190,8 @@ Claude-Session: https://claude.ai/code/session_01CErp2mNj92Dnyp3f8MgKJb"
 
 ## Self-Review Notes (for whoever executes this plan)
 
-- **Spec coverage:** Task 1 covers the naming rename; Task 2 covers the `durable-state.js` module; Task 3 covers the shared contract fragment; Tasks 4-5, 6-7, 8-9 cover code-health/harness-health/journey-health integration + SKILL.md wiring respectively. The spec's "Files touched" list is fully covered.
-- **A real risk to watch during execution, not fully eliminable by this plan alone:** Tasks 4, 6, 8 each note "confirm none of them relied on the removed exports" for pre-existing tests — this plan could not enumerate every pre-existing test file's exact assertions against `cache.js`'s old exports without reading each one in full at planning time. Whoever executes Steps 12/9/9 (the "run the full suite" steps in Tasks 4/6/8) must actually read any resulting failure rather than assume the described rewrite is sufficient, and update the failing test to call `readDurableState`/`writeDurableState` instead of the removed local-disk functions.
-- **Type/signature consistency:** `readDurableState(root)` and `writeDurableState(root, mutatorFn)` are named identically across all three skills' `cache.js` files (Tasks 4, 6, 8), and `retry-queue drain`/`retry-queue update <results.json>` are named identically across all three CLIs — a future maintainer reading one skill's wiring can trust the other two follow the exact same shape.
-- **No placeholders:** every step above shows complete, exact code — no "similar to Task N" shorthand. Tasks 6 and 8 repeat Task 4's `retry-queue` subcommand code nearly verbatim (adapted only for skill name and cursor-key shape) by design, per this plan's own "No Placeholders" constraint — the alternative (a shared helper) was considered and rejected for this plan, since `bin/code-health.js`, `bin/harness-health.js`, and `bin/journey-health.js` are three independent CLI entry points today with no existing shared-CLI-logic module to extend without a larger, out-of-scope refactor.
+- **Spec coverage:** Task 1 covers the naming rename; Task 2 covers the `durable-state.js` module plus the shared `retry-cli.js` helper; Task 3 covers the shared contract fragment; Tasks 4-5, 6-7, 8-9 cover code-health/harness-health/journey-health integration + SKILL.md wiring respectively. The spec's "Files touched" list is fully covered.
+- **A real risk to watch during execution, not fully eliminable by this plan alone:** Tasks 4, 6, 8 each note "confirm none of them relied on the removed exports" for pre-existing tests — this plan could not enumerate every pre-existing test file's exact assertions against `cache.js`'s old exports without reading each one in full at planning time. Whoever executes the "run the full suite" steps in Tasks 4/6/8 must actually read any resulting failure rather than assume the described rewrite is sufficient, and update the failing test to call `readDurableState`/`writeDurableState` instead of the removed local-disk functions.
+- **Type/signature consistency:** `readDurableState(root)` and `writeDurableState(root, mutatorFn)` are named identically across all three skills' `cache.js` files (Tasks 4, 6, 8), and `retry-queue drain`/`retry-queue update <results.json>` are named identically across all three CLIs — each backed by the exact same `bin/lib/health-core/retry-cli.js` implementation (Task 2), not three independent copies.
+- **No placeholders:** every step above shows complete, exact code — no "similar to Task N" shorthand.
+- **Pre-flight revisions (resolved before Task 1 was dispatched):** an earlier draft of this plan had two defects a pre-flight scan caught and the human partner asked to fix rather than defer to task review: (1) Task 2's `createDurableState` tests originally used a `returns: (() => {...})()` pattern that invoked the closure eagerly, once, while the test's fakeRunner script array was being constructed — for the "retries on a rejected ref update" test this meant the throw fired during array construction, before `writeState` was ever called, rather than lazily on each matched call as the test's own narrative described. Fixed by making `fakeRunner` call `returns`/`throws` lazily, as functions of `(cmd, args)`, whenever a rule provides a function instead of a plain value. (2) The original `buildFiles` inferred whether to write `remembered.json` from truthiness of the in-memory state object's `remembered` field — since `readState` returned `remembered: {}` (a truthy empty object) unconditionally for every skill, harness-health and journey-health would each have gotten a spurious, permanently-empty `remembered.json` written to their branch directory, contradicting the design spec's explicit "remembered.json is code-health-only" file layout. Fixed by adding an explicit `includeRemembered` flag to `createDurableState`, decided once per skill at call time (`true` for code-health only), gating both `readState`'s and `buildFiles`'s handling of the key. (3) Tasks 6 and 8 originally repeated Task 4's `retry-queue` CLI code (`cmdRetryQueueDrain`/`cmdRetryQueueUpdate`) nearly verbatim — the human partner asked for a shared helper instead of accepting the duplication; Task 2 now also creates `bin/lib/health-core/retry-cli.js` (`makeRetryQueueCommands`), and Tasks 4/6/8 each just bind it to their own `readDurableState`/`writeDurableState` and wire two dispatch lines, with zero logic duplicated across the three CLIs.
