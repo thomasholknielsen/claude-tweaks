@@ -214,11 +214,11 @@
 
   <div class="vz-ghi-header">
     <h1>How claude-tweaks Works with GitHub Issues</h1>
-    <p>Three watchdog skills judge the repo and file deduplicated issues (only code-health and harness-health feed the authorized-build pipeline below &mdash; journey-health findings are reviewed directly by a human). A human-gated triage step is the only path that authorizes work; the label it applies is a maintainer's signature, since an issue body is untrusted, prompt-injectable input. A claim-safe dispatcher then hands authorized issues to the normal build pipeline, which closes them only by merging a carrier commit &mdash; never by calling <code>gh issue close</code> directly. Below the diagram: how a filed issue is actually shaped, the two distinct ways issues get filed, and a full reference of every label in play.</p>
+    <p>Three watchdog skills judge the repo and file deduplicated issues (only code-health and harness-health feed the authorized-build pipeline below &mdash; journey-health findings are reviewed directly by a human). A human-gated triage step is the only path that authorizes work; the label it applies is a maintainer's signature, since an issue body is untrusted, prompt-injectable input. A claim-safe dispatcher then hands authorized issues to the normal build pipeline, which closes them only by merging a carrier commit &mdash; never by calling <code>gh issue close</code> directly. Below the diagram: how a filed issue is actually shaped, a full reference of every label in play, and a second diagram for the entirely separate /capture track.</p>
   </div>
 
   <div class="vz-ghi-scroll">
-    <svg class="vz-ghi-svg" viewBox="0 0 2020 2910" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagram of the claude-tweaks GitHub issues lifecycle">
+    <svg class="vz-ghi-svg" viewBox="0 0 2020 3620" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagram of the claude-tweaks GitHub issues lifecycle">
       <defs>
         <marker id="vz-ghi-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M0,0 L10,5 L0,10 z" fill="var(--gi-ink-muted)"></path>
@@ -503,6 +503,95 @@
               <tr><td><code>wontfix</code></td><td>A human, manually on GitHub</td><td>&mdash;</td><td>Universal suppression switch across all three watchdogs &mdash; the next run's fingerprint/dedup check reads it to skip refiling a closed finding</td></tr>
             </tbody>
           </table>
+        </div>
+      </foreignObject>
+
+      <!-- ===== The /capture track: a second, visually distinct pipeline ===== -->
+      <line x1="40" y1="3175" x2="1980" y2="3175" stroke="var(--gi-border)" stroke-width="1"></line>
+      <text class="vz-ghi-section-title" x="40" y="3205">The /capture Track &mdash; a Separate Path Into Issues</text>
+      <foreignObject x="40" y="3215" width="1940" height="26">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-explain-line" style="margin:0;">Same column grid as the pipeline above, on purpose &mdash; this track never joins it. No fingerprint marker, no risk/effort labels, no tier:*, no claim.</div>
+      </foreignObject>
+
+      <text class="vz-ghi-colhead" x="40" y="3262">Capture</text>
+      <text class="vz-ghi-colhead" x="450" y="3262">Route</text>
+      <text class="vz-ghi-colhead" x="860" y="3262">Specify</text>
+      <text class="vz-ghi-colhead" x="1270" y="3262">Build</text>
+      <text class="vz-ghi-colhead" x="1680" y="3262">Close</text>
+
+      <foreignObject x="40" y="3282" width="300" height="190">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
+          <div class="vz-ghi-node-title"><span>/capture</span><span class="vz-ghi-tag">Manual</span></div>
+          <div class="vz-ghi-body">
+            <div>Writes labels: backlog + backlog:category-{product|technical|legal|infrastructure}</div>
+            <div>Lands in the INBOX (github-issues backend) or specs/backlog/{slug}.md (local-files backend)</div>
+            <div>A wholly separate track from the watchdog pipeline above &mdash; no fingerprint marker, no risk/effort labels, no tier:*</div>
+          </div>
+        </div>
+      </foreignObject>
+
+      <path class="vz-ghi-edge" d="M340,3377 L450,3377" marker-end="url(#vz-ghi-arrow)"></path>
+      <foreignObject x="354" y="3352" width="90" height="50">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-conn-label">backlog + category label</div>
+      </foreignObject>
+
+      <foreignObject x="450" y="3282" width="300" height="190">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
+          <div class="vz-ghi-node-title"><span>Route</span><span class="vz-ghi-tag">Manual</span></div>
+          <div class="vz-ghi-body">
+            <div>One AskUserQuestion: Challenge first / Brainstorm directly / Keep in INBOX / Merge into spec {N}</div>
+            <div>Merge into spec {N} closes this issue directly (gh issue close --reason not planned) &mdash; no separate build for it, spec {N}'s own merge covers it</div>
+            <div>/code-health also routes its own fuzzy or below-threshold findings here instead of filing an issue directly</div>
+          </div>
+        </div>
+      </foreignObject>
+
+      <path class="vz-ghi-edge" d="M600,3472 L600,3492" marker-end="url(#vz-ghi-arrow)"></path>
+      <text class="vz-ghi-label" x="610" y="3486">Keep in INBOX</text>
+      <foreignObject x="450" y="3492" width="300" height="90">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
+          <div class="vz-ghi-node-title"><span>Parked</span></div>
+          <div class="vz-ghi-body"><div>Stays in the INBOX &mdash; reviewed later via /tidy's batch triage, not autonomously built</div></div>
+        </div>
+      </foreignObject>
+
+      <path class="vz-ghi-edge" d="M750,3377 L860,3377" marker-end="url(#vz-ghi-arrow)"></path>
+      <foreignObject x="754" y="3352" width="100" height="50">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-conn-label">Challenge or Brainstorm</div>
+      </foreignObject>
+
+      <foreignObject x="860" y="3282" width="300" height="190">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
+          <div class="vz-ghi-node-title"><span>/specify</span><span class="vz-ghi-tag">Manual</span></div>
+          <div class="vz-ghi-body">
+            <div>Derives a spec from the INBOX entry or issue body</div>
+            <div>Same issue-ingestion path any #issue-referenced build already uses</div>
+          </div>
+        </div>
+      </foreignObject>
+
+      <path class="vz-ghi-edge" d="M1160,3377 L1270,3377" marker-end="url(#vz-ghi-arrow)"></path>
+
+      <foreignObject x="1270" y="3282" width="300" height="190">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
+          <div class="vz-ghi-node-title"><span>/build or /flow #issue</span><span class="vz-ghi-tag">Manual</span></div>
+          <div class="vz-ghi-body">
+            <div>No claim, ever &mdash; /build and a manually-run /flow never touch refs/claims/</div>
+            <div>You're present, so collision is visible, not silent (per issue-claims.md's deliberate non-consumers list)</div>
+          </div>
+        </div>
+      </foreignObject>
+
+      <path class="vz-ghi-edge" d="M1570,3377 L1680,3377" marker-end="url(#vz-ghi-arrow)"></path>
+      <text class="vz-ghi-label" x="1578" y="3367">no claim</text>
+
+      <foreignObject x="1680" y="3282" width="300" height="190">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
+          <div class="vz-ghi-node-title"><span>Close</span></div>
+          <div class="vz-ghi-body">
+            <div>Same close-via-merge carrier-commit convention as the watchdog track above</div>
+            <div>Applies regardless of how the issue entered the pipeline</div>
+          </div>
         </div>
       </foreignObject>
     </svg>
