@@ -84,16 +84,21 @@ layout:
 code-health/cursors.json
 code-health/remembered.json      # sub-threshold findings — code-health only
 code-health/retry-queue.json
-code-health/runs/                # capped run-history records, see below
+code-health/runs.json            # capped run-history array, see below
 
 harness-health/cursors.json
 harness-health/retry-queue.json
-harness-health/runs/
+harness-health/runs.json
 
 journey-health/cursors.json
 journey-health/retry-queue.json
-journey-health/runs/
+journey-health/runs.json
 ```
+
+(`runs.json` is a single JSON array, not a directory of one-file-per-run like today's local
+`.claude-tweaks/{skill}/runs/*.json` — since it's already capped to the last 90 records, one
+array file reads/writes in a single blob instead of needing a tree-listing round trip to
+enumerate per-run files. Same record shape, simpler storage.)
 
 File *contents* keep today's existing JSON shapes exactly (the `{ lastSweptMs, lastHash }`
 cursor entry shape, the `{ status, issue }` remembered-entry shape, the
@@ -161,19 +166,32 @@ created it, in which case just proceed as if it already existed).
 
 ### New module
 
-`bin/lib/health-core/durable-state.js`, parameterized like `createCache(skillName)` already is:
+`bin/lib/health-core/durable-state.js`, parameterized like `createCache(skillName)` already is.
+Unlike `bin/lib/issues/claims.js` (deliberately emit-only — claim/release are decision-laden,
+audit-visible actions meant to be legible in the skill's own bash trail), reading and writing
+`health-state` is pure mechanical plumbing nobody inspects mid-flight. It's a closer match to
+`bin/lib/code-health/scope.js`'s existing precedent: impure `execFileSync` calls (there: local
+`git log`/`find`; here: `git fetch`/`git show` for reads, `gh api` for writes), wrapped in
+try/catch, degrading gracefully, with the command runner injectable so tests substitute a fake
+one instead of touching real network — the same reason `scope.js`'s tests use a
+`signals`-injection hook rather than mocking `execFileSync` for the parts that can't run for
+real in a test tmpdir.
 
 ```
-createDurableState(skillName) -> {
-  readState(root)                    // one fetch + N local `git show` reads
-  writeState(root, mutatorFn)        // read-modify-write with CAS retry, as above
+createDurableState(skillName, { run } = {}) -> {
+  readState(root)                    // one `git fetch` + N `git show` reads, degrades to
+                                      // empty state if the branch/file doesn't exist yet
+  writeState(root, mutatorFn)        // read-modify-write with CAS retry (bounded 3 attempts)
 }
 ```
 
-`root` is used only to resolve `owner/repo` (via `gh repo view`) — never to read local files.
-Each skill's existing `cache.js` (`code-health`, `harness-health`, `journey-health`) swaps its
-`core.readCursors`/`core.writeCursors` calls for this module's `readState`/`writeState`, scoped
-to the cursor/remembered/retry-queue/run-history fields relevant to that skill.
+`run` defaults to real `execFileSync`; tests inject a fake runner. `gh api` calls use gh's own
+`{owner}/{repo}` placeholder syntax (auto-filled from the current repo), so no separate
+`owner`/`repo` resolution step is needed. Each skill's existing `cache.js` (`code-health`,
+`harness-health`, `journey-health`) swaps its `core.readCursors`/`core.writeCursors` calls for
+this module's `readState`/`writeState` — same call shape as today, new implementation
+underneath. No CLI stdin/stdout contract changes needed in `bin/code-health.js`,
+`bin/harness-health.js`, or `bin/journey-health.js`.
 
 ## Retry / dead-letter queue (closes #8)
 
