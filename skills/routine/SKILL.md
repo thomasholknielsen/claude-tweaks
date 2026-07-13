@@ -68,7 +68,7 @@ This file is project-local and must stay gitignored — it exists purely to spar
 
 **Step 5 — Resolve the schedule.**
 
-If `--defaults` was passed: use the template's `default_schedule.cron_expression` verbatim as the resolved cron — skip 5b-5d entirely. Still run 5a's classification below to produce the human-readable form Step 7's preview needs (e.g. "Daily, 03:00 UTC") — no picker is shown either way.
+On the default forward path — reached before any Customize selection, whether or not `--defaults` was passed — skip the interactive picker entirely: use the template's `default_schedule.cron_expression` verbatim as the resolved cron. Still run 5a's classification below to produce the human-readable form Step 7's preview needs (e.g. "Daily, 03:00 UTC"). The picker itself (5b-5d) is reached only when Step 7's Customize branch is selected — never on the default forward path, regardless of `--defaults`.
 
 **5a. Parse a cron expression back into a cadence** (here, the template's `default_schedule.cron_expression`; UPDATE Step 3 reuses this same sub-step against the instantiated record's `schedule` field instead — the classification logic below is source-agnostic, it only looks at the cron string itself). Given the 5-field cron string `M H DOM MON DOW` (always UTC), classify it against these patterns in order — the first match wins:
 
@@ -81,7 +81,7 @@ If `--defaults` was passed: use the template's `default_schedule.cron_expression
 | 5 | `MON=*`, `DOW=*`, `DOM` a plain integer 1-31, `H`/`M` plain integers | Monthly | day-of-month = DOM, time `H:M` UTC |
 | 6 | Anything else | (no match) | none — no cadence pre-selected |
 
-**5b. Present the cadence picker.** (Skipped entirely when `--defaults` was passed — see above.) Call `AskUserQuestion` with `question`: `"How often should this routine run?"`, `header`: `"Cadence"`, `multiSelect`: `false`, and exactly these 4 options — a typed cron expression is still available via the tool's built-in `Other` field, so there is no separate "Custom cron expression" option consuming one of the 4 slots:
+**5b. Present the cadence picker.** (Reached only via Step 7's Customize branch — never on the default forward path, regardless of `--defaults`; see above.) Call `AskUserQuestion` with `question`: `"How often should this routine run?"`, `header`: `"Cadence"`, `multiSelect`: `false`, and exactly these 4 options — a typed cron expression is still available via the tool's built-in `Other` field, so there is no separate "Custom cron expression" option consuming one of the 4 slots:
 
 - Option 1 — `label`: `"Every N hours"`, `description`: `"Fires every N hours starting from UTC midnight (e.g. N=3 fires at 00:00, 03:00, 06:00 UTC, ...)"`
 - Option 2 — `label`: `"Daily"`, `description`: `"Fires once a day (or on weekdays only) at a UTC time you choose"`
@@ -142,7 +142,7 @@ Otherwise, call `AskUserQuestion` with `question`: `"Create this routine with th
 
 Marking "Yes, create with defaults" as `(Recommended)` is a deliberate change from this step's earlier no-bias convention — acceptable because the full assembled preview is always shown as part of the same round-trip; the safety property (review before commit) is preserved, only the bias-avoidance styling is relaxed.
 
-Selecting **Customize** re-asks environment (present the value resolved in Step 4 as the recommended option, still overridable) and runs the cadence picker (5b/5c), then re-renders this same preview and confirm with the customized values. Selecting **Yes** or **Cancel** proceeds exactly as before — Step 8 (create) or stop.
+Selecting **Customize** re-asks environment (present the value resolved in Step 4 as the recommended option, still overridable) and runs the cadence picker (5b-5d, reached for the first and only time here), producing a customized cron. Then re-render this same preview and confirm with the customized schedule/environment — but relabel Option 1 to `"Yes, create (Recommended)"` (dropping "with defaults," since the settings shown are no longer the template's defaults); Option 2 ("Customize...") and Option 3 ("Cancel") stay as before, so further adjustment remains possible. Selecting **Yes** (either the first "with defaults" render or a later customized re-render) or **Cancel** proceeds exactly as before — Step 8 (create) or stop.
 
 **Step 8 — Create.** Call `RemoteTrigger {action: "create", body: <assembled body>}`. Read the routine/trigger ID and the claude.ai routine URL from the response (the tool appends a summary line with both).
 
