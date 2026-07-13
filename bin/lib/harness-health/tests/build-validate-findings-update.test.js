@@ -102,6 +102,37 @@ test('buildValidateFindingsUpdate: the new run record is appended to (not replac
   assert.deepStrictEqual(next.runs, [priorRun, newRun], 'prior run must be preserved and the new run appended in order');
 });
 
+test('buildValidateFindingsUpdate: target+kind and gapScan set together both update, with no cross-interference', () => {
+  const current = baseCurrent({
+    cursors: {
+      'skill:billing': { lastAuditedSha: 'keep-me', lastAuditedMs: 999 },
+    },
+  });
+  const now = 4_000_000;
+  const next = buildValidateFindingsUpdate(current, {
+    target: 'auth',
+    kind: 'skill',
+    gapScan: true,
+    runRecord: { runId: 'r1', runAt: 'now', fingerprints: [] },
+    now,
+  });
+  assert.deepStrictEqual(
+    next.cursors['skill:auth'],
+    { lastAuditedSha: null, lastAuditedMs: now },
+    'the per-target cursor must be set when target+kind and gapScan are both present',
+  );
+  assert.deepStrictEqual(
+    next.cursors.__gapScan,
+    { lastScannedSha: null, lastScannedMs: now },
+    'the gap-scan cursor must be set when target+kind and gapScan are both present',
+  );
+  assert.deepStrictEqual(
+    next.cursors['skill:billing'],
+    { lastAuditedSha: 'keep-me', lastAuditedMs: 999 },
+    'an unrelated existing cursor entry must survive untouched',
+  );
+});
+
 test('buildValidateFindingsUpdate: passes through unrelated current fields (e.g. retryQueue) untouched', () => {
   const current = baseCurrent({ retryQueue: [{ fingerprint: 'harnesshealth-xyz', attempts: 1 }] });
   const next = buildValidateFindingsUpdate(current, {
