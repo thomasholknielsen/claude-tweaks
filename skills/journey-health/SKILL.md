@@ -145,6 +145,20 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" validate-findings /tmp/journe
 
 **Step 6 — FILE.**
 
+Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures (see `_shared/health-state.md`):
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" retry-queue drain --root . > /tmp/journey-health-retry-payloads.json
+```
+
+For each payload in `/tmp/journey-health-retry-payloads.json`, attempt `gh issue create` exactly as below. Track every attempt's outcome (retry-queue payloads AND any brand-new payload from this step's own filing loop that fails) as `[{ fingerprint, payload, ok: true }]` or `[{ fingerprint, payload, ok: false, error: "<gh's error output>" }]`, write to `/tmp/journey-health-retry-results.json`, then:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" retry-queue update /tmp/journey-health-retry-results.json --root . > /tmp/journey-health-escalated.json
+```
+
+If `/tmp/journey-health-escalated.json` is non-empty, file (or update) a `journey-health:filing-failed` issue for each entry, naming the stuck fingerprint and its failure history — bootstrap that label the same way as the category/severity labels below.
+
 Before filing, ensure each payload's category and severity sub-labels exist (they won't on first use in a fresh repo — `gh issue create` fails against a nonexistent label):
 
 ```bash
@@ -198,7 +212,7 @@ Report: which journey (if any) was audited, whether the coverage scan ran, how m
 /claude-tweaks:routine create journey-health
 ```
 
-**Headless run flow:** SELECT(`next-target`) → LIGHT TIER JUDGE → COVERAGE SCAN (when due) → validate-findings → file. A firing with nothing due (`target: null`, `coverageScanDue: false`) is a cheap no-op.
+**Headless run flow:** SELECT(`next-target`) → LIGHT TIER JUDGE → COVERAGE SCAN (when due) → validate-findings → file. A firing with nothing due (`target: null`, `coverageScanDue: false`) is a cheap no-op. Rotation cursors (light/deep audit + coverage-scan) and the filing retry queue live on the durable `health-state` branch (`_shared/health-state.md`), surviving container recycling across scheduled firings.
 
 Report-only, matching `/code-health` and `/harness-health` — every finding files as a `journey-health`-labelled GitHub issue, with no `Edit` in `allowed_tools`.
 
