@@ -91,6 +91,26 @@ function createDurableState(skillName, { run = defaultRun, includeRemembered = f
     }
   }
 
+  // Read the per-skill files at whatever branch tip the caller already
+  // fetched, WITHOUT triggering another network fetch. Shared by the public
+  // readState below (which fetches first, for standalone callers) and by
+  // writeState's own CAS loop (which already fetched once per attempt). The
+  // loop must never call the fetch-then-read path a second time: a redundant
+  // fetch transiently failing would make that path silently degrade to empty
+  // defaults and hand the mutator bogus near-empty state, durably
+  // overwriting the branch's real cursors/retry-queue/run-history even
+  // though GitHub's fast-forward check has no way to catch a bad-but-valid
+  // write like that.
+  function readFilesAtFetchedTip(root) {
+    const state = {
+      cursors: showFile(root, statePath(skillName, 'cursors.json'), {}),
+      retryQueue: showFile(root, statePath(skillName, 'retry-queue.json'), []),
+      runs: showFile(root, statePath(skillName, 'runs.json'), []),
+    };
+    if (includeRemembered) state.remembered = showFile(root, statePath(skillName, 'remembered.json'), {});
+    return state;
+  }
+
   // Reads never throw: a missing branch/file degrades to the empty default,
   // matching cache.js's existing "corrupt/missing JSON -> {}" convention.
   // `remembered` is only ever present when this skill opted in via
@@ -105,13 +125,7 @@ function createDurableState(skillName, { run = defaultRun, includeRemembered = f
         ? { cursors: {}, remembered: {}, retryQueue: [], runs: [] }
         : { cursors: {}, retryQueue: [], runs: [] };
     }
-    const state = {
-      cursors: showFile(root, statePath(skillName, 'cursors.json'), {}),
-      retryQueue: showFile(root, statePath(skillName, 'retry-queue.json'), []),
-      runs: showFile(root, statePath(skillName, 'runs.json'), []),
-    };
-    if (includeRemembered) state.remembered = showFile(root, statePath(skillName, 'remembered.json'), {});
-    return state;
+    return readFilesAtFetchedTip(root);
   }
 
   function createBlob(root, content) {
@@ -163,8 +177,22 @@ function createDurableState(skillName, { run = defaultRun, includeRemembered = f
     } catch {
       // fetch failing at all (not just "ref not found") also means: try to bootstrap
     }
-    const commitSha = createCommit(root, EMPTY_TREE_SHA, null, 'health-state: bootstrap');
-    createRef(root, commitSha);
+    // Bootstrap is best-effort and must never throw out of ensureBranch: a
+    // transient gh/network/auth failure here (plausible on the very first
+    // firing in a fresh CCR container — exactly the scenario this whole
+    // design targets) would otherwise propagate straight out of writeState
+    // uncaught, with zero CAS retries attempted, violating this module's
+    // "writeState never throws" contract. Swallow it instead: the branch
+    // still won't exist, so writeState's own per-attempt try/catch keeps
+    // failing its fetch/rev-parse calls against a still-missing branch and
+    // correctly falls through to { ok: false, error } once MAX_CAS_ATTEMPTS
+    // is exhausted.
+    try {
+      const commitSha = createCommit(root, EMPTY_TREE_SHA, null, 'health-state: bootstrap');
+      createRef(root, commitSha);
+    } catch (err) {
+      process.stderr.write(`health-state: branch bootstrap attempt failed: ${err.message}\n`);
+    }
   }
 
   function buildFiles(next) {
@@ -193,7 +221,7 @@ function createDurableState(skillName, { run = defaultRun, includeRemembered = f
         run('git', ['-C', root, 'fetch', 'origin', HEALTH_STATE_BRANCH]);
         const parentSha = currentCommitSha(root);
         const baseTreeSha = currentTreeSha(root);
-        const current = readState(root);
+        const current = readFilesAtFetchedTip(root);
         const next = mutatorFn(current);
         const files = buildFiles(next);
         const entries = files.map((f) => ({

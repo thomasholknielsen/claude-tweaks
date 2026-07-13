@@ -272,6 +272,71 @@ test('writeState never includes a remembered.json blob for a skill that does not
   assert.deepStrictEqual(paths, ['harness-health/cursors.json', 'harness-health/retry-queue.json', 'harness-health/runs.json']);
 });
 
+test('ensureBranch never throws: writeState returns { ok: false, error } (not an uncaught throw) when every bootstrap attempt fails', () => {
+  const { run } = fakeRunner([
+    // The branch does not exist yet on every fetch/rev-parse call throughout
+    // the whole writeState call (ensureBranch's own check AND every attempt
+    // of the CAS loop).
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), throws: "couldn't find remote ref health-state" },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse'), throws: 'unknown revision or path not in the working tree' },
+    // ensureBranch's bootstrap attempt itself fails too (e.g. a transient
+    // gh auth/network failure during first-ever bootstrap) — this is the
+    // exact failure this test targets: before the fix, this throw propagated
+    // straight out of ensureBranch (called as a bare statement before
+    // writeState's own try/catch loop even begins), so it would escape
+    // writeState entirely instead of being retried and reported as
+    // { ok: false }.
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/commits'), throws: 'gh: authentication failed' },
+  ]);
+  const ds = createDurableState('code-health', { run, includeRemembered: true });
+  let result;
+  assert.doesNotThrow(() => {
+    result = ds.writeState('/repo', (current) => current);
+  }, 'writeState must never throw, even when bootstrap fails on every attempt');
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.error, 'must report why it gave up after exhausting CAS retries');
+});
+
+test('writeState fetches at most once per CAS-loop attempt: a redundant internal readState fetch (now removed) would fail, but the write still succeeds using the already-fetched branch state', () => {
+  let fetchCount = 0;
+  const { run } = fakeRunner([
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && matchArgs(args, '^{tree}'), returns: 'tree-sha-1\n' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && !matchArgs(args, '^{tree}'), returns: 'commit-sha-1\n' },
+    {
+      match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'),
+      returns: () => {
+        fetchCount += 1;
+        // Two fetches are legitimate: ensureBranch's own existence-check
+        // fetch (the branch already exists here, so it returns early) and
+        // the CAS loop's single per-attempt fetch. Any THIRD fetch call
+        // could only happen if writeState's loop still called the old,
+        // fetch-then-read readState() internally instead of the
+        // already-fetched-tip read path — that redundant fetch must fail
+        // loudly here so this test actually proves it never happens.
+        if (fetchCount > 2) throw new Error('a third fetch call happened — the redundant internal fetch is back');
+        return '';
+      },
+    },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show') && matchArgs(args, 'cursors.json'), returns: JSON.stringify({ '.': { lastSweptMs: 5 } }) },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show') && matchArgs(args, 'retry-queue.json'), returns: '[]' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show') && matchArgs(args, 'runs.json'), returns: '[]' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show') && matchArgs(args, 'remembered.json'), returns: '{}' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/blobs'), returns: 'blob-sha\n' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/trees'), returns: 'tree-sha-2\n' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/commits'), returns: 'commit-sha-2\n' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/refs/heads/health-state') && matchArgs(args, 'PATCH'), returns: '' },
+  ]);
+  let seenCurrent = null;
+  const ds = createDurableState('code-health', { run, includeRemembered: true });
+  const result = ds.writeState('/repo', (current) => {
+    seenCurrent = current;
+    return { ...current, cursors: { ...current.cursors, updated: true } };
+  });
+  assert.deepStrictEqual(result, { ok: true });
+  assert.deepStrictEqual(seenCurrent.cursors, { '.': { lastSweptMs: 5 } }, 'mutator must see state read from the already-fetched branch tip, not a degraded-empty fallback');
+  assert.strictEqual(fetchCount, 2, 'exactly ensureBranch + one CAS-loop fetch — no redundant internal readState fetch');
+});
+
 test('writeState includes a remembered.json blob only for a skill that opts in', () => {
   const { run, calls } = fakeRunner([
     { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && matchArgs(args, '^{tree}'), returns: 'tree-sha-1\n' },

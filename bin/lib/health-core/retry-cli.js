@@ -34,8 +34,16 @@ function makeRetryQueueCommands({ readDurableState, writeDurableState }) {
       process.stderr.write(`retry-queue update: could not read or parse ${resultsPath}: ${err.message}\n`);
       process.exit(1);
     }
-    const escalated = [];
+    // Declared here but reset to [] on every mutator invocation below: the
+    // mutator is re-invoked fresh by writeDurableState's own CAS-retry loop
+    // on every rejected attempt (see durable-state.test.js's "retries on a
+    // rejected ref update" test), and only the LAST invocation's `next`
+    // state is ever actually persisted. Accumulating pushes across every
+    // attempt (instead of resetting per-attempt) would report the same
+    // crossing-threshold fingerprint duplicated once per retry.
+    let escalated = [];
     const result = writeDurableState(root, (current) => {
+      escalated = [];
       let queue = current.retryQueue;
       for (const r of results) {
         if (r.ok) {
