@@ -35,28 +35,35 @@ test('readCache returns {} on corrupt JSON rather than throwing', () => {
 // removed by the health-state migration — cursors now live on the durable
 // health-state branch (bin/lib/health-core/durable-state.js), not local disk.
 // The cursor-merge semantics these tests used to cover directly (preserve an
-// existing lastHash when an area isn't in areasSwept; only touch swept areas)
-// now live inline in bin/code-health.js's cmdValidateFindings writeDurableState
-// mutator, exercised end-to-end by bin/lib/code-health/tests/durable-integration.test.js
-// and bin/lib/code-health/tests/cli-nextslice.test.js (which seed the durable
-// health-state branch directly via a local bare git remote — no gh/network
-// needed for reads). The write path itself (gh api blob/tree/commit/ref calls)
-// is covered by bin/lib/health-core/tests/durable-state.test.js's fake-runner
-// tests; it cannot be re-exercised for real without live GitHub credentials.
+// existing lastHash when an area isn't in areasSwept; only touch swept areas),
+// plus the remembered-delta merge and run-history append, now live in the
+// pure, separately-exported buildValidateFindingsUpdate (defined in this
+// module, ../cache.js), which bin/code-health.js's cmdValidateFindings hands
+// to writeDurableState as its mutator. It is unit tested directly with
+// plain-object fixtures in
+// bin/lib/code-health/tests/build-validate-findings-update.test.js — no
+// git/gh involved. That extraction was necessary because durable-integration.test.js
+// and bin/lib/code-health/tests/cli-nextslice.test.js only ever exercise the
+// read side (readDurableState) or retry-queue drain: every CLI-level test
+// that reaches cmdValidateFindings's persistence step fails its `git fetch
+// origin health-state` first (no real GitHub-hosted remote configured in any
+// test), so the mutator itself was never actually invoked by any prior test —
+// despite an earlier version of this comment claiming otherwise. The write
+// path's own git/gh mechanics (blob/tree/commit/ref calls) are covered by
+// bin/lib/health-core/tests/durable-state.test.js's fake-runner tests, using
+// trivial synthetic mutators (not this one); those tests cannot be
+// re-exercised for real without live GitHub credentials.
 
 const { readDurableState, writeDurableState } = require('../cache');
 
 test('readDurableState/writeDurableState are bound to the code-health skill name', () => {
-  const calls = [];
-  const fakeRun = (cmd, args) => {
-    calls.push(args.join(' '));
-    if (args.includes('fetch')) return '';
-    throw new Error('fatal: path does not exist'); // every file read defaults to empty
-  };
-  // cache.js's exports are already bound instances — this test only proves the
-  // shape is right and that calling readDurableState doesn't throw with a
-  // fresh/empty branch. Full read/write behavior is covered by
-  // bin/lib/health-core/tests/durable-state.test.js already.
+  // cache.js's exports are already bound instances (createDurableState('code-health', ...)
+  // called once at module load) — this test only proves the shape is right
+  // (both are functions). Their actual read/write behavior against a
+  // fresh/empty branch, a populated branch, CAS retries, and bootstrap is
+  // exercised thoroughly, with a real fake command-runner, by
+  // bin/lib/health-core/tests/durable-state.test.js — no need to duplicate
+  // that here.
   assert.strictEqual(typeof readDurableState, 'function');
   assert.strictEqual(typeof writeDurableState, 'function');
 });

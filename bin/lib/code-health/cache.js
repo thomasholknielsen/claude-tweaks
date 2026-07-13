@@ -1,6 +1,4 @@
 'use strict';
-const fs = require('fs');
-const path = require('path');
 const { createCache } = require('../health-core/cache');
 const { createDurableState } = require('../health-core/durable-state');
 
@@ -36,6 +34,36 @@ function computeChurn(currentFps, priorRun) {
   return { appeared, disappeared, stayed, ratio };
 }
 
+// Pure: computes the next durable-state object for a validate-findings run.
+// current: { cursors, remembered, retryQueue, runs } — the current durable
+// health-state shape (as returned by readDurableState).
+// opts: { areasSwept: string[], hashes: { [areaId]: string }, rememberedDelta: object,
+//         runRecord: { runId, runAt, fingerprints }, now?: number }
+//
+// This is the exact logic bin/code-health.js's cmdValidateFindings hands to
+// writeDurableState as its mutator — extracted here (no git, no gh, no I/O)
+// so its four behaviors (selective per-swept-area cursor update, un-swept-area
+// cursor preservation, remembered-delta merge, run-history append) can be
+// unit tested directly with plain-object fixtures. See
+// bin/lib/code-health/tests/build-validate-findings-update.test.js.
+function buildValidateFindingsUpdate(current, { areasSwept, hashes, rememberedDelta, runRecord, now = Date.now() }) {
+  const cursors = { ...current.cursors };
+  for (const areaId of areasSwept) {
+    const existing = cursors[areaId] || {};
+    cursors[areaId] = {
+      ...existing,
+      lastSweptMs: now,
+      ...(hashes[areaId] != null ? { lastHash: hashes[areaId] } : {}),
+    };
+  }
+  return {
+    ...current,
+    cursors,
+    remembered: { ...current.remembered, ...rememberedDelta },
+    runs: [...current.runs, runRecord],
+  };
+}
+
 module.exports = {
   cachePath: core.cachePath,
   readCache: core.readCache,
@@ -43,4 +71,5 @@ module.exports = {
   computeChurn,
   readDurableState: durable.readState,
   writeDurableState: durable.writeState,
+  buildValidateFindingsUpdate,
 };

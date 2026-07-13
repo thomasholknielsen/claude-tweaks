@@ -3,7 +3,9 @@
 const fs = require('fs');
 const path = require('path');
 const { fingerprint } = require('./lib/code-health/fingerprint');
-const { readCache, writeCache, computeChurn, readDurableState, writeDurableState } = require('./lib/code-health/cache');
+const {
+  readCache, writeCache, computeChurn, readDurableState, writeDurableState, buildValidateFindingsUpdate,
+} = require('./lib/code-health/cache');
 const { decide, RISK_RANK } = require('./lib/code-health/dedup');
 const { computeRisk } = require('./lib/code-health/risk');
 const { validateFindingV2 } = require('./lib/code-health/validate-finding');
@@ -273,24 +275,9 @@ function cmdValidateFindings(args) {
       const areasSwept = sliceId ? [sliceId] : [];
       const hashes = sliceId ? { [sliceId]: contentHash(path.resolve(root, sliceId)) } : {};
       const runRecord = { runId: args.runId, runAt: new Date().toISOString(), fingerprints: [...seen] };
-      const result = writeDurableState(root, (current) => {
-        const cursors = { ...current.cursors };
-        const now = Date.now();
-        for (const areaId of areasSwept) {
-          const existing = cursors[areaId] || {};
-          cursors[areaId] = {
-            ...existing,
-            lastSweptMs: now,
-            ...(hashes[areaId] != null ? { lastHash: hashes[areaId] } : {}),
-          };
-        }
-        return {
-          ...current,
-          cursors,
-          remembered: { ...current.remembered, ...rememberedDelta },
-          runs: [...current.runs, runRecord],
-        };
-      });
+      const result = writeDurableState(root, (current) => buildValidateFindingsUpdate(
+        current, { areasSwept, hashes, rememberedDelta, runRecord },
+      ));
       if (!result.ok) {
         process.stderr.write(
           `[code-health] validate-findings: health-state persistence failed after retries (non-fatal, payloads still emitted): ${result.error}\n`,
