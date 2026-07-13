@@ -4,7 +4,6 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { writeCursors } = require('../cache');
 
 const CLI = path.resolve(__dirname, '..', '..', '..', 'harness-health.js');
 
@@ -12,6 +11,34 @@ function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'harness-health-nt
 function runNextTarget(args, root) {
   const raw = execFileSync('node', [CLI, 'next-target', '--root', root, ...args], { encoding: 'utf8' });
   return JSON.parse(raw);
+}
+
+// writeCursors (local-disk cursor persistence) was removed by the
+// health-state migration — cursors now live on the durable health-state
+// branch (bin/lib/health-core/durable-state.js), not local disk. Its read
+// path (readDurableState) is pure git plumbing (fetch + show), so it CAN be
+// exercised for real without gh/network: seed a local bare repo as `origin`,
+// commit the cursors file directly onto a `health-state` branch, and point
+// `root`'s own `origin` remote at it. Only the WRITE path (gh api
+// blob/tree/commit/ref calls) requires live GitHub credentials — this helper
+// never touches it. Mirrors
+// bin/lib/code-health/tests/cli-nextslice.test.js's seedDurableCursors.
+function seedDurableCursors(root, cursors) {
+  const bareDir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-health-nt-bare-'));
+  execFileSync('git', ['init', '--bare', '-q', bareDir]);
+  const seedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-health-nt-seed-'));
+  execFileSync('git', ['init', '-q', seedDir]);
+  execFileSync('git', ['-C', seedDir, 'checkout', '-q', '-b', 'health-state']);
+  fs.mkdirSync(path.join(seedDir, 'harness-health'), { recursive: true });
+  fs.writeFileSync(path.join(seedDir, 'harness-health', 'cursors.json'), JSON.stringify(cursors));
+  execFileSync('git', ['-C', seedDir, 'add', '-A']);
+  execFileSync(
+    'git',
+    ['-C', seedDir, '-c', 'user.email=test@example.com', '-c', 'user.name=test', 'commit', '-q', '-m', 'seed'],
+  );
+  execFileSync('git', ['-C', seedDir, 'push', '-q', bareDir, 'health-state']);
+  execFileSync('git', ['init', '-q'], { cwd: root });
+  execFileSync('git', ['remote', 'add', 'origin', bareDir], { cwd: root });
 }
 
 test('next-target returns { target: null, gapScanDue: true } for a project with no targets yet', () => {
@@ -60,11 +87,11 @@ test('next-target --kind filters the auto-selected pool to one kind', () => {
   assert.strictEqual(result.target.kind, 'claude-md');
 });
 
-test('next-target gapScanDue is false right after a gap scan was recorded (via --gap-scan on validate-findings)', () => {
+test('next-target gapScanDue is false right after a gap scan was recorded (durable cursor seeded directly)', () => {
   const root = tmp();
   fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
   fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth');
-  writeCursors(root, { __gapScan: { lastScannedSha: null, lastScannedMs: Date.now() } });
+  seedDurableCursors(root, { __gapScan: { lastScannedSha: null, lastScannedMs: Date.now() } });
   const result = runNextTarget([], root);
   assert.strictEqual(result.gapScanDue, false);
 });
