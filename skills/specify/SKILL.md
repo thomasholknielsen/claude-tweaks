@@ -184,33 +184,35 @@ Shaping mode ends here — proceed directly to `## Next Actions`.
 > **Parallel execution:** Use parallel tool calls aggressively — all reads and searches below are independent and should run concurrently. Front-load all I/O before analysis.
 
 1. **The design doc** — understand what was decided, the scope, and the technical approach
-2. **The brainstorming brief** (if one exists in `docs/plans/*-brief.md` for this topic) — contains assumptions surfaced by `/claude-tweaks:challenge`, blind spots, and constraints. These should be absorbed into spec Gotchas sections.
-3. **`specs/INDEX.md`** — current tier structure, dependency graph, existing specs
-4. **All existing spec files** (`specs/*.md`) — scan for overlap with the design doc's scope
+2. **The brainstorming brief** (if one exists in `docs/plans/*-brief.md` for this topic) — contains assumptions surfaced by `/claude-tweaks:challenge`, blind spots, and constraints. These should be absorbed into leaf Gotchas sections.
+3. **Open records** — the record store itself is the current landscape; there is no separate index file to read. Query once, per driver: `work-backend: github-issues` — `gh issue list --state open --json number,title,labels,body --limit 200`, then `parseRecordFacets` (`bin/lib/issues/record.js`) over each issue's `labels`; `work-backend: local-files` — `queryRecords('specs', {})` (`bin/lib/issues/local-store.js`), which returns parsed `facets` directly.
+4. **Every open record's body** (from the query above) — scan for overlap with the design doc's scope; feeds the File Reference Map below.
 5. **Recent git log** — check if any part of the design has already been implemented
-6. **The codebase** — identify existing files, schemas, APIs, and patterns that the new work will build on. This context is critical for writing specs that `/superpowers:writing-plans` can act on.
+6. **The codebase** — identify existing files, schemas, APIs, and patterns that the new work will build on. This context is critical for writing leaf records that `/superpowers:writing-plans` can act on.
 
 ### File Reference Map
 
-Extract the `Key Files` section from every existing spec to build a file→spec map:
+Extract the `### Key Files` subsection (under `## Technical Approach`, per `spec-template.md`'s record body template) from every open record's body to build a file→record map:
 
 ```
-src/components/ShoppingList.tsx → Spec 41, Spec 45
-src/api/items.ts → Spec 41
-src/pages/shopping.tsx → Spec 45, Spec 52
+src/components/ShoppingList.tsx → #41, #45
+src/api/items.ts → #41
+src/pages/shopping.tsx → #45, #52
 ```
 
-This map is used in Step 2 to detect implicit file-based dependencies when creating new specs. If a new spec will touch files that an existing spec also touches, that's an implicit dependency — even if neither spec lists the other in `blocked-by`.
+Records without a `Key Files` subsection contribute nothing to the map — a record still in `backlog` or `parked` isn't spec-shaped yet, so it has no such section; skip it silently rather than treating the absence as an error. `work-backend: local-files` — same extraction, over every file `queryRecords('specs', {})` returns; reference by record id instead of `#N`. "Non-completed" is automatic for local records: there's no separate closed-but-visible state the way GitHub issues have — a local record's file is gone once its work is done, so every file the query returns is by definition still open.
+
+This map is used in Step 2 to detect implicit file-based dependencies when creating new leaves. If a new leaf will touch files that an open record also touches, that's an implicit dependency — even if neither one names the other yet.
 
 ### Overlap Analysis
 
-For each major section/feature in the design doc, classify coverage:
+For each major section/feature in the design doc, classify coverage against the open records found above:
 
 | Coverage | Meaning |
 |----------|---------|
-| **Already exists** | A spec covers this fully |
-| **Partial overlap** | An existing spec covers part of this |
-| **Gap** | No existing spec addresses this |
+| **Already exists** | An open record covers this fully |
+| **Partial overlap** | An open record covers part of this |
+| **Gap** | No open record addresses this |
 
 **For each item with overlap:**
 
@@ -220,22 +222,24 @@ When a pipeline run directory exists, read `overlap` from `config.yml` (default 
 
 | Policy | Action | Log entry |
 |---|---|---|
-| `companion` (default) | Auto-create a companion spec with `blocked-by: {N}`. Reversible — companion is its own file. | `AUTO {time} — Step 1: overlap "{section}" ↔ Spec {N} resolved as companion spec. New spec created at specs/{new-N}.md.` |
-| `skip` | Auto-skip — don't create a new spec for this section. Note in summary. | `AUTO {time} — Step 1: overlap "{section}" ↔ Spec {N} resolved as skip — already covered.` |
-| `extend` | Stage as `staged/specify-overlap-{N}.md` containing the proposed additions to spec {N}. NEVER auto-modify an existing spec — that's not reversible enough. | `STAGED {time} — Step 1: overlap "{section}" ↔ Spec {N} requires extending an existing spec. Stage path: staged/specify-overlap-{N}.md.` |
-| `replace` | Stage as `staged/specify-overlap-{N}.md`. Replacement is destructive; the user must approve at the Review Console. | `STAGED {time} — Step 1: overlap "{section}" ↔ Spec {N} proposed as replacement. Stage path: staged/specify-overlap-{N}.md.` |
+| `companion` (default) | Add a new leaf to the Step 2 work-unit set, pre-marked `Blocked by #N` against the overlapping record — created alongside the rest of the batch in Step 3, no separate write here. Reversible — the leaf is its own record. | `AUTO {time} — Step 1: overlap "{section}" ↔ record {ref} resolved as companion leaf, Blocked by {ref}.` |
+| `skip` | Auto-skip — don't create a leaf for this section. Note in summary. | `AUTO {time} — Step 1: overlap "{section}" ↔ record {ref} resolved as skip — already covered.` |
+| `extend` | Stage as `staged/specify-overlap-{ref}.md` containing the proposed additions to the record's body. NEVER auto-modify an existing record's body — that's not reversible enough. | `STAGED {time} — Step 1: overlap "{section}" ↔ record {ref} requires extending an open record. Stage path: staged/specify-overlap-{ref}.md.` |
+| `replace` | Stage as `staged/specify-overlap-{ref}.md`. Replacement is destructive; the user must approve at the Review Console. | `STAGED {time} — Step 1: overlap "{section}" ↔ record {ref} proposed as replacement. Stage path: staged/specify-overlap-{ref}.md.` |
+
+`{ref}` is `#{N}` under `work-backend: github-issues`, the bare record id under `local-files`.
 
 ### Interactive mode (batch per-overlap decisions)
 
-Collect ALL overlaps first, then present as one batch table. Per CLAUDE.md, never present per-item prompts when 2+ items can batch — that scales badly when a design doc overlaps with multiple existing specs.
+Collect ALL overlaps first, then present as one batch table. Per CLAUDE.md, never present per-item prompts when 2+ items can batch — that scales badly when a design doc overlaps with multiple open records.
 
 ```
 Overlap analysis — {M} overlap(s) found:
 
-| # | Section | Existing spec | Coverage | Recommended | Override? |
-|---|---------|--------------|----------|-------------|-----------|
-| 1 | "{section A}" | Spec {N}: "{title}" | Already exists | Skip | (1) skip / (2) extend / (3) companion / (4) replace |
-| 2 | "{section B}" | Spec {N}: "{title}" | Partial overlap | Companion (Recommended) | (1) skip / (2) extend / (3) companion / (4) replace |
+| # | Section | Existing record | Coverage | Recommended | Override? |
+|---|---------|-----------------|----------|-------------|-----------|
+| 1 | "{section A}" | {ref}: "{title}" | Already exists | Skip | (1) skip / (2) extend / (3) companion / (4) replace |
+| 2 | "{section B}" | {ref}: "{title}" | Partial overlap | Companion (Recommended) | (1) skip / (2) extend / (3) companion / (4) replace |
 | ...|
 ```
 
@@ -295,35 +299,37 @@ Each is independently buildable with clear dependencies (73 → 74 → 75).
 
 ### Implicit Dependency Detection
 
-After decomposing into work units, before writing spec files, build the input set — every new work unit plus every **non-completed** existing spec (from the file reference map in Step 1), each as `{id, keyFiles}` — and partition it with the shared grouping primitive:
+After decomposing into work units, before creating any records, build the input set — every new work unit plus every open record (from the file reference map in Step 1), each as `{id, keyFiles}` — and partition it with the shared grouping primitive:
 
 ```bash
 node -e "
   const { groupByFileOverlap } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
-  const items = require('/tmp/specify-key-files.json'); // [{id, keyFiles}] — new work units + non-completed specs
+  const items = require('/tmp/specify-key-files.json'); // [{id, keyFiles}] — new work units + open records
   console.log(JSON.stringify(groupByFileOverlap(items).filter(g => g.length > 1)));
 "
 ```
 
-Each returned group of size > 1 is a set of specs/work-units sharing at least one file, directly or transitively. Classify each new work unit's group membership:
+Each returned group of size > 1 is a set of records/work-units sharing at least one file, directly or transitively. Classify each new work unit's group membership:
 
 | Overlap Type | Meaning | Action |
 |-------------|---------|--------|
-| Grouped with a **not-started** spec | Potential conflict — both will modify the same files | Add to `blocked-by` or reorder to avoid concurrent modification |
-| Grouped with an **in-progress** spec | Active conflict — concurrent changes to the same files | Add to `blocked-by` — wait for the in-progress spec to finish |
-| Grouped with another **new** spec from this decomposition | Internal conflict within the batch | Add explicit dependency between them and order accordingly |
+| Grouped with a **not-started** record (no `bot:in-progress`) | Potential conflict — both will modify the same files | Flag for a `Blocked by #N` link in Step 4, or reorder to avoid concurrent modification |
+| Grouped with an **in-progress** record (`bot:in-progress`) | Active conflict — concurrent changes to the same files | Flag for a `Blocked by #N` link in Step 4 — wait for the in-progress record to finish |
+| Grouped with another **new** work unit from this decomposition | Internal conflict within the batch | Flag the dependency between the two resulting leaves for Step 4's linking pass |
 
-(Completed specs are excluded from the input set entirely — no group they'd appear in needs action.)
+`work-backend: local-files` carries no bot-state signal (`_shared/work-record.md`: "the local driver carries no bot state") — every group membership with an existing local record collapses to the first row; there's no in-progress distinction available to make.
 
-Present any detected implicit dependencies as part of the Step 9 summary. These are flagged alongside the explicit `blocked-by` relationships from the tier/prerequisite analysis.
+(Closed records are excluded from the input set entirely — no group they'd appear in needs action.)
 
-> **Algorithm shared with /claude-tweaks:help:** both /specify and /help call the same `groupByFileOverlap` (`bin/lib/issues/grouping.js`) — /specify runs it at creation time; /help re-runs it at dashboard time to catch new conflicts from specs that started building after /specify ran. Also reused by `/claude-tweaks:triage dispatch` to group claimed issues before parallel execution (see `triage/SKILL.md`).
+Present any detected implicit dependencies as part of the Step 9 summary. These are flagged alongside the `Blocked by #N` relationships already noted from Overlap Analysis — both feed the same Step 4 linking pass, which is where the actual links get written, once every record's number exists.
 
-> **Why this matters:** Explicit `blocked-by` captures logical dependencies (spec B needs spec A's API). File-based overlap captures physical dependencies (both specs modify the same file). Missing the physical dependency leads to merge conflicts and duplicated work during concurrent builds.
+> **Algorithm shared with /claude-tweaks:help:** both /specify and /help call the same `groupByFileOverlap` (`bin/lib/issues/grouping.js`) — /specify runs it at creation time; /help re-runs it at dashboard time to catch new conflicts from records that started building after /specify ran. Also reused by `/claude-tweaks:triage dispatch` to group claimed issues before parallel execution (see `triage/SKILL.md`).
+
+> **Why this matters:** An explicit `Blocked by #N` link captures a logical dependency (leaf B needs leaf A's API). File-based overlap captures a physical dependency (both leaves modify the same file). Missing the physical dependency leads to merge conflicts and duplicated work during concurrent builds.
 
 ## Step 2.5: Design Pre-Steps (frontend specs only)
 
-Before writing spec files, run frontend detection and two design pre-steps when the design doc covers a frontend surface — these capture design context (`shape`) and creative direction (`design-intent:`) so the resulting specs carry both forward to `/build` and `/flow`'s polish phase. For the frontend-detection sniff rules, the shape pre-step auto/interactive behavior, and the design-intent question + answer-mapping table, read `design-pre-steps.md` in this skill's directory.
+Before creating leaf records, run frontend detection and two design pre-steps when the design doc covers a frontend surface — these capture design context (`shape`) and creative direction (`design-intent:`) so the resulting specs carry both forward to `/build` and `/flow`'s polish phase. For the frontend-detection sniff rules, the shape pre-step auto/interactive behavior, and the design-intent question + answer-mapping table, read `design-pre-steps.md` in this skill's directory.
 
 For non-frontend design docs (no frontend signals detected), skip this step entirely — set `surface: backend` (or `infra`) on each generated spec; do not write `design-intent:`.
 
@@ -358,58 +364,169 @@ Place these recommendations in the Step 9 summary under a `### Diagram suggestio
 
 **Auto mode:** the diagram suggestion is always advisory — `auto` mode emits the recommendation without prompting, logs `STAGED {time} — Step 2.5d: diagram-suggestion ({type}) for {spec/slug}. Reversibility: high.` to the decision log, and continues. No mid-flow stop.
 
-## Step 3: Write the Spec Files
+## Step 3: Create the records
 
-For each work unit, assign the next available spec number (check `specs/INDEX.md`) and create `specs/NN-title.md`.
+Records are created **parent-first**: the parent's number has to exist before any leaf can link to it. Every body is composed fully in memory before any write call — compose-then-write-once, the same discipline Shaping mode uses.
 
-### Spec Template
+### Parent record
 
-Each spec follows a structured template with sections designed to give `/superpowers:writing-plans` everything it needs to produce a TDD execution plan. For the complete template and a table explaining what `/superpowers:writing-plans` does with each section, read `spec-template.md` in this skill's directory.
+One parent per decomposition run (or per `phase-N`, when scoped — see Step 7's phase table). Type is always `feature` — the parent is a summary record, not agent-sized work: **parents never get `ready`**, and they carry no `risk:*`/`effort:*` scoring at all.
+
+Parent body = design summary: the problem, the chosen approach, the key decisions, and why the alternatives lost. This is deliberately not the design doc pasted verbatim — it's the durable digest that has to survive Step 7 deleting the design doc. Prefix it with a one-line metadata block, `Surface: {value}` — reuse whatever Step 2.5a's whole-design-doc detection already produced (the canonical value list lives in `spec-template.md`). The parent never carries `Design-intent:` — parents are never built or polished directly, so creative intent has nothing to attach to.
+
+```bash
+node -e "const {recordPayload}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js');
+  const p=recordPayload({title:process.argv[1], body:process.argv[2], type:'feature'});
+  require('fs').writeFileSync('/tmp/specify-parent-payload.json', JSON.stringify(p))" "$PARENT_TITLE" "$PARENT_BODY"
+
+node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/specify-parent-payload.json','utf8')).body)" > /tmp/specify-parent-body.md
+```
+
+`recordPayload` returns zero labels for the parent — no origin, no scoring, no `ready` — the only label that can ever apply is `type:feature`, and only under `work-types: labels`; bootstrap it first (per `_shared/label-bootstrap.md`, `LABELS_JSON = [["type:feature", "Type: new capability or enhancement"]]`, the pair from `record.js`'s `TYPE_LABELS`).
+
+**`work-backend: github-issues`** — the Type expression branch (`_shared/work-record.md`'s config-key table; read `work-types` once, never re-probe mid-flow):
+
+```bash
+# work-types: native
+PARENT_URL=$(gh issue create --title "$PARENT_TITLE" --body-file /tmp/specify-parent-body.md --type feature)
+# work-types: labels
+PARENT_URL=$(gh issue create --title "$PARENT_TITLE" --body-file /tmp/specify-parent-body.md --label type:feature)
+
+PARENT_NUM=$(basename "$PARENT_URL")
+```
+
+**`work-backend: local-files`:**
+
+```bash
+node -e "const {writeRecord, allocateId}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
+  const id = allocateId('specs');
+  const body = require('fs').readFileSync('/tmp/specify-parent-body.md', 'utf8');
+  writeRecord(\`specs/\${id}-\${process.argv[1]}.md\`, {
+    title: process.argv[2],
+    body,
+    facets: { type: 'feature' }
+  });
+  console.log(id)" "$PARENT_SLUG" "$PARENT_TITLE"
+```
+
+Capture `$PARENT_NUM` / `$PARENT_ID` — every leaf below links back to it.
+
+**If parent creation fails** (`gh` unreachable, transient API error): fall back to `local-store.js` for the parent — same `unsynced: true` fallback as the leaf-level one below — and run the rest of this decomposition on the local driver too, so leaves have a real parent to link to instead of a GitHub record that doesn't exist. `/tidy`'s Sync finding reconciles the whole family later.
+
+**Resuming after a partial run:** the idempotency block below is a leaf concern — the parent is created once. If a prior run already created the parent but died before any leaf was made, search for it by title (`gh issue list --search "$PARENT_TITLE" --state all` / a `queryRecords('specs', {})` title scan) and reuse that number instead of creating a second parent.
+
+### Leaves
+
+**Only leaves get `ready`** — and only leaves carry `risk:*`/`effort:*` scoring; the parent gets neither. One per work unit from Step 2, in any order — Step 4 does the linking once every number exists, so creation order doesn't matter.
+
+**Tasks never become records.** A leaf's own internal breakdown — the Deliverables checklist, the Acceptance Criteria list — stays exactly that: a checklist inside the leaf's body. `/superpowers:writing-plans` turns it into an execution plan at build time; nothing at this granularity spawns a further issue per task.
+
+**Body** — spec-shaped per `spec-template.md`'s record body template, prefixed with the metadata block (`Surface: {value}` and, when the unit is frontend-flavored, `Design-intent: {value}`) — the identical per-record procedure Shaping mode's Metadata block subsection already documents, just run once per leaf instead of once per shaped record.
+
+**Type** — matches the parent (`feature`) unless the unit is clearly a defect fix (a bug report, a regression, broken behavior) — override to `bug` in that case.
+
+**Fingerprint** — deterministic: `{design-doc-slug}:{unit-slug}`. The same design doc always produces the same fingerprint for the same unit; that determinism is what turns the idempotency check below into a real resume path instead of a one-shot guard.
+
+```bash
+node -e "const {recordPayload}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js');
+  const p=recordPayload({
+    title: process.argv[1], body: process.argv[2], type: process.argv[3],
+    risk: process.argv[4], effort: process.argv[5], ready: true,
+    fingerprint: process.argv[6]
+  });
+  require('fs').writeFileSync('/tmp/specify-leaf-payload.json', JSON.stringify(p))" \
+  "$LEAF_TITLE" "$LEAF_BODY" "$LEAF_TYPE" "$LEAF_RISK" "$LEAF_EFFORT" "${DESIGN_DOC_SLUG}:${UNIT_SLUG}"
+
+node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/specify-leaf-payload.json','utf8')).body)" > /tmp/specify-leaf-body.md
+```
+
+`recordPayload` embeds the fingerprint as `<!-- work-fingerprint: {design-doc-slug}:{unit-slug} -->` in the returned body — `/tmp/specify-leaf-body.md` above already carries it, so both drivers below write the same fingerprinted text.
+
+**Idempotency (resume path).** Before creating any leaf, list existing `work-fingerprint` markers once:
+
+`work-backend: github-issues` (REST list, NOT the search index — the search index lags behind fresh writes, including this same run's own):
+
+```bash
+gh issue list --state all --json number,body --limit 200 > /tmp/specify-all-issues.json
+node -e "
+  const { extractFingerprint } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const issues = require('/tmp/specify-all-issues.json');
+  const fps = new Set(issues.map(i => extractFingerprint(i.body)).filter(Boolean));
+  require('fs').writeFileSync('/tmp/specify-existing-fingerprints.json', JSON.stringify([...fps]));
+"
+```
+
+`work-backend: local-files` (the local marker search — same idea, read every record body and extract its marker):
+
+```bash
+node -e "
+  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+  const { extractFingerprint } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const fps = new Set(queryRecords('specs', {}).map(r => extractFingerprint(r.body)).filter(Boolean));
+  require('fs').writeFileSync('/tmp/specify-existing-fingerprints.json', JSON.stringify([...fps]));
+"
+```
+
+Then, immediately before **each individual create** — not just once against the batch list above — re-check that leaf's fingerprint against the same set. A match means it already exists (a prior partial run, or a concurrent one): skip the create, and record the existing number for Step 4's linking pass instead. On every successful create, add the new leaf's fingerprint to the in-memory set before moving to the next unit — this catches a same-run collision (two units that happen to slugify to the same name) exactly the way it catches a prior-run resume, since the set stays live for the whole loop rather than being a snapshot trusted for its duration.
+
+**Write-path resilience.** A `gh` create failure for one leaf (the parent already exists on GitHub) falls back to `local-store.js` for that leaf only — write it locally with `unsynced: true` (fingerprint preserved, so a later sync still dedups correctly) and continue with the rest of the batch. Don't abort the whole decomposition over one failed leaf. `/tidy`'s Sync finding reconciles the local leaf onto GitHub on a later pass. The same rule applies to Step 4's linking edits below — a failed link gets noted and the pass continues, it doesn't roll back everything already created.
+
+**Body size ceiling.** A leaf body pushing past roughly 50KB (GitHub's hard cap is 65,536 characters) is a decomposition smell, not a formatting problem — split the unit further rather than shipping an oversized leaf.
 
 ### Rules
 
-- **Absorb decisions from the design doc** — the spec must be self-contained. The design doc will be deleted, so all rationale, decisions, and technical context must live here.
+- **Absorb decisions from the design doc** — each leaf must be self-contained. The design doc will be deleted (Step 7), so all rationale, decisions, and technical context relevant to that leaf lives in its own body.
 - **Be specific about files** — "update the API" is too vague. Name the exact file and what to add.
 - **Include testable acceptance criteria** — not "works correctly" but specific assertions an agent can verify.
-- **Don't over-specify implementation** — the spec says *what* and *where*, the plan (created by `/superpowers:writing-plans` during `/claude-tweaks:build`) says *how*.
 - **Include gotchas from project memory** — search CLAUDE.md and memory files for relevant patterns, common mistakes, and lessons learned.
-- **Absorb the brainstorming brief** — if a `*-brief.md` exists for this topic, carry its assumptions, blind spots, and constraints into the relevant specs' Gotchas sections. These are hard-won insights from `/claude-tweaks:challenge` that should survive.
+- **Absorb the brainstorming brief** — if a `*-brief.md` exists for this topic, carry its assumptions, blind spots, and constraints into the relevant leaves' Gotchas sections. These are hard-won insights from `/claude-tweaks:challenge` that should survive. (Step 4 re-checks this systematically before the brief becomes unrecoverable.)
 - **Include known manual steps — but only ones that survive the triage.** The Manual Steps section is reserved for items that have no CLI, require human judgment, or require out-of-band signoff. Infrastructure setup, env var provisioning, and API key creation with CLIs (`terraform`, `gh secret set`, `vercel env add`, `stripe`, `ldcli`, etc.) do NOT belong here — `/build` Step 2.5 auto-classifies and executes them. See `spec-template.md` Manual Steps section for the triage criteria and the `reason-not-auto` qualifier.
-- **Write design frontmatter (Phase 2+)** — every generated spec must include `surface:` (from Step 2.5a detection) and, when frontend, `design-intent:` (from Step 2.5c question). For backend/infra specs, write `surface: backend` (or `infra`) and either omit `design-intent:` or set it to `none`. The canonical field reference lives in `spec-template.md`'s "Frontmatter reference (canonical spec)" section.
-- **Write issue-tracking frontmatter when the input resolved from a GitHub issue reference** (Resolve-the-input case 1) — write `recon-issue: <number>` on the generated spec, plus `recon-fingerprint: <fp>` when a fingerprint marker was found in the issue body, plus `code-health-effort: <tier>` when the issue carried a `code-health:effort-<tier>` label. This is what lets `/wrap-up`'s close-via-merge and issue-claim-release steps, and `/build`'s effort-based model-tier selection, engage — whether `/specify` was invoked directly on an issue reference or via `/claude-tweaks:flow #{issue}`'s hand-off.
-- **Restore-on-promotion bookkeeping for a promoted `parked` issue** (Resolve-the-input case 1 only) — when `wasParked` from Step 1 is true: remove `parked` now (`gh issue edit {n} --remove-label parked`) and write `recon-was-parked: true` on the generated spec. Write the field regardless of whether the removal call succeeded — best-effort, log a warning and continue on failure; `/tidy` Step 4.7's backstop check catches a removal that silently failed. Omit the field entirely when `wasParked` is false — there is no explicit `false` value.
-- **Flag high-effort code-health issues for possible decomposition** — when `code-health-effort: high` would be stamped, add a note to the generated spec's Overview section (e.g. "Originating finding was judged high-effort — consider whether this should decompose into multiple specs rather than one oversized unit.") rather than silently producing a single spec that may be too large for `/superpowers:writing-plans` to size well. This is a surfaced consideration, not an automatic split — the human or a later `/specify` pass decides.
 
 ---
 
-## Step 4: Update INDEX.md
+## Step 4: Link and order
 
-Add the new specs to `specs/INDEX.md`:
+Every parent and leaf number now exists. This pass wires the relationships between them and absorbs the last of the design doc's and brief's context, before Step 7 deletes both.
 
-1. **Determine tier placement** — which tier does each work unit belong in?
-2. **Add dependency info** — which specs must complete before this one can start?
-3. **Add to the tier table** with status "Not started"
+### Linking
 
-Tier labels are project-specific. Common patterns:
+Branches on driver, then — for `github-issues` — on `work-links`.
 
-| Tier | Typical Meaning |
-|------|----------------|
-| Tier 1 | Must-have / blocks launch or critical path |
-| Tier 2 | High-value, ship soon after launch |
-| Tier 3 | Differentiators and premium features |
-| Tier 4 | Platform expansion (mobile, extensions) |
-| Tier 5 | Scale-triggered optimization |
+**`work-backend: github-issues`, `work-links: native`:**
 
-Adapt tiers to your project's roadmap structure.
+- Parent ↔ leaf — a sub-issue link, once per leaf:
 
-### Design Context Preservation
+  ```bash
+  gh api repos/{owner}/{repo}/issues/$PARENT_NUM/sub_issues -f sub_issue_id=$LEAF_NUM
+  ```
 
-Before deleting the design doc and brief, absorb key context into the specs so it survives:
+- Leaf ↔ leaf, and leaf ↔ any pre-existing open record from Step 1's companion overlaps or Step 2's implicit-dependency notes — the blocked-by dependency endpoint (the same GitHub issue-dependencies feature `capabilities-probe.js`'s `probeSchema` checks for, via the `blockedBy`/`issueDependenciesSummary` GraphQL fields). Call it once per dependency edge, dependent leaf pointing at blocking record.
+- No body edits needed for native linking — the relationships live in GitHub's own graph, not in text.
 
-1. **Decision Rationale** — from the design doc, extract the "why" behind major decisions (approach choices, technology selections, rejected alternatives). Add as a `## Decision Rationale` section in the first spec of the decomposition.
-2. **Assumptions & Constraints** — from the brief (produced by `/claude-tweaks:challenge`), extract validated assumptions, surfaced blind spots, and hard constraints. Add as an `## Assumptions` section in each spec where the assumptions are relevant.
+**`work-backend: github-issues`, `work-links: body-text`** (fallback when native isn't available):
 
-This ensures specs are self-contained — a developer reading spec 73 understands *why* the approach was chosen without needing the deleted design doc.
+- Parent ↔ leaf — append one task-list line per leaf to the parent's body, `- [ ] #{leafNum}`, then a single `gh issue edit $PARENT_NUM --body-file` with the recomposed body (design summary + Decision Rationale below + the task list).
+- Leaf ↔ leaf / leaf ↔ pre-existing record — add one `Blocked by #N` line to the dependent leaf's body per dependency (line-anchored, matching `record.js`'s `DEP_RE`: the literal text `Blocked by #` followed by the number, at the start of a line), then a single `gh issue edit $LEAF_NUM --body-file` with the recomposed body.
+- Readers parse this back out with `record.js`'s `parseDependencies(body)` — it returns every `Blocked by #N` target as a deduped, ordered array; a mid-line mention doesn't count, only a line-starting one does.
+
+**`work-backend: local-files`** (no native/body-text choice — frontmatter is the only mechanism):
+
+- Parent ↔ leaf — `facets.parent = $PARENT_ID` on each leaf.
+- Leaf ↔ leaf / leaf ↔ pre-existing record — `facets.blockedBy = [N1, N2, ...]` on the dependent leaf.
+- Both are `writeRecord` calls — compose-then-write-once, recompose the full facets/body and write once per leaf that needs a link. No task-list or `Blocked by #N` text needed; `parent`/`blocked-by` frontmatter is already queryable via `queryRecords`.
+
+There's no ordering step separate from linking — the dependency graph these links encode **is** the order. The old tier tables are gone; nothing replaces them. `priority:*` labels are optional, dispatch-ordering-only, and human-applied only — per the permission matrix in `_shared/work-record.md`, no skill in this pipeline, including `/specify`, ever adds one.
+
+### Decision Rationale and Assumptions
+
+Before Step 7 deletes the design doc and brief, absorb the last of their context into the records that survive:
+
+1. **Decision Rationale** — from the design doc, extract the "why" behind major decisions (approach choices, technology selections, rejected alternatives). Add as a `## Decision Rationale` section in the **parent** body — recompose the parent's full body (design summary + this new section + the task list, under `body-text`) and write once.
+2. **Assumptions** — from the brief (produced by `/claude-tweaks:challenge`), extract validated assumptions, surfaced blind spots, and hard constraints relevant to each leaf. Fold them into that leaf's **existing `## Gotchas` section** as additional bullets — there's no separate `## Assumptions` section anymore. Recompose the affected leaf's body and write once.
+
+Step 3's Rules already asked for brief-absorption while each leaf was being drafted; this is the systematic completeness pass — the last chance to catch a leaf that missed something, before the source becomes unrecoverable.
+
+This is what keeps the records self-contained: reading the parent, or any leaf, later explains *why* the approach was chosen without needing the deleted design doc.
 
 ## Step 5: Multi-Persona Red-Team
 
