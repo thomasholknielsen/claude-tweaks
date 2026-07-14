@@ -27,7 +27,7 @@ One program, decomposed from `docs/superpowers/specs/2026-07-13-unified-work-rec
 | 17 | /specify as the shaper | **Complete** | 14 |
 | 18 | /triage as the pure human gate | **Complete** | 14 |
 | 19 | /dispatch — queue consumer (new skill) | **Complete** | 18 |
-| 20 | Executors — /flow, /build, /wrap-up materialization | Not started | 17 |
+| 20 | Executors — /flow, /build, /wrap-up materialization | **Complete** | 17 |
 | 21 | Dashboards and hygiene — /tidy, /help | Not started | 20 |
 | 22 | /init — work-backend, labels, Types probe | **Complete** | 13 |
 | 23 | Docs consolidation + major version (6.0.0) | Not started | 15, 16, 19, 20, 21, 22 |
