@@ -6,8 +6,8 @@ const { ensureLabelPayload } = require('../labels');
 
 test('returns { name, description } for a valid description', () => {
   assert.deepStrictEqual(
-    ensureLabelPayload('backlog', 'Inbox-stage backlog entry'),
-    { name: 'backlog', description: 'Inbox-stage backlog entry' },
+    ensureLabelPayload('by:capture', 'Origin: filed via /capture'),
+    { name: 'by:capture', description: 'Origin: filed via /capture' },
   );
 });
 
@@ -45,11 +45,13 @@ const REAL_LABEL_DESCRIPTIONS = [
   ['harness-health:additive', 'Safe, mechanical patch — additive change with no removed behavior'],
   ['harness-health:restructural', 'Structural change requiring human review before applying'],
   ['harness-health:new-skill', 'Proposes a new skill candidate surfaced by harness-health'],
-  ['tier:needs-review', 'Triage flagged this - needs a closer human look before authorizing'],
-  ['tier:approved', 'Triage authorized this for building - human approves the merge'],
-  ['tier:fast-track', 'Triage authorized this for building - auto-merges if the run comes back clean'],
+  ['auto:build', 'Grant: agents may build this record autonomously (human-granted; machinery only removes)'],
+  ['auto:merge', 'Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)'],
   ['bot:in-progress', 'Bot state: an agent currently holds the claim on this record'],
-  ['parked', 'Backlog entry parked until its trigger condition is met'],
+  ['bot:blocked', 'Bot state: retry ceiling reached — needs human re-triage before autonomous retry'],
+  ['wontfix', 'Closed as not-planned; health skills will not re-file findings with this fingerprint'],
+  ['ready', "Stage: spec-shaped and agent-sized — in the authorization gate's worklist"],
+  ['parked', 'Stage: deliberately on hold until its trigger fires (milestone due or watched path change)'],
 ];
 
 test('every real label description used across the skill tree stays under the cap', () => {
