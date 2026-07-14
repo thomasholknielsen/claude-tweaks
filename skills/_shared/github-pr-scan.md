@@ -20,7 +20,7 @@ Individual `gh` command failures mid-scan (rate limit, network, transient API er
 
 ## Staleness Thresholds
 
-Keyed on `updatedAt`. Same scale as /tidy's INBOX audit:
+Keyed on `updatedAt`. Same scale as /tidy's backlog-record audit:
 
 | Age since last update | Classification |
 |----------------------|----------------|
@@ -46,77 +46,66 @@ Emit `[pr]` rows per the Output Contract.
 
 ## Scope: `repo-wide` (consumed by /tidy Step 4.8)
 
-Full sweep of open PRs, code-health-labelled issues, harness-health-labelled issues, and journey-health-labelled issues.
+Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-labelled issues, and `by:journey-health`-labelled issues. Backlog-record findings (stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) are `/tidy` Step 1's job now, not this scope's — `repo-wide` no longer queries the retired `backlog` label (see `tidy/scan-procedures.md` Step 1).
 
 1. **Open PRs** — `gh pr list --state open --json number,title,updatedAt,isDraft,reviewDecision,headRefName,url` → classify each per the Staleness Thresholds.
 2. **Unresolved threads per open PR** — the same GraphQL query as `current-pr` item 2, once per open PR.
-3. **Code-health issues** — `gh issue list --label code-health --state open --json number,title,labels,updatedAt,url`.
+3. **Code-health issues** — `gh issue list --label by:code-health --state open --json number,title,labels,updatedAt,url`.
 4. **Merged/closed PRs with local remnants** — `gh pr list --state merged --limit 50 --json number,headRefName`; cross-check each `headRefName` against `git -C "{REPO_ROOT}" branch --list` output.
-5. **Harness-health issues** — `gh issue list --label harness-health --state open --json number,title,labels,updatedAt,url`.
-6. **Journey-health issues** — `gh issue list --label journey-health --state open --json number,title,updatedAt,url`.
-7. **Backlog issues** (only when this repo's CLAUDE.md sets `backlog-backend: github-issues` — read it directly from CLAUDE.md's `## Backlog integration` section, same as `/tidy` Steps 1/1.5; skip this item entirely under `local-files` or a missing flag) — write the query's output to a temp file, then classify each issue:
+5. **Harness-health issues** — `gh issue list --label by:harness-health --state open --json number,title,labels,updatedAt,url`.
+6. **Journey-health issues** — `gh issue list --label by:journey-health --state open --json number,title,updatedAt,url`.
+7. **Grant-queue counts** — one self-contained query feeds three digest metrics, per `_shared/work-record.md`'s record taxonomy. Not gated on `work-backend` — this scope only runs once the Detection Ladder already confirmed a reachable GitHub remote, regardless of which driver stores records:
 
    ```bash
-   gh issue list --label backlog --state open --json number,title,body,labels,milestone,updatedAt,url,state > /tmp/backlog-issues.json
-   node -e "const {classifyBacklogIssue}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/backlog.js');
-     const issues=JSON.parse(require('fs').readFileSync(0,'utf8'));
-     console.log(JSON.stringify(issues.map(classifyBacklogIssue)))" < /tmp/backlog-issues.json
+   gh issue list --state open --json number,labels --limit 200 > /tmp/pr-scan-records.json
+   node -e "
+     const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+     const issues = require('/tmp/pr-scan-records.json');
+     const faceted = issues.map((i) => parseRecordFacets(i.labels));
+     const pending = faceted.filter((f) => f.stage === 'ready' && !f.grants.build && !f.grants.merge && !f.bot.inProgress && !f.bot.blocked).length;
+     const blocked = faceted.filter((f) => f.bot.blocked).length;
+     const backlog = faceted.filter((f) => f.stage === 'backlog').length;
+     console.log(JSON.stringify({ pending, blocked, backlog }));
+   "
    ```
 
-   `classifyBacklogIssue`'s result also carries `state` and `isBacklogLabeled` now — callers that want strict filtering can check both explicitly.
+   - **Pending authorization** — `ready` ∧ no `auto:*` ∧ no `bot:*` (neither `bot:in-progress` nor `bot:blocked`). Origin-agnostic: any record any health skill, `/claude-tweaks:capture`, or a human filed counts, with or without a `by:*` label — matching `/claude-tweaks:triage` Step 1's own origin-agnostic `ready`-queue pull (`skills/triage/SKILL.md`), which no longer tiers any health-skill origin specially. This is a maintenance signal only — `/tidy` never grants authorization itself (`/claude-tweaks:triage` owns that).
+   - **`bot:blocked`** — records that hit their retry ceiling and need a human's renewed judgment at `/claude-tweaks:triage` before re-entering the autonomous queue (same definition as `scan-procedures.md` Step 1 Shape 5).
+   - **Backlog-state** — open records carrying neither `ready` nor `parked` — the default, unasserted state per `_shared/work-record.md`'s lifecycle spine.
 
-   One query, split client-side by `stage` (`inbox` / `parked`) — not two separate queries.
-
-8. **Pending-authorization queue size** — `/claude-tweaks:triage` (`skills/triage/SKILL.md` Step 1) tiers **code-health and harness-health issues only** — it never touches `backlog`-labeled issues, which have their own separate inbox/parked lifecycle unrelated to build-authorization tiers, and `journey-health` issues aren't wired into triage's tiering flow (yet), so they're excluded here too. Reuse items 3 and 5's JSON output directly (both now carry `labels`) — count how many of those already-fetched issues lack all three current tier labels (`tier:needs-review`, `tier:approved`, `tier:fast-track` — read the exact current set from `skills/triage/SKILL.md`, do not hardcode a stale list here). Not gated on `backlog-backend` — code-health/harness-health issues exist regardless of which backlog backend is active.
-
-   ```bash
-   jq -s '[.[0][], .[1][]] | map(select((.labels | map(.name) | any(. == "tier:needs-review" or . == "tier:approved" or . == "tier:fast-track" or . == "status:blocked")) | not)) | length' \
-     <(echo "$CODE_HEALTH_ISSUES_JSON") \
-     <(echo "$HARNESS_HEALTH_ISSUES_JSON")
-   ```
-
-   The exclusion also covers `status:blocked` — an issue that already hit its retry ceiling has
-   had its decision made and failed out; it is not "pending your initial decision" (same fix
-   already applied to the `triage-queue` scope below, consumed by `/help`).
-
-   (`$CODE_HEALTH_ISSUES_JSON` / `$HARNESS_HEALTH_ISSUES_JSON` are items 3 and 5's own `gh issue list` output, already captured earlier in this same scan — do not re-query. Each is passed to `jq -s` as its own positional input via process substitution, which is what makes `.[0]`/`.[1]` valid; a repeated `<<<` here-string redirection is NOT equivalent — bash keeps only the last one, silently dropping the first document. If testing this snippet standalone/in isolation outside a live scan, substitute `<(gh issue list --label code-health --state open --json number,labels)` and the harness-health equivalent for the two `echo` calls.)
-
-   This is a maintenance signal only — `/tidy` never applies a tier label itself (`/claude-tweaks:triage` owns that). Surface the count in the digest's "Still needs your review" section (see `tidy/SKILL.md`'s digest section) as `**Pending authorization:** {N} issues awaiting a tier label`.
+   Surface all three in the digest's "Still needs your review" section (see `tidy/SKILL.md`'s digest section): `**Pending authorization:** {N} records awaiting a grant`, `**Blocked:** {N} records hit their retry ceiling`, `**Backlog:** {N} records with no stage label` — omit any line whose count is 0.
 
 ## Scope: `triage-queue` (consumed by /help Stage 4.6)
 
-Three cheap counts for the dashboard's Triage Queue section. This scope exists so `/help` never hand-writes its own query for these numbers — see the fix this closes: Stage 4.6 previously computed "pending authorization" without excluding `status:blocked`, so a blocked issue counted as both pending AND blocked on the same dashboard.
+Three cheap counts for the dashboard's Triage Queue section. This scope exists so `/help` never hand-writes its own query for these numbers — see the fix this closes: Stage 4.6 previously computed "pending authorization" without excluding `bot:blocked` records, so a blocked record counted as both pending AND blocked on the same dashboard.
 
-1. **Pending authorization** — code-health + harness-health issues carrying none of `tier:needs-review`, `tier:approved`, `tier:fast-track`, **and not carrying** `status:blocked`. (The exclusion is the fix: a blocked issue already had its decision and failed out — it is not "pending your initial decision.")
+1. **Pending authorization** — `ready` ∧ no `auto:*` ∧ no `bot:*` (neither `bot:in-progress` nor `bot:blocked`). Origin-agnostic: matches `/claude-tweaks:triage` Step 1's own `ready`-queue pull (`skills/triage/SKILL.md`), which tiers no health-skill origin specially — every `ready` record, with or without a `by:*` label, is in scope.
 
    ```bash
-   gh issue list --label code-health --state open --json number,labels --limit 200 > /tmp/triage-queue-ch.json
-   gh issue list --label harness-health --state open --json number,labels --limit 200 > /tmp/triage-queue-hh.json
+   gh issue list --label ready --state open --json number,labels --limit 200 > /tmp/triage-queue-ready.json
    node -e "
-     const all = [...require('/tmp/triage-queue-ch.json'), ...require('/tmp/triage-queue-hh.json')];
-     const names = i => (i.labels || []).map(l => (typeof l === 'string' ? l : l.name));
-     const pending = all.filter(i => {
-       const n = names(i);
-       const hasTier = n.some(x => x === 'tier:needs-review' || x === 'tier:approved' || x === 'tier:fast-track');
-       const blocked = n.includes('status:blocked');
-       return !hasTier && !blocked;
+     const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+     const issues = require('/tmp/triage-queue-ready.json');
+     const pending = issues.filter((i) => {
+       const f = parseRecordFacets(i.labels);
+       return !f.grants.build && !f.grants.merge && !f.bot.inProgress && !f.bot.blocked;
      }).length;
      console.log(pending);
    "
    ```
 
-2. **Blocked** — `gh issue list --label status:blocked --state open --json number --limit 200 -q 'length'`
+2. **Blocked** — `gh issue list --label bot:blocked --state open --json number --limit 200 -q 'length'`
 
-3. **Auto-merged this week** — `[fast-lane]`-tagged commits on the *default* branch (never the current worktree's own branch — see the note on `worktree.always` below), last 7 days:
+3. **Auto-merged this week** — `[fast-lane]`-tagged (legacy human-facilitated merges, `wrap-up/review-console.md`) or `[auto-merge]`-tagged (headless autonomous merges, `dispatch/SKILL.md`) commits on the *default* branch (never the current worktree's own branch — see the note on `worktree.always` below), last 7 days:
 
    ```bash
    SINCE=$(node -e "console.log(new Date(Date.now() - 7*24*60*60*1000).toISOString())")
-   gh api "repos/{owner}/{repo}/commits?since=${SINCE}&per_page=100" -q '[.[] | select(.commit.message | contains("[fast-lane]"))] | length'
+   gh api "repos/{owner}/{repo}/commits?since=${SINCE}&per_page=100" -q '[.[] | select(.commit.message | contains("[fast-lane]") or contains("[auto-merge]"))] | length'
    ```
 
    The commits endpoint defaults to the default branch when no `sha=` param is given — correct regardless of which branch/worktree `/help` itself runs from under `worktree.always`. `SINCE` is computed via `node`, not shell `date` arithmetic, which differs between BSD/macOS and GNU date.
 
-Render as three lines: `Pending authorization: **{N}** issues awaiting your decision` / `Blocked: **{N}** issues hit their retry ceiling` / `Auto-merged this week: **{N}** fast-lane merges` — omit any line whose count is 0.
+Render as three lines: `Pending authorization: **{N}** records awaiting your decision` / `Blocked: **{N}** records hit their retry ceiling` / `Auto-merged this week: **{N}** auto-merges` — omit any line whose count is 0.
 
 Findings and recommendations (tidy Action Vocabulary):
 
@@ -126,29 +115,25 @@ Findings and recommendations (tidy Action Vocabulary):
 | Open PR superseded (related spec complete, equivalent changes merged) | Close (GitHub) |
 | Merged/closed PR whose head branch or worktree still exists locally | Corroborates Step 4.5 `[git]` cleanup — dispatcher merges at assembly |
 | Unresolved review thread addressed by a later commit (evidence: commit touching the flagged lines) | Resolve thread |
-| Unresolved review thread not addressed | Capture to INBOX or run `/review` — local action |
+| Unresolved review thread not addressed | Capture to backlog or run `/review` — local action |
 | Code-health issue stale (>4 weeks, flagged code since changed/removed) | Close (GitHub) — superseded |
-| Code-health issue still valid | Suggest `/claude-tweaks:triage` or Capture to INBOX |
+| Code-health issue still valid | Suggest `/claude-tweaks:triage` or Capture to backlog |
 | Harness-health issue stale (>4 weeks, the referenced target or code has since changed again) | Close (GitHub) — superseded |
 | Harness-health issue still valid | Suggest `/claude-tweaks:triage` or Capture — same as a still-valid code-health issue (harness-health never applies patches directly) |
 | Journey-health issue stale (>4 weeks, the referenced journey or its files: have since changed again) | Close (GitHub) — superseded |
 | Journey-health issue still valid | Suggest `/claude-tweaks:triage` or Capture to backlog |
-| Backlog issue, stage `inbox`, age per Staleness Thresholds | `< 2 weeks`: Keep. `2-4 weeks`: Keep (unless clearly stale). `> 4 weeks`: Delete or Promote — judgment call, same as `/tidy`'s inbox-stage backlog audit |
-| Backlog issue, stage `parked`, milestone attached | Trigger met when `milestoneDueOn` (from `classifyBacklogIssue`) is in the past — Promote (evidence: the due date; qualifies for the evidence tier, see `tidy/SKILL.md`). Otherwise Keep. |
-| Backlog issue, stage `parked`, `watchedPaths` present | Trigger met when `git log` shows recent commits touching any watched path — Promote (evidence: the commit SHA; qualifies for the evidence tier, see `tidy/SKILL.md`). Otherwise Keep. |
-| Backlog issue, stage `parked`, neither milestone nor `watchedPaths` | Prose-only `**Trigger:**` in the body, judged live each sweep — same as today's parked-stage backlog audit |
 
-Emit `[pr]` and `[gh-issue]` rows per the Output Contract — **except** backlog-issue findings, which emit `[inbox]` / `[deferred]` rows instead (see Output Contract below), reusing `/tidy`'s existing file-scan prefixes so Step 6 renders them into the Actions table exactly like the rows they replace.
+Emit `[pr]` and `[gh-issue]` rows per the Output Contract. Backlog-record findings (the record-scan shapes: stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) no longer originate from this scope — see `tidy/scan-procedures.md` Step 1 for their findings table and `[backlog]`/`[parked]`/`[unsynced]`/`[scoring]`/`[blocked]`/`[legacy]` row prefixes.
 
 ## Output Contract
 
-Two collection prefixes for PR/code-health/harness-health/journey-health findings, plus two conditional ones for backlog findings (`repo-wide` scope only, `backlog-backend: github-issues` only), plus one queue-size prefix (`repo-wide` scope only, unconditional — code-health/harness-health issues exist regardless of backlog backend) — all emitted as standard Template A rows (`_shared/subagent-output-contract.md`) so existing dispatchers consume them unchanged:
+Two collection prefixes for PR/code-health/harness-health/journey-health findings, plus one grant-queue-metrics prefix (`repo-wide` scope only, unconditional — the grant-queue counts exist regardless of which driver stores records) — all emitted as standard Template A rows (`_shared/subagent-output-contract.md`) so existing dispatchers consume them unchanged:
 
 - `[pr]` — pull-request findings: `[pr] PR #{n}: {title} — {issue} — {recommendation}`
 - `[gh-issue]` — code-health/harness-health/journey-health issue findings: `[gh-issue] #{n}: {title} — {issue} — {recommendation}`
-- `[inbox]` — backlog issue, stage `inbox`: `[inbox] {title} — {age} — {recommendation}` (mirrors `/tidy` Step 1's file-based row shape exactly)
-- `[deferred]` — backlog issue, stage `parked`: `[deferred] {title} — from issue #{n} — {recommendation}` (mirrors `/tidy` Step 1's file-based row shape; `#{n}` stands in for `spec {N}` since a parked issue has no originating spec)
-- `[queue]` — pending-authorization queue size (item 8 above, `repo-wide` scope only, derived from the code-health/harness-health issues items 3 and 5 already fetched): `[queue] {N} issues awaiting a tier label`
+- `[queue]` — grant-queue metrics (item 7 above, `repo-wide` scope only, derived from the single `gh issue list --state open` query already fetched): `[queue] {N} pending authorization, {M} bot:blocked, {K} backlog`
+
+Backlog-record findings (the record-scan shapes: stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) no longer emit from this scope — they are `/tidy` Step 1's `[backlog]` / `[parked]` / `[unsynced]` / `[scoring]` / `[blocked]` / `[legacy]` rows now (`tidy/scan-procedures.md`).
 
 Severity mapping (Template A Severity column):
 
@@ -159,6 +144,6 @@ Severity mapping (Template A Severity column):
 | Stale open PR (>4 weeks) | medium |
 | Open PR superseded (related work already merged) | medium |
 | Merged/closed PR with local branch/worktree remnants | medium |
-| Recon issue stale/superseded | medium |
-| Recon issue still valid, awaiting pipeline | low |
+| Code-health/harness-health/journey-health issue stale/superseded | medium |
+| Code-health/harness-health/journey-health issue still valid, awaiting `/claude-tweaks:triage` | low |
 | Fresh draft PR / no PR / scan skipped | info |
