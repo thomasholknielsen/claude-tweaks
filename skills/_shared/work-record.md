@@ -14,11 +14,10 @@ payload assembly, facet parsing). If the two disagree, one of them has a bug —
 BACKLOG ──/specify shapes──► READY ──human grants──► AUTHORIZED ──/dispatch claims──► BUILDING ──user merges──► CLOSED
    │ ▲          ▲              │ ▲                      │                                │                    (completed)
    │ │          │              │ └─── flag back ────────┘                                │
-   │ │   born-ready (health    │      (remove ready)                                     ├──► retry ceiling: bot:blocked,
-   │ │   skills file straight  │                                                         │    grants removed → needs re-triage
-   │ │   into READY)                                                                     │
-   │ │                         └──────── parked (trigger set) ──► wakes on trigger       │
-   │ │                                                                                    └──► failure: auto:merge revoked,
+   │ │          │              │      (remove ready)                                     ├──► retry ceiling: bot:blocked,
+   │ │   born-ready (health    │                                                         │    grants removed → needs re-triage
+   │ │   skills file straight  └──────── parked (trigger set) ──► wakes on trigger       │
+   │ │   into READY)                                                                     └──► failure: auto:merge revoked,
    │ └── parked record wakes (trigger fires, parked removed)                                  auto:build retries next firing
    └──── closed as not-planned (wontfix / duplicate / absorbed) at any stage
 ```
