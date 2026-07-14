@@ -100,6 +100,28 @@ test('extractFingerprint prefers the new work-fingerprint marker when both are p
   );
 });
 
+test('extractFingerprint reads the legacy harness-health-fingerprint marker', () => {
+  assert.strictEqual(extractFingerprint('x\n<!-- harness-health-fingerprint: hh:1 -->'), 'hh:1');
+});
+
+test('extractFingerprint reads the legacy journey-health-fingerprint marker', () => {
+  assert.strictEqual(extractFingerprint('x\n<!-- journey-health-fingerprint: jh:1 -->'), 'jh:1');
+});
+
+test('extractFingerprint prefers work-fingerprint over harness-health-fingerprint', () => {
+  assert.strictEqual(
+    extractFingerprint('<!-- harness-health-fingerprint: hh:1 -->\n<!-- work-fingerprint: new:2 -->'),
+    'new:2'
+  );
+});
+
+test('extractFingerprint prefers work-fingerprint over journey-health-fingerprint', () => {
+  assert.strictEqual(
+    extractFingerprint('<!-- journey-health-fingerprint: jh:1 -->\n<!-- work-fingerprint: new:2 -->'),
+    'new:2'
+  );
+});
+
 test('extractFingerprint returns null when no marker is present', () => {
   assert.strictEqual(extractFingerprint('no markers here'), null);
 });

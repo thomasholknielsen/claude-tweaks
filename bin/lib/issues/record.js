@@ -29,10 +29,11 @@ const TYPE_LABELS = [
 ];
 
 // Dual-write fingerprint markers: FP_RE_WORK is the current marker written by
-// recordPayload(); FP_RE_LEGACY is the pre-work-record code-health-only marker
-// still present on older issues during the migration window (skills/_shared/work-record.md).
+// recordPayload(); FP_RE_LEGACY is the pre-work-record marker still present on older
+// issues during the migration window, read from all three health producers
+// (skills/_shared/work-record.md).
 const FP_RE_WORK = /<!--\s*work-fingerprint:\s*([^\s>]+)\s*-->/;
-const FP_RE_LEGACY = /<!--\s*code-health-fingerprint:\s*([^\s>]+)\s*-->/;
+const FP_RE_LEGACY = /<!--\s*(?:code-health|harness-health|journey-health)-fingerprint:\s*([^\s>]+)\s*-->/;
 
 // Line-anchored 'Blocked by #N' dependency declarations (multiline).
 const DEP_RE = /^Blocked by #(\d+)\b/gm;
