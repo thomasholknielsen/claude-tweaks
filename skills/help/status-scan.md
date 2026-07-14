@@ -2,11 +2,11 @@
 
 Stage-by-stage scan procedure run by `/claude-tweaks:help` (default invocation, or `status` argument). Lazy-loaded from `SKILL.md` Section 2.
 
-> **Parallel execution:** Dispatch Stages 1-7 including sub-stages 1.5, 4.5, and 4.6 as parallel Task agents — each stage scans an independent data source and returns counts, flags, and recommendations. The orchestrator assembles the dashboard after all agents complete.
+> **Parallel execution:** Dispatch Stages 1-7 including sub-stages 4.5 and 4.6 as parallel Task agents — each stage scans an independent data source and returns counts, flags, and recommendations. The orchestrator assembles the dashboard after all agents complete.
 >
 > **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input (scope + path + literal output template, no conversation), status line first (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`), then Template A.
 >
-> **Model tier:** Fast (Haiku) — each stage scan is a mechanical read/grep over a single data source (backlog inbox-stage entries, backlog parked-stage entries, design docs, specs, plans, registry, current PR via gh). No synthesis at the per-stage level; the orchestrator assembles the dashboard.
+> **Model tier:** Fast (Haiku) — each stage scan is a mechanical read/grep or `gh`/facet-parse over a single data source (the open work-record queue, design docs, current PR via gh). No synthesis at the per-stage level; the orchestrator assembles the dashboard.
 >
 > **Output template (each agent must follow exactly):**
 >
@@ -16,31 +16,104 @@ Stage-by-stage scan procedure run by `/claude-tweaks:help` (default invocation, 
 >
 > | Severity | Path:Line | Finding | Evidence |
 > |---|---|---|---|
-> | medium | specs/backlog/ | 14 items, 3 stale | 3 entries' `**Added:**` dates are 4+ weeks old |
+> | medium | (work records) | Backlog: 14, 3 stale | 3 records' `updatedAt` are 4+ weeks old |
 >
 > Severity scale: critical / high / medium / low / info
 > If no findings: return literal text "No findings."
 > Do not add narration, headers, or summaries before or after the table.
 > ```
 
-**Dispatcher column mapping (status-scan use):** Severity = recommendation urgency (`info` for nothing-to-do, `low` for routine, `medium` for needs-attention, `high` for blocking). Path:Line = the artifact (`specs/backlog/{slug}.md`, `docs/journeys/checkout.md`, etc.). Finding = the count or flag (`14 items, 3 stale`). Evidence = the specific items or signals.
+**Dispatcher column mapping (status-scan use):** Severity = recommendation urgency (`info` for nothing-to-do, `low` for routine, `medium` for needs-attention, `high` for blocking). Path:Line = the artifact (`#{n}` / the local record path under `work-backend: local-files`, `docs/journeys/checkout.md`, etc.). Finding = the count or flag (`14 items, 3 stale`). Evidence = the specific items or signals.
 
-## Stage 1: INBOX (`specs/backlog/*.md`, `**Stage:** inbox`)
+## Stage 1: Work Records (backlog / parked / ready / authorized / building / blocked)
 
-- Count total items
-- Flag stale items (> 4 weeks old)
-- Flag items tagged as `**Promoted:**` — these are awaiting `/superpowers:brainstorming` and should appear as brainstorm candidates in the recommendation
-- Identify items marked as related to existing specs
-- Flag items with baked-in assumptions (solution-oriented phrasing) → candidates for `/claude-tweaks:challenge`
+Replaces the former INBOX scan, Deferred-Work scan, Specs-Ready-to-Build scan, and Specs-In-Progress scan — all four read `specs/backlog/*.md` frontmatter or the old spec index and `specs/*.md` files directly. The record store is the current landscape now; there is no separate index file or backlog directory to read (`_shared/work-record.md`). One list call + one facet parse computes every count below, mirroring `_shared/github-pr-scan.md`'s item-7 "Grant-queue counts" snippet and `tidy/scan-procedures.md` Step 1's own query.
 
-## Stage 1.5: Deferred Work (`specs/backlog/*.md`, `**Stage:** parked`)
+Read the `work-backend` field from the project's CLAUDE.md (`_shared/work-record.md`'s Config keys table, written by `/claude-tweaks:init`). A missing flag is treated as `local-files`.
 
-- Count total deferred items
-- Check triggers against current state:
-  - Completed specs referenced in triggers → these items are now actionable
-  - In-progress specs referenced → flag for awareness
-- Flag items with no clear trigger (missing context)
-- Flag items older than 4 weeks with unmet triggers
+**`work-backend: github-issues`:**
+
+```bash
+gh issue list --state open --json number,title,labels,milestone,updatedAt --limit 200 > /tmp/help-records.json
+node -e "
+  const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const issues = require('/tmp/help-records.json');
+  const now = Date.now();
+  const FOUR_WEEKS_MS = 28 * 24 * 60 * 60 * 1000;
+  const rows = issues.map((i) => ({ ...i, facets: parseRecordFacets(i.labels) }));
+  const blocked = rows.filter((r) => r.facets.bot.blocked);
+  const building = rows.filter((r) => !r.facets.bot.blocked && r.facets.bot.inProgress);
+  const authorized = rows.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'ready' && (r.facets.grants.build || r.facets.grants.merge));
+  const ready = rows.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'ready' && !r.facets.grants.build && !r.facets.grants.merge);
+  const parked = rows.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'parked');
+  const backlog = rows.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'backlog');
+  const stale = backlog.filter((r) => now - Date.parse(r.updatedAt) > FOUR_WEEKS_MS);
+  const wakeReady = parked.filter((r) => r.milestone && r.milestone.dueOn && Date.parse(r.milestone.dueOn) < now);
+  console.log(JSON.stringify({
+    backlog: backlog.length, backlogStale: stale.length,
+    parked: parked.length, parkedWakeReady: wakeReady.length,
+    ready: ready.length, authorized: authorized.length,
+    building: building.length, blocked: blocked.length,
+  }));
+"
+```
+
+**`work-backend: local-files`:**
+
+```bash
+node -e "
+  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+  const records = queryRecords('specs', {});
+  const blocked = records.filter((r) => r.facets.bot.blocked);
+  const building = records.filter((r) => !r.facets.bot.blocked && r.facets.bot.inProgress);
+  const authorized = records.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'ready' && (r.facets.grants.build || r.facets.grants.merge));
+  const ready = records.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'ready' && !r.facets.grants.build && !r.facets.grants.merge);
+  const parked = records.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'parked');
+  const backlog = records.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'backlog');
+  console.log(JSON.stringify({
+    backlog: backlog.length, parked: parked.length, ready: ready.length,
+    authorized: authorized.length, building: building.length, blocked: blocked.length,
+  }));
+"
+```
+
+`building` and `blocked` are always 0 under `local-files` — the local driver carries no bot state (`_shared/work-record.md`). `authorized` still counts: grants are recorded as frontmatter for isomorphism even though no headless consumer acts on them under this driver (`triage/SKILL.md`'s Preflight).
+
+**Staleness clock** (backlog sub-count): `github-issues` uses the query's own `updatedAt`, as above. `local-files` has no timestamp facet — use the record file's own last-commit date instead, same as `tidy/scan-procedures.md` Step 1: `git -C "{REPO_ROOT}" log -1 --format=%cI -- "{path}"` per backlog record (an empty result — an uncommitted/brand-new record — treat as fresh).
+
+**Wake-ready sub-count** (parked, milestone due in the past) is a cheap heuristic, not full trigger evaluation — a `local-files` parked record's trigger lives as body prose (`**Trigger:**`/`**Watched paths:**` lines), too expensive to read per-record on a dashboard pass. Omit the sub-count under this driver and report the bare `parked` count only. Full trigger evaluation (including watched-path `git log` checks on both drivers) stays `/claude-tweaks:tidy`'s job — this is a maintenance signal, not a substitute.
+
+**Solution-baked title flag:** scan every `backlog`-bucket record's `title` (already fetched above — no extra call) for solution-oriented phrasing per `SKILL.md` Section 3's criteria (a specific technology named as the fix, or the problem framed as a solution). Flag matches in the Needs Attention table as `/claude-tweaks:challenge` candidates — this is a title-only signal, not the full debiasing judgment `/claude-tweaks:challenge` itself performs against the whole record.
+
+### Conflict detection (file overlap)
+
+Feeds from open **in-flight** records — any record with `facets.stage === 'ready'` (covers the ready, authorized, building, and blocked sub-states alike: the `ready` label persists for a record's entire life once shaped, and is never removed by `/claude-tweaks:dispatch`, `/claude-tweaks:build`, `/claude-tweaks:flow`, or `/claude-tweaks:wrap-up` — `_shared/work-record.md`'s permission matrix). Backlog and parked records are never spec-shaped, so they carry no `### Key Files` subsection and would contribute nothing to the map — same reasoning `/claude-tweaks:specify`'s Step 1 File Reference Map documents — so skip fetching their bodies entirely.
+
+```bash
+# work-backend: github-issues
+gh issue list --label ready --state open --json number,title,body --limit 200 > /tmp/help-inflight-bodies.json
+```
+
+`work-backend: local-files`: `queryRecords('specs', { stage: 'ready' })` returns matching records with `.body` already populated — no separate fetch.
+
+Extract the `### Key Files` subsection (under `## Technical Approach`, per `spec-template.md`'s record body template) from every returned body — the same extraction `/claude-tweaks:specify` Step 1 performs — to build `/tmp/help-records-key-files.json` as `[{id, keyFiles}]` (`id` is the issue number, or the local record id). Then call the shared grouping primitive:
+
+```bash
+node -e "
+  const { groupByFileOverlap } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
+  const items = require('/tmp/help-records-key-files.json');
+  const conflicts = groupByFileOverlap(items).filter((g) => g.length > 1);
+  console.log(JSON.stringify(conflicts));
+"
+```
+
+A record appearing in any group of size > 1 shares files with another open in-flight record — flag it in the Needs Attention table, listing the other group members as the conflicting records.
+
+> **Algorithm shared with `/claude-tweaks:specify`:** both skills call the same `groupByFileOverlap` (`bin/lib/issues/grouping.js`) — `/claude-tweaks:specify` runs it at creation time; `/claude-tweaks:help` re-runs it at dashboard time to catch new conflicts from records that started building since then.
+
+Emit one Template A row for the six counts (Finding: `backlog {N} ({M} stale) / parked {N} ({M} wake-ready) / ready {N} / authorized {N} / building {N} / blocked {N}`), plus one row per conflict group and one row per solution-baked-title backlog record.
+
+There is no Stage 1.5, Stage 3, or Stage 4 — they merged into Stage 1 above (their data sources — `specs/backlog/*.md`, the old spec index, and `specs/*.md` frontmatter — are retired). The rest of the numbering (Stage 2, 4.5, 4.6, 5, 6, 7) is unchanged, so existing cross-references — including this file's own later stages and `SKILL.md`'s Priority Order — keep pointing at the right stage.
 
 ## Stage 2: Design Docs (`docs/superpowers/specs/*-design.md`)
 
@@ -49,32 +122,6 @@ Stage-by-stage scan procedure run by `/claude-tweaks:help` (default invocation, 
   - No phase headings → never decomposed, waiting for `/claude-tweaks:specify`
   - Has phase headings but at least one lacks a matching `## Phase N: Specified` marker → partially decomposed, the unmarked phases are still waiting for `/claude-tweaks:specify`
 - These are brainstorming outputs waiting for `/claude-tweaks:specify`
-
-## Stage 3: Specs Ready to Build (`specs/INDEX.md` + `specs/*.md`)
-
-- Find specs where all prerequisites are met (blocking specs are complete)
-- Check YAML frontmatter for `status: not-started` with empty or satisfied `blocked-by`
-- Check which tier they're in (lower tier = higher priority)
-- Check if a plan already exists in `docs/plans/` (ready for immediate `/claude-tweaks:build`)
-- **Implicit dependency check:** extract `Key Files` from each ready spec and each in-progress (or other not-started) spec, then call the shared grouping primitive — the same one `/claude-tweaks:specify` uses at spec creation time (`bin/lib/issues/grouping.js`), re-run here to catch conflicts from specs that started building since then:
-
-  ```bash
-  node -e "
-    const { groupByFileOverlap } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
-    const specs = require('/tmp/help-specs-key-files.json'); // [{id, keyFiles}], excludes completed specs
-    const groups = groupByFileOverlap(specs);
-    const conflicts = groups.filter(g => g.length > 1);
-    console.log(JSON.stringify(conflicts));
-  "
-  ```
-
-  A ready spec appearing in any group of size > 1 shares files with another non-completed spec — flag it in the "Needs Attention" table, listing the other group members as the conflicting specs.
-
-## Stage 4: Specs In Progress
-
-- Check recent git commits for spec references
-- Check frontmatter for `status: in-progress`
-- These may need `/claude-tweaks:build` resumed or `/claude-tweaks:review` run
 
 ## Stage 4.5: Current PR (GitHub)
 
@@ -91,7 +138,7 @@ Cheap counts only — detail stays `/claude-tweaks:triage`'s and `/tidy`'s job,
 not `/help`'s. Skip silently (same fail-open detection ladder as Stage 4.5)
 when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
 
-Scan per `_shared/github-pr-scan.md`, **`triage-queue`** scope. The dispatcher inlines that file's Detection Ladder, `triage-queue` scope section, and the three-line render format into this agent's prompt — subagents cannot read sibling files. This is the single source for these three counts; this stage does not compute them independently (previously it did, and its own version double-counted `status:blocked` issues inside "pending authorization" — the shared scope excludes them). Scoped to `code-health`/`harness-health` only, matching what `/claude-tweaks:triage` Step 1 actually tiers — `journey-health` issues aren't wired into that tiering flow (yet), so they're intentionally excluded from this count too.
+Scan per `_shared/github-pr-scan.md`, **`triage-queue`** scope. The dispatcher inlines that file's Detection Ladder, `triage-queue` scope section, and the three-line render format into this agent's prompt — subagents cannot read sibling files. This is the single source for these three counts; this stage does not compute them independently (previously it did, and its own version double-counted `status:blocked` issues inside "pending authorization" — the shared scope excludes them). Origin-agnostic: every `ready` record counts toward pending authorization regardless of origin (health-filed, captured, or human-filed, with or without a `by:*` label) — matching `/claude-tweaks:triage` Step 1's own origin-agnostic `ready`-queue pull, which tiers no health-skill origin specially.
 
 ## Stage 5: Specs Awaiting Review
 
@@ -104,7 +151,7 @@ Scan per `_shared/github-pr-scan.md`, **`triage-queue`** scope. The dispatcher i
 
 ## Stage 7: Maintenance Signals
 
-- INBOX has 10+ items → suggest `/claude-tweaks:tidy`
+- Backlog has 10+ records → suggest `/claude-tweaks:tidy`
 - Stage 4.5 reports stale open PRs (>4 weeks without updates) → suggest `/claude-tweaks:tidy` (Step 4.8 audits the PR backlog)
 - Plans older than 4 weeks with no matching spec progress → flag
 - More than 3 design docs unspecified → suggest a `/claude-tweaks:specify` session
@@ -119,16 +166,20 @@ Scan per `_shared/github-pr-scan.md`, **`triage-queue`** scope. The dispatcher i
 ### Pipeline
 | Stage | Count | Action |
 |-------|-------|--------|
-| INBOX items | {N} ({M} stale) | `/claude-tweaks:capture` to add, `/claude-tweaks:tidy` if stale |
-| INBOX items promoted | {N} | `/superpowers:brainstorming {topic}` (or `/claude-tweaks:challenge` first if assumptions present) |
-| INBOX items needing debiasing | {N} | `/claude-tweaks:challenge {topic}` |
-| Deferred items ready | {N} | Trigger met — promote to spec or merge |
-| Deferred items waiting | {N} | Triggers not yet met |
 | Design docs unspecified | {N} | `/claude-tweaks:specify {topic}` |
-| Specs ready to build | {N} | `/claude-tweaks:build {number}` |
-| Specs in progress | {N} | Resume `/claude-tweaks:build` or check status |
 | Specs awaiting review | {N} | `/claude-tweaks:review {number}` |
 | Specs awaiting wrap-up | {N} | `/claude-tweaks:wrap-up {number}` |
+
+### Work Records (backlog / parked / ready / authorized / building / blocked)
+
+*(Omit this section entirely when all six counts are 0 — an empty pipeline, matching the Triage Queue section's own omission convention.)*
+
+- Backlog: **{N}** ({M} stale, 4+ weeks untouched) — `/claude-tweaks:capture` to add, `/claude-tweaks:tidy` to review stale ones
+- Parked: **{N}** ({M} wake-ready — milestone due) — `/claude-tweaks:tidy` to re-evaluate triggers
+- Ready (pending authorization): **{N}** — `/claude-tweaks:triage` to review and grant
+- Authorized: **{N}** — `/claude-tweaks:dispatch` (headless) or `/claude-tweaks:build #{n}` (direct)
+- Building: **{N}** — resume `/claude-tweaks:build`/`/claude-tweaks:flow`, or check status
+- Blocked (`bot:blocked`): **{N}** — `/claude-tweaks:triage` to re-authorize
 
 ### Current PR — #{N} {title}
 
@@ -145,14 +196,16 @@ Scan per `_shared/github-pr-scan.md`, **`triage-queue`** scope. The dispatcher i
 
 *(Omit this section entirely when the GitHub scan was skipped, or when all three counts are 0.)*
 
-- Pending authorization: **{N} issues awaiting your decision** — run `/claude-tweaks:triage` (omit this line when N is 0)
-- Blocked: **{N} issues hit their retry ceiling** — run `/claude-tweaks:triage` to review (omit this line when N is 0)
-- Auto-merged this week: **{N} fast-lane merges** on the default branch in the last 7 days (omit this line when N is 0)
+- Pending authorization: **{N} records awaiting your decision** — run `/claude-tweaks:triage` (omit this line when N is 0)
+- Blocked: **{N} records hit their retry ceiling** — run `/claude-tweaks:triage` to review (omit this line when N is 0)
+- Auto-merged this week: **{N} auto-merges** on the default branch in the last 7 days (omit this line when N is 0)
 
 ### Ready to Build (priority order)
-| Spec | Title | Tier | Has Plan? |
-|------|-------|------|-----------|
-| {N} | {title} | {tier} | {yes/no} |
+| Record | Title | Risk / Effort | Status | Has Plan? |
+|--------|-------|----------------|--------|-----------|
+| {ref} | {title} | {risk}/{effort} | ready / authorized | {yes/no} |
+
+`{ref}` is `#{n}` under `work-backend: github-issues`, the bare record id under `local-files`. Rows come from Stage 1's `ready` and `authorized` buckets, ordered per `SKILL.md` Section 3's Tie-Breaking rules.
 
 ### Needs Attention
 | Item | Issue | Suggested Action |

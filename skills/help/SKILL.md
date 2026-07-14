@@ -51,7 +51,7 @@ For the canonical cheat sheet — lifecycle, component, and utility commands; co
 
 *(Skip if `$ARGUMENTS` = `commands`)*
 
-Read `status-scan.md` in this skill's directory for the full parallel-dispatch procedure (Stages 1-7 including sub-stages 1.5, 4.5, and 4.6; dispatch contract, agent template, and dashboard rendering). The orchestrator dispatches all ten stages in parallel and assembles the dashboard after all agents complete.
+Read `status-scan.md` in this skill's directory for the full parallel-dispatch procedure (Stages 1-7 including sub-stages 4.5 and 4.6; dispatch contract, agent template, and dashboard rendering). The orchestrator dispatches all seven stages in parallel and assembles the dashboard after all agents complete.
 
 ---
 
@@ -64,31 +64,31 @@ Read `status-scan.md` in this skill's directory for the full parallel-dispatch p
 1. **Current PR blocked** — the current branch's open PR has failing CI, `CHANGES_REQUESTED`, or unresolved review threads (Stage 4.5). PR feedback is the most perishable work in the system — reviewer context decays fastest and it blocks in-flight work from merging. Recommend fixing CI, addressing threads, or resuming `/claude-tweaks:build` before anything below.
 2. **Specs awaiting review** — review completed work before it goes stale
 3. **Specs awaiting wrap-up** — wrap up reviewed work (captures learnings while fresh)
-4. **Specs in progress** — finish what's started before starting new work
+4. **Records building** (`bot:in-progress`, Stage 1) — finish what's started before starting new work
 5. **Design docs unspecified** — specify before building (don't let designs go stale)
-6. **Deferred items with met triggers** — promote before starting new work
-7. **Specs ready to build** — pick the highest-priority spec with met prerequisites
-8. **Promoted INBOX items** — items tagged `**Promoted:**` are ready for `/superpowers:brainstorming` (or `/claude-tweaks:challenge` first if they have baked-in assumptions). These have already been triaged and prioritized over unpromoted items.
-9. **INBOX review** — if inbox is stale or has 10+ items, suggest `/claude-tweaks:tidy` before new brainstorming
-10. **Challenge + Brainstorming** — if pipeline is empty and no promoted items exist, suggest promoting an INBOX item; if it has baked-in assumptions, run `/claude-tweaks:challenge` first, then `/superpowers:brainstorming`
+6. **Parked records with met triggers** — promote via `/claude-tweaks:specify` before starting new work
+7. **Records pending authorization** (`ready`, not yet granted, Stage 1) — recommend `/claude-tweaks:triage` to review and grant `auto:build`
+8. **Authorized records** (Stage 1) — recommend `/claude-tweaks:dispatch` (headless) or `/claude-tweaks:build #{n}` (direct) for the highest-priority one with met prerequisites
+9. **Backlog review** — if the backlog is stale or has 10+ records, suggest `/claude-tweaks:tidy` before new brainstorming
+10. **Challenge + Brainstorming** — if the pipeline is empty, suggest brainstorming from a backlog record; if its title has baked-in assumptions, run `/claude-tweaks:challenge` first, then `/superpowers:brainstorming`
 11. **Nothing to do** — if everything is clean, say so
 
 ### Tie-Breaking
 
-When multiple specs are ready to build at the same tier:
-- Prefer specs that unblock other specs (check dependency graph)
-- Prefer specs with no file overlap with in-progress work (avoids conflicts)
-- Prefer smaller specs (faster feedback loop)
-- Prefer specs with existing plans (less setup needed)
+When multiple records are ready to build (no `priority:*` label to sort by, or several share the same priority):
+- Prefer records that unblock other records (check the dependency graph — `Blocked by #N` / `blockedBy`)
+- Prefer records with no file overlap with building work (avoids conflicts — see `status-scan.md` Stage 1's conflict detection)
+- Prefer smaller records (`effort:low`, faster feedback loop)
+- Prefer records with existing plans (less setup needed)
 
 ### Detecting Items That Need `/claude-tweaks:challenge`
 
-An INBOX item likely needs debiasing when it:
+A backlog record likely needs debiasing when its title or body:
 - Names a specific technology as the solution (e.g., "Add Redis caching" instead of "Improve response times")
 - Frames the problem as a solution (e.g., "Build a microservice for X" vs "X is too slow")
 - Contains strong assumptions about the approach without exploring alternatives
 
-**Mode recommendation:** Items with mild assumption signals (slightly solution-oriented phrasing, but the problem space is mostly clear) → recommend `/claude-tweaks:challenge quick {topic}`. Items with strong solution-baking or multiple competing assumptions → recommend full `/claude-tweaks:challenge {topic}`.
+**Mode recommendation:** Records with mild assumption signals (slightly solution-oriented phrasing, but the problem space is mostly clear) → recommend `/claude-tweaks:challenge quick {topic}`. Records with strong solution-baking or multiple competing assumptions → recommend full `/claude-tweaks:challenge {topic}`.
 
 ### Present Recommendation
 
@@ -113,9 +113,9 @@ Call `AskUserQuestion`:
 | Running a full scan when user just needs command syntax | Wastes time — respect the `commands` argument |
 | Recommending new work when specs await review | Finish in-progress work first — stale reviews lose context |
 | Recommending new work while the current PR has unresolved feedback or failing checks | In-flight work rots fastest — reviewer context decays and merge conflicts accumulate. The pipeline picture is incomplete without PR state. |
-| Skipping the INBOX scan | Stale INBOX items create noise and slow down the pipeline |
-| Not checking for baked-in assumptions | Solution-oriented INBOX items bypass the debiasing step |
-| Triaging INBOX items from /help instead of handing off to /tidy | /help is a read-only dashboard — it reports status and recommends next steps. If the user wants to triage, delete, promote, merge, or defer INBOX items, hand off to `/claude-tweaks:tidy`. Do not improvise an ad-hoc walkthrough. |
+| Skipping the backlog scan | Stale backlog records create noise and slow down the pipeline |
+| Not checking for baked-in assumptions | Solution-oriented backlog records bypass the debiasing step |
+| Triaging backlog records from /help instead of handing off to /tidy | /help is a read-only dashboard — it reports status and recommends next steps. If the user wants to delete, promote, absorb, or defer backlog records, hand off to `/claude-tweaks:tidy`. Do not improvise an ad-hoc walkthrough. |
 
 For a detailed explanation of how context flows between skills via artifacts, read `context-flow.md` in this skill's directory.
 
@@ -125,14 +125,14 @@ For a detailed explanation of how context flows between skills via artifacts, re
 |-------|-------------|
 | `/claude-tweaks:capture` | Feeds items that /claude-tweaks:help surfaces |
 | `/claude-tweaks:challenge` | /claude-tweaks:help flags items with baked-in assumptions for debiasing |
-| `/claude-tweaks:specify` | /claude-tweaks:help flags unspecified design docs and uses Key Files from specs for implicit dependency detection |
+| `/claude-tweaks:specify` | /claude-tweaks:help flags unspecified design docs and uses Key Files from open records for implicit dependency detection (Stage 1's conflict detection) |
 | `/claude-tweaks:build` | /claude-tweaks:help recommends which spec to build |
 | `/claude-tweaks:test` | /claude-tweaks:help can recommend /test when code changes exist but no review is warranted |
 | `/claude-tweaks:review` | /claude-tweaks:help flags specs awaiting review |
 | `/claude-tweaks:wrap-up` | /claude-tweaks:help flags specs awaiting wrap-up |
 | `/claude-tweaks:tidy` | /claude-tweaks:help suggests /claude-tweaks:tidy when maintenance is needed |
-| `/claude-tweaks:triage` | Surfaces pending-authorization count, `status:blocked` count, and rolling auto-merge count on the dashboard (Stage 4.6, `triage-queue` scope) — the reciprocal of `triage/SKILL.md`'s own `/claude-tweaks:help` row. |
-| `specs/backlog/*.md` (`**Stage:** parked`) | /claude-tweaks:help scans deferred items and flags those with met triggers |
+| `/claude-tweaks:triage` | Surfaces pending-authorization count, `bot:blocked` count, and rolling auto-merge count on the dashboard (Stage 4.6, `triage-queue` scope) — the reciprocal of `triage/SKILL.md`'s own `/claude-tweaks:help` row. |
+| `/claude-tweaks:dispatch` | /claude-tweaks:help surfaces the `authorized` and `building` counts dispatch acts on (Stage 1) — the reciprocal of `dispatch/SKILL.md`'s own `/claude-tweaks:help` row. |
 | `/claude-tweaks:flow` | /claude-tweaks:help lists /claude-tweaks:flow as an automation option for ready specs |
 | `/claude-tweaks:browse` | Utility skill — /claude-tweaks:help lists it in the utility skills table |
 | `/claude-tweaks:stories` | Lifecycle skill — /claude-tweaks:help lists it between /test and /review |
@@ -143,9 +143,10 @@ For a detailed explanation of how context flows between skills via artifacts, re
 | `/claude-tweaks:journeys` | Component skill — /claude-tweaks:help lists it in the component skills table |
 | `/claude-tweaks:visual-review` | Component skill — /claude-tweaks:help lists it in the component skills table |
 | `/claude-tweaks:visualize` | Component skill — /claude-tweaks:help lists it in the component skills table |
-| `/claude-tweaks:init` | /init configures the workflow system that /help reports on — /help reads the same artifact paths /init bootstraps (`specs/backlog/`, specs, plans, docs registry) |
+| `/claude-tweaks:init` | /init configures the workflow system that /help reports on — /help reads the same artifact paths /init bootstraps (the work-record queue, plans, docs registry) |
 | `/claude-tweaks:version` | /version prints the installed plugin version; /help surfaces version-aware command syntax and points at /version for the canonical answer |
 | `/claude-tweaks:design` | Utility wrapper — /help lists it in the utility skills table. /design is invoked by /build (Common Step 1.7 pre-build), /test (Step 1.5 CLI gate), /review (Step 6.5 advisory pass), /flow (polish phase), and /visual-review; standalone usage is rare. |
-| `/claude-tweaks:research` | Utility skill — /help lists it in the utility skills table. /research has no fixed lifecycle position; /help may surface it as an option when an INBOX item or pending spec would benefit from prior-art research. |
+| `/claude-tweaks:research` | Utility skill — /help lists it in the utility skills table. /research has no fixed lifecycle position; /help may surface it as an option when a backlog record or pending spec would benefit from prior-art research. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling to /help (e.g., if a future status scan ever auto-resolves recommendations) |
-| `_shared/github-pr-scan.md` | Stage 4.5 scans the current branch's PR per this shared procedure (`current-pr` scope) — detection ladder, exact gh/GraphQL commands, output contract, severity mapping |
+| `_shared/github-pr-scan.md` | Stage 4.5 scans the current branch's PR per this shared procedure (`current-pr` scope); Stage 4.6 scans the triage queue (`triage-queue` scope) — detection ladder, exact gh/GraphQL commands, output contract, severity mapping |
+| `_shared/work-record.md` | Taxonomy home — the six-axis label contract (stage / grants / bot state / origin / scoring / type) Stage 1's record scan reads. /help has no row in the permission matrix — it never adds or removes a label, only queries the taxonomy every other row writes to. |
