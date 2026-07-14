@@ -4,6 +4,8 @@ For multi-spec `/flow` runs in `auto` or `hybrid` mode, the per-spec Wrap-Up Rev
 
 This preserves the bookend architecture (Manifesto at start, one Review Console at end) even when N > 1 specs run sequentially.
 
+**Scope:** this console belongs to a single `/flow` invocation and never aggregates across multiple invocations. `/claude-tweaks:dispatch` does not consolidate through here across firings or groups — each firing reports its one claimed group's outcome directly (see `dispatch/SKILL.md`'s Reporting section). A dispatched bundle's own `/flow "#A,#B"` call still lands here exactly like any other multi-spec run — this file's job doesn't change, only who aggregates across separate runs does (nobody, now).
+
 ## Run directory layout (multi-spec)
 
 For the canonical run-directory layout, `manifest.yml` schema, and the environment variables `/flow` exports to each per-spec invocation (`PIPELINE_RUN_DIR`, `MULTISPEC_REVIEW_DEFER`, `MULTISPEC_PARENT_DIR`, `MULTISPEC_KEEP_GOING`), see `multi-spec.md` in this skill's directory.
