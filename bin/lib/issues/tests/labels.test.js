@@ -31,7 +31,7 @@ test('error message names the label', () => {
 });
 
 // Every real label description this plan introduces or keeps must pass — a single place
-// that would have caught the status:in-progress (commit 54ab897) and code-health:*
+// that would have caught the bot:in-progress (commit 54ab897) and code-health:*
 // criterion (this plan's Task 3) 100-char overruns before they shipped.
 const REAL_LABEL_DESCRIPTIONS = [
   ['code-health', 'Filed by the code-health engine — a systematic maintainability finding'],
@@ -48,7 +48,7 @@ const REAL_LABEL_DESCRIPTIONS = [
   ['tier:needs-review', 'Triage flagged this - needs a closer human look before authorizing'],
   ['tier:approved', 'Triage authorized this for building - human approves the merge'],
   ['tier:fast-track', 'Triage authorized this for building - auto-merges if the run comes back clean'],
-  ['status:in-progress', 'Claimed and being built by an autonomous claude-tweaks run'],
+  ['bot:in-progress', 'Bot state: an agent currently holds the claim on this record'],
   ['parked', 'Backlog entry parked until its trigger condition is met'],
 ];
 
