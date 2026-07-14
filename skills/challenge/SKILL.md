@@ -35,7 +35,7 @@ The user is about to invest significant time brainstorming and specifying a feat
 
 ### Resolve the input:
 
-1. **Work record reference** (e.g., `#42`) — fetch via `gh issue view {n} --json title,body` (GitHub driver) or `local-store.js` (local-files driver) and use the record's title + body as the problem statement
+1. **Work record reference** (e.g., `#42`) — fetch via `gh issue view {n} --json title,body` (GitHub driver) or the record file via `local-store.js`'s `readRecord` (local-files driver) and use the record's title + body as the problem statement
 2. **Topic** (e.g., `"meal planning"`) — use the topic as the problem statement
 3. **No arguments** — ask the user what they want to challenge
 
