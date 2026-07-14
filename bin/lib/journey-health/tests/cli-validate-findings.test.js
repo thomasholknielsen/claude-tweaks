@@ -54,6 +54,13 @@ test('validate-findings files a brand-new valid finding and succeeds when durabl
   const payloads = JSON.parse(result.stdout);
   assert.strictEqual(payloads.length, 1);
   assert.strictEqual(payloads[0].journey, 'checkout-flow');
+  assert.ok(payloads[0].labels.includes('by:journey-health'));
+  assert.ok(payloads[0].labels.includes('ready'));
+  assert.ok(payloads[0].labels.includes('risk:high'), 'default fixture finding is severity high');
+  assert.ok(payloads[0].labels.includes('effort:medium'));
+  assert.strictEqual(payloads[0].type, 'task');
+  assert.ok(payloads[0].body.includes('<!-- work-fingerprint: journeyhealth-'));
+  assert.ok(!payloads[0].body.includes('journey-health-fingerprint'), 'legacy marker must not be emitted');
   assert.strictEqual(
     fs.existsSync(path.join(root, '.claude-tweaks', 'journey-health', 'cursors.json')),
     false,
@@ -126,10 +133,10 @@ test('validate-findings: a finding matching a closed non-wontfix issue is reopen
 
   const first = spawnSync('node', [CLI, 'validate-findings', findingsFile, '--root', root], { encoding: 'utf8' });
   const firstPayloads = JSON.parse(first.stdout);
-  const fp = firstPayloads[0].body.match(/<!--\s*journey-health-fingerprint:\s*(journeyhealth-[0-9a-f]{8})\s*-->/)[1];
+  const fp = firstPayloads[0].body.match(/<!--\s*work-fingerprint:\s*(journeyhealth-[0-9a-f]{8})\s*-->/)[1];
 
   const issuesFile = path.join(root, 'issues.json');
-  fs.writeFileSync(issuesFile, JSON.stringify([{ number: 9, state: 'closed', labels: ['journey-health'], fingerprint: fp }]));
+  fs.writeFileSync(issuesFile, JSON.stringify([{ number: 9, state: 'closed', labels: ['by:journey-health'], fingerprint: fp }]));
 
   const second = spawnSync('node', [CLI, 'validate-findings', findingsFile, '--root', root, '--issues', issuesFile], { encoding: 'utf8' });
   assert.strictEqual(second.status, 0, `stderr: ${second.stderr}`);

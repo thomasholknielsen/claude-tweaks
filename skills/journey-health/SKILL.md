@@ -6,13 +6,13 @@ description: Use when you want to check whether docs/journeys/*.md files still a
 
 # Journey Health — Keep Journeys Honest for Agent E2E Testing
 
-A recurring health check for `docs/journeys/*.md`: picks one journey to audit against the codebase, judges it, and always files a `journey-health`-labelled GitHub issue. Never edits journey files, stories, or code — every fix routes through `/claude-tweaks:journeys` or `/claude-tweaks:stories`, invoked by a human or `/triage dispatch` → `/flow`.
+A recurring health check for `docs/journeys/*.md`: picks one journey to audit against the codebase, judges it, and always files a `by:journey-health`-labelled, born-`ready` GitHub issue. Records enter the same gate worklist as the other health-skill producers — journey-health issues are not a separate lane. Never edits journey files, stories, or code — every fix routes through `/claude-tweaks:journeys` or `/claude-tweaks:stories`, invoked by a human or `/triage dispatch` → `/flow`.
 
 ```
               [ /claude-tweaks:journey-health ] <- utility (no fixed lifecycle position)
                            |  next-target picks a journey; coverage scan runs when due
                            v
-file-existence + self-review + coverage -> finding -> validate-findings -> file GitHub issue
+file-existence + self-review + coverage -> finding -> validate-findings -> file GitHub issue (by:journey-health, ready)
 ```
 
 ## When to Use
@@ -109,10 +109,12 @@ Write Step 3.5's findings to `/tmp/journey-health-findings-deep.json` whenever t
 **Step 4 — GATHER OPEN ISSUES for dedup.**
 
 ```bash
-gh issue list --label journey-health --state all --json number,state,labels,body --limit 500 > /tmp/journey-health-issues-raw.json
+gh issue list --label by:journey-health --state all --json number,state,labels,body --limit 500 > /tmp/journey-health-issues-raw.json
 ```
 
-Parse each issue body for the fingerprint marker `<!-- journey-health-fingerprint: journeyhealth-XXXXXXXX -->` and build an array of `{ number, state, labels, fingerprint }` objects. Write to `/tmp/journey-health-issues.json`. If `gh` is unavailable or the repo has no `journey-health` issues yet, skip this step and set `ISSUES_FILE=""` — the run dedups against the local cache only.
+Parse each issue body for its fingerprint marker. Fingerprint extraction reads the dual-marker form via `extractFingerprint` (`bin/lib/issues/record.js`): the current `<!-- work-fingerprint: journeyhealth-XXXXXXXX -->` marker, falling back to the legacy `<!-- journey-health-fingerprint: journeyhealth-XXXXXXXX -->` marker still present on issues filed before this skill moved onto the unified work record (`skills/_shared/work-record.md`). Build an array of `{ number, state, labels, fingerprint }` objects and write to `/tmp/journey-health-issues.json`. If `gh` is unavailable or the repo has no `by:journey-health` issues yet, skip this step and set `ISSUES_FILE=""` — the run dedups against the local cache only.
+
+A matched issue carrying the `wontfix` label is a standing suppression decision: Step 5's `validate-findings` reads it directly off this issue index and skips re-filing entirely (see `_shared/work-record.md`'s `wontfix` closure row). Like `/harness-health` and unlike `/code-health`, journey-health has no cache-level wontfix fallback — every firing re-fetches the live issue index in this step, and `gh issue list --state all` already includes closed `wontfix`'d issues, so the suppression is always seen fresh; there is nothing to persist locally for it.
 
 **Step 5 — VALIDATE, FINGERPRINT, DEDUP.**
 
@@ -145,6 +147,16 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" validate-findings /tmp/journe
 
 **Step 6 — FILE.**
 
+Every journey-health record files onto the unified work record (`skills/_shared/work-record.md`): origin `by:journey-health`; severity folds into the scoring axis instead of staying a producer-specific label the gate must know:
+
+| Severity | risk | effort |
+|---|---|---|
+| `high` | `risk:high` | `effort:medium` |
+| `med` | `risk:medium` | `effort:medium` |
+| `low` | `risk:low` | `effort:medium` |
+
+Effort is always `effort:medium` — a journey-health finding carries no scope/size signal (no files-changed count, no lines-changed estimate) the way a code-health or harness-health finding's own evidence does, so there is no deterministic basis to fold into a `low`/`high` split; `medium` is the flat, honest default for every finding this skill files. Type follows the finding's `category`: `regression-suspected` files as `bug` (the journey/story text is accurate — the implementation broke); `drift` and `coverage` file as `task` (documentation or coverage maintenance, not a defect). Every filed finding is **born-`ready`** — journey-health findings are agent-sized and spec-shaped by construction (Current State / Deliverables / Acceptance Criteria), so they file with the `ready` label already applied and appear directly in the authorization gate's worklist, skipping maturation — records enter the same gate worklist as the other health-skill producers (`/code-health`, `/harness-health`); journey-health issues are not a separate lane. `toIssuePayload` (`bin/lib/journey-health/issue-payload.js`) assembles the payload via `record.js`'s `recordPayload`, then appends the category-derived diagnostic label (`journey-health:drift` / `journey-health:coverage` / `journey-health:regression-suspected`) after the canonical labels — the emitted label set is exactly `by:journey-health` + `risk:<tier>` + `effort:medium` + `ready` + the diagnostic label, matching the table above.
+
 Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures (see `_shared/health-state.md`):
 
 ```bash
@@ -157,23 +169,48 @@ For each payload in `/tmp/journey-health-retry-payloads.json`, attempt `gh issue
 node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" retry-queue update /tmp/journey-health-retry-results.json --root . > /tmp/journey-health-escalated.json
 ```
 
-If `/tmp/journey-health-escalated.json` is non-empty, file (or update) a `journey-health:filing-failed` issue for each entry, naming the stuck fingerprint and its failure history — bootstrap that label the same way as the category/severity labels below.
+If `/tmp/journey-health-escalated.json` is non-empty, file (or update) a `journey-health:filing-failed` issue for each entry, naming the stuck fingerprint and its failure history — bootstrap that label the same way as the others below.
 
-Before filing, ensure each payload's category and severity sub-labels exist (they won't on first use in a fresh repo — `gh issue create` fails against a nonexistent label):
+Before filing, bootstrap only the label families this run applies, with real descriptions — using the shared helper so a too-long description fails loudly here rather than as a 422 on `gh issue create`. Canonical pairs copied verbatim from `_shared/label-bootstrap.md`'s `LABELS_JSON`, plus journey-health's own diagnostic labels:
 
 ```bash
-LABEL="journey-health:<category>"
-gh label list --search "$LABEL" --json name -q '.[].name' | grep -qx "$LABEL" || \
-  gh label create "$LABEL" --description "journey-health finding category: <category>"
-
-LABEL="journey-health:<severity>"
-gh label list --search "$LABEL" --json name -q '.[].name' | grep -qx "$LABEL" || \
-  gh label create "$LABEL" --description "journey-health finding severity: <severity>"
+# Bootstrap per _shared/label-bootstrap.md, LABELS_JSON =
+# [["by:journey-health",  "Origin: filed by the journey-health skill"],
+#  ["risk:low",           "Scoring: low blast radius — safe for autonomous build"],
+#  ["risk:medium",        "Scoring: moderate blast radius — review before merge recommended"],
+#  ["risk:high",          "Scoring: high blast radius — human review required"],
+#  ["effort:medium",      "Scoring: moderate change, may span several files"],
+#  ["ready",              "Stage: spec-shaped and agent-sized — in the authorization gate's worklist"],
+#  ["journey-health:drift",                "Journey category: the journey file no longer matches the codebase"],
+#  ["journey-health:coverage",             "Journey category: a journey step or story has a coverage gap"],
+#  ["journey-health:regression-suspected", "Journey category: live behavior appears to have regressed"]]
 ```
 
-For each payload in `/tmp/journey-health-payloads-light.json` and (when Step 3.5 ran) `/tmp/journey-health-payloads-deep.json`: `gh issue create --title "<payload.title>" --body "<payload.body>" --label journey-health --label "<payload.labels[1]>" --label "<payload.labels[2]>"`. `/journey-health` never edits journey files, stories, or code — every finding files, unconditionally.
+Each payload in `/tmp/journey-health-payloads-light.json` and (when Step 3.5 ran) `/tmp/journey-health-payloads-deep.json` carries structured fields, not just the GitHub issue text — `id`, `journey`, `category`, `section`, `severity`, `confidence` are all present directly on the payload object (not just embedded in `payload.body`'s markdown), alongside `title`, `body`, `labels`, and `type`. These stay on the payload as triage metadata — nothing here branches on them anymore.
 
-For a payload whose fingerprint marker (`<!-- journey-health-fingerprint: {id} -->`, embedded in `payload.body`) matches a `status: "regressed"` entry in `.claude-tweaks/journey-health/cache.json` after this run, the finding was previously closed and has reappeared — reopen the existing issue instead of filing a new one:
+**Type expression branch.** Read the project's `work-types` config key once before filing and branch — never re-probe mid-run (`_shared/work-record.md`'s config-key table; the key is written by `/init`). `work-types: native` applies `payload.type` (`bug` for a `regression-suspected` finding, `task` for `drift`/`coverage`) via GitHub's native Issue Type; `work-types: labels` adds the matching `type:bug`/`type:task` label instead (the pairs live in `record.js`'s `TYPE_LABELS`):
+
+```bash
+# Example: a drift finding (type task), work-types: native
+gh issue create --title "<payload.title>" --body "<payload.body>" --type task \
+  --label by:journey-health --label risk:high --label effort:medium --label ready --label journey-health:drift
+
+# Same finding, work-types: labels
+gh issue create --title "<payload.title>" --body "<payload.body>" \
+  --label by:journey-health --label risk:high --label effort:medium --label ready --label journey-health:drift --label type:task
+
+# Example: a regression-suspected finding (type bug), work-types: native
+gh issue create --title "<payload.title>" --body "<payload.body>" --type bug \
+  --label by:journey-health --label risk:medium --label effort:medium --label ready --label journey-health:regression-suspected
+
+# Same finding, work-types: labels
+gh issue create --title "<payload.title>" --body "<payload.body>" \
+  --label by:journey-health --label risk:medium --label effort:medium --label ready --label journey-health:regression-suspected --label type:bug
+```
+
+Apply the same branch to every payload regardless of category — a `coverage` payload's call carries `journey-health:coverage` and `--type task`/`--label type:task` the same way a `drift` payload does; only the `--type task`/`--type bug` vs. `--label type:task`/`--label type:bug` branch and the `--label` list change, never the underlying `gh issue create --title/--body`. `/journey-health` never edits journey files, stories, or code — every finding files, unconditionally.
+
+For a payload whose fingerprint marker (embedded in `payload.body`, read via `extractFingerprint`) matches a `status: "regressed"` entry in `.claude-tweaks/journey-health/cache.json` after this run, the finding was previously closed and has reappeared — reopen the existing issue instead of filing a new one:
 
 ```bash
 gh issue reopen <issue_number>
@@ -191,11 +228,11 @@ In interactive mode, render surviving findings as a markdown batch table before 
 ```
 
 Then call `AskUserQuestion` with `question`: `"File these findings as GitHub issues?"`, `header`: `"Findings"`, `multiSelect`: `false`, and:
-- Option 1 — `label`: `"File all (Recommended)"`, `description`: `"File every finding above as a journey-health-labelled GitHub issue"`
+- Option 1 — `label`: `"File all (Recommended)"`, `description`: `"File every finding above as a by:journey-health-labelled GitHub issue"`
 - Option 2 — `label`: `"Route individually"`, `description`: `"Decide each finding one at a time"`
 
 If "Route individually" was chosen, call `AskUserQuestion` once per finding — `question`: `"How do you want to handle finding #{N}: {journey}/{section}?"`, `header`: `"Finding #{N}"`, `multiSelect`: `false`, and:
-- Option 1 — `label`: `"File issue"`, `description`: `"File as a GitHub journey-health issue"`
+- Option 1 — `label`: `"File issue"`, `description`: `"File as a GitHub by:journey-health issue"`
 - Option 2 — `label`: `"Dismiss"`, `description`: `"Run mark declined so it doesn't reappear"`
 
 For "dismiss," run `node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" mark "<payload.id>" declined --root .` so the same proposal doesn't reappear on a future firing.
@@ -214,7 +251,7 @@ Report: which journey (if any) was audited, whether the coverage scan ran, how m
 
 **Headless run flow:** SELECT(`next-target`) → LIGHT TIER JUDGE → COVERAGE SCAN (when due) → validate-findings → file. A firing with nothing due (`target: null`, `coverageScanDue: false`) is a cheap no-op. Rotation cursors (light/deep audit + coverage-scan) and the filing retry queue live on the durable `health-state` branch (`_shared/health-state.md`), surviving container recycling across scheduled firings.
 
-Report-only, matching `/code-health` and `/harness-health` — every finding files as a `journey-health`-labelled GitHub issue, with no `Edit` in `allowed_tools`.
+Report-only, matching `/code-health` and `/harness-health` — every finding files as a `by:journey-health`-labelled, born-`ready` GitHub issue, with no `Edit` in `allowed_tools`.
 
 > **Billing note:** Routines run inside the subscription; verify automation-credit specifics against the live account.
 
@@ -253,7 +290,7 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `/claude-tweaks:visual-review` | The deep tier falls back to `/visual-review journey:{name}` when no stories exist yet for the selected journey. |
 | `/claude-tweaks:review` | Shares `_shared/journey-coverage-check.md`'s coverage computation with lens `3g-cov` — `/review`'s lens stays inline/informational; this skill adds cursor-tracking and issue-filing on top. |
 | `/claude-tweaks:routine` | `/routine create journey-health` instantiates this skill's `routine-template.yml` into a live, scheduled cloud Routine. |
-| `/claude-tweaks:tidy` | Step 4.8 sweeps `journey-health`-labelled issues alongside `code-health`/`harness-health` ones, using the same stale/superseded triage. |
-| `/claude-tweaks:triage` | Filed `journey-health` issues resolve through `/triage dispatch` → `/flow`, or manually — same path `code-health`/`harness-health` issues already take. |
+| `/claude-tweaks:tidy` | Step 4.8 sweeps `by:journey-health`-labelled issues alongside `by:code-health`/`by:harness-health` ones, using the same stale/superseded triage. |
+| `/claude-tweaks:triage` | Filed `by:journey-health` issues resolve through `/triage dispatch` → `/flow`, or manually — same path `by:code-health`/`by:harness-health` issues already take. Records enter the same gate worklist as the other health-skill producers — journey-health issues are not a separate lane. |
 | `_shared/journey-self-review.md` | Canonical four-check + structural-validity criteria this skill's light tier applies — shared with `/claude-tweaks:journeys` Step 3.5. |
 | `_shared/journey-coverage-check.md` | Canonical coverage computation this skill's coverage scan applies — shared with `/claude-tweaks:review`'s `3g-cov` lens. |

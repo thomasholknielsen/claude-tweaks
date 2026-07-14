@@ -1,6 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { toIssuePayload } = require('../issue-payload');
+const { extractFingerprint } = require('../../issues/record');
 
 function finding(overrides = {}) {
   return {
@@ -17,10 +18,130 @@ function finding(overrides = {}) {
   };
 }
 
-test('toIssuePayload embeds the fingerprint marker in the body', () => {
-  const payload = toIssuePayload(finding());
-  assert.ok(payload.body.includes('<!-- journey-health-fingerprint: journeyhealth-abc12345 -->'));
+// ── severity -> risk axis fold (spec 15) ────────────────────────────────────
+
+test('toIssuePayload for a drift finding (type task) maps severity high to risk:high/effort:medium, ready, and appends the diagnostic label last', () => {
+  const payload = toIssuePayload(finding()); // category: 'drift', severity: 'high'
+  assert.deepStrictEqual(payload.labels, ['by:journey-health', 'risk:high', 'effort:medium', 'ready', 'journey-health:drift']);
+  assert.strictEqual(payload.type, 'task');
 });
+
+test('toIssuePayload for a regression-suspected finding (type bug) maps severity med to risk:medium/effort:medium', () => {
+  const payload = toIssuePayload(finding({ category: 'regression-suspected', section: 'live-check', severity: 'med' }));
+  assert.deepStrictEqual(payload.labels, ['by:journey-health', 'risk:medium', 'effort:medium', 'ready', 'journey-health:regression-suspected']);
+  assert.strictEqual(payload.type, 'bug');
+});
+
+test('toIssuePayload maps severity low to risk:low', () => {
+  const payload = toIssuePayload(finding({ severity: 'low' }));
+  assert.ok(payload.labels.includes('risk:low'));
+});
+
+test('toIssuePayload types a coverage finding as task', () => {
+  const payload = toIssuePayload(finding({ category: 'coverage', section: 'coverage' }));
+  assert.strictEqual(payload.type, 'task');
+  assert.ok(payload.labels.includes('journey-health:coverage'));
+});
+
+test('toIssuePayload always files effort:medium regardless of severity', () => {
+  for (const severity of ['high', 'med', 'low']) {
+    assert.ok(toIssuePayload(finding({ severity })).labels.includes('effort:medium'));
+  }
+});
+
+test('toIssuePayload is born-ready', () => {
+  assert.ok(toIssuePayload(finding()).labels.includes('ready'));
+});
+
+test('toIssuePayload never emits a journey-health:<severity> label', () => {
+  const payload = toIssuePayload(finding());
+  assert.ok(
+    !payload.labels.some((l) => ['journey-health:high', 'journey-health:med', 'journey-health:low'].includes(l)),
+    'severity must fold into risk:*, not its own journey-health:<severity> label',
+  );
+});
+
+// validate-finding.js's SEVERITY_VALUES already restricts finding.severity to exactly
+// high|med|low before a finding ever reaches toIssuePayload through the real
+// validate-findings pipeline, so an unmapped severity is unreachable there. This documents
+// the actual (non-throwing) behavior for a direct/bypassing caller: recordPayload treats
+// the resulting undefined risk as "not supplied" — same as harness-health's unscored
+// new-skill findings — rather than fabricating a default tier.
+test('an unmapped severity omits the risk label rather than fabricating a default tier', () => {
+  const payload = toIssuePayload(finding({ severity: 'critical' }));
+  assert.ok(!payload.labels.some((l) => l.startsWith('risk:')), 'unmapped severity must not invent a risk label');
+  assert.ok(payload.labels.includes('by:journey-health'));
+  assert.ok(payload.labels.includes('ready'));
+});
+
+// ── fingerprint marker (work-fingerprint, not the legacy marker) ───────────
+
+test('toIssuePayload body embeds the work-fingerprint marker, not the legacy journey-health-fingerprint marker', () => {
+  const payload = toIssuePayload(finding());
+  assert.ok(payload.body.includes('<!-- work-fingerprint: journeyhealth-abc12345 -->'));
+  assert.ok(!payload.body.includes('journey-health-fingerprint'), 'legacy marker must not be emitted');
+});
+
+test('the fingerprint marker is re-extractable with extractFingerprint', () => {
+  const payload = toIssuePayload(finding());
+  assert.strictEqual(extractFingerprint(payload.body), 'journeyhealth-abc12345');
+});
+
+test('toIssuePayload body starts directly with the header line (no leading marker or blank line)', () => {
+  const payload = toIssuePayload(finding());
+  assert.ok(payload.body.startsWith('**Journey:**'), `expected body to start with the header line, got: ${payload.body.slice(0, 40)}`);
+});
+
+// ── body recomposition: Current State / Deliverables / Acceptance Criteria ─
+
+test('toIssuePayload body carries the spec-shaped sections, not the retired ones', () => {
+  const payload = toIssuePayload(finding());
+  assert.ok(payload.body.includes('## Current State'));
+  assert.ok(payload.body.includes('## Deliverables'));
+  assert.ok(payload.body.includes('## Acceptance Criteria'));
+  assert.ok(!payload.body.includes('## Description'));
+  assert.ok(!payload.body.includes('## Evidence'));
+  assert.ok(!payload.body.includes('## Recommended Action'));
+});
+
+test('toIssuePayload includes description and reason under Current State, recommendation under Deliverables, in order', () => {
+  const payload = toIssuePayload(finding());
+  assert.ok(payload.body.includes('files: entry no longer exists'));
+  assert.ok(payload.body.includes('src/checkout/OldCart.tsx was deleted in a1b2c3d'));
+  assert.ok(payload.body.includes('Run /claude-tweaks:journeys checkout-flow'));
+
+  const currentStateIdx = payload.body.indexOf('## Current State');
+  const descriptionIdx = payload.body.indexOf('files: entry no longer exists');
+  const reasonIdx = payload.body.indexOf('src/checkout/OldCart.tsx was deleted in a1b2c3d');
+  const deliverablesIdx = payload.body.indexOf('## Deliverables');
+  const recommendationIdx = payload.body.indexOf('Run /claude-tweaks:journeys checkout-flow');
+  const acceptanceIdx = payload.body.indexOf('## Acceptance Criteria');
+
+  assert.ok(currentStateIdx < descriptionIdx);
+  assert.ok(descriptionIdx < reasonIdx);
+  assert.ok(reasonIdx < deliverablesIdx);
+  assert.ok(deliverablesIdx < recommendationIdx);
+  assert.ok(recommendationIdx < acceptanceIdx);
+});
+
+test('toIssuePayload synthesizes the exact Acceptance Criteria line', () => {
+  const payload = toIssuePayload(finding({ journey: 'checkout-flow' }));
+  assert.ok(payload.body.includes(
+    "The condition described above is resolved: a fresh `/claude-tweaks:journey-health` audit of journey 'checkout-flow' files no finding with this fingerprint.",
+  ));
+});
+
+test('toIssuePayload synthesized Acceptance Criteria line uses the finding-specific journey name', () => {
+  const payload = toIssuePayload(finding({ journey: 'signup-flow' }));
+  assert.ok(payload.body.includes("audit of journey 'signup-flow' files no finding with this fingerprint."));
+});
+
+test('toIssuePayload keeps the footer line unchanged', () => {
+  const payload = toIssuePayload(finding());
+  assert.ok(payload.body.includes('_Filed by `/claude-tweaks:journey-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._'));
+});
+
+// ── title formatting (unchanged) ────────────────────────────────────────────
 
 test('toIssuePayload builds a title from category and section', () => {
   const payload = toIssuePayload(finding());
@@ -32,14 +153,17 @@ test('toIssuePayload maps regression-suspected to the "regression" title label',
   assert.strictEqual(payload.title, 'Journey regression: checkout-flow — live-check');
 });
 
-test('toIssuePayload sets the journey-health, category, and severity labels', () => {
-  const payload = toIssuePayload(finding());
-  assert.deepStrictEqual(payload.labels, ['journey-health', 'journey-health:drift', 'journey-health:high']);
-});
+// ── preserved top-level fields (producer/consumer invariant) ───────────────
 
-test('toIssuePayload includes description, reason, and recommendation in the body', () => {
-  const payload = toIssuePayload(finding());
-  assert.ok(payload.body.includes('files: entry no longer exists'));
-  assert.ok(payload.body.includes('src/checkout/OldCart.tsx was deleted in a1b2c3d'));
-  assert.ok(payload.body.includes('Run /claude-tweaks:journeys checkout-flow'));
+test('toIssuePayload preserves top-level finding fields alongside the payload fields', () => {
+  const f = finding({
+    id: 'journeyhealth-deadbeef', journey: 'signup', category: 'coverage', section: 'coverage', severity: 'low', confidence: 'med',
+  });
+  const payload = toIssuePayload(f);
+  assert.strictEqual(payload.id, 'journeyhealth-deadbeef');
+  assert.strictEqual(payload.journey, 'signup');
+  assert.strictEqual(payload.category, 'coverage');
+  assert.strictEqual(payload.section, 'coverage');
+  assert.strictEqual(payload.severity, 'low');
+  assert.strictEqual(payload.confidence, 'med');
 });
