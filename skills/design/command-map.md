@@ -10,7 +10,7 @@ Reference table for every Impeccable command, categorized by how the wrapper dis
 | **Auto-fit (polish phase)** | Run automatically in the polish phase whenever frontend is detected (`/flow` polish) |
 | **Auto-fit (review phase)** | Run automatically during review whenever frontend is detected (`/review`) |
 | **Issue-driven** | Run only when the audit pass flagged a matching issue (`/flow` polish) |
-| **Intent-driven** | Run only when the record's `Design-intent:` body-metadata line (lifted into the materialized build header — spec 20) declares a matching intent (`/flow` polish) |
+| **Intent-driven** | Run only when the record's `Design-intent:` body-metadata line (lifted into the materialized header — spec 20) declares a matching intent (`/flow` polish) |
 | **Manual-only** | Surfaced as `survey` recommendations; never auto-dispatched. Aggressive creative drift makes them user-discretion. |
 | **Never (in flow)** | Available only as standalone manual commands; never auto-invoked by the wrapper |
 
@@ -91,7 +91,7 @@ When multiple findings match the same category, the wrapper dispatches the comma
 
 ### Step 3 — Intent-driven
 
-Read `Design-intent:` from the record's body-metadata line (lifted into the materialized build header — spec 20; written by `/specify`). For each declared intent value, dispatch the matching command(s) on the changed UI files. Multiple intents (comma-separated, e.g., `design-intent: bold, delightful`) trigger multiple dispatches. The value `none` or missing skips intent dispatch entirely.
+Read `Design-intent:` from the record's body-metadata line (lifted into the materialized header — spec 20; written by `/specify`). For each declared intent value, dispatch the matching command(s) on the changed UI files. Multiple intents (comma-separated, e.g., `design-intent: bold, delightful`) trigger multiple dispatches. The value `none` or missing skips intent dispatch entirely.
 
 | `design-intent:` value | Commands invoked |
 |------------------------|------------------|

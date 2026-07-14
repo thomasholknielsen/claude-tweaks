@@ -1,6 +1,6 @@
 # Frontend Detection — Sniff Rules + Body-Metadata Spec
 
-Reference for the wrapper's 3-layer detection logic. Layer 3 (file-extension sniff) is detailed here. Layer 2 reads the record's `Surface:` body-metadata line (lifted into the materialized build header — spec 20), which Phase 1 does not write but does read for forward-compat (Phase 2 will write it).
+Reference for the wrapper's 3-layer detection logic. Layer 3 (file-extension sniff) is detailed here. Layer 2 reads the record's `Surface:` body-metadata line (lifted into the materialized header — spec 20), which Phase 1 does not write but does read for forward-compat (Phase 2 will write it).
 
 ## Layer 3 — File-extension sniff (fallback)
 
@@ -64,9 +64,9 @@ A backend project that touches only `.ts`/`.js` files outside `/components/`, `/
 - **Type-only files** (`.d.ts`) — do not match. Correct — they don't render.
 - **CSS-in-JS via `.ts`** — do not match unless the path contains a trigger segment. This is a known false-negative; the record's `Surface:` body-metadata line is the explicit override.
 
-## Layer 2 — Body-metadata lines (read by wrapper via the materialized build header — spec 20; written by `/specify`)
+## Layer 2 — Body-metadata lines (read by wrapper via the materialized header — spec 20; written by `/specify`)
 
-Every leaf record may declare two design-related body-metadata lines: `Surface:` and `Design-intent:`. `/specify` writes both on every new leaf record. The wrapper reads `Surface:` for Layer 2 detection and `Design-intent:` for `polish` mode's intent-driven dispatch — both lifted into the materialized build header at build time (spec 20's contract).
+Every leaf record may declare two design-related body-metadata lines: `Surface:` and `Design-intent:`. `/specify` writes both on every new leaf record. The wrapper reads `Surface:` for Layer 2 detection and `Design-intent:` for `polish` mode's intent-driven dispatch — both lifted into the materialized header at build time (spec 20's contract).
 
 **The canonical definition of these fields lives in the spec template** at `skills/specify/spec-template.md` (see the body-metadata block description near the top of the fenced template). Both the wrapper (which reads the fields) and `/specify` (which writes them) reference that single source of truth — do not duplicate the value enumerations across multiple files.
 

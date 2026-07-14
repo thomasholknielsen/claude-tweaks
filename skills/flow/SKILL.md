@@ -336,7 +336,7 @@ Next Actions in `/flow` are outcome-conditional and rendered as part of the Pipe
 
 | Skill | Relationship |
 |-------|-------------|
-| `/claude-tweaks:build` | First step in the default pipeline — runs in spec mode (flow only passes specs since v4.5.2; design-mode bypass was removed). Sets `VERIFICATION_PASSED=true`. |
+| `/claude-tweaks:build` | First step in the default pipeline — invoked against the record materialized via `materialize.md` (record mode, primary); spec-file mode is the legacy alias (design-mode bypass was removed). Sets `VERIFICATION_PASSED=true`. |
 | `/claude-tweaks:stories` | Auto-triggered between build and test when UI files change (unless `no-stories`). Ingests journey files from `/build` for journey-aware story generation. Both skills consume `dev-url-detection.md` from `skills/_shared/` for URL resolution. |
 | `/claude-tweaks:test` | Mechanical gate between build/stories and review — types, lint, tests, QA. Receives `VERIFICATION_PASSED` from build (skips redundant checks). Sets `TEST_PASSED=true`. |
 | `/claude-tweaks:review` | Analytical gate — receives `TEST_PASSED=true` from test, produces verdict. Runs in **full** mode (code + visual) by default; delegates visual review to `/visual-review` which handles its own browser detection. Code mode fallback when no browser available. Never runs verification or QA itself. |
