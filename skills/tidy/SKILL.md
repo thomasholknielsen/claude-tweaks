@@ -93,7 +93,7 @@ Read `scan-procedures.md` in this skill's directory for the full classification 
 | 4.5 | `git worktree list`, `git branch --list "build/*"` | `[git]` |
 | 4.6 | `docs/REGISTRY.md` | `[registry]` |
 | 4.7 | `gh api git/matching-refs/claims/` + issue comments | `[claim]` |
-| 4.8 | `gh pr list` / `gh issue list --label code-health` / `--label harness-health` / `--label journey-health` per `_shared/github-pr-scan.md` (`repo-wide` scope) | `[pr]`, `[gh-issue]` |
+| 4.8 | `gh pr list` / `gh issue list --label by:code-health` / `--label by:harness-health` / `--label by:journey-health` per `_shared/github-pr-scan.md` (`repo-wide` scope) | `[pr]`, `[gh-issue]` |
 | 5 (sequential, after Step 1) | `ready` records not yet claimed | `[sizing]` |
 | 5.5 (sequential, independent of Step 1) | Recent git history of review/wrap-up commits | `[pattern]`, `[health]` |
 
@@ -219,6 +219,8 @@ Last updated: {ISO timestamp}
 - {finding} — {recommendation} — (still open as of {timestamp})
 
 **Pending authorization:** {N} records awaiting a grant
+**Blocked:** {N} records hit their retry ceiling
+**Backlog:** {N} records with no stage label
 ```
 
 **Dedup (applies to "Still needs your review" only — the other two sections are a fresh append per firing, since they're already-resolved actions, not open items):** before adding a row, compute its key as `{PR or issue number}:{finding-type}` (e.g. `142:stale-pr`, `88:unresolved-thread`). Read the digest's current "Still needs your review" section and check for a row with a matching key (match on the PR/issue number and finding-type substring in the existing row text — both are always present in the rendered row). If found, update only that row's `(still open as of {timestamp})` suffix to the current firing's timestamp — do not add a second row, and do not mark this finding as new-this-firing (see the Notification subsection below, which fires only on new-this-firing findings). If not found, append a new row and mark it new-this-firing — this is either a genuinely new finding or one whose finding-type changed materially for the same number (e.g. a PR that was `Review` last firing is now `CI-red` — a different finding-type key, so a new row).
