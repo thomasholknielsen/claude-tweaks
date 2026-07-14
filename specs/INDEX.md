@@ -20,7 +20,7 @@ One program, decomposed from `docs/superpowers/specs/2026-07-13-unified-work-rec
 
 | Spec | Title | Status | Blocked by |
 |------|-------|--------|------------|
-| 13 | Work-record shared contracts and label taxonomy | Not started | — |
+| 13 | Work-record shared contracts and label taxonomy | **Complete** | — |
 | 14 | Record-store core modules (bin/lib) | Not started | 13 |
 | 15 | Health producers on the unified record | Not started | 14 |
 | 16 | /capture and /challenge on the unified record | Not started | 14 |
