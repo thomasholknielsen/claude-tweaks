@@ -129,9 +129,9 @@ Always offered (not gated) — detect which claude-tweaks skills ship a `routine
 
 Offer only on projects with a GitHub remote — writes `.github/workflows/track-issue-fixes.yml`, which labels (`fix-on-<branch>`) and comments on issues fixed on non-default branches, then strips those labels once the fix reaches the default branch and GitHub closes the issue natively. Idempotent: skipped silently once the workflow file exists. Read `bootstrap-steps.md` (Step 14) for the full procedure.
 
-### Step 15: Backlog Backend (Optional)
+### Step 15: Work-Record Backend (Optional)
 
-Decide whether `/claude-tweaks:capture` and `/claude-tweaks:tidy` back the backlog with GitHub issues or one local markdown file per entry, and write the `backlog-backend` flag to CLAUDE.md — gated on the same GHE-safe two-tier remote check Step 9 uses. Read `bootstrap-steps.md` (Step 15) for the full procedure.
+Decide whether the unified work record — used by `/claude-tweaks:capture`, `/claude-tweaks:specify`, `/claude-tweaks:triage`, `/claude-tweaks:dispatch`, `/claude-tweaks:tidy`, and the health skills — is backed by GitHub issues or local record files, and write `work-backend` to CLAUDE.md under a `## Work records` section (gated on the same GHE-safe two-tier remote check Step 9 uses). Then probe GitHub-native capabilities once (`work-types`, `work-links`) and offer to provision all 17 core labels now. See `_shared/work-record.md` for the taxonomy these config keys govern. Read `bootstrap-steps.md` (Step 15) for the full procedure.
 
 ---
 
@@ -379,7 +379,7 @@ After writing files, surface what was created. Generate the table from the actua
 | Statusline | Installed wrapper at `~/.claude-tweaks/bin/statusline.js`; wired `~/.claude/settings.json` | Step 8 |
 | Design integration | Set `design-integration: {enabled/plugin-only/disabled}` in CLAUDE.md | Step 10 |
 | shadcn integration | Set `shadcn-integration: {enabled/cli-only/disabled}` in CLAUDE.md | Step 12 |
-| Backlog integration | Set `backlog-backend: {github-issues/local-files}` in CLAUDE.md | Step 15 |
+| Work records | Set work-backend / work-types / work-links in CLAUDE.md; offer 17-label bootstrap | Step 15 |
 | Routines | Instantiated {N} routine(s): `{list}` (or "Offered, none set up") | Step 13 |
 | Worktree policy | Set `worktree.always: {true/false}` in `.claude-tweaks/policy.yml` (only if Step 6 asked this run) — written last, after every other row above, to avoid mid-run self-lockout; see "Worktree Policy Finalization" below | Step 6 |
 | Classification | Confirmed maturity `{value}`, doc tier `{N}` | Phase 3 |
@@ -432,6 +432,7 @@ If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it
 | Running init in a non-git directory without warning | /claude-tweaks:review and /claude-tweaks:wrap-up depend on git — the user should know about degraded behavior |
 | Installing browser tools without asking | Browser integration is optional — surface the install command but never run `npm install` automatically |
 | Prompting for a browser backend choice | There is only one backend (`agent-browser`) — do not present a choice |
+| Silently rewriting a legacy `backlog-backend` flag to `work-backend` during Phase 0 | That rename is Update-Mode's job, offered as a staged change (see `update-mode.md`'s Work-Record Backend Drift) — Phase 0 must leave an existing `## Backlog integration` section untouched |
 | Generating generic skills (e.g., `auth.md`, `api-routes.md`) | These are not real conventions — they're feature names. Real skills must encode rules, anti-patterns, or "Why this is done this way" insights grounded in patterns actually observed in the codebase. If the project doesn't use WebSockets, don't create a realtime skill. If it has no tests, capture testing as an aspirational backlog item, not a SKILL.md file. |
 | Generating generic skills not grounded in the codebase | Skills must encode observed patterns — generic advice adds noise, not value |
 | Rewriting CLAUDE.md in Update Mode | Update Mode produces patches, not rewrites — existing config embeds hard-won lessons |
@@ -473,5 +474,6 @@ If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it
 | `/claude-tweaks:version` | /version reads the same `plugin.json` that /init may print during bootstrap |
 | `/claude-tweaks:routine` | Step 13 discovers claude-tweaks skills shipping a `routine-template.yml` (plus any named `routine-template-<variant>.yml` siblings) with no existing instantiated record, presents them via one multiSelect `AskUserQuestion` call (grouped into ≤4-option questions when there are more than 4 candidates) with their default schedules, resolves environment once, then invokes `/claude-tweaks:routine create <skill> [--variant=<name>] --defaults --environment=<id> --source init` for each selected candidate — pure discovery + handoff, no logic duplicated. |
 | `/claude-tweaks:harness-health` and `_shared/harness-health-analysis.md` | Phase 6's drift-patch procedure and Phase 3/1u's skill classification apply this shared procedure instead of an inline copy, sharing its judgment logic and `.claude-tweaks/harness-health/` cursor/cache state with `/claude-tweaks:wrap-up` Step 7 and the standalone routine. |
+| `_shared/work-record.md` | Step 15 provisions the `work-backend` / `work-types` / `work-links` config keys this file documents as the record taxonomy's driver and capability contract. The label-provisioning offer (Step 15c) runs `_shared/label-bootstrap.md`'s canonical label list, which this file names as the taxonomy home. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. Phase 3 classification auto-confirm follows the contract's confidence-gated pattern. |
 | All workflow skills | Depend on the structure /claude-tweaks:init creates |

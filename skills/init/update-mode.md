@@ -54,6 +54,26 @@ For each missing marker, record a **Contract Drift** entry with the suggested pa
 
 If all markers are present, record "Contract: up to date (v4.6+)" in the inventory and skip ahead.
 
+### Work-Record Backend Drift
+
+The work-record backend (`work-backend` / `work-types` / `work-links`) predates a
+versioned contract tag, so it isn't a row in the marker table above — but its drift
+is detected the same pass and counts identically toward the Total drift count in
+Phase 1u.6 below (treat entries from this table as additional Contract Drift
+entries from 1u.5). All three rows are **staged offers** — never a silent CLAUDE.md
+edit, per the auto-mode contract's rule that CLAUDE.md is never edited
+autonomously.
+
+| Signal | Detection | Offer (staged) |
+|---|---|---|
+| Legacy `backlog-backend:` flag present, no `work-backend:` line | `backlog-backend:` found under `## Backlog integration` in CLAUDE.md | Offer the rename: write `work-backend: {same value}` under a new `## Work records` section, replacing `## Backlog integration` — one staged patch (flag + section header together) |
+| `work-backend: github-issues` present but `work-types` and/or `work-links` missing | Absence of `work-types:` / `work-links:` lines alongside a present `work-backend: github-issues` | Run `probeCapabilities()` (`bin/lib/issues/capabilities-probe.js`) and offer to write the missing key(s) |
+| `work-backend: github-issues` with both `work-types` and `work-links` already present | — | Every full Update-Mode pass re-probes capabilities (`probeCapabilities()`) and offers a patch when the result has drifted from what's recorded (e.g. the org enabled Issue Types since the last run) |
+
+`work-backend: local-files` needs no probe on any of these rows — its
+`work-types: labels` / `work-links: body-text` fallback is unconditional, the same
+as bootstrap Step 15b.
+
 ## Phase 1u.6: Update Mode Early-Exit Gate
 
 After Phase 1u (inventory) and Phase 1u.5 (contract drift) complete, evaluate the audit signal before committing to the full phase ceremony. Update Mode's value is in catching drift quickly — when there's almost nothing to catch, the ceremony costs more than it produces.

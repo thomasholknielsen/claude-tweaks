@@ -241,10 +241,18 @@ file-write step: when `gh` is installed and authenticated, confirm via `gh repo 
 `gh` isn't available, fall back to just checking a remote exists (`git remote get-url
 origin` exits 0) — a non-GitHub git host would simply see the offer and decline it, which
 costs nothing. Check whether `.github/ISSUE_TEMPLATE/agent-task.yml` exists; if absent,
-offer to install it. The form makes human-filed issues pipeline-ready at filing time: its
-three sections match what `/claude-tweaks:flow`'s issue-sourced batches consume with zero
+offer to install it. The form makes human-filed issues work-record-ready at filing time:
+its three sections (Current State / Deliverables / Acceptance Criteria) are exactly the
+spec-shaped body `_shared/work-record.md` documents — the same three sections
+`/claude-tweaks:triage`'s gate re-verifies before granting authorization — so
+`/claude-tweaks:flow`'s issue-sourced batches consume a form-filed issue with zero
 translation (`bin/lib/issues/ingest.js` `isFormShaped` — GitHub renders the labels as `###`
 headings, which the detector accepts).
+
+When this project's `work-types` config key reads `native`, mention to the user that the
+filed issue can also carry a native Type — GitHub's own Type picker in the create-issue UI
+sits alongside this form (it is not a templated YAML field below), so a filer sets Type
+there directly instead of a filing skill inferring it from prose afterward.
 
 ```yaml
 name: Agent task
@@ -273,6 +281,13 @@ body:
     validations:
       required: true
 ```
+
+**Label check.** The YAML above applies no top-level `labels:` key (GitHub's
+auto-apply-on-create array, distinct from each field's own `label:` attribute above) —
+leave it unchanged today. If a future edit adds a `labels:` key naming retired
+vocabulary (`backlog`, `code-health`), replace it with the appropriate `by:*` origin
+label or drop the key entirely — never ship a template that stamps retired labels onto
+newly filed issues by default.
 
 Write the YAML exactly as above to `.github/ISSUE_TEMPLATE/agent-task.yml`. Declining is
 fine — freeform issues still work via `/specify`'s own issue-ingestion path (`SKILL.md`
@@ -664,26 +679,35 @@ the next `/init` run.
 
 ---
 
-### Step 15 — Backlog Backend (detailed procedure)
+### Step 15 — Work-Record Backend (detailed procedure)
 
-`/claude-tweaks:capture` and `/claude-tweaks:tidy` back the backlog with either GitHub
-issues or one local markdown file per entry (`specs/backlog/{slug}.md`). Decide the
-backend once here so every future capture/defer/tidy run is consistent — no split-brain
-between issue-backed and file-backed entries for the same repo.
+`/claude-tweaks:capture`, `/claude-tweaks:specify`, `/claude-tweaks:triage`,
+`/claude-tweaks:dispatch`, `/claude-tweaks:tidy`, and the health skills
+(`/claude-tweaks:code-health`, `/claude-tweaks:harness-health`,
+`/claude-tweaks:journey-health`) all file, shape, gate, dispatch, or sweep against
+the same **work record** — the one durable unit each of them acts on. A work record
+is backed by either a GitHub issue or, under the `local-files` driver, one local
+record file per record (`specs/{id}-{slug}.md`, read and written by
+`bin/lib/issues/local-store.js`). Decide the backend once here so every future
+filing/shaping/dispatching run is consistent — no split-brain between issue-backed
+and file-backed records for the same repo. `_shared/work-record.md` is the canonical
+home of the full record taxonomy (the six axes, the label families, and the
+config-key table) — every consumer skill cites it rather than restating it, and this
+step is where its config keys first get written.
 
 **Gate:** run the same GHE-safe two-tier check Step 9 uses.
 
 **When the gate succeeds** (a GitHub-flavored remote is reachable): skip the prompt
 below entirely and go straight to "Write the flag to CLAUDE.md" with
-`backlog-backend: github-issues`. GitHub issues is the richer, proven path
+`work-backend: github-issues`. GitHub issues is the richer, proven path
 (filterable, visible outside the repo, works with `/claude-tweaks:triage` for
 authorization and headless dispatch) — asking a neutral A/B question when the
 better option is
 unambiguously available is unnecessary friction, not a meaningful decision. A user
-who wants local files anyway (e.g. a public repo where backlog items shouldn't be
-GitHub-visible) can still hand-edit CLAUDE.md's `backlog-backend` value afterward —
-`/claude-tweaks:capture` and `/claude-tweaks:tidy` always honor whatever the flag
-says, regardless of how it was set.
+who wants local record files anyway (e.g. a public repo where work records
+shouldn't be GitHub-visible) can still hand-edit CLAUDE.md's `work-backend` value
+afterward — every consumer skill always honors whatever the flag says, regardless
+of how it was set.
 
 **When the gate fails** (no GitHub-flavored remote): present the choice below,
 defaulted to option 2 — unchanged from today.
@@ -691,20 +715,21 @@ defaulted to option 2 — unchanged from today.
 **Present (gate-fails case only):**
 
 ```
-How should claude-tweaks store captured ideas and deferred work?
+How should claude-tweaks store work records (captured ideas, specs, and everything
+/claude-tweaks:triage, /claude-tweaks:dispatch, and /claude-tweaks:tidy act on)?
 
 1. GitHub issues (Recommended when a GitHub remote is available) — filterable,
    visible outside the repo, works with /claude-tweaks:triage for authorization
    and headless dispatch
-2. Local markdown files (specs/backlog/*.md, one file per entry) — no GitHub dependency
+2. Local record files (specs/{id}-{slug}.md, one file per record) — no GitHub dependency
 ```
 
-**Write the flag to CLAUDE.md.** Add (or update) a `## Backlog integration` section:
+**Write the flag to CLAUDE.md.** Add (or update) a `## Work records` section:
 
 ```markdown
-## Backlog integration
+## Work records
 
-backlog-backend: github-issues
+work-backend: github-issues
 ```
 
 Use the appropriate value:
@@ -712,73 +737,100 @@ Use the appropriate value:
 | Choice | Flag value |
 |--------|-----------|
 | Option 1 (GitHub issues) | `github-issues` |
-| Option 2 (Local files) | `local-files` |
+| Option 2 (Local record files) | `local-files` |
 
-`/claude-tweaks:capture` and `/claude-tweaks:tidy` read this flag to decide where a new
-entry lands and how backlog items are triaged — see the backlog-on-GitHub-issues design
-doc (`docs/superpowers/specs/2026-07-08-backlog-github-issues-design.md`) for the full
-mechanics. Missing flag is treated identically to `local-files` —
-the GitHub-backed path only activates when explicitly enabled by `/init`, matching
-`design-integration`'s missing-flag convention.
+A missing `work-backend` flag is treated identically to `local-files` by every
+consumer skill that reads it — matching `design-integration`'s missing-flag
+convention. That is a read-time fallback, separate from what `/init` itself does
+when it finds the flag missing at provisioning time — see "Re-run behavior" below.
 
-**Existing-content migration.** Whenever this step newly sets `backlog-backend:
-github-issues` (a fresh init resolving to `github-issues` — whether via the silent
-gate-succeeds default or an explicit choice in the gate-fails prompt — a first run on a
-pre-existing project, or the upgrade path below) and `specs/backlog/` contains one or
-more entry files, offer a one-time batch migration before finishing this step:
+**Legacy alias note.** Every consumer skill reads `backlog-backend` (the
+pre-migration flag name, under a `## Backlog integration` section) as a read-only
+legacy alias for `work-backend` until the separate migration plan retires it — this
+write path only ever emits `work-backend`, never `backlog-backend`. If this
+project's CLAUDE.md already has a `## Backlog integration` section with a
+`backlog-backend` value (a pre-migration project), do not rewrite it here — see
+"Re-run behavior" below for why that rename belongs to Update-Mode, offered as a
+staged change, never applied silently by a Phase 0 pass landing on an existing
+config.
 
+**Sub-step 15b — Capability probe.** Runs immediately after Step 15 writes
+`work-backend` fresh (either branch above) — not on a re-run where the flag was
+already set; see "Re-run behavior" below.
+
+Under `work-backend: github-issues`, resolve the owner/repo and run
+`probeCapabilities()` (`bin/lib/issues/capabilities-probe.js`) in one `node -e`
+snippet:
+
+```bash
+read -r OWNER REPO <<< "$(gh repo view --json owner,name -q '.owner.login + " " + .name')"
+node -e "
+  const { probeCapabilities } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/capabilities-probe.js');
+  console.log(JSON.stringify(probeCapabilities({ owner: process.argv[1], repo: process.argv[2] })));
+" "$OWNER" "$REPO"
 ```
-Found {X} inbox-stage and {Y} parked-stage entries in specs/backlog/. Migrate them to
-GitHub issues now?
 
-1. Migrate all (Recommended) — creates {X+Y} issues, then deletes the migrated files
-2. Skip — leave the files as-is; /claude-tweaks:tidy will flag every entry as
-   unsynced on its next run and offer the same migration per-item
-```
+Write the results beside the flag: `work-types: native` when the result's `types`
+is true, else `work-types: labels`; `work-links: native` when BOTH `subIssues` and
+`dependencies` are true, else `work-links: body-text`. Filing and shaping skills
+read these two keys and branch — they never re-probe mid-flow
+(`_shared/work-record.md`'s config-key table).
 
-On "Migrate all": for each entry with `**Stage:** inbox`, build the payload via
-`inboxIssuePayload` (category from the entry's `**Category:**` field, which every entry
-carries regardless of stage) and `gh issue create` with `backlog` +
-`backlog:category-<value>` labels. For each entry with `**Stage:** parked`, judge trigger
-type the same way `/claude-tweaks:tidy`'s Sync to GitHub action would judge it live
-(reading the entry's existing `**Trigger:**` prose, not deciding one fresh — that's what
-makes this a Sync to GitHub case, not a Defer case): names specific files → pass as
-`watchedPaths` to `parkedIssuePayload`; names a moment in time → build via
-`parkedIssuePayload` without `watchedPaths`, then attach/create a GitHub Milestone
-(`gh api repos/{owner}/{repo}/milestones --jq '.[].title'` to check existence,
-`gh api repos/{owner}/{repo}/milestones -f title="{name}"` to create,
-`gh issue edit {n} --milestone "{name}"` to attach); otherwise build via
-`parkedIssuePayload` with the prose `**Trigger:**` carried over unchanged. Every entry —
-inbox or parked — already carries a `**Category:**` field set at capture time, so there is
-no live category judgment needed here (unlike the old two-file design, where
-`DEFERRED.md` entries had no structured category field). Every `parkedIssuePayload`-built
-issue gets `backlog` + `parked` + category labels. Bootstrap the `backlog`, `parked`, and
-each used `backlog:category-<value>` label with a real description first
-(check-then-create, same pattern as Step 9's `.github/ISSUE_TEMPLATE` bootstrap). Present
-the batch as a table (entry file → resulting issue number) before deleting the migrated
-files — this is the same batch-table + apply-all/override interaction
-`/claude-tweaks:tidy` Step 6 already uses, not a new UI pattern.
+Under `work-backend: local-files`, skip the probe entirely and write
+`work-types: labels` plus `work-links: body-text` directly — those are the only
+expressions a plain file store supports, so there is nothing to detect.
 
-Delete each migrated entry's `specs/backlog/{slug}.md` file only after its own
-`gh issue create` has confirmed success — migration is atomic per entry, matching the
-Action Vocabulary's atomicity rule (`/claude-tweaks:tidy`'s "Sync to GitHub" action, which
-this migration is a batch form of). If any single `gh issue create` fails mid-batch, leave
-the failed entries' files in place (and only those) and report which ones — they'll be
-flagged unsynced by `/claude-tweaks:tidy` and can be retried per-item via its Sync to
-GitHub action.
+**Sub-step 15c — Label provisioning offer** (`work-backend: github-issues` only).
+Call `AskUserQuestion`:
 
-On "Skip": leave the files as-is. `/claude-tweaks:tidy`'s scan already treats any entry
-found in `specs/backlog/` as unsynced once `backlog-backend: github-issues`, offering the
-identical Sync to GitHub action per-item on its next run — a declined migration behaves
-exactly like a transient-failure fallback write from the scan's point of view.
+- `question`: `"Provision all 17 core work-record labels now?"`, `header`:
+  `"Label bootstrap"`, `multiSelect`: `false`
+- Option 1 (Recommended) — `label`: `"Yes — provision all 17 labels now"`,
+  `description`: `"Runs _shared/label-bootstrap.md's canonical LABELS_JSON whole —
+  the 17 core labels plus the 3 optional priority:* labels (20 total). That file's
+  own note names this offer as the one caller allowed to use the full list, rather
+  than bootstrapping only what's about to be applied. Front-loads label creation so
+  the first health-skill firing or /claude-tweaks:capture call never pays the
+  lazy-create path."`
+- Option 2 — `label`: `"No — create labels lazily as each skill needs them"`,
+  `description`: `"Every filing/shaping/dispatching skill already bootstraps its
+  own labels via the same check-then-create loop on first use
+  (_shared/label-bootstrap.md). Both are valid — this only changes when labels
+  first appear on GitHub, not whether the system works."`
 
-**Re-run behavior (Update-Mode drift).** When `/init` is re-run on a project where
-`backlog-backend: github-issues` is already set, this step is a no-op. When the flag is
-`local-files`, re-run the Gate check — if a GitHub remote has since become available (the
-project was local-only at the last `/init` and has since been pushed), offer the upgrade
-path back to `github-issues`. When the flag is **missing** (pre-this-feature projects),
-apply the same Gate-based handling a fresh init uses above: silently set `github-issues`
-when the gate succeeds, present the gate-fails prompt otherwise.
+On option 1, run the check-then-create loop from `_shared/label-bootstrap.md` with
+its canonical `LABELS_JSON`. See `_shared/work-record.md` for the taxonomy each
+label expresses (the six axes: type, origin, scoring, stage, authorization, bot
+state).
+
+**Pre-existing artifacts.** Projects that used the earlier two-file backlog design
+may still have `specs/backlog/*.md` entries, or live GitHub issues carrying retired
+`tier:*`/`status:*`/`backlog` vocabulary. Migrating that pre-existing content into
+the unified work-record taxonomy is the separate migration plan's scope, not this
+step's — `/init` provisions the backend going forward; it does not touch existing
+records. Until that migration plan runs, `/claude-tweaks:tidy` surfaces the gap on
+its own: an unsynced local record under `work-backend: github-issues` becomes a
+Sync finding, and a live issue still carrying retired vocabulary is flagged for
+re-triage.
+
+**Re-run behavior (keyed to `work-backend`).** When `/init` is re-run on a project
+where `work-backend: github-issues` is already set, this step — including
+sub-steps 15b and 15c — is a no-op; ongoing capability re-probing on an
+already-provisioned project is Update-Mode's job (see `update-mode.md`'s
+Work-Record Backend Drift), not a repeat of this bootstrap step. When
+`work-backend: local-files` is set, re-run the Gate check — if a GitHub remote has
+since become available (the project was local-only at the last `/init` and has
+since been pushed), offer the upgrade path back to `github-issues`, running 15b/15c
+as part of that upgrade. When `work-backend` is **missing**, check for the legacy
+`backlog-backend` key first: if present, this is not a fresh-init project — leave
+it untouched and defer to Update-Mode's rename offer (see the Legacy alias note
+above), rather than silently provisioning a second, differently-named section
+beside it. Only when neither key is present does this count as a true fresh init:
+apply the same Gate-based handling described above — silently set `github-issues`
+(running 15b/15c) when the gate succeeds, present the gate-fails prompt otherwise.
+
+See `_shared/work-record.md` for the full record taxonomy and config-key table that
+this flag, and the two keys it provisions alongside it, govern.
 
 **Failure handling:** if writing the CLAUDE.md section fails, surface the failure and
 continue `/init` — never abort the rest of bootstrap on this step.
