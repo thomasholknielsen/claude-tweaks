@@ -14,21 +14,23 @@ This design means:
 ## Artifact Flow
 
 ```
-Codebase                     ──→ Findings cache               ──→ GitHub Issues (durable)         ──→ Triage + Build pipeline
-.claude-tweaks/code-health/      .claude-tweaks/code-health/      gh issues (label: code-health)      /claude-tweaks:triage → /flow #{issue}
-  /code-health                   cache.json (local) +             ↓ (or)                              specs/NN-*.md via /specify
-                                  health-state branch              specs/backlog/ / /specify           /build
-                                  cursors/runs.json (durable)
+Codebase                     ──→ Findings cache               ──→ Work record (durable)             ──→ Triage grants        ──→ Dispatch claims + builds
+.claude-tweaks/code-health/      .claude-tweaks/code-health/      Confident: GitHub issue/local record   /claude-tweaks:triage    /claude-tweaks:dispatch
+  /code-health                   cache.json (local) +               (label: by:code-health, born ready)  (auto:build/            → /flow #{n}
+                                  health-state branch              Low-confidence: backlog record          auto:merge)
+                                  cursors/runs.json (durable)        via /capture instead
 ```
 
 ```
-Backlog entry (inbox)  ──→ Brief               ──→ Design Doc          ──→ Spec              ──→ Code + Journey
-specs/backlog/*.md        docs/plans/*-brief.md   docs/superpowers/specs/*-design.md  specs/NN-*.md         src/ + docs/journeys/
+Backlog record         ──→ Brief               ──→ Design Doc          ──→ Ready record(s)    ──→ Code + Journey
+GitHub issue/local file    docs/plans/*-brief.md   docs/superpowers/specs/*-design.md  GitHub issue/local file   src/ + docs/journeys/
   /capture               /challenge              /superpowers:brainstorming            /specify              /build
                                                                          ↓                     ↓
-                                                                   (deletes brief           Deferred items
-                                                                    + design doc)           specs/backlog/ (Stage: parked)
+                                                                   (deletes brief           Blocked items → new
+                                                                    + design doc)           backlog record (/capture)
 ```
+
+Between shaping and build, two utility skills act on the record with no fixed lifecycle position of their own — `/claude-tweaks:triage` (grants `auto:build`/`auto:merge`) and `/claude-tweaks:dispatch` (claims the authorized record's file-overlap group and hands it to `/claude-tweaks:flow`). See the Work Records section of `README.md` and `_shared/work-record.md` for the full grant/claim contract.
 
 ```
 Code + Journey ──→ Story YAML     ──→ Test (mechanical gate)  ──→ Review (analytical)       ──→ Learnings Routed    ──→ Clean Slate
@@ -42,14 +44,18 @@ src/ + journeys    stories/*.yaml     types + lint + tests + QA     code + visua
 
 ## What Each Skill Reads and Writes
 
+Where a row below reads or writes `specs/NN-*.md`, that covers both the legacy numbered spec file and — since spec 20 — a work record materialized into `{run-dir}/work/{n}-spec.md` (see `flow/materialize.md`); every downstream skill reads the two identically.
+
 | Skill | Reads | Writes | Deletes |
 |-------|-------|--------|---------|
-| `/code-health` | Codebase files (via LLM judge + optional tool assists), `.claude-tweaks/code-health/cache.json` (prior findings), `health-state` branch `code-health/cursors.json` (per-area sweep state, see `_shared/health-state.md`), `--issues <file>` (open issue index from `gh issue list`) | `.claude-tweaks/code-health/cache.json` (fingerprint + status, local-only), `health-state` branch `code-health/cursors.json` (per-area `lastHash` + `lastSweptMs`) and `code-health/runs.json` (run history for churn tracking, capped at 90 records) — both durable, see `_shared/health-state.md`, GitHub issues via `gh issue create` (durable sink) | — |
-| `/init` | `~/.claude/plugins/`, entire codebase, CLAUDE.md, config files, git state | `specs/`, `docs/plans/`, `docs/journeys/`, `specs/backlog/`, `specs/INDEX.md`, CLAUDE.md, `.claude/skills/*.md`, `.claude/rules/`, `docs/journeys/*.md` | — |
-| `/capture` | — | `specs/backlog/{slug}.md` (create, `**Stage:** inbox`) | — |
-| `/challenge` | `specs/backlog/*.md` | `docs/plans/*-brief.md` | — |
+| `/code-health` | Codebase files (via LLM judge + optional tool assists), `.claude-tweaks/code-health/cache.json` (prior findings), `health-state` branch `code-health/cursors.json` (per-area sweep state, see `_shared/health-state.md`), `--issues <file>` (open issue index from `gh issue list`) | `.claude-tweaks/code-health/cache.json` (fingerprint + status, local-only), `health-state` branch `code-health/cursors.json` (per-area `lastHash` + `lastSweptMs`) and `code-health/runs.json` (run history for churn tracking, capped at 90 records) — both durable, see `_shared/health-state.md`, a work record (GitHub issue via `gh issue create`, or local `specs/{id}-{slug}.md`) born `ready` (durable sink) | — |
+| `/init` | `~/.claude/plugins/`, entire codebase, CLAUDE.md, config files, git state | `specs/`, `docs/plans/`, `docs/journeys/`, `specs/INDEX.md` (legacy spec-file-mode tracking), CLAUDE.md (incl. `work-backend` under `## Work records`, or `## Backlog integration` on a pre-migration project), `.claude/skills/*.md`, `.claude/rules/`, `docs/journeys/*.md` | — |
+| `/capture` | — | A backlog work record — GitHub issue (`by:capture` label, no stage label) or local `specs/{id}-{slug}.md` file, per `work-backend` | — |
+| `/challenge` | A backlog work record (GitHub issue or local file, per `work-backend`) | `docs/plans/*-brief.md` | — |
 | `/superpowers:brainstorming` | `docs/plans/*-brief.md` | `docs/superpowers/specs/*-design.md` | — |
-| `/specify` | `*-design.md`, `*-brief.md`, `specs/INDEX.md` | `specs/NN-*.md`, `specs/INDEX.md` | `*-design.md`, `*-brief.md`, `specs/backlog/{slug}.md` entry |
+| `/specify` | Shaping mode: a work record reference. Decomposition mode: `*-design.md`, `*-brief.md`, plus every open record (queried live — there is no separate index to read) | Shaping mode: shapes the record in place (`ready` + scoring). Decomposition mode: a parent record plus `ready` leaf records — GitHub issues or local `specs/{id}-{slug}.md` files, per `work-backend` | `*-design.md`, `*-brief.md` (decomposition mode, once every phase is fully decomposed) |
+| `/claude-tweaks:triage` | Open work records carrying `ready` with no `auto:*` grant yet (the authorization worklist) | `auto:build`/`auto:merge` labels (human-granted only); strips `bot:blocked` on re-authorization; removes `ready` and comments when flagging an unshaped record back | — |
+| `/claude-tweaks:dispatch` | Open work records carrying `auto:build`, unclaimed and no `bot:*` label | `bot:in-progress` claim mirror + the atomic `refs/claims/issue-{N}` ref; this firing's `decisions.md`; invokes `/claude-tweaks:flow #{n}[,#{m}...]` | Releases its own claim (`bot:in-progress`) on completion or failure; strips `auto:*` grants and adds `bot:blocked` at the retry ceiling |
 | `/build` | `specs/NN-*.md`, `docs/plans/*.md` | Code, plan files, ledger items. Invokes `/journeys` for journey files and `/simplify` for code cleanup. Worktree mode also produces transient worktree directories and feature branches. | — |
 | `/journeys` | Changed files (from parent or git diff), `docs/journeys/*.md` | `docs/journeys/*.md` | — |
 | `/simplify` | Changed files (from parent or git diff) | Simplified code (in-place) | — |
@@ -64,7 +70,7 @@ src/ + journeys    stories/*.yaml     types + lint + tests + QA     code + visua
 | `/stories` | Existing `stories/*.yaml`, `stories/auth.yml` (for auth profiles), `docs/journeys/*.md` (for journey-aware generation), site via `/browse`, component source files (for source analysis) | `stories/*.yaml` (with `source_files:` and `journey:` fields), `stories/auth.yml` (created on first auth detection) | — |
 | `/review` | Code (via git diff), `specs/NN-*.md`, `docs/journeys/*.md`, `stories/*.yaml` (for journey-story coverage), `TEST_PASSED` from /test, ledger (including QA entries with phase `test/qa`), QA screenshots + page inventories (for UX analysis lens) | Review summary, ledger items. Invokes `/reflect` (hindsight mode), `/simplify`, and `/visual-review`. | — |
 | `/visual-review` | Running app (via browser), `docs/journeys/*.md` (journey mode), QA data (optional enrichment), source files (for reconnaissance) | Visual review report, journey file updates, `screenshots/` | — |
-| `/wrap-up` | `specs/NN-*.md`, review output, plan files, ledger, `.claude/skills/*.md` (relevant skills from ledger entries) | CLAUDE.md updates, skill updates, `specs/backlog/{slug}.md` (create/update, `**Stage:** parked`), `docs/decisions/*.md` (ADRs, Step 6.3). Invokes `/reflect` (full mode). | Spec file, plan files, ledger |
+| `/wrap-up` | `specs/NN-*.md`, review output, plan files, ledger, `.claude/skills/*.md` (relevant skills from ledger entries) | CLAUDE.md updates, skill updates, a new backlog or `parked` work record (GitHub issue or local file, per `work-backend`) for leftover work, `docs/decisions/*.md` (ADRs, Step 6.3). Invokes `/reflect` (full mode). | Plan files, ledger. A legacy spec file is deleted too; a record-mode build's materialized file stays committed as audit trail instead. |
 | `/tidy` | All artifacts | Cleanup actions | Stale artifacts |
 
 ## Open Items Ledger
@@ -108,11 +114,11 @@ This is why every skill writes its output to files, not just to the conversation
 
 Every artifact that a skill produces must be consumed by a downstream skill or explicitly resolved:
 
-- Specs are deleted by `/wrap-up` after completion
-- Design docs and briefs are deleted by `/specify` after absorption into specs
+- A legacy spec file is deleted by `/wrap-up` after completion; a record-mode build's materialized file is kept as committed audit trail instead
+- Design docs and briefs are deleted by `/specify` after absorption into the surviving records
 - Plans are deleted by `/wrap-up` after the work is done
 - Ledger files are deleted by `/wrap-up` after all items are resolved
-- INBOX items are promoted, merged, or explicitly kept by `/tidy`
-- Deferred items have triggers that re-activate them when conditions are met
+- Backlog work records are promoted, absorbed, or explicitly kept by `/tidy`
+- Parked records have triggers that re-activate (wake) them when conditions are met
 
 Nothing silently accumulates. If an artifact exists, a skill is responsible for it.

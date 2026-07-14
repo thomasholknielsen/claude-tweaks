@@ -6,6 +6,22 @@ A structured workflow system for Claude Code — from idea capture through build
 
 Claude Code is powerful but unstructured. claude-tweaks adds a complete development lifecycle: capture ideas, challenge assumptions, decompose into specs, build with quality gates, and learn from what was built. Every finding is explicitly resolved — nothing silently drops.
 
+### What's new in v6.0.0 — The unified work record
+
+Every captured idea, health-skill finding, and human-filed issue is now the same thing: **one durable work record** (a GitHub issue, or its `local-files` twin — a plain markdown file), tracked through a single spine instead of the old two-file backlog design and per-artifact frontmatter:
+
+```
+BACKLOG ──/specify shapes──► READY ──human grants──► AUTHORIZED ──/dispatch claims──► BUILDING ──user merges──► CLOSED
+```
+
+with `parked` (on hold, wakes on a trigger) and not-planned (wontfix/duplicate/absorbed) exits at any stage. Two storage drivers back the same taxonomy — `work-backend: github-issues` (labels + native Issue Types) or `work-backend: local-files` (frontmatter on a tracked file) — set once by `/init`, read identically by every consumer skill. See "Work Records" below and `skills/_shared/work-record.md` for the full contract.
+
+Human-granted `auto:build`/`auto:merge` labels replace the retired `tier:approved`/`tier:fast-track`/`tier:needs-review` three-way split — `/claude-tweaks:triage` is now the interactive grant gate only. A new skill, **`/claude-tweaks:dispatch`**, is the queue consumer: it claims an authorized record's whole file-overlap group and hands it to `/flow` — the `triage dispatch` headless subcommand no longer exists.
+
+`/claude-tweaks:specify` and `/claude-tweaks:build`/`/flow` now **materialize** a record reference (`#N`) into a build-time header + spec-shaped body file rather than requiring a pre-existing numbered spec file — the legacy `specs/{n}-*.md` path still works as an alias for projects that haven't migrated. `/claude-tweaks:tidy` and `/claude-tweaks:help` scan the live record queue directly; the former INBOX scan, Deferred-Work scan, and the separate spec index they used to read are retired.
+
+See "Migrating from 5.x" below if this project still carries pre-6.0 state (live `tier:*`/`status:*` labels, `specs/backlog/` files, or the old `backlog-backend` flag name).
+
 ### What's new in v5.27.0 — Native diagram generation replaces the Diagram Design companion
 
 **`/claude-tweaks:visualize`** replaces the external `diagram-design` companion-plugin integration introduced in v4.7 with a fully native skill — no separate plugin install. It generates self-contained HTML+SVG diagrams (architecture, flowchart, sequence, state, ER, timeline, swimlane, quadrant, nested, tree, org chart, layers, venn, pyramid), themed from the project's own `DESIGN.md` tokens (or a neutral default skin when Impeccable isn't set up). An optional D2-backed enhanced rendering path handles diagrams-as-code source generation for types with a native D2 construct. The same three soft-hook call sites — `/journeys` Step 3.6, `/specify` Step 2.5d, `/review` Lens 3i-diagram — now suggest invoking it directly, gated by `diagram-suggestions: enabled` in CLAUDE.md (renamed from `diagram-integration:`), written by `/init` Step 11. Diagrams co-locate with what they illustrate (`docs/journeys/`, `docs/plans/`) rather than a single central folder; `docs/diagrams/` is the fallback for context-free, direct invocations.
@@ -18,7 +34,7 @@ Also folded in: Phase 0's internal step numbering (previously `Step 0.1`–`Step
 
 ### What's new in v5.15.0 — code-health: risk-based triage + closing-keyword safety net
 
-`/claude-tweaks:recon` is renamed to `/claude-tweaks:code-health` (bare rename, no migration shim — see `skills/specify/spec-template.md`'s frontmatter reference for the `recon-issue:`/`recon-fingerprint:` fields this rename introduced). Findings now carry a `likelihood` and `effort` alongside `severity`; a new deterministic helper (`bin/lib/code-health/risk.js`) computes a `risk` tier (`severity × likelihood`, product-bucketed) the same way `dedup.js#decide()` already computes decisions — never LLM-judged. GitHub labels move from `code-health:{severity}` to `code-health:risk-{tier}` + `code-health:effort-{tier}` (criterion labels are kept, now with real descriptions); filing and CI gates move from `--min-severity`/`--fail-on critical` to `--min-risk`/`--fail-on risk-high`. Downstream, `/build` reads the `code-health-effort:` frontmatter to pick its implementer's model tier. (The `/flow --from-code-health`/`--quick-wins` batch-selection flags described here at v5.15.0 were later removed — issue selection and dispatch now live in `/claude-tweaks:triage`, described above; `/flow` itself never selects issues.) Separately, a new harness-wide PostToolUse hook (warn tier, not gated on a resolved pipeline run) flags any commit that references a bare `#N` issue number without an immediately-preceding GitHub closing keyword — catching ad hoc fix commits that would otherwise silently leave the issue open.
+`/claude-tweaks:recon` is renamed to `/claude-tweaks:code-health` (bare rename, no migration shim — the fingerprint-marker convention this rename introduced has since been unified into the single `work-fingerprint` marker every filing skill writes; see `skills/_shared/work-record.md`'s Fingerprint marker section). Findings now carry a `likelihood` and `effort` alongside `severity`; a new deterministic helper (`bin/lib/code-health/risk.js`) computes a `risk` tier (`severity × likelihood`, product-bucketed) the same way `dedup.js#decide()` already computes decisions — never LLM-judged. GitHub labels move from `code-health:{severity}` to `code-health:risk-{tier}` + `code-health:effort-{tier}` (criterion labels are kept, now with real descriptions); filing and CI gates move from `--min-severity`/`--fail-on critical` to `--min-risk`/`--fail-on risk-high`. Downstream, `/build` reads the `code-health-effort:` frontmatter to pick its implementer's model tier. (The `/flow --from-code-health`/`--quick-wins` batch-selection flags described here at v5.15.0 were later removed — issue selection and dispatch now live in `/claude-tweaks:triage` (grants authorization) and `/claude-tweaks:dispatch` (claims and executes), both described above; `/flow` itself never selects records.) Separately, a new harness-wide PostToolUse hook (warn tier, not gated on a resolved pipeline run) flags any commit that references a bare `#N` issue number without an immediately-preceding GitHub closing keyword — catching ad hoc fix commits that would otherwise silently leave the issue open.
 
 ### What's new in v5.1.0 — Hook surface: pipeline continuity + working-directory enforcement
 
@@ -63,17 +79,19 @@ See [CHANGELOG.md](CHANGELOG.md) for earlier release notes (v4.6, v4.5, v4.2, v4
   SKILL                      ARTIFACT                 SUPERPOWERS USED
   ─────                      ────────                 ────────────────
 
-  capture ──────────────►  Backlog entry (inbox)
+  capture ──────────────►  Backlog record
      │
   challenge ────────────►  Brief
      │
      │                     Design Doc          ◄───  brainstorm
      │                     (specify can invoke brainstorm directly on topic input)
      │
-  specify ──────────────►  Spec               (writes surface: + design-intent: frontmatter)
+  specify ──────────────►  Ready record(s)    (writes surface: + design-intent: body metadata)
      │  calls: design shape (frontend only — appends Impeccable shape output to design doc)
      │  calls: visualize (diagram suggestion, all surfaces)
      │                     (deletes Brief + Design Doc)
+     │
+  ┈┈ /claude-tweaks:triage grants, /claude-tweaks:dispatch claims (utility skills, no fixed position) ┈┈
      │
   ┈┈ /claude-tweaks:flow automates below (worktree mode default) ┈┈
      │
@@ -105,12 +123,39 @@ See [CHANGELOG.md](CHANGELOG.md) for earlier release notes (v4.6, v4.5, v4.2, v4
   wrap-up ──────────────►  Done               ◄───  finishing-a-dev-branch ⚙
      │  calls: reflect
      │         (full)
-                           (deletes Spec, plans, ledger, design caches)
+                           (deletes plans, ledger, design caches; legacy spec file
+                            deleted too — a record-mode build's materialized file
+                            stays on the branch as committed audit trail instead)
 ```
 
 > **Left column:** `/claude-tweaks:{name}` — **Right column:** `/superpowers:{name}` ([Superpowers plugin](https://github.com/obra/superpowers))
 > **⚙** = worktree mode only — **┊** = conditional step
 > `/claude-tweaks:init` runs once per project, before entering the pipeline.
+
+## Work Records
+
+Every unit of work — a captured idea, a health-skill finding, or a human-filed issue — is the same thing underneath: a **work record**, tracked through one spine regardless of who filed it:
+
+```
+BACKLOG ──/specify shapes──► READY ──human grants──► AUTHORIZED ──/dispatch claims──► BUILDING ──user merges──► CLOSED
+```
+
+- **backlog** — the default state: no stage label. `/claude-tweaks:capture` files here; health-skill records skip straight to `ready` instead (the born-ready rule — their output is spec-shaped by construction).
+- **ready** — spec-shaped and agent-sized. `/claude-tweaks:specify` gets a record here, either by shaping it in place or by decomposing a design doc into a parent record plus ready leaves.
+- **authorized** — carries a human-granted `auto:build` (optionally `+ auto:merge`). `/claude-tweaks:triage` is the interactive gate that grants this — machinery can only strip or downgrade a grant, never originate one.
+- **building** — an agent holds the claim. `/claude-tweaks:dispatch` claims an authorized record's whole file-overlap group and hands it to `/claude-tweaks:flow`.
+- **closed** — completed via your own merge (close-via-merge — the pipeline never runs `gh issue close`), or not-planned (wontfix, duplicate, absorbed into another record).
+
+A record can also **park** at any pre-authorized stage (on hold, with a wake trigger — a date or a watched file path) via `/claude-tweaks:tidy`'s Defer action, and can close as not-planned at any point.
+
+Two storage drivers back the same taxonomy, set once by `/claude-tweaks:init` and read identically by every consumer skill:
+
+| Driver | Where a record lives | Notes |
+|---|---|---|
+| `work-backend: github-issues` | A GitHub issue | Labels express stage/scoring/grants/bot-state; native GitHub Issue Types or `type:*` labels express Type. Headless dispatch (`/claude-tweaks:dispatch`) requires this driver — GitHub's RBAC is the mechanism the authorization model depends on. |
+| `work-backend: local-files` | `specs/{id}-{slug}.md`, one file per record | Frontmatter expresses the same facets for isomorphism. `/claude-tweaks:triage`'s grants are recorded but have no headless consumer — run `/claude-tweaks:flow`/`/claude-tweaks:build` manually against a chosen record instead. |
+
+See `skills/_shared/work-record.md` for the full six-axis contract (Type, Origin, Scoring, Stage, Authorization, Bot state), the complete label taxonomy, and the permission matrix governing which skill may add or remove which label.
 
 ## Skills
 
@@ -118,19 +163,19 @@ See [CHANGELOG.md](CHANGELOG.md) for earlier release notes (v4.6, v4.5, v4.2, v4
 
 **`/claude-tweaks:init`** — One-time project bootstrap. Scans the codebase, generates a CLAUDE.md with project-specific conventions and philosophy, creates workflow directories (`specs/`, `docs/plans/`, `docs/journeys/`), sets up browser integration (agent-browser), builds a documentation registry (`docs/REGISTRY.md`) mapping docs to code areas for automatic updates, and discovers existing user journeys.
 
-**`/claude-tweaks:capture`** — Brain-dump an idea into `specs/backlog/` (creates a new entry with `**Stage:** inbox`). Accepts free-text — no structure needed. Ideas are triaged later by `/claude-tweaks:tidy` or pulled into the pipeline by `/claude-tweaks:challenge`.
+**`/claude-tweaks:capture`** — Brain-dump an idea into a new backlog work record (a GitHub issue carrying only `by:capture`, or a local `specs/{id}-{slug}.md` file — no stage label, per `work-backend`). Accepts free-text — no structure needed. Ideas are triaged later by `/claude-tweaks:tidy` or pulled into the pipeline by `/claude-tweaks:challenge`.
 
-**`/claude-tweaks:challenge`** — Takes an INBOX item or topic and pressure-tests it before committing to an approach. Surfaces hidden assumptions, identifies risks, explores alternatives. Produces a Brief that feeds into brainstorming.
+**`/claude-tweaks:challenge`** — Takes a backlog work record or topic and pressure-tests it before committing to an approach. Surfaces hidden assumptions, identifies risks, explores alternatives. Produces a Brief that feeds into brainstorming.
 
 **`/superpowers:brainstorming`** *(Superpowers plugin)* — Generates solution approaches from the Brief. Explores multiple directions, evaluates tradeoffs, and produces a Design Doc with a recommended approach.
 
-**`/claude-tweaks:specify`** — Decomposes a Design Doc into agent-sized specs with clear acceptance criteria. Each spec gets a numbered file in `specs/` with `surface:` and `design-intent:` frontmatter. Detects implicit dependencies between specs (two specs touching the same files) and builds a file-to-spec map. Deletes the Brief and Design Doc after absorbing them. Uses `/superpowers:writing-plans` to structure the execution plan.
+**`/claude-tweaks:specify`** — Shapes a single work record into spec shape (adds `ready` plus risk/effort scoring), or decomposes a Design Doc into a parent record plus agent-sized `ready` leaf records with clear acceptance criteria. Each record carries `Surface:`/`Design-intent:` body metadata (not frontmatter — plain text lines at the top of the body). Detects implicit dependencies between leaves (and against open records) that touch the same files and links them (`Blocked by #N`, or a native sub-issue/dependency edge under `work-links: native`). Deletes the Brief and Design Doc after absorbing them into the surviving records. Uses `/superpowers:writing-plans` to structure the execution plan.
 
-**Polymorphic input:** `/specify` accepts either a design doc path (read directly) or a topic name (invokes `/superpowers:brainstorming` to produce the design doc, then continues into decomposition). When given a frontend design doc, `/specify` runs the Impeccable `shape` pre-step and asks a design-intent question (bold / quiet / minimal / delightful / onboarding / none) to populate the new frontmatter fields.
+**Polymorphic input:** `/specify` accepts a work record reference (`#N`, an issue URL, or a local record id) to shape in place, a design doc path or topic name (invokes `/superpowers:brainstorming` when no doc exists yet) to decompose, or a backlog reference (title keywords) that resolves to whichever mode applies. When the target is (or becomes) a frontend record, `/specify` runs the Impeccable `shape` pre-step and asks a design-intent question (bold / quiet / minimal / delightful / onboarding / none) to populate the body metadata.
 
 ### Pipeline (automated by `/claude-tweaks:flow`)
 
-**`/claude-tweaks:build`** — Implements a spec end-to-end. Two orthogonal choices:
+**`/claude-tweaks:build`** — Implements a work record or spec end-to-end (`#N` record reference is the primary input; a spec number is the legacy alias — both materialize into the same build-time file via `skills/flow/materialize.md`). Two orthogonal choices:
 
 | | **Current branch** | **Worktree** (default) |
 |---|---|---|
@@ -169,7 +214,7 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 | **journey** | Delegates to `/visual-review` — walk a documented journey |
 | **discover** | Delegates to `/visual-review` — scan and document all user journeys |
 
-**`/claude-tweaks:wrap-up`** — Reflection and cleanup. Delegates structured reflection to `/claude-tweaks:reflect` (full mode) for knowledge capture. Routes learnings to CLAUDE.md and skill files, records significant decisions as ADRs in `docs/decisions/` when they pass a 3-factor gate (hard-to-reverse, surprising, a real trade-off — kept deliberately rare), captures deferred work with triggers for re-activation, resolves every open ledger item. In worktree mode, uses `/superpowers:finishing-a-development-branch` to merge and clean up the feature branch. Deletes the spec, plan files, and ledger — leaving a clean slate.
+**`/claude-tweaks:wrap-up`** — Reflection and cleanup. Delegates structured reflection to `/claude-tweaks:reflect` (full mode) for knowledge capture. Routes learnings to CLAUDE.md and skill files, records significant decisions as ADRs in `docs/decisions/` when they pass a 3-factor gate (hard-to-reverse, surprising, a real trade-off — kept deliberately rare), captures deferred work with triggers for re-activation, resolves every open ledger item. In worktree mode, uses `/superpowers:finishing-a-development-branch` to merge and clean up the feature branch. Deletes plan files and the ledger — leaving a clean slate. A legacy spec file is deleted too; a record-mode build's materialized file (`{run-dir}/work/{n}-spec.md`) stays on the branch as committed audit trail instead.
 
 ### Component skills (standalone or called by lifecycle skills)
 
@@ -193,7 +238,7 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 
 **`/claude-tweaks:help`** — Dashboard with workflow status, command reference, and context-aware recommendations. Warns about dependency conflicts between in-progress specs. Surfaces the current branch's open PR (review decision, CI checks, unresolved threads) and ranks blocked-PR work first in recommendations.
 
-**`/claude-tweaks:tidy`** — Batch backlog hygiene. Triages INBOX items, scans review/wrap-up history for recurring patterns across specs, audits the documentation registry, and recommends project-level fixes. Also audits GitHub state — stale open PRs, code-health-filed issues, addressed-but-unresolved review threads — with GitHub mutations (close, resolve) executing only after batch approval. Pass `--scope=<name>[,<name>...]` to narrow a run to specific scan steps (e.g. `--scope=github` for GitHub PR/issue triage only) instead of the full sweep.
+**`/claude-tweaks:tidy`** — Batch backlog hygiene. Scans the live work-record queue (backlog, parked, unsynced, unscored `ready`, `bot:blocked`, legacy-taxonomy records), scans review/wrap-up history for recurring patterns across specs, audits the documentation registry, and recommends project-level fixes. Also audits GitHub state — stale open PRs, code-health/harness-health/journey-health-filed issues, addressed-but-unresolved review threads — with GitHub mutations (close, resolve) executing only after batch approval. Pass `--scope=<name>[,<name>...]` to narrow a run to specific scan steps (e.g. `--scope=github` for GitHub PR/issue triage only) instead of the full sweep.
 
 **`/claude-tweaks:browse`** — Browser automation via agent-browser. Defines session naming, screenshot/trace paths, and operation vocabulary used by /stories, /visual-review, and /review.
 
@@ -203,11 +248,13 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 
 **`/claude-tweaks:version`** — Reports the installed claude-tweaks plugin version (read from `.claude-plugin/plugin.json`). Useful for verifying the marketplace install picked up the right version.
 
-**`/claude-tweaks:code-health`** — Proactive, report-only repo-improvement finder. An LLM judges the repo against a criteria catalog, calling deterministic tool checks as evidence. Deterministic helpers handle scope rotation, content-hash skip (unchanged areas are skipped), fingerprinting, dedup against open GitHub issues, and issue filing. Workflow: SCOPE → CLASSIFY → JUDGE → validate-findings → file issues. Never edits code. Filed issues are `/specify`-shaped so they promote into agent-sized specs with near-zero translation. Runs on a scheduled Routine for continuous coverage. Pulled issues are claimed via atomic `refs/claims/issue-{N}` ref creation before any spec is derived, so concurrent consumers — a scheduled routine, a second machine, a collaborator's agent — never double-build. Stale claims (crashed runs) are swept by `/tidy`. Merged specs close their issues through your own merge action — `Fixes #N` lines ride the merge commit or PR body; the pipeline never closes issues directly. Any issues code-health files feed into `/claude-tweaks:triage`, which authorizes and dispatches them for autonomous building (see below) — `/flow` itself never selects issues. `/init` offers a GitHub issue form so human-filed issues arrive pipeline-ready. For projects that land fixes on an integration branch before the default branch, `/init` also offers a companion GitHub Actions workflow that labels and comments on the affected issues until the fix reaches default and GitHub's native close fires.
+**`/claude-tweaks:code-health`** — Proactive, report-only repo-improvement finder. An LLM judges the repo against a criteria catalog, calling deterministic tool checks as evidence. Deterministic helpers handle scope rotation, content-hash skip (unchanged areas are skipped), fingerprinting, dedup against open GitHub issues, and issue filing. Workflow: SCOPE → CLASSIFY → JUDGE → validate-findings → file issues. Never edits code. Filed records are spec-shaped and born `ready` by construction — they skip `/specify` entirely and promote into agent-sized work with near-zero translation. Runs on a scheduled Routine for continuous coverage. Merged records close their issues through your own merge action — `Fixes #N` lines ride the merge commit or PR body; the pipeline never closes issues directly. Any records code-health files feed into `/claude-tweaks:triage`'s `ready` queue, which grants `auto:build`/`auto:merge` for autonomous building; `/claude-tweaks:dispatch` then claims (via atomic `refs/claims/issue-{N}` ref creation, so concurrent consumers — a scheduled routine, a second machine, a collaborator's agent — never double-build) and hands each authorized group to `/flow` — `/flow` itself never selects records. Stale claims (crashed runs) are swept by `/tidy`. `/init` offers a GitHub issue form so human-filed issues arrive pipeline-ready. For projects that land fixes on an integration branch before the default branch, `/init` also offers a companion GitHub Actions workflow that labels and comments on the affected issues until the fix reaches default and GitHub's native close fires.
 
-**`/claude-tweaks:triage`** — Authorizes GitHub issues for autonomous building and dispatches already-authorized ones to `/flow`. Bare invocation is interactive: pulls untiered `code-health`/`harness-health` issues, computes a mechanical recommendation (risk:low + effort:low → fast-track, else → approved) from code-health's own risk/effort labels, and applies one of three `tier:*` labels (`needs-review`/`approved`/`fast-track`) after a single batch confirm — a human always executes the actual label write, even when the recommendation is accepted as-is. `triage dispatch` is the headless subcommand a scheduled Routine fires: it claims already-tiered issues (`refs/claims/issue-{N}`, same atomic lock as code-health) and hands each to `/claude-tweaks:flow #{issue}` for pure execution. A `fast-track` issue whose run comes back completely clean (zero hard-gate failures, zero review findings ≥ medium, diff within a small blast-radius cap) merges without waiting for a live approval; anything less than clean falls back to the normal wait. A failed build downgrades `fast-track` to `approved` (no repeat unsupervised attempts) and, after a configurable retry ceiling, strips the tier and flags `status:blocked` for a human to look at. Only the interactive invocation ever grants a tier — `dispatch` may only downgrade or strip one it reads, never originate authorization from nothing.
+**`/claude-tweaks:triage`** — The interactive human gate over the `ready` queue. Always interactive — no headless or argument-driven mode. Pulls ungranted `ready` records, computes a mechanical recommendation (risk:low + effort:low → `auto:build` + `auto:merge`, else → `auto:build` alone) from each record's own risk/effort labels, re-verifies spec shape before granting (a `ready` label alone never authorizes — the gate re-fetches the body), and applies the grant after a single batch confirm — a human always executes the actual label write, even when the recommendation is accepted as-is. A record that hit its retry ceiling (`bot:blocked`) surfaces here as a re-authorization candidate. Triage only ever grants, strips, or flags a record back for re-shaping — it never claims, builds, or dispatches anything itself.
 
-For the full picture of how an issue moves through filing → authorization → autonomous build → close → sweep, see [`docs/diagrams/github-issues-lifecycle.html`](docs/diagrams/github-issues-lifecycle.html) (architecture diagram) and [`docs/github-issues-integration-review.md`](docs/github-issues-integration-review.md) (2026-07-11 audit — 5 high-severity and 18 medium-severity findings, prioritized).
+**`/claude-tweaks:dispatch`** — The queue consumer between the gate and the executor: select → claim (whole file-overlap group, via atomic `refs/claims/issue-{N}` ref creation — the same lock code-health's fingerprinting relies on, so concurrent consumers never double-build) → invoke `/flow` → settle. Bare `/dispatch` is an interactive batch pick over the authorized queue; `dispatch next` is the headless-safe single-group form a scheduled Routine fires; `dispatch #N` claims a specific record's whole group directly. A group whose members all carry `auto:merge` and whose run comes back completely clean (zero hard-gate failures, zero review findings ≥ medium, diff within a small blast-radius cap) merges without waiting for a live approval; anything less than clean falls back to the normal wait. A failed build unconditionally revokes `auto:merge` (no repeat unsupervised merge attempts) and, after a configurable retry ceiling, strips all `auto:*` grants and flags `bot:blocked` for a human to re-triage. Dispatch may only downgrade or strip a grant it reads — it never originates authorization from nothing; only `/claude-tweaks:triage` grants.
+
+For the full picture of how a work record moves through filing → shaping → authorization → dispatch → build → close → sweep, see [`docs/diagrams/github-issues-lifecycle.html`](docs/diagrams/github-issues-lifecycle.html) (architecture diagram) and [`docs/github-issues-integration-review.md`](docs/github-issues-integration-review.md) (2026-07-11 audit of the pre-unification system — 5 high-severity and 18 medium-severity findings, prioritized).
 
 **`/claude-tweaks:routine`** — Instantiates a skill's plugin-shipped routine template (e.g. code-health's) into a live Claude Code cloud Routine for the current project, resolving account- and project-specific values (environment, repo) that a portable template can't hardcode, then calling `RemoteTrigger` directly — no manual `/schedule` walkthrough needed. Writes a committable instantiated record to `.claude-tweaks/routines/`. Supports `create`, `update`, and `status`, plus `--variant=<name>` to target a named template variant (e.g. tidy's `github-triage`) and `--dry-run` to inspect the assembled configuration before anything is created.
 
@@ -271,6 +318,10 @@ Handles 3-layer detection (kill-switch / spec frontmatter / file-extension sniff
 | agent-browser | `npm install -g agent-browser` | Optional — browser automation for /stories, /visual-review, /review qa |
 | Node 18+ | brew/winget/scoop install nodejs | Yes — statusline. `/claude-tweaks:init` Step 8 offers to install via your package manager. |
 | git CLI | brew/winget/apt install git | Optional — required only for the git segment in the statusline; everything else degrades gracefully. |
+
+## Migrating from 5.x
+
+Existing projects on claude-tweaks 5.x may carry pre-6.0 state: open GitHub issues (or `local-files` records) still stamped with the retired `tier:approved`/`tier:fast-track`/`tier:needs-review`/`status:blocked`/`status:in-progress` labels, `specs/backlog/*.md` entries from the earlier two-file backlog design, or a project CLAUDE.md with a `backlog-backend` flag that hasn't been renamed to `work-backend`. None of this breaks on upgrade — every consumer skill reads the old label set and the old flag name as read-only legacy aliases (see `/claude-tweaks:tidy`'s legacy-taxonomy finding). A dedicated migration pass — relabeling live records, folding `specs/backlog/` into the unified record store, and renaming the CLAUDE.md flag — is planned as separate follow-on work; this section will point to it once it lands.
 
 ## Configuration
 

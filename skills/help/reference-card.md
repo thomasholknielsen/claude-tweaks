@@ -10,8 +10,8 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/claude-tweaks:capture` | Brain-dump idea into the backlog | idea text |
 | `/claude-tweaks:challenge` | Debias assumptions before brainstorming | `quick`, backlog item, topic |
 | `/superpowers:brainstorming` | Brainstorm solutions (Superpowers plugin) | topic |
-| `/claude-tweaks:specify` | Decompose design doc into agent-sized specs | design doc, topic |
-| `/claude-tweaks:build` | Implement a spec or design doc | spec #, doc path + `auto`, `batched`, `worktree` |
+| `/claude-tweaks:specify` | Shape a work record to spec-shape, or decompose a design doc into ready leaf records | record ref, design doc, topic |
+| `/claude-tweaks:build` | Implement a work record, spec, or design doc | record ref (`#N`), spec # (legacy alias), doc path + `auto`, `batched`, `worktree` |
 | `/claude-tweaks:stories` | Generate or update QA story YAML files (journey-aware) | URL (auto-detected if omitted) + `persona=`, `dir=`, `journey=`, `browser=`, `refine=`, `negative=` |
 | `/claude-tweaks:test` | Verification gate — types, lint, tests, QA stories | `types`, `lint`, `unit`, path, `affected`, `qa`, `qa journey={name}`, `qa affected`, `all` |
 | `/claude-tweaks:review` | Analytical quality gate: code review, UX analysis (when QA data available), visual + creative ideas (default in `/claude-tweaks:flow`). Gates on `/claude-tweaks:test`. | spec #, files + `full`/`visual`/`journey:{name}`/`discover` |
@@ -33,9 +33,10 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | Command | What it does | Takes |
 |---------|-------------|-------|
 | `/claude-tweaks:help` | Dashboard: commands + status (incl. current PR) + recommendations | `status`, `commands`, spec/topic |
-| `/claude-tweaks:tidy` | Batch backlog hygiene (incl. GitHub PRs + code-health issues) | `--scope=<name>[,<name>...]` |
-| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → polish → wrap-up (+ end-of-run depth survey); pure executor — never selects issues itself | spec #(s), doc path, or `#<issue>` (handed off by `/claude-tweaks:triage dispatch`) + `auto` `worktree`/`current-branch` `no-stories` `no-polish` `no-deepen` `keep-going` `[step]` (single = resume) |
-| `/claude-tweaks:triage` | Authorizes GitHub issues for autonomous building (bare = interactive batch tiering) and dispatches already-tiered issues to `/flow` headlessly (`dispatch` subcommand) | *(none)* or `dispatch` |
+| `/claude-tweaks:tidy` | Batch backlog hygiene (incl. GitHub PRs + code-health/harness-health/journey-health issues) | `--scope=<name>[,<name>...]` |
+| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → polish → wrap-up (+ end-of-run depth survey); pure executor — never selects records itself | record ref(s) (`#N`), spec #(s) (legacy alias), doc path, handed off by `/claude-tweaks:dispatch` + `auto` `worktree`/`current-branch` `no-stories` `no-polish` `no-deepen` `keep-going` `[step]` (single = resume) |
+| `/claude-tweaks:triage` | The interactive human gate over the `ready` queue — grants `auto:build`/`auto:merge`, or flags an unshaped record back for re-shaping. Always interactive; no headless mode. | *(none — takes no arguments)* |
+| `/claude-tweaks:dispatch` | The queue consumer — claims an authorized record's whole file-overlap group (atomic ref lock) and hands it to `/flow`; settles on success/failure | *(none)* (interactive batch pick), `next` (headless routine unit), `#N` (direct) |
 | `/claude-tweaks:browse` | Unified browser automation (utility) | `--session <name>`, `set viewport`, `set device`, operation vocabulary (see SKILL.md) |
 | `/claude-tweaks:design` | Wrapper that lets lifecycle skills invoke Impeccable design-quality commands. Modes: `pre-build`, `test`, `review`, `shape`, `polish`, `survey`, `reset-recommendations` | mode + spec/files + flags |
 | `/claude-tweaks:ledger` | Open items tracking — query, resolve ledger entries | *(none)*, `resolve`, `{feature-name}` |
@@ -118,15 +119,15 @@ or standalone:
 ## Artifact Lifecycle
 
 ```
-Backlog entry (inbox) → Brief → Design Doc → Spec → Code → Stories → TEST_PASSED → Review → Polish (frontend) → Done
+Backlog record → Brief → Design Doc → Ready record(s) → Code → Stories → TEST_PASSED → Review → Polish (frontend) → Done
 ```
 
 | Skill | Creates | Deletes |
 |-------|---------|---------|
-| `/claude-tweaks:capture` | Backlog entry (inbox) | — |
+| `/claude-tweaks:capture` | Backlog record | — |
 | `/claude-tweaks:challenge` | Brief | — |
 | `/superpowers:brainstorming` | Design Doc | — |
-| `/claude-tweaks:specify` | Spec | Brief, Design Doc |
+| `/claude-tweaks:specify` | Ready record(s) — shapes an existing record in place, or creates a parent + ready leaves | Brief, Design Doc |
 | `/claude-tweaks:build` | Code (+ Journeys via /journeys) | — |
 | `/claude-tweaks:journeys` | Journey files | — |
 | `/claude-tweaks:stories` | Story YAML files | — |
