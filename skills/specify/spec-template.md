@@ -172,4 +172,4 @@ Type, stage/scoring labels, and parent/dependency links are **record facets** â€
 
 The `local-files` frontmatter keys above are exactly `local-store.js`'s documented set (`bin/lib/issues/local-store.js`) â€” don't invent new keys here.
 
-`/specify` adds `ready` and `risk:*`/`effort:*` (when unstamped) and removes `parked` on promotion; it never touches `auto:*`/`bot:*`. See `_shared/work-record.md`'s permission matrix for the complete rule set.
+`/specify` adds `ready`, `risk:*`/`effort:*` (when unstamped), and Type (when absent), and removes `parked` on promotion; it never touches `auto:*`/`bot:*`. See `_shared/work-record.md`'s permission matrix for the complete rule set.
