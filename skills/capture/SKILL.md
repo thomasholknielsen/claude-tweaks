@@ -51,18 +51,11 @@ Read the `work-backend` field from the project's CLAUDE.md (under a `## Work rec
 
 **When `work-backend: github-issues`:**
 
-1. Bootstrap only the `by:capture` label — copy its pair from `_shared/label-bootstrap.md`'s canonical `LABELS_JSON`:
+1. Bootstrap per `_shared/label-bootstrap.md`, `LABELS_JSON`:
 
    ```bash
-   node -e "
-     const { ensureLabelPayload } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/labels.js');
-     const labels = [['by:capture', 'Origin: filed via /capture']];
-     console.log(JSON.stringify(labels.map(([n, d]) => ensureLabelPayload(n, d))));
-   " > /tmp/capture-label-payloads.json
-   node -e "const ls=require('/tmp/capture-label-payloads.json'); ls.forEach(l => console.log(l.name + '\t' + l.description))" | while IFS=$'\t' read -r NAME DESCRIPTION; do
-     gh label list --search "$NAME" --json name -q '.[].name' | grep -qx "$NAME" || \
-       gh label create "$NAME" --description "$DESCRIPTION"
-   done
+   # Bootstrap per _shared/label-bootstrap.md, LABELS_JSON =
+   # [["by:capture", "Origin: filed via /capture"]]
    ```
 
    When the project's `work-types` key reads `labels`, also bootstrap the guessed `type:{t}` label the same way — its pair lives in `record.js`'s `TYPE_LABELS` (e.g. `['type:bug', 'Type: a defect in existing behavior']` when the guess is `bug`).
@@ -203,7 +196,7 @@ In interactive mode (or when explicitly opted in), present "Added: '{title}' (Ty
 
 The call has 4 options only when Option 4 is visible; otherwise build it with the first 3 options only — never include Option 4 with a placeholder value.
 
-> **Option 4 visibility:** Only show option 4 when a record in `specs/` matches the topic keywords from the new backlog record. Without a candidate match, option 4 is omitted entirely — manual disambiguation against an unspecified record number is worse than no option at all.
+> **Option 4 visibility:** Search for a candidate match on the topic keywords from the new backlog record, per the active driver from Backend Selection. `local-files` — search `specs/` for a record matching the keywords. `github-issues` — search open issues: `gh issue list --search "{keywords}" --state open --json number,title --limit 5`. Only show option 4 when either search returns a candidate. Without a candidate match, option 4 is omitted entirely — manual disambiguation against an unspecified record number is worse than no option at all.
 
 ### Route execution, by backend
 
