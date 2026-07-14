@@ -155,8 +155,8 @@ The hook surface (`bin/hooks.js`, see CLAUDE.md Conventions → Hooks) mechanize
 | Stories v1 detection (`/stories` Step 1) | Regenerate all / diff / cancel | Auto-skip migration; stage as "legacy stories detected" |
 | Story journey link suggestions (`/stories` Step 6) | Apply all / override | Auto-apply (mechanical mapping) |
 | Init Phase 3 classification | Confirm / override | Auto-confirm when detection confidence ≥ 0.8 and signals are consistent |
-| Capture next-action routing | Numbered options | Apply --route arg if set; else default to `keep` (record stays in backlog state — most conservative) |
-| Reflect insight routing | Per-item decision | Auto-route: defer (default), keep (tangential — stays in backlog), fix-now (only safety regressions) |
+| Capture next-action routing | Numbered options | Apply `--route` arg if set; else default to `keep` (record stays in backlog state — most conservative) |
+| Reflect insight routing | Per-item decision | Auto-route: defer (default), keep (tangential — files as a record, stays in backlog state), fix-now (only safety regressions) |
 | Wrap-up Step 4 leftover routing | Per-item decision | Apply `leftover-default` policy from manifesto (default `defer`) |
 | Wrap-up Step 7 skill updates | Apply all / override | Auto-apply purely additive changes (new examples, anti-patterns) — including those the independent domain scan surfaces, not only ledger-seeded ones; stage restructures and new-skill candidates |
 | Wrap-up Step 8.6 per-spec Review Consoles under multi-spec `/flow` | One console per spec at each wrap-up (N consoles for N specs) | **Consolidated into one** end-of-run Review Console at `/flow`. Per-spec wrap-ups skip Step 8.6 when `MULTISPEC_REVIEW_DEFER=1` is set; the parent `/flow` runs a single console reading the parent run dir's `decisions.md` + `staged/` and every per-spec `decisions.md` + `staged/` after the last spec completes. Preserves the bookend promise (one start stop, one end stop) regardless of N. See `flow/multispec-review-console.md`. |

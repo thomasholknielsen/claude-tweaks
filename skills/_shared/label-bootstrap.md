@@ -25,7 +25,7 @@ done
 (`bin/lib/issues/labels.js`) — a too-long description fails loudly here, not as a silent 422 on
 `gh label create`. `${LABELS_JSON}` is a literal JS array-of-pairs, substituted inline by each
 consumer with its own label list — for a single label, use a one-element array
-(`[['status:blocked', '...']]`) rather than reaching for a separate single-label variant.
+(`[['bot:blocked', '...']]`) rather than reaching for a separate single-label variant.
 
 ## Canonical LABELS_JSON — the full work-record taxonomy
 
