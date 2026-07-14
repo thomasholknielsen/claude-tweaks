@@ -17,7 +17,7 @@ Eight cleanup actions, executed in order (Step 10) and surfaced together (Step 5
 | 7 | Issue claim release | Section E below — release `refs/claims/issue-{n}` for the spec's materialized header | materialized header present (`${RUN_DIR}/work/*-spec.md`) | **Yes — defer to parent `/flow` console** (release follows the merge decision; releasing before the consolidated console would let another agent grab the issue while the work sits unmerged) |
 | 8 | Pipeline run directory | Section B below — archive (do not delete) to `.claude-tweaks/pipelines/archive/{run-id}/` | run dir exists | **Yes — parent `/flow` owns archival** |
 
-The detailed procedures for items 3, 4, 6, 7, and 8 follow (Sections A–E respectively). Items 1, 2, and 5 are simple enough to execute inline at Step 10 without a dedicated sub-procedure.
+The detailed procedures for items 3, 4, 6, 7, and 8 follow — see each row's Procedure ref column for its Section letter. Items 1, 2, and 5 are simple enough to execute inline at Step 10 without a dedicated sub-procedure.
 
 **Item 5's two framings, in one line each.** A record-mode run has no legacy spec file to delete and no `specs/INDEX.md` entry to remove — the record's own lifecycle closes via the merge/PR/commit that carries `Fixes #{issue}` (items 4 and 7), a wrap-up-owned label/claim operation, not a file deletion. A legacy spec-file-mode run (the numeric alias, no materialized header) keeps the pre-materialization behavior verbatim. Migrating a project's remaining `specs/*.md` files off the legacy alias entirely is a one-time, project-level concern outside wrap-up's per-run scope — not something this step performs.
 
