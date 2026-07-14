@@ -201,3 +201,43 @@ test('parseDependencies returns an empty array when there are no dependency line
 test('parseDependencies ignores mid-line occurrences (line-anchored only)', () => {
   assert.deepStrictEqual(parseDependencies('see Blocked by #9 mid-line'), []);
 });
+
+test('specShapedBody composes the gate-verified skeleton with string sections', () => {
+  const { specShapedBody } = require('../record');
+  const body = specShapedBody({
+    header: '**Kind:** x',
+    currentState: 'the state',
+    deliverables: 'the work',
+    acceptanceCriteria: 'the proof',
+    filedBy: '/claude-tweaks:harness-health',
+  });
+  assert.strictEqual(body, [
+    '**Kind:** x',
+    '## Current State',
+    'the state',
+    '## Deliverables',
+    'the work',
+    '## Acceptance Criteria',
+    'the proof',
+    '_Filed by `/claude-tweaks:harness-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._',
+  ].join('\n\n'));
+});
+
+test('specShapedBody renders array sections as blank-line-separated blocks', () => {
+  const { specShapedBody } = require('../record');
+  const body = specShapedBody({
+    header: 'h',
+    currentState: ['block one', 'block two'],
+    deliverables: 'd',
+    acceptanceCriteria: 'a',
+    filedBy: '/claude-tweaks:code-health',
+  });
+  assert.ok(body.includes('## Current State\n\nblock one\n\nblock two\n\n## Deliverables'));
+});
+
+test('specShapedBody throws on a missing or empty section', () => {
+  const { specShapedBody } = require('../record');
+  assert.throws(() => specShapedBody({ header: 'h', currentState: '', deliverables: 'd', acceptanceCriteria: 'a', filedBy: 'f' }), /currentState/);
+  assert.throws(() => specShapedBody({ header: 'h', currentState: 'c', deliverables: 'd', acceptanceCriteria: 'a' }), /filedBy/);
+  assert.throws(() => specShapedBody({ header: 'h', currentState: [], deliverables: 'd', acceptanceCriteria: 'a', filedBy: 'f' }), /currentState/);
+});

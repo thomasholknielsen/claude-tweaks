@@ -5,7 +5,7 @@
 // Label/marker/type assembly delegates to recordPayload (bin/lib/issues/record.js) — the
 // shared work-record taxonomy (skills/_shared/work-record.md): origin by:journey-health,
 // colon-form risk:*/effort:medium scoring, born-ready, Type bug|task, work-fingerprint marker.
-const { recordPayload } = require('../issues/record');
+const { recordPayload, specShapedBody } = require('../issues/record');
 
 const CATEGORY_LABELS = { drift: 'drift', coverage: 'coverage', 'regression-suspected': 'regression' };
 
@@ -22,25 +22,13 @@ const SEVERITY_TO_RISK = { high: 'high', med: 'medium', low: 'low' };
 function toIssuePayload(finding) {
   const categoryLabel = CATEGORY_LABELS[finding.category] || finding.category;
 
-  const body = [
-    `**Journey:** ${finding.journey} | **Section:** ${finding.section} | **Category:** ${finding.category} | **Severity:** ${finding.severity} | **Confidence:** ${finding.confidence}`,
-    '',
-    '## Current State',
-    '',
-    finding.description,
-    '',
-    finding.reason,
-    '',
-    '## Deliverables',
-    '',
-    finding.recommendation,
-    '',
-    '## Acceptance Criteria',
-    '',
-    `The condition described above is resolved: a fresh \`/claude-tweaks:journey-health\` audit of journey '${finding.journey}' files no finding with this fingerprint.`,
-    '',
-    '_Filed by `/claude-tweaks:journey-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._',
-  ].join('\n');
+  const body = specShapedBody({
+    header: `**Journey:** ${finding.journey} | **Section:** ${finding.section} | **Category:** ${finding.category} | **Severity:** ${finding.severity} | **Confidence:** ${finding.confidence}`,
+    currentState: [finding.description, finding.reason],
+    deliverables: finding.recommendation,
+    acceptanceCriteria: `The condition described above is resolved: a fresh \`/claude-tweaks:journey-health\` audit of journey '${finding.journey}' files no finding with this fingerprint.`,
+    filedBy: '/claude-tweaks:journey-health',
+  });
 
   const title = `Journey ${categoryLabel}: ${finding.journey} — ${finding.section}`;
   // Type rule: a regression-suspected finding means the journey/story text is accurate and

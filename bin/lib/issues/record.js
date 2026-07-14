@@ -198,7 +198,33 @@ function parseDependencies(body) {
   return result;
 }
 
+// Compose the spec-shaped body the gate's structural check re-verifies
+// (skills/_shared/work-record.md: Current State / Deliverables / Acceptance Criteria
+// present and non-empty). Owning the skeleton here means the three health builders
+// cannot drift a section heading or the footer sentence independently. Sections accept
+// a string or an array of strings (arrays render as blank-line-separated blocks).
+// recordPayload still appends the work-fingerprint marker afterward, as before.
+function specShapedBody({ header, currentState, deliverables, acceptanceCriteria, filedBy }) {
+  for (const [name, value] of [['header', header], ['currentState', currentState],
+    ['deliverables', deliverables], ['acceptanceCriteria', acceptanceCriteria], ['filedBy', filedBy]]) {
+    if (value === undefined || value === null || (Array.isArray(value) && value.length === 0) || value === '') {
+      throw new Error(`specShapedBody: ${name} is required and must be non-empty`);
+    }
+  }
+  const block = (v) => (Array.isArray(v) ? v.join('\n\n') : v);
+  return [
+    header,
+    '## Current State',
+    block(currentState),
+    '## Deliverables',
+    block(deliverables),
+    '## Acceptance Criteria',
+    block(acceptanceCriteria),
+    `_Filed by \`${filedBy}\`. Close to resolve; label \`wontfix\` to suppress future reports of this finding._`,
+  ].join('\n\n');
+}
+
 module.exports = {
-  ORIGINS, TYPES, TIERS, PRIORITIES, LABELS, TYPE_LABELS, recordPayload,
+  ORIGINS, TYPES, TIERS, PRIORITIES, LABELS, TYPE_LABELS, recordPayload, specShapedBody,
   FP_RE_WORK, FP_RE_LEGACY, extractFingerprint, parseRecordFacets, parseDependencies,
 };

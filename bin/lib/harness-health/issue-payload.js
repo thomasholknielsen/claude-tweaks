@@ -5,7 +5,7 @@
 // Label/marker/type assembly delegates to recordPayload (bin/lib/issues/record.js) — the
 // shared work-record taxonomy (skills/_shared/work-record.md): origin by:harness-health,
 // colon-form risk:*/effort:* scoring, born-ready, Type task, work-fingerprint marker.
-const { recordPayload } = require('../issues/record');
+const { recordPayload, specShapedBody } = require('../issues/record');
 
 const ASSET_TYPE_LABELS = { skill: 'Skill', rule: 'Rule', 'claude-md': 'CLAUDE.md', 'design-artifact': 'Design Context', memory: 'Memory' };
 const CATEGORY_LABELS = { drift: 'drift', 'template-conformance': 'structure', 'best-practice': 'best-practice' };
@@ -30,23 +30,13 @@ function toIssuePayload(finding) {
     ? `Proposed new skill \`${finding.target}\`:\n\n${finding.proposedBody}`
     : `**Current:**\n\`\`\`\n${finding.oldString || '(N/A — new content)'}\n\`\`\`\n\n**Proposed:**\n\`\`\`\n${finding.newString}\n\`\`\``;
 
-  const body = [
-    kindLine,
-    '',
-    '## Current State',
-    '',
-    finding.reason,
-    '',
-    '## Deliverables',
-    '',
+  const body = specShapedBody({
+    header: kindLine,
+    currentState: finding.reason,
     deliverables,
-    '',
-    '## Acceptance Criteria',
-    '',
-    finding.description,
-    '',
-    '_Filed by `/claude-tweaks:harness-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._',
-  ].join('\n');
+    acceptanceCriteria: finding.description,
+    filedBy: '/claude-tweaks:harness-health',
+  });
 
   const title = finding.kind === 'new-skill'
     ? `New skill candidate: ${finding.target}`

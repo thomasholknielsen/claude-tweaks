@@ -2,7 +2,7 @@
 // the network. The skill hands the payload to the gh CLI itself.
 // Body is /specify-shaped so promotion to a spec is near-zero translation, and
 // carries a hidden fingerprint marker the dedup step re-extracts.
-const { recordPayload } = require('../issues/record');
+const { recordPayload, specShapedBody } = require('../issues/record');
 
 // legacy: v1, frozen. Not called by bin/code-health.js (which uses toIssuePayloadV2
 // exclusively) — kept only so its own test file can assert this historical shape
@@ -46,29 +46,16 @@ function toIssuePayload(finding) {
 // shared work-record taxonomy (skills/_shared/work-record.md): origin by:code-health,
 // colon-form risk:*/effort:* scoring, born-ready, Type task, work-fingerprint marker.
 function toIssuePayloadV2(finding) {
-  const relatedLines = Array.isArray(finding.relatedAnchors) && finding.relatedAnchors.length > 0
-    ? ['', `Also affects: ${finding.relatedAnchors.map((a) => `\`${a}\``).join(', ')}`]
+  const relatedBlocks = Array.isArray(finding.relatedAnchors) && finding.relatedAnchors.length > 0
+    ? [`Also affects: ${finding.relatedAnchors.map((a) => `\`${a}\``).join(', ')}`]
     : [];
-  const body = [
-    `**Criterion:** ${finding.criterion} | **Risk:** ${finding.risk} | **Severity:** ${finding.severity} | **Likelihood:** ${finding.likelihood} | **Effort:** ${finding.effort} | **Confidence:** ${finding.confidence} | **Area:** ${finding.areaId}`,
-    '',
-    '## Current State',
-    '',
-    `Anchor: \`${finding.anchor}\``,
-    ...relatedLines,
-    '',
-    finding.evidence,
-    '',
-    '## Deliverables',
-    '',
-    finding.suggestedApproach,
-    '',
-    '## Acceptance Criteria',
-    '',
-    finding.acceptance,
-    '',
-    '_Filed by `/claude-tweaks:code-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._',
-  ].join('\n');
+  const body = specShapedBody({
+    header: `**Criterion:** ${finding.criterion} | **Risk:** ${finding.risk} | **Severity:** ${finding.severity} | **Likelihood:** ${finding.likelihood} | **Effort:** ${finding.effort} | **Confidence:** ${finding.confidence} | **Area:** ${finding.areaId}`,
+    currentState: [`Anchor: \`${finding.anchor}\``, ...relatedBlocks, finding.evidence],
+    deliverables: finding.suggestedApproach,
+    acceptanceCriteria: finding.acceptance,
+    filedBy: '/claude-tweaks:code-health',
+  });
 
   // No spread after this call — recordPayload's return is the payload verbatim.
   return recordPayload({
