@@ -1,22 +1,14 @@
-# Spec Template
+# Record Body Template
 
-The spec must be detailed enough for `/superpowers:writing-plans` to produce a TDD execution plan without additional context. `/superpowers:writing-plans` assumes zero codebase familiarity — the spec provides the anchoring.
+The record body must be detailed enough for `/superpowers:writing-plans` to produce a TDD execution plan without additional context. `/superpowers:writing-plans` assumes zero codebase familiarity — the body provides the anchoring.
+
+This template covers the record's **body** only — the GitHub issue body, or the `local-files` twin's body text (`bin/lib/issues/local-store.js`). Title and Type are separate record fields, never body content — see `## Facets` at the end of this file for what lives outside the body.
+
+Every record body opens with a short metadata block — plain body-metadata lines, never YAML frontmatter. `Surface:` and `Design-intent:` are lifted verbatim into the materialized header by `/flow`/`/build` at build time (spec 20's contract). Legacy `frontend` (pre-migration spec frontmatter) reads as `web`; `mixed` is retired — pick the single dominant surface per leaf, since a unit that is genuinely both frontend and backend at once is a decomposition smell.
 
 ```markdown
----
-tier: {1-5}
-status: not-started
-progress: 0
-blocked-by: [{spec numbers or empty}]
-surface: {frontend | backend | infra | mixed}
-design-intent: {bold | quiet | minimal | delightful | onboarding | none}
-recon-issue: {GitHub issue number, only when derived from one — omit otherwise}
-recon-fingerprint: {fingerprint marker from the issue body, when present — omit otherwise}
-code-health-effort: {low | medium | high — only when derived from a code-health issue carrying a code-health:effort-<tier> label; omit otherwise}
-recon-was-parked: {true — only when the source issue carried the `parked` label at ingestion time; omit otherwise, there is no explicit false}
----
-
-# {Number}: {Title}
+Surface: {web | mobile | desktop | backend | infra}
+Design-intent: {bold | quiet | minimal | delightful | onboarding | none}
 
 ## Overview
 
@@ -167,71 +159,17 @@ Never write a bare "zero matches anywhere" AC alongside a tombstone requirement 
 | **Open Questions** | Reviewed during Step 6 Self-Review — must be resolved (clarified or accepted) before the spec is handed to `/superpowers:writing-plans`. The section is appended by Step 5 multi-persona red-team and is optional (omitted when red-team finds no general-location ambiguities). |
 | **Manual Steps** | Classified at build start (Step 2.5) — auto-executable items run inline; only items that fail the triage (no-cli, requires-judgment, requires-signoff, auth-not-configured) seed the ledger as `ops` |
 
-## Frontmatter reference (canonical spec)
+## Facets
 
-This section is the canonical definition of the design-related frontmatter fields. Other docs (`skills/design/frontend-detection.md`, `skills/design/SKILL.md`, `skills/specify/SKILL.md`) reference this section as the source of truth.
+Type, stage/scoring labels, and parent/dependency links are **record facets** — tracked on the record itself, outside the body, never as body text. The canonical taxonomy (the six axes, the label names, who may set what) is `_shared/work-record.md`; this section only maps those facets to their representation on each driver.
 
-### `surface:` field
+| Facet | `github-issues` | `local-files` |
+|-------|------------------|----------------|
+| Type | Native GitHub Issue Type (`work-types: native`) or a `type:*` label (`work-types: labels`) | `type:` frontmatter line |
+| Stage + scoring | `ready`, `risk:*`, `effort:*` labels | `stage:`, `risk:`, `effort:` frontmatter lines |
+| Parent link | Sub-issue relationship (`work-links: native`) or a parent task-list entry + `Blocked by #N` body line (`work-links: body-text`) | `parent:` frontmatter line |
+| Dependency links | Blocked-by dependency API (`work-links: native`) or `Blocked by #N` body lines (`work-links: body-text`) | `blocked-by: [...]` frontmatter line |
 
-Declares which surface area of the system the spec touches. Used by `/claude-tweaks:design`'s Layer 2 detection to decide whether to invoke Impeccable on this spec.
+The `local-files` frontmatter keys above are exactly `local-store.js`'s documented set (`bin/lib/issues/local-store.js`) — don't invent new keys here.
 
-```yaml
-surface: frontend  # frontend | backend | infra | mixed
-```
-
-| Value | Meaning | Wrapper behavior |
-|-------|---------|------------------|
-| `frontend` | The spec touches UI code — components, pages, styles, routes | Layer 2 passes; Layer 3 sniff still runs to filter file lists |
-| `backend` | The spec touches server-side code only — APIs, services, data access, jobs | Layer 2 skips — wrapper returns `{skipped: "non-frontend spec (surface declared)"}` |
-| `infra` | The spec touches infrastructure-as-code, CI/CD, deployment, container config | Layer 2 skips — same as `backend` |
-| `mixed` | The spec touches both frontend and backend (full-stack feature) | Layer 2 passes; Layer 3 sniff filters changed files to UI-only for Impeccable's purposes |
-| *(missing)* | Falls through to Layer 3 file-extension sniff | Pre-Phase 2 specs lack this field; behavior is unchanged |
-
-`/specify` writes this field on every new spec (Phase 2+). For specs created before Phase 2, the field is absent and Layer 3 sniff handles them correctly — there is no need to backfill historical specs.
-
-### `design-intent:` field
-
-Declares the spec's creative direction. Used by `polish` mode's intent-driven dispatch (active in v4.5.0). The wrapper reads the field and invokes the matching command(s) on the changed UI files.
-
-```yaml
-design-intent: bold  # bold | quiet | minimal | delightful | onboarding | none
-# or comma-separated for multiple intents:
-design-intent: delightful, onboarding
-```
-
-| Value | Meaning | Polish-phase dispatch (active) |
-|-------|---------|--------------------------------|
-| `bold` | Eye-catching, confident — wants visual weight and presence | `/impeccable:impeccable bolder <files>` |
-| `quiet` | Restrained, refined — wants to recede and let content lead | `/impeccable:impeccable quieter <files>` |
-| `minimal` | Strip to essence — wants reduction, not addition | `/impeccable:impeccable distill <files>` (intent-only — avoids conflict with `/simplify`) |
-| `delightful` | Personality, micro-interactions — wants to surprise the user | `/impeccable:impeccable delight <files>` then `/impeccable:impeccable animate <files>` (fixed pairing) |
-| `onboarding` | First-run flows, empty states — wants to teach the user the surface | `/impeccable:impeccable onboard <files>` |
-| `none` | No specific creative direction — auto-fit + issue-driven only | No intent-driven commands run |
-| *(missing)* | Treated as `none` | Same as `none` |
-
-The user can declare multiple intents (e.g., `design-intent: delightful, onboarding` for a "first-run experience that should feel playful"). `/specify` collects answers as comma-separated when the user replies with multiple numbers to the design-intent question.
-
-### Why two fields, not one
-
-`surface:` answers "is this even frontend work?" — gates the entire wrapper invocation.
-`design-intent:` answers "what creative direction does this spec want?" — gates only intent-driven commands.
-
-Keeping them separate means a frontend spec with no creative intent (`surface: frontend`, `design-intent: none`) still runs auto-fit + issue-driven commands but skips the intent-driven creative commands that would otherwise need explicit user direction. A backend spec (`surface: backend`) skips everything — no Impeccable invocations, no token cost.
-
-### `recon-issue:` and `recon-fingerprint:` fields
-
-Present only on specs derived from a GitHub issue — via `/specify <issue-url>` directly, or via `/claude-tweaks:flow #{issue}`'s hand-off (which itself calls `/specify #{issue}`) — both routes stamp these fields through the same "Resolve the input" case 1 procedure in `SKILL.md`.
-
-```yaml
-recon-issue: 142            # the GitHub issue number this spec resolves
-recon-fingerprint: recon-a1b2c3d4   # from the issue body's <!-- code-health-fingerprint: ... --> marker, when present
-```
-
-| Field | Meaning | Consumer |
-|-------|---------|----------|
-| `recon-issue:` | The GitHub issue number to close when this spec's work merges | `/wrap-up` cleanup item 8 (issue-claim release, `cleanup-procedures.md` Section E) checks for this field's presence; cleanup item 5 (`cleanup-procedures.md` Section C) stamps the `Fixes #{issue}` closing-keyword carrier commit when it's present |
-| `recon-fingerprint:` | The finding's fingerprint at issue-filing time, for future reverse-reconciliation (comparing against a freshly recomputed fingerprint to tell whether the flagged code has since changed) | Not yet consumed by any skill — write-only today; `recon-issue:` alone is sufficient for closure |
-| `code-health-effort:` | The judged fix-cost tier from the originating code-health finding | `/claude-tweaks:build` Common Step 2 reads it to select the per-task implementer model tier (low→Fast, medium→Standard, high→Capable) when invoking `/superpowers:subagent-driven-development` |
-| `recon-was-parked:` | Whether the source issue carried the `parked` label at ingestion time (removed at promotion — see "Restore-on-promotion bookkeeping" in this skill's `SKILL.md` Step 3; the same procedure applies whether `/specify` was invoked directly or via `/claude-tweaks:flow`'s issue-mode hand-off) | The claim-release restoration steps (`wrap-up/cleanup-procedures.md` Section E — whose generic `abandoned:` path also covers a single-spec issue-mode run the user doesn't merge, per `_shared/issue-claims.md` — and its `flow/multispec-review-console.md` duplicate) restore `parked` on the issue iff this is `true` and the release outcome is not `merged:`/`pr-opened:` |
-
-Omit all four fields for specs not derived from a GitHub issue — there is no "none" sentinel; absence is the signal (same convention as `design-intent:`'s missing-field handling, but unlike it, absence here means "not applicable" rather than a default value). `code-health-effort:` is additionally omitted for specs derived from a non-code-health issue (e.g. a hand-filed bug report resolved directly by issue reference) even when `recon-issue:`/`recon-fingerprint:` are present, since only code-health's own findings carry an effort judgment. `recon-was-parked:` is additionally omitted whenever the source issue never carried `parked` in the first place — code-health-originated issues, inbox-stage promotions, or an issue promoted directly by number that was never triaged to parked.
+`/specify` adds `ready` and `risk:*`/`effort:*` (when unstamped) and removes `parked` on promotion; it never touches `auto:*`/`bot:*`. See `_shared/work-record.md`'s permission matrix for the complete rule set.
