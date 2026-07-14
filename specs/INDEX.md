@@ -29,7 +29,7 @@ One program, decomposed from `docs/superpowers/specs/2026-07-13-unified-work-rec
 | 19 | /dispatch — queue consumer (new skill) | Not started | 18 |
 | 20 | Executors — /flow, /build, /wrap-up materialization | Not started | 17 |
 | 21 | Dashboards and hygiene — /tidy, /help | Not started | 20 |
-| 22 | /init — work-backend, labels, Types probe | Not started | 13 |
+| 22 | /init — work-backend, labels, Types probe | **Complete** | 13 |
 | 23 | Docs consolidation + major version (6.0.0) | Not started | 15, 16, 19, 20, 21, 22 |
 
 **Physical-overlap note:** specs 18 and 19 both modify `skills/triage/SKILL.md` (`groupByFileOverlap` group `[18,19]`) — never build concurrently; 19's `blocked-by: [18]` enforces order. All other parallel branches are file-disjoint.
