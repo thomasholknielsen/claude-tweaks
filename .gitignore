@@ -5,7 +5,15 @@
 node_modules/
 package-lock.json
 .DS_Store
-.claude-tweaks/pipelines/
+.claude-tweaks/pipelines/*
+!.claude-tweaks/pipelines/*/
+.claude-tweaks/pipelines/*/*
+!.claude-tweaks/pipelines/*/work/
+!.claude-tweaks/pipelines/*/work/**
+!.claude-tweaks/pipelines/*/spec-*/
+.claude-tweaks/pipelines/*/spec-*/*
+!.claude-tweaks/pipelines/*/spec-*/work/
+!.claude-tweaks/pipelines/*/spec-*/work/**
 .claude-tweaks/research/
 .claude-tweaks/recon/
 .claude-tweaks/routine-environment-cache.yml
