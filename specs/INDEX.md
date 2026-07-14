@@ -22,7 +22,7 @@ One program, decomposed from `docs/superpowers/specs/2026-07-13-unified-work-rec
 |------|-------|--------|------------|
 | 13 | Work-record shared contracts and label taxonomy | **Complete** | — |
 | 14 | Record-store core modules (bin/lib) | **Complete** | 13 |
-| 15 | Health producers on the unified record | Not started | 14 |
+| 15 | Health producers on the unified record | **Complete** | 14 |
 | 16 | /capture and /challenge on the unified record | Not started | 14 |
 | 17 | /specify as the shaper | Not started | 14 |
 | 18 | /triage as the pure human gate | Not started | 14 |
