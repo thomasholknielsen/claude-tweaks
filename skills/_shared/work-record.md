@@ -1,0 +1,223 @@
+# Work Record — Unified Contract
+
+The GitHub issue (or its `local-files` twin) is the **one durable work record**. Spec files
+are ephemeral build materializations (`{run-dir}/work/{n}-spec.md`), not records. This file
+is the canonical home of the record taxonomy: every filing, shaping, gating, dispatching, or
+sweeping skill cites this contract rather than restating it.
+
+Prose twin: `bin/lib/issues/record.js` owns the same taxonomy as code (label-string literals,
+payload assembly, facet parsing). If the two disagree, one of them has a bug — fix, don't fork.
+
+## Lifecycle spine
+
+```
+BACKLOG ──/specify shapes──► READY ──human grants──► AUTHORIZED ──/dispatch claims──► BUILDING ──user merges──► CLOSED
+   │ ▲          ▲              │ ▲                      │                                │                    (completed)
+   │ │          │              │ └─── flag back ────────┘                                │
+   │ │   born-ready (health    │      (remove ready)                                     ├──► retry ceiling: bot:blocked,
+   │ │   skills file straight  │                                                         │    grants removed → needs re-triage
+   │ │   into READY)                                                                     │
+   │ │                         └──────── parked (trigger set) ──► wakes on trigger       │
+   │ │                                                                                    └──► failure: auto:merge revoked,
+   │ └── parked record wakes (trigger fires, parked removed)                                  auto:build retries next firing
+   └──── closed as not-planned (wontfix / duplicate / absorbed) at any stage
+```
+
+- **backlog** — the default state: an open record carrying no stage labels. Nothing asserts it.
+- **parked** — deliberately on hold; carries the `parked` label and a trigger (milestone due
+  date or watched paths) that wakes it.
+- **ready** — spec-shaped and agent-sized; eligible for the authorization gate's worklist.
+- **authorized** — carries a human-granted `auto:build` (optionally + `auto:merge`).
+- **building** — an agent holds the claim (`bot:in-progress` mirrors the claim ref).
+- **closed** — completed via the user's merge (close-via-merge), or not-planned (wontfix,
+  duplicate, absorbed into another record).
+
+Stage vocabulary is exactly these three words — **backlog** (absence of stage labels),
+**parked**, **ready**. Legacy stage names from the spec-file era never name concepts here.
+
+## The six axes
+
+| Axis | Values | Expressed as |
+|---|---|---|
+| **Type** | `bug` \| `feature` \| `task` | Native GitHub Issue Type when `work-types: native`; `type:*` label when `work-types: labels` |
+| **Origin** | `by:code-health`, `by:harness-health`, `by:journey-health`, `by:capture` — or no label | Label. Absence = human-filed directly, or a side-effect record (see below) |
+| **Scoring** | `risk:low\|medium\|high` × `effort:low\|medium\|high` | Labels — at most one of each family |
+| **Stage** | backlog (no label) \| `parked` \| `ready` | Labels — backlog is the absence of stage labels |
+| **Authorization** | `auto:build`, `auto:merge` | Labels — human-granted only, absence is the default not-authorized state |
+| **Bot state** | `bot:in-progress`, `bot:blocked` | Labels — machinery-owned visibility layer |
+
+**Origin axis, the two no-label cases:** a human filing directly on GitHub carries no `by:*`
+label (absence = human-filed). Records created as side effects of other skills (e.g.
+`/wrap-up` leftovers) also carry no `by:*` — they record provenance as an `Origin: {context}`
+body line instead (e.g. `Origin: wrap-up leftover from #42`). The `by:*` family has exactly
+four members — one per filing skill: `by:code-health`, `by:harness-health`,
+`by:journey-health`, `by:capture`.
+
+## Label taxonomy
+
+17 core labels + 3 optional `priority:*` labels. The canonical `LABELS_JSON` (names +
+≤100-char descriptions) lives in `_shared/label-bootstrap.md`; consumers bootstrap only the
+labels they are about to apply.
+
+| Family | Labels | Axis |
+|---|---|---|
+| Origin (4) | `by:code-health`, `by:harness-health`, `by:journey-health`, `by:capture` | Origin |
+| Risk (3) | `risk:low`, `risk:medium`, `risk:high` | Scoring |
+| Effort (3) | `effort:low`, `effort:medium`, `effort:high` | Scoring |
+| Stage (2) | `parked`, `ready` | Stage |
+| Grants (2) | `auto:build`, `auto:merge` | Authorization |
+| Bot state (2) | `bot:in-progress`, `bot:blocked` | Bot state |
+| Closure (1) | `wontfix` | re-filing suppression |
+| Priority (3, optional) | `priority:high`, `priority:medium`, `priority:low` | dispatch ordering |
+
+Labels are reserved for these axes. Type is NOT a label family when the host supports native
+Issue Types (`work-types: native`); producer-specific diagnostics (e.g.
+`code-health:<criterion>`) may exist as optional extras but carry no mechanical meaning in
+this contract.
+
+## Permission matrix
+
+Who may add / remove which labels. "Machinery" = any headless or autonomous path.
+
+| Actor | Adds | Removes | Never |
+|---|---|---|---|
+| **Human** (GitHub UI or interactive session) | anything, incl. `auto:*` | anything | — |
+| **Health skills** (`/code-health`, `/harness-health`, `/journey-health`) | `by:{self}`, `risk:*`, `effort:*`, `ready` (born-ready), Type | nothing | `auto:*`, `bot:*`, `parked` |
+| **`/capture`** | `by:capture`, Type (`type:*` only when `work-types: labels`) | nothing | scoring, stage, `auto:*`, `bot:*` |
+| **`/specify`** (shaper) | `ready`, `risk:*`/`effort:*` when unstamped, Type | `parked` (promotion) | `auto:*`, `bot:*` |
+| **`/triage`** (gate, human present) | `auto:build`, `auto:merge` (human-confirmed), scoring supplied inline | `ready` (flag back), `bot:blocked` (re-grant strip) | granting on a headless path |
+| **`/dispatch`** (queue consumer) | `bot:in-progress` (claim mirror), `bot:blocked` (at retry ceiling) | `auto:merge` (failure downgrade), `auto:*` (at ceiling), `bot:in-progress` (release) | adding `auto:*` or `ready` |
+| **`/tidy`** (hygiene) | `parked` (Defer action, with trigger) | `parked` (trigger-met wake), `bot:in-progress` (orphaned-claim sweep) | `auto:*` |
+| **Executors** (`/flow`, `/build`, `/wrap-up`) | nothing | `bot:in-progress` (claim release at wrap-up) | `auto:*`, `ready` |
+
+**Driver-conditional note:** grants are *enforceable* only under the `github-issues` driver —
+GitHub's RBAC means applying a label requires triage permission (a label is a maintainer's
+signature), and the label audit trail records who granted what. The `local-files` driver
+records grants as frontmatter for isomorphism, but no headless consumer acts on them —
+headless dispatch is github-issues only.
+
+## Grant semantics
+
+Authorization is two stackable human-granted labels. Their **absence is the default
+not-authorized state** — no label means no autonomous action, ever.
+
+- `auto:build` — agents may claim and build this record autonomously.
+- `auto:merge` — a completely clean autonomous run may merge without waiting for a live
+  review. **Additive on `auto:build`:** the gate always grants `auto:build` when granting
+  `auto:merge`. Dispatch queries `auto:build` only; `auto:merge` **alone is inert** — no
+  queue selects on it.
+- **Machinery may only remove grants, never add them.** Failure handling is plain
+  revocation: any failed run revokes `auto:merge` before retry; at the retry ceiling
+  (`dispatch-retry-ceiling`) machinery removes all `auto:*` labels and adds `bot:blocked` —
+  the record needs a human re-grant to run again.
+- `auto:*` labels are only ever added by an interactive human session; there is no
+  machinery path that originates a grant.
+
+## Labels are projection, not truth
+
+Labels make record state visible and queryable — they are a **projection** of state whose
+truth lives elsewhere (the body, the claim ref, the human's judgment). Any consumer about to
+*act* re-verifies the truth; the label only builds the worklist.
+
+Two worked examples:
+
+1. **The gate re-verifies body shape despite `ready`.** `/triage` lists by `ready`, but
+   before granting it fetches the body and re-checks the spec-shaped definition (below). A
+   `ready` label on an unshaped body gets flagged back (remove `ready`, comment why) — the
+   label got the record *into the queue*; it never authorizes the grant by itself.
+2. **Dispatch re-verifies the claim ref despite `bot:in-progress`.** The label is a cosmetic
+   mirror of the atomic `refs/claims/*` lock (`_shared/issue-claims.md`). Dispatch skips or
+   claims based on the ref's actual state (201/422 + comment fold), never on the label — a
+   stale label with no live ref means the record is claimable, and a missing label with a
+   live ref means it is not.
+
+## Spec-shaped body
+
+What `ready` asserts and the gate re-verifies. **Deliberately structural-plus-minimal:**
+
+- The sections `Current State`, `Deliverables`, and `Acceptance Criteria` are present.
+- Each of those sections is non-empty.
+- No unresolved placeholder markers anywhere in the body: `TBD`, `TODO`, `<!-- ambiguity:`.
+
+Content *quality* is explicitly NOT part of this check — judging whether the deliverables
+are the right ones is the shaper's (`/specify`) and the human gate's job. The structural
+check exists so machinery can cheaply catch "the label says shaped but the body is a
+one-liner," not to automate editorial judgment.
+
+## Born-ready rule
+
+Health-skill records (`by:code-health`, `by:harness-health`, `by:journey-health`) are
+agent-sized and spec-shaped **by construction** — their builders emit Current State /
+Deliverables / Acceptance Criteria bodies with scoring. They therefore file with `ready`
+already applied and appear directly in the gate's worklist, skipping maturation. Captured
+and human-filed records start in backlog state and reach `ready` through `/specify`.
+
+## Decomposition rules
+
+When `/specify` decomposes a design into multiple records:
+
+- The **parent record** body is the design summary (problem, chosen approach, key decisions,
+  why alternatives lost). Type `feature`. **Parents never get `ready`** — they are not
+  agent-sized work units.
+- **Only leaf records get `ready`** (+ scoring). Leaves link to the parent (sub-issue when
+  `work-links: native`; parent task-list + `Blocked by #N` body lines when
+  `work-links: body-text`).
+- **Tasks never become records.** A leaf's internal task breakdown is a checklist inside its
+  body, not further issues.
+
+## Fingerprint marker
+
+Every machine-filed record carries an HTML-comment fingerprint for dedup and resume-by-query
+idempotency:
+
+```
+<!-- work-fingerprint: {fingerprint} -->
+```
+
+Readers accept the legacy `<!-- code-health-fingerprint: {fingerprint} -->` marker during
+the migration window (read both, emit only `work-fingerprint`). `bin/lib/issues/record.js`'s
+`extractFingerprint` implements the dual read; when both markers are present, the new one wins.
+
+## Type
+
+The canonical Type enum is `bug | feature | task`. Two expressions, governed by the
+`work-types` config key:
+
+- `work-types: native` — apply the native GitHub Issue Type (org-level feature; presence
+  probed once by `/init`).
+- `work-types: labels` — apply a `type:bug|feature|task` label instead.
+
+Filing skills read the key and branch; they never re-probe mid-flow.
+
+## Config keys
+
+Written by `/init` (probe + policy), read by every filing/shaping/dispatching skill **by
+these literal names** — per-skill aliases and env-var renames are forbidden:
+
+| Key | Values / default | Meaning |
+|---|---|---|
+| `work-backend` | `github-issues` \| `local-files` | Which driver stores work records |
+| `work-types` | `native` \| `labels` | How Type is expressed (native Issue Types vs `type:*` labels) |
+| `work-links` | `native` \| `body-text` | How parent/dependency links are expressed (sub-issue + blocked-by APIs vs `Blocked by #N` body lines) |
+| `dispatch-retry-ceiling` | `3` | Failed autonomous attempts before `auto:*` removal + `bot:blocked` |
+| `automerge-max-lines` | `40` | Auto-merge blast-radius cap: max diff lines |
+| `automerge-max-files` | `2` | Auto-merge blast-radius cap: max files touched |
+| `dispatch-pick-max-concurrent` | `3` | Max concurrent groups a bare `/dispatch` multi-pick may run |
+
+## Consumers
+
+| Skill | Role against the record |
+|---|---|
+| `/code-health`, `/harness-health`, `/journey-health` | File born-`ready` records with origin + scoring + fingerprint |
+| `/capture` | Files raw backlog records (`by:capture`, Type only) |
+| `/specify` | Shapes records to spec shape; decomposes designs into parent + `ready` leaves |
+| `/triage` | The human gate — grants `auto:build` / `auto:merge` over the `ready` queue |
+| `/dispatch` | Queue consumer — claims authorized records, invokes `/flow`, settles (release / revoke / report) |
+| `/flow`, `/build` | Executors — materialize the record into `{run-dir}/work/{n}-spec.md` and build it |
+| `/wrap-up` | Closes the loop — carrier commit (close-via-merge), claim release, leftover records |
+| `/tidy` | Hygiene — stale backlog records, parked-trigger wakes, unsynced local records, `bot:blocked` surfacing |
+| `/help` | Dashboard — live counts by stage / grants / bot state |
+| `/init` | Provisions the system — `work-backend` flag, label bootstrap, capability probes (`work-types`, `work-links`) |
+
+See also: `_shared/issue-claims.md` (claim protocol; `bot:in-progress` mirror),
+`_shared/label-bootstrap.md` (canonical LABELS_JSON + check-then-create loop).
