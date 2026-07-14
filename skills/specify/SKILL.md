@@ -5,9 +5,9 @@ description: Use when converting a brainstorming design document into agent-size
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 
-# Specify — Decompose a design doc into agent-sized work units
+# Specify — Shape work records and decompose designs into ready leaf records
 
-Convert a brainstorming design document into self-contained, agent-sized work units in `specs/`. Part of the workflow lifecycle:
+Shape a single work record into spec shape, or decompose a brainstorming design document into a parent record plus ready leaf records. Part of the workflow lifecycle:
 
 ```
 /claude-tweaks:init → /claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → [ /claude-tweaks:specify ] → /claude-tweaks:build → /claude-tweaks:stories → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
@@ -16,11 +16,12 @@ Convert a brainstorming design document into self-contained, agent-sized work un
 
 ## When to Use
 
-- A brainstorming session produced a design doc that needs decomposing into specs
-- An INBOX item has been brainstormed and is ready for specification
+- A work record reference (`#N` / local record id) needs to be shaped into spec shape before it can reach `ready`
+- A brainstorming session produced a design doc that needs decomposing into ready leaf records
+- A backlog record's topic has already been through brainstorming — a design doc exists and is ready to decompose
 - `/claude-tweaks:help` flags unspecified design docs
-- You need to break a large feature into agent-sized work units
-- **`/claude-tweaks:flow` rejected a design doc** — `/flow` only accepts specs; route through `/specify` first (this is the granularity contract enforcement path)
+- You need to break a large feature into agent-sized leaf records
+- **`/claude-tweaks:flow` rejected a design doc** — route through `/specify` first to produce ready leaf records (this is the granularity contract enforcement path)
 - You want to decompose a single phase from a multi-phase design doc — use the optional `phase-N` argument
 
 ## The Granularity Contract
@@ -30,15 +31,15 @@ The plugin enforces a 2-tier artifact taxonomy:
 | Tier | Artifact | Producer | Consumer |
 |---|---|---|---|
 | Strategic | Design doc (one file, multi-phase OK as `## Phase N` sections) | `/superpowers:brainstorming` (superpowers, unchanged) — produces a single design doc by convention | `/claude-tweaks:specify` |
-| Executional | Spec (one file per agent-sized work unit) | `/claude-tweaks:specify` | `/claude-tweaks:flow`, `/claude-tweaks:build` |
+| Executional | Ready leaf record (spec-shaped body, agent-sized; a decomposition's parent record is never `ready`) | `/claude-tweaks:specify` | `/claude-tweaks:flow`, `/claude-tweaks:build`, `/claude-tweaks:dispatch` |
 
-`/claude-tweaks:specify` is the canonical entry point — its polymorphic input accepts a design doc path, a topic, or a backlog reference. For a bare topic it invokes `/superpowers:brainstorming` internally, then decomposes the resulting design doc. The contract holds at two enforcement points: this skill's phase-aware decomposition and `/flow`'s Step 2.7 design-doc rejection. See the "Background" section near the end of this file for the historical context on why `/superpowers:writing-plans` is bypassed.
+`/claude-tweaks:specify` is the canonical entry point — its polymorphic input accepts a work record reference, a design doc path, a topic, or a backlog reference. A record reference is shaped in place (**shaping mode**, below); a design doc — read directly, matched from a topic, or produced by invoking `/superpowers:brainstorming` internally for a bare topic with no existing doc — decomposes into a parent record plus ready leaf records (**decomposition mode**, Steps 1-9). The contract holds at two enforcement points: this skill's phase-aware decomposition and `/flow`'s Step 2.7 design-doc rejection. See the "Background" section near the end of this file for the historical context on why `/superpowers:writing-plans` is bypassed.
 
 ## Input
 
-`$ARGUMENTS` = `<design-doc-or-topic> [phase-N]`
+`$ARGUMENTS` = `<record-ref-or-design-doc-or-topic> [phase-N]`
 
-The first argument is a path to a design doc, a topic name, or a backlog item reference. The optional second argument `phase-N` (where N is a phase number from the design doc's `## Phase N` sections) scopes decomposition to one phase only — useful when running phases incrementally or in parallel.
+The first argument is a work record reference (`#N`, an issue URL, or a bare local record id), a path to a design doc, a topic name, or a backlog reference. The optional second argument `phase-N` (where N is a phase number from the design doc's `## Phase N` sections) scopes decomposition to one phase only — useful when running phases incrementally or in parallel. `phase-N` only applies when the input resolves to a design doc (decomposition mode); a work record reference resolves to shaping mode and ignores it.
 
 Input is polymorphic — see the canonical definition in the Granularity Contract section above. The resolution steps below handle each input shape.
 
@@ -49,17 +50,18 @@ Input is polymorphic — see the canonical definition in the Granularity Contrac
 /claude-tweaks:specify docs/superpowers/specs/food-graph-design.md phase-2   → decompose phase 2 only
 /claude-tweaks:specify food graph                                → resolve to design doc, decompose all
 /claude-tweaks:specify food graph phase-3                        → resolve to design doc, decompose phase 3 only
+/claude-tweaks:specify #142                                      → shape record #142 in place
 ```
 
 **Phase detection:** scan the design doc for `^## Phase \d+` headings. If 0 found and no `phase-N` was given, treat the whole doc as one phase. If 1+ found and no `phase-N` was given, decompose all phases sequentially. If `phase-N` was given but the section doesn't exist, stop and present the available phases as numbered options.
 
 ### Resolve the input:
 
-1. **GitHub issue reference** — a URL matching `https://github.com/{owner}/{repo}/issues/{n}`, or a shorthand like `#123` / `issue 123` / `gh-123`. Checked *before* case 2's path/topic disambiguation, since an issue URL contains `/` and would otherwise misparse as a design-doc path. Fetch it directly: `gh issue view {n} --json number,title,body,url,labels`. Treat the issue's title + body as the design doc content — code-health-filed issues are already `/specify`-shaped (Current State / Deliverables / Acceptance Criteria), so this needs near-zero translation; a human-filed issue without that shape still works, just with more editorializing in Step 2. Extract the fingerprint marker from the body if present (`<!-- code-health-fingerprint: ([^\s>]+) -->` — same regex as `bin/lib/issues/ingest.js`'s `FP_RE`). Also extract effort from the issue's labels if a `code-health:effort-<tier>` label is present (`low|medium|high`; absent for non-code-health issues). Also note whether the fetched `labels` include `parked` — Step 3's Rules use this to remove the label and stamp `recon-was-parked: true` on the generated spec. Carry `{issueNumber, fingerprint, effort, wasParked}` forward to Step 3, which stamps `recon-issue:` (and `recon-fingerprint:`/`code-health-effort:`/`recon-was-parked:`, when present) frontmatter on the generated spec — this is what lets `/wrap-up`'s close-via-merge, issue-claim-release, and `/build`'s effort-based model-tier selection all engage. (`/claude-tweaks:flow #{issue}` — the hand-off `/claude-tweaks:triage dispatch` uses — routes through this exact same case, calling `/claude-tweaks:specify #{issue}` directly rather than pre-extracting title/body itself; there is no longer a separate batch-derivation path.)
-2. **Design doc path** (e.g., `docs/superpowers/specs/2026-02-21-meal-planning-design.md`) — read it directly. Disambiguation rule: a string containing `/` or ending in `.md`, that didn't match case 1 above, is treated as a path.
-3. **Topic name** (e.g., `meal planning`) — search `docs/superpowers/specs/*-design.md` for a matching design doc. If found, read it directly.
-4. **Topic name with no matching design doc** — invoke superpowers `/superpowers:brainstorming` via the Skill tool with the topic as input (this is the polymorphic-input branch defined above). The brainstorming session produces a design doc at `docs/superpowers/specs/YYYY-MM-DD-{topic}-design.md` (or wherever superpowers writes it). Wait for `/superpowers:brainstorming` to complete, then continue with the produced design doc as the input. **Do not** prompt the user to "run brainstorm first" — that defeats the contract.
-5. **Backlog reference** (e.g., `"Voice shopping list"`) — find the matching `specs/backlog/{slug}.md` entry (`**Stage:** inbox`), then check if a design doc exists for it. If found, read it. If not found, treat as a topic name (case 4 — invoke `/superpowers:brainstorming`).
+1. **Work record reference** — a URL matching `https://github.com/{owner}/{repo}/issues/{n}`, or a shorthand like `#123` / `issue 123` / `gh-123`, or a bare local record id (e.g. `42`). Checked *before* case 2's path/topic disambiguation, since an issue URL contains `/` and would otherwise misparse as a design-doc path. Fetch it directly: `gh issue view {n} --json number,title,body,url,labels` (GitHub driver) or glob `specs/{n}-*.md` for the matching file, then `readRecord(path)` (`bin/lib/issues/local-store.js`; local-files driver). Enter **shaping mode** (below) — the record IS the target, not a source to translate; there is no recon-* extraction. Scoring is read from the fetched labels via `parseRecordFacets` (`bin/lib/issues/record.js`) or the record's `facets` (local) only to decide which of `risk:*`/`effort:*` shaping mode still needs to stamp — never to gate whether shaping runs.
+2. **Design doc path** (e.g., `docs/superpowers/specs/2026-02-21-meal-planning-design.md`) — read it directly. Disambiguation rule: a string containing `/` or ending in `.md`, that didn't match case 1 above, is treated as a path. Enter **decomposition mode** (Step 1 onward).
+3. **Topic name** (e.g., `meal planning`) — search `docs/superpowers/specs/*-design.md` for a matching design doc. If found, read it directly and enter **decomposition mode**.
+4. **Topic name with no matching design doc** — invoke superpowers `/superpowers:brainstorming` via the Skill tool with the topic as input (this is the polymorphic-input branch defined above). The brainstorming session produces a design doc at `docs/superpowers/specs/YYYY-MM-DD-{topic}-design.md` (or wherever superpowers writes it). Wait for `/superpowers:brainstorming` to complete, then continue with the produced design doc as the input, entering **decomposition mode**. **Do not** prompt the user to "run brainstorm first" — that defeats the contract.
+5. **Backlog reference** (e.g., `"Voice shopping list"`) — a record query, not a file lookup: search open records by title keywords — `gh issue list --search "{keywords}" --state open --json number,title,body,labels` (GitHub driver) or `queryRecords('specs', {})` (`bin/lib/issues/local-store.js`; local-files driver), filtered to titles matching the keywords. Then check whether a design doc already exists for the matched topic (same lookup as case 3): if one does, read it and enter **decomposition mode**; if not, enter **shaping mode** directly on the matched record. A backlog reference never invokes brainstorming on its own — that only happens via case 4, when the reference resolves to a bare topic with no existing record at all.
 
 **Ambiguous input handling:** A topic name that *could* also be interpreted as a path (e.g., a topic with a `/` in it like "auth/login flow") is ambiguous. Stop and call `AskUserQuestion` with:
 
@@ -68,6 +70,114 @@ Input is polymorphic — see the canonical definition in the Granularity Contrac
 - Option 2 — `label`: `"Design doc path"`, `description`: `"read the file directly"`
 
 This explicit disambiguation prevents the silent wrong-path failure flagged by past polymorphic-input edge cases.
+
+## Shaping mode (single record)
+
+Entered from Resolve-the-input case 1 (work record reference) or case 5 (backlog reference with no matching design doc). The record already exists and IS the target — there is nothing to decompose. This section is fully self-contained: once it completes, skip directly to `## Next Actions` near the end of this file. Steps 1 through 9 below belong to decomposition mode only and never run here.
+
+### Edit the body into spec shape
+
+Rewrite the record's body into five sections: `## Current State`, `## Deliverables`, `## Acceptance Criteria`, `## Technical Approach`, and `## Gotchas`. These are the core of the record body template `spec-template.md` documents — Current State, Deliverables, and Acceptance Criteria are the structural minimum (`_shared/work-record.md`'s spec-shaped-body check re-verifies exactly these three are present and non-empty before the authorization gate will grant anything); Technical Approach and Gotchas can stay brief for a small record. The template's fuller section list (Overview, Non-Goals, Prerequisites, and so on) is decomposition-mode scaffolding for multi-record output — a single shaped record doesn't need it.
+
+Absorb the record's existing content into whichever section it belongs in — a human-filed or captured record's raw text usually becomes Current State plus Deliverables context, with Acceptance Criteria freshly written since raw captures rarely state them explicitly. A record already filed in this shape — every `by:code-health`/`by:harness-health`/`by:journey-health` record is spec-shaped and agent-sized by construction, per `_shared/work-record.md`'s born-ready rule — needs near-zero translation: verify the sections are present and non-empty and move on rather than rewriting content that's already correct.
+
+### Preserve the original request
+
+Before editing, keep the record's fetched title and body exactly as they were. Append them to the composed body as their own section, using this exact heading — this is a rule, not a suggestion, and the section name is literal:
+
+```
+## Original request
+
+{original title}
+
+{original body, verbatim}
+```
+
+The shaped sections above are `/specify`'s editorial interpretation; `## Original request` is the record's ground truth if that interpretation ever needs to be checked or redone.
+
+### Metadata block
+
+Run Step 2.5a's frontend-detection sniff (`design-pre-steps.md`) against the record's own content — not a design doc — to decide `Surface:`. When frontend, also run Step 2.5c's design-intent question to decide `Design-intent:`. Insert a metadata block at the very top of the composed body, above `## Current State` and above `## Original request`:
+
+```
+Surface: backend
+Design-intent: {value}
+```
+
+Omit the `Design-intent:` line entirely for backend/infra records — it only applies when Step 2.5a detected a frontend surface. These are plain body-metadata lines, not YAML frontmatter — capitalized keys, no code fence, no `---` markers. This is the wire format `/flow`/`/build` (spec 20's materialization step) lift into the build-time header; the canonical field and value reference lives in `spec-template.md`.
+
+### Stamp scoring and stage labels
+
+Using the facets already read in Resolve-the-input case 1/5 (`parseRecordFacets` for GitHub, the record's own `facets` for local), update independently per family — never touch a family that's already stamped:
+
+- **`risk:*` absent** — judge low/medium/high from the now-shaped Deliverables and Acceptance Criteria (blast radius, reversibility), per `_shared/work-record.md`'s Scoring axis, then stamp it.
+- **`effort:*` absent** — judge low/medium/high the same way (estimated size), then stamp it.
+- **`parked` present** — remove it; a record entering shaping mode is being promoted out of hold.
+- **`ready`** — add it (idempotent when already present, e.g. a born-ready record).
+
+### Compose-then-write-once
+
+Assemble the full new body locally before making any write call — never edit the body incrementally against a live record. Final assembly order (`Design-intent:` omitted for non-frontend records):
+
+```
+Surface: {value}
+Design-intent: {value}
+
+## Current State
+...
+
+## Deliverables
+...
+
+## Acceptance Criteria
+...
+
+## Technical Approach
+...
+
+## Gotchas
+...
+
+## Original request
+
+{original title}
+
+{original body, verbatim}
+```
+
+**`work-backend: github-issues`:** write the composed body to a temp file, then a single call carries both the body and every label change:
+
+```bash
+gh issue edit {n} \
+  --body-file /tmp/specify-shaped-body.md \
+  --add-label ready \
+  --add-label "risk:{tier}" \
+  --add-label "effort:{tier}" \
+  --remove-label parked
+```
+
+Omit `--add-label "risk:{tier}"` / `--add-label "effort:{tier}"` for whichever family was already stamped; omit `--remove-label parked` when the record never carried it.
+
+**`work-backend: local-files`:** one `writeRecord` call does the same job, setting `facets.stage: 'ready'` (which supersedes any prior `'parked'` value — the two are mutually exclusive states) and filling `facets.risk`/`facets.effort` when they were `null`:
+
+```bash
+node -e "const {writeRecord}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
+  writeRecord(process.argv[1], { title: process.argv[2], body: process.argv[3], facets: JSON.parse(process.argv[4]) });
+" "$RECORD_PATH" "$TITLE" "$SHAPED_BODY" "$FACETS_JSON"
+```
+
+then commit — a local record is a tracked file, unlike a GitHub issue edit:
+
+```bash
+git add "$RECORD_PATH"
+git commit -m "Shape record {id} into spec shape — ready"
+```
+
+Nothing to commit on the `github-issues` driver — the edit above already landed via the API.
+
+Shaping mode ends here — proceed directly to `## Next Actions`.
+
+`/specify` adds `ready` and `risk:*`/`effort:*` (when unstamped), removes `parked` on promotion, and never touches `auto:*` or `bot:*` — those stay `/triage`'s (human-granted authorization) and `/dispatch`'s (bot-state mirror) territory.
 
 ## Step 1: Understand the Landscape
 
