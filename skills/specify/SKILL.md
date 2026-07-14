@@ -222,7 +222,7 @@ When a pipeline run directory exists, read `overlap` from `config.yml` (default 
 
 | Policy | Action | Log entry |
 |---|---|---|
-| `companion` (default) | Add a new leaf to the Step 2 work-unit set, pre-marked `Blocked by #N` against the overlapping record — created alongside the rest of the batch in Step 3, no separate write here. Reversible — the leaf is its own record. | `AUTO {time} — Step 1: overlap "{section}" ↔ record {ref} resolved as companion leaf, Blocked by {ref}.` |
+| `companion` (default) | Add a new leaf to the Step 2 work-unit set, noting its dependency on the overlapping record — the record itself is created with the rest of the batch in Step 3, and its `Blocked by #N` link is wired in Step 4's linking pass; no separate write here. Reversible — the leaf is its own record. | `AUTO {time} — Step 1: overlap "{section}" ↔ record {ref} resolved as companion leaf, Blocked by {ref}.` |
 | `skip` | Auto-skip — don't create a leaf for this section. Note in summary. | `AUTO {time} — Step 1: overlap "{section}" ↔ record {ref} resolved as skip — already covered.` |
 | `extend` | Stage as `staged/specify-overlap-{ref}.md` containing the proposed additions to the record's body. NEVER auto-modify an existing record's body — that's not reversible enough. | `STAGED {time} — Step 1: overlap "{section}" ↔ record {ref} requires extending an open record. Stage path: staged/specify-overlap-{ref}.md.` |
 | `replace` | Stage as `staged/specify-overlap-{ref}.md`. Replacement is destructive; the user must approve at the Review Console. | `STAGED {time} — Step 1: overlap "{section}" ↔ record {ref} proposed as replacement. Stage path: staged/specify-overlap-{ref}.md.` |
@@ -368,6 +368,39 @@ Place these recommendations in the Step 9 summary under a `### Diagram suggestio
 
 Records are created **parent-first**: the parent's number has to exist before any leaf can link to it. Every body is composed fully in memory before any write call — compose-then-write-once, the same discipline Shaping mode uses.
 
+### Idempotency (resume path)
+
+Every record this step creates carries a deterministic fingerprint: `{design-doc-slug}:parent` for the parent, `{design-doc-slug}:{unit-slug}` for each leaf. The same design doc always produces the same fingerprint for the same record — that determinism is what makes the check below a real resume path instead of a one-shot guard.
+
+Before creating anything, build a fingerprint→number map of every existing marker, once:
+
+`work-backend: github-issues` (REST list, NOT the search index — the search index lags behind fresh writes, including this same run's own):
+
+```bash
+gh issue list --state all --json number,body --limit 200 > /tmp/specify-all-issues.json
+node -e "
+  const { extractFingerprint } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const issues = require('/tmp/specify-all-issues.json');
+  const map = {};
+  for (const i of issues) { const fp = extractFingerprint(i.body); if (fp && !(fp in map)) map[fp] = i.number; }
+  require('fs').writeFileSync('/tmp/specify-existing-fingerprints.json', JSON.stringify(map));
+"
+```
+
+`work-backend: local-files` (the local marker search — same idea, read every record body and extract its marker):
+
+```bash
+node -e "
+  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+  const { extractFingerprint } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const map = {};
+  for (const r of queryRecords('specs', {})) { const fp = extractFingerprint(r.body); if (fp && !(fp in map)) map[fp] = r.id; }
+  require('fs').writeFileSync('/tmp/specify-existing-fingerprints.json', JSON.stringify(map));
+"
+```
+
+Then, immediately before **each individual create** — parent included, and not just once against the batch list above — re-check that record's fingerprint against the map. A match means the record already exists (a prior partial run, or a concurrent one): skip the create and use the mapped number instead — the parent's number for the leaves to link to, a leaf's number for Step 4's linking pass. On every successful create, add the new record's fingerprint and number to the in-memory map before moving on — this catches a same-run collision (two units that happen to slugify to the same name) exactly the way it catches a prior-run resume, since the map stays live for the whole loop rather than being a snapshot trusted for its duration.
+
 ### Parent record
 
 One parent per decomposition run (or per `phase-N`, when scoped — see Step 7's phase table). Type is always `feature` — the parent is a summary record, not agent-sized work: **parents never get `ready`**, and they carry no `risk:*`/`effort:*` scoring at all.
@@ -376,13 +409,13 @@ Parent body = design summary: the problem, the chosen approach, the key decision
 
 ```bash
 node -e "const {recordPayload}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js');
-  const p=recordPayload({title:process.argv[1], body:process.argv[2], type:'feature'});
-  require('fs').writeFileSync('/tmp/specify-parent-payload.json', JSON.stringify(p))" "$PARENT_TITLE" "$PARENT_BODY"
+  const p=recordPayload({title:process.argv[1], body:process.argv[2], type:'feature', fingerprint:process.argv[3]});
+  require('fs').writeFileSync('/tmp/specify-parent-payload.json', JSON.stringify(p))" "$PARENT_TITLE" "$PARENT_BODY" "${DESIGN_DOC_SLUG}:parent"
 
 node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/specify-parent-payload.json','utf8')).body)" > /tmp/specify-parent-body.md
 ```
 
-`recordPayload` returns zero labels for the parent — no origin, no scoring, no `ready` — the only label that can ever apply is `type:feature`, and only under `work-types: labels`; bootstrap it first (per `_shared/label-bootstrap.md`, `LABELS_JSON = [["type:feature", "Type: new capability or enhancement"]]`, the pair from `record.js`'s `TYPE_LABELS`).
+`recordPayload` returns zero labels for the parent — no origin, no scoring, no `ready` — the only label that can ever apply is `type:feature`, and only under `work-types: labels`; bootstrap it first (per `_shared/label-bootstrap.md`, `LABELS_JSON = [["type:feature", "Type: new capability or enhancement"]]`, the pair from `record.js`'s `TYPE_LABELS`). The `{design-doc-slug}:parent` fingerprint rides in the body as the standard marker — every machine-filed record carries one (`_shared/work-record.md`), and it's what the Idempotency map above keys the parent's resume on.
 
 **`work-backend: github-issues`** — the Type expression branch (`_shared/work-record.md`'s config-key table; read `work-types` once, never re-probe mid-flow):
 
@@ -398,7 +431,7 @@ PARENT_NUM=$(basename "$PARENT_URL")
 **`work-backend: local-files`:**
 
 ```bash
-node -e "const {writeRecord, allocateId}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
+PARENT_ID=$(node -e "const {writeRecord, allocateId}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
   const id = allocateId('specs');
   const body = require('fs').readFileSync('/tmp/specify-parent-body.md', 'utf8');
   writeRecord(\`specs/\${id}-\${process.argv[1]}.md\`, {
@@ -406,14 +439,14 @@ node -e "const {writeRecord, allocateId}=require(process.env.CLAUDE_PLUGIN_ROOT+
     body,
     facets: { type: 'feature' }
   });
-  console.log(id)" "$PARENT_SLUG" "$PARENT_TITLE"
+  console.log(id)" "$PARENT_SLUG" "$PARENT_TITLE")
 ```
 
-Capture `$PARENT_NUM` / `$PARENT_ID` — every leaf below links back to it.
+`$PARENT_NUM` / `$PARENT_ID` is now captured — every leaf below links back to it.
 
 **If parent creation fails** (`gh` unreachable, transient API error): fall back to `local-store.js` for the parent — same `unsynced: true` fallback as the leaf-level one below — and run the rest of this decomposition on the local driver too, so leaves have a real parent to link to instead of a GitHub record that doesn't exist. `/tidy`'s Sync finding reconciles the whole family later.
 
-**Resuming after a partial run:** the idempotency block below is a leaf concern — the parent is created once. If a prior run already created the parent but died before any leaf was made, search for it by title (`gh issue list --search "$PARENT_TITLE" --state all` / a `queryRecords('specs', {})` title scan) and reuse that number instead of creating a second parent.
+**Resuming after a partial run:** nothing parent-specific — the Idempotency map above already covers it. A `{design-doc-slug}:parent` marker match means a prior run created this parent; reuse the mapped number and skip the create, exactly as with any leaf. Never fall back to a title search — `gh issue list --search` rides the search index this step deliberately avoids.
 
 ### Leaves
 
@@ -425,7 +458,9 @@ Capture `$PARENT_NUM` / `$PARENT_ID` — every leaf below links back to it.
 
 **Type** — matches the parent (`feature`) unless the unit is clearly a defect fix (a bug report, a regression, broken behavior) — override to `bug` in that case.
 
-**Fingerprint** — deterministic: `{design-doc-slug}:{unit-slug}`. The same design doc always produces the same fingerprint for the same unit; that determinism is what turns the idempotency check below into a real resume path instead of a one-shot guard.
+**Scoring** — judge each leaf's `risk` and `effort` (low/medium/high each) from its own Deliverables and Acceptance Criteria — blast radius and reversibility for `risk`, estimated size and file spread for `effort` — per `_shared/work-record.md`'s Scoring axis. This is the same judgment Shaping mode's stamping step applies to a single record, run here once per leaf; the tiers become `$LEAF_RISK`/`$LEAF_EFFORT` below.
+
+**Fingerprint** — `{design-doc-slug}:{unit-slug}`, the leaf half of the deterministic scheme the Idempotency section above defines.
 
 ```bash
 node -e "const {recordPayload}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js');
@@ -442,32 +477,39 @@ node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/specify-leaf-pa
 
 `recordPayload` embeds the fingerprint as `<!-- work-fingerprint: {design-doc-slug}:{unit-slug} -->` in the returned body — `/tmp/specify-leaf-body.md` above already carries it, so both drivers below write the same fingerprinted text.
 
-**Idempotency (resume path).** Before creating any leaf, list existing `work-fingerprint` markers once:
+Bootstrap the labels this run is about to apply before the first create (per `_shared/label-bootstrap.md`): `ready` plus every `risk:{tier}`/`effort:{tier}` pair in use — and, under `work-types: labels`, the `type:{t}` pairs from `record.js`'s `TYPE_LABELS`, as with the parent.
 
-`work-backend: github-issues` (REST list, NOT the search index — the search index lags behind fresh writes, including this same run's own):
-
-```bash
-gh issue list --state all --json number,body --limit 200 > /tmp/specify-all-issues.json
-node -e "
-  const { extractFingerprint } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
-  const issues = require('/tmp/specify-all-issues.json');
-  const fps = new Set(issues.map(i => extractFingerprint(i.body)).filter(Boolean));
-  require('fs').writeFileSync('/tmp/specify-existing-fingerprints.json', JSON.stringify([...fps]));
-"
-```
-
-`work-backend: local-files` (the local marker search — same idea, read every record body and extract its marker):
+**`work-backend: github-issues`** — same Type expression branch as the parent. The three `--label` flags are exactly the payload's `.labels`: `recordPayload` emitted `risk:{tier}`, `effort:{tier}`, `ready` and nothing else, because no `origin` was passed — a decomposition is human-shaped work, not a health-skill filing, so leaves carry no `by:*` label:
 
 ```bash
-node -e "
-  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
-  const { extractFingerprint } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
-  const fps = new Set(queryRecords('specs', {}).map(r => extractFingerprint(r.body)).filter(Boolean));
-  require('fs').writeFileSync('/tmp/specify-existing-fingerprints.json', JSON.stringify([...fps]));
-"
+# work-types: native
+LEAF_URL=$(gh issue create --title "$LEAF_TITLE" --body-file /tmp/specify-leaf-body.md \
+  --type "$LEAF_TYPE" \
+  --label "risk:$LEAF_RISK" --label "effort:$LEAF_EFFORT" --label ready)
+
+# work-types: labels
+LEAF_URL=$(gh issue create --title "$LEAF_TITLE" --body-file /tmp/specify-leaf-body.md \
+  --label "risk:$LEAF_RISK" --label "effort:$LEAF_EFFORT" --label ready \
+  --label "type:$LEAF_TYPE")
+
+LEAF_NUM=$(basename "$LEAF_URL")
 ```
 
-Then, immediately before **each individual create** — not just once against the batch list above — re-check that leaf's fingerprint against the same set. A match means it already exists (a prior partial run, or a concurrent one): skip the create, and record the existing number for Step 4's linking pass instead. On every successful create, add the new leaf's fingerprint to the in-memory set before moving to the next unit — this catches a same-run collision (two units that happen to slugify to the same name) exactly the way it catches a prior-run resume, since the set stays live for the whole loop rather than being a snapshot trusted for its duration.
+**`work-backend: local-files`** — one `writeRecord` call carries the same state as facets: `stage: 'ready'` instead of the `ready` label, `origin` omitted for the same no-`by:*` reason. `/tmp/specify-leaf-body.md` already carries the fingerprint marker, so the local write preserves it:
+
+```bash
+LEAF_ID=$(node -e "const {writeRecord, allocateId}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
+  const id = allocateId('specs');
+  const body = require('fs').readFileSync('/tmp/specify-leaf-body.md', 'utf8');
+  writeRecord(\`specs/\${id}-\${process.argv[1]}.md\`, {
+    title: process.argv[2],
+    body,
+    facets: { type: process.argv[3], risk: process.argv[4], effort: process.argv[5], stage: 'ready' }
+  });
+  console.log(id)" "$UNIT_SLUG" "$LEAF_TITLE" "$LEAF_TYPE" "$LEAF_RISK" "$LEAF_EFFORT")
+```
+
+Capture `$LEAF_NUM` / `$LEAF_ID` for every leaf (created or resumed via the Idempotency map) — Step 4's linking pass consumes them.
 
 **Write-path resilience.** A `gh` create failure for one leaf (the parent already exists on GitHub) falls back to `local-store.js` for that leaf only — write it locally with `unsynced: true` (fingerprint preserved, so a later sync still dedups correctly) and continue with the rest of the batch. Don't abort the whole decomposition over one failed leaf. `/tidy`'s Sync finding reconciles the local leaf onto GitHub on a later pass. The same rule applies to Step 4's linking edits below — a failed link gets noted and the pass continues, it doesn't roll back everything already created.
 
