@@ -1,19 +1,21 @@
 # Design Pre-Build — lazy-loading Impeccable references and project design context
 
-Common Step 1.7 of `/claude-tweaks:build`. Loaded only when the build is in spec mode with a frontend surface and the plan is non-trivial.
+Common Step 1.7 of `/claude-tweaks:build`. Loaded only when the build is in record or spec mode with a frontend surface and the plan is non-trivial.
 
 ## Purpose
 
 Before dispatching implementation, invoke the design wrapper to lazy-load Impeccable's reference files plus any project-specific design context (root `PRODUCT.md` from `/impeccable:impeccable init`, root `DESIGN.md` from `/impeccable:impeccable document`). The wrapper handles its own detection (non-frontend specs skip cleanly) and availability checks (no Impeccable installed → skip cleanly).
 
+**Surface source:** `surface` (the gate condition SKILL.md's Common Step 1.7 checks before invoking this file's procedure) comes from the materialized header's `surface:` field in record mode — lifted from the record body's `Surface:` metadata line per `skills/flow/materialize.md`'s Surface/Design-intent lift rule — or the legacy spec file's own `surface:` frontmatter under the spec-file alias. `design-intent` lifts from the same header/body source but is consumed downstream by `/claude-tweaks:design polish`, not by this pre-build gate.
+
 ## Skip this step entirely when
 
-- The build is in design mode with no spec to inspect (the wrapper needs spec context for surface detection — pure design-mode builds proceed without pre-load)
+- The build is in design mode with no spec or materialized record to inspect (the wrapper needs that context for surface detection — pure design-mode builds proceed without pre-load)
 - The plan is trivial (< 3 file references, no UI files in the plan)
 
 ## Invocation
 
-Invoke `/claude-tweaks:design pre-build <spec>`. Pass the spec number for spec mode, or the design doc path as a fallback.
+Invoke `/claude-tweaks:design pre-build <spec>`. Pass the record/spec number — the wrapper resolves it to the materialized header (record mode) or the legacy spec file (spec-file alias) the same way Common Step 1.7's own surface check does — or the design doc path as a fallback.
 
 ## Result handling
 

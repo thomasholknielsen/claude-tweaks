@@ -1,6 +1,6 @@
 ---
 name: claude-tweaks:build
-description: Use when implementing a spec or design doc end-to-end. Accepts a spec number for full lifecycle tracking, or a design doc path to skip /claude-tweaks:specify and build directly from brainstorming output.
+description: Use when implementing a work record, spec, or design doc end-to-end. Accepts a record reference (#N) or spec number (legacy alias) for full lifecycle tracking, or a design doc path to skip /claude-tweaks:specify and build directly from brainstorming output.
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -36,14 +36,14 @@ When `.claude-tweaks/policy.yml` sets `worktree.always: true`, the Git axis has 
 
 When `.claude-tweaks/policy.yml` sets `execution.always: subagent`, the Execution axis has only one value: `batched` is not offered and is rejected if passed explicitly — unlike the Git axis, there is no mechanical backstop for this one (see `_shared/git-discipline.md`).
 
-Read `build-options.md` in this skill's directory for the full options matrix, invocation grammar (six combinations), default-resolution order, the build-options prompt template, the spec-vs-design mode table, and the input-resolution rules. `$ARGUMENTS` = spec number / design doc path / topic name, optionally followed by execution strategy, git strategy, and/or `auto`.
+Read `build-options.md` in this skill's directory for the full options matrix, invocation grammar (six combinations), default-resolution order, the build-options prompt template, the record-vs-spec-vs-design mode table, and the input-resolution rules. `$ARGUMENTS` = record reference (`#N`, primary) / spec number (legacy alias) / design doc path / topic name, optionally followed by execution strategy, git strategy, and/or `auto`.
 
 ## Workflow
 
 ```
 Resolve input
     ↓
-Spec mode? ──yes──→ [Spec Steps 1, 2, 2.5 (Manual Steps classification), 3]
+Spec/record mode? ──yes──→ [Spec Steps 1, 2, 2.5 (Manual Steps classification), 3]
     │                       ↓
     no (design mode)        │
     ↓                       │
@@ -58,7 +58,11 @@ Spec mode? ──yes──→ [Spec Steps 1, 2, 2.5 (Manual Steps classification
 
 ## Spec Mode
 
-### Spec Step 1: Read & Assess the Spec
+### Spec Step 1: Resolve, Materialize, and Assess
+
+**Record mode (`#N`) — primary input.** Materialize the record into a spec-shaped build file via `skills/flow/materialize.md`: resolve the record, run the materialization hard gate (an unshaped body stops the build with "run `/claude-tweaks:specify #{n}` first"), compose the pinned header, and write + commit `{run-dir}/work/{n}-spec.md` on the current (pre-worktree) branch — this must land before Common Step 1 creates the worktree, so the new worktree's initial checkout already contains the file. When a parent `/claude-tweaks:flow` already materialized the file for this run (`$PIPELINE_RUN_DIR` set and `{run-dir}/work/{n}-spec.md` already exists), read it in place instead of re-fetching or re-composing — see materialize.md's "When this runs." Once materialized, read the file in full and proceed to Spec Step 2 exactly as the legacy path below does; the shape gate already replaces the prerequisite check this step used to run.
+
+**Spec mode (legacy alias).** A bare spec number reads the file directly, unchanged since before record materialization existed:
 
 ```
 specs/{number}-*.md
@@ -177,7 +181,7 @@ For the full procedure (Check A failure handling, Check B scope-keyword sweep co
 
 ### Common Step 1.7: Design Pre-Build (frontend specs)
 
-For frontend specs (when `surface` ∈ `web | mobile | desktop`), invoke `/claude-tweaks:design pre-build <spec>` to lazy-load relevant design references into the implementer subagent's context. For the full skip conditions, invocation rules, result handling, and where loaded references go, see `design-prebuild.md` in this skill's directory.
+For frontend specs — `surface` ∈ `web | mobile | desktop`, read from the materialized header's `surface:` field (record mode; lifted from the record body's `Surface:` metadata line per `skills/flow/materialize.md`) or the legacy spec file's own `surface:` frontmatter (spec-file alias) — invoke `/claude-tweaks:design pre-build <spec>` to lazy-load relevant design references into the implementer subagent's context. For the full skip conditions, invocation rules, result handling, and where loaded references go, see `design-prebuild.md` in this skill's directory.
 
 ### Common Step 2: Execute the Plan
 
@@ -185,7 +189,7 @@ Execution depends on the chosen execution strategy (see Build Options).
 
 > **Working Directory Discipline:** Before any commit (and before dispatching subagents that run `git` or `node --test`), anchor the working directory explicitly — `pwd` + `git rev-parse --show-toplevel` must match the worktree path (or the project root in `current-branch` strategy). When dispatching subagents, require them to use `cd "$WORKTREE" && …` or `git -C "$WORKTREE" …`. See the Working Directory Discipline section of `_shared/subagent-output-contract.md` for the full pattern.
 
-**subagent** (default): Check the spec's frontmatter for `code-health-effort:`. If present, invoke `/superpowers:subagent-driven-development` with an explicit instruction to default every per-task implementer dispatch in this spec to the corresponding model tier — `low` → Fast, `medium` → Standard, `high` → Capable — overriding that skill's own per-task complexity heuristic for this spec's tasks specifically (a spec whose originating finding was already judged cheap or expensive to fix doesn't need re-deriving that signal from file-count heuristics). Specs with no `code-health-effort:` frontmatter invoke `/superpowers:subagent-driven-development` exactly as before, with no tier override. After the final code review completes, **stop the skill and return here** — do not let it invoke `/superpowers:finishing-a-development-branch`. `/build` handles post-execution steps (simplification, alignment, verification) before any branch finishing.
+**subagent** (default): For record mode, check the materialized header's `effort:` field (`skills/flow/materialize.md`'s reader table — the header's model-tier signal). If present, invoke `/superpowers:subagent-driven-development` with an explicit instruction to default every per-task implementer dispatch in this spec to the corresponding model tier — `low` → Fast, `medium` → Standard, `high` → Capable — overriding that skill's own per-task complexity heuristic for this spec's tasks specifically (a spec whose originating finding was already judged cheap or expensive to fix doesn't need re-deriving that signal from file-count heuristics). Legacy spec-file-alias specs carry no equivalent header field, so they invoke `/superpowers:subagent-driven-development` exactly as before, with no tier override. After the final code review completes, **stop the skill and return here** — do not let it invoke `/superpowers:finishing-a-development-branch`. `/build` handles post-execution steps (simplification, alignment, verification) before any branch finishing.
 
 **batched**: Invoke `/superpowers:executing-plans`. After the last batch completes, **stop the skill and return here** — do not let it invoke `/superpowers:finishing-a-development-branch`. `/build` handles post-execution steps before any branch finishing.
 
@@ -317,7 +321,7 @@ Once the signals are resolved, call `AskUserQuestion` with `question`: `"What's 
 
 | Skill | Relationship |
 |-------|-------------|
-| `/claude-tweaks:specify` | Runs BEFORE /claude-tweaks:build in spec mode — creates the spec. Can be skipped using design mode. |
+| `/claude-tweaks:specify` | Runs BEFORE /claude-tweaks:build — shapes a record to `ready` (spec-shaped body) or decomposes a design doc into ready leaf records. /build's record mode (`#N`) materializes a shaped leaf record into a build-time file via `skills/flow/materialize.md` before implementing it, reading the `Surface:`/`Design-intent:` body-metadata lines `/specify` wrote, lifted into the materialized header. Design mode can skip /specify entirely, building directly from a design doc. |
 | `/superpowers:brainstorming` | Produces the design doc that design mode consumes directly |
 | `/superpowers:writing-plans` | Invoked BY /claude-tweaks:build to create the execution plan |
 | `/superpowers:subagent-driven-development` | Invoked BY /claude-tweaks:build (subagent execution strategy) to execute the plan with automated review chain |
@@ -338,7 +342,7 @@ Once the signals are resolved, call `AskUserQuestion` with `question`: `"What's 
 | `/claude-tweaks:init` | /init creates `docs/REGISTRY.md` (Phase 8.5) that /build consumes in Step 6.5 for documentation sync |
 | `/claude-tweaks:ledger` | Manages the open items ledger file. /build creates and appends items during Steps 2.5, 4, 4.5, 5.5, and 6.5. |
 | `/claude-tweaks:design` | /build invokes `/claude-tweaks:design pre-build <spec>` as Common Step 1.7 to lazy-load Impeccable reference files and project design context (root `PRODUCT.md`, root `DESIGN.md`) into the implementer subagent. Skips cleanly on non-frontend specs or when Impeccable is not installed. |
-| `/claude-tweaks:flow` | Invoked BY /flow as the implementation step — flow constrains /build to `subagent` execution (batched pauses contradict flow's hands-off contract) and passes the pipeline run directory via `PIPELINE_RUN_DIR` so /build's auto-mode decisions land in the shared decision log |
+| `/claude-tweaks:flow` | Invoked BY /flow as the implementation step — flow constrains /build to `subagent` execution (batched pauses contradict flow's hands-off contract) and passes the pipeline run directory via `PIPELINE_RUN_DIR` so /build's auto-mode decisions land in the shared decision log. In record mode, /flow materializes the record into `{run-dir}/work/{n}-spec.md` via `skills/flow/materialize.md` before invoking `/claude-tweaks:build #{n}`, which reads that file in place; a standalone `/build #{n}` (no `/flow` parent, e.g. dispatched or run directly by a human) performs the same materialize step itself. |
 | `/claude-tweaks:help` | /help recommends specific specs to /build based on dependency graph + INDEX.md status; /build's spec resolution rules mirror /help's selection logic |
 | `/claude-tweaks:reflect` | /reflect is invoked BY /wrap-up after /build completes; reflection insights tagged for skills/CLAUDE.md feed back into /build's future runs via updated project conventions |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |

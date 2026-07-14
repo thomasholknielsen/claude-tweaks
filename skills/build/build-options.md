@@ -1,6 +1,6 @@
-# Build Options — full resolution rules, invocation examples, and the Spec-vs-Design mode table
+# Build Options — full resolution rules, invocation examples, and the Record-vs-Spec-vs-Design mode table
 
-Loaded by `/claude-tweaks:build` when the user (or this skill) needs the full matrix of execution and git strategies, the invocation grammar, or the spec-vs-design mode lookup. The SKILL.md keeps a compact summary; this file owns the verbose detail.
+Loaded by `/claude-tweaks:build` when the user (or this skill) needs the full matrix of execution and git strategies, the invocation grammar, or the record-vs-spec-vs-design mode lookup. The SKILL.md keeps a compact summary; this file owns the verbose detail.
 
 ## Build Options
 
@@ -41,20 +41,21 @@ When `.claude-tweaks/policy.yml` sets `execution.always: subagent`, the Executio
 
 ## Input
 
-`$ARGUMENTS` = spec number, design doc path, or topic name — optionally followed by execution strategy (`batched`), git strategy (`worktree`), and/or `auto`.
+`$ARGUMENTS` = record reference (`#N`), spec number (legacy alias), design doc path, or topic name — optionally followed by execution strategy (`batched`), git strategy (`worktree`), and/or `auto`.
 
 ### Resolve the input
 
-1. **Spec number** (e.g., `42`, `73`) → **Spec mode** — full lifecycle with prerequisites, INDEX.md tracking, and spec compliance
-2. **Design doc path** (e.g., `docs/superpowers/specs/2026-02-21-meal-planning-design.md`) → **Design mode** — build directly from the design doc, skipping spec machinery
-3. **Topic name** (e.g., `meal planning`) → search for a matching design doc in `docs/superpowers/specs/*-design.md` AND a matching spec in `specs/`. If both exist, call `AskUserQuestion` with:
+1. **Record reference** (e.g., `#42`; under `work-backend: local-files`, drop the `#`) → **Record mode** — primary input. Resolved, shape-gated, and materialized via `skills/flow/materialize.md` into `{run-dir}/work/{n}-spec.md`; an unshaped record hard-stops with a pointer to `/claude-tweaks:specify #{n}`. Once materialized, the file reads exactly like a legacy spec file for the rest of build — full lifecycle with spec compliance.
+2. **Spec number** (e.g., `42`, `73`) → **Spec mode, legacy alias** — reads `specs/{N}-*.md` directly; full lifecycle with prerequisites, INDEX.md tracking, and spec compliance. No materialization, no record-level shape gate.
+3. **Design doc path** (e.g., `docs/superpowers/specs/2026-02-21-meal-planning-design.md`) → **Design mode** — build directly from the design doc, skipping spec machinery
+4. **Topic name** (e.g., `meal planning`) → search for a matching design doc in `docs/superpowers/specs/*-design.md` AND a matching spec in `specs/`. If both exist, call `AskUserQuestion` with:
 
 - `question`: `"Found both a spec and a design doc for '{topic}'. Which did you mean?"`, `header`: `"Build mode"`, `multiSelect`: `false`
 - Option 1 — `label`: `"Spec mode"`, `description`: `"spec {N}: {title} — Full lifecycle with prerequisites and tracking"`
 - Option 2 — `label`: `"Design mode"`, `description`: `"{design doc filename} — Build directly, skip spec machinery"`
 
 If only one exists, use it.
-4. **No arguments** → check conversation context or recent git activity for clues. Ask if unclear.
+5. **No arguments** → check conversation context or recent git activity for clues. Ask if unclear.
 
 ### Prompt for build options
 
@@ -72,9 +73,10 @@ When only ONE axis is still unresolved (whether because an argument supplied the
 
 **In `auto` mode**, skip this prompt and use the CLAUDE.md / fallback values for any axis not already resolved by policy or an explicit argument (per the Pipeline Config Manifesto contract — see `_shared/auto-mode-contract.md`).
 
-## Spec vs Design mode
+## Record vs Spec vs Design mode
 
 | Mode | Source | Skips | Best for |
 |------|--------|-------|----------|
-| **Spec mode** | `specs/{N}-*.md` | Nothing | Tracked work with acceptance criteria, dependencies, and INDEX.md |
+| **Record mode** | `#N` — materialized via `skills/flow/materialize.md` into `{run-dir}/work/{n}-spec.md` | Nothing | Primary input — a GitHub issue (or local record) shaped `ready` by `/claude-tweaks:specify` |
+| **Spec mode (legacy alias)** | `specs/{N}-*.md` | Nothing | Legacy numbered spec files predating record materialization; acceptance criteria, dependencies, and INDEX.md tracking still apply |
 | **Design mode** | `docs/superpowers/specs/*-design.md` | `/claude-tweaks:specify`, prerequisite checks, INDEX.md | Quick builds where the design doc is clear enough to execute directly |
