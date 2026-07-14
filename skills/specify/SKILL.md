@@ -100,11 +100,17 @@ The shaped sections above are `/specify`'s editorial interpretation; `## Origina
 Run Step 2.5a's frontend-detection sniff (`design-pre-steps.md`) against the record's own content — not a design doc — to decide `Surface:`. When frontend, also run Step 2.5c's design-intent question to decide `Design-intent:`. Insert a metadata block at the very top of the composed body, above `## Current State` and above `## Original request`:
 
 ```
-Surface: backend
+Surface: web
 Design-intent: {value}
 ```
 
-Omit the `Design-intent:` line entirely for backend/infra records — it only applies when Step 2.5a detected a frontend surface. These are plain body-metadata lines, not YAML frontmatter — capitalized keys, no code fence, no `---` markers. This is the wire format `/flow`/`/build` (spec 20's materialization step) lift into the build-time header; the canonical field and value reference lives in `spec-template.md`.
+Backend/infra records omit the `Design-intent:` line entirely — it only applies when Step 2.5a detected a frontend surface:
+
+```
+Surface: backend
+```
+
+These are plain body-metadata lines, not YAML frontmatter — capitalized keys, no code fence, no `---` markers. This is the wire format `/flow`/`/build` (spec 20's materialization step) lift into the build-time header; the canonical field and value reference lives in `spec-template.md`.
 
 ### Stamp scoring and stage labels
 
@@ -112,6 +118,7 @@ Using the facets already read in Resolve-the-input case 1/5 (`parseRecordFacets`
 
 - **`risk:*` absent** — judge low/medium/high from the now-shaped Deliverables and Acceptance Criteria (blast radius, reversibility), per `_shared/work-record.md`'s Scoring axis, then stamp it.
 - **`effort:*` absent** — judge low/medium/high the same way (estimated size), then stamp it.
+- **Type absent** — judge `bug | feature | task` from the now-shaped content (defect vs. new capability vs. maintenance/refactor/docs/chore), per `_shared/work-record.md`'s Type axis, then stamp it: `work-backend: github-issues` — `work-types: native` applies the native Issue Type (`--type {t}` on the edit call below); `work-types: labels` adds the matching label instead (`--add-label "type:{t}"`, pair lives in `record.js`'s `TYPE_LABELS`). `work-backend: local-files` — set `facets.type` in the `writeRecord` call below.
 - **`parked` present** — remove it; a record entering shaping mode is being promoted out of hold.
 - **`ready`** — add it (idempotent when already present, e.g. a born-ready record).
 
@@ -145,7 +152,7 @@ Design-intent: {value}
 {original body, verbatim}
 ```
 
-**`work-backend: github-issues`:** write the composed body to a temp file, then a single call carries both the body and every label change:
+**`work-backend: github-issues`:** write the composed body to a temp file, then a single call carries both the body and every label change (`--type {t}` under `work-types: native`; swap to `--add-label "type:{t}"` under `work-types: labels`):
 
 ```bash
 gh issue edit {n} \
@@ -153,12 +160,13 @@ gh issue edit {n} \
   --add-label ready \
   --add-label "risk:{tier}" \
   --add-label "effort:{tier}" \
+  --type {t} \
   --remove-label parked
 ```
 
-Omit `--add-label "risk:{tier}"` / `--add-label "effort:{tier}"` for whichever family was already stamped; omit `--remove-label parked` when the record never carried it.
+Omit `--add-label "risk:{tier}"` / `--add-label "effort:{tier}"` for whichever family was already stamped; omit `--type {t}` (or the `--add-label "type:{t}"` swap) when Type was already present; omit `--remove-label parked` when the record never carried it.
 
-**`work-backend: local-files`:** one `writeRecord` call does the same job, setting `facets.stage: 'ready'` (which supersedes any prior `'parked'` value — the two are mutually exclusive states) and filling `facets.risk`/`facets.effort` when they were `null`:
+**`work-backend: local-files`:** one `writeRecord` call does the same job, setting `facets.stage: 'ready'` (which supersedes any prior `'parked'` value — the two are mutually exclusive states) and filling `facets.risk`/`facets.effort`/`facets.type` when they were `null`:
 
 ```bash
 node -e "const {writeRecord}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
@@ -177,7 +185,7 @@ Nothing to commit on the `github-issues` driver — the edit above already lande
 
 Shaping mode ends here — proceed directly to `## Next Actions`.
 
-`/specify` adds `ready` and `risk:*`/`effort:*` (when unstamped), removes `parked` on promotion, and never touches `auto:*` or `bot:*` — those stay `/triage`'s (human-granted authorization) and `/dispatch`'s (bot-state mirror) territory.
+`/specify` adds `ready`, `risk:*`/`effort:*` (when unstamped), and Type (when absent), removes `parked` on promotion, and never touches `auto:*` or `bot:*` — those stay `/triage`'s (human-granted authorization) and `/dispatch`'s (bot-state mirror) territory.
 
 ## Step 1: Understand the Landscape
 
@@ -584,7 +592,7 @@ Before deleting the design doc, look at every record you wrote with fresh eyes �
 
 > **Parallel execution (conditional):** When N ≥ 3 leaf records are produced, run scope and ambiguity checks across all leaves concurrently — `gh issue view` per leaf under `work-backend: github-issues`, `Read` per record file under `work-backend: local-files` — plus `Grep` over the fetched bodies for placeholder patterns.
 
-1. **Placeholder scan** — search for the failure patterns in `spec-template.md`'s "No Placeholders" section, over every record body (parent and leaves). Any `TBD`, vague acceptance criteria, undefined types, "standard error handling", or "similar to leaf N" — fix them now.
+1. **Placeholder scan** — search for the failure patterns in `spec-template.md`'s "No Placeholders" section, over every record body (parent and leaves). Any `TBD`, vague acceptance criteria, undefined types, "standard error handling", or "similar to leaf N" — fix them now. Also confirm every `<!-- ambiguity: ... -->` marker Step 5's red-team wrote has been resolved and **deleted** — zero may remain: a `ready` leaf still carrying one fails `_shared/work-record.md`'s spec-shaped structural check, which treats `<!-- ambiguity:` as an unresolved placeholder marker exactly like `TBD`/`TODO`.
 2. **Internal consistency** — across the leaves in this decomposition, do referenced types, model names, and endpoint signatures match? A function called `clearLayers()` in leaf 42 but `clearFullLayers()` in leaf 43 is a bug.
 3. **Scope check** — is each leaf genuinely a single work unit (3-8 tasks)? If one is doing two things, split it now. If two are doing the same thing, merge them.
 4. **Ambiguity check** — could any acceptance criterion be interpreted two different ways? Pick one and make it explicit.
@@ -701,7 +709,7 @@ Always recommend `/flow` over `/build` — `/flow` is the canonical path through
 | Treating "topic with slash" as a path | Ambiguous input must be disambiguated explicitly — present the numbered choice, do not assume one interpretation |
 | Producing a "phase plan" file alongside or instead of leaf records | Phase plans are dead artifacts. The granularity contract has 2 tiers: design doc (one file, multi-phase OK as `## Phase N` sections) → ready leaf records (one record each). Anything else is a contract violation. |
 | Bypassing `/specify` on the way to `/flow` | `/flow` accepts only leaf record references (`#N` / `#A,#B`) and hard-gates on record shape at materialization time — an unshaped record stops the run with a pointer back to `/specify` (spec 20's contract). Always route through `/specify` first to produce ready leaves; recommend `/flow` over `/build` when presenting Next Actions. |
-| Granting or touching `auto:*`/`bot:*` from `/specify` | Authorization is human-granted only (`/triage`'s territory) and bot-state is machinery's visibility layer — `/specify` adds `ready` and `risk:*`/`effort:*`, removes `parked` on promotion, and never touches either family (permission matrix in `_shared/work-record.md`). |
+| Granting or touching `auto:*`/`bot:*` from `/specify` | Authorization is human-granted only (`/triage`'s territory) and bot-state is machinery's visibility layer — `/specify` adds `ready`, `risk:*`/`effort:*`, and Type (when absent), removes `parked` on promotion, and never touches either family (permission matrix in `_shared/work-record.md`). |
 | Marking a parent record `ready` | Parents are summary records, not agent-sized work — only leaves get `ready` (+ scoring). A `ready` parent would enter the authorization worklist as if it were buildable, but its body is a design summary, not a spec-shaped deliverable. |
 
 ## Relationship to Other Skills
@@ -725,7 +733,7 @@ Always recommend `/flow` over `/build` — `/flow` is the canonical path through
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
 | `_shared/multi-agent-coordination.md` | Canonical primitive for Multi-persona red-team (Mode 3) — three fixed personas, one round, run as part of the self-review step. |
 | `_shared/subagent-output-contract.md` | Red-team persona agents emit Template A (findings); follow the status-line and model-tier conventions. |
-| `_shared/work-record.md` | Canonical taxonomy `/specify` shapes and files against — stage vocabulary (backlog / parked / ready), the six-axis label contract, the permission matrix (`/specify`'s row: adds `ready`/scoring, removes `parked`, never `auto:*`/`bot:*`), the born-ready rule, and the parent/leaf decomposition rules this skill implements |
+| `_shared/work-record.md` | Canonical taxonomy `/specify` shapes and files against — stage vocabulary (backlog / parked / ready), the six-axis label contract, the permission matrix (`/specify`'s row: adds `ready`/scoring/Type, removes `parked`, never `auto:*`/`bot:*`), the born-ready rule, and the parent/leaf decomposition rules this skill implements |
 | `bin/lib/issues/record.js` | Payload assembly + facet parsing for the GitHub driver — `/specify` calls `recordPayload` (parent + leaf creation), `parseRecordFacets` (reading existing scoring), and `extractFingerprint`/`parseDependencies` (idempotency + linking). Prose twin of `_shared/work-record.md`'s taxonomy. |
 | `bin/lib/issues/local-store.js` | Storage layer for the local-files driver — `/specify` calls `readRecord`/`writeRecord`/`allocateId`/`queryRecords` throughout shaping and decomposition; no sub-issue API, so parent/dependency links are frontmatter (`facets.parent`, `facets.blockedBy`) instead |
 

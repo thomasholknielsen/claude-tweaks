@@ -11,7 +11,7 @@ Called by `/claude-tweaks:test` after the standard verification suite (types/lin
 Run the universal preconditions from `../SKILL.md`:
 
 - **Layer 1 (kill-switch)** — CLAUDE.md `design-integration` must not be `disabled`/missing.
-- **Layer 2 (the record's `Surface:` body-metadata line, lifted into the materialized build header — spec 20)** — applies only when a spec is resolvable from the file list. `surface: backend|infra` returns skip.
+- **Layer 2 (the record's `Surface:` body-metadata line, lifted into the materialized build header — spec 20)** — applies only when a spec is resolvable from the file list. `Surface: backend|infra` returns skip.
 - **Layer 3 (file-extension sniff)** — at least one file must match frontend triggers per `../frontend-detection.md`.
 - **Availability** — `npx impeccable --version` must exit 0. On failure, return skip with `install_hint: "npm install -g impeccable (verify with npx impeccable --version)"`.
 
