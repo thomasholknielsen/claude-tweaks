@@ -8,7 +8,7 @@ Called by `/claude-tweaks:flow` in the polish phase between review and wrap-up. 
 
 1. **Auto-fit** — always when frontend (`polish` / `clarify` / `harden`)
 2. **Issue-driven** — only when the audit cache has matching categories (`typeset` / `layout` / `adapt` / `optimize`)
-3. **Intent-driven** — only when the spec's `design-intent:` frontmatter declares matching values (`bolder` / `quieter` / `distill` / `delight`+`animate` / `onboard`)
+3. **Intent-driven** — only when the record's `Design-intent:` body-metadata line (lifted into the materialized header — spec 20) declares matching values (`bolder` / `quieter` / `distill` / `delight`+`animate` / `onboard`)
 
 The full dispatch tables for each category live in `../command-map.md`.
 
@@ -57,7 +57,7 @@ When the audit produces multiple matches for the same category, dispatch the com
 
 ### Step 6: Intent-driven dispatch
 
-Read the spec's `design-intent:` frontmatter (the canonical field definition lives in `skills/specify/spec-template.md`; the dispatch table is in `../command-map.md` Step 3). For each declared intent value, invoke the matching command via the Skill tool on the same scoped file list used in Steps 4–5.
+Read `Design-intent:` from the record's body-metadata line (lifted into the materialized header — spec 20; written by `/specify`; the canonical field definition lives in `skills/specify/spec-template.md`; the dispatch table is in `../command-map.md` Step 3). For each declared intent value, invoke the matching command via the Skill tool on the same scoped file list used in Steps 4–5.
 
 **Multi-intent ordering.** When the user declared comma-separated intents (e.g., `design-intent: bold, delightful`), invoke commands in the order declared. The fixed `delight` → `animate` pairing for `delightful` is preserved even when interleaved with other intents — treat `delightful` as a single dispatch unit that produces two commands. The wrapper does not run a re-verify cycle between intent commands; the polish phase as a whole shares a single re-verify cycle (capped by `/flow`'s polish phase, see flow's polish-phase decision tree).
 
@@ -65,7 +65,7 @@ Read the spec's `design-intent:` frontmatter (the canonical field definition liv
 
 **Manual-only commands.** `colorize`, `extract`, and `overdrive` are not intent-driven in this phase. They surface via `survey` mode recommendations (`extract` also surfaces via `/claude-tweaks:tidy` Step 5.5's cross-spec pattern scan, same Design Quality category recurring across 3+ specs); `colorize` and `overdrive` surface only that way. Do not auto-dispatch them from `polish`.
 
-**No declined-recommendation suppression in polish.** Declined-recommendation tracking applies to `survey` mode only — `polish` always honors the explicit `design-intent:` declaration. The user changes intent dispatch behavior by editing the spec frontmatter, not by declining recommendations.
+**No declined-recommendation suppression in polish.** Declined-recommendation tracking applies to `survey` mode only — `polish` always honors the explicit `design-intent:` declaration. The user changes intent dispatch behavior by editing the record's `Design-intent:` body-metadata line (lifted into the materialized header — spec 20 — at the next materialization), not by declining recommendations.
 
 ### Step 7: Build `decision_summary`
 

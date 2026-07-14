@@ -13,7 +13,7 @@ The full "would help" criteria table and command-recommendation mapping live in 
 Survey has a relaxed precondition set compared to dispatching modes:
 
 - **Layer 1 (kill-switch)** applies — `disabled` returns skip.
-- **Layer 2 (spec frontmatter)** applies only when a spec is resolvable from the file list (caller may pass it explicitly).
+- **Layer 2 (the record's `Surface:` body-metadata line, lifted into the materialized header — spec 20)** applies only when a spec is resolvable from the file list (caller may pass it explicitly).
 - **Layer 3 (file-extension sniff)** applies.
 - **Availability check** is **informational only** — survey does not require Impeccable's LLM commands or CLI. An unavailable Impeccable surfaces in the recommendations as "install Impeccable to apply."
 
