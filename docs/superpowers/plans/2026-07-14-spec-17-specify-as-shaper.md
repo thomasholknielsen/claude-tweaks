@@ -113,5 +113,11 @@ grep -in "Original request" skills/specify/SKILL.md | head -3                   
 grep -in "adds \`ready\`\|removes \`parked\`\|never touches \`auto:" skills/specify/SKILL.md | head -5             # AC 7
 npm test 2>&1 | tail -3
 ```
-- [ ] Step 2: Fix findings (spec-17 files only), re-run until clean.
-- [ ] Step 3: Commit (only if fixes) — `Fix spec-17 acceptance sweep findings`
+- [ ] Step 2: Fix findings, re-run until clean. **Scope grant (explicit):** spec-17's four files PLUS these queued cross-file pointer fixes accumulated from task reviews:
+  1. `skills/specify/SKILL.md` Step 3: add one clause — unit slugs must not be the literal `parent` (reserved for the parent record's fingerprint).
+  2. `skills/specify/SKILL.md` Step 2.5d: bare-word "specs" heading/prose → record vocabulary ("(all surfaces)" / "record titles").
+  3. `skills/specify/red-team.md:~57`: lowercase `surface:` casing → `Surface:` (body-metadata line spelling).
+  4. `skills/challenge/SKILL.md:~298`: the `/specify` Relationship row "converts brainstorming output into specs" → "shapes records / decomposes designs into ready leaf records" (bidirectionality maintenance).
+  5. `skills/design/SKILL.md`, `skills/design/frontend-detection.md`, `skills/design/command-map.md`, `skills/design/modes/test.md` — POINTER-LEVEL ONLY: retired `frontend|mixed` enum citations → the canonical `web|mobile|desktop|backend|infra` (legacy `frontend` reads as `web`); quotes of the deleted "Frontmatter reference (canonical spec)" section → the new "Facets"/metadata-block section names; "spec frontmatter" as the Layer-2 source → "the record's `Surface:`/`Design-intent:` body-metadata lines (lifted into the materialized build header — spec 20)". Do NOT restructure the wrapper's detection logic — that read-path prose move is spec 20's.
+  (`skills/flow/manifesto.md` is explicitly NOT in this grant — registered as F10 for spec 20's plan.)
+- [ ] Step 3: Commit (only if fixes) — `Fix spec-17 acceptance sweep findings — queued pointer fixes across specify/challenge/design`
