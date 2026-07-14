@@ -70,8 +70,13 @@ test('validate-findings: valid finding emits one payload on stdout', () => {
 
   const payloads = JSON.parse(result.stdout);
   assert.strictEqual(payloads.length, 1);
-  assert.ok(payloads[0].labels.includes('harness-health'));
-  assert.ok(payloads[0].body.includes('<!-- harness-health-fingerprint: harnesshealth-'));
+  assert.ok(payloads[0].labels.includes('by:harness-health'));
+  assert.ok(payloads[0].labels.includes('ready'));
+  assert.ok(payloads[0].labels.includes('risk:medium'), 'restructural finding must carry risk:medium');
+  assert.ok(payloads[0].labels.includes('effort:high'), 'restructural finding must carry effort:high');
+  assert.strictEqual(payloads[0].type, 'task');
+  assert.ok(payloads[0].body.includes('<!-- work-fingerprint: harnesshealth-'));
+  assert.ok(!payloads[0].body.includes('harness-health-fingerprint'), 'legacy marker must not be emitted');
 });
 
 test('validate-findings: malformed finding is dropped with a stderr reason, valid ones survive', () => {
@@ -148,10 +153,10 @@ test('validate-findings: a finding already open in the issue index is skipped (d
 
   const first = runValidateFindings(root, findingsFile);
   const firstPayloads = JSON.parse(first.stdout);
-  const fp = firstPayloads[0].body.match(/<!--\s*harness-health-fingerprint:\s*(harnesshealth-[0-9a-f]{8})\s*-->/)[1];
+  const fp = firstPayloads[0].body.match(/<!--\s*work-fingerprint:\s*(harnesshealth-[0-9a-f]{8})\s*-->/)[1];
 
   const issuesFile = path.join(root, 'issues.json');
-  fs.writeFileSync(issuesFile, JSON.stringify([{ number: 1, state: 'open', labels: ['harness-health'], fingerprint: fp }]));
+  fs.writeFileSync(issuesFile, JSON.stringify([{ number: 1, state: 'open', labels: ['by:harness-health'], fingerprint: fp }]));
 
   const second = runValidateFindings(root, findingsFile, ['--issues', issuesFile]);
   assert.strictEqual(JSON.parse(second.stdout).length, 0, 'open finding must be skipped');
@@ -210,10 +215,10 @@ test('validate-findings: a finding matching a closed non-wontfix issue is reopen
 
   const first = runValidateFindings(root, findingsFile);
   const firstPayloads = JSON.parse(first.stdout);
-  const fp = firstPayloads[0].body.match(/<!--\s*harness-health-fingerprint:\s*(harnesshealth-[0-9a-f]{8})\s*-->/)[1];
+  const fp = firstPayloads[0].body.match(/<!--\s*work-fingerprint:\s*(harnesshealth-[0-9a-f]{8})\s*-->/)[1];
 
   const issuesFile = path.join(root, 'issues.json');
-  fs.writeFileSync(issuesFile, JSON.stringify([{ number: 9, state: 'closed', labels: ['harness-health'], fingerprint: fp }]));
+  fs.writeFileSync(issuesFile, JSON.stringify([{ number: 9, state: 'closed', labels: ['by:harness-health'], fingerprint: fp }]));
 
   const second = runValidateFindings(root, findingsFile, ['--issues', issuesFile]);
   assert.strictEqual(second.status, 0, `stderr: ${second.stderr}`);

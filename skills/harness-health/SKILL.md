@@ -6,13 +6,13 @@ description: Use when you want to check whether a project's harness documentatio
 
 # Harness Health — Keep Skills, Rules, and CLAUDE.md Honest
 
-A recurring health check for `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md: picks one target to audit against the codebase (or the next new-skill gap to check for), judges it via the shared `_shared/harness-health-analysis.md` procedure, and files a `harness-health`-labelled GitHub issue. Never edits code — only harness documentation.
+A recurring health check for `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md: picks one target to audit against the codebase (or the next new-skill gap to check for), judges it via the shared `_shared/harness-health-analysis.md` procedure, and files a `by:harness-health`-labelled, born-`ready` GitHub issue. Never edits code — only harness documentation.
 
 ```
               [ /claude-tweaks:harness-health ] <- utility (no fixed lifecycle position)
                            |  picks a target via next-target; judges via the shared fragment
                            v
-finding -> validate-findings -> file GitHub issue (harness-health label)
+finding -> validate-findings -> file GitHub issue (by:harness-health, ready)
 ```
 
 ## When to Use
@@ -81,10 +81,12 @@ Apply `_shared/harness-health-analysis.md`'s new-skill gap detection over commit
 **Step 5 — GATHER OPEN ISSUES for dedup.**
 
 ```bash
-gh issue list --label harness-health --state all --json number,state,labels,body --limit 500 > /tmp/harness-health-issues-raw.json
+gh issue list --label by:harness-health --state all --json number,state,labels,body --limit 500 > /tmp/harness-health-issues-raw.json
 ```
 
-Parse each issue body for the fingerprint marker `<!-- harness-health-fingerprint: harnesshealth-XXXXXXXX -->` and build an array of `{ number, state, labels, fingerprint }` objects. Write to `/tmp/harness-health-issues.json`. If `gh` is unavailable or the repo has no `harness-health` issues yet, skip this step and set `ISSUES_FILE=""` — the run dedups against the local cache only.
+Parse each issue body for its fingerprint marker. Fingerprint extraction reads the dual-marker form via `extractFingerprint` (`bin/lib/issues/record.js`): the current `<!-- work-fingerprint: harnesshealth-XXXXXXXX -->` marker, falling back to the legacy `<!-- harness-health-fingerprint: harnesshealth-XXXXXXXX -->` marker still present on issues filed before this skill moved onto the unified work record (`skills/_shared/work-record.md`). Build an array of `{ number, state, labels, fingerprint }` objects and write to `/tmp/harness-health-issues.json`. If `gh` is unavailable or the repo has no `by:harness-health` issues yet, skip this step and set `ISSUES_FILE=""` — the run dedups against the local cache only.
+
+A matched issue carrying the `wontfix` label is a standing suppression decision: Step 6's `validate-findings` reads it directly off this issue index and skips re-filing entirely (see `_shared/work-record.md`'s `wontfix` closure row). Unlike `/code-health`, harness-health has no cache-level wontfix fallback — every firing re-fetches the live issue index in this step, and `gh issue list --state all` already includes closed `wontfix`'d issues, so the suppression is always seen fresh; there is nothing to persist locally for it.
 
 **Step 6 — VALIDATE, FINGERPRINT, DEDUP.**
 
@@ -98,9 +100,19 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" validate-findings /tmp/harnes
   > /tmp/harness-health-payloads.json
 ```
 
-`TARGET_ID`/`TARGET_KIND` are `target.id`/`target.kind` from Step 1 (omit both if Step 1 returned `target: null` and only the gap scan ran — pass both together or neither, since cursor recording needs the namespaced `kind:id` key). `GAP_SCAN_RAN` is passed whenever Step 4 actually ran this firing. The command validates each finding, fingerprints via `assetType + target + section + normalizedDescription`, dedups against open `harness-health` issues and the local cache, records the audit cursor for `${TARGET_KIND}:${TARGET_ID}` (and the gap-scan cursor when `--gap-scan` was passed) unless `--dry-run`, and emits gh-ready payloads on stdout.
+`TARGET_ID`/`TARGET_KIND` are `target.id`/`target.kind` from Step 1 (omit both if Step 1 returned `target: null` and only the gap scan ran — pass both together or neither, since cursor recording needs the namespaced `kind:id` key). `GAP_SCAN_RAN` is passed whenever Step 4 actually ran this firing. The command validates each finding, fingerprints via `assetType + target + section + normalizedDescription`, dedups against open `by:harness-health` issues and the local cache, records the audit cursor for `${TARGET_KIND}:${TARGET_ID}` (and the gap-scan cursor when `--gap-scan` was passed) unless `--dry-run`, and emits gh-ready payloads on stdout.
 
 **Step 7 — FILE.**
+
+Every harness-health record files onto the unified work record (`skills/_shared/work-record.md`): origin `by:harness-health`; classification folds into the scoring axis instead of staying a producer-specific label the gate must know:
+
+| Classification | risk | effort |
+|---|---|---|
+| `additive` | `risk:low` | `effort:low` |
+| `restructural` | `risk:medium` | `effort:high` |
+| kind `new-skill` (no classification-driven scoring) | unscored — no `risk:*` label | unscored — no `effort:*` label |
+
+`new-skill` candidates file with no scoring labels by design — the authorization gate flags them "needs scoring" rather than inheriting a guessed tier from a kind that carries no scoring evidence. Every filed finding is **born-`ready`** — harness-health findings are agent-sized and spec-shaped by construction (Current State / Deliverables / Acceptance Criteria), so they file with the `ready` label already applied and appear directly in the authorization gate's worklist, skipping maturation. `toIssuePayload` (`bin/lib/harness-health/issue-payload.js`) assembles the payload via `record.js`'s `recordPayload`, then appends the classification/kind-derived diagnostic label (`harness-health:additive` / `harness-health:restructural` / `harness-health:new-skill`) after the canonical labels — the emitted label set is exactly `by:harness-health` + scoring (when present) + `ready` + the diagnostic label, matching the table above.
 
 Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures (see `_shared/health-state.md`):
 
@@ -116,21 +128,38 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" retry-queue update /tmp/harne
 
 If `/tmp/harness-health-escalated.json` is non-empty, file (or update) a `harness-health:filing-failed` issue for each entry, naming the stuck fingerprint and its failure history — bootstrap that label the same way as the others below.
 
-Before filing anything this firing, bootstrap harness-health's labels with real descriptions — this project's other issue-filing skills (code-health) already do this; harness-health previously did not, leaving every one of its labels with GitHub's blank auto-vivified description:
+Before filing, bootstrap only the label families this run applies, with real descriptions — using the shared helper so a too-long description fails loudly here rather than as a 422 on `gh issue create`. Canonical pairs copied verbatim from `_shared/label-bootstrap.md`'s `LABELS_JSON`, plus harness-health's own diagnostic labels:
 
 ```bash
 # Bootstrap per _shared/label-bootstrap.md, LABELS_JSON =
-# [['harness-health', 'Filed by the harness-health engine - a plugin harness maintenance finding'],
-#  ['harness-health:additive', 'Safe, mechanical patch - additive change with no removed behavior'],
-#  ['harness-health:restructural', 'Structural change requiring human review before applying'],
-#  ['harness-health:new-skill', 'Proposes a new skill candidate surfaced by harness-health']]
+# [["by:harness-health", "Origin: filed by the harness-health skill"],
+#  ["risk:low",          "Scoring: low blast radius — safe for autonomous build"],
+#  ["risk:medium",       "Scoring: moderate blast radius — review before merge recommended"],
+#  ["effort:low",        "Scoring: small, agent-sized change"],
+#  ["effort:high",       "Scoring: large change — consider decomposition before building"],
+#  ["ready",             "Stage: spec-shaped and agent-sized — in the authorization gate's worklist"],
+#  ["harness-health:additive",     "Safe, mechanical patch - additive change with no removed behavior"],
+#  ["harness-health:restructural", "Structural change requiring human review before applying"],
+#  ["harness-health:new-skill",    "Proposes a new skill candidate surfaced by harness-health"]]
 ```
 
-Each payload in `/tmp/harness-health-payloads.json` carries structured fields, not just the GitHub issue text — `id`, `kind`, `target`, `assetType`, `category`, `section`, `classification`, `confidence`, `reversibility`, `oldString`, `newString` are all present directly on the payload object (not just embedded in `payload.body`'s markdown). These stay on the payload as triage metadata — nothing here branches on them anymore.
+Each payload in `/tmp/harness-health-payloads.json` carries structured fields, not just the GitHub issue text — `id`, `kind`, `target`, `assetType`, `category`, `section`, `classification`, `confidence`, `reversibility`, `oldString`, `newString` are all present directly on the payload object (not just embedded in `payload.body`'s markdown), alongside `title`, `body`, `labels`, and `type`. These stay on the payload as triage metadata — nothing here branches on them anymore.
 
-For each payload, file it: `gh issue create --title "<payload.title>" --body "<payload.body>" --label harness-health --label "<payload.labels[1]>"`. This applies uniformly — CLAUDE.md findings, design-artifact findings, additive skill/rule patches, restructural patches, and new-skill candidates all file the same way. `/harness-health` never edits anything directly; matching `/code-health`, it only ever judges and files.
+**Type expression branch.** Read the project's `work-types` config key once before filing and branch — never re-probe mid-run (`_shared/work-record.md`'s config-key table; the key is written by `/init`). `work-types: native` applies `payload.type` (always `task`) via GitHub's native Issue Type; `work-types: labels` adds the matching `type:task` label instead (the pair lives in `record.js`'s `TYPE_LABELS`):
 
-For a payload whose fingerprint marker (`<!-- harness-health-fingerprint: {id} -->`, embedded in `payload.body`) matches a `status: "regressed"` entry in `.claude-tweaks/harness-health/cache.json` after this run, the finding was previously closed and has reappeared — reopen the existing issue instead of filing a new one:
+```bash
+# Example: an additive finding, work-types: native
+gh issue create --title "<payload.title>" --body "<payload.body>" --type task \
+  --label by:harness-health --label risk:low --label effort:low --label ready --label harness-health:additive
+
+# Same finding, work-types: labels
+gh issue create --title "<payload.title>" --body "<payload.body>" \
+  --label by:harness-health --label risk:low --label effort:low --label ready --label harness-health:additive --label type:task
+```
+
+Apply the same branch to every payload regardless of classification/kind — a `restructural` payload's call carries `risk:medium`/`effort:high`/`harness-health:restructural` instead, and a `new-skill` payload's call carries only `by:harness-health`/`ready`/`harness-health:new-skill` (no scoring labels), per the mapping table above; only the `--type task` vs. `--label type:task` branch and the `--label` list change, never the underlying `gh issue create --title/--body`. This applies uniformly — CLAUDE.md findings, design-artifact findings, additive skill/rule patches, restructural patches, and new-skill candidates all file the same way. `/harness-health` never edits anything directly; matching `/code-health`, it only ever judges and files.
+
+For a payload whose fingerprint marker (embedded in `payload.body`, read via `extractFingerprint`) matches a `status: "regressed"` entry in `.claude-tweaks/harness-health/cache.json` after this run, the finding was previously closed and has reappeared — reopen the existing issue instead of filing a new one:
 
 ```bash
 gh issue reopen <issue_number>
@@ -175,7 +204,7 @@ For "dismiss," run `node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" mark "<pa
 
 **Headless run flow:** SELECT(`next-target`) → JUDGE → validate-findings → file. A firing with nothing due (`target: null`, `gapScanDue: false`) is a cheap no-op.
 
-Report-only, matching `/code-health` — every finding files as a `harness-health`-labelled GitHub issue, with no `Edit` call anywhere in its documented workflow. Rotation cursors and the filing retry queue live on the durable `health-state` branch (`_shared/health-state.md`), surviving container recycling across scheduled firings — a skipped or failed firing does not lose progress.
+Report-only, matching `/code-health` — every finding files as a `by:harness-health`-labelled, born-`ready` GitHub issue, with no `Edit` call anywhere in its documented workflow. Rotation cursors and the filing retry queue live on the durable `health-state` branch (`_shared/health-state.md`), surviving container recycling across scheduled firings — a skipped or failed firing does not lose progress.
 
 > **Billing note:** Routines run inside the subscription; verify automation-credit specifics against the live account.
 
@@ -214,6 +243,6 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `/claude-tweaks:wrap-up` | Step 7 (Skill Curation) applies the same `_shared/harness-health-analysis.md` procedure on a spec's changed skill files, and writes to the same cursor/cache state this skill reads and writes. |
 | `/claude-tweaks:init` | Phase 6 (Update Mode skill patches) and Phase 3/1u's skill classification apply the same shared procedure on whole-codebase reconnaissance, sharing the same cursor/cache state. |
 | `_shared/harness-health-analysis.md` | The canonical judge this skill, `/wrap-up`, and `/init` all read — the 8-dimension check, evidence pre-checks, verify gate, patch format, and new-skill gate live there, not here. |
-| `/claude-tweaks:tidy` | Step 4.8 sweeps `harness-health`-labelled issues alongside `code-health`-labelled ones, using the same stale/superseded triage. |
-| `/claude-tweaks:triage` | The Tier Rule in triage's bare invocation reads this skill's `harness-health:additive`/`harness-health:restructural` classification labels directly, recommending fast-track for additive and approved for restructural — the harness-health-side counterpart to how triage reads code-health's `risk-<tier>`/`effort-<tier>` labels. Triage never files or closes harness-health issues. |
+| `/claude-tweaks:tidy` | Step 4.8 sweeps `by:harness-health`-labelled issues alongside `by:code-health`-labelled ones, using the same stale/superseded triage. |
+| `/claude-tweaks:triage` | The Tier Rule in triage's bare invocation reads this skill's `harness-health:additive`/`harness-health:restructural` diagnostic labels directly, recommending fast-track for additive and approved for restructural — the harness-health-side counterpart to how triage reads code-health's `risk:<tier>`/`effort:<tier>` labels. Triage never files or closes harness-health issues. |
 | `/claude-tweaks:routine` | `/routine create harness-health` instantiates this skill's `routine-template.yml` into a live, scheduled cloud Routine. |

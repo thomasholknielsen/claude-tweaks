@@ -1,6 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { toIssuePayload } = require('../issue-payload');
+const { extractFingerprint } = require('../../issues/record');
 
 function patchFinding(overrides = {}) {
   return {
@@ -38,21 +39,55 @@ function newSkillFinding(overrides = {}) {
   };
 }
 
-test('toIssuePayload for a patch finding includes the fingerprint marker and labels', () => {
-  const payload = toIssuePayload(patchFinding());
-  assert.ok(payload.body.includes('<!-- harness-health-fingerprint: skillhealth-abc12345 -->'));
-  assert.deepStrictEqual(payload.labels, ['harness-health', 'harness-health:restructural']);
+// ── classification -> scoring axis fold (spec 15) ───────────────────────────
+
+test('toIssuePayload for a restructural patch finding maps classification to risk:medium/effort:high, ready, and appends the diagnostic label last', () => {
+  const payload = toIssuePayload(patchFinding()); // classification: 'restructural'
+  assert.deepStrictEqual(payload.labels, ['by:harness-health', 'risk:medium', 'effort:high', 'ready', 'harness-health:restructural']);
   assert.ok(payload.title.includes('auth'));
   assert.ok(payload.body.includes('src/auth/login.js'));
   assert.ok(payload.body.includes('src/auth/session.js'));
 });
 
-test('toIssuePayload for a new-skill finding uses the new-skill label and includes proposedBody', () => {
+test('toIssuePayload for an additive patch finding maps classification to risk:low/effort:low', () => {
+  const payload = toIssuePayload(patchFinding({ classification: 'additive' }));
+  assert.deepStrictEqual(payload.labels, ['by:harness-health', 'risk:low', 'effort:low', 'ready', 'harness-health:additive']);
+});
+
+test('toIssuePayload for a new-skill finding is unscored (no risk:*/effort:* label) and uses the new-skill diagnostic label', () => {
   const payload = toIssuePayload(newSkillFinding());
-  assert.deepStrictEqual(payload.labels, ['harness-health', 'harness-health:new-skill']);
+  assert.deepStrictEqual(payload.labels, ['by:harness-health', 'ready', 'harness-health:new-skill']);
+  assert.ok(!payload.labels.some((l) => l.startsWith('risk:') || l.startsWith('effort:')), 'new-skill must carry no scoring label');
   assert.ok(payload.title.includes('queue-retry-pattern'));
   assert.ok(payload.body.includes('Queue Retry Pattern'));
 });
+
+test('toIssuePayload carries type: task for every kind', () => {
+  assert.strictEqual(toIssuePayload(patchFinding()).type, 'task');
+  assert.strictEqual(toIssuePayload(newSkillFinding()).type, 'task');
+});
+
+// ── fingerprint marker (work-fingerprint, not the legacy marker) ───────────
+
+test('toIssuePayload body embeds the work-fingerprint marker, not the legacy harness-health-fingerprint marker', () => {
+  const payload = toIssuePayload(patchFinding());
+  assert.ok(payload.body.includes('<!-- work-fingerprint: skillhealth-abc12345 -->'));
+  assert.ok(!payload.body.includes('harness-health-fingerprint'), 'legacy marker must not be emitted');
+});
+
+test('the fingerprint marker is re-extractable with extractFingerprint', () => {
+  const payload = toIssuePayload(patchFinding());
+  assert.strictEqual(extractFingerprint(payload.body), 'skillhealth-abc12345');
+});
+
+test('toIssuePayload body starts directly with the header line (no leading marker or blank line)', () => {
+  const patch = toIssuePayload(patchFinding());
+  assert.ok(patch.body.startsWith('**Skill:**'), `expected body to start with the header line, got: ${patch.body.slice(0, 40)}`);
+  const newSkill = toIssuePayload(newSkillFinding());
+  assert.ok(newSkill.body.startsWith('**New skill candidate**'), `expected body to start with the header line, got: ${newSkill.body.slice(0, 40)}`);
+});
+
+// ── body sections ────────────────────────────────────────────────────────
 
 test('toIssuePayload body always includes Current State, Deliverables, and Acceptance Criteria sections', () => {
   const payload = toIssuePayload(patchFinding());
@@ -60,6 +95,8 @@ test('toIssuePayload body always includes Current State, Deliverables, and Accep
   assert.ok(payload.body.includes('## Deliverables'));
   assert.ok(payload.body.includes('## Acceptance Criteria'));
 });
+
+// ── preserved structured fields (Step 7 producer/consumer invariant) ───────
 
 test('toIssuePayload for a patch finding carries structured decision fields matching the input finding', () => {
   const finding = patchFinding();
@@ -88,6 +125,8 @@ test('toIssuePayload for a new-skill finding carries structured decision fields 
   assert.strictEqual(payload.confidence, finding.confidence);
   assert.strictEqual(payload.reversibility, finding.reversibility);
 });
+
+// ── title formatting ─────────────────────────────────────────────────────
 
 test('toIssuePayload title reflects asset type and category', () => {
   const rule = toIssuePayload(patchFinding({ assetType: 'rule', target: 'api-errors', section: 'paths glob' }));
