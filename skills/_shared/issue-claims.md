@@ -6,6 +6,8 @@ API) covers all topologies: ref creation is an atomic test-and-set.
 
 Helper module: `bin/lib/issues/claims.js` (emit-only, no network — skills run `gh`).
 Consumers reference this file; do not restate the protocol inline.
+Label taxonomy home: `_shared/work-record.md` — this file defines the claim protocol; the
+record contract defines what the labels mean.
 
 ## The lock
 
@@ -27,6 +29,17 @@ gh api -X DELETE "repos/{owner}/{repo}/git/refs/claims/issue-${ISSUE}"
 # List all claims:
 gh api "repos/{owner}/{repo}/git/matching-refs/claims/" -q '.[].ref'
 ```
+
+### Group claiming
+
+Records whose key files overlap form a **file-overlap group** (`bin/lib/issues/grouping.js`'s
+`groupByFileOverlap`). A dispatcher claims **all members of the group before starting any** —
+building one member alone would leave the branch and its overlap partners racing each other.
+Per-member acquisition uses the same 201/422 handling; on a partial group claim (some members
+contested live mid-acquisition), release the members this run just claimed, log, and skip the
+whole group this firing. Group membership is computed over *unclaimed* records only, so two
+racing dispatchers converge: exactly one wins each contested member, and the loser backs off
+group-wide.
 
 ## The mirror
 
@@ -50,24 +63,24 @@ Marker shapes (emitted by `claimPayload` / `releasePayload`):
 ```
 
 Identity: `runId` is the pipeline run directory id (`{ISO-timestamp}-{spec-slug}`) for a
-pipeline-owned run. For a headless routine with no pipeline (`/claude-tweaks:triage dispatch`,
+pipeline-owned run. For a headless routine with no pipeline (`/claude-tweaks:dispatch`,
 the one such consumer today), `runId` is that firing's standalone-auto run dir basename per
-`_shared/pipeline-run-dir.md` (e.g. `{ISO-timestamp}-triage-standalone`) — not a separately
+`_shared/pipeline-run-dir.md` (e.g. `{ISO-timestamp}-dispatch-standalone`) — not a separately
 maintained "routine id." `sessionId` is `CLAUDE_CODE_SESSION_ID` — the same identity
 `record-worktree` stamps. If the comment post fails after the ref succeeds, the claim stands:
 retry once, warn, proceed.
 
-## The status label
+## The bot:in-progress label
 
-`status:in-progress` is a second, purely cosmetic visibility layer on top of the ref lock — a
+`bot:in-progress` is a second, purely cosmetic visibility layer on top of the ref lock — a
 label so the claim shows up in GitHub's own issue list/board UI, not just via `gh api
 git/matching-refs/claims/`. It carries no locking semantics: the ref claim/release is atomic
 regardless of whether the label add/remove succeeds.
 
 - **Added** alongside claim acquisition — bootstrap-then-add, the same check-then-create
   pattern every label in this codebase uses (see `_shared/label-bootstrap.md` for the
-  canonical snippet; `skills/triage/SKILL.md`'s `dispatch` mode Step 2 is the one
-  claim-acquiring consumer today).
+  canonical snippet and the full work-record `LABELS_JSON`; `/dispatch` is the
+  claim-acquiring consumer).
 - **Removed** alongside claim release — every release removes it, regardless of outcome
   (`wrap-up/cleanup-procedures.md` Section E, its duplicate in
   `flow/multispec-review-console.md`, and — for a single-spec issue-mode run the user chooses
@@ -122,9 +135,9 @@ live, skip the issue, and let `/tidy`'s sweep surface it for human judgment.
 |---|---|---|
 | Spec merged / PR opened / discarded | `/wrap-up` cleanup item 8 | `merged: spec {spec}` / `pr-opened: spec {spec}` / `abandoned: spec {spec}` |
 | Interactive `/flow` run stops at a gate, user chooses not to resume | `/flow` failure card (offered, not automatic) | `failed: {gate}` |
-| Handed-off issue-mode run fails a HARD-GATE (headless `dispatch`, no human present) | `/claude-tweaks:triage dispatch` Step 4 (automatic, unconditional) | `failed: {gate}` |
+| Handed-off issue-mode run fails a HARD-GATE (headless `dispatch`, no human present) | `/claude-tweaks:dispatch` settle step (automatic, unconditional) | `failed: {gate}` |
 | Stale or orphaned claim in hygiene pass | `/tidy` Step 4.7 (after batch approval) | `swept: stale claim` / `swept: issue closed` |
-| Tier-label removal (`tier:approved`/`tier:fast-track`) after a `merged:`/`pr-opened:` release | Console dispatch-label step (multi-spec) / `/wrap-up` Section E step 6 (single-spec) | — (label edit, not a claim release) |
+| Grant removal (`auto:build`/`auto:merge`) after a `merged:`/`pr-opened:` release | Console dispatch-label step (multi-spec) / `/wrap-up` Section E step 6 (single-spec) | — (label edit, not a claim release) |
 | Interrupted session | nobody — TTL ages it out; `/tidy` sweeps it | — |
 
 **Ownership rule.** Before a this-run release deletes the ref, fold the issue's comments
@@ -133,20 +146,20 @@ a successor broke the stale claim and now holds the lock — skip the delete, lo
 nothing. `/tidy`'s sweep is exempt: it releases *other* runs' stale claims by design, after
 batch approval.
 
-**Dispatch's success path.** `/claude-tweaks:triage dispatch` claims with the *dispatch firing's*
+**Dispatch's success path.** `/claude-tweaks:dispatch` claims with the *dispatch firing's*
 `$RUN_ID`, but a successful run's release happens inside `/wrap-up` (cleanup Section E), running
 under the handed-off `/flow`/`/specify` pipeline's *own*, later, differently-named run dir — a
 different `$RUN_ID` than the one that made the claim, if `/wrap-up` used its own `PIPELINE_RUN_DIR`
-for the comparison. It doesn't: `triage/SKILL.md` Step 3 exports `CLAIM_RUN_ID` (the dispatch
-firing's run id) before invoking `/flow`, `/flow` threads it through unchanged to every per-spec
-`/wrap-up` it runs (see `flow/multi-spec.md`'s env-var table for the multi-spec/bundle case), and
-`cleanup-procedures.md` Section E resolves `$RUN_ID` as `${CLAIM_RUN_ID:-$(basename
-"$PIPELINE_RUN_DIR")}` — the dispatch-provided value when present, falling back to the pipeline's
-own run id for any non-dispatch-originated release (a human running `/flow #{issue}` directly, or
-a spec merely *derived from* an issue with no live claim). The failure path (dispatch's own
-`triage/SKILL.md` Step 4) already worked the same way — releasing with the same `$RUN_ID` that
-made the claim, threaded explicitly into the group's Task agent — this closes the equivalent gap
-on the success path.
+for the comparison. It doesn't: `dispatch/SKILL.md`'s execution step exports `CLAIM_RUN_ID`
+(the dispatch firing's run id) before invoking `/flow`, `/flow` threads it through unchanged to
+every per-spec `/wrap-up` it runs (see `flow/multi-spec.md`'s env-var table for the
+multi-spec/bundle case), and `cleanup-procedures.md` Section E resolves `$RUN_ID` as
+`${CLAIM_RUN_ID:-$(basename "$PIPELINE_RUN_DIR")}` — the dispatch-provided value when present,
+falling back to the pipeline's own run id for any non-dispatch-originated release (a human
+running `/flow #{issue}` directly, or a spec merely *derived from* an issue with no live claim).
+The failure path (dispatch's own `dispatch/SKILL.md` settle step) already worked the same way —
+releasing with the same `$RUN_ID` that made the claim, threaded explicitly into the group's Task
+agent — this closes the equivalent gap on the success path.
 
 **Work-ready evidence.** Pass `releasePayload` a `link` (merge commit URL/sha or PR URL) when
 one exists — it lands in the release marker and human line, making the issue's comment trail
@@ -189,38 +202,33 @@ One line per issue. Direct `gh issue close` commands surface only for issues res
 Headless agents building arbitrary issue content is a prompt-injection surface: an issue
 body is untrusted input, and a drive-by issue must not be able to opt itself into autonomous
 execution. The gate is GitHub's own permission model — **applying a label requires triage
-permission, so a label is a maintainer's signature**. Authorization is one of three
-mutually-exclusive `tier:*` labels, all *granted* exclusively by `/claude-tweaks:triage`'s
-interactive (bare) invocation. `dispatch` mode may later downgrade or strip a tier it reads (see
-below), but it never grants a tier to an issue that didn't already carry one, and the agent
-itself never originates a grant:
+permission, so a label is a maintainer's signature**. Authorization is two stackable grants
+(see `_shared/work-record.md`, the taxonomy home, for full semantics), *granted* exclusively
+by `/claude-tweaks:triage`'s interactive invocation. Machinery may remove or downgrade
+grants; it never adds them:
 
-- `tier:needs-review` — the triager flagged this issue as warranting a closer human look.
-  It never reaches `/flow` — no autonomous run selects on this label, and bare triage's Step 1
-  permanently excludes it from future untiered batches. There is deliberately no in-tool path
-  back to `approved`/`fast-track` — a maintainer removing the label directly on GitHub *is* the
-  re-review decision, not a bypass of one (the same "a label is a maintainer's signature"
-  model this whole section describes), and it re-surfaces the issue on the next bare `/triage`
-  run automatically.
-- `tier:approved` — authorized to build. `/claude-tweaks:triage dispatch` selects on this
-  (alongside `tier:fast-track`, below), claims the issue, and hands it to `/flow #{issue}`.
-  Label = standing request, claim = in flight: the claim ref prevents double-dispatch across
-  firings, and the label persists until *successful* wrap-up — a failed run retries at a
-  later firing once its claim ages out, up to the `triage-retry-ceiling` policy flag.
-- `tier:fast-track` — authorized to build *and* to auto-merge without waiting for a live
-  Review Console approval, but only if the run comes back completely clean (see the
-  four-layer auto-merge gate in `skills/triage/SKILL.md`). Any run failure downgrades this
-  to `tier:approved` before the next retry — a retry that wasn't clean the first time
-  never gets another unsupervised shot at auto-merge.
+- `auto:build` — authorized to build. `/dispatch` selects on this, claims the record's whole
+  file-overlap group, and hands it to `/flow #{n}`. Label = standing request, claim = in
+  flight: the claim ref prevents double-dispatch across firings, and the grant persists until
+  *successful* wrap-up — a failed run retries at a later firing once its claim ages out, up
+  to the `dispatch-retry-ceiling` config key.
+- `auto:merge` — additionally authorized to auto-merge without a live Review Console
+  approval, but only when the run comes back completely clean (four-layer gate, defined in
+  `skills/dispatch/SKILL.md`). Additive on `auto:build`; alone it is inert.
 
-Downgrading `fast-track` → `approved` on failure, or stripping the tier entirely and adding
-`status:blocked` at the retry ceiling (see `skills/triage/SKILL.md`'s dispatch Step 4), are
-reversible writes `/claude-tweaks:triage dispatch` performs directly, logged to
-`decisions.md`. Removing a tier label on *success* is a different owner's job — `/wrap-up`
-(or the multi-spec Review Console) removes it after a `merged:`/`pr-opened:` release, per the
-Release triggers table above. What `dispatch` never does, in any of its own writes above, is
-*grant* a tier to an issue that didn't already carry one — it only ever removes or downgrades
-trust that was already present; it never originates authorization from nothing.
+**Grant revocation (machinery-owned, the only direction machinery moves):**
+
+- Any run failure revokes `auto:merge` before the next retry — a run that wasn't clean the
+  first time never gets another unsupervised shot at auto-merge.
+- At the retry ceiling (`dispatch-retry-ceiling`), remove all `auto:*` labels and add
+  `bot:blocked` — the record leaves the autonomous queue until a human re-grants at the gate
+  (which strips `bot:blocked` alongside the new grant).
+- Flag-back at the gate (remove `ready`, comment why) returns an unshaped record to backlog
+  state for more shaping — the gate's equivalent of "not yet."
+
+These are reversible label writes, logged to `decisions.md`. Removing grants on *success* is
+a different owner's job — `/wrap-up` (or the consolidated console) after a `merged:`/
+`pr-opened:` release, per the Release triggers table above.
 
 ## Failure posture
 
@@ -243,8 +251,8 @@ Fail-closed on claiming; never block the session.
 
 | Skill | Role |
 |---|---|
-| `/claude-tweaks:triage` (`SKILL.md`'s `dispatch` mode Step 2) | Claims each pulled `tier:approved`/`tier:fast-track` issue before handing off to `/flow`; releases on failure (per the retry-ceiling procedure) |
-| `/claude-tweaks:flow` (issue-reference mode) | Releases via `/wrap-up`'s generic Section E `abandoned:` path when the user doesn't merge, and via failure-card-offered release on a gate failure. Never claims — `/claude-tweaks:triage dispatch` always claims before invoking `/flow #{issue}`. |
+| `/claude-tweaks:dispatch` | Claims each authorized record's whole file-overlap group before handing off to `/flow`; releases + revokes on failure (per the retry-ceiling procedure) |
+| `/claude-tweaks:flow` (issue-reference mode) | Releases via `/wrap-up`'s generic Section E `abandoned:` path when the user doesn't merge, and via failure-card-offered release on a gate failure. Never claims — `/claude-tweaks:dispatch` always claims before invoking `/flow #{n}`. |
 | `/claude-tweaks:wrap-up` (`cleanup-procedures.md` item 8 / Section E) | Releases claims with the branch outcome as reason |
 | `/claude-tweaks:tidy` (`scan-procedures.md` Step 4.7) | Sweeps stale/orphaned claims; releases only after batch approval |
 
