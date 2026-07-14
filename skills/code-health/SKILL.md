@@ -244,17 +244,33 @@ Before filing, bootstrap only the label families this run applies, with real des
 
 There is no per-criterion label anymore — the criterion is already in the issue body's header line (`**Criterion:** ...`), and nothing reads it back off a label; this was also the label class that hit GitHub's 100-char cap (see `bin/lib/code-health/issue-payload.js`).
 
-For each payload in `/tmp/code-health-payloads.json`, call `gh issue create`. The engine is emit-only; filing is always done by the skill:
+For each payload in `/tmp/code-health-payloads.json`, call `gh issue create`. The engine is emit-only; filing is always done by the skill.
+
+**Type expression branch.** Read the project's `work-types` config key once before filing and branch — never re-probe mid-run (`_shared/work-record.md`'s config-key table; the key is written by `/init`). `work-types: native` applies `payload.type` (always `task`) via GitHub's native Issue Type; `work-types: labels` adds the matching `type:task` label instead (the pair lives in `record.js`'s `TYPE_LABELS`):
 
 ```bash
+# work-types: native
+gh issue create \
+  --title "<payload.title>" \
+  --body "<payload.body>" \
+  --type task \
+  --label by:code-health \
+  --label "risk:<tier>" \
+  --label "effort:<tier>" \
+  --label ready
+
+# work-types: labels
 gh issue create \
   --title "<payload.title>" \
   --body "<payload.body>" \
   --label by:code-health \
   --label "risk:<tier>" \
   --label "effort:<tier>" \
-  --label ready
+  --label ready \
+  --label type:task
 ```
+
+Apply the same branch to every payload regardless of criterion — only the `--type task` vs. `--label type:task` branch changes; the `risk`/`effort` tier labels and the underlying `gh issue create --title/--body` never do.
 
 For `reopen` decisions (a finding matching a closed non-`wontfix` issue has reappeared), reopen the issue and comment:
 
