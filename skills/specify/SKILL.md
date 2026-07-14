@@ -572,37 +572,37 @@ This is what keeps the records self-contained: reading the parent, or any leaf, 
 
 ## Step 5: Multi-Persona Red-Team
 
-Before deleting the design doc, dispatch three persona-instantiated agents (Implementer / Maintainer / Skeptical Reviewer) in one parallel batch to surface ambiguities, gaps, and unstated assumptions. Findings are written **into the spec body** — inline `<!-- ambiguity: ... -->` HTML comments next to flagged sentences, or rows in an appended `## Open Questions` table. No mid-flow prompt — Step 6 Self-Review picks them up.
+Before deleting the design doc, dispatch three persona-instantiated agents (Implementer / Maintainer / Skeptical Reviewer) in one parallel batch per leaf record — not the parent, which is never built directly — to surface ambiguities, gaps, and unstated assumptions. Each agent's input is a record reference, never inlined content: `work-backend: github-issues` — the leaf's number plus a `gh issue view` read instruction; `work-backend: local-files` — the leaf's record file path. Never both in the same dispatch. Findings are written **back into the record body** — inline `<!-- ambiguity: ... -->` HTML comments next to flagged sentences, or rows in an appended `## Open Questions` table — via compose-then-write-once, the same discipline every write in this skill uses. No mid-flow prompt — Step 6 Self-Review picks them up.
 
 Read `red-team.md` in this skill's directory for the dispatch prompt (Template A block must remain inlined verbatim in the dispatch prompt at runtime per the Subagent Contract), the three persona lens questions, and the write-back procedure.
 
 ---
 
-## Step 6: Spec Self-Review
+## Step 6: Record Self-Review
 
-Before deleting the design doc, look at every spec you wrote with fresh eyes — including the red-team findings just written in Step 5. Fix issues inline — no subagent, no separate review pass. This is also the last chance to catch content the design doc captured but no spec implements.
+Before deleting the design doc, look at every record you wrote with fresh eyes — including the red-team findings just written in Step 5. Fix issues inline — no subagent, no separate review pass. This is also the last chance to catch content the design doc captured but no leaf implements.
 
-> **Parallel execution (conditional):** When N ≥ 3 specs are produced, run scope and ambiguity checks across all specs concurrently using parallel Read + Grep calls.
+> **Parallel execution (conditional):** When N ≥ 3 leaf records are produced, run scope and ambiguity checks across all leaves concurrently — `gh issue view` per leaf under `work-backend: github-issues`, `Read` per record file under `work-backend: local-files` — plus `Grep` over the fetched bodies for placeholder patterns.
 
-1. **Placeholder scan** — search for the failure patterns in `spec-template.md`'s "No Placeholders" section. Any `TBD`, vague acceptance criteria, undefined types, "standard error handling", or "similar to spec N" — fix them now.
-2. **Internal consistency** — across the specs in this decomposition, do referenced types, model names, and endpoint signatures match? A function called `clearLayers()` in spec 42 but `clearFullLayers()` in spec 43 is a bug.
-3. **Scope check** — is each spec genuinely a single work unit (3-8 tasks)? If one is doing two things, split it now. If two are doing the same thing, merge them.
+1. **Placeholder scan** — search for the failure patterns in `spec-template.md`'s "No Placeholders" section, over every record body (parent and leaves). Any `TBD`, vague acceptance criteria, undefined types, "standard error handling", or "similar to leaf N" — fix them now.
+2. **Internal consistency** — across the leaves in this decomposition, do referenced types, model names, and endpoint signatures match? A function called `clearLayers()` in leaf 42 but `clearFullLayers()` in leaf 43 is a bug.
+3. **Scope check** — is each leaf genuinely a single work unit (3-8 tasks)? If one is doing two things, split it now. If two are doing the same thing, merge them.
 4. **Ambiguity check** — could any acceptance criterion be interpreted two different ways? Pick one and make it explicit.
-5. **Design-doc coverage** — re-read the design doc with each spec open. If you find a spec requirement the doc captured but no spec implements, add it to the right spec now — the doc is about to be deleted in Step 7.
+5. **Design-doc coverage** — re-read the design doc with each leaf open. If you find a requirement the doc captured but no leaf implements, add it to the right leaf now — the doc is about to be deleted in Step 7.
 
-When all four checks come back clean, proceed to Step 7. No need to re-review after fixing.
+When all five checks come back clean, proceed to Step 7. No need to re-review after fixing.
 
 ---
 
 ## Step 7: Delete Consumed Artifacts (only when fully decomposed)
 
-The design doc and brainstorming brief have served their purpose **once every phase has been decomposed into specs and Step 6 Self-Review has confirmed coverage**. Behavior depends on the phase target:
+The design doc and brainstorming brief have served their purpose **once every phase has been decomposed into leaf records and Step 6 Self-Review has confirmed coverage**. Behavior depends on the phase target:
 
 | Decomposition mode | Delete design doc? |
 |---|---|
 | No `phase-N` argument; doc has 0 phase sections (single-phase) | Yes — fully consumed |
 | No `phase-N` argument; doc has N phase sections; all decomposed in this run | Yes — fully consumed |
-| `phase-N` argument; only that phase decomposed | **No** — design doc retained for remaining phases. Add a `## Phase N: Specified` marker after the phase heading instead, listing the spec numbers it produced. |
+| `phase-N` argument; only that phase decomposed | **No** — design doc retained for remaining phases. Add a `## Phase N: Specified` marker after the phase heading instead, listing the record numbers it produced. |
 | `phase-N` argument; this was the last un-specified phase | Yes — fully consumed (run delete after marker bookkeeping confirms all phases marked) |
 
 ```bash
@@ -612,17 +612,14 @@ git rm docs/plans/YYYY-MM-DD-{topic}-brief.md  # if it exists
 
 # Partial decomposition (phase-N only): commit the marker, keep the doc
 git add docs/superpowers/specs/YYYY-MM-DD-{topic}-design.md
-git commit -m "docs(specs): mark phase-{N} specified in design doc"
+git commit -m "Mark phase-{N} specified in design doc"
 ```
 
-When fully consumed, do NOT keep these around. They create dangling references and stale artifacts. The specs are the durable record.
+When fully consumed, do NOT keep these around. They create dangling references and stale artifacts. The leaf records are the durable artifact.
 
-## Step 8: Clean Up the Backlog Entry
+## Step 8: Retired
 
-If the work originated from a `specs/backlog/` entry:
-
-- Delete the `specs/backlog/{slug}.md` file
-- It has been promoted — the specs are the durable artifact now
+Retired: a captured record is shaped in place (Shaping mode); there is no separate backlog entry to delete.
 
 ---
 
@@ -634,59 +631,57 @@ Present a summary:
 ## Specification: {design doc topic}
 
 ### Work Units Created
-| Spec | Title | Tier | Depends On | Est. Tasks |
-|------|-------|------|------------|------------|
-| {N} | {title} | {tier} | {deps} | {count} |
+| Record | Title | Type | Blocked by | Est. tasks |
+|--------|-------|------|------------|------------|
+| {ref} | {title} | {type} | {refs or —} | {count} |
 
-### Existing Specs Modified
-- `specs/{file}` — {what was added/changed}
-
-### INDEX.md Updates
-- {changes made}
+### Existing Records Modified
+- {ref} "{title}" — {what was added/changed}
 
 ### Artifacts Removed
-- Design doc: `docs/superpowers/specs/{filename}` (absorbed into specs)
-- Brainstorming brief: `docs/plans/{filename}` (absorbed into spec Gotchas) — if it existed
-- Backlog entry: {title} (promoted)
+- Design doc: `docs/superpowers/specs/{filename}` (absorbed into the parent + leaf records)
+- Brainstorming brief: `docs/plans/{filename}` (absorbed into leaf Gotchas sections) — if it existed
 
 ### Diagram suggestions (optional — render only when Step 2.5d emitted any)
 - {one or two `**Diagram suggestion:** …` blocks emitted by Step 2.5d}
 ```
 
+`{ref}` is `#{N}` under `work-backend: github-issues`, the bare record id under `local-files` — same convention as Step 1's Overlap Analysis.
+
 ### Actions Performed
 
 | Action | Detail | Ref |
 |--------|--------|-----|
-| Operational | Created spec `specs/{N}-{title}.md` | `{hash}` |
-| Operational | Updated `specs/INDEX.md` | `{hash}` |
+| Operational | Created parent record {parent-ref} + {N} leaf records | `{hash}` (local-files) / `—` (github-issues — creates already landed via API, no commit) |
 | Operational | Deleted design doc + brief | `{hash}` |
 
-**Commit the specs — this is mandatory and is the skill's terminal action, not an optional follow-up.** A spec is the *input* to work, like a ticket: it must exist in committed history on the base branch before any pipeline runs. `/flow` cuts a worktree from base, and a worktree does not contain uncommitted files — an uncommitted spec produces an empty worktree and a build with nothing to build (`/flow` Step 2.4 hard-gates on exactly this). Commit every durable artifact this run produced in one commit: the spec files, `specs/INDEX.md` updates, any audit doc, and the design-doc deletion/marker from Step 7.
+**Commit whatever this run wrote to disk — the skill's terminal action, run whether or not anything ends up staged.** This covers only artifacts that are files: the design-doc deletion/marker from Step 7, and — under `work-backend: local-files` — the parent and leaf record files plus Step 4's linking edits, composed and written across Steps 3-4 but not yet committed. A clean `github-issues` run has nothing to commit for the records themselves — every parent/leaf create and edit already landed via the API in Steps 3-5, the same no-commit case Shaping mode documents — **except** any leaf (or the whole batch, if the parent itself fell back) that Step 3's write-path resilience wrote to `local-store.js` after a `gh` failure; that file needs this commit exactly like a `local-files` record does. A full (non-`phase-N`) decomposition may therefore have nothing staged beyond the design doc's `git rm`; a `phase-N` run already committed its own marker back in Step 7, so it may have nothing staged at all. None of this affects durability — a leaf is durable the moment its create/write call lands, not when this step commits it. What used to be true of spec files no longer applies: leaves don't need to exist in committed history before a pipeline can run them; `/claude-tweaks:flow #N` (or a local record id) materializes a leaf into a build-time file only when a pipeline actually runs it (spec 20's contract), independent of this commit.
 
 ```bash
-git add specs/ docs/   # specs, INDEX, audit doc, design-doc removal/marker
-git commit -m "{message describing the specs created}"
-git log --oneline -1   # verify it landed (see _shared/git-discipline.md)
+git add specs/ docs/   # local-files driver: parent/leaf record files + link edits; docs/: design-doc removal/marker
+git status --porcelain   # empty is a valid outcome (github-issues, or a phase-N run) — commit only if something is staged
+git commit -m "{message describing the leaves created}"   # skip when nothing is staged
+git log --oneline -1   # verify it landed when a commit was made (see _shared/git-discipline.md)
 ```
 
-By the time Next Actions renders, this commit has already happened.
+By the time Next Actions renders, any commit from this step has already happened.
 
 ## Next Actions
 
-Self-routing — render based on what was produced. The specs are **already committed** (Step 9) — never offer "commit then flow" or "have me commit these specs" as an option; that decision is closed before Next Actions renders. Options are purely about *which* specs to pipeline and in *what order*.
+Self-routing — render based on what was produced. The leaf records are **already durable** — a `github-issues` run's leaves exist on the tracker the moment Step 3 creates them; a `local-files` run's leaf files exist on disk regardless of whether Step 9 found anything to commit — never offer "commit then flow" or "have me commit these leaves" as an option; that question is closed before Next Actions renders (see Step 9). Options are purely about *which* leaf records to pipeline and in *what order*.
 
-This "Situation → options" table is the assistant's own lookup logic to pick which situation applies — it stays internal and is never itself shown to the user or converted into an `AskUserQuestion` option.
+This "Situation → options" table is the assistant's own lookup logic to pick which situation applies — it stays internal and is never itself shown to the user or converted into an `AskUserQuestion` option. The commands below show the `work-backend: github-issues` form (`#{N}`); under `work-backend: local-files`, drop the `#` and emit bare record ids instead (`/claude-tweaks:flow {N}`, `/claude-tweaks:flow {N1},{N2},...`).
 
 | Situation | Options |
 |---|---|
-| Single spec produced | 1. `/claude-tweaks:flow {N}` — automated pipeline for spec {N}: "{title}" **(Recommended)**<br>2. `/claude-tweaks:build {N}` — build only (no test/review/wrap-up)<br>3. `/claude-tweaks:help` — pipeline dashboard |
-| Multiple specs produced from a single phase / single-phase doc | 1. `/claude-tweaks:flow {N1},{N2},...,{Nk}` — sequential pipeline, all specs **(Recommended)**<br>2. `/claude-tweaks:flow {N1}` — pipeline just the highest-priority spec<br>3. `/claude-tweaks:help` — pipeline dashboard |
-| Phase-N decomposition with remaining phases in design doc | 1. `/claude-tweaks:flow {N1},{N2},...` — pipeline this phase's specs **(Recommended)**<br>2. `/claude-tweaks:specify {doc} phase-{N+1}` — decompose next phase<br>3. `/claude-tweaks:help` — pipeline dashboard |
-| All phases decomposed in one run (large multi-phase decomposition) | 1. `/claude-tweaks:flow {first-phase-spec-ids}` — pipeline phase 1 specs first **(Recommended)**<br>2. `/claude-tweaks:flow {all-spec-ids}` — pipeline everything sequentially (long-running)<br>3. `/claude-tweaks:help` — see the full dependency graph before deciding |
+| Single leaf record produced | 1. `/claude-tweaks:flow #{N}` — automated pipeline for record #{N}: "{title}" **(Recommended)**<br>2. `/claude-tweaks:build #{N}` — build only (no test/review/wrap-up)<br>3. `/claude-tweaks:help` — pipeline dashboard |
+| Multiple leaf records produced from a single phase / single-phase doc | 1. `/claude-tweaks:flow #{N1},#{N2},...,#{Nk}` — sequential pipeline, all leaves **(Recommended)**<br>2. `/claude-tweaks:flow #{N1}` — pipeline just the highest-priority leaf<br>3. `/claude-tweaks:help` — pipeline dashboard |
+| Phase-N decomposition with remaining phases in design doc | 1. `/claude-tweaks:flow #{N1},#{N2},...` — pipeline this phase's leaves **(Recommended)**<br>2. `/claude-tweaks:specify {doc} phase-{N+1}` — decompose next phase<br>3. `/claude-tweaks:help` — pipeline dashboard |
+| All phases decomposed in one run (large multi-phase decomposition) | 1. `/claude-tweaks:flow #{first-phase-leaf-Ns}` — pipeline phase 1 leaves first **(Recommended)**<br>2. `/claude-tweaks:flow #{all-leaf-Ns}` — pipeline everything sequentially (long-running)<br>3. `/claude-tweaks:help` — see the full dependency graph before deciding |
 
-Once the matching situation is resolved, replace the rendering of its numbered list with a call to `AskUserQuestion`: `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and one option per entry in that row — `label`: a short one-line summary (e.g. "Pipeline this spec", "Build only", "Pipeline dashboard"), `description`: the full command text from that entry, the entry marked `(Recommended)` in the table gets `(Recommended)` suffixed on its label.
+Once the matching situation is resolved, replace the rendering of its numbered list with a call to `AskUserQuestion`: `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and one option per entry in that row — `label`: a short one-line summary (e.g. "Pipeline this record", "Build only", "Pipeline dashboard"), `description`: the full command text from that entry, the entry marked `(Recommended)` in the table gets `(Recommended)` suffixed on its label.
 
-Always recommend `/flow` over `/build` — `/flow` is the canonical path through the pipeline, and the new shape gate (Step 2.6 in `/flow`) accepts well-structured specs of any size.
+Always recommend `/flow` over `/build` — `/flow` is the canonical path through the pipeline, and the shape gate at materialization time (spec 20's contract) accepts well-structured leaf records of any size.
 
 ## Component-Skill Contract
 
@@ -696,39 +691,44 @@ Always recommend `/flow` over `/build` — `/flow` is the canonical path through
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Specifying without a codebase scan | Specs need Current State context — without it, `/superpowers:writing-plans` operates on blind assumptions. Step 1's Landscape reads include git log + existing files. The design-doc half of this anti-pattern is no longer possible: polymorphic input invokes `/superpowers:brainstorming` automatically when the input is a bare topic with no existing design doc. |
-| Specs that touch every layer | A single spec spanning data + API + UI + infra is too large for agent-sized execution |
+| Specifying without a codebase scan | Records need Current State context — without it, `/superpowers:writing-plans` operates on blind assumptions. Step 1's Landscape reads include git log + existing files. The design-doc half of this anti-pattern is no longer possible: polymorphic input invokes `/superpowers:brainstorming` automatically when the input is a bare topic with no existing design doc. |
+| Leaf records that touch every layer | A single leaf spanning data + API + UI + infra is too large for agent-sized execution |
 | Vague acceptance criteria | "Works correctly" can't be verified — `/superpowers:writing-plans` needs specific, testable assertions |
-| Keeping the design doc after specifying | Creates dangling references — the spec is the durable record, the design doc is consumed. Partial (`phase-N`) decomposition is the only exception (see Step 7's table). |
-| Silently deciding how to handle overlapping specs | Overlap handling (extend vs. companion vs. replace) is a user decision — present numbered options, don't assume |
-| Mis-targeting design pre-steps | Asking design-intent on backend specs is irrelevant; skipping the shape pre-step on frontend specs without offering loses UX value. Step 2.5a's frontend detection gates both — respect it. |
-| Writing specs without `surface:` frontmatter | Wrapper Layer 2 detection falls through to file-extension sniff, which is less reliable. Always write `surface:` per the canonical reference in `spec-template.md`. |
+| Keeping the design doc after specifying | Creates dangling references — the leaf records are the durable artifact, the design doc is consumed. Partial (`phase-N`) decomposition is the only exception (see Step 7's table). |
+| Silently deciding how to handle overlapping records | Overlap handling (extend vs. companion vs. replace) is a user decision — present numbered options, don't assume |
+| Mis-targeting design pre-steps | Asking design-intent on backend records is irrelevant; skipping the shape pre-step on frontend records without offering loses UX value. Step 2.5a's frontend detection gates both — respect it. |
+| Writing a record body without a `Surface:` metadata line | Wrapper Layer 2 detection falls through to file-extension sniff, which is less reliable. `Surface:` is a plain body-metadata line — never YAML frontmatter, never a label — written by Shaping mode's Metadata block (single record) or Step 3's per-leaf procedure (decomposition); the canonical value list lives in `spec-template.md`. |
 | Treating "topic with slash" as a path | Ambiguous input must be disambiguated explicitly — present the numbered choice, do not assume one interpretation |
-| Producing a "phase plan" file alongside or instead of specs | Phase plans are dead artifacts. The granularity contract has 2 tiers: design doc (one file, phases as sections) → specs (one file each). Anything else is a contract violation. |
-| Bypassing `/specify` on the way to `/flow` | `/flow` is the canonical pipeline path and rejects design docs at Step 2.7 (granularity contract enforcement). Always route through `/specify` first; recommend `/flow` over `/build` when presenting Next Actions. |
+| Producing a "phase plan" file alongside or instead of leaf records | Phase plans are dead artifacts. The granularity contract has 2 tiers: design doc (one file, multi-phase OK as `## Phase N` sections) → ready leaf records (one record each). Anything else is a contract violation. |
+| Bypassing `/specify` on the way to `/flow` | `/flow` accepts only leaf record references (`#N` / `#A,#B`) and hard-gates on record shape at materialization time — an unshaped record stops the run with a pointer back to `/specify` (spec 20's contract). Always route through `/specify` first to produce ready leaves; recommend `/flow` over `/build` when presenting Next Actions. |
+| Granting or touching `auto:*`/`bot:*` from `/specify` | Authorization is human-granted only (`/triage`'s territory) and bot-state is machinery's visibility layer — `/specify` adds `ready` and `risk:*`/`effort:*`, removes `parked` on promotion, and never touches either family (permission matrix in `_shared/work-record.md`). |
+| Marking a parent record `ready` | Parents are summary records, not agent-sized work — only leaves get `ready` (+ scoring). A `ready` parent would enter the authorization worklist as if it were buildable, but its body is a design summary, not a spec-shaped deliverable. |
 
 ## Relationship to Other Skills
 
 | Skill | Relationship |
 |-------|-------------|
 | `/superpowers:brainstorming` | Bidirectional: when a design doc already exists, it runs BEFORE /specify and produces the input that /specify consumes and deletes. When the user passes a bare topic (polymorphic input), /specify invokes brainstorming internally to produce the design doc, then decomposes it. |
-| `/superpowers:writing-plans` | Consumes specs AFTER /claude-tweaks:specify — the spec must provide enough context for `/superpowers:writing-plans` to produce a TDD execution plan |
-| `/superpowers:subagent-driven-development` | Executes specs AFTER /claude-tweaks:specify — uses the plan from `/superpowers:writing-plans` (via `/claude-tweaks:build` subagent execution strategy) |
-| `/superpowers:executing-plans` | Executes specs AFTER /claude-tweaks:specify — uses the plan from `/superpowers:writing-plans` (via `/claude-tweaks:build` batched execution strategy) |
-| `/claude-tweaks:build` | Runs AFTER /claude-tweaks:specify — takes a single spec and implements it |
-| `/claude-tweaks:capture` | Feeds INBOX items that may trigger brainstorming → /claude-tweaks:specify |
-| `/claude-tweaks:tidy` | Reviews specs created by /claude-tweaks:specify for staleness. /claude-tweaks:tidy tags backlog entries as `**Promoted:**` — /claude-tweaks:specify Step 8 deletes the promoted `specs/backlog/{slug}.md` entry after creating the spec |
-| `/claude-tweaks:help` | Shows which specs from /claude-tweaks:specify are ready for /claude-tweaks:build — also uses Key Files for implicit dependency detection |
-| `/claude-tweaks:design` | /specify invokes `/claude-tweaks:design shape <topic>` (Step 2.5b) on frontend design docs to enrich the design doc with UX/UI planning. /specify writes `surface:` and `design-intent:` frontmatter (Step 2.5c + Step 3) on every generated spec; the design wrapper reads `surface:` for Layer 2 detection and reads `design-intent:` for `polish` mode's intent-driven dispatch (active in v4.5.0). |
-| `/claude-tweaks:visualize` | Step 2.5d suggests invoking this skill for ALL specs (not gated to frontend) when the design doc describes state machines, schemas, multi-actor flows, decision branches, hierarchies, or architectures. Gated by `diagram-suggestions: enabled` in CLAUDE.md (written by `/init` Step 11). |
-| `/claude-tweaks:research` | Prior-art lookup before authoring a spec — `/research` reports can be cited directly in spec "Background" / "Prior art" sections. |
-| `/claude-tweaks:code-health` | `/code-health` files improvement findings as `code-health`-labelled GitHub issues whose body is `/specify`-shaped (Current State / Deliverables / Acceptance Criteria); `/specify` promotes such an issue into an agent-sized spec with near-zero translation, stamping `recon-issue:`/`recon-fingerprint:` frontmatter (Resolve-the-input case 1) so `/wrap-up` can close the issue on merge. |
-| `/claude-tweaks:challenge` | Runs BEFORE /specify on INBOX items — produces a debiased brief whose assumptions, blind spots, and constraints /specify absorbs into spec Gotchas sections during Step 1 |
-| `/claude-tweaks:flow` | Invoked BY /flow when a design doc is passed to /flow Step 2.7 — flow rejects design docs and routes through /specify to enforce the granularity contract before pipeline entry |
+| `/superpowers:writing-plans` | Consumes leaf records AFTER /claude-tweaks:specify — the leaf's body must provide enough context for `/superpowers:writing-plans` to produce a TDD execution plan |
+| `/superpowers:subagent-driven-development` | Executes leaf records AFTER /claude-tweaks:specify — uses the plan from `/superpowers:writing-plans` (via `/claude-tweaks:build` subagent execution strategy) |
+| `/superpowers:executing-plans` | Executes leaf records AFTER /claude-tweaks:specify — uses the plan from `/superpowers:writing-plans` (via `/claude-tweaks:build` batched execution strategy) |
+| `/claude-tweaks:build` | Runs AFTER /claude-tweaks:specify — takes a leaf record reference and materializes it into a build-time file (spec 20's contract) before implementing it; reads the `Surface:`/`Design-intent:` body-metadata lines `/specify` wrote, lifted into the materialized header |
+| `/claude-tweaks:capture` | Files raw backlog records (`by:capture`, Type only, no scoring or stage) that `/specify`'s Resolve-the-input shapes into `ready` — case 1 for a direct record reference, case 5 for a title/keyword backlog reference |
+| `/claude-tweaks:tidy` | Reviews backlog-stage records for staleness; its Promote action recommends `/claude-tweaks:specify #{n}` to shape a record into `ready` — Step 8's old backlog-entry deletion is retired, since a captured record has no separate file to delete (Shaping mode edits it in place) |
+| `/claude-tweaks:help` | Shows which leaf records from /claude-tweaks:specify are `ready` for /claude-tweaks:build — also uses Key Files for implicit dependency detection |
+| `/claude-tweaks:design` | /specify invokes `/claude-tweaks:design shape <topic>` (Step 2.5b) on frontend design docs to enrich the design doc with UX/UI planning. /specify writes `Surface:` and `Design-intent:` as body-metadata lines (Step 2.5c + Step 3's per-leaf procedure, or Shaping mode's Metadata block for a single record) — never frontmatter, never labels; the design wrapper reads them from the materialized header spec 20 lifts them into (Layer 2 detection for `Surface:`, `polish` mode's intent-driven dispatch for `Design-intent:`, active in v4.5.0). |
+| `/claude-tweaks:visualize` | Step 2.5d suggests invoking this skill for every leaf record (not gated to frontend) when the design doc describes state machines, schemas, multi-actor flows, decision branches, hierarchies, or architectures. Gated by `diagram-suggestions: enabled` in CLAUDE.md (written by `/init` Step 11). |
+| `/claude-tweaks:research` | Prior-art lookup before authoring a record — `/research` reports can be cited directly in a leaf's `Technical Approach` or `Gotchas` section. |
+| `/claude-tweaks:code-health` | `/code-health` files improvement findings as `by:code-health`-labelled records, born-`ready` and spec-shaped by construction (Current State / Deliverables / Acceptance Criteria) — per `_shared/work-record.md`'s born-ready rule, these skip Shaping mode's translation work entirely. `/specify` shapes captured and human-filed records (no `by:*` label, still in `backlog`); Resolve-the-input case 1 fetches either kind the same way, stamping `ready` + scoring only on the ones that don't already have them. |
+| `/claude-tweaks:challenge` | Runs BEFORE /specify on INBOX items — produces a debiased brief whose assumptions, blind spots, and constraints /specify absorbs into leaf Gotchas sections (Step 1's Rules; Step 4's systematic completeness pass) |
+| `/claude-tweaks:flow` | Accepts `#N` / `#A,#B` leaf record references — records arrive pre-shaped from `/specify`, so `/flow` never calls `/specify` internally (spec 20's contract: materialization hard-gates on record shape instead of a design-doc-rejection step). `/specify` remains the enforcement point that produces `ready` leaves in the first place. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
 | `_shared/multi-agent-coordination.md` | Canonical primitive for Multi-persona red-team (Mode 3) — three fixed personas, one round, run as part of the self-review step. |
 | `_shared/subagent-output-contract.md` | Red-team persona agents emit Template A (findings); follow the status-line and model-tier conventions. |
+| `_shared/work-record.md` | Canonical taxonomy `/specify` shapes and files against — stage vocabulary (backlog / parked / ready), the six-axis label contract, the permission matrix (`/specify`'s row: adds `ready`/scoring, removes `parked`, never `auto:*`/`bot:*`), the born-ready rule, and the parent/leaf decomposition rules this skill implements |
+| `bin/lib/issues/record.js` | Payload assembly + facet parsing for the GitHub driver — `/specify` calls `recordPayload` (parent + leaf creation), `parseRecordFacets` (reading existing scoring), and `extractFingerprint`/`parseDependencies` (idempotency + linking). Prose twin of `_shared/work-record.md`'s taxonomy. |
+| `bin/lib/issues/local-store.js` | Storage layer for the local-files driver — `/specify` calls `readRecord`/`writeRecord`/`allocateId`/`queryRecords` throughout shaping and decomposition; no sub-issue API, so parent/dependency links are frontmatter (`facets.parent`, `facets.blockedBy`) instead |
 
 ## Background
 
-`/superpowers:writing-plans` produces multi-phase plan files (`*-P1.md`, `*-P2.md`, …) that exceed `/flow`'s envelope. The legacy path `/superpowers:brainstorming → writing-plans → /flow` had three artifact tiers with the middle tier agent-too-big. The current path is `/superpowers:brainstorming → /specify → /flow` — two artifact tiers where `/specify` produces specs sized for `/flow`'s shape gate. `/superpowers:brainstorming` is unchanged; the granularity contract relies on the user (or a skill caller) routing through `/specify` rather than `writing-plans`.
+`/superpowers:writing-plans` produces multi-phase plan files (`*-P1.md`, `*-P2.md`, …) that exceed `/flow`'s envelope. The legacy path `/superpowers:brainstorming → writing-plans → /flow` had three artifact tiers with the middle tier agent-too-big. The current path is `/superpowers:brainstorming → /specify → /flow` — two artifact tiers where `/specify` produces ready leaf records sized for `/flow`'s shape gate (enforced at materialization time — spec 20's contract). `/superpowers:brainstorming` is unchanged; the granularity contract relies on the user (or a skill caller) routing through `/specify` rather than `writing-plans`.
