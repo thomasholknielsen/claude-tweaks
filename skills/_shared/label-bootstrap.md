@@ -1,10 +1,11 @@
 # Label Bootstrap — Shared Check-Then-Create Snippet
 
-The canonical check-then-create loop every label-filing skill in this codebase uses. Referenced
-by `triage/SKILL.md` (tier labels, `status:in-progress`, `status:blocked`), `code-health/SKILL.md`,
-`harness-health/SKILL.md`, `tidy/SKILL.md` (`parked`/`backlog` bootstrap), and
-`wrap-up/cleanup-procedures.md` Section E / `flow/multispec-review-console.md` (the shared
-`parked` restoration step). Consumers reference this file; do not restate the loop inline.
+The canonical check-then-create loop every label-filing skill in this codebase uses.
+Referenced by the work-record consumers (`_shared/work-record.md` is the taxonomy home —
+health skills, `/capture`, `/specify`, `/triage`, `/dispatch`, `/tidy`,
+`wrap-up/cleanup-procedures.md` Section E and `flow/multispec-review-console.md` for the
+shared `parked` restoration step). Consumers reference this file; do not restate the loop
+inline.
 
 Given a `LABELS` array of `[name, description]` pairs:
 
@@ -25,3 +26,35 @@ done
 `gh label create`. `${LABELS_JSON}` is a literal JS array-of-pairs, substituted inline by each
 consumer with its own label list — for a single label, use a one-element array
 (`[['status:blocked', '...']]`) rather than reaching for a separate single-label variant.
+
+## Canonical LABELS_JSON — the full work-record taxonomy
+
+The complete label set from `_shared/work-record.md` (17 core + 3 optional `priority:*`),
+with descriptions pre-checked against GitHub's 100-character cap. **Consumers bootstrap only
+the labels they are about to apply** — copy the relevant pairs, don't create all 20
+speculatively (except `/init`'s one-time provision-now offer, which uses this list whole):
+
+```js
+[
+  ["by:code-health",    "Origin: filed by the code-health skill"],
+  ["by:harness-health", "Origin: filed by the harness-health skill"],
+  ["by:journey-health", "Origin: filed by the journey-health skill"],
+  ["by:capture",        "Origin: filed via /capture"],
+  ["risk:low",          "Scoring: low blast radius — safe for autonomous build"],
+  ["risk:medium",       "Scoring: moderate blast radius — review before merge recommended"],
+  ["risk:high",         "Scoring: high blast radius — human review required"],
+  ["effort:low",        "Scoring: small, agent-sized change"],
+  ["effort:medium",     "Scoring: moderate change, may span several files"],
+  ["effort:high",       "Scoring: large change — consider decomposition before building"],
+  ["parked",            "Stage: deliberately on hold until its trigger fires (milestone due or watched path change)"],
+  ["ready",             "Stage: spec-shaped and agent-sized — in the authorization gate's worklist"],
+  ["auto:build",        "Grant: agents may build this record autonomously (human-granted; machinery only removes)"],
+  ["auto:merge",        "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)"],
+  ["bot:in-progress",   "Bot state: an agent currently holds the claim on this record"],
+  ["bot:blocked",       "Bot state: retry ceiling reached — needs human re-triage before autonomous retry"],
+  ["wontfix",           "Closed as not-planned; health skills will not re-file findings with this fingerprint"],
+  ["priority:high",     "Priority: dispatch picks this band first"],
+  ["priority:medium",   "Priority: dispatch picks after priority:high"],
+  ["priority:low",      "Priority: dispatch picks last among prioritized records"]
+]
+```
