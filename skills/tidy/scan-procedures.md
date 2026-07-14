@@ -2,61 +2,114 @@
 
 Per-step scan rules for `/claude-tweaks:tidy`. Each scan reads a single data source and collects findings in the `[type] item — detail — recommendation` format. The parallel dispatcher inlines the relevant section into each agent's prompt so agents have everything they need (subagents cannot read sibling files).
 
-Step numbering matches `SKILL.md`. The order below mirrors execution order.
+Step numbering matches `SKILL.md`. The order below mirrors execution order. There is no Step 2 — Steps 1 and 2 merged into one record scan (below); the rest of the numbering is unchanged so existing cross-references from other skills (`/claude-tweaks:dispatch`, `wrap-up/cleanup-procedures.md`) keep pointing at the right step.
 
 ---
 
-## Step 1: Audit the Backlog
+## Step 1: Audit Work Records
 
-First, read the `backlog-backend` field from the project's CLAUDE.md (`## Backlog integration` section). A missing flag = `local-files`.
+Read the `work-backend` field from the project's CLAUDE.md (under a `## Work records` section, written by `/claude-tweaks:init`). `backlog-backend` — the pre-migration flag name, under `## Backlog integration` — is accepted as a read-only legacy alias. A missing flag is treated as `local-files`.
 
-**`backlog-backend: local-files` (or missing):** read every `specs/backlog/*.md` file once, and split entries by their `**Stage:**` field client-side — the same "one query, split by stage" pattern Step 4.8's `repo-wide` scan already uses for GitHub backlog issues.
+One query per driver feeds every finding shape below — the record store itself is the current landscape; there is no separate directory or index file to read (`_shared/work-record.md`). This single step replaces the old file-scan (former Step 1), spec-directory scan (former Step 2), and the backlog-issue portion of Step 4.8's `repo-wide` scan — all three read from the same record taxonomy now, so they collapse into one query + one facet parse.
 
-For entries with `**Stage:** inbox`, classify by age (`**Added:**` date):
+**`work-backend: github-issues`:**
 
-| Age | Classification | Default Recommendation |
-|-----|---------------|----------------------|
-| < 2 weeks | Fresh | Keep |
-| 2-4 weeks | Review | Keep (unless clearly stale) |
-| > 4 weeks | Stale | Delete or Promote |
+```bash
+gh issue list --state open --json number,title,labels,milestone,updatedAt --limit 200 > /tmp/tidy-records.json
+node -e "
+  const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const issues = require('/tmp/tidy-records.json');
+  console.log(JSON.stringify(issues.map((i) => ({ ...i, facets: parseRecordFacets(i.labels) }))));
+" > /tmp/tidy-records-faceted.json
+```
 
-→ Collect each as: `[inbox] {title} — {age} — {recommendation}`
+`parseRecordFacets` silently ignores any label it doesn't recognize (`bin/lib/issues/record.js`) — the legacy-taxonomy shape below needs the raw `labels` array, not just the parsed facets, so both stay in scope (the spread above keeps `labels` alongside the derived `facets`).
 
-For entries with `**Stage:** parked`, judge the `**Trigger:**` field live — the same judgment `/claude-tweaks:tidy`'s "Sync to GitHub" action already applies on the GitHub side: parse as a date first (compare to today's date); if that fails, check whether it names file paths (checked against `git log`, same as "Sync to GitHub"'s `watchedPaths` handling); otherwise treat as free prose. Classify:
+Also pull any local fallback records left behind by a failed GitHub write — these feed the Sync shape below:
 
-| Trigger Status | Default Recommendation |
+```bash
+node -e "
+  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+  console.log(JSON.stringify(queryRecords('specs', { unsynced: true })));
+" > /tmp/tidy-unsynced.json
+```
+
+**`work-backend: local-files`:**
+
+```bash
+node -e "
+  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+  console.log(JSON.stringify(queryRecords('specs', {})));
+" > /tmp/tidy-records.json
+```
+
+Every record returned already carries its parsed `.facets` — no separate parse pass needed. Three of the seven shapes below don't apply under this driver: no Sync finding (`facets.unsynced` is a github-issues-fallback-only concept — see `_shared/work-record.md`), no `bot:blocked` finding (the local driver "carries no bot state"), and no legacy-taxonomy finding (its frontmatter schema never held the retired label vocabulary in the first place — that vocabulary is GitHub-label-only).
+
+**Staleness clock**, either driver: `github-issues` uses the query's own `updatedAt`. `local-files` has no timestamp facet (`local-store.js`'s schema carries none), so use the record file's own last-commit date instead — `git -C "{REPO_ROOT}" log -1 --format=%cI -- "{path}"` (`{REPO_ROOT}` resolves the same way Step 4.5 below already documents; an empty result means an uncommitted/brand-new record — treat as fresh). Same three-band scale used throughout this file:
+
+| Age | Classification |
+|-----|---------------|
+| < 2 weeks | Fresh |
+| 2-4 weeks | Review |
+| > 4 weeks | Stale |
+
+### Shape 1 — backlog record stale
+
+`facets.stage === 'backlog'` — no stage label (`github-issues`) or no `stage:` frontmatter (`local-files`); the default state, per `_shared/work-record.md`'s lifecycle spine. Classify by the staleness clock above:
+
+| Age | Default Recommendation |
+|-----|----------------------|
+| Fresh | Keep |
+| Review | Keep (unless clearly stale) |
+| Stale | Delete or Promote |
+
+→ Collect each as: `[backlog] {title} — {age} — {recommendation}`
+
+### Shape 2 — parked trigger met
+
+`facets.stage === 'parked'`. Judge the trigger live — the same evidence `_shared/github-pr-scan.md`'s `repo-wide` scope and the Evidence tier (`SKILL.md` Step 6) already read, so this shape and those procedures never disagree:
+
+| Trigger status | Default Recommendation |
 |---------------|----------------------|
-| Date-shaped trigger, date has passed | Promote to spec or merge |
-| Path-shaped trigger, a named path has changed since `**Deferred:**` (per `git log`) | Promote to spec or merge |
-| Trigger not met (future date, or named paths unchanged), < 4 weeks since `**Deferred:**` | Keep |
-| Trigger not met, > 4 weeks | Re-evaluate or delete |
-| Prose trigger, no clear date/path condition | Move to inbox stage or delete |
+| Milestone attached, `milestoneDueOn` is in the past | Promote (re-run `/claude-tweaks:specify`) |
+| A `**Watched paths:**` line in the body names a path with a matching commit since the record was parked (per `git log`) | Promote |
+| Neither trigger met, parked < 4 weeks | Keep |
+| Neither trigger met, parked > 4 weeks | Re-evaluate or delete |
+| Prose-only trigger, no clear date/path condition | Judge live each sweep — Keep, or move back to backlog state |
 
-→ Collect each as: `[deferred] {title} — from spec {N} — {recommendation}`
+→ Collect each as: `[parked] {title} — {recommendation}`
 
-**`backlog-backend: github-issues`:** the GitHub-side inbox and parked scans run inside Step 4.8's `repo-wide` backlog-issues query instead (one query shared across both stages, split client-side) — this step does not re-query GitHub. Instead, read every `specs/backlog/*.md` file and flag any found as unsynced — under this backend, a local backlog entry existing at all means an issue-creation write failed or a migration was declined, per the Resilient local fallback design:
+`local-files`: the same trigger lives as body prose — `local-store.js`'s facet schema carries no dedicated trigger/milestone/watched-paths keys, so a locally parked record's `**Trigger:**` (and, when file-shaped, `**Watched paths:**`) line is read straight out of the record body, judged exactly the same way.
+
+### Shape 3 — unsynced local record
+
+`work-backend: github-issues` only. Every record `/tmp/tidy-unsynced.json` returned (`facets.unsynced === true`) is a local fallback from a failed GitHub write — `/claude-tweaks:capture`'s or `/claude-tweaks:specify`'s failure path (`_shared/work-record.md`). This is F9 from the program promise register: it covers `specs/{id}-{slug}.md` records with `unsynced: true` facets, exactly the artifact `/capture` and `/specify` already promise `/tidy` reconciles.
 
 → Collect each as: `[unsynced] {title} — local-only, not yet mirrored to GitHub — Sync to GitHub`
 
-No entries in `specs/backlog/` (missing or empty directory) produces no findings.
+### Shape 4 — ready record missing scoring
 
-## Step 2: Audit Existing Specs
+`facets.stage === 'ready'` and (`facets.risk === null` or `facets.effort === null`). Labels are projection, not truth (`_shared/work-record.md`) — a `ready` record reaching this state without scoring usually means the label was hand-added on GitHub rather than stamped by `/claude-tweaks:specify`'s Shaping mode or a health skill's born-ready filing. `/claude-tweaks:triage`'s own Step 2 would flag the identical gap reactively when it next pulls the `ready` queue; this surfaces it proactively during hygiene instead of waiting for a triage run.
 
-Read `specs/INDEX.md` and all spec files. For each spec, do a lightweight scan:
-- Search for key files, endpoints, tests mentioned in the spec
-- Estimate completion: `not started`, `in progress (~X%)`, `mostly done (~90%+)`, `appears complete`
+→ Collect each as: `[scoring] {title} — missing {risk|effort|both} — flag for scoring (/claude-tweaks:specify re-stamps it)`
 
-Flag specs that need attention:
-- **Appears complete, not reviewed** → recommend `/claude-tweaks:review {N}`
-- **Appears complete, reviewed but not wrapped up** → recommend `/claude-tweaks:wrap-up {N}`
-- **In progress for 4+ weeks** → recommend resuming `/claude-tweaks:build` or re-evaluating scope
-- **Unmet prerequisites that are themselves stale** → recommend re-prioritizing the blocking spec
-- **Overlaps significantly with another spec** → recommend merging
+### Shape 5 — `bot:blocked` needing re-triage
 
-Check dependency health: circular dependencies, specs blocked by unstarted specs, orphan specs.
+`facets.bot.blocked === true` (`work-backend: github-issues` only — the local driver carries no bot state). The record hit its retry ceiling (`_shared/issue-claims.md`, `dispatch/SKILL.md`'s Settle step) and needs a human's renewed judgment at `/claude-tweaks:triage` before it can re-enter the autonomous queue.
 
-→ Collect each as: `[spec] Spec {N}: {title} — {issue} — {recommendation}`
-→ Collect each as: `[dependency] {issue} — {recommendation}`
+→ Collect each as: `[blocked] {title} — hit its retry ceiling — re-authorize at /claude-tweaks:triage`
+
+### Shape 6 — flagged code demonstrably gone
+
+Not scanned here. This is Step 4.8's code-health/harness-health/journey-health issue judgment (`_shared/github-pr-scan.md`'s `repo-wide` scope, items 3/5/6) together with the Evidence tier's fourth row (`SKILL.md` Step 6) — both unchanged by this merge. It's listed in this file only so the seven finding shapes the record-scan design replaces (former Steps 1 and 2, plus former Step 4.8's backlog-issue item) stay documented in one place; the mechanics that actually judge "is the flagged code gone" continue to live where they already did.
+
+### Shape 7 — legacy taxonomy present
+
+`work-backend: github-issues` only. Scan the RAW `labels` array (not the parsed facets, which silently drop anything they don't recognize) for any label matching the retired families: `tier:*` (the pre-grants three-tier vocabulary — needs-review, approved, fast-track), `status:*` (the pre-grants bot-state vocabulary — blocked, and the state now mirrored by the claim ref instead of a label), or `backlog`-era labels (the bare `backlog` label plus its `backlog:category-*`/`backlog:priority-*` sub-labels). A record carrying any of these is invisible to the current grants pipeline — `/claude-tweaks:triage` only ever reads/writes the current six-axis vocabulary (see its own Relationship table), so a pre-6.0 record stuck on the old labels never surfaces at the gate on its own.
+
+This is a **read-only flag** — `/tidy` never relabels it. A dedicated migration plan does the relabeling; this finding exists so a pre-6.0 record can never be silently orphaned in the meantime.
+
+→ Collect each as: `[legacy] #{n}: {title} — carries {label list} — retired vocabulary, invisible to the grants pipeline — needs migration/re-triage`
 
 ## Step 3: Audit Design Docs and Briefs
 
@@ -165,15 +218,21 @@ batch approval — breaking a lock is never autonomous in /tidy.
 
 ### Backstop: missed `parked` restoration
 
-Find specs still on disk that were promoted from a `parked` issue but never got the
-restoration finished — a defense-in-depth flag for a mutation that silently failed at claim
-release (Phase 3), same shape as the already-drafted `status:in-progress` missed-removal
-backstop below. Both checks below are flagged only — recommendations execute after Step 6
-batch approval, same as every other Step 4.7 mutation.
+Find materialized build-time headers (`flow/materialize.md`) that recorded `parked-at-shaping:
+true` but never got the restoration finished — a defense-in-depth flag for a mutation that
+silently failed at claim release (`wrap-up/cleanup-procedures.md` Section E, step 7), same shape
+as the `bot:in-progress` missed-removal backstop below. Both checks below are flagged only —
+recommendations execute after Step 6 batch approval, same as every other Step 4.7 mutation.
+
+Materialized headers are committed, never gitignored (`flow/materialize.md`'s "Committed as
+audit trail" section), so they survive on disk at `.claude-tweaks/pipelines/**/work/*-spec.md`
+(single-record runs) and `.claude-tweaks/pipelines/**/spec-*/work/*-spec.md` (multi-record
+runs) — in both live and archived (`.claude-tweaks/pipelines/archive/`) run directories:
 
 ```bash
-grep -l "^recon-was-parked: true$" specs/*.md 2>/dev/null | while read -r spec; do
-  n=$(grep -m1 "^recon-issue:" "$spec" | sed 's/^recon-issue: *//')
+find .claude-tweaks/pipelines -path "*/work/*-spec.md" 2>/dev/null | while read -r header; do
+  grep -q "^parked-at-shaping: true$" "$header" || continue
+  n=$(grep -m1 "^record:" "$header" | sed 's/^record: *//')
   [ -z "$n" ] && continue
   gh issue view "$n" --json state,labels,closedByPullRequestsReferences
 done
@@ -185,47 +244,51 @@ already reads from the PR side via `gh pr view --json`.)
 
 For each result: flag as a likely missed restoration when the issue is `OPEN`, its labels do
 not include `parked`, `closedByPullRequestsReferences` is empty (no linked PR, open or
-merged), and it has no active claim (cross-reference against this step's own claim listing
-above — `claimed && !stale` for `refs/claims/issue-{n}`). Recommend the same
-`gh issue edit {n} --add-label parked` command the release step itself would run.
+merged — a linked PR means the outcome was `merged:`/`pr-opened:`, where skipping restoration
+is correct behavior, not a missed one), and it has no active claim (cross-reference against
+this step's own claim listing above — `claimed && !stale` for `refs/claims/issue-{n}`).
+Recommend the same `gh issue edit {n} --add-label parked` command the release step itself
+would run.
 
-→ Collect each as: `[claim] issue #{n} — spec {spec} has recon-was-parked: true, no parked label, no active claim, no linked PR — likely missed parked restoration`
+→ Collect each as: `[claim] issue #{n} — materialized header {path} has parked-at-shaping: true, no parked label, no active claim, no linked PR — likely missed parked restoration`
 
-### Backstop: missed `status:in-progress` removal
+### Backstop: missed `bot:in-progress` removal
 
 ```bash
-gh issue list --label status:in-progress --state open --json number,title -q '.[] | "\(.number) \(.title)"'
+gh issue list --label bot:in-progress --state open --json number,title -q '.[] | "\(.number) \(.title)"'
 ```
 
 For each result, cross-reference against this step's own claim listing above: flag as a likely
-missed removal when the issue carries `status:in-progress` but has no active claim
-(`claimed && !stale`) for its number. Recommend the same
-`gh issue edit {n} --remove-label status:in-progress` command the release step itself would run.
+missed removal when the issue carries `bot:in-progress` but has no active claim (`claimed &&
+!stale`) for its number. Recommend the same `gh issue edit {n} --remove-label bot:in-progress`
+command the release step itself would run.
 
-→ Collect each as: `[claim] issue #{n} — status:in-progress present, no active claim — likely missed status:in-progress removal`
+→ Collect each as: `[claim] issue #{n} — bot:in-progress present, no active claim — likely missed bot:in-progress removal`
 
 ## Step 4.8: Audit GitHub PRs and Issues
 
 Scan per `_shared/github-pr-scan.md`, **`repo-wide`** scope. The dispatcher inlines that file's Detection Ladder, `repo-wide` scope section (including its findings table), and Output Contract into this agent's prompt. The detection ladder makes this fail-open — skip with a single info row when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
 
-The `repo-wide` findings table maps each finding to a recommendation from the Action Vocabulary: stale/superseded open PRs → Close (GitHub); threads addressed by later commits → Resolve thread; unaddressed threads and still-valid code-health or harness-health issues → Capture or a suggested local command; merged PRs with surviving local branches → corroborates Step 4.5 `[git]` rows (the dispatcher merges overlapping recommendations at assembly).
+The `repo-wide` findings table maps each finding to a recommendation from the Action Vocabulary: stale/superseded open PRs → Close (GitHub); threads addressed by later commits → Resolve thread; unaddressed threads → Capture or a suggested local command; still-valid vs. superseded code-health, harness-health, and journey-health issues → Close (GitHub) when the flagged code is demonstrably gone (Shape 6 above / Evidence tier row 4, when evidence-qualified) or a suggested `/claude-tweaks:triage` run when still valid; merged PRs with surviving local branches → corroborates Step 4.5 `[git]` rows (the dispatcher merges overlapping recommendations at assembly). Backlog-record findings (stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) are Step 1's job now, not this step's — `repo-wide` no longer queries the `backlog` label (see `_shared/github-pr-scan.md`).
 
 GitHub mutations recommended here (Close (GitHub), Resolve thread) execute only after Step 6 batch approval and are staged at every aggressiveness level in auto mode — outward-facing actions are never autonomous in /tidy.
 
 → Collect each as: `[pr] PR #{n}: {title} — {issue} — {recommendation}`
 → Collect each as: `[gh-issue] #{n}: {title} — {issue} — {recommendation}`
 
-## Step 5: Spec Sizing Review
+## Step 5: Record Sizing Review
 
-For specs not yet built, check sizing:
+For `ready` records not yet claimed — `facets.bot.inProgress === false` (from Step 1's already-fetched facets under `work-backend: github-issues`; every `ready` local record qualifies, since the local driver carries no bot state) — fetch each body and check sizing:
 
-- **Too large** (10+ tasks): recommend splitting
-- **Too small** (1-2 trivial tasks): recommend merging with a related spec
-- **Too vague** (no concrete deliverables or acceptance criteria): recommend re-specifying
+- **Too large** (10+ tasks implied by Deliverables/Acceptance Criteria): recommend splitting
+- **Too small** (1-2 trivial tasks): recommend absorbing into a related record
+- **Too vague** (no concrete deliverables or acceptance criteria): recommend re-running `/claude-tweaks:specify {ref}` to re-shape it
+
+→ Collect each as: `[sizing] {ref}: {title} — {issue} — {recommendation}`
 
 ## Step 5.5: Cross-Spec Pattern Detection
 
-Scan recent git history for recurring findings across review summaries and wrap-up reflections. Patterns that appear in 2+ specs signal systemic issues worth addressing at the project level rather than per-spec.
+Scan recent git history for recurring findings across review summaries and wrap-up reflections. Patterns that appear in 2+ specs signal systemic issues worth addressing at the project level rather than per-spec. This step is self-contained via git log — it does not depend on Step 1's record scan.
 
 ### How to scan
 
@@ -241,16 +304,16 @@ Scan recent git history for recurring findings across review summaries and wrap-
 | Same finding category in 3+ reviews | "Convention: import from shared package" in specs 41, 43, 45 | Add rule to CLAUDE.md or `.claude/rules/` |
 | Same file flagged across specs | `src/utils/validate.ts` modified and reviewed in 4 specs | Refactor — this file may be a responsibility magnet |
 | Same gotcha rediscovered | "Use upsert not delete+insert" in 3 spec Gotchas | Add to CLAUDE.md as a project convention |
-| Recurring deferred items with similar themes | "Add error boundary" deferred in 3 specs | Promote to its own spec — it's not going away |
+| Recurring deferred items with similar themes | "Add error boundary" deferred in 3 specs | Promote to its own record — it's not going away |
 | Same Design Quality category recurring in 3+ reviews | "component" findings in specs 41, 44, 47's Design Quality sections (a card/button/layout pattern reimplemented each time) | Run `/impeccable:impeccable extract` — this pattern is being reimplemented, not reused |
 
 → Collect each as: `[pattern] {description} — seen in {spec list} — {recommendation}`
 
 ### Project Health Summary
 
-When 3+ specs have been completed (check INDEX.md for completed entries or git log for wrap-up commits), include a brief project health summary in the tidy report:
+When 3+ specs have shipped (`git log --all --oneline --grep="wrap-up" --since="8 weeks ago"`, or the same commit window this step's own scan above already searched), include a brief project health summary in the tidy report:
 
-1. **Velocity** — count completed specs vs. in-progress vs. not-started
+1. **Velocity** — count shipped (git log for wrap-up/merge commits) vs. `ready`-or-building vs. `backlog`/`parked` (the latter two from Step 1's facet counts, when Step 1 is in scope)
 2. **Recurring themes** — conventions worth codifying if they appear in 3+ specs' wrap-up reflections
 3. **Convention candidates** — suggest: "This pattern shows up in {N} specs — consider adding to CLAUDE.md: `{pattern}`"
 
@@ -264,6 +327,6 @@ Patterns and health observations are informational — they surface systemic iss
 
 | Collection prefix | Renders in Step 6 table | Notes |
 |---|---|---|
-| `[inbox]`, `[deferred]`, `[unsynced]`, `[spec]`, `[dependency]`, `[doc]`, `[plan]`, `[git]`, `[registry]`, `[claim]`, `[pr]`, `[gh-issue]` | Actions table | Each row gets a pre-filled recommendation. |
+| `[backlog]`, `[parked]`, `[unsynced]`, `[scoring]`, `[blocked]`, `[legacy]`, `[doc]`, `[plan]`, `[git]`, `[registry]`, `[claim]`, `[pr]`, `[gh-issue]`, `[sizing]` | Actions table | Each row gets a pre-filled recommendation. |
 | `[pattern]` | Cross-Spec Patterns table | Informational; presented separately. |
 | `[health]` | Summary section | Project-level observations. |
