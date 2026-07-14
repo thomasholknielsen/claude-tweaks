@@ -84,6 +84,7 @@
 - Diagnostic label appended AFTER recordPayload's labels (order: canonical labels first, diagnostic last).
 - Body: unchanged except the hand-built `harness-health-fingerprint` marker line is removed (recordPayload appends work-fingerprint).
 - SKILL.md: state the classification→scoring fold table LITERALLY (a markdown table: additive → risk:low + effort:low; restructural → risk:medium + effort:high; new-skill → unscored); born-ready statement; bootstrap-only-applied-labels; work-record.md reference; wontfix + dual-marker suppression sentence (legacy marker: `harness-health-fingerprint`, read via `extractFingerprint`); Step 7's consumers of the preserved fields are untouched — verify Step 7's field names still all exist in the payload (list them in your report).
+- SKILL.md filing step must also document the **Type expression branch** (per `_shared/work-record.md`'s config-key table): when the project's `work-types` key reads `native`, apply the payload's `type` via GitHub's native Issue Type; when `labels`, add the matching `type:task` label (pair from `record.js`'s `TYPE_LABELS`). One short paragraph + the branch shown in the filing snippet.
 
 - [ ] **Step 1 (RED)** → **Step 2 (GREEN)** → **Step 3 (SKILL.md + skill-md tests)** → **Step 4 (suite + greps as Task 2, harness-health paths)** — also `grep -n "not pulled by\|never pulled by" skills/harness-health/SKILL.md` → 0.
 - [ ] **Step 5: Commit** — `Move harness-health filing onto recordPayload — classification folds into scoring axis, born-ready`
@@ -123,7 +124,7 @@ The condition described above is resolved: a fresh `/claude-tweaks:journey-healt
 
 - recordPayload call: `{title, body, type, origin:'journey-health', risk: SEVERITY_TO_RISK[finding.severity], effort:'medium', ready:true, fingerprint: finding.id}` with `SEVERITY_TO_RISK = { high:'high', med:'medium', low:'low' }` (colon labels come from recordPayload — pass tier words only). Unknown severity → let recordPayload's validation throw (surfaces bad data early).
 - Drop the `journey-health:{severity}` label; keep `journey-health:{category}` as the one diagnostic (appended after canonical labels).
-- SKILL.md: DELETE every "not pulled by /triage" / "deliberately outside triage" carve-out; state pipeline membership ("records enter the same gate worklist as the other producers"); severity→risk + effort:medium + Type mapping tables literal; born-ready; bootstrap-only-applied; work-record.md reference; wontfix + dual-marker sentence (legacy `journey-health-fingerprint`).
+- SKILL.md: DELETE every "not pulled by /triage" / "deliberately outside triage" carve-out; state pipeline membership ("records enter the same gate worklist as the other producers"); severity→risk + effort:medium + Type mapping tables literal; born-ready; bootstrap-only-applied; work-record.md reference; wontfix + dual-marker sentence (legacy `journey-health-fingerprint`); the Type expression branch paragraph (`work-types: native` → native Issue Type; `labels` → `type:bug`/`type:task` label from TYPE_LABELS) in the filing step.
 
 - [ ] **Step 1 (RED)** → **Step 2 (GREEN)** → **Step 3 (SKILL.md + skill-md tests)** → **Step 4:** suite green + `grep -n "not pulled by /triage\|never pulled by" skills/journey-health/SKILL.md` → 0 + `grep -c "## Current State" bin/lib/journey-health/issue-payload.js` ≥ 1.
 - [ ] **Step 5: Commit** — `Move journey-health filing onto recordPayload — spec-shaped body, severity folds to risk, joins the gate pipeline`
@@ -150,6 +151,6 @@ for f in skills/code-health/SKILL.md skills/harness-health/SKILL.md skills/journ
 node -e "const ch=require('./bin/lib/code-health/issue-payload.js'); const p=ch.toIssuePayloadV2({id:'x',criterion:'c',risk:'low',severity:'medium',likelihood:'l',effort:'low',confidence:'high',areaId:'a',anchor:'f.js',title:'t',evidence:'e',suggestedApproach:'s',acceptance:'a'}); const L=p.labels; console.log(JSON.stringify(L)); if(L.filter(x=>x.startsWith('by:')).length!==1||!L.includes('ready')) throw new Error('AC2 fail')"
 ```
 
-- [ ] **Step 2:** Fix findings (scope: spec-15 files only), re-run until clean.
+- [ ] **Step 2:** Fix findings (scope: spec-15 files only), re-run until clean. Additional sweep item: `for f in skills/code-health/SKILL.md skills/harness-health/SKILL.md skills/journey-health/SKILL.md; do grep -q "work-types" "$f" || echo "MISSING Type-branch doc: $f"; done` — every filing section documents the Type expression branch; add the paragraph to `skills/code-health/SKILL.md` (Task 2 predates this check) if missing.
 - [ ] **Step 3:** Resolve run-ledger item 2: edit `docs/plans/2026-07-14-unified-work-record-ledger.md` row 2 status `open` → `fixed`, resolution `auto-mode-contract exemption note + SKILL.md born-ready statements — {commit}`.
 - [ ] **Step 4: Commit** — `Fix spec-15 acceptance sweep findings — ledger item 2 resolved`
