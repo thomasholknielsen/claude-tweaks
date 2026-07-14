@@ -333,13 +333,13 @@ Before creating leaf records, run frontend detection and two design pre-steps wh
 
 For non-frontend design docs (no frontend signals detected), skip this step entirely — set `surface: backend` (or `infra`) on each generated spec; do not write `design-intent:`.
 
-## Step 2.5d: Diagram Suggestion (all specs)
+## Step 2.5d: Diagram Suggestion (all surfaces)
 
 **Unlike Step 2.5, this runs for every surface** — architecture, ER, sequence, and state diagrams help backend and infra specs equally.
 
 Read the `diagram-suggestions` flag from CLAUDE.md (written by `/init` Step 11). When the flag is `disabled` or missing, skip this step silently.
 
-When `enabled`, scan the design doc text + decomposed spec titles for structural signals. Use this detection table:
+When `enabled`, scan the design doc text + decomposed record titles for structural signals. Use this detection table:
 
 | Signal in design doc | Diagram type (suggest) |
 |----------------------|------------------------|
@@ -350,7 +350,7 @@ When `enabled`, scan the design doc text + decomposed spec titles for structural
 | 3+ system components / boxes in a layout (microservices, layers, gateways) | `architecture` |
 | Parent-child taxonomy with 2+ levels (categories → subcategories → items) | `tree` |
 
-Emit at most **two** recommendations per design doc — the two strongest matches. Skip emission entirely if no signal matches (trivial specs and refactors should not trigger the hook).
+Emit at most **two** recommendations per design doc — the two strongest matches. Skip emission entirely if no signal matches (trivial records and refactors should not trigger the hook).
 
 For each emitted recommendation:
 
@@ -370,7 +370,7 @@ Records are created **parent-first**: the parent's number has to exist before an
 
 ### Idempotency (resume path)
 
-Every record this step creates carries a deterministic fingerprint: `{design-doc-slug}:parent` for the parent, `{design-doc-slug}:{unit-slug}` for each leaf. The same design doc always produces the same fingerprint for the same record — that determinism is what makes the check below a real resume path instead of a one-shot guard.
+Every record this step creates carries a deterministic fingerprint: `{design-doc-slug}:parent` for the parent, `{design-doc-slug}:{unit-slug}` for each leaf. The same design doc always produces the same fingerprint for the same record — that determinism is what makes the check below a real resume path instead of a one-shot guard. **A unit slug must never be the literal string `parent`** — that value is reserved for the parent record's own fingerprint; a leaf slugified to `parent` would collide with it in the map below.
 
 Before creating anything, build a fingerprint→number map of every existing marker, once:
 

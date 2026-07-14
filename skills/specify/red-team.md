@@ -54,4 +54,4 @@ After all three agents return, write findings back into the record body:
    ```
    Write each entry **after** the record body is updated — if the write-back fails, the decision-log should not lie about what happened.
 
-Red-team runs on every generated leaf record regardless of `surface:` — the lens questions are artefact-agnostic. The user (or Step 6 Self-Review) decides what to do with each finding. There is no mid-flow stop here.
+Red-team runs on every generated leaf record regardless of `Surface:` — the lens questions are artefact-agnostic. The user (or Step 6 Self-Review) decides what to do with each finding. There is no mid-flow stop here.

@@ -295,7 +295,7 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 |-------|-------------|
 | `/claude-tweaks:capture` | Feeds backlog records that /claude-tweaks:challenge can debias |
 | `/superpowers:brainstorming` | Consumes the Brainstorming Brief — explores *within* the debiased frame |
-| `/claude-tweaks:specify` | Downstream — converts brainstorming output into specs |
+| `/claude-tweaks:specify` | Downstream — shapes records / decomposes designs into ready leaf records |
 | `/claude-tweaks:help` | Flags backlog records with baked-in assumptions as candidates for /claude-tweaks:challenge |
 | `/claude-tweaks:research` | Back debiasing lenses with evidence — `/research` produces citation-audited reports that can ground a challenge. |
 | `_shared/decision-records.md` | /challenge tags hard-to-reverse framing decisions `[ADR-candidate]` in the brief; /wrap-up Step 6.3 applies the 3-factor gate and records the survivors. |

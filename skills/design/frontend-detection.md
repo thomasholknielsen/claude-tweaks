@@ -1,10 +1,10 @@
-# Frontend Detection — Sniff Rules + Frontmatter Spec
+# Frontend Detection — Sniff Rules + Body-Metadata Spec
 
-Reference for the wrapper's 3-layer detection logic. Layer 3 (file-extension sniff) is detailed here. Layer 2 reads the `surface:` frontmatter field, which Phase 1 does not write but does read for forward-compat (Phase 2 will write it).
+Reference for the wrapper's 3-layer detection logic. Layer 3 (file-extension sniff) is detailed here. Layer 2 reads the record's `Surface:` body-metadata line (lifted into the materialized build header — spec 20), which Phase 1 does not write but does read for forward-compat (Phase 2 will write it).
 
 ## Layer 3 — File-extension sniff (fallback)
 
-When neither the CLAUDE.md kill-switch nor spec frontmatter resolves the question, fall back to inspecting the changed files directly. Any file matching either a trigger extension or a trigger path pattern marks the diff as "frontend."
+When neither the CLAUDE.md kill-switch nor the record's `Surface:` body-metadata line resolves the question, fall back to inspecting the changed files directly. Any file matching either a trigger extension or a trigger path pattern marks the diff as "frontend."
 
 ### Trigger extensions
 
@@ -62,17 +62,17 @@ A backend project that touches only `.ts`/`.js` files outside `/components/`, `/
 - **Storybook files** (`.stories.tsx`, `.stories.ts`) — the `.tsx` matches; `.ts` only matches if path contains a trigger segment. Both are correct treatment (frontend if component-adjacent).
 - **Test files** (`.test.tsx`, `.spec.tsx`) — match via `.tsx` extension. This is correct — test files describe UI behavior.
 - **Type-only files** (`.d.ts`) — do not match. Correct — they don't render.
-- **CSS-in-JS via `.ts`** — do not match unless the path contains a trigger segment. This is a known false-negative; the `surface:` frontmatter is the explicit override.
+- **CSS-in-JS via `.ts`** — do not match unless the path contains a trigger segment. This is a known false-negative; the record's `Surface:` body-metadata line is the explicit override.
 
-## Layer 2 — Frontmatter spec (read by wrapper, written by `/specify`)
+## Layer 2 — Body-metadata lines (read by wrapper via the materialized build header — spec 20; written by `/specify`)
 
-Spec files in `specs/*.md` may declare two design-related frontmatter fields: `surface:` and `design-intent:`. `/specify` writes both on every new spec. The wrapper reads `surface:` for Layer 2 detection and `design-intent:` for `polish` mode's intent-driven dispatch.
+Every leaf record may declare two design-related body-metadata lines: `Surface:` and `Design-intent:`. `/specify` writes both on every new leaf record. The wrapper reads `Surface:` for Layer 2 detection and `Design-intent:` for `polish` mode's intent-driven dispatch — both lifted into the materialized build header at build time (spec 20's contract).
 
-**The canonical definition of these fields lives in the spec template** at `skills/specify/spec-template.md` (see the "Frontmatter reference (canonical spec)" section). Both the wrapper (which reads the fields) and `/specify` (which writes them) reference that single source of truth — do not duplicate the value enumerations across multiple files.
+**The canonical definition of these fields lives in the spec template** at `skills/specify/spec-template.md` (see the body-metadata block description near the top of the fenced template). Both the wrapper (which reads the fields) and `/specify` (which writes them) reference that single source of truth — do not duplicate the value enumerations across multiple files.
 
-For Layer 2 detection, see `surface:` values in `skills/specify/spec-template.md` (canonical source). Wrapper behavior: `frontend` or `mixed` → pass Layer 2 (Layer 3 sniff still runs to filter the file list); `backend` or `infra` → skip with `{skipped: "non-frontend spec (surface declared)"}`; missing → fall through to Layer 3 sniff.
+For Layer 2 detection, see `Surface:` values in `skills/specify/spec-template.md` (canonical source). Wrapper behavior: `web`, `mobile`, or `desktop` → pass Layer 2 (Layer 3 sniff still runs to filter the file list; legacy `frontend` reads as `web`); `backend` or `infra` → skip with `{skipped: "non-frontend spec (surface declared)"}`; missing → fall through to Layer 3 sniff.
 
-`design-intent:` is not read in Layer 2 — it gates intent-driven command dispatch in `polish` mode. See the spec template's frontmatter reference for its enumeration.
+`Design-intent:` is not read in Layer 2 — it gates intent-driven command dispatch in `polish` mode. See the spec template's body-metadata block description for its enumeration.
 
 ## Detection precedence summary
 
@@ -84,11 +84,11 @@ CLAUDE.md design-integration flag (Layer 1)
     └─ enabled / plugin-only → continue
                                    │
                                    ▼
-            Spec frontmatter surface: (Layer 2, only if spec input)
+            Surface: body-metadata line (Layer 2, only if spec input)
                                    │
-                                   ├─ backend / infra  → skip
-                                   ├─ frontend / mixed → continue
-                                   └─ missing          → continue (fall through)
+                                   ├─ backend / infra        → skip
+                                   ├─ web / mobile / desktop → continue
+                                   └─ missing                → continue (fall through)
                                                           │
                                                           ▼
                                 File-extension sniff (Layer 3)

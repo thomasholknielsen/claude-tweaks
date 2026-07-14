@@ -15,7 +15,7 @@ Wrapper skill that encapsulates the Impeccable design-quality plugin behind a st
                                 ^^^^ YOU ARE HERE ^^^^
 ```
 
-All six modes are active (`test`, `review`, `shape`, `pre-build`, `polish`, `survey`) plus the `reset-recommendations` cache utility. The wrapper skips cleanly on non-frontend specs and missing dependencies. `polish` dispatches three categories — auto-fit, issue-driven, and intent-driven (the latter reads `design-intent:` frontmatter and dispatches creative commands per `command-map.md`). `survey` analyzes rendered UI or the full diff and produces ranked Creative Opportunities recommendations consumed by `/visual-review` and `/flow`'s pipeline summary.
+All six modes are active (`test`, `review`, `shape`, `pre-build`, `polish`, `survey`) plus the `reset-recommendations` cache utility. The wrapper skips cleanly on non-frontend specs and missing dependencies. `polish` dispatches three categories — auto-fit, issue-driven, and intent-driven (the latter reads the record's `Design-intent:` body-metadata line — lifted into the materialized build header per spec 20 — and dispatches creative commands per `command-map.md`). `survey` analyzes rendered UI or the full diff and produces ranked Creative Opportunities recommendations consumed by `/visual-review` and `/flow`'s pipeline summary.
 
 **Three independent surfacing anchors** ensure creative commands cannot get buried:
 
@@ -45,7 +45,7 @@ All six modes are active (`test`, `review`, `shape`, `pre-build`, `polish`, `sur
 | `pre-build <spec>` | Spec number or path | Lazy-loads relevant Impeccable reference files plus project's root `PRODUCT.md` + `DESIGN.md` (when present); returns the loaded file paths and an approximate context size |
 | `test <files>` | Space-separated file list | Runs `npx impeccable detect --fast --json` on the files; returns pass/fail |
 | `review <spec>` | Spec number or path | Invokes `/impeccable:impeccable critique` + `/impeccable:impeccable audit` on changed UI files; returns advisory findings; writes findings cache for `polish` mode to read |
-| `polish <spec>` | Spec number or path | Dispatches auto-fit (`polish`/`clarify`/`harden`) + issue-driven (`typeset`/`layout`/`adapt`/`optimize`) + intent-driven (per `design-intent:` frontmatter) commands per `command-map.md`; modifies code |
+| `polish <spec>` | Spec number or path | Dispatches auto-fit (`polish`/`clarify`/`harden`) + issue-driven (`typeset`/`layout`/`adapt`/`optimize`) + intent-driven (per the record's `Design-intent:` body-metadata line, lifted into the materialized build header — spec 20) commands per `command-map.md`; modifies code |
 | `survey <files>` | Space-separated file list, or `--screenshots <paths>` when invoked from `/visual-review` | Analyzes the diff (and screenshots when provided) and returns ranked Creative Opportunities recommendations; suppresses recommendations the user previously declined for the same spec; read-only |
 | `reset-recommendations <spec>` | Spec number or path | Deletes the declined-recommendations cache for the spec; the next `survey` call surfaces all matching recommendations again |
 
@@ -76,17 +76,17 @@ Read the project's CLAUDE.md and look for a `design-integration` field (typicall
 | `disabled` | Return `{skipped: "design integration disabled"}` immediately |
 | *(missing)* | Treat as `disabled` — return `{skipped: "design integration not configured (run /claude-tweaks:init to enable)"}` |
 
-**Layer 2 — Spec frontmatter (if spec input present):**
+**Layer 2 — Body-metadata lines (via the materialized build header — spec 20; if spec input present):**
 
-When the mode received a spec number or path, read that spec's YAML frontmatter and look for a `surface:` field. Values:
+When the mode received a spec number or path, read the record's `Surface:` body-metadata line (lifted into the materialized build header — spec 20). Values:
 
 | Value | Behavior |
 |-------|----------|
-| `frontend`, `mixed` | Proceed to Layer 3 (sniff still confirms changed files) |
+| `web`, `mobile`, `desktop` | Proceed to Layer 3 (sniff still confirms changed files; legacy `frontend` reads as `web`) |
 | `backend`, `infra` | Return `{skipped: "non-frontend spec (surface declared)"}` |
 | *(missing)* | Fall through to Layer 3 |
 
-`/specify` writes `surface:` on every new spec. Pre-v4.5 specs lack the field; absent values are normal and gracefully fall through to Layer 3.
+`/specify` writes `Surface:` (a body-metadata line, lifted into the materialized build header — spec 20) on every new leaf record. Pre-v4.5 specs lack the field; absent values are normal and gracefully fall through to Layer 3.
 
 **Layer 3 — File-extension sniff (fallback):**
 
@@ -144,7 +144,7 @@ Lazy-loads Impeccable reference files plus the project's `PRODUCT.md` + `DESIGN.
 
 ### Mode: `polish <spec>` — Active
 
-Dispatches three categories: auto-fit (`polish`/`clarify`/`harden`), issue-driven (`typeset`/`layout`/`adapt`/`optimize`), and intent-driven (`bolder`/`quieter`/`distill`/`delight`+`animate`/`onboard`, dispatched per the spec's `design-intent:` frontmatter). **The only wrapper mode that modifies code** — callers must follow up with re-verification. See `command-map.md` in this skill's directory for the dispatch tables (auto-fit list, issue-driven category matching, intent-driven mapping). Read `modes/polish.md` in this skill's directory for the full procedure.
+Dispatches three categories: auto-fit (`polish`/`clarify`/`harden`), issue-driven (`typeset`/`layout`/`adapt`/`optimize`), and intent-driven (`bolder`/`quieter`/`distill`/`delight`+`animate`/`onboard`, dispatched per the record's `Design-intent:` body-metadata line, lifted into the materialized build header — spec 20). **The only wrapper mode that modifies code** — callers must follow up with re-verification. See `command-map.md` in this skill's directory for the dispatch tables (auto-fit list, issue-driven category matching, intent-driven mapping). Read `modes/polish.md` in this skill's directory for the full procedure.
 
 ### Mode: `survey <files>` — Active
 
@@ -173,7 +173,7 @@ Lazy-load these only when needed for the active mode:
 
 - `modes/{name}.md` — One file per mode (`test`, `review`, `shape`, `pre-build`, `polish`, `survey`), plus a procedure file for the `reset-recommendations` cache utility. Per-mode full procedure (steps, decision rules, output format).
 - `command-map.md` — Single source of truth for dispatch tables: auto-fit / issue-driven / intent-driven categorization for all 23 Impeccable commands, plus the survey "would help" criteria → command mapping.
-- `frontend-detection.md` — Trigger extensions and path patterns for Layer 3 sniff; pointer to the canonical `surface:` and `design-intent:` frontmatter spec (which lives in `skills/specify/spec-template.md`).
+- `frontend-detection.md` — Trigger extensions and path patterns for Layer 3 sniff; pointer to the canonical `Surface:`/`Design-intent:` body-metadata line values (which live in `skills/specify/spec-template.md`'s metadata-block description).
 - `impeccable-cli.md` — Exact CLI invocation, JSON output schema, parsing rules.
 
 ## Next Actions
@@ -234,7 +234,7 @@ This skill is a **component skill** (utility wrapper) — invoked by `/claude-tw
 | `/claude-tweaks:review` | Invokes `review` mode during code review. Findings appear as a "Design Quality" section in the review summary — advisory, not blocking. The `review` mode also writes an audit cache (`docs/plans/...-audit.json`) consumed by `polish`. |
 | `/claude-tweaks:build` | Invokes `pre-build` mode before implementation to lazy-load Impeccable references and project design context into the build subagent's context. |
 | `/claude-tweaks:flow` | Invokes `polish` mode in the polish phase between review and wrap-up (auto-fit + issue-driven + intent-driven). The polish phase modifies code; flow's re-verify gate runs `/test skip-qa` afterward. Flow's pipeline summary also invokes `survey` mode against the full diff to render the Creative Opportunities block. Flow handles decline detection by comparing the recommendations cache from the previous run against the new diff. |
-| `/claude-tweaks:specify` | Invokes `shape` mode as a pre-decomposition step on frontend design docs. Also asks the design-intent question and writes `surface:` + `design-intent:` frontmatter on every generated spec — the frontmatter `polish` mode reads for intent-driven dispatch. The full pre-step procedure lives in `specify/design-pre-steps.md`. |
+| `/claude-tweaks:specify` | Invokes `shape` mode as a pre-decomposition step on frontend design docs. Also asks the design-intent question and writes `Surface:` + `Design-intent:` body-metadata lines on every generated leaf record — lifted into the materialized build header (spec 20) that `polish` mode reads for intent-driven dispatch. The full pre-step procedure lives in `specify/design-pre-steps.md`. |
 | `/claude-tweaks:visual-review` | Invokes `survey` mode after browser review steps complete, passing screenshot paths via `--screenshots`. Renders the Creative Opportunities block in the visual review report. |
 | `/claude-tweaks:wrap-up` | Cleans up the wrapper's audit / recommendations / declined caches alongside the ledger during artifact cleanup. |
 | `/claude-tweaks:simplify` | Runs before `polish` mode in `/flow` (different phases — simplify is in build, polish is post-review) — `distill` is intent-only to avoid double-stripping with `/simplify`. /simplify reciprocally avoids the `distill` overlap by deferring distillation to /design polish when intent declares it. |
