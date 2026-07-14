@@ -27,6 +27,22 @@ test('recordPayload with origin omitted emits no by:* label and does not throw',
   assert.deepStrictEqual(result.labels, []);
 });
 
+test('recordPayload throws when title is missing', () => {
+  assert.throws(() => recordPayload({ body: 'b', type: 'task' }), /title/);
+});
+
+test('recordPayload throws when title is not a string', () => {
+  assert.throws(() => recordPayload({ title: 5, body: 'b', type: 'task' }), /title/);
+});
+
+test('recordPayload throws when body is missing', () => {
+  assert.throws(() => recordPayload({ title: 't', type: 'task' }), /body/);
+});
+
+test('recordPayload throws when body is not a string', () => {
+  assert.throws(() => recordPayload({ title: 't', body: 5, type: 'task' }), /body/);
+});
+
 test('recordPayload throws on unknown type; absence never throws', () => {
   assert.throws(() => recordPayload({ title: 't', body: 'b', type: 'epic' }), /bug|feature|task/);
 });
@@ -37,6 +53,14 @@ test('recordPayload throws on unknown origin', () => {
 
 test('recordPayload throws on unknown risk', () => {
   assert.throws(() => recordPayload({ title: 't', body: 'b', type: 'task', risk: 'critical' }), /risk/);
+});
+
+test('recordPayload throws on unknown effort', () => {
+  assert.throws(() => recordPayload({ title: 't', body: 'b', type: 'task', effort: 'gigantic' }), /effort/);
+});
+
+test('recordPayload throws on unknown priority', () => {
+  assert.throws(() => recordPayload({ title: 't', body: 'b', type: 'task', priority: 'urgent' }), /priority/);
 });
 
 test('recordPayload throws when both ready and parked are true', () => {
@@ -101,6 +125,16 @@ test('parseRecordFacets: ready + auto:build + bot:in-progress', () => {
   assert.deepStrictEqual(result.grants, { build: true, merge: false });
   assert.deepStrictEqual(result.bot, { inProgress: true, blocked: false });
   assert.strictEqual(result.origin, null);
+});
+
+test('parseRecordFacets: auto:build + auto:merge grants both build and merge', () => {
+  const result = parseRecordFacets(['auto:build', 'auto:merge']);
+  assert.deepStrictEqual(result.grants, { build: true, merge: true });
+});
+
+test('parseRecordFacets: bot:blocked sets bot.blocked without bot.inProgress', () => {
+  const result = parseRecordFacets(['bot:blocked']);
+  assert.deepStrictEqual(result.bot, { inProgress: false, blocked: true });
 });
 
 test('parseRecordFacets: empty label list', () => {

@@ -206,6 +206,8 @@ function matchesFilter(facets, facetFilter) {
 }
 
 // (dir, facetFilter) -> record[]. Scans NN-*.md files only, non-recursively.
+// Object-valued filters (e.g. grants) require the exact full shape —
+// {grants:{build:true}} matches nothing; pass the complete object.
 function queryRecords(dir = DEFAULT_DIR, facetFilter = {}) {
   const records = [];
   for (const name of listRecordFilenames(dir)) {
