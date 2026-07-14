@@ -126,10 +126,10 @@ The hook surface (`bin/hooks.js`, see CLAUDE.md Conventions → Hooks) mechanize
 
 ### Never-reversible (auto-FORBIDDEN, regardless of mode)
 
-- Deleting `specs/backlog/` entries
+- Closing or deleting work records
 - Closing ledger items as `fixed` / `accepted` / `dropped` (Phase 2 of the resolve gate)
 - `git push` to shared branches
-- Writing to `specs/backlog/`
+- Creating work records (filing new records on the user's tracker)
 - Network calls beyond reads (no API writes, no message sends)
 - Modifying CLAUDE.md project-policy values
 - Deleting specs
@@ -155,8 +155,8 @@ The hook surface (`bin/hooks.js`, see CLAUDE.md Conventions → Hooks) mechanize
 | Stories v1 detection (`/stories` Step 1) | Regenerate all / diff / cancel | Auto-skip migration; stage as "legacy stories detected" |
 | Story journey link suggestions (`/stories` Step 6) | Apply all / override | Auto-apply (mechanical mapping) |
 | Init Phase 3 classification | Confirm / override | Auto-confirm when detection confidence ≥ 0.8 and signals are consistent |
-| Capture next-action routing | Numbered options | Apply `--route` arg if set; else default to `inbox` (most conservative) |
-| Reflect insight routing | Per-item decision | Auto-route: defer (default), inbox (tangential), fix-now (only safety regressions) |
+| Capture next-action routing | Numbered options | Apply --route arg if set; else default to `keep` (record stays in backlog state — most conservative) |
+| Reflect insight routing | Per-item decision | Auto-route: defer (default), keep (tangential — stays in backlog), fix-now (only safety regressions) |
 | Wrap-up Step 4 leftover routing | Per-item decision | Apply `leftover-default` policy from manifesto (default `defer`) |
 | Wrap-up Step 7 skill updates | Apply all / override | Auto-apply purely additive changes (new examples, anti-patterns) — including those the independent domain scan surfaces, not only ledger-seeded ones; stage restructures and new-skill candidates |
 | Wrap-up Step 8.6 per-spec Review Consoles under multi-spec `/flow` | One console per spec at each wrap-up (N consoles for N specs) | **Consolidated into one** end-of-run Review Console at `/flow`. Per-spec wrap-ups skip Step 8.6 when `MULTISPEC_REVIEW_DEFER=1` is set; the parent `/flow` runs a single console reading the parent run dir's `decisions.md` + `staged/` and every per-spec `decisions.md` + `staged/` after the last spec completes. Preserves the bookend promise (one start stop, one end stop) regardless of N. See `flow/multispec-review-console.md`. |
@@ -171,8 +171,8 @@ The hook surface (`bin/hooks.js`, see CLAUDE.md Conventions → Hooks) mechanize
 | Item | Why mandatory |
 |---|---|
 | Ledger resolve gate Phase 2 (every open item, per-item) | Items represent unfinished work — silently dropping them is the bug `auto` is *not* allowed to introduce |
-| `specs/backlog/` writes (inbox stage) | Each entry needs explicit user approval — the backlog is the user's queue, not the model's |
-| `specs/backlog/` writes (parked stage) | Same — deferral is a user decision |
+| Work-record creation (new backlog records) | Each record filed on the user's tracker needs explicit user approval — the record queue is the user's, not the model's |
+| Marking records `parked` | Same — putting work on hold is a user decision |
 | `/challenge`'s Listen + Reflect-back steps | The user-engagement entry points where the problem statement is supplied and confirmed. After Reflect-back, lens proposers + the aggregator run autonomously per Mode 4 (Layered MoA) — those are not user-prompt cycles. |
 | `/init` Phase 4 (skill manifest), Phase 8 (Impeccable), Phase 9 (final confirmation), scope-selection gate | Project-shape governance decisions are user-only |
 | HARD-GATE / BLOCKED / STOP conditions | `/review` Step 1 spec compliance, `/review` Step 1.5 test gate, `/flow` Step 2.6 hard fails, `/flow` Step 2.7 design-doc rejection, `/build` Design Step 3 plan validation, `/build` Common Step 1.5 plan audit hard-fails. These prevent degraded output. |
@@ -245,7 +245,7 @@ These are the failure modes this contract prevents. If you (the model) catch you
 | Inserting a "Pipeline reality check" or "I want to surface a concern before we proceed" mid-pipeline | The user said `auto`. Concerns belong in the ledger or final summary, not as blocking prompts. |
 | Offering "three paths forward" when the skill prescribes one | If the skill defines a default, take it. If not, that's a skill bug — fix the skill. |
 | Treating `auto` as authorization to bulk-resolve the ledger | The resolve gate Phase 2 is non-negotiable. Per-item input always. |
-| Writing to `specs/backlog/` autonomously because a finding "obviously belongs there" | Each entry needs user approval. "Obvious" is the model's judgment, not the user's. |
+| Filing work records autonomously because a finding "obviously belongs there" | Each record needs user approval. "Obvious" is the model's judgment, not the user's. |
 | Adding more model-side reality-checks "to be safe" | The contract is the safety. Model-added prompts under `auto` are contract violations. |
 | Stopping the pipeline because of context-window concerns the user didn't raise | Pre-emptive stops violate `auto`. Loud failure at gates only. |
 | Re-asking a question the user already answered with `auto` or in the Config Manifesto | If the user answered upstream, don't ask again per skill. |
