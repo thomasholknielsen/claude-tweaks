@@ -28,6 +28,20 @@ const TYPE_LABELS = [
   ['type:task', 'Type: maintenance, refactor, docs, or chore work'],
 ];
 
+// Dual-write fingerprint markers: FP_RE_WORK is the current marker written by
+// recordPayload(); FP_RE_LEGACY is the pre-work-record code-health-only marker
+// still present on older issues during the migration window (skills/_shared/work-record.md).
+const FP_RE_WORK = /<!--\s*work-fingerprint:\s*([^\s>]+)\s*-->/;
+const FP_RE_LEGACY = /<!--\s*code-health-fingerprint:\s*([^\s>]+)\s*-->/;
+
+// Line-anchored 'Blocked by #N' dependency declarations (multiline).
+const DEP_RE = /^Blocked by #(\d+)\b/gm;
+
+const BY_RE = /^by:(.+)$/;
+const RISK_LABEL_RE = /^risk:(.+)$/;
+const EFFORT_LABEL_RE = /^effort:(.+)$/;
+const PRIORITY_LABEL_RE = /^priority:(.+)$/;
+
 function oneOf(name, value, allowed) {
   if (!allowed.includes(value)) {
     throw new Error(`${name} must be one of ${allowed.join('|')} (got "${value}")`);
@@ -79,4 +93,111 @@ function recordPayload({ title, body, type, origin, risk, effort, ready, parked,
   return { title, body: finalBody, labels, type };
 }
 
-module.exports = { ORIGINS, TYPES, TIERS, PRIORITIES, LABELS, TYPE_LABELS, recordPayload };
+// body -> fingerprint string, or null when neither marker is present (also null
+// for null/undefined/empty body). The new work-fingerprint marker wins whenever
+// both the new and legacy markers are present, regardless of which appears first
+// in the body (dual-write/migration period).
+function extractFingerprint(body) {
+  if (typeof body !== 'string' || !body) return null;
+  const work = FP_RE_WORK.exec(body);
+  if (work) return work[1];
+  const legacy = FP_RE_LEGACY.exec(body);
+  return legacy ? legacy[1] : null;
+}
+
+// Same label normalization as tier.js/ingest.js: accept strings or {name} objects.
+function normalizeLabelNames(labels) {
+  return (labels || []).map((l) => (typeof l === 'string' ? l : l.name)).filter(Boolean);
+}
+
+// labels (string[] | {name}[]) -> the full record-facet shape. Explicit false/null
+// defaults are set first and only ever flipped/assigned as matching labels are found
+// in a single pass over the normalized names — never inferred from truthiness. Stage
+// precedence is ready > parked > backlog regardless of array order or malformed
+// combinations (e.g. both 'ready' and 'parked' present resolves to 'ready').
+function parseRecordFacets(labels) {
+  const names = normalizeLabelNames(labels);
+
+  const facets = {
+    origin: null,
+    risk: null,
+    effort: null,
+    priority: null,
+    stage: 'backlog',
+    grants: { build: false, merge: false },
+    bot: { inProgress: false, blocked: false },
+  };
+
+  for (const name of names) {
+    if (name === LABELS.READY) {
+      facets.stage = 'ready';
+      continue;
+    }
+    if (name === LABELS.PARKED) {
+      if (facets.stage !== 'ready') facets.stage = 'parked';
+      continue;
+    }
+    if (name === LABELS.AUTO_BUILD) {
+      facets.grants.build = true;
+      continue;
+    }
+    if (name === LABELS.AUTO_MERGE) {
+      facets.grants.merge = true;
+      continue;
+    }
+    if (name === LABELS.BOT_IN_PROGRESS) {
+      facets.bot.inProgress = true;
+      continue;
+    }
+    if (name === LABELS.BOT_BLOCKED) {
+      facets.bot.blocked = true;
+      continue;
+    }
+
+    const by = BY_RE.exec(name);
+    if (by && ORIGINS.includes(by[1])) {
+      facets.origin = by[1];
+      continue;
+    }
+    const risk = RISK_LABEL_RE.exec(name);
+    if (risk && TIERS.includes(risk[1])) {
+      facets.risk = risk[1];
+      continue;
+    }
+    const effort = EFFORT_LABEL_RE.exec(name);
+    if (effort && TIERS.includes(effort[1])) {
+      facets.effort = effort[1];
+      continue;
+    }
+    const priority = PRIORITY_LABEL_RE.exec(name);
+    if (priority && PRIORITIES.includes(priority[1])) {
+      facets.priority = priority[1];
+      continue;
+    }
+  }
+
+  return facets;
+}
+
+// body -> deduped array of issue numbers from line-anchored 'Blocked by #N' lines,
+// in order of first appearance. Mid-line occurrences (not at line start) don't
+// count as a dependency declaration. DEP_RE carries the 'g' flag but matchAll
+// clones it internally per call, so lastIndex state is never shared across calls.
+function parseDependencies(body) {
+  if (typeof body !== 'string' || !body) return [];
+  const seen = new Set();
+  const result = [];
+  for (const match of body.matchAll(DEP_RE)) {
+    const n = Number(match[1]);
+    if (!seen.has(n)) {
+      seen.add(n);
+      result.push(n);
+    }
+  }
+  return result;
+}
+
+module.exports = {
+  ORIGINS, TYPES, TIERS, PRIORITIES, LABELS, TYPE_LABELS, recordPayload,
+  FP_RE_WORK, FP_RE_LEGACY, extractFingerprint, parseRecordFacets, parseDependencies,
+};
