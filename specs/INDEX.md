@@ -25,7 +25,7 @@ One program, decomposed from `docs/superpowers/specs/2026-07-13-unified-work-rec
 | 15 | Health producers on the unified record | **Complete** | 14 |
 | 16 | /capture and /challenge on the unified record | **Complete** | 14 |
 | 17 | /specify as the shaper | **Complete** | 14 |
-| 18 | /triage as the pure human gate | Not started | 14 |
+| 18 | /triage as the pure human gate | **Complete** | 14 |
 | 19 | /dispatch — queue consumer (new skill) | Not started | 18 |
 | 20 | Executors — /flow, /build, /wrap-up materialization | Not started | 17 |
 | 21 | Dashboards and hygiene — /tidy, /help | Not started | 20 |
