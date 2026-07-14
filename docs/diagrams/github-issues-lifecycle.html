@@ -229,11 +229,11 @@
 
   <div class="vz-ghi-header">
     <h1>How claude-tweaks Works with GitHub Issues</h1>
-    <p>Three watchdog skills judge the repo and file deduplicated issues (only code-health and harness-health feed the authorized-build pipeline &mdash; journey-health findings are reviewed directly by a human). A human-gated triage step is the only path that authorizes autonomous work; the label it applies is a maintainer's signature, since an issue body is untrusted, prompt-injectable input. A claim-safe dispatcher then hands authorized issues to the normal build pipeline. Directly below that pipeline runs a second, parallel row: the entirely separate /capture track, which a human drives by hand and which converges on the exact same close-via-merge convention. Reference material &mdash; issue anatomy and the full label list &mdash; follows after both.</p>
+    <p>Every work record &mdash; a captured idea, a health-skill finding, or a human-filed issue &mdash; is the same thing underneath: a GitHub issue (or its <code>local-files</code> twin) tracked through one spine, not separate backlog files, tier labels, or per-skill status fields. Six label axes (Type, Origin, Scoring, Stage, Authorization, Bot state) make record state visible and queryable, but a label is a projection of state whose truth lives in the body, the claim ref, or a human's judgment &mdash; never the label alone. <code>/triage</code> is the one human gate that grants autonomy (<code>auto:build</code>, optionally stacked with <code>auto:merge</code>); GitHub's own permission model makes applying that label a maintainer's signature, since an issue body is untrusted, prompt-injectable input. <code>/dispatch</code> then claims authorized records and hands them to the normal build pipeline. Reference material &mdash; the six axes, grant semantics, and the full label list &mdash; follows the spine below.</p>
   </div>
 
   <div class="vz-ghi-scroll">
-    <svg class="vz-ghi-svg" viewBox="0 0 2020 3430" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagram of the claude-tweaks GitHub issues lifecycle">
+    <svg class="vz-ghi-svg" viewBox="0 0 2020 4150" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagram of the claude-tweaks unified work-record lifecycle on GitHub Issues">
       <defs>
         <marker id="vz-ghi-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M0,0 L10,5 L0,10 z" fill="var(--gi-ink-muted)"></path>
@@ -243,114 +243,131 @@
         </marker>
       </defs>
 
-      <!-- column headers -->
-      <text class="vz-ghi-colhead" x="40" y="100">Create</text>
-      <text class="vz-ghi-colhead" x="450" y="100">Triage (gate)</text>
-      <text class="vz-ghi-colhead" x="860" y="100">Dispatch</text>
-      <text class="vz-ghi-colhead" x="1270" y="100">Build</text>
-      <text class="vz-ghi-colhead" x="1680" y="100">Close</text>
+      <!-- ===== PRODUCERS: where records get filed ===== -->
+      <text class="vz-ghi-colhead" x="40" y="70">Capture</text>
+      <text class="vz-ghi-colhead" x="450" y="70">Code Health</text>
+      <text class="vz-ghi-colhead" x="860" y="70">Harness Health</text>
+      <text class="vz-ghi-colhead" x="1270" y="70">Journey Health</text>
 
-      <!-- ===== CREATE column: 3 producer skills ===== -->
-      <foreignObject x="40" y="120" width="300" height="170">
+      <foreignObject x="40" y="90" width="300" height="185">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
+          <div class="vz-ghi-node-title"><span>/capture</span><span class="vz-ghi-tag">Manual</span></div>
+          <div class="vz-ghi-body">
+            <div>Human-driven capture &mdash; half-formed features, brain dumps</div>
+            <div>Files by:capture + Type only, no scoring, no stage label</div>
+            <div>Lands in backlog; /specify shapes it later</div>
+          </div>
+        </div>
+      </foreignObject>
+
+      <foreignObject x="450" y="90" width="300" height="185">
         <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
           <div class="vz-ghi-node-title"><span>/code-health</span><span class="vz-ghi-tag">Routine or Manual</span></div>
           <div class="vz-ghi-body">
-            <div>Judges code quality &mdash; report-only, never edits</div>
-            <div>fingerprint: criterion + areaId + anchor</div>
-            <div>labels: code-health, risk-*, effort-*</div>
+            <div>Judges code quality, report-only, never edits</div>
+            <div>Files by:code-health + risk:*/effort:* + ready (born-ready)</div>
+            <div>Fingerprint: work-fingerprint (criterion+area+anchor)</div>
           </div>
         </div>
       </foreignObject>
 
-      <foreignObject x="40" y="320" width="300" height="170">
+      <foreignObject x="860" y="90" width="300" height="185">
         <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
           <div class="vz-ghi-node-title"><span>/harness-health</span><span class="vz-ghi-tag">Routine or Manual</span></div>
           <div class="vz-ghi-body">
-            <div>Judges skill/rule/CLAUDE.md drift &mdash; report-only</div>
-            <div>fingerprint: assetType+target+section+desc</div>
-            <div>labels: harness-health, additive/restructural/new-skill</div>
+            <div>Judges skill/rule/CLAUDE.md drift, report-only</div>
+            <div>additive&rarr;low/low, restructural&rarr;medium/high, new-skill unscored</div>
+            <div>Files by:harness-health + scoring (if any) + ready</div>
           </div>
         </div>
       </foreignObject>
 
-      <foreignObject x="40" y="520" width="300" height="170">
+      <foreignObject x="1270" y="90" width="300" height="185">
         <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
           <div class="vz-ghi-node-title"><span>/journey-health</span><span class="vz-ghi-tag">Routine or Manual</span></div>
           <div class="vz-ghi-body">
-            <div>Judges docs/journeys drift + coverage gaps</div>
-            <div>Always files one issue per run</div>
-            <div>labels: journey-health, &lt;category&gt;, &lt;severity&gt;</div>
-            <div>Not pulled by /triage or dispatch at all &mdash; reviewed directly by a human, typically via /claude-tweaks:journeys, never built autonomously</div>
+            <div>Judges journeys + coverage, always files every run</div>
+            <div>Severity maps to risk:*; effort is always effort:medium</div>
+            <div>Same ready queue as the other two now, not a separate lane</div>
           </div>
         </div>
       </foreignObject>
 
-      <!-- convergence lines into TRIAGE (code-health + harness-health only; journey-health is excluded, see its own node) -->
-      <path class="vz-ghi-edge" d="M340,205 L450,365" marker-end="url(#vz-ghi-arrow)"></path>
-      <path class="vz-ghi-edge" d="M340,405 L450,405" marker-end="url(#vz-ghi-arrow)"></path>
-      <foreignObject x="350" y="375" width="90" height="55">
-        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-conn-label">gh issue create (untiered)</div>
+      <!-- convergence into BACKLOG / READY -->
+      <path class="vz-ghi-edge" d="M190,275 L190,450" marker-end="url(#vz-ghi-arrow)"></path>
+      <path class="vz-ghi-edge" d="M600,275 L600,450" marker-end="url(#vz-ghi-arrow)"></path>
+      <path class="vz-ghi-edge" d="M1010,275 C1010,340 700,390 700,450" marker-end="url(#vz-ghi-arrow)"></path>
+      <path class="vz-ghi-edge" d="M1420,275 C1420,350 735,405 735,450" marker-end="url(#vz-ghi-arrow)"></path>
+
+      <foreignObject x="130" y="335" width="130" height="55">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-conn-label">backlog &mdash; no stage label at all</div>
+      </foreignObject>
+      <foreignObject x="540" y="335" width="130" height="55">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-conn-label">born-ready &mdash; skips backlog &amp; /specify</div>
+      </foreignObject>
+      <foreignObject x="800" y="380" width="260" height="55">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-conn-label">scoring folds straight in; born-ready either way</div>
       </foreignObject>
 
-      <!-- ===== TRIAGE gate ===== -->
-      <foreignObject x="450" y="280" width="300" height="320">
+      <text class="vz-ghi-rowlabel" x="40" y="425">The unified spine &mdash; one durable record, five stages, whichever door it came in</text>
+
+      <!-- ===== SPINE colheads ===== -->
+      <text class="vz-ghi-colhead" x="40" y="445">Backlog</text>
+      <text class="vz-ghi-colhead" x="450" y="445">Ready</text>
+      <text class="vz-ghi-colhead" x="860" y="445">Authorized</text>
+      <text class="vz-ghi-colhead" x="1270" y="445">Building</text>
+      <text class="vz-ghi-colhead" x="1680" y="445">Closed</text>
+
+      <!-- not-planned exit — drawn first so the spine nodes occlude it except in the gutters between them -->
+      <path class="vz-ghi-edge" stroke-dasharray="5,5" d="M340,600 L1680,600" marker-end="url(#vz-ghi-arrow)"></path>
+
+      <!-- ===== SPINE nodes ===== -->
+      <foreignObject x="40" y="450" width="300" height="190">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
+          <div class="vz-ghi-node-title"><span>Backlog</span></div>
+          <div class="vz-ghi-body">
+            <div>Default state: an open record, no stage label at all</div>
+            <div>/capture and direct human-filed issues both land here</div>
+            <div>Waits for /specify to shape it, or /tidy to park it</div>
+          </div>
+        </div>
+      </foreignObject>
+
+      <foreignObject x="450" y="450" width="300" height="210">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
+          <div class="vz-ghi-node-title"><span>Ready</span></div>
+          <div class="vz-ghi-body">
+            <div>Spec-shaped + agent-sized: in the authorization gate's worklist</div>
+            <div>Health skills file straight here (born-ready), skipping backlog</div>
+            <div>/specify shapes it here, or decomposes a design doc into a parent (never ready) plus ready leaves</div>
+          </div>
+        </div>
+      </foreignObject>
+
+      <foreignObject x="860" y="450" width="300" height="260">
         <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node vz-ghi-node--gate">
-          <span class="vz-ghi-badge vz-ghi-badge--needs">untiered (incoming)</span>
-          <div class="vz-ghi-node-title"><span>/triage (bare)</span><span class="vz-ghi-tag">Manual</span></div>
+          <span class="vz-ghi-badge vz-ghi-badge--needs">human grant required</span>
+          <div class="vz-ghi-node-title"><span>Authorized</span></div>
           <div class="vz-ghi-body">
-            <div>GATE &mdash; human confirms via one AskUserQuestion batch</div>
-            <div>Recommends a tier mechanically from risk-*/effort-* or additive/restructural labels &mdash; no LLM judgment at the gate itself</div>
-            <div>The real gate is GitHub's own permission model: applying a label requires triage permission, so tier:* is a maintainer's signature, not the agent's</div>
-            <div>dispatch may later downgrade or strip a tier it reads, but never originates one &mdash; the agent itself never grants trust</div>
+            <div>Carries a human-granted auto:build (optionally + auto:merge)</div>
+            <div>/triage is the only path: a label is a maintainer's signature</div>
+            <div>Re-verifies spec shape before granting &mdash; labels are projection, not truth</div>
+            <div>Machinery may only strip or downgrade a grant, never originate one</div>
           </div>
         </div>
       </foreignObject>
-      <path class="vz-ghi-edge vz-ghi-edge--gate" d="M530,600 C530,645 470,645 470,560 L480,545" marker-end="url(#vz-ghi-arrow-gate)"></path>
-      <foreignObject x="470" y="615" width="280" height="55">
-        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-conn-label" style="justify-content:flex-start;text-align:left;">tier:needs-review &rarr; excluded from future batches until a maintainer removes the label directly on GitHub &mdash; that removal IS the re-review decision</div>
-      </foreignObject>
 
-      <!-- TRIAGE -> DISPATCH -->
-      <path class="vz-ghi-edge" d="M750,405 L860,405" marker-end="url(#vz-ghi-arrow)"></path>
-      <foreignObject x="758" y="375" width="96" height="60">
-        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-conn-label">tier:approved / tier:fast-track</div>
-      </foreignObject>
-
-      <!-- ===== DISPATCH ===== -->
-      <foreignObject x="860" y="280" width="300" height="320">
+      <foreignObject x="1270" y="450" width="300" height="150">
         <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
-          <div class="vz-ghi-node-title"><span>triage dispatch</span><span class="vz-ghi-tag">Routine or Manual</span></div>
+          <div class="vz-ghi-node-title"><span>Building</span></div>
           <div class="vz-ghi-body">
-            <div>Pulls tier:approved / tier:fast-track issues, skipping any already status:in-progress or status:blocked</div>
-            <div>Claims via refs/claims/issue-&lt;n&gt; &mdash; atomic git ref, 201 claimed / 422 contested; default 72h TTL, stale claims get taken over</div>
-            <div>The ref is invisible in GitHub's UI, so it's mirrored by an issue comment (machine-readable marker) and by status:in-progress (a third, purely cosmetic layer with no locking semantics of its own)</div>
-            <div>Groups by file overlap: singleton &rarr; /flow #N; bundle &rarr; /specify each &rarr; multi-spec /flow</div>
+            <div>An agent holds the claim; bot:in-progress mirrors the claim ref</div>
+            <div>/dispatch claimed the whole file-overlap group, handed off to /flow</div>
           </div>
         </div>
       </foreignObject>
 
-      <!-- DISPATCH -> BUILD -->
-      <path class="vz-ghi-edge" d="M1160,420 L1270,300" marker-end="url(#vz-ghi-arrow)"></path>
-      <foreignObject x="1168" y="350" width="96" height="100">
-        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-conn-label">/flow #N, or /specify then multi-spec /flow</div>
-      </foreignObject>
-
-      <!-- ===== BUILD ===== -->
-      <foreignObject x="1270" y="200" width="300" height="250">
-        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
-          <div class="vz-ghi-node-title"><span>/flow #issue</span><span class="vz-ghi-tag">Routine or Manual</span></div>
-          <div class="vz-ghi-body">
-            <div>/specify #issue &rarr; spec</div>
-            <div>pipeline: build &rarr; test &rarr; review &rarr; polish &rarr; wrap-up</div>
-            <div>/flow never selects or claims issues itself &mdash; only triage dispatch ever claims. A manual /flow #123 run has no claim at all: you're present, so collision is visible, not silent</div>
-            <div>Also how a /capture-promoted spec gets built &mdash; see the parallel row just below</div>
-          </div>
-        </div>
-      </foreignObject>
-
-      <path class="vz-ghi-edge" d="M1420,450 L1420,470" marker-end="url(#vz-ghi-arrow)"></path>
-
-      <foreignObject x="1270" y="470" width="300" height="130">
+      <foreignObject x="1270" y="620" width="300" height="100">
         <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node vz-ghi-node--gate">
           <div class="vz-ghi-node-title"><span>Gate check</span><span class="vz-ghi-tag">Auto</span></div>
           <div class="vz-ghi-body">
@@ -359,168 +376,214 @@
         </div>
       </foreignObject>
 
-      <!-- GATE -> CLOSE (pass) -->
-      <path class="vz-ghi-edge vz-ghi-edge--gate" d="M1570,535 L1680,460" marker-end="url(#vz-ghi-arrow-gate)"></path>
-      <text class="vz-ghi-label" x="1578" y="490">pass</text>
-
-      <!-- GATE -> FAILURE (fail) -->
-      <path class="vz-ghi-edge vz-ghi-edge--gate" d="M1420,600 L1250,680" marker-end="url(#vz-ghi-arrow-gate)"></path>
-      <text class="vz-ghi-label" x="1280" y="635">fail</text>
-
-      <!-- ===== CLOSE ===== -->
-      <foreignObject x="1680" y="280" width="300" height="320">
+      <foreignObject x="1680" y="450" width="300" height="230">
         <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
-          <div class="vz-ghi-node-title"><span>Close</span></div>
+          <div class="vz-ghi-node-title"><span>Closed</span></div>
           <div class="vz-ghi-body">
-            <div>A carrier commit "Fixes #N" lands on the branch pre-merge</div>
-            <div>Never <code>gh issue close</code> &mdash; that's an irreversible network write, forbidden</div>
-            <div>GitHub auto-closes the issue when that commit reaches the default branch, via the user's own merge</div>
-            <div>Fast-track: can auto-merge itself if authorized + pre-scored low/low + zero review findings &ge;medium + blast-radius under triage-fast-track-max-lines/files</div>
-            <div>Same close-via-merge convention as the /capture track's own Close, just below</div>
+            <div>Completed via the user's own merge (close-via-merge)</div>
+            <div>A carrier commit's Fixes #N auto-closes it; never gh issue close</div>
+            <div>auto:merge-granted clean runs may merge unattended</div>
+            <div>Or not-planned at any stage: wontfix / duplicate / absorbed</div>
           </div>
         </div>
       </foreignObject>
 
-      <!-- ===== FAILURE lane ===== -->
-      <foreignObject x="1020" y="680" width="560" height="190">
-        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
-          <div class="vz-ghi-node-title"><span>On failure</span></div>
-          <div class="vz-ghi-body">
-            <div>Release the claim (deletes refs/claims/issue-&lt;n&gt;)</div>
-            <div>Post an attempt comment on the issue</div>
-            <div>Downgrade tier:fast-track &rarr; tier:approved</div>
-            <div>At retry-ceiling (default 3): strip the tier, set status:blocked, send a PushNotification</div>
-          </div>
-        </div>
+      <!-- main spine edges -->
+      <path class="vz-ghi-edge" d="M340,540 L450,540" marker-end="url(#vz-ghi-arrow)"></path>
+      <foreignObject x="345" y="505" width="100" height="34">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-conn-label">/specify shapes</div>
       </foreignObject>
 
-      <path class="vz-ghi-edge" d="M1080,680 C1080,640 1020,640 1020,600" marker-end="url(#vz-ghi-arrow)"></path>
-      <text class="vz-ghi-label" x="910" y="670">retry &lt; ceiling &mdash; re-claim</text>
-
-      <path class="vz-ghi-edge vz-ghi-edge--gate" d="M1580,765 L1640,785" marker-end="url(#vz-ghi-arrow-gate)"></path>
-
-      <foreignObject x="1640" y="720" width="280" height="150">
-        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node vz-ghi-node--gate">
-          <span class="vz-ghi-badge vz-ghi-badge--blocked">status:blocked</span>
-          <div class="vz-ghi-body"><div>Needs a human to re-triage manually</div></div>
-        </div>
+      <path class="vz-ghi-edge vz-ghi-edge--gate" d="M750,540 L860,540" marker-end="url(#vz-ghi-arrow-gate)"></path>
+      <foreignObject x="756" y="498" width="98" height="42">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-conn-label">/triage grants auto:build [+ auto:merge]</div>
       </foreignObject>
 
-      <!-- bracket connecting the two Close nodes down the right margin -->
-      <path class="vz-ghi-edge--bridge" d="M1980,440 L2000,440 L2000,1070 L1980,1070" fill="none"></path>
-
-      <!-- ===== The /capture row: same grid, lighter divider, deliberately close to the pipeline above ===== -->
-      <line x1="40" y1="890" x2="1980" y2="890" stroke="var(--gi-border)" stroke-width="1" stroke-dasharray="4,4"></line>
-      <text class="vz-ghi-rowlabel" x="40" y="920">Also lands in GitHub Issues &mdash; the /capture track (parallel row; skips Triage and Dispatch entirely; no fingerprint, no tier:*, no claim)</text>
-
-      <text class="vz-ghi-colhead" x="40" y="955">Capture</text>
-      <text class="vz-ghi-colhead" x="450" y="955">Route</text>
-      <text class="vz-ghi-colhead" x="860" y="955">Specify</text>
-      <text class="vz-ghi-colhead" x="1270" y="955">Build</text>
-      <text class="vz-ghi-colhead" x="1680" y="955">Close</text>
-
-      <foreignObject x="40" y="975" width="300" height="190">
-        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
-          <div class="vz-ghi-node-title"><span>/capture</span><span class="vz-ghi-tag">Manual</span></div>
-          <div class="vz-ghi-body">
-            <div>Writes labels: backlog + backlog:category-{product|technical|legal|infrastructure}</div>
-            <div>Lands in the INBOX (github-issues backend) or specs/backlog/{slug}.md (local-files backend)</div>
-            <div>A wholly separate track from the watchdog pipeline above &mdash; no fingerprint marker, no risk/effort labels, no tier:*</div>
-          </div>
-        </div>
+      <path class="vz-ghi-edge" d="M1160,540 L1270,540" marker-end="url(#vz-ghi-arrow)"></path>
+      <foreignObject x="1166" y="505" width="98" height="34">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-conn-label">/dispatch claims</div>
       </foreignObject>
 
-      <path class="vz-ghi-edge" d="M340,1070 L450,1070" marker-end="url(#vz-ghi-arrow)"></path>
-      <foreignObject x="354" y="1045" width="90" height="50">
-        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-conn-label">backlog + category label</div>
+      <path class="vz-ghi-edge" d="M1420,600 L1420,620" marker-end="url(#vz-ghi-arrow)"></path>
+
+      <path class="vz-ghi-edge vz-ghi-edge--gate" d="M1570,660 L1680,590" marker-end="url(#vz-ghi-arrow-gate)"></path>
+      <text class="vz-ghi-label" x="1578" y="620">pass</text>
+
+      <path class="vz-ghi-edge vz-ghi-edge--gate" d="M1420,720 L1300,825" marker-end="url(#vz-ghi-arrow-gate)"></path>
+      <text class="vz-ghi-label" x="1330" y="775">fail</text>
+
+      <foreignObject x="1168" y="572" width="94" height="28">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-conn-label">not-planned, any stage</div>
       </foreignObject>
 
-      <foreignObject x="450" y="975" width="300" height="190">
-        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
-          <div class="vz-ghi-node-title"><span>Route</span><span class="vz-ghi-tag">Manual</span></div>
-          <div class="vz-ghi-body">
-            <div>One AskUserQuestion: Challenge first / Brainstorm directly / Keep in INBOX / Merge into spec {N}</div>
-            <div>Merge into spec {N} closes this issue directly (gh issue close --reason not planned) &mdash; no separate build for it, spec {N}'s own merge covers it</div>
-            <div>/code-health also routes its own fuzzy or below-threshold findings here instead of filing an issue directly</div>
-          </div>
-        </div>
+      <!-- flag-back: Step 3.5 re-verification fails before granting -->
+      <path class="vz-ghi-edge" stroke-dasharray="4,4" d="M900,710 L900,770 L190,770 L190,640" marker-end="url(#vz-ghi-arrow)"></path>
+      <foreignObject x="450" y="745" width="360" height="34">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-conn-label">flag back: not spec-shaped, remove ready (Step 3.5)</div>
       </foreignObject>
 
-      <path class="vz-ghi-edge" d="M600,1165 L600,1185" marker-end="url(#vz-ghi-arrow)"></path>
-      <text class="vz-ghi-label" x="610" y="1179">Keep in INBOX</text>
-      <foreignObject x="450" y="1185" width="300" height="90">
+      <!-- ===== Parked branch ===== -->
+      <path class="vz-ghi-edge" d="M190,640 C190,700 500,760 600,830" marker-end="url(#vz-ghi-arrow)"></path>
+      <path class="vz-ghi-edge" d="M600,660 L600,830" marker-end="url(#vz-ghi-arrow)"></path>
+      <foreignObject x="230" y="780" width="180" height="40">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-conn-label">/tidy Defer: add parked + trigger</div>
+      </foreignObject>
+
+      <foreignObject x="450" y="830" width="300" height="180">
         <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
           <div class="vz-ghi-node-title"><span>Parked</span></div>
-          <div class="vz-ghi-body"><div>Stays in the INBOX &mdash; reviewed later via /tidy's batch triage, not autonomously built</div></div>
-        </div>
-      </foreignObject>
-
-      <path class="vz-ghi-edge" d="M750,1070 L860,1070" marker-end="url(#vz-ghi-arrow)"></path>
-      <foreignObject x="754" y="1045" width="100" height="50">
-        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-conn-label">Challenge or Brainstorm</div>
-      </foreignObject>
-
-      <foreignObject x="860" y="975" width="300" height="190">
-        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
-          <div class="vz-ghi-node-title"><span>/specify</span><span class="vz-ghi-tag">Manual</span></div>
           <div class="vz-ghi-body">
-            <div>Derives a spec from the INBOX entry or issue body</div>
-            <div>Same issue-ingestion path any #issue-referenced build already uses</div>
+            <div>Deliberately on hold: carries parked + a trigger</div>
+            <div>/tidy's Defer action adds it, at backlog or ready stage</div>
+            <div>Wakes on trigger: /tidy removes parked, restoring visibility</div>
           </div>
         </div>
       </foreignObject>
 
-      <path class="vz-ghi-edge" d="M1160,1070 L1270,1070" marker-end="url(#vz-ghi-arrow)"></path>
+      <path class="vz-ghi-edge" d="M450,900 C300,900 230,760 195,650" marker-end="url(#vz-ghi-arrow)"></path>
+      <foreignObject x="220" y="880" width="220" height="46">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-conn-label">trigger fires &mdash; /tidy removes parked (wakes)</div>
+      </foreignObject>
 
-      <foreignObject x="1270" y="975" width="300" height="190">
+      <!-- ===== On-failure / retry / bot:blocked ===== -->
+      <foreignObject x="1020" y="830" width="560" height="210">
         <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
-          <div class="vz-ghi-node-title"><span>/build or /flow #issue</span><span class="vz-ghi-tag">Manual</span></div>
+          <div class="vz-ghi-node-title"><span>On failure (any run that doesn't reach wrap-up)</span></div>
           <div class="vz-ghi-body">
-            <div>No claim, ever &mdash; /build and a manually-run /flow never touch refs/claims/</div>
-            <div>You're present, so collision is visible, not silent (per issue-claims.md's deliberate non-consumers list)</div>
+            <div>Release the claim (delete refs/claims/issue-&lt;n&gt;)</div>
+            <div>Unconditionally revoke auto:merge, ceiling or not</div>
+            <div>Below ceiling: keep auto:build, next dispatch firing reclaims it</div>
+            <div>At the ceiling (default 3): strip auto:build too, add bot:blocked</div>
           </div>
         </div>
       </foreignObject>
 
-      <path class="vz-ghi-edge" d="M1570,1070 L1680,1070" marker-end="url(#vz-ghi-arrow)"></path>
-      <text class="vz-ghi-label" x="1578" y="1060">no claim</text>
+      <path class="vz-ghi-edge" d="M1080,830 C1080,780 950,760 900,710" marker-end="url(#vz-ghi-arrow)"></path>
+      <text class="vz-ghi-label" x="920" y="800">retry &lt; ceiling &mdash; re-claim next firing</text>
 
-      <foreignObject x="1680" y="975" width="300" height="190">
-        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
-          <div class="vz-ghi-node-title"><span>Close</span></div>
+      <path class="vz-ghi-edge vz-ghi-edge--gate" d="M1580,935 L1640,935" marker-end="url(#vz-ghi-arrow-gate)"></path>
+      <text class="vz-ghi-label" x="1585" y="920">ceiling hit</text>
+
+      <foreignObject x="1640" y="870" width="300" height="160">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node vz-ghi-node--gate">
+          <span class="vz-ghi-badge vz-ghi-badge--blocked">bot:blocked</span>
           <div class="vz-ghi-body">
-            <div>Same close-via-merge carrier-commit convention as the watchdog track above &mdash; see the bracket on the right</div>
-            <div>Applies regardless of how the issue entered the pipeline</div>
+            <div>Retry ceiling reached; needs a human</div>
+            <div>/triage strips bot:blocked and re-grants auto:build</div>
           </div>
+        </div>
+      </foreignObject>
+
+      <path class="vz-ghi-edge vz-ghi-edge--gate" d="M1790,870 C1900,760 950,650 760,600" marker-end="url(#vz-ghi-arrow-gate)"></path>
+      <foreignObject x="1300" y="784" width="380" height="40">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-conn-label">/triage re-authorizes: fresh judgment, not a mechanical replay</div>
+      </foreignObject>
+
+      <!-- ===== The six axes ===== -->
+      <line x1="40" y1="1080" x2="1980" y2="1080" stroke="var(--gi-border)" stroke-width="1"></line>
+      <text class="vz-ghi-section-title" x="40" y="1110">The Six Axes</text>
+
+      <foreignObject x="40" y="1125" width="1940" height="340">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node" style="height:auto;overflow:visible;">
+          <div class="vz-ghi-node-title"><span>Every record's state, expressed across six independent axes</span></div>
+          <table class="vz-ghi-label-table">
+            <colgroup><col style="width:16%" /><col style="width:34%" /><col style="width:50%" /></colgroup>
+            <thead>
+              <tr><th>Axis</th><th>Values</th><th>Expressed as</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Type</td><td>bug | feature | task</td><td>Native GitHub Issue Type (work-types: native), or a type:* label (work-types: labels)</td></tr>
+              <tr><td>Origin</td><td>by:code-health, by:harness-health, by:journey-health, by:capture &mdash; or none</td><td>Label; absence = human-filed, or a side-effect record (an Origin: {context} body line instead)</td></tr>
+              <tr><td>Scoring</td><td>risk:low|medium|high &times; effort:low|medium|high</td><td>Labels &mdash; at most one of each family</td></tr>
+              <tr><td>Stage</td><td>backlog (no label), parked, ready</td><td>Labels &mdash; backlog is the absence of a stage label</td></tr>
+              <tr><td>Authorization</td><td>auto:build, auto:merge</td><td>Human-granted labels only; absence is the default not-authorized state</td></tr>
+              <tr><td>Bot state</td><td>bot:in-progress, bot:blocked</td><td>Machinery-owned visibility layer &mdash; a projection of the claim ref, never the truth itself</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </foreignObject>
+
+      <!-- ===== Grant semantics ===== -->
+      <line x1="40" y1="1500" x2="1980" y2="1500" stroke="var(--gi-border)" stroke-width="1"></line>
+      <text class="vz-ghi-section-title" x="40" y="1530">Grant Semantics</text>
+
+      <foreignObject x="40" y="1545" width="1940" height="260">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node" style="height:auto;overflow:visible;">
+          <div class="vz-ghi-node-title"><span>auto:build / auto:merge &mdash; two stackable, human-granted labels</span></div>
+          <div class="vz-ghi-subhead">auto:build</div>
+          <div class="vz-ghi-explain-line">Agents may claim and build this record autonomously. This is the base authorization &mdash; nothing runs without it.</div>
+          <div class="vz-ghi-subhead">auto:merge &mdash; stacks on auto:build, never stands alone</div>
+          <div class="vz-ghi-explain-line">A completely clean autonomous run may merge without waiting for a live review. Granting merge always also grants build &mdash; the gate never issues merge alone. Dispatch queries auto:build only; auto:merge by itself is inert, and no queue selects on it.</div>
+          <div class="vz-ghi-subhead">Machinery may only remove grants, never add them</div>
+          <div class="vz-ghi-explain-line">Any failed run unconditionally revokes auto:merge before the next retry. At the retry ceiling (dispatch-retry-ceiling, default 3) machinery strips every auto:* label and adds bot:blocked &mdash; the record needs a fresh human re-grant to run again.</div>
+          <div class="vz-ghi-subhead">auto:* is a maintainer's signature, not the agent's</div>
+          <div class="vz-ghi-explain-line">auto:* labels are only ever added by an interactive human session &mdash; there is no machinery path that originates a grant. Applying a label requires triage permission on GitHub, which is the actual enforcement mechanism, not just a policy convention.</div>
+        </div>
+      </foreignObject>
+
+      <!-- ===== How records actually get filed ===== -->
+      <line x1="40" y1="1840" x2="1980" y2="1840" stroke="var(--gi-border)" stroke-width="1"></line>
+      <text class="vz-ghi-section-title" x="40" y="1870">How Records Actually Get Filed</text>
+
+      <foreignObject x="40" y="1885" width="960" height="480">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
+          <div class="vz-ghi-node-title"><span>Record anatomy &mdash; the shape every filed record shares</span></div>
+          <div class="vz-ghi-issue-mock">
+            <div class="vz-ghi-code-line">&lt;!-- work-fingerprint: {fingerprint} --&gt;</div>
+            <div class="vz-ghi-explain-line">A hidden HTML comment, invisible when rendered &mdash; the dedup key. Legacy &lt;!-- {skill}-fingerprint: ... --&gt; markers are still read during the migration window (dual read; the new marker wins if both are present).</div>
+            <div class="vz-ghi-code-line">**Criterion / Journey / Asset:** ... | **Risk or Severity:** ... | **Confidence:** ...</div>
+            <div class="vz-ghi-explain-line">A pipe-separated metadata header. Exact field names differ per producer (code-health: Criterion/Risk/Effort; harness-health: Asset/Section/Classification; journey-health: Journey/Section/Severity).</div>
+            <div class="vz-ghi-code-line">## Current State &nbsp;&#8226;&nbsp; ## Deliverables &nbsp;&#8226;&nbsp; ## Acceptance Criteria</div>
+            <div class="vz-ghi-explain-line">The spec-shaped-body minimum every ready record must have &mdash; each section present and non-empty, no unresolved TBD/TODO/&lt;!-- ambiguity: --&gt; markers. /triage re-verifies these three before granting; ready alone never authorizes a grant by itself.</div>
+            <div class="vz-ghi-code-line">"Filed by /{skill}. Close to resolve; label wontfix to suppress future reports of this finding."</div>
+            <div class="vz-ghi-explain-line">Every producer's footer. wontfix is the universal per-finding suppression switch across all three health skills.</div>
+            <div class="vz-ghi-code-line">Labels: by:{origin} + risk:{tier} + effort:{tier} + ready (+ one diagnostic label)</div>
+            <div class="vz-ghi-explain-line">The diagnostic label (e.g. harness-health:additive, journey-health:drift) carries no mechanical meaning of its own in the six-axis contract &mdash; the canonical scoring/stage labels above are what every consumer actually reads.</div>
+          </div>
+        </div>
+      </foreignObject>
+
+      <foreignObject x="1040" y="1885" width="940" height="480">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
+          <div class="vz-ghi-node-title"><span>Two ways records get filed &mdash; recap</span></div>
+          <div class="vz-ghi-subhead">Track 1 &mdash; automated judgment</div>
+          <div class="vz-ghi-explain-line" style="margin-left:0;">code-health, harness-health, and journey-health all watch the repo and file born-ready records straight into the same gate worklist now &mdash; journey-health is no longer a separate, human-only lane; every health-skill record can reach auto:build the same way.</div>
+          <div class="vz-ghi-subhead">Track 2 &mdash; human-originated</div>
+          <div class="vz-ghi-explain-line" style="margin-left:0;">/capture and a directly human-filed GitHub issue both land in backlog &mdash; no by:* label either way; the absence of an origin label IS the human-filed signal. /specify shapes a backlog record to ready, or decomposes a design doc into a parent record (never ready) plus ready leaves, wiring Blocked by #N links between them.</div>
+          <div class="vz-ghi-subhead">Bridge &mdash; human-filed issues can still be pipeline-ready</div>
+          <div class="vz-ghi-explain-line" style="margin-left:0;">/init can install a GitHub issue form (.github/ISSUE_TEMPLATE/agent-task.yml) with the same Current State / Deliverables / Acceptance Criteria shape. It still carries no by:* label, so it never self-authorizes &mdash; someone runs /specify on it to reach ready, or /flow #issue directly, without ever touching /triage or /dispatch.</div>
+          <div class="vz-ghi-subhead">Routine adds scheduling, never logic</div>
+          <div class="vz-ghi-explain-line" style="margin-left:0;">/routine create &lt;skill&gt; reads a skill's routine-template.yml (prompt + model + default cron) and creates a live cron-scheduled cloud invocation. Every "Routine or Manual" node above runs the identical skill either way &mdash; Routine only automates WHEN it fires.</div>
         </div>
       </foreignObject>
 
       <!-- ===== Footer: legend + entry points ===== -->
-      <line x1="40" y1="1315" x2="1980" y2="1315" stroke="var(--gi-border)" stroke-width="1"></line>
+      <line x1="40" y1="2400" x2="1980" y2="2400" stroke="var(--gi-border)" stroke-width="1"></line>
 
-      <text class="vz-ghi-panel-title" x="40" y="1345">Manual entry points</text>
-      <foreignObject x="40" y="1360" width="600" height="170">
+      <text class="vz-ghi-panel-title" x="40" y="2430">Manual entry points</text>
+      <foreignObject x="40" y="2445" width="600" height="190">
         <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-body">
-          <div>/triage (bare) &mdash; the only path that grants a tier</div>
-          <div>manual /flow #123 &mdash; build a specific issue directly</div>
-          <div>/routine create &lt;skill&gt; &mdash; schedule any producer, or triage dispatch, as a cloud Routine</div>
+          <div>/triage (bare) &mdash; the only path that grants auto:build / auto:merge</div>
+          <div>/dispatch #123 &mdash; claim + build one specific authorized record directly</div>
+          <div>/dispatch (bare) or /dispatch next &mdash; pick from the queue, or claim the single next-priority record headlessly</div>
+          <div>/routine create &lt;skill&gt; &mdash; schedule any health skill, or dispatch next, as a cloud Routine</div>
         </div>
       </foreignObject>
 
-      <text class="vz-ghi-panel-title" x="680" y="1345">Read-only consumers (never write)</text>
-      <foreignObject x="680" y="1360" width="600" height="170">
+      <text class="vz-ghi-panel-title" x="680" y="2430">Read-only consumers (never write)</text>
+      <foreignObject x="680" y="2445" width="600" height="190">
         <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-body">
-          <div>/tidy Step 4.8 &mdash; scans GitHub PRs + code-health issues (shared github-pr-scan.md) for backlog hygiene</div>
-          <div>/help Stage 4.5/4.6 &mdash; status dashboard reads issue/PR counts and triage-queue depth</div>
+          <div>/tidy &mdash; stale backlog records, parked-trigger wakes, bot:blocked surfacing, unsynced local records</div>
+          <div>/help &mdash; dashboard reads live counts by stage, grants, and bot state</div>
         </div>
       </foreignObject>
 
-      <text class="vz-ghi-panel-title" x="1320" y="1345">Legend</text>
-      <rect class="vz-ghi-legend-swatch" x="1320" y="1363" width="14" height="14" rx="3"></rect>
-      <foreignObject x="1344" y="1358" width="576" height="46">
+      <text class="vz-ghi-panel-title" x="1320" y="2430">Legend</text>
+      <rect class="vz-ghi-legend-swatch" x="1320" y="2448" width="14" height="14" rx="3"></rect>
+      <foreignObject x="1344" y="2443" width="576" height="46">
         <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-body" style="margin:0;"><div style="margin:0;">Gate, authorization boundary, or blocked state &mdash; the One Signal Rule reserves amber for genuine decision points only</div></div>
       </foreignObject>
-      <foreignObject x="1320" y="1407" width="600" height="90">
+      <foreignObject x="1320" y="2492" width="600" height="90">
         <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-body">
           <div><span class="vz-ghi-tag" style="display:inline-block;margin-right:4px;">Routine or Manual</span>ships a routine template for optional cron scheduling &mdash; the identical skill also runs on demand</div>
           <div><span class="vz-ghi-tag" style="display:inline-block;margin-right:4px;">Manual</span>interactive-only, human-triggered (no routine template ships for this one)</div>
@@ -528,84 +591,54 @@
         </div>
       </foreignObject>
 
-      <!-- ===== Explainer: Issue anatomy + two tracks ===== -->
-      <line x1="40" y1="1575" x2="1980" y2="1575" stroke="var(--gi-border)" stroke-width="1"></line>
-      <text class="vz-ghi-section-title" x="40" y="1605">How Issues Actually Get Filed</text>
-
-      <foreignObject x="40" y="1615" width="960" height="480">
-        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
-          <div class="vz-ghi-node-title"><span>Issue anatomy &mdash; the shape every filed issue shares</span></div>
-          <div class="vz-ghi-issue-mock">
-            <div class="vz-ghi-code-line">&lt;!-- {skill}-fingerprint: {finding.id} --&gt;</div>
-            <div class="vz-ghi-explain-line">A hidden HTML comment, invisible when rendered. It's the dedup key: on the next run, the skill re-extracts it and skips a finding it already filed instead of refiling it.</div>
-            <div class="vz-ghi-code-line">**Criterion / Journey / Asset:** ... | **Severity or Risk:** ... | **Confidence:** ...</div>
-            <div class="vz-ghi-explain-line">A pipe-separated metadata header. Exact field names differ per producer (code-health uses Criterion/Risk/Effort; harness-health uses Asset/Section/Classification; journey-health uses Journey/Section/Severity).</div>
-            <div class="vz-ghi-code-line">## Current State &nbsp;&#8226;&nbsp; ## Deliverables &nbsp;&#8226;&nbsp; ## Acceptance Criteria</div>
-            <div class="vz-ghi-explain-line">Used by code-health, harness-health, AND the optional human-filed "Agent task" issue form (see right) &mdash; spec-shaped on purpose, so promoting the issue into a /specify spec is near-zero translation.</div>
-            <div class="vz-ghi-code-line">## Description &nbsp;&#8226;&nbsp; ## Evidence &nbsp;&#8226;&nbsp; ## Recommended Action</div>
-            <div class="vz-ghi-explain-line">journey-health's own shape instead of the spec-shaped one above &mdash; still routable through /specify, just with more translation since journey findings aren't already deliverable-shaped.</div>
-            <div class="vz-ghi-code-line">"Filed by /{skill}. Close to resolve; label wontfix to suppress future reports of this finding."</div>
-            <div class="vz-ghi-explain-line">Every producer's footer. `wontfix` is the universal per-finding suppression switch across all three watchdogs.</div>
-            <div class="vz-ghi-code-line">Labels: {producer} + a variant label, e.g. code-health:risk-low, harness-health:additive, journey-health:coverage</div>
-            <div class="vz-ghi-explain-line">The producer label plus exactly one variant label is what /triage later reads to compute its recommended tier &mdash; see the Triage gate above.</div>
-          </div>
-        </div>
-      </foreignObject>
-
-      <foreignObject x="1040" y="1615" width="940" height="480">
-        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
-          <div class="vz-ghi-node-title"><span>Two ways issues get filed &mdash; recap</span></div>
-          <div class="vz-ghi-subhead">Track 1 &mdash; automated judgment (the top pipeline)</div>
-          <div class="vz-ghi-explain-line" style="margin-left:0;">code-health, harness-health, and journey-health watch the repo and file findings. Only code-health/harness-health continue into tier:* &rarr; Triage &rarr; Dispatch &rarr; Build &rarr; Close.</div>
-          <div class="vz-ghi-subhead">Track 2 &mdash; human-originated backlog (the row right below it)</div>
-          <div class="vz-ghi-explain-line" style="margin-left:0;">/capture never touches tier:* or the claim-safe dispatcher &mdash; a human already decided to act by capturing it. /code-health also routes its own fuzzy or below-threshold findings to /capture's INBOX instead of filing a GitHub issue directly, so a human triages them before promotion.</div>
-          <div class="vz-ghi-subhead">Bridge &mdash; human-filed issues can be pipeline-ready too</div>
-          <div class="vz-ghi-explain-line" style="margin-left:0;">/init can optionally install a GitHub issue form at .github/ISSUE_TEMPLATE/agent-task.yml with the exact same Current State / Deliverables / Acceptance Criteria shape shown on the left. A human filing through that form produces an issue /flow's issue-sourced batches can consume with zero translation &mdash; no /specify judgment call needed to figure out what the issue meant. It still has no producer label, though, so it never enters tier:* on its own &mdash; someone runs manual /flow #issue on it directly, same as any /capture-promoted spec.</div>
-          <div class="vz-ghi-subhead">Routine adds scheduling, never logic</div>
-          <div class="vz-ghi-explain-line" style="margin-left:0;">/routine reads a skill's routine-template.yml (prompt + model + default cron) and creates a live cron-scheduled cloud invocation via the RemoteTrigger API. Every node tagged "Routine or Manual" runs the identical skill either way &mdash; Routine only automates WHEN it fires, unattended; it adds no judgment the skill doesn't already have.</div>
-        </div>
-      </foreignObject>
-
       <!-- ===== Label reference ===== -->
-      <line x1="40" y1="2135" x2="1980" y2="2135" stroke="var(--gi-border)" stroke-width="1"></line>
-      <text class="vz-ghi-section-title" x="40" y="2165">Label Reference &mdash; Who Sets It, Who Clears It, What It Does</text>
+      <line x1="40" y1="2690" x2="1980" y2="2690" stroke="var(--gi-border)" stroke-width="1"></line>
+      <text class="vz-ghi-section-title" x="40" y="2720">Label Reference &mdash; Who Sets It, Who Clears It, What It Does</text>
 
-      <foreignObject x="40" y="2180" width="1940" height="1100">
+      <foreignObject x="40" y="2735" width="1940" height="1350">
         <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node" style="height:auto;overflow:visible;">
-          <div class="vz-ghi-node-title"><span>Every label used across the lifecycle above</span></div>
+          <div class="vz-ghi-node-title"><span>All 17 core labels + 3 optional priority:* labels &mdash; the full work-record taxonomy</span></div>
           <table class="vz-ghi-label-table">
-            <colgroup><col style="width:15%" /><col style="width:13%" /><col style="width:25%" /><col style="width:47%" /></colgroup>
+            <colgroup><col style="width:14%" /><col style="width:19%" /><col style="width:24%" /><col style="width:43%" /></colgroup>
             <thead>
               <tr><th>Label</th><th>Set by</th><th>Cleared by</th><th>What it does</th></tr>
             </thead>
             <tbody>
-              <tr class="vz-ghi-label-section"><td colspan="4">Producer labels (Create)</td></tr>
-              <tr><td><code>code-health</code></td><td>/code-health, on file</td><td>&mdash;</td><td>Producer tag; always paired with a risk/effort label below</td></tr>
-              <tr><td><code>code-health:risk-{low|medium|high}</code></td><td>/code-health</td><td>&mdash;</td><td>Risk tier &mdash; /triage's Tier Rule reads it directly</td></tr>
-              <tr><td><code>code-health:effort-{low|medium|high}</code></td><td>/code-health</td><td>&mdash;</td><td>Effort tier &mdash; risk:low + effort:low is the only combination the Tier Rule ever recommends fast-track for</td></tr>
-              <tr><td><code>harness-health</code></td><td>/harness-health, on file</td><td>&mdash;</td><td>Producer tag</td></tr>
-              <tr><td><code>harness-health:additive</code></td><td>/harness-health</td><td>&mdash;</td><td>Safe, mechanical patch &mdash; the Tier Rule maps this to risk:low + effort:low (fast-track eligible)</td></tr>
-              <tr><td><code>harness-health:restructural</code></td><td>/harness-health</td><td>&mdash;</td><td>Needs human judgment &mdash; maps to risk:high + effort:high (never fast-track)</td></tr>
-              <tr><td><code>harness-health:new-skill</code></td><td>/harness-health</td><td>&mdash;</td><td>New-skill candidate; carries no risk/effort label at all, so the Tier Rule falls through to its default (approved) &mdash; never fast-track-eligible</td></tr>
-              <tr><td><code>journey-health</code></td><td>/journey-health, every run (always files)</td><td>&mdash;</td><td>Producer tag. Not pulled by /triage or dispatch &mdash; journey findings are reviewed directly by a human, never built autonomously</td></tr>
-              <tr><td><code>journey-health:{drift|coverage|regression-suspected}</code></td><td>/journey-health</td><td>&mdash;</td><td>Category of the finding</td></tr>
-              <tr><td><code>journey-health:{high|med|low}</code></td><td>/journey-health</td><td>&mdash;</td><td>Severity of the finding</td></tr>
+              <tr class="vz-ghi-label-section"><td colspan="4">Origin (Create)</td></tr>
+              <tr><td><code>by:code-health</code></td><td>/code-health, on file</td><td>&mdash;</td><td>Origin: filed by the code-health skill</td></tr>
+              <tr><td><code>by:harness-health</code></td><td>/harness-health, on file</td><td>&mdash;</td><td>Origin: filed by the harness-health skill</td></tr>
+              <tr><td><code>by:journey-health</code></td><td>/journey-health, on file (every run)</td><td>&mdash;</td><td>Origin: filed by the journey-health skill</td></tr>
+              <tr><td><code>by:capture</code></td><td>/capture</td><td>&mdash;</td><td>Origin: filed via /capture</td></tr>
 
-              <tr class="vz-ghi-label-section"><td colspan="4">Triage tier labels &mdash; the security boundary (Triage)</td></tr>
-              <tr><td><code>tier:needs-review</code></td><td>/triage (bare) only</td><td>A maintainer removing it directly on GitHub &mdash; that removal IS the re-review decision</td><td>"Not yet" &mdash; permanently excluded from future untiered-batch scans until a human removes it</td></tr>
-              <tr><td><code>tier:approved</code></td><td>/triage (bare) only</td><td>/wrap-up (or the multi-spec Review Console), after a successful merge/PR</td><td>Authorizes autonomous build; triage dispatch selects on it</td></tr>
-              <tr><td><code>tier:fast-track</code></td><td>/triage (bare) only</td><td>Downgraded to tier:approved by triage dispatch on ANY run failure; removed by /wrap-up on success</td><td>Authorizes autonomous build AND unattended auto-merge, if all 4 clean-run gates pass</td></tr>
+              <tr class="vz-ghi-label-section"><td colspan="4">Scoring &mdash; risk</td></tr>
+              <tr><td><code>risk:low</code></td><td>Health skills, on file; or /triage / /specify when supplied inline</td><td>&mdash;</td><td>Scoring: low blast radius &mdash; safe for autonomous build</td></tr>
+              <tr><td><code>risk:medium</code></td><td>Health skills, on file; or /triage / /specify when supplied inline</td><td>&mdash;</td><td>Scoring: moderate blast radius &mdash; review before merge recommended</td></tr>
+              <tr><td><code>risk:high</code></td><td>Health skills, on file; or /triage / /specify when supplied inline</td><td>&mdash;</td><td>Scoring: high blast radius &mdash; human review required</td></tr>
 
-              <tr class="vz-ghi-label-section"><td colspan="4">Dispatch / build state labels (Dispatch, Build)</td></tr>
-              <tr><td><code>status:in-progress</code></td><td>triage dispatch, the instant a claim succeeds</td><td>/wrap-up (or Review Console), on release &mdash; regardless of success or failure</td><td>Purely cosmetic mirror of the refs/claims/issue-&lt;n&gt; lock, for GitHub UI visibility. No locking semantics of its own</td></tr>
-              <tr><td><code>status:blocked</code></td><td>triage dispatch, at the retry ceiling (default 3 consecutive failures)</td><td>A human, when manually re-tiering via /triage &mdash; must be stripped or dispatch's skip rule ignores the issue forever</td><td>Signals autonomous retries have stopped; needs a human look</td></tr>
+              <tr class="vz-ghi-label-section"><td colspan="4">Scoring &mdash; effort</td></tr>
+              <tr><td><code>effort:low</code></td><td>Health skills, on file; or /triage / /specify when supplied inline</td><td>&mdash;</td><td>Scoring: small, agent-sized change</td></tr>
+              <tr><td><code>effort:medium</code></td><td>Health skills, on file; or /triage / /specify when supplied inline</td><td>&mdash;</td><td>Scoring: moderate change, may span several files</td></tr>
+              <tr><td><code>effort:high</code></td><td>Health skills, on file; or /triage / /specify when supplied inline</td><td>&mdash;</td><td>Scoring: large change &mdash; consider decomposition before building</td></tr>
 
-              <tr class="vz-ghi-label-section"><td colspan="4">Backlog labels &mdash; the /capture track (see the row above the pipeline diagram)</td></tr>
-              <tr><td><code>backlog</code></td><td>/capture</td><td>&mdash;</td><td>Marks the issue as a captured idea in the INBOX</td></tr>
-              <tr><td><code>backlog:category-{product|technical|legal|infrastructure}</code></td><td>/capture</td><td>&mdash;</td><td>Categorizes the captured idea</td></tr>
+              <tr class="vz-ghi-label-section"><td colspan="4">Stage</td></tr>
+              <tr><td><code>parked</code></td><td>/tidy (Defer action, with trigger)</td><td>/tidy (trigger-met wake), or /specify (promotion to ready)</td><td>Stage: deliberately on hold until its trigger fires (milestone due or watched path change)</td></tr>
+              <tr><td><code>ready</code></td><td>Health skills (born-ready), or /specify (shape/promote)</td><td>/triage (flag back &mdash; body not spec-shaped)</td><td>Stage: spec-shaped and agent-sized &mdash; in the authorization gate's worklist</td></tr>
 
-              <tr class="vz-ghi-label-section"><td colspan="4">Suppression</td></tr>
-              <tr><td><code>wontfix</code></td><td>A human, manually on GitHub</td><td>&mdash;</td><td>Universal suppression switch across all three watchdogs &mdash; the next run's fingerprint/dedup check reads it to skip refiling a closed finding</td></tr>
+              <tr class="vz-ghi-label-section"><td colspan="4">Authorization &mdash; the security boundary</td></tr>
+              <tr><td><code>auto:build</code></td><td>/triage only, human-confirmed</td><td>/dispatch, at the retry ceiling (strips all auto:*)</td><td>Grant: agents may build this record autonomously (human-granted; machinery only removes)</td></tr>
+              <tr><td><code>auto:merge</code></td><td>/triage only, human-confirmed (stacks on auto:build)</td><td>/dispatch &mdash; unconditionally, on any failed run; also stripped at the ceiling</td><td>Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)</td></tr>
+
+              <tr class="vz-ghi-label-section"><td colspan="4">Bot state (machinery visibility layer)</td></tr>
+              <tr><td><code>bot:in-progress</code></td><td>/dispatch, the instant a claim succeeds</td><td>/dispatch (release), or an executor at wrap-up</td><td>Bot state: an agent currently holds the claim on this record</td></tr>
+              <tr><td><code>bot:blocked</code></td><td>/dispatch, at the retry ceiling</td><td>/triage (re-grant strips it)</td><td>Bot state: retry ceiling reached &mdash; needs human re-triage before autonomous retry</td></tr>
+
+              <tr class="vz-ghi-label-section"><td colspan="4">Closure</td></tr>
+              <tr><td><code>wontfix</code></td><td>A human, manually on GitHub</td><td>&mdash;</td><td>Closed as not-planned; health skills will not re-file findings with this fingerprint</td></tr>
+
+              <tr class="vz-ghi-label-section"><td colspan="4">Priority (optional &mdash; dispatch ordering only)</td></tr>
+              <tr><td><code>priority:high</code></td><td>A human, manual priority triage</td><td>&mdash;</td><td>Priority: dispatch picks this band first</td></tr>
+              <tr><td><code>priority:medium</code></td><td>A human, manual priority triage</td><td>&mdash;</td><td>Priority: dispatch picks after priority:high</td></tr>
+              <tr><td><code>priority:low</code></td><td>A human, manual priority triage</td><td>&mdash;</td><td>Priority: dispatch picks last among prioritized records</td></tr>
             </tbody>
           </table>
         </div>
