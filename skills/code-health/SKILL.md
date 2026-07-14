@@ -12,7 +12,7 @@ A recurring health check doing rounds: reads one directory slice, judges it agai
               [ /claude-tweaks:code-health ] <- utility (no fixed lifecycle position)
                            |  judges the slice; surfaces findings
                            v
-findings -> validate-findings -> file GitHub issue (label: code-health) -> /claude-tweaks:specify -> /claude-tweaks:build / /claude-tweaks:flow
+findings -> validate-findings -> file GitHub issue (by:code-health, ready) -> /claude-tweaks:specify -> /claude-tweaks:build / /claude-tweaks:flow
          +- fuzzy / not-yet -> /claude-tweaks:capture (INBOX)
 ```
 
@@ -66,13 +66,15 @@ If the path does not exist, stop and report the error. Set `AREA` and `ROOT` for
 
 **Step 2 — GATHER OPEN ISSUES for dedup.**
 
-Collect existing `code-health`-labelled issues so the engine can skip/reopen correctly:
+Collect existing `by:code-health`-labelled issues so the engine can skip/reopen/suppress correctly:
 
 ```bash
-gh issue list --label code-health --state all --json number,state,labels,body --limit 500 > /tmp/code-health-issues-raw.json
+gh issue list --label by:code-health --state all --json number,state,labels,body --limit 500 > /tmp/code-health-issues-raw.json
 ```
 
-Parse each issue body for the fingerprint marker `<!-- code-health-fingerprint: codehealth-XXXXXXXX -->` and build an array of `{ number, state, labels, fingerprint }` objects. Write to `/tmp/code-health-open.json`. If `gh` is unavailable or the repo has no code-health issues, skip this step and set `ISSUES_FILE=""` — the run dedups against the local cache only.
+Parse each issue body for its fingerprint marker and build an array of `{ number, state, labels, fingerprint }` objects. Fingerprint extraction reads the dual-marker form via `extractFingerprint` (`bin/lib/issues/record.js`): the current `<!-- work-fingerprint: codehealth-XXXXXXXX -->` marker, falling back to the legacy `<!-- code-health-fingerprint: codehealth-XXXXXXXX -->` marker still present on issues filed before this skill moved onto the unified work record (`skills/_shared/work-record.md`). Write to `/tmp/code-health-open.json`. If `gh` is unavailable or the repo has no `by:code-health` issues, skip this step and set `ISSUES_FILE=""` — the run dedups against the local cache only.
+
+A matched issue carrying the `wontfix` label is a standing suppression decision, not a skip or reopen: `validate-findings` (Step 8) suppresses re-filing entirely and persists `status: 'wontfix'` to the local cache, so the decision survives even on a later run where `gh` is unavailable and this issue index can't be rebuilt.
 
 **Step 3 — READ THE SLICE.**
 
@@ -204,11 +206,13 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" validate-findings /tmp/code-heal
 Read `/tmp/code-health-payloads.json`. The command:
 - Validates each finding (drops malformed ones with a logged reason on stderr).
 - Fingerprints via `criterion + areaId + normalizeAnchor(anchor)`.
-- Deduplicates against open `code-health` issues and the local cache.
+- Deduplicates against open `by:code-health` issues and the local cache — including honoring a `wontfix`-labelled match as a standing suppression (see Step 2).
 - Writes the updated cache and records the run-log + slice cursor (unless `--dry-run`).
 - Emits gh-ready payloads on stdout as a JSON array.
 
 **Step 9 — FILE / REOPEN ISSUES.**
+
+Every code-health record files onto the unified work record (`skills/_shared/work-record.md`): origin `by:code-health`; `finding.risk` maps to the `risk:{value}` label; `finding.effort` maps to the `effort:{value}` label; Type is always `task`. Every filed finding is **born-`ready`** — code-health findings are agent-sized and spec-shaped by construction (Current State / Deliverables / Acceptance Criteria, verified by the Step 7 gate), so they file with the `ready` label already applied and appear directly in the authorization gate's worklist, skipping maturation. `toIssuePayloadV2` (`bin/lib/code-health/issue-payload.js`) assembles the payload via `record.js`'s `recordPayload` — the emitted label set is exactly `by:code-health`, `risk:<tier>`, `effort:<tier>`, `ready` (no per-criterion label).
 
 Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures (see `_shared/health-state.md`):
 
@@ -224,20 +228,21 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" retry-queue update /tmp/code-hea
 
 This records successes (removed from the queue) and failures (added/incremented) in one durable write. If `/tmp/code-health-escalated.json` is non-empty, file (or update) a `code-health:filing-failed` issue for each entry, naming the stuck fingerprint and its failure history — bootstrap that label the same way as the others below.
 
-Before filing, bootstrap the three label families this run needs with real descriptions — using the shared helper so a too-long description fails loudly here rather than as a 422 on `gh issue create`:
+Before filing, bootstrap only the label families this run applies, with real descriptions — using the shared helper so a too-long description fails loudly here rather than as a 422 on `gh issue create`. Pairs copied verbatim from `_shared/label-bootstrap.md`'s canonical `LABELS_JSON`:
 
 ```bash
 # Bootstrap per _shared/label-bootstrap.md, LABELS_JSON =
-# [['code-health', 'Filed by the code-health engine - a systematic maintainability finding'],
-#  ['code-health:risk-low', "Risk tier if this finding's suggested fix goes wrong"],
-#  ['code-health:risk-medium', "Risk tier if this finding's suggested fix goes wrong"],
-#  ['code-health:risk-high', "Risk tier if this finding's suggested fix goes wrong"],
-#  ['code-health:effort-low', "Estimated effort to implement this finding's suggested fix"],
-#  ['code-health:effort-medium', "Estimated effort to implement this finding's suggested fix"],
-#  ['code-health:effort-high', "Estimated effort to implement this finding's suggested fix"]]
+# [["by:code-health", "Origin: filed by the code-health skill"],
+#  ["risk:low",        "Scoring: low blast radius — safe for autonomous build"],
+#  ["risk:medium",     "Scoring: moderate blast radius — review before merge recommended"],
+#  ["risk:high",       "Scoring: high blast radius — human review required"],
+#  ["effort:low",      "Scoring: small, agent-sized change"],
+#  ["effort:medium",   "Scoring: moderate change, may span several files"],
+#  ["effort:high",     "Scoring: large change — consider decomposition before building"],
+#  ["ready",           "Stage: spec-shaped and agent-sized — in the authorization gate's worklist"]]
 ```
 
-There is no per-criterion label anymore — the criterion is already in the issue body's header line (`**Criterion:** ...`), and nothing reads it back off a label; this is also the label class that hit GitHub's 100-char cap (see `bin/lib/code-health/issue-payload.js`).
+There is no per-criterion label anymore — the criterion is already in the issue body's header line (`**Criterion:** ...`), and nothing reads it back off a label; this was also the label class that hit GitHub's 100-char cap (see `bin/lib/code-health/issue-payload.js`).
 
 For each payload in `/tmp/code-health-payloads.json`, call `gh issue create`. The engine is emit-only; filing is always done by the skill:
 
@@ -245,9 +250,10 @@ For each payload in `/tmp/code-health-payloads.json`, call `gh issue create`. Th
 gh issue create \
   --title "<payload.title>" \
   --body "<payload.body>" \
-  --label code-health \
-  --label "code-health:risk-<tier>" \
-  --label "code-health:effort-<tier>"
+  --label by:code-health \
+  --label "risk:<tier>" \
+  --label "effort:<tier>" \
+  --label ready
 ```
 
 For `reopen` decisions (a finding matching a closed non-`wontfix` issue has reappeared), reopen the issue and comment:
@@ -385,10 +391,10 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 
 | Skill | Relationship |
 |-------|-------------|
-| `/claude-tweaks:specify` | Code-health findings are pre-specs — a filed `code-health` issue body is `/specify`-shaped (Current State / Deliverables / Acceptance Criteria), so `/specify` consumes it with near-zero translation. |
+| `/claude-tweaks:specify` | Code-health findings are pre-specs — a filed `by:code-health` issue body is `/specify`-shaped (Current State / Deliverables / Acceptance Criteria), so `/specify` consumes it with near-zero translation. |
 | `/claude-tweaks:capture` | Fuzzy or below-threshold findings route to INBOX via `/capture` instead of inflating the tracker. |
-| `/claude-tweaks:tidy` | `/tidy` Step 4.8 audits open `code-health`-labelled issues in its hygiene pass — stale/superseded ones are closed (with comment) after batch approval; still-valid ones are suggested for `/claude-tweaks:triage` or captured to INBOX. |
-| `/claude-tweaks:triage` | Triage's bare invocation is the primary consumer of code-health's `risk-<tier>`/`effort-<tier>` labels — the Tier Rule reads them directly to recommend an authorization tier. `triage dispatch` claims each authorized issue and hands it to `/claude-tweaks:flow #{issue}` for pure execution — `/flow` no longer selects or claims issues itself. |
+| `/claude-tweaks:tidy` | `/tidy` Step 4.8 audits open `by:code-health`-labelled issues in its hygiene pass — stale/superseded ones are closed (with comment) after batch approval; still-valid ones are suggested for `/claude-tweaks:triage` or captured to INBOX. |
+| `/claude-tweaks:triage` | Triage's bare invocation is the primary consumer of code-health's `risk:<tier>`/`effort:<tier>` labels — the Tier Rule reads them directly to recommend an authorization tier. `triage dispatch` claims each authorized issue and hands it to `/claude-tweaks:flow #{issue}` for pure execution — `/flow` no longer selects or claims issues itself. |
 | `/claude-tweaks:review` | `/review` judges diffs reactively; `/code-health` judges latent code proactively. Both reuse the same criteria fragments from `skills/_shared/`. |
 | `/claude-tweaks:deepen` | `/deepen` applies the architecture-depth criterion reactively to code you are changing; `/code-health` applies it proactively on a schedule. Both read `criteria-architecture-depth.md`. |
 | `/claude-tweaks:routine` | `/routine create code-health` instantiates code-health's `routine-template.yml` into a live, scheduled cloud Routine — the mechanism behind this skill's own "Routine Configuration" section. |

@@ -67,11 +67,15 @@ const V2_FINDING = {
   acceptance: 'getUser adds caching, authorization, or enrichment; or is removed.',
 };
 
-test('v2 labels are code-health + code-health:risk-<tier> + code-health:effort-<tier> (no per-criterion label)', () => {
+test('v2 labels are by:code-health + risk:<tier> + effort:<tier> + ready (no per-criterion label)', () => {
   assert.deepStrictEqual(
     toIssuePayloadV2(V2_FINDING).labels,
-    ['code-health', 'code-health:risk-high', 'code-health:effort-low'],
+    ['by:code-health', 'risk:high', 'effort:low', 'ready'],
   );
+});
+
+test('v2 payload carries type: task', () => {
+  assert.strictEqual(toIssuePayloadV2(V2_FINDING).type, 'task');
 });
 
 test('v2 body header line shows severity, likelihood, effort, risk, and confidence', () => {
@@ -87,9 +91,15 @@ test('v2 title is the finding title', () => {
   assert.strictEqual(toIssuePayloadV2(V2_FINDING).title, V2_FINDING.title);
 });
 
-test('v2 body embeds the fingerprint marker', () => {
+test('v2 body embeds the work-fingerprint marker (not the legacy code-health-fingerprint marker)', () => {
   const { body } = toIssuePayloadV2(V2_FINDING);
-  assert.ok(body.includes('<!-- code-health-fingerprint: recon-ab12cd34 -->'), 'marker missing');
+  assert.ok(body.includes('<!-- work-fingerprint: recon-ab12cd34 -->'), 'marker missing');
+  assert.ok(!body.includes('code-health-fingerprint'), 'legacy marker must not be emitted');
+});
+
+test('v2 body starts directly with the header line (no leading marker or blank line)', () => {
+  const { body } = toIssuePayloadV2(V2_FINDING);
+  assert.ok(body.startsWith('**Criterion:**'), `body should start with the header line, got: ${body.slice(0, 50)}`);
 });
 
 test('v2 body has ## Current State containing anchor and evidence', () => {
@@ -111,11 +121,10 @@ test('v2 body has ## Acceptance Criteria containing acceptance', () => {
   assert.ok(body.includes('adds caching, authorization'), 'acceptance missing');
 });
 
-test('v2 fingerprint marker is re-extractable with the standard regex', () => {
+test('v2 fingerprint marker is re-extractable with extractFingerprint', () => {
+  const { extractFingerprint } = require('../../issues/record');
   const { body } = toIssuePayloadV2(V2_FINDING);
-  const m = body.match(/<!--\s*code-health-fingerprint:\s*(recon-[0-9a-f]{8})\s*-->/);
-  assert.ok(m, 'regex did not match');
-  assert.strictEqual(m[1], 'recon-ab12cd34');
+  assert.strictEqual(extractFingerprint(body), 'recon-ab12cd34');
 });
 
 test('toIssuePayload (v1) still works after extending the module', () => {

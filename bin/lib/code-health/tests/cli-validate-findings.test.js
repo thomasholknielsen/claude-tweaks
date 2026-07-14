@@ -52,8 +52,12 @@ test('validate-findings: valid finding emits one payload on stdout', () => {
   assert.strictEqual(payloads.length, 1, 'expected 1 payload');
   assert.ok(payloads[0].title === f.title, 'title mismatch');
   assert.ok(Array.isArray(payloads[0].labels), 'labels must be an array');
-  assert.ok(payloads[0].labels.includes('code-health'), 'missing code-health label');
-  assert.ok(payloads[0].body.includes('<!-- code-health-fingerprint: codehealth-'), 'fingerprint marker missing');
+  assert.ok(payloads[0].labels.includes('by:code-health'), 'missing by:code-health label');
+  assert.ok(payloads[0].labels.includes('ready'), 'missing ready label (born-ready)');
+  assert.ok(payloads[0].labels.some((l) => l.startsWith('risk:')), 'missing risk:<tier> label');
+  assert.ok(payloads[0].labels.some((l) => l.startsWith('effort:')), 'missing effort:<tier> label');
+  assert.strictEqual(payloads[0].type, 'task', 'type must be task');
+  assert.ok(payloads[0].body.includes('<!-- work-fingerprint: codehealth-'), 'fingerprint marker missing');
 });
 
 test('validate-findings: malformed finding is dropped with a stderr reason, valid ones survive', () => {
@@ -101,11 +105,11 @@ test('validate-findings: finding already open in issue index is skipped (dedup)'
   const firstResult = runValidateFindings(root, findingsFile, ['--slice', 'src/api', '--run-id', 'r-dedup-1']);
   const firstPayloads = JSON.parse(firstResult.stdout);
   assert.strictEqual(firstPayloads.length, 1);
-  const fp = firstPayloads[0].body.match(/<!--\s*code-health-fingerprint:\s*(codehealth-[0-9a-f]{8})\s*-->/)[1];
+  const fp = firstPayloads[0].body.match(/<!--\s*work-fingerprint:\s*(codehealth-[0-9a-f]{8})\s*-->/)[1];
 
   // Build an issue index pretending the fingerprint is already open.
   const issuesFile = path.join(root, 'issues.json');
-  fs.writeFileSync(issuesFile, JSON.stringify([{ number: 1, state: 'open', labels: ['code-health'], fingerprint: fp }]));
+  fs.writeFileSync(issuesFile, JSON.stringify([{ number: 1, state: 'open', labels: ['by:code-health'], fingerprint: fp }]));
 
   const secondResult = runValidateFindings(
     root, findingsFile, ['--issues', issuesFile, '--slice', 'src/api', '--run-id', 'r-dedup-2'],
@@ -124,11 +128,11 @@ test('validate-findings: a wontfix-labelled match is suppressed AND persisted to
   // First run to learn the fingerprint.
   const firstResult = runValidateFindings(root, findingsFile, ['--slice', 'src/api', '--run-id', 'r-wontfix-1']);
   const firstPayloads = JSON.parse(firstResult.stdout);
-  const fp = firstPayloads[0].body.match(/<!--\s*code-health-fingerprint:\s*(codehealth-[0-9a-f]{8})\s*-->/)[1];
+  const fp = firstPayloads[0].body.match(/<!--\s*work-fingerprint:\s*(codehealth-[0-9a-f]{8})\s*-->/)[1];
 
   // Build an issue index pretending the matching issue was closed wontfix.
   const issuesFile = path.join(root, 'issues.json');
-  fs.writeFileSync(issuesFile, JSON.stringify([{ number: 7, state: 'closed', labels: ['code-health', 'wontfix'], fingerprint: fp }]));
+  fs.writeFileSync(issuesFile, JSON.stringify([{ number: 7, state: 'closed', labels: ['by:code-health', 'wontfix'], fingerprint: fp }]));
 
   const secondResult = runValidateFindings(
     root, findingsFile, ['--issues', issuesFile, '--slice', 'src/api', '--run-id', 'r-wontfix-2'],
@@ -150,7 +154,7 @@ test('validate-findings: a cache-only wontfix (no gh issue index) still suppress
 
   const firstResult = runValidateFindings(root, findingsFile, ['--slice', 'src/api', '--run-id', 'r-cache-wontfix-1']);
   const firstPayloads = JSON.parse(firstResult.stdout);
-  const fp = firstPayloads[0].body.match(/<!--\s*code-health-fingerprint:\s*(codehealth-[0-9a-f]{8})\s*-->/)[1];
+  const fp = firstPayloads[0].body.match(/<!--\s*work-fingerprint:\s*(codehealth-[0-9a-f]{8})\s*-->/)[1];
 
   const issuesFile = path.join(root, 'issues.json');
   fs.writeFileSync(issuesFile, JSON.stringify([{ number: 7, state: 'closed', labels: ['wontfix'], fingerprint: fp }]));
