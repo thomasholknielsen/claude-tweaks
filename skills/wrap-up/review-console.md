@@ -8,16 +8,21 @@ The Review Console is the **second bookend** of the pipeline (see `_shared/auto-
 - **`auto` or `hybrid` mode with `MULTISPEC_REVIEW_DEFER=1`** — **skip**. The consolidated multi-spec Review Console at `/flow` end-of-run will read this spec's `decisions.md` + `staged/` and surface everything in one place. See `flow/multispec-review-console.md` in the `/claude-tweaks:flow` skill's directory.
 - **`interactive` mode** — skip; decisions were resolved in-flow
 
-## Fast-track short-circuit
+## Auto-merge short-circuit
 
-When this run's spec carries `recon-issue:` frontmatter for an issue tagged
-`tier:fast-track` (see `skills/triage/SKILL.md`'s auto-merge gate), check
-the four-layer gate before presenting this console:
+When this run's spec has a materialized header (`record:` field present in
+`${RUN_DIR}/work/*-spec.md` — see `skills/flow/materialize.md`) AND the issue's **live** labels
+carry `auto:merge` (re-fetch via `gh issue view --json labels` — the header's `grants:` field is
+a snapshot for audit only; `materialize.md`'s reader table requires this check to re-read live
+state, never the projection), check the four-layer gate below — the same concept
+`skills/dispatch/SKILL.md`'s own group-scoped "Auto-merge gate" applies for a dispatched
+bundle; this is the single-record version wrap-up itself runs, whether or not
+`/claude-tweaks:dispatch` was involved:
 
-1. **Authorization** — `tier:fast-track` was present when dispatched (true by construction)
-2. **Pre-scored eligibility** — true by construction (the Tier Rule only recommends `fast-track` for `risk:low`+`effort:low`)
+1. **Authorization** — `auto:merge` is present on the live-fetched labels (true by construction once this branch is reached)
+2. **Scoring eligibility** — true by construction for a mechanically-recommended grant: `recommendGrants` (`bin/lib/issues/tier.js`) only ever sets `merge: true` for `risk:low`+`effort:low`. An explicit human override at `/claude-tweaks:triage` remains possible and is accepted as-is here.
 3. **Runtime cleanliness** — `/review`'s Step 3 Routing produced nothing at Medium severity or above
-4. **Blast radius** — the diff stays within `triage-fast-track-max-lines`/`triage-fast-track-max-files` (CLAUDE.md/`policy.yml` flags, defaults 40/2) and touches only files the original issue's fingerprint/anchor pointed at
+4. **Blast radius** — the diff stays within `automerge-max-lines`/`automerge-max-files` (CLAUDE.md/`policy.yml` flags, defaults 40/2 — the legacy alias keys `triage-fast-track-max-lines`/`triage-fast-track-max-files` are still read when the new keys are absent) and touches only files the record's fingerprint/anchor pointed at
 
 **All four pass:** skip the blocking wait and merge directly — bypass the
 interactive `/superpowers:finishing-a-development-branch` handoff entirely,
@@ -52,8 +57,8 @@ shown is discarded — only the wait for a live approval is skipped.
 
 **If the merge conflicts:** conflict resolution requires judgment a headless
 run can't supply — abort the merge (`git merge --abort`) and fall back to
-rendering the console normally, exactly as a `tier:approved` issue would,
-logging why the fast-lane path was abandoned.
+rendering the console normally, exactly as an `auto:build`-only record would,
+logging why the auto-merge path was abandoned.
 
 Log to `decisions.md`:
 `AUTO {time} — Fast-lane auto-merge: issue #{n}, {lines} lines across {files} files, zero findings >= medium. Merge commit: {sha}. Reversibility: high (git revert).`
@@ -63,17 +68,20 @@ release-reason mapping (`skills/wrap-up/cleanup-procedures.md` Section E step 2)
 path never runs `/superpowers:finishing-a-development-branch`, so Section E's usual "map the
 outcome from that skill" instruction has nothing to read here; treat a successful fast-lane
 merge exactly as if that skill had reported `merged`, with `$LINK` set to this merge's commit
-sha.
+sha. Grant removal (Section E step 6) follows the same `merged:` outcome — `auto:build` and
+`auto:merge` both come off once this merge lands.
 
-**Any layer fails:** proceed to render the console normally, exactly as a
-`tier:approved` issue would — no different from any other pipeline run.
+**Any layer fails:** proceed to render the console normally, exactly as an
+`auto:build`-only record would — no different from any other pipeline run.
 
-This check does not apply to `MULTISPEC_REVIEW_DEFER=1` runs — a `tier:fast-track`
-issue that ends up inside a human-run multi-spec batch (rather than dispatched
-single-issue by `/claude-tweaks:triage dispatch`, which is the only path this
-design's fast-lane treatment targets) still gets the normal, fully-blocking
+This check does not apply to `MULTISPEC_REVIEW_DEFER=1` runs — an `auto:merge`-granted
+record that ends up inside a human-run multi-spec batch (rather than dispatched
+single-record by `/claude-tweaks:dispatch`, which is the only path this
+design's auto-merge treatment targets) still gets the normal, fully-blocking
 consolidated Review Console, same as any other spec in the batch. No
-equivalent auto-merge gate exists for the multi-spec console today.
+equivalent auto-merge gate exists for the multi-spec console today
+(`skills/dispatch/SKILL.md`'s own "Auto-merge gate" is the group-scoped
+analogue for a dispatched bundle, not a multispec-console feature).
 
 ## Multi-spec defer protocol
 
@@ -112,7 +120,7 @@ See `_shared/pipeline-run-dir.md` for the resolution order and bash snippet. If 
 ```markdown
 ### Wrap-Up Review Console
 
-The pipeline auto-resolved {N} decisions and staged {M} items for your review. Sections 1–6 resolve via one batch choice; queue writes (Section 7) require per-item approval because `_shared/auto-mode-contract.md` lists `specs/backlog/` writes (parked/inbox) as not-silenced by `auto`.
+The pipeline auto-resolved {N} decisions and staged {M} items for your review. Sections 1–6 resolve via one batch choice; queue writes (Section 7) require per-item approval because `_shared/auto-mode-contract.md` lists work-record creation as not-silenced by `auto`.
 
 #### Auto-applied (already in commits — override = revert)
 
@@ -177,12 +185,17 @@ Render the cleanup rows from the canonical list in `cleanup-procedures.md`, filt
 
 #### Queue writes — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")
 
-Render this section only when leftover routing or other steps have proposed writes to `specs/backlog/` (new-file creates or `**Stage:**` changes). Each row gets its own prompt — bulk approval is forbidden per `_shared/auto-mode-contract.md`.
+Render this section only when leftover routing or another step (e.g. `/reflect`'s
+tangential-idea routing) has proposed a new work record. Each row gets its own prompt — bulk
+approval is forbidden per `_shared/auto-mode-contract.md`'s work-record-creation row. The exact
+write mechanism (`gh issue create` / `local-store.js`, or — for a skill not yet migrated onto
+the unified record system — its own destination) lives in the producing skill's own staged
+file; this table only needs enough to render the prompt.
 
 | Q# | Destination | What | Source |
 |---|---|---|---|
-| Q1 | backlog (parked) | "Add OAuth refresh edge case" — blocked on /auth provider docs | Step 4 leftover routing, section "Edge cases" |
-| Q2 | backlog (inbox) | "Investigate token rotation strategy" — surfaced by /reflect Step 3 | reflect insight stage file |
+| Q1 | record (parked — trigger: /auth provider docs land) | "Add OAuth refresh edge case" — blocked on /auth provider docs | Step 4 leftover routing, `staged/leftover-add-oauth-refresh-edge-case.md` |
+| Q2 | record (backlog) | "Investigate token rotation strategy" — surfaced by /reflect Step 3 | reflect insight stage file |
 
 Below each table, show the full patch / diff for each pending item so the user can see exactly what will change.
 ```
@@ -200,14 +213,14 @@ Queue writes (Q1, Q2) are handled separately below — they are never part of th
 
 After the user selects option 1 or 2, prompt the queue writes individually — one small `AskUserQuestion` call per `Q#` item, issued separately (never batched into a single call's multiple questions).
 
-For each `Q#` item, call `AskUserQuestion` with `question`: the queue-write line (e.g. `"Queue write Q1 → specs/backlog/add-oauth-refresh-edge-case.md (Stage: parked): \"Add OAuth refresh edge case\" — blocked on /auth provider docs."`), `header`: `"Queue write {Q#}"`, `multiSelect`: `false`:
-- Option 1 — `label`: `"Apply"`, `description`: `"Write to {destination}: \"{content}\""`
+For each `Q#` item, call `AskUserQuestion` with `question`: the queue-write line (e.g. `"Queue write Q1 → new record, parked (trigger: /auth provider docs land): \"Add OAuth refresh edge case\" — blocked on /auth provider docs."`), `header`: `"Queue write {Q#}"`, `multiSelect`: `false`:
+- Option 1 — `label`: `"Apply"`, `description`: `"Create the record: \"{content}\""`
 - Option 2 — `label`: `"Skip"`, `description`: `"Drop this proposal"`
-- Option 3 — `label`: `"Edit"`, `description`: `"Modify before writing"`
+- Option 3 — `label`: `"Edit"`, `description`: `"Modify before creating"`
 
 Applied to this example's two queue writes:
-- Q1 — `question`: `"Queue write Q1 → specs/backlog/add-oauth-refresh-edge-case.md (Stage: parked): \"Add OAuth refresh edge case\" — blocked on /auth provider docs."`, `header`: `"Queue write Q1"`; Option 1 description: `"Write to specs/backlog/add-oauth-refresh-edge-case.md (Stage: parked): \"Add OAuth refresh edge case\" — blocked on /auth provider docs"`
-- Q2 — `question`: `"Queue write Q2 → specs/backlog/investigate-token-rotation-strategy.md (Stage: inbox): \"Investigate token rotation strategy\" — surfaced by /reflect Step 3."`, `header`: `"Queue write Q2"`; Option 1 description: `"Write to specs/backlog/investigate-token-rotation-strategy.md (Stage: inbox): \"Investigate token rotation strategy\" — surfaced by /reflect Step 3"`
+- Q1 — `question`: `"Queue write Q1 → new record, parked (trigger: /auth provider docs land): \"Add OAuth refresh edge case\" — blocked on /auth provider docs."`, `header`: `"Queue write Q1"`; Option 1 description: `"Create the record: \"Add OAuth refresh edge case\" — blocked on /auth provider docs, parked with trigger '/auth provider docs land'"`
+- Q2 — `question`: `"Queue write Q2 → new record, backlog: \"Investigate token rotation strategy\" — surfaced by /reflect Step 3."`, `header`: `"Queue write Q2"`; Option 1 description: `"Create the record: \"Investigate token rotation strategy\" — surfaced by /reflect Step 3\""`
 
 None of these three options carries `(Recommended)` — the source text requires explicit per-item attention, and these calls are never combined into a single multi-question `AskUserQuestion` call across multiple `Q#` items (that would functionally reintroduce bulk approval by letting the user answer several at once without individually attending to each).
 
@@ -217,7 +230,7 @@ None of these three options carries `(Recommended)` — the source text requires
 2. Apply skill updates and create new skills (items 11–12, from Step 7)
 3. Apply config updates (items 13–14: docs, CLAUDE.md, rules)
 4. Execute cleanup actions (items 15–21) — Step 10 picks these up
-5. For each `Q#` queue write, prompt the user per item via its own `AskUserQuestion` call. Apply only on explicit Apply or Edit. Skip drops the proposal.
+5. For each `Q#` queue write, prompt the user per item via its own `AskUserQuestion` call. On Apply (or Edit, after the modification): create the record — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`), reading `Title:`/`Type:`/`Labels:` and the body from the item's staged file (`staged/leftover-{slug}.md` for leftover-routed items; other sources use their own staged-file shape). Skip drops the proposal — log the decline to `decisions.md` with the user's stated reason, or "declined, no reason given" when none was offered.
 6. Commit with a wrap-up message
 7. Proceed to Step 10 (Consolidated Summary)
 
@@ -242,4 +255,4 @@ If `decisions.md` has zero entries AND `staged/` is empty AND there are no skill
 
 - The console MUST present every entry from `decisions.md` (auto-applied + staged + kept-prompt), every file in `staged/`, every cleanup action that would otherwise run in Step 10, and every queue-write proposal. Silently dropping any item is forbidden.
 - **Sort order within each section:** reversibility:low first (highest-stakes revert), then reversibility:med, then reversibility:high. Within the same reversibility, severity:high first.
-- **Queue writes are per-item only.** Never group them under "Approve all" — this enforces the contract's not-silenced rule for `specs/backlog/` writes.
+- **Queue writes are per-item only.** Never group them under "Approve all" — this enforces the contract's not-silenced rule for work-record creation.

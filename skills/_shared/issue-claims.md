@@ -133,7 +133,7 @@ live, skip the issue, and let `/tidy`'s sweep surface it for human judgment.
 
 | Trigger | Owner | Reason string |
 |---|---|---|
-| Spec merged / PR opened / discarded | `/wrap-up` cleanup item 8 | `merged: spec {spec}` / `pr-opened: spec {spec}` / `abandoned: spec {spec}` |
+| Spec merged / PR opened / discarded | `/wrap-up` cleanup item 7 | `merged: spec {spec}` / `pr-opened: spec {spec}` / `abandoned: spec {spec}` |
 | Interactive `/flow` run stops at a gate, user chooses not to resume | `/flow` failure card (offered, not automatic) | `failed: {gate}` |
 | Handed-off issue-mode run fails a HARD-GATE (headless `dispatch`, no human present) | `/claude-tweaks:dispatch` settle step (automatic, unconditional) | `failed: {gate}` |
 | Stale or orphaned claim in hygiene pass | `/tidy` Step 4.7 (after batch approval) | `swept: stale claim` / `swept: issue closed` |
@@ -253,7 +253,7 @@ Fail-closed on claiming; never block the session.
 |---|---|
 | `/claude-tweaks:dispatch` | Claims each authorized record's whole file-overlap group before handing off to `/flow`; releases + revokes on failure (per the retry-ceiling procedure) |
 | `/claude-tweaks:flow` (issue-reference mode) | Releases via `/wrap-up`'s generic Section E `abandoned:` path when the user doesn't merge, and via failure-card-offered release on a gate failure. Never claims — `/claude-tweaks:dispatch` always claims before invoking `/flow #{n}`. |
-| `/claude-tweaks:wrap-up` (`cleanup-procedures.md` item 8 / Section E) | Releases claims with the branch outcome as reason |
+| `/claude-tweaks:wrap-up` (`cleanup-procedures.md` item 7 / Section E) | Releases claims with the branch outcome as reason |
 | `/claude-tweaks:tidy` (`scan-procedures.md` Step 4.7) | Sweeps stale/orphaned claims; releases only after batch approval |
 
 **Non-consumers (deliberate):** `/code-health` files issues but never works them — a concurrent-

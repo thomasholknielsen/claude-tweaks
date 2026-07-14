@@ -4,53 +4,34 @@ Canonical home for the wrap-up cleanup enumeration. Loaded by `/claude-tweaks:wr
 
 ## Canonical cleanup list
 
-Eight cleanup actions, executed in order (Step 10) and surfaced together (Step 5, Step 9, Review Console):
+Eight cleanup actions, executed in order (Step 10) and surfaced together (Step 5, Step 9, Review Console). **Ordering rule: pipeline run directory archival (item 8) is always last.** Items 4, 6, and 7 read or write files under `$RUN_DIR` — the worktree/carrier-commit check reads the materialized header from `${RUN_DIR}/work/`, the ephemeral-server teardown reads `${RUN_DIR}/ephemeral-server.txt`, and the issue claim release reads the same materialized header again — and once the run directory is archived none of those paths resolve any more. State this as an unconditional rule, not a closed list: any future cleanup item that reads or writes `$RUN_DIR` belongs before item 8 too, not just the three named here.
 
 | # | Cleanup | Procedure ref | Condition | Deferred under `MULTISPEC_REVIEW_DEFER=1`? |
 |---|---------|---------------|-----------|--------------------------------------------|
 | 1 | Execution plans | Delete plan files in `docs/superpowers/plans/` and `~/.claude/plans/` related to this spec. (Design docs `*-design.md` in `docs/superpowers/specs/` should already be gone — `/specify` deletes them. If any remain, delete now.) | spec-based work | No (idempotent — leave to per-spec wrap-up) |
 | 2 | Open items ledger | Delete via `/ledger`'s delete operation, only after Step 8.5 confirms zero open items | ledger exists | No (idempotent) |
 | 3 | Design wrapper caches | Section A below — delete `*-audit.json`, `*-recommendations.json`, `*-declined.json` in `docs/plans/` | design wrapper active | **Yes — defer to parent `/flow` console** |
-| 4 | Pipeline run directory | Section B below — archive (do not delete) to `.claude-tweaks/pipelines/archive/{run-id}/` | run dir exists | **Yes — parent `/flow` owns archival** |
-| 5 | Git worktree | Section C below — complete feature branch via `/superpowers:finishing-a-development-branch`, then remove worktree + delete merged branch | worktree strategy | **Yes — defer to parent `/flow` console** |
-| 6 | Spec lifecycle (file + INDEX) | **Before deleting**, capture the spec's `recon-issue:` and `recon-was-parked:` frontmatter values (if present) — item 8's Section E needs them and the file won't exist to re-read once this step deletes it. Then delete the spec file (if 100% complete) or update its status; update `specs/INDEX.md` (remove completed entries) | spec-based work | No (idempotent — the spec being deleted does not interact with parent multi-spec archival) |
-| 7 | Ephemeral dev server | Section D below — kill the auto-started dev server tracked in `{run-id}/ephemeral-server.txt` | `ephemeral-server.txt` exists | **Yes — server stays up across specs; parent `/flow` kills it once after the consolidated console** |
-| 8 | Issue claim release | Section E below — release `refs/claims/issue-{n}` for each spec with `recon-issue:` frontmatter | spec frontmatter has `recon-issue:` | **Yes — defer to parent `/flow` console** (release follows the merge decision; releasing before the consolidated console would let another agent grab the issue while the work sits unmerged) |
+| 4 | Git worktree | Section C below — complete feature branch via `/superpowers:finishing-a-development-branch`, then remove worktree + delete merged branch | worktree strategy | **Yes — defer to parent `/flow` console** |
+| 5 | Record/spec lifecycle | Record mode: no-op — closure is close-via-merge (items 4 and 7 stamp the carrier commit and release the claim); `specs/INDEX.md` is never touched. Legacy spec-file alias (no materialized header): unchanged pre-materialization behavior — delete the spec file (if 100% complete) or update its status; update `specs/INDEX.md` (remove completed entries) | spec-based work | No (idempotent — does not interact with parent multi-spec archival either way) |
+| 6 | Ephemeral dev server | Section D below — kill the auto-started dev server tracked in `{run-id}/ephemeral-server.txt` | `ephemeral-server.txt` exists | **Yes — server stays up across specs; parent `/flow` kills it once after the consolidated console** |
+| 7 | Issue claim release | Section E below — release `refs/claims/issue-{n}` for the spec's materialized header | materialized header present (`${RUN_DIR}/work/*-spec.md`) | **Yes — defer to parent `/flow` console** (release follows the merge decision; releasing before the consolidated console would let another agent grab the issue while the work sits unmerged) |
+| 8 | Pipeline run directory | Section B below — archive (do not delete) to `.claude-tweaks/pipelines/archive/{run-id}/` | run dir exists | **Yes — parent `/flow` owns archival** |
 
-The detailed procedures for items 3–5, 7, and 8 follow. Items 1 and 2 are simple enough to execute inline at Step 10 without a sub-procedure. Item 6 needs one — see the frontmatter-capture note immediately below the table — because it must hand a value forward to item 8 before deleting the file that value lives in.
+The detailed procedures for items 3, 4, 6, 7, and 8 follow (Sections A–E respectively). Items 1, 2, and 5 are simple enough to execute inline at Step 10 without a dedicated sub-procedure.
 
-**Item 6's frontmatter capture.** Before deleting the spec file, read its `recon-issue:` and
-`recon-was-parked:` frontmatter and persist them to the run directory — item 8 (Section E)
-needs both, and for a `MULTISPEC_REVIEW_DEFER=1` run item 8 doesn't execute until a *separate*,
-later invocation (the parent `/flow` console), by which point this spec's file is long gone.
-A same-run in-memory capture is not enough; it has to survive to that later read:
-
-```bash
-RECON_ISSUE=$(grep -m1 '^recon-issue:' "$SPEC_FILE" | sed 's/^recon-issue: *//')
-if [ -n "$RECON_ISSUE" ]; then
-  RECON_WAS_PARKED=$(grep -qx 'recon-was-parked: true' "$SPEC_FILE" && echo true || echo false)
-  node -e "require('fs').writeFileSync(process.argv[1], JSON.stringify({reconIssue: Number(process.argv[2]), reconWasParked: process.argv[3] === 'true'}))" \
-    "${RUN_DIR}/claim-frontmatter-${RECON_ISSUE}.json" "$RECON_ISSUE" "$RECON_WAS_PARKED"
-fi
-```
-
-Skip the write entirely when `recon-issue:` is absent — same "absence is the signal" convention
-`recon-was-parked:` itself already uses. This file lives alongside `decisions.md`/`config.yml`
-in the run directory, so it survives exactly as long as item 8 needs it to (the run directory
-itself isn't archived until item 4, which is *also* deferred under multispec until after the
-console runs).
+**Item 5's two framings, in one line each.** A record-mode run has no legacy spec file to delete and no `specs/INDEX.md` entry to remove — the record's own lifecycle closes via the merge/PR/commit that carries `Fixes #{issue}` (items 4 and 7), a wrap-up-owned label/claim operation, not a file deletion. A legacy spec-file-mode run (the numeric alias, no materialized header) keeps the pre-materialization behavior verbatim. Migrating a project's remaining `specs/*.md` files off the legacy alias entirely is a one-time, project-level concern outside wrap-up's per-run scope — not something this step performs.
 
 ## Multi-spec defer behavior
 
-Under `MULTISPEC_REVIEW_DEFER=1`, Step 10 SKIPS state-changing cleanups marked "Yes" in the table above (items 3, 4, 5, 7, and 8). Those defer to `/flow`'s consolidated multi-spec Review Console at end-of-run. Items 1, 2, and 6 still execute — they are idempotent and do not interfere with parent-orchestrated cleanup of design caches, run dirs, or worktrees.
+Under `MULTISPEC_REVIEW_DEFER=1`, Step 10 SKIPS state-changing cleanups marked "Yes" in the table above (items 3, 4, 6, 7, and 8). Those defer to `/flow`'s consolidated multi-spec Review Console at end-of-run. Items 1, 2, and 5 still execute — they are idempotent and do not interfere with parent-orchestrated cleanup of design caches, run dirs, or worktrees.
 
 The full list of Step 10's deferred-under-MULTISPEC actions:
 
 - Item 3 (Design caches) — parent /flow owns design-cache archival across all specs
-- Item 4 (Pipeline run dir archival) — parent /flow archives the multi-spec parent dir after consolidated console
-- Item 5 (Worktree removal) — parent /flow handles worktree teardown after consolidated console approves cross-spec changes
-- Item 7 (Ephemeral dev server) — the auto-started server is shared across all specs in the run; parent /flow kills it once after the consolidated console (killing it per-spec would force every later spec's visual review to restart it)
-- Item 8 (Issue claim release) — parent /flow releases all claims once, after the consolidated console and worktree merge decide each spec's outcome
+- Item 4 (Worktree removal) — parent /flow handles worktree teardown after consolidated console approves cross-spec changes
+- Item 6 (Ephemeral dev server) — the auto-started server is shared across all specs in the run; parent /flow kills it once after the consolidated console (killing it per-spec would force every later spec's visual review to restart it)
+- Item 7 (Issue claim release) — parent /flow releases all claims once, after the consolidated console and worktree merge decide each spec's outcome
+- Item 8 (Pipeline run dir archival) — parent /flow archives the multi-spec parent dir after consolidated console
 
 ---
 
@@ -77,7 +58,7 @@ If a pipeline run directory exists for this work (see `_shared/pipeline-run-dir.
 1. **Multi-spec defer check:** if `MULTISPEC_REVIEW_DEFER=1` is set, **skip this section entirely**. The parent `/flow` orchestration owns archival of the multi-spec parent dir after its consolidated Review Console completes. The per-spec subdirectory stays in place under the parent.
 2. Verify the Review Console (Step 8.6) ran and applied/dismissed all staged items.
 3. **Mark the run terminal** — before archiving, run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"` so close-run lifts E1 enforcement (clears the worktree assignment and marks the run clean). E2/E3 logging for that run stops at close-run too — a terminal (clean) run is no longer resolved by the hook dispatcher, so no further events get appended. Archival (step 4) is bookkeeping that moves the directory for the audit trail — it is not the logging cutoff.
-4. Move the run directory to `.claude-tweaks/pipelines/archive/{run-id}/` — this preserves the audit trail (`decisions.md`, `config.yml`, and any skipped staged items) for future reference.
+4. Move the run directory to `.claude-tweaks/pipelines/archive/{run-id}/` — this preserves the audit trail (`decisions.md`, `config.yml`, and any skipped staged items) for future reference. The `work/` subdirectory (materialized record files — `materialize.md`'s "committed as audit trail, never gitignored" contract) is git-tracked, unlike the rest of the run directory: move it with `git mv`, or a plain `mv` followed by `git add` on the new paths in the same wrap-up commit, so its history stays attached instead of showing as deleted-then-recreated.
 5. Skipped staged items remain in the archive; they are NOT silently dropped.
 
 Do NOT delete the run directory outright — the auto-decision log is project history (for the user's calibration of project policy), not pipeline state.
@@ -97,17 +78,29 @@ If the build used worktree git strategy, clean up the worktree directory:
    `/claude-tweaks:flow {spec} worktree` alongside sibling terminals, not a solo worktree run) —
    that merge stamps its own `Fixes #{issue}` lines directly (`--no-ff`, per "Close-via-merge" in
    `_shared/issue-claims.md`), and a carrier commit here would double-stamp the closing
-   reference. Otherwise, when any spec on the branch carries `recon-issue:` frontmatter, and
-   *before* handing off to `/superpowers:finishing-a-development-branch`, commit an empty
-   carrier commit on the feature branch from inside the worktree:
+   reference. Otherwise, check for a materialized header — glob `${RUN_DIR}/work/*-spec.md`
+   (the file `skills/flow/materialize.md` writes and never deletes) and read each match's
+   header `record:` field:
 
    ```bash
-   git commit --allow-empty -m "$(printf 'Fixes #%s\n' "${ISSUES[@]}")"
+   ISSUES=()
+   for f in "${RUN_DIR}"/work/*-spec.md; do
+     [ -e "$f" ] || continue
+     ISSUES+=("$(grep -m1 '^record:' "$f" | sed 's/^record: *//')")
+   done
+   if [ "${#ISSUES[@]}" -gt 0 ]; then
+     git commit --allow-empty -m "$(printf 'Fixes #%s\n' "${ISSUES[@]}")"
+   fi
    ```
 
-   One `Fixes #{issue}` line per resolved issue on the branch. Skip if a carrier commit for
-   these issues already exists on the branch (`git log {branch} --grep="Fixes #{issue}"` —
-   avoids duplicate empty commits if this step re-runs after an interruption).
+   One `Fixes #{issue}` line per resolved issue on the branch — *before* handing off to
+   `/superpowers:finishing-a-development-branch`, from inside the worktree. A legacy
+   spec-file-mode run (no `#N` origin, no materialized header — "pure-local", per
+   `materialize.md`'s alias) has no `work/` file: the loop above finds nothing, `$ISSUES` stays
+   empty, and this step is a no-op — no carrier commit, no closing keyword, because there was
+   never an issue to close. Skip the commit if one for these issues already exists on the
+   branch (`git log {branch} --grep="Fixes #{issue}"` — avoids duplicate empty commits if this
+   step re-runs after an interruption).
 
    **Why a dedicated commit, not the merge artifact:** `/superpowers:finishing-a-development-branch`'s
    own git mechanics give the closing keyword no reliable home otherwise. Its "Merge locally"
@@ -152,15 +145,12 @@ If no `ephemeral-server.txt` exists, skip this section silently (the run used an
 
 ## E. Issue claim release (v5.3.0)
 
-If `${RUN_DIR}/claim-frontmatter-*.json` exists for this spec (item 6's capture — read
-`reconIssue`/`reconWasParked` from there, never from the spec file itself, which item 6 already
-deleted by the time this section runs), the pipeline holds `refs/claims/issue-<n>` (`<n>` =
-`reconIssue`) per `_shared/issue-claims.md`. This mirrors what `recon-issue: <n>` in the spec's
-frontmatter would have said (stamped by `/specify`'s issue-ingestion path — either invoked
-directly on an issue reference, or via `/claude-tweaks:flow #{issue}`'s hand-off, which itself
-calls `/specify #{issue}`) — item 6's capture exists precisely so this section never has to read
-the frontmatter directly. Release it only after the branch outcome is known (item 5 completes
-first — the execution order of the canonical list guarantees this):
+If a materialized header exists for this spec (`${RUN_DIR}/work/*-spec.md` — the file
+`skills/flow/materialize.md` writes and never deletes; read its `record:` field directly, there
+is no pre-deletion capture step to route around), the pipeline holds `refs/claims/issue-<n>`
+(`<n>` = the header's `record:` value) per `_shared/issue-claims.md`. Release it only after the
+branch outcome is known (item 4, Git Worktree, completes first — the execution order of the
+canonical list guarantees this):
 
 Before any step below runs a `gh` command, run the Detection Ladder from
 `_shared/github-pr-scan.md` (checks 1-3). A ladder failure here is a hard gate, not a fail-open
@@ -206,24 +196,27 @@ stop before attempting any release.
 5. A 404/422 from the ref delete means the claim was already released or swept — log it and
    still post the release comment (the comment trail should record the outcome). Any other
    failure: retry once, then log and continue — TTL is the backstop, never block wrap-up.
-6. **Remove the tier label** when the outcome was `merged:` or `pr-opened:` and the issue
-   carries `tier:approved` or `tier:fast-track`: `gh issue edit "$ISSUE" --remove-label tier:approved`
-   (or `tier:fast-track`, whichever is present) (reversible; log to `decisions.md`). Leave
-   the label on `abandoned:` — it is the standing retry request. Skip silently when no tier
-   label is present.
-7. **Remove `status:in-progress`; restore `parked` if applicable.** Always remove
-   `status:in-progress` (`gh issue edit "$ISSUE" --remove-label status:in-progress`) —
-   best-effort, log a warning and continue on failure. Then, only when the outcome reason is
-   `abandoned: spec {spec}` (i.e. NOT `merged:`/`pr-opened:`) AND `reconWasParked` is `true`
-   in `${RUN_DIR}/claim-frontmatter-${ISSUE}.json` (item 6's capture — the spec file itself is
-   already gone by this point, do not try to re-read it): restore `parked` — bootstrap the
-   label if missing (per _shared/label-bootstrap.md, LABELS_JSON = [['parked', 'Deferred backlog entry, waiting on a trigger condition']]), then `gh issue edit "$ISSUE"
-   --add-label parked`. Skip restoration silently when the capture file is absent or
-   `reconWasParked` is `false`, or when the outcome was `merged:`/`pr-opened:` (the spec shipped
-   or is under review — the issue should stay unparked). Best-effort — on failure, log a
+6. **Remove grants** when the outcome was `merged:` or `pr-opened:`: remove `auto:build` and
+   `auto:merge`, whichever are present (`gh issue edit "$ISSUE" --remove-label auto:build` /
+   `--remove-label auto:merge`, best-effort per label) — reversible, log each removal to
+   `decisions.md`. Skip issues released as `abandoned:` (the grant is the standing retry
+   request) and issues carrying no `auto:*` label. See "Grant revocation" and the "Release
+   triggers" table in `_shared/issue-claims.md`.
+7. **Remove `bot:in-progress`; restore `parked` if applicable.** Always remove
+   `bot:in-progress` (`gh issue edit "$ISSUE" --remove-label bot:in-progress`) — best-effort,
+   log a warning and continue on failure. Then, only when the outcome reason is
+   `abandoned: spec {spec}` (i.e. NOT `merged:`/`pr-opened:`) AND the materialized header
+   (`${RUN_DIR}/work/*-spec.md` — read directly; per the step above, the file is never deleted
+   before this point) carries `parked-at-shaping: true` (`materialize.md`'s field for exactly
+   this restore-on-abandon case): restore `parked` — bootstrap the label if missing (per
+   _shared/label-bootstrap.md, LABELS_JSON = [['parked', 'Deferred backlog entry, waiting on a
+   trigger condition']]), then `gh issue edit "$ISSUE" --add-label parked`. Skip restoration
+   silently when no materialized header exists (legacy spec-file-mode run) or
+   `parked-at-shaping` is absent, or when the outcome was `merged:`/`pr-opened:` (the record
+   shipped or is under review — it should stay unparked). Best-effort — on failure, log a
    warning and continue; `/tidy` Step 4.7's backstop check catches a restoration that silently
    failed.
-8. Log each release, `status:in-progress` removal, and `parked` restoration to `decisions.md`
-   (status `AUTO`, reason string as detail).
+8. Log each release, grant removal, `bot:in-progress` removal, and `parked` restoration to
+   `decisions.md` (status `AUTO`, reason string as detail).
 
-If no spec has `recon-issue:` frontmatter, skip silently.
+If no spec has a materialized header, skip silently.

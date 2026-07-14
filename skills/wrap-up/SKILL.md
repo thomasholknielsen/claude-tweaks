@@ -17,7 +17,7 @@ Post-review reflection, knowledge capture, and lifecycle cleanup. Part of the wo
 ## When to Use
 
 - `/claude-tweaks:review` just passed and the work needs reflection and cleanup
-- A spec is complete and needs its artifacts (plans, design docs) cleaned up
+- A record or spec is complete and needs its artifacts (plans, design docs) cleaned up
 - You finished conversation-based work and want to capture learnings
 - `/claude-tweaks:help` flags specs awaiting wrap-up
 
@@ -33,30 +33,30 @@ Determine what type of work was completed:
 
 ### If `$ARGUMENTS` is provided:
 
-- If it's a spec number (e.g., "42", "73"), proceed as **spec-based work**
+- If it's a spec or record number (e.g., "42", "73"), proceed as **record- or spec-based work**
 - Otherwise, use it as context for **conversation-based work**
 
 ### If no arguments, detect from context:
 
-1. Check recent git commits for spec references
-2. Check current branch name for spec patterns
-3. Review conversation for references to spec files or features
+1. Check whether a materialized header exists for this run (`${RUN_DIR}/work/*-spec.md`) — record mode
+2. Check recent git commits for spec references, and current branch name for spec patterns — legacy spec-file alias
+3. Review conversation for references to spec files, records, or features
 
 | Type | Characteristics | Primary Focus |
 |------|----------------|---------------|
-| **Spec-based** | Has a spec file in `specs/` | Full lifecycle: spec completion + plans + all assessments |
-| **Conversation-based** | No spec, just work discussed | Assessments only (skip spec/plan cleanup steps) |
+| **Record- or spec-based** | A materialized header exists for this run, or — legacy alias — a spec file exists in `specs/` | Full lifecycle: record/spec completion + plans + all assessments |
+| **Conversation-based** | No record or spec, just work discussed | Assessments only (skip spec/plan cleanup steps) |
 
 ## Step 2: Summarize Completed Work
 
 > Note: Spec compliance (deliverables + acceptance criteria) was already verified in `/claude-tweaks:review` Step 1. This step summarizes what was done — it does not re-verify.
 
-### For spec-based work:
+### For record- or spec-based work:
 
-Summarize the implementation against the spec:
+Summarize the implementation against the record or spec:
 
 1. List what was delivered (high-level, not a re-audit)
-2. **100% complete** (confirmed by `/claude-tweaks:review`) → spec will be deleted
+2. **100% complete** (confirmed by `/claude-tweaks:review`) → record mode: the record closes via merge (`cleanup-procedures.md` Section C's carrier commit); legacy spec-file alias: the spec file will be deleted
 3. **Partial** (if `/claude-tweaks:review` passed with minor gaps flagged) → identify what remains
 
 ### For conversation-based work:
@@ -76,7 +76,7 @@ If any insight is "Implement now", /reflect handles it before returning control.
 
 ---
 
-## Step 4: Analyze Leftover Work (spec-based only)
+## Step 4: Analyze Leftover Work (record- or spec-based only)
 
 Identify unfinished spec sections that cannot be completed in the current work context, then route them per `leftover-routing.md` in this skill's directory — which owns the fix-exhaust qualification criteria, the auto-mode stage entry format, the interactive routing table (5 routing options), and the per-item routing semantics.
 
@@ -86,7 +86,7 @@ Identify unfinished spec sections that cannot be completed in the current work c
 
 This step **plans** the cleanup — it does not execute. Actual deletions and archival run in Step 10 *after* the nothing-left-behind gate (Step 8.5) and the Review Console / batch decision (Step 8.6 or Step 9) approve them.
 
-See `cleanup-procedures.md` in this skill's directory for the canonical cleanup list — Step 5 enumerates the same 8 items: execution plans, ledger, design caches, pipeline run dir, worktree, spec lifecycle, ephemeral dev server, issue claim release. Filter the list to rows whose Condition holds for this run (e.g., skip the worktree row when no worktree strategy was used). Carry the filtered list forward into Step 9's summary and Step 10's execution.
+See `cleanup-procedures.md` in this skill's directory for the canonical cleanup list — Step 5 enumerates the same 8 items, in canonical order: execution plans, ledger, design caches, worktree, record/spec lifecycle, ephemeral dev server, issue claim release, pipeline run dir (always last — see the canonical list's ordering rule). Filter the list to rows whose Condition holds for this run (e.g., skip the worktree row when no worktree strategy was used). Carry the filtered list forward into Step 9's summary and Step 10's execution.
 
 ## Step 6: Assess Configuration Updates
 
@@ -126,7 +126,7 @@ Check if the work introduced project-wide conventions:
 4. Stack changes (new dependencies actually added)
 5. Path-scoped rules for `.claude/rules/`
 
-Before adding to CLAUDE.md, check the size budget — keep it concise. Move detailed content to skills or rules. Route improvement ideas to the backlog (`specs/backlog/`, `**Stage:** inbox`), not CLAUDE.md.
+Before adding to CLAUDE.md, check the size budget — keep it concise. Move detailed content to skills or rules. Route improvement ideas to a new backlog record (no stage label — the unified taxonomy's equivalent of the pre-migration "inbox" destination; per `_shared/work-record.md`), not CLAUDE.md — subject to the same per-item work-record-creation approval as any other new record (`_shared/auto-mode-contract.md`).
 
 → Collect each needed update as: `[claude.md] {section} — {what to add/change}` or `[rule] {path scope} — {convention}`
 
@@ -158,7 +158,7 @@ For the full procedure — seed gathering (7.1), the independent scan + gap dete
 
 Skill curation declares "No skill updates needed" only when seeds, the independent scan, and gap detection all come up empty — never merely because no ledger entry was tagged. Staged updates and new-skill candidates surface at the Wrap-Up Review Console (Step 8.6), or the interactive batch table per `skill-curation.md`.
 
-## Step 8: Analyze Next Steps (spec-based only)
+## Step 8: Analyze Next Steps (record- or spec-based only)
 
 Determine:
 1. **Newly unblocked specs** — what can now be worked on?
@@ -222,7 +222,8 @@ For the run-directory resolution sequence, the multi-spec defer protocol, the fu
 ## Step 9: Present Consolidated Summary
 
 ```
-## Wrap-Up: Spec {number} — {title}
+## Wrap-Up: {"Record #{n}" when a materialized header exists, else "Spec {number}"} — {title}
+{Origin: {origin} — record mode only, the materialized header's origin field: by:code-health / by:harness-health / by:journey-health / by:capture, or "human" when absent. Omit this line entirely for legacy spec-file-mode runs.}
 
 ### Reflection Insights
 1. {insight} → {destination}
@@ -258,8 +259,8 @@ Resolved in Step 7 — {N} updates applied / 0 updates needed.
 
 | Action | Detail | Ref |
 |--------|--------|-----|
-| Operational | Deleted spec `specs/{N}.md` | — |
-| Operational | Updated `specs/INDEX.md` | `{hash}` |
+| Operational | Closed record #{n} via merge (`Fixes #{n}`) — no local file to delete | `{hash}` |
+| Operational | Deleted spec `specs/{N}.md`, updated `specs/INDEX.md` (legacy spec-file-mode alias only) | `{hash}` |
 | Operational | Deleted plans `docs/plans/{files}` | — |
 | Operational | Deleted ledger | — |
 | Operational | Deleted design wrapper caches (`*-audit.json`, `*-recommendations.json`, `*-declined.json`) | — |
@@ -294,7 +295,13 @@ The table renders as markdown, as above. Immediately below it, call `AskUserQues
 
 If the user chooses to override, let them pick which items to skip or change.
 
-After presenting the summary, output an explicit closure line:
+After presenting the summary, output an explicit closure line — record mode (materialized header present):
+
+```
+Work archived. Record #{n} closes via this merge (or the wrap-up commit, in current-branch mode); its plans and ledger have been deleted. The code and learnings remain.
+```
+
+Legacy spec-file-mode alias (no materialized header):
 
 ```
 Work archived. Spec {N}, its plans, and ledger have been deleted. The code and learnings remain.
@@ -308,7 +315,7 @@ Next Actions are rendered as a top-level `## Next Actions` section after Step 10
 
 Execute the cleanup planned in Step 5 (canonical list in `cleanup-procedures.md`) plus the configuration / skill updates approved at the Review Console (Step 8.6) or batch decision (Step 9). The 8 cleanup items, in execution order, are defined in `cleanup-procedures.md`'s canonical list — do not re-enumerate here. Filter rows by Condition.
 
-**MULTISPEC_REVIEW_DEFER branch:** When `$MULTISPEC_REVIEW_DEFER=1` is set, Step 10 SKIPS the state-changing cleanups marked deferred in `cleanup-procedures.md` (items 3 Design caches, 4 Pipeline run dir archival, 5 Worktree removal). Those defer to `/flow`'s consolidated multi-spec Review Console at end-of-run, which has authority to apply or override them across all specs in the run. Step 10 still executes the idempotent cleanups (items 1 Execution plans, 2 Open items ledger, 6 Spec lifecycle + INDEX) — those do not interact with parent-orchestrated cleanup.
+**MULTISPEC_REVIEW_DEFER branch:** When `$MULTISPEC_REVIEW_DEFER=1` is set, Step 10 SKIPS the state-changing cleanups marked deferred in `cleanup-procedures.md` (items 3 Design caches, 4 Git worktree, 6 Ephemeral dev server, 7 Issue claim release, 8 Pipeline run dir archival). Those defer to `/flow`'s consolidated multi-spec Review Console at end-of-run, which has authority to apply or override them across all specs in the run. Step 10 still executes the idempotent cleanups (items 1 Execution plans, 2 Open items ledger, 5 Record/spec lifecycle) — those do not interact with parent-orchestrated cleanup.
 
 After the cleanup, also apply:
 
@@ -317,22 +324,24 @@ After the cleanup, also apply:
 - **Skill updates** — apply patches and create new skills (Step 7 staged or approved items)
 
 Commit with a message summarizing the wrap-up actions. When the run is `current-branch` mode
-and this spec carries `recon-issue:` frontmatter, include one `Fixes #{issue}` line per
-resolved issue in this commit message — it is the closing-keyword carrier for current-branch
-runs (see `cleanup-procedures.md` Section C); GitHub closes the issues when the commit reaches
-the default branch.
+and a materialized header exists for this spec (`${RUN_DIR}/work/*-spec.md` — its `record:`
+field is the issue number), include one `Fixes #{issue}` line per resolved issue in this commit
+message — it is the closing-keyword carrier for current-branch runs (see
+`cleanup-procedures.md` Section C); GitHub closes the issues when the commit reaches the
+default branch. A legacy spec-file-mode run (no materialized header) carries no closing
+keyword — there was never an issue to close.
 
 ### Verify execution
 
 Before emitting the closure line, confirm every approved action actually ran:
 
-- Spec file deleted (or status updated) — `ls specs/{N}*.md` returns nothing (or `git status` shows the status edit committed)
-- INDEX.md updated — `git log -1 --stat specs/INDEX.md` shows this run's commit
+- Spec file deleted or status updated (legacy spec-file-mode alias only — record mode has no spec file) — `ls specs/{N}*.md` returns nothing (or `git status` shows the status edit committed)
+- INDEX.md updated (legacy spec-file-mode alias only — record mode never touches it) — `git log -1 --stat specs/INDEX.md` shows this run's commit
 - Plans + ledger removed — `ls docs/superpowers/plans/*{spec-slug}* docs/plans/*-ledger.md` returns nothing
 - Design caches deleted (when applicable) — no `*-audit.json` / `*-recommendations.json` / `*-declined.json` for this spec remain in `docs/plans/`
-- Pipeline run dir archived — `.claude-tweaks/pipelines/{run-id}/` is gone; `.claude-tweaks/pipelines/archive/{run-id}/` exists (skipped when `MULTISPEC_REVIEW_DEFER=1`)
+- Pipeline run dir archived — `.claude-tweaks/pipelines/{run-id}/` is gone; `.claude-tweaks/pipelines/archive/{run-id}/` exists, with the `work/` subdirectory (when present) still git-tracked at its new path (skipped when `MULTISPEC_REVIEW_DEFER=1`)
 - Worktree removed (worktree strategy) — `git worktree list` no longer shows the feature worktree path
-- Closing-keyword carrier commit landed (worktree strategy + any spec has `recon-issue:` frontmatter) — `git log {default-branch} --grep="Fixes #{issue}"` shows the carrier commit for each resolved issue once merged (or `git log {feature-branch} --grep=...` if the branch is still open under "keep as-is" or a pending PR)
+- Closing-keyword carrier commit landed (worktree strategy + a materialized header was present for this spec) — `git log {default-branch} --grep="Fixes #{issue}"` shows the carrier commit for each resolved issue once merged (or `git log {feature-branch} --grep=...` if the branch is still open under "keep as-is" or a pending PR)
 
 If any approved action did not land, do NOT emit the closure line. Surface the gap (`BLOCKED — cleanup step {N} did not complete: {reason}`) and stop.
 
@@ -396,8 +405,8 @@ When `$PIPELINE_RUN_DIR` is unset, `/wrap-up` runs standalone — render Next Ac
 | `/claude-tweaks:test` | Indirect dependency — /test passes before /review, which passes before /wrap-up. Open QA ledger entries (`test/qa` phase) carried forward from /test surface in Step 8.5's resolve gate as items requiring per-item user decision. |
 | `/claude-tweaks:review` (visual modes) | Visual complement — findings from visual review may feed into wrap-up's reflection lenses |
 | `/claude-tweaks:reflect` | Invoked BY /wrap-up (Step 3) in full mode. Handles all four reflection lenses, tradeoff review, insight routing, and ledger writes with phase `wrap-up`. |
-| `/claude-tweaks:capture` | /claude-tweaks:wrap-up may create a `specs/backlog/{slug}.md` entry with `**Stage:** inbox` for genuinely new ideas discovered during implementation |
-| `specs/backlog/*.md` (`**Stage:** parked`) | /claude-tweaks:wrap-up routes leftover work here (with origin spec, files, trigger) |
+| `/claude-tweaks:capture` | /claude-tweaks:wrap-up may file a new backlog record directly (no stage label) for genuinely new ideas discovered during implementation — the same `recordPayload` composition `/capture` itself uses, without going through this skill |
+| Work records (`parked`, via leftover routing) | /claude-tweaks:wrap-up routes leftover work here — a new record with a `Trigger:` body line and the `parked` label (origin spec/record, files, trigger); see `leftover-routing.md` in this skill's directory |
 | `/claude-tweaks:help` | /claude-tweaks:wrap-up suggests running /claude-tweaks:help to see what's unblocked |
 | `/claude-tweaks:tidy` | /claude-tweaks:wrap-up cleans artifacts for a single spec — /claude-tweaks:tidy does periodic bulk cleanup |
 | `/claude-tweaks:build` | Runs BEFORE /claude-tweaks:review — produces the code and journeys that wrap-up reflects on. `build/skill` ledger entries from Step 4.5 feed into Step 7 skill analysis (alongside `[skill: …]`-tagged entries from any other phase). |
@@ -409,5 +418,5 @@ When `$PIPELINE_RUN_DIR` is unset, `/wrap-up` runs standalone — render Next Ac
 | `/claude-tweaks:deepen` | Interface trade-offs /deepen flags `[ADR-candidate]` are picked up by Step 6.3 and run through the 3-factor gate for possible ADR creation |
 | `_shared/decision-records.md` | Canonical 3-factor ADR gate, location convention, and template applied by Step 6.3 |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
-| `_shared/issue-claims.md` | Cleanup item 8 (Section E of `cleanup-procedures.md`) releases claims for specs with `recon-issue:` frontmatter, with the branch outcome as the release reason. |
+| `_shared/issue-claims.md` | Cleanup item 7 (Section E of `cleanup-procedures.md`) releases claims for specs with a materialized header, with the branch outcome as the release reason. |
 | `/claude-tweaks:harness-health` and `_shared/harness-health-analysis.md` | Step 7's 7.3-7.5 apply this shared procedure instead of an inline copy — sharing its judgment logic and its `.claude-tweaks/harness-health/` cursor/cache state with `/claude-tweaks:init` and the standalone `/claude-tweaks:harness-health` routine. |
