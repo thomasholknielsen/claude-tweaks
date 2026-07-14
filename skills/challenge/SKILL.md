@@ -1,6 +1,6 @@
 ---
 name: claude-tweaks:challenge
-description: Use when you need to challenge assumptions and remove bias from a problem statement before brainstorming. Takes an INBOX item or topic and produces a debiased problem framing.
+description: Use when you need to challenge assumptions and remove bias from a problem statement before brainstorming. Takes a backlog record or topic and produces a debiased problem framing.
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -24,7 +24,7 @@ The user is about to invest significant time brainstorming and specifying a feat
 
 ## Input
 
-`$ARGUMENTS` = an INBOX item title, a topic about to be brainstormed, or a problem statement — optionally preceded by `quick`.
+`$ARGUMENTS` = a backlog record reference (e.g., `#42`), a topic about to be brainstormed, or a problem statement — optionally preceded by `quick`.
 
 ### Mode detection:
 
@@ -35,22 +35,22 @@ The user is about to invest significant time brainstorming and specifying a feat
 
 ### Resolve the input:
 
-1. **Backlog reference** (e.g., `"Voice shopping list"`) — find the matching `specs/backlog/{slug}.md` file (`**Stage:** inbox`) and use its body as the problem statement
+1. **Work record reference** (e.g., `#42`) — fetch via `gh issue view {n} --json title,body` (GitHub driver) or `local-store.js` (local-files driver) and use the record's title + body as the problem statement
 2. **Topic** (e.g., `"meal planning"`) — use the topic as the problem statement
 3. **No arguments** — ask the user what they want to challenge
 
 ## When to Use
 
-- An INBOX item bakes in a specific solution (e.g., "Add Redis caching" instead of "Improve response times")
+- A backlog record bakes in a specific solution (e.g., "Add Redis caching" instead of "Improve response times")
 - User is about to brainstorm something they feel strongly about — strong conviction often masks unexamined assumptions
 - User has been going back and forth on something without resolution
 - User's framing contains strong assumptions in the phrasing
 - User asks for a "sanity check" or "fresh perspective"
-- `/claude-tweaks:help` flags an INBOX item with baked-in assumptions
+- `/claude-tweaks:help` flags a backlog record with baked-in assumptions
 
 ### When to Skip
 
-Not every INBOX item needs debiasing. Skip when:
+Not every backlog record needs debiasing. Skip when:
 
 - The problem is clear and well-scoped (e.g., "Add dark mode toggle to settings page")
 - The item is a straightforward technical task with no ambiguity
@@ -59,6 +59,10 @@ Not every INBOX item needs debiasing. Skip when:
 ## Auto-mode
 
 `/claude-tweaks:challenge`'s **Listen** (Step 1) and **Reflect-back** (Step 2) steps are NOT silenced in `auto` mode (see `_shared/auto-mode-contract.md`) — they're the user-engagement entry points where the problem statement is supplied and confirmed. After Reflect-back, lens proposers and the aggregator run autonomously per Mode 4 (Layered MoA) of the multi-agent coordination primitive — there is no per-lens user prompt cycle.
+
+## Work Record Output Handling
+
+When the input is a **work record reference** (e.g., `#42`), `/challenge` posts its debiasing findings as **issue comments** on the record (GitHub driver) or **appends to the record file** (local-files driver). The work record is the durable home for record-backed challenges — `/challenge` never edits the record's body itself. The saved Brainstorming Brief remains in `docs/plans/` and feeds into downstream `/superpowers:brainstorming` and `/claude-tweaks:specify` as usual.
 
 ## The Debiasing Lenses
 
@@ -150,7 +154,7 @@ The process is a layered Mixture of Agents (Mode 4 from `skills/_shared/multi-ag
 
 > **Parallel execution:** Dispatch the applicable lens proposers as parallel Task agents — each runs independently and returns a free-form 2-4 paragraph debiasing perspective. Assemble outputs after all agents complete.
 >
-> **Contract:** Each agent follows the Subagent Contract — minimal input (problem statement + reflected summary + INBOX context + the lens question), one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED` as its first reply line. Tier: **Standard** (Sonnet). Read-only — proposers debias the framing, they do not act on the problem.
+> **Contract:** Each agent follows the Subagent Contract — minimal input (problem statement + reflected summary + work record context + the lens question), one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED` as its first reply line. Tier: **Standard** (Sonnet). Read-only — proposers debias the framing, they do not act on the problem.
 >
 > **Mode 4 proposer prompt skeleton (inline verbatim per proposer, replacing `{Lens N}` with the matching section above):**
 >
@@ -164,7 +168,7 @@ The process is a layered Mixture of Agents (Mode 4 from `skills/_shared/multi-ag
 >
 > Original problem statement: {problem from Step 1}
 > Reflected summary: {summary from Step 2}
-> INBOX context (if applicable): {INBOX entry}
+> Work record context (if applicable): {work record details}
 >
 > [Use: Standard model — MoA proposer.]
 > ```
@@ -181,7 +185,7 @@ The process is a layered Mixture of Agents (Mode 4 from `skills/_shared/multi-ag
 >
 > Original problem statement: {problem from Step 1}
 > Reflected summary: {summary from Step 2}
-> INBOX context (if applicable): {INBOX entry}
+> Work record context (if applicable): {work record details}
 >
 > Proposer outputs (N total):
 > --- Proposer 1 ({Lens 1 name}) ---
@@ -201,7 +205,7 @@ The process is a layered Mixture of Agents (Mode 4 from `skills/_shared/multi-ag
 
 5. **Save the brief.** Write the aggregator's output to `docs/plans/{YYYY-MM-DD}-{topic}-brief.md` using the schema in the Output section below (no schema drift). Append exactly ONE `AUTO` entry to `decisions.md` per MoA invocation:
    ```
-   - AUTO {HH:MM:SS} — MoA: applied {N} proposers + 1 aggregator on {topic|INBOX item N}. Aggregator tier: Capable.
+   - AUTO {HH:MM:SS} — MoA: applied {N} proposers + 1 aggregator on {topic|record #{N}}. Aggregator tier: Capable.
    ```
    Do NOT log per-proposer dispatches separately — the MoA invocation is a single coordination event.
 
@@ -217,7 +221,7 @@ The output is structured to feed directly into `/superpowers:brainstorming` as a
 ## Brainstorming Brief: {topic}
 
 ### Original Framing
-{The user's original problem statement or INBOX entry}
+{The user's original problem statement or work record}
 
 ### Reframed Problem
 {The new framing that emerged from the lenses — this becomes the input for brainstorming}
@@ -266,7 +270,9 @@ After saving the brief, hand off to brainstorming. If the user wants to adjust t
 
 ## Component-Skill Contract
 
-This skill is a **component skill** — invoked by `/claude-tweaks:capture` when an INBOX item is routed via `--route=challenge`. Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (set by `/capture --route=challenge` or other orchestrators). When invoked by a parent, omit the `## Next Actions` block above — the parent owns the handoff (the parent typically dispatches to `/superpowers:brainstorming` next). When invoked directly by a user (no `PIPELINE_RUN_DIR`), render Next Actions as documented above.
+When `$PIPELINE_RUN_DIR` is set, `/claude-tweaks:challenge` is running inside a pipeline (invoked by `/claude-tweaks:capture` when a backlog record is routed via `--route=challenge`, or another pipeline orchestrator). In that case omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user (no `$PIPELINE_RUN_DIR`), render Next Actions as documented above.
+
+Direct invocation may pass `--source <parent-skill>` as an explicit fallback when ambiguity exists (rare; `$PIPELINE_RUN_DIR` is the primary signal).
 
 ## Anti-Patterns
 
@@ -285,12 +291,13 @@ This skill is a **component skill** — invoked by `/claude-tweaks:capture` when
 
 | Skill | Relationship |
 |-------|-------------|
-| `/claude-tweaks:capture` | Feeds INBOX items that /claude-tweaks:challenge can debias |
+| `/claude-tweaks:capture` | Feeds backlog records that /claude-tweaks:challenge can debias |
 | `/superpowers:brainstorming` | Consumes the Brainstorming Brief — explores *within* the debiased frame |
 | `/claude-tweaks:specify` | Downstream — converts brainstorming output into specs |
-| `/claude-tweaks:help` | Flags INBOX items with baked-in assumptions as candidates for /claude-tweaks:challenge |
+| `/claude-tweaks:help` | Flags backlog records with baked-in assumptions as candidates for /claude-tweaks:challenge |
 | `/claude-tweaks:research` | Back debiasing lenses with evidence — `/research` produces citation-audited reports that can ground a challenge. |
 | `_shared/decision-records.md` | /challenge tags hard-to-reverse framing decisions `[ADR-candidate]` in the brief; /wrap-up Step 6.3 applies the 3-factor gate and records the survivors. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — `/challenge` lenses are on the "not silenced" list. |
 | `_shared/multi-agent-coordination.md` | Canonical primitive for Layered MoA (Mode 4) — N parallel lens proposers + one sequential aggregator. Hard limits live in the primitive. |
 | `_shared/subagent-output-contract.md` | Per-lens proposer agents emit Template A; the aggregator follows the status-line and model-tier conventions (Capable tier). |
+| `_shared/work-record.md` | Taxonomy home for backlog records — stage vocabulary (backlog / parked / ready), the six-axis label contract, and work record lifecycle. |
