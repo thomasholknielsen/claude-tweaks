@@ -220,11 +220,11 @@ Init is about fast-start — get the registry wired up and move on. Doc content 
    - Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Register all doc entries as shown"`
    - Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which #s to change"`
 
-   All existing docs are registered as-is — init does not modify them. The Assessment column captures findings for the backlog entries in step 8.
+   All existing docs are registered as-is — init does not modify them. The Assessment column captures findings for the backlog work records in step 8.
 
 7. **Create `docs/REGISTRY.md`** with approved entries (existing docs only — missing docs are not added until they're created).
 
-8. **Capture doc work as backlog entries** — For each finding from the assessment (stale, thin, misplaced, missing), create a `specs/backlog/{slug}.md` entry (`**Stage:** inbox`) with the Phase 2 context baked in:
+8. **Capture doc work as backlog work records** — For each finding from the assessment (stale, thin, misplaced, missing), file a backlog work record (`_shared/work-record.md`; no `by:*` label — an `Origin: /init doc registry (Phase 8.5)` body line records provenance instead, same convention `wrap-up/leftover-routing.md` uses) with the Phase 2 context baked in:
 
    ```markdown
    ### Refresh docs/api.md — missing 5 endpoints
@@ -246,19 +246,19 @@ Init is about fast-start — get the registry wired up and move on. Doc content 
    Rename for consistency across projects using the workflow system.
    ```
 
-   **Backlog entry rules:**
+   **Backlog work-record rules:**
    - Include specific findings from the assessment (which commands are stale, which endpoints are missing, which sections to split)
    - Include the Phase 2 data sources so the work can be done without re-analyzing the codebase
-   - One backlog entry per doc action (don't bundle "refresh api.md + create getting-started.md" into one item)
-   - Skip a backlog entry for docs classified as **Accurate** — nothing to do
+   - One backlog work record per doc action (don't bundle "refresh api.md + create getting-started.md" into one item)
+   - Skip a backlog work record for docs classified as **Accurate** — nothing to do
    - Group related items when they depend on each other (e.g., "split README" and "create getting-started.md" reference each other)
 
-   Present the backlog entries as a summary after the registry:
+   Present the backlog work records as a summary after the registry:
 
    ```
    ### Doc Work Captured
 
-   {N} items added to the backlog for documentation improvements:
+   {N} backlog work records filed for documentation improvements:
    - Refresh: docs/api.md (missing endpoints), README.md (stale commands)
    - Create: docs/getting-started.md
    - Reorganize: docs/setup.md → docs/getting-started.md

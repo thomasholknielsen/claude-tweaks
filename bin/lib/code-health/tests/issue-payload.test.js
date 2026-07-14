@@ -140,6 +140,17 @@ test('toIssuePayload (v1) still works after extending the module', () => {
   assert.deepStrictEqual(p.labels, ['code-health', 'code-health:high']);
 });
 
+// legacy: v1's footer is frozen — this documents the contract, not a live convention.
+test('toIssuePayload (v1) footer stays the unqualified legacy form', () => {
+  const { body } = toIssuePayload(FINDING);
+  assert.ok(body.includes('_Filed by `/code-health`.'), 'v1 footer must stay unqualified (frozen legacy behavior)');
+});
+
+test('v2 footer cites the fully-qualified command name', () => {
+  const { body } = toIssuePayloadV2(V2_FINDING);
+  assert.ok(body.includes('_Filed by `/claude-tweaks:code-health`.'), 'v2 footer must use the qualified command name');
+});
+
 // ── relatedAnchors rendering (bundled findings) ──────────────────────────────
 
 test('v2 body includes an "Also affects" line when relatedAnchors is present', () => {

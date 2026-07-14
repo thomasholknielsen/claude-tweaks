@@ -31,7 +31,6 @@ What /init checked and found true about this repo and environment — the affirm
 | `specs/` | {created/exists} |
 | `docs/plans/` | {created/exists} |
 | `docs/journeys/` | {created/exists} |
-| `specs/backlog/` | {created/exists} |
 | `specs/INDEX.md` | {created/exists} |
 | Git repo | {yes/no — warning if no} |
 | Worktree directory | {configured/skipped} |
@@ -65,7 +64,7 @@ What /init checked and found true about this repo and environment — the affirm
 |------|-----------|
 | {name} | {paths} |
 
-### INBOX Items Captured ({count})
+### Backlog Work Records Filed ({count})
 
 Items with Phase 2 context baked in, ready for the normal pipeline:
 

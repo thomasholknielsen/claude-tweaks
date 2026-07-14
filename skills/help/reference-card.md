@@ -159,7 +159,7 @@ Consumed artifacts are deleted — specs and code are the durable outputs.
 
 **Doctrine preserved (still per-item user input, even in auto):**
 - Ledger resolve gate Phase 2 (open items)
-- `specs/backlog/` writes (inbox or parked stage)
+- Work-record creation (new backlog or parked records)
 - `/challenge` lenses
 - `/init` Phase 4 / 8 / 9 governance gates
 - All HARD-GATE / BLOCKED / STOP conditions

@@ -92,7 +92,7 @@ Detect:
 
 ## 2f: Pain Point Detection
 
-Look for signs of technical debt or friction. **Categorize each finding** as it's detected — the category determines where it goes (CLAUDE.md Don'ts vs INBOX):
+Look for signs of technical debt or friction. **Categorize each finding** as it's detected — the category determines where it goes (CLAUDE.md Don'ts vs the backlog):
 
 ```
 Detect:
@@ -117,11 +117,11 @@ Each finding feeds into exactly one destination:
 | **Convention conflict** | Two patterns exist, one should win | Don't | "Both fetch and axios — standardize on fetch" |
 | **Observed anti-pattern** | Pattern exists and is actively harmful | Don't | "47 `eslint-disable no-any` — don't use `any`" |
 | **Security concern** | Existing pattern creates risk | Don't | "Tokens stored in localStorage" |
-| **Missing infrastructure** | Something doesn't exist yet | INBOX | "No CI pipeline" |
-| **Missing practice** | A healthy practice is absent | INBOX | "No tests in `src/utils/`" |
-| **Stale dependency** | Key deps are behind | INBOX | "React 17 → 19 available" |
-| **Dead code / tech debt** | Cleanup opportunity | INBOX | "12 commented-out blocks in {files}" |
-| **Copy-paste / duplication** | Refactoring opportunity | INBOX | "3 near-duplicate handlers in {files}" |
+| **Missing infrastructure** | Something doesn't exist yet | Backlog | "No CI pipeline" |
+| **Missing practice** | A healthy practice is absent | Backlog | "No tests in `src/utils/`" |
+| **Stale dependency** | Key deps are behind | Backlog | "React 17 → 19 available" |
+| **Dead code / tech debt** | Cleanup opportunity | Backlog | "12 commented-out blocks in {files}" |
+| **Copy-paste / duplication** | Refactoring opportunity | Backlog | "3 near-duplicate handlers in {files}" |
 
 **The distinction:** Convention conflicts and anti-patterns describe _how things are done wrong today_ — they become guardrails. Missing infrastructure and improvement opportunities describe _work to do_ — they become backlog items with Phase 2 context baked in.
 

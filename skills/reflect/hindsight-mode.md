@@ -38,7 +38,7 @@ Present all findings as a batch:
 | 1 | {description} | Change now |
 | 2 | {description} | Change now |
 | 3 | {description} | Defer — bigger scope, not relevant now |
-| 4 | {description} | Capture to INBOX — needs exploration |
+| 4 | {description} | Capture — needs exploration |
 ```
 
 The table renders as markdown, as above. Immediately below it, call `AskUserQuestion` with:
@@ -49,8 +49,8 @@ The table renders as markdown, as above. Immediately below it, call `AskUserQues
 
 **Recommendation rules:**
 - **Change now** — the strong default. If the improvement is clear, make the change. Most hindsight findings are small enough to fix in a few minutes.
-- **Defer** (`specs/backlog/`, `**Stage:** parked`) — the improvement is understood but it's bigger and not relevant to the current work. Include a `**Deferred:**` date stamped now, origin, files, trigger.
-- **Capture to INBOX** — the finding is complex or uncertain and needs brainstorming/exploration before it can be acted on.
+- **Defer** (new work record, `parked`) — the improvement is understood but it's bigger and not relevant to the current work. Compose the body with a `Trigger:` line, origin, and files, then create it directly via the unified record contract (`_shared/work-record.md`) — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`).
+- **Capture** — the finding is complex or uncertain and needs brainstorming/exploration before it can be acted on. Routes to `/claude-tweaks:capture`, which files it as a fresh backlog work record.
 - **Accept as-is** — only when the current approach is genuinely better, or the finding is a false positive. Not a valid option for genuine improvements.
 
 If any findings are **"Change now"**, make the changes, then re-run `/claude-tweaks:test` (or verification if standalone) and resume.

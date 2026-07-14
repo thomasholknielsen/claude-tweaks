@@ -3,11 +3,11 @@
 Loaded by `/init` Phase 5 (Generate / Update CLAUDE.md). Phase 2f findings split into two destinations based on their category (see `detection-tables.md`):
 
 - **Convention conflicts and anti-patterns** → CLAUDE.md Don'ts (guardrails for existing patterns)
-- **Missing infrastructure, practices, stale deps, dead code** → INBOX items with Phase 2 context baked in
+- **Missing infrastructure, practices, stale deps, dead code** → backlog work records with Phase 2 context baked in
 
-## INBOX item templates
+## Backlog work-record templates
 
-INBOX items for improvement work follow the same format as doc work items from Phase 8.5:
+Backlog work records for improvement work follow the same format as doc work items from Phase 8.5 (`_shared/work-record.md`; no `by:*` label — an `Origin: /init pain-point routing (Phase 5)` body line records provenance instead):
 
 ```markdown
 ### Set up CI pipeline
@@ -36,5 +36,5 @@ Present a summary of routed pain points after CLAUDE.md generation:
 ### Pain Points Routed
 
 **→ CLAUDE.md Don'ts ({N}):** {list of convention conflicts / anti-patterns added}
-**→ INBOX ({N}):** {list of improvement items captured}
+**→ Backlog ({N}):** {list of improvement items captured}
 ```

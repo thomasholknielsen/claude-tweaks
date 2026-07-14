@@ -215,7 +215,7 @@ If any part of the plan is blocked (missing infrastructure, unresolved dependenc
 
 1. Document blocked items:
    - **Spec mode:** add to the spec file under a "Blocked / Future Work" section
-   - **Design mode:** create an INBOX entry via `/claude-tweaks:capture`
+   - **Design mode:** file a backlog work record via `/claude-tweaks:capture`
 2. Note what unblocks them
 3. Append blocked items to the open items ledger (see `/claude-tweaks:ledger`) with phase `build/*` and status `open`
 4. These will be picked up by `/claude-tweaks:help` when scanning for actionable work
@@ -337,7 +337,7 @@ Once the signals are resolved, call `AskUserQuestion` with `question`: `"What's 
 | `/claude-tweaks:review` | Runs AFTER /claude-tweaks:test — gates on `TEST_PASSED=true`. In design mode, uses git diff instead of spec compliance. Standalone /review auto-triggers /test if no recent pass. |
 | `/claude-tweaks:review` (visual modes) | Tests the user journeys that /build creates — visual review modes are the bridge between build and visual QA |
 | `/claude-tweaks:wrap-up` | Runs AFTER /claude-tweaks:review — cleans up and captures learnings. `build/skill` ledger entries from Step 4.5 feed into wrap-up's skill update analysis (Step 7). |
-| `/claude-tweaks:capture` | Design mode may create INBOX items for blocked work (Step 4); after build, /build calls /capture to file follow-up ideas ("while I'm here" observations) before they're lost — INBOX entries instead of inflating the current spec |
+| `/claude-tweaks:capture` | Design mode may file backlog work records for blocked work (Step 4); after build, /build calls /capture to file follow-up ideas ("while I'm here" observations) before they're lost — fresh backlog records instead of inflating the current spec |
 | `/claude-tweaks:tidy` | Reviews specs from /claude-tweaks:build for staleness — periodic cleanup complement |
 | `/claude-tweaks:init` | /init creates `docs/REGISTRY.md` (Phase 8.5) that /build consumes in Step 6.5 for documentation sync |
 | `/claude-tweaks:ledger` | Manages the open items ledger file. /build creates and appends items during Steps 2.5, 4, 4.5, 5.5, and 6.5. |

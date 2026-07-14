@@ -1,6 +1,6 @@
 # Phase 4: Skill Manifest Scoring + Presentation
 
-Loaded by `/init` Phase 4. Contains the scoring rubric (Frequency × Complexity × Danger), the manifest presentation template, the selection prompt, and the deferred-skills INBOX format.
+Loaded by `/init` Phase 4. Contains the scoring rubric (Frequency × Complexity × Danger), the manifest presentation template, the selection prompt, and the deferred-skills backlog work-record format.
 
 ## Scoring
 
@@ -32,15 +32,15 @@ Loaded by `/init` Phase 4. Contains the scoring rubric (Frequency × Complexity 
 
 ## Skill Categories
 
-Map detected stack to skill categories using the canonical Detected-Pattern → Skill table in `skill-categories.md` in this skill's directory. Only generate skills for patterns that **actually exist and are actively used** in the codebase. Mark aspirational skills as `[aspirational]` — they become INBOX items, not SKILL.md files.
+Map detected stack to skill categories using the canonical Detected-Pattern → Skill table in `skill-categories.md` in this skill's directory. Only generate skills for patterns that **actually exist and are actively used** in the codebase. Mark aspirational skills as `[aspirational]` — they become backlog work records, not SKILL.md files.
 
 ## Present the Manifest
 
 Use the **Skill Manifest** template in `profile-templates.md` (this skill's directory) for the manifest presentation format and the selection prompt.
 
-## Deferred Skills → INBOX
+## Deferred Skills → Backlog
 
-Skills not selected for generation (Priority 2-3, or aspirational skills marked `[aspirational]`) are captured as INBOX items with their scoring rationale and Phase 2 evidence:
+Skills not selected for generation (Priority 2-3, or aspirational skills marked `[aspirational]`) are captured as backlog work records with their scoring rationale and Phase 2 evidence (`_shared/work-record.md`; no `by:*` label — an `Origin: /init skill scoring (Phase 4)` body line records provenance instead):
 
 ```markdown
 ### Create data-access skill (Priority 2, score 5)

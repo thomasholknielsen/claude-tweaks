@@ -1,6 +1,6 @@
 # Skill Categories — Detected-Pattern → Skill Mapping
 
-Loaded by `/init` Phase 4 when generating the skill manifest. Maps reconnaissance signals from Phase 2 to skill candidates. Only generate skills for patterns that **actually exist** in the codebase. Mark aspirational skills (e.g., testing for a project with no tests) as `[aspirational]` — they become INBOX items, not SKILL.md files.
+Loaded by `/init` Phase 4 when generating the skill manifest. Maps reconnaissance signals from Phase 2 to skill candidates. Only generate skills for patterns that **actually exist** in the codebase. Mark aspirational skills (e.g., testing for a project with no tests) as `[aspirational]` — they become backlog work records, not SKILL.md files.
 
 | Detected Pattern | Skill to Generate |
 |---|---|
@@ -29,7 +29,7 @@ Loaded by `/init` Phase 4 when generating the skill manifest. Maps reconnaissanc
 
 1. Walk each row against Phase 2 reconnaissance signals.
 2. If the pattern is **actively used** in the codebase (not aspirational, not stale) → generate a skill candidate with the listed name.
-3. If the pattern exists but is unused (framework declared but no tests, etc.) → mark `[aspirational]` and route to INBOX with Phase 2 evidence baked in.
+3. If the pattern exists but is unused (framework declared but no tests, etc.) → mark `[aspirational]` and route to the backlog with Phase 2 evidence baked in.
 4. If the pattern is absent → skip; do not generate.
 
 ## Edge cases

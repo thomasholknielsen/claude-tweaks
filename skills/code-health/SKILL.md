@@ -13,7 +13,7 @@ A recurring health check doing rounds: reads one directory slice, judges it agai
                            |  judges the slice; surfaces findings
                            v
 findings -> validate-findings -> file GitHub issue (by:code-health, ready) -> /claude-tweaks:specify -> /claude-tweaks:build / /claude-tweaks:flow
-         +- fuzzy / not-yet -> /claude-tweaks:capture (INBOX)
+         +- fuzzy / not-yet -> /claude-tweaks:capture (backlog)
 ```
 
 The plugin reacts to changes you make; `/code-health` surfaces the changes worth making.
@@ -25,7 +25,7 @@ The plugin reacts to changes you make; `/code-health` surfaces the changes worth
 - You want findings deduplicated against work already tracked — never re-flood the tracker.
 - You want to run on demand against a specific area, or let `next-slice` pick the highest-priority area automatically.
 
-Not for: auto-fixing (report-only), CI gating (CI stays reactive), or replacing INBOX/specs (code-health owns no backlog — it routes findings into the stores that already exist).
+Not for: auto-fixing (report-only), CI gating (CI stays reactive), or replacing `/capture`/`/specify` (code-health owns no backlog — it routes findings into the stores that already exist).
 
 ## Input
 
@@ -246,7 +246,7 @@ There is no per-criterion label anymore — the criterion is already in the issu
 
 For each payload in `/tmp/code-health-payloads.json`, call `gh issue create`. The engine is emit-only; filing is always done by the skill.
 
-**Type expression branch.** Read the project's `work-types` config key once before filing and branch — never re-probe mid-run (`_shared/work-record.md`'s config-key table; the key is written by `/init`). `work-types: native` applies `payload.type` (always `task`) via GitHub's native Issue Type; `work-types: labels` adds the matching `type:task` label instead (the pair lives in `record.js`'s `TYPE_LABELS`):
+**Type expression branch.** Read the project's `work-types` config key once before filing and branch — never re-probe mid-flow (`_shared/work-record.md`'s config-key table; the key is written by `/init`). `work-types: native` applies `payload.type` (always `task`) via GitHub's native Issue Type; `work-types: labels` adds the matching `type:task` label instead (the pair lives in `record.js`'s `TYPE_LABELS`):
 
 ```bash
 # work-types: native
@@ -304,18 +304,18 @@ In interactive mode, route surviving findings through a two-tier decision:
    ```
    | # | Title | Criterion | Severity | Confidence | Recommended |
    |---|-------|-----------|----------|------------|-------------|
-   | 1 | {title} | {criterion} | {severity} | {confidence} | {File issue|INBOX} |
+   | 1 | {title} | {criterion} | {severity} | {confidence} | {File issue|Capture} |
    ```
 
-   Pre-fill the Recommended column: high severity + high confidence → `"File issue"`; below `--min-risk` or low confidence → `"INBOX"`; everything else (e.g. medium severity + high confidence) → `"File issue"` — file issue is the safe default whenever a finding clears the confidence bar but isn't low-risk enough for INBOX.
+   Pre-fill the Recommended column: high severity + high confidence → `"File issue"`; below `--min-risk` or low confidence → `"Capture"`; everything else (e.g. medium severity + high confidence) → `"File issue"` — file issue is the safe default whenever a finding clears the confidence bar but isn't low-risk enough for `Capture`.
 
 2. Call `AskUserQuestion` with `question`: `"How do you want to handle these findings?"`, `header`: `"Findings"`, `multiSelect`: `false`, and:
-   - Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"File / INBOX each finding per the Recommended column above"`
+   - Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"File / Capture each finding per the Recommended column above"`
    - Option 2 — `label`: `"Route individually"`, `description`: `"Decide each finding one at a time"`
 
 3. If "Route individually" was chosen, call `AskUserQuestion` once per finding — `question`: `"How do you want to handle finding #{N}: {title}?"`, `header`: `"Finding #{N}"`, `multiSelect`: `false`, and:
    - Option 1 — `label`: `"File issue"`, `description`: `"File as a GitHub code-health issue"`
-   - Option 2 — `label`: `"INBOX"`, `description`: `"Capture via /capture for later triage"`
+   - Option 2 — `label`: `"Capture"`, `description`: `"Capture via /capture for later triage"`
    - Option 3 — `label`: `"/specify directly"`, `description`: `"Promote straight to a spec, skipping the issue"`
    - Option 4 — `label`: `"Dismiss"`, `description`: `"Drop this finding"`
 
@@ -377,9 +377,9 @@ Use in post-run validation or a weekly cron step to catch accidental anchor or c
 Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
 
 - Option 1 — `label`: `"Promote to a spec"`, `description`: `"/claude-tweaks:specify <issue-url-or-title> — promote a filed code-health issue into an agent-sized spec"`. Suffix the label `(Recommended)` when high-severity issues were filed.
-- Option 2 — `label`: `"Capture to INBOX"`, `description`: `"/claude-tweaks:capture <finding> — park a fuzzy or below-threshold finding in INBOX for later triage"`
+- Option 2 — `label`: `"Capture"`, `description`: `"/claude-tweaks:capture <finding> — park a fuzzy or below-threshold finding in the backlog for later triage"`
 - Option 3 — `label`: `"Re-run elsewhere"`, `description`: `"/claude-tweaks:code-health --area <other-path> — re-run on a different directory slice"`
-- Option 4 — `label`: `"Backlog hygiene"`, `description`: `"/claude-tweaks:tidy — fold the new issues into a backlog-hygiene pass alongside INBOX and deferred items"`
+- Option 4 — `label`: `"Backlog hygiene"`, `description`: `"/claude-tweaks:tidy — fold the new issues into a backlog-hygiene pass alongside captured and deferred items"`
 
 ## Component-Skill Contract
 
@@ -408,8 +408,8 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:specify` | Code-health findings are pre-specs — a filed `by:code-health` issue body is `/specify`-shaped (Current State / Deliverables / Acceptance Criteria), so `/specify` consumes it with near-zero translation. |
-| `/claude-tweaks:capture` | Fuzzy or below-threshold findings route to INBOX via `/capture` instead of inflating the tracker. |
-| `/claude-tweaks:tidy` | `/tidy` Step 4.8 audits open `by:code-health`-labelled issues in its hygiene pass — stale/superseded ones are closed (with comment) after batch approval; still-valid ones are suggested for `/claude-tweaks:triage` or captured to INBOX. |
+| `/claude-tweaks:capture` | Fuzzy or below-threshold findings route to the backlog via `/capture` instead of inflating the tracker. |
+| `/claude-tweaks:tidy` | `/tidy` Step 4.8 audits open `by:code-health`-labelled issues in its hygiene pass — stale/superseded ones are closed (with comment) after batch approval; still-valid ones are suggested for `/claude-tweaks:triage` or captured to the backlog. |
 | `/claude-tweaks:triage` | Triage's bare invocation is the primary consumer of code-health's `risk:<tier>`/`effort:<tier>` labels — the Tier Rule reads them directly to recommend an authorization tier. `triage dispatch` claims each authorized issue and hands it to `/claude-tweaks:flow #{issue}` for pure execution — `/flow` no longer selects or claims issues itself. |
 | `/claude-tweaks:review` | `/review` judges diffs reactively; `/code-health` judges latent code proactively. Both reuse the same criteria fragments from `skills/_shared/`. |
 | `/claude-tweaks:deepen` | `/deepen` applies the architecture-depth criterion reactively to code you are changing; `/code-health` applies it proactively on a schedule. Both read `criteria-architecture-depth.md`. |

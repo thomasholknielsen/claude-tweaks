@@ -90,7 +90,7 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 |---|---|---|---|---|
 | 1 | Mode | **auto** | **auto** / hybrid / interactive | Pipeline runs hands-off; failures surface via ledger / failure card |
 | 2 | Scope-creep | **add-to-plan** | **add-to-plan** / stop-and-ask / drop | Files outside plan auto-added; nothing dropped silently |
-| 5 | Leftover routing | **defer** | **defer** / inbox / drop | Unfinished sections → specs/backlog/ (Stage: parked), reversible at Review Console |
+| 5 | Leftover routing | **defer** | **defer** / backlog / drop | Unfinished sections → a new work record (parked), reversible at Review Console |
 | 6 | Auto-fix threshold | **lint+type** | lint-only / **lint+type** / lint+type+test | Lint + type errors auto-fixed; test failures still surface |
 | 7 | Review severity floor | **low** | none / **low** / medium | LOW findings auto-applied; MED staged; HIGH still prompts |
 
@@ -110,8 +110,8 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | Mode | `interactive` | Skips the Manifesto pipeline-wide; every skill presents decisions in-flow as today |
 | Scope-creep | `stop-and-ask` | Pipeline pauses inline when files outside plan are referenced |
 | Scope-creep | `drop` | Files outside plan are noted in `decisions.md` but not added |
-| Leftover routing | `inbox` | Unfinished sections route to `specs/backlog/` (Stage: inbox) instead of Stage: parked |
-| Leftover routing | `drop` | Unfinished sections are noted in `decisions.md` but no `specs/backlog/` write |
+| Leftover routing | `backlog` | Unfinished sections route to a new work record with no stage label, instead of `parked` |
+| Leftover routing | `drop` | Unfinished sections are noted in `decisions.md` but no work record staged |
 | Auto-fix threshold | `lint-only` | Type errors surface as prompts; tests always surface |
 | Auto-fix threshold | `lint+type+test` | Mechanical test failures also auto-fixed (rare; risky — semantic changes hidden) |
 | Review severity floor | `none` | All findings auto-applied (lowest friction, highest revert load) |

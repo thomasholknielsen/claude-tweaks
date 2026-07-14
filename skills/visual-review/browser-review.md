@@ -414,7 +414,7 @@ Present all findings and ideas in a single batch table. Findings reference annot
 | 5 | {description} | Issue | Persona | Cosmetic | Fix now |
 | 6 | {description} | Idea | Reimagine | High | Fix now — add to current spec |
 | 7 | {description} | Idea | Reimagine | Medium | Defer — not relevant now |
-| 8 | {description} | Idea | Reimagine | Low | Capture to INBOX — needs brainstorming |
+| 8 | {description} | Idea | Reimagine | Low | Capture — needs brainstorming |
 ```
 
 The table renders as markdown, as above. Immediately below it, call `AskUserQuestion` with:
@@ -427,16 +427,16 @@ The **Source** column traces each finding to its origin step (Health, Performanc
 
 **Recommendation rules for Issues:**
 - **All severities** — default "Fix now." Close the gap now.
-- **Defer** (`specs/backlog/`, `**Stage:** parked`) — the fix is understood but bigger and not relevant to the current work. Include a `**Deferred:**` date stamped now, origin, affected files, trigger.
-- **Capture to INBOX** — the issue is complex or uncertain and needs brainstorming/exploration before it can be acted on.
+- **Defer** (new work record, `parked`) — the fix is understood but bigger and not relevant to the current work. Compose the body with a `Trigger:` line, origin, and affected files, then create it directly via the unified record contract (`_shared/work-record.md`).
+- **Capture** — the issue is complex or uncertain and needs brainstorming/exploration before it can be acted on.
 - **"Accept as-is"** — only for intentional design choices. If it's a genuine defect, fix it or route it.
 
 **Recommendation rules for Ideas:**
 - **Fix now** — the strong default. If the idea can be implemented in the current session, do it. Add to the current spec scope if applicable.
-- **Defer** (`specs/backlog/`, `**Stage:** parked`) — the idea is clear but bigger and not relevant to the current work. Include a `**Deferred:**` date stamped now.
-- **Capture to INBOX** — the idea is complex or uncertain and needs brainstorming/exploration before it can be acted on.
+- **Defer** (new work record, `parked`) — the idea is clear but bigger and not relevant to the current work. Compose the body with a `Trigger:` line, then create it directly via the unified record contract (`_shared/work-record.md`).
+- **Capture** — the idea is complex or uncertain and needs brainstorming/exploration before it can be acted on.
 
-> **Routing bias:** Fix it now — always the recommended default. Defer when the fix is bigger and not relevant now. Capture to INBOX when the issue/idea needs exploration. Cosmetic issues accumulate into a feeling of low quality — fix them while they're fresh.
+> **Routing bias:** Fix it now — always the recommended default. Defer when the fix is bigger and not relevant now. Capture when the issue/idea needs exploration. Cosmetic issues accumulate into a feeling of low quality — fix them while they're fresh.
 
 Group related cosmetic issues into a single row rather than listing each individually. Every idea goes to a durable destination. "Note for later" without a destination means "lose forever."
 

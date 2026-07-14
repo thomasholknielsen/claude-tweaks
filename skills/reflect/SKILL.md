@@ -91,7 +91,7 @@ When a pipeline run directory exists, route findings by category without prompti
 |---|---|---|
 | Safety regression (security, data loss, broken invariants — e.g., token expiry bug, auth bypass, dropped writes, resource leak, race condition on shared state) | KEPT-PROMPT — surfaces inline; cannot defer safety findings autonomously | `KEPT-PROMPT {time} — Step 3: safety finding "{summary}". Surfaced inline.` |
 | Convention drift, code smell, simplification opportunity | STAGED — write to `staged/reflect-{n}.md`. Surface at Wrap-Up Review Console. | `STAGED {time} — Step 3: convention finding "{summary}". Stage path: staged/reflect-{n}.md.` |
-| Tangential idea (new feature, alternative design) | STAGED → INBOX candidate. Wrap-Up Review Console asks before writing to INBOX (never autonomous). | `STAGED {time} — Step 3: tangential idea "{summary}" — INBOX candidate. Surface at Review Console.` |
+| Tangential idea (new feature, alternative design) | STAGED → backlog work-record candidate. Wrap-Up Review Console asks before creating the record (never autonomous). | `STAGED {time} — Step 3: tangential idea "{summary}" — backlog candidate. Surface at Review Console.` |
 | Pattern observation, design tradeoff acknowledgment | STAGED — write to `staged/reflect-{n}.md`. Most go to skill updates handled in `/wrap-up` Step 7. | `STAGED {time} — Step 3: pattern observation "{summary}". Stage path: staged/reflect-{n}.md.` |
 
 Default behavior: **defer everything** to the Review Console. The exception is safety regressions, which always surface inline.
@@ -178,8 +178,8 @@ This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step
 | `/claude-tweaks:deepen` | The structural-debt lens (premature abstractions, wrong boundaries) seeds /deepen candidates — when /reflect surfaces module-level structural debt, it recommends `/claude-tweaks:deepen` for a dedicated depth pass rather than resolving it inline |
 | `/claude-tweaks:test` | /reflect may trigger re-verification after "Change now" fixes |
 | `/claude-tweaks:ledger` | /reflect writes findings to the ledger using the phase provided by the parent (or `reflect` when standalone) |
-| `/claude-tweaks:capture` | /reflect may create a `specs/backlog/{slug}.md` entry with `**Stage:** inbox` for complex insights needing brainstorming |
+| `/claude-tweaks:capture` | /reflect may route complex insights needing brainstorming through /capture, which files a fresh backlog work record |
 | `/claude-tweaks:help` | /help references /reflect in the workflow diagram and reference card. |
-| `specs/backlog/*.md` (`**Stage:** parked`) | /reflect routes deferred improvements here (with origin, files, trigger) |
+| `_shared/work-record.md` (`parked`) | /reflect routes deferred improvements to a new work record here (with origin, files, trigger) |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
 | `_shared/auto-decision-log.md` | Canonical schema and path for the auto-decision log written in Step 3 (`{run-dir}/decisions.md`). |

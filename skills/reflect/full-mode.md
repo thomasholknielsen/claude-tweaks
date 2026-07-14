@@ -45,7 +45,7 @@ Collect all insights from the four lenses and the tradeoff review into a single 
 | 1 | {description} | Implement now -> CLAUDE.md Don'ts |
 | 2 | {description} | Implement now -> Skill: {name} |
 | 3 | {description} | Defer — bigger, not relevant now |
-| 4 | {description} | Capture to INBOX — needs brainstorming |
+| 4 | {description} | Capture — needs brainstorming |
 ```
 
 The table renders as markdown, as above. Immediately below it, call `AskUserQuestion` with:
@@ -64,12 +64,12 @@ The table renders as markdown, as above. Immediately below it, call `AskUserQues
 | "Remaining specs should use X instead" | Spec amendments |
 | "A fundamentally better approach exists" | Skill update + Memory file |
 | "We chose X over Y because Z" (from review tradeoffs) | CLAUDE.md Convention or Memory file (if it's a recurring decision) |
-| "We should add X" (X doesn't exist yet) | INBOX — improvement work, not a convention |
+| "We should add X" (X doesn't exist yet) | Backlog work record — improvement work, not a convention |
 
 **Recommendation rules:**
 - **Implement now** — the strong default. If an insight leads to a concrete change (update CLAUDE.md, update a skill, add a rule, update memory), make the change.
-- **Defer** (`specs/backlog/`, `**Stage:** parked`) — the insight leads to a known improvement but it's bigger and not relevant to the current work. Include a `**Deferred:**` date stamped now, origin, context, trigger.
-- **Capture to INBOX** — the insight is complex or uncertain and needs brainstorming/exploration before it can be acted on.
+- **Defer** (new work record, `parked`) — the insight leads to a known improvement but it's bigger and not relevant to the current work. Compose the body with a `Trigger:` line, origin, context, then create it directly via the unified record contract (`_shared/work-record.md`) — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`).
+- **Capture** — the insight is complex or uncertain and needs brainstorming/exploration before it can be acted on. Routes to `/claude-tweaks:capture`, which files it as a fresh backlog work record.
 - **Don't capture** — only for insights that are genuinely not actionable (one-off observations, context-specific facts, things already documented elsewhere). Must state why.
 
 If any insight is "Implement now", handle it after the user approves the batch table, before returning control to the parent or presenting Next Actions.

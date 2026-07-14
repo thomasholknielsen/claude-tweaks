@@ -32,7 +32,7 @@ Note: `code-simplifier` is a built-in subagent type (`subagent_type="code-simpli
 Check and create the required directories (only create what's missing):
 
 ```
-specs/                      → Spec files and backlog entries (specs/backlog/)
+specs/                      → Spec files; also backlog work records when work-backend: local-files (flat specs/{n}-{slug}.md, local-store.js)
 docs/                       → Documentation root (REGISTRY.md created in Phase 8.5)
 docs/superpowers/specs/     → Design docs (from /superpowers:brainstorming)
 docs/superpowers/plans/     → Execution plans (from /superpowers:writing-plans)
@@ -47,7 +47,7 @@ docs/journeys/              → User and developer journey files (created by /jo
 
 Create these **only if missing** — never overwrite existing content. Idempotent and safe to skip on Update Mode runs.
 
-**`specs/backlog/`:** create the empty directory (`mkdir -p specs/backlog`) if it doesn't already exist. No starter file inside it — entries are one file per idea or deferral, written by `/claude-tweaks:capture` and `/claude-tweaks:tidy`'s Defer action; an empty directory needs no header content the way a shared file did.
+No starter directory is needed for backlog work records — under `work-backend: github-issues` they live on the tracker; under `work-backend: local-files` `local-store.js` writes them directly as flat `specs/{n}-{slug}.md` files (no subdirectory to pre-create) as `/claude-tweaks:capture` and `/claude-tweaks:tidy`'s Defer action file them. `specs/` itself is already created by Step 2.
 
 **`specs/INDEX.md`:**
 

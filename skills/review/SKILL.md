@@ -451,14 +451,14 @@ See `review-summary-template.md` in this skill's directory for the full Next Act
 | `/claude-tweaks:build` | Produces the code and journey files that /claude-tweaks:review evaluates |
 | `/claude-tweaks:test` | /test is the mechanical "does it work?" gate. /review gates on `TEST_PASSED=true` — it never runs verification or QA itself. Standalone /review auto-triggers /test if no recent pass. |
 | `/claude-tweaks:wrap-up` | Runs after /claude-tweaks:review passes — focuses on reflection, cleanup, and knowledge capture. Skill-routed entries from lens 3a (phase `review/skill`) and from /reflect hindsight findings tagged `[skill: …]` (phase `review/hindsight`) feed into wrap-up's skill update analysis (Step 7). |
-| `/claude-tweaks:capture` | /claude-tweaks:review may create a `specs/backlog/{slug}.md` entry (`**Stage:** inbox`) for new ideas discovered during review |
+| `/claude-tweaks:capture` | /claude-tweaks:review may route new ideas discovered during review through /capture, which files a fresh backlog work record |
 | `/claude-tweaks:visual-review` | Invoked BY /review (Step 6) for browser-based visual inspection. In full mode, runs after code review. In visual/journey/discover modes, /review delegates entirely. |
 | `/claude-tweaks:init` | Phase 8 delegates to `/visual-review discover` for brownfield journey bootstrapping. Phase 0 configures the browser backends that visual review depends on. /init creates the doc registry that lens 3i uses for documentation freshness checks. |
 | `/claude-tweaks:stories` | Generates the YAML stories that /test validates. /review consumes /test results (including QA) via `TEST_PASSED`. /review also checks journey-to-story coverage in code review lens 3g-cov — uncovered journey steps and orphaned stories are surfaced as informational findings. |
 | `/claude-tweaks:journey-health` | Shares `_shared/journey-coverage-check.md`'s coverage computation for its decoupled coverage-scan tier — /review's 3g-cov lens stays inline/informational; journey-health adds cursor-tracking and issue-filing on top. |
 | `_shared/journey-coverage-check.md` | Canonical coverage computation lens 3g-cov applies — shared with `/claude-tweaks:journey-health`'s coverage scan. |
 | `/claude-tweaks:browse` | Used by visual, journey, and discover modes for browser interaction |
-| `specs/backlog/*.md` (`**Stage:** parked`) | /claude-tweaks:review routes implementation-related deferrals here (with origin, files, trigger) |
+| `_shared/work-record.md` (`parked`) | /claude-tweaks:review routes implementation-related deferrals to a new work record here (with origin, files, trigger) |
 | `/claude-tweaks:flow` | Invokes /review in **full** mode by default (code + visual). Flow handles browser detection and falls back to code mode when no browser backend is available. |
 | `/superpowers:dispatching-parallel-agents` | Used BY /claude-tweaks:review (conditional) to dispatch 3+ independent fix-now findings as parallel agents |
 | `/claude-tweaks:reflect` | Invoked BY /review (Step 4) in hindsight mode. Handles the implementation hindsight evaluation, finding routing, and ledger writes with phase `review/hindsight`. |

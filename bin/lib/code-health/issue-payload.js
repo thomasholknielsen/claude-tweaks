@@ -4,6 +4,9 @@
 // carries a hidden fingerprint marker the dedup step re-extracts.
 const { recordPayload } = require('../issues/record');
 
+// legacy: v1, frozen. Not called by bin/code-health.js (which uses toIssuePayloadV2
+// exclusively) — kept only so its own test file can assert this historical shape
+// never regresses. Do not update this function's footer/labels/marker to match v2.
 function toIssuePayload(finding) {
   const marker = `<!-- code-health-fingerprint: ${finding.id} -->`;
   const filesLine = (finding.files || []).length ? (finding.files || []).join(', ') : '(no specific file)';
@@ -64,7 +67,7 @@ function toIssuePayloadV2(finding) {
     '',
     finding.acceptance,
     '',
-    '_Filed by `/code-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._',
+    '_Filed by `/claude-tweaks:code-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._',
   ].join('\n');
 
   // No spread after this call — recordPayload's return is the payload verbatim.

@@ -178,7 +178,7 @@ Run the resolve gate from `/claude-tweaks:ledger` (see ledger skill for the thre
 - Phase 1 must run before any user-facing output. The agent fixes everything that qualifies for fix-now, commits, then presents only the genuine residue.
 - Phase 2 always requires explicit per-item user input for `fix` / `defer` / `accept` decisions. Status `acknowledged` (informational, e.g., ops items the user has read) may be applied in bulk via a single explicit "I've read every item" choice. Never bulk-resolve `fix` / `defer` / `accept`. Never assume "obvious" defers. Never offer a "Fix all (Recommended)" or "Defer all" shortcut — those bias the user toward whichever bulk action is easier to type.
 - `auto` mode does NOT silence this gate.
-- Both `**Stage:** parked` and `**Stage:** inbox` are valid routing destinations within `specs/backlog/`, but every individual entry requires an explicit per-item user choice — no entry is ever written autonomously.
+- Both `parked` and `backlog` are valid stage destinations for a new work record, but every individual item requires an explicit per-item user choice — no record is ever staged autonomously.
 
 ### Bulk-resolve fast path (terminal-status only)
 

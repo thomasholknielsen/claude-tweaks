@@ -55,12 +55,12 @@ If no arguments, analyze the current working directory. Phase 0 runs first, then
 | **1** | Determine mode (Initial vs Update) | Mode decision + existing config inventory |
 | **2** | Codebase reconnaissance (8 detection steps) | Raw findings: stack, architecture, conventions, pain points, maturity |
 | **3** | Build profile (Initial) or drift report (Update) | Stack Profile or Configuration Health Report |
-| **4** | Generate skill manifest | Scored + prioritized skill candidates. Priority 2-3 → INBOX |
-| **5** | Generate / update CLAUDE.md | CLAUDE.md (how to work here). Improvement pain points → INBOX |
-| **6** | Generate / update skills | SKILL.md files for approved skills. Aspirational skills → INBOX |
+| **4** | Generate skill manifest | Scored + prioritized skill candidates. Priority 2-3 → backlog |
+| **5** | Generate / update CLAUDE.md | CLAUDE.md (how to work here). Improvement pain points → backlog |
+| **6** | Generate / update skills | SKILL.md files for approved skills. Aspirational skills → backlog |
 | **7** | Generate / update rules (optional) | Path-scoped `.claude/rules/` files |
-| **8** | Discover user journeys (optional) | Journey files or skeleton INBOX items |
-| **8.5** | Create doc registry | `docs/REGISTRY.md`. Doc work → INBOX |
+| **8** | Discover user journeys (optional) | Journey files or skeleton backlog work records |
+| **8.5** | Create doc registry | `docs/REGISTRY.md`. Doc work → backlog |
 | **9** | Present summary and confirm | Final confirmation before writing files |
 
 ---
@@ -81,7 +81,7 @@ Create the required workflow directories — idempotent, only creates what's mis
 
 ### Step 3: Create Starter Files
 
-Create `specs/backlog/` (empty directory) and `specs/INDEX.md` — only if missing, never overwrite. Read `bootstrap-steps.md` (Step 3) for the canonical starter content.
+Create `specs/INDEX.md` — only if missing, never overwrite. Read `bootstrap-steps.md` (Step 3) for the canonical starter content.
 
 ### Step 4: Suggest .gitignore Entries
 
@@ -275,15 +275,15 @@ Carry the confirmed maturity and doc tier forward to Phase 5 (CLAUDE.md Philosop
 >
 > **Parallel execution (conditional):** When the candidate list has ≥ 8 skills, dispatch scoring as parallel Task agents per the Subagent Contract (`_shared/subagent-output-contract.md`). Otherwise, run the scoring inline in the main thread.
 
-Apply the **Frequency + Complexity + Danger** rubric (max 9). Generate skills scoring 6+ first. Skills not selected (Priority 2-3 or aspirational) become INBOX items with their scoring rationale and Phase 2 evidence — no reconnaissance is wasted.
+Apply the **Frequency + Complexity + Danger** rubric (max 9). Generate skills scoring 6+ first. Skills not selected (Priority 2-3 or aspirational) become backlog work records with their scoring rationale and Phase 2 evidence — no reconnaissance is wasted.
 
-For the full scoring rubric (with examples), the skill-category mapping reference, and the INBOX deferred-skill format, read `phase-4-scoring.md` in this skill's directory. For the Skill Manifest presentation template and the selection prompt, read `profile-templates.md` (Phase 4 section).
+For the full scoring rubric (with examples), the skill-category mapping reference, and the deferred-skill backlog work-record format, read `phase-4-scoring.md` in this skill's directory. For the Skill Manifest presentation template and the selection prompt, read `profile-templates.md` (Phase 4 section).
 
 ---
 
 ## Phase 5: Generate / Update CLAUDE.md
 
-CLAUDE.md describes **how to work in this codebase** — the patterns to follow, the commands to run, the conventions to respect, and the mistakes to avoid. Every entry should help someone working in the codebase right now. Things that don't exist yet belong in INBOX, not here.
+CLAUDE.md describes **how to work in this codebase** — the patterns to follow, the commands to run, the conventions to respect, and the mistakes to avoid. Every entry should help someone working in the codebase right now. Things that don't exist yet belong in the backlog, not here.
 
 **Initial Mode** generates CLAUDE.md from scratch with sections for Stack, Structure, Commands, Conventions, Philosophy, Testing, Environment, Git, and Don'ts. **Update Mode** produces targeted patches, not rewrites. The Philosophy section adapts to detected project maturity. The Don'ts section is the highest-ROI output — mine it from convention conflicts and observed anti-patterns (not from missing infrastructure).
 
@@ -291,7 +291,7 @@ For the complete CLAUDE.md template, patch format, Philosophy generation guide, 
 
 ### Pain Point Routing
 
-Phase 2f findings split into CLAUDE.md Don'ts (convention conflicts and anti-patterns) and INBOX items (missing infrastructure, practices, stale deps, dead code). For the INBOX item templates and the "Pain Points Routed" summary template, read `pain-point-routing.md` in this skill's directory.
+Phase 2f findings split into CLAUDE.md Don'ts (convention conflicts and anti-patterns) and backlog work records (missing infrastructure, practices, stale deps, dead code). For the backlog work-record templates and the "Pain Points Routed" summary template, read `pain-point-routing.md` in this skill's directory.
 
 ---
 
@@ -299,7 +299,7 @@ Phase 2f findings split into CLAUDE.md Don'ts (convention conflicts and anti-pat
 
 **Initial Mode** generates full SKILL.md files for each approved skill. **Update Mode** produces targeted patches for drifted skills and full SKILL.md for gap skills. Each generated skill must pass quality gates (codebase-grounded examples, working commands, project-specific anti-patterns). Skill depth scales with complexity score.
 
-Only generate skills for patterns that **actually exist and are actively used** in the codebase. Aspirational skills (e.g., testing for a project with no tests) should have been captured as INBOX items in Phase 4 — do not generate SKILL.md files for them.
+Only generate skills for patterns that **actually exist and are actively used** in the codebase. Aspirational skills (e.g., testing for a project with no tests) should have been captured as backlog work records in Phase 4 — do not generate SKILL.md files for them.
 
 For the complete SKILL.md template and depth guide, read `skill-template.md` in this skill's directory. For the drift-patch procedure and quality gates applied to drifted/gap skills, read `_shared/harness-health-analysis.md` — the same procedure `/claude-tweaks:wrap-up` Step 7 and the standalone `/claude-tweaks:harness-health` routine use.
 
@@ -331,7 +331,7 @@ Would you like to discover and document journeys?
 
 Use Phase 2 findings to identify routes/pages, infer personas (user roles, auth flows, public vs. authenticated), and group routes into goal-oriented journey skeletons. Write skeleton files to `docs/journeys/` (use `journey-template.md` from the `/claude-tweaks:journeys` skill directory) — each one stamped `**Status:** Skeleton — inferred from code, not yet browser-tested`. Skeletons document the intended flows but "should feel" fields are weaker until browser-tested.
 
-**Capture enrichment as INBOX items** for each skeleton journey:
+**Capture enrichment as backlog work records** for each skeleton journey:
 
 ```markdown
 ### Browser-test journey: {name}
@@ -356,7 +356,7 @@ Create the documentation registry that maps project docs to the code areas they 
 
 **Use the confirmed doc tier** from Phase 3 — do not re-detect.
 
-For the complete procedure (registry format, tier definitions, standard folder taxonomy, common Auto-detect patterns, inventory → assess → batch table → create → INBOX-capture flow, and Update-Mode diff logic), read `docs-structure.md` in this skill's directory.
+For the complete procedure (registry format, tier definitions, standard folder taxonomy, common Auto-detect patterns, inventory → assess → batch table → create → backlog-capture flow, and Update-Mode diff logic), read `docs-structure.md` in this skill's directory.
 
 ---
 
@@ -375,7 +375,7 @@ After writing files, surface what was created. Generate the table from the actua
 | Action | Detail | Ref |
 |--------|--------|-----|
 | Bootstrap | Created `specs/`, `docs/`, `docs/journeys/`, `.worktrees/`, etc. (only missing dirs) | Step 2 |
-| Starter files | Wrote `specs/backlog/`, `specs/INDEX.md` (only if missing) | Step 3 |
+| Starter files | Wrote `specs/INDEX.md` (only if missing) | Step 3 |
 | Statusline | Installed wrapper at `~/.claude-tweaks/bin/statusline.js`; wired `~/.claude/settings.json` | Step 8 |
 | Design integration | Set `design-integration: {enabled/plugin-only/disabled}` in CLAUDE.md | Step 10 |
 | shadcn integration | Set `shadcn-integration: {enabled/cli-only/disabled}` in CLAUDE.md | Step 12 |
@@ -388,7 +388,7 @@ After writing files, surface what was created. Generate the table from the actua
 | Rules | Created {N} path-scoped rules in `.claude/rules/` | Phase 7 |
 | Journeys | Wrote {N} skeleton journey files (or delegated to `/visual-review discover`) | Phase 8 |
 | Doc registry | Created `docs/REGISTRY.md` with {N} entries | Phase 8.5 |
-| INBOX | Added {N} items (deferred skills, pain points, doc work, skeleton enrichment) | Phases 4-8.5 |
+| Backlog | Added {N} work records (deferred skills, pain points, doc work, skeleton enrichment) | Phases 4-8.5 |
 
 Execute only after user confirmation.
 
@@ -404,14 +404,14 @@ If the decision was "Yes," tell the user: "`worktree.always` is now enforced —
 
 ## Next Actions
 
-Resolve the recommended action from the signals that fired during this run. This lookup table is the assistant's own resolution logic — it stays internal and is never itself shown to the user or converted into an `AskUserQuestion` option. Resolve signals top-to-bottom; the first matching row is the recommendation. The signal rows are not exhaustive over every possible post-init state (e.g. Update Mode completing normally with zero drift and no INBOX writes matches none of them) — when no signal row matches, use the Fallback row so there is always a defined recommendation.
+Resolve the recommended action from the signals that fired during this run. This lookup table is the assistant's own resolution logic — it stays internal and is never itself shown to the user or converted into an `AskUserQuestion` option. Resolve signals top-to-bottom; the first matching row is the recommendation. The signal rows are not exhaustive over every possible post-init state (e.g. Update Mode completing normally with zero drift and no backlog writes matches none of them) — when no signal row matches, use the Fallback row so there is always a defined recommendation.
 
 | Signal | Recommended Next Action |
 |--------|------------------------|
-| Update Mode ran AND total drift count > 0 | `/claude-tweaks:tidy` — clean up drifted/stale config and INBOX items before resuming feature work |
-| INBOX has items written this run (deferred skills, pain points, doc work, skeleton enrichment) | `/claude-tweaks:tidy` — triage what /init just captured |
-| Initial Mode ran AND INBOX is empty | `/claude-tweaks:capture {idea}` — capture the first idea or feature into INBOX for triage |
-| Everything is clean (Update Mode early-exit OR Initial Mode with nothing routed to INBOX) | `/claude-tweaks:help` — see the full lifecycle overview and current pipeline status |
+| Update Mode ran AND total drift count > 0 | `/claude-tweaks:tidy` — clean up drifted/stale config and backlog items before resuming feature work |
+| Backlog has work records written this run (deferred skills, pain points, doc work, skeleton enrichment) | `/claude-tweaks:tidy` — triage what /init just captured |
+| Initial Mode ran AND backlog is empty | `/claude-tweaks:capture {idea}` — capture the first idea or feature into the backlog for triage |
+| Everything is clean (Update Mode early-exit OR Initial Mode with nothing routed to the backlog) | `/claude-tweaks:help` — see the full lifecycle overview and current pipeline status |
 | Fallback (no row above matches) | `/claude-tweaks:help` — see the full lifecycle overview and current pipeline status |
 
 Once resolved to a single recommended row, call `AskUserQuestion` with exactly 3 options — the resolved recommendation, plus the two "Always" actions below:
@@ -427,7 +427,7 @@ If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Modifying existing backlog entries (`specs/backlog/*.md`) or INDEX.md content | Phase 0 is additive — it creates missing files but must not overwrite user content |
+| Modifying existing backlog work records or INDEX.md content | Phase 0 is additive — it creates missing files but must not overwrite user content |
 | Skipping CLAUDE.md generation | Without CLAUDE.md, /claude-tweaks:review can't find verification commands |
 | Running init in a non-git directory without warning | /claude-tweaks:review and /claude-tweaks:wrap-up depend on git — the user should know about degraded behavior |
 | Installing browser tools without asking | Browser integration is optional — surface the install command but never run `npm install` automatically |
@@ -438,9 +438,9 @@ If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it
 | Rewriting CLAUDE.md in Update Mode | Update Mode produces patches, not rewrites — existing config embeds hard-won lessons |
 | Over-generating skills (15 mediocre > 5 excellent) | Each skill must earn its existence by encoding knowledge that would otherwise be lost |
 | Skipping team input | Code archaeology alone misses social conventions — PR process, deploy cadence, naming debates |
-| Aspirational Don'ts for things that don't exist | Don'ts are guardrails for existing patterns, not wishes for missing infrastructure. "No CI" is an INBOX item, not a Don't. |
-| Putting improvement ideas in CLAUDE.md | CLAUDE.md describes how to work in the codebase as it is — improvement opportunities belong in INBOX with Phase 2 context |
-| Generating skills for patterns that don't exist yet | Aspirational skills (testing for a project with no tests) become INBOX items with Phase 2 evidence, not SKILL.md files |
+| Aspirational Don'ts for things that don't exist | Don'ts are guardrails for existing patterns, not wishes for missing infrastructure. "No CI" is a backlog item, not a Don't. |
+| Putting improvement ideas in CLAUDE.md | CLAUDE.md describes how to work in the codebase as it is — improvement opportunities belong in the backlog with Phase 2 context |
+| Generating skills for patterns that don't exist yet | Aspirational skills (testing for a project with no tests) become backlog work records with Phase 2 evidence, not SKILL.md files |
 | Hardcoding greenfield philosophy for all projects | The Philosophy section must adapt to detected project maturity — what's correct for a greenfield project is dangerous for an established one |
 | Creating doc files with only TODO placeholders | Phase 2 reconnaissance has the data — generate real content grounded in actual findings. If a doc would be < 20 lines of real content, it belongs in README instead of its own file. |
 | Skipping journey discovery for projects with user-facing features | Journeys are what `/review` tests against — without them, visual QA has no experiential anchor |
@@ -458,7 +458,7 @@ If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it
 
 | Skill | Relationship |
 |-------|-------------|
-| `/claude-tweaks:capture` | First skill to use after /claude-tweaks:init — add ideas to the INBOX |
+| `/claude-tweaks:capture` | First skill to use after /claude-tweaks:init — add ideas to the backlog |
 | `/claude-tweaks:help` | Shows workflow status — useful to verify /claude-tweaks:init worked. Surfaces doc staleness signals from the registry. |
 | `/claude-tweaks:review` | /review lens 3i uses the doc registry to check documentation freshness. |
 | `/claude-tweaks:visual-review` | Phase 8 (hybrid mode) delegates to `/visual-review discover` for browser-assisted journey discovery. |

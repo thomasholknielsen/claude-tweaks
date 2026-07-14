@@ -65,7 +65,7 @@ Items are numbered sequentially starting at 1. New items always get the next ava
 
 ```
 open → fixed         (item was addressed in code)
-open → deferred      (routed to a specs/backlog/{slug}.md entry with Stage: parked, origin, files, and trigger)
+open → deferred      (staged as a work record proposal — parked, with origin, files, and trigger — resolved via the Review Console)
 open → accepted      (intentional decision, with stated reason)
 open → acknowledged  (for ops items — user is aware, requires action outside codebase)
 observation          (informational, non-blocking — e.g., QA caveats)
@@ -224,7 +224,7 @@ When `$PIPELINE_RUN_DIR` is set, `/ledger` is running inside a pipeline (typical
 | Silently dropping open items | The resolve gate catches this — every item must be explicitly resolved |
 | Bulk-resolving open items without per-item user input | Phase 2 of the resolve gate requires explicit per-item response. Even when items "obviously" belong parked in the backlog, the user gets the call — never assume |
 | Skipping Phase 1 (fix-exhaustion) and jumping straight to the user table | Phase 1 runs first. Showing the user a table with items the agent could have fixed wastes their attention and biases toward defer |
-| Writing a `specs/backlog/{slug}.md` entry (either `Stage: inbox` or `Stage: parked`) without per-item user confirmation | Both stages are valid destinations, but each entry must come from an explicit user choice on that specific item — not from the agent's classification, not from a bulk default, not from `auto` mode |
+| Staging a work record proposal (either `backlog` or `parked`) without per-item user confirmation | Both stages are valid destinations, but each proposal must come from an explicit user choice on that specific item — not from the agent's classification, not from a bulk default, not from `auto` mode |
 | Using "out of scope of this plan" as a defer reason | If the file is in the build's diff, it's in scope. Pre-existing baseline failures use `accepted` with proof of pre-existence, not `deferred` |
 | Deferring plan-prescribed routing as a ledger item | If the plan said "X moves to P6," that is plan documentation, not a ledger event. Remove the item, do not defer it — double-tracking creates noise |
 | Bundling small items into one umbrella ledger entry | Each item gets individual classification. Bundles let items hide; one decision covers seven actions |

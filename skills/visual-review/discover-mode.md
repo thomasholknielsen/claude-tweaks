@@ -142,7 +142,7 @@ Present uncovered pages and gaps as a batch:
 | # | Gap | Recommended |
 |---|-----|-------------|
 | 1 | {page/route} | Not a journey — utility page |
-| 2 | {missing flow} | Capture to INBOX |
+| 2 | {missing flow} | Capture |
 | 3 | {page/route} | Create a journey — needs exploration |
 ```
 

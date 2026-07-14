@@ -4,7 +4,7 @@
 
 CLAUDE.md describes **how to work in this codebase** — the patterns to follow, the commands to run, the conventions to respect, and the mistakes to avoid. It is an operator's manual for an existing system, not a wishlist of improvements.
 
-Every section should answer: "If I'm about to make a change here, what do I need to know?" Things that don't exist yet (missing CI, missing tests, missing linting) are work items for the INBOX, not entries in CLAUDE.md. The moment something is set up, _then_ it earns a place here.
+Every section should answer: "If I'm about to make a change here, what do I need to know?" Things that don't exist yet (missing CI, missing tests, missing linting) are backlog work items, not entries in CLAUDE.md. The moment something is set up, _then_ it earns a place here.
 
 This principle applies equally during initial generation and updates. When updating CLAUDE.md, evaluate every proposed change against: "Does this describe how to work in the codebase _as it is right now_?"
 
@@ -70,7 +70,7 @@ How to execute any task here. These apply project-wide unless a more specific ru
 
 **Artifacts:** design doc (one file, phases = `## Phase N` sections) → spec (one per work unit, via `/claude-tweaks:specify`) → `/claude-tweaks:flow`. No phase-plan files; skip `/superpowers:writing-plans`.
 
-**Entry point:** `/claude-tweaks:specify` — accepts a topic (calls `/superpowers:brainstorming`), design-doc path, or INBOX ref.
+**Entry point:** `/claude-tweaks:specify` — accepts a topic (calls `/superpowers:brainstorming`), design-doc path, or a backlog work-record ref.
 
 **`/flow`:** specs only (rejects design docs). Size is not a stop signal — gate blocks on structural coupling (cross-task deps, scope leak). **Defaults to `auto` mode** (hands-off); pass `confirm` to gate the Manifesto, `interactive` for per-skill prompts, or `hybrid` for floor-gated prompts.
 
@@ -127,7 +127,7 @@ scope-keywords-required: false
 scope-creep: add-to-plan           # add-to-plan | stop-and-ask | drop
 overlap: companion                 # companion | extend | skip | replace
 design-intent: none                # none | bold | quiet | minimal | delightful | onboarding
-leftover-default: defer            # defer | inbox | drop
+leftover-default: defer            # defer | backlog | drop
 auto-fix-threshold: lint+type      # lint-only | lint+type | lint+type+test
 review-severity-floor: low         # none | low | medium  (auto-apply cutoff)
 tidy-aggressiveness: conservative  # conservative | moderate | aggressive
@@ -161,7 +161,7 @@ Apply patches using Edit tool calls with precise `old_string` → `new_string` r
 
 The Don'ts section prevents more mistakes than any amount of positive guidance. Don'ts are **guardrails for patterns that exist** — they describe what _not_ to do when working in this codebase. They are never aspirational.
 
-**The filter:** A Don't must describe a pattern that exists in the codebase and should not be violated. If something doesn't exist yet (no CI, no tests, no linting, stale dependencies), that's an INBOX item for improvement work — not a Don't.
+**The filter:** A Don't must describe a pattern that exists in the codebase and should not be violated. If something doesn't exist yet (no CI, no tests, no linting, stale dependencies), that's a backlog item for improvement work — not a Don't.
 
 Source Don'ts from:
 
@@ -171,9 +171,9 @@ Source Don'ts from:
 4. **Convention violations** — if 95% of files use named exports, "don't use default exports" is a Don't
 5. **Security footguns** — any auth, input validation, or data handling patterns that must not be violated
 
-**Not Don'ts** (these belong in INBOX instead):
+**Not Don'ts** (these belong in the backlog instead):
 
-| Finding | Why not a Don't | INBOX example |
+| Finding | Why not a Don't | Backlog example |
 |---------|----------------|---------------|
 | No CI pipeline | Nothing to violate — it doesn't exist | "Set up CI — project uses {framework}, deploy to {target}" |
 | No tests in `src/utils/` | Aspirational, not a guardrail | "Add test coverage for utils — {functions} are complex" |
@@ -192,7 +192,7 @@ These apply regardless of project maturity:
 - **Do it properly.** No display-only workarounds for data model issues, no "good enough" shortcuts that leave technical debt. If a value needs renaming, rename it everywhere including the database. If a type needs changing, change it at the source.
 - **Assume zero cost.** Decide as if implementation is free. Never choose an inferior design because the better one "isn't worth the effort."
 - **Assume zero time.** Decide as if implementation is instant. Never choose a shortcut because the proper approach "takes too long."
-- **No implicit deferrals.** When something needs doing, either do it now or explicitly add a backlog entry (`specs/backlog/{slug}.md`, `**Stage:** inbox`) with scope and context. Never silently skip work or leave TODO comments without a corresponding backlog entry.
+- **No implicit deferrals.** When something needs doing, either do it now or explicitly file a backlog work record (via `/claude-tweaks:capture`) with scope and context. Never silently skip work or leave TODO comments without a corresponding backlog record.
 
 ### Maturity-dependent principles (adapt to classification)
 
@@ -237,7 +237,7 @@ Two rules of thumb:
 
 ## Principles
 
-- **How to work here, not what's missing** — every entry should help someone working in the codebase right now. Improvements belong in INBOX.
+- **How to work here, not what's missing** — every entry should help someone working in the codebase right now. Improvements belong in the backlog.
 - **Observed, not aspirational** — document what the codebase actually does, not what it should do
 - **Under 150 lines (default; override via `harness-health.always-loaded-budget` in `.claude-tweaks/policy.yml`)** — if it doesn't fit, it belongs in a skill or rule
 - **Commands must work** — verify scripts exist before listing them

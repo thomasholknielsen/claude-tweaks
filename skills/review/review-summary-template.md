@@ -39,7 +39,7 @@ Possible QA statuses:
 > This table lists only `confirmed` findings — findings reproduced by both agents in the per-lens reproduction pair, or upgraded to `confirmed` after a cross-lens debate round (Step 3.5). Findings flagged `unconfirmed` (single-source or debate converged negative) and `contested` (debate inconclusive) are staged to the Wrap-Up Review Console — they are not silently dropped. Override or apply each in batch from the Console.
 
 ### Implementation Hindsight
-- {finding} → {change now / capture to INBOX / accept as-is — not an improvement because {reason}}
+- {finding} → {change now / capture / accept as-is — not an improvement because {reason}}
 (or: No changes needed — approach is sound.)
 
 ### Tradeoffs Accepted

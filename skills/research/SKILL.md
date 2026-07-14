@@ -15,7 +15,7 @@ report under `.claude-tweaks/research/`.
 ```
                              [ /claude-tweaks:research ] ← utility (no fixed lifecycle position)
                                         ↑
-   Used by: /claude-tweaks:capture (research INBOX items),
+   Used by: /claude-tweaks:capture (research backlog items),
             /claude-tweaks:challenge (back debiasing lenses),
             /claude-tweaks:specify (prior-art lookup),
             ad-hoc research tasks
@@ -25,7 +25,7 @@ report under `.claude-tweaks/research/`.
 
 - Research a topic in depth before committing to a design direction.
 - Audit prior art / state-of-the-art before authoring a spec.
-- Debias an INBOX item with evidence from multiple sources.
+- Debias a backlog work record with evidence from multiple sources.
 - Gather citations for a user journey, RFC, or technical decision.
 - Generate a citation-audited markdown report.
 
@@ -109,7 +109,7 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 
 | Skill | Relationship |
 |-------|--------------|
-| `/claude-tweaks:capture` | Research findings can be promoted into INBOX items via the Next Actions block; `/capture` references `/research` as a way to enrich a captured idea before specifying. |
+| `/claude-tweaks:capture` | Research findings can be promoted into a backlog work record via the Next Actions block; `/capture` references `/research` as a way to enrich a captured idea before specifying. |
 | `/claude-tweaks:challenge` | `/challenge` invokes `/research` to back debiasing lenses with evidence; this skill's reports can be cited as challenge sources. |
 | `/claude-tweaks:specify` | `/specify` uses `/research` outputs for prior-art sections; this skill's Next Actions block offers a direct "cite findings in a new spec" path. |
 | `/claude-tweaks:browse` | Both are utility skills (no fixed lifecycle position). `/browse` covers interactive browser automation; `/research` covers autonomous multi-source research. |
@@ -118,7 +118,7 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 
 After the report completes, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
 
-- Option 1 — `label`: `"Promote to INBOX"`, `description`: `"/claude-tweaks:capture <findings-summary> — promote findings into INBOX"`. Suffix the label `(Recommended)` when the topic was exploratory; when it wasn't, leave this — and every other option in this call — unmarked (`AskUserQuestion` doesn't require a Recommended option).
-- Option 2 — `label`: `"Debias a problem"`, `description`: `"/claude-tweaks:challenge <inbox-item> — use findings to debias a problem"`
+- Option 1 — `label`: `"Promote to backlog"`, `description`: `"/claude-tweaks:capture <findings-summary> — promote findings into a backlog work record"`. Suffix the label `(Recommended)` when the topic was exploratory; when it wasn't, leave this — and every other option in this call — unmarked (`AskUserQuestion` doesn't require a Recommended option).
+- Option 2 — `label`: `"Debias a problem"`, `description`: `"/claude-tweaks:challenge <record-ref> — use findings to debias a problem"`
 - Option 3 — `label`: `"Cite in a new spec"`, `description`: `"/claude-tweaks:specify <spec-name> — cite findings in a new spec"`
 - Option 4 (include only if current mode left obvious gaps — otherwise this is a 3-option call, not a 4-option call with a greyed-out or caveated choice) — `label`: `"Re-run deeper"`, `description`: `"/claude-tweaks:research --mode=deep <topic> — re-run in deeper mode"`

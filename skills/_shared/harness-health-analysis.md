@@ -135,7 +135,7 @@ Always reason about *why* the ratio is low before emitting a finding — never r
 
 **CLAUDE.md-specific checks unlocked by dimension 7/8 (concrete, largely mechanical):**
 - **Line budget** — Step 1's tiered `wc -l` check vs. the `harness-health.always-loaded-budget` policy line (default 150).
-- **Observed-not-aspirational** — flag language ("should", "TODO", "need to add") describing infrastructure that doesn't exist yet; that belongs in the project's INBOX, not CLAUDE.md.
+- **Observed-not-aspirational** — flag language ("should", "TODO", "need to add") describing infrastructure that doesn't exist yet; that belongs in the project's backlog, not CLAUDE.md.
 - **Working Approach present verbatim** — `skills/init/claude-md-template.md` mandates this section be included unmodified in every generated CLAUDE.md; a structural presence check.
 - **Don'ts are guardrails, not wishes** — every Don't must describe an *existing* pattern (grep-checkable, same evidence style as dimension 2), never aspirational infrastructure.
 - **Philosophy matches current maturity** — re-derive today's maturity signal (the classification `/claude-tweaks:init` Phase 2h would compute right now) and compare it to what the Philosophy section says; flags e.g. a project that shipped to real users since the CLAUDE.md was written but still reads "Greenfield."

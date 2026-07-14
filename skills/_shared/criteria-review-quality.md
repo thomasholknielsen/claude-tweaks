@@ -18,7 +18,7 @@ Every finding carries exactly one category from this enum:
 
 `Architecture` · `Security` · `Convention` · `Performance` · `Error handling` · `Test quality` · `Coverage` · `UX` · `Docs`
 
-(When a finding is routed to INBOX, this enum collapses to INBOX's 4-value enum: code→technical, UX→product, license→legal, infra→infrastructure — see design §8.)
+A finding routed to `/claude-tweaks:capture` (see `_shared/work-record.md`) carries no category label — `/capture` guesses only `bug`/`feature`/`task` Type from the title/body text; the review-quality category above is not persisted past the routing decision.
 
 ## Per-lens severity floors (calibration)
 
