@@ -65,7 +65,7 @@ For each completed branch (in order):
    - Option 1 — `label`: `"Resolve now (Recommended)"`, `description`: `"I'll resolve based on both branches' intent"`
    - Option 2 — `label`: `"Skip this branch"`, `description`: `"merge remaining branches first, come back to this one"`
    - Option 3 — `label`: `"Abort remaining merges"`, `description`: `"I'll handle merges manually"`
-4. After all merges, update `specs/INDEX.md` to reflect completed specs
+4. After all merges — legacy spec-file alias runs only — update `specs/INDEX.md` to reflect completed specs (record mode never touches INDEX.md; records close via `Fixes #{n}` on merge)
 
 ### Post-Merge Summary
 

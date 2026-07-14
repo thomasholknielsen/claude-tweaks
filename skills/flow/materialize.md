@@ -49,7 +49,7 @@ parked-at-shaping: true            # omitted unless the record was parked when s
 |---|---|
 | `record` | `/wrap-up` close-via-merge carrier (`Fixes #{n}`) + Section E claim release |
 | `origin` | `/wrap-up` summary/Review Console display (provenance line) |
-| `risk` | Review Console display; future gate re-checks |
+| `risk` | Audit snapshot (preserved in the committed file; no active mechanical reader today) |
 | `effort` | `/build` effort-based model-tier selection (replaces `code-health-effort`) |
 | `grants` | Snapshot for audit; `/wrap-up`'s auto-merge check RE-READS LIVE LABELS before any merge (truth, not projection) |
 | `fingerprint` | Audit snapshot / dedup cross-reference |
