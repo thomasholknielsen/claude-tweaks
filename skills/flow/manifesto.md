@@ -26,15 +26,15 @@ For each lever, record both the recommended value AND its source so the user can
 
 ## Compute per-spec preview
 
-Before rendering the Manifesto, derive a per-spec preview by reading each spec's frontmatter and inferring what will run:
+Before rendering the Manifesto, derive a per-spec preview by reading each record's materialized header when one exists — pre-materialization, or under the legacy spec-file alias, fall back to the record body's `Surface:`/`Design-intent:` metadata lines or the spec file's own header fields — and inferring what will run:
 
 | Field | Source | How to derive |
 |---|---|---|
-| Surface | Spec frontmatter `surface:` (or detect from spec's Key Files extensions) | `frontend` if `.tsx/.jsx/.vue/.svelte/.css` files present; else `backend` / `infra` per frontmatter or content |
-| Polish | `surface` × spec `design-intent:` × `no-polish` arg | `run` if frontend + design-intent != none + no-polish not set; `skip ({reason})` otherwise |
+| Surface | Materialized header `surface:` (`materialize.md`) — or the record body's `Surface:` line / the legacy spec file's `surface:` header field when no run-dir header exists yet (or detect from Key Files extensions) | `frontend` if `.tsx/.jsx/.vue/.svelte/.css` files present; else `backend` / `infra` per header or content |
+| Polish | `surface` × materialized header `design-intent:` (or the body's `Design-intent:` line / legacy spec `design-intent:`) × `no-polish` arg | `run` if frontend + design-intent != none + no-polish not set; `skip ({reason})` otherwise |
 | Stories | UI files in plan + `no-stories` arg | `auto-detect` if UI files in plan + no-stories not set; `skip` otherwise |
-| QA | `stories/*.yaml` exists for this spec's surface | `run` if matching stories; `skip` if none |
-| Friction note | Lever recommendations × spec content | One-line warning when an approved lever still introduces prompts for this spec (e.g., review-severity-floor `low` + a frontend spec with prior HIGH findings) |
+| QA | `stories/*.yaml` exists for this record's surface | `run` if matching stories; `skip` if none |
+| Friction note | Lever recommendations × record content | One-line warning when an approved lever still introduces prompts for this record (e.g., review-severity-floor `low` + a frontend record with prior HIGH findings) |
 
 Suppress the preview table entirely when only one spec is run and all four columns are `skip` or `none` — present a single-line summary instead.
 
@@ -45,7 +45,7 @@ A lever is **suppressed** (hidden from the Manifesto) when no skill in the resol
 | Lever | Suppressed when |
 |---|---|
 | **Overlap** (3) | `/specify` not in the pipeline (always suppressed for `/flow` — specs already exist) |
-| **Design intent** (4) | All specs have `design-intent:` locked in frontmatter, OR all specs are non-frontend (polish auto-skips regardless) |
+| **Design intent** (4) | All records have `design-intent:` locked in their materialized header (or body metadata / legacy spec header), OR all records are non-frontend (polish auto-skips regardless) |
 | **Tidy aggressiveness** (8) | Effectively always suppressed by `/flow` — `/tidy` is not in the default step list. This lever is consulted only when a `/flow` caller explicitly adds `/tidy` to the step list (rare). Kept in the canonical 8-lever count for stable numbering across all skills that reference these levers. |
 | **Auto-fix threshold** (6) | `/test` not in the step list |
 | **Review severity floor** (7) | `/review` not in the step list |
@@ -94,7 +94,7 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | 6 | Auto-fix threshold | **lint+type** | lint-only / **lint+type** / lint+type+test | Lint + type errors auto-fixed; test failures still surface |
 | 7 | Review severity floor | **low** | none / **low** / medium | LOW findings auto-applied; MED staged; HIGH still prompts |
 
-**Suppressed (not applicable to this run):** 3 (overlap — `/specify` not in pipeline), 4 (design intent — locked by frontmatter on all 3 specs), 8 (tidy — not in default `/flow`). **Valid overrides for this run:** 1, 2, 5, 6, 7.
+**Suppressed (not applicable to this run):** 3 (overlap — `/specify` not in pipeline), 4 (design intent — locked by the materialized header on all 3 records), 8 (tidy — not in default `/flow`). **Valid overrides for this run:** 1, 2, 5, 6, 7.
 
 ---
 
@@ -131,7 +131,7 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | `arg` | Set by an explicit CLI argument in `$ARGUMENTS` |
 | `policy` | From `.claude-tweaks/policy.yml` or CLAUDE.md `auto-mode:` keys |
 | `default` | Hardcoded sensible default |
-| `frontmatter` | Locked by spec frontmatter (e.g., `design-intent:` set on every spec in the run) |
+| `header` | Locked by the materialized header (`materialize.md`) or the record body's `Surface:`/`Design-intent:` metadata lines — or, under the legacy spec-file alias, the spec file's own header fields (e.g., `design-intent:` set on every record in the run) |
 
 ## Recommendation defaults (when no arg and no policy)
 

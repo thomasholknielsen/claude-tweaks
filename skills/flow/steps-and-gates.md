@@ -55,15 +55,23 @@ Steps must follow lifecycle order. Invalid orderings are rejected.
 
 **`no-polish` argument behavior:** When `no-polish` is set, the polish phase (and its re-verify gate) is removed from the pipeline. The default pipeline becomes `build,test,review,wrap-up` (the pre-Phase-2 default). `no-polish` overrides any explicit `polish` in the step list — the user's explicit step request wins on the rest of the pipeline, but polish is unconditionally dropped.
 
-### Issue-reference input (`#<issue>`)
+### Record-reference input (`#<n>`)
 
-Not a step — an alternative *spec source*, resolved before Step 1, used only
-by `/claude-tweaks:triage dispatch`'s hand-off. `/flow` derives a spec via
-`/claude-tweaks:specify #{issue}` (the existing issue-ingestion path), then
-runs the normal step pipeline (`build,test,review,polish,wrap-up`) as a
-single-spec run — the step pipeline and gates are unchanged. `/flow` performs
-no selection, filtering, or claiming of its own; see `/claude-tweaks:triage`
-for that logic.
+Not a step — an alternative *record source*, resolved before Step 1 via
+`materialize.md`'s Resolution + Materialization hard gate (in this skill's
+directory). Used primarily by `/claude-tweaks:dispatch`'s hand-off
+(`CLAIM_RUN_ID="{run-id}" /claude-tweaks:flow #{n}[,#{m}...]`) — a human can
+also run it directly against any record carrying no live claim. A record
+reaching `/flow` already arrives spec-shaped (`ready` + spec-shaped body per
+`_shared/work-record.md`), so `materialize.md` resolves it directly and
+writes `{run-dir}/work/{n}-spec.md` — no derivation pre-step runs first. A
+single record then runs the normal step pipeline
+(`build,test,review,polish,wrap-up`) against that file exactly as it would a
+legacy spec file — the step pipeline and gates below are unchanged. Multiple
+records (`#A,#B`) run Multi-spec mode instead (see `multi-spec.md`), each
+materializing to its own file. `/flow` performs no selection, filtering, or
+claiming of its own; see `/claude-tweaks:dispatch` (selection + claiming) and
+`/claude-tweaks:triage` (authorization) for that logic.
 
 ## Gate Behavior
 

@@ -36,9 +36,10 @@ Before the merge/finish handoff begins, clear each run's worktree assignment —
 
 For each completed branch (in order):
 
-1. Merge into the base branch. For issue-derived runs (any spec on the branch has `recon-issue:`
-   frontmatter), the merge commit message must carry the closing keywords — one line per issue
-   (see "Close-via-merge" in `_shared/issue-claims.md`):
+1. Merge into the base branch. For record-derived runs (any materialized file under
+   `{run-dir}/work/` on the branch carries a `record:` field in its header — see
+   `materialize.md`), the merge commit message must carry the closing keywords — one line per
+   issue (see "Close-via-merge" in `_shared/issue-claims.md`):
 
    ```bash
    git merge --no-ff {branch} -m "Merge {branch} — specs {list}
@@ -61,7 +62,7 @@ For each completed branch (in order):
 
    Call `AskUserQuestion`:
    - `question`: `"How do you want to handle this merge conflict?"`, `header`: `"Merge conflict"`, `multiSelect`: `false`
-   - Option 1 — `label`: `"Resolve now (Recommended)"`, `description`: `"I'll resolve based on both specs' intent"`
+   - Option 1 — `label`: `"Resolve now (Recommended)"`, `description`: `"I'll resolve based on both branches' intent"`
    - Option 2 — `label`: `"Skip this branch"`, `description`: `"merge remaining branches first, come back to this one"`
    - Option 3 — `label`: `"Abort remaining merges"`, `description`: `"I'll handle merges manually"`
 4. After all merges, update `specs/INDEX.md` to reflect completed specs

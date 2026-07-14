@@ -1,13 +1,15 @@
 # Multi-Spec Sequential Flow
 
-When multiple spec numbers are provided (e.g., `42,45,48`), flow runs each spec's pipeline **sequentially** in one terminal.
+When multiple records or spec numbers are provided (e.g., `#42,#45,#48` or the legacy `42,45,48`), flow runs each one's pipeline **sequentially** in one terminal — see `SKILL.md`'s Input resolution for how each form resolves. Everything below is keyed by `{N}`: a record id on the primary path, a spec number under the legacy spec-file alias.
 
 ## Validation
 
-Before starting, validate the spec list:
+Before starting, validate the list:
 
-1. **Parse** — split on commas, resolve each to a spec file
+1. **Parse** — split on commas, resolve each to a record (`materialize.md`) or, under the legacy spec-file alias, a spec file
 2. **Prerequisites** — check that each spec's `blocked-by` is satisfied. Reject any spec with unmet prerequisites.
+
+> Steps 3-5 below (frontmatter pre-flight, dependency-aware ordering, conflict detection) read spec-file header fields (`depends-on:`, `Files:`) that don't yet exist on the materialized record header (`materialize.md`'s pinned header format) — this pre-flight enrichment applies to the legacy spec-file alias today.
 
 > **Parallel execution:** Use parallel tool calls aggressively — frontmatter reads across N specs (step 3 below) are independent and should run concurrently.
 
@@ -85,28 +87,28 @@ If `auto` mode is set and conflicts are detected, the Manifesto still renders (a
 
 ## Run directory layout
 
-Multi-spec runs use a parent run directory with per-spec subdirectories so the consolidated end-of-run Review Console can read every spec's outputs:
+Multi-record (or, under the legacy alias, multi-spec) runs use a parent run directory with per-spec subdirectories so the consolidated end-of-run Review Console can read every record's outputs. The subdirectory pattern `spec-{N}/` is unchanged from the legacy layout — only what fills `{N}` changes: a record id on the primary `#A,#B` path (`materialize.md`'s Multi-record layout), or a spec number under the legacy alias.
 
 ```
 .claude-tweaks/pipelines/{ISO-timestamp}-spec-{N1}-{N2}-{N3}/
 ├── config.yml          ← Manifesto answers (one for the whole run)
-├── manifest.yml        ← Multi-spec metadata (spec IDs, order, statuses)
+├── manifest.yml        ← Multi-record metadata (record/spec IDs, order, statuses)
 ├── decisions.md        ← Run-level audit log (freeform-issue translations log here)
 ├── staged/             ← Run-level staged items (translation-{issue}.md) — read by the consolidated console
-└── spec-{N}/           ← Per-spec subdirectory (one per spec)
+└── spec-{N}/           ← Per-record subdirectory (one per record; `work/{N}-spec.md` holds the materialized file — see `materialize.md`)
     ├── decisions.md
     └── staged/
 ```
 
-The parent dir uses a single `spec-` prefix at the start of the spec-slug segment so `find -name "*spec-${N}*"` reliably disambiguates spec IDs from timestamp digits.
+The parent dir uses a single `spec-` prefix at the start of the slug segment so `find -name "*spec-${N}*"` reliably disambiguates record/spec IDs from timestamp digits.
 
-`manifest.yml` lists the specs in execution order plus their status as the run progresses:
+`manifest.yml` lists the records (or, under the legacy alias, specs) in execution order plus their status as the run progresses:
 
 ```yaml
 multispec:
   parent: .claude-tweaks/pipelines/2026-05-16T143207-spec-157-159-160/
   specs:
-    - id: 157
+    - id: 157             # record id (primary path) or spec number (legacy alias)
       status: complete    # pending | running | complete | failed | not-run
       subdir: spec-157/
     - id: 159
@@ -140,19 +142,19 @@ For each per-spec invocation, `/flow` exports these environment variables (the l
 | `MULTISPEC_PARENT_DIR` | `{parent}/` | Pointer to the parent run dir — read by the consolidated console at end-of-run |
 | `MULTISPEC_KEEP_GOING` | `1` (when `keep-going` arg set) | Signals per-spec pipelines to continue the multi-spec run after this spec's HARD-GATE failure |
 | `MULTISPEC_SHARED_WORKTREE` | `1` (when `worktree` strategy resolved) | Signals per-spec `/build` Common Step 1 to skip worktree creation — the run's single shared worktree already exists and the pipeline is running inside it |
-| `CLAIM_RUN_ID` | passed through unchanged (when `/flow`'s own caller set it — e.g. `/claude-tweaks:triage dispatch` for a bundle group) | Signals each spec's `/wrap-up` Section E to use this value, not `PIPELINE_RUN_DIR`'s own id, for the issue-claim release ownership check — see `_shared/issue-claims.md`'s Identity section |
+| `CLAIM_RUN_ID` | passed through unchanged (when `/flow`'s own caller set it — e.g. `/claude-tweaks:dispatch` for a bundle group) | Signals each spec's `/wrap-up` Section E to use this value, not `PIPELINE_RUN_DIR`'s own id, for the issue-claim release ownership check — see `_shared/issue-claims.md`'s Identity section |
 
-### Shared worktree (sequential multi-spec)
+### Shared worktree (sequential multi-record/multi-spec)
 
-When `worktree` is specified, a sequential multi-spec run uses **one shared worktree for the whole run — NOT one per spec.** All specs build and commit into the same worktree on a single feature branch, and the branch is finished **once** at the end of the run.
+When `worktree` is specified, a sequential run uses **one shared worktree for the whole run — NOT one per record.** All records build and commit into the same worktree on a single feature branch, and the branch is finished **once** at the end of the run.
 
-1. **Create once, up front** — before spec 1's pipeline, `/flow` creates a single worktree from the current local HEAD following `skills/build/worktree-setup.md` (including its Step 0/4 base-ref verification). The branch covers the whole run: `flow/spec-{N1}-{N2}-{N3}` (for runs longer than 3 specs, use `flow/spec-{N1}-…-{Nlast}`; the manifest holds the full list). `/flow` then `cd`s into the worktree.
-2. **Per-spec builds skip creation** — `/flow` exports `MULTISPEC_SHARED_WORKTREE=1` and runs every spec's pipeline inside the shared worktree. Each per-spec `/build` Common Step 1 detects it is already inside an isolated worktree (superpowers Step 0: `GIT_DIR != GIT_COMMON`, reinforced by `MULTISPEC_SHARED_WORKTREE`) and **skips worktree creation**, committing into the shared branch. It does NOT call `/superpowers:finishing-a-development-branch` between specs.
-3. **Finish once at the end** — after the last spec's pipeline and the consolidated Review Console, `/flow` finishes the single feature branch via `/superpowers:finishing-a-development-branch` (merge / PR / discard).
+1. **Create once, up front** — before the first record's pipeline, `/flow` creates a single worktree from the current local HEAD following `skills/build/worktree-setup.md` (including its Step 0/4 base-ref verification). The branch covers the whole run: `flow/spec-{N1}-{N2}-{N3}` (for runs longer than 3, use `flow/spec-{N1}-…-{Nlast}`; the manifest holds the full list) — `{N}` is the record id on the primary path, or the spec number under the legacy alias, the same keying as the run directory layout above. `/flow` then `cd`s into the worktree.
+2. **Per-record builds skip creation** — `/flow` exports `MULTISPEC_SHARED_WORKTREE=1` and runs every record's pipeline inside the shared worktree. Each per-record `/build` Common Step 1 detects it is already inside an isolated worktree (superpowers Step 0: `GIT_DIR != GIT_COMMON`, reinforced by `MULTISPEC_SHARED_WORKTREE`) and **skips worktree creation**, committing into the shared branch. It does NOT call `/superpowers:finishing-a-development-branch` between records.
+3. **Finish once at the end** — after the last record's pipeline and the consolidated Review Console, `/flow` finishes the single feature branch via `/superpowers:finishing-a-development-branch` (merge / PR / discard).
 
-Why shared, not per-spec: sequential specs in one run are one logical unit of work on one base. Per-spec worktrees would each branch from the same base and then need N separate merges that can't see each other's commits — exactly the divergence/stale-base problem worktrees are meant to avoid. One branch accumulates the specs in dependency order and merges back as a single reconciled changeset.
+Why shared, not per-record: sequential records in one run are one logical unit of work on one base. Per-record worktrees would each branch from the same base and then need N separate merges that can't see each other's commits — exactly the divergence/stale-base problem worktrees are meant to avoid. One branch accumulates the records in dependency order and merges back as a single reconciled changeset.
 
-> Separate-terminal parallel runs (`/flow 42 worktree` in each terminal) are different — those are N independent single-spec runs and each correctly gets its own worktree. See `worktree-merge.md`.
+> Separate-terminal parallel runs (`/flow #42 worktree` in each terminal) are different — those are N independent single-record runs and each correctly gets its own worktree. See `worktree-merge.md`.
 
 ## Failure handling (default vs `keep-going`)
 
