@@ -37,7 +37,7 @@ If the multi-spec run aborted early (one spec hit a HARD-GATE), still render the
 
 ## Numbering rules
 
-Rows across Auto-applied through Translated briefs use a single global sequence starting at #1 (mirrors `wrap-up/review-console.md`). Queue writes use a separate `Q`-prefixed sequence (`Q1`, `Q2`, …) — aggregated across every spec's `staged/leftover-*.md` plus the parent run dir's own `staged/leftover-*.md` — because those items require per-item approval and are not part of the global "Approve all" choice, exactly as `wrap-up/review-console.md`'s Section 7. Do not restart either sequence per spec or per section.
+Rows across Auto-applied through Translated briefs use a single global sequence starting at #1 (mirrors `wrap-up/review-console.md`). Queue writes use a separate `Q`-prefixed sequence (`Q1`, `Q2`, …) — aggregated across every spec's staged record-proposal files (`staged/leftover-*.md`, `staged/ledger-record-*.md`, or any staged file carrying a `Title:`/`Type:`/`Labels:` header) plus the parent run dir's own — because those items require per-item approval and are not part of the global "Approve all" choice, exactly as `wrap-up/review-console.md`'s Section 7. Do not restart either sequence per spec or per section.
 
 ## Present the consolidated console
 
@@ -98,7 +98,7 @@ Omit when the run had no freeform issues.
 
 #### Queue writes — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")
 
-Render this section only when leftover routing (or another step, e.g. a spec's `/reflect` tangential-idea routing) proposed a new work record in any spec's `staged/leftover-*.md`, or in the parent run dir's own `staged/leftover-*.md`. Aggregated across every spec in the run — each row gets its own prompt; bulk approval is forbidden per `_shared/auto-mode-contract.md`'s work-record-creation row, exactly as `wrap-up/review-console.md`'s Queue writes section. The exact write mechanism (`gh issue create` / `local-store.js`, or — for a skill not yet migrated onto the unified record system — its own destination) lives in the producing spec's own staged file; this table only needs enough to render the prompt.
+Render this section only when leftover routing, the ledger resolve gate (`staged/ledger-record-*.md`), or another step (e.g. a spec's `/reflect` tangential-idea routing) proposed a new work record in any spec's `staged/` — or the parent run dir's own — as a file carrying a `Title:`/`Type:`/`Labels:` header. Aggregated across every spec in the run — each row gets its own prompt; bulk approval is forbidden per `_shared/auto-mode-contract.md`'s work-record-creation row, exactly as `wrap-up/review-console.md`'s Queue writes section. The exact write mechanism (`gh issue create` / `local-store.js`, or — for a skill not yet migrated onto the unified record system — its own destination) lives in the producing spec's own staged file; this table only needs enough to render the prompt.
 
 | Q# | Spec | Destination | What | Source |
 |---|---|---|---|---|
@@ -151,7 +151,7 @@ writes GitHub state (releases, grant removal), so there is no fail-open degraded
 ## On approval (option 1)
 
 1. For each `spec-{N}/staged/` patch: `git apply` (each spec already has its own commit context — patches apply against the cumulative pipeline state)
-2. For each `Q#` queue write, prompt the user per item via its own `AskUserQuestion` call (see "Present the consolidated console" above) — never batched, even across specs. On Apply (or Edit, after the modification): create the record — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`), reading `Title:`/`Type:`/`Labels:` and the body from the item's staged leftover file. Skip drops the proposal — log the decline to the originating spec's `decisions.md` (or the parent run dir's, for a parent-level leftover) with the user's stated reason, or "declined, no reason given" when none was offered.
+2. For each `Q#` queue write, prompt the user per item via its own `AskUserQuestion` call (see "Present the consolidated console" above) — never batched, even across specs. On Apply (or Edit, after the modification): create the record — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`), reading `Title:`/`Type:`/`Labels:` and the body from the item's staged record-proposal file (`leftover-*.md`, `ledger-record-*.md`, or any other `Title:`-headed staged proposal — the same generic clause `wrap-up/review-console.md`'s create step uses). Skip drops the proposal — log the decline to the originating spec's `decisions.md` (or the parent run dir's, for a parent-level leftover) with the user's stated reason, or "declined, no reason given" when none was offered.
 3. Apply skill updates and create new skills (from each spec's Step 7)
 4. Apply config updates (docs, CLAUDE.md, rules)
 5. Commit with a multi-spec wrap-up message that lists which specs contributed which changes
