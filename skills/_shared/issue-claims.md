@@ -213,13 +213,16 @@ grants; it never adds them:
   *successful* wrap-up — a failed run retries at a later firing once its claim ages out, up
   to the `dispatch-retry-ceiling` config key.
 - `auto:merge` — additionally authorized to auto-merge without a live Review Console
-  approval, but only when the run comes back completely clean (four-layer gate, defined in
-  `skills/dispatch/SKILL.md`). Additive on `auto:build`; alone it is inert.
+  approval, but only when `/claude-tweaks:assess-agent-autonomy`'s `merge-check` mode verdicts
+  `auto-merge` (the two-layer gate defined in `skills/dispatch/SKILL.md`). Additive on
+  `auto:build`; alone it is inert.
 
 **Grant revocation (machinery-owned, the only direction machinery moves):**
 
-- Any run failure revokes `auto:merge` before the next retry — a run that wasn't clean the
-  first time never gets another unsupervised shot at auto-merge.
+- A `correctness`- or `ambiguous`-classified failure (per `/claude-tweaks:assess-agent-autonomy`'s
+  `failure-check` mode) revokes `auto:merge` before the next retry; a `transient`-classified one
+  preserves it — the retry-ceiling counting below still runs unconditionally regardless of
+  classification.
 - At the retry ceiling (`dispatch-retry-ceiling`), remove all `auto:*` labels and add
   `bot:blocked` — the record leaves the autonomous queue until a human re-grants at the gate
   (which strips `bot:blocked` alongside the new grant).

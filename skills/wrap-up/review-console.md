@@ -14,17 +14,15 @@ When this run's spec has a materialized header (`record:` field present in
 `${RUN_DIR}/work/*-spec.md` — see `skills/flow/materialize.md`) AND the issue's **live** labels
 carry `auto:merge` (re-fetch via `gh issue view --json labels` — the header's `grants:` field is
 a snapshot for audit only; `materialize.md`'s reader table requires this check to re-read live
-state, never the projection), check the four-layer gate below — the same concept
+state, never the projection), check the two-layer gate below — the same concept
 `skills/dispatch/SKILL.md`'s own group-scoped "Auto-merge gate" applies for a dispatched
 bundle; this is the single-record version wrap-up itself runs, whether or not
 `/claude-tweaks:dispatch` was involved:
 
 1. **Authorization** — `auto:merge` is present on the live-fetched labels (true by construction once this branch is reached)
-2. **Scoring eligibility** — true by construction for a mechanically-recommended grant: `recommendGrants` (`bin/lib/issues/tier.js`) only ever sets `merge: true` for `risk:low`+`effort:low`. An explicit human override at `/claude-tweaks:triage` remains possible and is accepted as-is here.
-3. **Runtime cleanliness** — `/review`'s Step 3 Routing produced nothing at Medium severity or above
-4. **Blast radius** — the diff stays within `automerge-max-lines`/`automerge-max-files` (CLAUDE.md/`policy.yml` flags, defaults 40/2 — the legacy alias keys `triage-fast-track-max-lines`/`triage-fast-track-max-files` are still read when the new keys are absent) and touches only files the record's fingerprint/anchor pointed at
+2. **Content judgment** — invoke `/claude-tweaks:assess-agent-autonomy` in `merge-check` mode (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "merge-check #{n}")`), which weighs the diff's content, `/review`'s findings, and a test-exclusion-aware blast-radius summary holistically, replacing the old three independent mechanical checks (scoring eligibility, runtime cleanliness, blast radius) that stood in for one real question — see `docs/superpowers/specs/2026-07-15-assess-agent-autonomy-design.md`. The verdict must be `auto-merge` to proceed.
 
-**All four pass:** skip the blocking wait and merge directly — bypass the
+**Both layers pass:** skip the blocking wait and merge directly — bypass the
 interactive `/superpowers:finishing-a-development-branch` handoff entirely,
 since no human is present to answer its merge/PR/discard prompt during a
 headless `dispatch` run. Before merging, clear this run's worktree
@@ -61,7 +59,7 @@ rendering the console normally, exactly as an `auto:build`-only record would,
 logging why the auto-merge path was abandoned.
 
 Log to `decisions.md`:
-`AUTO {time} — Fast-lane auto-merge: issue #{n}, {lines} lines across {files} files, zero findings >= medium. Merge commit: {sha}. Reversibility: high (git revert).`
+`AUTO {time} — Fast-lane auto-merge: issue #{n}, assess-agent-autonomy verdict auto-merge (see RATIONALE). Merge commit: {sha}. Reversibility: high (git revert).`
 
 **Release-reason mapping.** This direct merge counts as the `merged:` outcome for Section E's
 release-reason mapping (`skills/wrap-up/cleanup-procedures.md` Section E step 2) — the fast-lane

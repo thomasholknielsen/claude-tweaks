@@ -17,7 +17,7 @@ BACKLOG ──/specify shapes──► READY ──human grants──► AUTHORI
    │ │          │              │      (remove ready)                                     ├──► retry ceiling: bot:blocked,
    │ │   born-ready (health    │                                                         │    grants removed → needs re-triage
    │ │   skills file straight  └──────── parked (trigger set) ──► wakes on trigger       │
-   │ │   into READY)                                                                     └──► failure: auto:merge revoked,
+   │ │   into READY)                                                                     └──► failure: auto:merge revoked unless transient;
    │ └── parked record wakes (trigger fires, parked removed)                                  auto:build retries next firing
    └──── closed as not-planned (wontfix / duplicate / absorbed) at any stage
 ```
@@ -105,9 +105,11 @@ not-authorized state** — no label means no autonomous action, ever.
   review. **Additive on `auto:build`:** the gate always grants `auto:build` when granting
   `auto:merge`. Dispatch queries `auto:build` only; `auto:merge` **alone is inert** — no
   queue selects on it.
-- **Machinery may only remove grants, never add them.** Failure handling is plain
-  revocation: any failed run revokes `auto:merge` before retry; at the retry ceiling
-  (`dispatch-retry-ceiling`) machinery removes all `auto:*` labels and adds `bot:blocked` —
+- **Machinery may only remove grants, never add them.** Failure handling is
+  classification-driven (via `/claude-tweaks:assess-agent-autonomy`'s `failure-check` mode):
+  a `correctness`- or `ambiguous`-classified failure revokes `auto:merge` before retry; a
+  `transient`-classified one preserves it. At the retry ceiling (`dispatch-retry-ceiling`),
+  regardless of classification, machinery removes all `auto:*` labels and adds `bot:blocked` —
   the record needs a human re-grant to run again.
 - `auto:*` labels are only ever added by an interactive human session; there is no
   machinery path that originates a grant.
@@ -199,9 +201,10 @@ these literal names** — per-skill aliases and env-var renames are forbidden:
 | `work-types` | `native` \| `labels` | How Type is expressed (native Issue Types vs `type:*` labels) |
 | `work-links` | `native` \| `body-text` | How parent/dependency links are expressed (sub-issue + blocked-by APIs vs `Blocked by #N` body lines) |
 | `dispatch-retry-ceiling` | `3` | Failed autonomous attempts before `auto:*` removal + `bot:blocked` |
-| `automerge-max-lines` | `40` | Auto-merge blast-radius cap: max diff lines |
-| `automerge-max-files` | `2` | Auto-merge blast-radius cap: max files touched |
+| `automerge-max-lines` | `40` | Auto-merge blast-radius guideline: implementation diff lines `/claude-tweaks:assess-agent-autonomy`'s `merge-check` mode weighs, not a hard cutoff |
+| `automerge-max-files` | `2` | Auto-merge blast-radius guideline: implementation files touched, same weighted-not-cutoff treatment |
 | `dispatch-pick-max-concurrent` | `3` | Max concurrent groups a bare `/dispatch` multi-pick may run |
+| `merge-sensitive-paths` | `[]` | Path globs `/claude-tweaks:assess-agent-autonomy`'s `merge-check` mode treats as a hard `needs-human` floor, regardless of diff size or content judgment. Empty by default — project-agnostic, each project populates its own list. |
 
 ## Consumers
 
