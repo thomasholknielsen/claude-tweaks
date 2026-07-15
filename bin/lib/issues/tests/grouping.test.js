@@ -112,6 +112,24 @@ test('returns [] for a v1 code-health issue with "(no specific file)"', () => {
   assert.deepStrictEqual(extractKeyFiles(issue), []);
 });
 
+test('extracts the anchor file from a by:code-health issue body (post-migration origin label)', () => {
+  const issue = {
+    labels: ['by:code-health', 'code-health:risk-high', 'risk:high', 'effort:low'],
+    body: [
+      '<!-- work-fingerprint: recon-ab12cd34 -->',
+      '',
+      '**Criterion:** simplification | **Risk:** high',
+      '',
+      '## Current State',
+      '',
+      'Anchor: `src/api/user.js#getUser`',
+      '',
+      'evidence text',
+    ].join('\n'),
+  };
+  assert.deepStrictEqual(extractKeyFiles(issue), ['src/api/user.js']);
+});
+
 test('extracts the target from a harness-health issue body', () => {
   const issue = {
     labels: ['harness-health', 'harness-health:additive'],
@@ -123,7 +141,7 @@ test('extracts the target from a harness-health issue body', () => {
 test('returns [] for a harness-health new-skill candidate, not a scraped path from its embedded proposedBody', () => {
   // Real shape from bin/lib/harness-health/issue-payload.js:14-19 — the header
   // line has no colon inside the bold run ("**New skill candidate**", not
-  // "**Something:**"), so it can't match HARNESS_HEADER_RE. The proposed
+  // "**Something:**"), so it can't match BOLD_HEADER_RE. The proposed
   // skill's own body is embedded verbatim afterward and commonly contains its
   // own bold, colon-terminated, line-starting labels (SKILL.md frontmatter
   // convention) — without the new-skill short-circuit, extraction would fall
@@ -147,6 +165,25 @@ test('returns [] for a harness-health new-skill candidate, not a scraped path fr
     ].join('\n'),
   };
   assert.deepStrictEqual(extractKeyFiles(issue), []);
+});
+
+test('extracts the target from a by:harness-health issue body (post-migration origin label)', () => {
+  const issue = {
+    labels: ['by:harness-health', 'harness-health:additive', 'risk:low', 'effort:low'],
+    body: '**Skill:** skills/triage/SKILL.md | **Section:** Step 4 | **Category:** rule-gap | **Classification:** additive | **Confidence:** high',
+  };
+  assert.deepStrictEqual(extractKeyFiles(issue), ['skills/triage/SKILL.md']);
+});
+
+test('extracts the journey file from a by:journey-health issue body', () => {
+  // Real header shape from bin/lib/journey-health/issue-payload.js:26 —
+  // "**Journey:** {path} | **Section:** ..." — the same bold-field shape
+  // BOLD_HEADER_RE already extracts for harness-health.
+  const issue = {
+    labels: ['by:journey-health', 'journey-health:drift', 'risk:medium', 'effort:medium'],
+    body: '**Journey:** docs/journeys/checkout.md | **Section:** Step 3 | **Category:** drift | **Severity:** med | **Confidence:** high',
+  };
+  assert.deepStrictEqual(extractKeyFiles(issue), ['docs/journeys/checkout.md']);
 });
 
 test('returns [] when the issue carries neither code-health nor harness-health labels', () => {

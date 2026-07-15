@@ -43,10 +43,21 @@ function groupByFileOverlap(items) {
 
 const ANCHOR_RE = /Anchor:\s*`([^`#]+)/;
 const FILES_LINE_RE = /^Files:\s*(.+)$/m;
-const HARNESS_HEADER_RE = /^\*\*[^:*]+:\*\*\s*([^\s|]+)/m;
+// Matches the first bold "**Label:** value" field of a spec-shaped issue
+// header (e.g. "**Skill:** path | **Section:** ..." or "**Journey:** path |
+// ...") — the shape harness-health and journey-health both use.
+const BOLD_HEADER_RE = /^\*\*[^:*]+:\*\*\s*([^\s|]+)/m;
 
 function labelNames(labels) {
   return (labels || []).map((l) => (typeof l === 'string' ? l : l && l.name)).filter(Boolean);
+}
+
+// A health skill's origin label appears either in the bare pre-migration form
+// (code-health, harness-health — the only two that predate the by:* origin
+// migration) or the post-6.0 `by:*` form (skills/_shared/work-record.md).
+// Records filed before and after the migration must group identically.
+function hasOrigin(names, origin) {
+  return names.includes(origin) || names.includes(`by:${origin}`);
 }
 
 // issue: { body, labels } shaped like `gh api .../issues/{n}` output.
@@ -55,7 +66,7 @@ function extractKeyFiles(issue) {
   const body = (issue && issue.body) || '';
   const names = labelNames(issue && issue.labels);
 
-  if (names.includes('code-health')) {
+  if (hasOrigin(names, 'code-health')) {
     const anchor = ANCHOR_RE.exec(body);
     if (anchor) return [anchor[1]];
     const filesLine = FILES_LINE_RE.exec(body);
@@ -65,15 +76,27 @@ function extractKeyFiles(issue) {
     return [];
   }
 
-  if (names.includes('harness-health')) {
+  if (hasOrigin(names, 'harness-health')) {
     // A new-skill candidate proposes content, it doesn't concern an existing
     // file — its header line ("**New skill candidate** | ...") has no colon
-    // inside the bold run, so HARNESS_HEADER_RE fails to match it and would
+    // inside the bold run, so BOLD_HEADER_RE fails to match it and would
     // otherwise scan forward into the embedded proposedBody markdown (which
     // commonly contains its own bold, colon-terminated, line-starting labels)
     // and return a wrong, unrelated file path. Short-circuit instead.
     if (names.includes('harness-health:new-skill')) return [];
-    const targetHeader = HARNESS_HEADER_RE.exec(body);
+    const targetHeader = BOLD_HEADER_RE.exec(body);
+    return targetHeader ? [targetHeader[1]] : [];
+  }
+
+  if (hasOrigin(names, 'journey-health')) {
+    // journey-health was born after the by:* origin migration, so it never
+    // had a bare pre-migration label (label-bootstrap.md only ever registers
+    // by:journey-health) — hasOrigin's bare-form check is a no-op for every
+    // real record today, kept only for symmetry with the other two origins.
+    // Its issue header ("**Journey:** {path} | **Section:** ...",
+    // bin/lib/journey-health/issue-payload.js) is the same bold-field shape
+    // as harness-health's, so the same extraction applies.
+    const targetHeader = BOLD_HEADER_RE.exec(body);
     return targetHeader ? [targetHeader[1]] : [];
   }
 
