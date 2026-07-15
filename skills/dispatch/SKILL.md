@@ -343,8 +343,8 @@ Read from CLAUDE.md or `.claude-tweaks/policy.yml`:
 | Flag | Default | Meaning |
 |---|---|---|
 | `dispatch-retry-ceiling` | `3` | Consecutive failures before a dispatched record gets `bot:blocked` and stops auto-retrying. |
-| `automerge-max-lines` | `40` | Auto-merge blast-radius cap on changed lines. |
-| `automerge-max-files` | `2` | Auto-merge blast-radius cap on changed files. |
+| `automerge-max-lines` | `40` | Auto-merge blast-radius guideline on changed lines — a weighted input to `merge-check`'s judgment, not a hard cutoff. |
+| `automerge-max-files` | `2` | Auto-merge blast-radius guideline on changed files — same weighted-not-cutoff treatment. |
 | `dispatch-pick-max-concurrent` | `3` | Maximum groups (bundles or singleton records) a firing runs at once; remaining groups queue for a freed slot. |
 
 **Legacy aliases:** the pre-grants keys `triage-retry-ceiling`, `triage-fast-track-max-lines`, `triage-fast-track-max-files`, and `triage-dispatch-max-concurrent` are still read as aliases for the four rows above, in that order, when the new key is absent — no project should have to rename its policy file just because this skill was renamed.
@@ -381,7 +381,7 @@ Render only when a human is present to answer — the bare form is definitionall
 | Adding `auto:build`, `auto:merge`, or `ready` from inside dispatch | Machinery may only remove or downgrade grants, never add them — the permission matrix's hard line (`_shared/work-record.md`). Dispatch selects on grants a human already gave; it never originates one. |
 | Claiming a single member of a file-overlap group without its partners | Building one member alone would leave the branch and its overlap partners racing each other — `_shared/issue-claims.md`'s group-claim rule requires the whole group before starting any. |
 | Letting a group auto-merge on a retry after a prior `correctness`-classified failure | The failure-downgrade rule exists specifically to prevent this — a `correctness` or `ambiguous` classification unconditionally revokes `auto:merge` before the next retry; only a `transient` classification preserves it. |
-| Auto-merging when the diff exceeds the blast-radius cap, even with zero review findings | Review can't catch everything a human glance would — the cap is an independent check, not redundant with cleanliness. |
+| Treating a clean review as sufficient for auto-merge on its own | `merge-check` weighs diff content, review findings, and blast radius together as one holistic judgment — a clean review alone doesn't guarantee `auto-merge`; a large or structurally sensitive diff can still verdict `needs-human` even with zero findings. |
 | Retrying a failed record indefinitely with no ceiling | Wastes routine cycles on something fundamentally stuck and never surfaces it to a human — the retry ceiling exists to force a checkpoint. |
 | Building a session that shepherds every authorized group to completion in one run | Context rot — a session babysitting N pipeline runs accumulates context until it degrades. Throughput comes from routine cadence × single-group firings, not session breadth. |
 | Filing, closing, or granting authorization on records from inside dispatch | Dispatch is a *consumer* of what `/claude-tweaks:triage` already granted — filing belongs to the health skills/`/claude-tweaks:capture`, granting belongs to `/claude-tweaks:triage`. |
