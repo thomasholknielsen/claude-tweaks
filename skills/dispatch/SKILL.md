@@ -240,13 +240,15 @@ When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
 
 1. Before releasing, fold this record's comments through `claimStatus` (per `_shared/issue-claims.md`'s Ownership rule) and confirm `claim.runId` equals this run's `$RUN_ID`. A mismatch means a successor already broke the stale claim and now holds the lock — skip the rest of this step entirely (no release, no label changes, no comment), log, and move to the next record.
 2. Release the claim (reason: `failed: {gate}`, per `_shared/issue-claims.md`'s Release triggers table), then remove `bot:in-progress` the same way `wrap-up/cleanup-procedures.md` Section E's claim-mirror removal does (best-effort — log a warning and continue on failure). This is a cross-reference, not a restatement — if Section E's mechanics for this step ever change, this step must be re-verified against it rather than assumed still correct.
-3. **Unconditionally revoke `auto:merge` if present.** Any failed run permanently drops merge autonomy for this record, regardless of whether the ceiling was hit — this is not a separate, optional step gated on the ceiling check below:
+3. **Classify the failure and act on `auto:merge` accordingly.** Invoke `/claude-tweaks:assess-agent-autonomy` in `failure-check` mode: `Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "failure-check #{n}")`. If `CLASSIFICATION` is `correctness` or `ambiguous`, revoke `auto:merge` if present — today's behavior for this class, unchanged:
 
    ```bash
    if gh issue view "$ISSUE" --json labels -q '.labels[].name' | grep -qx auto:merge; then
      gh issue edit "$ISSUE" --remove-label auto:merge
    fi
    ```
+
+   If `CLASSIFICATION` is `transient`, **preserve** `auto:merge` — do not remove it. This is the one behavior change from the old rule: a transient/infrastructure failure no longer permanently strips merge trust from a record that was never at fault. If `NOTIFY_NOW` is `true`, send a `PushNotification` immediately ("Record #{n} may be stuck — same failure recurred: {rationale}"), in addition to (not instead of) the retry-ceiling notification in step 6 below if the ceiling is also hit on this same attempt.
 
 4. Fetch existing comments and compute this attempt's number and whether it hits the ceiling (read `dispatch-retry-ceiling` from CLAUDE.md/`policy.yml`, default 3), in one pass — fetching comments *before* posting this attempt's comment is what makes the attempt number and ceiling check correct:
 
@@ -283,18 +285,16 @@ When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
    Then remove `auto:build` (the only `auto:*` label that could still be present — step 3 above already stripped `auto:merge` unconditionally), add `bot:blocked`, and send a `PushNotification` ("Record #{n} hit its retry ceiling — needs a look: {title}").
 7. **If `false`:** leave `auto:build` in place — the next `dispatch next` firing pulls it again naturally (the claim was already released). There is nothing further to downgrade: step 3 already revoked `auto:merge` unconditionally, and that revocation *is* the failure-downgrade rule in this model. Unlike the pre-grants design there is no separate two-tier label to step down between — a record either still has `auto:build` (and can retry) or, at the ceiling, has neither.
 
-Any failure — whether or not it hits the ceiling — unconditionally revokes `auto:merge` before the next retry, per step 3 above: a run that wasn't clean the first time never gets another unsupervised shot at auto-merge. This permanently drops merge autonomy for that record until a human re-grants it at `/claude-tweaks:triage`.
+A `correctness`- or `ambiguous`-classified failure revokes `auto:merge` before the next retry, per step 3 above — that record doesn't get another unsupervised shot at auto-merge until a human re-grants it at `/claude-tweaks:triage`. A `transient`-classified failure preserves `auto:merge` — the retry-ceiling counting below still runs unconditionally regardless of classification (an attempt is an attempt), but classification alone no longer determines merge trust the way it did before.
 
 ## Auto-merge gate (`auto:merge` groups only)
 
 Because a bundle shares one branch/worktree, the merge decision is necessarily group-wide even though blast radius is attributed per record below: **every member of the group must carry `auto:merge`** for the gate to apply at all — a group with even one `auto:build`-only member falls back to the normal pending-review path for the whole group; mixed grants inside one bundle are never split at merge time.
 
-When a qualifying group's `/flow` run reaches `/wrap-up`'s Review Console, check all four layers before presenting it for approval:
+When a qualifying group's `/flow` run reaches `/wrap-up`'s Review Console, check two layers before presenting it for approval:
 
 1. **Authorization** — `auto:merge` was present on every member of the group when Step 4 claimed it (true by construction).
-2. **Scoring eligibility** — true by construction for a mechanically-recommended grant: `recommendGrants` (`bin/lib/issues/tier.js`) only ever sets `merge: true` for `risk:low` + `effort:low`. An explicit human override at `/claude-tweaks:triage` remains possible and is accepted as-is here, same as the pre-grants design.
-3. **Runtime cleanliness** — `/review`'s Step 3 Routing produced nothing at Medium severity or above anywhere in this group's `/flow` run.
-4. **Blast radius** — attributed per record: each member's share of the diff touches only files that record's fingerprint/anchor pointed at, and the group's combined diff stays under `automerge-max-lines` (default 40) changed lines across `automerge-max-files` (default 2) files.
+2. **Content judgment** — for each member of the group, invoke `/claude-tweaks:assess-agent-autonomy` in `merge-check` mode: `Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "merge-check #{n}")`. This weighs the diff's content, `/review`'s findings, and a test-exclusion-aware blast-radius summary (`bin/lib/issues/blast-radius.js`) holistically, replacing the old three independent mechanical checks (scoring eligibility, runtime cleanliness, blast radius) that stood in for one real question — see `docs/superpowers/specs/2026-07-15-assess-agent-autonomy-design.md`. **Every member's verdict must be `auto-merge`** for the group to proceed — a single `needs-human` verdict anywhere in the group falls the whole group back to the normal pending-review path.
 
 **All four pass:** merge directly, bypassing the interactive `/superpowers:finishing-a-development-branch` handoff entirely (there is no human present to answer its merge/PR/discard prompt during a headless firing). Before merging, clear this run's worktree assignment the same way `flow/worktree-merge.md`'s reconciliation does:
 
@@ -321,7 +321,7 @@ git push
 One `Fixes #{issue}` line per record in the group. The explicit `--no-ff` guarantees a real merge commit exists even when the branch would otherwise fast-forward — this is what the `[auto-merge]` tag lands on, and the same commit message carries the closing keyword per "Close-via-merge" in `_shared/issue-claims.md`, so no separate carrier commit is needed for this path. **If the merge conflicts:** conflict resolution requires judgment a headless run can't supply — abort the merge (`git merge --abort`) and fall back to the normal `auto:build`-only path (present the Review Console, wait for a human), logging why the auto-merge path was abandoned.
 
 Log to `decisions.md`:
-`AUTO {time} — Auto-merge: group [{issues}], {lines} lines across {files} files, zero findings >= medium. Merge commit: {sha}. Reversibility: high (git revert).`
+`AUTO {time} — Auto-merge: group [{issues}], assess-agent-autonomy verdict auto-merge for every member (see each member's RATIONALE). Merge commit: {sha}. Reversibility: high (git revert).`
 Attach the full Review-Console-equivalent summary (whatever `/wrap-up` already produced) to a `PushNotification` as a non-blocking FYI — nothing wrap-up found is dropped, only the wait for a click is skipped.
 
 **Any layer fails:** proceed exactly as the `auto:build`-only path would — present the normal Review Console, wait for a human.
@@ -380,7 +380,7 @@ Render only when a human is present to answer — the bare form is definitionall
 |---------|--------------|
 | Adding `auto:build`, `auto:merge`, or `ready` from inside dispatch | Machinery may only remove or downgrade grants, never add them — the permission matrix's hard line (`_shared/work-record.md`). Dispatch selects on grants a human already gave; it never originates one. |
 | Claiming a single member of a file-overlap group without its partners | Building one member alone would leave the branch and its overlap partners racing each other — `_shared/issue-claims.md`'s group-claim rule requires the whole group before starting any. |
-| Letting a group auto-merge on a retry after a prior failure | The failure-downgrade rule exists specifically to prevent this — any failure unconditionally revokes `auto:merge` before the next retry. |
+| Letting a group auto-merge on a retry after a prior `correctness`-classified failure | The failure-downgrade rule exists specifically to prevent this — a `correctness` or `ambiguous` classification unconditionally revokes `auto:merge` before the next retry; only a `transient` classification preserves it. |
 | Auto-merging when the diff exceeds the blast-radius cap, even with zero review findings | Review can't catch everything a human glance would — the cap is an independent check, not redundant with cleanliness. |
 | Retrying a failed record indefinitely with no ceiling | Wastes routine cycles on something fundamentally stuck and never surfaces it to a human — the retry ceiling exists to force a checkpoint. |
 | Building a session that shepherds every authorized group to completion in one run | Context rot — a session babysitting N pipeline runs accumulates context until it degrades. Throughput comes from routine cadence × single-group firings, not session breadth. |
@@ -403,3 +403,4 @@ Render only when a human is present to answer — the bare form is definitionall
 | `_shared/label-bootstrap.md` | Canonical check-then-create snippet for `bot:in-progress` / `bot:blocked` — the only two labels dispatch itself ever adds. |
 | `_shared/pipeline-run-dir.md` | Dispatch resolves a standalone-auto run dir (allowlist) for its own `decisions.md`; distinct from the `PIPELINE_RUN_DIR` each dispatched `/flow` run creates for its own build — see Component-Skill Contract above. |
 | `bin/lib/issues/{claims,retry,grouping,record}.js` | The pure helpers behind claim/release payloads, retry-ceiling math, file-overlap grouping, and grant/bot-state facet parsing — dispatch calls all four, unchanged. Step 2 also calls record.js's `parseDependencies` to drop records with an open `Blocked by #N` line from the queue. |
+| `/claude-tweaks:assess-agent-autonomy` | Called inline (not a fresh Task dispatch) at two points: the Auto-merge gate (`merge-check` mode, replacing the old three-layer mechanical check) and the Settle step (`failure-check` mode, replacing unconditional `auto:merge` revocation). Dispatch still owns authorization, claim mechanics, and retry-ceiling counting directly — assess-agent-autonomy only ever returns a verdict, never writes a label itself. |
