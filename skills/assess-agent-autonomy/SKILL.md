@@ -106,14 +106,22 @@ present on every group member) stays a hard binary gate in `dispatch/SKILL.md` i
 
 The calling agent has just finished this run's build, test, and review — the diff and review
 verdict are already in its own context. Confirm rather than re-derive where possible; if not
-already available:
+already available. `$MERGE_BASE` is the commit this run's worktree branched from — the same base the pipeline's own build started from — resolvable via `git merge-base main HEAD` if not already known from context.
 
 ```bash
-git diff --name-only "$MERGE_BASE"..HEAD > /tmp/assess-merge-files-${N}.txt
-git diff --numstat "$MERGE_BASE"..HEAD > /tmp/assess-merge-numstat-${N}.txt
+git diff --numstat "$MERGE_BASE"..HEAD | node -e "
+const fs = require('fs');
+let input = '';
+process.stdin.on('data', d => input += d);
+process.stdin.on('end', () => {
+  const files = input.trim().split('\\n').filter(Boolean).map(line => {
+    const [additions, deletions, ...pathParts] = line.split('\\t');
+    return { path: pathParts.join('\\t'), additions: parseInt(additions), deletions: parseInt(deletions) };
+  });
+  fs.writeFileSync('/tmp/assess-merge-files-${N}.json', JSON.stringify(files));
+});
+"
 ```
-
-Build the `{path, additions, deletions}` list from the numstat output.
 
 Read this project's own configured `merge-sensitive-paths`/`automerge-max-lines`/
 `automerge-max-files` directly — this skill reads its own config, the same way
