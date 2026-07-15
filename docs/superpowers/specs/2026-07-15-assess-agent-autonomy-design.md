@@ -138,9 +138,11 @@ standing in for one real question). Layer 1 (authorization — a human granted `
 unchanged, still a hard binary gate.
 
 **Input:** the diff, `/claude-tweaks:review`'s findings/verdict from this same run, the
-`blastRadiusSummary` from `bin/lib/issues/blast-radius.js`, the project's configured
-`automerge-max-lines`/`automerge-max-files` values (weighted input, not a cutoff — see above),
-and the record's scoring labels.
+`blastRadiusSummary` from `bin/lib/issues/blast-radius.js`, and the project's configured
+`automerge-max-lines`/`automerge-max-files` values (weighted input, not a cutoff — see above).
+The record's scoring labels are deliberately not re-consulted here — they already informed
+`grant-check`'s recommendation before the human granted `auto:merge` in the first place;
+re-weighing them at merge time would be redundant with that already-completed judgment.
 
 **Output:**
 ```

@@ -112,7 +112,17 @@ Every harness-health record files onto the unified work record (`skills/_shared/
 | `restructural` | `risk:medium` | `effort:high` |
 | kind `new-skill` (no classification-driven scoring) | unscored — no `risk:*` label | unscored — no `effort:*` label |
 
-`new-skill` candidates file with no scoring labels by design — the authorization gate flags them "needs scoring" rather than inheriting a guessed tier from a kind that carries no scoring evidence. Every filed finding is **born-`ready`** — harness-health findings are agent-sized and spec-shaped by construction (Current State / Deliverables / Acceptance Criteria), so they file with the `ready` label already applied and appear directly in the authorization gate's worklist, skipping maturation. `toIssuePayload` (`bin/lib/harness-health/issue-payload.js`) assembles the payload via `record.js`'s `recordPayload`, then appends the classification/kind-derived diagnostic label (`harness-health:additive` / `harness-health:restructural` / `harness-health:new-skill`) after the canonical labels — the emitted label set is exactly `by:harness-health` + scoring (when present) + `ready` + the diagnostic label, matching the table above.
+`new-skill` candidates file with no scoring labels by design — there is no classification-driven
+tier to guess from a kind that carries no scoring evidence. `/claude-tweaks:assess-agent-autonomy`'s
+`grant-check` mode (triage's Step 2) recognizes a `new-skill` finding from its body content
+directly (it reads "**New skill candidate**" with a "Proposed new skill" deliverable) rather than
+depending on a scoring label being present, and can still recommend `auto:build` for a
+well-specified proposal — building the draft autonomously is reasonable, since a human confirms the
+grant and reviews again before any merge — while recommending against `auto:merge`, since a new
+skill file shapes future agent behavior regardless of how clean the diff looks. Every filed finding
+is **born-`ready`** — harness-health findings are agent-sized and spec-shaped by construction
+(Current State / Deliverables / Acceptance Criteria), so they file with the `ready` label already
+applied and appear directly in the authorization gate's worklist, skipping maturation. `toIssuePayload` (`bin/lib/harness-health/issue-payload.js`) assembles the payload via `record.js`'s `recordPayload`, then appends the classification/kind-derived diagnostic label (`harness-health:additive` / `harness-health:restructural` / `harness-health:new-skill`) after the canonical labels — the emitted label set is exactly `by:harness-health` + scoring (when present) + `ready` + the diagnostic label, matching the table above.
 
 Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures (see `_shared/health-state.md`):
 
@@ -244,5 +254,5 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `/claude-tweaks:init` | Phase 6 (Update Mode skill patches) and Phase 3/1u's skill classification apply the same shared procedure on whole-codebase reconnaissance, sharing the same cursor/cache state. |
 | `_shared/harness-health-analysis.md` | The canonical judge this skill, `/wrap-up`, and `/init` all read — the 8-dimension check, evidence pre-checks, verify gate, patch format, and new-skill gate live there, not here. |
 | `/claude-tweaks:tidy` | Step 4.8 sweeps `by:harness-health`-labelled issues alongside `by:code-health`-labelled ones, using the same stale/superseded triage. |
-| `/claude-tweaks:triage` | The Tier Rule in triage's bare invocation reads this skill's `harness-health:additive`/`harness-health:restructural` diagnostic labels directly, recommending fast-track for additive and approved for restructural — the harness-health-side counterpart to how triage reads code-health's `risk:<tier>`/`effort:<tier>` labels. Triage never files or closes harness-health issues. |
+| `/claude-tweaks:triage` | `/claude-tweaks:assess-agent-autonomy`'s `grant-check` mode (invoked from triage's Step 2) reads this skill's finding body directly — including recognizing `harness-health:new-skill` findings from their "New skill candidate" body content, not from a label, since those findings carry no `risk:*`/`effort:*` labels at all. `additive`/`restructural` findings already carry colon-form `risk:*`/`effort:*` labels (this skill's own `issue-payload.js` co-emits them alongside the diagnostic label), which grant-check also reads as one input. Triage never files or closes harness-health issues. |
 | `/claude-tweaks:routine` | `/routine create harness-health` instantiates this skill's `routine-template.yml` into a live, scheduled cloud Routine. |

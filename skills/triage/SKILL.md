@@ -63,23 +63,43 @@ The filter is simply "no `auto:*` grant present" — a record currently mid-buil
 
 ### Step 2: Recommend
 
-```bash
-node -e "
-  const { extractRiskEffort, recommendGrants } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/tier.js');
-  const { fresh, blocked } = require('/tmp/triage-worklist.json');
-  const scoreRow = (i) => {
-    const { riskTier, effortTier } = extractRiskEffort(i.labels);
-    return { number: i.number, title: i.title, riskTier, effortTier, grants: recommendGrants({ risk: riskTier, effort: effortTier }) };
-  };
-  console.log(JSON.stringify({ fresh: fresh.map(scoreRow), blocked: blocked.map(scoreRow) }));
-" > /tmp/triage-scored.json
+For every record in `fresh` (from Step 1's worklist), invoke `/claude-tweaks:assess-agent-autonomy` in `grant-check` mode, once per record, every triage session — never pre-filtered to "borderline" records:
+
+```
+Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "grant-check #{n}")
 ```
 
-Derive the batch table's Recommended column from this output:
+Each invocation returns `RECOMMEND_BUILD`/`RECOMMEND_MERGE`/`RATIONALE` (see
+`skills/assess-agent-autonomy/SKILL.md`'s `grant-check` mode). Derive the batch table's
+Recommended column directly from this output:
 
-- **fresh, `grants.build` true** → `auto:build` (append `+ auto:merge` when `grants.merge` is also true — `recommendGrants` only sets it for `risk:low`+`effort:low`).
-- **fresh, `grants.build` false** (unscored, or a tier `recommendGrants` doesn't recognize) → `flag back (needs scoring)`. The human may supply scoring inline as a free-text override instead of flagging back — the gate then stamps the supplied `risk:*`/`effort:*` labels alongside the grant (Step 4).
-- **any blocked row** → `re-authorize (bot:blocked)`, regardless of its own score. A prior failure means the human's renewed judgment is the point, not a mechanical replay: applying this row grants `auto:build` only, never bundling `auto:merge` automatically. Restoring `auto:merge` too requires an explicit override.
+- **`RECOMMEND_BUILD: true`** → `auto:build` (append `+ auto:merge` when `RECOMMEND_MERGE` is also
+  `true`).
+- **`RECOMMEND_BUILD: false`** → `flag back (needs scoring)`. The human may supply scoring inline as
+  a free-text override instead of flagging back — the gate then stamps the supplied `risk:*`/
+  `effort:*` labels alongside the grant (Step 4).
+
+For every record in `blocked` (Step 1's worklist), skip `grant-check` and recommend
+**`re-authorize (bot:blocked)`** directly, regardless of content — a prior failure means the
+human's renewed judgment is the point, not a mechanical (or judgment-driven) replay: applying this
+row grants `auto:build` only, never bundling `auto:merge` automatically. Restoring `auto:merge` too
+requires an explicit override.
+
+For the batch table and logging, compute display tiers from labels for all records (fresh and blocked):
+
+```bash
+node -e "
+  const { extractRiskEffort } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/tier.js');
+  const fs = require('fs');
+  const data = JSON.parse(fs.readFileSync('/tmp/triage-worklist.json', 'utf8'));
+  const all = [...(data.fresh || []), ...(data.blocked || [])];
+  const withTiers = all.map((record) => {
+    const { riskTier, effortTier } = extractRiskEffort(record.labels || []);
+    return { ...record, riskTier, effortTier };
+  });
+  console.log(JSON.stringify(withTiers));
+" > /tmp/triage-with-tiers.json
+```
 
 ### Step 3: Batch table
 
@@ -94,7 +114,7 @@ Derive the batch table's Recommended column from this output:
 | 4 | #118: {title} | by:harness-health | low | low | re-authorize (bot:blocked) |
 ```
 
-`Origin` reads `facets.origin` from Step 1's output (`by:{origin}`, or `(human-filed)` when absent). For 10 or more records, lead with a one-line count summary before the table (e.g. "14 records: 9 auto:build-eligible, 2 auto:build+auto:merge-eligible, 2 need scoring, 1 re-authorization candidate") so the human sees the batch's shape before the row detail.
+`Origin` reads `facets.origin` from Step 1's output (`by:{origin}`, or `(human-filed)` when absent). `Risk` and `Effort` are derived from the record's current `risk:*` and `effort:*` labels via `bin/lib/issues/tier.js`'s `extractRiskEffort` function — for records scored by `/specify`, these display `low`/`medium`/`high`; for unscored records, they display `—` (dash, a placeholder allowing inline scoring override in the next step). For 10 or more records, lead with a one-line count summary before the table (e.g. "14 records: 9 auto:build-eligible, 2 auto:build+auto:merge-eligible, 2 need scoring, 1 re-authorization candidate") so the human sees the batch's shape before the row detail.
 
 Then one `AskUserQuestion`:
 
@@ -192,7 +212,7 @@ If Step 4 granted nothing this session (every row was flagged back), omit Option
 | Skipping the batch-confirm because the recommendation "looks obviously right" | The human action, however trivial, is the load-bearing security signature — never skip it, even for an all-`auto:build`-eligible batch. |
 | Adding any `bot:*` label from this gate | `bot:*` is `/claude-tweaks:dispatch`'s visibility layer, mirroring its own claim ref — the permission matrix reserves it for machinery. This gate only ever *strips* `bot:blocked` (re-grant); it never adds one. |
 | Bulk-granting without rendering the batch table / `AskUserQuestion` decision | Same load-bearing-signature reasoning — an unattended "grant everything" bypasses the one interactive checkpoint the whole authorization model depends on. |
-| Auto-granting `auto:merge` on a `re-authorize (bot:blocked)` row | A prior failure means the mechanical score alone isn't sufficient signal to re-extend unsupervised merge trust — the default grants `auto:build` only; restoring `auto:merge` needs an explicit override. |
+| Auto-granting `auto:merge` on a `re-authorize (bot:blocked)` row | A prior failure means the recommendation alone isn't sufficient signal to re-extend unsupervised merge trust — the default grants `auto:build` only; restoring `auto:merge` needs an explicit override. |
 | Filing or closing records from inside triage | Triage is a *consumer* of the `ready` queue — filing belongs to `/claude-tweaks:capture`/the health skills/`/claude-tweaks:specify`; closing happens at merge time (close-via-merge), a user decision. |
 
 ## Relationship to Other Skills
@@ -210,5 +230,6 @@ If Step 4 granted nothing this session (every row was flagged back), omit Option
 | `_shared/github-pr-scan.md` | Detection Ladder — this skill's preflight hard gate — plus the `repo-wide`/`triage-queue` scopes that surface this gate's pending-authorization count elsewhere. |
 | `_shared/label-bootstrap.md` | Canonical check-then-create snippet for the `auto:build`/`auto:merge`/`risk:*`/`effort:*` pairs this gate applies. |
 | `_shared/auto-mode-contract.md` | Governs `decisions.md` logging for this gate's standalone run dir; the grants themselves are never auto-mode behavior — they require an interactive session by construction. |
-| `bin/lib/issues/tier.js` | `extractRiskEffort` + `recommendGrants` — the mechanical scoring Step 2 reads, always subject to the human batch-confirm. |
+| `/claude-tweaks:assess-agent-autonomy` | Called inline (not a fresh Task dispatch) once per worklist record in Step 2, `grant-check` mode — its `RECOMMEND_BUILD`/`RECOMMEND_MERGE` output becomes the batch table's Recommended column directly. Triage's human batch-confirm is unchanged; only what generates the suggestion changed. |
+| `bin/lib/issues/tier.js` | `extractRiskEffort`'s surviving colon-form reader supplies `grant-check`'s current-label input (an input to assess-agent-autonomy's judgment now, not triage's own recommendation logic). `recommendGrants`/`recommendTier` are retired. |
 | `bin/lib/issues/record.js` | `parseRecordFacets` — the facet parser Step 1 uses to filter the `ready` queue down to ungranted records. |
