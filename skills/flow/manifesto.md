@@ -24,6 +24,8 @@ For each lever, record both the recommended value AND its source so the user can
 
 **Git lever override.** When `.claude-tweaks/policy.yml` sets `worktree.always: true`, the Git lever is forced to `worktree` regardless of CLI args or defaults above — `current-branch` is never offered or accepted. This is enforced mechanically by a `PreToolUse` gate (see `_shared/git-discipline.md`), so a stale/overridden config value would simply get every edit denied; the Manifesto short-circuits to `worktree` here to avoid presenting a choice that can't actually be honored.
 
+**Ceremony profile computation.** Unlike the other 8 levers (policy preferences resolved via the precedence chain above), `ceremony-profile`'s value is computed by folding every record's materialized `ceremony:` header field (`materialize.md`) with a logical AND: `fast-lane` only when every record in this run has `ceremony: fast-lane`; any record missing the field (defaults to `standard`) or carrying an explicit `standard` sends the whole run's `ceremony-profile` to `standard` — mirrors the auto-merge gate's existing "every member of the group must carry `auto:merge`" rule (`dispatch/SKILL.md`'s Auto-merge gate). Source is always `header`. The computed value still becomes this lever's Recommended value, which the human can override via the normal `9=value` mechanism below — unlike Design intent (a prior human decision from `/specify`, not re-litigated here), `ceremony-check`'s verdict is itself a fresh automated judgment call, and this Manifesto is the first point a human sees it.
+
 ## Compute per-spec preview
 
 Before rendering the Manifesto, derive a per-spec preview by reading each record's materialized header when one exists — pre-materialization, or under the legacy spec-file alias, fall back to the record body's `Surface:`/`Design-intent:` metadata lines or the spec file's own header fields — and inferring what will run:
@@ -31,6 +33,7 @@ Before rendering the Manifesto, derive a per-spec preview by reading each record
 | Field | Source | How to derive |
 |---|---|---|
 | Surface | Materialized header `surface:` (`materialize.md`) — or the record body's `Surface:` line / the legacy spec file's `surface:` header field when no run-dir header exists yet (or detect from Key Files extensions) | `frontend` if `.tsx/.jsx/.vue/.svelte/.css` files present; else `backend` / `infra` per header or content |
+| Ceremony | Materialized header `ceremony:` (`materialize.md`) — omitted means `standard` | `fast-lane` if header present; else `standard` |
 | Polish | `surface` × materialized header `design-intent:` (or the body's `Design-intent:` line / legacy spec `design-intent:`) × `no-polish` arg | `run` if frontend + design-intent != none + no-polish not set; `skip ({reason})` otherwise |
 | Stories | UI files in plan + `no-stories` arg | `auto-detect` if UI files in plan + no-stories not set; `skip` otherwise |
 | QA | `stories/*.yaml` exists for this record's surface | `run` if matching stories; `skip` if none |
@@ -51,7 +54,7 @@ A lever is **suppressed** (hidden from the Manifesto) when no skill in the resol
 | **Review severity floor** (7) | `/review` not in the step list |
 | **Leftover routing** (5) | `/wrap-up` not in the step list |
 
-Always visible: **Mode** (1), **Scope-creep** (2) — they affect every pipeline.
+Always visible: **Mode** (1), **Scope-creep** (2), **Ceremony profile** (9) — they affect every pipeline.
 
 When a lever is suppressed, mention it once in the Suppressed footer below the table so the user knows it was considered and dropped.
 
@@ -84,7 +87,7 @@ The template below is the **`confirm` / `hybrid` (approval-gate)** rendering —
 
 I've pre-filled recommendations from project policy + sensible defaults. The Recommendation is **bold** inside the Options column so override is "spot the not-bold one."
 
-**Canonical lever numbering** (stable across all `/flow` runs): 1=Mode, 2=Scope-creep, 3=Overlap, 4=Design intent, 5=Leftover routing, 6=Auto-fix threshold, 7=Review severity floor, 8=Tidy aggressiveness. The table below shows only the levers active for this run; the **Suppressed** line below names which numbers are unselectable.
+**Canonical lever numbering** (stable across all `/flow` runs): 1=Mode, 2=Scope-creep, 3=Overlap, 4=Design intent, 5=Leftover routing, 6=Auto-fix threshold, 7=Review severity floor, 8=Tidy aggressiveness, 9=Ceremony profile. The table below shows only the levers active for this run; the **Suppressed** line below names which numbers are unselectable.
 
 | # | Lever | Recommended | Options | Effect if approved |
 |---|---|---|---|---|
@@ -93,8 +96,9 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | 5 | Leftover routing | **defer** | **defer** / backlog / drop | Unfinished sections → a new work record (parked), reversible at Review Console |
 | 6 | Auto-fix threshold | **lint+type** | lint-only / **lint+type** / lint+type+test | Lint + type errors auto-fixed; test failures still surface |
 | 7 | Review severity floor | **low** | none / **low** / medium | LOW findings auto-applied; MED staged; HIGH still prompts |
+| 9 | Ceremony profile | **{computed}** | **fast-lane** / standard | Fast-lane trims wrap-up ceremony depth (reflect light mode, narrower skill-curation scan, doc-scan pre-check); standard runs full depth |
 
-**Suppressed (not applicable to this run):** 3 (overlap — `/specify` not in pipeline), 4 (design intent — locked by the materialized header on all 3 records), 8 (tidy — not in default `/flow`). **Valid overrides for this run:** 1, 2, 5, 6, 7.
+**Suppressed (not applicable to this run):** 3 (overlap — `/specify` not in pipeline), 4 (design intent — locked by the materialized header on all 3 records), 8 (tidy — not in default `/flow`). **Valid overrides for this run:** 1, 2, 5, 6, 7, 9.
 
 ---
 
@@ -116,6 +120,8 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | Auto-fix threshold | `lint+type+test` | Mechanical test failures also auto-fixed (rare; risky — semantic changes hidden) |
 | Review severity floor | `none` | All findings auto-applied (lowest friction, highest revert load) |
 | Review severity floor | `medium` | LOW + MED auto-applied; only HIGH prompts |
+| Ceremony profile | `standard` | Forces full-depth wrap-up ceremony (reflect full mode, unrestricted skill-curation scan, doc/CLAUDE.md/ADR sub-scans) even though `ceremony-check` verdicted `fast-lane` for every record |
+| Ceremony profile | `fast-lane` | Forces the fast-lane shape even if a record's `ceremony:` header was `standard` (or one member of a bundle was) — an active, informed human override, not the automated default |
 ```
 
 ### Rendering rules for the preview
@@ -131,7 +137,7 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | `arg` | Set by an explicit CLI argument in `$ARGUMENTS` |
 | `policy` | From `.claude-tweaks/policy.yml` or CLAUDE.md `auto-mode:` keys |
 | `default` | Hardcoded sensible default |
-| `header` | Locked by the materialized header (`materialize.md`) or the record body's `Surface:`/`Design-intent:` metadata lines — or, under the legacy spec-file alias, the spec file's own header fields (e.g., `design-intent:` set on every record in the run) |
+| `header` | Locked by the materialized header (`materialize.md`) — e.g. `surface:`/`design-intent:`/`ceremony:` — or the record body's `Surface:`/`Design-intent:` metadata lines — or, under the legacy spec-file alias, the spec file's own header fields (e.g., `design-intent:` set on every record in the run) |
 
 ## Recommendation defaults (when no arg and no policy)
 
@@ -145,6 +151,10 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | Auto-fix threshold | `lint+type` | Mechanical fixes only; semantic test failures need judgment |
 | Review severity floor | `low` | Auto LOW (nits), stage MED, prompt HIGH |
 | Tidy aggressiveness | `conservative` | Keep + unambiguous Delete only |
+
+`ceremony-profile` (lever 9) has no row here — its source is always `header` (the bundle-folded
+`ceremony:` value from each record's materialized header), never `arg`/`policy`/`default`. See
+`docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md`.
 
 ## Approval flow
 
@@ -161,6 +171,7 @@ leftover-default: defer
 auto-fix-threshold: lint+type
 review-severity-floor: low
 tidy-aggressiveness: conservative
+ceremony-profile: fast-lane
 spec: 42
 created: 2026-05-15T143207
 ```
