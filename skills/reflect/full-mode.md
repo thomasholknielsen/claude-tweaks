@@ -31,7 +31,7 @@ Check the `/claude-tweaks:review` summary for the **Tradeoffs Accepted** section
 
 ### Auto mode (policy-driven routing)
 
-Auto-mode routing is shared across both modes — see the auto-routing table in SKILL.md Step 3. Every auto-resolution writes an entry per `_shared/auto-decision-log.md` (the canonical entry schema lives there).
+Auto-mode routing is shared across every mode — see the auto-routing table in SKILL.md Step 3. Every auto-resolution writes an entry per `_shared/auto-decision-log.md` (the canonical entry schema lives there).
 
 ### Interactive mode (batch user routing)
 
