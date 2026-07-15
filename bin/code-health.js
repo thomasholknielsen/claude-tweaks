@@ -46,8 +46,9 @@ function parseArgs(argv) {
     else if (a === '--fail-on-high-churn') args['fail-on-high-churn'] = argv[++i];
     else if (a === '--label') args.label = argv[++i];
     else if (a === '--min-risk') args['min-risk'] = argv[++i];
-    // --min-severity is retained for pull-issues, which filters already-filed GitHub
-    // issues by their (unrelated, wider) severity label scale — not the computed risk tier.
+    // --min-severity is pull-issues' own flag name (distinct from --min-risk because it
+    // filters already-filed GitHub issues' risk:<tier> label, not a freshly computed risk
+    // tier pre-filing) but shares --min-risk's 3-tier low|medium|high vocabulary/RISK_RANK.
     else if (a === '--min-severity') args['min-severity'] = argv[++i];
     else if (a === '--budget' || a === '--max-slices') args.budget = Number(argv[++i]);
     else args._.push(a);
@@ -131,15 +132,15 @@ function cmdChurnReport(args) {
 }
 
 function cmdPullIssues(args) {
-  const { pullReconIssues, SEVERITY_RANK } = require('./lib/code-health/pull-issues');
+  const { pullReconIssues } = require('./lib/code-health/pull-issues');
   if (!args.issues) {
     process.stderr.write('usage: code-health.js pull-issues --label <label> --issues <file> [--min-severity <sev>]\n');
     process.exit(2);
   }
-  if (args['min-severity'] && !(args['min-severity'] in SEVERITY_RANK)) {
+  if (args['min-severity'] && !(args['min-severity'] in RISK_RANK)) {
     process.stderr.write(
-      `pull-issues: --min-severity "${args['min-severity']}" is not a recognized severity ` +
-      `(must be one of ${Object.keys(SEVERITY_RANK).join('|')}) — an unrecognized value silently disables ` +
+      `pull-issues: --min-severity "${args['min-severity']}" is not a recognized risk tier ` +
+      `(must be one of ${Object.keys(RISK_RANK).join('|')}) — an unrecognized value silently disables ` +
       'the severity filter instead of restricting output.\n',
     );
     process.exit(2);

@@ -244,10 +244,11 @@ costs nothing. Check whether `.github/ISSUE_TEMPLATE/agent-task.yml` exists; if 
 offer to install it. The form makes human-filed issues work-record-ready at filing time:
 its three sections (Current State / Deliverables / Acceptance Criteria) are exactly the
 spec-shaped body `_shared/work-record.md` documents — the same three sections
-`/claude-tweaks:triage`'s gate re-verifies before granting authorization — so
-`/claude-tweaks:flow`'s issue-sourced batches consume a form-filed issue with zero
-translation (`bin/lib/issues/ingest.js` `isFormShaped` — GitHub renders the labels as `###`
-headings, which the detector accepts).
+`/claude-tweaks:triage`'s gate re-verifies before granting authorization and
+`/claude-tweaks:flow`'s materialization hard gate (`flow/materialize.md`) re-verifies before
+build — so a form-filed issue satisfies both checks with zero translation (GitHub renders
+the form's labels as `###` headings; the structural check treats any heading level as
+satisfying "the section is present").
 
 When this project's `work-types` config key reads `native`, mention to the user that the
 filed issue can also carry a native Type — GitHub's own Type picker in the create-issue UI
