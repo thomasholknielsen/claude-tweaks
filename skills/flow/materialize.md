@@ -36,6 +36,7 @@ record: {n}
 origin: {code-health|harness-health|journey-health|capture|human}
 risk: {low|medium|high}            # omitted when unscored
 effort: {low|medium|high}          # omitted when unscored
+ceremony: fast-lane                # omitted when standard — see ceremony-check mode below
 grants: [build, merge]             # as held at materialization time; may be [build] or []
 fingerprint: {fp}                  # omitted when none
 surface: {web|mobile|desktop|backend|infra}
@@ -51,6 +52,7 @@ parked-at-shaping: true            # omitted unless the record was parked when s
 | `origin` | `/wrap-up` summary/Review Console display (provenance line) |
 | `risk` | Audit snapshot (preserved in the committed file; no active mechanical reader today) |
 | `effort` | `/build` effort-based model-tier selection (replaces `code-health-effort`) |
+| `ceremony` | `/flow`'s Manifesto (Step 3) bundle-fold into the `ceremony-profile` lever |
 | `grants` | Snapshot for audit; `/wrap-up`'s auto-merge check RE-READS LIVE LABELS before any merge (truth, not projection) |
 | `fingerprint` | Audit snapshot / dedup cross-reference |
 | `surface` | `/claude-tweaks:design` wrapper Layer-2 detection (via /build Common Step 1.7 and /flow polish phase) |
@@ -61,7 +63,7 @@ parked-at-shaping: true            # omitted unless the record was parked when s
 
 ## Populating the header
 
-Every field except `surface`/`design-intent` (next section) comes straight off data already fetched during Resolution — nothing extra to read:
+Every field except `surface`/`design-intent` (next section) and `ceremony` (below) comes straight off data already fetched during Resolution — nothing extra to read:
 
 - `record` — the id used to resolve it.
 - `origin` — `facets.origin` (`code-health` / `harness-health` / `journey-health` / `capture`), or the literal `human` when `facets.origin` is `null` (no `by:*` label — human-filed, or a side-effect record, per `_shared/work-record.md`'s origin axis).
@@ -69,8 +71,16 @@ Every field except `surface`/`design-intent` (next section) comes straight off d
 - `grants` — `facets.grants.build` / `facets.grants.merge`, as the bracket list `[build, merge]` / `[build]` / `[]`. Unlike every other optional field here, always emit the `grants:` line, even empty — a record can reach materialization ungranted (a human running `/flow #{n}` directly against a record nobody authorized).
 - `fingerprint` — from Resolution; omit the line when `null`.
 - `parked-at-shaping` — `true` when the labels/facets fetched at materialization time still carry `parked`, omitted otherwise. `/specify` strips `parked` on promotion to `ready` (its permission-matrix row in `_shared/work-record.md`), so this is normally absent by the time a record is buildable; it stays meaningful for a record re-parked after promotion — e.g. by `/tidy`'s Defer action — that still got dispatched anyway, which is exactly the case `/wrap-up`'s restore-on-abandon step (see the reader table above) needs to detect.
+- `ceremony` — invoke `/claude-tweaks:assess-agent-autonomy` in `ceremony-check` mode
+  (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "ceremony-check #{n}")`), once per
+  record, using the same body/labels already fetched during Resolution. Its `CEREMONY` output
+  becomes this field verbatim; omit the line when the verdict is `standard` (mirrors
+  `risk`/`effort`'s omit-when-unscored convention). See
+  `docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md` for the full mode
+  contract.
 
-`surface` / `design-intent` are the one exception — the lift rule below.
+`surface` / `design-intent` / `ceremony` are the exceptions — `surface`/`design-intent` via the
+lift rule below, `ceremony` via the invocation above.
 
 ## The Surface / Design-intent lift rule
 
