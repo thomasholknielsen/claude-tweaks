@@ -85,6 +85,22 @@ human's renewed judgment is the point, not a mechanical (or judgment-driven) rep
 row grants `auto:build` only, never bundling `auto:merge` automatically. Restoring `auto:merge` too
 requires an explicit override.
 
+For the batch table and logging, compute display tiers from labels for all records (fresh and blocked):
+
+```bash
+node -e "
+  const { extractRiskEffort } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/tier.js');
+  const fs = require('fs');
+  const data = JSON.parse(fs.readFileSync('/tmp/triage-worklist.json', 'utf8'));
+  const all = [...(data.fresh || []), ...(data.blocked || [])];
+  const withTiers = all.map((record) => {
+    const { risk, effort } = extractRiskEffort(record.labels || []);
+    return { ...record, riskTier: risk, effortTier: effort };
+  });
+  console.log(JSON.stringify(withTiers));
+" > /tmp/triage-with-tiers.json
+```
+
 ### Step 3: Batch table
 
 ```markdown
@@ -98,7 +114,7 @@ requires an explicit override.
 | 4 | #118: {title} | by:harness-health | low | low | re-authorize (bot:blocked) |
 ```
 
-`Origin` reads `facets.origin` from Step 1's output (`by:{origin}`, or `(human-filed)` when absent). For 10 or more records, lead with a one-line count summary before the table (e.g. "14 records: 9 auto:build-eligible, 2 auto:build+auto:merge-eligible, 2 need scoring, 1 re-authorization candidate") so the human sees the batch's shape before the row detail.
+`Origin` reads `facets.origin` from Step 1's output (`by:{origin}`, or `(human-filed)` when absent). `Risk` and `Effort` are derived from the record's current `risk:*` and `effort:*` labels via `bin/lib/issues/tier.js`'s `extractRiskEffort` function — for records scored by `/specify`, these display `low`/`medium`/`high`; for unscored records, they display `—` (dash, a placeholder allowing inline scoring override in the next step). For 10 or more records, lead with a one-line count summary before the table (e.g. "14 records: 9 auto:build-eligible, 2 auto:build+auto:merge-eligible, 2 need scoring, 1 re-authorization candidate") so the human sees the batch's shape before the row detail.
 
 Then one `AskUserQuestion`:
 
