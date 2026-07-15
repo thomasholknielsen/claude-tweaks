@@ -43,7 +43,7 @@ const DEP_RE = /^Blocked by #(\d+)\b/gm;
 // modification of either. DEP_RE already stops matching at the number, so a
 // trailing ': {text}' parses under it with zero changes; this regex only
 // exists to capture that trailing text when a caller wants it.
-const DEP_ASSUMPTION_RE = /^Blocked by #(\d+):\s*(.+)$/gm;
+const DEP_ASSUMPTION_RE = /^Blocked by #(\d+):[ \t]*(.+)$/gm;
 
 const BY_RE = /^by:(.+)$/;
 const RISK_LABEL_RE = /^risk:(.+)$/;

@@ -246,6 +246,13 @@ test('parseDependencyAssumptions trims leading whitespace after the colon', () =
   );
 });
 
+test('parseDependencyAssumptions does not let a bare colon-only line swallow the next line', () => {
+  assert.deepStrictEqual(
+    parseDependencyAssumptions('Blocked by #3:\nBlocked by #7: real assumption'),
+    [{ number: 7, assumption: 'real assumption' }],
+  );
+});
+
 test('specShapedBody composes the gate-verified skeleton with string sections', () => {
   const body = specShapedBody({
     header: '**Kind:** x',
