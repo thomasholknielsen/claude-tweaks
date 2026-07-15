@@ -200,7 +200,7 @@ issues) -> run `CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow "#{n1},#{n2},..."` o
 The CLAIM_RUN_ID export matters on the success path too, not just failures below -- /flow threads
 it to /wrap-up's release step so its ownership check compares against the run that actually
 claimed the record, not /flow's own later PIPELINE_RUN_DIR. Handle any HARD-GATE failure per
-skills/dispatch/SKILL.md's Settle step (retry ceiling / unconditional auto:merge revocation)
+skills/dispatch/SKILL.md's Settle step (retry ceiling / classification-driven auto:merge revocation)
 before finishing -- do not leave a failed record's claim or label state unresolved. Step 6's
 ownership check compares each record's claim.runId against the {RUN_ID} given above, not any run
 id you generate yourself. If you reference any of these issue numbers in an intermediate commit
