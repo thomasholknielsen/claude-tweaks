@@ -202,6 +202,7 @@ these literal names** — per-skill aliases and env-var renames are forbidden:
 | `automerge-max-lines` | `40` | Auto-merge blast-radius cap: max diff lines |
 | `automerge-max-files` | `2` | Auto-merge blast-radius cap: max files touched |
 | `dispatch-pick-max-concurrent` | `3` | Max concurrent groups a bare `/dispatch` multi-pick may run |
+| `merge-sensitive-paths` | `[]` | Path globs `/claude-tweaks:assess-agent-autonomy`'s `merge-check` mode treats as a hard `needs-human` floor, regardless of diff size or content judgment. Empty by default — project-agnostic, each project populates its own list. |
 
 ## Consumers
 
