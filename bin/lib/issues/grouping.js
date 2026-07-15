@@ -103,4 +103,36 @@ function extractKeyFiles(issue) {
   return [];
 }
 
-module.exports = { groupByFileOverlap, extractKeyFiles };
+// Parses a comma-joined, optionally "#"-prefixed issue-number argument (the
+// explicit-list dispatch form, e.g. "#123, #124,#130") into an array of
+// issue numbers. Non-numeric entries are dropped, not thrown — a malformed
+// entry in an otherwise-valid list shouldn't abort the whole parse.
+function parseExplicitIssueList(argString) {
+  return (argString || '')
+    .split(',')
+    .map((s) => s.trim().replace(/^#/, ''))
+    .map(Number)
+    .filter((n) => Number.isInteger(n) && n > 0);
+}
+
+// Given a set of requested issue numbers and dispatch Step 2's already-
+// computed groups (arrays of full issue objects), returns the deduplicated
+// groups containing at least one requested number, plus any requested
+// numbers found in none of them (not currently eligible — already claimed,
+// grant stripped, or never existed).
+function selectGroupsForExplicitList(requestedNumbers, groups) {
+  const requested = new Set(requestedNumbers);
+  const selectedGroups = [];
+  const foundNumbers = new Set();
+  for (const group of groups) {
+    const groupNumbers = group.map((issue) => issue.number);
+    if (groupNumbers.some((n) => requested.has(n))) {
+      selectedGroups.push(group);
+      groupNumbers.forEach((n) => foundNumbers.add(n));
+    }
+  }
+  const notFound = requestedNumbers.filter((n) => !foundNumbers.has(n));
+  return { selectedGroups, notFound };
+}
+
+module.exports = { groupByFileOverlap, extractKeyFiles, parseExplicitIssueList, selectGroupsForExplicitList };

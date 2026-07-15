@@ -2,7 +2,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { groupByFileOverlap, extractKeyFiles } = require('../grouping');
+const { groupByFileOverlap, extractKeyFiles, parseExplicitIssueList, selectGroupsForExplicitList } = require('../grouping');
 
 // ── groupByFileOverlap ──────────────────────────────────────────────────────
 
@@ -201,4 +201,62 @@ test('accepts label objects ({name}) as well as plain strings', () => {
     body: 'Anchor: `src/x.js#fn`',
   };
   assert.deepStrictEqual(extractKeyFiles(issue), ['src/x.js']);
+});
+
+// ── parseExplicitIssueList ───────────────────────────────────────────────────
+
+test('parses a single bare number with a leading #', () => {
+  assert.deepStrictEqual(parseExplicitIssueList('#123'), [123]);
+});
+
+test('parses a comma-joined list, trimming whitespace around entries', () => {
+  assert.deepStrictEqual(parseExplicitIssueList('#123, #124,#130'), [123, 124, 130]);
+});
+
+test('accepts entries without a leading #', () => {
+  assert.deepStrictEqual(parseExplicitIssueList('123,124'), [123, 124]);
+});
+
+test('filters out non-numeric entries rather than throwing', () => {
+  assert.deepStrictEqual(parseExplicitIssueList('#123,notanumber,#130'), [123, 130]);
+});
+
+test('empty string returns an empty array', () => {
+  assert.deepStrictEqual(parseExplicitIssueList(''), []);
+});
+
+// ── selectGroupsForExplicitList ──────────────────────────────────────────────
+
+test('selects the single group containing a requested number', () => {
+  const groups = [[{ number: 123 }, { number: 124 }], [{ number: 130 }]];
+  const result = selectGroupsForExplicitList([123], groups);
+  assert.deepStrictEqual(result.selectedGroups, [[{ number: 123 }, { number: 124 }]]);
+  assert.deepStrictEqual(result.notFound, []);
+});
+
+test('two requested numbers in the same group produce one selected group, not two', () => {
+  const groups = [[{ number: 123 }, { number: 124 }], [{ number: 130 }]];
+  const result = selectGroupsForExplicitList([123, 124], groups);
+  assert.strictEqual(result.selectedGroups.length, 1);
+  assert.deepStrictEqual(result.notFound, []);
+});
+
+test('two requested numbers in different groups produce two selected groups', () => {
+  const groups = [[{ number: 123 }], [{ number: 130 }]];
+  const result = selectGroupsForExplicitList([123, 130], groups);
+  assert.strictEqual(result.selectedGroups.length, 2);
+});
+
+test('a requested number not present in any group is reported in notFound, not thrown', () => {
+  const groups = [[{ number: 123 }]];
+  const result = selectGroupsForExplicitList([123, 999], groups);
+  assert.deepStrictEqual(result.selectedGroups, [[{ number: 123 }]]);
+  assert.deepStrictEqual(result.notFound, [999]);
+});
+
+test('requesting nothing returns no selected groups and no notFound', () => {
+  const groups = [[{ number: 123 }]];
+  const result = selectGroupsForExplicitList([], groups);
+  assert.deepStrictEqual(result.selectedGroups, []);
+  assert.deepStrictEqual(result.notFound, []);
 });
