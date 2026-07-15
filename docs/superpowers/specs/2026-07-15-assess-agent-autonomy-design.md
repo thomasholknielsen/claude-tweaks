@@ -211,12 +211,27 @@ all`), not assumed:
   existing human-confirmation gate already covers the low-probability, low-consequence case of a
   missing recommendation on a single row, so a parallel mechanical system standing by "just in
   case" would be unused-until-a-rare-failure complexity with no real safety payoff.
-- **Legacy label-vocabulary adapters** in `extractRiskEffort`
-  (`extractCodeHealthRiskEffort`, `extractBareHyphenRiskEffort`, `extractHarnessHealthRiskEffort`)
-  — deleted. A repo-wide query confirmed zero issues, open or closed, in this repository's entire
-  history carry any of the legacy forms these adapters exist to parse
-  (`code-health:risk-*`/`effort-*`, bare `risk-*`/`effort-*`, `harness-health:additive`/
-  `restructural`). Only the canonical colon form has ever actually been used here.
+- **Legacy label-vocabulary adapters** in `extractRiskEffort` — deleted, but not for a uniform
+  reason; verified against the current code, not just issue history (an earlier pass here relied
+  only on `gh issue list --state all`, which only proves absence of *examples*, not absence of
+  *usage* — this repo's harness-health has simply never fired yet):
+  - `extractCodeHealthRiskEffort` (`code-health:risk-*`/`effort-*` hyphen form) — genuinely dead.
+    The only payload function that ever emitted this form (`toIssuePayload` v1,
+    `bin/lib/code-health/issue-payload.js`) is explicitly frozen and uncalled; the live path
+    (`toIssuePayloadV2`) emits colon-form exclusively.
+  - `extractBareHyphenRiskEffort` (bare `risk-*`/`effort-*`, no prefix) — genuinely dead. No
+    current producer in `bin/lib` or `skills/**` emits this form as a label (the one hit for a
+    bare `risk-` string is `bin/code-health.js`'s `--fail-on` CLI flag value, unrelated to
+    GitHub labels).
+  - `extractHarnessHealthRiskEffort` (`harness-health:additive`/`restructural` classification) —
+    **the label itself is live**, actively emitted today by
+    `bin/lib/harness-health/issue-payload.js` for every `additive`/`restructural` finding. The
+    adapter is still safe to retire because that same payload code *also* calls `recordPayload`
+    with the classification-derived `risk`/`effort` values, which emits the canonical colon-form
+    `risk:*`/`effort:*` labels on the same issue — so `extractColonRiskEffort` (kept, highest
+    precedence) already resolves the correct scoring without this adapter ever needing to run.
+    `new-skill` findings were never covered by this adapter either way (its regex excludes that
+    classification by design) — they stay unscored under both the old and new mechanism.
 - **Canonical colon-form extraction** (`extractColonRiskEffort`) — kept. `grant-check` still
   needs to know a record's current `risk:*`/`effort:*` labels as one input alongside the body
   content; this is the one piece of the old mechanism that isn't dead weight.
@@ -255,7 +270,12 @@ click, while a wrongly-granted one could ship something bad.
 - Modified: `bin/lib/issues/tier.js`, `bin/lib/issues/tests/tier.test.js`,
   `skills/dispatch/SKILL.md` (Auto-merge gate + Settle step), `skills/triage/SKILL.md` (Step 2),
   `skills/_shared/work-record.md` (config-keys table gains `merge-sensitive-paths`),
-  `skills/harness-health/SKILL.md` (if it documents the retired new-skill rule independently of
-  `tier.js`'s comments — needs verification during planning, not assumed here)
+  `skills/harness-health/SKILL.md` — **confirmed touch point, verified during planning**: its
+  Relationship table (the row describing "the Tier Rule in triage's bare invocation reads this
+  skill's `harness-health:additive`/`restructural` diagnostic labels directly") describes the
+  mechanism this design retires and must be updated to describe `grant-check` reading body
+  content instead; its "`new-skill` candidates... flag them 'needs scoring'" prose describes
+  behavior that no longer literally holds once `grant-check` judges new-skill proposals from
+  content directly rather than falling through unscored.
 - Documentation: README.md / `skills/help/reference-card.md` skill count and catalog entry
   (29 → 30 skills), per this project's own "update README/help when adding skills" convention.
