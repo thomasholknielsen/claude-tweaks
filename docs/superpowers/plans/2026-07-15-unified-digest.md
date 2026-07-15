@@ -34,11 +34,21 @@
 
 - [ ] **Step 1: Write the failing tests**
 
-Append to `bin/lib/issues/tests/grouping.test.js` (after the existing `extractKeyFiles` tests, before the final closing of the file):
+First, update the existing require line at the top of `bin/lib/issues/tests/grouping.test.js` (line 5) from:
+
+```js
+const { groupByFileOverlap, extractKeyFiles } = require('../grouping');
+```
+
+to:
 
 ```js
 const { groupByFileOverlap, extractKeyFiles, parseExplicitIssueList, selectGroupsForExplicitList } = require('../grouping');
+```
 
+Then append the following to the same file (after the existing `extractKeyFiles` tests, before the final closing of the file) — do not add a second `require` line, the one at the top now covers both new functions:
+
+```js
 // ── parseExplicitIssueList ───────────────────────────────────────────────────
 
 test('parses a single bare number with a leading #', () => {
@@ -150,7 +160,7 @@ module.exports = { groupByFileOverlap, extractKeyFiles, parseExplicitIssueList, 
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `cd "/Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude/worktrees/unified-digest-design" && node --test bin/lib/issues/tests/grouping.test.js`
-Expected: PASS — `# pass 25` (18 pre-existing + 7 new), `# fail 0`.
+Expected: PASS — `# pass 28` (18 pre-existing + 10 new: 5 for `parseExplicitIssueList`, 5 for `selectGroupsForExplicitList`), `# fail 0`.
 
 - [ ] **Step 5: Commit**
 
