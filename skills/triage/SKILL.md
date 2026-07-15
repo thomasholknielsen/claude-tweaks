@@ -171,9 +171,11 @@ Two humans running `/claude-tweaks:triage` at the same time is safe by construct
 ## Next Actions
 
 - `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Dispatch what's authorized (Recommended)"`, `description`: `"/claude-tweaks:dispatch — pick from everything now carrying auto:build and hand it to /flow"`
+- Option 1 — `label`: `"Dispatch what I just granted (Recommended)"`, `description`: `"/claude-tweaks:dispatch {comma-joined numbers of every record Step 4 just granted this session} — skips re-selection, claims and builds them directly"`
 - Option 2 — `label`: `"Dispatch just the next one"`, `description`: `"/claude-tweaks:dispatch next — claim and build the single highest-priority authorized record"`
 - Option 3 — `label`: `"Triage again"`, `description`: `"/claude-tweaks:triage — review anything still left in the ready queue"`
+
+Option 1 invokes the new explicit-list form (`skills/dispatch/SKILL.md` Step 3) with exactly the record numbers Step 4 applied a grant to this session — not the full historical authorized queue. A human who wants the broader queue (including older, previously-granted-but-undispatched records) runs plain `/claude-tweaks:dispatch` themselves; that path is unchanged and does not need its own slot here.
 
 ## Component-Skill Contract
 
