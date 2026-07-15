@@ -27,6 +27,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/claude-tweaks:journeys` | Create/update user journey documentation | spec #, file paths |
 | `/claude-tweaks:visual-review` | Browser-based UI inspection, journey walks, discovery | URL, `journey:{name}`, `discover` |
 | `/claude-tweaks:visualize` | Themed diagram generation — architecture, flowchart, sequence, state, ER, timeline, swimlane, quadrant, nested, tree, org chart, layers, venn, pyramid | `<type> <topic>` |
+| `/claude-tweaks:assess-agent-autonomy` | Inline judgment helper — grant-check informs triage's recommendation, merge-check replaces dispatch's blast-radius gate, failure-check replaces dispatch's blanket failure-revocation rule. Never invoked directly by a human. | `{mode} #{n}` (`grant-check`\|`merge-check`\|`failure-check`) |
 
 ## Utility
 
@@ -36,7 +37,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/claude-tweaks:tidy` | Batch backlog hygiene (incl. GitHub PRs + code-health/harness-health/journey-health issues) | `--scope=<name>[,<name>...]` |
 | `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → polish → wrap-up (+ end-of-run depth survey); pure executor — never selects records itself | record ref(s) (`#N`), spec #(s) (legacy alias), doc path, handed off by `/claude-tweaks:dispatch` + `auto` `worktree`/`current-branch` `no-stories` `no-polish` `no-deepen` `keep-going` `[step]` (single = resume) |
 | `/claude-tweaks:triage` | The interactive human gate over the `ready` queue — grants `auto:build`/`auto:merge`, or flags an unshaped record back for re-shaping. Always interactive; no headless mode. | *(none — takes no arguments)* |
-| `/claude-tweaks:dispatch` | The queue consumer — claims an authorized record's whole file-overlap group (atomic ref lock) and hands it to `/flow`; settles on success/failure | *(none)* (interactive batch pick), `next` (headless routine unit), `#N` (direct) |
+| `/claude-tweaks:dispatch` | The queue consumer — claims an authorized record's whole file-overlap group (atomic ref lock) and hands it to `/flow`; settles on success/failure | *(none)* (interactive batch pick), `next` (headless routine unit), `#N` (direct), `#N,#M,...` (explicit list — e.g. from triage's Next Actions) |
 | `/claude-tweaks:browse` | Unified browser automation (utility) | `--session <name>`, `set viewport`, `set device`, operation vocabulary (see SKILL.md) |
 | `/claude-tweaks:design` | Wrapper that lets lifecycle skills invoke Impeccable design-quality commands. Modes: `pre-build`, `test`, `review`, `shape`, `polish`, `survey`, `reset-recommendations` | mode + spec/files + flags |
 | `/claude-tweaks:ledger` | Open items tracking — query, resolve ledger entries | *(none)*, `resolve`, `{feature-name}` |

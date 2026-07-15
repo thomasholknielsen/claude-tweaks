@@ -48,7 +48,7 @@ Emit `[pr]` rows per the Output Contract.
 
 Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-labelled issues, and `by:journey-health`-labelled issues. Backlog-record findings (stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) are `/tidy` Step 1's job now, not this scope's — `repo-wide` no longer queries the retired `backlog` label (see `tidy/scan-procedures.md` Step 1).
 
-1. **Open PRs** — `gh pr list --state open --json number,title,updatedAt,isDraft,reviewDecision,headRefName,url` → classify each per the Staleness Thresholds.
+1. **Open PRs** — `gh pr list --state open --json number,title,updatedAt,isDraft,reviewDecision,headRefName,url` → classify each per the Staleness Thresholds. A PR that is simultaneously not draft, not yet `Stale` (< 4 weeks since `updatedAt` — spans both the `Fresh` and `Review` bands, since neither currently has its own finding for a PR with nothing wrong), has zero unresolved review threads (item 2 below), and has no failing/pending CI (`gh pr checks`) gets its own finding: `[pr] PR #{n}: {title} — awaiting review — last updated {age} ago, CI {status}, 0 unresolved threads`. This is informational only — see the Severity mapping and `tidy/SKILL.md`'s Step 6 routing below.
 2. **Unresolved threads per open PR** — the same GraphQL query as `current-pr` item 2, once per open PR.
 3. **Code-health issues** — `gh issue list --label by:code-health --state open --json number,title,labels,updatedAt,url`.
 4. **Merged/closed PRs with local remnants** — `gh pr list --state merged --limit 50 --json number,headRefName`; cross-check each `headRefName` against `git -C "{REPO_ROOT}" branch --list` output.
@@ -57,15 +57,20 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
 7. **Grant-queue counts** — one self-contained query feeds three digest metrics, per `_shared/work-record.md`'s record taxonomy. Not gated on `work-backend` — this scope only runs once the Detection Ladder already confirmed a reachable GitHub remote, regardless of which driver stores records:
 
    ```bash
-   gh issue list --state open --json number,labels --limit 200 > /tmp/pr-scan-records.json
+   gh issue list --state open --json number,title,labels --limit 200 > /tmp/pr-scan-records.json
    node -e "
      const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
      const issues = require('/tmp/pr-scan-records.json');
      const faceted = issues.map((i) => parseRecordFacets(i.labels));
-     const pending = faceted.filter((f) => f.stage === 'ready' && !f.grants.build && !f.grants.merge && !f.bot.inProgress && !f.bot.blocked).length;
-     const blocked = faceted.filter((f) => f.bot.blocked).length;
-     const backlog = faceted.filter((f) => f.stage === 'backlog').length;
-     console.log(JSON.stringify({ pending, blocked, backlog }));
+     const withFacets = issues.map((i, idx) => ({ number: i.number, title: i.title, facets: faceted[idx] }));
+     const pendingList = withFacets.filter((i) => i.facets.stage === 'ready' && !i.facets.grants.build && !i.facets.grants.merge && !i.facets.bot.inProgress && !i.facets.bot.blocked);
+     const blockedList = withFacets.filter((i) => i.facets.bot.blocked);
+     const backlogList = withFacets.filter((i) => i.facets.stage === 'backlog');
+     const strip = (list) => list.map(({ number, title }) => ({ number, title }));
+     console.log(JSON.stringify({
+       pending: pendingList.length, blocked: blockedList.length, backlog: backlogList.length,
+       pendingList: strip(pendingList), blockedList: strip(blockedList), backlogList: strip(backlogList),
+     }));
    "
    ```
 
@@ -73,7 +78,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
    - **`bot:blocked`** — records that hit their retry ceiling and need a human's renewed judgment at `/claude-tweaks:triage` before re-entering the autonomous queue (same definition as `scan-procedures.md` Step 1 Shape 5).
    - **Backlog-state** — open records carrying neither `ready` nor `parked` — the default, unasserted state per `_shared/work-record.md`'s lifecycle spine.
 
-   Surface all three in the digest's "Still needs your review" section (see `tidy/SKILL.md`'s digest section): `**Pending authorization:** {N} records awaiting a grant`, `**Blocked:** {N} records hit their retry ceiling`, `**Backlog:** {N} records with no stage label` — omit any line whose count is 0.
+   Surface all three in the digest's "Still needs your review" section (see `tidy/SKILL.md`'s digest section) as a summary line plus an enumerated bullet per record: `**Pending authorization:** {N} records awaiting a grant` followed by one `- #{number}: {title}` line per entry in `pendingList` (same pattern for `**Blocked:**`/`blockedList` and `**Backlog:**`/`backlogList`) — omit both the summary line and its bullet list when a bucket's count is 0. No cap on list length.
 
 ## Scope: `triage-queue` (consumed by /help Stage 4.6)
 
@@ -146,4 +151,5 @@ Severity mapping (Template A Severity column):
 | Merged/closed PR with local branch/worktree remnants | medium |
 | Code-health/harness-health/journey-health issue stale/superseded | medium |
 | Code-health/harness-health/journey-health issue still valid, awaiting `/claude-tweaks:triage` | low |
+| Open PR awaiting review (not draft, not yet `Stale`, 0 unresolved threads, CI clean) | info |
 | Fresh draft PR / no PR / scan skipped | info |

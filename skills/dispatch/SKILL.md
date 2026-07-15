@@ -46,6 +46,7 @@ Not for: granting authorization (`/claude-tweaks:triage`'s job), deriving a spec
 | *(none)* | Bare — interactive batch pick over the authorized queue, grouped by file overlap; up to `dispatch-pick-max-concurrent` groups per firing |
 | `next` | Headless-safe — claim + dispatch exactly one group, chosen by priority-then-age ordering; the unit a scheduled Routine fires |
 | `#N` | Direct — claim + dispatch record `#N`'s whole file-overlap group |
+| `#N,#M,...` | Explicit list — claim + dispatch each named record's whole file-overlap group, deduplicated; skips interactive selection since the set is already named |
 
 ## Preflight
 
@@ -61,7 +62,7 @@ Resolve this firing's `$RUN_ID` once, before Step 2, via the standalone-auto run
 
 ### Step 2: Pull the authorized queue and group by file overlap
 
-Common to all three selection forms — group membership must be computed over the full current pool *before* anything is claimed (per `_shared/issue-claims.md`'s group-claim rule: group membership is computed over **unclaimed** records only, so two racing firings converge on the same winner instead of splitting a group between them).
+Common to all four selection forms — group membership must be computed over the full current pool *before* anything is claimed (per `_shared/issue-claims.md`'s group-claim rule: group membership is computed over **unclaimed** records only, so two racing firings converge on the same winner instead of splitting a group between them).
 
 The queue: **open + `auto:build` + no `bot:*` + no open `Blocked by #N` dependency + unclaimed**. Dispatch never adds `auto:build`, `auto:merge`, or `ready` — see Anti-Patterns.
 
@@ -130,6 +131,8 @@ node -e "
 
 **`#N`** — direct. Fetch issue `#N`, confirm it currently carries `auto:build` and no `bot:*` label (re-verify against Step 2's live queue, not a cached table); if it doesn't qualify, report why (no grant, already claimed, or blocked) and stop. Otherwise pull its **whole file-overlap group** from Step 2's output — claiming a single member of a group alone is forbidden; every one of that record's overlap partners comes along, whether or not the user named them.
 
+**`#N[,#M,#O...]`** — explicit list. Parse the argument via `parseExplicitIssueList` (`bin/lib/issues/grouping.js`) into an array of issue numbers. Call `selectGroupsForExplicitList(requestedNumbers, groups)` (same file) against Step 2's already-computed `groups` array. Report every entry in the returned `notFound` list with why it's excluded — no `auto:build` grant, already claimed, or `bot:blocked` (re-check against Step 2's live queue, the same re-verification the singular `#N` form already does) — but do not abort the rest of the named set over one excluded entry. Every group in the returned `selectedGroups` proceeds to Step 4 exactly as a bare-mode pick would, still bound by `dispatch-pick-max-concurrent` (extra groups queue for a freed slot, same as bare mode's "more selections than the cap" case). Skip Step 3's `AskUserQuestion` entirely — the selection is already explicit; there is nothing to pick.
+
 ### Step 4: Claim the selected group (whole group, or none)
 
 Per `_shared/issue-claims.md`'s group-claim rule: claim **all members of the group before starting any**. Resolve the sha once per run, then for each member of the selected group attempt the atomic ref creation exactly as `_shared/issue-claims.md`'s "The lock" section describes:
@@ -177,7 +180,7 @@ Any other `gh` failure during claim: skip, log, continue.
 
 ### Step 5: Dispatch — one Task agent per group
 
-Work through the selected group(s) — bare: as many as were picked, up to `dispatch-pick-max-concurrent` running at once, remainder queued for a freed slot; `next` / `#N`: exactly one. Each group becomes one Task agent with its own worktree (created via `/superpowers:using-git-worktrees` exactly as a normal `/flow` invocation would — do not pre-create or share a worktree path across groups). There is no per-firing timeout, only the concurrency throttle — nothing elsewhere in this codebase imposes one (existing parallel-Task dispatch sites, e.g. `/help`'s Stage 1-7, already wait for all dispatched agents regardless of duration).
+Work through the selected group(s) — bare / `#N,#M,...`: as many as were picked, up to `dispatch-pick-max-concurrent` running at once, remainder queued for a freed slot; `next` / `#N`: exactly one. Each group becomes one Task agent with its own worktree (created via `/superpowers:using-git-worktrees` exactly as a normal `/flow` invocation would — do not pre-create or share a worktree path across groups). There is no per-firing timeout, only the concurrency throttle — nothing elsewhere in this codebase imposes one (existing parallel-Task dispatch sites, e.g. `/help`'s Stage 1-7, already wait for all dispatched agents regardless of duration).
 
 Export `CLAIM_RUN_ID="{RUN_ID}"` (this firing's run id — the same value already embedded in each member's claim marker by Step 4) before invoking `/flow`. `/flow` threads it through to `/wrap-up`'s release step (`cleanup-procedures.md` Section E) so the success-path ownership check compares against the run that actually made the claim, not `/flow`'s own (different, later-created) `PIPELINE_RUN_DIR` — see `_shared/issue-claims.md`'s Identity section.
 
@@ -200,7 +203,7 @@ issues) -> run `CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow "#{n1},#{n2},..."` o
 The CLAIM_RUN_ID export matters on the success path too, not just failures below -- /flow threads
 it to /wrap-up's release step so its ownership check compares against the run that actually
 claimed the record, not /flow's own later PIPELINE_RUN_DIR. Handle any HARD-GATE failure per
-skills/dispatch/SKILL.md's Settle step (retry ceiling / unconditional auto:merge revocation)
+skills/dispatch/SKILL.md's Settle step (retry ceiling / classification-driven auto:merge revocation)
 before finishing -- do not leave a failed record's claim or label state unresolved. Step 6's
 ownership check compares each record's claim.runId against the {RUN_ID} given above, not any run
 id you generate yourself. If you reference any of these issue numbers in an intermediate commit
@@ -240,13 +243,15 @@ When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
 
 1. Before releasing, fold this record's comments through `claimStatus` (per `_shared/issue-claims.md`'s Ownership rule) and confirm `claim.runId` equals this run's `$RUN_ID`. A mismatch means a successor already broke the stale claim and now holds the lock — skip the rest of this step entirely (no release, no label changes, no comment), log, and move to the next record.
 2. Release the claim (reason: `failed: {gate}`, per `_shared/issue-claims.md`'s Release triggers table), then remove `bot:in-progress` the same way `wrap-up/cleanup-procedures.md` Section E's claim-mirror removal does (best-effort — log a warning and continue on failure). This is a cross-reference, not a restatement — if Section E's mechanics for this step ever change, this step must be re-verified against it rather than assumed still correct.
-3. **Unconditionally revoke `auto:merge` if present.** Any failed run permanently drops merge autonomy for this record, regardless of whether the ceiling was hit — this is not a separate, optional step gated on the ceiling check below:
+3. **Classify the failure and act on `auto:merge` accordingly.** Invoke `/claude-tweaks:assess-agent-autonomy` in `failure-check` mode: `Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "failure-check #{n}")`. If `CLASSIFICATION` is `correctness` or `ambiguous`, revoke `auto:merge` if present — today's behavior for this class, unchanged:
 
    ```bash
    if gh issue view "$ISSUE" --json labels -q '.labels[].name' | grep -qx auto:merge; then
      gh issue edit "$ISSUE" --remove-label auto:merge
    fi
    ```
+
+   If `CLASSIFICATION` is `transient`, **preserve** `auto:merge` — do not remove it. This is the one behavior change from the old rule: a transient/infrastructure failure no longer permanently strips merge trust from a record that was never at fault. If `NOTIFY_NOW` is `true`, send a `PushNotification` immediately ("Record #{n} may be stuck — same failure recurred: {rationale}"), in addition to (not instead of) the retry-ceiling notification in step 6 below if the ceiling is also hit on this same attempt.
 
 4. Fetch existing comments and compute this attempt's number and whether it hits the ceiling (read `dispatch-retry-ceiling` from CLAUDE.md/`policy.yml`, default 3), in one pass — fetching comments *before* posting this attempt's comment is what makes the attempt number and ceiling check correct:
 
@@ -280,23 +285,21 @@ When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
    # [['bot:blocked', 'Bot state: retry ceiling reached - needs human re-triage before autonomous retry']]
    ```
 
-   Then remove `auto:build` (the only `auto:*` label that could still be present — step 3 above already stripped `auto:merge` unconditionally), add `bot:blocked`, and send a `PushNotification` ("Record #{n} hit its retry ceiling — needs a look: {title}").
-7. **If `false`:** leave `auto:build` in place — the next `dispatch next` firing pulls it again naturally (the claim was already released). There is nothing further to downgrade: step 3 already revoked `auto:merge` unconditionally, and that revocation *is* the failure-downgrade rule in this model. Unlike the pre-grants design there is no separate two-tier label to step down between — a record either still has `auto:build` (and can retry) or, at the ceiling, has neither.
+   Then remove `auto:build` (the only `auto:*` label that could still be present in the common case — step 3 above revoked `auto:merge` unless the failure was classified transient), add `bot:blocked`, and send a `PushNotification` ("Record #{n} hit its retry ceiling — needs a look: {title}").
+7. **If `false`:** leave `auto:build` in place — the next `dispatch next` firing pulls it again naturally (the claim was already released). There is nothing further to downgrade in the common case: step 3 revoked `auto:merge` unless the failure was classified transient, and that conditional revocation *is* the failure-downgrade rule in this model. Unlike the pre-grants design there is no separate two-tier label to step down between — a record either still has `auto:build` (and can retry) or, at the ceiling, has neither.
 
-Any failure — whether or not it hits the ceiling — unconditionally revokes `auto:merge` before the next retry, per step 3 above: a run that wasn't clean the first time never gets another unsupervised shot at auto-merge. This permanently drops merge autonomy for that record until a human re-grants it at `/claude-tweaks:triage`.
+A `correctness`- or `ambiguous`-classified failure revokes `auto:merge` before the next retry, per step 3 above — that record doesn't get another unsupervised shot at auto-merge until a human re-grants it at `/claude-tweaks:triage`. A `transient`-classified failure preserves `auto:merge` — the retry-ceiling counting below still runs unconditionally regardless of classification (an attempt is an attempt), but classification alone no longer determines merge trust the way it did before.
 
 ## Auto-merge gate (`auto:merge` groups only)
 
 Because a bundle shares one branch/worktree, the merge decision is necessarily group-wide even though blast radius is attributed per record below: **every member of the group must carry `auto:merge`** for the gate to apply at all — a group with even one `auto:build`-only member falls back to the normal pending-review path for the whole group; mixed grants inside one bundle are never split at merge time.
 
-When a qualifying group's `/flow` run reaches `/wrap-up`'s Review Console, check all four layers before presenting it for approval:
+When a qualifying group's `/flow` run reaches `/wrap-up`'s Review Console, check two layers before presenting it for approval:
 
 1. **Authorization** — `auto:merge` was present on every member of the group when Step 4 claimed it (true by construction).
-2. **Scoring eligibility** — true by construction for a mechanically-recommended grant: `recommendGrants` (`bin/lib/issues/tier.js`) only ever sets `merge: true` for `risk:low` + `effort:low`. An explicit human override at `/claude-tweaks:triage` remains possible and is accepted as-is here, same as the pre-grants design.
-3. **Runtime cleanliness** — `/review`'s Step 3 Routing produced nothing at Medium severity or above anywhere in this group's `/flow` run.
-4. **Blast radius** — attributed per record: each member's share of the diff touches only files that record's fingerprint/anchor pointed at, and the group's combined diff stays under `automerge-max-lines` (default 40) changed lines across `automerge-max-files` (default 2) files.
+2. **Content judgment** — for each member of the group, invoke `/claude-tweaks:assess-agent-autonomy` in `merge-check` mode: `Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "merge-check #{n}")`. This weighs the diff's content, `/review`'s findings, and a test-exclusion-aware blast-radius summary (`bin/lib/issues/blast-radius.js`) holistically, replacing the old three independent mechanical checks (scoring eligibility, runtime cleanliness, blast radius) that stood in for one real question — see `docs/superpowers/specs/2026-07-15-assess-agent-autonomy-design.md`. **Every member's verdict must be `auto-merge`** for the group to proceed — a single `needs-human` verdict anywhere in the group falls the whole group back to the normal pending-review path.
 
-**All four pass:** merge directly, bypassing the interactive `/superpowers:finishing-a-development-branch` handoff entirely (there is no human present to answer its merge/PR/discard prompt during a headless firing). Before merging, clear this run's worktree assignment the same way `flow/worktree-merge.md`'s reconciliation does:
+**Both layers pass:** merge directly, bypassing the interactive `/superpowers:finishing-a-development-branch` handoff entirely (there is no human present to answer its merge/PR/discard prompt during a headless firing). Before merging, clear this run's worktree assignment the same way `flow/worktree-merge.md`'s reconciliation does:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"
@@ -321,7 +324,7 @@ git push
 One `Fixes #{issue}` line per record in the group. The explicit `--no-ff` guarantees a real merge commit exists even when the branch would otherwise fast-forward — this is what the `[auto-merge]` tag lands on, and the same commit message carries the closing keyword per "Close-via-merge" in `_shared/issue-claims.md`, so no separate carrier commit is needed for this path. **If the merge conflicts:** conflict resolution requires judgment a headless run can't supply — abort the merge (`git merge --abort`) and fall back to the normal `auto:build`-only path (present the Review Console, wait for a human), logging why the auto-merge path was abandoned.
 
 Log to `decisions.md`:
-`AUTO {time} — Auto-merge: group [{issues}], {lines} lines across {files} files, zero findings >= medium. Merge commit: {sha}. Reversibility: high (git revert).`
+`AUTO {time} — Auto-merge: group [{issues}], assess-agent-autonomy verdict auto-merge for every member (see each member's RATIONALE). Merge commit: {sha}. Reversibility: high (git revert).`
 Attach the full Review-Console-equivalent summary (whatever `/wrap-up` already produced) to a `PushNotification` as a non-blocking FYI — nothing wrap-up found is dropped, only the wait for a click is skipped.
 
 **Any layer fails:** proceed exactly as the `auto:build`-only path would — present the normal Review Console, wait for a human.
@@ -343,8 +346,8 @@ Read from CLAUDE.md or `.claude-tweaks/policy.yml`:
 | Flag | Default | Meaning |
 |---|---|---|
 | `dispatch-retry-ceiling` | `3` | Consecutive failures before a dispatched record gets `bot:blocked` and stops auto-retrying. |
-| `automerge-max-lines` | `40` | Auto-merge blast-radius cap on changed lines. |
-| `automerge-max-files` | `2` | Auto-merge blast-radius cap on changed files. |
+| `automerge-max-lines` | `40` | Auto-merge blast-radius guideline on changed lines — a weighted input to `merge-check`'s judgment, not a hard cutoff. |
+| `automerge-max-files` | `2` | Auto-merge blast-radius guideline on changed files — same weighted-not-cutoff treatment. |
 | `dispatch-pick-max-concurrent` | `3` | Maximum groups (bundles or singleton records) a firing runs at once; remaining groups queue for a freed slot. |
 
 **Legacy aliases:** the pre-grants keys `triage-retry-ceiling`, `triage-fast-track-max-lines`, `triage-fast-track-max-files`, and `triage-dispatch-max-concurrent` are still read as aliases for the four rows above, in that order, when the new key is absent — no project should have to rename its policy file just because this skill was renamed.
@@ -361,7 +364,7 @@ Read from CLAUDE.md or `.claude-tweaks/policy.yml`:
 
 ## Next Actions
 
-Render only when a human is present to answer — the bare form is definitionally interactive (its own Step 3 pick already required one answer); `next` / `#N` render this block when a human typed the command directly, never when this firing came from a scheduled Routine (nobody is present to answer, and an unanswered question at the very end of a headless run is just noise):
+Render only when a human is present to answer — the bare form is definitionally interactive (its own Step 3 pick already required one answer); `next` / `#N` / `#N,#M,...` render this block when a human typed the command directly or a prior skill (e.g. triage's Next Actions) invoked it on a human's behalf, never when this firing came from a scheduled Routine (nobody is present to answer, and an unanswered question at the very end of a headless run is just noise):
 
 - `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
 - Option 1 — `label`: `"Dispatch again (Recommended)"`, `description`: `"/claude-tweaks:dispatch — pick from what's left in the authorized queue"`
@@ -370,7 +373,7 @@ Render only when a human is present to answer — the bare form is definitionall
 
 ## Component-Skill Contract
 
-`/claude-tweaks:dispatch` is never invoked as a pipeline component by another skill — a human runs one of its three forms directly, or a scheduled Routine fires `/claude-tweaks:dispatch next` headlessly (see Routine Configuration above). See Next Actions above for the render/suppress rule.
+`/claude-tweaks:dispatch` is never invoked as a pipeline component by another skill — a human runs one of its four forms directly, or a scheduled Routine fires `/claude-tweaks:dispatch next` headlessly (see Routine Configuration above). See Next Actions above for the render/suppress rule.
 
 `$PIPELINE_RUN_DIR` is not this skill's own state. Dispatch resolves its own standalone-auto run dir (per `_shared/pipeline-run-dir.md`'s allowlist) purely to write its own `decisions.md` — the claim/release/downgrade audit trail for this firing. Each dispatched group's `/claude-tweaks:flow` invocation creates a separate, later `PIPELINE_RUN_DIR` of its own for the actual pipeline execution; the two are never the same directory, which is exactly why Step 5 threads `CLAIM_RUN_ID` explicitly into the Task agent rather than relying on `/flow` inheriting dispatch's run id.
 
@@ -380,8 +383,8 @@ Render only when a human is present to answer — the bare form is definitionall
 |---------|--------------|
 | Adding `auto:build`, `auto:merge`, or `ready` from inside dispatch | Machinery may only remove or downgrade grants, never add them — the permission matrix's hard line (`_shared/work-record.md`). Dispatch selects on grants a human already gave; it never originates one. |
 | Claiming a single member of a file-overlap group without its partners | Building one member alone would leave the branch and its overlap partners racing each other — `_shared/issue-claims.md`'s group-claim rule requires the whole group before starting any. |
-| Letting a group auto-merge on a retry after a prior failure | The failure-downgrade rule exists specifically to prevent this — any failure unconditionally revokes `auto:merge` before the next retry. |
-| Auto-merging when the diff exceeds the blast-radius cap, even with zero review findings | Review can't catch everything a human glance would — the cap is an independent check, not redundant with cleanliness. |
+| Letting a group auto-merge on a retry after a prior `correctness`-classified failure | The failure-downgrade rule exists specifically to prevent this — a `correctness` or `ambiguous` classification unconditionally revokes `auto:merge` before the next retry; only a `transient` classification preserves it. |
+| Treating a clean review as sufficient for auto-merge on its own | `merge-check` weighs diff content, review findings, and blast radius together as one holistic judgment — a clean review alone doesn't guarantee `auto-merge`; a large or structurally sensitive diff can still verdict `needs-human` even with zero findings. |
 | Retrying a failed record indefinitely with no ceiling | Wastes routine cycles on something fundamentally stuck and never surfaces it to a human — the retry ceiling exists to force a checkpoint. |
 | Building a session that shepherds every authorized group to completion in one run | Context rot — a session babysitting N pipeline runs accumulates context until it degrades. Throughput comes from routine cadence × single-group firings, not session breadth. |
 | Filing, closing, or granting authorization on records from inside dispatch | Dispatch is a *consumer* of what `/claude-tweaks:triage` already granted — filing belongs to the health skills/`/claude-tweaks:capture`, granting belongs to `/claude-tweaks:triage`. |
@@ -403,3 +406,4 @@ Render only when a human is present to answer — the bare form is definitionall
 | `_shared/label-bootstrap.md` | Canonical check-then-create snippet for `bot:in-progress` / `bot:blocked` — the only two labels dispatch itself ever adds. |
 | `_shared/pipeline-run-dir.md` | Dispatch resolves a standalone-auto run dir (allowlist) for its own `decisions.md`; distinct from the `PIPELINE_RUN_DIR` each dispatched `/flow` run creates for its own build — see Component-Skill Contract above. |
 | `bin/lib/issues/{claims,retry,grouping,record}.js` | The pure helpers behind claim/release payloads, retry-ceiling math, file-overlap grouping, and grant/bot-state facet parsing — dispatch calls all four, unchanged. Step 2 also calls record.js's `parseDependencies` to drop records with an open `Blocked by #N` line from the queue. |
+| `/claude-tweaks:assess-agent-autonomy` | Called inline (not a fresh Task dispatch) at two points: the Auto-merge gate (`merge-check` mode, replacing the old three-layer mechanical check) and the Settle step (`failure-check` mode, replacing unconditional `auto:merge` revocation). Dispatch still owns authorization, claim mechanics, and retry-ceiling counting directly — assess-agent-autonomy only ever returns a verdict, never writes a label itself. |

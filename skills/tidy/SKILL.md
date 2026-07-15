@@ -143,6 +143,7 @@ For each finding, route by recommendation type:
 | **Legacy taxonomy present** (Shape 7 — read-only flag; `/tidy` never relabels it) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) |
 | **Needs scoring** (Shape 4 — `ready` record missing risk/effort; no mutation, recommends `/claude-tweaks:specify`) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) |
 | **Re-triage** (Shape 5 — `bot:blocked`; no mutation, recommends `/claude-tweaks:triage`) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) |
+| **Awaiting review** (a fresh/clean, non-stale open PR surfaced by `github-pr-scan.md`'s `repo-wide` scope; no mutation, informational only) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) |
 | **Delete** (stale temp files, broken symlinks, marked-as-specified design docs, merged worktrees/branches, orphaned plans whose related spec is complete) | Auto-apply | Auto-apply | Auto-apply |
 | **Delete** (any case requiring judgment, excluding backlog records — old plans whose spec status is unclear, design docs with no specs; see the dedicated backlog-record Delete row below for `github-issues`-backend findings) | Stage | Auto-apply | Auto-apply |
 | **Absorb** (backlog record overlaps an existing record, `local-files` backend — see the dedicated backlog-record Absorb row below for `github-issues`) | Stage | Auto-apply | Auto-apply |
@@ -219,11 +220,20 @@ Last updated: {ISO timestamp}
 - {finding} — {recommendation} — (still open as of {timestamp})
 
 **Pending authorization:** {N} records awaiting a grant
+- #{number}: {title}
+
 **Blocked:** {N} records hit their retry ceiling
+- #{number}: {title}
+
 **Backlog:** {N} records with no stage label
+- #{number}: {title}
 ```
 
-**Dedup (applies to "Still needs your review" only — the other two sections are a fresh append per firing, since they're already-resolved actions, not open items):** before adding a row, compute its key as `{PR or issue number}:{finding-type}` (e.g. `142:stale-pr`, `88:unresolved-thread`). Read the digest's current "Still needs your review" section and check for a row with a matching key (match on the PR/issue number and finding-type substring in the existing row text — both are always present in the rendered row). If found, update only that row's `(still open as of {timestamp})` suffix to the current firing's timestamp — do not add a second row, and do not mark this finding as new-this-firing (see the Notification subsection below, which fires only on new-this-firing findings). If not found, append a new row and mark it new-this-firing — this is either a genuinely new finding or one whose finding-type changed materially for the same number (e.g. a PR that was `Review` last firing is now `CI-red` — a different finding-type key, so a new row).
+Each bucket's bullet list is one `- #{number}: {title}` line per entry in that bucket's list (`pendingList`/`blockedList`/`backlogList` from `github-pr-scan.md` item 7) — omit both the summary line and the bullet list together when a bucket's count is 0. No cap on list length: if a bucket holds 40 records, all 40 render.
+
+Because Step 4.8 runs as a dispatched Task agent bound to the Output Contract's `[queue]` row (bare counts only, per `github-pr-scan.md`'s Output Contract section) — not the underlying `pendingList`/`blockedList`/`backlogList` arrays item 7's script computes internally — the digest-writing step sources these bullets by re-running item 7's query itself, directly, after Steps 1-4.8 complete (the orchestrator has its own `gh`/`node` access; this is not something any Step 4.8 subagent does). This is a second, cheap invocation of the same single `gh issue list --state open` query item 7 already runs once for the `[queue]` row's counts — not a change to the Output Contract shared by every other tidy scan step.
+
+**Dedup (applies to the "Still needs your review" finding rows only — the other two sections are a fresh append per firing since they're already-resolved actions, and the three enumerated buckets below "Still needs your review" — Pending authorization/Blocked/Backlog — are regenerated fresh from a live query each firing, not appended-and-deduped, so a record dropping out between firings needs no removal step):** before adding a row, compute its key as `{PR or issue number}:{finding-type}` (e.g. `142:stale-pr`, `88:unresolved-thread`). Read the digest's current "Still needs your review" section and check for a row with a matching key (match on the PR/issue number and finding-type substring in the existing row text — both are always present in the rendered row). If found, update only that row's `(still open as of {timestamp})` suffix to the current firing's timestamp — do not add a second row, and do not mark this finding as new-this-firing (see the Notification subsection below, which fires only on new-this-firing findings). If not found, append a new row and mark it new-this-firing — this is either a genuinely new finding or one whose finding-type changed materially for the same number (e.g. a PR that was `Review` last firing is now `CI-red` — a different finding-type key, so a new row).
 
 #### Notification (`--scope=github` routine firings only)
 
