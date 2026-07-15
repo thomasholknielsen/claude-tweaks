@@ -163,8 +163,42 @@ When `/specify` decomposes a design into multiple records:
 - **Only leaf records get `ready`** (+ scoring). Leaves link to the parent (sub-issue when
   `work-links: native`; parent task-list + `Blocked by #N` body lines when
   `work-links: body-text`).
+- **`Blocked by #N` may carry an optional assumption**: `Blocked by #N: {assumption}` — the colon
+  and trailing text are optional; a bare line means exactly what it means today.
+  `parseDependencies`/`DEP_RE` are unchanged (they already stop matching at the number);
+  `parseDependencyAssumptions` (`bin/lib/issues/record.js`) reads the trailing text when present.
+  See Cross-Spec Promise Tracking, below.
 - **Tasks never become records.** A leaf's internal task breakdown is a checklist inside its
   body, not further issues.
+
+## Cross-Spec Promise Tracking
+
+A decomposition of `>= promise-register-min-leaves` leaves (Config keys, below) gets a
+`## Cross-Spec Promises` section on the **parent** record's body, seeded by `/specify` and
+maintained by `/claude-tweaks:review`'s Step 1.6 on every parent-linked leaf's own review — not
+gated on the leaves being built together in one multi-spec `/flow` batch, since the dominant
+workflow dispatches leaves independently, possibly weeks apart. This formalizes the ad hoc
+"promise register" pattern from the spec 13-23 build (see
+`docs/superpowers/specs/2026-07-15-cross-spec-promise-tracking-design.md`), which caught 3 real
+cross-spec breaks but previously lived in a gitignored pipeline directory and died with the run
+that created it.
+
+**The register** lives on the parent as two GitHub primitives, not a new file: a
+`## Cross-Spec Promises` table in the body (current-state truth, edited in place) and issue
+comments (the chronological reconciliation log). Format:
+
+```
+| # | Promise | Owner (#leaf) | Status |
+|---|---------|-----------------|--------|
+| F1 | leaf #48 assumes leaf #46: exposes getStatus() | #48 | open |
+```
+
+**`Parent: #N`** — a decomposition-mode-only body-metadata line (`spec-template.md`), present on a
+leaf's body only under `work-backend: github-issues` + `work-links: body-text` — the one
+combination where nothing else records a leaf's own parent (`work-links: native`'s sub-issue
+relationship is queryable from either side; `local-files` carries `facets.parent`). This is what
+lets `/claude-tweaks:review`'s Step 1.6 resolve a leaf's parent without a native relationship to
+query.
 
 ## Fingerprint marker
 
@@ -205,6 +239,7 @@ these literal names** — per-skill aliases and env-var renames are forbidden:
 | `automerge-max-files` | `2` | Auto-merge blast-radius guideline: implementation files touched, same weighted-not-cutoff treatment |
 | `dispatch-pick-max-concurrent` | `3` | Max concurrent groups a bare `/dispatch` multi-pick may run |
 | `merge-sensitive-paths` | `[]` | Path globs `/claude-tweaks:assess-agent-autonomy`'s `merge-check` mode treats as a hard `needs-human` floor, regardless of diff size or content judgment. Empty by default — project-agnostic, each project populates its own list. |
+| `promise-register-min-leaves` | `4` | Minimum leaf count in one `/specify` decomposition before a `## Cross-Spec Promises` section is seeded on the parent record |
 
 ## Consumers
 
@@ -212,7 +247,7 @@ these literal names** — per-skill aliases and env-var renames are forbidden:
 |---|---|
 | `/code-health`, `/harness-health`, `/journey-health` | File born-`ready` records with origin + scoring + fingerprint |
 | `/capture` | Files raw backlog records (`by:capture`, Type only) |
-| `/specify` | Shapes records to spec shape; decomposes designs into parent + `ready` leaves |
+| `/specify` | Shapes records to spec shape; decomposes designs into parent + `ready` leaves; seeds `## Cross-Spec Promises` on the parent for decompositions at or above `promise-register-min-leaves` |
 | `/triage` | The human gate — grants `auto:build` / `auto:merge` over the `ready` queue |
 | `/dispatch` | Queue consumer — claims authorized records, invokes `/flow`, settles (release / revoke / report) |
 | `/flow`, `/build` | Executors — materialize the record into `{run-dir}/work/{n}-spec.md` and build it |

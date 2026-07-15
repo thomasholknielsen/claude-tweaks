@@ -38,6 +38,13 @@ const FP_RE_LEGACY = /<!--\s*(?:code-health|harness-health|journey-health)-finge
 // Line-anchored 'Blocked by #N' dependency declarations (multiline).
 const DEP_RE = /^Blocked by #(\d+)\b/gm;
 
+// Line-anchored 'Blocked by #N: {text}' assumption declarations (multiline) —
+// a separate, additive sibling to DEP_RE/parseDependencies below, never a
+// modification of either. DEP_RE already stops matching at the number, so a
+// trailing ': {text}' parses under it with zero changes; this regex only
+// exists to capture that trailing text when a caller wants it.
+const DEP_ASSUMPTION_RE = /^Blocked by #(\d+):[ \t]*(.+)$/gm;
+
 const BY_RE = /^by:(.+)$/;
 const RISK_LABEL_RE = /^risk:(.+)$/;
 const EFFORT_LABEL_RE = /^effort:(.+)$/;
@@ -198,6 +205,21 @@ function parseDependencies(body) {
   return result;
 }
 
+// body -> array of {number, assumption} for every line-anchored
+// 'Blocked by #N: {text}' declaration, in order of appearance. A bare
+// 'Blocked by #N' line (no colon) contributes nothing here — parseDependencies
+// above is still the only reader of bare dependency lines. Not deduped by
+// number: a caller writing the same N twice with different text gets both
+// entries back, same as matchAll would naturally produce.
+function parseDependencyAssumptions(body) {
+  if (typeof body !== 'string' || !body) return [];
+  const result = [];
+  for (const match of body.matchAll(DEP_ASSUMPTION_RE)) {
+    result.push({ number: Number(match[1]), assumption: match[2] });
+  }
+  return result;
+}
+
 // Compose the spec-shaped body the gate's structural check re-verifies
 // (skills/_shared/work-record.md: Current State / Deliverables / Acceptance Criteria
 // present and non-empty). Owning the skeleton here means the three health builders
@@ -235,4 +257,5 @@ function specShapedBody({ header, currentState, deliverables, acceptanceCriteria
 module.exports = {
   ORIGINS, TYPES, TIERS, PRIORITIES, LABELS, TYPE_LABELS, recordPayload, specShapedBody,
   FP_RE_WORK, FP_RE_LEGACY, extractFingerprint, parseRecordFacets, parseDependencies,
+  parseDependencyAssumptions,
 };

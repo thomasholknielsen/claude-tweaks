@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const {
   recordPayload, TYPE_LABELS,
-  extractFingerprint, parseRecordFacets, parseDependencies, specShapedBody,
+  extractFingerprint, parseRecordFacets, parseDependencies, parseDependencyAssumptions, specShapedBody,
 } = require('../record');
 
 test('recordPayload assembles labels for a born-ready health record', () => {
@@ -200,6 +200,57 @@ test('parseDependencies returns an empty array when there are no dependency line
 
 test('parseDependencies ignores mid-line occurrences (line-anchored only)', () => {
   assert.deepStrictEqual(parseDependencies('see Blocked by #9 mid-line'), []);
+});
+
+// AC — dependency assumptions (cross-spec-promise-tracking)
+
+test('parseDependencyAssumptions captures trailing text after the colon', () => {
+  assert.deepStrictEqual(
+    parseDependencyAssumptions('Blocked by #14: needs getStatus() to exist'),
+    [{ number: 14, assumption: 'needs getStatus() to exist' }],
+  );
+});
+
+test('parseDependencyAssumptions handles multiple lines in order of appearance', () => {
+  assert.deepStrictEqual(
+    parseDependencyAssumptions('Blocked by #12: first thing\nBlocked by #7: second thing'),
+    [
+      { number: 12, assumption: 'first thing' },
+      { number: 7, assumption: 'second thing' },
+    ],
+  );
+});
+
+test('parseDependencyAssumptions omits bare Blocked-by lines with no colon', () => {
+  assert.deepStrictEqual(
+    parseDependencyAssumptions('Blocked by #12\nBlocked by #7: has text'),
+    [{ number: 7, assumption: 'has text' }],
+  );
+});
+
+test('parseDependencyAssumptions returns an empty array when there are no assumption lines', () => {
+  assert.deepStrictEqual(parseDependencyAssumptions('Blocked by #9\nno colon here'), []);
+});
+
+test('parseDependencyAssumptions ignores mid-line occurrences (line-anchored only)', () => {
+  assert.deepStrictEqual(
+    parseDependencyAssumptions('see Blocked by #9: mid-line text'),
+    [],
+  );
+});
+
+test('parseDependencyAssumptions trims leading whitespace after the colon', () => {
+  assert.deepStrictEqual(
+    parseDependencyAssumptions('Blocked by #3:    padded text'),
+    [{ number: 3, assumption: 'padded text' }],
+  );
+});
+
+test('parseDependencyAssumptions does not let a bare colon-only line swallow the next line', () => {
+  assert.deepStrictEqual(
+    parseDependencyAssumptions('Blocked by #3:\nBlocked by #7: real assumption'),
+    [{ number: 7, assumption: 'real assumption' }],
+  );
 });
 
 test('specShapedBody composes the gate-verified skeleton with string sections', () => {
