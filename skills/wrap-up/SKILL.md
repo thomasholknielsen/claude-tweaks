@@ -65,14 +65,40 @@ Review conversation and recent commits to identify what was implemented and whic
 
 ## Step 3: Reflect on Implementation
 
-Run `/claude-tweaks:reflect` in **full** mode. Pass:
+When a pipeline run directory exists, read `config.yml`'s `ceremony-profile`. Run
+`/claude-tweaks:reflect` in **light** mode when it is `fast-lane`; **full** mode otherwise
+(including standalone wrap-up, where no `config.yml` exists to read). Pass:
 - **Scope** — files changed during this work
 - **Ledger phase** — `wrap-up`
 - **Seed context** — review summary (Key Learnings section), tradeoffs accepted
 
-The reflect skill handles all four reflection lenses (Surprises, Hindsight, Near-misses, Fresh start), the tradeoff review, insight routing, and ledger writes. See `/claude-tweaks:reflect` for details.
+Full mode handles all four reflection lenses (Surprises, Hindsight, Near-misses, Fresh start), the
+tradeoff review, insight routing, and ledger writes. Light mode
+(`skills/reflect/light-mode.md`) runs only the Near-misses and Fresh-start lenses and skips the
+tradeoff review — see `docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md` for
+the rationale. See `/claude-tweaks:reflect` for details on both.
 
 If any insight is "Implement now", /reflect handles it before returning control. Proceed after all insights are resolved.
+
+## Step 3.5: Ceremony Escape Hatch (fast-lane runs only)
+
+Skip entirely when `config.yml`'s `ceremony-profile` is not `fast-lane` (including standalone
+wrap-up, where no `config.yml` exists). Otherwise, check both trigger conditions:
+
+- Did `/claude-tweaks:review`'s summary (passed into this run) contain a finding at any severity?
+- Did Step 3's reflect pass produce a Safety regression finding (`reflect/SKILL.md` Step 3's
+  routing table)?
+
+If either is true, downgrade `config.yml`'s `ceremony-profile` to `standard` in place and log:
+
+```
+AUTO {time} — Ceremony profile downgraded fast-lane → standard: {trigger}. Remaining wrap-up steps run at standard depth.
+```
+
+Steps 6 and 7 below read the (possibly just-downgraded) value fresh at their own point of use — no
+other propagation needed. This never re-runs Step 3 itself, or any build-side step already
+completed under the original `fast-lane` value — see the design doc's Escape Hatch section for why
+this is deliberate, not a gap.
 
 ---
 
@@ -93,6 +119,27 @@ See `cleanup-procedures.md` in this skill's directory for the canonical cleanup 
 > **Batch collection.** Step 6 collects potential documentation, CLAUDE.md/rules, and decision-record updates in a single pass across three sub-scans (Documentation, CLAUDE.md and Rules, Decision Records). No decisions are made here — everything is presented together in Step 9 for batch approval. Skill updates are handled separately in Step 7.
 
 > **Parallel execution:** Run all three sub-scans (documentation, CLAUDE.md/rules, decision records) as parallel tool calls — each checks independent sources and collects findings in the `[type] target — change` format.
+
+### Fast-lane pre-check (skip condition)
+
+When `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh — see Step 3.5), skip all three
+sub-scans below entirely — report "No configuration updates needed (fast-lane: diff touches no
+registry-matched path, no new dependency, no schema/config file)" and proceed to Step 7 — when ALL
+of the following hold:
+
+- `git diff --name-only` against this work's base ref matches none of `docs/REGISTRY.md`'s
+  Auto-detect patterns. Reuse `bin/lib/issues/blast-radius.js`'s `classifyDiffFiles`, passing the
+  registry's patterns as the `sensitivePaths` argument — a result's `isSensitive: true` means a
+  registry-pattern hit here, not a merge-sensitivity one; the function is generic path-glob
+  matching regardless of which patterns list it's fed, and is already fully tested.
+- `git diff package.json` (and any workspace-level equivalent) shows no added dependency.
+- No file in the diff matches a schema/env/IaC/CI/platform-config pattern — reuse Build Common Step
+  5.5's own Category A/B trigger list (`operational-checklist.md` in `skills/build/`).
+
+If `docs/REGISTRY.md` doesn't exist, this pre-check cannot resolve the first condition — treat it
+as unmet (run the sub-scans normally) rather than skipping on incomplete information. This
+pre-check only applies under `fast-lane`; a `standard`-profile run (or standalone wrap-up, where no
+`config.yml` exists) always runs all three sub-scans as before.
 
 ### 6.1: Documentation
 
