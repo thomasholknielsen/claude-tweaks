@@ -1,19 +1,20 @@
 ---
 name: claude-tweaks:assess-agent-autonomy
-description: Use when triage or dispatch need a content-aware trust verdict instead of a mechanical label lookup — grant-check informs triage's recommendation, merge-check replaces dispatch's blast-radius gate, failure-check replaces dispatch's blanket failure-revocation rule. Inline helper, never invoked directly by a human. Keywords - autonomy, trust, judgment, grant recommendation, auto-merge, blast radius, failure classification.
+description: Use when triage or dispatch need a content-aware trust verdict instead of a mechanical label lookup, or when flow's materialization step needs a content-aware ceremony-depth verdict — grant-check informs triage's recommendation, merge-check replaces dispatch's blast-radius gate, failure-check replaces dispatch's blanket failure-revocation rule, ceremony-check informs flow's per-record wrap-up ceremony depth. Inline helper, never invoked directly by a human. Keywords - autonomy, trust, judgment, grant recommendation, auto-merge, blast radius, failure classification, ceremony profile, fast-lane.
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 # Assess Agent Autonomy — Content-Aware Trust Verdicts
 
-Three-mode inline helper that replaces mechanical label lookups with judgment read from actual
+Four-mode inline helper that replaces mechanical label lookups with judgment read from actual
 record/diff/failure content. Never invoked directly by a human — always a component step inside
-`/claude-tweaks:triage` or `/claude-tweaks:dispatch`:
+`/claude-tweaks:triage`, `/claude-tweaks:dispatch`, or `/claude-tweaks:flow`:
 
 ```
-/claude-tweaks:triage Step 2        [ grant-check ]  -> RECOMMEND_BUILD / RECOMMEND_MERGE
-/claude-tweaks:dispatch Auto-merge  [ merge-check ]   -> VERDICT: auto-merge | needs-human
-/claude-tweaks:dispatch Settle      [ failure-check ] -> CLASSIFICATION + NOTIFY_NOW
+/claude-tweaks:triage Step 2          [ grant-check ]    -> RECOMMEND_BUILD / RECOMMEND_MERGE
+/claude-tweaks:dispatch Auto-merge    [ merge-check ]    -> VERDICT: auto-merge | needs-human
+/claude-tweaks:dispatch Settle        [ failure-check ]  -> CLASSIFICATION + NOTIFY_NOW
+/claude-tweaks:flow materialize.md    [ ceremony-check ] -> CEREMONY: fast-lane | standard
 ```
 
 ## When to Use
@@ -21,16 +22,21 @@ record/diff/failure content. Never invoked directly by a human — always a comp
 - `/claude-tweaks:triage`'s Step 2 needs a grant recommendation for a worklist record.
 - `/claude-tweaks:dispatch`'s Auto-merge gate needs a merge-or-human verdict for a clean, reviewed run.
 - `/claude-tweaks:dispatch`'s Settle step needs to classify why a run failed.
+- `/claude-tweaks:flow`'s materialization step needs a ceremony-depth verdict for a record, so build
+  and wrap-up know how much retrospective/documentation ceremony it deserves.
 
 Not for: granting `auto:build`/`auto:merge` (still `/claude-tweaks:triage`'s human-confirmed job),
-merging anything itself (`/claude-tweaks:dispatch` acts on the verdict), or any decision outside
-these three call sites — this is not a general-purpose risk service.
+merging anything itself (`/claude-tweaks:dispatch` acts on the verdict), deciding auto-merge
+eligibility or blast-radius caps (that's still `merge-check` alone — `ceremony-profile` and
+`auto:merge` are independent axes), or any decision outside these four call sites — this is not a
+general-purpose risk service.
 
 ## Input
 
 `$ARGUMENTS` is `{mode} #{n}`, where `mode` is one of `grant-check` | `merge-check` |
-`failure-check` and `#{n}` is the record's issue number (used to fetch the record body for
-`grant-check`; used for reference/logging in `merge-check`/`failure-check`'s rendered output).
+`failure-check` | `ceremony-check` and `#{n}` is the record's issue number (used to fetch the
+record body for `grant-check`/`ceremony-check`; used for reference/logging in
+`merge-check`/`failure-check`'s rendered output).
 
 Invoked inline via the Skill tool — not as a fresh Task-agent dispatch. The calling agent (a
 human-driven `/claude-tweaks:triage` session, or dispatch's per-group Task agent running `/flow`)
@@ -229,20 +235,71 @@ The caller (dispatch's Settle step) is responsible for acting on `CLASSIFICATION
 retry-ceiling bookkeeping, which runs unconditionally regardless of this mode's output (see
 `skills/dispatch/SKILL.md`'s Settle step).
 
+## Mode: ceremony-check
+
+**Called from:** `/claude-tweaks:flow`'s materialization step (`skills/flow/materialize.md`), once
+per record, immediately alongside the existing `risk:`/`effort:` header-field population — every
+record, every materialize, no pre-filtering to "borderline" records.
+
+### Step 1: Gather
+
+Reuses the same record body/labels already fetched during materialize's Resolution step — no
+separate fetch needed:
+
+```bash
+node -e "const {extractRiskEffort}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/tier.js');
+  const d=require('/tmp/materialize-record-${N}.json');
+  console.log(JSON.stringify(extractRiskEffort(d.labels)))"
+```
+
+### Step 2: Judge
+
+Read the record's full body (Current State / Deliverables / Acceptance Criteria) directly —
+`risk:`/`effort:` labels are signal, not a gate, the same non-label-bound judgment principle
+`grant-check`/`merge-check` already establish ("this isn't a one-directional tightening"):
+
+- Does the Deliverables/Acceptance Criteria describe a small, self-contained change with an obvious
+  test story (a bug fix, a narrow migration, a single-module addition)? That supports `fast-lane`
+  regardless of the record's own `risk:`/`effort:` labels.
+- Does the record describe a change with real knowledge-capture value even though the code-level
+  risk is low — multiple call sites across packages, a public-surface rename or CLI-facing
+  decision, a migration retiring a module? That supports `standard` even when labeled
+  `risk:low`/`effort:low`.
+- Is the record's Deliverables a pure prose/comment/documentation correction with no behavioral
+  surface at all? That supports `fast-lane` regardless of labels.
+- A missing Current State/Deliverables/Acceptance Criteria section, or an unresolved
+  `TBD`/`TODO`/`<!-- ambiguity:` marker, is not this mode's job to catch — that's the
+  materialization hard gate's own job, which runs before this mode regardless of its output.
+
+### Step 3: Render
+
+Output ONLY these lines, no preamble:
+
+```
+CEREMONY: fast-lane | standard
+RATIONALE: {one paragraph, naming the specific content signal the verdict is based on}
+```
+
+If nothing in the record's content clearly supports `fast-lane`, output `standard` — the same
+conservative-on-ambiguity principle as this skill's other three modes (see Error Handling).
+
 ## Error Handling
 
 If this skill cannot render a clear verdict for any reason (malformed input, an inconclusive read),
 default to the conservative outcome for whichever mode was running: `grant-check` →
 `RECOMMEND_BUILD: false` / `RECOMMEND_MERGE: false`; `merge-check` → `VERDICT: needs-human`;
-`failure-check` → `CLASSIFICATION: correctness`. Never resolve ambiguity toward more autonomy — a
-missed auto-merge costs a human a click; a wrongly-granted one could ship something bad.
+`failure-check` → `CLASSIFICATION: correctness`; `ceremony-check` → `CEREMONY: standard`. Never
+resolve ambiguity toward more autonomy or less ceremony — a missed auto-merge or a fuller wrap-up
+pass costs a human a click or a few extra minutes; a wrongly-granted shortcut could ship something
+bad or under-reflect on real complexity.
 
 ## Component-Skill Contract
 
 `/claude-tweaks:assess-agent-autonomy` is **always** a component skill — it is never invoked
 directly by a human, and never renders a `## Next Actions` block. Its only callers are
-`/claude-tweaks:triage` (Step 2, `grant-check`) and `/claude-tweaks:dispatch` (Auto-merge gate,
-`merge-check`; Settle step, `failure-check`).
+`/claude-tweaks:triage` (Step 2, `grant-check`), `/claude-tweaks:dispatch` (Auto-merge gate,
+`merge-check`; Settle step, `failure-check`), and `/claude-tweaks:flow` (materialization step,
+`ceremony-check`).
 
 ## Anti-Patterns
 
@@ -254,6 +311,7 @@ directly by a human, and never renders a `## Next Actions` block. Its only calle
 | Classifying an unclear failure as `transient` "to be less conservative" | Ambiguity always resolves to `correctness`'s conservative handling — the point of this skill is accuracy, not blanket permissiveness. |
 | Recommending `RECOMMEND_MERGE: true` for a new-or-changed `skills/**/*.md` file | Skill files shape future agent behavior — this is a hard `needs-human`/`false` case regardless of how clean or small the change looks. |
 | Dispatching this as a fresh Task agent instead of an inline Skill invocation | The calling agent already has the diff/review-findings/failure-output in its own context — a subagent restart only pays to re-derive what's already known. |
+| Treating `ceremony-check`'s verdict as a merge-safety signal | `ceremony-profile` and `auto:merge` are independent axes — a `fast-lane` record can still fail `merge-check` and fall back to a human-reviewed PR (this is exactly what happened to #18 before `merge-check` existed, for an unrelated reason). Never let ceremony depth influence merge eligibility or vice versa. |
 | Writing to `decisions.md` from inside this skill | This skill doesn't know about run-dir resolution — logging is the caller's job (`/claude-tweaks:triage` or `/claude-tweaks:dispatch`), matching every other auto-decision log entry in this codebase. |
 
 ## Relationship to Other Skills
@@ -267,3 +325,5 @@ directly by a human, and never renders a `## Next Actions` block. Its only calle
 | `bin/lib/issues/retry.js` | `countFailedAttempts` supplies `failure-check`'s retry-history input. |
 | `_shared/work-record.md` | Taxonomy home — the `merge-sensitive-paths` config key this skill's `merge-check` mode reads as a hard floor. |
 | `docs/superpowers/specs/2026-07-15-assess-agent-autonomy-design.md` | The full design rationale, motivation (the #18/#19 evidence), and calibration examples this skill's judgment procedures are anchored against. |
+| `docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md` | Design rationale and calibration examples for `ceremony-check` specifically, and for how `/claude-tweaks:flow`/`/claude-tweaks:build`/`/claude-tweaks:wrap-up` consume its verdict via the `ceremony-profile` lever. |
+| `/claude-tweaks:flow` | Calls `ceremony-check` inline (not a fresh Task dispatch) once per record during materialization (`skills/flow/materialize.md`) — the verdict becomes that record's `ceremony:` header field, later folded into the `ceremony-profile` Manifesto lever. |
