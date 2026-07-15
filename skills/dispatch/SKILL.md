@@ -46,6 +46,7 @@ Not for: granting authorization (`/claude-tweaks:triage`'s job), deriving a spec
 | *(none)* | Bare — interactive batch pick over the authorized queue, grouped by file overlap; up to `dispatch-pick-max-concurrent` groups per firing |
 | `next` | Headless-safe — claim + dispatch exactly one group, chosen by priority-then-age ordering; the unit a scheduled Routine fires |
 | `#N` | Direct — claim + dispatch record `#N`'s whole file-overlap group |
+| `#N,#M,...` | Explicit list — claim + dispatch each named record's whole file-overlap group, deduplicated; skips interactive selection since the set is already named |
 
 ## Preflight
 
@@ -129,6 +130,8 @@ node -e "
 `next` is the headless-safe unit — the only selection form a scheduled Routine ever fires (see Routine Configuration below), since it needs no `AskUserQuestion` answer to resolve.
 
 **`#N`** — direct. Fetch issue `#N`, confirm it currently carries `auto:build` and no `bot:*` label (re-verify against Step 2's live queue, not a cached table); if it doesn't qualify, report why (no grant, already claimed, or blocked) and stop. Otherwise pull its **whole file-overlap group** from Step 2's output — claiming a single member of a group alone is forbidden; every one of that record's overlap partners comes along, whether or not the user named them.
+
+**`#N[,#M,#O...]`** — explicit list. Parse the argument via `parseExplicitIssueList` (`bin/lib/issues/grouping.js`) into an array of issue numbers. Call `selectGroupsForExplicitList(requestedNumbers, groups)` (same file) against Step 2's already-computed `groups` array. Report every entry in the returned `notFound` list with why it's excluded — no `auto:build` grant, already claimed, or `bot:blocked` (re-check against Step 2's live queue, the same re-verification the singular `#N` form already does) — but do not abort the rest of the named set over one excluded entry. Every group in the returned `selectedGroups` proceeds to Step 4 exactly as a bare-mode pick would, still bound by `dispatch-pick-max-concurrent` (extra groups queue for a freed slot, same as bare mode's "more selections than the cap" case). Skip Step 3's `AskUserQuestion` entirely — the selection is already explicit; there is nothing to pick.
 
 ### Step 4: Claim the selected group (whole group, or none)
 
@@ -361,7 +364,7 @@ Read from CLAUDE.md or `.claude-tweaks/policy.yml`:
 
 ## Next Actions
 
-Render only when a human is present to answer — the bare form is definitionally interactive (its own Step 3 pick already required one answer); `next` / `#N` render this block when a human typed the command directly, never when this firing came from a scheduled Routine (nobody is present to answer, and an unanswered question at the very end of a headless run is just noise):
+Render only when a human is present to answer — the bare form is definitionally interactive (its own Step 3 pick already required one answer); `next` / `#N` / `#N,#M,...` render this block when a human typed the command directly or a prior skill (e.g. triage's Next Actions) invoked it on a human's behalf, never when this firing came from a scheduled Routine (nobody is present to answer, and an unanswered question at the very end of a headless run is just noise):
 
 - `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
 - Option 1 — `label`: `"Dispatch again (Recommended)"`, `description`: `"/claude-tweaks:dispatch — pick from what's left in the authorized queue"`
