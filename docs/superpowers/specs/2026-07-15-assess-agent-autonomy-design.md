@@ -38,8 +38,12 @@ obvious to a human reviewer glancing at the same diff.
 ## Non-Goals
 
 - **Not** a system-wide risk-assessment service. Scoped to exactly the decision points
-  `/claude-tweaks:triage` and `/claude-tweaks:dispatch` already own; not reachable from
-  `/claude-tweaks:review`'s own lenses or any other skill in this pass.
+  `/claude-tweaks:triage` and `/claude-tweaks:dispatch` already own, plus one narrow addition: a
+  4th mode, `ceremony-check`, reachable from `/claude-tweaks:flow`'s materialization step (see
+  `docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md`) — judging how much
+  wrap-up ceremony a record's content deserves, a different question from "is this safe to trust
+  autonomously" asked at a different point in the pipeline. Still not reachable from
+  `/claude-tweaks:review`'s own lenses or any other skill beyond these four call sites.
 - **Not** a self-tuning calibration loop that durably logs outcomes and proposes threshold
   changes over time. That was the original shape of this brainstorm's first topic and was
   explicitly set aside in favor of this design — judgment replacing the mechanical thresholds
