@@ -120,11 +120,13 @@ Skip silently when this record has no resolvable parent, or its parent has no `#
 Promises` section (`_shared/work-record.md`) — most records. This step never blocks the review;
 it only updates the parent record and, when relevant, notes something in the Step 7 summary.
 
-**Resolve the parent**, per `work-backend`: `local-files` — `facets.parent`; `github-issues` — per
-`work-links`: `native` — query the sub-issue relationship from this record's own side; `body-text`
-— read the `Parent: #N` line from this record's own body, written at decomposition time
-(`spec-template.md`). No parent resolvable (a record human-filed or `/capture`d directly, not
-produced by a `/specify` decomposition) → skip this step entirely.
+**Resolve the parent**, per `work-backend`: `local-files` — `facets.parent` (kept for
+completeness; per `specify/SKILL.md`'s seeding step, the whole mechanism is `github-issues` +
+`work-links: body-text`-only, so a `local-files` parent's promises section is always absent);
+`github-issues` — per `work-links`: `native` — query the sub-issue relationship from this record's
+own side; `body-text` — read the `Parent: #N` line from this record's own body, written at
+decomposition time (`spec-template.md`). No parent resolvable (a record human-filed or
+`/capture`d directly, not produced by a `/specify` decomposition) → skip this step entirely.
 
 **If the parent has a `## Cross-Spec Promises` section:**
 

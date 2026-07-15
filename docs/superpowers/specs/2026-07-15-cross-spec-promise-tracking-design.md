@@ -80,7 +80,7 @@ the line is currently ignored, not rejected. A new, separate helper in `bin/lib/
 captures the trailing text:
 
 ```js
-const DEP_ASSUMPTION_RE = /^Blocked by #(\d+):\s*(.+)$/gm;
+const DEP_ASSUMPTION_RE = /^Blocked by #(\d+):[ \t]*(.+)$/gm;
 
 function parseDependencyAssumptions(body) {
   // returns [{ number, assumption }, ...] for lines carrying trailing ': {text}'

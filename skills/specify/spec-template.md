@@ -9,7 +9,7 @@ Every record body opens with a short metadata block — plain body-metadata line
 ```markdown
 Surface: {web | mobile | desktop | backend | infra}
 Design-intent: {bold | quiet | minimal | delightful | onboarding | none}
-Parent: {#N — decomposition-mode leaves under work-links: body-text only; omitted for work-links: native, local-files, and Shaping mode}
+Parent: {#N — decomposition-mode leaves under work-links: body-text only; omitted otherwise (native links, work-backend: local-files, and Shaping mode)}
 
 ## Overview
 
