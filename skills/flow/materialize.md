@@ -71,16 +71,9 @@ Every field except `surface`/`design-intent` (next section) and `ceremony` (belo
 - `grants` — `facets.grants.build` / `facets.grants.merge`, as the bracket list `[build, merge]` / `[build]` / `[]`. Unlike every other optional field here, always emit the `grants:` line, even empty — a record can reach materialization ungranted (a human running `/flow #{n}` directly against a record nobody authorized).
 - `fingerprint` — from Resolution; omit the line when `null`.
 - `parked-at-shaping` — `true` when the labels/facets fetched at materialization time still carry `parked`, omitted otherwise. `/specify` strips `parked` on promotion to `ready` (its permission-matrix row in `_shared/work-record.md`), so this is normally absent by the time a record is buildable; it stays meaningful for a record re-parked after promotion — e.g. by `/tidy`'s Defer action — that still got dispatched anyway, which is exactly the case `/wrap-up`'s restore-on-abandon step (see the reader table above) needs to detect.
-- `ceremony` — invoke `/claude-tweaks:assess-agent-autonomy` in `ceremony-check` mode
-  (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "ceremony-check #{n}")`), once per
-  record, using the same body/labels already fetched during Resolution. Its `CEREMONY` output
-  becomes this field verbatim; omit the line when the verdict is `standard` (mirrors
-  `risk`/`effort`'s omit-when-unscored convention). See
-  `docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md` for the full mode
-  contract.
+- `ceremony` — invoke `/claude-tweaks:assess-agent-autonomy` in `ceremony-check` mode (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "ceremony-check #{n}")`), once per record, using the same body/labels already fetched during Resolution. Its `CEREMONY` output becomes this field verbatim; omit the line when the verdict is `standard` (mirrors `risk`/`effort`'s omit-when-unscored convention). See `docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md` for the full mode contract.
 
-`surface` / `design-intent` / `ceremony` are the exceptions — `surface`/`design-intent` via the
-lift rule below, `ceremony` via the invocation above.
+`surface` / `design-intent` / `ceremony` are the exceptions — `surface`/`design-intent` via the lift rule below, `ceremony` via the invocation above.
 
 ## The Surface / Design-intent lift rule
 

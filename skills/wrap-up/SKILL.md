@@ -65,29 +65,21 @@ Review conversation and recent commits to identify what was implemented and whic
 
 ## Step 3: Reflect on Implementation
 
-When a pipeline run directory exists, read `config.yml`'s `ceremony-profile`. Run
-`/claude-tweaks:reflect` in **light** mode when it is `fast-lane`; **full** mode otherwise
-(including standalone wrap-up, where no `config.yml` exists to read). Pass:
+When a pipeline run directory exists, read `config.yml`'s `ceremony-profile`. Run `/claude-tweaks:reflect` in **light** mode when it is `fast-lane`; **full** mode otherwise (including standalone wrap-up, where no `config.yml` exists to read). Pass:
 - **Scope** — files changed during this work
 - **Ledger phase** — `wrap-up`
 - **Seed context** — review summary (Key Learnings section), tradeoffs accepted
 
-Full mode handles all four reflection lenses (Surprises, Hindsight, Near-misses, Fresh start), the
-tradeoff review, insight routing, and ledger writes. Light mode
-(`skills/reflect/light-mode.md`) runs only the Near-misses and Fresh-start lenses and skips the
-tradeoff review — see `docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md` for
-the rationale. See `/claude-tweaks:reflect` for details on both.
+Full mode handles all four reflection lenses (Surprises, Approach, Near-misses, Fresh start), the tradeoff review, insight routing, and ledger writes. Light mode (`skills/reflect/light-mode.md`) runs only the Near-misses and Fresh-start lenses and skips the tradeoff review — see `docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md` for the rationale. See `/claude-tweaks:reflect` for details on both.
 
 If any insight is "Implement now", /reflect handles it before returning control. Proceed after all insights are resolved.
 
 ## Step 3.5: Ceremony Escape Hatch (fast-lane runs only)
 
-Skip entirely when `config.yml`'s `ceremony-profile` is not `fast-lane` (including standalone
-wrap-up, where no `config.yml` exists). Otherwise, check both trigger conditions:
+Skip entirely when `config.yml`'s `ceremony-profile` is not `fast-lane` (including standalone wrap-up, where no `config.yml` exists). Otherwise, check both trigger conditions:
 
 - Did `/claude-tweaks:review`'s summary (passed into this run) contain a finding at any severity?
-- Did Step 3's reflect pass produce a Safety regression finding (`reflect/SKILL.md` Step 3's
-  routing table)?
+- Did Step 3's reflect pass produce a Safety regression finding (`reflect/SKILL.md` Step 3's routing table)?
 
 If either is true, downgrade `config.yml`'s `ceremony-profile` to `standard` in place and log:
 
@@ -95,10 +87,7 @@ If either is true, downgrade `config.yml`'s `ceremony-profile` to `standard` in 
 AUTO {time} — Ceremony profile downgraded fast-lane → standard: {trigger}. Remaining wrap-up steps run at standard depth.
 ```
 
-Steps 6 and 7 below read the (possibly just-downgraded) value fresh at their own point of use — no
-other propagation needed. This never re-runs Step 3 itself, or any build-side step already
-completed under the original `fast-lane` value — see the design doc's Escape Hatch section for why
-this is deliberate, not a gap.
+Steps 6 and 7 below read the (possibly just-downgraded) value fresh at their own point of use — no other propagation needed. This never re-runs Step 3 itself, or any build-side step already completed under the original `fast-lane` value — see the design doc's Escape Hatch section for why this is deliberate, not a gap.
 
 ---
 
@@ -122,24 +111,13 @@ See `cleanup-procedures.md` in this skill's directory for the canonical cleanup 
 
 ### Fast-lane pre-check (skip condition)
 
-When `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh — see Step 3.5), skip all three
-sub-scans below entirely — report "No configuration updates needed (fast-lane: diff touches no
-registry-matched path, no new dependency, no schema/config file)" and proceed to Step 7 — when ALL
-of the following hold:
+When `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh — see Step 3.5), skip all three sub-scans below entirely — report "No configuration updates needed (fast-lane: diff touches no registry-matched path, no new dependency, no schema/config file)" and proceed to Step 7 — when ALL of the following hold:
 
-- `git diff --name-only` against this work's base ref matches none of `docs/REGISTRY.md`'s
-  Auto-detect patterns. Reuse `bin/lib/issues/blast-radius.js`'s `classifyDiffFiles`, passing the
-  registry's patterns as the `sensitivePaths` argument — a result's `isSensitive: true` means a
-  registry-pattern hit here, not a merge-sensitivity one; the function is generic path-glob
-  matching regardless of which patterns list it's fed, and is already fully tested.
+- `git diff --name-only` against this work's base ref matches none of `docs/REGISTRY.md`'s Auto-detect patterns. Reuse `bin/lib/issues/blast-radius.js`'s `classifyDiffFiles`, passing the registry's patterns as the `sensitivePaths` argument — a result's `isSensitive: true` means a registry-pattern hit here, not a merge-sensitivity one; the function is generic path-glob matching regardless of which patterns list it's fed, and is already fully tested.
 - `git diff package.json` (and any workspace-level equivalent) shows no added dependency.
-- No file in the diff matches a schema/env/IaC/CI/platform-config pattern — reuse Build Common Step
-  5.5's own Category A/B trigger list (`operational-checklist.md` in `skills/build/`).
+- No file in the diff matches a schema/env/IaC/CI/platform-config pattern — reuse Build Common Step 5.5's own Category A/B trigger list (`operational-checklist.md` in `skills/build/`).
 
-If `docs/REGISTRY.md` doesn't exist, this pre-check cannot resolve the first condition — treat it
-as unmet (run the sub-scans normally) rather than skipping on incomplete information. This
-pre-check only applies under `fast-lane`; a `standard`-profile run (or standalone wrap-up, where no
-`config.yml` exists) always runs all three sub-scans as before.
+If `docs/REGISTRY.md` doesn't exist, this pre-check cannot resolve the first condition — treat it as unmet (run the sub-scans normally) rather than skipping on incomplete information. This pre-check only applies under `fast-lane`; a `standard`-profile run (or standalone wrap-up, where no `config.yml` exists) always runs all three sub-scans as before.
 
 ### 6.1: Documentation
 
@@ -438,7 +416,7 @@ When `$PIPELINE_RUN_DIR` is unset, `/wrap-up` runs standalone — render Next Ac
 | Keeping design docs and plans after wrap-up | Consumed artifacts create stale references — the spec and code are the durable records |
 | Silently dropping insights with no obvious destination | Every insight gets an explicit decision — even "don't capture" requires a stated reason from the user |
 | Completing wrap-up with open ledger items | The nothing-left-behind gate exists to prevent dropped work — resolve every item before presenting the summary |
-| Scanning the entire skill library on every wrap-up | Step 7's independent scan is bounded to the ~5 skills whose domain overlaps the changed files (plus seeded skills) — a whole-library audit on every wrap-up wastes effort and produces noise. Domain-scoped scanning is expected; whole-library scanning is the anti-pattern |
+| Scanning the entire skill library on every wrap-up | Step 7's independent scan is bounded to the ~5 skills whose domain overlaps the changed files (~2 under a fast-lane ceremony profile; plus seeded skills) — a whole-library audit on every wrap-up wastes effort and produces noise. Domain-scoped scanning is expected; whole-library scanning is the anti-pattern |
 | Skipping skill curation because nothing was ledger-tagged | Step 7 generates candidates from the work itself — the independent scan and gap detection run even with zero seeds. Declaring "no skill updates needed" just because no entry was tagged is the failure this step exists to fix |
 | Proposing generic skill updates with no concrete anchor | Every skill update must trace to a ledger entry, a reflection insight, or a specific changed-file observation from the independent scan — updates with no anchor are indistinguishable from hallucinated ones |
 | Mixing skill updates into the doc/CLAUDE.md batch table | Skill updates require full file reads and Update Mode patches — they get their own decision table in Step 7 |
@@ -451,7 +429,7 @@ When `$PIPELINE_RUN_DIR` is unset, `/wrap-up` runs standalone — render Next Ac
 | `/claude-tweaks:review` | Must pass before /claude-tweaks:wrap-up — handles verification, code review, and simplification. Skill-routed ledger entries from lens 3a (phase `review/skill`) and /reflect hindsight findings tagged `[skill: …]` (phase `review/hindsight`) feed into Step 7 skill analysis. |
 | `/claude-tweaks:test` | Indirect dependency — /test passes before /review, which passes before /wrap-up. Open QA ledger entries (`test/qa` phase) carried forward from /test surface in Step 8.5's resolve gate as items requiring per-item user decision. |
 | `/claude-tweaks:review` (visual modes) | Visual complement — findings from visual review may feed into wrap-up's reflection lenses |
-| `/claude-tweaks:reflect` | Invoked BY /wrap-up (Step 3) in full mode. Handles all four reflection lenses, tradeoff review, insight routing, and ledger writes with phase `wrap-up`. |
+| `/claude-tweaks:reflect` | Invoked BY /wrap-up (Step 3) in full mode, or light mode under a `fast-lane` ceremony profile. Full mode handles all four reflection lenses, tradeoff review, insight routing, and ledger writes with phase `wrap-up`; light mode narrows to two lenses and skips the tradeoff review. |
 | `/claude-tweaks:capture` | /claude-tweaks:wrap-up may file a new backlog record directly (no stage label) for genuinely new ideas discovered during implementation — the same `recordPayload` composition `/capture` itself uses, without going through this skill |
 | Work records (`parked`, via leftover routing) | /claude-tweaks:wrap-up routes leftover work here — a new record with a `Trigger:` body line and the `parked` label (origin spec/record, files, trigger); see `leftover-routing.md` in this skill's directory |
 | `/claude-tweaks:help` | /claude-tweaks:wrap-up suggests running /claude-tweaks:help to see what's unblocked |

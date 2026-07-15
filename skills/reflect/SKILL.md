@@ -14,7 +14,7 @@ Step back from implementation and evaluate what was built through structured len
                                                      │                        │
                                                      └──────── /claude-tweaks:reflect ────────┘
                                                        component called from review (Step 4, hindsight mode)
-                                                       and wrap-up (Step 3, full mode)
+                                                       and wrap-up (Step 3, full or light mode)
 ```
 
 ## When to Use
@@ -84,7 +84,7 @@ Mode-specific lens procedures live in sub-files (a given invocation only uses on
 
 ## Step 3: Route Findings
 
-### Auto mode (policy-driven routing — shared across both modes)
+### Auto mode (policy-driven routing — shared across every mode)
 
 > **Canonical reference:** `_shared/auto-mode-contract.md` defines what `auto` may and may not silence — read it before adding or changing any auto-mode handling here. Every auto-resolution MUST write an entry to the auto-decision log per `_shared/auto-decision-log.md` (path: `{run-dir}/decisions.md`, canonical entry schema lives there). Silent automation without an audit trail is forbidden.
 
@@ -129,6 +129,7 @@ Number `{n}` is a per-run sequence counter — increment as each staged file is 
 
 - **Hindsight mode** → see `hindsight-mode.md` (Implementation Hindsight batch table + recommendation rules)
 - **Full mode** → see `full-mode.md` (Reflection Insights batch table + routing guide)
+- **Light mode** → same mechanics as full mode (see `full-mode.md`'s Interactive mode section); only the lens set feeding the table narrows
 
 ## Step 4: Ledger Integration
 

@@ -4,11 +4,7 @@ Wrap-Up Step 7. Analyze whether project skills need updating, and whether the wo
 
 **Core principle: this step *generates* candidates from the work itself — it does not merely filter whatever upstream producers tagged.** Ledger entries and reflection insights are **seeds** that focus the analysis, not the gate that decides whether it runs. Even with zero seeds, the independent scan (7.2) inspects the skills whose domain overlaps the changed files, and gap detection looks for reusable patterns no skill covers.
 
-**Fast-lane narrows breadth, never gates existence.** Under `ceremony-profile: fast-lane`
-(`docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md`), 7.2's independent scan
-still always runs regardless of seeds — only its cap shrinks (top ~2 instead of top ~5, see 7.2
-below). This is a deliberate, narrow exception to the cap number, not a reopening of the
-seed-gating question this principle exists to close.
+**Fast-lane narrows breadth, never gates existence.** Under `ceremony-profile: fast-lane` (`docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md`), 7.2's independent scan still always runs regardless of seeds — only its cap shrinks (top ~2 instead of top ~5, see 7.2 below). This is a deliberate, narrow exception to the cap number, not a reopening of the seed-gating question this principle exists to close.
 
 ## 7.1: Gather Seeds
 
@@ -28,7 +24,7 @@ Regardless of seeds, look at the work itself:
 2. **List skills** — enumerate skill files in `.claude/skills/`. If the directory doesn't exist, still run step 4 (gap detection) — a project with no skills is the strongest case for a first one.
 3. **Rank by domain overlap** — score each skill by how much its domain (the directories, file-types, and patterns it documents) intersects the changed files. Read the **top ~5 most relevant** skills in full — or **top ~2** when `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh; see `wrap-up/SKILL.md` Step 3.5) — the narrower cap under fast-lane trims read cost without skipping the scan outright, preserving the seed-independent principle above. The cap bounds token cost; the ranking ensures the highest-value skills are covered. If more skills than the applicable cap are relevant, **note the overflow explicitly** — `/claude-tweaks:tidy` and future wrap-ups pick up the remainder (never silently truncate).
 4. **Gap detection** — identify any *cohesive* set of changed files implementing one reusable pattern in a domain that **no** skill covers. "Cohesive" means multiple files implementing a single pattern, not scattered one-off edits. Each cohesive uncovered domain becomes a new-skill gap candidate, evaluated via the shared procedure in 7.3-7.5.
-5. **Union with seeds** — add any seeded skills from 7.1 not already in the top-5 to the read set. Seeds are always analyzed.
+5. **Union with seeds** — add any seeded skills from 7.1 not already in 7.2's ranked read set (top-5, or top-2 under fast-lane) to the read set. Seeds are always analyzed.
 
 ## 7.3-7.5: Judge Each Relevant Skill and New-Skill Candidates
 
