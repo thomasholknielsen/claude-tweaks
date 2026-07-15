@@ -63,17 +63,20 @@ Resolve this firing's `$RUN_ID` once, before Step 2, via the standalone-auto run
 
 Common to all three selection forms — group membership must be computed over the full current pool *before* anything is claimed (per `_shared/issue-claims.md`'s group-claim rule: group membership is computed over **unclaimed** records only, so two racing firings converge on the same winner instead of splitting a group between them).
 
-The queue: **open + `auto:build` + no `bot:*` + unclaimed**. Dispatch never adds `auto:build`, `auto:merge`, or `ready` — see Anti-Patterns.
+The queue: **open + `auto:build` + no `bot:*` + no open `Blocked by #N` dependency + unclaimed**. Dispatch never adds `auto:build`, `auto:merge`, or `ready` — see Anti-Patterns.
 
 ```bash
 gh issue list --label auto:build --state open --json number,title,body,labels,createdAt --limit 100 > /tmp/dispatch-queue-raw.json
+gh issue list --state open --json number --limit 200 > /tmp/dispatch-open-numbers.json
 node -e "
-  const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { parseRecordFacets, parseDependencies } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const { extractKeyFiles, groupByFileOverlap } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
   const issues = require('/tmp/dispatch-queue-raw.json');
+  const openNumbers = new Set(require('/tmp/dispatch-open-numbers.json').map((i) => i.number));
   const eligible = issues
     .map((i) => ({ ...i, facets: parseRecordFacets(i.labels) }))
-    .filter((i) => i.facets.grants.build && !i.facets.bot.inProgress && !i.facets.bot.blocked);
+    .filter((i) => i.facets.grants.build && !i.facets.bot.inProgress && !i.facets.bot.blocked)
+    .filter((i) => !parseDependencies(i.body).some((dep) => openNumbers.has(dep)));
   const items = eligible.map((i) => ({ id: i.number, keyFiles: extractKeyFiles(i) }));
   const byId = new Map(eligible.map((i) => [i.number, i]));
   const groups = groupByFileOverlap(items).map((ids) => ids.map((id) => byId.get(id)));
@@ -81,7 +84,9 @@ node -e "
 " > /tmp/dispatch-groups.json
 ```
 
-One call, unlike the pre-grants design — grouping now runs before claiming (rather than after), so the full issue body/labels/createdAt needed for both eligibility and `extractKeyFiles` is already in hand from the initial pull; no per-issue re-fetch.
+Two bulk calls, not per-issue re-fetches — the second pull is a cheap existence check for `parseDependencies`' targets (an open blocker under `work-links: body-text`; a record isn't eligible while any `Blocked by #N` line still names an open issue). Grouping still runs before claiming, unlike the pre-grants design, so the full issue body/labels/createdAt needed for eligibility, dependency-checking, and `extractKeyFiles` is already in hand from the first pull.
+
+**`work-links: native` gap.** `parseDependencies` reads only `Blocked by #N` body-text lines — a record whose blocker is expressed via GitHub's native sub-issue/dependency relationship (`work-links: native`) is not filtered by this check. Widening this to also query the native relationship is a follow-up, not covered here.
 
 The `bot:*` filter here is the cheap label-based pre-filter — labels are projection, not truth (`_shared/work-record.md`). The authoritative unclaimed check is Step 4's atomic 201/422 claim attempt; a record can pass this pre-filter and still turn out contested by the time it's actually claimed. A group of size 1 is a **singleton**; size 2+ is a **bundle** — both dispatch the same way in Step 5, with a different `/flow` invocation shape only.
 
@@ -397,4 +402,4 @@ Render only when a human is present to answer — the bare form is definitionall
 | `_shared/subagent-output-contract.md` | Each group's `Task()` prompt follows the contract's Input Discipline and status-line protocol; the GROUP/OUTCOME/MANIFEST template is this skill's own minimal shape (none of Templates A/B/C fit a full-pipeline-execution agent). |
 | `_shared/label-bootstrap.md` | Canonical check-then-create snippet for `bot:in-progress` / `bot:blocked` — the only two labels dispatch itself ever adds. |
 | `_shared/pipeline-run-dir.md` | Dispatch resolves a standalone-auto run dir (allowlist) for its own `decisions.md`; distinct from the `PIPELINE_RUN_DIR` each dispatched `/flow` run creates for its own build — see Component-Skill Contract above. |
-| `bin/lib/issues/{claims,retry,grouping,record}.js` | The pure helpers behind claim/release payloads, retry-ceiling math, file-overlap grouping, and grant/bot-state facet parsing — dispatch calls all four, unchanged. |
+| `bin/lib/issues/{claims,retry,grouping,record}.js` | The pure helpers behind claim/release payloads, retry-ceiling math, file-overlap grouping, and grant/bot-state facet parsing — dispatch calls all four, unchanged. Step 2 also calls record.js's `parseDependencies` to drop records with an open `Blocked by #N` line from the queue. |
