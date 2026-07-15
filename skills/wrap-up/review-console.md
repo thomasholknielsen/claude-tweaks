@@ -59,7 +59,7 @@ rendering the console normally, exactly as an `auto:build`-only record would,
 logging why the auto-merge path was abandoned.
 
 Log to `decisions.md`:
-`AUTO {time} — Fast-lane auto-merge: issue #{n}, {lines} lines across {files} files, zero findings >= medium. Merge commit: {sha}. Reversibility: high (git revert).`
+`AUTO {time} — Fast-lane auto-merge: issue #{n}, assess-agent-autonomy verdict auto-merge (see RATIONALE). Merge commit: {sha}. Reversibility: high (git revert).`
 
 **Release-reason mapping.** This direct merge counts as the `merged:` outcome for Section E's
 release-reason mapping (`skills/wrap-up/cleanup-procedures.md` Section E step 2) — the fast-lane
