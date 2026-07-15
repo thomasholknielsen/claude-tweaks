@@ -105,8 +105,7 @@ present on every group member) stays a hard binary gate in `dispatch/SKILL.md` i
 ### Step 1: Gather
 
 The calling agent has just finished this run's build, test, and review — the diff and review
-verdict are already in its own context. Confirm rather than re-derive where possible; if not
-already available. `$MERGE_BASE` is the commit this run's worktree branched from — the same base the pipeline's own build started from — resolvable via `git merge-base main HEAD` if not already known from context.
+verdict are already in its own context. Confirm rather than re-derive where possible. `$MERGE_BASE` is the commit this run's worktree branched from — the same base the pipeline's own build started from — resolvable via `git merge-base main HEAD` if not already known from context.
 
 ```bash
 git diff --numstat "$MERGE_BASE"..HEAD | node -e "
