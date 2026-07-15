@@ -462,7 +462,7 @@ PARENT_ID=$(node -e "const {writeRecord, allocateId}=require(process.env.CLAUDE_
 
 **Tasks never become records.** A leaf's own internal breakdown — the Deliverables checklist, the Acceptance Criteria list — stays exactly that: a checklist inside the leaf's body. `/superpowers:writing-plans` turns it into an execution plan at build time; nothing at this granularity spawns a further issue per task.
 
-**Body** — spec-shaped per `spec-template.md`'s record body template, prefixed with the metadata block (`Surface: {value}` and, when the unit is frontend-flavored, `Design-intent: {value}`) — the identical per-record procedure Shaping mode's Metadata block subsection already documents, just run once per leaf instead of once per shaped record.
+**Body** — spec-shaped per `spec-template.md`'s record body template, prefixed with the metadata block (`Surface: {value}` and, when the unit is frontend-flavored, `Design-intent: {value}`) — the identical per-record procedure Shaping mode's Metadata block subsection already documents, just run once per leaf instead of once per shaped record. Under `work-backend: github-issues` + `work-links: body-text`, also prefix `Parent: #$PARENT_NUM` — already known at this point (Parent record, above, runs first) and the only combination where nothing else records a leaf's own parent (`spec-template.md`).
 
 **Type** — matches the parent (`feature`) unless the unit is clearly a defect fix (a bug report, a regression, broken behavior) — override to `bug` in that case.
 
@@ -556,7 +556,7 @@ Branches on driver, then — for `github-issues` — on `work-links`.
 **`work-backend: github-issues`, `work-links: body-text`** (fallback when native isn't available):
 
 - Parent ↔ leaf — append one task-list line per leaf to the parent's body, `- [ ] #{leafNum}`, then a single `gh issue edit $PARENT_NUM --body-file` with the recomposed body (design summary + Decision Rationale below + the task list).
-- Leaf ↔ leaf / leaf ↔ pre-existing record — add one `Blocked by #N` line to the dependent leaf's body per dependency (line-anchored, matching `record.js`'s `DEP_RE`: the literal text `Blocked by #` followed by the number, at the start of a line), then a single `gh issue edit $LEAF_NUM --body-file` with the recomposed body.
+- Leaf ↔ leaf / leaf ↔ pre-existing record — add one `Blocked by #N` line to the dependent leaf's body per dependency (line-anchored, matching `record.js`'s `DEP_RE`: the literal text `Blocked by #` followed by the number, at the start of a line), then a single `gh issue edit $LEAF_NUM --body-file` with the recomposed body. When the dependency is between two leaves of this same decomposition (not a pre-existing companion record) and this decomposition met `promise-register-min-leaves` (`_shared/work-record.md`'s Config keys table), write the extended form instead — `Blocked by #N: {one-line assumption}` — stating what the dependent leaf actually needs from #N (`record.js`'s `parseDependencyAssumptions` reads the trailing text; bare lines and pre-existing-record links are unaffected).
 - Readers parse this back out with `record.js`'s `parseDependencies(body)` — it returns every `Blocked by #N` target as a deduped, ordered array; a mid-line mention doesn't count, only a line-starting one does.
 
 **`work-backend: local-files`** (no native/body-text choice — frontmatter is the only mechanism):
@@ -573,6 +573,15 @@ Before Step 7 deletes the design doc and brief, absorb the last of their context
 
 1. **Decision Rationale** — from the design doc, extract the "why" behind major decisions (approach choices, technology selections, rejected alternatives). Add as a `## Decision Rationale` section in the **parent** body — recompose the parent's full body (design summary + this new section + the task list, under `body-text`) and write once.
 2. **Assumptions** — from the brief (produced by `/claude-tweaks:challenge`), extract validated assumptions, surfaced blind spots, and hard constraints relevant to each leaf. Fold them into that leaf's **existing `## Gotchas` section** as additional bullets — there's no separate `## Assumptions` section anymore. Recompose the affected leaf's body and write once.
+3. **Cross-Spec Promises** (only when this decomposition met `promise-register-min-leaves` — default `4`, `_shared/work-record.md`'s Config keys table) — add a `## Cross-Spec Promises` section to the **parent** body, recomposed alongside Decision Rationale and the task list. Seed one row per `Blocked by #N: {assumption}` line the Linking pass above just wrote between two leaves of this decomposition (pre-existing-record links don't get a row — the register tracks promises within this family, not every dependency):
+
+   ```
+   | # | Promise | Owner (#leaf) | Status |
+   |---|---------|-----------------|--------|
+   | F1 | leaf #{N} assumes leaf #{M}: {assumption} | #{N} | open |
+   ```
+
+   Below threshold, or when no leaf-to-leaf assumption lines exist, still create the section with just the header row — `/claude-tweaks:review`'s Step 1.6 (`skills/review/SKILL.md`) looks for this section by name on every parent-linked record it reviews, and an absent section means "nothing to track" while a present-but-empty one means "tracked, nothing found yet." Post one comment on the parent noting the seed: `gh issue comment $PARENT_NUM --body "Cross-Spec Promises seeded: {count} forward reference(s) at decomposition time."` (skip the comment, but still create the empty section, when count is 0).
 
 Step 3's Rules already asked for brief-absorption while each leaf was being drafted; this is the systematic completeness pass — the last chance to catch a leaf that missed something, before the source becomes unrecoverable.
 
