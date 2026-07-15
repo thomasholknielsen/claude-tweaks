@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const {
   recordPayload, TYPE_LABELS,
-  extractFingerprint, parseRecordFacets, parseDependencies,
+  extractFingerprint, parseRecordFacets, parseDependencies, specShapedBody,
 } = require('../record');
 
 test('recordPayload assembles labels for a born-ready health record', () => {
@@ -203,7 +203,6 @@ test('parseDependencies ignores mid-line occurrences (line-anchored only)', () =
 });
 
 test('specShapedBody composes the gate-verified skeleton with string sections', () => {
-  const { specShapedBody } = require('../record');
   const body = specShapedBody({
     header: '**Kind:** x',
     currentState: 'the state',
@@ -224,7 +223,6 @@ test('specShapedBody composes the gate-verified skeleton with string sections', 
 });
 
 test('specShapedBody renders array sections as blank-line-separated blocks', () => {
-  const { specShapedBody } = require('../record');
   const body = specShapedBody({
     header: 'h',
     currentState: ['block one', 'block two'],
@@ -236,7 +234,6 @@ test('specShapedBody renders array sections as blank-line-separated blocks', () 
 });
 
 test('specShapedBody throws on a missing or empty section', () => {
-  const { specShapedBody } = require('../record');
   assert.throws(() => specShapedBody({ header: 'h', currentState: '', deliverables: 'd', acceptanceCriteria: 'a', filedBy: 'f' }), /currentState/);
   assert.throws(() => specShapedBody({ header: 'h', currentState: 'c', deliverables: 'd', acceptanceCriteria: 'a' }), /filedBy/);
   assert.throws(() => specShapedBody({ header: 'h', currentState: [], deliverables: 'd', acceptanceCriteria: 'a', filedBy: 'f' }), /currentState/);

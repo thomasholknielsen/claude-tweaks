@@ -19,14 +19,15 @@ const CLASSIFICATION_SCORING = {
 };
 
 function toIssuePayload(finding) {
+  const isNewSkill = finding.kind === 'new-skill';
   const assetLabel = ASSET_TYPE_LABELS[finding.assetType] || finding.assetType;
   const categoryLabel = CATEGORY_LABELS[finding.category] || finding.category;
 
-  const kindLine = finding.kind === 'new-skill'
+  const kindLine = isNewSkill
     ? `**New skill candidate** | **Confidence:** ${finding.confidence}`
     : `**${assetLabel}:** ${finding.target} | **Section:** ${finding.section} | **Category:** ${finding.category} | **Classification:** ${finding.classification} | **Confidence:** ${finding.confidence}`;
 
-  const deliverables = finding.kind === 'new-skill'
+  const deliverables = isNewSkill
     ? `Proposed new skill \`${finding.target}\`:\n\n${finding.proposedBody}`
     : `**Current:**\n\`\`\`\n${finding.oldString || '(N/A — new content)'}\n\`\`\`\n\n**Proposed:**\n\`\`\`\n${finding.newString}\n\`\`\``;
 
@@ -38,16 +39,16 @@ function toIssuePayload(finding) {
     filedBy: '/claude-tweaks:harness-health',
   });
 
-  const title = finding.kind === 'new-skill'
+  const title = isNewSkill
     ? `New skill candidate: ${finding.target}`
     : `${assetLabel} ${categoryLabel}: ${finding.target} — ${finding.section}`;
 
-  const diagnosticLabel = finding.kind === 'new-skill' ? 'harness-health:new-skill' : `harness-health:${finding.classification}`;
+  const diagnosticLabel = isNewSkill ? 'harness-health:new-skill' : `harness-health:${finding.classification}`;
   // new-skill is unscored by design (no risk/effort) — the gate flags "needs scoring"
   // rather than inheriting a guessed tier from a kind that carries no evidence for one.
-  const scoring = finding.kind === 'new-skill' ? undefined : CLASSIFICATION_SCORING[finding.classification];
-  const risk = scoring ? scoring.risk : undefined;
-  const effort = scoring ? scoring.effort : undefined;
+  const scoring = isNewSkill ? undefined : CLASSIFICATION_SCORING[finding.classification];
+  const risk = scoring?.risk;
+  const effort = scoring?.effort;
 
   // No spread after this call — the final return below picks fields explicitly.
   const payload = recordPayload({

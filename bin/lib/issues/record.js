@@ -205,9 +205,17 @@ function parseDependencies(body) {
 // a string or an array of strings (arrays render as blank-line-separated blocks).
 // recordPayload still appends the work-fingerprint marker afterward, as before.
 function specShapedBody({ header, currentState, deliverables, acceptanceCriteria, filedBy }) {
-  for (const [name, value] of [['header', header], ['currentState', currentState],
-    ['deliverables', deliverables], ['acceptanceCriteria', acceptanceCriteria], ['filedBy', filedBy]]) {
-    if (value === undefined || value === null || (Array.isArray(value) && value.length === 0) || value === '') {
+  const isEmpty = (value) => value === undefined || value === null || value === ''
+    || (Array.isArray(value) && value.length === 0);
+  const sections = [
+    ['header', header],
+    ['currentState', currentState],
+    ['deliverables', deliverables],
+    ['acceptanceCriteria', acceptanceCriteria],
+    ['filedBy', filedBy],
+  ];
+  for (const [name, value] of sections) {
+    if (isEmpty(value)) {
       throw new Error(`specShapedBody: ${name} is required and must be non-empty`);
     }
   }
