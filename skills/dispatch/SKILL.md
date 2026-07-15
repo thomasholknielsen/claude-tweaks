@@ -62,7 +62,7 @@ Resolve this firing's `$RUN_ID` once, before Step 2, via the standalone-auto run
 
 ### Step 2: Pull the authorized queue and group by file overlap
 
-Common to all three selection forms — group membership must be computed over the full current pool *before* anything is claimed (per `_shared/issue-claims.md`'s group-claim rule: group membership is computed over **unclaimed** records only, so two racing firings converge on the same winner instead of splitting a group between them).
+Common to all four selection forms — group membership must be computed over the full current pool *before* anything is claimed (per `_shared/issue-claims.md`'s group-claim rule: group membership is computed over **unclaimed** records only, so two racing firings converge on the same winner instead of splitting a group between them).
 
 The queue: **open + `auto:build` + no `bot:*` + no open `Blocked by #N` dependency + unclaimed**. Dispatch never adds `auto:build`, `auto:merge`, or `ready` — see Anti-Patterns.
 
@@ -180,7 +180,7 @@ Any other `gh` failure during claim: skip, log, continue.
 
 ### Step 5: Dispatch — one Task agent per group
 
-Work through the selected group(s) — bare: as many as were picked, up to `dispatch-pick-max-concurrent` running at once, remainder queued for a freed slot; `next` / `#N`: exactly one. Each group becomes one Task agent with its own worktree (created via `/superpowers:using-git-worktrees` exactly as a normal `/flow` invocation would — do not pre-create or share a worktree path across groups). There is no per-firing timeout, only the concurrency throttle — nothing elsewhere in this codebase imposes one (existing parallel-Task dispatch sites, e.g. `/help`'s Stage 1-7, already wait for all dispatched agents regardless of duration).
+Work through the selected group(s) — bare / `#N,#M,...`: as many as were picked, up to `dispatch-pick-max-concurrent` running at once, remainder queued for a freed slot; `next` / `#N`: exactly one. Each group becomes one Task agent with its own worktree (created via `/superpowers:using-git-worktrees` exactly as a normal `/flow` invocation would — do not pre-create or share a worktree path across groups). There is no per-firing timeout, only the concurrency throttle — nothing elsewhere in this codebase imposes one (existing parallel-Task dispatch sites, e.g. `/help`'s Stage 1-7, already wait for all dispatched agents regardless of duration).
 
 Export `CLAIM_RUN_ID="{RUN_ID}"` (this firing's run id — the same value already embedded in each member's claim marker by Step 4) before invoking `/flow`. `/flow` threads it through to `/wrap-up`'s release step (`cleanup-procedures.md` Section E) so the success-path ownership check compares against the run that actually made the claim, not `/flow`'s own (different, later-created) `PIPELINE_RUN_DIR` — see `_shared/issue-claims.md`'s Identity section.
 
@@ -373,7 +373,7 @@ Render only when a human is present to answer — the bare form is definitionall
 
 ## Component-Skill Contract
 
-`/claude-tweaks:dispatch` is never invoked as a pipeline component by another skill — a human runs one of its three forms directly, or a scheduled Routine fires `/claude-tweaks:dispatch next` headlessly (see Routine Configuration above). See Next Actions above for the render/suppress rule.
+`/claude-tweaks:dispatch` is never invoked as a pipeline component by another skill — a human runs one of its four forms directly, or a scheduled Routine fires `/claude-tweaks:dispatch next` headlessly (see Routine Configuration above). See Next Actions above for the render/suppress rule.
 
 `$PIPELINE_RUN_DIR` is not this skill's own state. Dispatch resolves its own standalone-auto run dir (per `_shared/pipeline-run-dir.md`'s allowlist) purely to write its own `decisions.md` — the claim/release/downgrade audit trail for this firing. Each dispatched group's `/claude-tweaks:flow` invocation creates a separate, later `PIPELINE_RUN_DIR` of its own for the actual pipeline execution; the two are never the same directory, which is exactly why Step 5 threads `CLAIM_RUN_ID` explicitly into the Task agent rather than relying on `/flow` inheriting dispatch's run id.
 
