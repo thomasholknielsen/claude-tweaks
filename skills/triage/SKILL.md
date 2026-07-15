@@ -94,8 +94,8 @@ node -e "
   const data = JSON.parse(fs.readFileSync('/tmp/triage-worklist.json', 'utf8'));
   const all = [...(data.fresh || []), ...(data.blocked || [])];
   const withTiers = all.map((record) => {
-    const { risk, effort } = extractRiskEffort(record.labels || []);
-    return { ...record, riskTier: risk, effortTier: effort };
+    const { riskTier, effortTier } = extractRiskEffort(record.labels || []);
+    return { ...record, riskTier, effortTier };
   });
   console.log(JSON.stringify(withTiers));
 " > /tmp/triage-with-tiers.json
