@@ -21,7 +21,7 @@ Step back from implementation and evaluate what was built through structured len
 
 - After any implementation work — you want a second look before moving on
 - During `/claude-tweaks:review` Step 4 — invoked in **hindsight** mode
-- During `/claude-tweaks:wrap-up` Step 3 — invoked in **full** mode
+- During `/claude-tweaks:wrap-up` Step 3 — invoked in **full** mode, or **light** mode when the run's `ceremony-profile` is `fast-lane`
 - After a debugging session or refactor — capture what you learned
 - After conversation-based work that had no formal review
 
@@ -31,6 +31,7 @@ Step back from implementation and evaluate what was built through structured len
 |------|--------|------------|----------|
 | **hindsight** | Approach, Structure, Consolidation, Convention, Skills | `/claude-tweaks:review` Step 4 | Pre-ship "should we change something?" gate |
 | **full** | All four lenses (Surprises, Approach, Near-misses, Fresh start) + Tradeoff review | `/claude-tweaks:wrap-up` Step 3 | Post-review knowledge capture |
+| **light** | Near-misses, Fresh start (no tradeoff review) | `/claude-tweaks:wrap-up` Step 3, when `ceremony-profile: fast-lane` | Cheap post-review capture for a fast-lane record |
 | *(default)* | **full** when standalone | Direct invocation | General-purpose reflection |
 
 ## Input
@@ -56,10 +57,11 @@ Step back from implementation and evaluate what was built through structured len
 ### Pipeline context (invoked by parent skill):
 
 The parent skill passes:
-- **Mode** — `hindsight` (from `/review`) or `full` (from `/wrap-up`)
+- **Mode** — `hindsight` (from `/review`) or `full`/`light` (from `/wrap-up`; `light` when the run's
+  `ceremony-profile` is `fast-lane`, `full` otherwise)
 - **Scope** — changes already analyzed by the parent
 - **Ledger phase** — `review/hindsight` (from `/review`) or `wrap-up` (from `/wrap-up`)
-- **Seed context** (full mode only) — review summary, key learnings, tradeoffs accepted
+- **Seed context** (full and light modes only) — review summary, key learnings, tradeoffs accepted
 
 When no ledger phase is provided (standalone), use `reflect` as the default phase.
 
@@ -78,6 +80,7 @@ Mode-specific lens procedures live in sub-files (a given invocation only uses on
 
 - **Hindsight mode** → see `hindsight-mode.md` in this skill's directory (5 evaluations, action gate)
 - **Full mode** → see `full-mode.md` in this skill's directory (4 lenses + tradeoff review; superset of hindsight)
+- **Light mode** → see `light-mode.md` in this skill's directory (2 lenses, no tradeoff review; narrowed subset of full, for `ceremony-profile: fast-lane` wrap-ups)
 
 ## Step 3: Route Findings
 
@@ -153,7 +156,7 @@ When invoked directly (not by a parent skill), call `AskUserQuestion`:
 
 ## Component-Skill Contract
 
-This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step 4, `hindsight` mode) and `/claude-tweaks:wrap-up` (Step 3, `full` mode). Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (set by `/review`, `/wrap-up`, or other pipeline orchestrators). When invoked by a parent, omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user (no `$PIPELINE_RUN_DIR`), render Next Actions as shown above.
+This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step 4, `hindsight` mode) and `/claude-tweaks:wrap-up` (Step 3, `full` or `light` mode). Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (set by `/review`, `/wrap-up`, or other pipeline orchestrators). When invoked by a parent, omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user (no `$PIPELINE_RUN_DIR`), render Next Actions as shown above.
 
 ## Anti-Patterns
 
@@ -173,7 +176,7 @@ This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:review` | Invokes /reflect in **hindsight** mode (Step 4). Passes analyzed changes and review context. Receives hindsight findings for the review summary. |
-| `/claude-tweaks:wrap-up` | Invokes /reflect in **full** mode (Step 3). Passes review summary, key learnings, and tradeoffs. Receives routed insights for knowledge capture. |
+| `/claude-tweaks:wrap-up` | Invokes /reflect in **full** mode (Step 3), or **light** mode when the run's `ceremony-profile` is `fast-lane`. Passes review summary, key learnings, and tradeoffs. Receives routed insights for knowledge capture. |
 | `/claude-tweaks:build` | Produces the code that /reflect evaluates |
 | `/claude-tweaks:deepen` | The structural-debt lens (premature abstractions, wrong boundaries) seeds /deepen candidates — when /reflect surfaces module-level structural debt, it recommends `/claude-tweaks:deepen` for a dedicated depth pass rather than resolving it inline |
 | `/claude-tweaks:test` | /reflect may trigger re-verification after "Change now" fixes |
