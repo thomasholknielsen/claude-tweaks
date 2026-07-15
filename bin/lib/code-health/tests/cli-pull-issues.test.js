@@ -16,6 +16,24 @@ function runPullIssues(issuesFile, extraArgs = []) {
   return spawnSync('node', [CLI, 'pull-issues', '--issues', issuesFile, ...extraArgs], { encoding: 'utf8' });
 }
 
+// A current-format fixture issue — by:code-health + risk:<tier> + work-fingerprint,
+// matching real toIssuePayloadV2 output. Not the legacy code-health:<severity> /
+// code-health-fingerprint shape this command used to (silently, incorrectly) expect.
+function fixtureIssue({ number, risk, fingerprint }) {
+  return {
+    number,
+    title: `[code-health] finding ${number}`,
+    state: 'open',
+    labels: [{ name: 'by:code-health' }, { name: `risk:${risk}` }, { name: 'effort:medium' }, { name: 'ready' }],
+    body: `## Current State\n...\n\n## Deliverables\n...\n\n## Acceptance Criteria\n...\n\n<!-- work-fingerprint: ${fingerprint} -->`,
+  };
+}
+
+test('pull-issues: exits 2 when --issues flag is missing', () => {
+  const r = spawnSync('node', [CLI, 'pull-issues', '--label', 'code-health'], { encoding: 'utf8' });
+  assert.strictEqual(r.status, 2, `should exit 2 when --issues is missing, got ${r.status}. stderr: ${r.stderr}`);
+});
+
 test('pull-issues: exits 2 when --min-severity is an unrecognized value', () => {
   const root = tmp();
   const issuesFile = path.join(root, 'issues.json');
@@ -35,10 +53,47 @@ test('pull-issues: a recognized --min-severity value still works normally', () =
   assert.deepStrictEqual(briefs, []);
 });
 
-test('pull-issues: "info" is a recognized severity for this command (wider scale than recon findings)', () => {
+test('pull-issues: "info" is no longer recognized — --min-severity now shares --min-risk\'s 3-tier scale', () => {
   const root = tmp();
   const issuesFile = path.join(root, 'issues.json');
   fs.writeFileSync(issuesFile, JSON.stringify([]));
   const result = runPullIssues(issuesFile, ['--min-severity', 'info']);
+  assert.strictEqual(
+    result.status, 2,
+    `expected exit 2 (info retired along with the legacy 5-tier scale), got ${result.status}. stderr: ${result.stderr}`,
+  );
+});
+
+test('pull-issues: filters a real currently-filed by:code-health/risk:<tier>/work-fingerprint fixture by --min-severity', () => {
+  const root = tmp();
+  const issuesFile = path.join(root, 'issues.json');
+  fs.writeFileSync(issuesFile, JSON.stringify([
+    fixtureIssue({ number: 101, risk: 'high', fingerprint: 'recon-high0001' }),
+    fixtureIssue({ number: 102, risk: 'low', fingerprint: 'recon-low00002' }),
+  ]));
+  const result = runPullIssues(issuesFile, ['--min-severity', 'high']);
   assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+  const briefs = JSON.parse(result.stdout);
+  assert.strictEqual(briefs.length, 1);
+  assert.strictEqual(briefs[0].number, 101);
+  assert.strictEqual(briefs[0].severity, 'high');
+  assert.strictEqual(briefs[0].fingerprint, 'recon-high0001');
+});
+
+test('pull-issues: default --label selects only by:code-health issues, not an unrelated by:harness-health one', () => {
+  const root = tmp();
+  const issuesFile = path.join(root, 'issues.json');
+  fs.writeFileSync(issuesFile, JSON.stringify([
+    fixtureIssue({ number: 201, risk: 'medium', fingerprint: 'recon-med00001' }),
+    {
+      number: 202,
+      title: '[harness-health] drift finding',
+      labels: [{ name: 'by:harness-health' }, { name: 'risk:medium' }, { name: 'ready' }],
+      body: '## Current State\n...\n\n## Deliverables\n...\n\n## Acceptance Criteria\n...',
+    },
+  ]));
+  const result = runPullIssues(issuesFile, []);
+  assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+  const briefs = JSON.parse(result.stdout);
+  assert.deepStrictEqual(briefs.map((b) => b.number), [201]);
 });
