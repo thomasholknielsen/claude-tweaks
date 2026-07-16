@@ -692,7 +692,7 @@ record file per record (`specs/{id}-{slug}.md`, read and written by
 `bin/lib/issues/local-store.js`). Decide the backend once here so every future
 filing/shaping/dispatching run is consistent — no split-brain between issue-backed
 and file-backed records for the same repo. `_shared/work-record.md` is the canonical
-home of the full record taxonomy (the six axes, the label families, and the
+home of the full record taxonomy (the seven axes, the label families, and the
 config-key table) — every consumer skill cites it rather than restating it, and this
 step is where its config keys first get written.
 
@@ -801,8 +801,8 @@ Call `AskUserQuestion`:
 
 On option 1, run the check-then-create loop from `_shared/label-bootstrap.md` with
 its canonical `LABELS_JSON`. See `_shared/work-record.md` for the taxonomy each
-label expresses (the six axes: type, origin, scoring, stage, authorization, bot
-state).
+label expresses (the seven axes: type, origin, scoring, stage, authorization, bot
+state, acceptance).
 
 **Pre-existing artifacts.** Projects that used the earlier two-file backlog design
 may still have `specs/backlog/*.md` entries, or live GitHub issues carrying retired

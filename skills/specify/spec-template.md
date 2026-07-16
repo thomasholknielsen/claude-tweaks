@@ -162,7 +162,7 @@ Never write a bare "zero matches anywhere" AC alongside a tombstone requirement 
 
 ## Facets
 
-Type, stage/scoring labels, and parent/dependency links are **record facets** — tracked on the record itself, outside the body, never as body text. The canonical taxonomy (the six axes, the label names, who may set what) is `_shared/work-record.md`; this section only maps those facets to their representation on each driver.
+Type, stage/scoring labels, and parent/dependency links are **record facets** — tracked on the record itself, outside the body, never as body text. The canonical taxonomy (the seven axes, the label names, who may set what) is `_shared/work-record.md`; this section only maps those facets to their representation on each driver.
 
 | Facet | `github-issues` | `local-files` |
 |-------|------------------|----------------|
