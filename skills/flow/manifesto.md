@@ -50,6 +50,7 @@ A lever is **suppressed** (hidden from the Manifesto) when no skill in the resol
 | **Auto-fix threshold** (6) | `/test` not in the step list |
 | **Review severity floor** (7) | `/review` not in the step list |
 | **Leftover routing** (5) | `/wrap-up` not in the step list |
+| **Unattended tier** (9) | `/wrap-up` not in the step list — none of its three behaviors (ledger routing, queue-write filing, ops-ack) run outside wrap-up |
 
 Always visible: **Mode** (1), **Scope-creep** (2) — they affect every pipeline.
 
@@ -84,7 +85,7 @@ The template below is the **`confirm` / `hybrid` (approval-gate)** rendering —
 
 I've pre-filled recommendations from project policy + sensible defaults. The Recommendation is **bold** inside the Options column so override is "spot the not-bold one."
 
-**Canonical lever numbering** (stable across all `/flow` runs): 1=Mode, 2=Scope-creep, 3=Overlap, 4=Design intent, 5=Leftover routing, 6=Auto-fix threshold, 7=Review severity floor, 8=Tidy aggressiveness. The table below shows only the levers active for this run; the **Suppressed** line below names which numbers are unselectable.
+**Canonical lever numbering** (stable across all `/flow` runs): 1=Mode, 2=Scope-creep, 3=Overlap, 4=Design intent, 5=Leftover routing, 6=Auto-fix threshold, 7=Review severity floor, 8=Tidy aggressiveness, 9=Unattended tier. The table below shows only the levers active for this run; the **Suppressed** line below names which numbers are unselectable.
 
 | # | Lever | Recommended | Options | Effect if approved |
 |---|---|---|---|---|
@@ -93,8 +94,9 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | 5 | Leftover routing | **defer** | **defer** / backlog / drop | Unfinished sections → a new work record (parked), reversible at Review Console |
 | 6 | Auto-fix threshold | **lint+type** | lint-only / **lint+type** / lint+type+test | Lint + type errors auto-fixed; test failures still surface |
 | 7 | Review severity floor | **low** | none / **low** / medium | LOW findings auto-applied; MED staged; HIGH still prompts |
+| 9 | Unattended tier | **off** | **off** / on | Floor-clearing ledger residue, queue writes, and ops-ack resolve without a click; off leaves today's behavior unchanged |
 
-**Suppressed (not applicable to this run):** 3 (overlap — `/specify` not in pipeline), 4 (design intent — locked by the materialized header on all 3 records), 8 (tidy — not in default `/flow`). **Valid overrides for this run:** 1, 2, 5, 6, 7.
+**Suppressed (not applicable to this run):** 3 (overlap — `/specify` not in pipeline), 4 (design intent — locked by the materialized header on all 3 records), 8 (tidy — not in default `/flow`). **Valid overrides for this run:** 1, 2, 5, 6, 7, 9.
 
 ---
 
@@ -116,6 +118,7 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | Auto-fix threshold | `lint+type+test` | Mechanical test failures also auto-fixed (rare; risky — semantic changes hidden) |
 | Review severity floor | `none` | All findings auto-applied (lowest friction, highest revert load) |
 | Review severity floor | `medium` | LOW + MED auto-applied; only HIGH prompts |
+| Unattended tier | `on` | Floor-clearing ledger residue, queue writes, and ops-ack resolve without a click; still fully logged and reversible — see `_shared/unattended-tier.md` |
 ```
 
 ### Rendering rules for the preview
@@ -145,6 +148,7 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | Auto-fix threshold | `lint+type` | Mechanical fixes only; semantic test failures need judgment |
 | Review severity floor | `low` | Auto LOW (nits), stage MED, prompt HIGH |
 | Tidy aggressiveness | `conservative` | Keep + unambiguous Delete only |
+| Unattended tier | `off` | Conservative default; each project/run opts in explicitly |
 
 ## Approval flow
 
@@ -161,6 +165,7 @@ leftover-default: defer
 auto-fix-threshold: lint+type
 review-severity-floor: low
 tidy-aggressiveness: conservative
+unattended-tier: off
 spec: 42
 created: 2026-05-15T143207
 ```
