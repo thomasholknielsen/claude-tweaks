@@ -268,7 +268,7 @@ Parent invocation of `/capture` is signaled by `$PIPELINE_RUN_DIR` being set in 
 | `/claude-tweaks:init` | After bootstrap, /init suggests /capture as the entry point for capturing ideas that surface during setup but aren't ready to specify |
 | `/claude-tweaks:reflect` | Surfaces tangential ideas at the Wrap-Up Review Console (files new backlog records directly, not via /capture) |
 | `/claude-tweaks:visual-review` | UI ideas surfaced during visual review (creative improvements, follow-ups) file as new backlog records via /capture instead of inflating the current spec |
-| `_shared/work-record.md` | Taxonomy home — stage vocabulary (backlog / parked / ready), the permission-matrix row for `/capture` (`by:capture` + Type only), and the six-axis label contract this skill files against |
+| `_shared/work-record.md` | Taxonomy home — stage vocabulary (backlog / parked / ready), the permission-matrix row for `/capture` (`by:capture` + Type only), and the seven-axis label contract this skill files against |
 | `/claude-tweaks:research` | Research findings can be captured as backlog records; invoke `/research` when a backlog record needs evidence before specifying. |
 | `/claude-tweaks:code-health` | `/code-health` routes fuzzy or below-threshold findings to the backlog via `/capture` instead of filing a GitHub issue, so they get human triage before promotion. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
