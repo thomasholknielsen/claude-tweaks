@@ -39,7 +39,7 @@ Stage vocabulary is exactly these three words — **backlog** (absence of stage 
 | Axis | Values | Expressed as |
 |---|---|---|
 | **Type** | `bug` \| `feature` \| `task` | Native GitHub Issue Type when `work-types: native`; `type:*` label when `work-types: labels` |
-| **Origin** | `by:code-health`, `by:harness-health`, `by:journey-health`, `by:capture` — or no label | Label. Absence = human-filed directly, or a side-effect record (see below) |
+| **Origin** | `by:code-health`, `by:harness-health`, `by:journey-health`, `by:docs-health`, `by:capture` — or no label | Label. Absence = human-filed directly, or a side-effect record (see below) |
 | **Scoring** | `risk:low\|medium\|high` × `effort:low\|medium\|high` | Labels — at most one of each family |
 | **Stage** | backlog (no label) \| `parked` \| `ready` | Labels — backlog is the absence of stage labels |
 | **Authorization** | `auto:build`, `auto:merge` | Labels — human-granted only, absence is the default not-authorized state |
@@ -49,18 +49,18 @@ Stage vocabulary is exactly these three words — **backlog** (absence of stage 
 label (absence = human-filed). Records created as side effects of other skills (e.g.
 `/wrap-up` leftovers) also carry no `by:*` — they record provenance as an `Origin: {context}`
 body line instead (e.g. `Origin: wrap-up leftover from #42`). The `by:*` family has exactly
-four members — one per filing skill: `by:code-health`, `by:harness-health`,
-`by:journey-health`, `by:capture`.
+five members — one per filing skill: `by:code-health`, `by:harness-health`,
+`by:journey-health`, `by:docs-health`, `by:capture`.
 
 ## Label taxonomy
 
-17 core labels + 3 optional `priority:*` labels. The canonical `LABELS_JSON` (names +
+18 core labels + 3 optional `priority:*` labels. The canonical `LABELS_JSON` (names +
 ≤100-char descriptions) lives in `_shared/label-bootstrap.md`; consumers bootstrap only the
 labels they are about to apply.
 
 | Family | Labels | Axis |
 |---|---|---|
-| Origin (4) | `by:code-health`, `by:harness-health`, `by:journey-health`, `by:capture` | Origin |
+| Origin (5) | `by:code-health`, `by:harness-health`, `by:journey-health`, `by:docs-health`, `by:capture` | Origin |
 | Risk (3) | `risk:low`, `risk:medium`, `risk:high` | Scoring |
 | Effort (3) | `effort:low`, `effort:medium`, `effort:high` | Scoring |
 | Stage (2) | `parked`, `ready` | Stage |
@@ -245,7 +245,7 @@ these literal names** — per-skill aliases and env-var renames are forbidden:
 
 | Skill | Role against the record |
 |---|---|
-| `/code-health`, `/harness-health`, `/journey-health` | File born-`ready` records with origin + scoring + fingerprint |
+| `/code-health`, `/harness-health`, `/journey-health`, `/docs-health` | File born-`ready` records with origin + scoring + fingerprint |
 | `/capture` | Files raw backlog records (`by:capture`, Type only) |
 | `/specify` | Shapes records to spec shape; decomposes designs into parent + `ready` leaves; seeds `## Cross-Spec Promises` on the parent for decompositions at or above `promise-register-min-leaves` |
 | `/triage` | The human gate — grants `auto:build` / `auto:merge` over the `ready` queue |
