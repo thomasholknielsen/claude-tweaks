@@ -7,15 +7,17 @@
 // docs/superpowers/specs/2026-07-16-unattended-tier-design.md.
 
 const CATEGORY_PATTERNS = [
+  // External state: third-party data, prod traffic, approvals
   /external state/i,
   /third-party/i,
   /prod(uction)? traffic/i,
   /\bapproval\b/i,
+  // Product/design decision
   /product( or design)? decision/i,
   /design decision/i,
+  // Not-yet-built dependency
   /not[ -]yet[ -]built/i,
-  /future (spec|plan|record)/i,
-  /depends on #\d+/i,
+  // Scope expansion: breaks many tests, long rebuild
   /scope expansion/i,
   /expands? (pipeline )?scope/i,
   /breaks? (more than )?\d+ unrelated tests/i,

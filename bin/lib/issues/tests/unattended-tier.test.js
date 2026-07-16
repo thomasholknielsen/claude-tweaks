@@ -46,3 +46,14 @@ test('clearsFloor returns false for an empty string', () => {
 test('clearsFloor returns false for a non-string input', () => {
   assert.strictEqual(clearsFloor(undefined), false);
 });
+
+test('clearsFloor returns false for a whitespace-only string', () => {
+  assert.strictEqual(clearsFloor('   '), false);
+});
+
+test('clearsFloor returns true for a third-party-dependency blocker', () => {
+  assert.strictEqual(
+    clearsFloor('Blocked on a third-party vendor shipping their webhook payload format'),
+    true,
+  );
+});
