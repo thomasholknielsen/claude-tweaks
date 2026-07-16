@@ -259,15 +259,15 @@ One `decisions.md` entry per auto-resolved item, in the same shape every other a
 uses:
 
 ```
-AUTO {time} -- {what}. Reason: {policy-source}. Reversibility: high.
+AUTO {time} — {what}. Reason: {policy-source}. Reversibility: high.
 ```
 
 Examples:
 
 ```
-AUTO 15:04:22 -- Ledger Phase 2: item #3 auto-routed to backlog (blocker: product decision). Reversibility: high.
-AUTO 15:06:03 -- Queue write: created record "Add OAuth refresh edge case" (parked, trigger: /auth provider docs land). Reversibility: high.
-AUTO 15:06:04 -- Ops acknowledgment: 2 items auto-acknowledged. Reversibility: high.
+AUTO 15:04:22 — Ledger Phase 2: item #3 auto-routed to backlog (blocker: product decision). Reversibility: high.
+AUTO 15:06:03 — Queue write: created record "Add OAuth refresh edge case" (parked, trigger: /auth provider docs land). Reversibility: high.
+AUTO 15:06:04 — Ops acknowledgment: 2 items auto-acknowledged. Reversibility: high.
 ```
 
 ## Notification
@@ -678,7 +678,7 @@ parked` — compose the staged-proposal body exactly as Phase 3's `Keep` branch 
 update ledger status to `deferred` (note `-> backlog`), and log:
 
 ```
-AUTO {time} -- Ledger Phase 2: item #{N} auto-routed to backlog (blocker: {category}). Reversibility: high.
+AUTO {time} — Ledger Phase 2: item #{N} auto-routed to backlog (blocker: {category}). Reversibility: high.
 ```
 
 Remove the item from this phase's remaining set — it does not appear in the table below and does
@@ -839,7 +839,7 @@ Replace with:
 ```
 **Unattended-tier auto-acknowledge:** if `unattended-tier: on` (see `_shared/unattended-tier.md`),
 skip the `AskUserQuestion` below entirely — update status to `acknowledged` for every item, log
-`AUTO {time} -- Ops acknowledgment: {N} items auto-acknowledged. Reversibility: high.` to
+`AUTO {time} — Ops acknowledgment: {N} items auto-acknowledged. Reversibility: high.` to
 `decisions.md`, and continue to Step 8.6. Otherwise, present the block below.
 
 Call `AskUserQuestion` with `question`: `"How do you want to handle these ops items?"`, `header`: `"Ops items"`, `multiSelect`: `false` — neither option's label is marked as the default:
