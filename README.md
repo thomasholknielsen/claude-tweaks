@@ -6,6 +6,15 @@ A structured workflow system for Claude Code — from idea capture through build
 
 Claude Code is powerful but unstructured. claude-tweaks adds a complete development lifecycle: capture ideas, challenge assumptions, decompose into specs, build with quality gates, and learn from what was built. Every finding is explicitly resolved — nothing silently drops.
 
+### What's new in v6.2.0 — Human acceptance sign-off (`/claude-tweaks:demo`)
+
+A new seventh work-record axis (`demo:pending` / `demo:approved` / `demo:changes-requested`)
+closes the gap between tests passing, spec completion, and an actual human verifying a built
+feature does what was asked. `/claude-tweaks:wrap-up` applies `demo:pending` and writes a
+Verification Brief (what changed, why, how to verify) while it still has full build context;
+the new `/claude-tweaks:demo` skill aggregates every pending record — across parallel threads,
+regardless of merge timing — and captures your verdict.
+
 ### What's new in v6.0.0 — The unified work record
 
 Every captured idea, health-skill finding, and human-filed issue is now the same thing: **one durable work record** (a GitHub issue, or its `local-files` twin — a plain markdown file), tracked through a single spine instead of the old two-file backlog design and per-artifact frontmatter:
@@ -125,7 +134,11 @@ See [CHANGELOG.md](CHANGELOG.md) for earlier release notes (v4.6, v4.5, v4.2, v4
      │         (full)
                            (deletes plans, ledger, design caches; legacy spec file
                             deleted too — a record-mode build's materialized file
-                            stays on the branch as committed audit trail instead)
+                            stays on the branch as committed audit trail instead;
+                            applies demo:pending + posts a Verification Brief on
+                            the record — record mode only)
+     │
+  ┈┈ /claude-tweaks:demo resolves demo:pending → approved/changes-requested (utility skill, no fixed position — run anytime, aggregates every in-flight thread) ┈┈
 ```
 
 > **Left column:** `/claude-tweaks:{name}` — **Right column:** `/superpowers:{name}` ([Superpowers plugin](https://github.com/obra/superpowers))
@@ -155,7 +168,7 @@ Two storage drivers back the same taxonomy, set once by `/claude-tweaks:init` an
 | `work-backend: github-issues` | A GitHub issue | Labels express stage/scoring/grants/bot-state; native GitHub Issue Types or `type:*` labels express Type. Headless dispatch (`/claude-tweaks:dispatch`) requires this driver — GitHub's RBAC is the mechanism the authorization model depends on. |
 | `work-backend: local-files` | `specs/{id}-{slug}.md`, one file per record | Frontmatter expresses the same facets for isomorphism. `/claude-tweaks:triage`'s grants are recorded but have no headless consumer — run `/claude-tweaks:flow`/`/claude-tweaks:build` manually against a chosen record instead. |
 
-See `skills/_shared/work-record.md` for the full six-axis contract (Type, Origin, Scoring, Stage, Authorization, Bot state), the complete label taxonomy, and the permission matrix governing which skill may add or remove which label.
+See `skills/_shared/work-record.md` for the full seven-axis contract (Type, Origin, Scoring, Stage, Authorization, Bot state, Acceptance), the complete label taxonomy, and the permission matrix governing which skill may add or remove which label.
 
 ## Skills
 
@@ -241,6 +254,8 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 **`/claude-tweaks:help`** — Dashboard with workflow status, command reference, and context-aware recommendations. Warns about dependency conflicts between in-progress specs. Surfaces the current branch's open PR (review decision, CI checks, unresolved threads) and ranks blocked-PR work first in recommendations.
 
 **`/claude-tweaks:tidy`** — Batch backlog hygiene. Scans the live work-record queue (backlog, parked, unsynced, unscored `ready`, `bot:blocked`, legacy-taxonomy records), scans review/wrap-up history for recurring patterns across specs, audits the documentation registry, and recommends project-level fixes. Also audits GitHub state — stale open PRs, code-health/harness-health/journey-health-filed issues, addressed-but-unresolved review threads — with GitHub mutations (close, resolve) executing only after batch approval. Pass `--scope=<name>[,<name>...]` to narrow a run to specific scan steps (e.g. `--scope=github` for GitHub PR/issue triage only) instead of the full sweep.
+
+**`/claude-tweaks:demo`** — The durable, cross-thread acceptance gate: aggregates every record `/claude-tweaks:wrap-up` has labeled `demo:pending` (open or closed — covers already-merged `auto:merge` work too), replays the Verification Brief `/wrap-up` wrote at build time so you never re-derive "how do I test this," and captures a real human verdict distinct from tests passing (`/test`) or code-quality review (`/review`). Approve resolves to `demo:approved`; requesting changes resolves to `demo:changes-requested` and files a linked follow-up backlog record. Bare `/demo` sweeps everything pending; `/demo #N` scopes to one record.
 
 **`/claude-tweaks:browse`** — Browser automation via agent-browser. Defines session naming, screenshot/trace paths, and operation vocabulary used by /stories, /visual-review, and /review.
 
