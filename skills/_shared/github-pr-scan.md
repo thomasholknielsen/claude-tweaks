@@ -140,7 +140,7 @@ state (an `auto:merge`'d record's issue can already be closed while still awaiti
 gh issue list --label demo:pending --state all --json number --limit 200 -q 'length'
 ```
 
-Render as one line: `Awaiting sign-off: **{N}** records built and ready for your review` —
+Render as one line: `Awaiting sign-off: **{N} records built and ready for your review**` —
 omit entirely when the count is 0.
 
 ## Output Contract

@@ -101,16 +101,20 @@ Bootstrap `demo:approved` and `demo:changes-requested` via the check-then-create
 
 - **Approve** (bulk or individual) — `gh issue edit {n} --remove-label demo:pending --add-label demo:approved` (`local-files`: set `facets.acceptance = 'approved'` via `writeRecord`).
 - **Request changes** — prompt for a short reason inline, then:
-  1. `gh issue edit {n} --remove-label demo:pending --add-label demo:changes-requested`
+  1. **`work-backend: github-issues`:** `gh issue edit {n} --remove-label demo:pending --add-label demo:changes-requested`. **`work-backend: local-files`:** set `facets.acceptance = 'changes-requested'` via `writeRecord`.
   2. File a linked follow-up record: backlog stage (no `ready` — a one-line reason isn't
      spec-shaped), Type `bug` by default (override to `feature`/`task` when the reason clearly
      describes new scope, not a defect), no `by:*` label — instead a body line
      `Origin: demo changes-requested from #{n}` per `_shared/work-record.md`'s side-effect-record
-     convention — plus the reason and a link back to the original. Use the same `recordPayload`
-     composition `/capture` uses (`bin/lib/issues/record.js`), just without invoking `/capture`
-     itself.
-  3. Comment on the original record noting the new follow-up's issue number, so the link is
-     bidirectional.
+     convention — plus the reason and a link back to the original. `work-backend: github-issues`:
+     use the same `recordPayload` composition `/capture` uses (`bin/lib/issues/record.js`), just
+     without invoking `/capture` itself. `work-backend: local-files`: use `allocateId`/`writeRecord`
+     from `bin/lib/issues/local-store.js` instead.
+  3. Note the bidirectional link back on the original record. `work-backend: github-issues`:
+     comment on the original issue with the new follow-up's issue number. `work-backend:
+     local-files`: there is no comment mechanism (same constraint `verification-brief.md` and
+     `_shared/work-record.md` already document) — append a short note with the follow-up's id to
+     the original record's body instead, via the same `readRecord`/`writeRecord` round trip.
 - **Skip for now** — no label change.
 
 ## Next Actions
