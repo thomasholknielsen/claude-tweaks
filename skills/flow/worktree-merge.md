@@ -27,6 +27,8 @@ After all terminals complete, merge the feature branches back. Run this once fro
 
 Before the merge/finish handoff begins, clear each run's worktree assignment — merge and push happen in the main checkout legitimately, and the working-directory hook (E1) would otherwise deny them as a wrong-checkout commit. A single bare `close-run` closes only the newest run, so with multiple parallel terminals this is not enough: list `.claude-tweaks/pipelines/*/` and, for every run dir whose `run-state.json` status is not already `clean`, run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$dir"` explicitly before starting the merge/finish sequence.
 
+`close-run` only satisfies E1. If the project also has `worktree.always: true` set (`.claude-tweaks/policy.yml`), a second, run-independent gate (`checkWorktreeRequired` in `pre-tool-use.js`) still applies, and `close-run` does nothing for it — it never reads run state, only whether the edit target is already inside a linked worktree. A clean merge is unaffected either way: `git merge`, `git checkout`, `git pull`, and `git push` are never gated, only `Edit`/`Write`/`NotebookEdit` and a literal `git commit` are. The gate only bites on a merge **conflict** — resolving one means editing files in the main checkout and then running `git commit` there, both denied outright since the main checkout is never a linked worktree. See the conflict branch of the Merge Procedure below, and `_shared/git-discipline.md`.
+
 ### Merge Order
 
 1. Sort completed branches by diff size (smallest first — run `git diff --stat {base-branch}..{branch}` and read the summary line at the end of its output)
@@ -65,6 +67,8 @@ For each completed branch (in order):
    - Option 1 — `label`: `"Resolve now (Recommended)"`, `description`: `"I'll resolve based on both branches' intent"`
    - Option 2 — `label`: `"Skip this branch"`, `description`: `"merge remaining branches first, come back to this one"`
    - Option 3 — `label`: `"Abort remaining merges"`, `description`: `"I'll handle merges manually"`
+
+   If `worktree.always: true` is set, don't resolve "Resolve now" directly in the main checkout — `Edit`/`Write` there is denied regardless of `close-run` (see above). Instead: `git worktree add` a scratch worktree off `{base-branch}`, re-run `git merge {branch}` there, resolve and commit inside that worktree (a linked worktree, so both gates pass), verify, fast-forward the main checkout to the result (`git merge --ff-only` — ungated, and creates no new commit), then remove the scratch worktree.
 4. After all merges — legacy spec-file alias runs only — update `specs/INDEX.md` to reflect completed specs (record mode never touches INDEX.md; records close via `Fixes #{n}` on merge)
 
 ### Post-Merge Summary
