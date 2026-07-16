@@ -1,6 +1,6 @@
 # Health-State — Durable Cross-Firing Storage Contract
 
-`code-health`, `harness-health`, and `journey-health` each need rotation cursors, a
+`code-health`, `harness-health`, `journey-health`, and `docs-health` each need rotation cursors, a
 filing retry queue, and (code-health only) a sub-threshold "remembered" cache to survive
 between scheduled Routine firings. A scheduled cloud-routine (CCR) firing starts from a
 fresh, stateless container every time, so local gitignored disk (`.claude-tweaks/{skill}/*.json`)

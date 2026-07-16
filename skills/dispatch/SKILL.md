@@ -9,7 +9,7 @@ description: Use when you want to claim and build already-authorized GitHub work
 The thin protocol wrapper between the authorization gate and the executor: select → claim group → invoke /flow → settle. Sits outside the main brainstorm-to-build chain, downstream of the gate:
 
 ```
-capture / code-health / harness-health / journey-health   (file records)
+capture / code-health / harness-health / journey-health / docs-health   (file records)
                               │
                               v
                 /claude-tweaks:specify   (shapes to ready)
