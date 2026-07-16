@@ -266,7 +266,7 @@ Add findings to the code review findings table:
 
    **Uncovered journey steps:**
    ```
-   | {N} | Journey '{name}' has {M} uncovered steps ({step numbers}) | Medium | Coverage | docs/journeys/{name}.md | Run `/stories journey={name}` |
+   | {N} | Journey '{name}' has {M} uncovered steps ({step numbers}) | Medium | Coverage | docs/journeys/{name}.md | Run `/claude-tweaks:stories journey={name}` |
    ```
 
    **Orphaned stories with journey URL match:**

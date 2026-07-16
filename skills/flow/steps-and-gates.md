@@ -105,7 +105,7 @@ Invoke /claude-tweaks:design polish <spec>
     │                                   → Note "polish: no work to do", proceed to wrap-up (no re-verify)
     │
     └─ {result: "ok", commands_invoked: [...], files_modified: [...]}
-                                        → Run re-verify gate (`/test skip-qa`)
+                                        → Run re-verify gate (`/claude-tweaks:test skip-qa`)
                                               │
                                               ├─ Pass  → Proceed to wrap-up
                                               └─ Fail  → STOP — "Polish broke verification" card

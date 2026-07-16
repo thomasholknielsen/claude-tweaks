@@ -72,7 +72,7 @@ Run `/claude-tweaks:reflect` in **full** mode. Pass:
 
 The reflect skill handles all four reflection lenses (Surprises, Hindsight, Near-misses, Fresh start), the tradeoff review, insight routing, and ledger writes. See `/claude-tweaks:reflect` for details.
 
-If any insight is "Implement now", /reflect handles it before returning control. Proceed after all insights are resolved.
+If any insight is "Implement now", the reflect skill handles it before returning control. Proceed after all insights are resolved.
 
 ---
 

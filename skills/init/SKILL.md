@@ -337,7 +337,7 @@ Use Phase 2 findings to identify routes/pages, infer personas (user roles, auth 
 ### Browser-test journey: {name}
 Skeleton journey inferred from code — "should feel" and "red flags" need browser validation.
 Routes covered: {list}. Persona: {persona}. Dev URL: {if known}.
-Run `/review journey:{name}` to enrich with experiential details.
+Run `/claude-tweaks:review journey:{name}` to enrich with experiential details.
 ```
 
 ### Option 2: Hybrid discovery (codebase + browser)
@@ -346,7 +346,7 @@ Delegate to `/claude-tweaks:visual-review discover` — runs the full 6-phase di
 
 ### Option 3: Skip
 
-Note that the user skipped journey discovery. Suggest running `/visual-review discover` later when they're ready.
+Note that the user skipped journey discovery. Suggest running `/claude-tweaks:visual-review discover` later when they're ready.
 
 ---
 

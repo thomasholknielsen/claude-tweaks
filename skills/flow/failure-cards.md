@@ -107,4 +107,4 @@ Close the template's fence above, then call `AskUserQuestion` with the options i
 - Option 2 — `label`: `"Revert + resume"`, `description`: `"git revert {polish-commit} then /claude-tweaks:flow {spec} no-polish wrap-up — revert the polish commit and resume without polish"`
 - Option 3 — `label`: `"Fix manually"`, `description`: `"Fix the verification failure manually, then resume: /claude-tweaks:flow {spec} polish"`
 
-> The re-verify cycle cap is 1 per flow run. Resuming with `/flow {spec} polish` starts a fresh cycle.
+> The re-verify cycle cap is 1 per flow run. Resuming with `/claude-tweaks:flow {spec} polish` starts a fresh cycle.

@@ -176,7 +176,7 @@ Scan `docs/REGISTRY.md` for health issues. Skip if the file doesn't exist.
 | Registry entry points to non-existent file | Delete entry |
 | Doc file exists in `docs/` but not in registry | Add entry (with Auto-detect patterns) |
 | Auto-detect pattern references non-existent directory | Update pattern |
-| Registry tier doesn't match project complexity | Update tier (suggest `/init update`) — apply tier-detection signals from `detection-tables.md` in `/claude-tweaks:init` skill's directory |
+| Registry tier doesn't match project complexity | Update tier (suggest `/claude-tweaks:init update`) — apply tier-detection signals from `detection-tables.md` in `/claude-tweaks:init` skill's directory |
 
 → Collect each as: `[registry] {issue} — {recommendation}`
 

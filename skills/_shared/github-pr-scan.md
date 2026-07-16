@@ -120,7 +120,7 @@ Findings and recommendations (tidy Action Vocabulary):
 | Open PR superseded (related spec complete, equivalent changes merged) | Close (GitHub) |
 | Merged/closed PR whose head branch or worktree still exists locally | Corroborates Step 4.5 `[git]` cleanup — dispatcher merges at assembly |
 | Unresolved review thread addressed by a later commit (evidence: commit touching the flagged lines) | Resolve thread |
-| Unresolved review thread not addressed | Capture to backlog or run `/review` — local action |
+| Unresolved review thread not addressed | Capture to backlog or run `/claude-tweaks:review` — local action |
 | Code-health issue stale (>4 weeks, flagged code since changed/removed) | Close (GitHub) — superseded |
 | Code-health issue still valid | Suggest `/claude-tweaks:triage` or Capture to backlog |
 | Harness-health issue stale (>4 weeks, the referenced target or code has since changed again) | Close (GitHub) — superseded |

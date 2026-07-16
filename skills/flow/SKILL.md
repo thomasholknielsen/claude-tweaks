@@ -25,7 +25,7 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 ### When NOT to Use
 
 - The input is a design doc, not a spec — run `/claude-tweaks:specify {doc}` first
-- The plan has tangled cross-task dependencies — flow's shape gate (Step 2.6) will hard-fail anyway; tighten via `/specify` first
+- The plan has tangled cross-task dependencies — flow's shape gate (Step 2.6) will hard-fail anyway; tighten via `/claude-tweaks:specify` first
 - When you expect significant review findings that need discussion
 
 ## Syntax

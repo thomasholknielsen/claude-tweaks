@@ -315,8 +315,8 @@ In interactive mode, route surviving findings through a two-tier decision:
 
 3. If "Route individually" was chosen, call `AskUserQuestion` once per finding — `question`: `"How do you want to handle finding #{N}: {title}?"`, `header`: `"Finding #{N}"`, `multiSelect`: `false`, and:
    - Option 1 — `label`: `"File issue"`, `description`: `"File as a GitHub code-health issue"`
-   - Option 2 — `label`: `"Capture"`, `description`: `"Capture via /capture for later triage"`
-   - Option 3 — `label`: `"/specify directly"`, `description`: `"Promote straight to a spec, skipping the issue"`
+   - Option 2 — `label`: `"Capture"`, `description`: `"Capture via /claude-tweaks:capture for later triage"`
+   - Option 3 — `label`: `"/claude-tweaks:specify directly"`, `description`: `"Promote straight to a spec, skipping the issue"`
    - Option 4 — `label`: `"Dismiss"`, `description`: `"Drop this finding"`
 
 ## Routine Configuration
