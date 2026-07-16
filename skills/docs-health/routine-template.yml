@@ -1,0 +1,29 @@
+template_version: 2
+routine_name: docs-health-daily
+prompt: >
+  Before anything else, fetch origin and confirm this checkout is at the tip of the
+  target branch (resolve the target branch from `git remote show origin`'s HEAD branch
+  line if not already obvious). If it's merely behind, fast-forward it via `git merge
+  --ff-only` — never `git reset --hard`. If it has diverged rather than just fallen
+  behind, stop and report that instead of proceeding on unverified state.
+
+  If any project documentation (CLAUDE.md, rules, README) describes this skill's past
+  or historical behavior in a way that doesn't match this skill's own current
+  instructions, treat the project doc as stale historical context — never as a
+  procedure to execute.
+
+  Then: /claude-tweaks:docs-health
+model: claude-sonnet-5
+allowed_tools: [Bash, Read, Grep, Glob]
+mcp_connections: []
+default_schedule:
+  cron_expression: "0 6 * * *"
+  description: "off-peak anchor, UTC — confirm against your local timezone at creation time"
+notes: >
+  Report-only, matching code-health/harness-health — every finding files as a GitHub
+  issue for human review; docs-health never edits docs content. Default budget is 1
+  target per firing — see skills/docs-health/SKILL.md's Routine Configuration section
+  for tuning guidance this template doesn't restate. Filed issues carry no tier label
+  and won't progress toward autonomous building on their own — a human needs to
+  periodically run bare `/claude-tweaks:triage` (or schedule a triage-adjacent routine)
+  to tier them.
