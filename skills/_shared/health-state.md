@@ -24,6 +24,10 @@ harness-health/runs.json
 journey-health/cursors.json
 journey-health/retry-queue.json
 journey-health/runs.json
+
+docs-health/cursors.json
+docs-health/retry-queue.json
+docs-health/runs.json
 ```
 
 ## Mechanism

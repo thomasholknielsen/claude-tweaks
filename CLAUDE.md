@@ -35,7 +35,7 @@ LICENSE                           → MIT
 
 **Lifecycle:** init, capture, challenge, specify, build, test, stories, review, wrap-up
 **Component:** reflect, simplify, deepen, journeys, visual-review, design, visualize, assess-agent-autonomy
-**Utility:** help, tidy, flow, browse, ledger, version, research, code-health, routine, harness-health, journey-health, triage, dispatch
+**Utility:** help, tidy, flow, browse, ledger, version, research, code-health, routine, harness-health, journey-health, docs-health, triage, dispatch
 
 ### Skills with sub-files
 
@@ -171,13 +171,15 @@ Referenced by (worktree assignment, enforcement, and `events.jsonl` consumption)
 
 ```bash
 claude --plugin-dir ./              # Local development — load plugin from current directory
-npm test                            # Runs node --test over tests/ AND bin/lib/code-health/tests/ AND bin/lib/issues/tests/ AND bin/lib/harness-health/tests/ AND bin/lib/journey-health/tests/
+npm test                            # Runs node --test over tests/ AND bin/lib/code-health/tests/ AND bin/lib/issues/tests/ AND bin/lib/harness-health/tests/ AND bin/lib/journey-health/tests/ AND bin/lib/docs-health/tests/
 node --test bin/lib/code-health/tests/*.test.js   # Code-health unit suite only
 node bin/code-health.js <cmd>             # Code-health CLI: validate-findings, classify, next-slice, status, churn-report, pull-issues
 node --test bin/lib/harness-health/tests/*.test.js   # Harness-health unit suite only
 node bin/harness-health.js <cmd>     # Harness-health CLI: next-target, validate-findings, mark, churn-report
 node --test bin/lib/journey-health/tests/*.test.js   # Journey-health unit suite only
 node bin/journey-health.js <cmd>     # Journey-health CLI: next-target, validate-findings, mark, churn-report, qa-evidence
+node --test bin/lib/docs-health/tests/*.test.js   # Docs-health unit suite only
+node bin/docs-health.js <cmd>        # Docs-health CLI: next-target, validate-findings, mark, churn-report
 ```
 
 ### Subagent Contract (v4.2+)
