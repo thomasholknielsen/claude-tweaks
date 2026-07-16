@@ -1,4 +1,4 @@
-// bin/lib/hooks/post-tool-use.js — E2: commit breadcrumbs (log tier) + closing-keyword check (warn tier).
+// bin/lib/hooks/post-tool-use.js — E2: commit breadcrumbs (log tier) + closing-keyword check (warn tier) + design-doc capture nudge (warn tier).
 'use strict';
 const { execFileSync } = require('child_process');
 const { gitTargets } = require('./git-command');
