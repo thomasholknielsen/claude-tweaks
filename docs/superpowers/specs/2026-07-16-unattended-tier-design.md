@@ -149,7 +149,10 @@ words and each needs the precise "...unless `unattended-tier` is on — see
 - `wrap-up/leftover-routing.md` — the auto-mode section's "never created directly" line.
 - `wrap-up/review-console.md` — "Queue writes are per-item only... never grouped under 'Approve
   all'" line.
-- Root `CLAUDE.md` — the Don'ts entry mirroring the Anti-Patterns table above.
+- Root `CLAUDE.md` — verified against the actual file (not assumed): there is no separate Don'ts
+  bullet mirroring this; the real touch point is the Auto-Mode Contract section's summary line
+  ("...and what `auto` never silences (ledger resolve Phase 2, work-record creation — new backlog
+  or parked records, ...)"), which needs the same caveat.
 
 ## Testing
 
@@ -191,7 +194,13 @@ back to a staged Queue write rather than vanishing.
   table, Anti-Patterns table), `skills/flow/SKILL.md` (Manifesto Step 3), `skills/ledger/resolve-gate.md`
   (Phase 2 narrowing + Phase 3 standalone fallback), `skills/wrap-up/review-console.md` (Step 8.6
   auto-file path), `skills/wrap-up/SKILL.md` (Step 8.5 ops-ack block), `skills/wrap-up/leftover-routing.md`
-  (caveat only — disposition logic unchanged), `_shared/work-record.md` (config-keys table gains
-  `unattended-tier`), root `CLAUDE.md` (Don'ts caveat + Config keys mention).
+  (caveat only — disposition logic unchanged), root `CLAUDE.md` (Auto-Mode Contract section's
+  "what auto never silences" summary line gains the same caveat). Verified against the actual
+  file: `_shared/work-record.md`'s "Config keys" table is scoped to the record/dispatch model
+  specifically (`work-backend`, `dispatch-retry-ceiling`, `automerge-max-lines`, etc. — all
+  "written by `/init`") and does not list the other Manifesto pipeline-policy levers
+  (`scope-creep`, `leftover-default`, `review-severity-floor`, ...) either; `unattended-tier`
+  belongs with those, documented in its own new `_shared/unattended-tier.md` and named in the
+  Manifesto's lever list, not added to that table.
 - Documentation: none of this changes the skill catalog count, so no README.md/`help/reference-card.md`
   catalog update is needed — only the cross-reference sweep above.
