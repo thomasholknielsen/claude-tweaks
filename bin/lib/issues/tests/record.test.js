@@ -138,6 +138,7 @@ test('parseRecordFacets: by:capture + parked', () => {
   assert.deepStrictEqual(parseRecordFacets(['by:capture', 'parked']), {
     origin: 'capture', risk: null, effort: null, priority: null, stage: 'parked',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
+    acceptance: null,
   });
 });
 
@@ -163,6 +164,7 @@ test('parseRecordFacets: empty label list', () => {
   assert.deepStrictEqual(parseRecordFacets([]), {
     origin: null, risk: null, effort: null, priority: null, stage: 'backlog',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
+    acceptance: null,
   });
 });
 
@@ -182,6 +184,32 @@ test('parseRecordFacets: malformed ready+parked resolves deterministically to re
 
 test('parseRecordFacets: malformed parked+ready still resolves to ready regardless of array order', () => {
   assert.strictEqual(parseRecordFacets(['parked', 'ready']).stage, 'ready');
+});
+
+// AC — acceptance axis (demo skill)
+
+test('parseRecordFacets: demo:pending sets acceptance to pending', () => {
+  assert.strictEqual(parseRecordFacets(['demo:pending']).acceptance, 'pending');
+});
+
+test('parseRecordFacets: demo:approved sets acceptance to approved', () => {
+  assert.strictEqual(parseRecordFacets(['demo:approved']).acceptance, 'approved');
+});
+
+test('parseRecordFacets: demo:changes-requested sets acceptance to changes-requested', () => {
+  assert.strictEqual(parseRecordFacets(['demo:changes-requested']).acceptance, 'changes-requested');
+});
+
+test('parseRecordFacets: acceptance defaults to null when no demo:* label is present', () => {
+  assert.strictEqual(parseRecordFacets([]).acceptance, null);
+  assert.strictEqual(parseRecordFacets(['ready', 'auto:build']).acceptance, null);
+});
+
+test('parseRecordFacets: LABELS exposes the three demo:* acceptance label strings', () => {
+  const { LABELS } = require('../record');
+  assert.strictEqual(LABELS.DEMO_PENDING, 'demo:pending');
+  assert.strictEqual(LABELS.DEMO_APPROVED, 'demo:approved');
+  assert.strictEqual(LABELS.DEMO_CHANGES_REQUESTED, 'demo:changes-requested');
 });
 
 // AC 5 — dependencies
