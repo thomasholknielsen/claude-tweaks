@@ -113,15 +113,21 @@ the existing per-item drill unchanged.
 
 This is the *only* place a queue-write proposal is turned into a real record without a click,
 whether it originated from the ledger gate above, leftover routing (Step 4), or `/reflect`'s
-tangential-idea routing (Step 3) — all three run before Step 8.6, so a fully-on run reaches the
-console with those proposals already resolved. Before rendering, if the lever is on, the console
-walks `staged/` for queue-write files, creates each via the exact same `gh issue create` /
-`local-store.js` path the manual "Apply" choice already uses, logs it as `AUTO` rather than
-`STAGED`, and lists it in **Auto-applied** instead of **Queue writes** — which, on a fully-on run,
-renders empty by construction. The one deliberate exception: standalone `/claude-tweaks:ledger
-resolve` invoked with no pipeline run directory has no console to centralize through, so its
-existing Phase 3 "no run directory resolves" branch gets the identical check inline — already a
-precedented special case in that file, not new duplication.
+tangential-idea routing specifically (Step 3) — all three run before Step 8.6, so a fully-on run
+reaches the console with those proposals already resolved. Note the scoping: reflect's Step 3 also
+stages convention-drift, pattern-observation, and skill-update findings under the same
+`staged/reflect-{n}.md` naming — those are **not** queue writes and must not be swept up here; the
+console already distinguishes a queue-write proposal from a plain staged patch by the `decisions.md`
+`STAGED` entry's own phrasing ("— backlog candidate. Surface at Review Console" vs. a bare stage
+path), which is how it builds the Queue writes (Section 7) list separately from Pending review
+(Sections 1-6) today — this design reuses that existing distinction rather than inventing a new
+one. Before rendering, if the lever is on, the console creates each queue-write proposal via the
+exact same `gh issue create` / `local-store.js` path the manual "Apply" choice already uses, logs
+it as `AUTO` rather than `STAGED`, and lists it in **Auto-applied** instead of **Queue writes** —
+which, on a fully-on run, renders empty by construction. The one deliberate exception: standalone
+`/claude-tweaks:ledger resolve` invoked with no pipeline run directory has no console to centralize
+through, so its existing Phase 3 "no run directory resolves" branch gets the identical check
+inline — already a precedented special case in that file, not new duplication.
 
 ### Ops-ack auto-select (`wrap-up/SKILL.md` Step 8.5 ops-acknowledgment block — its only home)
 
