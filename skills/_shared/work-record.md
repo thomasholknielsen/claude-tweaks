@@ -81,7 +81,7 @@ Who may add / remove which labels. "Machinery" = any headless or autonomous path
 | Actor | Adds | Removes | Never |
 |---|---|---|---|
 | **Human** (GitHub UI or interactive session) | anything, incl. `auto:*` | anything | — |
-| **Health skills** (`/code-health`, `/harness-health`, `/journey-health`) | `by:{self}`, `risk:*`, `effort:*`, `ready` (born-ready), Type | nothing | `auto:*`, `bot:*`, `parked` |
+| **Health skills** (`/code-health`, `/harness-health`, `/journey-health`, `/docs-health`) | `by:{self}`, `risk:*`, `effort:*`, `ready` (born-ready), Type | nothing | `auto:*`, `bot:*`, `parked` |
 | **`/capture`** | `by:capture`, Type (`type:*` only when `work-types: labels`) | nothing | scoring, stage, `auto:*`, `bot:*` |
 | **`/specify`** (shaper) | `ready`, `risk:*`/`effort:*` when unstamped, Type | `parked` (promotion) | `auto:*`, `bot:*` |
 | **`/triage`** (gate, human present) | `auto:build`, `auto:merge` (human-confirmed), scoring supplied inline | `ready` (flag back), `bot:blocked` (re-grant strip) | granting on a headless path |
@@ -147,7 +147,8 @@ one-liner," not to automate editorial judgment.
 
 ## Born-ready rule
 
-Health-skill records (`by:code-health`, `by:harness-health`, `by:journey-health`) are
+Health-skill records (`by:code-health`, `by:harness-health`, `by:journey-health`,
+`by:docs-health`) are
 agent-sized and spec-shaped **by construction** — their builders emit Current State /
 Deliverables / Acceptance Criteria bodies with scoring. They therefore file with `ready`
 already applied and appear directly in the gate's worklist, skipping maturation. Captured
