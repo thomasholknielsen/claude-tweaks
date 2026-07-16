@@ -107,6 +107,11 @@ Before forming any finding, run these mechanical checks and treat their output a
    wc -w "<target-path>"
    ```
    Divide word count by bullet count for a rough average. Above roughly 40 words/bullet is evidence — not a verdict — that specific bullets have drifted from a terse constraint into an incident narrative. Feed this as an anchor into dimension 8's existing best-practice judgment rather than treating it as a standalone finding; tune the threshold from real findings over time.
+8. **Bare skill-invocation reference check** (skills only, new). Grep the target skill's actionable instruction text — `## Step N` bodies and `## Next Actions` blocks — for a bare `/{other-skill-name}` referencing another skill in the same project, without a `claude-tweaks:`-style fully-qualified prefix:
+   ```bash
+   grep -nE '/[a-z][a-z0-9-]*\b' "<target-path>"
+   ```
+   A bare reference sitting inside imperative instruction text ("Run `/X`", "`/X` handles it") — as opposed to a Relationship-to-Other-Skills table row or other descriptive prose, where a bare short name is never passed to a tool call — is evidence for a `best-practice` finding: the `Skill` tool requires the fully-qualified name, and a bare short form fails at invocation time. Distinguishing actionable text from descriptive prose requires reading the surrounding section, not just the grep hit — treat this as a candidate list to triage, not a verdict. Feed confirmed hits into dimension 8's best-practice judgment.
 
 Checks 1-2 are optional assists — skip gracefully if a referenced path/command genuinely can't be checked mechanically (e.g., a described convention with no clean grep signature). A finding grounded in one of these checks is higher-confidence than one based on reading alone.
 
