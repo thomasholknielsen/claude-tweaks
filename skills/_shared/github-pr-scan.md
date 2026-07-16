@@ -1,6 +1,6 @@
 # GitHub PR Scan — Shared Procedure
 
-Single source of truth for scanning GitHub pull-request and issue state. Consumed by `/claude-tweaks:help` (Stage 4.5, **`current-pr`** scope; Stage 4.6, **`triage-queue`** scope) and `/claude-tweaks:tidy` (Step 4.8, **`repo-wide`** scope). Subagents cannot read this file — the dispatcher inlines the relevant scope section, plus the Detection Ladder and Output Contract, into the scan agent's prompt (the same pattern as `tidy/scan-procedures.md`).
+Single source of truth for scanning GitHub pull-request and issue state. Consumed by `/claude-tweaks:help` (Stage 4.5, **`current-pr`** scope; Stage 4.6, **`triage-queue`** scope; Stage 4.7, **`acceptance-queue`** scope) and `/claude-tweaks:tidy` (Step 4.8, **`repo-wide`** scope). Subagents cannot read this file — the dispatcher inlines the relevant scope section, plus the Detection Ladder and Output Contract, into the scan agent's prompt (the same pattern as `tidy/scan-procedures.md`).
 
 ## Detection Ladder (fail-open)
 
@@ -129,6 +129,19 @@ Findings and recommendations (tidy Action Vocabulary):
 | Journey-health issue still valid | Suggest `/claude-tweaks:triage` or Capture to backlog |
 
 Emit `[pr]` and `[gh-issue]` rows per the Output Contract. Backlog-record findings (the record-scan shapes: stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) no longer originate from this scope — see `tidy/scan-procedures.md` Step 1 for their findings table and `[backlog]`/`[parked]`/`[unsynced]`/`[scoring]`/`[blocked]`/`[legacy]` row prefixes.
+
+## Scope: `acceptance-queue` (consumed by /help Stage 4.7)
+
+One cheap count for the dashboard's Acceptance Queue section — deliberately `--state all`,
+unlike every other count in this file, since `demo:pending` persists independent of open/closed
+state (an `auto:merge`'d record's issue can already be closed while still awaiting sign-off).
+
+```bash
+gh issue list --label demo:pending --state all --json number --limit 200 -q 'length'
+```
+
+Render as one line: `Awaiting sign-off: **{N}** records built and ready for your review` —
+omit entirely when the count is 0.
 
 ## Output Contract
 
