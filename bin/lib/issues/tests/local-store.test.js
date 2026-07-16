@@ -24,7 +24,7 @@ test('writeRecord then readRecord round-trips facets, id, slug, title, and body'
   const facets = {
     type: 'feature', origin: 'capture', risk: 'medium', effort: 'low', priority: null,
     stage: 'parked', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
-    parent: 12, blockedBy: [12, 7], unsynced: true,
+    parent: 12, blockedBy: [12, 7], unsynced: true, acceptance: null,
   };
 
   writeRecord(filePath, { title: 'Bar', body: 'Current State…', facets });
@@ -46,7 +46,7 @@ test('writeRecord omits default/absent frontmatter keys from the written file', 
     facets: {
       type: 'task', origin: null, risk: null, effort: null, priority: null,
       stage: 'backlog', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
-      parent: null, blockedBy: [], unsynced: false,
+      parent: null, blockedBy: [], unsynced: false, acceptance: null,
     },
   });
   const raw = fs.readFileSync(filePath, 'utf8');
@@ -98,7 +98,7 @@ function baseFacets(overrides) {
   return Object.assign({
     type: 'task', origin: null, risk: null, effort: null, priority: null,
     stage: 'backlog', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
-    parent: null, blockedBy: [], unsynced: false,
+    parent: null, blockedBy: [], unsynced: false, acceptance: null,
   }, overrides);
 }
 
@@ -131,6 +131,31 @@ test('queryRecords matches object-valued facets (grants) with deep equality, not
   assert.strictEqual(bothGrants[0].slug, 'a');
 });
 
+test('writeRecord then readRecord round-trips the acceptance facet', (t) => {
+  const dir = tmp(t);
+  const filePath = path.join(dir, '9-demo.md');
+  writeRecord(filePath, { title: 'Demo', body: 'b', facets: baseFacets({ acceptance: 'pending' }) });
+  const record = readRecord(filePath);
+  assert.strictEqual(record.facets.acceptance, 'pending');
+});
+
+test('writeRecord omits the acceptance line when null', (t) => {
+  const dir = tmp(t);
+  const filePath = path.join(dir, '10-none.md');
+  writeRecord(filePath, { title: 'None', body: 'b', facets: baseFacets({ acceptance: null }) });
+  const raw = fs.readFileSync(filePath, 'utf8');
+  assert.ok(!/^acceptance:/m.test(raw), 'must not write acceptance when null');
+});
+
+test('queryRecords filters by acceptance facet', (t) => {
+  const dir = tmp(t);
+  writeRecord(path.join(dir, '1-a.md'), { title: 'A', body: 'a', facets: baseFacets({ acceptance: 'pending' }) });
+  writeRecord(path.join(dir, '2-b.md'), { title: 'B', body: 'b', facets: baseFacets({ acceptance: 'approved' }) });
+  const pending = queryRecords(dir, { acceptance: 'pending' });
+  assert.strictEqual(pending.length, 1);
+  assert.strictEqual(pending[0].slug, 'a');
+});
+
 test('queryRecords returns an empty array for a missing dir', (t) => {
   const dir = tmp(t);
   assert.deepStrictEqual(queryRecords(path.join(dir, 'nope'), {}), []);
@@ -154,4 +179,5 @@ test('readRecord on a file with no frontmatter: type null, stage backlog, body i
   assert.deepStrictEqual(record.facets.bot, { inProgress: false, blocked: false });
   assert.deepStrictEqual(record.facets.blockedBy, []);
   assert.strictEqual(record.facets.unsynced, false);
+  assert.strictEqual(record.facets.acceptance, null);
 });
