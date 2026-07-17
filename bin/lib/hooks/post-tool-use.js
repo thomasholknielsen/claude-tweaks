@@ -1,4 +1,4 @@
-// bin/lib/hooks/post-tool-use.js — E2: commit breadcrumbs (log tier) + closing-keyword check (warn tier).
+// bin/lib/hooks/post-tool-use.js — E2: commit breadcrumbs (log tier) + closing-keyword check (warn tier) + design-doc capture nudge (warn tier).
 'use strict';
 const { execFileSync } = require('child_process');
 const { gitTargets } = require('./git-command');
@@ -71,6 +71,32 @@ function checkClosingKeyword(command, cwd) {
   return null;
 }
 
+// Deferred-subproject capture nudge (warn tier). superpowers:brainstorming
+// identifies oversized requests and defers all but the first sub-project to
+// "later" with no durable tracking — they live only in conversation memory
+// and are lost on /clear. This fires whenever a brainstorming design doc is
+// written, unconditionally: it does not try to parse whether decomposition
+// actually happened (unreliable prose classification), same "cheap false
+// positive, no smart detection" precedent checkClosingKeyword sets above.
+// Matching on the Write call itself (not "new file only") also means this
+// re-fires if Step 7's self-review later revises the same design doc.
+const DESIGN_DOC_PATH_RE = /(^|\/)docs\/superpowers\/specs\/[^/]+-design\.md$/;
+
+function checkDesignDocWrite(ctx) {
+  if (ctx.input.tool_name !== 'Write') return null;
+  const filePath = ctx.input.tool_input && ctx.input.tool_input.file_path;
+  if (typeof filePath !== 'string' || !DESIGN_DOC_PATH_RE.test(filePath)) return null;
+  return {
+    json: {
+      systemMessage:
+        'claude-tweaks: a design doc was just written under docs/superpowers/specs/. If ' +
+        'brainstorming identified other independent sub-projects and deferred them to focus ' +
+        'on this one, capture each deferred sub-project now via /claude-tweaks:capture — they ' +
+        "aren't tracked anywhere else, and will be lost once this conversation clears.",
+    },
+  };
+}
+
 function run(ctx) {
   const command = ctx.input.tool_name === 'Bash' ? (ctx.input.tool_input && ctx.input.tool_input.command) : null;
   const hasCommand = typeof command === 'string' && !!command;
@@ -91,6 +117,10 @@ function run(ctx) {
     const warning = checkClosingKeyword(command, ctx.cwd);
     if (warning) return warning;
   }
+
+  // Deferred-subproject capture nudge (warn tier) — deliberately NOT gated on ctx.runDir.
+  const designDocNudge = checkDesignDocWrite(ctx);
+  if (designDocNudge) return designDocNudge;
 
   return {};
 }
