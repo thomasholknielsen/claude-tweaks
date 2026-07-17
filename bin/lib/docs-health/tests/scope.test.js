@@ -135,3 +135,29 @@ test('selectTarget picks the highest-churn non-stale doc via injected signals', 
   assert.strictEqual(result.why, 'hotspot');
   assert.strictEqual(result.churnCount, 5);
 });
+
+test('selectTarget scores churn on declared files: paths, ignoring incidental backtick paths, when files: is present', () => {
+  const root = tmp();
+  initGitRepo(root);
+  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'src', 'declared.ts'), 'export const a = 1;\n');
+  commit(root, 'add declared.ts');
+
+  fs.mkdirSync(path.join(root, 'docs'), { recursive: true });
+  // A doc that declares files: (the real dependency) but also happens to
+  // backtick-mention an unrelated path with no real churn — files:
+  // should be what actually drives the churn score.
+  fs.writeFileSync(
+    path.join(root, 'docs', 'tracked.md'),
+    '---\nfiles:\n  - src/declared.ts\n---\n\n# Tracked\n\nSee `src/unrelated.ts` for background.\n',
+  );
+  commit(root, 'add tracked.md');
+
+  const now = Date.now();
+  const recentAudit = now - (STALE_DAYS - 1) * 86400000;
+  const cursors = { 'doc:tracked': { lastAuditedMs: recentAudit } };
+  const result = selectTarget(root, cursors, { now });
+  assert.strictEqual(result.why, 'hotspot');
+  assert.strictEqual(result.id, 'tracked');
+  assert.ok(result.churnCount >= 1);
+});

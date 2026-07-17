@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { STALE_DAYS } = require('./score');
+const { parseFilesField } = require('./freshness');
 
 // Directory names excluded when they sit directly under docs/ — ephemeral
 // /specify + /superpowers:writing-plans build artifacts (specs, plans), not
@@ -118,7 +119,8 @@ function selectTarget(root, cursors, opts = {}) {
       let content;
       try { content = fs.readFileSync(candidate.path, 'utf8'); } catch { content = ''; }
       const relDocPath = path.relative(root, candidate.path).split(path.sep).join('/');
-      const domainPaths = extractDomainPaths(content);
+      const declaredPaths = parseFilesField(content);
+      const domainPaths = declaredPaths.length > 0 ? declaredPaths : extractDomainPaths(content);
       churn = domainChurn(root, [relDocPath, ...domainPaths], sinceMs);
     }
     if (churn > 0) scored.push({ candidate, churn });
