@@ -6,6 +6,16 @@ A structured workflow system for Claude Code — from idea capture through build
 
 Claude Code is powerful but unstructured. claude-tweaks adds a complete development lifecycle: capture ideas, challenge assumptions, decompose into specs, build with quality gates, and learn from what was built. Every finding is explicitly resolved — nothing silently drops.
 
+### What's new in v6.4.0 — Unattended tier: fewer clicks in `auto` mode
+
+A new opt-in policy lever, `unattended-tier` (off by default), lets three narrow, low-stakes
+decision points — floor-clearing ledger residue, queue-write record creation, and ops-item
+acknowledgment — resolve without a live click, everywhere `auto`/`hybrid` mode runs (headless
+`/claude-tweaks:dispatch` firings or local `/claude-tweaks:flow` runs alike). Every action is
+still logged to `decisions.md` and rolled into one consolidated push notification; HARD-GATEs,
+merge conflicts, and every `Fix anyway`/`Accept`/`Drop` ledger disposition stay fully
+human-gated regardless of the lever's state. See `skills/_shared/unattended-tier.md`.
+
 ### What's new in v6.3.0 — Human acceptance sign-off (`/claude-tweaks:demo`)
 
 A new seventh work-record axis (`demo:pending` / `demo:approved` / `demo:changes-requested`)
