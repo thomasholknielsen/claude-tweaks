@@ -10,6 +10,9 @@ const { decide } = require('./lib/docs-health/dedup');
 const { validateFinding } = require('./lib/docs-health/validate-finding');
 const { toIssuePayload } = require('./lib/docs-health/issue-payload');
 const { selectTarget, listDocs } = require('./lib/docs-health/scope');
+const path = require('path');
+const { computeInboundReferences } = require('./lib/docs-health/findability');
+const { checkTrackedFreshness } = require('./lib/docs-health/freshness');
 
 const retryQueueCommands = makeRetryQueueCommands({ readDurableState, writeDurableState });
 
@@ -223,6 +226,52 @@ function cmdWordCount(args) {
   process.stdout.write(JSON.stringify({ result }, null, 2) + '\n');
 }
 
+// Derives a doc's id (relative to docs/, no .md extension) from a raw
+// path argument — mirrors scope.js's own id-deriving logic in walk().
+function deriveDocId(targetPath, root) {
+  const docsRoot = path.join(root, 'docs');
+  const rel = path.relative(docsRoot, path.resolve(targetPath));
+  return rel.split(path.sep).join('/').replace(/\.md$/, '');
+}
+
+function cmdFindRefs(args) {
+  const targetPath = args._[1];
+  if (!targetPath) {
+    process.stderr.write('usage: docs-health.js find-refs <path> [--root <dir>]\n');
+    process.exit(2);
+  }
+  const root = args.root || process.cwd();
+  if (!fs.existsSync(targetPath)) {
+    process.stderr.write(`find-refs: could not read file: ${targetPath}\n`);
+    process.exit(1);
+  }
+  const docId = deriveDocId(targetPath, root);
+  const result = computeInboundReferences(docId, root);
+  process.stdout.write(JSON.stringify({ result }, null, 2) + '\n');
+}
+
+function cmdCheckFreshness(args) {
+  const targetPath = args._[1];
+  if (!targetPath) {
+    process.stderr.write('usage: docs-health.js check-freshness <path> [--root <dir>]\n');
+    process.exit(2);
+  }
+  const root = args.root || process.cwd();
+  let content;
+  try {
+    content = fs.readFileSync(targetPath, 'utf8');
+  } catch {
+    process.stderr.write(`check-freshness: could not read file: ${targetPath}\n`);
+    process.exit(1);
+  }
+  const docId = deriveDocId(targetPath, root);
+  const cursors = readDurableState(root).cursors;
+  const cursor = cursors[`doc:${docId}`];
+  const sinceTimestamp = cursor && cursor.lastAuditedMs != null ? cursor.lastAuditedMs : null;
+  const result = checkTrackedFreshness(content, root, sinceTimestamp);
+  process.stdout.write(JSON.stringify({ result }, null, 2) + '\n');
+}
+
 function main(argv) {
   const args = parseArgs(argv);
   const cmd = args._[0];
@@ -231,6 +280,8 @@ function main(argv) {
   if (cmd === 'churn-report') return cmdChurnReport(args);
   if (cmd === 'mark') return cmdMark(args);
   if (cmd === 'word-count') return cmdWordCount(args);
+  if (cmd === 'find-refs') return cmdFindRefs(args);
+  if (cmd === 'check-freshness') return cmdCheckFreshness(args);
   if (cmd === 'retry-queue' && args._[1] === 'drain') return retryQueueCommands.drain(args);
   if (cmd === 'retry-queue' && args._[1] === 'update') return retryQueueCommands.update({ ...args, _: args._.slice(1) });
   process.stderr.write(
@@ -238,7 +289,7 @@ function main(argv) {
     'commands: next-target [--target <id>] [--budget <n>], ' +
     'validate-findings <file> [--target <id>] [--issues <file>] [--dry-run], ' +
     'churn-report [--fail-on-high-churn <r>], mark <fingerprint> <declined>, ' +
-    'word-count <path>, ' +
+    'word-count <path>, find-refs <path> [--root <dir>], check-freshness <path> [--root <dir>], ' +
     'retry-queue drain, retry-queue update <results.json>\n',
   );
   process.exit(2);
@@ -246,4 +297,4 @@ function main(argv) {
 
 if (require.main === module) main(process.argv.slice(2));
 
-module.exports = { parseArgs, cmdNextTarget, cmdValidateFindings, cmdChurnReport, cmdMark, cmdWordCount, main };
+module.exports = { parseArgs, cmdNextTarget, cmdValidateFindings, cmdChurnReport, cmdMark, cmdWordCount, cmdFindRefs, cmdCheckFreshness, main };
