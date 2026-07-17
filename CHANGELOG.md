@@ -1,5 +1,15 @@
 # Changelog
 
+## v6.6.0 — Docs-health expansion + wrap-up integration + genre templates
+
+Extends `/claude-tweaks:docs-health` with three new/strengthened judging dimensions, two new CLI subcommands, an inline integration into `/claude-tweaks:wrap-up`, and a unified template library backing missing-doc scaffolding.
+
+- **Three new/strengthened docs-health dimensions** — findability (is the doc discoverable/linked from where a reader would look, repo-scoped), placement-fit (does the doc live in the genre-appropriate location), and freshness-dependencies (does the doc's frontmatter track the source files it depends on, so drift can be detected) — added to `_shared/criteria-docs-diataxis.md`'s JUDGE procedure alongside the existing genre-drift, depth-mismatch, and dual-persona misleading-risk checks.
+- **Two new CLI subcommands** — `find-refs <path> [--root <dir>]` (repo-scoped reference/backlink lookup backing the findability check) and `check-freshness <path> [--root <dir>]` (frontmatter-declared source-dependency staleness check) added to `bin/docs-health.js`.
+- **`/claude-tweaks:wrap-up` docs-health integration** — new `skills/wrap-up/docs-health-integration.md`, loaded by Step 6.1: D1 applies the full docs-health JUDGE procedure inline to every doc this work's diff touched (additive findings fold into the Configuration Updates batch table; restructural findings file as `by:docs-health` GitHub issues through the same dedup/filing CLI machinery `/claude-tweaks:docs-health` itself uses), and D2 detects documentation this work should have produced but didn't, scaffolding new docs from the genre template library.
+- **Unified 6-genre template library** — new `skills/_shared/diataxis-genre-templates.md` is now the single source of truth for all six doc genres `/claude-tweaks:docs-health` recognizes: the four core Diátaxis genres (Tutorial, How-To, Reference, Explanation — new) plus the two native-exempt genres it already judged, ADR and Journey, whose canonical skeletons migrated here from `_shared/decision-records.md` and `journeys/journey-template.md` (which now point here instead of duplicating the literal skeleton). Consumed by `/claude-tweaks:init` Phase 8.5's missing-doc backlog items and `/claude-tweaks:wrap-up`'s D2 missing-doc detection.
+- `/claude-tweaks:wrap-up` Step 9/10 templates gained a `docs-health-issue` config-update type and two new Step 10 execution bullets (new-doc scaffolding from the template library, restructural docs-health filing) so approved docs-health findings from the Console/batch have somewhere to land.
+
 ## v4.15.0 — Research delegates to the built-in /deep-research
 
 `/claude-tweaks:research` no longer ships a vendored Python engine. It now delegates to Claude Code's built-in `/deep-research` Dynamic Workflow when available, and falls back to a lean inline model-driven method otherwise.

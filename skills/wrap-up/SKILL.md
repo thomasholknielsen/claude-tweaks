@@ -247,7 +247,7 @@ See `cleanup-procedures.md` for the canonical cleanup list. Render only rows who
 ### Configuration Updates (from Step 6)
 | # | Type | Target | Change |
 |---|------|--------|--------|
-| 1 | {doc/claude.md/rule/adr} | {target} | {what to add/change} |
+| 1 | {doc/claude.md/rule/adr/docs-health-issue} | {target} | {what to add/change} |
 | 2 | ... | ... | ... |
 (or: No configuration updates needed.)
 
@@ -291,7 +291,7 @@ Render the cleanup rows from `cleanup-procedures.md`'s canonical list (filtered 
 |---|------|--------|---------|
 | 1 | cleanup | {row from cleanup-procedures.md canonical list} | {details} |
 | ... | cleanup | ... | ... |
-| N | config | {doc/claude.md/rule/adr} | {what to add/change} |
+| N | config | {doc/claude.md/rule/adr/docs-health-issue} | {what to add/change} |
 ```
 
 The table renders as markdown, as above. Immediately below it, call `AskUserQuestion` with:
@@ -327,6 +327,8 @@ Execute the cleanup planned in Step 5 (canonical list in `cleanup-procedures.md`
 After the cleanup, also apply:
 
 - **Documentation, CLAUDE.md, rules** — apply the registry / doc / rule edits collected in Step 6 and approved at the Console or batch
+- **New docs from missing-doc detection** — for a `[doc] {file} — Create: …` row (wrap-up's own D2 gap-detection, `docs-health-integration.md`), scaffold the new file from the matching section of `skills/_shared/diataxis-genre-templates.md` and fill in real content from this work's session context, then register it in `docs/REGISTRY.md` if a registry exists
+- **Docs-health restructural filings** — for restructural docs-health findings (`docs-health-integration.md`'s D1) approved at the Console or batch, re-run `validate-findings` without `--dry-run` and file each surviving payload via `gh issue create`, per that file's filing procedure
 - **Decision records (ADRs)** — write the approved `docs/decisions/NNNN-{slug}.md` files (Step 6.3) using the template in `_shared/decision-records.md`, and add them to `docs/REGISTRY.md` if a registry exists
 - **Skill updates** — apply patches and create new skills (Step 7 staged or approved items)
 - **Acceptance labeling** (record mode only — a materialized header exists for this run) — for testable records, gate on a clean visual-review pass (triggering one now via Step 2.5's safety net if `/review` only produced a recommendation), then apply `demo:pending` and post the Verification Brief; see `verification-brief.md` in this skill's directory for the full bootstrap, safety-net, sourcing, and posting procedure

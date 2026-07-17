@@ -94,7 +94,7 @@ files:
   - packages/food-graph/src/resolvers/ingredient-resolver.ts
 ```
 
-This skill doesn't own the doc that embeds the diagram, so it doesn't write this itself — the calling skill applies it to that doc's frontmatter when it pastes in the embed snippet, giving `/claude-tweaks:docs-health`'s freshness-dependency check (`_shared/criteria-docs-diataxis.md` Dimension 2) something to track. Skip this output when the diagram has no clear source-file dependency (e.g. a purely conceptual diagram with no 1:1 code mapping).
+This skill doesn't own the doc that embeds the diagram, so it doesn't write this itself — the caller (typically the user, copy-pasting the embed snippet in by hand) applies it to that doc's frontmatter alongside the snippet, giving `/claude-tweaks:docs-health`'s freshness-dependency check (`_shared/criteria-docs-diataxis.md` Dimension 2) something to track. Skip this output when the diagram has no clear source-file dependency (e.g. a purely conceptual diagram with no 1:1 code mapping).
 
 ### Step 6: Registry update (persisted diagrams only)
 
