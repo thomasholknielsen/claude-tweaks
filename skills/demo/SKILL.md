@@ -98,9 +98,10 @@ the human can judge, not a checklist to complete), then call `AskUserQuestion` w
 
 **"Show me live"**: open an `agent-browser` session at the brief's resolved entry point, following
 `/claude-tweaks:browse`'s conventions (session naming, lifecycle) directly — the same relationship
-`/claude-tweaks:visual-review` already has with `/browse`, not a workflow-step invocation of
-`/browse` itself. After the human finishes looking, close the session (leaked sessions consume
-resources — same discipline `/browse`'s own Anti-Patterns table requires), then re-render the same
+`/claude-tweaks:visual-review` already has with `/claude-tweaks:browse`, not a workflow-step
+invocation of `/claude-tweaks:browse` itself. After the human finishes looking, close the session
+(leaked sessions consume resources — same discipline `/claude-tweaks:browse`'s own Anti-Patterns
+table requires), then re-render the same
 `AskUserQuestion` for this record with only Approve / Request changes / Skip for now (the live
 look already happened — don't offer it twice for the same record).
 
@@ -117,8 +118,9 @@ Bootstrap `demo:approved` and `demo:changes-requested` via the check-then-create
      describes new scope, not a defect), no `by:*` label — instead a body line
      `Origin: demo changes-requested from #{n}` per `_shared/work-record.md`'s side-effect-record
      convention — plus the reason and a link back to the original. `work-backend: github-issues`:
-     use the same `recordPayload` composition `/capture` uses (`bin/lib/issues/record.js`), just
-     without invoking `/capture` itself. `work-backend: local-files`: use `allocateId`/`writeRecord`
+     use the same `recordPayload` composition `/claude-tweaks:capture` uses
+     (`bin/lib/issues/record.js`), just without invoking `/claude-tweaks:capture` itself.
+     `work-backend: local-files`: use `allocateId`/`writeRecord`
      from `bin/lib/issues/local-store.js` instead.
   3. Note the bidirectional link back on the original record. `work-backend: github-issues`:
      comment on the original issue with the new follow-up's issue number. `work-backend:

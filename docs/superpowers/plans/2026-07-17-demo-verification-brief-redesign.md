@@ -591,8 +591,18 @@ Replace with:
 grep -c "claude-tweaks:demo" skills/browse/SKILL.md
 ```
 
-Expected: `6` (frontmatter description, opening sentence, ASCII diagram, When to Use bullet,
-Component-Skill Contract paragraph, Relationship table row).
+Expected: `5` (opening sentence, ASCII diagram, When to Use bullet, Component-Skill Contract
+paragraph, Relationship table row — the frontmatter `description:` line correctly uses the bare
+form `/demo`, matching that line's pre-existing bare-style references to `/stories`,
+`/visual-review`, `/review`; a `description:` field is descriptive prose under CLAUDE.md's
+cross-reference rule, not actionable Step-N-body text, so it's exempt from the fully-qualified
+requirement).
+
+**Correction note (added post-implementation):** this plan originally stated the expected count as
+`6`; the implementation (correctly, per Task 4's own Step 3 verbatim text) uses bare `/demo` in the
+frontmatter description, yielding `5`. Confirmed correct by both the Task 4 reviewer and the final
+whole-branch review — this note documents the as-authored planning mistake for the historical
+record rather than silently editing it away.
 
 ```bash
 grep -n "claude-tweaks:visual-review" skills/wrap-up/SKILL.md skills/review/SKILL.md | grep -i "safety-net\|Step 2.5"
