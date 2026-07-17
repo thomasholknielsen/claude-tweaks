@@ -129,7 +129,7 @@ The hook surface (`bin/hooks.js`, see CLAUDE.md Conventions → Hooks) mechanize
 - Closing or deleting work records
 - Closing ledger items as `fixed` / `accepted` / `dropped` (Phase 2 of the resolve gate)
 - `git push` to shared branches
-- Creating work records (filing new records on the user's tracker)
+- Creating work records (filing new records on the user's tracker) — except scheduled health-skill born-ready records (see `_shared/work-record.md`'s born-ready rule) and queue-write proposals when `unattended-tier` is on (see `_shared/unattended-tier.md`)
 - Network calls beyond reads (no API writes, no message sends)
 - Modifying CLAUDE.md project-policy values
 - Deleting specs
