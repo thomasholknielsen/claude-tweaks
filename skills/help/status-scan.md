@@ -113,7 +113,7 @@ A record appearing in any group of size > 1 shares files with another open in-fl
 
 Emit one Template A row for the six counts (Finding: `backlog {N} ({M} stale) / parked {N} ({M} wake-ready) / ready {N} / authorized {N} / building {N} / blocked {N}`), plus one row per conflict group and one row per solution-baked-title backlog record.
 
-There is no Stage 1.5, Stage 3, or Stage 4 — they merged into Stage 1 above (their data sources — `specs/backlog/*.md`, the old spec index, and `specs/*.md` frontmatter — are retired). The rest of the numbering (Stage 2, 4.5, 4.6, 5, 6, 7) is unchanged, so existing cross-references — including this file's own later stages and `SKILL.md`'s Priority Order — keep pointing at the right stage.
+There is no Stage 1.5, Stage 3, or Stage 4 — they merged into Stage 1 above (their data sources — `specs/backlog/*.md`, the old spec index, and `specs/*.md` frontmatter — are retired). The rest of the numbering (Stage 2, 4.5, 4.6, 4.7, 5, 6, 7) is unchanged, so existing cross-references — including this file's own later stages and `SKILL.md`'s Priority Order — keep pointing at the right stage.
 
 ## Stage 2: Design Docs (`docs/superpowers/specs/*-design.md`)
 
@@ -139,6 +139,16 @@ not `/help`'s. Skip silently (same fail-open detection ladder as Stage 4.5)
 when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
 
 Scan per `_shared/github-pr-scan.md`, **`triage-queue`** scope. The dispatcher inlines that file's Detection Ladder, `triage-queue` scope section, and the three-line render format into this agent's prompt — subagents cannot read sibling files. This is the single source for these three counts; this stage does not compute them independently (previously it did, and its own version double-counted `status:blocked` issues inside "pending authorization" — the shared scope excludes them). Origin-agnostic: every `ready` record counts toward pending authorization regardless of origin (health-filed, captured, or human-filed, with or without a `by:*` label) — matching `/claude-tweaks:triage` Step 1's own origin-agnostic `ready`-queue pull, which tiers no health-skill origin specially.
+
+## Stage 4.7: Acceptance Queue (GitHub)
+
+Cheap count only — the walkthrough stays `/claude-tweaks:demo`'s job, not `/help`'s. Skip
+silently (same fail-open detection ladder as Stage 4.5/4.6) when `gh` is unavailable,
+unauthenticated, or the repo has no GitHub remote.
+
+Scan per `_shared/github-pr-scan.md`, **`acceptance-queue`** scope. The dispatcher inlines that
+file's Detection Ladder, `acceptance-queue` scope section, and one-line render format into this
+agent's prompt — subagents cannot read sibling files.
 
 ## Stage 5: Specs Awaiting Review
 
@@ -199,6 +209,12 @@ Scan per `_shared/github-pr-scan.md`, **`triage-queue`** scope. The dispatcher i
 - Pending authorization: **{N} records awaiting your decision** — run `/claude-tweaks:triage` (omit this line when N is 0)
 - Blocked: **{N} records hit their retry ceiling** — run `/claude-tweaks:triage` to review (omit this line when N is 0)
 - Auto-merged this week: **{N} auto-merges** on the default branch in the last 7 days (omit this line when N is 0)
+
+### Acceptance Queue
+
+*(Omit this section entirely when the GitHub scan was skipped, or the count is 0.)*
+
+- Awaiting sign-off: **{N} records built and ready for your review** — run `/claude-tweaks:demo`
 
 ### Ready to Build (priority order)
 | Record | Title | Risk / Effort | Status | Has Plan? |

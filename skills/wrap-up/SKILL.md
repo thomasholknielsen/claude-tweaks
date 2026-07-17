@@ -322,6 +322,7 @@ After the cleanup, also apply:
 - **Documentation, CLAUDE.md, rules** — apply the registry / doc / rule edits collected in Step 6 and approved at the Console or batch
 - **Decision records (ADRs)** — write the approved `docs/decisions/NNNN-{slug}.md` files (Step 6.3) using the template in `_shared/decision-records.md`, and add them to `docs/REGISTRY.md` if a registry exists
 - **Skill updates** — apply patches and create new skills (Step 7 staged or approved items)
+- **Acceptance labeling** (record mode only — a materialized header exists for this run) — apply `demo:pending` and post the Verification Brief; see `verification-brief.md` in this skill's directory for the bootstrap, sourcing, and posting procedure
 
 Commit with a message summarizing the wrap-up actions. When the run is `current-branch` mode
 and a materialized header exists for this spec (`${RUN_DIR}/work/*-spec.md` — its `record:`
@@ -342,6 +343,7 @@ Before emitting the closure line, confirm every approved action actually ran:
 - Pipeline run dir archived — `.claude-tweaks/pipelines/{run-id}/` is gone; `.claude-tweaks/pipelines/archive/{run-id}/` exists, with the `work/` subdirectory (when present) still git-tracked at its new path (skipped when `MULTISPEC_REVIEW_DEFER=1`)
 - Worktree removed (worktree strategy) — `git worktree list` no longer shows the feature worktree path
 - Closing-keyword carrier commit landed (worktree strategy + a materialized header was present for this spec) — `git log {default-branch} --grep="Fixes #{issue}"` shows the carrier commit for each resolved issue once merged (or `git log {feature-branch} --grep=...` if the branch is still open under "keep as-is" or a pending PR)
+- Acceptance labeling landed (record mode only) — `work-backend: github-issues`: `gh issue view {issue} --json labels -q '.labels[].name'` includes `demo:pending` and the issue's last comment contains `## Verification Brief`; `work-backend: local-files`: the record's body contains `## Verification Brief` and its frontmatter has `acceptance: pending`
 
 If any approved action did not land, do NOT emit the closure line. Surface the gap (`BLOCKED — cleanup step {N} did not complete: {reason}`) and stop.
 
@@ -396,6 +398,7 @@ When `$PIPELINE_RUN_DIR` is unset, `/wrap-up` runs standalone — render Next Ac
 | Proposing generic skill updates with no concrete anchor | Every skill update must trace to a ledger entry, a reflection insight, or a specific changed-file observation from the independent scan — updates with no anchor are indistinguishable from hallucinated ones |
 | Mixing skill updates into the doc/CLAUDE.md batch table | Skill updates require full file reads and Update Mode patches — they get their own decision table in Step 7 |
 | Writing an ADR for every decision | ADRs are valuable because they are rare — Step 6.3's 3-factor gate (hard-to-reverse AND surprising AND a real trade-off) keeps them so. Most wrap-ups produce zero ADRs, and that is correct |
+| Treating `demo:pending` as optional for "trivial" record-mode work | The Acceptance axis applies uniformly — `/claude-tweaks:demo`'s batch view is where triviality gets a fast path, not wrap-up's labeling step |
 
 ## Relationship to Other Skills
 
@@ -406,6 +409,7 @@ When `$PIPELINE_RUN_DIR` is unset, `/wrap-up` runs standalone — render Next Ac
 | `/claude-tweaks:review` (visual modes) | Visual complement — findings from visual review may feed into wrap-up's reflection lenses |
 | `/claude-tweaks:reflect` | Invoked BY /wrap-up (Step 3) in full mode. Handles all four reflection lenses, tradeoff review, insight routing, and ledger writes with phase `wrap-up`. |
 | `/claude-tweaks:capture` | /claude-tweaks:wrap-up may file a new backlog record directly (no stage label) for genuinely new ideas discovered during implementation — the same `recordPayload` composition `/capture` itself uses, without going through this skill |
+| `/claude-tweaks:demo` | /claude-tweaks:wrap-up applies `demo:pending` and posts the Verification Brief (Step 10, `verification-brief.md`) — record mode only. /claude-tweaks:demo later resolves the label to `demo:approved`/`demo:changes-requested` and, on the latter, files a linked follow-up record. |
 | Work records (`parked`, via leftover routing) | /claude-tweaks:wrap-up routes leftover work here — a new record with a `Trigger:` body line and the `parked` label (origin spec/record, files, trigger); see `leftover-routing.md` in this skill's directory |
 | `/claude-tweaks:help` | /claude-tweaks:wrap-up suggests running /claude-tweaks:help to see what's unblocked |
 | `/claude-tweaks:tidy` | /claude-tweaks:wrap-up cleans artifacts for a single spec — /claude-tweaks:tidy does periodic bulk cleanup |

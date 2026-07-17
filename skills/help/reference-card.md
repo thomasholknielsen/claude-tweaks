@@ -48,6 +48,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/claude-tweaks:harness-health` | Recurring health check auditing `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md for drift, template-conformance, and best-practice gaps, sharing its judgment procedure with `/init`/`/wrap-up`. Scheduled Routine. Never edits anything — always files a GitHub issue. | `--target <name>`, `--kind <skill\|rule\|claude-md\|design-artifact\|memory>`, `--memory-dir <path>`, `--dry-run`, `--budget <n>`, `--root <dir>` |
 | `/claude-tweaks:journey-health` | Recurring health check auditing `docs/journeys/*.md` for drift and journey-story coverage gaps (light tier); an interactive-only deep tier actually runs a journey's QA stories or walks it live. Scheduled Routine (light tier only). Never edits anything — always files a GitHub issue. | `--target <name>`, `--deep`, `--dry-run`, `--budget <n>`, `--root <dir>` |
 | `/claude-tweaks:docs-health` | Recurring health check auditing `docs/**` for Diátaxis genre-drift and factual staleness, with dual-persona misleading-risk tagging. Scheduled Routine. Never edits anything — always files a GitHub issue. | `--target <id>`, `--dry-run`, `--budget <n>`, `--root <dir>` |
+| `/claude-tweaks:demo` | Aggregates every `demo:pending` record (open or closed), briefs you on each, and captures a human verdict — approve or request changes | *(none)*, `#N` |
 
 ## Recommended Companion Tools
 
@@ -135,7 +136,8 @@ Backlog record → Brief → Design Doc → Ready record(s) → Code → Stories
 | `/claude-tweaks:stories` | Story YAML files | — |
 | `/claude-tweaks:test` | TEST_PASSED flag | — |
 | `/claude-tweaks:review` | Review summary | — |
-| `/claude-tweaks:wrap-up` | Learnings (CLAUDE.md) | Spec, plans, ledger |
+| `/claude-tweaks:wrap-up` | Learnings (CLAUDE.md), Verification Brief | Spec, plans, ledger |
+| `/claude-tweaks:demo` | Follow-up record (on changes-requested) | — |
 
 Consumed artifacts are deleted — specs and code are the durable outputs.
 

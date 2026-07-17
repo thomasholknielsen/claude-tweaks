@@ -4,9 +4,9 @@
 // style bin/lib/policy.js uses — the plugin ships zero runtime npm deps, so there
 // is no YAML library here. `facets` is a superset of record.js's parseRecordFacets
 // shape (same keys — origin, risk, effort, priority, stage, grants{build,merge},
-// bot{inProgress,blocked} — plus type, parent, blockedBy, unsynced); the github
-// driver's callers get type/parent/blockedBy from the issue JSON itself, not from
-// labels. No network calls.
+// bot{inProgress,blocked}, acceptance — plus type, parent, blockedBy, unsynced); the
+// github driver's callers get type/parent/blockedBy from the issue JSON itself, not
+// from labels. No network calls.
 'use strict';
 
 const fs = require('fs');
@@ -38,6 +38,7 @@ function defaultFacets() {
     parent: null,
     blockedBy: [],
     unsynced: false,
+    acceptance: null,
   };
 }
 
@@ -98,6 +99,7 @@ function parseFrontmatterLines(fmLines) {
       continue;
     }
     if ((m = /^unsynced:\s*(true|false)$/.exec(line))) { facets.unsynced = m[1] === 'true'; continue; }
+    if ((m = /^acceptance:\s*(.+)$/.exec(line))) { facets.acceptance = m[1].trim(); continue; }
   }
 
   return facets;
@@ -158,6 +160,7 @@ function serializeFrontmatter(facets) {
   if (blockedBy.length > 0) lines.push(`blocked-by: [${blockedBy.join(', ')}]`);
 
   if (facets.unsynced) lines.push('unsynced: true');
+  if (facets.acceptance) lines.push(`acceptance: ${facets.acceptance}`);
 
   return lines;
 }

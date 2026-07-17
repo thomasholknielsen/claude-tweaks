@@ -34,7 +34,7 @@ BACKLOG ──/specify shapes──► READY ──human grants──► AUTHORI
 Stage vocabulary is exactly these three words — **backlog** (absence of stage labels),
 **parked**, **ready**. Legacy stage names from the spec-file era never name concepts here.
 
-## The six axes
+## The seven axes
 
 | Axis | Values | Expressed as |
 |---|---|---|
@@ -44,6 +44,7 @@ Stage vocabulary is exactly these three words — **backlog** (absence of stage 
 | **Stage** | backlog (no label) \| `parked` \| `ready` | Labels — backlog is the absence of stage labels |
 | **Authorization** | `auto:build`, `auto:merge` | Labels — human-granted only, absence is the default not-authorized state |
 | **Bot state** | `bot:in-progress`, `bot:blocked` | Labels — machinery-owned visibility layer |
+| **Acceptance** | `demo:pending` \| `demo:approved` \| `demo:changes-requested` — or no label | Labels — `demo:pending` set by `/claude-tweaks:wrap-up`, resolved to `demo:approved`/`demo:changes-requested` by `/claude-tweaks:demo`; independent of Stage and of the issue's own open/closed state |
 
 **Origin axis, the two no-label cases:** a human filing directly on GitHub carries no `by:*`
 label (absence = human-filed). Records created as side effects of other skills (e.g.
@@ -54,7 +55,7 @@ five members — one per filing skill: `by:code-health`, `by:harness-health`,
 
 ## Label taxonomy
 
-18 core labels + 3 optional `priority:*` labels. The canonical `LABELS_JSON` (names +
+21 core labels + 3 optional `priority:*` labels. The canonical `LABELS_JSON` (names +
 ≤100-char descriptions) lives in `_shared/label-bootstrap.md`; consumers bootstrap only the
 labels they are about to apply.
 
@@ -66,6 +67,7 @@ labels they are about to apply.
 | Stage (2) | `parked`, `ready` | Stage |
 | Grants (2) | `auto:build`, `auto:merge` | Authorization |
 | Bot state (2) | `bot:in-progress`, `bot:blocked` | Bot state |
+| Acceptance (3) | `demo:pending`, `demo:approved`, `demo:changes-requested` | Acceptance |
 | Closure (1) | `wontfix` | re-filing suppression |
 | Priority (3, optional) | `priority:high`, `priority:medium`, `priority:low` | dispatch ordering |
 
@@ -87,7 +89,9 @@ Who may add / remove which labels. "Machinery" = any headless or autonomous path
 | **`/triage`** (gate, human present) | `auto:build`, `auto:merge` (human-confirmed), scoring supplied inline | `ready` (flag back), `bot:blocked` (re-grant strip) | granting on a headless path |
 | **`/dispatch`** (queue consumer) | `bot:in-progress` (claim mirror), `bot:blocked` (at retry ceiling) | `auto:merge` (failure downgrade), `auto:*` (at ceiling), `bot:in-progress` (release) | adding `auto:*` or `ready` |
 | **`/tidy`** (hygiene) | `parked` (Defer action, with trigger) | `parked` (trigger-met wake), `bot:in-progress` (orphaned-claim sweep) | `auto:*` |
-| **Executors** (`/flow`, `/build`, `/wrap-up`) | nothing | `bot:in-progress` (claim release at wrap-up) | `auto:*`, `ready` |
+| **Executors** (`/flow`, `/build`) | nothing | nothing | `auto:*`, `ready` |
+| **`/wrap-up`** | `demo:pending` | `bot:in-progress` (claim release) | `auto:*`, `ready`, `demo:approved`, `demo:changes-requested` |
+| **`/demo`** | `demo:approved`, `demo:changes-requested` | `demo:pending` (on resolution) | `auto:*`, `ready`, `bot:*`, adding `demo:pending` itself |
 
 **Driver-conditional note:** grants are *enforceable* only under the `github-issues` driver —
 GitHub's RBAC means applying a label requires triage permission (a label is a maintainer's
@@ -113,6 +117,26 @@ not-authorized state** — no label means no autonomous action, ever.
   the record needs a human re-grant to run again.
 - `auto:*` labels are only ever added by an interactive human session; there is no
   machinery path that originates a grant.
+
+## Acceptance semantics
+
+The Acceptance axis records whether a human has actually verified a built record does what
+was asked — distinct from tests passing (`/claude-tweaks:test`) and code-quality review passing
+(`/claude-tweaks:review`), both of which gate *before* this axis is ever set.
+
+- `/claude-tweaks:wrap-up` applies `demo:pending` once build+test+review are done, and posts a
+  Verification Brief (an issue comment, or — under `work-links: body-text` on the `local-files`
+  driver, which has no comment mechanism — a `## Verification Brief` body section) with what
+  changed, why, and how to verify it. This happens **regardless of merge timing** — an
+  `auto:merge`'d record still gets `demo:pending` on its now-closed issue, enabling retrospective
+  sign-off.
+- `/claude-tweaks:demo` is the sole consumer: it discovers every `demo:pending` record (open or
+  closed), walks the human through each brief, and resolves the label to `demo:approved` or
+  `demo:changes-requested`. On the latter, it files a linked follow-up backlog record.
+- The three values are mutually exclusive by construction — `/claude-tweaks:demo` always removes
+  `demo:pending` in the same operation it adds the resolution label.
+- `auto:merge` governs merge timing only; it has no bearing on whether `demo:pending` eventually
+  gets resolved.
 
 ## Labels are projection, not truth
 
@@ -252,9 +276,10 @@ these literal names** — per-skill aliases and env-var renames are forbidden:
 | `/triage` | The human gate — grants `auto:build` / `auto:merge` over the `ready` queue |
 | `/dispatch` | Queue consumer — claims authorized records, invokes `/flow`, settles (release / revoke / report) |
 | `/flow`, `/build` | Executors — materialize the record into `{run-dir}/work/{n}-spec.md` and build it |
-| `/wrap-up` | Closes the loop — carrier commit (close-via-merge), claim release, leftover records |
+| `/wrap-up` | Closes the loop — carrier commit (close-via-merge), claim release, leftover records; applies `demo:pending` + posts the Verification Brief |
+| `/demo` | Resolves the Acceptance axis — `demo:pending` → `demo:approved`/`demo:changes-requested`; files a linked follow-up backlog record on changes-requested |
 | `/tidy` | Hygiene — stale backlog records, parked-trigger wakes, unsynced local records, `bot:blocked` surfacing |
-| `/help` | Dashboard — live counts by stage / grants / bot state |
+| `/help` | Dashboard — live counts by stage / grants / bot state / acceptance |
 | `/init` | Provisions the system — `work-backend` flag, label bootstrap, capability probes (`work-types`, `work-links`) |
 
 See also: `_shared/issue-claims.md` (claim protocol; `bot:in-progress` mirror),

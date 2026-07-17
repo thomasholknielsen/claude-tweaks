@@ -18,6 +18,9 @@ const LABELS = {
   BOT_IN_PROGRESS: 'bot:in-progress',
   BOT_BLOCKED: 'bot:blocked',
   WONTFIX: 'wontfix',
+  DEMO_PENDING: 'demo:pending',
+  DEMO_APPROVED: 'demo:approved',
+  DEMO_CHANGES_REQUESTED: 'demo:changes-requested',
 };
 
 // F8 from the program promise register — type:* label descriptions home
@@ -123,6 +126,9 @@ function normalizeLabelNames(labels) {
 // in a single pass over the normalized names — never inferred from truthiness. Stage
 // precedence is ready > parked > backlog regardless of array order or malformed
 // combinations (e.g. both 'ready' and 'parked' present resolves to 'ready').
+// Acceptance has no such precedence — the three demo:* labels are mutually exclusive
+// by construction, so a plain last-match-in-array-wins assignment (same style as
+// origin/risk/effort/priority below) is enough.
 function parseRecordFacets(labels) {
   const names = normalizeLabelNames(labels);
 
@@ -134,6 +140,7 @@ function parseRecordFacets(labels) {
     stage: 'backlog',
     grants: { build: false, merge: false },
     bot: { inProgress: false, blocked: false },
+    acceptance: null,
   };
 
   for (const name of names) {
@@ -159,6 +166,18 @@ function parseRecordFacets(labels) {
     }
     if (name === LABELS.BOT_BLOCKED) {
       facets.bot.blocked = true;
+      continue;
+    }
+    if (name === LABELS.DEMO_PENDING) {
+      facets.acceptance = 'pending';
+      continue;
+    }
+    if (name === LABELS.DEMO_APPROVED) {
+      facets.acceptance = 'approved';
+      continue;
+    }
+    if (name === LABELS.DEMO_CHANGES_REQUESTED) {
+      facets.acceptance = 'changes-requested';
       continue;
     }
 
