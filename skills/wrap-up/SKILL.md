@@ -198,6 +198,11 @@ The following ops items need acknowledgment. These represent infrastructure chan
 | 1 | {description} | {source} |
 ```
 
+**Unattended-tier auto-acknowledge:** if `unattended-tier: on` (see `_shared/unattended-tier.md`),
+skip the `AskUserQuestion` below entirely — update status to `acknowledged` for every item, log
+`AUTO {time} — Ops acknowledgment: {N} items auto-acknowledged. Reversibility: high.` to
+`decisions.md`, and continue to Step 8.6. Otherwise, present the block below.
+
 Call `AskUserQuestion` with `question`: `"How do you want to handle these ops items?"`, `header`: `"Ops items"`, `multiSelect`: `false` — neither option's label is marked as the default:
 
 - Option 1 — `label`: `"Acknowledge all"`, `description`: `"I've read every item"`

@@ -4,7 +4,7 @@ The critical gate that prevents dropped work. Called by `/claude-tweaks:wrap-up`
 
 The gate runs in three phases. The agent does Phase 1 silently; Phases 2 and 3 always require explicit per-item user input.
 
-**`auto` mode does NOT silence this gate.** Per-item user input on the resolve gate is mandatory regardless of mode. For the full list of what `auto` silences (and what it does not), see `_shared/auto-mode-contract.md`.
+**`auto` mode does NOT silence this gate.** Per-item user input on the resolve gate is mandatory regardless of mode. For the full list of what `auto` silences (and what it does not), see `_shared/auto-mode-contract.md`. The one narrow exception is the `unattended-tier` lever (off by default) — see `_shared/unattended-tier.md` and the narrowing step at the top of Phase 2 below.
 
 **The pipeline cannot complete with unresolved items.** This is a hard gate.
 
@@ -35,7 +35,36 @@ If the item qualifies, fix it, commit it, update status to `fixed` with the comm
 
 ## Phase 2 — Present remainder (per-item user input required)
 
-After Phase 1, only items the agent could not fix remain `open`. Present the full table once, upfront — it is not re-rendered per item as the drill below proceeds:
+### Unattended-tier narrowing (runs first, before the table below)
+
+If `unattended-tier: on` (see `_shared/unattended-tier.md`), before building the table below,
+check each remaining `open` item's Phase 1 blocker reason against
+`bin/lib/issues/unattended-tier.js`'s `clearsFloor(blockerReason)`. For every item where it
+returns `true`: auto-select `Route to a record → Keep (backlog)` — the only disposition this
+lever ever authorizes from this drill; never `Fix anyway`, `Accept`, `Drop`, or `Defer →
+parked` — compose the staged-proposal body exactly as Phase 3's `Keep` branch below already does,
+update ledger status to `deferred` (note `→ backlog`), and log:
+
+```
+AUTO {time} — Ledger Phase 2: item #{N} auto-routed to backlog (blocker: {category}). Reversibility: high.
+```
+
+**Standalone run (no pipeline run directory resolves — see `_shared/pipeline-run-dir.md`):**
+there is no `staged/` directory or `decisions.md` to write to, and no Review Console to later
+reconcile a staged file into a real record (Step 8.6 never runs). Apply Phase 3's standalone
+"create directly instead of staging" behavior inline here instead — create the record now via
+the same dual-driver contract Phase 3 uses (`gh issue create` / `local-store.js`'s `writeRecord`),
+and surface the auto-routing decision in this run's summary output in place of the `decisions.md`
+entry above, since no run-dir log exists to write it to.
+
+Remove the item from this phase's remaining set — it does not appear in the table below and does
+not get an `AskUserQuestion` drill. Items whose blocker reason returns `false` (ambiguous, or
+outside the four categories) fall through to the unchanged per-item drill below — the floor check
+fails closed, exactly as if the lever were off for that one item.
+
+After Phase 1 (and, when the lever is on, after the narrowing above), only items that qualify for
+neither — Phase 1's fix-now criteria nor the narrowing's floor check — remain `open`. Present the
+full table once, upfront — it is not re-rendered per item as the drill below proceeds:
 
 ```
 ### Unresolved Open Items
@@ -88,7 +117,7 @@ For each item, apply the user-chosen disposition. **Each new work record (`parke
 - `Fix anyway` → return to Phase 1 for that item, fix, commit, mark `fixed`
 - `Defer` → stage a record proposal at `{run-dir}/staged/ledger-record-{slug}.md` (`Title:`/`Type:`/`Labels:` header + body, same shape as `leftover-{slug}.md` — see `wrap-up/leftover-routing.md` step 3): `parked`, a `Trigger:` line from the user-stated trigger, an `Origin: ledger resolve gate` line, and affected files. Update ledger status to `deferred`. Resolves via the Wrap-Up (or Flow) Review Console's Queue writes section — the console creates the record on per-item approval (`gh issue create` under `work-backend: github-issues`, or `local-store.js`'s `writeRecord` under `work-backend: local-files`)
 - `Keep` → same staging shape, backlog (no `Trigger:` line, no stage label), `Origin: ledger resolve gate` line, and short context. Update ledger status to `deferred` (with note `→ backlog` in Resolution column). Same Review Console resolution
-- **No pipeline run directory resolves** (truly standalone `/claude-tweaks:ledger resolve`, outside any `/flow` or `/wrap-up` run — see `_shared/pipeline-run-dir.md`): no Review Console will ever read a staged file, so create the record directly instead, using the same dual-driver contract the console would have used
+- **No pipeline run directory resolves** (truly standalone `/claude-tweaks:ledger resolve`, outside any `/flow` or `/wrap-up` run — see `_shared/pipeline-run-dir.md`): no Review Console will ever read a staged file, so create the record directly instead, using the same dual-driver contract the console would have used. When `unattended-tier: on`, apply Phase 2's narrowing check inline here too (there is no Step 8.6 to centralize the auto-file decision through in this standalone path).
 - `Accept` → record the user's stated reason in Resolution column. Update status to `accepted`
 - `Acknowledge` → record as `acknowledged` (ops items only)
 - `Drop` → mark as `accepted` with reason "dropped per user — no longer relevant"
