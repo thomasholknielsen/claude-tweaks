@@ -206,6 +206,18 @@ The canonical per-stop behavior table is the "What `auto` silences" / "What `aut
 
 Per-skill `## Auto-mode behavior` tables in SKILL.md are deprecated as of v4.7.0 — the silences table is the single source of truth. Drift between two copies (skill-local and contract-canonical) was the failure mode they were meant to prevent and instead enabled.
 
+## Adding a new policy lever
+
+Extending the Manifesto with a new lever (as `unattended-tier` did, becoming lever #9) touches more files than the lever's own logic. Checklist, grounded in gaps this exact addition initially missed and caught only at whole-branch review:
+
+1. **This file** — add the lever name to the Bookend Architecture's computed-levers list (above); add its row(s) to "What `auto` silences" / "does NOT silence" if it changes either list; add a caveat anywhere an existing table row's guarantee narrows.
+2. **`flow/SKILL.md`** Step 3 — add the lever name to the levers-computed sentence.
+3. **`flow/manifesto.md`** — the lever needs an entry in *every* one of: the suppression-rules table, the canonical numbering line, the illustrative Policy Levers example table, the Suppressed/Valid-overrides footer, the Override Semantics table, the Recommendation Defaults table, and the `config.yml` schema example.
+4. **`help/reference-card.md`** and **`help/context-flow.md`** — both files independently enumerate the full lever list ("every policy lever" / the `config.yml` consumer row) and sit outside the Manifesto's own file tree — easy to miss entirely, and the only two gaps a whole-branch review caught that no task-level review touching the Manifesto files themselves could have seen.
+5. **The enforcement skill file(s)** the lever actually gates — where the new behavior lives.
+
+Verify with a grep for the lever's kebab-case name across `skills/` and root `CLAUDE.md` before considering the addition complete — a zero-hit file that should have one is the failure mode this checklist exists to prevent.
+
 ## Skill integration pattern
 
 When a skill has a historical mid-flow stop, rewrite it like this:
