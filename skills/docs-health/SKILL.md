@@ -18,7 +18,7 @@ finding -> validate-findings -> file GitHub issue (by:docs-health, ready)
 ## When to Use
 
 - You want `docs/**` (guides, references, ADRs, journeys, retrospectives) to stay accurate, appropriately scoped, and correctly shaped — Diátaxis genre where it applies, native genre otherwise (an ADR stays ADR-shaped, not forced into a tutorial/how-to/reference/explanation mold) — between manual edits, without driving each check yourself.
-- You want a scheduled Routine that periodically rotates through `docs/**` and flags genre-drift or staleness as it's found.
+- You want a scheduled Routine that periodically rotates through `docs/**` and flags genre-drift, depth-mismatch, or staleness as it's found.
 - You want to check one specific doc right now (`--target <id>`).
 
 Not for: mechanical/unambiguous checks (broken links, malformed frontmatter, missing structural metadata) — those belong in the consuming project's own build/CI pipeline, the same "CI stays reactive" boundary `/code-health` already draws for code. Not for `.claude/skills/*.md`/`.claude/rules/*.md`/CLAUDE.md — that is `/claude-tweaks:harness-health`'s exclusive territory; docs-health's rotation pool only ever walks `docs/`, so it structurally never touches those files. Not for `docs/superpowers/**` — ephemeral `/claude-tweaks:specify` + `/superpowers:writing-plans` build history, not Diátaxis-portal content; excluded from the rotation pool entirely.
@@ -252,13 +252,13 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 
 | Skill | Relationship |
 |-------|-------------|
-| `/claude-tweaks:harness-health` | Sibling health skill — mirrors the same SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline and shares `_shared/health-state.md`'s durable persistence, but scoped to `docs/**` (excluding harness-health's own `.claude/skills/**`/`.claude/rules/**`/CLAUDE.md territory) for Diátaxis genre-drift + staleness instead of skill/rule/CLAUDE.md accuracy and template-conformance. |
+| `/claude-tweaks:harness-health` | Sibling health skill — mirrors the same SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline and shares `_shared/health-state.md`'s durable persistence, but scoped to `docs/**` (excluding harness-health's own `.claude/skills/**`/`.claude/rules/**`/CLAUDE.md territory) for Diátaxis genre-drift + depth-mismatch + staleness instead of skill/rule/CLAUDE.md accuracy and template-conformance. |
 | `/claude-tweaks:code-health` | Sibling health skill for code quality — one of the four recurring-sweep siblings (code-health, harness-health, journey-health, docs-health). Shares the unified work-record filing contract. |
-| `/claude-tweaks:journey-health` | Sibling health skill for `docs/journeys/*.md` accuracy and agent-e2e coverage — same SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline and `_shared/health-state.md` persistence, scoped to journeys instead of `docs/**` Diátaxis genre-drift + staleness. Both file born-`ready` findings on the unified work-record contract. |
+| `/claude-tweaks:journey-health` | Sibling health skill for `docs/journeys/*.md` accuracy and agent-e2e coverage — same SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline and `_shared/health-state.md` persistence, scoped to journeys instead of `docs/**` Diátaxis genre-drift + depth-mismatch + staleness. Both file born-`ready` findings on the unified work-record contract. |
 | `/claude-tweaks:specify` | docs-health findings are pre-specs — a filed `by:docs-health` issue body is `/specify`-shaped (Current State / Deliverables / Acceptance Criteria), so `/specify` consumes it with near-zero translation. |
 | `/claude-tweaks:tidy` | `/tidy` Step 4.8 audits open `by:code-health`/`by:harness-health`/`by:journey-health` issues in its hygiene pass; docs-health follows the same pattern for `by:docs-health` issues. |
 | `/claude-tweaks:triage` | The human gate over the `ready` queue — records docs-health files feed into triage's worklist the same way code-health/harness-health findings do. |
 | `/claude-tweaks:routine` | `/routine create docs-health` instantiates docs-health's `routine-template.yml` into a live, scheduled cloud Routine. |
-| `_shared/criteria-docs-diataxis.md` | The canonical judge this skill reads — the genre-drift/staleness dimensions, dual-persona misleading-risk tagging, and Finding Shape live there, not here. |
+| `_shared/criteria-docs-diataxis.md` | The canonical judge this skill reads — the genre-drift/depth-mismatch/staleness dimensions, dual-persona misleading-risk tagging, and Finding Shape live there, not here. |
 | `_shared/health-state.md` | Durable cross-firing storage contract — docs-health's cursors, retry queue, and run history live on the `health-state` branch, reusing the exact same `bin/lib/health-core/*` primitives harness-health and code-health already use. No new persistence mechanism. |
 | `_shared/work-record.md` | Canonical taxonomy docs-health files against — origin `by:docs-health`, scoring, `ready` stage, born-ready rule. |
