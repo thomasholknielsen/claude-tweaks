@@ -36,7 +36,7 @@ notes: >
   correctness/ambiguous-classified failure, preserved for a transient one, per
   assess-agent-autonomy's failure-check mode; auto:build removed at the retry ceiling); it
   revokes trust, never grants it. Scheduling this routine alone is not enough to make a
-  code-health/harness-health/journey-health routine's filed issues progress — a human
+  code-health/harness-health/journey-health/docs-health routine's filed issues progress — a human
   still has to run bare `/claude-tweaks:triage` periodically to grant auto:build before
   this routine has anything to pick up. A group whose run comes back clean (per the
   two-layer auto-merge gate, assess-agent-autonomy's merge-check mode verdicting auto-merge)

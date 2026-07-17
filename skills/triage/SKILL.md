@@ -9,7 +9,7 @@ description: Use when you want to authorize GitHub work records for autonomous b
 The interactive human gate over the `ready` queue: grants `auto:build` (optionally + `auto:merge`) on records safe to build autonomously, or flags unshaped ones back for re-shaping. Sits outside the main brainstorm-to-build chain, between shaping and execution:
 
 ```
-capture / code-health / harness-health / journey-health   (file records)
+capture / code-health / harness-health / journey-health / docs-health   (file records)
                               │
                               v
                 /claude-tweaks:specify   (shapes to ready)
@@ -220,7 +220,7 @@ If Step 4 granted nothing this session (every row was flagged back), omit Option
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:dispatch` | The queue consumer — claims records this gate authorized (`auto:build`) and hands each to `/claude-tweaks:flow`. Triage never claims, dispatches, or executes; it only grants, strips, or flags. |
-| `/claude-tweaks:code-health`, `/claude-tweaks:harness-health`, `/claude-tweaks:journey-health` | Feeders — file records born `ready` (spec-shaped, scored) per `_shared/work-record.md`'s born-ready rule. Triage never files or closes their records. |
+| `/claude-tweaks:code-health`, `/claude-tweaks:harness-health`, `/claude-tweaks:journey-health`, `/claude-tweaks:docs-health` | Feeders — file records born `ready` (spec-shaped, scored) per `_shared/work-record.md`'s born-ready rule. Triage never files or closes their records. |
 | `/claude-tweaks:capture` | Feeder — files raw backlog records; they reach this gate's worklist only after `/claude-tweaks:specify` shapes them to `ready`. |
 | `/claude-tweaks:specify` | The shaper — stamps `ready` + scoring before a record can enter this gate's worklist, and is where a flagged-back record returns for re-shaping. |
 | `/claude-tweaks:tidy` | Surfaces `bot:blocked` records as re-authorization candidates alongside this gate's own worklist. Migration note: pre-6.0 records still carrying retired `tier:approved`/`tier:fast-track`/`tier:needs-review`/`status:blocked`/`status:in-progress` labels surface via `/tidy`'s legacy-taxonomy finding, not through this gate — triage only ever reads/writes the current seven-axis vocabulary. |

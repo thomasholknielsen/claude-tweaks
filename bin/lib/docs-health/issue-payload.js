@@ -1,0 +1,77 @@
+'use strict';
+
+// Project a finding into a GitHub issue payload. Emit-only — never calls
+// the network. The skill hands the payload to the gh CLI itself.
+// Label/marker/type assembly delegates to recordPayload
+// (bin/lib/issues/record.js) — the shared work-record taxonomy
+// (skills/_shared/work-record.md): origin by:docs-health, colon-form
+// risk:*/effort:* scoring, born-ready, Type task, work-fingerprint marker.
+const { recordPayload, specShapedBody } = require('../issues/record');
+
+const CATEGORY_LABELS = { 'genre-drift': 'genre-drift', staleness: 'staleness' };
+
+// classification -> scoring axis fold, same shape as harness-health's:
+// additive is a safe, mechanical patch (low risk, low effort);
+// restructural needs human review and more effort.
+const CLASSIFICATION_SCORING = {
+  additive: { risk: 'low', effort: 'low' },
+  restructural: { risk: 'medium', effort: 'high' },
+};
+
+const MISLEADS_LABELS = {
+  human: 'human engineer',
+  agent: 'coding agent',
+  both: 'human engineer + coding agent',
+};
+
+function toIssuePayload(finding) {
+  const categoryLabel = CATEGORY_LABELS[finding.category] || finding.category;
+  const misleadsLabel = MISLEADS_LABELS[finding.misleads] || finding.misleads;
+
+  const kindLine = `**Doc:** ${finding.target} | **Section:** ${finding.section} | **Category:** ${finding.category} | **Misleads:** ${misleadsLabel} | **Classification:** ${finding.classification} | **Confidence:** ${finding.confidence}`;
+
+  const deliverables = `**Current:**\n\`\`\`\n${finding.oldString || '(N/A — new content)'}\n\`\`\`\n\n**Proposed:**\n\`\`\`\n${finding.newString}\n\`\`\``;
+
+  const body = specShapedBody({
+    header: kindLine,
+    currentState: finding.reason,
+    deliverables,
+    acceptanceCriteria: finding.description,
+    filedBy: '/claude-tweaks:docs-health',
+  });
+
+  const title = `Doc ${categoryLabel}: ${finding.target} — ${finding.section}`;
+  const diagnosticLabel = `docs-health:${finding.classification}`;
+  const scoring = CLASSIFICATION_SCORING[finding.classification];
+
+  const payload = recordPayload({
+    title,
+    body,
+    type: 'task',
+    origin: 'docs-health',
+    risk: scoring.risk,
+    effort: scoring.effort,
+    ready: true,
+    fingerprint: finding.id,
+  });
+
+  return {
+    id: finding.id,
+    target: finding.target,
+    assetType: finding.assetType,
+    category: finding.category,
+    misleads: finding.misleads,
+    section: finding.section,
+    classification: finding.classification,
+    confidence: finding.confidence,
+    reversibility: finding.reversibility,
+    oldString: finding.oldString,
+    newString: finding.newString,
+    title: payload.title,
+    body: payload.body,
+    labels: [...payload.labels, diagnosticLabel],
+    type: payload.type,
+  };
+}
+
+module.exports = { toIssuePayload };

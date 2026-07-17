@@ -51,6 +51,11 @@ test('recordPayload throws on unknown origin', () => {
   assert.throws(() => recordPayload({ title: 't', body: 'b', type: 'task', origin: 'wrap-up' }), /origin/);
 });
 
+test('recordPayload accepts origin: docs-health', () => {
+  const payload = recordPayload({ title: 'x', body: 'y', type: 'task', origin: 'docs-health' });
+  assert.ok(payload.labels.includes('by:docs-health'));
+});
+
 test('recordPayload throws on unknown risk', () => {
   assert.throws(() => recordPayload({ title: 't', body: 'b', type: 'task', risk: 'critical' }), /risk/);
 });

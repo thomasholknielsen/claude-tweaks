@@ -6,7 +6,7 @@ A structured workflow system for Claude Code — from idea capture through build
 
 Claude Code is powerful but unstructured. claude-tweaks adds a complete development lifecycle: capture ideas, challenge assumptions, decompose into specs, build with quality gates, and learn from what was built. Every finding is explicitly resolved — nothing silently drops.
 
-### What's new in v6.2.0 — Human acceptance sign-off (`/claude-tweaks:demo`)
+### What's new in v6.3.0 — Human acceptance sign-off (`/claude-tweaks:demo`)
 
 A new seventh work-record axis (`demo:pending` / `demo:approved` / `demo:changes-requested`)
 closes the gap between tests passing, spec completion, and an actual human verifying a built
@@ -278,6 +278,8 @@ For the full picture of how a work record moves through filing → shaping → a
 **`/claude-tweaks:harness-health`** — Recurring health check for `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md: picks one target to audit against the codebase (or checks for a new-skill gap), judges it via the shared `_shared/harness-health-analysis.md` procedure — also used by `/init` Phase 6 and `/wrap-up` Step 7 (skill-only for those two currently) — and always files a `harness-health`-labelled GitHub issue. Never edits anything directly (skills, rules, memory, or CLAUDE.md) — report-only, matching `/code-health`. Runs on a scheduled Routine for continuous coverage, rotating through skills, rules, and CLAUDE.md via a churn/staleness cursor shared with `/init` and `/wrap-up`. Memory (`~/.claude/projects/{slug}/memory/`) is audited only via an explicit `--kind memory --memory-dir <path>` invocation — never through the Routine's automatic rotation.
 
 **`/claude-tweaks:journey-health`** — Recurring health check for `docs/journeys/*.md`: picks one journey to audit (or the decoupled coverage scan, when due), checks it against the codebase (file-existence, self-review criteria shared with `/claude-tweaks:journeys`, journey-story coverage shared with `/claude-tweaks:review`'s `3g-cov` lens), and always files a `journey-health`-labelled GitHub issue. A separate, interactive-only deep tier (`--deep`) actually runs the journey's QA stories via `/claude-tweaks:test` (or walks it live via `/claude-tweaks:visual-review` when no stories exist yet) and judges whether a failure means the journey/story text is stale or the app genuinely regressed. Never edits journeys, stories, or code — report-only, matching `/code-health` and `/harness-health`.
+
+**`/claude-tweaks:docs-health`** — Recurring health check for `docs/**`: picks one doc to audit, judges it against the shared `_shared/criteria-docs-diataxis.md` procedure — Diátaxis genre-drift (implied doc type vs. actual content shape), factual staleness, and dual-persona misleading-risk tagging (human engineer vs. coding agent) — and always files a `docs-health`-labelled GitHub issue. Never edits docs content — report-only, matching `/code-health` and `/harness-health`. Scoped strictly to `docs/**`, excluding `docs/superpowers/**` (ephemeral build artifacts) and never overlapping `harness-health`'s `.claude/skills/**`/`.claude/rules/**`/CLAUDE.md territory. Runs on a scheduled Routine for continuous coverage.
 
 **`/claude-tweaks:design`** — Wrapper for the [Impeccable](https://github.com/pbakaus/impeccable) frontend-design plugin. Six active modes:
 

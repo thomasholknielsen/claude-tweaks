@@ -5,7 +5,7 @@
 // import from this file rather than re-declaring their own copies. No network.
 'use strict';
 
-const ORIGINS = ['code-health', 'harness-health', 'journey-health', 'capture'];
+const ORIGINS = ['code-health', 'harness-health', 'journey-health', 'docs-health', 'capture'];
 const TYPES = ['bug', 'feature', 'task'];
 const TIERS = ['low', 'medium', 'high'];
 const PRIORITIES = ['high', 'medium', 'low'];

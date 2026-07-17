@@ -20,7 +20,7 @@ A Claude Code plugin (v5.7.0) containing markdown skill files that guide Claude 
 .claude-plugin/plugin.json        → Plugin manifest (name, version, description)
 skills/{name}/SKILL.md            → Skill definition (frontmatter + body)
 skills/{name}/*.md                → Sub-files lazy-loaded by the skill
-skills/_shared/*.md               → Cross-skill shared content (subagent contract, auto-mode contract, auto-decision log, browser detection, pipeline run dir, dev URL detection, git discipline, design-wrapper handling, multi-agent coordination, decision records / ADR gate, **shared analysis criteria: architecture-depth / simplification / review-quality**, harness-health-analysis (canonical harness-drift judge shared by /init, /wrap-up, and /harness-health), issue-claims contract (refs/claims/* atomic lock), work-record contract (canonical unified-work-record taxonomy — the seven axes, label families, permission matrix, and config keys every filing/shaping/gating/dispatching/sweeping skill cites rather than restates), health-state (durable cross-firing storage for code-health/harness-health/journey-health via a dedicated health-state branch — cursors, retry queue, and code-health's sub-threshold remembered cache), github-pr-scan (GitHub PR/issue state for /tidy Step 4.8 + /help Stage 4.5/4.6/4.7), label-bootstrap (canonical check-then-create snippet for GitHub label bootstrapping, referenced by capture/specify/triage/dispatch/tidy/wrap-up/init/code-health/harness-health/journey-health/flow))
+skills/_shared/*.md               → Cross-skill shared content (subagent contract, auto-mode contract, auto-decision log, browser detection, pipeline run dir, dev URL detection, git discipline, design-wrapper handling, multi-agent coordination, decision records / ADR gate, **shared analysis criteria: architecture-depth / simplification / review-quality**, harness-health-analysis (canonical harness-drift judge shared by /init, /wrap-up, and /harness-health), issue-claims contract (refs/claims/* atomic lock), work-record contract (canonical unified-work-record taxonomy — the seven axes, label families, permission matrix, and config keys every filing/shaping/gating/dispatching/sweeping skill cites rather than restates), health-state (durable cross-firing storage for code-health/harness-health/journey-health/docs-health via a dedicated health-state branch — cursors, retry queue, and code-health's sub-threshold remembered cache), github-pr-scan (GitHub PR/issue state for /tidy Step 4.8 + /help Stage 4.5/4.6/4.7), label-bootstrap (canonical check-then-create snippet for GitHub label bootstrapping, referenced by capture/specify/triage/dispatch/tidy/wrap-up/init/code-health/harness-health/journey-health/docs-health/flow))
 agents/{name}.md                  → Agent definitions (frontmatter + body)
 hooks/hooks.json                  → Hook definitions (SessionStart/SessionEnd/PreCompact continuity + PreToolUse/PostToolUse/SubagentStop enforcement, all via bin/hooks.js)
 bin/hooks.js                      → Hook dispatcher (one entry point for all hook events + record-worktree/close-run subcommands)
@@ -31,11 +31,11 @@ README.md                         → User-facing documentation
 LICENSE                           → MIT
 ```
 
-### Skill directories (31 total)
+### Skill directories (32 total)
 
 **Lifecycle:** init, capture, challenge, specify, build, test, stories, review, wrap-up
 **Component:** reflect, simplify, deepen, journeys, visual-review, design, visualize, assess-agent-autonomy
-**Utility:** help, tidy, flow, browse, ledger, version, research, code-health, routine, harness-health, journey-health, triage, dispatch, demo
+**Utility:** help, tidy, flow, browse, ledger, version, research, code-health, routine, harness-health, journey-health, docs-health, triage, dispatch, demo
 
 ### Skills with sub-files
 
@@ -53,7 +53,7 @@ LICENSE                           → MIT
 | visual-review | browser-review.md, reconnaissance.md, journey-mode.md, discover-mode.md, qa-accelerated.md | Shared visual-review prerequisites + Page Mode steps; contextual page reconnaissance; mode-specific procedures; QA-accelerated paths for Steps 1, 3, 4 (loaded only when QA_DATA_AVAILABLE) |
 | specify | spec-template.md, design-pre-steps.md, red-team.md | Record body template with field rationale (the filename predates the record model; the file's own title and content already describe it as the "record body template") — same file backs both shaping mode (single record) and decomposition mode (parent + leaves); Step 2.5 frontend-detection + shape pre-step + design-intent question (lazy-loaded only for frontend specs); Step 5 multi-persona red-team dispatch prompt (Implementer/Maintainer/Skeptical Reviewer lenses + write-back procedure) |
 | wrap-up | leftover-routing.md, review-console.md, cleanup-procedures.md, skill-curation.md, verification-brief.md | Leftover routing rules for unfinished work; Review Console consolidation template; Step 5 cleanup procedures (design wrapper caches, pipeline run dir archival, worktree teardown, issue-claim release (item 8) with ownership check); Step 7 skill curation (seed gather, independent domain-scoped scan + gap detection, 6-dimension analysis, ≥2-of-3 new-skill gate, stage/present) — generates candidates from the work itself, not only ledger-tagged seeds; Step 10 Verification Brief procedure (bootstrap demo:pending, testability check, priority-ordered sourcing, post/append) |
-| tidy | scan-procedures.md | Per-step scan rules for Steps 1-5.5 (one merged work-record scan covering backlog/parked/unsynced/unscored-ready/bot:blocked/legacy-taxonomy shapes, design-docs+briefs, plans, git worktrees, doc registry, sizing, cross-spec patterns, issue claims (Step 4.7), GitHub PRs + code-health/harness-health/journey-health issues (Step 4.8 via _shared/github-pr-scan.md)) — inlined into each parallel agent's prompt at dispatch time |
+| tidy | scan-procedures.md | Per-step scan rules for Steps 1-5.5 (one merged work-record scan covering backlog/parked/unsynced/unscored-ready/bot:blocked/legacy-taxonomy shapes, design-docs+briefs, plans, git worktrees, doc registry, sizing, cross-spec patterns, issue claims (Step 4.7), GitHub PRs + code-health/harness-health/journey-health/docs-health issues (Step 4.8 via _shared/github-pr-scan.md)) — inlined into each parallel agent's prompt at dispatch time |
 | ledger | resolve-gate.md | Three-phase nothing-left-behind resolve gate (fix-exhaust → per-item user input → apply) referenced by /wrap-up Step 8.5 and /flow Step 5 |
 | flow | materialize.md, manifesto.md, multi-spec.md, multispec-review-console.md, steps-and-gates.md, survey.md, validation.md, worktree-merge.md, failure-cards.md | Record materialization (shared with /build): resolves a work record reference, hard-gates on spec shape, composes the pinned build-time header (`record`/`origin`/`risk`/`effort`/`grants`/`surface`/`design-intent`/etc.), and writes + commits `{run-dir}/work/{n}-spec.md` before any worktree exists; Pipeline Config Manifesto; multi-spec batching; consolidated multi-spec Review Console; Allowed Steps + Step Arguments + Gate Behavior + polish-phase decision tree (single canonical home); Creative Opportunities + Depth Opportunities survey ownership (end-of-run analysis-only surveys; Depth surfaces `/deepen` candidates without auto-refactoring); pre-flight validation; worktree-merge handoff; on-failure card templates (generic + polish-broke-verification) loaded only when a gate fails; close-via-merge mapping (records close on the user's merge, never `gh issue close`); pure executor — accepts a work record reference (`#N`, primary) or a legacy spec number, handed off by `/claude-tweaks:dispatch` (or run directly by a human against any unclaimed record), never selects/filters/claims records itself |
 | design | command-map.md, frontend-detection.md, impeccable-cli.md, modes/{test,review,shape,pre-build,polish,survey,reset-recommendations}.md | Canonical dispatch tables (auto-fit / issue-driven / intent-driven / survey "would help" criteria); frontend-vs-backend detection rules; Impeccable CLI invocation patterns; per-mode full procedures (steps, decision rules, output format) lazy-loaded by the active mode |
@@ -171,13 +171,15 @@ Referenced by (worktree assignment, enforcement, and `events.jsonl` consumption)
 
 ```bash
 claude --plugin-dir ./              # Local development — load plugin from current directory
-npm test                            # Runs node --test over tests/ AND bin/lib/code-health/tests/ AND bin/lib/issues/tests/ AND bin/lib/harness-health/tests/ AND bin/lib/journey-health/tests/
+npm test                            # Runs node --test over tests/ AND bin/lib/code-health/tests/ AND bin/lib/issues/tests/ AND bin/lib/harness-health/tests/ AND bin/lib/journey-health/tests/ AND bin/lib/docs-health/tests/
 node --test bin/lib/code-health/tests/*.test.js   # Code-health unit suite only
 node bin/code-health.js <cmd>             # Code-health CLI: validate-findings, classify, next-slice, status, churn-report, pull-issues
 node --test bin/lib/harness-health/tests/*.test.js   # Harness-health unit suite only
 node bin/harness-health.js <cmd>     # Harness-health CLI: next-target, validate-findings, mark, churn-report
 node --test bin/lib/journey-health/tests/*.test.js   # Journey-health unit suite only
 node bin/journey-health.js <cmd>     # Journey-health CLI: next-target, validate-findings, mark, churn-report, qa-evidence
+node --test bin/lib/docs-health/tests/*.test.js   # Docs-health unit suite only
+node bin/docs-health.js <cmd>        # Docs-health CLI: next-target, validate-findings, mark, churn-report
 ```
 
 ### Subagent Contract (v4.2+)

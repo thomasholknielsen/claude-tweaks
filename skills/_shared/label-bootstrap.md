@@ -29,9 +29,9 @@ consumer with its own label list — for a single label, use a one-element array
 
 ## Canonical LABELS_JSON — the full work-record taxonomy
 
-The complete label set from `_shared/work-record.md` (20 core + 3 optional `priority:*`),
+The complete label set from `_shared/work-record.md` (21 core + 3 optional `priority:*`),
 with descriptions pre-checked against GitHub's 100-character cap. **Consumers bootstrap only
-the labels they are about to apply** — copy the relevant pairs, don't create all 23
+the labels they are about to apply** — copy the relevant pairs, don't create all 24
 speculatively (except `/init`'s one-time provision-now offer, which uses this list whole):
 
 ```js
@@ -39,6 +39,7 @@ speculatively (except `/init`'s one-time provision-now offer, which uses this li
   ["by:code-health",    "Origin: filed by the code-health skill"],
   ["by:harness-health", "Origin: filed by the harness-health skill"],
   ["by:journey-health", "Origin: filed by the journey-health skill"],
+  ["by:docs-health",    "Origin: filed by the docs-health skill"],
   ["by:capture",        "Origin: filed via /capture"],
   ["risk:low",          "Scoring: low blast radius — safe for autonomous build"],
   ["risk:medium",       "Scoring: moderate blast radius — review before merge recommended"],

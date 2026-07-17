@@ -290,7 +290,8 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `/claude-tweaks:visual-review` | The deep tier falls back to `/visual-review journey:{name}` when no stories exist yet for the selected journey. |
 | `/claude-tweaks:review` | Shares `_shared/journey-coverage-check.md`'s coverage computation with lens `3g-cov` — `/review`'s lens stays inline/informational; this skill adds cursor-tracking and issue-filing on top. |
 | `/claude-tweaks:routine` | `/routine create journey-health` instantiates this skill's `routine-template.yml` into a live, scheduled cloud Routine. |
-| `/claude-tweaks:tidy` | Step 4.8 sweeps `by:journey-health`-labelled issues alongside `by:code-health`/`by:harness-health` ones, using the same stale/superseded triage. |
+| `/claude-tweaks:tidy` | Step 4.8 sweeps `by:journey-health`-labelled issues alongside `by:code-health`/`by:harness-health`/`by:docs-health` ones, using the same stale/superseded triage. |
+| `/claude-tweaks:docs-health` | Sibling health skill — same SELECT → JUDGE → FILE pipeline and `_shared/health-state.md` persistence, but scoped to `docs/**` Diátaxis genre-drift + staleness instead of `docs/journeys/*.md` accuracy and agent-e2e coverage. Both file born-`ready` findings on the unified work-record contract. |
 | `/claude-tweaks:triage` | Filed `by:journey-health` issues resolve through `/triage dispatch` → `/flow`, or manually — same path `by:code-health`/`by:harness-health` issues already take. Records enter the same gate worklist as the other health-skill producers — journey-health issues are not a separate lane. |
 | `_shared/journey-self-review.md` | Canonical four-check + structural-validity criteria this skill's light tier applies — shared with `/claude-tweaks:journeys` Step 3.5. |
 | `_shared/journey-coverage-check.md` | Canonical coverage computation this skill's coverage scan applies — shared with `/claude-tweaks:review`'s `3g-cov` lens. |
