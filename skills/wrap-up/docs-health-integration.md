@@ -29,7 +29,7 @@ Route surviving findings by `classification`:
     > /tmp/wrapup-docs-health-payloads.json
   ```
 
-  `--dry-run` here — wrap-up's own approval gate (Step 8.6 Review Console / Step 9 batch decision) is the point of approval, not `validate-findings`'s own dedup-and-file path. After the user approves at that gate, re-run the identical command without `--dry-run` so the cursor/cache state actually persists, then file each surviving payload with `gh issue create` exactly as `/claude-tweaks:docs-health` Step 6 does (same label set: `by:docs-health`, the scoring labels from that skill's classification table's `restructural` row, `ready`, `docs-health:restructural`).
+  `--dry-run` here — wrap-up's own approval gate (Step 8.6 Review Console / Step 9 batch decision) is the point of approval, not `validate-findings`'s own dedup-and-file path. After the user approves at that gate, re-run the identical command without `--dry-run` so the cursor/cache state actually persists. Before filing, bootstrap the label families this run applies — same canonical pairs `/claude-tweaks:docs-health` Step 6 bootstraps from `_shared/label-bootstrap.md`'s `LABELS_JSON`, since a project with no prior standalone `/docs-health` run won't have them yet. Then file each surviving payload with `gh issue create` exactly as `/claude-tweaks:docs-health` Step 6 does (same label set: `by:docs-health`, the scoring labels from that skill's classification table's `restructural` row, `ready`, `docs-health:restructural`).
 
 ## D2: Missing-documentation gap-detection
 
