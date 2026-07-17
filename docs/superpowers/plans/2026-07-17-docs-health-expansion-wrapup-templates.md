@@ -1294,8 +1294,8 @@ files:
 
 - [ ] **Step 2: Verify the file**
 
-Run: `grep -c "^## " skills/_shared/diataxis-genre-templates.md`
-Expected: `6`
+Run: `grep -cE "^## (Tutorial|How-To|Reference|Explanation|ADR \(Architecture Decision Record\)|Journey)$" skills/_shared/diataxis-genre-templates.md`
+Expected: `6` (this counts only the 6 outer genre section headers by exact name — a bare `grep -c "^## "` would also count each template's own inner skeleton headings, like "## Steps" or "## Context", giving a much higher and less meaningful number)
 
 Run: `grep -c '```markdown' skills/_shared/diataxis-genre-templates.md`
 Expected: `6`
