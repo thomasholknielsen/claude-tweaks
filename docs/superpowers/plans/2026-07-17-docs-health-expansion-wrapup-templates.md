@@ -1378,7 +1378,7 @@ Run: `grep -c "diataxis-genre-templates.md" skills/journeys/journey-template.md`
 Expected: `1`
 
 Run: `grep -c "Key Principles" skills/journeys/journey-template.md`
-Expected: `1` (confirms the heading survived)
+Expected: `2` (the `## Key Principles` heading itself, plus the pointer text's own cross-reference — "including the `files:` frontmatter field referenced in Key Principles below")
 
 - [ ] **Step 3: Commit**
 
