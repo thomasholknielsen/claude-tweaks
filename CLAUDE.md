@@ -179,7 +179,7 @@ node bin/harness-health.js <cmd>     # Harness-health CLI: next-target, validate
 node --test bin/lib/journey-health/tests/*.test.js   # Journey-health unit suite only
 node bin/journey-health.js <cmd>     # Journey-health CLI: next-target, validate-findings, mark, churn-report, qa-evidence
 node --test bin/lib/docs-health/tests/*.test.js   # Docs-health unit suite only
-node bin/docs-health.js <cmd>        # Docs-health CLI: next-target, validate-findings, mark, churn-report
+node bin/docs-health.js <cmd>        # Docs-health CLI: next-target, validate-findings, mark, churn-report, word-count, find-refs, check-freshness
 ```
 
 ### Subagent Contract (v4.2+)
