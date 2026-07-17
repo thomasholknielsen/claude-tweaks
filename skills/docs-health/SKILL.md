@@ -1,12 +1,12 @@
 ---
 name: claude-tweaks:docs-health
-description: Use when you want a proactive, report-only sweep of docs/** that surfaces Diátaxis genre-drift (implied doc type vs. actual content shape) and factual staleness, deduplicated and filed as GitHub issues. An LLM judges the docs; deterministic helpers handle scope rotation, fingerprinting, dedup, and issue filing. Never edits docs. Keywords - docs-health, documentation drift, Diátaxis, genre drift, staleness, proactive, github issues, scheduled, routine.
+description: Use when you want a proactive, report-only sweep of docs/** that surfaces Diátaxis genre-drift (implied doc type vs. actual content shape), depth-mismatch (implied reading investment vs. actual word count), and factual staleness, deduplicated and filed as GitHub issues. An LLM judges the docs; deterministic helpers handle scope rotation, fingerprinting, dedup, issue filing, and word-count computation. Never edits docs. Keywords - docs-health, documentation drift, Diátaxis, genre drift, depth mismatch, staleness, proactive, github issues, scheduled, routine.
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
-# Docs Health — Diátaxis Genre-Drift + Staleness Sweep for docs/**
+# Docs Health — Diátaxis Genre-Drift + Depth-Mismatch + Staleness Sweep for docs/**
 
-A recurring health check for `docs/**`: picks one doc to audit, judges it against the shared `_shared/criteria-docs-diataxis.md` procedure (implied-type-vs-found-type genre-drift, factual staleness, dual-persona misleading-risk), and files a `by:docs-health`-labelled, born-`ready` GitHub issue. Never edits docs — only files findings, mirroring `/code-health` and `/harness-health`.
+A recurring health check for `docs/**`: picks one doc to audit, judges it against the shared `_shared/criteria-docs-diataxis.md` procedure (implied-type-vs-found-type genre-drift, implied-vs-found depth-mismatch, factual staleness, dual-persona misleading-risk), and files a `by:docs-health`-labelled, born-`ready` GitHub issue. Never edits docs — only files findings, mirroring `/code-health` and `/harness-health`.
 
 ```
               [ /claude-tweaks:docs-health ] <- utility (no fixed lifecycle position)
@@ -17,7 +17,7 @@ finding -> validate-findings -> file GitHub issue (by:docs-health, ready)
 
 ## When to Use
 
-- You want `docs/**` (guides, references, ADRs, journeys, retrospectives) to stay accurate and correctly Diátaxis-shaped between manual edits, without driving each check yourself.
+- You want `docs/**` (guides, references, ADRs, journeys, retrospectives) to stay accurate, appropriately scoped, and correctly shaped — Diátaxis genre where it applies, native genre otherwise (an ADR stays ADR-shaped, not forced into a tutorial/how-to/reference/explanation mold) — between manual edits, without driving each check yourself.
 - You want a scheduled Routine that periodically rotates through `docs/**` and flags genre-drift or staleness as it's found.
 - You want to check one specific doc right now (`--target <id>`).
 
@@ -54,12 +54,20 @@ Read the file at `target.path` in full. If `docs/` doesn't exist yet, report "no
 
 **Step 3 — JUDGE the target.**
 
-Apply the full procedure in `_shared/criteria-docs-diataxis.md` (genre-drift, staleness, dual-persona misleading-risk) to the target's content:
+Apply the full procedure in `_shared/criteria-docs-diataxis.md` (genre-drift, depth-mismatch, staleness, dual-persona misleading-risk) to the target's content:
 
-1. Determine the doc's **implied type** from its location/heading language, and its **found type** from what the content actually does (tutorial / how-to / reference / explanation — see the criteria fragment's Dimension 1 table). A mismatch is a `category: "genre-drift"` finding.
-2. Check every stated fact (counts, dates, paths, versions, availability claims) against live repository state (grep, `find`, `git log`). A mismatch is a `category: "staleness"` finding.
-3. For every finding, judge `misleads`: `"human"` (a skim-and-notice-caveat reader partially self-corrects), `"agent"` (retrieval-style consumption has no such safety net — weight this higher), or `"both"`.
-4. Judge `classification`: `"additive"` (a one-line fact correction, an added disclaimer) or `"restructural"` (reorganizing a doc that mixes genres, splitting a doc).
+1. First, determine whether the doc has a self-evident non-Diátaxis-native genre (ADR/decision-record, structured spec/journey, dated retrospective/log — see the criteria fragment's Dimension 1). If so, skip type classification: spot-check it still reads as its own native genre, and flag only if it has drifted out of that genre into something else.
+2. Otherwise, determine the doc's **implied type** from its location/heading language, and its **found type** from what the content actually does (tutorial / how-to / reference / explanation — see the criteria fragment's Dimension 1 table). Flag a mismatch only when it would actually mislead a reader or leave the doc's purpose unserved — a `category: "genre-drift"` finding.
+3. Compute the doc's word count:
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" word-count "${TARGET_PATH}"
+   ```
+
+   `TARGET_PATH` is `target.path` from Step 1. The result is either an integer word count, or (if the doc's frontmatter declares `depth-hint:`) that value's literal string, returned as-is — ground truth, skip the judgment below entirely in that case. Otherwise, judge whether the computed word count is surprising given what the doc's location, heading, and native genre (from step 1) lead a reader to expect walking in — same "would this actually mislead" bar as step 2, never length by itself. A surprising mismatch is a `category: "depth-mismatch"` finding.
+4. Check every stated fact (counts, dates, paths, versions, availability claims) against live repository state (grep, `find`, `git log`). A mismatch is a `category: "staleness"` finding.
+5. For every finding, judge `misleads`: `"human"` (a skim-and-notice-caveat reader partially self-corrects), `"agent"` (retrieval-style consumption has no such safety net — weight this higher), or `"both"`.
+6. Judge `classification`: `"additive"` (a one-line fact correction, an added disclaimer) or `"restructural"` (reorganizing a doc that mixes genres, splitting a doc).
 
 Emit each finding in this shape:
 
@@ -68,7 +76,7 @@ Emit each finding in this shape:
   "target": "<doc id relative to docs/, no .md>",
   "assetType": "doc",
   "section": "<heading within the doc, or 'Freshness' for a whole-doc staleness finding>",
-  "category": "genre-drift | staleness",
+  "category": "genre-drift | depth-mismatch | staleness",
   "misleads": "human | agent | both",
   "classification": "additive | restructural",
   "confidence": "high | med | low",
@@ -230,7 +238,8 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | Pattern | Why It Fails |
 |---------|--------------|
 | Applying any patch directly instead of filing an issue | `/docs-health` never edits anything — every finding files as a GitHub issue for human review. Matches `/code-health`/`/harness-health`'s report-only contract. |
-| Flagging prose quality or style as a finding | Content quality is explicitly out of scope — only genre-drift (implied type vs. found type) and factual staleness are judged. See `_shared/criteria-docs-diataxis.md`'s Constraints section. |
+| Flagging prose quality or style as a finding | Content quality is explicitly out of scope — only genre-drift, depth-mismatch, and factual staleness are judged, all structural/expectation checks, never editorial ones. See `_shared/criteria-docs-diataxis.md`'s Constraints section. |
+| Flagging a doc's length by itself, without a mismatched expectation | Depth-mismatch only fires when a doc's actual word count would surprise a reader given what its location/heading/native genre imply — a correctly-signaled long or short doc is never a finding regardless of absolute length. See `_shared/criteria-docs-diataxis.md`'s Dimension 3. |
 | Flagging mechanical issues (broken links, malformed frontmatter) | Those belong in CI, not an LLM-judged health sweep — the same "CI stays reactive" boundary `/code-health` draws for code. |
 | Including `docs/superpowers/**` in the rotation pool | Ephemeral `/specify` + `/superpowers:writing-plans` build artifacts, not Diátaxis-portal content — excluded from `bin/lib/docs-health/scope.js`'s `listDocs` by construction. |
 | Auditing `.claude/skills/*.md`, `.claude/rules/*.md`, or CLAUDE.md | That is `/claude-tweaks:harness-health`'s exclusive territory — docs-health's rotation pool only ever walks `docs/`. |
