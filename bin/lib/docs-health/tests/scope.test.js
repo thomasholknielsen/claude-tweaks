@@ -139,23 +139,38 @@ test('selectTarget picks the highest-churn non-stale doc via injected signals', 
 test('selectTarget scores churn on declared files: paths, ignoring incidental backtick paths, when files: is present', () => {
   const root = tmp();
   initGitRepo(root);
-  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
-  fs.writeFileSync(path.join(root, 'src', 'declared.ts'), 'export const a = 1;\n');
-  commit(root, 'add declared.ts');
 
+  // Backdated initial commit: creates both the doc and its declared
+  // dependency well before the audit cursor, so the doc's OWN commit
+  // (relDocPath, always included in domainChurn's candidate path set)
+  // doesn't itself register as post-cursor churn. domainChurn's --since
+  // flag is date-granular, so without backdating, the doc's own
+  // same-day creation commit would always count as churn regardless of
+  // which domainPaths logic is under test — making the assertion pass
+  // whether or not the fix is actually applied.
+  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
   fs.mkdirSync(path.join(root, 'docs'), { recursive: true });
-  // A doc that declares files: (the real dependency) but also happens to
-  // backtick-mention an unrelated path with no real churn — files:
-  // should be what actually drives the churn score.
+  fs.writeFileSync(path.join(root, 'src', 'declared.ts'), 'export const a = 1;\n');
   fs.writeFileSync(
     path.join(root, 'docs', 'tracked.md'),
     '---\nfiles:\n  - src/declared.ts\n---\n\n# Tracked\n\nSee `src/unrelated.ts` for background.\n',
   );
-  commit(root, 'add tracked.md');
+  execFileSync('git', ['add', '-A'], { cwd: root });
+  execFileSync('git', ['commit', '-q', '-m', 'initial state', '--date', '2020-01-01T00:00:00'], {
+    cwd: root,
+    env: { ...process.env, GIT_COMMITTER_DATE: '2020-01-01T00:00:00' },
+  });
 
   const now = Date.now();
   const recentAudit = now - (STALE_DAYS - 1) * 86400000;
   const cursors = { 'doc:tracked': { lastAuditedMs: recentAudit } };
+
+  // Post-cursor commit touching ONLY the declared dependency, not the
+  // doc itself — the only legitimate churn source once the doc's own
+  // creation is excluded by backdating above.
+  fs.writeFileSync(path.join(root, 'src', 'declared.ts'), 'export const a = 2;\n');
+  commit(root, 'update declared.ts');
+
   const result = selectTarget(root, cursors, { now });
   assert.strictEqual(result.why, 'hotspot');
   assert.strictEqual(result.id, 'tracked');
