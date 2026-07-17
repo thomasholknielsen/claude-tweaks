@@ -168,10 +168,13 @@ committing it to the repo and referencing it via `raw.githubusercontent.com`.
   for now), different framing, because the brief itself now supports answering that question
   instead of a checklist-completion question.
 - New **"Show me live"** option, available only for testable records with a resolved entry point:
-  dispatches an on-demand `/claude-tweaks:browse` session to the resolved URL, for a human who
-  isn't satisfied by the committed screenshots and wants to interact themselves. This is the one
-  place `/demo` touches browser automation directly, and only on explicit human request — it does
-  not change the skill's default (static evidence, no automation) for anyone who doesn't ask.
+  opens an `agent-browser` session at the resolved URL, following `/browse`'s conventions (session
+  naming, lifecycle) directly — the same relationship `/visual-review` already has with `/browse`
+  (a documented conventions dependency, not a workflow-step invocation; see `/browse`'s own
+  Component-Skill Contract). For a human who isn't satisfied by the committed screenshots and wants
+  to interact themselves. This is the one place `/demo` touches browser automation directly, and
+  only on explicit human request — it does not change the skill's default (static evidence, no
+  automation) for anyone who doesn't ask.
 
 ## Relationship to Existing Mechanisms (delta from the original design)
 
@@ -183,8 +186,10 @@ committing it to the repo and referencing it via `raw.githubusercontent.com`.
   reimplements journey/page resolution. `/visual-review` remains the sole agentic, step-by-step,
   bug-catching pass — `/demo` never replaces it, only cites its output or, on request, launches a
   bounded live look via `/browse`.
-- **vs. `/browse`** — new relationship: `/demo`'s "show me live" option is a direct, on-demand
-  consumer of `/browse`, gated behind explicit human request rather than run automatically.
+- **vs. `/browse`** — new relationship: `/demo`'s "show me live" option consumes `/browse`'s
+  conventions directly (agent-browser session naming, lifecycle) the same way `/visual-review`
+  does — not a workflow-step invocation of `/browse` itself — gated behind explicit human request
+  rather than run automatically.
 
 ## Testing
 
