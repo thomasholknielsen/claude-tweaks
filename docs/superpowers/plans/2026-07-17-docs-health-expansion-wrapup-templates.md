@@ -862,7 +862,7 @@ Run: `grep -ci "freshness-dependenc" skills/_shared/criteria-docs-diataxis.md`
 Expected: at least `2`
 
 Run: `grep -c '"findability"' skills/_shared/criteria-docs-diataxis.md`
-Expected: at least `4`
+Expected: at least `2` (the Dimension 5 "Emit as `category: "findability"`" line, and the Emitting-a-finding category clause — the H1, intro, and Constraints mentions of findability are unquoted prose, not this literal quoted-string pattern)
 
 - [ ] **Step 3: Commit**
 
