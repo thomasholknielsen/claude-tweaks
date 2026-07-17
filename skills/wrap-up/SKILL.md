@@ -110,6 +110,8 @@ Check if the work requires updates to project documentation, using the doc regis
    - Existing docs were deleted or moved → propose removing/updating registry entries
    - Auto-detect patterns need adjustment (directories renamed, new code areas)
 
+4. **Docs-health check on touched docs, and missing-doc detection** — read `docs-health-integration.md` in this skill's directory for the full procedure: D1 judges every doc this work edited or created against the shared docs-health criteria (genre-drift, depth-mismatch, findability, staleness), routing `additive` findings into this step's own `[doc]` collection and filing `restructural` findings as GitHub issues; D2 detects when this work introduced a new subsystem with zero doc coverage anywhere and proposes scaffolding a new doc from the genre-template library. Both fold their output into this step's `[doc]` collection and the Step 9 batch table alongside items 1-3 above.
+
 → Collect each needed update as: `[doc] {file} — {what to add/change}`
 → Collect registry updates as: `[registry] {action} — {detail}`
 
@@ -427,6 +429,7 @@ When `$PIPELINE_RUN_DIR` is unset, `/wrap-up` runs standalone — render Next Ac
 | `/claude-tweaks:flow` | Invoked BY /flow as the pipeline's final step; flow waits for /wrap-up's Review Console (Step 8.6) before archiving the run directory. Multi-spec runs set `MULTISPEC_REVIEW_DEFER=1` so per-spec wrap-ups defer to flow's consolidated console. |
 | `/claude-tweaks:deepen` | Interface trade-offs /deepen flags `[ADR-candidate]` are picked up by Step 6.3 and run through the 3-factor gate for possible ADR creation |
 | `_shared/decision-records.md` | Canonical 3-factor ADR gate, location convention, and template applied by Step 6.3 |
+| `_shared/criteria-docs-diataxis.md`, `docs-health-integration.md` | Step 6.1 item 4 applies this shared judgment inline to docs touched by the current work (same reuse pattern as `_shared/harness-health-analysis.md` in Step 7), and detects missing documentation from the diff. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
 | `_shared/issue-claims.md` | Cleanup item 7 (Section E of `cleanup-procedures.md`) releases claims for specs with a materialized header, with the branch outcome as the release reason. |
 | `/claude-tweaks:harness-health` and `_shared/harness-health-analysis.md` | Step 7's 7.3-7.5 apply this shared procedure instead of an inline copy — sharing its judgment logic and its `.claude-tweaks/harness-health/` cursor/cache state with `/claude-tweaks:init` and the standalone `/claude-tweaks:harness-health` routine. |
