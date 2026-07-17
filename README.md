@@ -6,6 +6,16 @@ A structured workflow system for Claude Code — from idea capture through build
 
 Claude Code is powerful but unstructured. claude-tweaks adds a complete development lifecycle: capture ideas, challenge assumptions, decompose into specs, build with quality gates, and learn from what was built. Every finding is explicitly resolved — nothing silently drops.
 
+### What's new in v6.5.0 — Demo walkthrough redesign
+
+`/claude-tweaks:demo`'s Verification Brief is now a self-contained digest instead of a pointer to
+re-run another skill — vision/why, what shipped, and confirmed evidence (visual-review's result +
+up to 3 committed screenshots, or a code-review digest + diff for non-UI work). `/wrap-up` gains a
+safety-net gate that triggers a real visual-review pass before `demo:pending` is ever applied, for
+the one path (`/review` outside `full` mode) where one might not have already run.
+`/claude-tweaks:demo`'s verdict prompt reframes around vision/fit ("Does this do what you asked
+for?") and gains an on-demand "Show me live" option for a live look via `agent-browser`.
+
 ### What's new in v6.4.0 — Unattended tier: fewer clicks in `auto` mode
 
 A new opt-in policy lever, `unattended-tier` (off by default), lets three narrow, low-stakes
