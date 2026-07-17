@@ -113,6 +113,24 @@ See `_shared/pipeline-run-dir.md` for the resolution order and bash snippet. If 
 - Section 7 (Queue writes) uses a **separate `Q`-prefixed sequence** (`Q1`, `Q2`, …) because those items require per-item approval and are NOT part of the global "Approve all" choice.
 - This applies to both the example below and any real Console output. Do not restart numbering within a section.
 
+## Unattended-tier auto-file (runs before rendering)
+
+If `unattended-tier: on` (see `_shared/unattended-tier.md`), before building any of the tables
+below: for every queue-write proposal already staged (from ledger Phase 2's narrowing, leftover
+routing Step 4, or `/reflect`'s tangential-idea routing Step 3 — all three run earlier in
+`/wrap-up`'s own step order, before Step 8.6) create the record directly via the same `gh issue
+create` / `local-store.js` path "On approval" step 5 below already uses, log it as `AUTO` instead
+of `STAGED`, and list it under **Auto-applied** instead of **Queue writes**. On a fully-on run
+with no ambiguous residue, the Queue writes section below therefore renders empty.
+
+Do not sweep up reflect's non-queue-write staged findings (convention drift, pattern
+observations, skill-update proposals) here — identify a queue write the same way this console
+already distinguishes one: a `decisions.md` `STAGED` entry phrased as a record proposal ("--
+backlog candidate" / a `leftover-` or `ledger-record-` staged file), not a bare stage path.
+
+If record creation fails for one proposal, leave that one staged and let it render normally in
+Queue writes below — do not drop it.
+
 ## Present the console
 
 ```markdown
@@ -184,7 +202,8 @@ Render the cleanup rows from the canonical list in `cleanup-procedures.md`, filt
 #### Queue writes — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")
 
 Render this section only when leftover routing or another step (e.g. `/reflect`'s
-tangential-idea routing) has proposed a new work record. Each row gets its own prompt — bulk
+tangential-idea routing) has proposed a new work record **and it wasn't already auto-filed by the
+Unattended-tier auto-file step above**. Each remaining row gets its own prompt — bulk
 approval is forbidden per `_shared/auto-mode-contract.md`'s work-record-creation row. The exact
 write mechanism (`gh issue create` / `local-store.js`, or — for a skill not yet migrated onto
 the unified record system — its own destination) lives in the producing skill's own staged
