@@ -7,7 +7,7 @@
 // "new-skill"-equivalent second shape).
 
 const ASSET_TYPE_VALUES = new Set(['doc']);
-const CATEGORY_VALUES = new Set(['genre-drift', 'staleness', 'depth-mismatch']);
+const CATEGORY_VALUES = new Set(['genre-drift', 'staleness', 'depth-mismatch', 'findability']);
 const MISLEADS_VALUES = new Set(['human', 'agent', 'both']);
 const CLASSIFICATION_VALUES = new Set(['additive', 'restructural']);
 const CONFIDENCE_VALUES = new Set(['high', 'med', 'low']);

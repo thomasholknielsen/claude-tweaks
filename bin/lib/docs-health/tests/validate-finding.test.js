@@ -103,3 +103,12 @@ test('validateFinding accepts category: depth-mismatch', () => {
   }));
   assert.strictEqual(result.ok, true);
 });
+
+test('validateFinding accepts category: findability', () => {
+  const result = validateFinding(validFinding({
+    category: 'findability',
+    section: 'Freshness',
+    description: 'Doc has zero inbound references from docs/**, README.md, or CLAUDE.md',
+  }));
+  assert.strictEqual(result.ok, true);
+});
