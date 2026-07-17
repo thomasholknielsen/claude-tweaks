@@ -86,13 +86,23 @@ Call `AskUserQuestion` with `question`: `"How do you want to work through these?
 
 ## Step 3: Per-item walkthrough
 
-For every record not bulk-approved in Step 2, render its full Verification Brief (What changed /
-Why / How to verify, or the non-testable note verbatim), then call `AskUserQuestion` with
-`question`: `"Verdict for {ref}: {title}?"`, `header`: `"Verdict"`, `multiSelect`: `false`:
+For every record not bulk-approved in Step 2, render its full Verification Brief (The ask / What
+shipped / Confirmed / See it yourself, per `verification-brief.md`'s digest template — evidence
+the human can judge, not a checklist to complete), then call `AskUserQuestion` with `question`:
+`"Does {title} do what you asked for?"`, `header`: `"Verdict"`, `multiSelect`: `false`:
 
 - Option 1 — `label`: `"Approve"`, `description`: `"This does what was asked"`
-- Option 2 — `label`: `"Request changes"`, `description`: `"There's a gap — I'll describe it"`
-- Option 3 — `label`: `"Skip for now"`, `description`: `"Leave demo:pending — I'll come back to this"`
+- Option 2 (only when the brief's "See it yourself" entry point resolved) — `label`: `"Show me live"`, `description`: `"Open {entry point} in a live browser session before deciding"`
+- Option 3 — `label`: `"Request changes"`, `description`: `"There's a gap — I'll describe it"`
+- Option 4 — `label`: `"Skip for now"`, `description`: `"Leave demo:pending — I'll come back to this"`
+
+**"Show me live"**: open an `agent-browser` session at the brief's resolved entry point, following
+`/claude-tweaks:browse`'s conventions (session naming, lifecycle) directly — the same relationship
+`/claude-tweaks:visual-review` already has with `/browse`, not a workflow-step invocation of
+`/browse` itself. After the human finishes looking, close the session (leaked sessions consume
+resources — same discipline `/browse`'s own Anti-Patterns table requires), then re-render the same
+`AskUserQuestion` for this record with only Approve / Request changes / Skip for now (the live
+look already happened — don't offer it twice for the same record).
 
 ## Step 4: Apply verdicts
 
@@ -142,11 +152,13 @@ always renders.
 | Silently dropping a `demo:pending` record with no verdict | Every record gets Approve / Request changes / Skip — Skip is explicit and leaves `demo:pending` for next run, it never disappears from the worklist unrecorded |
 | Treating a record with no interactive surface as not needing sign-off | Non-testable work still gets a lightweight human look — the brief just reframes the ask as "review the diff/rationale" instead of "click through this" |
 | Scanning only open issues | `demo:pending` persists on closed issues too (auto-merged autonomous work) — always query `--state all` |
+| Leaving a "Show me live" session open after the verdict is captured | Leaked sessions consume resources — close it the same way `/browse`'s own Anti-Patterns table requires, immediately after the human finishes looking, before re-rendering the verdict question |
 
 ## Relationship to Other Skills
 
 | Skill | Relationship |
 |-------|-------------|
-| `/claude-tweaks:wrap-up` | Sole producer of `demo:pending` + the Verification Brief (Step 10, `verification-brief.md`) — `/demo` is the sole consumer/resolver |
+| `/claude-tweaks:wrap-up` | Sole producer of `demo:pending` + the Verification Brief (Step 10, `verification-brief.md`), gated on a clean visual-review pass — `/demo` is the sole consumer/resolver |
+| `/claude-tweaks:browse` | `/demo`'s "Show me live" option (Step 3) consumes /browse's conventions directly (session naming, lifecycle) for an on-demand live look — the same relationship /claude-tweaks:visual-review has with /browse, not a workflow-step invocation |
 | `/claude-tweaks:help` | `/help`'s dashboard surfaces a `demo:pending` count as a lightweight signal; `/demo` is where the actual walkthrough happens |
 | `/claude-tweaks:capture` | On "request changes," `/demo` files a follow-up backlog record using the same `recordPayload` composition `/capture` itself uses, without invoking `/capture` |
