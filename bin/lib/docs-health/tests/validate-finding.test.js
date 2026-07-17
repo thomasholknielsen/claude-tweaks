@@ -94,3 +94,12 @@ test('validateFinding accepts category: genre-drift', () => {
   }));
   assert.strictEqual(result.ok, true);
 });
+
+test('validateFinding accepts category: depth-mismatch', () => {
+  const result = validateFinding(validFinding({
+    category: 'depth-mismatch',
+    section: 'Overview',
+    description: 'Overview-implied doc is actually dense reference-depth content',
+  }));
+  assert.strictEqual(result.ok, true);
+});
