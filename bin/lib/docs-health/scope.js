@@ -103,10 +103,11 @@ function selectTarget(root, cursors, opts = {}) {
   }
 
   // Phase 2: among non-stale candidates, score by churn since last audit —
-  // the doc's own referenced paths (extractDomainPaths) UNION the doc
-  // file's own path, so editing the doc itself also counts (a doc that
-  // changed a lot recently is itself a drift risk, independent of what it
-  // references).
+  // the doc's own declared files: dependencies (preferred, parseFilesField)
+  // or, absent those, its incidentally backtick-quoted paths
+  // (extractDomainPaths) — UNION the doc file's own path, so editing the
+  // doc itself also counts (a doc that changed a lot recently is itself a
+  // drift risk, independent of what it references).
   const scored = [];
   for (const candidate of candidates) {
     const key = `doc:${candidate.id}`;
