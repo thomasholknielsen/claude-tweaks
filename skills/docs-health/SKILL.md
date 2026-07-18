@@ -195,29 +195,33 @@ gh issue comment <issue_number> --body "Regressed: this finding reappeared. Run:
 
 In `--dry-run` mode, print what would be filed or reopened, and the `gh` commands that would run, but do not call `gh`.
 
-**Step 7 — SUMMARIZE.**
-
-Report: which target(s) were audited, how many findings were emitted, how many filed vs skipped by dedup. List any new issue URLs.
-
-In interactive mode, route surviving findings through a two-tier decision:
+Per `_shared/health-filing-gate.md`'s applicability/scope/placement rule: in interactive mode, before filing this firing's own new findings (not the retry-queue drains or regressed reopens above, which already executed unconditionally), route survivors through a two-tier decision:
 
 1. Render all findings as a markdown batch table:
 
    ```
-   | # | Title | Category | Misleads | Classification | Confidence |
-   |---|-------|----------|----------|-----------------|------------|
-   | 1 | {title} | {category} | {misleads} | {classification} | {confidence} |
+   | # | Title | Category | Misleads | Classification | Confidence | Recommended |
+   |---|-------|----------|----------|-----------------|------------|-------------|
+   | 1 | {title} | {category} | {misleads} | {classification} | {confidence} | {File issue|Capture} |
    ```
 
+   Pre-fill the Recommended column: `confidence: high` or `confidence: med` → `"File issue"`; `confidence: low` → `"Capture"`.
+
 2. Call `AskUserQuestion` with `question`: `"How do you want to handle these findings?"`, `header`: `"Findings"`, `multiSelect`: `false`, and:
-   - Option 1 — `label`: `"File all (Recommended)"`, `description`: `"File every finding above as a GitHub docs-health issue"`
+   - Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"File / Capture each finding per the Recommended column above"`
    - Option 2 — `label`: `"Route individually"`, `description`: `"Decide each finding one at a time"`
 
 3. If "Route individually" was chosen, call `AskUserQuestion` once per finding — `question`: `"How do you want to handle finding #{N}: {title}?"`, `header`: `"Finding #{N}"`, `multiSelect`: `false`, and:
    - Option 1 — `label`: `"File issue"`, `description`: `"File as a GitHub docs-health issue"`
-   - Option 2 — `label`: `"Dismiss"`, `description`: `"Run mark declined so it doesn't reappear"`
+   - Option 2 — `label`: `"Capture"`, `description`: `"Capture via /claude-tweaks:capture for later triage"`
+   - Option 3 — `label`: `"/claude-tweaks:specify directly"`, `description`: `"Promote straight to a spec, skipping the issue"`
+   - Option 4 — `label`: `"Dismiss"`, `description`: `"Run mark declined so it doesn't reappear"`
 
 For "dismiss," run `node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" mark "<payload.id>" declined --root .` so the same proposal doesn't reappear on a future firing.
+
+**Step 7 — SUMMARIZE.**
+
+Report: which target(s) were audited, how many findings were emitted, how many filed vs skipped by dedup. List any new issue URLs.
 
 ## Routine Configuration
 
@@ -262,6 +266,7 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | Skipping the verify gate under time pressure | Unattended firings compound false positives into staged noise if a misread isn't caught before staging. |
 | Treating the local cache as durable state | The cache is a rebuildable optimization — GitHub issue state is the source of truth for cross-run memory, same as `/code-health`/`/harness-health`. |
 | Editing `docs/**` content to "fix" what a finding describes | This skill only ever judges and files — never edits. |
+| Filing before presenting the interactive gate | The two-tier decision must run before any `gh issue create` call for new findings — see `_shared/health-filing-gate.md`'s placement rule. |
 
 ## Relationship to Other Skills
 
@@ -278,3 +283,4 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `_shared/criteria-docs-diataxis.md` | The canonical judge this skill reads — the genre-drift/depth-mismatch/findability/staleness dimensions, dual-persona misleading-risk tagging, and Finding Shape live there, not here. |
 | `_shared/health-state.md` | Durable cross-firing storage contract — docs-health's cursors, retry queue, and run history live on the `health-state` branch, reusing the exact same `bin/lib/health-core/*` primitives harness-health and code-health already use. No new persistence mechanism. |
 | `_shared/work-record.md` | Canonical taxonomy docs-health files against — origin `by:docs-health`, scoring, `ready` stage, born-ready rule. |
+| `_shared/health-filing-gate.md` | The canonical interactive file-all/route-individually gate this skill's Step 6 applies before calling `gh issue create` on new findings — shared with `/code-health`, `/harness-health`, and `/journey-health`. |
