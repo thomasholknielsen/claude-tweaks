@@ -112,3 +112,37 @@ test('validateFinding accepts category: findability', () => {
   }));
   assert.strictEqual(result.ok, true);
 });
+
+// ── relatedSections (bundled findings) ───────────────────────────────────────
+
+test('validateFinding: relatedSections is optional — absent is valid', () => {
+  const result = validateFinding(validFinding());
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.value.relatedSections, undefined);
+});
+
+test('validateFinding: relatedSections accepted when present as an array of non-empty strings', () => {
+  const result = validateFinding(validFinding({
+    relatedSections: ['Auto-detect Patterns', 'Research Directory'],
+  }));
+  assert.strictEqual(result.ok, true);
+  assert.deepStrictEqual(result.value.relatedSections, ['Auto-detect Patterns', 'Research Directory']);
+});
+
+test('validateFinding: relatedSections fails when not an array', () => {
+  const result = validateFinding(validFinding({ relatedSections: 'Auto-detect Patterns' }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.startsWith('relatedSections')), result.errors.join('; '));
+});
+
+test('validateFinding: relatedSections fails when it contains an empty string', () => {
+  const result = validateFinding(validFinding({ relatedSections: ['Overview', ''] }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.startsWith('relatedSections')), result.errors.join('; '));
+});
+
+test('validateFinding: relatedSections fails when it contains a non-string entry', () => {
+  const result = validateFinding(validFinding({ relatedSections: ['Overview', 42] }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.startsWith('relatedSections')), result.errors.join('; '));
+});

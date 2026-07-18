@@ -90,6 +90,7 @@ Emit each finding in this shape:
   "target": "<doc id relative to docs/, no .md>",
   "assetType": "doc",
   "section": "<heading within the doc, or 'Freshness' for a whole-doc staleness finding>",
+  "relatedSections": "<optional array of sibling section names sharing this finding's root cause; omit if there's only one occurrence>",
   "category": "genre-drift | depth-mismatch | findability | staleness",
   "misleads": "human | agent | both",
   "classification": "additive | restructural",
@@ -101,6 +102,8 @@ Emit each finding in this shape:
   "newString": "<proposed text>"
 }
 ```
+
+**Bundling rule (recurring root causes):** when two or more findings within this doc audit share both the same `category` and the same root-cause explanation, file **one** finding, not one per section. Pick the clearest/most representative occurrence as the primary `section`; list every other occurrence in `relatedSections`; make `reason` state the shared root cause explaining all of them; make `description` (the acceptance criteria) require every listed section fixed, not just the primary one. Only bundle occurrences that share both `category` AND the root cause — never bundle unrelated findings just because they're in the same doc.
 
 Write the array to `/tmp/docs-health-findings.json`.
 
@@ -268,6 +271,7 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | Skipping the verify gate under time pressure | Unattended firings compound false positives into staged noise if a misread isn't caught before staging. |
 | Treating the local cache as durable state | The cache is a rebuildable optimization — GitHub issue state is the source of truth for cross-run memory, same as `/code-health`/`/harness-health`. |
 | Editing `docs/**` content to "fix" what a finding describes | This skill only ever judges and files — never edits. |
+| Splitting one recurring root cause into N near-duplicate issues instead of bundling | Floods the tracker with issues that are really one fix applied to N sections. Use `relatedSections` to cover every occurrence in a single finding instead. |
 | Filing before presenting the interactive gate | The two-tier decision must run before any `gh issue create` call for new findings — see `_shared/health-filing-gate.md`'s placement rule. |
 
 ## Relationship to Other Skills
