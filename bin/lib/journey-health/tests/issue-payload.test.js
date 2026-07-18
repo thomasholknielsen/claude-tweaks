@@ -167,3 +167,30 @@ test('toIssuePayload preserves top-level finding fields alongside the payload fi
   assert.strictEqual(payload.severity, 'low');
   assert.strictEqual(payload.confidence, 'med');
 });
+
+// ── relatedSections rendering (bundled coverage findings) ────────────────────
+
+test('toIssuePayload body includes an "Also affects" line when relatedSections is present on a coverage finding', () => {
+  const payload = toIssuePayload(finding({
+    category: 'coverage', section: 'coverage',
+    relatedSections: ['signup-flow: steps 2,3', 'login-flow: steps 4'],
+  }));
+  assert.ok(payload.body.includes('Also affects:'), 'missing Also affects block');
+  assert.ok(payload.body.includes('`signup-flow: steps 2,3`'));
+  assert.ok(payload.body.includes('`login-flow: steps 4`'));
+});
+
+test('toIssuePayload body omits "Also affects" when relatedSections is absent', () => {
+  const payload = toIssuePayload(finding({ category: 'coverage', section: 'coverage' }));
+  assert.ok(!payload.body.includes('Also affects:'));
+});
+
+test('toIssuePayload body omits "Also affects" when relatedSections is an empty array', () => {
+  const payload = toIssuePayload(finding({ category: 'coverage', section: 'coverage', relatedSections: [] }));
+  assert.ok(!payload.body.includes('Also affects:'));
+});
+
+test('toIssuePayload for a self-review (non-coverage) finding never renders "Also affects"', () => {
+  const payload = toIssuePayload(finding());
+  assert.ok(!payload.body.includes('Also affects:'));
+});

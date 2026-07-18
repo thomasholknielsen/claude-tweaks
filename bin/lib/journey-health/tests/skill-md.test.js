@@ -70,7 +70,7 @@ test('no emojis (common emoji unicode sequences)', () => {
   'validate-findings', '$PIPELINE_RUN_DIR', '--dry-run', '_shared/health-state.md',
   'work-record.md', 'work-fingerprint', 'by:journey-health', 'extractFingerprint',
   'work-types', 'TYPE_LABELS', 'journey-health:drift', 'journey-health:coverage',
-  'journey-health:regression-suspected',
+  'journey-health:regression-suspected', 'relatedSections', 'Bundling rule',
 ].forEach((token) => {
   test(`contains required token '${token}'`, () => {
     const content = read();
