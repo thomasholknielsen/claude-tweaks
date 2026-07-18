@@ -16,7 +16,7 @@ This design means:
 ```
 Codebase                     ──→ Findings cache               ──→ Work record (durable)             ──→ Triage grants        ──→ Dispatch claims + builds
 .claude-tweaks/code-health/      .claude-tweaks/code-health/      Confident: GitHub issue/local record   /claude-tweaks:triage    /claude-tweaks:dispatch
-  /code-health                   cache.json (local) +               (label: by:code-health, born ready)  (auto:build/            → /flow #{n}
+  /code-health                   cache.json (local) +               (label: by:code-health, born ready)  (auto:build/            → /claude-tweaks:flow #{n}
                                   health-state branch              Low-confidence: backlog record          auto:merge)
                                   cursors/runs.json (durable)        via /capture instead
 ```
