@@ -72,10 +72,13 @@ Every record returned already carries its parsed `.facets` — no separate parse
 | Trigger status | Default Recommendation |
 |---------------|----------------------|
 | Milestone attached, `milestoneDueOn` is in the past | Promote (re-run `/claude-tweaks:specify`) |
-| A `**Watched paths:**` line in the body names a path with a matching commit since the record was parked (per `git log`) | Promote |
+| A `**Watched paths:**` line in the body names a path with a matching commit since the record was parked (per `git log`), and that commit's own diff/message does not already resolve the record's described problem | Promote |
+| A `**Watched paths:**` line in the body names a path with a matching commit since the record was parked (per `git log`), **and that commit's own diff/message already resolves the record's described problem** | Delete — already implemented (cite the resolving commit SHA in the closing comment) |
 | Neither trigger met, parked < 4 weeks | Keep |
 | Neither trigger met, parked > 4 weeks | Re-evaluate or delete |
 | Prose-only trigger, no clear date/path condition | Judge live each sweep — Keep, or move back to backlog state |
+
+A watched-path match is a signal to look again, not proof the record still needs work — read the matching commit's diff and message before recommending Promote. A commit that merely touches the watched path is not evidence the underlying problem is solved; only a commit whose content demonstrably addresses what the record describes counts as resolved. Conflating the two risks recommending `/claude-tweaks:specify` on a record whose work is already done, producing a redundant decomposition.
 
 → Collect each as: `[parked] {title} — {recommendation}`
 
