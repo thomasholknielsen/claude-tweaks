@@ -153,3 +153,27 @@ test('toIssuePayload renders a Memory label for assetType: memory', () => {
   });
   assert.match(payload.title, /^Memory /);
 });
+
+// ── relatedSections rendering (bundled findings) ─────────────────────────────
+
+test('toIssuePayload body includes an "Also affects" line when relatedSections is present on a patch finding', () => {
+  const payload = toIssuePayload(patchFinding({ relatedSections: ['Key Patterns', 'Overview'] }));
+  assert.ok(payload.body.includes('Also affects:'), 'missing Also affects block');
+  assert.ok(payload.body.includes('`Key Patterns`'));
+  assert.ok(payload.body.includes('`Overview`'));
+});
+
+test('toIssuePayload body omits "Also affects" when relatedSections is absent', () => {
+  const payload = toIssuePayload(patchFinding());
+  assert.ok(!payload.body.includes('Also affects:'));
+});
+
+test('toIssuePayload body omits "Also affects" when relatedSections is an empty array', () => {
+  const payload = toIssuePayload(patchFinding({ relatedSections: [] }));
+  assert.ok(!payload.body.includes('Also affects:'));
+});
+
+test('toIssuePayload for a new-skill finding never renders "Also affects" (no section to bundle by)', () => {
+  const payload = toIssuePayload(newSkillFinding());
+  assert.ok(!payload.body.includes('Also affects:'));
+});

@@ -31,9 +31,15 @@ function toIssuePayload(finding) {
     ? `Proposed new skill \`${finding.target}\`:\n\n${finding.proposedBody}`
     : `**Current:**\n\`\`\`\n${finding.oldString || '(N/A — new content)'}\n\`\`\`\n\n**Proposed:**\n\`\`\`\n${finding.newString}\n\`\`\``;
 
+  // Only ever populated for kind: "patch" findings — new-skill candidates have
+  // no section to bundle by, so finding.relatedSections is always absent there.
+  const relatedBlocks = Array.isArray(finding.relatedSections) && finding.relatedSections.length > 0
+    ? [`Also affects: ${finding.relatedSections.map((s) => `\`${s}\``).join(', ')}`]
+    : [];
+
   const body = specShapedBody({
     header: kindLine,
-    currentState: finding.reason,
+    currentState: [...relatedBlocks, finding.reason],
     deliverables,
     acceptanceCriteria: finding.description,
     filedBy: '/claude-tweaks:harness-health',
@@ -74,6 +80,7 @@ function toIssuePayload(finding) {
     reversibility: finding.reversibility,
     oldString: finding.oldString,
     newString: finding.newString,
+    relatedSections: finding.relatedSections,
     title: payload.title,
     body: payload.body,
     labels: [...payload.labels, diagnosticLabel],

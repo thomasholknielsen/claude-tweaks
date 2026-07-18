@@ -117,3 +117,41 @@ test('validateFinding accepts assetType: memory', () => {
   const result = validateFinding(validPatch({ assetType: 'memory', target: 'design-feedback-style' }));
   assert.strictEqual(result.ok, true);
 });
+
+// ── relatedSections (bundled findings) ───────────────────────────────────────
+
+test('validateFinding: relatedSections is optional — absent is valid', () => {
+  const result = validateFinding(validPatch());
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.value.relatedSections, undefined);
+});
+
+test('validateFinding: relatedSections accepted on a patch finding as an array of non-empty strings', () => {
+  const result = validateFinding(validPatch({ relatedSections: ['Key Patterns', 'Overview'] }));
+  assert.strictEqual(result.ok, true);
+  assert.deepStrictEqual(result.value.relatedSections, ['Key Patterns', 'Overview']);
+});
+
+test('validateFinding: relatedSections fails when not an array', () => {
+  const result = validateFinding(validPatch({ relatedSections: 'Key Patterns' }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.startsWith('relatedSections')), result.errors.join('; '));
+});
+
+test('validateFinding: relatedSections fails when it contains an empty string', () => {
+  const result = validateFinding(validPatch({ relatedSections: ['Key Patterns', ''] }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.startsWith('relatedSections')), result.errors.join('; '));
+});
+
+test('validateFinding: relatedSections fails when it contains a non-string entry', () => {
+  const result = validateFinding(validPatch({ relatedSections: ['Key Patterns', 1] }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.startsWith('relatedSections')), result.errors.join('; '));
+});
+
+test('validateFinding: a new-skill finding remains valid and unaffected by relatedSections', () => {
+  const result = validateFinding(validNewSkill());
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.value.relatedSections, undefined);
+});

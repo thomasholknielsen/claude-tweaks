@@ -70,7 +70,7 @@ test('no emojis (common emoji unicode sequences)', () => {
   'validate-findings', '$PIPELINE_RUN_DIR', '--dry-run', '_shared/health-state.md',
   'work-record.md', 'work-fingerprint', 'by:harness-health', 'extractFingerprint',
   'work-types', 'TYPE_LABELS', 'harness-health:additive', 'harness-health:restructural',
-  'harness-health:new-skill',
+  'harness-health:new-skill', 'relatedSections', 'Bundling rule',
 ].forEach((token) => {
   test(`contains required token '${token}'`, () => {
     const content = read();
