@@ -34,7 +34,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | Command | What it does | Takes |
 |---------|-------------|-------|
 | `/claude-tweaks:help` | Dashboard: commands + status (incl. current PR) + recommendations | `status`, `commands`, spec/topic |
-| `/claude-tweaks:tidy` | Batch backlog hygiene (incl. GitHub PRs + code-health/harness-health/journey-health issues) | `--scope=<name>[,<name>...]` |
+| `/claude-tweaks:tidy` | Batch backlog hygiene (incl. GitHub PRs + code-health/harness-health/journey-health/docs-health issues) | `--scope=<name>[,<name>...]` |
 | `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → polish → wrap-up (+ end-of-run depth survey); pure executor — never selects records itself | record ref(s) (`#N`), spec #(s) (legacy alias), doc path, handed off by `/claude-tweaks:dispatch` + `auto` `worktree`/`current-branch` `no-stories` `no-polish` `no-deepen` `keep-going` `[step]` (single = resume) |
 | `/claude-tweaks:triage` | The interactive human gate over the `ready` queue — grants `auto:build`/`auto:merge`, or flags an unshaped record back for re-shaping. Always interactive; no headless mode. | *(none — takes no arguments)* |
 | `/claude-tweaks:dispatch` | The queue consumer — claims an authorized record's whole file-overlap group (atomic ref lock) and hands it to `/flow`; settles on success/failure | *(none)* (interactive batch pick), `next` (headless routine unit), `#N` (direct), `#N,#M,...` (explicit list — e.g. from triage's Next Actions) |
@@ -47,6 +47,8 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/claude-tweaks:routine` | Instantiate a skill's routine template (e.g. code-health's) into a live cloud Routine via `RemoteTrigger` — template-driven, resolves project/account values with minimal prompts | `create <skill>`, `update <skill>`, `status <skill>`, `--variant=<name>`, `--dry-run` |
 | `/claude-tweaks:harness-health` | Recurring health check auditing `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md for drift, template-conformance, and best-practice gaps, sharing its judgment procedure with `/init`/`/wrap-up`. Scheduled Routine. Never edits anything — always files a GitHub issue. | `--target <name>`, `--kind <skill\|rule\|claude-md\|design-artifact\|memory>`, `--memory-dir <path>`, `--dry-run`, `--budget <n>`, `--root <dir>` |
 | `/claude-tweaks:journey-health` | Recurring health check auditing `docs/journeys/*.md` for drift and journey-story coverage gaps (light tier); an interactive-only deep tier actually runs a journey's QA stories or walks it live. Scheduled Routine (light tier only). Never edits anything — always files a GitHub issue. | `--target <name>`, `--deep`, `--dry-run`, `--budget <n>`, `--root <dir>` |
+| `/claude-tweaks:docs-health` | Recurring health check auditing `docs/**` for Diátaxis genre-drift, depth-mismatch, findability, and factual staleness, with dual-persona misleading-risk tagging. Scheduled Routine. Never edits anything — always files a GitHub issue. | `--target <id>`, `--dry-run`, `--budget <n>`, `--root <dir>` |
+| `/claude-tweaks:demo` | Aggregates every `demo:pending` record (open or closed), briefs you on each, and captures a human verdict — approve or request changes | *(none)*, `#N` |
 
 ## Recommended Companion Tools
 
@@ -134,7 +136,8 @@ Backlog record → Brief → Design Doc → Ready record(s) → Code → Stories
 | `/claude-tweaks:stories` | Story YAML files | — |
 | `/claude-tweaks:test` | TEST_PASSED flag | — |
 | `/claude-tweaks:review` | Review summary | — |
-| `/claude-tweaks:wrap-up` | Learnings (CLAUDE.md) | Spec, plans, ledger |
+| `/claude-tweaks:wrap-up` | Learnings (CLAUDE.md), Verification Brief | Spec, plans, ledger |
+| `/claude-tweaks:demo` | Follow-up record (on changes-requested) | — |
 
 Consumed artifacts are deleted — specs and code are the durable outputs.
 
@@ -144,7 +147,7 @@ Consumed artifacts are deleted — specs and code are the durable outputs.
 
 | Stop | Where | What |
 |---|---|---|
-| **Pipeline Config Manifesto** | `/flow` Step 3 | Computes every policy lever (Mode, scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness) and writes `config.yml`. **In default `auto` it displays as an FYI and proceeds — no stop.** Pass `/flow … confirm` to get the "Approve all / Override / Cancel" gate; `interactive` skips it for per-skill in-flow prompts. |
+| **Pipeline Config Manifesto** | `/flow` Step 3 | Computes every policy lever (Mode, scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness, unattended-tier, ceremony-profile) and writes `config.yml`. **In default `auto` it displays as an FYI and proceeds — no stop.** Pass `/flow … confirm` to get the "Approve all / Override / Cancel" gate; `interactive` skips it for per-skill in-flow prompts. |
 | **Wrap-Up Review Console** | `/wrap-up` Step 8.6 | One consolidated batch: auto-applied items + pending-review items + skill updates + config changes. Hit "1. Approve all" or override. |
 
 **Mid-flow:** skills look up policy from `.claude-tweaks/pipelines/{run-id}/config.yml` and log every auto-decision to `decisions.md`. Skills MUST NOT invent new mid-flow stops in auto.

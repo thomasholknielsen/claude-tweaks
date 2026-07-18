@@ -114,6 +114,43 @@ After confirming `TEST_PASSED`, read the open items ledger (`docs/plans/*-ledger
 
 > **Why this gates review:** Mechanical correctness is a prerequisite for analytical quality judgment. Code review on broken code wastes effort.
 
+## Step 1.6: Cross-Spec Promise Check (parent-linked records only)
+
+Skip silently when this record has no resolvable parent, or its parent has no `## Cross-Spec
+Promises` section (`_shared/work-record.md`) — most records. This step never blocks the review;
+it only updates the parent record and, when relevant, notes something in the Step 7 summary.
+
+**Resolve the parent**, per `work-backend`: `local-files` — `facets.parent` (kept for
+completeness; per `specify/SKILL.md`'s seeding step, only `work-backend: github-issues`
+decompositions ever get a `## Cross-Spec Promises` section, so a `local-files` parent's promises
+section is always absent);
+`github-issues` — per `work-links`: `native` — query the sub-issue relationship from this record's
+own side; `body-text` — read the `Parent: #N` line from this record's own body, written at
+decomposition time (`spec-template.md`). No parent resolvable (a record human-filed or
+`/capture`d directly, not produced by a `/specify` decomposition) → skip this step entirely.
+
+**If the parent has a `## Cross-Spec Promises` section:**
+
+1. **Check whether an `open` row names this record as Owner.** If so, this review's own diff
+   (Step 2, once available — or the same change scope Step 1 already used for the deliverables
+   check) is exactly the evidence needed: judge whether it satisfies the stated promise.
+   - Satisfied → update the row's Status to `SATISFIED (commit {short-sha})` via `gh issue edit
+     $PARENT_NUM --body-file`, and post a comment: `gh issue comment $PARENT_NUM --body "F{n}
+     satisfied by #{this-record}: {one-line why}."`
+   - Not yet satisfied → leave the row `open`, post a comment explaining what's still missing.
+     Never edit another leaf's body from here — only the parent's promises section and comments.
+2. **Check whether this record's own work reveals a new forward assumption on another sibling**
+   not yet tracked (the same kind of gap the spec 13-23 build's whole-branch review caught
+   mid-flight, not anticipated at decomposition time). If so: add a row to the parent's table, post
+   a seeding comment, and — when the assumption concerns a still-open sibling — add the
+   corresponding `Blocked by #N: {assumption}` line to this record's own body (a normal body edit,
+   same as any other review-driven change to the record under review).
+
+Both writes are additive to the parent's body/comments only — never touch a sibling leaf's body
+from this step, and never block the review's own PASS/BLOCKED verdict on anything found here (see
+`docs/superpowers/specs/2026-07-15-cross-spec-promise-tracking-design.md`'s Non-Goals: not a hard
+gate anywhere).
+
 ## Step 2: Identify What Changed
 
 Analyze `git diff` (or `git diff` against the base branch) to understand the scope:
@@ -229,7 +266,7 @@ Add findings to the code review findings table:
 
    **Uncovered journey steps:**
    ```
-   | {N} | Journey '{name}' has {M} uncovered steps ({step numbers}) | Medium | Coverage | docs/journeys/{name}.md | Run `/stories journey={name}` |
+   | {N} | Journey '{name}' has {M} uncovered steps ({step numbers}) | Medium | Coverage | docs/journeys/{name}.md | Run `/claude-tweaks:stories journey={name}` |
    ```
 
    **Orphaned stories with journey URL match:**
@@ -450,7 +487,7 @@ See `review-summary-template.md` in this skill's directory for the full Next Act
 |-------|-------------|
 | `/claude-tweaks:build` | Produces the code and journey files that /claude-tweaks:review evaluates |
 | `/claude-tweaks:test` | /test is the mechanical "does it work?" gate. /review gates on `TEST_PASSED=true` — it never runs verification or QA itself. Standalone /review auto-triggers /test if no recent pass. |
-| `/claude-tweaks:wrap-up` | Runs after /claude-tweaks:review passes — focuses on reflection, cleanup, and knowledge capture. Skill-routed entries from lens 3a (phase `review/skill`) and from /reflect hindsight findings tagged `[skill: …]` (phase `review/hindsight`) feed into wrap-up's skill update analysis (Step 7). |
+| `/claude-tweaks:wrap-up` | Runs after /claude-tweaks:review passes — focuses on reflection, cleanup, and knowledge capture. Skill-routed entries from lens 3a (phase `review/skill`) and from /reflect hindsight findings tagged `[skill: …]` (phase `review/hindsight`) feed into wrap-up's skill update analysis (Step 7). `/wrap-up`'s own Step 10 safety-net gate (`verification-brief.md`) reads this skill's `### Visual Review` summary status and, when it shows only `Recommended` (no browser walk ran), triggers `/claude-tweaks:visual-review` itself using the same Step 6 mode resolution — never a separate implementation. |
 | `/claude-tweaks:capture` | /claude-tweaks:review may route new ideas discovered during review through /capture, which files a fresh backlog work record |
 | `/claude-tweaks:visual-review` | Invoked BY /review (Step 6) for browser-based visual inspection. In full mode, runs after code review. In visual/journey/discover modes, /review delegates entirely. |
 | `/claude-tweaks:init` | Phase 8 delegates to `/visual-review discover` for brownfield journey bootstrapping. Phase 0 configures the browser backends that visual review depends on. /init creates the doc registry that lens 3i uses for documentation freshness checks. |
@@ -458,7 +495,7 @@ See `review-summary-template.md` in this skill's directory for the full Next Act
 | `/claude-tweaks:journey-health` | Shares `_shared/journey-coverage-check.md`'s coverage computation for its decoupled coverage-scan tier — /review's 3g-cov lens stays inline/informational; journey-health adds cursor-tracking and issue-filing on top. |
 | `_shared/journey-coverage-check.md` | Canonical coverage computation lens 3g-cov applies — shared with `/claude-tweaks:journey-health`'s coverage scan. |
 | `/claude-tweaks:browse` | Used by visual, journey, and discover modes for browser interaction |
-| `_shared/work-record.md` (`parked`) | /claude-tweaks:review routes implementation-related deferrals to a new work record here (with origin, files, trigger) |
+| `_shared/work-record.md` (`parked`) | /claude-tweaks:review routes implementation-related deferrals to a new work record here (with origin, files, trigger). Step 1.6 also reads/writes a decomposition parent's `## Cross-Spec Promises` section for any parent-linked record under review. |
 | `/claude-tweaks:flow` | Invokes /review in **full** mode by default (code + visual). Flow handles browser detection and falls back to code mode when no browser backend is available. |
 | `/superpowers:dispatching-parallel-agents` | Used BY /claude-tweaks:review (conditional) to dispatch 3+ independent fix-now findings as parallel agents |
 | `/claude-tweaks:reflect` | Invoked BY /review (Step 4) in hindsight mode. Handles the implementation hindsight evaluation, finding routing, and ledger writes with phase `review/hindsight`. |

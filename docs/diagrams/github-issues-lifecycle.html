@@ -248,6 +248,7 @@
       <text class="vz-ghi-colhead" x="450" y="70">Code Health</text>
       <text class="vz-ghi-colhead" x="860" y="70">Harness Health</text>
       <text class="vz-ghi-colhead" x="1270" y="70">Journey Health</text>
+      <text class="vz-ghi-colhead" x="1680" y="70">Docs Health</text>
 
       <foreignObject x="40" y="90" width="300" height="185">
         <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
@@ -288,7 +289,18 @@
           <div class="vz-ghi-body">
             <div>Judges journeys + coverage, always files every run</div>
             <div>Severity maps to risk:*; effort is always effort:medium</div>
-            <div>Same ready queue as the other two now, not a separate lane</div>
+            <div>Same ready queue as the other siblings now, not a separate lane</div>
+          </div>
+        </div>
+      </foreignObject>
+
+      <foreignObject x="1680" y="90" width="300" height="185">
+        <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
+          <div class="vz-ghi-node-title"><span>/docs-health</span><span class="vz-ghi-tag">Routine or Manual</span></div>
+          <div class="vz-ghi-body">
+            <div>Judges docs/** genre-drift + staleness, report-only</div>
+            <div>additive&rarr;low/low, restructural&rarr;medium/high</div>
+            <div>Files by:docs-health + scoring + ready (born-ready)</div>
           </div>
         </div>
       </foreignObject>
@@ -298,6 +310,7 @@
       <path class="vz-ghi-edge" d="M600,275 L600,450" marker-end="url(#vz-ghi-arrow)"></path>
       <path class="vz-ghi-edge" d="M1010,275 C1010,340 700,390 700,450" marker-end="url(#vz-ghi-arrow)"></path>
       <path class="vz-ghi-edge" d="M1420,275 C1420,350 735,405 735,450" marker-end="url(#vz-ghi-arrow)"></path>
+      <path class="vz-ghi-edge" d="M1830,275 C1830,360 750,410 750,450" marker-end="url(#vz-ghi-arrow)"></path>
 
       <foreignObject x="130" y="335" width="130" height="55">
         <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-conn-label">backlog &mdash; no stage label at all</div>
@@ -493,7 +506,7 @@
             </thead>
             <tbody>
               <tr><td>Type</td><td>bug | feature | task</td><td>Native GitHub Issue Type (work-types: native), or a type:* label (work-types: labels)</td></tr>
-              <tr><td>Origin</td><td>by:code-health, by:harness-health, by:journey-health, by:capture &mdash; or none</td><td>Label; absence = human-filed, or a side-effect record (an Origin: {context} body line instead)</td></tr>
+              <tr><td>Origin</td><td>by:code-health, by:harness-health, by:journey-health, by:docs-health, by:capture &mdash; or none</td><td>Label; absence = human-filed, or a side-effect record (an Origin: {context} body line instead)</td></tr>
               <tr><td>Scoring</td><td>risk:low|medium|high &times; effort:low|medium|high</td><td>Labels &mdash; at most one of each family</td></tr>
               <tr><td>Stage</td><td>backlog (no label), parked, ready</td><td>Labels &mdash; backlog is the absence of a stage label</td></tr>
               <tr><td>Authorization</td><td>auto:build, auto:merge</td><td>Human-granted labels only; absence is the default not-authorized state</td></tr>
@@ -532,11 +545,11 @@
             <div class="vz-ghi-code-line">&lt;!-- work-fingerprint: {fingerprint} --&gt;</div>
             <div class="vz-ghi-explain-line">A hidden HTML comment, invisible when rendered &mdash; the dedup key. Legacy &lt;!-- {skill}-fingerprint: ... --&gt; markers are still read during the migration window (dual read; the new marker wins if both are present).</div>
             <div class="vz-ghi-code-line">**Criterion / Journey / Asset:** ... | **Risk or Severity:** ... | **Confidence:** ...</div>
-            <div class="vz-ghi-explain-line">A pipe-separated metadata header. Exact field names differ per producer (code-health: Criterion/Risk/Effort; harness-health: Asset/Section/Classification; journey-health: Journey/Section/Severity).</div>
+            <div class="vz-ghi-explain-line">A pipe-separated metadata header. Exact field names differ per producer (code-health: Criterion/Risk/Effort; harness-health: Asset/Section/Classification; journey-health: Journey/Section/Severity; docs-health: Doc/Section/Category).</div>
             <div class="vz-ghi-code-line">## Current State &nbsp;&#8226;&nbsp; ## Deliverables &nbsp;&#8226;&nbsp; ## Acceptance Criteria</div>
             <div class="vz-ghi-explain-line">The spec-shaped-body minimum every ready record must have &mdash; each section present and non-empty, no unresolved TBD/TODO/&lt;!-- ambiguity: --&gt; markers. /triage re-verifies these three before granting; ready alone never authorizes a grant by itself.</div>
             <div class="vz-ghi-code-line">"Filed by /{skill}. Close to resolve; label wontfix to suppress future reports of this finding."</div>
-            <div class="vz-ghi-explain-line">Every producer's footer. wontfix is the universal per-finding suppression switch across all three health skills.</div>
+            <div class="vz-ghi-explain-line">Every producer's footer. wontfix is the universal per-finding suppression switch across all four health skills.</div>
             <div class="vz-ghi-code-line">Labels: by:{origin} + risk:{tier} + effort:{tier} + ready (+ one diagnostic label)</div>
             <div class="vz-ghi-explain-line">The diagnostic label (e.g. harness-health:additive, journey-health:drift) carries no mechanical meaning of its own in the six-axis contract &mdash; the canonical scoring/stage labels above are what every consumer actually reads.</div>
           </div>
@@ -547,7 +560,7 @@
         <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node">
           <div class="vz-ghi-node-title"><span>Two ways records get filed &mdash; recap</span></div>
           <div class="vz-ghi-subhead">Track 1 &mdash; automated judgment</div>
-          <div class="vz-ghi-explain-line" style="margin-left:0;">code-health, harness-health, and journey-health all watch the repo and file born-ready records straight into the same gate worklist now &mdash; journey-health is no longer a separate, human-only lane; every health-skill record can reach auto:build the same way.</div>
+          <div class="vz-ghi-explain-line" style="margin-left:0;">code-health, harness-health, journey-health, and docs-health all watch the repo and file born-ready records straight into the same gate worklist now &mdash; journey-health is no longer a separate, human-only lane; every health-skill record can reach auto:build the same way.</div>
           <div class="vz-ghi-subhead">Track 2 &mdash; human-originated</div>
           <div class="vz-ghi-explain-line" style="margin-left:0;">/capture and a directly human-filed GitHub issue both land in backlog &mdash; no by:* label either way; the absence of an origin label IS the human-filed signal. /specify shapes a backlog record to ready, or decomposes a design doc into a parent record (never ready) plus ready leaves, wiring Blocked by #N links between them.</div>
           <div class="vz-ghi-subhead">Bridge &mdash; human-filed issues can still be pipeline-ready</div>
@@ -597,7 +610,7 @@
 
       <foreignObject x="40" y="2735" width="1940" height="1350">
         <div xmlns="http://www.w3.org/1999/xhtml" class="vz-ghi-node" style="height:auto;overflow:visible;">
-          <div class="vz-ghi-node-title"><span>All 17 core labels + 3 optional priority:* labels &mdash; the full work-record taxonomy</span></div>
+          <div class="vz-ghi-node-title"><span>All 18 core labels + 3 optional priority:* labels &mdash; the full work-record taxonomy</span></div>
           <table class="vz-ghi-label-table">
             <colgroup><col style="width:14%" /><col style="width:19%" /><col style="width:24%" /><col style="width:43%" /></colgroup>
             <thead>
@@ -608,6 +621,7 @@
               <tr><td><code>by:code-health</code></td><td>/code-health, on file</td><td>&mdash;</td><td>Origin: filed by the code-health skill</td></tr>
               <tr><td><code>by:harness-health</code></td><td>/harness-health, on file</td><td>&mdash;</td><td>Origin: filed by the harness-health skill</td></tr>
               <tr><td><code>by:journey-health</code></td><td>/journey-health, on file (every run)</td><td>&mdash;</td><td>Origin: filed by the journey-health skill</td></tr>
+              <tr><td><code>by:docs-health</code></td><td>/docs-health, on file</td><td>&mdash;</td><td>Origin: filed by the docs-health skill</td></tr>
               <tr><td><code>by:capture</code></td><td>/capture</td><td>&mdash;</td><td>Origin: filed via /capture</td></tr>
 
               <tr class="vz-ghi-label-section"><td colspan="4">Scoring &mdash; risk</td></tr>

@@ -8,37 +8,7 @@ Loaded by `/claude-tweaks:journeys` Step 2 when creating a new journey file. Laz
 
 ## Template
 
-```markdown
----
-files:
-  - {path/to/key-source-file.ts}
-  - {path/to/another-file.ts}
----
-
-# {Journey Name}
-
-**Persona:** {Who is this user? Be specific — not "user" but "first-time visitor with no account" or "developer setting up local environment"}
-**Goal:** {What are they trying to accomplish?}
-**Entry point:** {Where do they start? URL or trigger}
-**Success state:** {What does "done" look like? What should they feel at the end?}
-
-## Steps
-
-### 1. {Step name} — {Page or action}
-- **URL:** {path}
-- **Action:** {What the user does}
-- **Should feel:** {The emotional/experiential quality — "fast and effortless", "guided but not forced", "like an accomplishment"}
-- **Should understand:** {What the user should know after this step}
-- **Red flags:** {What would make this step fail experientially — not just functionally}
-
-### 2. {Next step}
-...
-
-## Origin
-- Created during build of {spec number or design doc}
-- Steps {N-M} built in this session
-- Related specs: {list}
-```
+The literal journey template lives in `skills/_shared/diataxis-genre-templates.md`'s Journey section — read that file for the current skeleton (including the `files:` frontmatter field referenced in Key Principles below). This file owns the file-location convention and key principles; the template body is shared with `/claude-tweaks:init`'s missing-doc scaffolding and `/claude-tweaks:wrap-up`'s missing-doc detection, so it lives in one place rather than three.
 
 ## Key Principles
 

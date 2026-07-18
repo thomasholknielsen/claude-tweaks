@@ -25,7 +25,7 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 ### When NOT to Use
 
 - The input is a design doc, not a spec — run `/claude-tweaks:specify {doc}` first
-- The plan has tangled cross-task dependencies — flow's shape gate (Step 2.6) will hard-fail anyway; tighten via `/specify` first
+- The plan has tangled cross-task dependencies — flow's shape gate (Step 2.6) will hard-fail anyway; tighten via `/claude-tweaks:specify` first
 - When you expect significant review findings that need discussion
 
 ## Syntax
@@ -135,7 +135,7 @@ Any hard fail or rejection stops the pipeline before the Config Manifesto runs. 
 
 ### Step 3: Pipeline Config Manifesto (front-loaded policy)
 
-This is the bookend "begin stop" that locks in policy for the rest of the pipeline. Runs after pre-flight passes so policy levers are not collected if the pipeline would not have started. In every mode except `interactive`, it computes the levers (scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness) from the precedence chain and writes `config.yml` + initializes `decisions.md` in `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`. What differs by mode is whether it **stops**:
+This is the bookend "begin stop" that locks in policy for the rest of the pipeline. Runs after pre-flight passes so policy levers are not collected if the pipeline would not have started. In every mode except `interactive`, it computes the levers (scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness, unattended-tier, ceremony-profile) from the precedence chain and writes `config.yml` + initializes `decisions.md` in `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`. What differs by mode is whether it **stops**:
 
 | Mode | Manifesto behavior |
 |------|-------------------|

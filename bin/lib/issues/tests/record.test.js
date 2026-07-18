@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const {
   recordPayload, TYPE_LABELS,
-  extractFingerprint, parseRecordFacets, parseDependencies, specShapedBody,
+  extractFingerprint, parseRecordFacets, parseDependencies, parseDependencyAssumptions, specShapedBody,
 } = require('../record');
 
 test('recordPayload assembles labels for a born-ready health record', () => {
@@ -49,6 +49,11 @@ test('recordPayload throws on unknown type; absence never throws', () => {
 
 test('recordPayload throws on unknown origin', () => {
   assert.throws(() => recordPayload({ title: 't', body: 'b', type: 'task', origin: 'wrap-up' }), /origin/);
+});
+
+test('recordPayload accepts origin: docs-health', () => {
+  const payload = recordPayload({ title: 'x', body: 'y', type: 'task', origin: 'docs-health' });
+  assert.ok(payload.labels.includes('by:docs-health'));
 });
 
 test('recordPayload throws on unknown risk', () => {
@@ -138,6 +143,7 @@ test('parseRecordFacets: by:capture + parked', () => {
   assert.deepStrictEqual(parseRecordFacets(['by:capture', 'parked']), {
     origin: 'capture', risk: null, effort: null, priority: null, stage: 'parked',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
+    acceptance: null,
   });
 });
 
@@ -163,6 +169,7 @@ test('parseRecordFacets: empty label list', () => {
   assert.deepStrictEqual(parseRecordFacets([]), {
     origin: null, risk: null, effort: null, priority: null, stage: 'backlog',
     grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
+    acceptance: null,
   });
 });
 
@@ -184,6 +191,32 @@ test('parseRecordFacets: malformed parked+ready still resolves to ready regardle
   assert.strictEqual(parseRecordFacets(['parked', 'ready']).stage, 'ready');
 });
 
+// AC — acceptance axis (demo skill)
+
+test('parseRecordFacets: demo:pending sets acceptance to pending', () => {
+  assert.strictEqual(parseRecordFacets(['demo:pending']).acceptance, 'pending');
+});
+
+test('parseRecordFacets: demo:approved sets acceptance to approved', () => {
+  assert.strictEqual(parseRecordFacets(['demo:approved']).acceptance, 'approved');
+});
+
+test('parseRecordFacets: demo:changes-requested sets acceptance to changes-requested', () => {
+  assert.strictEqual(parseRecordFacets(['demo:changes-requested']).acceptance, 'changes-requested');
+});
+
+test('parseRecordFacets: acceptance defaults to null when no demo:* label is present', () => {
+  assert.strictEqual(parseRecordFacets([]).acceptance, null);
+  assert.strictEqual(parseRecordFacets(['ready', 'auto:build']).acceptance, null);
+});
+
+test('parseRecordFacets: LABELS exposes the three demo:* acceptance label strings', () => {
+  const { LABELS } = require('../record');
+  assert.strictEqual(LABELS.DEMO_PENDING, 'demo:pending');
+  assert.strictEqual(LABELS.DEMO_APPROVED, 'demo:approved');
+  assert.strictEqual(LABELS.DEMO_CHANGES_REQUESTED, 'demo:changes-requested');
+});
+
 // AC 5 — dependencies
 
 test('parseDependencies collects line-anchored Blocked-by numbers in order of appearance', () => {
@@ -200,6 +233,57 @@ test('parseDependencies returns an empty array when there are no dependency line
 
 test('parseDependencies ignores mid-line occurrences (line-anchored only)', () => {
   assert.deepStrictEqual(parseDependencies('see Blocked by #9 mid-line'), []);
+});
+
+// AC — dependency assumptions (cross-spec-promise-tracking)
+
+test('parseDependencyAssumptions captures trailing text after the colon', () => {
+  assert.deepStrictEqual(
+    parseDependencyAssumptions('Blocked by #14: needs getStatus() to exist'),
+    [{ number: 14, assumption: 'needs getStatus() to exist' }],
+  );
+});
+
+test('parseDependencyAssumptions handles multiple lines in order of appearance', () => {
+  assert.deepStrictEqual(
+    parseDependencyAssumptions('Blocked by #12: first thing\nBlocked by #7: second thing'),
+    [
+      { number: 12, assumption: 'first thing' },
+      { number: 7, assumption: 'second thing' },
+    ],
+  );
+});
+
+test('parseDependencyAssumptions omits bare Blocked-by lines with no colon', () => {
+  assert.deepStrictEqual(
+    parseDependencyAssumptions('Blocked by #12\nBlocked by #7: has text'),
+    [{ number: 7, assumption: 'has text' }],
+  );
+});
+
+test('parseDependencyAssumptions returns an empty array when there are no assumption lines', () => {
+  assert.deepStrictEqual(parseDependencyAssumptions('Blocked by #9\nno colon here'), []);
+});
+
+test('parseDependencyAssumptions ignores mid-line occurrences (line-anchored only)', () => {
+  assert.deepStrictEqual(
+    parseDependencyAssumptions('see Blocked by #9: mid-line text'),
+    [],
+  );
+});
+
+test('parseDependencyAssumptions trims leading whitespace after the colon', () => {
+  assert.deepStrictEqual(
+    parseDependencyAssumptions('Blocked by #3:    padded text'),
+    [{ number: 3, assumption: 'padded text' }],
+  );
+});
+
+test('parseDependencyAssumptions does not let a bare colon-only line swallow the next line', () => {
+  assert.deepStrictEqual(
+    parseDependencyAssumptions('Blocked by #3:\nBlocked by #7: real assumption'),
+    [{ number: 7, assumption: 'real assumption' }],
+  );
 });
 
 test('specShapedBody composes the gate-verified skeleton with string sections', () => {

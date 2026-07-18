@@ -302,4 +302,4 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — `/challenge` lenses are on the "not silenced" list. |
 | `_shared/multi-agent-coordination.md` | Canonical primitive for Layered MoA (Mode 4) — N parallel lens proposers + one sequential aggregator. Hard limits live in the primitive. |
 | `_shared/subagent-output-contract.md` | Per-lens proposer agents emit Template A; the aggregator follows the status-line and model-tier conventions (Capable tier). |
-| `_shared/work-record.md` | Taxonomy home for backlog records — stage vocabulary (backlog / parked / ready), the six-axis label contract, and work record lifecycle. |
+| `_shared/work-record.md` | Taxonomy home for backlog records — stage vocabulary (backlog / parked / ready), the seven-axis label contract, and work record lifecycle. |

@@ -33,7 +33,7 @@ This gate is the record-level replacement for `/flow`'s legacy pre-flight Step 2
 ```markdown
 ---
 record: {n}
-origin: {code-health|harness-health|journey-health|capture|human}
+origin: {code-health|harness-health|journey-health|docs-health|capture|human}
 risk: {low|medium|high}            # omitted when unscored
 effort: {low|medium|high}          # omitted when unscored
 ceremony: fast-lane                # omitted when standard — see ceremony-check mode below
@@ -66,7 +66,7 @@ parked-at-shaping: true            # omitted unless the record was parked when s
 Every field except `surface`/`design-intent` (next section) and `ceremony` (below) comes straight off data already fetched during Resolution — nothing extra to read:
 
 - `record` — the id used to resolve it.
-- `origin` — `facets.origin` (`code-health` / `harness-health` / `journey-health` / `capture`), or the literal `human` when `facets.origin` is `null` (no `by:*` label — human-filed, or a side-effect record, per `_shared/work-record.md`'s origin axis).
+- `origin` — `facets.origin` (`code-health` / `harness-health` / `journey-health` / `docs-health` / `capture`), or the literal `human` when `facets.origin` is `null` (no `by:*` label — human-filed, or a side-effect record, per `_shared/work-record.md`'s origin axis).
 - `risk` / `effort` — `facets.risk` / `facets.effort`; omit the line when the value is `null` (unscored).
 - `grants` — `facets.grants.build` / `facets.grants.merge`, as the bracket list `[build, merge]` / `[build]` / `[]`. Unlike every other optional field here, always emit the `grants:` line, even empty — a record can reach materialization ungranted (a human running `/flow #{n}` directly against a record nobody authorized).
 - `fingerprint` — from Resolution; omit the line when `null`.

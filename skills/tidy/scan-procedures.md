@@ -101,11 +101,11 @@ Every record returned already carries its parsed `.facets` — no separate parse
 
 ### Shape 6 — flagged code demonstrably gone
 
-Not scanned here. This is Step 4.8's code-health/harness-health/journey-health issue judgment (`_shared/github-pr-scan.md`'s `repo-wide` scope, items 3/5/6) together with the Evidence tier's fourth row (`SKILL.md` Step 6) — both unchanged by this merge. It's listed in this file only so the seven finding shapes the record-scan design replaces (former Steps 1 and 2, plus former Step 4.8's backlog-issue item) stay documented in one place; the mechanics that actually judge "is the flagged code gone" continue to live where they already did.
+Not scanned here. This is Step 4.8's code-health/harness-health/journey-health/docs-health issue judgment (`_shared/github-pr-scan.md`'s `repo-wide` scope, items 3/5/6/7) together with the Evidence tier's fourth row (`SKILL.md` Step 6) — both unchanged by this merge. It's listed in this file only so the seven finding shapes the record-scan design replaces (former Steps 1 and 2, plus former Step 4.8's backlog-issue item) stay documented in one place; the mechanics that actually judge "is the flagged code gone" continue to live where they already did.
 
 ### Shape 7 — legacy taxonomy present
 
-`work-backend: github-issues` only. Scan the RAW `labels` array (not the parsed facets, which silently drop anything they don't recognize) for any label matching the retired families: `tier:*` (the pre-grants three-tier vocabulary — needs-review, approved, fast-track), `status:*` (the pre-grants bot-state vocabulary — blocked, and the state now mirrored by the claim ref instead of a label), or `backlog`-era labels (the bare `backlog` label plus its `backlog:category-*`/`backlog:priority-*` sub-labels). A record carrying any of these is invisible to the current grants pipeline — `/claude-tweaks:triage` only ever reads/writes the current six-axis vocabulary (see its own Relationship table), so a pre-6.0 record stuck on the old labels never surfaces at the gate on its own.
+`work-backend: github-issues` only. Scan the RAW `labels` array (not the parsed facets, which silently drop anything they don't recognize) for any label matching the retired families: `tier:*` (the pre-grants three-tier vocabulary — needs-review, approved, fast-track), `status:*` (the pre-grants bot-state vocabulary — blocked, and the state now mirrored by the claim ref instead of a label), or `backlog`-era labels (the bare `backlog` label plus its `backlog:category-*`/`backlog:priority-*` sub-labels). A record carrying any of these is invisible to the current grants pipeline — `/claude-tweaks:triage` only ever reads/writes the current seven-axis vocabulary (see its own Relationship table), so a pre-6.0 record stuck on the old labels never surfaces at the gate on its own.
 
 This is a **read-only flag** — `/tidy` never relabels it. A dedicated migration plan does the relabeling; this finding exists so a pre-6.0 record can never be silently orphaned in the meantime.
 
@@ -176,7 +176,7 @@ Scan `docs/REGISTRY.md` for health issues. Skip if the file doesn't exist.
 | Registry entry points to non-existent file | Delete entry |
 | Doc file exists in `docs/` but not in registry | Add entry (with Auto-detect patterns) |
 | Auto-detect pattern references non-existent directory | Update pattern |
-| Registry tier doesn't match project complexity | Update tier (suggest `/init update`) — apply tier-detection signals from `detection-tables.md` in `/claude-tweaks:init` skill's directory |
+| Registry tier doesn't match project complexity | Update tier (suggest `/claude-tweaks:init update`) — apply tier-detection signals from `detection-tables.md` in `/claude-tweaks:init` skill's directory |
 
 → Collect each as: `[registry] {issue} — {recommendation}`
 
@@ -269,7 +269,7 @@ command the release step itself would run.
 
 Scan per `_shared/github-pr-scan.md`, **`repo-wide`** scope. The dispatcher inlines that file's Detection Ladder, `repo-wide` scope section (including its findings table), and Output Contract into this agent's prompt. The detection ladder makes this fail-open — skip with a single info row when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
 
-The `repo-wide` findings table maps each finding to a recommendation from the Action Vocabulary: stale/superseded open PRs → Close (GitHub); threads addressed by later commits → Resolve thread; unaddressed threads → Capture or a suggested local command; still-valid vs. superseded code-health, harness-health, and journey-health issues → Close (GitHub) when the flagged code is demonstrably gone (Shape 6 above / Evidence tier row 4, when evidence-qualified) or a suggested `/claude-tweaks:triage` run when still valid; merged PRs with surviving local branches → corroborates Step 4.5 `[git]` rows (the dispatcher merges overlapping recommendations at assembly). Backlog-record findings (stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) are Step 1's job now, not this step's — `repo-wide` no longer queries the `backlog` label (see `_shared/github-pr-scan.md`).
+The `repo-wide` findings table maps each finding to a recommendation from the Action Vocabulary: stale/superseded open PRs → Close (GitHub); threads addressed by later commits → Resolve thread; unaddressed threads → Capture or a suggested local command; still-valid vs. superseded code-health, harness-health, journey-health, and docs-health issues → Close (GitHub) when the flagged code is demonstrably gone (Shape 6 above / Evidence tier row 4, when evidence-qualified) or a suggested `/claude-tweaks:triage` run when still valid; merged PRs with surviving local branches → corroborates Step 4.5 `[git]` rows (the dispatcher merges overlapping recommendations at assembly). Backlog-record findings (stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) are Step 1's job now, not this step's — `repo-wide` no longer queries the `backlog` label (see `_shared/github-pr-scan.md`).
 
 GitHub mutations recommended here (Close (GitHub), Resolve thread) execute only after Step 6 batch approval and are staged at every aggressiveness level in auto mode — outward-facing actions are never autonomous in /tidy.
 

@@ -2,11 +2,11 @@
 const fs = require('fs');
 const path = require('path');
 
-// Simple run-record persistence + churn calc, shared by harness-health and
-// journey-health (byte-identical between the two today). code-health keeps
-// its own recordRun/computeChurn locally — its recordRun also sweeps area
-// cursors as a side effect, and its computeChurn returns an extra `stayed`
-// field, neither of which the other two skills have.
+// Simple run-record persistence + churn calc, shared by harness-health,
+// journey-health, and docs-health (byte-identical across the three today).
+// code-health keeps its own recordRun/computeChurn locally — its recordRun
+// also sweeps area cursors as a side effect, and its computeChurn returns
+// an extra `stayed` field, neither of which the other skills have.
 function recordRun(runsDir, runId, fingerprints) {
   fs.mkdirSync(runsDir, { recursive: true });
   const record = { runId, runAt: new Date().toISOString(), fingerprints: [...fingerprints] };

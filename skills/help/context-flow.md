@@ -85,7 +85,7 @@ In auto/hybrid mode, each `/flow` invocation creates a per-run directory at `.cl
 
 | File | Written by | Read by |
 |---|---|---|
-| `config.yml` | `/flow` Step 3 (Pipeline Config Manifesto) | Every downstream skill — policy lookup for scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness |
+| `config.yml` | `/flow` Step 3 (Pipeline Config Manifesto) | Every downstream skill — policy lookup for scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness, unattended-tier, ceremony-profile |
 | `decisions.md` | Every skill that auto-resolves a decision (per `_shared/auto-decision-log.md`) | `/wrap-up` Step 8.6 (Wrap-Up Review Console) |
 | `staged/*.patch` and `staged/*.md` | Skills that defer decision-worthy items | `/wrap-up` Step 8.6 |
 

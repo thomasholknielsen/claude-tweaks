@@ -6,6 +6,35 @@ A structured workflow system for Claude Code — from idea capture through build
 
 Claude Code is powerful but unstructured. claude-tweaks adds a complete development lifecycle: capture ideas, challenge assumptions, decompose into specs, build with quality gates, and learn from what was built. Every finding is explicitly resolved — nothing silently drops.
 
+### What's new in v6.5.0 — Demo walkthrough redesign
+
+`/claude-tweaks:demo`'s Verification Brief is now a self-contained digest instead of a pointer to
+re-run another skill — vision/why, what shipped, and confirmed evidence (visual-review's result +
+up to 3 committed screenshots, or a code-review digest + diff for non-UI work). `/wrap-up` gains a
+safety-net gate that triggers a real visual-review pass before `demo:pending` is ever applied, for
+the one path (`/review` outside `full` mode) where one might not have already run.
+`/claude-tweaks:demo`'s verdict prompt reframes around vision/fit ("Does this do what you asked
+for?") and gains an on-demand "Show me live" option for a live look via `agent-browser`.
+
+### What's new in v6.4.0 — Unattended tier: fewer clicks in `auto` mode
+
+A new opt-in policy lever, `unattended-tier` (off by default), lets three narrow, low-stakes
+decision points — floor-clearing ledger residue, queue-write record creation, and ops-item
+acknowledgment — resolve without a live click, everywhere `auto`/`hybrid` mode runs (headless
+`/claude-tweaks:dispatch` firings or local `/claude-tweaks:flow` runs alike). Every action is
+still logged to `decisions.md` and rolled into one consolidated push notification; HARD-GATEs,
+merge conflicts, and every `Fix anyway`/`Accept`/`Drop` ledger disposition stay fully
+human-gated regardless of the lever's state. See `skills/_shared/unattended-tier.md`.
+
+### What's new in v6.3.0 — Human acceptance sign-off (`/claude-tweaks:demo`)
+
+A new seventh work-record axis (`demo:pending` / `demo:approved` / `demo:changes-requested`)
+closes the gap between tests passing, spec completion, and an actual human verifying a built
+feature does what was asked. `/claude-tweaks:wrap-up` applies `demo:pending` and writes a
+Verification Brief (what changed, why, how to verify) while it still has full build context;
+the new `/claude-tweaks:demo` skill aggregates every pending record — across parallel threads,
+regardless of merge timing — and captures your verdict.
+
 ### What's new in v6.0.0 — The unified work record
 
 Every captured idea, health-skill finding, and human-filed issue is now the same thing: **one durable work record** (a GitHub issue, or its `local-files` twin — a plain markdown file), tracked through a single spine instead of the old two-file backlog design and per-artifact frontmatter:
@@ -125,7 +154,11 @@ See [CHANGELOG.md](CHANGELOG.md) for earlier release notes (v4.6, v4.5, v4.2, v4
      │         (full)
                            (deletes plans, ledger, design caches; legacy spec file
                             deleted too — a record-mode build's materialized file
-                            stays on the branch as committed audit trail instead)
+                            stays on the branch as committed audit trail instead;
+                            applies demo:pending + posts a Verification Brief on
+                            the record — record mode only)
+     │
+  ┈┈ /claude-tweaks:demo resolves demo:pending → approved/changes-requested (utility skill, no fixed position — run anytime, aggregates every in-flight thread) ┈┈
 ```
 
 > **Left column:** `/claude-tweaks:{name}` — **Right column:** `/superpowers:{name}` ([Superpowers plugin](https://github.com/obra/superpowers))
@@ -155,7 +188,7 @@ Two storage drivers back the same taxonomy, set once by `/claude-tweaks:init` an
 | `work-backend: github-issues` | A GitHub issue | Labels express stage/scoring/grants/bot-state; native GitHub Issue Types or `type:*` labels express Type. Headless dispatch (`/claude-tweaks:dispatch`) requires this driver — GitHub's RBAC is the mechanism the authorization model depends on. |
 | `work-backend: local-files` | `specs/{id}-{slug}.md`, one file per record | Frontmatter expresses the same facets for isomorphism. `/claude-tweaks:triage`'s grants are recorded but have no headless consumer — run `/claude-tweaks:flow`/`/claude-tweaks:build` manually against a chosen record instead. |
 
-See `skills/_shared/work-record.md` for the full six-axis contract (Type, Origin, Scoring, Stage, Authorization, Bot state), the complete label taxonomy, and the permission matrix governing which skill may add or remove which label.
+See `skills/_shared/work-record.md` for the full seven-axis contract (Type, Origin, Scoring, Stage, Authorization, Bot state, Acceptance), the complete label taxonomy, and the permission matrix governing which skill may add or remove which label.
 
 ## Skills
 
@@ -240,7 +273,9 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 
 **`/claude-tweaks:help`** — Dashboard with workflow status, command reference, and context-aware recommendations. Warns about dependency conflicts between in-progress specs. Surfaces the current branch's open PR (review decision, CI checks, unresolved threads) and ranks blocked-PR work first in recommendations.
 
-**`/claude-tweaks:tidy`** — Batch backlog hygiene. Scans the live work-record queue (backlog, parked, unsynced, unscored `ready`, `bot:blocked`, legacy-taxonomy records), scans review/wrap-up history for recurring patterns across specs, audits the documentation registry, and recommends project-level fixes. Also audits GitHub state — stale open PRs, code-health/harness-health/journey-health-filed issues, addressed-but-unresolved review threads — with GitHub mutations (close, resolve) executing only after batch approval. Pass `--scope=<name>[,<name>...]` to narrow a run to specific scan steps (e.g. `--scope=github` for GitHub PR/issue triage only) instead of the full sweep.
+**`/claude-tweaks:tidy`** — Batch backlog hygiene. Scans the live work-record queue (backlog, parked, unsynced, unscored `ready`, `bot:blocked`, legacy-taxonomy records), scans review/wrap-up history for recurring patterns across specs, audits the documentation registry, and recommends project-level fixes. Also audits GitHub state — stale open PRs, code-health/harness-health/journey-health/docs-health-filed issues, addressed-but-unresolved review threads — with GitHub mutations (close, resolve) executing only after batch approval. Pass `--scope=<name>[,<name>...]` to narrow a run to specific scan steps (e.g. `--scope=github` for GitHub PR/issue triage only) instead of the full sweep.
+
+**`/claude-tweaks:demo`** — The durable, cross-thread acceptance gate: aggregates every record `/claude-tweaks:wrap-up` has labeled `demo:pending` (open or closed — covers already-merged `auto:merge` work too), replays the Verification Brief `/wrap-up` wrote at build time so you never re-derive "how do I test this," and captures a real human verdict distinct from tests passing (`/test`) or code-quality review (`/review`). Approve resolves to `demo:approved`; requesting changes resolves to `demo:changes-requested` and files a linked follow-up backlog record. Bare `/demo` sweeps everything pending; `/demo #N` scopes to one record.
 
 **`/claude-tweaks:browse`** — Browser automation via agent-browser. Defines session naming, screenshot/trace paths, and operation vocabulary used by /stories, /visual-review, and /review.
 
@@ -263,6 +298,8 @@ For the full picture of how a work record moves through filing → shaping → a
 **`/claude-tweaks:harness-health`** — Recurring health check for `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md: picks one target to audit against the codebase (or checks for a new-skill gap), judges it via the shared `_shared/harness-health-analysis.md` procedure — also used by `/init` Phase 6 and `/wrap-up` Step 7 (skill-only for those two currently) — and always files a `harness-health`-labelled GitHub issue. Never edits anything directly (skills, rules, memory, or CLAUDE.md) — report-only, matching `/code-health`. Runs on a scheduled Routine for continuous coverage, rotating through skills, rules, and CLAUDE.md via a churn/staleness cursor shared with `/init` and `/wrap-up`. Memory (`~/.claude/projects/{slug}/memory/`) is audited only via an explicit `--kind memory --memory-dir <path>` invocation — never through the Routine's automatic rotation.
 
 **`/claude-tweaks:journey-health`** — Recurring health check for `docs/journeys/*.md`: picks one journey to audit (or the decoupled coverage scan, when due), checks it against the codebase (file-existence, self-review criteria shared with `/claude-tweaks:journeys`, journey-story coverage shared with `/claude-tweaks:review`'s `3g-cov` lens), and always files a `journey-health`-labelled GitHub issue. A separate, interactive-only deep tier (`--deep`) actually runs the journey's QA stories via `/claude-tweaks:test` (or walks it live via `/claude-tweaks:visual-review` when no stories exist yet) and judges whether a failure means the journey/story text is stale or the app genuinely regressed. Never edits journeys, stories, or code — report-only, matching `/code-health` and `/harness-health`.
+
+**`/claude-tweaks:docs-health`** — Recurring health check for `docs/**`: picks one doc to audit, judges it against the shared `_shared/criteria-docs-diataxis.md` procedure — Diátaxis genre-drift (implied doc type vs. actual content shape), depth-mismatch (implied reading investment vs. actual word count), findability (can a reader or agent actually discover this doc), factual staleness, and dual-persona misleading-risk tagging (human engineer vs. coding agent) — and always files a `docs-health`-labelled GitHub issue. Never edits docs content — report-only, matching `/code-health` and `/harness-health`. Scoped strictly to `docs/**`, excluding `docs/superpowers/**` (ephemeral build artifacts) and never overlapping `harness-health`'s `.claude/skills/**`/`.claude/rules/**`/CLAUDE.md territory. Runs on a scheduled Routine for continuous coverage.
 
 **`/claude-tweaks:design`** — Wrapper for the [Impeccable](https://github.com/pbakaus/impeccable) frontend-design plugin. Six active modes:
 

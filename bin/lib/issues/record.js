@@ -5,7 +5,7 @@
 // import from this file rather than re-declaring their own copies. No network.
 'use strict';
 
-const ORIGINS = ['code-health', 'harness-health', 'journey-health', 'capture'];
+const ORIGINS = ['code-health', 'harness-health', 'journey-health', 'docs-health', 'capture'];
 const TYPES = ['bug', 'feature', 'task'];
 const TIERS = ['low', 'medium', 'high'];
 const PRIORITIES = ['high', 'medium', 'low'];
@@ -18,6 +18,9 @@ const LABELS = {
   BOT_IN_PROGRESS: 'bot:in-progress',
   BOT_BLOCKED: 'bot:blocked',
   WONTFIX: 'wontfix',
+  DEMO_PENDING: 'demo:pending',
+  DEMO_APPROVED: 'demo:approved',
+  DEMO_CHANGES_REQUESTED: 'demo:changes-requested',
 };
 
 // F8 from the program promise register — type:* label descriptions home
@@ -37,6 +40,13 @@ const FP_RE_LEGACY = /<!--\s*(?:code-health|harness-health|journey-health)-finge
 
 // Line-anchored 'Blocked by #N' dependency declarations (multiline).
 const DEP_RE = /^Blocked by #(\d+)\b/gm;
+
+// Line-anchored 'Blocked by #N: {text}' assumption declarations (multiline) —
+// a separate, additive sibling to DEP_RE/parseDependencies below, never a
+// modification of either. DEP_RE already stops matching at the number, so a
+// trailing ': {text}' parses under it with zero changes; this regex only
+// exists to capture that trailing text when a caller wants it.
+const DEP_ASSUMPTION_RE = /^Blocked by #(\d+):[ \t]*(.+)$/gm;
 
 const BY_RE = /^by:(.+)$/;
 const RISK_LABEL_RE = /^risk:(.+)$/;
@@ -116,6 +126,9 @@ function normalizeLabelNames(labels) {
 // in a single pass over the normalized names — never inferred from truthiness. Stage
 // precedence is ready > parked > backlog regardless of array order or malformed
 // combinations (e.g. both 'ready' and 'parked' present resolves to 'ready').
+// Acceptance has no such precedence — the three demo:* labels are mutually exclusive
+// by construction, so a plain last-match-in-array-wins assignment (same style as
+// origin/risk/effort/priority below) is enough.
 function parseRecordFacets(labels) {
   const names = normalizeLabelNames(labels);
 
@@ -127,6 +140,7 @@ function parseRecordFacets(labels) {
     stage: 'backlog',
     grants: { build: false, merge: false },
     bot: { inProgress: false, blocked: false },
+    acceptance: null,
   };
 
   for (const name of names) {
@@ -152,6 +166,18 @@ function parseRecordFacets(labels) {
     }
     if (name === LABELS.BOT_BLOCKED) {
       facets.bot.blocked = true;
+      continue;
+    }
+    if (name === LABELS.DEMO_PENDING) {
+      facets.acceptance = 'pending';
+      continue;
+    }
+    if (name === LABELS.DEMO_APPROVED) {
+      facets.acceptance = 'approved';
+      continue;
+    }
+    if (name === LABELS.DEMO_CHANGES_REQUESTED) {
+      facets.acceptance = 'changes-requested';
       continue;
     }
 
@@ -198,6 +224,21 @@ function parseDependencies(body) {
   return result;
 }
 
+// body -> array of {number, assumption} for every line-anchored
+// 'Blocked by #N: {text}' declaration, in order of appearance. A bare
+// 'Blocked by #N' line (no colon) contributes nothing here — parseDependencies
+// above is still the only reader of bare dependency lines. Not deduped by
+// number: a caller writing the same N twice with different text gets both
+// entries back, same as matchAll would naturally produce.
+function parseDependencyAssumptions(body) {
+  if (typeof body !== 'string' || !body) return [];
+  const result = [];
+  for (const match of body.matchAll(DEP_ASSUMPTION_RE)) {
+    result.push({ number: Number(match[1]), assumption: match[2] });
+  }
+  return result;
+}
+
 // Compose the spec-shaped body the gate's structural check re-verifies
 // (skills/_shared/work-record.md: Current State / Deliverables / Acceptance Criteria
 // present and non-empty). Owning the skeleton here means the three health builders
@@ -235,4 +276,5 @@ function specShapedBody({ header, currentState, deliverables, acceptanceCriteria
 module.exports = {
   ORIGINS, TYPES, TIERS, PRIORITIES, LABELS, TYPE_LABELS, recordPayload, specShapedBody,
   FP_RE_WORK, FP_RE_LEGACY, extractFingerprint, parseRecordFacets, parseDependencies,
+  parseDependencyAssumptions,
 };

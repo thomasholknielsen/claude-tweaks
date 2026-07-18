@@ -87,6 +87,15 @@ Author the `<svg>` content directly for the diagram type and topic, binding ever
 
 Apply `visual-html-output.md` Step 4's adapters. Always write the standalone-file wrapper to the path from Step 3. Write the markdown-embed wrapper's content inline in this skill's own response (for the user to copy into a doc) rather than as a separate file — it's a snippet, not a standalone artifact.
 
+Alongside the embed snippet, also surface a suggested `files:` frontmatter line naming the diagram's depicted source dependencies (the files under discussion when the diagram's topic was resolved in Step 1) — e.g.:
+
+```yaml
+files:
+  - packages/food-graph/src/resolvers/ingredient-resolver.ts
+```
+
+This skill doesn't own the doc that embeds the diagram, so it doesn't write this itself — the caller (typically the user, copy-pasting the embed snippet in by hand) applies it to that doc's frontmatter alongside the snippet, giving `/claude-tweaks:docs-health`'s freshness-dependency check (`_shared/criteria-docs-diataxis.md` Dimension 2) something to track. Skip this output when the diagram has no clear source-file dependency (e.g. a purely conceptual diagram with no 1:1 code mapping).
+
 ### Step 6: Registry update (persisted diagrams only)
 
 If Step 3 resolved to `docs/diagrams/{slug}.html` (the context-free fallback path) and no `REGISTRY.md` row for `docs/diagrams/` exists yet, add one: `| docs/diagrams/ | Generated visual diagrams | — |` (no Auto-detect — matches `architecture.md`/`decisions/*.md` treatment). Diagrams placed under `docs/journeys/` or `docs/plans/` need no new row — they ride along with that doc's existing registry entry.

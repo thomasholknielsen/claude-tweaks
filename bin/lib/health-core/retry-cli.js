@@ -2,11 +2,12 @@
 const fs = require('fs');
 const { enqueueRetry, dequeueRetry, shouldEscalate } = require('./durable-state');
 
-// Shared retry-queue CLI command bodies for code-health, harness-health, and
-// journey-health — each CLI calls makeRetryQueueCommands bound to its own
-// readDurableState/writeDurableState (from its own cache.js) and wires the
-// two returned functions to its `retry-queue drain`/`retry-queue update`
-// subcommands. One implementation instead of three near-identical copies.
+// Shared retry-queue CLI command bodies for code-health, harness-health,
+// journey-health, and docs-health — each CLI calls makeRetryQueueCommands
+// bound to its own readDurableState/writeDurableState (from its own
+// cache.js) and wires the two returned functions to its `retry-queue
+// drain`/`retry-queue update` subcommands. One implementation instead of
+// four near-identical copies.
 function makeRetryQueueCommands({ readDurableState, writeDurableState }) {
   function drain(args) {
     const root = args.root || process.cwd();

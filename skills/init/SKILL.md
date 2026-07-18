@@ -131,7 +131,7 @@ Offer only on projects with a GitHub remote — writes `.github/workflows/track-
 
 ### Step 15: Work-Record Backend (Optional)
 
-Decide whether the unified work record — used by `/claude-tweaks:capture`, `/claude-tweaks:specify`, `/claude-tweaks:triage`, `/claude-tweaks:dispatch`, `/claude-tweaks:tidy`, and the health skills — is backed by GitHub issues or local record files, and write `work-backend` to CLAUDE.md under a `## Work records` section (gated on the same GHE-safe two-tier remote check Step 9 uses). Then probe GitHub-native capabilities once (`work-types`, `work-links`) and offer to provision all 17 core labels now. See `_shared/work-record.md` for the taxonomy these config keys govern. Read `bootstrap-steps.md` (Step 15) for the full procedure.
+Decide whether the unified work record — used by `/claude-tweaks:capture`, `/claude-tweaks:specify`, `/claude-tweaks:triage`, `/claude-tweaks:dispatch`, `/claude-tweaks:tidy`, and the health skills — is backed by GitHub issues or local record files, and write `work-backend` to CLAUDE.md under a `## Work records` section (gated on the same GHE-safe two-tier remote check Step 9 uses). Then probe GitHub-native capabilities once (`work-types`, `work-links`) and offer to provision all 20 core labels now. See `_shared/work-record.md` for the taxonomy these config keys govern. Read `bootstrap-steps.md` (Step 15) for the full procedure.
 
 ---
 
@@ -337,7 +337,7 @@ Use Phase 2 findings to identify routes/pages, infer personas (user roles, auth 
 ### Browser-test journey: {name}
 Skeleton journey inferred from code — "should feel" and "red flags" need browser validation.
 Routes covered: {list}. Persona: {persona}. Dev URL: {if known}.
-Run `/review journey:{name}` to enrich with experiential details.
+Run `/claude-tweaks:review journey:{name}` to enrich with experiential details.
 ```
 
 ### Option 2: Hybrid discovery (codebase + browser)
@@ -346,7 +346,7 @@ Delegate to `/claude-tweaks:visual-review discover` — runs the full 6-phase di
 
 ### Option 3: Skip
 
-Note that the user skipped journey discovery. Suggest running `/visual-review discover` later when they're ready.
+Note that the user skipped journey discovery. Suggest running `/claude-tweaks:visual-review discover` later when they're ready.
 
 ---
 

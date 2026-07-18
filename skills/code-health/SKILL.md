@@ -315,8 +315,8 @@ In interactive mode, route surviving findings through a two-tier decision:
 
 3. If "Route individually" was chosen, call `AskUserQuestion` once per finding — `question`: `"How do you want to handle finding #{N}: {title}?"`, `header`: `"Finding #{N}"`, `multiSelect`: `false`, and:
    - Option 1 — `label`: `"File issue"`, `description`: `"File as a GitHub code-health issue"`
-   - Option 2 — `label`: `"Capture"`, `description`: `"Capture via /capture for later triage"`
-   - Option 3 — `label`: `"/specify directly"`, `description`: `"Promote straight to a spec, skipping the issue"`
+   - Option 2 — `label`: `"Capture"`, `description`: `"Capture via /claude-tweaks:capture for later triage"`
+   - Option 3 — `label`: `"/claude-tweaks:specify directly"`, `description`: `"Promote straight to a spec, skipping the issue"`
    - Option 4 — `label`: `"Dismiss"`, `description`: `"Drop this finding"`
 
 ## Routine Configuration
@@ -415,3 +415,4 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `/claude-tweaks:deepen` | `/deepen` applies the architecture-depth criterion reactively to code you are changing; `/code-health` applies it proactively on a schedule. Both read `criteria-architecture-depth.md`. |
 | `/claude-tweaks:routine` | `/routine create code-health` instantiates code-health's `routine-template.yml` into a live, scheduled cloud Routine — the mechanism behind this skill's own "Routine Configuration" section. |
 | `/claude-tweaks:simplify` | `/simplify` applies the simplification criterion reactively; `/code-health` applies it proactively. Both read `criteria-simplification.md`. |
+| `/claude-tweaks:docs-health` | Sibling health skill — same SELECT → JUDGE → VERIFY → FINGERPRINT/DEDUP → FILE pipeline and shared `_shared/health-state.md` persistence, but scoped to `docs/**` for Diátaxis genre-drift + depth-mismatch + findability + staleness instead of code quality. Both file born-`ready` findings on the unified work-record contract. |

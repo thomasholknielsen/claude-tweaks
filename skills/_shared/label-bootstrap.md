@@ -29,9 +29,9 @@ consumer with its own label list — for a single label, use a one-element array
 
 ## Canonical LABELS_JSON — the full work-record taxonomy
 
-The complete label set from `_shared/work-record.md` (17 core + 3 optional `priority:*`),
+The complete label set from `_shared/work-record.md` (21 core + 3 optional `priority:*`),
 with descriptions pre-checked against GitHub's 100-character cap. **Consumers bootstrap only
-the labels they are about to apply** — copy the relevant pairs, don't create all 20
+the labels they are about to apply** — copy the relevant pairs, don't create all 24
 speculatively (except `/init`'s one-time provision-now offer, which uses this list whole):
 
 ```js
@@ -39,6 +39,7 @@ speculatively (except `/init`'s one-time provision-now offer, which uses this li
   ["by:code-health",    "Origin: filed by the code-health skill"],
   ["by:harness-health", "Origin: filed by the harness-health skill"],
   ["by:journey-health", "Origin: filed by the journey-health skill"],
+  ["by:docs-health",    "Origin: filed by the docs-health skill"],
   ["by:capture",        "Origin: filed via /capture"],
   ["risk:low",          "Scoring: low blast radius — safe for autonomous build"],
   ["risk:medium",       "Scoring: moderate blast radius — review before merge recommended"],
@@ -52,6 +53,9 @@ speculatively (except `/init`'s one-time provision-now offer, which uses this li
   ["auto:merge",        "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)"],
   ["bot:in-progress",   "Bot state: an agent currently holds the claim on this record"],
   ["bot:blocked",       "Bot state: retry ceiling reached — needs human re-triage before autonomous retry"],
+  ["demo:pending",           "Acceptance: built and verified — awaiting human sign-off via /claude-tweaks:demo"],
+  ["demo:approved",          "Acceptance: a human verified this record does what was asked"],
+  ["demo:changes-requested", "Acceptance: a human found a gap during sign-off — see the linked follow-up record"],
   ["wontfix",           "Closed as not-planned; health skills will not re-file findings with this fingerprint"],
   ["priority:high",     "Priority: dispatch picks this band first"],
   ["priority:medium",   "Priority: dispatch picks after priority:high"],

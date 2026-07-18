@@ -4,11 +4,12 @@ The record body must be detailed enough for `/superpowers:writing-plans` to prod
 
 This template covers the record's **body** only — the GitHub issue body, or the `local-files` twin's body text (`bin/lib/issues/local-store.js`). Title and Type are separate record fields, never body content — see `## Facets` at the end of this file for what lives outside the body.
 
-Every record body opens with a short metadata block — plain body-metadata lines, never YAML frontmatter. `Surface:` and `Design-intent:` are lifted verbatim into the materialized header by `/flow`/`/build` at build time (spec 20's contract). Legacy `frontend` (pre-migration spec frontmatter) reads as `web`; `mixed` is retired — pick the single dominant surface per leaf, since a unit that is genuinely both frontend and backend at once is a decomposition smell.
+Every record body opens with a short metadata block — plain body-metadata lines, never YAML frontmatter. `Surface:` and `Design-intent:` are lifted verbatim into the materialized header by `/flow`/`/build` at build time (spec 20's contract). Legacy `frontend` (pre-migration spec frontmatter) reads as `web`; `mixed` is retired — pick the single dominant surface per leaf, since a unit that is genuinely both frontend and backend at once is a decomposition smell. `Parent:` is decomposition-mode-only, present on a leaf's body only under `work-backend: github-issues` + `work-links: body-text` — the one combination with no other way to record a leaf's own parent (`work-links: native`'s sub-issue relationship is queryable from either side; `work-backend: local-files` carries `facets.parent`). `/claude-tweaks:review`'s Step 1.6 (`skills/review/SKILL.md`) reads it to resolve a leaf's parent when checking for a `## Cross-Spec Promises` section (`_shared/work-record.md`).
 
 ```markdown
 Surface: {web | mobile | desktop | backend | infra}
 Design-intent: {bold | quiet | minimal | delightful | onboarding | none}
+Parent: {#N — decomposition-mode leaves under work-links: body-text only; omitted otherwise (native links, work-backend: local-files, and Shaping mode)}
 
 ## Overview
 
@@ -161,7 +162,7 @@ Never write a bare "zero matches anywhere" AC alongside a tombstone requirement 
 
 ## Facets
 
-Type, stage/scoring labels, and parent/dependency links are **record facets** — tracked on the record itself, outside the body, never as body text. The canonical taxonomy (the six axes, the label names, who may set what) is `_shared/work-record.md`; this section only maps those facets to their representation on each driver.
+Type, stage/scoring labels, and parent/dependency links are **record facets** — tracked on the record itself, outside the body, never as body text. The canonical taxonomy (the seven axes, the label names, who may set what) is `_shared/work-record.md`; this section only maps those facets to their representation on each driver.
 
 | Facet | `github-issues` | `local-files` |
 |-------|------------------|----------------|

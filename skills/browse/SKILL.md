@@ -1,19 +1,20 @@
 ---
 name: claude-tweaks:browse
-description: Use for browser automation via agent-browser — defines session naming, screenshot/trace paths, and operation vocabulary used by /stories, /visual-review, and /review. Keywords - browse, browser, agent-browser, screenshot, scrape, automation.
+description: Use for browser automation via agent-browser — defines session naming, screenshot/trace paths, and operation vocabulary used by /stories, /visual-review, /review, and /demo. Keywords - browse, browser, agent-browser, screenshot, scrape, automation.
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 
 # Browse — Browser Conventions
 
-Conventions skill for browser automation. Defines session naming, screenshot/trace paths, lifecycle, and the abstract operation vocabulary that `/claude-tweaks:stories`, `/claude-tweaks:visual-review`, `/claude-tweaks:review`, and the `qa-agent` all speak. Concrete `agent-browser` syntax lives in `agent-browser-reference.md` in this skill's directory.
+Conventions skill for browser automation. Defines session naming, screenshot/trace paths, lifecycle, and the abstract operation vocabulary that `/claude-tweaks:stories`, `/claude-tweaks:visual-review`, `/claude-tweaks:review`, `/claude-tweaks:demo`, and the `qa-agent` all speak. Concrete `agent-browser` syntax lives in `agent-browser-reference.md` in this skill's directory.
 
 ```
                              [ /claude-tweaks:browse ] ← utility (no fixed lifecycle position)
                                         ↑
    Used by: /claude-tweaks:stories, /claude-tweaks:visual-review,
-            /claude-tweaks:review (visual + qa modes), qa-agent, ad-hoc tasks
+            /claude-tweaks:review (visual + qa modes), /claude-tweaks:demo
+            (on-demand live look), qa-agent, ad-hoc tasks
 ```
 
 ## When to Use
@@ -21,6 +22,7 @@ Conventions skill for browser automation. Defines session naming, screenshot/tra
 - `/claude-tweaks:stories` is exploring a site or validating generated stories against the live DOM
 - `/claude-tweaks:visual-review` is walking pages or journeys for UI quality findings
 - `/claude-tweaks:review` is running its visual or QA modes
+- `/claude-tweaks:demo` opens an on-demand live look at a record's resolved entry point ("Show me live")
 - A consumer skill needs to dispatch parallel agents that each drive a browser
 - Ad-hoc browser ops — navigate, screenshot, scrape, fill a form, check a deployment
 
@@ -160,7 +162,7 @@ Call `AskUserQuestion`:
 
 ## Component-Skill Contract
 
-`/claude-tweaks:browse` is a conventions skill — it documents the operation vocabulary for `agent-browser` and is consumed transitively by `/claude-tweaks:stories`, `/claude-tweaks:visual-review`, `/claude-tweaks:review`, and the registered `qa-agent`. Those callers either inline the relevant operation text directly in their own dispatch prompts (parallel-session pattern) or call `agent-browser` commands by name; they do not "invoke" /browse as a workflow step. As a result, the `## Next Actions` block renders only when a user invokes `/browse` directly — when a parent skill is using these conventions as a knowledge dependency, no parent handoff exists to defer to and no Next Actions render in the parent's context. Detection: there is no `PIPELINE_RUN_DIR` signal because /browse never runs as a pipeline stage.
+`/claude-tweaks:browse` is a conventions skill — it documents the operation vocabulary for `agent-browser` and is consumed transitively by `/claude-tweaks:stories`, `/claude-tweaks:visual-review`, `/claude-tweaks:review`, `/claude-tweaks:demo`, and the registered `qa-agent`. Those callers either inline the relevant operation text directly in their own dispatch prompts (parallel-session pattern) or call `agent-browser` commands by name; they do not "invoke" /browse as a workflow step. As a result, the `## Next Actions` block renders only when a user invokes `/browse` directly — when a parent skill is using these conventions as a knowledge dependency, no parent handoff exists to defer to and no Next Actions render in the parent's context. Detection: there is no `PIPELINE_RUN_DIR` signal because /browse never runs as a pipeline stage.
 
 ## Anti-Patterns
 
@@ -188,3 +190,4 @@ Call `AskUserQuestion`:
 | `/claude-tweaks:research` | Both utility skills (no fixed lifecycle position). `/browse` is interactive browser automation; `/research` is autonomous multi-source web research. |
 | `/claude-tweaks:flow` | `/flow` invokes `/review` in full mode by default, which transitively drives `/visual-review` and `/browse` for the browser portion. Browser availability detected at `/flow` startup determines whether visual review runs. |
 | `/claude-tweaks:help` | `/help` lists `/browse` in the utility skills table and surfaces availability when scanning for browser-dependent recommendations. |
+| `/claude-tweaks:demo` | `/demo`'s "Show me live" option (Step 3) opens an on-demand `agent-browser` session at a record's resolved entry point, following /browse's session-naming and lifecycle conventions directly — not a workflow-step invocation, the same relationship `/visual-review` has with `/browse`. |

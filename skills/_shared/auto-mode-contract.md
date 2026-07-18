@@ -26,7 +26,7 @@ The pipeline has at most two stops in `auto` mode, regardless of how many decisi
 └─────────────────────────────┘                                  └─────────────────────────┘
 ```
 
-- **Begin stop** — the Pipeline Config Manifesto computes all policy levers (scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness) and saves them to `config.yml` inside the run directory at `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`.
+- **Begin stop** — the Pipeline Config Manifesto computes all policy levers (scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-severity-floor, tidy-aggressiveness, unattended-tier) and saves them to `config.yml` inside the run directory at `.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`.
 - **Begin stop is opt-in under `auto`.** `/flow` defaults to `auto`, and in `auto` the Manifesto renders as a **read-only FYI** (display levers + sources, then proceed) — so the everyday auto pipeline has effectively **one** user-facing stop: the end-of-run Review Console. Pass `confirm` (or use `hybrid`) to turn the begin stop into a real approval gate. The "at most two stops" promise is a ceiling, not a floor.
 - **One message, not many.** When the begin stop *is* a gate (`confirm` / `hybrid`), it is a single message with every lever pre-filled and an Approve all / Override / Cancel choice. Never a chain of per-lever questions — if you need to ask twice, you've already broken the bookend.
 - **Mid-flow** — skills look up policy and execute. Every auto-decision lands in the auto-decision log.
@@ -129,7 +129,7 @@ The hook surface (`bin/hooks.js`, see CLAUDE.md Conventions → Hooks) mechanize
 - Closing or deleting work records
 - Closing ledger items as `fixed` / `accepted` / `dropped` (Phase 2 of the resolve gate)
 - `git push` to shared branches
-- Creating work records (filing new records on the user's tracker)
+- Creating work records (filing new records on the user's tracker) — except scheduled health-skill born-ready records (see `_shared/work-record.md`'s born-ready rule) and queue-write proposals when `unattended-tier` is on (see `_shared/unattended-tier.md`)
 - Network calls beyond reads (no API writes, no message sends)
 - Modifying CLAUDE.md project-policy values
 - Deleting specs
@@ -170,8 +170,8 @@ The hook surface (`bin/hooks.js`, see CLAUDE.md Conventions → Hooks) mechanize
 
 | Item | Why mandatory |
 |---|---|
-| Ledger resolve gate Phase 2 (every open item, per-item) | Items represent unfinished work — silently dropping them is the bug `auto` is *not* allowed to introduce |
-| Work-record creation (new backlog records) | Each record filed on the user's tracker needs explicit user approval — the record queue is the user's, not the model's. Scheduled health-skill filing is exempt — born-ready records are those skills' documented output (see `_shared/work-record.md`, born-ready rule). |
+| Ledger resolve gate Phase 2 (every open item, per-item) | Items represent unfinished work — silently dropping them is the bug `auto` is *not* allowed to introduce, unless `unattended-tier` is on — see `_shared/unattended-tier.md` for the narrow, backlog-only carve-out |
+| Work-record creation (new backlog records) | Each record filed on the user's tracker needs explicit user approval — the record queue is the user's, not the model's. Scheduled health-skill filing is exempt — born-ready records are those skills' documented output (see `_shared/work-record.md`, born-ready rule). Queue-write proposals are also exempt when `unattended-tier` is on — see `_shared/unattended-tier.md`. |
 | Marking records `parked` | Same — putting work on hold is a user decision |
 | `/challenge`'s Listen + Reflect-back steps | The user-engagement entry points where the problem statement is supplied and confirmed. After Reflect-back, lens proposers + the aggregator run autonomously per Mode 4 (Layered MoA) — those are not user-prompt cycles. |
 | `/init` Phase 4 (skill manifest), Phase 8 (Impeccable), Phase 9 (final confirmation), scope-selection gate | Project-shape governance decisions are user-only |
@@ -205,6 +205,18 @@ The canonical per-stop behavior table is the "What `auto` silences" / "What `aut
 3. Resist the urge to redeclare semantics inline. If a skill needs a per-stop quick reference, link to the relevant row in the silences table rather than duplicating it.
 
 Per-skill `## Auto-mode behavior` tables in SKILL.md are deprecated as of v4.7.0 — the silences table is the single source of truth. Drift between two copies (skill-local and contract-canonical) was the failure mode they were meant to prevent and instead enabled.
+
+## Adding a new policy lever
+
+Extending the Manifesto with a new lever (as `unattended-tier` did, becoming lever #9, and `ceremony-profile` after it, becoming lever #10) touches more files than the lever's own logic. Checklist, grounded in gaps this exact addition initially missed and caught only at whole-branch review:
+
+1. **This file** — add the lever name to the Bookend Architecture's computed-levers list (above); add its row(s) to "What `auto` silences" / "does NOT silence" if it changes either list; add a caveat anywhere an existing table row's guarantee narrows.
+2. **`flow/SKILL.md`** Step 3 — add the lever name to the levers-computed sentence.
+3. **`flow/manifesto.md`** — the lever needs an entry in *every* one of: the suppression-rules table, the canonical numbering line, the illustrative Policy Levers example table, the Suppressed/Valid-overrides footer, the Override Semantics table, the Recommendation Defaults table, and the `config.yml` schema example.
+4. **`help/reference-card.md`** and **`help/context-flow.md`** — both files independently enumerate the full lever list ("every policy lever" / the `config.yml` consumer row) and sit outside the Manifesto's own file tree — easy to miss entirely, and the only two gaps a whole-branch review caught that no task-level review touching the Manifesto files themselves could have seen.
+5. **The enforcement skill file(s)** the lever actually gates — where the new behavior lives.
+
+Verify with a grep for the lever's kebab-case name across `skills/` and root `CLAUDE.md` before considering the addition complete — a zero-hit file that should have one is the failure mode this checklist exists to prevent.
 
 ## Skill integration pattern
 
@@ -245,7 +257,7 @@ These are the failure modes this contract prevents. If you (the model) catch you
 | Inserting a "Pipeline reality check" or "I want to surface a concern before we proceed" mid-pipeline | The user said `auto`. Concerns belong in the ledger or final summary, not as blocking prompts. |
 | Offering "three paths forward" when the skill prescribes one | If the skill defines a default, take it. If not, that's a skill bug — fix the skill. |
 | Treating `auto` as authorization to bulk-resolve the ledger | The resolve gate Phase 2 is non-negotiable. Per-item input always. |
-| Filing work records autonomously because a finding "obviously belongs there" | Each record needs user approval. "Obvious" is the model's judgment, not the user's. |
+| Filing work records autonomously because a finding "obviously belongs there" | Each record needs user approval. "Obvious" is the model's judgment, not the user's. This still holds by default — `unattended-tier` (see `_shared/unattended-tier.md`) is a separate, explicit, project-level opt-in with its own floor and audit trail, not a model deciding something is "obvious" on its own. |
 | Adding more model-side reality-checks "to be safe" | The contract is the safety. Model-added prompts under `auto` are contract violations. |
 | Stopping the pipeline because of context-window concerns the user didn't raise | Pre-emptive stops violate `auto`. Loud failure at gates only. |
 | Re-asking a question the user already answered with `auto` or in the Config Manifesto | If the user answered upstream, don't ask again per skill. |

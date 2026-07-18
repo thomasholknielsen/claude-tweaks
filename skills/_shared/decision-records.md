@@ -30,30 +30,7 @@ docs/decisions/NNNN-{kebab-slug}.md
 
 ## Template
 
-```markdown
-# {NNNN}. {Decision title — a short noun phrase}
-
-- **Status:** accepted
-- **Date:** {YYYY-MM-DD}
-- **Context:** {spec #, brief, or work that produced this decision}
-
-## Context
-
-{The forces at play — what made this decision necessary, what constraints applied. State the problem, not the solution.}
-
-## Decision
-
-{What we chose, in one or two sentences.}
-
-## Alternatives considered
-
-- **{Alternative A}** — {why we rejected it}
-- **{Alternative B}** — {why we rejected it}
-
-## Consequences
-
-{What this makes easy, what it makes hard, and what would force us to revisit it.}
-```
+The literal ADR template lives in `skills/_shared/diataxis-genre-templates.md`'s ADR section — read that file for the current skeleton. This file owns the gate, location convention, and who-reads-who-writes contract above; the template body is shared with `/claude-tweaks:init`'s missing-doc scaffolding and `/claude-tweaks:wrap-up`'s missing-doc detection, so it lives in one place rather than three.
 
 `Status` is `accepted` for a decision being recorded after the fact. If a later ADR overturns this one, change this file's status to `superseded by NNNN` rather than deleting it — the trail is the value.
 

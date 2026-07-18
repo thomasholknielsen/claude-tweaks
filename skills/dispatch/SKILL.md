@@ -9,7 +9,7 @@ description: Use when you want to claim and build already-authorized GitHub work
 The thin protocol wrapper between the authorization gate and the executor: select → claim group → invoke /flow → settle. Sits outside the main brainstorm-to-build chain, downstream of the gate:
 
 ```
-capture / code-health / harness-health / journey-health   (file records)
+capture / code-health / harness-health / journey-health / docs-health   (file records)
                               │
                               v
                 /claude-tweaks:specify   (shapes to ready)
@@ -182,7 +182,7 @@ Any other `gh` failure during claim: skip, log, continue.
 
 Work through the selected group(s) — bare / `#N,#M,...`: as many as were picked, up to `dispatch-pick-max-concurrent` running at once, remainder queued for a freed slot; `next` / `#N`: exactly one. Each group becomes one Task agent with its own worktree (created via `/superpowers:using-git-worktrees` exactly as a normal `/flow` invocation would — do not pre-create or share a worktree path across groups). There is no per-firing timeout, only the concurrency throttle — nothing elsewhere in this codebase imposes one (existing parallel-Task dispatch sites, e.g. `/help`'s Stage 1-7, already wait for all dispatched agents regardless of duration).
 
-Export `CLAIM_RUN_ID="{RUN_ID}"` (this firing's run id — the same value already embedded in each member's claim marker by Step 4) before invoking `/flow`. `/flow` threads it through to `/wrap-up`'s release step (`cleanup-procedures.md` Section E) so the success-path ownership check compares against the run that actually made the claim, not `/flow`'s own (different, later-created) `PIPELINE_RUN_DIR` — see `_shared/issue-claims.md`'s Identity section.
+Export `CLAIM_RUN_ID="{RUN_ID}"` (this firing's run id — the same value already embedded in each member's claim marker by Step 4) before invoking `/claude-tweaks:flow`. `/flow` threads it through to `/wrap-up`'s release step (`cleanup-procedures.md` Section E) so the success-path ownership check compares against the run that actually made the claim, not `/flow`'s own (different, later-created) `PIPELINE_RUN_DIR` — see `_shared/issue-claims.md`'s Identity section.
 
 **Singleton group** `[123]` — the agent's job is exactly today's single-record dispatch: invoke `CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow #123`.
 
@@ -397,7 +397,7 @@ Render only when a human is present to answer — the bare form is definitionall
 | `/claude-tweaks:triage` | The human gate upstream — grants `auto:build` (optionally `+ auto:merge`) that dispatch selects on. Dispatch never grants; it only strips or downgrades a grant on failure or at the retry ceiling. Triage never claims or dispatches. |
 | `/claude-tweaks:flow` | The executor dispatch hands claimed groups to — `CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow #{n}[,#{m}...]`. `/flow` is opaque to dispatch: materialization (spec derivation, multi-issue bundling) is `/flow`'s own concern, not dispatch's. |
 | `_shared/issue-claims.md` | Defines the claim protocol (the lock, the mirror, the group-claim rule, release triggers, the ownership rule) that dispatch implements start to finish — claim in Step 4, release in Settle. |
-| `_shared/work-record.md` | Taxonomy home — the six-axis label contract and the permission-matrix row dispatch implements (`bot:in-progress` / `bot:blocked` add; `auto:merge` / `auto:*` / `bot:in-progress` remove; never add `auto:*` or `ready`). |
+| `_shared/work-record.md` | Taxonomy home — the seven-axis label contract and the permission-matrix row dispatch implements (`bot:in-progress` / `bot:blocked` add; `auto:merge` / `auto:*` / `bot:in-progress` remove; never add `auto:*` or `ready`). |
 | `/claude-tweaks:tidy` | Surfaces orphaned or stale claims dispatch left behind (Step 4.7) and `bot:blocked` records as re-authorization candidates; a headless firing's outcome ultimately surfaces on `/tidy`'s own rolling GitHub-triage digest rather than a console dispatch renders itself — see Reporting above. |
 | `/claude-tweaks:wrap-up` | Releases the claim on success (cleanup Section E) using the `CLAIM_RUN_ID` dispatch threaded through `/flow`, not its own `PIPELINE_RUN_DIR` — the ownership check depends on this. The auto-merge gate's checks run against wrap-up's own Review Console output before it would otherwise render. |
 | `/claude-tweaks:help` | Surfaces the authorized-queue size, `bot:blocked` count, and a rolling auto-merge count on the dashboard. |

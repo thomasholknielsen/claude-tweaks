@@ -72,7 +72,7 @@ When a pipeline run directory exists, read `config.yml`'s `ceremony-profile`. Ru
 
 Full mode handles all four reflection lenses (Surprises, Approach, Near-misses, Fresh start), the tradeoff review, insight routing, and ledger writes. Light mode (`skills/reflect/light-mode.md`) runs only the Near-misses and Fresh-start lenses and skips the tradeoff review — see `docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md` for the rationale. See `/claude-tweaks:reflect` for details on both.
 
-If any insight is "Implement now", /reflect handles it before returning control. Proceed after all insights are resolved.
+If any insight is "Implement now", the reflect skill handles it before returning control. Proceed after all insights are resolved.
 
 ## Step 3.5: Ceremony Escape Hatch (fast-lane runs only)
 
@@ -134,6 +134,8 @@ Check if the work requires updates to project documentation, using the doc regis
    - New docs were created during this work (e.g., ADR for a significant decision) → propose adding to registry
    - Existing docs were deleted or moved → propose removing/updating registry entries
    - Auto-detect patterns need adjustment (directories renamed, new code areas)
+
+4. **Docs-health check on touched docs, and missing-doc detection** — read `docs-health-integration.md` in this skill's directory for the full procedure: D1 judges every doc this work edited or created against the shared docs-health criteria (genre-drift, depth-mismatch, findability, staleness), routing `additive` findings into this step's own `[doc]` collection and filing `restructural` findings as GitHub issues; D2 detects when this work introduced a new subsystem with zero doc coverage anywhere and proposes scaffolding a new doc from the genre-template library. Both fold their output into this step's `[doc]` collection and the Step 9 batch table alongside items 1-3 above.
 
 → Collect each needed update as: `[doc] {file} — {what to add/change}`
 → Collect registry updates as: `[registry] {action} — {detail}`
@@ -223,6 +225,11 @@ The following ops items need acknowledgment. These represent infrastructure chan
 | 1 | {description} | {source} |
 ```
 
+**Unattended-tier auto-acknowledge:** if `unattended-tier: on` (see `_shared/unattended-tier.md`),
+skip the `AskUserQuestion` below entirely — update status to `acknowledged` for every item, log
+`AUTO {time} — Ops acknowledgment: {N} items auto-acknowledged. Reversibility: high.` to
+`decisions.md`, and continue to Step 8.6. Otherwise, present the block below.
+
 Call `AskUserQuestion` with `question`: `"How do you want to handle these ops items?"`, `header`: `"Ops items"`, `multiSelect`: `false` — neither option's label is marked as the default:
 
 - Option 1 — `label`: `"Acknowledge all"`, `description`: `"I've read every item"`
@@ -248,7 +255,7 @@ For the run-directory resolution sequence, the multi-spec defer protocol, the fu
 
 ```
 ## Wrap-Up: {"Record #{n}" when a materialized header exists, else "Spec {number}"} — {title}
-{Origin: {origin} — record mode only, the materialized header's origin field: by:code-health / by:harness-health / by:journey-health / by:capture, or "human" when absent. Omit this line entirely for legacy spec-file-mode runs.}
+{Origin: {origin} — record mode only, the materialized header's origin field: by:code-health / by:harness-health / by:journey-health / by:docs-health / by:capture, or "human" when absent. Omit this line entirely for legacy spec-file-mode runs.}
 
 ### Reflection Insights
 1. {insight} → {destination}
@@ -265,7 +272,7 @@ See `cleanup-procedures.md` for the canonical cleanup list. Render only rows who
 ### Configuration Updates (from Step 6)
 | # | Type | Target | Change |
 |---|------|--------|--------|
-| 1 | {doc/claude.md/rule/adr} | {target} | {what to add/change} |
+| 1 | {doc/claude.md/rule/adr/docs-health-issue} | {target} | {what to add/change} |
 | 2 | ... | ... | ... |
 (or: No configuration updates needed.)
 
@@ -309,7 +316,7 @@ Render the cleanup rows from `cleanup-procedures.md`'s canonical list (filtered 
 |---|------|--------|---------|
 | 1 | cleanup | {row from cleanup-procedures.md canonical list} | {details} |
 | ... | cleanup | ... | ... |
-| N | config | {doc/claude.md/rule/adr} | {what to add/change} |
+| N | config | {doc/claude.md/rule/adr/docs-health-issue} | {what to add/change} |
 ```
 
 The table renders as markdown, as above. Immediately below it, call `AskUserQuestion` with:
@@ -345,8 +352,11 @@ Execute the cleanup planned in Step 5 (canonical list in `cleanup-procedures.md`
 After the cleanup, also apply:
 
 - **Documentation, CLAUDE.md, rules** — apply the registry / doc / rule edits collected in Step 6 and approved at the Console or batch
+- **New docs from missing-doc detection** — for a `[doc] {file} — Create: …` row (wrap-up's own D2 gap-detection, `docs-health-integration.md`), scaffold the new file from the matching section of `skills/_shared/diataxis-genre-templates.md` and fill in real content from this work's session context, then register it in `docs/REGISTRY.md` if a registry exists
+- **Docs-health restructural filings** — for restructural docs-health findings (`docs-health-integration.md`'s D1) approved at the Console or batch, re-run `validate-findings` without `--dry-run` and file each surviving payload via `gh issue create`, per that file's filing procedure
 - **Decision records (ADRs)** — write the approved `docs/decisions/NNNN-{slug}.md` files (Step 6.3) using the template in `_shared/decision-records.md`, and add them to `docs/REGISTRY.md` if a registry exists
 - **Skill updates** — apply patches and create new skills (Step 7 staged or approved items)
+- **Acceptance labeling** (record mode only — a materialized header exists for this run) — for testable records, gate on a clean visual-review pass (triggering one now via Step 2.5's safety net if `/review` only produced a recommendation), then apply `demo:pending` and post the Verification Brief; see `verification-brief.md` in this skill's directory for the full bootstrap, safety-net, sourcing, and posting procedure
 
 Commit with a message summarizing the wrap-up actions. When the run is `current-branch` mode
 and a materialized header exists for this spec (`${RUN_DIR}/work/*-spec.md` — its `record:`
@@ -367,6 +377,7 @@ Before emitting the closure line, confirm every approved action actually ran:
 - Pipeline run dir archived — `.claude-tweaks/pipelines/{run-id}/` is gone; `.claude-tweaks/pipelines/archive/{run-id}/` exists, with the `work/` subdirectory (when present) still git-tracked at its new path (skipped when `MULTISPEC_REVIEW_DEFER=1`)
 - Worktree removed (worktree strategy) — `git worktree list` no longer shows the feature worktree path
 - Closing-keyword carrier commit landed (worktree strategy + a materialized header was present for this spec) — `git log {default-branch} --grep="Fixes #{issue}"` shows the carrier commit for each resolved issue once merged (or `git log {feature-branch} --grep=...` if the branch is still open under "keep as-is" or a pending PR)
+- Acceptance labeling landed (record mode only) — `work-backend: github-issues`: `gh issue view {issue} --json labels -q '.labels[].name'` includes `demo:pending` and the issue's last comment contains `## Verification Brief` with a `### Confirmed` section; `work-backend: local-files`: the record's body contains `## Verification Brief` with a `### Confirmed` section and its frontmatter has `acceptance: pending`. For a testable record, confirm the safety-net gate actually resolved (no high/critical visual-review finding left unfixed) before this line was reached.
 
 If any approved action did not land, do NOT emit the closure line. Surface the gap (`BLOCKED — cleanup step {N} did not complete: {reason}`) and stop.
 
@@ -421,6 +432,7 @@ When `$PIPELINE_RUN_DIR` is unset, `/wrap-up` runs standalone — render Next Ac
 | Proposing generic skill updates with no concrete anchor | Every skill update must trace to a ledger entry, a reflection insight, or a specific changed-file observation from the independent scan — updates with no anchor are indistinguishable from hallucinated ones |
 | Mixing skill updates into the doc/CLAUDE.md batch table | Skill updates require full file reads and Update Mode patches — they get their own decision table in Step 7 |
 | Writing an ADR for every decision | ADRs are valuable because they are rare — Step 6.3's 3-factor gate (hard-to-reverse AND surprising AND a real trade-off) keeps them so. Most wrap-ups produce zero ADRs, and that is correct |
+| Treating `demo:pending` as optional for "trivial" record-mode work | The Acceptance axis applies uniformly — `/claude-tweaks:demo`'s batch view is where triviality gets a fast path, not wrap-up's labeling step |
 
 ## Relationship to Other Skills
 
@@ -429,8 +441,10 @@ When `$PIPELINE_RUN_DIR` is unset, `/wrap-up` runs standalone — render Next Ac
 | `/claude-tweaks:review` | Must pass before /claude-tweaks:wrap-up — handles verification, code review, and simplification. Skill-routed ledger entries from lens 3a (phase `review/skill`) and /reflect hindsight findings tagged `[skill: …]` (phase `review/hindsight`) feed into Step 7 skill analysis. |
 | `/claude-tweaks:test` | Indirect dependency — /test passes before /review, which passes before /wrap-up. Open QA ledger entries (`test/qa` phase) carried forward from /test surface in Step 8.5's resolve gate as items requiring per-item user decision. |
 | `/claude-tweaks:review` (visual modes) | Visual complement — findings from visual review may feed into wrap-up's reflection lenses |
+| `/claude-tweaks:visual-review` | `verification-brief.md`'s Step 2.5 safety-net gate invokes /claude-tweaks:visual-review directly when a testable record reaches wrap-up without a full pass already having run (standalone /review in code mode, or /build run outside /flow) — reuses /review Step 6's own mode resolution, never a separate implementation. |
 | `/claude-tweaks:reflect` | Invoked BY /wrap-up (Step 3) in full mode, or light mode under a `fast-lane` ceremony profile. Full mode handles all four reflection lenses, tradeoff review, insight routing, and ledger writes with phase `wrap-up`; light mode narrows to two lenses and skips the tradeoff review. |
 | `/claude-tweaks:capture` | /claude-tweaks:wrap-up may file a new backlog record directly (no stage label) for genuinely new ideas discovered during implementation — the same `recordPayload` composition `/capture` itself uses, without going through this skill |
+| `/claude-tweaks:demo` | /claude-tweaks:wrap-up applies `demo:pending` and posts the Verification Brief (Step 10, `verification-brief.md`) — record mode only, gated on a clean visual-review pass (Step 2.5's safety net). /claude-tweaks:demo later resolves the label to `demo:approved`/`demo:changes-requested` and, on the latter, files a linked follow-up record. |
 | Work records (`parked`, via leftover routing) | /claude-tweaks:wrap-up routes leftover work here — a new record with a `Trigger:` body line and the `parked` label (origin spec/record, files, trigger); see `leftover-routing.md` in this skill's directory |
 | `/claude-tweaks:help` | /claude-tweaks:wrap-up suggests running /claude-tweaks:help to see what's unblocked |
 | `/claude-tweaks:tidy` | /claude-tweaks:wrap-up cleans artifacts for a single spec — /claude-tweaks:tidy does periodic bulk cleanup |
@@ -442,6 +456,7 @@ When `$PIPELINE_RUN_DIR` is unset, `/wrap-up` runs standalone — render Next Ac
 | `/claude-tweaks:flow` | Invoked BY /flow as the pipeline's final step; flow waits for /wrap-up's Review Console (Step 8.6) before archiving the run directory. Multi-spec runs set `MULTISPEC_REVIEW_DEFER=1` so per-spec wrap-ups defer to flow's consolidated console. |
 | `/claude-tweaks:deepen` | Interface trade-offs /deepen flags `[ADR-candidate]` are picked up by Step 6.3 and run through the 3-factor gate for possible ADR creation |
 | `_shared/decision-records.md` | Canonical 3-factor ADR gate, location convention, and template applied by Step 6.3 |
+| `_shared/criteria-docs-diataxis.md`, `docs-health-integration.md` | Step 6.1 item 4 applies this shared judgment inline to docs touched by the current work (same reuse pattern as `_shared/harness-health-analysis.md` in Step 7), and detects missing documentation from the diff. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
 | `_shared/issue-claims.md` | Cleanup item 7 (Section E of `cleanup-procedures.md`) releases claims for specs with a materialized header, with the branch outcome as the release reason. |
 | `/claude-tweaks:harness-health` and `_shared/harness-health-analysis.md` | Step 7's 7.3-7.5 apply this shared procedure instead of an inline copy — sharing its judgment logic and its `.claude-tweaks/harness-health/` cursor/cache state with `/claude-tweaks:init` and the standalone `/claude-tweaks:harness-health` routine. |

@@ -71,7 +71,7 @@ Replaces the previous size-based scope check. Plan size (line count, file count,
 
 **Behavior:**
 
-- **Hard fail** → present the specific signal, recommend `/claude-tweaks:specify {plan-path}` to tighten, offer (1) tighten via /specify **(Recommended)**, (2) proceed anyway and accept tangled-task risk, (3) cancel. Under `auto`, choose option 2 and add an `ops` ledger entry naming the specific signal hit.
+- **Hard fail** → present the specific signal, recommend `/claude-tweaks:specify {plan-path}` to tighten, offer (1) tighten via `/claude-tweaks:specify` **(Recommended)**, (2) proceed anyway and accept tangled-task risk, (3) cancel. Under `auto`, choose option 2 and add an `ops` ledger entry naming the specific signal hit.
 - **Soft warning** → proceed by default. Add an `ops` ledger entry with the warning text. Do NOT prompt the user. Under `auto` or in default mode, behavior is identical (silent proceed with ledger note).
 
 **Anti-pattern:** Stopping the pipeline because the plan is "big." Size is not a coupling signal. See `_shared/auto-mode-contract.md` — the model is forbidden under `auto` from inserting size-driven reality-checks beyond what this step prescribes.

@@ -1,6 +1,6 @@
 # GitHub PR Scan — Shared Procedure
 
-Single source of truth for scanning GitHub pull-request and issue state. Consumed by `/claude-tweaks:help` (Stage 4.5, **`current-pr`** scope; Stage 4.6, **`triage-queue`** scope) and `/claude-tweaks:tidy` (Step 4.8, **`repo-wide`** scope). Subagents cannot read this file — the dispatcher inlines the relevant scope section, plus the Detection Ladder and Output Contract, into the scan agent's prompt (the same pattern as `tidy/scan-procedures.md`).
+Single source of truth for scanning GitHub pull-request and issue state. Consumed by `/claude-tweaks:help` (Stage 4.5, **`current-pr`** scope; Stage 4.6, **`triage-queue`** scope; Stage 4.7, **`acceptance-queue`** scope) and `/claude-tweaks:tidy` (Step 4.8, **`repo-wide`** scope). Subagents cannot read this file — the dispatcher inlines the relevant scope section, plus the Detection Ladder and Output Contract, into the scan agent's prompt (the same pattern as `tidy/scan-procedures.md`).
 
 ## Detection Ladder (fail-open)
 
@@ -46,7 +46,7 @@ Emit `[pr]` rows per the Output Contract.
 
 ## Scope: `repo-wide` (consumed by /tidy Step 4.8)
 
-Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-labelled issues, and `by:journey-health`-labelled issues. Backlog-record findings (stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) are `/tidy` Step 1's job now, not this scope's — `repo-wide` no longer queries the retired `backlog` label (see `tidy/scan-procedures.md` Step 1).
+Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-labelled issues, `by:journey-health`-labelled issues, and `by:docs-health`-labelled issues. Backlog-record findings (stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) are `/tidy` Step 1's job now, not this scope's — `repo-wide` no longer queries the retired `backlog` label (see `tidy/scan-procedures.md` Step 1).
 
 1. **Open PRs** — `gh pr list --state open --json number,title,updatedAt,isDraft,reviewDecision,headRefName,url` → classify each per the Staleness Thresholds. A PR that is simultaneously not draft, not yet `Stale` (< 4 weeks since `updatedAt` — spans both the `Fresh` and `Review` bands, since neither currently has its own finding for a PR with nothing wrong), has zero unresolved review threads (item 2 below), and has no failing/pending CI (`gh pr checks`) gets its own finding: `[pr] PR #{n}: {title} — awaiting review — last updated {age} ago, CI {status}, 0 unresolved threads`. This is informational only — see the Severity mapping and `tidy/SKILL.md`'s Step 6 routing below.
 2. **Unresolved threads per open PR** — the same GraphQL query as `current-pr` item 2, once per open PR.
@@ -54,7 +54,8 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
 4. **Merged/closed PRs with local remnants** — `gh pr list --state merged --limit 50 --json number,headRefName`; cross-check each `headRefName` against `git -C "{REPO_ROOT}" branch --list` output.
 5. **Harness-health issues** — `gh issue list --label by:harness-health --state open --json number,title,labels,updatedAt,url`.
 6. **Journey-health issues** — `gh issue list --label by:journey-health --state open --json number,title,updatedAt,url`.
-7. **Grant-queue counts** — one self-contained query feeds three digest metrics, per `_shared/work-record.md`'s record taxonomy. Not gated on `work-backend` — this scope only runs once the Detection Ladder already confirmed a reachable GitHub remote, regardless of which driver stores records:
+7. **Docs-health issues** — `gh issue list --label by:docs-health --state open --json number,title,labels,updatedAt,url`.
+8. **Grant-queue counts** — one self-contained query feeds three digest metrics, per `_shared/work-record.md`'s record taxonomy. Not gated on `work-backend` — this scope only runs once the Detection Ladder already confirmed a reachable GitHub remote, regardless of which driver stores records:
 
    ```bash
    gh issue list --state open --json number,title,labels --limit 200 > /tmp/pr-scan-records.json
@@ -120,23 +121,38 @@ Findings and recommendations (tidy Action Vocabulary):
 | Open PR superseded (related spec complete, equivalent changes merged) | Close (GitHub) |
 | Merged/closed PR whose head branch or worktree still exists locally | Corroborates Step 4.5 `[git]` cleanup — dispatcher merges at assembly |
 | Unresolved review thread addressed by a later commit (evidence: commit touching the flagged lines) | Resolve thread |
-| Unresolved review thread not addressed | Capture to backlog or run `/review` — local action |
+| Unresolved review thread not addressed | Capture to backlog or run `/claude-tweaks:review` — local action |
 | Code-health issue stale (>4 weeks, flagged code since changed/removed) | Close (GitHub) — superseded |
 | Code-health issue still valid | Suggest `/claude-tweaks:triage` or Capture to backlog |
 | Harness-health issue stale (>4 weeks, the referenced target or code has since changed again) | Close (GitHub) — superseded |
 | Harness-health issue still valid | Suggest `/claude-tweaks:triage` or Capture — same as a still-valid code-health issue (harness-health never applies patches directly) |
 | Journey-health issue stale (>4 weeks, the referenced journey or its files: have since changed again) | Close (GitHub) — superseded |
 | Journey-health issue still valid | Suggest `/claude-tweaks:triage` or Capture to backlog |
+| Docs-health issue stale (>4 weeks, the referenced doc or the fact it flagged has since changed again) | Close (GitHub) — superseded |
+| Docs-health issue still valid | Suggest `/claude-tweaks:triage` or Capture to backlog |
 
 Emit `[pr]` and `[gh-issue]` rows per the Output Contract. Backlog-record findings (the record-scan shapes: stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) no longer originate from this scope — see `tidy/scan-procedures.md` Step 1 for their findings table and `[backlog]`/`[parked]`/`[unsynced]`/`[scoring]`/`[blocked]`/`[legacy]` row prefixes.
 
+## Scope: `acceptance-queue` (consumed by /help Stage 4.7)
+
+One cheap count for the dashboard's Acceptance Queue section — deliberately `--state all`,
+unlike every other count in this file, since `demo:pending` persists independent of open/closed
+state (an `auto:merge`'d record's issue can already be closed while still awaiting sign-off).
+
+```bash
+gh issue list --label demo:pending --state all --json number --limit 200 -q 'length'
+```
+
+Render as one line: `Awaiting sign-off: **{N} records built and ready for your review**` —
+omit entirely when the count is 0.
+
 ## Output Contract
 
-Two collection prefixes for PR/code-health/harness-health/journey-health findings, plus one grant-queue-metrics prefix (`repo-wide` scope only, unconditional — the grant-queue counts exist regardless of which driver stores records) — all emitted as standard Template A rows (`_shared/subagent-output-contract.md`) so existing dispatchers consume them unchanged:
+Two collection prefixes for PR/code-health/harness-health/journey-health/docs-health findings, plus one grant-queue-metrics prefix (`repo-wide` scope only, unconditional — the grant-queue counts exist regardless of which driver stores records) — all emitted as standard Template A rows (`_shared/subagent-output-contract.md`) so existing dispatchers consume them unchanged:
 
 - `[pr]` — pull-request findings: `[pr] PR #{n}: {title} — {issue} — {recommendation}`
-- `[gh-issue]` — code-health/harness-health/journey-health issue findings: `[gh-issue] #{n}: {title} — {issue} — {recommendation}`
-- `[queue]` — grant-queue metrics (item 7 above, `repo-wide` scope only, derived from the single `gh issue list --state open` query already fetched): `[queue] {N} pending authorization, {M} bot:blocked, {K} backlog`
+- `[gh-issue]` — code-health/harness-health/journey-health/docs-health issue findings: `[gh-issue] #{n}: {title} — {issue} — {recommendation}`
+- `[queue]` — grant-queue metrics (item 8 above, `repo-wide` scope only, derived from the single `gh issue list --state open` query already fetched): `[queue] {N} pending authorization, {M} bot:blocked, {K} backlog`
 
 Backlog-record findings (the record-scan shapes: stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) no longer emit from this scope — they are `/tidy` Step 1's `[backlog]` / `[parked]` / `[unsynced]` / `[scoring]` / `[blocked]` / `[legacy]` rows now (`tidy/scan-procedures.md`).
 
@@ -149,7 +165,7 @@ Severity mapping (Template A Severity column):
 | Stale open PR (>4 weeks) | medium |
 | Open PR superseded (related work already merged) | medium |
 | Merged/closed PR with local branch/worktree remnants | medium |
-| Code-health/harness-health/journey-health issue stale/superseded | medium |
-| Code-health/harness-health/journey-health issue still valid, awaiting `/claude-tweaks:triage` | low |
+| Code-health/harness-health/journey-health/docs-health issue stale/superseded | medium |
+| Code-health/harness-health/journey-health/docs-health issue still valid, awaiting `/claude-tweaks:triage` | low |
 | Open PR awaiting review (not draft, not yet `Stale`, 0 unresolved threads, CI clean) | info |
 | Fresh draft PR / no PR / scan skipped | info |
