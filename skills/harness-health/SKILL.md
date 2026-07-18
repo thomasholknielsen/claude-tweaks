@@ -155,20 +155,6 @@ Before filing, bootstrap only the label families this run applies, with real des
 
 Each payload in `/tmp/harness-health-payloads.json` carries structured fields, not just the GitHub issue text — `id`, `kind`, `target`, `assetType`, `category`, `section`, `classification`, `confidence`, `reversibility`, `oldString`, `newString` are all present directly on the payload object (not just embedded in `payload.body`'s markdown), alongside `title`, `body`, `labels`, and `type`. These stay on the payload as triage metadata — nothing here branches on them anymore.
 
-**Type expression branch.** Read the project's `work-types` config key once before filing and branch — never re-probe mid-flow (`_shared/work-record.md`'s config-key table; the key is written by `/init`). `work-types: native` applies `payload.type` (always `task`) via GitHub's native Issue Type; `work-types: labels` adds the matching `type:task` label instead (the pair lives in `record.js`'s `TYPE_LABELS`):
-
-```bash
-# Example: an additive finding, work-types: native
-gh issue create --title "<payload.title>" --body "<payload.body>" --type task \
-  --label by:harness-health --label risk:low --label effort:low --label ready --label harness-health:additive
-
-# Same finding, work-types: labels
-gh issue create --title "<payload.title>" --body "<payload.body>" \
-  --label by:harness-health --label risk:low --label effort:low --label ready --label harness-health:additive --label type:task
-```
-
-Apply the same branch to every payload regardless of classification/kind — a `restructural` payload's call carries `risk:medium`/`effort:high`/`harness-health:restructural` instead, and a `new-skill` payload's call carries only `by:harness-health`/`ready`/`harness-health:new-skill` (no scoring labels), per the mapping table above; only the `--type task` vs. `--label type:task` branch and the `--label` list change, never the underlying `gh issue create --title/--body`. This applies uniformly — CLAUDE.md findings, design-artifact findings, additive skill/rule patches, restructural patches, and new-skill candidates all file the same way. `/harness-health` never edits anything directly; matching `/code-health`, it only ever judges and files.
-
 For a payload whose fingerprint marker (embedded in `payload.body`, read via `extractFingerprint`) matches a `status: "regressed"` entry in `.claude-tweaks/harness-health/cache.json` after this run, the finding was previously closed and has reappeared — reopen the existing issue instead of filing a new one:
 
 ```bash
@@ -176,7 +162,7 @@ gh issue reopen <issue_number>
 gh issue comment <issue_number> --body "Regressed: this finding reappeared. Run: ${RUN_ID}"
 ```
 
-`<issue_number>` is that cache entry's `issue` field. In `--dry-run` mode, print what would be filed or reopened, and the `gh` commands that would run, but do not call `gh`.
+`<issue_number>` is that cache entry's `issue` field.
 
 Per `_shared/health-filing-gate.md`'s applicability/scope/placement rule: in interactive mode, before filing this firing's own new findings (not the retry-queue drains or regressed reopens above, which already executed unconditionally), route survivors through a two-tier decision:
 
@@ -201,6 +187,24 @@ Per `_shared/health-filing-gate.md`'s applicability/scope/placement rule: in int
    - Option 4 — `label`: `"Dismiss"`, `description`: `"Run mark declined so it doesn't reappear"`
 
 For "dismiss," run `node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" mark "<payload.id>" declined --root .` so the same proposal doesn't reappear on a future firing.
+
+For each survivor disposed as "File issue" (every payload if "Apply all recommended" was chosen and its Recommended value was `"File issue"`; only the individually-chosen ones otherwise), call `gh issue create`.
+
+**Type expression branch.** Read the project's `work-types` config key once before filing and branch — never re-probe mid-flow (`_shared/work-record.md`'s config-key table; the key is written by `/init`). `work-types: native` applies `payload.type` (always `task`) via GitHub's native Issue Type; `work-types: labels` adds the matching `type:task` label instead (the pair lives in `record.js`'s `TYPE_LABELS`):
+
+```bash
+# Example: an additive finding, work-types: native
+gh issue create --title "<payload.title>" --body "<payload.body>" --type task \
+  --label by:harness-health --label risk:low --label effort:low --label ready --label harness-health:additive
+
+# Same finding, work-types: labels
+gh issue create --title "<payload.title>" --body "<payload.body>" \
+  --label by:harness-health --label risk:low --label effort:low --label ready --label harness-health:additive --label type:task
+```
+
+Apply the same branch to every payload regardless of classification/kind — a `restructural` payload's call carries `risk:medium`/`effort:high`/`harness-health:restructural` instead, and a `new-skill` payload's call carries only `by:harness-health`/`ready`/`harness-health:new-skill` (no scoring labels), per the mapping table above; only the `--type task` vs. `--label type:task` branch and the `--label` list change, never the underlying `gh issue create --title/--body`. This applies uniformly — CLAUDE.md findings, design-artifact findings, additive skill/rule patches, restructural patches, and new-skill candidates all file the same way. `/harness-health` never edits anything directly; matching `/code-health`, it only ever judges and files.
+
+In `--dry-run` mode, print what would be filed or reopened, and the `gh` commands that would run, but do not call `gh`.
 
 **Step 8 — SUMMARIZE.**
 

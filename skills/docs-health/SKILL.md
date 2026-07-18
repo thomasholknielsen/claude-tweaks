@@ -156,6 +156,13 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" retry-queue update /tmp/docs-hea
 
 If `/tmp/docs-health-escalated.json` is non-empty, file (or update) a `docs-health:filing-failed` issue for each entry, naming the stuck fingerprint and its failure history — bootstrap that label the same way as the others below.
 
+For a payload whose fingerprint marker matches a `status: "regressed"` entry in `.claude-tweaks/docs-health/cache.json` after this run, the finding was previously closed and has reappeared — reopen the existing issue instead of filing a new one:
+
+```bash
+gh issue reopen <issue_number>
+gh issue comment <issue_number> --body "Regressed: this finding reappeared. Run: ${RUN_ID}"
+```
+
 Before filing, bootstrap only the label families this run applies, with real descriptions — using the shared helper so a too-long description fails loudly here rather than as a 422 on `gh issue create`. Canonical pairs copied verbatim from `_shared/label-bootstrap.md`'s `LABELS_JSON`, plus docs-health's own diagnostic labels:
 
 ```bash
@@ -171,29 +178,6 @@ Before filing, bootstrap only the label families this run applies, with real des
 ```
 
 Each payload in `/tmp/docs-health-payloads.json` carries structured fields directly (`target`, `assetType`, `category`, `misleads`, `section`, `classification`, `confidence`, `reversibility`, `oldString`, `newString`), alongside `title`, `body`, `labels`, and `type`.
-
-**Type expression branch.** Read the project's `work-types` config key once before filing and branch — never re-probe mid-flow (`_shared/work-record.md`'s config-key table). `work-types: native` applies `payload.type` (always `task`) via GitHub's native Issue Type; `work-types: labels` adds the matching `type:task` label instead:
-
-```bash
-# work-types: native
-gh issue create --title "<payload.title>" --body "<payload.body>" --type task \
-  --label by:docs-health --label risk:low --label effort:low --label ready --label docs-health:additive
-
-# work-types: labels
-gh issue create --title "<payload.title>" --body "<payload.body>" \
-  --label by:docs-health --label risk:low --label effort:low --label ready --label docs-health:additive --label type:task
-```
-
-Apply the same branch to every payload regardless of classification — a `restructural` payload's call carries `risk:medium`/`effort:high`/`docs-health:restructural` instead. `/docs-health` never edits anything directly; matching `/code-health`/`/harness-health`, it only ever judges and files.
-
-For a payload whose fingerprint marker matches a `status: "regressed"` entry in `.claude-tweaks/docs-health/cache.json` after this run, the finding was previously closed and has reappeared — reopen the existing issue instead of filing a new one:
-
-```bash
-gh issue reopen <issue_number>
-gh issue comment <issue_number> --body "Regressed: this finding reappeared. Run: ${RUN_ID}"
-```
-
-In `--dry-run` mode, print what would be filed or reopened, and the `gh` commands that would run, but do not call `gh`.
 
 Per `_shared/health-filing-gate.md`'s applicability/scope/placement rule: in interactive mode, before filing this firing's own new findings (not the retry-queue drains or regressed reopens above, which already executed unconditionally), route survivors through a two-tier decision:
 
@@ -218,6 +202,24 @@ Per `_shared/health-filing-gate.md`'s applicability/scope/placement rule: in int
    - Option 4 — `label`: `"Dismiss"`, `description`: `"Run mark declined so it doesn't reappear"`
 
 For "dismiss," run `node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" mark "<payload.id>" declined --root .` so the same proposal doesn't reappear on a future firing.
+
+For each survivor disposed as "File issue" (every payload if "Apply all recommended" was chosen and its Recommended value was `"File issue"`; only the individually-chosen ones otherwise), call `gh issue create`.
+
+**Type expression branch.** Read the project's `work-types` config key once before filing and branch — never re-probe mid-flow (`_shared/work-record.md`'s config-key table). `work-types: native` applies `payload.type` (always `task`) via GitHub's native Issue Type; `work-types: labels` adds the matching `type:task` label instead:
+
+```bash
+# work-types: native
+gh issue create --title "<payload.title>" --body "<payload.body>" --type task \
+  --label by:docs-health --label risk:low --label effort:low --label ready --label docs-health:additive
+
+# work-types: labels
+gh issue create --title "<payload.title>" --body "<payload.body>" \
+  --label by:docs-health --label risk:low --label effort:low --label ready --label docs-health:additive --label type:task
+```
+
+Apply the same branch to every payload regardless of classification — a `restructural` payload's call carries `risk:medium`/`effort:high`/`docs-health:restructural` instead. `/docs-health` never edits anything directly; matching `/code-health`/`/harness-health`, it only ever judges and files.
+
+In `--dry-run` mode, print what would be filed or reopened, and the `gh` commands that would run, but do not call `gh`.
 
 **Step 7 — SUMMARIZE.**
 

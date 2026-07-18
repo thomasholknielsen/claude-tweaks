@@ -244,7 +244,14 @@ Before filing, bootstrap only the label families this run applies, with real des
 
 There is no per-criterion label anymore — the criterion is already in the issue body's header line (`**Criterion:** ...`), and nothing reads it back off a label; this was also the label class that hit GitHub's 100-char cap (see `bin/lib/code-health/issue-payload.js`).
 
-Per `_shared/health-filing-gate.md`'s applicability/scope/placement rule: in interactive mode, before filing this firing's own new findings (not the retry-queue drains or reopen decisions below, which already executed unconditionally), route survivors through a two-tier decision:
+For `reopen` decisions (a finding matching a closed non-`wontfix` issue has reappeared), reopen the issue and comment:
+
+```bash
+gh issue reopen <issue_number>
+gh issue comment <issue_number> --body "Regressed: this finding reappeared. Run: ${RUN_ID}"
+```
+
+Per `_shared/health-filing-gate.md`'s applicability/scope/placement rule: in interactive mode, before filing this firing's own new findings (not the retry-queue drains or reopen decisions above, which already executed unconditionally), route survivors through a two-tier decision:
 
 1. Render all findings as a markdown batch table:
 
@@ -293,13 +300,6 @@ gh issue create \
 ```
 
 Apply the same branch to every payload regardless of criterion — only the `--type task` vs. `--label type:task` branch changes; the `risk`/`effort` tier labels and the underlying `gh issue create --title/--body` never do.
-
-For `reopen` decisions (a finding matching a closed non-`wontfix` issue has reappeared), reopen the issue and comment:
-
-```bash
-gh issue reopen <issue_number>
-gh issue comment <issue_number> --body "Regressed: this finding reappeared. Run: ${RUN_ID}"
-```
 
 In `--dry-run` mode, print the payloads and the `gh` commands that would run, but do not call `gh`.
 

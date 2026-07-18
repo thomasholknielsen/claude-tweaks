@@ -188,28 +188,6 @@ Before filing, bootstrap only the label families this run applies, with real des
 
 Each payload in `/tmp/journey-health-payloads-light.json` and (when Step 3.5 ran) `/tmp/journey-health-payloads-deep.json` carries structured fields, not just the GitHub issue text — `id`, `journey`, `category`, `section`, `severity`, `confidence` are all present directly on the payload object (not just embedded in `payload.body`'s markdown), alongside `title`, `body`, `labels`, and `type`. These stay on the payload as triage metadata — nothing here branches on them anymore.
 
-**Type expression branch.** Read the project's `work-types` config key once before filing and branch — never re-probe mid-flow (`_shared/work-record.md`'s config-key table; the key is written by `/init`). `work-types: native` applies `payload.type` (`bug` for a `regression-suspected` finding, `task` for `drift`/`coverage`) via GitHub's native Issue Type; `work-types: labels` adds the matching `type:bug`/`type:task` label instead (the pairs live in `record.js`'s `TYPE_LABELS`):
-
-```bash
-# Example: a drift finding (type task), work-types: native
-gh issue create --title "<payload.title>" --body "<payload.body>" --type task \
-  --label by:journey-health --label risk:high --label effort:medium --label ready --label journey-health:drift
-
-# Same finding, work-types: labels
-gh issue create --title "<payload.title>" --body "<payload.body>" \
-  --label by:journey-health --label risk:high --label effort:medium --label ready --label journey-health:drift --label type:task
-
-# Example: a regression-suspected finding (type bug), work-types: native
-gh issue create --title "<payload.title>" --body "<payload.body>" --type bug \
-  --label by:journey-health --label risk:medium --label effort:medium --label ready --label journey-health:regression-suspected
-
-# Same finding, work-types: labels
-gh issue create --title "<payload.title>" --body "<payload.body>" \
-  --label by:journey-health --label risk:medium --label effort:medium --label ready --label journey-health:regression-suspected --label type:bug
-```
-
-Apply the same branch to every payload regardless of category — a `coverage` payload's call carries `journey-health:coverage` and `--type task`/`--label type:task` the same way a `drift` payload does; only the `--type task`/`--type bug` vs. `--label type:task`/`--label type:bug` branch and the `--label` list change, never the underlying `gh issue create --title/--body`. `/journey-health` never edits journey files, stories, or code — every finding files, unconditionally.
-
 For a payload whose fingerprint marker (embedded in `payload.body`, read via `extractFingerprint`) matches a `status: "regressed"` entry in `.claude-tweaks/journey-health/cache.json` after this run, the finding was previously closed and has reappeared — reopen the existing issue instead of filing a new one:
 
 ```bash
@@ -217,7 +195,7 @@ gh issue reopen <issue_number>
 gh issue comment <issue_number> --body "Regressed: this finding reappeared. Run: ${RUN_ID}"
 ```
 
-`<issue_number>` is that cache entry's `issue` field. In `--dry-run` mode, print what would be filed or reopened, and the `gh` commands that would run, but do not call `gh`.
+`<issue_number>` is that cache entry's `issue` field.
 
 Per `_shared/health-filing-gate.md`'s applicability/scope/placement rule: in interactive mode, before filing this firing's own new findings (not the retry-queue drains or regressed reopens above, which already executed unconditionally), render surviving findings as a markdown batch table:
 
@@ -240,6 +218,32 @@ If "Route individually" was chosen, call `AskUserQuestion` once per finding — 
 - Option 4 — `label`: `"Dismiss"`, `description`: `"Run mark declined so it doesn't reappear"`
 
 For "dismiss," run `node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" mark "<payload.id>" declined --root .` so the same proposal doesn't reappear on a future firing.
+
+For each survivor disposed as "File issue" (every payload if "Apply all recommended" was chosen and its Recommended value was `"File issue"`; only the individually-chosen ones otherwise), call `gh issue create` per the branch below.
+
+**Type expression branch.** Read the project's `work-types` config key once before filing and branch — never re-probe mid-flow (`_shared/work-record.md`'s config-key table; the key is written by `/init`). `work-types: native` applies `payload.type` (`bug` for a `regression-suspected` finding, `task` for `drift`/`coverage`) via GitHub's native Issue Type; `work-types: labels` adds the matching `type:bug`/`type:task` label instead (the pairs live in `record.js`'s `TYPE_LABELS`):
+
+```bash
+# Example: a drift finding (type task), work-types: native
+gh issue create --title "<payload.title>" --body "<payload.body>" --type task \
+  --label by:journey-health --label risk:high --label effort:medium --label ready --label journey-health:drift
+
+# Same finding, work-types: labels
+gh issue create --title "<payload.title>" --body "<payload.body>" \
+  --label by:journey-health --label risk:high --label effort:medium --label ready --label journey-health:drift --label type:task
+
+# Example: a regression-suspected finding (type bug), work-types: native
+gh issue create --title "<payload.title>" --body "<payload.body>" --type bug \
+  --label by:journey-health --label risk:medium --label effort:medium --label ready --label journey-health:regression-suspected
+
+# Same finding, work-types: labels
+gh issue create --title "<payload.title>" --body "<payload.body>" \
+  --label by:journey-health --label risk:medium --label effort:medium --label ready --label journey-health:regression-suspected --label type:bug
+```
+
+Apply the same branch to every payload regardless of category — a `coverage` payload's call carries `journey-health:coverage` and `--type task`/`--label type:task` the same way a `drift` payload does; only the `--type task`/`--type bug` vs. `--label type:task`/`--label type:bug` branch and the `--label` list change, never the underlying `gh issue create --title/--body`. `/journey-health` never edits journey files, stories, or code.
+
+In `--dry-run` mode, print what would be filed or reopened, and the `gh` commands that would run, but do not call `gh`.
 
 **Step 7 — SUMMARIZE.**
 
