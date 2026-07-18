@@ -178,31 +178,33 @@ gh issue comment <issue_number> --body "Regressed: this finding reappeared. Run:
 
 `<issue_number>` is that cache entry's `issue` field. In `--dry-run` mode, print what would be filed or reopened, and the `gh` commands that would run, but do not call `gh`.
 
-**Step 8 — SUMMARIZE.**
-
-Report: which target(s) were audited (or that only the gap scan ran), how many findings were emitted, how many filed vs skipped by dedup. List any new issue URLs.
-
-In interactive mode, route surviving findings through a two-tier decision:
+Per `_shared/health-filing-gate.md`'s applicability/scope/placement rule: in interactive mode, before filing this firing's own new findings (not the retry-queue drains or regressed reopens above, which already executed unconditionally), route survivors through a two-tier decision:
 
 1. Render all findings as a markdown batch table:
 
    ```
-   | # | Title | Category | Classification | Confidence | Reversibility |
-   |---|-------|----------|-----------------|------------|----------------|
-   | 1 | {title} | {category} | {classification} | {confidence} | {reversibility} |
+   | # | Title | Category | Classification | Confidence | Reversibility | Recommended |
+   |---|-------|----------|-----------------|------------|----------------|-------------|
+   | 1 | {title} | {category} | {classification} | {confidence} | {reversibility} | {File issue|Capture} |
    ```
 
-   `classification`/`confidence`/`reversibility` stay visible as triage metadata — every row files the same way, so there is no per-row recommendation column to pre-fill.
+   Pre-fill the Recommended column: `confidence: high` or `confidence: med` → `"File issue"`; `confidence: low` → `"Capture"`.
 
 2. Call `AskUserQuestion` with `question`: `"How do you want to handle these findings?"`, `header`: `"Findings"`, `multiSelect`: `false`, and:
-   - Option 1 — `label`: `"File all (Recommended)"`, `description`: `"File every finding above as a GitHub harness-health issue"`
+   - Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"File / Capture each finding per the Recommended column above"`
    - Option 2 — `label`: `"Route individually"`, `description`: `"Decide each finding one at a time"`
 
 3. If "Route individually" was chosen, call `AskUserQuestion` once per finding — `question`: `"How do you want to handle finding #{N}: {title}?"`, `header`: `"Finding #{N}"`, `multiSelect`: `false`, and:
    - Option 1 — `label`: `"File issue"`, `description`: `"File as a GitHub harness-health issue"`
-   - Option 2 — `label`: `"Dismiss"`, `description`: `"Run mark declined so it doesn't reappear"`
+   - Option 2 — `label`: `"Capture"`, `description`: `"Capture via /claude-tweaks:capture for later triage"`
+   - Option 3 — `label`: `"/claude-tweaks:specify directly"`, `description`: `"Promote straight to a spec, skipping the issue"`
+   - Option 4 — `label`: `"Dismiss"`, `description`: `"Run mark declined so it doesn't reappear"`
 
 For "dismiss," run `node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" mark "<payload.id>" declined --root .` so the same proposal doesn't reappear on a future firing.
+
+**Step 8 — SUMMARIZE.**
+
+Report: which target(s) were audited (or that only the gap scan ran), how many findings were emitted, how many filed vs skipped by dedup. List any new issue URLs.
 
 ## Routine Configuration
 
@@ -245,6 +247,7 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | Editing code to "fix" what a skill, rule, or CLAUDE.md describes | This skill only ever touches harness documentation, never the code it describes. |
 | Proposing a "new-rule" or "new-claude-md-section" finding | Gap detection (proposing a brand-new artifact) is skill-only this phase — rules and CLAUDE.md only ever get `patch` findings against their existing content. |
 | Folding memory into `listTargets`'s default pool | A bare Routine firing has no way to know it shouldn't touch memory — the exclusion has to be structural (a separate lister, a separate CLI branch), not a documented convention alone. |
+| Filing before presenting the interactive gate | The two-tier decision must run before any `gh issue create` call for new findings — see `_shared/health-filing-gate.md`'s placement rule. |
 
 ## Relationship to Other Skills
 
@@ -257,3 +260,4 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `/claude-tweaks:triage` | `/claude-tweaks:assess-agent-autonomy`'s `grant-check` mode (invoked from triage's Step 2) reads this skill's finding body directly — including recognizing `harness-health:new-skill` findings from their "New skill candidate" body content, not from a label, since those findings carry no `risk:*`/`effort:*` labels at all. `additive`/`restructural` findings already carry colon-form `risk:*`/`effort:*` labels (this skill's own `issue-payload.js` co-emits them alongside the diagnostic label), which grant-check also reads as one input. Triage never files or closes harness-health issues. |
 | `/claude-tweaks:docs-health` | Sibling health skill for `docs/**` (Diátaxis genre-drift + depth-mismatch + findability + staleness) — shares this skill's SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline shape and `_shared/health-state.md`'s durable persistence, but scoped to a disjoint file set: docs-health's rotation pool only ever walks `docs/`, never `.claude/skills/**`/`.claude/rules/**`/CLAUDE.md. |
 | `/claude-tweaks:routine` | `/routine create harness-health` instantiates this skill's `routine-template.yml` into a live, scheduled cloud Routine. |
+| `_shared/health-filing-gate.md` | The canonical interactive file-all/route-individually gate this skill's Step 7 applies before calling `gh issue create` on new findings — shared with `/code-health`, `/journey-health`, and `/docs-health`. |
