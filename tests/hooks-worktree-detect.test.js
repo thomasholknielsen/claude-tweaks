@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { nearestExistingDir, repoRootFor, isLinkedWorktree, findPolicyFile } = require('../bin/lib/hooks/worktree-detect');
+const { nearestExistingDir, repoRootFor, isLinkedWorktree, repoInfo, findPolicyFile } = require('../bin/lib/hooks/worktree-detect');
 
 function gitRepo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-wtd-'));
@@ -76,6 +76,42 @@ test('isLinkedWorktree: a submodule is treated as not isolated', () => {
   execFileSync('git', ['-C', outer, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', inner, 'sub']);
   const subPath = path.join(outer, 'sub');
   assert.strictEqual(isLinkedWorktree(subPath), false);
+});
+
+test('repoInfo: main checkout returns its toplevel and isLinkedWorktree: false', () => {
+  const dir = gitRepo();
+  assert.deepStrictEqual(repoInfo(dir), { repoRoot: dir, isLinkedWorktree: false });
+});
+
+test('repoInfo: a linked worktree returns its own toplevel and isLinkedWorktree: true', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  assert.deepStrictEqual(repoInfo(wt), { repoRoot: wt, isLinkedWorktree: true });
+});
+
+test('repoInfo: non-git directory returns repoRoot: null, isLinkedWorktree: false', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-wtd-nongit3-'));
+  assert.deepStrictEqual(repoInfo(dir), { repoRoot: null, isLinkedWorktree: false });
+});
+
+test('repoInfo: a submodule is treated as not isolated', () => {
+  const outer = gitRepo();
+  const inner = gitRepo();
+  execFileSync('git', ['-C', outer, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', inner, 'sub']);
+  const subPath = path.join(outer, 'sub');
+  const info = repoInfo(subPath);
+  assert.strictEqual(info.isLinkedWorktree, false);
+  assert.strictEqual(info.repoRoot, path.join(outer, 'sub'));
+});
+
+test('repoInfo agrees with repoRootFor + isLinkedWorktree called separately', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  for (const p of [main, wt]) {
+    const info = repoInfo(p);
+    assert.strictEqual(info.repoRoot, repoRootFor(p));
+    assert.strictEqual(info.isLinkedWorktree, isLinkedWorktree(p));
+  }
 });
 
 test('findPolicyFile: no policy file anywhere in the ancestor chain returns null', () => {

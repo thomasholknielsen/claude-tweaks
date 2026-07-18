@@ -1,6 +1,12 @@
 // Risk rank: lower number = more urgent (highest priority to file).
 const RISK_RANK = { high: 0, medium: 1, low: 2 };
 
+// code-health's own fork of bin/lib/health-core/dedup.js — not a thin wrapper
+// like the other three health skills use, because code-health needs the
+// `threshold`/`risk` comparison and `remember` action below, which have no
+// equivalent in health-core's declined/staged human-approval cache vocabulary.
+// See health-core/dedup.js's header comment for the full rationale.
+//
 // Decide what to do with a freshly-fingerprinted finding given the current issue
 // index and local cache. Pure — no I/O, no network.
 //

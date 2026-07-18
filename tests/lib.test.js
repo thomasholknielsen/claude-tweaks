@@ -53,3 +53,13 @@ test('deps: installCommand returns expected mapping', () => {
   assert.strictEqual(deps.installCommand({ name: 'winget' }, 'git'), 'winget install Git.Git');
   assert.strictEqual(deps.installCommand({ name: 'unknown' }, 'node'), undefined);
 });
+
+test('deps: detectVersionManager derives from process.execPath with no subprocess', () => {
+  const path = process.execPath;
+  let expected = null;
+  if (path.includes('/.nvm/')) expected = 'nvm';
+  else if (path.includes('/.fnm/')) expected = 'fnm';
+  else if (path.includes('/.volta/')) expected = 'volta';
+  else if (path.includes('/.n/')) expected = 'n';
+  assert.strictEqual(deps.detectVersionManager(), expected);
+});

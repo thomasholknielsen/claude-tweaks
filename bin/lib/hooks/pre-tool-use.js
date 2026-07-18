@@ -67,10 +67,10 @@ function checkWorktreeRequired(ctx) {
   // into a nested repo (e.g. a submodule) that never opted in itself.
   if (!wtDetect.findPolicyFile(targetPath)) return {};
 
-  const repoRoot = wtDetect.repoRootFor(targetPath);
+  const { repoRoot, isLinkedWorktree } = wtDetect.repoInfo(targetPath);
   if (!repoRoot) return {}; // not a git repo at all -> allow
   if (!policy.isWorktreeAlwaysOn(repoRoot)) return {};
-  if (wtDetect.isLinkedWorktree(targetPath)) return {};
+  if (isLinkedWorktree) return {};
 
   return {
     exit: 0,
@@ -106,8 +106,7 @@ function run(ctx) {
   // run. Build the full set of live worktrees (this run's plus every other
   // non-terminal run's) so such a commit is allowed rather than false-denied.
   const otherWorktrees = new Map(); // realpath (excluding this run's own) -> run dir
-  for (const dir of ctxLib.listRunDirs(ctx.cwd)) {
-    const state = ctxLib.readRunState(dir);
+  for (const { dir, state } of ctxLib.listRunDirsWithState(ctx.cwd)) {
     if (!state || !state.worktree) continue;
     const real = safeReal(state.worktree);
     if (!real || real === assigned) continue;

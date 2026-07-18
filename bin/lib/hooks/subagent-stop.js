@@ -10,17 +10,22 @@ const STATUS_RE = /^(DONE|DONE_WITH_CONCERNS|NEEDS_CONTEXT|BLOCKED)\b/;
 function lastAssistantText(transcriptPath) {
   let raw;
   try { raw = fs.readFileSync(transcriptPath, 'utf8'); } catch { return null; }
-  let last = null;
-  for (const line of raw.split('\n')) {
+  const lines = raw.split('\n');
+  // Scan from the tail and stop at the first match — the last assistant
+  // message is almost always near the end of a long-running transcript, so
+  // this avoids JSON.parse-ing every earlier line just to confirm none of
+  // them is the true last one.
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i];
     if (!line.trim()) continue;
     let entry;
     try { entry = JSON.parse(line); } catch { continue; }
     const msg = entry && entry.message;
     if (!msg || msg.role !== 'assistant' || !Array.isArray(msg.content)) continue;
     const texts = msg.content.filter((c) => c && c.type === 'text' && typeof c.text === 'string');
-    if (texts.length) last = texts[texts.length - 1].text;
+    if (texts.length) return texts[texts.length - 1].text;
   }
-  return last;
+  return null;
 }
 
 function run(ctx) {

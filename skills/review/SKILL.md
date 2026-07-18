@@ -198,7 +198,12 @@ The severity scale, category enum, per-lens floors, and the CALIBRATION filter a
 
 > **Parallel execution (conditional):** When the diff spans 10+ files, dispatch each applicable lens (3a-3f) as a **reproduction pair** — 2 identical agents per lens (up to 12 Task agents total: 6 reproduction lenses × 2). When the diff is smaller, run each lens as a 2-agent reproduction pair sequentially in the main thread. Lenses 3g-cov, 3h, and 3i are not dispatched as reproduction pairs — they run as single agents (3h) or main-thread procedures (3g-cov, 3i).
 >
-> **Reproduction dispatch (Mode 1 — per lens):** For each lens, dispatch 2 agents in one batch with **byte-identical prompts** (same scope, same Template-A contract, same model tier). Independent runs — no agent sees the other's output. After both return, apply `categoriseReproduction(agentA.findings, agentB.findings)` from `bin/lib/coordination.js`:
+> **Reproduction dispatch (Mode 1 — per lens):** For each lens, dispatch 2 agents in one batch with **byte-identical prompts** (same scope, same Template-A contract, same model tier). Independent runs — no agent sees the other's output. After both return, write each agent's `findings` array to a temp file and call `categoriseReproduction`:
+> ```bash
+> node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/coordination.js');
+>   console.log(JSON.stringify(c.categoriseReproduction(require(process.argv[1]), require(process.argv[2]))))" \
+>   /tmp/lens-${LENS}-agentA.json /tmp/lens-${LENS}-agentB.json
+> ```
 > - Findings present in both agents' outputs (path exact, line ±2, matching severity bucket) → emit as `confirmed`. Write to `decisions.md`: `AUTO {HH:MM:SS} — Reproduction: lens "{lens}" finding {path}:{line} reproduced. Confirmed. Reversibility: high.`
 > - Findings present in only one agent's output → emit as `unconfirmed`. Write: `STAGED {HH:MM:SS} — Reproduction: lens "{lens}" finding {path}:{line} not reproduced. Staged to Review Console as low-confidence. Reversibility: high.` Unconfirmed findings do **not** enter Step 3 Routing — they route directly to the Wrap-Up Console's Low-confidence subsection.
 >
@@ -326,7 +331,13 @@ Like other Lens 3i findings, these are informational and don't block review — 
 
 After per-lens reproduction completes, scan for contradictions across lenses before routing. Two lenses that reviewed the same region with contradicting verdicts (one flagged, the other did not, or both flagged with mismatched severity) get exactly one debate round to converge or escalate to `contested`.
 
-1. **Detect overlap.** Collect each lens's `confirmed` and `unconfirmed` findings. Call `detectCrossLensOverlap(findingsByLens)` from `bin/lib/coordination.js`. It returns pairs `{lensA, lensB, findingA, findingB}` for findings on the same `path` within ±5 lines from *different* lenses.
+1. **Detect overlap.** Collect each lens's `confirmed` and `unconfirmed` findings into one `{lensName: [findings...]}` object, write it to a temp file, and call `detectCrossLensOverlap`:
+   ```bash
+   node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/coordination.js');
+     console.log(JSON.stringify(c.detectCrossLensOverlap(require(process.argv[1]))))" \
+     /tmp/findings-by-lens.json
+   ```
+   It returns pairs `{lensA, lensB, findingA, findingB}` for findings on the same `path` within ±5 lines from *different* lenses.
 
 2. **Filter to contradictions.** From each overlap pair, keep only those where the verdicts contradict — one lens flagged, the other had agents that reviewed the same region without flagging at matching severity. Lenses that agreed (both flagged with matching severity bucket, or both clear) produce no debate.
 
@@ -345,7 +356,11 @@ After per-lens reproduction completes, scan for contradictions across lenses bef
 >    [Use: Capable model — debate agent. Independent run; do not see the other judge's reasoning.]
 >    ```
 
-4. **Resolve.** Apply `resolveDebate(verdictA, verdictB)` from `bin/lib/coordination.js`:
+4. **Resolve.** Apply `resolveDebate`:
+   ```bash
+   node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/coordination.js');
+     console.log(c.resolveDebate(process.argv[1], process.argv[2]))" "$VERDICT_A" "$VERDICT_B"
+   ```
    - Both `agree` → finding upgraded to `confirmed`. Write `AUTO {HH:MM:SS} — Debate: cross-lens disagreement on {path}:{line} converged positive after 1 round. Reversibility: high.`
    - Both `disagree` → finding downgraded to `unconfirmed` (lands in Low-confidence subsection). Write `AUTO {HH:MM:SS} — Debate: cross-lens disagreement on {path}:{line} converged negative after 1 round. Reversibility: high.`
    - Mixed / partial → finding becomes `contested`. Write `STAGED {HH:MM:SS} — Debate: cross-lens disagreement on {path}:{line} inconclusive ({verdicts}). Both verdicts staged. Reversibility: high.` Stage the side-by-side verdicts to `staged/review-contested-{N}.md`.

@@ -44,8 +44,8 @@ const BARE_ISSUE_REF_RE = /#\d+/g;
 // -> /wrap-up, where the closing-keyword carrier-commit mechanism already exists).
 // Harness-wide, not code-health-specific: fires for any bare issue reference,
 // including harness-health-labelled or human-filed issues.
-function checkClosingKeyword(command, cwd) {
-  const commitTargets = gitTargets(command, cwd).filter((t) => t.action === 'commit');
+function checkClosingKeyword(targets) {
+  const commitTargets = targets.filter((t) => t.action === 'commit');
   for (const target of commitTargets) {
     const message = commitMessage(target.dir);
     if (!message) continue;
@@ -100,10 +100,13 @@ function checkDesignDocWrite(ctx) {
 function run(ctx) {
   const command = ctx.input.tool_name === 'Bash' ? (ctx.input.tool_input && ctx.input.tool_input.command) : null;
   const hasCommand = typeof command === 'string' && !!command;
+  // Computed once and shared below — the breadcrumb loop and the
+  // closing-keyword check both need the same command/cwd's git targets.
+  const targets = hasCommand ? gitTargets(command, ctx.cwd) : [];
 
   // E2: commit breadcrumbs (log tier) — gated on a resolved pipeline run, unchanged.
   if (ctx.runDir && hasCommand) {
-    for (const target of gitTargets(command, ctx.cwd)) {
+    for (const target of targets) {
       ctxLib.appendEvent(ctx.runDir, 'commit', {
         action: target.action,
         dir: target.dir,
@@ -114,7 +117,7 @@ function run(ctx) {
 
   // Closing-keyword check (warn tier) — deliberately NOT gated on ctx.runDir.
   if (hasCommand) {
-    const warning = checkClosingKeyword(command, ctx.cwd);
+    const warning = checkClosingKeyword(targets);
     if (warning) return warning;
   }
 

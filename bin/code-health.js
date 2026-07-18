@@ -62,8 +62,16 @@ function parseArgs(argv) {
 function loadIssueIndex(file) {
   if (!file) return {};
   let arr;
-  try { arr = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return {}; }
-  if (!Array.isArray(arr)) return {};
+  try {
+    arr = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    process.stderr.write(`[code-health] validate-findings: could not read or parse --issues file: ${file} — dedup falls back to the local cache only\n`);
+    return {};
+  }
+  if (!Array.isArray(arr)) {
+    process.stderr.write(`[code-health] validate-findings: --issues file must contain a JSON array: ${file} — dedup falls back to the local cache only\n`);
+    return {};
+  }
   const index = {};
   for (const issue of arr) {
     if (issue.fingerprint) {

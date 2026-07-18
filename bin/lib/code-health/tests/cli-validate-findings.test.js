@@ -168,6 +168,21 @@ test('validate-findings: a cache-only wontfix (no gh issue index) still suppress
   assert.strictEqual(thirdPayloads.length, 0, 'cache-only wontfix must suppress re-filing even when gh/issue-index is unavailable');
 });
 
+test('validate-findings: malformed --issues file warns on stderr and falls back to cache-only dedup', () => {
+  const root = tmp();
+  const f = validFinding({ severity: 'high' });
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([f]));
+  const badIssuesFile = path.join(root, 'bad-issues.json');
+  fs.writeFileSync(badIssuesFile, 'not valid json{{{');
+
+  const result = runValidateFindings(root, findingsFile, ['--issues', badIssuesFile, '--slice', 'src/api', '--run-id', 'r-bad-issues']);
+  assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes('could not read or parse --issues file'), `expected a warning in stderr: ${result.stderr}`);
+  const payloads = JSON.parse(result.stdout);
+  assert.strictEqual(payloads.length, 1, 'must still file the finding, just without issue-based dedup');
+});
+
 test('validate-findings: exits non-zero when findings file is missing', () => {
   const root = tmp();
   const result = runValidateFindings(

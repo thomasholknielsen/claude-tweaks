@@ -16,6 +16,29 @@ function runStatusline(input, env = {}) {
   });
 }
 
+test('parseStatusBranch: clean branch with no upstream', () => {
+  assert.deepStrictEqual(sl.parseStatusBranch('## main\n'), { branch: 'main', dirty: false });
+});
+
+test('parseStatusBranch: dirty branch with tracked upstream and ahead/behind info', () => {
+  assert.deepStrictEqual(
+    sl.parseStatusBranch('## main...origin/main [ahead 1]\n M file.js\n'),
+    { branch: 'main', dirty: true },
+  );
+});
+
+test('parseStatusBranch: fresh repo with no commits yet', () => {
+  assert.deepStrictEqual(sl.parseStatusBranch('## No commits yet on main\n'), { branch: 'main', dirty: false });
+});
+
+test('parseStatusBranch: detached HEAD reports no branch', () => {
+  assert.deepStrictEqual(sl.parseStatusBranch('## HEAD (no branch)\n'), { branch: null, dirty: false });
+});
+
+test('parseStatusBranch: empty or unparseable output reports no branch', () => {
+  assert.deepStrictEqual(sl.parseStatusBranch(''), { branch: null, dirty: false });
+});
+
 test('renderModel: nested display_name', () => {
   assert.strictEqual(sl.renderModel({ model: { display_name: 'Sonnet 4.6', id: 'claude-sonnet-4-6' } }), 'Sonnet 4.6');
 });

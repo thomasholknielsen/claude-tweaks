@@ -47,6 +47,8 @@ Unless `--area` was provided, call the engine to pick the next slice to judge:
 node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" next-slice --root .
 ```
 
+This is named `next-slice`, not `next-target` like its three sibling health skills (harness-health, journey-health, docs-health) — those rotate over one specific file at a time, while code-health rotates over an area/directory that gets fully swept per firing, a coarser unit worth its own name.
+
 The command prints `{ id, path, why }` JSON, or `null` if nothing is due. Read the output:
 - If `null`: all slices were judged recently and their content is unchanged. Report this to the user and stop.
 - If `why: "stale"`: this slice has not been judged in over 30 days regardless of content changes.
@@ -416,5 +418,7 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `/claude-tweaks:deepen` | `/deepen` applies the architecture-depth criterion reactively to code you are changing; `/code-health` applies it proactively on a schedule. Both read `criteria-architecture-depth.md`. |
 | `/claude-tweaks:routine` | `/routine create code-health` instantiates code-health's `routine-template.yml` into a live, scheduled cloud Routine — the mechanism behind this skill's own "Routine Configuration" section. |
 | `/claude-tweaks:simplify` | `/simplify` applies the simplification criterion reactively; `/code-health` applies it proactively. Both read `criteria-simplification.md`. |
+| `/claude-tweaks:harness-health` | Sibling health skill — same SELECT → JUDGE → VERIFY → FINGERPRINT/DEDUP → FILE pipeline shape and shared `_shared/health-state.md` persistence, but scoped to `.claude/skills/**`/`.claude/rules/**`/CLAUDE.md for skill/rule/CLAUDE.md accuracy and template-conformance instead of code quality. Both file born-`ready` findings on the unified work-record contract. |
+| `/claude-tweaks:journey-health` | Sibling health skill — same SELECT → JUDGE → VERIFY → FINGERPRINT/DEDUP → FILE pipeline shape and shared `_shared/health-state.md` persistence, but scoped to `docs/journeys/*.md` for journey accuracy and agent-e2e coverage instead of code quality. Both file born-`ready` findings on the unified work-record contract. |
 | `/claude-tweaks:docs-health` | Sibling health skill — same SELECT → JUDGE → VERIFY → FINGERPRINT/DEDUP → FILE pipeline and shared `_shared/health-state.md` persistence, but scoped to `docs/**` for Diátaxis genre-drift + depth-mismatch + findability + staleness instead of code quality. Both file born-`ready` findings on the unified work-record contract. |
 | `_shared/health-filing-gate.md` | The canonical interactive file-all/route-individually gate this skill's Step 9 applies before calling `gh issue create` on new findings — shared with `/harness-health`, `/journey-health`, and `/docs-health`. |

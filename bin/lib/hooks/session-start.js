@@ -14,12 +14,9 @@ function run(ctx) {
   const parts = [];
   try { parts.push(...deps.collect()); } catch { /* best-effort */ }
   try {
-    const stale = ctxLib.listRunDirs(ctx.cwd).slice(0, MAX_REPORTED);
+    const stale = ctxLib.listRunDirsWithState(ctx.cwd).slice(0, MAX_REPORTED);
     if (stale.length) {
-      const lines = stale.map((d) => {
-        const s = ctxLib.readRunState(d);
-        return `- ${path.basename(d)} (status: ${(s && s.status) || 'unknown'})`;
-      });
+      const lines = stale.map(({ dir, state }) => `- ${path.basename(dir)} (status: ${(state && state.status) || 'unknown'})`);
       const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || '${CLAUDE_PLUGIN_ROOT}';
       parts.push(
         'claude-tweaks: unfinished pipeline run(s) detected under .claude-tweaks/pipelines/:\n' +
@@ -29,8 +26,8 @@ function run(ctx) {
     }
   } catch { /* best-effort */ }
   try {
-    const repoRoot = wtDetect.repoRootFor(ctx.cwd);
-    if (repoRoot && policy.isWorktreeAlwaysOn(repoRoot) && !wtDetect.isLinkedWorktree(ctx.cwd)) {
+    const { repoRoot, isLinkedWorktree } = wtDetect.repoInfo(ctx.cwd);
+    if (repoRoot && policy.isWorktreeAlwaysOn(repoRoot) && !isLinkedWorktree) {
       parts.push(
         'claude-tweaks: this project requires an isolated worktree for all work ' +
           '(policy: worktree.always in .claude-tweaks/policy.yml). Before making any edits, ' +

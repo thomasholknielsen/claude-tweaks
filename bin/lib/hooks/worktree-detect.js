@@ -55,6 +55,30 @@ function isLinkedWorktree(p) {
   return safeReal(path.resolve(dir, gitDir)) !== safeReal(path.resolve(dir, gitCommon));
 }
 
+// Combined repoRootFor() + isLinkedWorktree() in a single git subprocess
+// spawn instead of four — every caller of this module needs both, back to
+// back, for the same path (pre-tool-use.js's worktree-required gate on
+// every Edit/Write/NotebookEdit/commit, session-start.js's advisory nudge).
+// `git rev-parse` accepts multiple query flags in one invocation; each
+// prints one line, in order, except --show-superproject-working-tree which
+// prints nothing at all when the path isn't a submodule — always requested
+// last here so its absence never shifts the other three lines' positions.
+function repoInfo(p) {
+  const dir = nearestExistingDir(p);
+  if (!dir) return { repoRoot: null, isLinkedWorktree: false };
+  const out = git(
+    ['rev-parse', '--show-toplevel', '--git-dir', '--git-common-dir', '--show-superproject-working-tree'],
+    dir,
+  );
+  if (!out) return { repoRoot: null, isLinkedWorktree: false }; // not a git repo at all
+  const [top, gitDir, gitCommon, superproject] = out.split('\n');
+  if (!top || !gitDir || !gitCommon) return { repoRoot: null, isLinkedWorktree: false };
+  const isLinked = superproject
+    ? false // submodule -> not an isolated worktree
+    : safeReal(path.resolve(dir, gitDir)) !== safeReal(path.resolve(dir, gitCommon));
+  return { repoRoot: safeReal(top), isLinkedWorktree: isLinked };
+}
+
 // fs-only walk-up looking for a .claude-tweaks/policy.yml, so callers can
 // check "is there even a policy file to care about" WITHOUT forking git.
 // Returns the directory containing the policy file, or null if none is
@@ -70,4 +94,4 @@ function findPolicyFile(p) {
   return null;
 }
 
-module.exports = { nearestExistingDir, repoRootFor, isLinkedWorktree, findPolicyFile };
+module.exports = { nearestExistingDir, repoRootFor, isLinkedWorktree, repoInfo, findPolicyFile };

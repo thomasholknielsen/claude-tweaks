@@ -119,7 +119,7 @@ function cmdNextTarget(args) {
   }
 
   // budget > 1: iterate, simulating post-audit cursor state in-memory so each
-  // pick is a different target (mirrors recon's next-slice --budget).
+  // pick is a different target (mirrors code-health's next-slice --budget).
   const targets = [];
   for (let i = 0; i < budget; i++) {
     const target = selectTarget(root, cursors, { now, kind: args.kind });

@@ -41,13 +41,12 @@ function installCommand(pm, dep) {
 }
 
 function detectVersionManager() {
-  try {
-    const path = execSync('which node', { encoding: 'utf8' }).trim();
-    if (path.includes('/.nvm/') || path.includes('/.fnm/') || path.includes('/.volta/') || path.includes('/.n/')) {
-      return path.includes('.nvm') ? 'nvm' : path.includes('.fnm') ? 'fnm' : path.includes('.volta') ? 'volta' : 'n';
-    }
-  } catch {
-    /* no node */
+  // process.execPath is the currently-running node binary's own path — no
+  // subprocess needed, unlike shelling out to `which node` to re-derive
+  // the same answer this process already has for free.
+  const path = process.execPath;
+  if (path.includes('/.nvm/') || path.includes('/.fnm/') || path.includes('/.volta/') || path.includes('/.n/')) {
+    return path.includes('.nvm') ? 'nvm' : path.includes('.fnm') ? 'fnm' : path.includes('.volta') ? 'volta' : 'n';
   }
   return null;
 }

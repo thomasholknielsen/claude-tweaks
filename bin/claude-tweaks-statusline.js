@@ -69,12 +69,32 @@ function renderEffort(input) {
   return `eff: ${level}`;
 }
 
+// `git status --porcelain -b` returns the branch and dirty status in one
+// call instead of two separate `symbolic-ref` + `status --porcelain` spawns.
+// Header line shapes: "## main", "## main...origin/main [ahead 1]",
+// "## No commits yet on main" (fresh repo, no commits), "## HEAD (no
+// branch)" (detached HEAD — no branch to report, matching the old
+// symbolic-ref failure behavior).
+function parseStatusBranch(output) {
+  const lines = output.split('\n').filter((l) => l.length > 0);
+  if (!lines.length || !lines[0].startsWith('## ')) return { branch: null, dirty: false };
+  const header = lines[0].slice(3);
+  let branch;
+  if (header.startsWith('HEAD (no branch)')) {
+    branch = null;
+  } else if (header.startsWith('No commits yet on ')) {
+    branch = header.slice('No commits yet on '.length).split(' ')[0];
+  } else {
+    branch = header.split('...')[0].split(' ')[0];
+  }
+  return { branch: branch || null, dirty: lines.length > 1 };
+}
+
 function renderGit() {
   try {
-    const branch = execSync('git symbolic-ref --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'], encoding: 'utf8' }).trim();
-    const status = execSync('git status --porcelain', { stdio: ['ignore', 'pipe', 'ignore'], encoding: 'utf8' }).trim();
+    const output = execSync('git status --porcelain -b', { stdio: ['ignore', 'pipe', 'ignore'], encoding: 'utf8' });
+    const { branch, dirty } = parseStatusBranch(output);
     if (!branch) return null;
-    const dirty = status.length > 0;
     return dirty ? `${branch}${color.yellow('●')}` : branch;
   } catch {
     return null;
@@ -183,4 +203,5 @@ module.exports = {
   findOpenLedger,
   formatDuration,
   colorByPct,
+  parseStatusBranch,
 };

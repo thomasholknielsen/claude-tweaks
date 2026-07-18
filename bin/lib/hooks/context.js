@@ -18,18 +18,17 @@ function readRunState(runDir) {
   try { return JSON.parse(fs.readFileSync(path.join(runDir, 'run-state.json'), 'utf8')); } catch { return null; }
 }
 
-function isTerminal(runDir) {
-  const s = readRunState(runDir);
-  return !!s && s.status === 'clean';
-}
-
 // Run dirs are named as ISO-timestamp-prefixed slugs (e.g. 2026-07-01T090000-spec-1).
 // Other siblings under pipelines/ — notably archive/, the wrap-up archival
 // destination — are not runs. archive/ sorts AFTER ISO names lexically, so an
 // unfiltered .sort().reverse() would rank it first and shadow live runs.
 const RUN_ID_RE = /^\d{4}-\d{2}-\d{2}T/;
 
-function listRunDirs(cwd) {
+// Reads each candidate's run-state.json once and keeps it alongside its dir
+// — callers that need both the dir list and each entry's state (session-start's
+// stale-run report, pre-tool-use's other-worktrees scan) would otherwise read
+// run-state.json a second time per dir via a separate readRunState() call.
+function listRunDirsWithState(cwd) {
   const base = path.join(cwd || process.cwd(), '.claude-tweaks', 'pipelines');
   let entries;
   try { entries = fs.readdirSync(base, { withFileTypes: true }); } catch { return []; }
@@ -38,7 +37,12 @@ function listRunDirs(cwd) {
     .map((e) => path.join(base, e.name))
     .sort()
     .reverse()
-    .filter((d) => !isTerminal(d));
+    .map((dir) => ({ dir, state: readRunState(dir) }))
+    .filter(({ state }) => !(state && state.status === 'clean'));
+}
+
+function listRunDirs(cwd) {
+  return listRunDirsWithState(cwd).map(({ dir }) => dir);
 }
 
 function resolveRunDir(cwd, env) {
@@ -64,4 +68,4 @@ function appendEvent(runDir, type, data) {
   } catch { /* best-effort */ }
 }
 
-module.exports = { readStdin, parseInput, resolveRunDir, listRunDirs, readRunState, writeRunState, appendEvent, isTerminal };
+module.exports = { readStdin, parseInput, resolveRunDir, listRunDirs, listRunDirsWithState, readRunState, writeRunState, appendEvent };

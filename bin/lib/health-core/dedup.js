@@ -3,6 +3,16 @@
 // Decide what to do with a freshly-fingerprinted finding given the current
 // issue index and local cache. Pure — no I/O, no network.
 //
+// Shared by harness-health, journey-health, and docs-health (byte-identical
+// wrapper across the three today). code-health keeps its own decide() in
+// bin/lib/code-health/dedup.js — it needs a `threshold`/`risk` comparison and
+// a `remember` action (findings below the risk threshold are tracked but not
+// filed) that this propose-then-approve cache vocabulary has no equivalent
+// for, since code-health files findings directly rather than going through
+// this module's declined/staged human-approval flow. Same divergence shape
+// as bin/lib/health-core/runs.js's recordRun/computeChurn fork — see that
+// file's header comment.
+//
 // issueIndex: precomputed map { "<fingerprint>": { number, state, labels } }
 //   built by the calling skill from `gh issue list --label <skill>` output —
 //   the engine never calls network.

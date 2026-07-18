@@ -67,6 +67,33 @@ test('subagent-stop accepts a compliant status line silently', () => {
   assert.ok(!fs.existsSync(path.join(run, 'events.jsonl')));
 });
 
+function multiTurnTranscript(texts) {
+  const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-e3-multi-')), 'agent.jsonl');
+  const lines = [];
+  for (const t of texts) {
+    lines.push(JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'text', text: 'go' }] } }));
+    lines.push(JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: t }] } }));
+  }
+  fs.writeFileSync(f, lines.join('\n') + '\n');
+  return f;
+}
+
+test('subagent-stop checks the LAST assistant message, not an earlier compliant one', () => {
+  const run = mkRun();
+  const t = multiTurnTranscript(['DONE\nfirst pass looked fine.', 'Actually let me also check this other thing.']);
+  const out = substop.run({ input: { agent_transcript_path: t }, runDir: run, runState: null, cwd: '/x' });
+  assert.match(out.json.systemMessage, /status line/i);
+  assert.strictEqual(readEvents(run)[0].type, 'contract-violation');
+});
+
+test('subagent-stop checks the LAST assistant message, not an earlier non-compliant one', () => {
+  const run = mkRun();
+  const t = multiTurnTranscript(['still investigating', 'DONE\nAll checks green.']);
+  const out = substop.run({ input: { agent_transcript_path: t }, runDir: run, runState: null, cwd: '/x' });
+  assert.deepStrictEqual(out, {});
+  assert.ok(!fs.existsSync(path.join(run, 'events.jsonl')));
+});
+
 test('subagent-stop with unreadable transcript or no run dir is a silent no-op', () => {
   const run = mkRun();
   assert.deepStrictEqual(substop.run({ input: { agent_transcript_path: '/nope.jsonl' }, runDir: run, runState: null, cwd: '/x' }), {});

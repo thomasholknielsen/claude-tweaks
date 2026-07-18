@@ -78,6 +78,25 @@ test('listRunDirs and resolveRunDir return empty/null when only archive/ exists'
   assert.strictEqual(ctx.resolveRunDir(project, {}), null);
 });
 
+test('listRunDirsWithState returns each non-terminal dir paired with its already-read state', () => {
+  const project = tmpProject();
+  const a = mkRun(project, '2026-07-01T090000-spec-1', { status: 'interrupted', worktree: '/wt/a' });
+  const b = mkRun(project, '2026-07-02T090000-spec-2'); // no run-state.json at all
+  mkRun(project, '2026-07-03T090000-spec-3', { status: 'clean' });
+  assert.deepStrictEqual(ctx.listRunDirsWithState(project), [
+    { dir: b, state: null },
+    { dir: a, state: { status: 'interrupted', worktree: '/wt/a' } },
+  ]);
+});
+
+test('listRunDirs is derived from listRunDirsWithState (same dirs, same order)', () => {
+  const project = tmpProject();
+  const a = mkRun(project, '2026-07-01T090000-spec-1', { status: 'interrupted' });
+  const b = mkRun(project, '2026-07-02T090000-spec-2');
+  assert.deepStrictEqual(ctx.listRunDirs(project), ctx.listRunDirsWithState(project).map((r) => r.dir));
+  assert.deepStrictEqual(ctx.listRunDirs(project), [b, a]);
+});
+
 test('writeRunState merges, stamps updatedAt; readRunState round-trips', () => {
   const project = tmpProject();
   const run = mkRun(project, '2026-07-01T090000-spec-1');

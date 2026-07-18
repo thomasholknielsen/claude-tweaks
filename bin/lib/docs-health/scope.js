@@ -29,6 +29,11 @@ function walk(dir, docsRoot, out) {
   let entries;
   try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
   for (const entry of entries) {
+    // Blanket dotfile/dotdir skip — covers any dot-prefixed directory this
+    // walk might otherwise descend into (a nested .worktrees, .git, etc.)
+    // by construction, unlike code-health/scope.js's explicit named
+    // SKIP_DIRS list, since nothing under docs/ is expected to start with
+    // a dot in the first place.
     if (entry.name.startsWith('.')) continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
