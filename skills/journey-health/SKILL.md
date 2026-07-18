@@ -219,21 +219,25 @@ gh issue comment <issue_number> --body "Regressed: this finding reappeared. Run:
 
 `<issue_number>` is that cache entry's `issue` field. In `--dry-run` mode, print what would be filed or reopened, and the `gh` commands that would run, but do not call `gh`.
 
-In interactive mode, render surviving findings as a markdown batch table before filing:
+Per `_shared/health-filing-gate.md`'s applicability/scope/placement rule: in interactive mode, before filing this firing's own new findings (not the retry-queue drains or regressed reopens above, which already executed unconditionally), render surviving findings as a markdown batch table:
 
 ```
-| # | Journey | Category | Section | Severity | Confidence | Recommendation |
-|---|---------|----------|---------|----------|------------|----------------|
-| 1 | {journey} | {category} | {section} | {severity} | {confidence} | {recommendation} |
+| # | Journey | Category | Section | Severity | Confidence | Recommended |
+|---|---------|----------|---------|----------|------------|-------------|
+| 1 | {journey} | {category} | {section} | {severity} | {confidence} | {File issue|Capture} |
 ```
 
-Then call `AskUserQuestion` with `question`: `"File these findings as GitHub issues?"`, `header`: `"Findings"`, `multiSelect`: `false`, and:
-- Option 1 — `label`: `"File all (Recommended)"`, `description`: `"File every finding above as a by:journey-health-labelled GitHub issue"`
+Pre-fill the Recommended column: `confidence: high` or `confidence: med` → `"File issue"`; `confidence: low` → `"Capture"`.
+
+Then call `AskUserQuestion` with `question`: `"How do you want to handle these findings?"`, `header`: `"Findings"`, `multiSelect`: `false`, and:
+- Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"File / Capture each finding per the Recommended column above"`
 - Option 2 — `label`: `"Route individually"`, `description`: `"Decide each finding one at a time"`
 
 If "Route individually" was chosen, call `AskUserQuestion` once per finding — `question`: `"How do you want to handle finding #{N}: {journey}/{section}?"`, `header`: `"Finding #{N}"`, `multiSelect`: `false`, and:
 - Option 1 — `label`: `"File issue"`, `description`: `"File as a GitHub by:journey-health issue"`
-- Option 2 — `label`: `"Dismiss"`, `description`: `"Run mark declined so it doesn't reappear"`
+- Option 2 — `label`: `"Capture"`, `description`: `"Capture via /claude-tweaks:capture for later triage"`
+- Option 3 — `label`: `"/claude-tweaks:specify directly"`, `description`: `"Promote straight to a spec, skipping the issue"`
+- Option 4 — `label`: `"Dismiss"`, `description`: `"Run mark declined so it doesn't reappear"`
 
 For "dismiss," run `node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" mark "<payload.id>" declined --root .` so the same proposal doesn't reappear on a future firing.
 
@@ -279,6 +283,7 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | Skipping the coverage scan because a per-journey target was already selected this firing | The coverage scan is a decoupled, whole-library check (its own cursor) — run it whenever `coverageScanDue` is true, independent of which single journey `next-target` picked. |
 | Treating the local cache as durable state | The cache is a rebuildable optimization — GitHub issue state is the source of truth for cross-run memory, same as `/code-health`/`/harness-health`. |
 | Running the deep tier's dev server without stopping it afterward | This is always a standalone invocation (no `/wrap-up` to clean up later) — Step 3.5 must stop any ephemeral server it started before returning, per `_shared/dev-url-detection.md`'s "Standalone" cleanup rule. |
+| Filing before presenting the interactive gate | The two-tier decision must run before any `gh issue create` call for new findings — see `_shared/health-filing-gate.md`'s placement rule. |
 
 ## Relationship to Other Skills
 
@@ -294,4 +299,5 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `/claude-tweaks:docs-health` | Sibling health skill — same SELECT → JUDGE → FILE pipeline and `_shared/health-state.md` persistence, but scoped to `docs/**` Diátaxis genre-drift + depth-mismatch + findability + staleness instead of `docs/journeys/*.md` accuracy and agent-e2e coverage. Both file born-`ready` findings on the unified work-record contract. |
 | `/claude-tweaks:triage` | Filed `by:journey-health` issues resolve through `/triage dispatch` → `/flow`, or manually — same path `by:code-health`/`by:harness-health` issues already take. Records enter the same gate worklist as the other health-skill producers — journey-health issues are not a separate lane. |
 | `_shared/journey-self-review.md` | Canonical four-check + structural-validity criteria this skill's light tier applies — shared with `/claude-tweaks:journeys` Step 3.5. |
+| `_shared/health-filing-gate.md` | The canonical interactive file-all/route-individually gate this skill's Step 6 applies before calling `gh issue create` on new findings — shared with `/code-health`, `/harness-health`, and `/docs-health`. |
 | `_shared/journey-coverage-check.md` | Canonical coverage computation this skill's coverage scan applies — shared with `/claude-tweaks:review`'s `3g-cov` lens. |
