@@ -67,6 +67,7 @@ test('no emojis (common emoji unicode sequences)', () => {
   'validate-findings', '$PIPELINE_RUN_DIR', '--dry-run', '_shared/health-state.md',
   'work-record.md', 'work-fingerprint', 'by:docs-health', 'criteria-docs-diataxis.md',
   'docs-health:additive', 'docs-health:restructural', 'docs/superpowers',
+  'relatedSections', 'Bundling rule',
 ].forEach((token) => {
   test(`contains required token '${token}'`, () => {
     const content = read();
