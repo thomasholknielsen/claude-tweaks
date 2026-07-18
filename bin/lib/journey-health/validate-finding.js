@@ -37,6 +37,19 @@ function validateFinding(obj) {
     errors.push(`severity: must be one of ${[...SEVERITY_VALUES].join('|')} (got "${obj.severity}")`);
   }
 
+  // relatedSections is optional: when present, every entry must be a non-empty
+  // string — sibling occurrences of the same root cause, scoped to
+  // category: "coverage" findings only (see skills/journey-health/SKILL.md
+  // Step 3's bundling rule). Validated unconditionally here, same as
+  // harness-health's kind-agnostic check.
+  if (obj.relatedSections !== undefined) {
+    const isValidArray = Array.isArray(obj.relatedSections) &&
+      obj.relatedSections.every((s) => typeof s === 'string' && s.trim() !== '');
+    if (!isValidArray) {
+      errors.push(`relatedSections: when present, must be an array of non-empty strings (got ${JSON.stringify(obj.relatedSections)})`);
+    }
+  }
+
   if (errors.length > 0) return { ok: false, errors };
   return { ok: true, errors: [], value: { ...obj } };
 }

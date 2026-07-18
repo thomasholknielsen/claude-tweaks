@@ -62,6 +62,19 @@ function validateFinding(obj) {
     }
   }
 
+  // relatedSections is optional: when present, every entry must be a non-empty
+  // string (same shape as `section` — sibling occurrences of the same root
+  // cause). Only ever populated for kind: "patch" findings — "new-skill"
+  // candidates have no section to bundle by — but validated unconditionally
+  // here, same as the required-field blocks above.
+  if (obj.relatedSections !== undefined) {
+    const isValidArray = Array.isArray(obj.relatedSections) &&
+      obj.relatedSections.every((s) => typeof s === 'string' && s.trim() !== '');
+    if (!isValidArray) {
+      errors.push(`relatedSections: when present, must be an array of non-empty strings (got ${JSON.stringify(obj.relatedSections)})`);
+    }
+  }
+
   if (errors.length > 0) return { ok: false, errors };
   return { ok: true, errors: [], value: { ...obj } };
 }

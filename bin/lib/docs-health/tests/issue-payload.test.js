@@ -79,3 +79,22 @@ test('toIssuePayload title reflects category and misleads', () => {
   assert.ok(payload.body.includes('human engineer'), 'misleads:both must render both personas in the body');
   assert.ok(payload.body.includes('coding agent'));
 });
+
+// ── relatedSections rendering (bundled findings) ─────────────────────────────
+
+test('toIssuePayload body includes an "Also affects" line when relatedSections is present', () => {
+  const payload = toIssuePayload(finding({ relatedSections: ['Auto-detect Patterns', 'Research Directory'] }));
+  assert.ok(payload.body.includes('Also affects:'), 'missing Also affects block');
+  assert.ok(payload.body.includes('`Auto-detect Patterns`'));
+  assert.ok(payload.body.includes('`Research Directory`'));
+});
+
+test('toIssuePayload body omits "Also affects" when relatedSections is absent', () => {
+  const payload = toIssuePayload(finding());
+  assert.ok(!payload.body.includes('Also affects:'));
+});
+
+test('toIssuePayload body omits "Also affects" when relatedSections is an empty array', () => {
+  const payload = toIssuePayload(finding({ relatedSections: [] }));
+  assert.ok(!payload.body.includes('Also affects:'));
+});

@@ -22,9 +22,15 @@ const SEVERITY_TO_RISK = { high: 'high', med: 'medium', low: 'low' };
 function toIssuePayload(finding) {
   const categoryLabel = CATEGORY_LABELS[finding.category] || finding.category;
 
+  // Only ever populated for category: "coverage" findings — the other three
+  // sections each emit at most one finding per violation and have nothing to bundle.
+  const relatedBlocks = Array.isArray(finding.relatedSections) && finding.relatedSections.length > 0
+    ? [`Also affects: ${finding.relatedSections.map((s) => `\`${s}\``).join(', ')}`]
+    : [];
+
   const body = specShapedBody({
     header: `**Journey:** ${finding.journey} | **Section:** ${finding.section} | **Category:** ${finding.category} | **Severity:** ${finding.severity} | **Confidence:** ${finding.confidence}`,
-    currentState: [finding.description, finding.reason],
+    currentState: [...relatedBlocks, finding.description, finding.reason],
     deliverables: finding.recommendation,
     acceptanceCriteria: `The condition described above is resolved: a fresh \`/claude-tweaks:journey-health\` audit of journey '${finding.journey}' files no finding with this fingerprint.`,
     filedBy: '/claude-tweaks:journey-health',
@@ -56,6 +62,7 @@ function toIssuePayload(finding) {
     section: finding.section,
     severity: finding.severity,
     confidence: finding.confidence,
+    relatedSections: finding.relatedSections,
     title: payload.title,
     body: payload.body,
     labels: [...payload.labels, diagnosticLabel],

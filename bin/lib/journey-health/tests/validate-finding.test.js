@@ -64,3 +64,43 @@ test('validateFinding rejects an invalid severity', () => {
   assert.strictEqual(result.ok, false);
   assert.ok(result.errors.some((e) => e.startsWith('severity:')));
 });
+
+// ── relatedSections (bundled coverage findings) ──────────────────────────────
+
+test('validateFinding: relatedSections is optional — absent is valid', () => {
+  const result = validateFinding(validFinding({ category: 'coverage', section: 'coverage' }));
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.value.relatedSections, undefined);
+});
+
+test('validateFinding: relatedSections accepted on a coverage finding as an array of non-empty strings', () => {
+  const result = validateFinding(validFinding({
+    category: 'coverage', section: 'coverage',
+    relatedSections: ['signup-flow: steps 2,3', 'login-flow: steps 4'],
+  }));
+  assert.strictEqual(result.ok, true);
+  assert.deepStrictEqual(result.value.relatedSections, ['signup-flow: steps 2,3', 'login-flow: steps 4']);
+});
+
+test('validateFinding: relatedSections fails when not an array', () => {
+  const result = validateFinding(validFinding({ category: 'coverage', section: 'coverage', relatedSections: 'signup-flow' }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.startsWith('relatedSections')), result.errors.join('; '));
+});
+
+test('validateFinding: relatedSections fails when it contains an empty string', () => {
+  const result = validateFinding(validFinding({ category: 'coverage', section: 'coverage', relatedSections: ['signup-flow: steps 2,3', ''] }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.startsWith('relatedSections')), result.errors.join('; '));
+});
+
+test('validateFinding: relatedSections fails when it contains a non-string entry', () => {
+  const result = validateFinding(validFinding({ category: 'coverage', section: 'coverage', relatedSections: ['signup-flow: steps 2,3', 7] }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.startsWith('relatedSections')), result.errors.join('; '));
+});
+
+test('validateFinding: a self-review (non-coverage) finding remains valid and unaffected by relatedSections', () => {
+  const result = validateFinding(validFinding());
+  assert.strictEqual(result.ok, true);
+});
