@@ -6,6 +6,15 @@ A structured workflow system for Claude Code — from idea capture through build
 
 Claude Code is powerful but unstructured. claude-tweaks adds a complete development lifecycle: capture ideas, challenge assumptions, decompose into specs, build with quality gates, and learn from what was built. Every finding is explicitly resolved — nothing silently drops.
 
+### What's new in v6.7.0 — Fast-lane pipeline profile
+
+A new `ceremony-profile` Manifesto lever (fed by `/claude-tweaks:assess-agent-autonomy`'s new
+`ceremony-check` mode, judged once per record at materialize time) lets small, clean records
+skip proportionate ceremony — a lighter `/claude-tweaks:reflect` mode, narrower build audits,
+and a smaller wrap-up skill-curation scan — while a Safety-regression finding still trips an
+escape hatch back to full depth for the rest of the run. See
+`docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md`.
+
 ### What's new in v6.5.0 — Demo walkthrough redesign
 
 `/claude-tweaks:demo`'s Verification Brief is now a self-contained digest instead of a pointer to

@@ -1,5 +1,16 @@
 # Changelog
 
+## v6.7.0 — Fast-lane pipeline profile
+
+A new `ceremony-check` mode on `/claude-tweaks:assess-agent-autonomy` judges once, at materialize time, how much retrospective/documentation ceremony a record's actual content deserves — stored as a `ceremony:` materialized-header field and folded into a new `ceremony-profile` Manifesto lever (10th canonical lever; `unattended-tier` keeps its existing slot 9).
+
+- **`/claude-tweaks:reflect` light mode** — new `skills/reflect/light-mode.md`: 2 lenses (Near-misses, Fresh start), no tradeoff review. Runs instead of full mode when `config.yml`'s `ceremony-profile` is `fast-lane`.
+- **`/claude-tweaks:build` audit skip conditions** — Plan Audit and Architecture Alignment steps skip under `ceremony-profile: fast-lane`, on top of their existing size-based skip conditions.
+- **`/claude-tweaks:wrap-up` narrower ceremony** — Step 7's independent skill-curation scan caps at top ~2 instead of top ~5; Step 6's doc/CLAUDE.md/ADR sub-scans gain a mechanical pre-check gate that skips all three when the diff touches no registry-matched path, no new dependency, and no schema/config file.
+- **Escape hatch** — a Safety-regression finding during light-mode reflect downgrades `config.yml`'s `ceremony-profile` to `standard` for the remainder of the run, falling back to full-depth ceremony.
+
+See `docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md` for the full design.
+
 ## v6.6.0 — Docs-health expansion + wrap-up integration + genre templates
 
 Extends `/claude-tweaks:docs-health` with three new/strengthened judging dimensions, two new CLI subcommands, an inline integration into `/claude-tweaks:wrap-up`, and a unified template library backing missing-doc scaffolding.
