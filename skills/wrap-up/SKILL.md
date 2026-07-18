@@ -69,6 +69,7 @@ When a pipeline run directory exists, read `config.yml`'s `ceremony-profile`. Ru
 - **Scope** — files changed during this work
 - **Ledger phase** — `wrap-up`
 - **Seed context** — review summary (Key Learnings section), tradeoffs accepted
+- **`--source wrap-up`** — only when no pipeline run directory exists (standalone wrap-up has no `$PIPELINE_RUN_DIR` to signal parent invocation on its own) — see `/claude-tweaks:reflect`'s Component-Skill Contract
 
 Full mode handles all four reflection lenses (Surprises, Approach, Near-misses, Fresh start), the tradeoff review, insight routing, and ledger writes. Light mode (`skills/reflect/light-mode.md`) runs only the Near-misses and Fresh-start lenses and skips the tradeoff review — see `docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md` for the rationale. See `/claude-tweaks:reflect` for details on both.
 
