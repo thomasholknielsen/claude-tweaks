@@ -157,7 +157,8 @@ Handle the wrapper's return:
 
 | Return shape | Action |
 |--------------|--------|
-| `{result: "ok", recommendations: [...]}` with non-empty list | Render the Creative Opportunities block (template below) appended to the review report. |
+| `{result: "ok", recommendations: [...]}` with non-empty list, `$PIPELINE_RUN_DIR` set | Render the Creative Opportunities block (template below) appended to the review report — recommendations-only, unchanged from prior behavior. The parent pipeline owns any further decision. |
+| `{result: "ok", recommendations: [...]}` with non-empty list, no `$PIPELINE_RUN_DIR` (standalone) | Render the Creative Opportunities block (template below), then the apply-gate (see "Applying a recommendation" below). |
 | `{result: "ok", recommendations: []}` | Omit the block entirely — no opportunities surfaced is a valid outcome, not a failure. |
 | `{skipped: ...}` | Omit the block. Note the skip reason inline only when it would surprise the user (e.g., "Creative survey skipped — Impeccable plugin not installed"). |
 
@@ -166,15 +167,27 @@ Handle the wrapper's return:
 ```markdown
 ### Creative Opportunities (from /visual-review)
 
-| Page | Observation | Suggested command |
-|------|------------|-------------------|
-| /pricing | Hero feels generic — pure black on white, no personality | `/impeccable:impeccable bolder pricing` |
-| /empty-cart | Empty state shows only "No items" text | `/impeccable:impeccable delight empty-cart` |
-
-> These are recommendations only. Run any command manually if you want to apply it.
+| # | Page | Observation | Suggested command |
+|---|------|------------|-------------------|
+| 1 | /pricing | Hero feels generic — pure black on white, no personality | `/impeccable:impeccable bolder pricing` |
+| 2 | /empty-cart | Empty state shows only "No items" text | `/impeccable:impeccable delight empty-cart` |
 ```
 
 When the wrapper reports `suppressed > 0` in its return, append a small note below the table: `> N suggestion(s) hidden — previously declined for this spec. Reset with /claude-tweaks:design-wrapper reset-recommendations <spec>.`
+
+### Applying a recommendation (standalone only)
+
+When running standalone (no `$PIPELINE_RUN_DIR`), the block above is never the final word — follow it with the standard apply-all/override gate. Call `AskUserQuestion` with `question`: `"Apply any of these?"`, `header`: `"Creative Opportunities"`, `multiSelect`: `false`, and:
+
+- Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Run every suggested command above against its listed page"`
+- Option 2 — `label`: `"Choose individually"`, `description`: `"Pick which suggestions to apply"`
+- Option 3 — `label`: `"None — just the report"`, `description`: `"Leave the report as-is, apply nothing"`
+
+If "Choose individually," ask which row numbers to apply as a follow-up free-text prompt (the table above is already numbered for this — no per-row `AskUserQuestion` needed).
+
+For every accepted row, invoke its `Suggested command` directly via the Skill tool (e.g. `/impeccable:impeccable bolder pricing`) — the same low-level invocation `design-wrapper`'s own modes perform internally; no new wrapper mode is needed since `survey`'s own precondition check already confirmed Impeccable is available before producing this recommendation. After all accepted commands run, re-verify: invoke `/claude-tweaks:test skip-qa` and report the result. If re-verification fails, report the failure and name the most recently invoked command as the likely cause rather than reverting automatically — reverting is the user's call.
+
+When "None," no further action — the report stands as rendered.
 
 ## Next Actions
 
@@ -206,7 +219,7 @@ This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step
 | Closing the session before saving a trace on failure | Failure reports without a trace path are not actionable — `trace save` first, then `close` |
 | Per-step `agent-browser` invocations during journey walks | Use `batch` for journey walks — one process, one session lifecycle, fewer tokens and less latency |
 | Batching across sessions | One `agent-browser batch` invocation owns a single session — never mix session names |
-| Auto-running commands suggested by the Creative Opportunities block | The block is recommendations only. The user invokes any command manually. /visual-review never executes Impeccable creative commands directly. |
+| Silently auto-applying a Creative Opportunities suggestion without the apply-gate | The block is recommendations only until the user explicitly accepts via the apply-gate (standalone mode) or takes it away to run manually (parent-invoked mode). /visual-review never executes an Impeccable creative command without that explicit accept. |
 | Rendering the Creative Opportunities block when the wrapper returned `recommendations: []` or `{skipped}` | An empty result is a valid outcome — omit the block entirely. Surfacing "no opportunities found" as positive signal is misleading because survey is heuristic, not exhaustive. |
 | Duplicating browser procedures in SKILL.md | `browser-review.md` is canonical for all mechanical browser procedures. SKILL.md is for mode resolution, auto-mode policy, and orientation — never copy procedure detail here. |
 
