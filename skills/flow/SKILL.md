@@ -274,7 +274,7 @@ Close the template's fence above, then assemble the applicable options (the base
 When multiple spec numbers or record references are provided (e.g., `42,45,48` or `#42,#45,#48`), flow runs each spec's (or record's) pipeline **sequentially** in one terminal. Each completes its full pipeline (build → test → review → polish → wrap-up) before the next begins.
 
 **Pre-flight enrichments (v4.6.4+):**
-- **Dependency-aware ordering** — reads each spec's `depends-on:` frontmatter, builds a DAG, hard-fails on cycles, and offers (or auto-applies in `auto` mode) topological re-ordering when the user's order violates the graph.
+- **Dependency-aware ordering** — reads each target's dependency declaration (`depends-on:` frontmatter on a legacy spec-file target, `blocked-by:` on a record-reference target — see `materialize.md`'s Populating the header), builds a DAG, hard-fails on cycles, and offers (or auto-applies in `auto` mode) topological re-ordering when the user's order violates the graph.
 - **Cross-spec conflict detection** — pre-flight scans each spec's `Files:` declarations; surfaces overlapping pairs as a footer line in the Pipeline Preview. Warning, not hard-fail.
 
 **Failure handling:**

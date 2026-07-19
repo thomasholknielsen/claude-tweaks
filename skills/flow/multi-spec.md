@@ -7,23 +7,23 @@ When multiple records or spec numbers are provided (e.g., `#42,#45,#48` or the l
 Before starting, validate the list:
 
 1. **Parse** — split on commas, resolve each to a record (`materialize.md`) or, under the legacy spec-file alias, a spec file
-2. **Prerequisites** — check that each spec's `blocked-by` is satisfied. Reject any spec with unmet prerequisites.
+2. **Prerequisites** — for a record-reference target, check that each `blocked-by:` dependency (`materialize.md`'s Populating the header — sourced from `record.js`'s `parseDependencies`, `facets.blockedBy`, or the native dependency API depending on driver/`work-links`) is satisfied; for the legacy spec-file alias, check that each spec's `depends-on:` frontmatter is satisfied. Reject any target with unmet prerequisites.
 
-> Steps 3-5 below (frontmatter pre-flight, dependency-aware ordering, conflict detection) read spec-file header fields (`depends-on:`, `Files:`) that don't yet exist on the materialized record header (`materialize.md`'s pinned header format) — this pre-flight enrichment applies to the legacy spec-file alias today.
+> A record-reference target's dependency data (`blocked-by:`) is read via `materialize.md`'s Resolution step — read-only, safe before any run dir or worktree exists — or the materialized header once composed; see Steps 3-4 below. `Files:`-based conflict detection (Step 5) remains legacy-spec-file-alias-only for now: the materialized header carries no per-record file-list field, so cross-record conflict detection for record-reference targets is a known gap, not covered by this fix.
 
-> **Parallel execution:** Use parallel tool calls aggressively — frontmatter reads across N specs (step 3 below) are independent and should run concurrently.
+> **Parallel execution:** Use parallel tool calls aggressively — frontmatter/record reads across N targets (step 3 below) are independent and should run concurrently.
 
-3. **Frontmatter pre-flight** — for each spec, read frontmatter in one parallel pass and collect `depends-on:`, `Files:`, `surface:`, `design-intent:`. These feed the ordering check, conflict detection, and Pipeline Preview.
+3. **Frontmatter pre-flight** — for the legacy spec-file alias, read frontmatter in one parallel pass and collect `depends-on:`, `Files:`, `surface:`, `design-intent:`. For a record-reference target, collect the equivalent set from `materialize.md`'s Resolution (facets + body, already fetched read-only): dependencies via `blocked-by:` (see Populating the header's `blocked-by` bullet), `surface:`/`design-intent:` via the lift rule — `Files:` has no record-mode equivalent yet (see the caveat above). Both collections feed the same ordering check and Pipeline Preview; only conflict detection (Step 5) stays legacy-only.
 4. **Dependency-aware ordering** — see "Dependency-aware ordering" below. Topologically sort and reconcile with the user's order.
 5. **Conflict detection** — see "Cross-spec conflict detection" below. Warn on overlapping `Files:` declarations.
 
 ## Dependency-aware ordering
 
-Each spec's frontmatter may declare `depends-on:` listing prerequisite specs. The user's order on `$ARGUMENTS` (`/flow 157,159,160`) may not match the dependency graph.
+A target may declare prerequisite records/specs — `blocked-by:` on a record-reference target (materialized header, or live via `materialize.md`'s Resolution), `depends-on:` frontmatter on a legacy spec-file target. The user's order on `$ARGUMENTS` (`/flow 157,159,160` or `/flow #157,#159,#160`) may not match the dependency graph.
 
 ### Procedure
 
-1. **Build the DAG** — for each spec in the list, add edges from each `depends-on:` entry to the spec itself
+1. **Build the DAG** — for each target in the list, add edges from each prerequisite to the target itself: `depends-on:` entries for a legacy spec-file target, `blocked-by:` entries for a record-reference target
 2. **Detect cycles** — if any cycle exists across the listed specs, **hard fail**:
    ```
    Cycle detected in dependency graph:
@@ -35,7 +35,7 @@ Each spec's frontmatter may declare `depends-on:` listing prerequisite specs. Th
 3. **Topologically sort** the specs
 4. **Compare against user order:**
    - **Match** → proceed silently with the user's order
-   - **Mismatch** (user order violates a `depends-on:` edge) → surface and offer:
+   - **Mismatch** (user order violates a dependency edge) → surface and offer:
      ```
      Spec order doesn't match dependencies:
        You requested: 159 → 160 → 157
@@ -47,13 +47,13 @@ Each spec's frontmatter may declare `depends-on:` listing prerequisite specs. Th
      ```
      In `auto` mode, **default to option 1** silently and log: `AUTO {time} — Step 1: re-ordered specs to match dependency graph. User order: 159,160,157. Topological: 157,159,160. Reversibility: high.`
 
-### Specs with `depends-on:` to specs NOT in the run
+### Targets with a dependency on a target NOT in the run
 
-If spec 159 depends on spec 142 (not in the run list), check spec 142's status:
+If record/spec 159 depends on record/spec 142 (not in the run list) — via `blocked-by:` (record-reference target) or `depends-on:` (legacy spec-file target) — check 142's status:
 - Status `complete` → fine, dependency satisfied
-- Status `pending` or `in-progress` → hard fail with "spec 159 depends on spec 142 which is not complete and not in this run"
+- Status `pending` or `in-progress` → hard fail with "159 depends on 142 which is not complete and not in this run"
 
-This matches existing `blocked-by:` semantics — the dependency check is the same regardless of whether the prerequisite is in-run or out-of-run.
+The dependency check is the same regardless of whether the prerequisite is in-run or out-of-run, or which of the two representations declared it.
 
 ## Cross-spec conflict detection
 
