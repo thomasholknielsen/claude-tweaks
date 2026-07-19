@@ -26,7 +26,11 @@ None of these are errors. The design CLI is a value-add on frontend projects —
 
 ## Why only `survey` mode is ever deferred
 
-`survey` is the one mode that can stage a creative-opportunities decision rather than acting immediately. Other modes (`pre-build`, `test`, `review`, `polish`, `shape`, `reset-recommendations`) either run or skip — they do not defer. If a caller receives `{deferred: ...}` from a non-survey mode, that is a wrapper bug; treat as skip and proceed (the wrapper will log it for follow-up).
+`survey` is the one mode that can stage a creative-opportunities decision rather than acting immediately. Other modes (`pre-build`, `test`, `review`, `polish`, `shape`, `live`, `reset-recommendations`) either run or skip — they do not defer. If a caller receives `{deferred: ...}` from a non-survey mode, that is a wrapper bug; treat as skip and proceed (the wrapper will log it for follow-up).
+
+## Why `live` mode has no auto-mode branch
+
+Every other mode either runs deterministically or degrades to a skip under `auto`. `live` cannot — it hands control to a human clicking in their own browser, which structurally requires a human to be present. Callers must gate invocation to interactive, standalone contexts themselves; the wrapper's own preconditions do not (and cannot) enforce this, since "is a human present" isn't a signal the wrapper can check.
 
 ## Routing findings into Step 3 (for `/review`)
 

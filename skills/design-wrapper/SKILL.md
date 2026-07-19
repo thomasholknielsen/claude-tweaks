@@ -15,7 +15,7 @@ Wrapper skill that encapsulates the Impeccable design-quality plugin behind a st
                                 ^^^^ YOU ARE HERE ^^^^
 ```
 
-All six modes are active (`test`, `review`, `shape`, `pre-build`, `polish`, `survey`) plus the `reset-recommendations` cache utility. The wrapper skips cleanly on non-frontend specs and missing dependencies. `polish` dispatches three categories — auto-fit, issue-driven, and intent-driven (the latter reads the record's `Design-intent:` body-metadata line — lifted into the materialized header per spec 20 — and dispatches creative commands per `command-map.md`). `survey` analyzes rendered UI or the full diff and produces ranked Creative Opportunities recommendations consumed by `/visual-review` and `/flow`'s pipeline summary.
+All seven modes are active (`test`, `review`, `shape`, `pre-build`, `polish`, `survey`, `live`) plus the `reset-recommendations` cache utility. The wrapper skips cleanly on non-frontend specs and missing dependencies. `polish` dispatches three categories — auto-fit, issue-driven, and intent-driven (the latter reads the record's `Design-intent:` body-metadata line — lifted into the materialized header per spec 20 — and dispatches creative commands per `command-map.md`). `survey` analyzes rendered UI or the full diff and produces ranked Creative Opportunities recommendations consumed by `/visual-review` and `/flow`'s pipeline summary.
 
 **Three independent surfacing anchors** ensure creative commands cannot get buried:
 
@@ -32,6 +32,8 @@ All six modes are active (`test`, `review`, `shape`, `pre-build`, `polish`, `sur
 - `/claude-tweaks:flow` invokes `polish` mode after review passes — dispatches auto-fit + issue-driven + intent-driven Impeccable commands; modifies code
 - `/claude-tweaks:visual-review` invokes `survey` mode after browser review — produces a Creative Opportunities recommendations block from the captured screenshots
 - `/claude-tweaks:flow` invokes `survey` mode in the pipeline summary — produces a Creative Opportunities block from the full diff
+- `/claude-tweaks:specify` invokes `live` mode against a throwaway shape-time scaffold, for the user to compare real variants before a spec is decomposed
+- `/claude-tweaks:visual-review` invokes `live` mode (standalone Boost gate only) against the already-running app, for open-ended alternative exploration
 - A user runs `/claude-tweaks:design-wrapper <mode> <target>` directly to invoke a single mode without going through the lifecycle skill
 - A user runs `/claude-tweaks:design-wrapper reset-recommendations <spec>` to clear declined-recommendation tracking for a spec
 
@@ -48,6 +50,7 @@ All six modes are active (`test`, `review`, `shape`, `pre-build`, `polish`, `sur
 | `polish <spec>` | Spec number or path | Dispatches auto-fit (`polish`/`clarify`/`harden`) + issue-driven (`typeset`/`layout`/`adapt`/`optimize`) + intent-driven (per the record's `Design-intent:` body-metadata line, lifted into the materialized header — spec 20) commands per `command-map.md`; modifies code |
 | `survey <files>` | Space-separated file list, or `--screenshots <paths>` when invoked from `/visual-review` | Analyzes the diff (and screenshots when provided) and returns ranked Creative Opportunities recommendations; suppresses recommendations the user previously declined for the same spec; read-only |
 | `reset-recommendations <spec>` | Spec number or path | Deletes the declined-recommendations cache for the spec; the next `survey` call surfaces all matching recommendations again |
+| `live <target>` | URL — an ephemeral scaffold server or an already-running app | Invokes `/impeccable:impeccable live` against the target. Interactive-only, no auto-mode branch — a human must be present in a browser |
 
 When `<target>` is omitted for `test` mode, the wrapper resolves changed files via `git diff --name-only`. When omitted for `review` mode or `polish` mode, the wrapper falls back to the same git-diff resolution. `survey` defaults to the same git-diff resolution when called without files.
 
@@ -58,6 +61,7 @@ Run these before dispatching to any active mode (`test`, `review`, `shape`, `pre
 **Mode-specific notes:**
 
 - `shape` runs preconditions but skips Layer 2 — there is no spec yet (the caller is `/specify` working on a design doc, not a numbered spec). Layer 1 + availability still apply.
+- `live` runs preconditions but skips Layer 2, same as `shape` — a live session isn't necessarily tied to one spec. Layer 1 + Layer 3 (file-extension sniff against `<target>`, when resolvable — a bare URL with no visible extension is treated as frontend by default, since `live` is never invoked on a non-frontend target by either of its two callers) + availability still apply.
 - `pre-build` runs all three detection layers and the LLM availability check — it touches Impeccable references but does not modify code.
 - `polish` runs all three detection layers and the LLM availability check; on a successful precondition pass, it consumes audit findings written by `review` mode (see `modes/polish.md`).
 - `survey` runs Layer 1 (kill-switch) and Layer 3 (file-extension sniff). Layer 2 applies only when a `<spec>` is resolvable from the file list (caller may pass it explicitly). Survey does not require Impeccable's LLM commands or CLI — it is a heuristic analysis local to the wrapper that *recommends* Impeccable commands. The availability check is informational only (an unavailable Impeccable surfaces in the recommendations as "install Impeccable to apply").
@@ -105,6 +109,7 @@ For the dispatched mode, verify the dependency is available:
 | `shape` | Impeccable plugin (LLM commands) | Same as `review` — checks for `/impeccable:impeccable*` skill resolution. |
 | `pre-build` | Impeccable plugin (reference files) | Same as `review`. The reference files ship with the plugin; if the plugin resolves, the references are available. |
 | `polish` | Impeccable plugin (LLM commands) | Same as `review` — `polish`/`clarify`/`harden` and the issue-driven commands all live in the plugin. |
+| `live` | Impeccable plugin (LLM commands + bundled live-mode scripts) | Same as `review` — checks for `/impeccable:impeccable*` skill resolution. The live-mode scripts ship with the plugin itself, so no separate check is needed. |
 
 On unavailable:
 
@@ -150,6 +155,10 @@ Dispatches three categories: auto-fit (`polish`/`clarify`/`harden`), issue-drive
 
 Read-only. Produces ranked Creative Opportunities recommendations from screenshots (`/visual-review`) or the full diff (`/flow`). Never invokes Impeccable commands — only suggests them. See `command-map.md` in this skill's directory for the "would help" criteria → command mapping. Read `modes/survey.md` in this skill's directory for the full procedure.
 
+### Mode: `live <target>` — Active
+
+Interactive-only. Invokes `/impeccable:impeccable live`, handing control to the user's own browser session (element picker, three-variant generation with live parameter tuning, accept-to-source). Has no auto-mode branch — callers must only reach this mode when a human is present; both current callers (`/specify` and standalone `/visual-review`) already gate to interactive-only before invoking it. Read `modes/live.md` in this skill's directory for the full procedure.
+
 ### Mode: `reset-recommendations <spec>` — Active utility
 
 Cache-management utility. Deletes the declined-recommendations cache for a spec so the next `survey` call surfaces all matching recommendations again. The recommendations cache (`-recommendations.json`) is left in place — only the declined counter is cleared. Read `modes/reset-recommendations.md` in this skill's directory for the full procedure.
@@ -171,7 +180,7 @@ See `_shared/design-wrapper-handling.md` for the canonical caller-side contract 
 
 Lazy-load these only when needed for the active mode:
 
-- `modes/{name}.md` — One file per mode (`test`, `review`, `shape`, `pre-build`, `polish`, `survey`), plus a procedure file for the `reset-recommendations` cache utility. Per-mode full procedure (steps, decision rules, output format).
+- `modes/{name}.md` — One file per mode (`test`, `review`, `shape`, `pre-build`, `polish`, `survey`, `live`), plus a procedure file for the `reset-recommendations` cache utility. Per-mode full procedure (steps, decision rules, output format).
 - `command-map.md` — Single source of truth for dispatch tables: auto-fit / issue-driven / intent-driven categorization for all 23 Impeccable commands, plus the survey "would help" criteria → command mapping.
 - `frontend-detection.md` — Trigger extensions and path patterns for Layer 3 sniff; pointer to the canonical `Surface:`/`Design-intent:` body-metadata line values (which live in `skills/specify/spec-template.md`'s metadata-block description).
 - `impeccable-cli.md` — Exact CLI invocation, JSON output schema, parsing rules.
@@ -191,6 +200,7 @@ When invoked directly by a user (not from a lifecycle skill), look up the return
 | `survey` ok + recommendations | Run any resonating command manually |
 | `survey` ok + `recommendations: []` | No follow-up — caller omits the Creative Opportunities block |
 | `reset-recommendations` ok | Re-run `/claude-tweaks:flow {spec}` or `/claude-tweaks:visual-review` — survey will re-surface |
+| `live` ok (`session: "completed"`) | If a variant was accepted, `/claude-tweaks:test` — re-verify the change |
 | `{skipped: "Impeccable not installed"}` | `/claude-tweaks:init` to set up integration (Step 10) |
 | `{skipped: "design integration disabled"}` | Re-run `/claude-tweaks:init` to re-enable |
 | `{skipped: "non-frontend"}` | No action — the wrapper correctly skipped |
@@ -224,6 +234,7 @@ This skill is a **component skill** (utility wrapper) — invoked by `/claude-tw
 | Calling `/impeccable:impeccable` commands without first checking availability | If the plugin isn't installed, the Skill tool will error — always run the availability check first and skip cleanly |
 | Treating the `surface:` field as required | `/specify` writes it on new specs, but legacy specs still have it absent — Layer 3 sniff handles them correctly. Demanding presence breaks every existing spec. |
 | Reading `pre-build` context as a hard gate | Lazy-loaded references are *enrichment* for the build subagent. Skipping (no Impeccable installed, non-frontend) must not block the build. |
+| Invoking `live` mode from an auto-mode or `$PIPELINE_RUN_DIR`-set context | `live` requires a human physically in a browser — it has no non-interactive path. Both current callers already restrict themselves to interactive, standalone invocation before reaching this mode; a future caller must do the same. |
 
 ## Relationship to Other Skills
 
