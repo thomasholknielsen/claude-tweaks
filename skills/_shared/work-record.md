@@ -89,6 +89,7 @@ Who may add / remove which labels. "Machinery" = any headless or autonomous path
 | **`/triage`** (gate, human present) | `auto:build`, `auto:merge` (human-confirmed), scoring supplied inline | `ready` (flag back), `bot:blocked` (re-grant strip) | granting on a headless path |
 | **`/dispatch`** (queue consumer) | `bot:in-progress` (claim mirror), `bot:blocked` (at retry ceiling) | `auto:merge` (failure downgrade), `auto:*` (at ceiling), `bot:in-progress` (release) | adding `auto:*` or `ready` |
 | **`/tidy`** (hygiene) | `parked` (Defer action, with trigger) | `parked` (trigger-met wake), `bot:in-progress` (orphaned-claim sweep) | `auto:*` |
+| **`/review-backlog`** (survey, human-confirmed) | `priority:*` (human-confirmed via batch-apply), updates the `**Related:**` body line (human-confirmed) | nothing | `auto:*`, `bot:*`, `ready`, `risk:*`/`effort:*`, body-shaping |
 | **Executors** (`/flow`, `/build`) | nothing | nothing | `auto:*`, `ready` |
 | **`/wrap-up`** | `demo:pending` | `bot:in-progress` (claim release) | `auto:*`, `ready`, `demo:approved`, `demo:changes-requested` |
 | **`/demo`** | `demo:approved`, `demo:changes-requested` | `demo:pending` (on resolution) | `auto:*`, `ready`, `bot:*`, adding `demo:pending` itself |

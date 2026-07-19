@@ -565,7 +565,7 @@ Branches on driver, then — for `github-issues` — on `work-links`.
 - Leaf ↔ leaf / leaf ↔ pre-existing record — `facets.blockedBy = [N1, N2, ...]` on the dependent leaf.
 - Both are `writeRecord` calls — compose-then-write-once, recompose the full facets/body and write once per leaf that needs a link. No task-list or `Blocked by #N` text needed; `parent`/`blocked-by` frontmatter is already queryable via `queryRecords`.
 
-There's no ordering step separate from linking — the dependency graph these links encode **is** the order. The old tier tables are gone; nothing replaces them. `priority:*` labels are optional, dispatch-ordering-only, and human-applied only — per the permission matrix in `_shared/work-record.md`, no skill in this pipeline, including `/specify`, ever adds one.
+There's no ordering step separate from linking — the dependency graph these links encode **is** the order. The old tier tables are gone; nothing replaces them. `priority:*` labels are optional, dispatch-ordering-only, and human-applied only — per the permission matrix in `_shared/work-record.md`, no skill in this pipeline, including `/specify`, ever adds one *autonomously*. The sole exception is `/claude-tweaks:review-backlog`, which may write `priority:*` — always gated on an explicit human batch-confirm, never silently.
 
 ### Decision Rationale and Assumptions
 
