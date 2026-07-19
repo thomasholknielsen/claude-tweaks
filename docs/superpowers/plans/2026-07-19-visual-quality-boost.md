@@ -811,7 +811,7 @@ Every record body opens with a short metadata block — plain body-metadata line
 
 Replace with:
 ```
-Every record body opens with a short metadata block — plain body-metadata lines, never YAML frontmatter. `Surface:`, `Design-intent:`, and `Visual-reference:` (when present) are lifted verbatim into the materialized header by `/flow`/`/build` at build time (spec 20's contract).
+Every record body opens with a short metadata block — plain body-metadata lines, never YAML frontmatter. `Surface:` and `Design-intent:` are lifted verbatim into the materialized header by `/flow`/`/build` at build time (spec 20's contract). `Visual-reference:` (when present) stays a body-metadata line only — `/claude-tweaks:design-wrapper`'s `pre-build` mode reads it directly from the record body, not from the materialized header.
 ```
 
 - [ ] **Step 5: Load the scaffold in `design-prebuild.md`**

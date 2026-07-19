@@ -40,7 +40,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/claude-tweaks:review-backlog` | Understand and prioritize the open backlog — thematic clusters, `priority:*`/`**Related:**` suggestions via batch-confirm | `critical`, `risk-value`, `cleanup`, `--budget N` |
 | `/claude-tweaks:dispatch` | The queue consumer — claims an authorized record's whole file-overlap group (atomic ref lock) and hands it to `/flow`; settles on success/failure | *(none)* (interactive batch pick), `next` (headless routine unit), `#N` (direct), `#N,#M,...` (explicit list — e.g. from triage's Next Actions) |
 | `/claude-tweaks:browse` | Unified browser automation (utility) | `--session <name>`, `set viewport`, `set device`, operation vocabulary (see SKILL.md) |
-| `/claude-tweaks:design-wrapper` | Wrapper that lets lifecycle skills invoke Impeccable design-quality commands. Modes: `pre-build`, `test`, `review`, `shape`, `polish`, `survey`, `reset-recommendations` | mode + spec/files + flags |
+| `/claude-tweaks:design-wrapper` | Wrapper that lets lifecycle skills invoke Impeccable design-quality commands. Modes: `pre-build`, `test`, `review`, `shape`, `polish`, `survey`, `reset-recommendations`, `live` | mode + spec/files + flags |
 | `/claude-tweaks:ledger` | Open items tracking — query, resolve ledger entries | *(none)*, `resolve`, `{feature-name}` |
 | `/claude-tweaks:research` | Deep web research with citation-audited reports — 4 runtime modes from quick to ultradeep. | topic + `quick`, `standard`, `deep`, `ultradeep`, `--output=` |
 | `/claude-tweaks:version` | Print the installed plugin version | *(none)*, `plain`, `full` |

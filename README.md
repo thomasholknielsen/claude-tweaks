@@ -314,7 +314,7 @@ For the full picture of how a work record moves through filing → shaping → a
 
 **`/claude-tweaks:docs-health`** — Recurring health check for `docs/**`: picks one doc to audit, judges it against the shared `_shared/criteria-docs-diataxis.md` procedure — Diátaxis genre-drift (implied doc type vs. actual content shape), depth-mismatch (implied reading investment vs. actual word count), findability (can a reader or agent actually discover this doc), factual staleness, and dual-persona misleading-risk tagging (human engineer vs. coding agent) — and always files a `docs-health`-labelled GitHub issue. Never edits docs content — report-only, matching `/code-health` and `/harness-health`. Scoped strictly to `docs/**`, excluding `docs/superpowers/**` (ephemeral build artifacts) and never overlapping `harness-health`'s `.claude/skills/**`/`.claude/rules/**`/CLAUDE.md territory. Runs on a scheduled Routine for continuous coverage.
 
-**`/claude-tweaks:design-wrapper`** — Wrapper for the [Impeccable](https://github.com/pbakaus/impeccable) frontend-design plugin. Six active modes:
+**`/claude-tweaks:design-wrapper`** — Wrapper for the [Impeccable](https://github.com/pbakaus/impeccable) frontend-design plugin. Seven active modes:
 
 - **`test`** — invoked by `/test` for the deterministic CLI gate (`npx impeccable detect`)
 - **`review`** — invoked by `/review` for LLM `critique` + `audit` (advisory findings; writes audit cache for `polish`)
@@ -322,6 +322,7 @@ For the full picture of how a work record moves through filing → shaping → a
 - **`pre-build`** — invoked by `/build` to lazy-load Impeccable references + project design context (`docs/design/PRODUCT.md`, `DESIGN.md` from `/impeccable init`) into the implementer subagent
 - **`polish`** — invoked by `/flow`'s polish phase to dispatch auto-fit (`polish` / `clarify` / `harden`) + issue-driven (`typeset` / `layout` / `adapt` / `optimize`) + intent-driven (`bolder` / `quieter` / `distill` / `delight`+`animate` / `onboard` per spec's `design-intent:` frontmatter) commands. **First wrapper mode that modifies code** — `/flow` follows up with the re-verify gate.
 - **`survey`** — invoked by `/visual-review` (with screenshots) and `/flow`'s pipeline summary (with the full diff). Produces ranked Creative Opportunities recommendations spanning intent-driven and manual-only commands (`colorize` / `extract` / `overdrive`). Read-only — never invokes commands. Per-spec declined-recommendation tracking suppresses noise after 2 declines; reset via `/claude-tweaks:design-wrapper reset-recommendations <spec>`.
+- **`live`** — invoked by `/specify`'s shape-time variant-exploration step and `/visual-review`'s standalone Boost gate. Thin dispatcher to Impeccable's own interactive `live` command (element picker, real HTML/CSS variants, live parameter tuning, accept-to-source cleanup). Interactive-only — no auto-mode branch, by the same reasoning `live` itself has none.
 
 The wrapper produces three independent surfacing anchors so creative commands cannot get buried: intent dispatch in polish, the Creative Opportunities block in `/visual-review`, and the Creative Opportunities block in `/flow`'s pipeline summary.
 
