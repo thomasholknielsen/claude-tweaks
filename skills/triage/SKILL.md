@@ -224,6 +224,7 @@ If Step 4 granted nothing this session (every row was flagged back), omit Option
 | `/claude-tweaks:capture` | Feeder — files raw backlog records; they reach this gate's worklist only after `/claude-tweaks:specify` shapes them to `ready`. |
 | `/claude-tweaks:specify` | The shaper — stamps `ready` + scoring before a record can enter this gate's worklist, and is where a flagged-back record returns for re-shaping. |
 | `/claude-tweaks:tidy` | Surfaces `bot:blocked` records as re-authorization candidates alongside this gate's own worklist. Migration note: pre-6.0 records still carrying retired `tier:approved`/`tier:fast-track`/`tier:needs-review`/`status:blocked`/`status:in-progress` labels surface via `/tidy`'s legacy-taxonomy finding, not through this gate — triage only ever reads/writes the current seven-axis vocabulary. |
+| `/claude-tweaks:review-backlog` | Reciprocal utility relationship over the same record set: review-backlog surveys content and suggests `priority:*`/`**Related:**` (human-confirmed); triage grants `auto:build`/`auto:merge` over the `ready` queue. Neither claims, builds, or shapes bodies. |
 | `/claude-tweaks:help` | Surfaces this gate's pending-authorization count on its dashboard — the reciprocal of this row. |
 | `_shared/work-record.md` | Taxonomy home — the seven-axis label contract, grant semantics, spec-shaped body definition, and the permission-matrix row this skill implements. |
 | `_shared/issue-claims.md` | Defines the claim protocol `/claude-tweaks:dispatch` uses after this gate grants — triage itself never claims. |

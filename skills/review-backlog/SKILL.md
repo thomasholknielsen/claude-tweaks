@@ -103,13 +103,29 @@ node -e "
 # work-backend: local-files
 node -e "
   const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
-  const { mergeUnsyncedRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/review-backlog.js');
   const records = queryRecords('specs', {});
+  console.log(JSON.stringify(records));
+" > /tmp/review-backlog-local.json
+node -e "
+  const { execSync } = require('child_process');
+  const records = require('/tmp/review-backlog-local.json');
+  const withDates = records.map((r) => {
+    let createdAt;
+    try {
+      createdAt = execSync('git log -1 --format=%cI -- ' + JSON.stringify(r.path), { encoding: 'utf8' }).trim();
+    } catch { createdAt = null; }
+    return { ...r, createdAt: createdAt || new Date().toISOString() };
+  });
+  console.log(JSON.stringify(withDates));
+" > /tmp/review-backlog-local-dated.json
+node -e "
+  const { mergeUnsyncedRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/review-backlog.js');
+  const records = require('/tmp/review-backlog-local-dated.json');
   console.log(JSON.stringify(mergeUnsyncedRecords(records, [])));
 " > /tmp/review-backlog-all.json
 ```
 
-Local-files records have no dedicated timestamp facet either — when a mode below sorts by `createdAt` and it's absent, derive it the same way (the record's own last-commit date; an uncommitted/brand-new record counts as fresh — `git log -1` returning empty).
+Local-files records have no dedicated timestamp facet either, so the block above derives `createdAt` from each record's own last-commit date the same way the unsynced-record fold-in does (an uncommitted/brand-new record counts as fresh — `git log -1` returning empty falls back to the current time).
 
 Tag every fetched record with an `⚠ not yet synced` marker in rendered output wherever `facets.unsynced === true` — this skill surfaces those records, it never fixes them (`/claude-tweaks:tidy`'s job).
 
