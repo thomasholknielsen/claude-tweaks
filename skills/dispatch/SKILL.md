@@ -72,7 +72,6 @@ gh issue list --state open --json number --limit 200 > /tmp/dispatch-open-number
 WORK_LINKS=$(grep -E "^work-links:" CLAUDE.md .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*work-links:[[:space:]]*//')
 node -e "
   const { parseRecordFacets, parseDependencies } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
-  const { extractKeyFiles, groupByFileOverlap } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
   const issues = require('/tmp/dispatch-queue-raw.json');
   const openNumbers = new Set(require('/tmp/dispatch-open-numbers.json').map((i) => i.number));
   const eligible = issues
