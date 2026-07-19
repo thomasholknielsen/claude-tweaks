@@ -729,9 +729,11 @@ EOF
 - Modify: `skills/specify/design-pre-steps.md`
 - Modify: `skills/specify/spec-template.md`
 - Modify: `skills/build/design-prebuild.md`
+- Modify: `skills/design-wrapper/SKILL.md`
 
 **Interfaces:**
 - Consumes: Task 4's `live` mode (`claude-tweaks:design-wrapper live <target>`); `_shared/dev-url-detection.md`'s "Ephemeral server start" and "Cleanup — Standalone" procedures (unmodified, read-only reference).
+- Produces: the updated `/claude-tweaks:specify` row in `design-wrapper/SKILL.md`'s Relationship table — the bidirectional counterpart Task 6 Step 4 already adds for `/claude-tweaks:visual-review`.
 - Produces: the `Visual-reference:` body-metadata line, written onto generated leaf records, consumed by `skills/build/design-prebuild.md`.
 
 - [ ] **Step 1: Add Step 2.5b-ii (variant exploration) to `design-pre-steps.md`**
@@ -828,7 +830,21 @@ When the resolved record/spec carries a `Visual-reference:` body-metadata line (
 ## Result handling
 ```
 
-- [ ] **Step 6: Verify**
+- [ ] **Step 6: Update the `/claude-tweaks:specify` Relationship row in `design-wrapper/SKILL.md`**
+
+Task 6 (later in this plan) adds `live` mode to the `/claude-tweaks:visual-review` Relationship row for its own new caller relationship — this step is the same update for `/claude-tweaks:specify`, which this task just gave the equivalent capability.
+
+Find this exact text:
+```
+| `/claude-tweaks:specify` | Invokes `shape` mode as a pre-decomposition step on frontend design docs. Also asks the design-intent question and writes `Surface:` + `Design-intent:` body-metadata lines on every generated leaf record — lifted into the materialized header (spec 20) that `polish` mode reads for intent-driven dispatch. The full pre-step procedure lives in `specify/design-pre-steps.md`. |
+```
+
+Replace with:
+```
+| `/claude-tweaks:specify` | Invokes `shape` mode as a pre-decomposition step on frontend design docs. Also asks the design-intent question and writes `Surface:` + `Design-intent:` body-metadata lines on every generated leaf record — lifted into the materialized header (spec 20) that `polish` mode reads for intent-driven dispatch. When the shape brief is confirmed, may also invoke `live` mode (Step 2.5b-ii) against a throwaway scaffold and write an accepted direction's path as a `Visual-reference:` body-metadata line. The full pre-step procedure lives in `specify/design-pre-steps.md`. |
+```
+
+- [ ] **Step 7: Verify**
 
 ```bash
 grep -c "^## Step 2.5b-ii: Variant exploration" skills/specify/design-pre-steps.md
@@ -840,10 +856,15 @@ grep -c "Visual-reference:" skills/specify/spec-template.md skills/specify/desig
 ```
 Expected: each file's count ≥ 1.
 
-- [ ] **Step 7: Commit**
+```bash
+grep -c "Step 2.5b-ii" skills/design-wrapper/SKILL.md
+```
+Expected output: `1`
+
+- [ ] **Step 8: Commit**
 
 ```bash
-git add skills/specify/design-pre-steps.md skills/specify/spec-template.md skills/build/design-prebuild.md
+git add skills/specify/design-pre-steps.md skills/specify/spec-template.md skills/build/design-prebuild.md skills/design-wrapper/SKILL.md
 git commit -m "$(cat <<'EOF'
 Add shape-time throwaway-scaffold + live-mode variant exploration
 
@@ -855,7 +876,10 @@ direction — before the real /build ever starts. The accepted scaffold
 carries forward as a new Visual-reference: body-metadata line, which
 /build's pre-build step now loads into the implementer subagent
 alongside the text brief. Interactive-only, front-door-confirmed,
-no auto-mode branch.
+no auto-mode branch. Also updates design-wrapper/SKILL.md's
+/claude-tweaks:specify Relationship row — the bidirectional
+counterpart of the /claude-tweaks:visual-review row Task 6 updates
+for its own new live-mode caller relationship.
 EOF
 )"
 ```
