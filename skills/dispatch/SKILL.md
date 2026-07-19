@@ -91,9 +91,13 @@ if [ "$WORK_LINKS" = "native" ]; then
   "
   if [ -s /tmp/dispatch-native-query.graphql ]; then
     OWNER_REPO=$(gh repo view --json owner,name -q '.owner.login + " " + .name')
-    gh api graphql -f query="$(cat /tmp/dispatch-native-query.graphql)" \
+    if gh api graphql -f query="$(cat /tmp/dispatch-native-query.graphql)" \
       -f owner="$(echo "$OWNER_REPO" | cut -d' ' -f1)" -f repo="$(echo "$OWNER_REPO" | cut -d' ' -f2)" \
-      > /tmp/dispatch-native-deps.json
+      > /tmp/dispatch-native-deps.tmp.json 2>/tmp/dispatch-native-deps.err; then
+      mv /tmp/dispatch-native-deps.tmp.json /tmp/dispatch-native-deps.json
+    else
+      echo "Warning: native dependency query failed — falling back to no native filtering this run: $(cat /tmp/dispatch-native-deps.err)" >&2
+    fi
   fi
 fi
 node -e "
@@ -111,7 +115,7 @@ node -e "
 
 Two bulk calls, not per-issue re-fetches — the second pull is a cheap existence check for `parseDependencies`' targets (an open blocker under `work-links: body-text`; a record isn't eligible while any `Blocked by #N` line still names an open issue). Grouping still runs before claiming, unlike the pre-grants design, so the full issue body/labels/createdAt needed for eligibility, dependency-checking, and `extractKeyFiles` is already in hand from the first pull.
 
-**`work-links: native` support.** Under `work-links: native`, one additional batched `gh api graphql` call (`buildNativeDependencyQuery`/`hasOpenNativeBlocker`, `bin/lib/issues/record.js`) queries every eligible candidate's native `blockedBy` connection in a single aliased request and drops any candidate with an `OPEN` native blocker — the same outcome `parseDependencies` already produces for an open `Blocked by #N` body-text line under `work-links: body-text`. The two modes are mutually exclusive per record, mirroring `flow/materialize.md`'s existing `blocked-by` driver/work-links branching — a project mid-migration with stale body-text lines under `native` is out of scope.
+**`work-links: native` support.** Under `work-links: native`, one additional batched `gh api graphql` call (`buildNativeDependencyQuery`/`hasOpenNativeBlocker`, `bin/lib/issues/record.js`) queries every eligible candidate's native `blockedBy` connection in a single aliased request and drops any candidate with an `OPEN` native blocker — the same outcome `parseDependencies` already produces for an open `Blocked by #N` body-text line under `work-links: body-text`. The two modes are mutually exclusive per record, mirroring `flow/materialize.md`'s existing `blocked-by` driver/work-links branching — a project mid-migration with stale body-text lines under `native` is out of scope. The GraphQL call fails safe: on any error (network, auth, or a schema mismatch — e.g. a GitHub Enterprise host exposing only `issueDependenciesSummary`, not `blockedBy`) it logs a warning and falls back to no native filtering for that run rather than crashing Step 2's queue-build entirely — a missed native-dependency check degrades to the pre-`work-links: native` behavior, not a hard failure of headless dispatch.
 
 The `bot:*` filter here is the cheap label-based pre-filter — labels are projection, not truth (`_shared/work-record.md`). The authoritative unclaimed check is Step 4's atomic 201/422 claim attempt; a record can pass this pre-filter and still turn out contested by the time it's actually claimed. A group of size 1 is a **singleton**; size 2+ is a **bundle** — both dispatch the same way in Step 5, with a different `/flow` invocation shape only.
 
