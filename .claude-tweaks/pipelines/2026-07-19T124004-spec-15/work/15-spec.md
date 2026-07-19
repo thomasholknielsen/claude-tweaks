@@ -4,6 +4,7 @@ origin: human
 risk: low
 effort: low
 grants: []
+ceremony: fast-lane
 surface: backend
 ---
 # 15: ledger/SKILL.md documents docs/plans/*-ledger.md as canonical in 4 places, but the real write target (and .gitignore) say .claude-tweaks/ledgers/
