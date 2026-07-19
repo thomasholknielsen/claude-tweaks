@@ -69,6 +69,7 @@ The queue: **open + `auto:build` + no `bot:*` + no open `Blocked by #N` dependen
 ```bash
 gh issue list --label auto:build --state open --json number,title,body,labels,createdAt --limit 100 > /tmp/dispatch-queue-raw.json
 gh issue list --state open --json number --limit 200 > /tmp/dispatch-open-numbers.json
+WORK_LINKS=$(grep -E "^work-links:" CLAUDE.md .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*work-links:[[:space:]]*//')
 node -e "
   const { parseRecordFacets, parseDependencies } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const { extractKeyFiles, groupByFileOverlap } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
@@ -78,8 +79,34 @@ node -e "
     .map((i) => ({ ...i, facets: parseRecordFacets(i.labels) }))
     .filter((i) => i.facets.grants.build && !i.facets.bot.inProgress && !i.facets.bot.blocked)
     .filter((i) => !parseDependencies(i.body).some((dep) => openNumbers.has(dep)));
-  const items = eligible.map((i) => ({ id: i.number, keyFiles: extractKeyFiles(i) }));
-  const byId = new Map(eligible.map((i) => [i.number, i]));
+  require('fs').writeFileSync('/tmp/dispatch-eligible.json', JSON.stringify(eligible));
+"
+if [ "$WORK_LINKS" = "native" ]; then
+  node -e "
+    const { buildNativeDependencyQuery } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+    const eligible = require('/tmp/dispatch-eligible.json');
+    const query = buildNativeDependencyQuery(eligible.map((i) => i.number));
+    if (query) require('fs').writeFileSync('/tmp/dispatch-native-query.graphql', query);
+  "
+  if [ -s /tmp/dispatch-native-query.graphql ]; then
+    OWNER_REPO=$(gh repo view --json owner,name -q '.owner.login + " " + .name')
+    gh api graphql -f query="$(cat /tmp/dispatch-native-query.graphql)" \
+      -f owner="$(echo "$OWNER_REPO" | cut -d' ' -f1)" -f repo="$(echo "$OWNER_REPO" | cut -d' ' -f2)" \
+      > /tmp/dispatch-native-deps.json
+  else
+    echo '{"data":{"repository":{}}}' > /tmp/dispatch-native-deps.json
+  fi
+else
+  echo '{"data":{"repository":{}}}' > /tmp/dispatch-native-deps.json
+fi
+node -e "
+  const { hasOpenNativeBlocker } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const { extractKeyFiles, groupByFileOverlap } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
+  const eligible = require('/tmp/dispatch-eligible.json');
+  const repoData = require('/tmp/dispatch-native-deps.json').data.repository;
+  const finalEligible = eligible.filter((i) => !hasOpenNativeBlocker(repoData['i' + i.number]));
+  const items = finalEligible.map((i) => ({ id: i.number, keyFiles: extractKeyFiles(i) }));
+  const byId = new Map(finalEligible.map((i) => [i.number, i]));
   const groups = groupByFileOverlap(items).map((ids) => ids.map((id) => byId.get(id)));
   console.log(JSON.stringify(groups));
 " > /tmp/dispatch-groups.json
@@ -87,7 +114,7 @@ node -e "
 
 Two bulk calls, not per-issue re-fetches — the second pull is a cheap existence check for `parseDependencies`' targets (an open blocker under `work-links: body-text`; a record isn't eligible while any `Blocked by #N` line still names an open issue). Grouping still runs before claiming, unlike the pre-grants design, so the full issue body/labels/createdAt needed for eligibility, dependency-checking, and `extractKeyFiles` is already in hand from the first pull.
 
-**`work-links: native` gap.** `parseDependencies` reads only `Blocked by #N` body-text lines — a record whose blocker is expressed via GitHub's native sub-issue/dependency relationship (`work-links: native`) is not filtered by this check. Widening this to also query the native relationship is a follow-up, not covered here.
+**`work-links: native` support.** Under `work-links: native`, one additional batched `gh api graphql` call (`buildNativeDependencyQuery`/`hasOpenNativeBlocker`, `bin/lib/issues/record.js`) queries every eligible candidate's native `blockedBy` connection in a single aliased request and drops any candidate with an `OPEN` native blocker — the same outcome `parseDependencies` already produces for an open `Blocked by #N` body-text line under `work-links: body-text`. The two modes are mutually exclusive per record, mirroring `flow/materialize.md`'s existing `blocked-by` driver/work-links branching — a project mid-migration with stale body-text lines under `native` is out of scope.
 
 The `bot:*` filter here is the cheap label-based pre-filter — labels are projection, not truth (`_shared/work-record.md`). The authoritative unclaimed check is Step 4's atomic 201/422 claim attempt; a record can pass this pre-filter and still turn out contested by the time it's actually claimed. A group of size 1 is a **singleton**; size 2+ is a **bundle** — both dispatch the same way in Step 5, with a different `/flow` invocation shape only.
 
@@ -406,5 +433,5 @@ Render only when a human is present to answer — the bare form is definitionall
 | `_shared/subagent-output-contract.md` | Each group's `Task()` prompt follows the contract's Input Discipline and status-line protocol; the GROUP/OUTCOME/MANIFEST template is this skill's own minimal shape (none of Templates A/B/C fit a full-pipeline-execution agent). |
 | `_shared/label-bootstrap.md` | Canonical check-then-create snippet for `bot:in-progress` / `bot:blocked` — the only two labels dispatch itself ever adds. |
 | `_shared/pipeline-run-dir.md` | Dispatch resolves a standalone-auto run dir (allowlist) for its own `decisions.md`; distinct from the `PIPELINE_RUN_DIR` each dispatched `/flow` run creates for its own build — see Component-Skill Contract above. |
-| `bin/lib/issues/{claims,retry,grouping,record}.js` | The pure helpers behind claim/release payloads, retry-ceiling math, file-overlap grouping, and grant/bot-state facet parsing — dispatch calls all four, unchanged. Step 2 also calls record.js's `parseDependencies` to drop records with an open `Blocked by #N` line from the queue. |
+| `bin/lib/issues/{claims,retry,grouping,record}.js` | The pure helpers behind claim/release payloads, retry-ceiling math, file-overlap grouping, and grant/bot-state facet parsing — dispatch calls all four, unchanged. Step 2 also calls record.js's `parseDependencies` to drop records with an open `Blocked by #N` line from the queue under `work-links: body-text`, and `buildNativeDependencyQuery`/`hasOpenNativeBlocker` to do the same against GitHub's native dependency relationship under `work-links: native`. |
 | `/claude-tweaks:assess-agent-autonomy` | Called inline (not a fresh Task dispatch) at two points: the Auto-merge gate (`merge-check` mode, replacing the old three-layer mechanical check) and the Settle step (`failure-check` mode, replacing unconditional `auto:merge` revocation). Dispatch still owns authorization, claim mechanics, and retry-ceiling counting directly — assess-agent-autonomy only ever returns a verdict, never writes a label itself. |
