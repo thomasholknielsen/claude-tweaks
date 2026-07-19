@@ -419,6 +419,15 @@ bootstraps a label or writes to GitHub/local-files for Approve or Skip:
   `from #{n}`.
 ```
 
+**Correction note (added post-implementation):** the replace text above originally cited
+"(steps 2-3)" for the reused procedure, but the label-backed path's step 3 is "comment a link
+back on the original record" — which the very next clause here correctly says does NOT apply
+(no original record to comment on). Only step 2 (file the linked follow-up record) actually
+applies. Caught by Task 1's task reviewer, not by plan self-review. Fixed directly in
+`skills/demo/SKILL.md` to read "(step 2)"; this plan file's Find/Replace text above is left as
+originally authored, per this project's own convention of documenting the as-authored planning
+mistake for the historical record rather than silently editing it away.
+
 - [ ] **Step 12: Add an Anti-Patterns table row**
 
 Find:
