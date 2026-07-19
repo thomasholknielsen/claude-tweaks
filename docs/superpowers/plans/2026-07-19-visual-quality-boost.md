@@ -768,7 +768,7 @@ On option 1:
 2. **Serve it.** Follow `_shared/dev-url-detection.md`'s "Ephemeral server start" procedure to serve the scaffold's containing directory on a free port. Set `SCAFFOLD_URL = http://localhost:{free-port}/{scaffold-filename}`.
 3. **Hand off to live mode.** Invoke `/claude-tweaks:design-wrapper live <SCAFFOLD_URL>` via the Skill tool. The human explores variants, tunes parameters, and accepts a direction — or exits without accepting, which is treated as a skip: proceed to Step 2.5c with no `Visual-reference:` line.
 4. **Stop the ephemeral server** per `_shared/dev-url-detection.md`'s "Cleanup" — Standalone rule (no pipeline run dir exists yet at this point in `/specify`'s flow).
-5. **Record the reference.** If a variant was accepted, note the scaffold's path for Step 3 (decomposition mode) or the Metadata block (shaping mode) to write as a new `Visual-reference: docs/plans/YYYY-MM-DD-{feature}-shape-scaffold.html` body-metadata line, alongside `Surface:` and `Design-intent:`, on every generated leaf record covering this surface.
+5. **Record the reference.** If a variant was accepted, note the scaffold's path for Step 3 (decomposition mode's own compose-then-write-once step) to write as a new `Visual-reference: docs/plans/YYYY-MM-DD-{feature}-shape-scaffold.html` body-metadata line, alongside `Surface:` and `Design-intent:`, on every generated leaf record covering this surface. Step 2.5b-ii never runs in Shaping mode — Step 2.5b itself is decomposition-mode only, per this file's opening note — so there is no Shaping-mode counterpart to wire up here.
 
 ## Step 2.5c: Design-intent question (frontend only)
 ```
