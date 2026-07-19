@@ -182,7 +182,7 @@ bootstraps a label or writes to GitHub/local-files for Approve or Skip:
   reappear in a future `/demo` run — a different session has no memory of this conversation to
   recall from. This is the accepted tradeoff of not persisting anything, not a bug.
 - **Request changes** — the exact same follow-up-filing procedure as the label-backed path's
-  Request changes above (steps 2-3), reusing `recordPayload`/`allocateId` directly — the only
+  Request changes above (step 2), reusing `recordPayload`/`allocateId` directly — the only
   difference is there is no original record to relabel or comment a link back onto. The
   `Origin:` body line reads `Origin: demo changes-requested from session recall` instead of
   `from #{n}`.
