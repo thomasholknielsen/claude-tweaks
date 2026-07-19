@@ -81,6 +81,7 @@ node -e "
   require('fs').writeFileSync('/tmp/dispatch-eligible.json', JSON.stringify(eligible));
 "
 if [ "$WORK_LINKS" = "native" ]; then
+  rm -f /tmp/dispatch-native-query.graphql
   node -e "
     const { buildNativeDependencyQuery } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
     const eligible = require('/tmp/dispatch-eligible.json');
