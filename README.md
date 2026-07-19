@@ -6,6 +6,16 @@ A structured workflow system for Claude Code — from idea capture through build
 
 Claude Code is powerful but unstructured. claude-tweaks adds a complete development lifecycle: capture ideas, challenge assumptions, decompose into specs, build with quality gates, and learn from what was built. Every finding is explicitly resolved — nothing silently drops.
 
+### What's new in v6.9.0 — /demo session-recall fallback
+
+`/claude-tweaks:demo` now aggregates a second, independent source alongside `demo:pending`
+records: work done directly in the current conversation with no backing record at all. When
+`/demo` finds nothing pending and the session itself did unrecorded implementation/verification
+work, it recaps that work in the same Verification Brief shape (composed from recall, not a
+diff) and asks for a verdict. Approve/Skip leave no trace — the verdict lives in the
+conversation — while Request changes files a real follow-up record, same as it always has for
+record-backed items.
+
 ### What's new in v6.7.0 — Fast-lane pipeline profile
 
 A new `ceremony-profile` Manifesto lever (fed by `/claude-tweaks:assess-agent-autonomy`'s new
@@ -167,7 +177,7 @@ See [CHANGELOG.md](CHANGELOG.md) for earlier release notes (v4.6, v4.5, v4.2, v4
                             applies demo:pending + posts a Verification Brief on
                             the record — record mode only)
      │
-  ┈┈ /claude-tweaks:demo resolves demo:pending → approved/changes-requested (utility skill, no fixed position — run anytime, aggregates every in-flight thread) ┈┈
+  ┈┈ /claude-tweaks:demo resolves demo:pending → approved/changes-requested (utility skill, no fixed position — run anytime, aggregates every in-flight thread, plus this session's own unrecorded work via session-recall) ┈┈
 ```
 
 > **Left column:** `/claude-tweaks:{name}` — **Right column:** `/superpowers:{name}` ([Superpowers plugin](https://github.com/obra/superpowers))
@@ -286,7 +296,7 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 
 **`/claude-tweaks:tidy`** — Batch backlog hygiene. Scans the live work-record queue (backlog, parked, unsynced, unscored `ready`, `bot:blocked`, legacy-taxonomy records), scans review/wrap-up history for recurring patterns across specs, audits the documentation registry, and recommends project-level fixes. Also audits GitHub state — stale open PRs, code-health/harness-health/journey-health/docs-health-filed issues, addressed-but-unresolved review threads — with GitHub mutations (close, resolve) executing only after batch approval. Pass `--scope=<name>[,<name>...]` to narrow a run to specific scan steps (e.g. `--scope=github` for GitHub PR/issue triage only) instead of the full sweep.
 
-**`/claude-tweaks:demo`** — The durable, cross-thread acceptance gate: aggregates every record `/claude-tweaks:wrap-up` has labeled `demo:pending` (open or closed — covers already-merged `auto:merge` work too), replays the Verification Brief `/wrap-up` wrote at build time so you never re-derive "how do I test this," and captures a real human verdict distinct from tests passing (`/test`) or code-quality review (`/review`). Approve resolves to `demo:approved`; requesting changes resolves to `demo:changes-requested` and files a linked follow-up backlog record. Bare `/demo` sweeps everything pending; `/demo #N` scopes to one record.
+**`/claude-tweaks:demo`** — The durable, cross-thread acceptance gate: aggregates every record `/claude-tweaks:wrap-up` has labeled `demo:pending` (open or closed — covers already-merged `auto:merge` work too), plus any work the current conversation itself did with no backing record at all, replays or recomposes the Verification Brief so you never re-derive "how do I test this," and captures a real human verdict distinct from tests passing (`/test`) or code-quality review (`/review`). Approve resolves a label-backed record to `demo:approved`; for a session-recall entry, Approve/Skip write nothing anywhere — the verdict just lives in the conversation. Requesting changes always files a linked follow-up backlog record, label-backed or not. Bare `/demo` sweeps everything pending plus this session's own unrecorded work; `/demo #N` scopes to one label-backed record.
 
 **`/claude-tweaks:browse`** — Browser automation via agent-browser. Defines session naming, screenshot/trace paths, and operation vocabulary used by /stories, /visual-review, and /review.
 
