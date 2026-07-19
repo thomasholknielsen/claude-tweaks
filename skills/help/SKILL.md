@@ -132,6 +132,7 @@ For a detailed explanation of how context flows between skills via artifacts, re
 | `/claude-tweaks:wrap-up` | /claude-tweaks:help flags specs awaiting wrap-up |
 | `/claude-tweaks:tidy` | /claude-tweaks:help suggests /claude-tweaks:tidy when maintenance is needed |
 | `/claude-tweaks:triage` | Surfaces pending-authorization count, `bot:blocked` count, and rolling auto-merge count on the dashboard (Stage 4.6, `triage-queue` scope) — the reciprocal of `triage/SKILL.md`'s own `/claude-tweaks:help` row. |
+| `/claude-tweaks:review-backlog` | Reciprocal: could surface an "N unscored records" nudge on the dashboard — the reciprocal of this skill already surfacing `/claude-tweaks:triage`'s pending-authorization count. |
 | `/claude-tweaks:demo` | Surfaces the `demo:pending` count on the dashboard (Stage 4.7, `acceptance-queue` scope) — the reciprocal of `demo/SKILL.md`'s own `/claude-tweaks:help` row. |
 | `/claude-tweaks:dispatch` | /claude-tweaks:help surfaces the `authorized` and `building` counts dispatch acts on (Stage 1) — the reciprocal of `dispatch/SKILL.md`'s own `/claude-tweaks:help` row. |
 | `/claude-tweaks:flow` | /claude-tweaks:help lists /claude-tweaks:flow as an automation option for ready specs |

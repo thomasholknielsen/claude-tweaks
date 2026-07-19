@@ -261,6 +261,7 @@ Parent invocation of `/capture` is signaled by `$PIPELINE_RUN_DIR` being set in 
 | `/claude-tweaks:challenge` | Debiases backlog records before `/superpowers:brainstorming` — /claude-tweaks:help flags candidates |
 | `/superpowers:brainstorming` | Explores promoted backlog records — produces design docs |
 | `/claude-tweaks:specify` | Shapes captured records to spec shape (adds `ready` + scoring) — the primary capture→specify path; also decomposes brainstormed design docs into ready leaf records |
+| `/claude-tweaks:review-backlog` | Consumes and enriches the `**Related:**` field this skill's Entry Format stamps — review-backlog is the only skill that suggests values for it, always human-confirmed. |
 | `/claude-tweaks:tidy` | Reviews the backlog for stale records — promotes, absorbs, or deletes |
 | `/claude-tweaks:review` | May file new backlog records for ideas discovered during review |
 | `/claude-tweaks:wrap-up` | May file new backlog records for genuinely new ideas; leftover work becomes a `parked` record instead |

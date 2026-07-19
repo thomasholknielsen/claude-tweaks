@@ -395,6 +395,7 @@ Render only when a human is present to answer — the bare form is definitionall
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:triage` | The human gate upstream — grants `auto:build` (optionally `+ auto:merge`) that dispatch selects on. Dispatch never grants; it only strips or downgrades a grant on failure or at the retry ceiling. Triage never claims or dispatches. |
+| `/claude-tweaks:review-backlog` | The only skill that ever suggests a `priority:*` value (human-confirmed) — dispatch's `next` form consumes whatever value results for its tie-break ordering. Review-backlog never claims, dispatches, or grants. |
 | `/claude-tweaks:flow` | The executor dispatch hands claimed groups to — `CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow #{n}[,#{m}...]`. `/flow` is opaque to dispatch: materialization (spec derivation, multi-issue bundling) is `/flow`'s own concern, not dispatch's. |
 | `_shared/issue-claims.md` | Defines the claim protocol (the lock, the mirror, the group-claim rule, release triggers, the ownership rule) that dispatch implements start to finish — claim in Step 4, release in Settle. |
 | `_shared/work-record.md` | Taxonomy home — the seven-axis label contract and the permission-matrix row dispatch implements (`bot:in-progress` / `bot:blocked` add; `auto:merge` / `auto:*` / `bot:in-progress` remove; never add `auto:*` or `ready`). |
