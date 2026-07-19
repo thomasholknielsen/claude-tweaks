@@ -17,6 +17,10 @@ Before dispatching implementation, invoke the design wrapper to lazy-load Impecc
 
 Invoke `/claude-tweaks:design-wrapper pre-build <spec>`. Pass the record/spec number — the wrapper resolves it to the materialized header (record mode) or the legacy spec file (spec-file alias) the same way Common Step 1.7's own surface check does — or the design doc path as a fallback.
 
+## Visual-reference scaffold (when present)
+
+When the resolved record/spec carries a `Visual-reference:` body-metadata line (written by `/specify` Step 2.5b-ii — see `specify/design-pre-steps.md`), read that scaffold file directly (it is a small, already-committed static HTML file) and include its full contents in the implementer subagent's prompt as the concrete, already-selected visual direction — in addition to, not instead of, the loaded Impeccable references and the text brief. Frame it explicitly: "This is the accepted visual direction from shape-time exploration — port its structure, hierarchy, and visual treatment into the real component architecture; it is a north star, not a screenshot to trace verbatim (real data wiring, routing, accessibility semantics, and framework conventions still need to be built properly)." Absence of `Visual-reference:` is normal (most records won't have one) — proceed exactly as today.
+
 ## Result handling
 
 | Wrapper return | Build behavior |
