@@ -55,7 +55,7 @@ This is the "sampled and selected starting ground": the taste call (which direct
 
 ### D. Standalone `/visual-review` — opt-in boost
 
-At the end of the existing report (after today's Step 6 / Creative Opportunities survey), when `/visual-review` is running standalone and interactive — no `$PIPELINE_RUN_DIR` set, the same signal the skill's Component-Skill Contract already uses to decide whether to render Next Actions — add a front-door-confirm gate:
+After the existing report is assembled and the Creative Opportunities block is rendered (SKILL.md's Step 3, which internally runs `browser-review.md`'s Report & Route step, followed by SKILL.md's own Step 4), add a new Step 5. When `/visual-review` is running standalone and interactive — no `$PIPELINE_RUN_DIR` set, the same signal the skill's Component-Skill Contract already uses to decide whether to render Next Actions — this new step presents a front-door-confirm gate:
 
 > "Want me to go further?" — **Fix flagged issues (Recommended)** / Explore alternatives / Both / No thanks, just the report.
 
