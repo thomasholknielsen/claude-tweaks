@@ -59,6 +59,50 @@ test('record-worktree writes run-state, prints a confirmation line, and close-ru
   assert.strictEqual(state.status, 'clean');
 });
 
+test('record-worktree --run pins the target run dir, ignoring a newer stale non-terminal run that would otherwise win the fallback', () => {
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-disp-'));
+  const staleDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-15T090000-record-19');
+  const ownDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  // staleDir sorts newer than ownDir and is non-terminal (interrupted, never
+  // closed) — resolveRunDir's fallback (listRunDirs[0], newest non-terminal
+  // by name) would pick staleDir over ownDir with no --run override. This is
+  // exactly #19/#36's cross-contamination shape: a later, unrelated call
+  // resolving to an older run's directory because it was never marked clean.
+  fs.mkdirSync(staleDir, { recursive: true });
+  fs.writeFileSync(path.join(staleDir, 'run-state.json'), JSON.stringify({ status: 'interrupted' }));
+  fs.mkdirSync(ownDir, { recursive: true });
+
+  const noFlag = runHook(['record-worktree', '/tmp/wt-fallback'], { cwd: project });
+  assert.strictEqual(noFlag.code, 0);
+  assert.match(noFlag.stdout, /worktree recorded for 2026-07-15T090000-record-19/,
+    'sanity check: without --run, the fallback really does pick the newer stale run, not ownDir');
+  assert.strictEqual(fs.existsSync(path.join(ownDir, 'run-state.json')), false);
+  // The no-flag call above IS the vulnerability being demonstrated — it just
+  // corrupted staleDir's state exactly like #19/#36. Snapshot that corrupted
+  // state so the next assertion can prove the FIX (an explicitly-targeted
+  // --run call) doesn't compound it by touching staleDir a second time.
+  const staleStateAfterFallback = JSON.parse(fs.readFileSync(path.join(staleDir, 'run-state.json'), 'utf8'));
+
+  const withFlag = runHook(['record-worktree', '--run', ownDir, '/tmp/wt-correct'], { cwd: project });
+  assert.strictEqual(withFlag.code, 0);
+  assert.match(withFlag.stdout, /worktree recorded for 2026-07-01T090000-spec-1/);
+  const ownState = JSON.parse(fs.readFileSync(path.join(ownDir, 'run-state.json'), 'utf8'));
+  assert.strictEqual(ownState.worktree, path.resolve('/tmp/wt-correct'));
+  assert.strictEqual(ownState.status, 'active');
+  const staleStateAfterExplicitCall = JSON.parse(fs.readFileSync(path.join(staleDir, 'run-state.json'), 'utf8'));
+  assert.deepStrictEqual(staleStateAfterExplicitCall, staleStateAfterFallback,
+    'an explicitly-targeted --run call must not touch a different run dir at all');
+});
+
+test('record-worktree accepts --run before or after the worktree positional', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  const result = runHook(['record-worktree', '/tmp/wt-2', '--run', run], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  const state = JSON.parse(fs.readFileSync(path.join(run, 'run-state.json'), 'utf8'));
+  assert.strictEqual(state.worktree, path.resolve('/tmp/wt-2'));
+});
+
 test('record-worktree without a run dir exits 0 and prints a not-recorded notice', () => {
   const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bare-'));
   const result = runHook(['record-worktree', '/tmp/wt'], { cwd: bare });

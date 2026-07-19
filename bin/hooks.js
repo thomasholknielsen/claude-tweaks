@@ -16,12 +16,26 @@ function loadModule(event) {
 function main(argv) {
   const cmd = argv[2];
   if (cmd === 'record-worktree') {
-    const runDir = ctxLib.resolveRunDir(process.cwd(), process.env);
-    if (runDir && argv[3]) {
+    // --run <path> pins the target run dir explicitly, mirroring close-run
+    // below — without it, this always fell through to resolveRunDir's
+    // "newest non-terminal run" fallback, which a stale never-closed run
+    // could win over the run genuinely making this call. Strip --run and its
+    // value out of the remaining args so the worktree positional resolves
+    // correctly regardless of flag placement.
+    const rest = argv.slice(3);
+    const flagIdx = rest.indexOf('--run');
+    let explicitRun = null;
+    if (flagIdx !== -1) {
+      explicitRun = rest[flagIdx + 1] || null;
+      rest.splice(flagIdx, 2);
+    }
+    const worktreeArg = rest[0];
+    const runDir = explicitRun || ctxLib.resolveRunDir(process.cwd(), process.env);
+    if (runDir && worktreeArg) {
       // Stamp the owning session so E1 can scope enforcement to it. Absent env
       // var: omit the key rather than write null — an env-less re-record must
       // not clobber a previous stamp.
-      const patch = { worktree: path.resolve(argv[3]), status: 'active' };
+      const patch = { worktree: path.resolve(worktreeArg), status: 'active' };
       if (process.env.CLAUDE_CODE_SESSION_ID) patch.sessionId = process.env.CLAUDE_CODE_SESSION_ID;
       ctxLib.writeRunState(runDir, patch);
       process.stdout.write(`claude-tweaks: worktree recorded for ${path.basename(runDir)}\n`);
