@@ -398,7 +398,7 @@ Handle the wrapper's return:
 > These are recommendations only. Run any command manually if you want to apply it.
 ```
 
-When the wrapper reports `suppressed > 0` in its return, append a small note below the table: `> N suggestion(s) hidden — previously declined for this spec. Reset with /claude-tweaks:design reset-recommendations <spec>.`
+When the wrapper reports `suppressed > 0` in its return, append a small note below the table: `> N suggestion(s) hidden — previously declined for this spec. Reset with /claude-tweaks:design-wrapper reset-recommendations <spec>.`
 ```
 
 Replace with:
