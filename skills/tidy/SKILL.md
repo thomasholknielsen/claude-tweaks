@@ -199,7 +199,7 @@ Every Standalone-auto `--scope=github` firing updates one rolling digest artifac
 - `work-backend: github-issues` (or any project with a reachable GitHub remote, regardless of which record-storage backend is active — this is about where the digest lives, not the record-storage choice): find the digest issue via `gh issue list --search "Tidy GitHub-Triage Digest in:title" --state open --json number,title,body`, then confirm the match by checking its body contains the exact marker `<!-- tidy-digest-marker -->` (title alone is not sufficient — do not match on title only). If found, `gh issue edit {n} --body-file <file>`. If not found (first-ever firing, or the issue was manually closed), `gh issue create --title "Tidy GitHub-Triage Digest" --body-file <file>` once.
 - `work-backend: local-files` with no reachable GitHub remote: rewrite `.claude-tweaks/tidy-digest.md` in place and commit it.
 
-**Structure**, exactly three sections in this order:
+**Structure**, exactly four sections in this order:
 
 ```markdown
 <!-- tidy-digest-marker -->
@@ -227,6 +227,21 @@ Last updated: {ISO timestamp}
 
 **Backlog:** {N} records with no stage label
 - #{number}: {title}
+
+## Pipeline Funnel
+
+| Transition | Median | Sample size |
+|---|---|---|
+| Shaping latency (filed → ready) | {duration} | {N} |
+| Grant latency (ready → authorized) | {duration} | {N} |
+| Build latency (authorized → closed) | {duration} | {N} |
+
+Retry rate: {rate}% ({failedAttempts}/{totalAttempts} across sampled records)
+
+Wontfix rate by origin:
+| Origin | Rate |
+|---|---|
+| {by:code-health, etc.} | {rate}% ({wontfix}/{total}) |
 ```
 
 Each bucket's bullet list is one `- #{number}: {title}` line per entry in that bucket's list (`pendingList`/`blockedList`/`backlogList` from `github-pr-scan.md` item 8) — omit both the summary line and the bullet list together when a bucket's count is 0. No cap on list length: if a bucket holds 40 records, all 40 render.
@@ -234,6 +249,23 @@ Each bucket's bullet list is one `- #{number}: {title}` line per entry in that b
 Because Step 4.8 runs as a dispatched Task agent bound to the Output Contract's `[queue]` row (bare counts only, per `github-pr-scan.md`'s Output Contract section) — not the underlying `pendingList`/`blockedList`/`backlogList` arrays item 8's script computes internally — the digest-writing step sources these bullets by re-running item 8's query itself, directly, after Steps 1-4.8 complete (the orchestrator has its own `gh`/`node` access; this is not something any Step 4.8 subagent does). This is a second, cheap invocation of the same single `gh issue list --state open` query item 8 already runs once for the `[queue]` row's counts — not a change to the Output Contract shared by every other tidy scan step.
 
 **Dedup (applies to the "Still needs your review" finding rows only — the other two sections are a fresh append per firing since they're already-resolved actions, and the three enumerated buckets below "Still needs your review" — Pending authorization/Blocked/Backlog — are regenerated fresh from a live query each firing, not appended-and-deduped, so a record dropping out between firings needs no removal step):** before adding a row, compute its key as `{PR or issue number}:{finding-type}` (e.g. `142:stale-pr`, `88:unresolved-thread`). Read the digest's current "Still needs your review" section and check for a row with a matching key (match on the PR/issue number and finding-type substring in the existing row text — both are always present in the rendered row). If found, update only that row's `(still open as of {timestamp})` suffix to the current firing's timestamp — do not add a second row, and do not mark this finding as new-this-firing (see the Notification subsection below, which fires only on new-this-firing findings). If not found, append a new row and mark it new-this-firing — this is either a genuinely new finding or one whose finding-type changed materially for the same number (e.g. a PR that was `Review` last firing is now `CI-red` — a different finding-type key, so a new row).
+
+**Pipeline Funnel (regenerated fresh each firing, not appended-and-deduped — same treatment as the three enumerated buckets above, not the finding rows):** sample closed records from the last 90 days (bounds the `gh api` cost on a digest rewritten every firing) via `gh issue list --state closed --json number,labels,stateReason,createdAt,closedAt --search "closed:>{90-days-ago}"`. For each sampled record, fetch its labeled/unlabeled timeline events (`gh api repos/{owner}/{repo}/issues/{n}/timeline --jq '.[] | select(.event == "labeled" or .event == "unlabeled")'`) and its comments (for retry-rate input), then compute:
+
+```bash
+node -e "
+  const { computeStageDurations, computeWontfixRate, summarizeFunnel } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/metrics.js');
+  const { countFailedAttempts } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/retry.js');
+  const sampled = require('/tmp/tidy-funnel-sample.json'); // [{createdAt, closedAt, events, labels, stateReason, comments}]
+  const perIssueDurations = sampled.map((r) => computeStageDurations(r));
+  const wontfixByOrigin = computeWontfixRate(sampled.map((r) => ({ labels: r.labels, stateReason: r.stateReason })));
+  const failedAttempts = sampled.reduce((sum, r) => sum + countFailedAttempts(r.comments), 0);
+  const totalAttempts = sampled.length;
+  console.log(JSON.stringify(summarizeFunnel(perIssueDurations, wontfixByOrigin, { failedAttempts, totalAttempts })));
+"
+```
+
+Render the `## Pipeline Funnel` section from the result — `medianMs`/`sampleSize` per transition into the table, `retryRate` into the retry-rate line, `wontfixByOrigin` into the wontfix table. **Omit the entire section** (not a table of zeroes or dashes) when the 90-day sample is empty — a new or low-volume project has nothing meaningful to report yet.
 
 #### Notification (`--scope=github` routine firings only)
 

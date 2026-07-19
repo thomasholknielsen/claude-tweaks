@@ -1,0 +1,87 @@
+// Pure: feedback-loop metrics for the work-record pipeline (backlog -> ready ->
+// authorized -> closed). Computes durations and rates from data the caller
+// already fetched via `gh api` (issue timeline events, comments, closed-issue
+// lists) — no network calls here, matching every sibling module in this
+// directory. Consumed by /claude-tweaks:tidy's --scope=github rolling digest.
+'use strict';
+
+const AUTHORIZATION_LABELS = ['auto:build', 'auto:merge'];
+
+// A single labeled event's timestamp for the first occurrence of `label` in
+// `events` ([{event: 'labeled'|'unlabeled', label, created_at}]), or null when
+// that label never appears — never fabricated as 0.
+function firstLabelTime(events, label) {
+  const match = (events || []).find((e) => e.event === 'labeled' && e.label === label);
+  return match ? new Date(match.created_at).getTime() : null;
+}
+
+// Earliest timestamp among the given labels' first occurrences, or null when
+// none of them appear at all.
+function earliestLabelTime(events, labels) {
+  const times = labels.map((label) => firstLabelTime(events, label)).filter((t) => t !== null);
+  return times.length > 0 ? Math.min(...times) : null;
+}
+
+// { createdAt, closedAt, events } -> { shapingMs?, grantMs?, buildMs? }.
+// Each key is present only when both its start and end timestamps are known —
+// an issue still in an earlier stage yields fewer keys, not zeroed ones, so a
+// later aggregate median is never silently corrupted by a fabricated 0.
+function computeStageDurations({ createdAt, closedAt, events } = {}) {
+  const created = createdAt ? new Date(createdAt).getTime() : null;
+  const readyAt = firstLabelTime(events, 'ready');
+  const grantAt = earliestLabelTime(events || [], AUTHORIZATION_LABELS);
+  const closed = closedAt ? new Date(closedAt).getTime() : null;
+
+  const durations = {};
+  if (created !== null && readyAt !== null) durations.shapingMs = readyAt - created;
+  if (readyAt !== null && grantAt !== null) durations.grantMs = grantAt - readyAt;
+  if (grantAt !== null && closed !== null) durations.buildMs = closed - grantAt;
+  return durations;
+}
+
+// Sorted-ascending numeric array -> median. Standard odd/even handling.
+function median(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
+// closedIssues: [{number, labels: string[], stateReason}] -> per-origin
+// wontfix rate. Origin is the first by:* label found, or 'human' when absent
+// (_shared/work-record.md's origin axis convention). An origin with zero
+// closed issues never occurs here by construction (it's only ever computed
+// from issues that exist), so no div-by-zero guard is needed beyond total > 0.
+function computeWontfixRate(closedIssues) {
+  const byOrigin = {};
+  for (const issue of closedIssues || []) {
+    const originLabel = (issue.labels || []).find((l) => l.startsWith('by:'));
+    const origin = originLabel ? originLabel.slice('by:'.length) : 'human';
+    if (!byOrigin[origin]) byOrigin[origin] = { total: 0, wontfix: 0 };
+    byOrigin[origin].total += 1;
+    if (issue.stateReason === 'NOT_PLANNED') byOrigin[origin].wontfix += 1;
+  }
+  const result = {};
+  for (const [origin, { total, wontfix }] of Object.entries(byOrigin)) {
+    result[origin] = { total, wontfix, rate: total > 0 ? (wontfix / total) * 100 : 0 };
+  }
+  return result;
+}
+
+// perIssueDurations: array of computeStageDurations() outputs.
+// wontfixByOrigin: computeWontfixRate() output.
+// retryStats: { failedAttempts, totalAttempts } (from retry.js's
+// countFailedAttempts, summed across the sampled records by the caller).
+// -> { transitions: { shapingMs/grantMs/buildMs: {medianMs, sampleSize} },
+//      retryRate, wontfixByOrigin }.
+function summarizeFunnel(perIssueDurations, wontfixByOrigin, retryStats) {
+  const transitions = {};
+  for (const key of ['shapingMs', 'grantMs', 'buildMs']) {
+    const values = (perIssueDurations || []).map((d) => d[key]).filter((v) => v !== undefined);
+    if (values.length > 0) transitions[key] = { medianMs: median(values), sampleSize: values.length };
+  }
+  const { failedAttempts = 0, totalAttempts = 0 } = retryStats || {};
+  const retryRate = totalAttempts > 0 ? (failedAttempts / totalAttempts) * 100 : 0;
+  return { transitions, retryRate, wontfixByOrigin: wontfixByOrigin || {} };
+}
+
+module.exports = { computeStageDurations, computeWontfixRate, summarizeFunnel };
