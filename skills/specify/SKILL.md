@@ -550,7 +550,7 @@ Branches on driver, then — for `github-issues` — on `work-links`.
   gh api repos/{owner}/{repo}/issues/$PARENT_NUM/sub_issues -f sub_issue_id=$LEAF_NUM
   ```
 
-- Leaf ↔ leaf, and leaf ↔ any pre-existing open record from Step 1's companion overlaps or Step 2's implicit-dependency notes — the blocked-by dependency endpoint (the same GitHub issue-dependencies feature `capabilities-probe.js`'s `probeSchema` checks for, via the `blockedBy`/`issueDependenciesSummary` GraphQL fields). Call it once per dependency edge, dependent leaf pointing at blocking record.
+- Leaf ↔ leaf, and leaf ↔ any pre-existing open record from Step 1's companion overlaps or Step 2's implicit-dependency notes — the blocked-by dependency endpoint (the same GitHub issue-dependencies feature `capabilities-probe.js`'s `probeSchema` checks for, via the `blockedBy` GraphQL field — the sibling `issueDependenciesSummary` field is count-only and insufficient, see that file's header comment). Call it once per dependency edge, dependent leaf pointing at blocking record.
 - No body edits needed for native linking — the relationships live in GitHub's own graph, not in text.
 
 **`work-backend: github-issues`, `work-links: body-text`** (fallback when native isn't available):

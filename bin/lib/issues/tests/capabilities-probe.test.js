@@ -49,14 +49,14 @@ test('probeCapabilities: introspection throws, issueTypes succeeds -> introspect
   assert.deepStrictEqual(result, { types: true, subIssues: false, dependencies: false });
 });
 
-test('probeCapabilities: issueTypes returns garbage JSON, introspection has issueDependenciesSummary only -> dependencies true, types false', () => {
+test('probeCapabilities: issueTypes returns garbage JSON, introspection has issueDependenciesSummary only -> dependencies false (count-only field is not sufficient), types false', () => {
   const runner = (args) => {
     if (isIntrospection(args)) return introspectionJSON(['issueDependenciesSummary', 'title']);
     if (isIssueTypesQuery(args)) return 'not valid json {{{';
     throw new Error(`unexpected call: ${JSON.stringify(args)}`);
   };
   const result = probeCapabilities({ owner: 'acme', repo: 'widgets', runner });
-  assert.deepStrictEqual(result, { types: false, subIssues: false, dependencies: true });
+  assert.deepStrictEqual(result, { types: false, subIssues: false, dependencies: false });
 });
 
 test('probeCapabilities calls the runner exactly twice, lazily, and only when invoked', () => {

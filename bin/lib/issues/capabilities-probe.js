@@ -4,8 +4,14 @@
 // native|labels, work-links: native|body-text) instead of every skill
 // re-probing mid-flow. Two independent `gh api graphql` probes:
 //   1. Schema introspection on the Issue type — does this GitHub host's
-//      schema expose subIssues / dependency (blockedBy or
-//      issueDependenciesSummary) fields (varies by GHE version)?
+//      schema expose subIssues / blockedBy fields (varies by GHE version)?
+//      `dependencies` requires `blockedBy` specifically, not the sibling
+//      `issueDependenciesSummary` field some GHE versions expose instead:
+//      that field is count-only (no per-issue node data), so it cannot
+//      back the query bin/lib/issues/record.js's buildNativeDependencyQuery
+//      actually issues — treating it as sufficient would let /init enable
+//      work-links: native on a host where every resulting query fails
+//      schema validation.
 //   2. Repository issueTypes enablement — Issue Types are an org-level
 //      feature; repository.issueTypes is non-null only when the org has
 //      it turned on.
@@ -33,7 +39,7 @@ function probeSchema(runner) {
     const names = Array.isArray(fields) ? fields.map((f) => f && f.name) : [];
     return {
       subIssues: names.includes('subIssues'),
-      dependencies: names.includes('blockedBy') || names.includes('issueDependenciesSummary'),
+      dependencies: names.includes('blockedBy'),
     };
   } catch {
     return { subIssues: false, dependencies: false };
