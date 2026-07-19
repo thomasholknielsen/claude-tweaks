@@ -189,11 +189,68 @@ Skill curation declares "No skill updates needed" only when seeds, the independe
 ## Step 8: Analyze Next Steps (record- or spec-based only)
 
 Determine:
-1. **Newly unblocked specs** — what can now be worked on?
+1. **Newly unblocked records** — what can now be worked on? Record mode only (below); the legacy spec-file alias has no equivalent check here — suggest `/claude-tweaks:help` for that case.
 2. **Parallel opportunities** — which specs have no dependencies?
 3. **Recommended next spec** — based on dependencies and logical flow
 
 Suggest running `/claude-tweaks:help` to see the full workflow status.
+
+### Newly unblocked records (record mode only)
+
+The record this run just closed is already known — `record: {n}` from the materialized header (the same field the close-via-merge carrier commit used). Check whether closing it unblocked anything, purely informational — this must never gate, block, or delay the wrap-up; on any error, log and continue.
+
+**`work-backend: github-issues`:**
+
+```bash
+gh issue list --state open --json number,title,body --limit 200 > /tmp/wrapup-open-records.json
+node -e "
+  const { parseDependencies } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const records = require('/tmp/wrapup-open-records.json');
+  const closedNum = ${CLOSED_NUM};
+  const dependents = records
+    .map((r) => ({ number: r.number, title: r.title, blockedBy: parseDependencies(r.body) }))
+    .filter((r) => r.blockedBy.includes(closedNum));
+  require('fs').writeFileSync('/tmp/wrapup-dependents.json', JSON.stringify(dependents));
+"
+```
+
+If `dependents` is non-empty, check whether **every other** blocker (excluding the record that just closed) is also already resolved — one batch call, not one query per blocker id:
+
+```bash
+gh issue list --state all --json number,state --limit 200 > /tmp/wrapup-all-states.json
+node -e "
+  const dependents = require('/tmp/wrapup-dependents.json');
+  const allStates = require('/tmp/wrapup-all-states.json');
+  const stateOf = new Map(allStates.map((i) => [i.number, i.state]));
+  const closedNum = ${CLOSED_NUM};
+  const unblocked = dependents.filter((d) => d.blockedBy.every((b) => b === closedNum || stateOf.get(b) === 'CLOSED'));
+  require('fs').writeFileSync('/tmp/wrapup-unblocked.json', JSON.stringify(unblocked));
+"
+```
+
+**`work-backend: local-files`:**
+
+```bash
+node -e "
+  const { queryRecords, readRecord } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+  const glob = require('fs').readdirSync('specs').filter((f) => /^\d+-.*\.md\$/.test(f));
+  const closedNum = ${CLOSED_NUM};
+  const openRecords = queryRecords('specs', {}); // excludes closed by default — correct for finding open dependents
+  const dependents = openRecords
+    .map((r) => ({ id: r.id, title: r.title, blockedBy: r.facets.blockedBy || [] }))
+    .filter((r) => r.blockedBy.includes(closedNum));
+  const isBlockerResolved = (id) => {
+    const file = glob.find((f) => f.startsWith(id + '-'));
+    if (!file) return true; // already gone — treat as resolved
+    const r = readRecord('specs/' + file);
+    return r.facets.closed === true;
+  };
+  const unblocked = dependents.filter((d) => d.blockedBy.every((b) => b === closedNum || isBlockerResolved(b)));
+  require('fs').writeFileSync('/tmp/wrapup-unblocked.json', JSON.stringify(unblocked));
+"
+```
+
+For every record in the resulting `/tmp/wrapup-unblocked.json`: log one line to `decisions.md` (`AUTO {time} — Step 8: closing #{n} unblocked #{m} ("{title}"). Reversibility: n/a (informational).`), and carry it forward as this run's "newly unblocked" signal — feeds the Next Actions table below and the Pipeline Summary's Key Outputs.
 
 ---
 
@@ -401,13 +458,13 @@ When invoked directly by a user (standalone wrap-up), resolve 2-4 options based 
 | Signal | Option |
 |--------|--------|
 | Next spec exists (Step 8) | `/claude-tweaks:flow {N}` — full pipeline on spec {N}: "{title}" **(Recommended)** |
-| Newly unblocked specs | `/claude-tweaks:build {N}` — spec {N} "{title}" now unblocked |
+| Newly unblocked records (Step 8's dependent check — `/tmp/wrapup-unblocked.json`, one option per entry) | `/claude-tweaks:flow #{N}` — record #{N} "{title}" now unblocked by this closure (bare `{N}` under `work-backend: local-files`) |
 | Always | `/claude-tweaks:help` — full pipeline status |
 
 Once the signals are resolved, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
 
 - Option 1 (when a next spec exists) — `label`: `"Full pipeline (Recommended)"`, `description`: `"/claude-tweaks:flow {N} — full pipeline on spec {N}: \"{title}\""`
-- Option 2 (when specs are newly unblocked) — `label`: `"Build {N}"`, `description`: `"/claude-tweaks:build {N} — spec {N} \"{title}\" now unblocked"`
+- Option 2 (one per entry in `/tmp/wrapup-unblocked.json`, up to the tool's option cap) — `label`: `"Pipeline #{N}"`, `description`: `"/claude-tweaks:flow #{N} — record #{N} \"{title}\" now unblocked by this closure"`
 - Option 3 (always) — `label`: `"Pipeline status"`, `description`: `"/claude-tweaks:help — full pipeline status"`
 
 ## Component-Skill Contract
