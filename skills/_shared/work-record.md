@@ -29,7 +29,11 @@ BACKLOG ──/specify shapes──► READY ──human grants──► AUTHORI
 - **authorized** — carries a human-granted `auto:build` (optionally + `auto:merge`).
 - **building** — an agent holds the claim (`bot:in-progress` mirrors the claim ref).
 - **closed** — completed via the user's merge (close-via-merge), or not-planned (wontfix,
-  duplicate, absorbed into another record).
+  duplicate, absorbed into another record). `work-backend: github-issues` — GitHub's own issue
+  state. `work-backend: local-files` — `closeRecord(path)` (`bin/lib/issues/local-store.js`)
+  marks `closed: true` in place; the file stays on disk as history and drops out of
+  `queryRecords`' default results, the same way a closed GitHub issue drops out of
+  `gh issue list --state open`.
 
 Stage vocabulary is exactly these three words — **backlog** (absence of stage labels),
 **parked**, **ready**. Legacy stage names from the spec-file era never name concepts here.

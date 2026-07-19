@@ -56,7 +56,7 @@ Determine what type of work was completed:
 Summarize the implementation against the record or spec:
 
 1. List what was delivered (high-level, not a re-audit)
-2. **100% complete** (confirmed by `/claude-tweaks:review`) → record mode: the record closes via merge (`cleanup-procedures.md` Section C's carrier commit); legacy spec-file alias: the spec file will be deleted
+2. **100% complete** (confirmed by `/claude-tweaks:review`) → record mode, `github-issues`: the record closes via merge (`cleanup-procedures.md` Section C's carrier commit); record mode, `local-files`: the record file is marked `closed: true` in place (`cleanup-procedures.md` item 5); legacy spec-file alias: the spec file will be deleted
 3. **Partial** (if `/claude-tweaks:review` passed with minor gaps flagged) → identify what remains
 
 ### For conversation-based work:

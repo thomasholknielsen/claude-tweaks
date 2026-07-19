@@ -39,6 +39,8 @@ function defaultFacets() {
     blockedBy: [],
     unsynced: false,
     acceptance: null,
+    closed: false,
+    closedAt: null,
   };
 }
 
@@ -88,6 +90,8 @@ function parseFrontmatterLines(fmLines) {
     if ((m = /^effort:\s*(.+)$/.exec(line))) { facets.effort = m[1].trim(); continue; }
     if ((m = /^priority:\s*(.+)$/.exec(line))) { facets.priority = m[1].trim(); continue; }
     if ((m = /^stage:\s*(.+)$/.exec(line))) { facets.stage = m[1].trim(); continue; }
+    if ((m = /^closed:\s*(true|false)$/.exec(line))) { facets.closed = m[1] === 'true'; continue; }
+    if ((m = /^closed-at:\s*(.+)$/.exec(line))) { facets.closedAt = m[1].trim(); continue; }
     if ((m = /^grants:\s*\[(.*)\]$/.exec(line))) {
       const names = parseBracketList(m[1]);
       facets.grants = { build: names.includes('build'), merge: names.includes('merge') };
@@ -149,6 +153,8 @@ function serializeFrontmatter(facets) {
   if (facets.effort) lines.push(`effort: ${facets.effort}`);
   if (facets.priority) lines.push(`priority: ${facets.priority}`);
   if (facets.stage && facets.stage !== 'backlog') lines.push(`stage: ${facets.stage}`);
+  if (facets.closed) lines.push('closed: true');
+  if (facets.closedAt) lines.push(`closed-at: ${facets.closedAt}`);
 
   const grants = facets.grants || {};
   const grantNames = GRANT_KEYS.filter((key) => grants[key]);
@@ -175,6 +181,19 @@ function writeRecord(filePath, { title, body, facets } = {}) {
 
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, parts.join('\n') + '\n', 'utf8');
+}
+
+// filePath -> void. Marks a record closed without deleting it — mirrors a GitHub
+// issue's closed (not deleted) state, so a completed local-files record stops
+// surfacing in default queryRecords results while remaining on disk as history.
+// Preserves every other facet and the record's title/body unchanged.
+function closeRecord(filePath) {
+  const record = readRecord(filePath);
+  writeRecord(filePath, {
+    title: record.title,
+    body: record.body,
+    facets: { ...record.facets, closed: true, closedAt: new Date().toISOString() },
+  });
 }
 
 // dir -> record filenames (NN-*.md, files only, non-recursive), or [] when dir
@@ -211,13 +230,19 @@ function matchesFilter(facets, facetFilter) {
 // (dir, facetFilter) -> record[]. Scans NN-*.md files only, non-recursively.
 // Object-valued filters (e.g. grants) require the exact full shape —
 // {grants:{build:true}} matches nothing; pass the complete object.
+// Mirrors `gh issue list --state open`'s default: a closed record is excluded
+// unless the caller explicitly filters on `closed` (either true or false) —
+// pass { closed: true } to see closed records, matching queryRecords(dir, {})'s
+// existing "open, as today" meaning for every pre-existing call site.
 function queryRecords(dir = DEFAULT_DIR, facetFilter = {}) {
+  const filtersOnClosed = Object.prototype.hasOwnProperty.call(facetFilter, 'closed');
   const records = [];
   for (const name of listRecordFilenames(dir)) {
     const record = readRecord(path.join(dir, name));
+    if (!filtersOnClosed && record.facets.closed) continue;
     if (matchesFilter(record.facets, facetFilter)) records.push(record);
   }
   return records;
 }
 
-module.exports = { DEFAULT_DIR, readRecord, writeRecord, allocateId, queryRecords };
+module.exports = { DEFAULT_DIR, readRecord, writeRecord, allocateId, queryRecords, closeRecord };

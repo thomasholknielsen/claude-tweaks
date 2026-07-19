@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { DEFAULT_DIR, readRecord, writeRecord, allocateId, queryRecords } = require('../local-store');
+const { DEFAULT_DIR, readRecord, writeRecord, allocateId, queryRecords, closeRecord } = require('../local-store');
 
 function tmp(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'local-store-'));
@@ -24,7 +24,7 @@ test('writeRecord then readRecord round-trips facets, id, slug, title, and body'
   const facets = {
     type: 'feature', origin: 'capture', risk: 'medium', effort: 'low', priority: null,
     stage: 'parked', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
-    parent: 12, blockedBy: [12, 7], unsynced: true, acceptance: null,
+    parent: 12, blockedBy: [12, 7], unsynced: true, acceptance: null, closed: false, closedAt: null,
   };
 
   writeRecord(filePath, { title: 'Bar', body: 'Current State…', facets });
@@ -46,7 +46,7 @@ test('writeRecord omits default/absent frontmatter keys from the written file', 
     facets: {
       type: 'task', origin: null, risk: null, effort: null, priority: null,
       stage: 'backlog', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
-      parent: null, blockedBy: [], unsynced: false, acceptance: null,
+      parent: null, blockedBy: [], unsynced: false, acceptance: null, closed: false, closedAt: null,
     },
   });
   const raw = fs.readFileSync(filePath, 'utf8');
@@ -56,6 +56,8 @@ test('writeRecord omits default/absent frontmatter keys from the written file', 
   assert.ok(!/^parent:/m.test(raw), 'must not write parent when null');
   assert.ok(!/^blocked-by:/m.test(raw), 'must not write blocked-by when empty');
   assert.ok(!/^origin:/m.test(raw), 'must not write origin when null');
+  assert.ok(!/^closed:/m.test(raw), 'must not write closed: false');
+  assert.ok(!/^closed-at:/m.test(raw), 'must not write closed-at when null');
   assert.ok(/^type: task$/m.test(raw), 'must still write the non-default type key');
 
   // and it still round-trips to the same facets (omission is lossless)
@@ -63,6 +65,8 @@ test('writeRecord omits default/absent frontmatter keys from the written file', 
   assert.strictEqual(record.facets.stage, 'backlog');
   assert.deepStrictEqual(record.facets.grants, { build: false, merge: false });
   assert.strictEqual(record.facets.unsynced, false);
+  assert.strictEqual(record.facets.closed, false);
+  assert.strictEqual(record.facets.closedAt, null);
 });
 
 // --- allocateId (AC 5) ---
@@ -98,7 +102,7 @@ function baseFacets(overrides) {
   return Object.assign({
     type: 'task', origin: null, risk: null, effort: null, priority: null,
     stage: 'backlog', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
-    parent: null, blockedBy: [], unsynced: false, acceptance: null,
+    parent: null, blockedBy: [], unsynced: false, acceptance: null, closed: false, closedAt: null,
   }, overrides);
 }
 
@@ -180,4 +184,66 @@ test('readRecord on a file with no frontmatter: type null, stage backlog, body i
   assert.deepStrictEqual(record.facets.blockedBy, []);
   assert.strictEqual(record.facets.unsynced, false);
   assert.strictEqual(record.facets.acceptance, null);
+  assert.strictEqual(record.facets.closed, false);
+  assert.strictEqual(record.facets.closedAt, null);
+});
+
+// --- closure (record #13) ---
+
+test('writeRecord then readRecord round-trips closed and closedAt facets', (t) => {
+  const dir = tmp(t);
+  const filePath = path.join(dir, '1-a.md');
+  writeRecord(filePath, { title: 'A', body: 'a', facets: baseFacets({ closed: true, closedAt: '2026-07-19T12:00:00.000Z' }) });
+  const raw = fs.readFileSync(filePath, 'utf8');
+  assert.ok(/^closed: true$/m.test(raw));
+  assert.ok(/^closed-at: 2026-07-19T12:00:00\.000Z$/m.test(raw));
+
+  const record = readRecord(filePath);
+  assert.strictEqual(record.facets.closed, true);
+  assert.strictEqual(record.facets.closedAt, '2026-07-19T12:00:00.000Z');
+});
+
+test('closeRecord marks a record closed with a timestamp, preserving title, body, and other facets', (t) => {
+  const dir = tmp(t);
+  const filePath = path.join(dir, '1-a.md');
+  writeRecord(filePath, { title: 'A', body: 'Current State…', facets: baseFacets({ stage: 'ready', risk: 'low' }) });
+
+  closeRecord(filePath);
+
+  const record = readRecord(filePath);
+  assert.strictEqual(record.facets.closed, true);
+  assert.strictEqual(typeof record.facets.closedAt, 'string');
+  assert.ok(!Number.isNaN(Date.parse(record.facets.closedAt)), 'closedAt must be a parseable timestamp');
+  assert.strictEqual(record.facets.stage, 'ready');
+  assert.strictEqual(record.facets.risk, 'low');
+  assert.strictEqual(record.title, 'A');
+  assert.strictEqual(record.body, 'Current State…');
+});
+
+test('queryRecords excludes closed:true records by default, matching every pre-existing call site\'s "open, as today" expectation', (t) => {
+  const dir = tmp(t);
+  writeRecord(path.join(dir, '1-a.md'), { title: 'A', body: 'a', facets: baseFacets({ stage: 'ready' }) });
+  writeRecord(path.join(dir, '2-b.md'), { title: 'B', body: 'b', facets: baseFacets({ stage: 'ready', closed: true, closedAt: '2026-07-19T12:00:00.000Z' }) });
+
+  const open = queryRecords(dir, {});
+  assert.strictEqual(open.length, 1);
+  assert.strictEqual(open[0].slug, 'a');
+
+  const stageFiltered = queryRecords(dir, { stage: 'ready' });
+  assert.strictEqual(stageFiltered.length, 1, 'a stage filter with no closed key must still exclude the closed record');
+  assert.strictEqual(stageFiltered[0].slug, 'a');
+});
+
+test('queryRecords returns closed records only when the caller explicitly filters on closed', (t) => {
+  const dir = tmp(t);
+  writeRecord(path.join(dir, '1-a.md'), { title: 'A', body: 'a', facets: baseFacets() });
+  writeRecord(path.join(dir, '2-b.md'), { title: 'B', body: 'b', facets: baseFacets({ closed: true, closedAt: '2026-07-19T12:00:00.000Z' }) });
+
+  const closedOnly = queryRecords(dir, { closed: true });
+  assert.strictEqual(closedOnly.length, 1);
+  assert.strictEqual(closedOnly[0].slug, 'b');
+
+  const openOnlyExplicit = queryRecords(dir, { closed: false });
+  assert.strictEqual(openOnlyExplicit.length, 1);
+  assert.strictEqual(openOnlyExplicit[0].slug, 'a');
 });
