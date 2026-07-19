@@ -116,7 +116,7 @@ Render a batch table:
 (`_shared/work-record.md`'s config key). Every other record gets **Needs a look**, no pre-fill —
 this skill exists for real judgment, not rubber-stamping. Session-recall entries never carry
 `risk:*`/`effort:*` labels (there's no record to hold them), so they always render `{ref}` as
-`(session)`, `{type}` as `ad hoc`, `{risk}/{effort}` as `—`, and always get **Needs a look**.
+`(session)`, `{type}` as `ad hoc`, `{risk}/{effort}` as `—`, and always get **Needs a look**. When overriding specific items, refer to a session-recall row as "the session item" (not a `#`)
 
 Call `AskUserQuestion` with `question`: `"How do you want to work through these?"`,
 `header`: `"Sign-off"`, `multiSelect`: `false`:
@@ -138,7 +138,7 @@ Step 1's Source A; session-recall entries were composed directly from recall, al
 - Option 1 — `label`: `"Approve"`, `description`: `"This does what was asked"`
 - Option 2 (only when the brief's "See it yourself" entry point resolved) — `label`: `"Show me live"`, `description`: `"Open {entry point} in a live browser session before deciding"`
 - Option 3 — `label`: `"Request changes"`, `description`: `"There's a gap — I'll describe it"`
-- Option 4 — `label`: `"Skip for now"`, `description`: `"Leave demo:pending — I'll come back to this"`
+- Option 4 — for a label-backed entry: `label`: `"Skip for now"`, `description`: `"Leave demo:pending — I'll come back to this"`. For a session-recall entry: `label`: `"Skip for now"`, `description`: `"Nothing is written — unlike a label-backed record, this won't resurface in a later session"`
 
 **"Show me live"**: open an `agent-browser` session at the brief's resolved entry point, following
 `/claude-tweaks:browse`'s conventions (session naming, lifecycle) directly — the same relationship
@@ -183,8 +183,7 @@ bootstraps a label or writes to GitHub/local-files for Approve or Skip:
   recall from. This is the accepted tradeoff of not persisting anything, not a bug.
 - **Request changes** — the exact same follow-up-filing procedure as the label-backed path's
   Request changes above (step 2), reusing `recordPayload`/`allocateId` directly — the only
-  difference is there is no original record to relabel or comment a link back onto. The
-  `Origin:` body line reads `Origin: demo changes-requested from session recall` instead of
+  difference is there is no original record to relabel or comment a link back onto, or reference within the follow-up's own body — the `Origin:` line is the sole provenance marker for a session-recall follow-up. The `Origin:` body line reads `Origin: demo changes-requested from session recall` instead of
   `from #{n}`.
 
 ## Next Actions
