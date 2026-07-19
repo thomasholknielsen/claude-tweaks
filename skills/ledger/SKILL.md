@@ -213,7 +213,7 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 
 ## Component-Skill Contract
 
-`/ledger` is consumed as a **knowledge dependency** by `/build`, `/test`, `/review`, `/wrap-up`, `/flow`, and `/tidy` — they read this skill to learn the ledger file format and resolve-gate procedure, then write to `.claude-tweaks/ledgers/{feature}.md` directly using file operations. There is no programmatic invocation API.
+`/ledger` is consumed as a **knowledge dependency** by `/build`, `/test`, `/review`, `/wrap-up`, `/flow`, and `/tidy` — they read this skill to learn the ledger file format and resolve-gate procedure, then write to `docs/plans/YYYY-MM-DD-{feature}-ledger.md` directly using file operations. There is no programmatic invocation API.
 
 When `$PIPELINE_RUN_DIR` is set, `/ledger` is running inside a pipeline (typically standalone via /ledger resolve at wrap-up time). In that case omit the `## Next Actions` block — the parent owns the handoff.
 
