@@ -116,7 +116,7 @@ Render a batch table:
 (`_shared/work-record.md`'s config key). Every other record gets **Needs a look**, no pre-fill —
 this skill exists for real judgment, not rubber-stamping. Session-recall entries never carry
 `risk:*`/`effort:*` labels (there's no record to hold them), so they always render `{ref}` as
-`(session)`, `{type}` as `ad hoc`, `{risk}/{effort}` as `—`, and always get **Needs a look**. When overriding specific items, refer to a session-recall row as "the session item" (not a `#`)
+`(session)`, `{type}` as `ad hoc`, `{risk}/{effort}` as `—`, and always get **Needs a look**. When overriding specific items, refer to a session-recall row as "the session item" (not a `#`).
 
 Call `AskUserQuestion` with `question`: `"How do you want to work through these?"`,
 `header`: `"Sign-off"`, `multiSelect`: `false`:
