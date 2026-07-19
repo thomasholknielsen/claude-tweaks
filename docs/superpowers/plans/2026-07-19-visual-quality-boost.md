@@ -922,7 +922,7 @@ After Step 4's Creative Opportunities block (and any apply-gate action from it) 
 
 **Option 1 or 3 — Fix flagged issues:**
 
-1. Invoke `/claude-tweaks:design-wrapper review <files>` via the Skill tool, scoped to the files backing the pages reviewed in this session (from `git diff --name-only` if a spec/worktree context is available, otherwise the file paths the browser walk actually rendered — resolve via the page-to-file mapping already established during reconnaissance).
+1. Invoke `/claude-tweaks:design-wrapper review` via the Skill tool with no explicit target — the wrapper's `review` mode documents its target as a spec number or path, not a file list, and always resolves scope itself: an active spec's file list intersected with `git diff --name-only`, or a full-diff fallback filtered to frontend paths (see `design-wrapper/modes/review.md` Step 2). This means Fix path's scope tracks the current uncommitted diff, not necessarily every page walked in this browser session — if the two differ noticeably, note that in the report.
 2. The wrapper runs `critique` + `audit` and returns `{result: "advisory", findings: [...], score_trend: {...}}`. Render the findings as a batch table:
 
    ```
@@ -971,7 +971,7 @@ Find this exact text:
 
 Replace with:
 ```
-| `/claude-tweaks:design-wrapper` | After the review report is assembled, /visual-review invokes `/claude-tweaks:design-wrapper survey` with the captured screenshot paths and renders the resulting Creative Opportunities block in the report (anchor 2 of v4.5.0's creative surfacing system). The wrapper handles its own detection (non-frontend skips); the block is omitted when the wrapper returns no recommendations. Standalone-only, the Step 5 Boost gate additionally invokes `review` mode (Fix flagged issues) and `live` mode (Explore alternatives) — both consent-gated, both re-verify after applying. |
+| `/claude-tweaks:design-wrapper` | After the review report is assembled, /visual-review invokes `/claude-tweaks:design-wrapper survey` with the captured screenshot paths and renders the resulting Creative Opportunities block in the report (anchor 2 of v4.5.0's creative surfacing system). The wrapper handles its own detection (non-frontend skips); the block is omitted when the wrapper returns no recommendations. Standalone-only, the Step 5 Boost gate additionally invokes `review` mode (Fix flagged issues, which re-verifies via `/claude-tweaks:test skip-qa` after applying) and `live` mode (Explore alternatives, which notes in the report that re-running `/claude-tweaks:test` may be worth it if changes were accepted, rather than re-verifying itself) — both consent-gated. |
 ```
 
 - [ ] **Step 4: Add the reciprocal row in `design-wrapper/SKILL.md`**
