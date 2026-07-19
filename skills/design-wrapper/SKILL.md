@@ -56,7 +56,7 @@ When `<target>` is omitted for `test` mode, the wrapper resolves changed files v
 
 ## Universal preconditions
 
-Run these before dispatching to any active mode (`test`, `review`, `shape`, `pre-build`, `polish`, `survey`).
+Run these before dispatching to any active mode (`test`, `review`, `shape`, `pre-build`, `polish`, `survey`, `live`).
 
 **Mode-specific notes:**
 
