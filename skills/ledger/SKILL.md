@@ -67,7 +67,7 @@ Items are numbered sequentially starting at 1. New items always get the next ava
 open → fixed         (item was addressed in code)
 open → deferred      (staged as a work record proposal — parked, with origin, files, and trigger — resolved via the Review Console)
 open → accepted      (intentional decision, with stated reason)
-open → acknowledged  (for ops items — user is aware, requires action outside codebase)
+open → acknowledged  (for ops items — user is aware, requires action outside codebase; staged as a work record proposal — backlog — resolved via the Review Console, same as deferred)
 observation          (informational, non-blocking — e.g., QA caveats)
 ```
 

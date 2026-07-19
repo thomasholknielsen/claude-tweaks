@@ -70,7 +70,7 @@ Examples:
 ```
 AUTO 15:04:22 — Ledger Phase 2: item #3 auto-routed to backlog (blocker: product decision). Reversibility: high.
 AUTO 15:06:03 — Queue write: created record "Add OAuth refresh edge case" (parked, trigger: /auth provider docs land). Reversibility: high.
-AUTO 15:06:04 — Ops acknowledgment: 2 items auto-acknowledged. Reversibility: high.
+AUTO 15:06:04 — Ops acknowledgment: 2 items auto-acknowledged, staged for filing. Reversibility: high.
 ```
 
 ## Notification

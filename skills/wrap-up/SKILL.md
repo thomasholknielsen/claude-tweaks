@@ -204,13 +204,13 @@ Run the resolve gate from `/claude-tweaks:ledger` (see ledger skill for the thre
 **Hard requirements:**
 
 - Phase 1 must run before any user-facing output. The agent fixes everything that qualifies for fix-now, commits, then presents only the genuine residue.
-- Phase 2 always requires explicit per-item user input for `fix` / `defer` / `accept` decisions. Status `acknowledged` (informational, e.g., ops items the user has read) may be applied in bulk via a single explicit "I've read every item" choice. Never bulk-resolve `fix` / `defer` / `accept`. Never assume "obvious" defers. Never offer a "Fix all (Recommended)" or "Defer all" shortcut — those bias the user toward whichever bulk action is easier to type.
+- Phase 2 always requires explicit per-item user input for `fix` / `defer` / `accept` decisions. Status `acknowledged` (e.g., ops items the user has read — each one stages a work record proposal, resolved via the Review Console's own mandatory per-item approval) may be bulk-*staged* via a single explicit "I've read every item" choice, since the actual record creation still gets its own per-item gate downstream. Never bulk-resolve `fix` / `defer` / `accept`. Never assume "obvious" defers. Never offer a "Fix all (Recommended)" or "Defer all" shortcut — those bias the user toward whichever bulk action is easier to type.
 - `auto` mode does NOT silence this gate.
 - Both `parked` and `backlog` are valid stage destinations for a new work record, but every individual item requires an explicit per-item user choice — no record is ever staged autonomously.
 
 ### Bulk-resolve fast path (terminal-status only)
 
-The fast path applies **only when every ledger item already has terminal status** (`fixed`, `deferred`, `accepted`, `acknowledged`, `observation`) at gate entry. If a single item has status `open`, the fast path does NOT apply — Phase 1 → Phase 2 → Phase 3 must run in full sequence without exception. When the fast path applies, report: "All {N} ledger items resolved. No open items." and proceed to Step 9.
+The fast path applies **only when every ledger item already has terminal status** (`fixed`, `deferred`, `accepted`, `acknowledged`, `observation`) at gate entry. If a single item has status `open`, the fast path does NOT apply — Phase 1 → Phase 2 → Phase 3 must run in full sequence without exception. Before reporting completion, check every `acknowledged` item for a staged proposal (a producer can create an item pre-set to `acknowledged`, bypassing Phase 3 entirely — e.g. `build/worktree-setup.md`'s auto-mode divergence entry): stage one now, per `ledger/resolve-gate.md` Phase 3's `Acknowledge` disposition, for any that lack one. Then report: "All {N} ledger items resolved. No open items." and proceed to Step 9.
 
 Phase 2 is on the "What `auto` does NOT silence" list in `_shared/auto-mode-contract.md` — it is never skipped, regardless of `auto` state, when any `open` item exists.
 
@@ -227,8 +227,9 @@ The following ops items need acknowledgment. These represent infrastructure chan
 ```
 
 **Unattended-tier auto-acknowledge:** if `unattended-tier: on` (see `_shared/unattended-tier.md`),
-skip the `AskUserQuestion` below entirely — update status to `acknowledged` for every item, log
-`AUTO {time} — Ops acknowledgment: {N} items auto-acknowledged. Reversibility: high.` to
+skip the `AskUserQuestion` below entirely — for every item, stage a record proposal and update
+status to `acknowledged` per `ledger/resolve-gate.md` Phase 3's `Acknowledge` disposition, log
+`AUTO {time} — Ops acknowledgment: {N} items auto-acknowledged, staged for filing. Reversibility: high.` to
 `decisions.md`, and continue to Step 8.6. Otherwise, present the block below.
 
 Call `AskUserQuestion` with `question`: `"How do you want to handle these ops items?"`, `header`: `"Ops items"`, `multiSelect`: `false` — neither option's label is marked as the default:
@@ -236,7 +237,7 @@ Call `AskUserQuestion` with `question`: `"How do you want to handle these ops it
 - Option 1 — `label`: `"Acknowledge all"`, `description`: `"I've read every item"`
 - Option 2 — `label`: `"Show details"`, `description`: `"I have questions about specific items"`
 
-After option 1, update status to `acknowledged` for every item. After option 2, surface each item with full detail and ask per item.
+After option 1, apply `ledger/resolve-gate.md` Phase 3's `Acknowledge` disposition to every item — stage a record proposal per item and update status to `acknowledged`. The actual record creation is a separate, mandatory per-item approval at the Review Console's Queue writes section (bulk-acknowledging here only stages the proposal; it does not silently create N records). After option 2, surface each item with full detail and apply the same per-item `Acknowledge` disposition on confirmation.
 
 ---
 
@@ -280,10 +281,10 @@ See `cleanup-procedures.md` for the canonical cleanup list. Render only rows who
 ### Manual Steps Required
 | # | What | Where | Status |
 |---|------|-------|--------|
-| 1 | {description} | {source} | Acknowledged |
+| 1 | {description} | {source} | Filed as #{n} |
 (or: No manual steps — nothing to do outside the codebase.)
 
-> Complete these after merging.
+> Complete these after merging. Each row is a real, trackable record (`ledger/resolve-gate.md`'s `Acknowledge` disposition) — not just a note in this transcript.
 
 ### Skill Updates
 Resolved in Step 7 — {N} updates applied / 0 updates needed.

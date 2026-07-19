@@ -101,7 +101,7 @@ None of these three options carries `(Recommended)` — Phase 1 already fixed ev
 **Step 2b (only if "Close out" was chosen) — call `AskUserQuestion` with `question`: `"How should item #{N} be closed out?"`, `header`: `"Close item #{N}"`, `multiSelect`: `false`, and:**
 
 - Option 1 — `label`: `"Accept"`, `description`: `"Intentional, with stated reason"`
-- Option 2 — `label`: `"Acknowledge"`, `description`: `"Ops item requiring action outside the codebase"`
+- Option 2 — `label`: `"Acknowledge"`, `description`: `"Ops item requiring action outside the codebase — filed as a trackable backlog record"`
 - Option 3 — `label`: `"Drop"`, `description`: `"No longer relevant"`
 
 Neither Step 2a nor Step 2b carries a `(Recommended)` option either — same reasoning as Step 1.
@@ -112,12 +112,12 @@ Neither Step 2a nor Step 2b carries a `(Recommended)` option either — same rea
 
 ## Phase 3 — Apply user decisions
 
-For each item, apply the user-chosen disposition. **Each new work record (`parked` or `backlog`) requires the user's explicit choice for that specific item — never bulk-write without their per-item input.** Creating the record itself is a second, separate approval from the per-item disposition choice (`_shared/auto-mode-contract.md`'s work-record-creation row) — `Defer` and `Keep` therefore **stage a record proposal**, never create the record directly, mirroring `wrap-up/leftover-routing.md`'s Auto mode behavior:
+For each item, apply the user-chosen disposition. **Each new work record (`parked` or `backlog`) requires the user's explicit choice for that specific item — never bulk-write without their per-item input.** Creating the record itself is a second, separate approval from the per-item disposition choice (`_shared/auto-mode-contract.md`'s work-record-creation row) — `Defer`, `Keep`, and `Acknowledge` therefore **stage a record proposal**, never create the record directly, mirroring `wrap-up/leftover-routing.md`'s Auto mode behavior:
 
 - `Fix anyway` → return to Phase 1 for that item, fix, commit, mark `fixed`
 - `Defer` → stage a record proposal at `{run-dir}/staged/ledger-record-{slug}.md` (`Title:`/`Type:`/`Labels:` header + body, same shape as `leftover-{slug}.md` — see `wrap-up/leftover-routing.md` step 3): `parked`, a `Trigger:` line from the user-stated trigger, an `Origin: ledger resolve gate` line, and affected files. Update ledger status to `deferred`. Resolves via the Wrap-Up (or Flow) Review Console's Queue writes section — the console creates the record on per-item approval (`gh issue create` under `work-backend: github-issues`, or `local-store.js`'s `writeRecord` under `work-backend: local-files`)
 - `Keep` → same staging shape, backlog (no `Trigger:` line, no stage label), `Origin: ledger resolve gate` line, and short context. Update ledger status to `deferred` (with note `→ backlog` in Resolution column). Same Review Console resolution
 - **No pipeline run directory resolves** (truly standalone `/claude-tweaks:ledger resolve`, outside any `/flow` or `/wrap-up` run — see `_shared/pipeline-run-dir.md`): no Review Console will ever read a staged file, so create the record directly instead, using the same dual-driver contract the console would have used. When `unattended-tier: on`, apply Phase 2's narrowing check inline here too (there is no Step 8.6 to centralize the auto-file decision through in this standalone path).
 - `Accept` → record the user's stated reason in Resolution column. Update status to `accepted`
-- `Acknowledge` → record as `acknowledged` (ops items only)
+- `Acknowledge` (ops items only) → **stages a record proposal**, same shape as `Keep` above (backlog, no `Trigger:` line), but `Origin: ledger resolve gate (acknowledged)` and `Type: task` — an ops item is action still outstanding, just not something the agent can perform, so unlike `Accept`/`Drop` it must not disappear once the ledger file is deleted at cleanup. Update ledger status to `acknowledged` (unchanged from before — this only adds the staged proposal, it doesn't rename the status). Same Review Console resolution as `Defer`/`Keep`.
 - `Drop` → mark as `accepted` with reason "dropped per user — no longer relevant"
