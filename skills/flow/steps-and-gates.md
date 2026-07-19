@@ -12,7 +12,7 @@ Only automatable skills can be included in the pipeline:
 | `stories` | `/claude-tweaks:stories` | Autonomous — browses app, generates YAML stories. Auto-triggered when build produces UI file changes (unless `no-stories`). |
 | `test` | `/claude-tweaks:test` | Mechanical pass/fail gate — types, lint, tests, QA story validation. Sets `TEST_PASSED=true` on pass. |
 | `review` | `/claude-tweaks:review` | Code review, simplification, visual browser review with idea generation (when browser available) — produces a verdict. Gates on `TEST_PASSED`. |
-| `polish` | `/claude-tweaks:design polish <spec>` | Invokes Impeccable polish + clarify + harden (auto-fit) plus issue-driven commands when audit findings exist. Modifies code. Always followed by re-verify (`/test skip-qa`). Gates on review verdict PASS. Skipped on non-frontend specs (wrapper detection). |
+| `polish` | `/claude-tweaks:design-wrapper polish <spec>` | Invokes Impeccable polish + clarify + harden (auto-fit) plus issue-driven commands when audit findings exist. Modifies code. Always followed by re-verify (`/test skip-qa`). Gates on review verdict PASS. Skipped on non-frontend specs (wrapper detection). |
 | `wrap-up` | `/claude-tweaks:wrap-up` | Reflection, cleanup, knowledge routing — produces actionable summary |
 
 **Not allowed in flow:** `capture`, `challenge`, `specify`, `init`, `tidy`, `help`, `browse` — these require interactive decision-making or are utility skills.
@@ -97,7 +97,7 @@ This is the canonical rendering of the polish-phase branch logic. The gate-behav
 Polish phase entry (after review PASS, no-polish not set)
     │
     ▼
-Invoke /claude-tweaks:design polish <spec>
+Invoke /claude-tweaks:design-wrapper polish <spec>
     │
     ├─ {skipped: ...}                  → Note skip in summary, proceed to wrap-up (no re-verify)
     │
@@ -111,6 +111,6 @@ Invoke /claude-tweaks:design polish <spec>
                                               └─ Fail  → STOP — "Polish broke verification" card
 ```
 
-**Re-verify one-cycle cap:** The re-verify gate runs at most once per flow run. The pipeline tracks this with an in-memory marker (`re_verify_ran: true` in pipeline state — same in-memory marker pattern as `/claude-tweaks:design`'s availability skip de-dupe). If polish modifies code and re-verify fails, the pipeline stops; it does not retry polish. The user resolves the failure (typically by reverting the polish commit or fixing the underlying issue) and resumes with `/claude-tweaks:flow {spec} polish` to re-attempt polish + re-verify in a fresh flow run (which resets the marker).
+**Re-verify one-cycle cap:** The re-verify gate runs at most once per flow run. The pipeline tracks this with an in-memory marker (`re_verify_ran: true` in pipeline state — same in-memory marker pattern as `/claude-tweaks:design-wrapper`'s availability skip de-dupe). If polish modifies code and re-verify fails, the pipeline stops; it does not retry polish. The user resolves the failure (typically by reverting the polish commit or fixing the underlying issue) and resumes with `/claude-tweaks:flow {spec} polish` to re-attempt polish + re-verify in a fresh flow run (which resets the marker).
 
 **Why the cap exists:** Without it, polish could oscillate (polish modifies code → re-verify fails → user fixes → re-runs polish → polish modifies again → re-verify fails again). The single-cycle cap makes the failure mode predictable: one polish attempt, one re-verify attempt, success or stop.

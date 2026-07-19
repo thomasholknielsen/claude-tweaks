@@ -1,6 +1,6 @@
 # Design Wrapper Result Handling
 
-Canonical contract for skills that invoke `/claude-tweaks:design <mode>`. The wrapper returns one of four shape categories; this file defines what each means and how callers should respond.
+Canonical contract for skills that invoke `/claude-tweaks:design-wrapper <mode>`. The wrapper returns one of four shape categories; this file defines what each means and how callers should respond.
 
 Referenced from `/build` (Common Step 1.7 / pre-build), `/test` (Step 1.5 / test), `/review` (Step 6.5 / review), and any future caller. Each caller keeps its own mode-specific Result Handling table — this file documents the **universal return shapes** and the **why-skips-don't-fail** rationale so callers don't duplicate them.
 

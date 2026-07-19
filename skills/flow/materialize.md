@@ -57,7 +57,7 @@ parked-at-shaping: true            # omitted unless the record was parked when s
 | `grants` | Snapshot for audit; `/wrap-up`'s auto-merge check RE-READS LIVE LABELS before any merge (truth, not projection) |
 | `fingerprint` | Audit snapshot / dedup cross-reference |
 | `blocked-by` | `/flow`'s multi-spec dependency-aware ordering — DAG construction, cycle detection, and Prerequisites check (`multi-spec.md`) |
-| `surface` | `/claude-tweaks:design` wrapper Layer-2 detection (via /build Common Step 1.7 and /flow polish phase) |
+| `surface` | `/claude-tweaks:design-wrapper` wrapper Layer-2 detection (via /build Common Step 1.7 and /flow polish phase) |
 | `design-intent` | design wrapper polish-mode intent-driven dispatch |
 | `parked-at-shaping` | `/wrap-up` Section E release-with-abandon restores `parked` |
 

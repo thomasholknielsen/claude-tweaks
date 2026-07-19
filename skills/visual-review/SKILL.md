@@ -143,10 +143,10 @@ Reconnaissance (Step 0) runs before the main steps in **page** and **journey** m
 
 ## Step 4: Creative Opportunities Survey
 
-After the visual review report is assembled (per `browser-review.md` Step 6: Report & Route), invoke the `/claude-tweaks:design` wrapper's `survey` mode to surface ranked Creative Opportunities — recommendations for which Impeccable creative commands (`bolder` / `delight` / `animate` / `colorize` / `extract` / `onboard` / `quieter` / `distill` / `overdrive`) might enhance the reviewed pages.
+After the visual review report is assembled (per `browser-review.md` Step 6: Report & Route), invoke the `/claude-tweaks:design-wrapper` wrapper's `survey` mode to surface ranked Creative Opportunities — recommendations for which Impeccable creative commands (`bolder` / `delight` / `animate` / `colorize` / `extract` / `onboard` / `quieter` / `distill` / `overdrive`) might enhance the reviewed pages.
 
 ```
-/claude-tweaks:design survey <changed-files> --screenshots <captured-paths>
+/claude-tweaks:design-wrapper survey <changed-files> --screenshots <captured-paths>
 ```
 
 Pass:
@@ -174,7 +174,7 @@ Handle the wrapper's return:
 > These are recommendations only. Run any command manually if you want to apply it.
 ```
 
-When the wrapper reports `suppressed > 0` in its return, append a small note below the table: `> N suggestion(s) hidden — previously declined for this spec. Reset with /claude-tweaks:design reset-recommendations <spec>.`
+When the wrapper reports `suppressed > 0` in its return, append a small note below the table: `> N suggestion(s) hidden — previously declined for this spec. Reset with /claude-tweaks:design-wrapper reset-recommendations <spec>.`
 
 ## Next Actions
 
@@ -223,7 +223,7 @@ This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step
 | `/claude-tweaks:flow` | /flow invokes /review in full mode, which delegates to /visual-review for the browser portion. |
 | `/claude-tweaks:init` | Detects `agent-browser` availability during setup. Phase 8 delegates to /visual-review discover for brownfield journey bootstrapping. |
 | `/claude-tweaks:capture` | /visual-review may recommend capturing ideas surfaced during the review. |
-| `/claude-tweaks:design` | After the review report is assembled, /visual-review invokes `/claude-tweaks:design survey` with the captured screenshot paths and renders the resulting Creative Opportunities block in the report (anchor 2 of v4.5.0's creative surfacing system). The wrapper handles its own detection (non-frontend skips); the block is omitted when the wrapper returns no recommendations. |
+| `/claude-tweaks:design-wrapper` | After the review report is assembled, /visual-review invokes `/claude-tweaks:design-wrapper survey` with the captured screenshot paths and renders the resulting Creative Opportunities block in the report (anchor 2 of v4.5.0's creative surfacing system). The wrapper handles its own detection (non-frontend skips); the block is omitted when the wrapper returns no recommendations. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. The "Auto mode" branches in Step 1 (browser prereqs) and Step 2 (dev URL) implement the contract's auto-skip + stage-at-Review-Console pattern. |
 | `/claude-tweaks:wrap-up` | `verification-brief.md`'s Step 2.5 safety-net gate invokes /visual-review directly (same mode resolution as /review Step 6) when a testable record reaches wrap-up without a full pass already having run. Any bug found gates `demo:pending` the same way /review's Step 3 Routing gates PASS. |
 | `/claude-tweaks:demo` | `/demo`'s Verification Brief digest (Step 3) is sourced from /visual-review's own report — headline result + 1-3 committed screenshots. `/demo`'s optional "Show me live" escape hatch consumes /browse's conventions directly (the same relationship /visual-review itself has with /browse), not a re-invocation of /visual-review. |

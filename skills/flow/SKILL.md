@@ -10,7 +10,7 @@ description: Use when you want to run an automated build → test → review →
 Run multiple lifecycle steps in sequence without stopping between them. Each step has a gate — if a gate fails, the pipeline stops and presents the failure.
 
 ```
-/claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:design polish → /claude-tweaks:wrap-up
+/claude-tweaks:capture → /claude-tweaks:challenge → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:design-wrapper polish → /claude-tweaks:wrap-up
                                                                                                                 ╰────────────────────────────────────── [ /claude-tweaks:flow ] automates this stretch ──────────────────────────────╯
                                                                                                                 ^^^^ YOU ARE HERE ^^^^   (polish + re-verify run only when frontend)
 ```
@@ -164,7 +164,7 @@ For each step in order:
      - **No browser backend (`agent-browser` not installed):** `/visual-review` reports the detection failure with install instructions. Review falls back to code mode. Flow notes: "Visual review skipped — no browser backend available."
      - **No reachable app and no dev command to start one:** `/visual-review` logs the gap and falls back to code mode. Flow notes: "Visual review skipped — no dev server and no start command."
      - The ephemeral server (if started) stays up for the rest of the run and is torn down by `/wrap-up` cleanup (Section D) — or, in multi-spec runs, once at the end by `/flow`.
-   - `review` → `polish` (when `no-polish` not set) — invoke `/claude-tweaks:design polish <spec>` via the Skill tool. See "Polish phase execution" below for the dispatch logic.
+   - `review` → `polish` (when `no-polish` not set) — invoke `/claude-tweaks:design-wrapper polish <spec>` via the Skill tool. See "Polish phase execution" below for the dispatch logic.
    - `polish` → `re-verify` (only when polish modified code) — invoke `/claude-tweaks:test skip-qa`. See "Re-verify execution" below.
    - `polish` (or `re-verify`) → `wrap-up` receives the review summary, polish results, and verdict. Skill observations (`build/skill` and `review/skill` ledger entries) carry forward via the ledger file for wrap-up's skill update analysis (Step 7).
 5. **Ledger carries forward** — each step reads and appends to the open items ledger (see `/claude-tweaks:ledger` for all operations). Unlike conversation context (which may be compressed), the ledger is a file — it survives context window limits.
@@ -173,9 +173,9 @@ For each step in order:
 
 Follow the polish-phase decision tree in `steps-and-gates.md`. Mechanics specific to /flow:
 
-- Invoke `/claude-tweaks:design polish <spec>` via the Skill tool. Wrapper errors stop the pipeline with a "Polish wrapper error" failure card — do not assume partial-and-recoverable.
+- Invoke `/claude-tweaks:design-wrapper polish <spec>` via the Skill tool. Wrapper errors stop the pipeline with a "Polish wrapper error" failure card — do not assume partial-and-recoverable.
 - Append a ledger entry per command invoked (phase: `design`, status: `fixed` for auto-fit successes, `observation` for reported issues). Ledger entries flow through to wrap-up's skill update analysis.
-- When `/design polish` returns a non-empty `commands_invoked` (and therefore a `decision_summary` field — see `skills/design/modes/polish.md` Step 7), append one entry to the auto-decision log at `{run-dir}/decisions.md`, under a `## /flow` heading (create the heading if absent, per the append-only protocol in `_shared/auto-decision-log.md`):
+- When `/design-wrapper polish` returns a non-empty `commands_invoked` (and therefore a `decision_summary` field — see `skills/design-wrapper/modes/polish.md` Step 7), append one entry to the auto-decision log at `{run-dir}/decisions.md`, under a `## /flow` heading (create the heading if absent, per the append-only protocol in `_shared/auto-decision-log.md`):
   ```
   - AUTO {HH:MM:SS} — Polish phase: {decision_summary} Files: {files_modified, comma-joined}. Reversibility: high (worktree file edits, revertible via git).
   ```
@@ -187,7 +187,7 @@ Follow the polish-phase decision tree in `steps-and-gates.md`. Mechanics specifi
 
 **Nothing-left-behind gate:** Run the resolve gate from `/claude-tweaks:ledger`. If any item has status `open`, present it for resolution -- no item may remain `open`. The pipeline cannot complete with unresolved items.
 
-**Creative Opportunities survey (v4.5.0).** Before rendering the summary, run decline detection (compares prior recommendations cache against the new diff to suppress repeatedly-declined items), then invoke `/claude-tweaks:design survey <changed-files>`. Returned recommendations render as a Creative Opportunities block (template below) before Next Actions; empty or `{skipped}` returns omit the block.
+**Creative Opportunities survey (v4.5.0).** Before rendering the summary, run decline detection (compares prior recommendations cache against the new diff to suppress repeatedly-declined items), then invoke `/claude-tweaks:design-wrapper survey <changed-files>`. Returned recommendations render as a Creative Opportunities block (template below) before Next Actions; empty or `{skipped}` returns omit the block.
 
 **Depth Opportunities survey.** Also before rendering the summary, run the depth survey — the responsible way a hands-off `/flow` captures `/claude-tweaks:deepen`'s value. After the pre-check passes (source modules changed, `no-deepen` not set), invoke `/claude-tweaks:deepen <changed-source-files>` with `$PIPELINE_RUN_DIR` set, which runs `/deepen`'s **analysis-only** path (module mapping + deletion test + leverage ranking — read-only). It returns ranked candidates **without applying or staging-to-apply any refactor**. Render the top candidates as a Depth Opportunities block (template below) before Next Actions; no candidates or a skipped pre-check omit the block. **`/flow` never runs the interactive interface-design step or modifies code for a depth candidate** — the block is a recommendation to run `/claude-tweaks:deepen` manually.
 
@@ -241,7 +241,7 @@ The polish phase ran the auto-fit + issue-driven + intent-driven commands. These
 
 Each is a one-shot manual command; flow does not run these automatically.
 
-> Render this block only when `survey` returned `recommendations` non-empty. When the wrapper reports `suppressed > 0`, append: `> N suggestion(s) hidden — previously declined for this spec. Reset with /claude-tweaks:design reset-recommendations <spec>.` Omit the entire section when the wrapper returned `recommendations: []` or `{skipped}`.
+> Render this block only when `survey` returned `recommendations` non-empty. When the wrapper reports `suppressed > 0`, append: `> N suggestion(s) hidden — previously declined for this spec. Reset with /claude-tweaks:design-wrapper reset-recommendations <spec>.` Omit the entire section when the wrapper returned `recommendations: []` or `{skipped}`.
 
 ### Depth Opportunities
 
@@ -350,7 +350,7 @@ Next Actions in `/flow` are outcome-conditional and rendered as part of the Pipe
 | `/superpowers:using-git-worktrees` | Invoked BY flow (when `worktree` specified) to create the isolated workspace — once per single-spec run, or once per sequential multi-spec run (one shared worktree for all specs) |
 | `/superpowers:finishing-a-development-branch` | Invoked BY flow (when `worktree` specified) at handoff to merge, PR, or discard the feature branch — once at the end of the run (a sequential multi-spec run finishes its single shared branch once, not per spec) |
 | `/claude-tweaks:ledger` | Manages the open items ledger. /flow creates the ledger (Step 1), carries it across phases, and runs the resolve gate (Step 5). |
-| `/claude-tweaks:design` | /flow invokes `/claude-tweaks:design polish <spec>` after review verdict PASS (auto-fit + issue-driven + intent-driven dispatch — v4.5.0). The wrapper handles its own detection (non-frontend skips); when polish modifies code, /flow follows up with `/test skip-qa` (re-verify gate, one-cycle cap). The `no-polish` argument removes the polish phase entirely. /flow's pipeline summary also invokes `/claude-tweaks:design survey <full-diff>` to render the Creative Opportunities block (anchor 3 of v4.5.0's creative surfacing system); /flow handles decline detection by comparing the prior recommendations cache against the new diff before each survey call. |
+| `/claude-tweaks:design-wrapper` | /flow invokes `/claude-tweaks:design-wrapper polish <spec>` after review verdict PASS (auto-fit + issue-driven + intent-driven dispatch — v4.5.0). The wrapper handles its own detection (non-frontend skips); when polish modifies code, /flow follows up with `/test skip-qa` (re-verify gate, one-cycle cap). The `no-polish` argument removes the polish phase entirely. /flow's pipeline summary also invokes `/claude-tweaks:design-wrapper survey <full-diff>` to render the Creative Opportunities block (anchor 3 of v4.5.0's creative surfacing system); /flow handles decline detection by comparing the prior recommendations cache against the new diff before each survey call. |
 | `/claude-tweaks:journeys` | /journeys produces journey files that /flow's auto-stories step (post-build) ingests so derived stories carry `journey:` field and inherited source files. |
 | `/claude-tweaks:triage` | The human gate upstream of `/claude-tweaks:dispatch` — grants `auto:build`/`auto:merge` on records `/flow` may later build. Triage itself never invokes `/flow`, and never selects, filters, sorts, or claims records. |
 | `/claude-tweaks:dispatch` | The actual caller of record-mode `/flow` — claims an authorized record's whole file-overlap group, then invokes `CLAIM_RUN_ID="{run-id}" /claude-tweaks:flow #{n}[,#{m}...]`. `/flow` never selects, filters, sorts, or claims records itself; that logic lives entirely in `/claude-tweaks:dispatch` (selection) and `/claude-tweaks:triage` (authorization). `/flow` is opaque to dispatch — materialization (record resolution, multi-record bundling) is `/flow`'s own concern. |

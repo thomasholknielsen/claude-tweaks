@@ -412,7 +412,7 @@ Invocation:
 
 ## Step 6.5: Design Quality Pass (Impeccable)
 
-Invoke `/claude-tweaks:design review <spec>` to run Impeccable's `critique` + `audit` commands on the changed UI files. Findings are advisory in Phase 1 — they inform the verdict and surface in the review summary, but are not auto-applied.
+Invoke `/claude-tweaks:design-wrapper review <spec>` to run Impeccable's `critique` + `audit` commands on the changed UI files. Findings are advisory in Phase 1 — they inform the verdict and surface in the review summary, but are not auto-applied.
 
 **Skip this step entirely when:**
 - Mode is `visual`, `journey`, or `discover` (these delegate entirely to `/visual-review` and skip the analytical review steps)
@@ -479,7 +479,7 @@ See `review-summary-template.md` in this skill's directory for the full Next Act
 
 ## Component-Skill Contract
 
-`/claude-tweaks:review` is invoked by `/claude-tweaks:flow` as the analytical-quality gate between test and wrap-up. Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (set by `/flow`, `/build`, or other pipeline orchestrators). Direct invocations may pass `--source <parent>` as an explicit fallback. When `$PIPELINE_RUN_DIR` is set, omit the Next Actions block at the end of Step 7's summary — the parent `/flow` owns the handoff and renders its own Pipeline Summary + Next Actions. When invoked directly by a user, render Next Actions per `review-summary-template.md`. /review itself invokes `/claude-tweaks:reflect` (Step 4), `/claude-tweaks:simplify` (Step 5), `/claude-tweaks:visual-review` (Step 6), and `/claude-tweaks:design` (Step 6.5) — each is a component skill governed by its own contract (Next-Actions omitted when invoked from here).
+`/claude-tweaks:review` is invoked by `/claude-tweaks:flow` as the analytical-quality gate between test and wrap-up. Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (set by `/flow`, `/build`, or other pipeline orchestrators). Direct invocations may pass `--source <parent>` as an explicit fallback. When `$PIPELINE_RUN_DIR` is set, omit the Next Actions block at the end of Step 7's summary — the parent `/flow` owns the handoff and renders its own Pipeline Summary + Next Actions. When invoked directly by a user, render Next Actions per `review-summary-template.md`. /review itself invokes `/claude-tweaks:reflect` (Step 4), `/claude-tweaks:simplify` (Step 5), `/claude-tweaks:visual-review` (Step 6), and `/claude-tweaks:design-wrapper` (Step 6.5) — each is a component skill governed by its own contract (Next-Actions omitted when invoked from here).
 
 ## Anti-Patterns
 
@@ -519,7 +519,7 @@ See `review-summary-template.md` in this skill's directory for the full Next Act
 | `/superpowers:systematic-debugging` | Invoked BY /review when a confirmed bug finding needs a non-trivial fix — reproduce-first discipline before applying the change (see Important Notes). |
 | `/claude-tweaks:ledger` | Manages the open items ledger. /review appends findings (Step 3 Routing). Hindsight findings (Step 4) are written by /reflect using `review/*` phases. |
 | `/claude-tweaks:help` | /help flags specs awaiting review and recommends `/review` in its pipeline status scan |
-| `/claude-tweaks:design` | /review invokes `/claude-tweaks:design review <spec>` as Step 6.5 to run Impeccable's `critique` + `audit` commands. Findings are advisory, surfaced in the "Design Quality" section of the review summary. The wrapper handles its own detection and availability checks; skips are silent (section omitted). |
+| `/claude-tweaks:design-wrapper` | /review invokes `/claude-tweaks:design-wrapper review <spec>` as Step 6.5 to run Impeccable's `critique` + `audit` commands. Findings are advisory, surfaced in the "Design Quality" section of the review summary. The wrapper handles its own detection and availability checks; skips are silent (section omitted). |
 | `/claude-tweaks:journeys` | /journeys produces the journey files /review consults in Step 6 to recommend visual review for affected journeys and in lens 3g-cov for journey-to-story coverage. /review surfaces uncovered journey steps and orphaned stories as informational findings. |
 | `/claude-tweaks:tidy` | /tidy reads /review summaries to detect cross-spec patterns (Step 5.5) — recurring finding categories, frequently flagged files, repeated gotchas — and recommends adding rules to CLAUDE.md when patterns appear in 3+ specs. /tidy also flags specs that appear complete but lack a /review run. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. The severity-routing table in "Step 3 Routing — Code Review Findings" implements the contract's reversibility/confidence/severity floors. |

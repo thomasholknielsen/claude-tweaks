@@ -12,7 +12,7 @@ Write a `.d2` file at the same base path as the eventual HTML output (e.g. `docs
 d2 --layout=elk "path/to/diagram.d2" "path/to/diagram.svg"
 ```
 
-If this command fails or `d2` is not on PATH, fall back to `SKILL.md`'s baseline path instead of failing the whole generation — the D2 binary being unavailable is a skip condition, not an error, matching the availability-check pattern `/claude-tweaks:design` already uses for Impeccable.
+If this command fails or `d2` is not on PATH, fall back to `SKILL.md`'s baseline path instead of failing the whole generation — the D2 binary being unavailable is a skip condition, not an error, matching the availability-check pattern `/claude-tweaks:design-wrapper` already uses for Impeccable.
 
 ## Step 3: Re-theme the rendered SVG
 

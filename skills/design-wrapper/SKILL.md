@@ -1,5 +1,5 @@
 ---
-name: claude-tweaks:design
+name: claude-tweaks:design-wrapper
 description: Use when a lifecycle skill (/test, /review, /build, /flow, /visual-review, /specify) needs to invoke Impeccable design-quality commands. Wrapper that encapsulates "when, how, and whether to invoke Impeccable" so caller skills don't have to know.
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
@@ -11,7 +11,7 @@ Wrapper skill that encapsulates the Impeccable design-quality plugin behind a st
 
 ```
 /claude-tweaks:capture → ... → /claude-tweaks:wrap-up
-                  [ /claude-tweaks:design ] (utility, called by lifecycle skills)
+                  [ /claude-tweaks:design-wrapper ] (utility, called by lifecycle skills)
                                 ^^^^ YOU ARE HERE ^^^^
 ```
 
@@ -21,7 +21,7 @@ All six modes are active (`test`, `review`, `shape`, `pre-build`, `polish`, `sur
 
 1. **Polish-mode intent dispatch** — explicit `design-intent:` declarations auto-run the matching creative commands.
 2. **`/visual-review` Creative Opportunities block** — `survey` recommendations rendered after the findings table from analyzed screenshots. Read-only.
-3. **`/flow` pipeline summary Creative Opportunities block** — `survey` recommendations rendered before Next Actions from the full diff. Read-only. Decline tracking suppresses recommendations the user repeatedly ignored (2-decline threshold; reset via `/claude-tweaks:design reset-recommendations <spec>`).
+3. **`/flow` pipeline summary Creative Opportunities block** — `survey` recommendations rendered before Next Actions from the full diff. Read-only. Decline tracking suppresses recommendations the user repeatedly ignored (2-decline threshold; reset via `/claude-tweaks:design-wrapper reset-recommendations <spec>`).
 
 ## When to Use
 
@@ -32,8 +32,8 @@ All six modes are active (`test`, `review`, `shape`, `pre-build`, `polish`, `sur
 - `/claude-tweaks:flow` invokes `polish` mode after review passes — dispatches auto-fit + issue-driven + intent-driven Impeccable commands; modifies code
 - `/claude-tweaks:visual-review` invokes `survey` mode after browser review — produces a Creative Opportunities recommendations block from the captured screenshots
 - `/claude-tweaks:flow` invokes `survey` mode in the pipeline summary — produces a Creative Opportunities block from the full diff
-- A user runs `/claude-tweaks:design <mode> <target>` directly to invoke a single mode without going through the lifecycle skill
-- A user runs `/claude-tweaks:design reset-recommendations <spec>` to clear declined-recommendation tracking for a spec
+- A user runs `/claude-tweaks:design-wrapper <mode> <target>` directly to invoke a single mode without going through the lifecycle skill
+- A user runs `/claude-tweaks:design-wrapper reset-recommendations <spec>` to clear declined-recommendation tracking for a spec
 
 ## Input
 
@@ -218,7 +218,7 @@ This skill is a **component skill** (utility wrapper) — invoked by `/claude-tw
 | Auto-running intent-driven commands without explicit intent | Intent-driven commands dispatch ONLY when `design-intent:` declares a matching value. Inferring intent from file content or LLM judgment removes user agency over creative direction. |
 | Auto-running survey recommendations | `survey` is read-only. It never invokes a command — only suggests. Auto-running survey output bypasses user agency the same way auto-inferring intent does. |
 | Treating survey recommendations as authoritative or complete | Survey is heuristic, not LLM-perfect. It can miss opportunities the user would have wanted surfaced, and it can recommend commands that don't fit the actual context. The block clearly says "could enhance further" — never "design is complete" or "design is brilliant." |
-| Surfacing recommendations the user already declined twice | Annoying noise — the declined-recommendations cache suppresses after 2 declines. Reset via `/claude-tweaks:design reset-recommendations <spec>`. |
+| Surfacing recommendations the user already declined twice | Annoying noise — the declined-recommendations cache suppresses after 2 declines. Reset via `/claude-tweaks:design-wrapper reset-recommendations <spec>`. |
 | Caching availability check results across sessions on disk | Availability marker is in-memory per session — never written to `~/.claude-tweaks/` (runtime state owned by harness) |
 | Writing audit / recommendations / declined caches to `~/.claude-tweaks/` | Per CLAUDE.md, that path is harness-owned. All three caches live alongside the ledger at `docs/plans/YYYY-MM-DD-{feature}-{audit\|recommendations\|declined}.json`. |
 | Calling `/impeccable:impeccable` commands without first checking availability | If the plugin isn't installed, the Skill tool will error — always run the availability check first and skip cleanly |
@@ -237,7 +237,7 @@ This skill is a **component skill** (utility wrapper) — invoked by `/claude-tw
 | `/claude-tweaks:specify` | Invokes `shape` mode as a pre-decomposition step on frontend design docs. Also asks the design-intent question and writes `Surface:` + `Design-intent:` body-metadata lines on every generated leaf record — lifted into the materialized header (spec 20) that `polish` mode reads for intent-driven dispatch. The full pre-step procedure lives in `specify/design-pre-steps.md`. |
 | `/claude-tweaks:visual-review` | Invokes `survey` mode after browser review steps complete, passing screenshot paths via `--screenshots`. Renders the Creative Opportunities block in the visual review report. |
 | `/claude-tweaks:wrap-up` | Cleans up the wrapper's audit / recommendations / declined caches alongside the ledger during artifact cleanup. |
-| `/claude-tweaks:simplify` | Runs before `polish` mode in `/flow` (different phases — simplify is in build, polish is post-review) — `distill` is intent-only to avoid double-stripping with `/simplify`. /simplify reciprocally avoids the `distill` overlap by deferring distillation to /design polish when intent declares it. |
+| `/claude-tweaks:simplify` | Runs before `polish` mode in `/flow` (different phases — simplify is in build, polish is post-review) — `distill` is intent-only to avoid double-stripping with `/simplify`. /simplify reciprocally avoids the `distill` overlap by deferring distillation to /design-wrapper polish when intent declares it. |
 | `/claude-tweaks:ledger` | No direct interaction — the wrapper writes its own caches (audit, recommendations, declined) as separate files from the ledger. Polish-phase actions surface in `/flow`'s pipeline summary via the actions-performed table. /ledger reciprocally treats design-cache files as separate from the ledger lifecycle (cleanup is handled by /wrap-up Step 5, not by /ledger itself). |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. The wrapper's mode-dispatch decisions follow the contract's reversibility/severity floors (polish modifies code → never auto-applied without explicit caller intent; survey is read-only by design). |
 | `_shared/design-wrapper-handling.md` | Design wrapper return shape contract — consumed by /build, /test, /review, /flow, /specify, and /visual-review. Documents the universal `{result}` / `{skipped}` / `{deferred}` / `{fail}` shapes this wrapper produces. |

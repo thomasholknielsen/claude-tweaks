@@ -1,6 +1,6 @@
 # Design Mode — shape
 
-Invoked via `/claude-tweaks:design shape <topic>`. Returns `{mode, result: "ok", output}` or `{mode, skipped, ...}` to caller.
+Invoked via `/claude-tweaks:design-wrapper shape <topic>`. Returns `{mode, result: "ok", output}` or `{mode, skipped, ...}` to caller.
 
 ## When this runs
 

@@ -56,7 +56,7 @@ Possible QA statuses:
 - {If completed with QA data: note QA data enrichment — caveats surfaced, page inventories consumed, findings confirmed/resolved}
 - {If recommended: `/claude-tweaks:visual-review journey:{name}` or `/claude-tweaks:visual-review {url}`}
 
-### Design Quality (from /claude-tweaks:design review)
+### Design Quality (from /claude-tweaks:design-wrapper review)
 
 {Include when the design wrapper returned `result: advisory` with findings. Omit when the wrapper skipped (non-frontend, no Impeccable, kill-switch disabled).}
 

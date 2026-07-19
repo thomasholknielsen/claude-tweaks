@@ -1,6 +1,6 @@
 # Design Mode — polish
 
-Invoked via `/claude-tweaks:design polish <spec>`. Returns `{mode, result: "ok", commands_invoked, files_modified}` or `{mode, skipped, ...}` to caller. **First wrapper mode that modifies code.**
+Invoked via `/claude-tweaks:design-wrapper polish <spec>`. Returns `{mode, result: "ok", commands_invoked, files_modified}` or `{mode, skipped, ...}` to caller. **First wrapper mode that modifies code.**
 
 ## When this runs
 

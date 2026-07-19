@@ -111,7 +111,7 @@ GitHub issue form template offer (agent-task.yml). Read `bootstrap-steps.md` (St
 
 ### Step 10: Impeccable Design Integration (Optional)
 
-When Phase 2 detects frontend signals, present the three-option Impeccable setup prompt (Full / Plugin-only / Skip) and write the `design-integration` flag to CLAUDE.md — the `/claude-tweaks:design` wrapper reads this as Layer 1 of its detection logic. Read `bootstrap-steps.md` (Step 10) for the full procedure (frontend-detection list, install sequence, flag-value table, re-run behavior, failure handling).
+When Phase 2 detects frontend signals, present the three-option Impeccable setup prompt (Full / Plugin-only / Skip) and write the `design-integration` flag to CLAUDE.md — the `/claude-tweaks:design-wrapper` wrapper reads this as Layer 1 of its detection logic. Read `bootstrap-steps.md` (Step 10) for the full procedure (frontend-detection list, install sequence, flag-value table, re-run behavior, failure handling).
 
 ### Step 11: Diagram Suggestions
 
@@ -466,7 +466,7 @@ If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it
 | `/claude-tweaks:wrap-up` | Captures learnings after features — keeps generated skills alive and accurate. Step 7 references `skill-template.md` from /claude-tweaks:init's directory. /wrap-up Step 6 maintains the doc registry created by /init. |
 | `/claude-tweaks:tidy` | /tidy Step 4.6 audits doc registry health — flags stale entries, gaps, pattern drift. Suggests `/init update` for tier drift. |
 | `/claude-tweaks:browse` | Depends on `agent-browser`, which /claude-tweaks:init detects (and surfaces install instructions for) in Phase 0 |
-| `/claude-tweaks:design` | Step 10 sets up Impeccable design integration (install plugin + CLI, optionally run `init`) and writes the `design-integration` kill-switch flag to CLAUDE.md that the wrapper reads as Layer 1 of its detection logic. |
+| `/claude-tweaks:design-wrapper` | Step 10 sets up Impeccable design integration (install plugin + CLI, optionally run `init`) and writes the `design-integration` kill-switch flag to CLAUDE.md that the wrapper reads as Layer 1 of its detection logic. |
 | `/claude-tweaks:visualize` | Step 11 offers to enable diagram suggestions and writes the `diagram-suggestions` flag to CLAUDE.md — no install step, this skill is native. Soft-hook nudges in `/journeys`, `/specify`, and `/review` read the flag to decide whether to suggest invoking it. |
 | `shadcn/ui` (companion) | Step 12 offers to bootstrap the shadcn CLI, wire its official MCP server into `.mcp.json`, and install shadcn's official Skill (`skills add shadcn/ui`) for live Claude Code project context. Writes the `shadcn-integration` flag to CLAUDE.md — currently write-only, no other skill reads it yet. |
 | `/superpowers:using-git-worktrees` | /claude-tweaks:init optionally configures the worktree directory that `using-git-worktrees` needs |

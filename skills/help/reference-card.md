@@ -40,7 +40,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/claude-tweaks:review-backlog` | Understand and prioritize the open backlog — thematic clusters, `priority:*`/`**Related:**` suggestions via batch-confirm | `critical`, `risk-value`, `cleanup`, `--budget N` |
 | `/claude-tweaks:dispatch` | The queue consumer — claims an authorized record's whole file-overlap group (atomic ref lock) and hands it to `/flow`; settles on success/failure | *(none)* (interactive batch pick), `next` (headless routine unit), `#N` (direct), `#N,#M,...` (explicit list — e.g. from triage's Next Actions) |
 | `/claude-tweaks:browse` | Unified browser automation (utility) | `--session <name>`, `set viewport`, `set device`, operation vocabulary (see SKILL.md) |
-| `/claude-tweaks:design` | Wrapper that lets lifecycle skills invoke Impeccable design-quality commands. Modes: `pre-build`, `test`, `review`, `shape`, `polish`, `survey`, `reset-recommendations` | mode + spec/files + flags |
+| `/claude-tweaks:design-wrapper` | Wrapper that lets lifecycle skills invoke Impeccable design-quality commands. Modes: `pre-build`, `test`, `review`, `shape`, `polish`, `survey`, `reset-recommendations` | mode + spec/files + flags |
 | `/claude-tweaks:ledger` | Open items tracking — query, resolve ledger entries | *(none)*, `resolve`, `{feature-name}` |
 | `/claude-tweaks:research` | Deep web research with citation-audited reports — 4 runtime modes from quick to ultradeep. | topic + `quick`, `standard`, `deep`, `ultradeep`, `--output=` |
 | `/claude-tweaks:version` | Print the installed plugin version | *(none)*, `plain`, `full` |
@@ -57,7 +57,7 @@ External tools claude-tweaks integrates with — Claude Code plugins and standal
 
 | Tool | What it adds | Set up by |
 |--------|-------------|-----------|
-| [`pbakaus/impeccable`](https://github.com/pbakaus/impeccable) | Frontend design-quality LLM commands + deterministic CLI. Wired into `/test`, `/review`, `/build`, `/specify`, `/flow`, `/visual-review` via `/claude-tweaks:design`. Frontend projects only. | `/init` Step 10 (writes `design-integration:` flag, read downstream) |
+| [`pbakaus/impeccable`](https://github.com/pbakaus/impeccable) | Frontend design-quality LLM commands + deterministic CLI. Wired into `/test`, `/review`, `/build`, `/specify`, `/flow`, `/visual-review` via `/claude-tweaks:design-wrapper`. Frontend projects only. | `/init` Step 10 (writes `design-integration:` flag, read downstream) |
 | [`shadcn/ui`](https://ui.shadcn.com/) | CLI-driven component system + its own official MCP server and Skill for AI-agent context. Frontend projects only. | `/init` Step 12 (writes `shadcn-integration:` flag — currently write-only, not yet read downstream) |
 
 ## Common Workflows

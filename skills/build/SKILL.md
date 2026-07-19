@@ -181,7 +181,7 @@ For the full procedure (Check A failure handling, Check B scope-keyword sweep co
 
 ### Common Step 1.7: Design Pre-Build (frontend specs)
 
-For frontend specs — `surface` ∈ `web | mobile | desktop`, read from the materialized header's `surface:` field (record mode; lifted from the record body's `Surface:` metadata line per `skills/flow/materialize.md`) or the legacy spec file's own `surface:` frontmatter (spec-file alias) — invoke `/claude-tweaks:design pre-build <spec>` to lazy-load relevant design references into the implementer subagent's context. For the full skip conditions, invocation rules, result handling, and where loaded references go, see `design-prebuild.md` in this skill's directory.
+For frontend specs — `surface` ∈ `web | mobile | desktop`, read from the materialized header's `surface:` field (record mode; lifted from the record body's `Surface:` metadata line per `skills/flow/materialize.md`) or the legacy spec file's own `surface:` frontmatter (spec-file alias) — invoke `/claude-tweaks:design-wrapper pre-build <spec>` to lazy-load relevant design references into the implementer subagent's context. For the full skip conditions, invocation rules, result handling, and where loaded references go, see `design-prebuild.md` in this skill's directory.
 
 ### Common Step 2: Execute the Plan
 
@@ -341,7 +341,7 @@ Once the signals are resolved, call `AskUserQuestion` with `question`: `"What's 
 | `/claude-tweaks:tidy` | Reviews specs from /claude-tweaks:build for staleness — periodic cleanup complement |
 | `/claude-tweaks:init` | /init creates `docs/REGISTRY.md` (Phase 8.5) that /build consumes in Step 6.5 for documentation sync |
 | `/claude-tweaks:ledger` | Manages the open items ledger file. /build creates and appends items during Steps 2.5, 4, 4.5, 5.5, and 6.5. |
-| `/claude-tweaks:design` | /build invokes `/claude-tweaks:design pre-build <spec>` as Common Step 1.7 to lazy-load Impeccable reference files and project design context (root `PRODUCT.md`, root `DESIGN.md`) into the implementer subagent. Skips cleanly on non-frontend specs or when Impeccable is not installed. |
+| `/claude-tweaks:design-wrapper` | /build invokes `/claude-tweaks:design-wrapper pre-build <spec>` as Common Step 1.7 to lazy-load Impeccable reference files and project design context (root `PRODUCT.md`, root `DESIGN.md`) into the implementer subagent. Skips cleanly on non-frontend specs or when Impeccable is not installed. |
 | `/claude-tweaks:flow` | Invoked BY /flow as the implementation step — flow constrains /build to `subagent` execution (batched pauses contradict flow's hands-off contract) and passes the pipeline run directory via `PIPELINE_RUN_DIR` so /build's auto-mode decisions land in the shared decision log. In record mode, /flow materializes the record into `{run-dir}/work/{n}-spec.md` via `skills/flow/materialize.md` before invoking `/claude-tweaks:build #{n}`, which reads that file in place; a standalone `/build #{n}` (no `/flow` parent, e.g. dispatched or run directly by a human) performs the same materialize step itself. |
 | `/claude-tweaks:help` | /help recommends specific specs to /build based on dependency graph + INDEX.md status; /build's spec resolution rules mirror /help's selection logic |
 | `/claude-tweaks:reflect` | /reflect is invoked BY /wrap-up after /build completes; reflection insights tagged for skills/CLAUDE.md feed back into /build's future runs via updated project conventions |

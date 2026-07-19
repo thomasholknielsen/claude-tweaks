@@ -6,13 +6,13 @@ These pre-steps capture design context (`shape`) and creative direction (`Design
 
 ## Step 2.5a: Frontend detection
 
-Sniff the input for frontend signals using the same rules as `/claude-tweaks:design`'s Layer 3 — the design doc's contents in decomposition mode, the record's own title/body in shaping mode:
+Sniff the input for frontend signals using the same rules as `/claude-tweaks:design-wrapper`'s Layer 3 — the design doc's contents in decomposition mode, the record's own title/body in shaping mode:
 
 - File-extension references (e.g., `.tsx`, `.jsx`, `.vue`, `.svelte`, `.html`, `.css`)
 - Path references containing `/components/`, `/pages/`, `/app/`, `/routes/`, `/views/`, `/ui/`
 - Explicit "UI", "frontend", "component", "page", "screen" terminology
 
-For the canonical sniff rules, read `frontend-detection.md` in the `/claude-tweaks:design` skill's directory.
+For the canonical sniff rules, read `frontend-detection.md` in the `/claude-tweaks:design-wrapper` skill's directory.
 
 If no frontend signals are detected, stop reading this file — return to SKILL.md and skip Steps 2.5b and 2.5c entirely. Write `Surface: backend` (or `infra` when the input clearly targets infra) as a body-metadata line on the affected record(s); omit `Design-intent:` entirely for non-frontend records — there is no "none" sentinel for the non-frontend case, absence is the signal.
 
@@ -20,7 +20,7 @@ If no frontend signals are detected, stop reading this file — return to SKILL.
 
 **Auto mode:** auto-run the shape pre-step for a frontend design doc (detection is deterministic from Step 2.5a). Log entry:
 ```
-AUTO {time} — Step 2.5b: auto-ran /claude-tweaks:design shape for the frontend design doc. Output appended to design doc. Reversibility: high.
+AUTO {time} — Step 2.5b: auto-ran /claude-tweaks:design-wrapper shape for the frontend design doc. Output appended to design doc. Reversibility: high.
 ```
 On `{skipped}` (Impeccable not installed, design integration disabled): note the skip in the log and proceed to Step 2.5c.
 
@@ -33,7 +33,7 @@ Frontend design detected. Run /impeccable:impeccable shape to plan UX/UI before 
 2. Skip — proceed directly to decomposition
 ```
 
-On option 1: invoke `/claude-tweaks:design shape <topic>` via the Skill tool. The wrapper runs `/impeccable:impeccable shape <topic>` and returns `{result: "ok", output: "..."}`. Append the returned output verbatim to the design doc under a `## Shape (Impeccable)` section. This enriches the design doc with UX/UI planning that the decomposed leaf records and downstream `/build` can reference.
+On option 1: invoke `/claude-tweaks:design-wrapper shape <topic>` via the Skill tool. The wrapper runs `/impeccable:impeccable shape <topic>` and returns `{result: "ok", output: "..."}`. Append the returned output verbatim to the design doc under a `## Shape (Impeccable)` section. This enriches the design doc with UX/UI planning that the decomposed leaf records and downstream `/build` can reference.
 
 On `{skipped}` (Impeccable not installed, design integration disabled): note the skip and proceed to Step 2.5c.
 
