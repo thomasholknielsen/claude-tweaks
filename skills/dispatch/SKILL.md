@@ -80,6 +80,7 @@ node -e "
     .filter((i) => !parseDependencies(i.body).some((dep) => openNumbers.has(dep)));
   require('fs').writeFileSync('/tmp/dispatch-eligible.json', JSON.stringify(eligible));
 "
+echo '{"data":{"repository":{}}}' > /tmp/dispatch-native-deps.json
 if [ "$WORK_LINKS" = "native" ]; then
   rm -f /tmp/dispatch-native-query.graphql
   node -e "
@@ -93,11 +94,7 @@ if [ "$WORK_LINKS" = "native" ]; then
     gh api graphql -f query="$(cat /tmp/dispatch-native-query.graphql)" \
       -f owner="$(echo "$OWNER_REPO" | cut -d' ' -f1)" -f repo="$(echo "$OWNER_REPO" | cut -d' ' -f2)" \
       > /tmp/dispatch-native-deps.json
-  else
-    echo '{"data":{"repository":{}}}' > /tmp/dispatch-native-deps.json
   fi
-else
-  echo '{"data":{"repository":{}}}' > /tmp/dispatch-native-deps.json
 fi
 node -e "
   const { hasOpenNativeBlocker } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
