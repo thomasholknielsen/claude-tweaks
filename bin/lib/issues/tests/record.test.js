@@ -4,6 +4,7 @@ const assert = require('node:assert');
 const {
   recordPayload, TYPE_LABELS,
   extractFingerprint, parseRecordFacets, parseDependencies, parseDependencyAssumptions, specShapedBody,
+  buildNativeDependencyQuery, hasOpenNativeBlocker,
 } = require('../record');
 
 test('recordPayload assembles labels for a born-ready health record', () => {
@@ -233,6 +234,50 @@ test('parseDependencies returns an empty array when there are no dependency line
 
 test('parseDependencies ignores mid-line occurrences (line-anchored only)', () => {
   assert.deepStrictEqual(parseDependencies('see Blocked by #9 mid-line'), []);
+});
+
+test('hasOpenNativeBlocker returns true when any blockedBy node is OPEN', () => {
+  assert.strictEqual(
+    hasOpenNativeBlocker({ number: 39, blockedBy: { nodes: [{ number: 14, state: 'OPEN' }] } }),
+    true
+  );
+});
+
+test('hasOpenNativeBlocker returns false when all blockedBy nodes are CLOSED', () => {
+  assert.strictEqual(
+    hasOpenNativeBlocker({ number: 39, blockedBy: { nodes: [{ number: 14, state: 'CLOSED' }] } }),
+    false
+  );
+});
+
+test('hasOpenNativeBlocker returns false when blockedBy has no nodes', () => {
+  assert.strictEqual(hasOpenNativeBlocker({ number: 39, blockedBy: { nodes: [] } }), false);
+});
+
+test('hasOpenNativeBlocker returns false for null or undefined input', () => {
+  assert.strictEqual(hasOpenNativeBlocker(null), false);
+  assert.strictEqual(hasOpenNativeBlocker(undefined), false);
+});
+
+test('hasOpenNativeBlocker returns false when blockedBy is missing entirely', () => {
+  assert.strictEqual(hasOpenNativeBlocker({ number: 39 }), false);
+});
+
+test('buildNativeDependencyQuery aliases each number and requests blockedBy state', () => {
+  const q = buildNativeDependencyQuery([39, 37]);
+  assert.match(q, /i39: issue\(number:39\)/);
+  assert.match(q, /i37: issue\(number:37\)/);
+  assert.match(q, /blockedBy\(first:25\)/);
+  assert.match(q, /state/);
+  assert.match(q, /repository\(owner:\$owner,name:\$repo\)/);
+});
+
+test('buildNativeDependencyQuery returns null for an empty array', () => {
+  assert.strictEqual(buildNativeDependencyQuery([]), null);
+});
+
+test('buildNativeDependencyQuery returns null for non-array input', () => {
+  assert.strictEqual(buildNativeDependencyQuery(undefined), null);
 });
 
 // AC — dependency assumptions (cross-spec-promise-tracking)

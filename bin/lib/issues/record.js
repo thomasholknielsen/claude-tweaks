@@ -224,6 +224,30 @@ function parseDependencies(body) {
   return result;
 }
 
+// candidate issue numbers -> one batched, aliased GraphQL query requesting each
+// candidate's native blockedBy connection (work-links: native). GraphQL aliases
+// can't start with a digit, hence the 'i' prefix. Returns null for an empty or
+// non-array input — nothing to query, and an empty repository{} selection set
+// would be invalid GraphQL.
+function buildNativeDependencyQuery(numbers) {
+  if (!Array.isArray(numbers) || numbers.length === 0) return null;
+  const fields = numbers
+    .map((n) => `i${n}: issue(number:${n}){ number blockedBy(first:25){ nodes{ number state } } }`)
+    .join('\n      ');
+  return `query($owner:String!,$repo:String!){\n  repository(owner:$owner,name:$repo){\n      ${fields}\n  }\n}`;
+}
+
+// one candidate's parsed aliased response value (the { number, blockedBy: { nodes } }
+// shape buildNativeDependencyQuery's query produces per alias) -> true when at least
+// one blockedBy node is still OPEN. Mirrors parseDependencies' role for the
+// work-links: body-text case, but judges a single already-parsed node instead of
+// scanning body text for every candidate at once.
+function hasOpenNativeBlocker(issueNode) {
+  const nodes = issueNode && issueNode.blockedBy && issueNode.blockedBy.nodes;
+  if (!Array.isArray(nodes)) return false;
+  return nodes.some((n) => n && n.state === 'OPEN');
+}
+
 // body -> array of {number, assumption} for every line-anchored
 // 'Blocked by #N: {text}' declaration, in order of appearance. A bare
 // 'Blocked by #N' line (no colon) contributes nothing here — parseDependencies
@@ -276,5 +300,5 @@ function specShapedBody({ header, currentState, deliverables, acceptanceCriteria
 module.exports = {
   ORIGINS, TYPES, TIERS, PRIORITIES, LABELS, TYPE_LABELS, recordPayload, specShapedBody,
   FP_RE_WORK, FP_RE_LEGACY, extractFingerprint, parseRecordFacets, parseDependencies,
-  parseDependencyAssumptions,
+  parseDependencyAssumptions, buildNativeDependencyQuery, hasOpenNativeBlocker,
 };
