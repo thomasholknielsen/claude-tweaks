@@ -102,7 +102,20 @@ function domainChurn(root, relPaths, sinceMs) {
   if (churnCache.has(key)) return churnCache.get(key);
   let count;
   try {
-    const since = new Date(sinceMs || 0).toISOString().slice(0, 10);
+    // Full ISO 8601 datetime (with time-of-day and a Z/UTC suffix), not a
+    // bare YYYY-MM-DD date string. A bare date string is parsed by git as
+    // local midnight and then converted to UTC, which underflows to a
+    // pre-epoch boundary (silently matching zero commits) in any positive
+    // UTC-offset timezone when sinceMs is 0. git's numeric `@<seconds>`
+    // epoch-literal syntax was tried as a fix but verified (via direct
+    // experimentation) to be unreliable for small values: git's fuzzy
+    // approxidate parser treats a small `@<N>` as an ambiguous relative
+    // offset from "now" rather than an absolute timestamp, so `--since=@0`
+    // silently degrades to "since right now" once any time at all has
+    // elapsed since the commit — worse than the original bug. A full ISO
+    // 8601 string is parsed by git's strict (non-fuzzy) date parser and
+    // was verified robust across timezones and timing.
+    const since = new Date(sinceMs || 0).toISOString();
     const out = execFileSync(
       'git',
       ['-C', root, 'log', '--oneline', `--since=${since}`, '--', ...relPaths],
