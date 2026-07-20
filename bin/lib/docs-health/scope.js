@@ -4,22 +4,28 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const { STALE_DAYS } = require('./score');
 const { parseFilesField } = require('./freshness');
+const { selectByStaleThenChurn } = require('../health-core/rotation');
 
-// Directory names excluded when they sit directly under docs/ — ephemeral
-// /specify + /superpowers:writing-plans build artifacts (specs, plans), not
-// Diátaxis-portal content. Not a recursive-anywhere exclusion: only
-// docs/superpowers itself is skipped, not any nested "superpowers" dir
-// deeper in the tree (there shouldn't be one, but this keeps the rule
+// Directory names excluded when they sit directly under docs/. `superpowers`
+// is ephemeral /specify + /superpowers:writing-plans build artifacts (specs,
+// plans), not Diátaxis-portal content. `journeys` is /claude-tweaks:journey-
+// health's exclusive territory (journey accuracy and agent-e2e coverage
+// instead of Diátaxis genre-drift) — without this exclusion the same file
+// could be independently audited and issue-filed by both by:docs-health and
+// by:journey-health. Not a recursive-anywhere exclusion: only docs/superpowers
+// and docs/journeys themselves are skipped, not any nested dir of the same
+// name deeper in the tree (there shouldn't be one, but this keeps the rule
 // narrow and explicit rather than accidentally over-broad).
-const EXCLUDE_TOP_LEVEL_DIRS = new Set(['superpowers']);
+const EXCLUDE_TOP_LEVEL_DIRS = new Set(['superpowers', 'journeys']);
 
 // ─── listDocs ────────────────────────────────────────────────────────────
 // Recursively walks docs/**, returning [{ kind: 'doc', id, path }] for
 // every .md file, sorted by id. id is the path relative to docs/,
 // forward-slashed, without the .md extension — e.g.
 // docs/decisions/0007-foo.md -> "decisions/0007-foo". Skips
-// docs/superpowers/** and any dotfile directory. [] if docs/ doesn't exist
-// — a project with no docs/ tree yet is a valid state, not an error.
+// docs/superpowers/**, docs/journeys/**, and any dotfile directory. [] if
+// docs/ doesn't exist — a project with no docs/ tree yet is a valid state,
+// not an error.
 //
 // Structurally never returns anything under .claude/skills/**,
 // .claude/rules/**, or a project-root CLAUDE.md — this walker only ever
@@ -75,7 +81,7 @@ function domainChurn(root, relPaths, sinceMs) {
     const out = execFileSync(
       'git',
       ['-C', root, 'log', '--oneline', `--since=${since}`, '--', ...relPaths],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 },
     );
     return out.split('\n').filter(Boolean).length;
   } catch {
@@ -94,47 +100,35 @@ function selectTarget(root, cursors, opts = {}) {
   const signals = opts.signals || null; // test injection hook — churn override by "doc:<id>" key
 
   const candidates = listDocs(root);
-  if (candidates.length === 0) return null;
 
-  // Phase 1: force-pick any doc unaudited past STALE_DAYS.
-  for (const candidate of candidates) {
-    const key = `doc:${candidate.id}`;
-    const cursor = cursors[key];
-    const lastAuditedMs = cursor && cursor.lastAuditedMs != null ? cursor.lastAuditedMs : null;
-    const daysSince = lastAuditedMs === null ? Infinity : (now - lastAuditedMs) / 86400000;
-    if (daysSince > STALE_DAYS) {
-      return { ...candidate, why: 'stale', daysSinceLastAudit: Number.isFinite(daysSince) ? Math.round(daysSince) : null };
-    }
-  }
-
-  // Phase 2: among non-stale candidates, score by churn since last audit —
-  // the doc's own declared files: dependencies (preferred, parseFilesField)
-  // or, absent those, its incidentally backtick-quoted paths
-  // (extractDomainPaths) — UNION the doc file's own path, so editing the
-  // doc itself also counts (a doc that changed a lot recently is itself a
-  // drift risk, independent of what it references).
-  const scored = [];
-  for (const candidate of candidates) {
-    const key = `doc:${candidate.id}`;
-    const cursor = cursors[key] || {};
-    const sinceMs = cursor.lastAuditedMs || 0;
-    let churn;
-    if (signals) {
-      churn = signals[key] || 0;
-    } else {
-      let content;
-      try { content = fs.readFileSync(candidate.path, 'utf8'); } catch { content = ''; }
-      const relDocPath = path.relative(root, candidate.path).split(path.sep).join('/');
-      const declaredPaths = parseFilesField(content);
-      const domainPaths = declaredPaths.length > 0 ? declaredPaths : extractDomainPaths(content);
-      churn = domainChurn(root, [relDocPath, ...domainPaths], sinceMs);
-    }
-    if (churn > 0) scored.push({ candidate, churn });
-  }
-
-  if (scored.length === 0) return null;
-  scored.sort((a, b) => (b.churn !== a.churn ? b.churn - a.churn : (a.candidate.id < b.candidate.id ? -1 : 1)));
-  return { ...scored[0].candidate, why: 'hotspot', churnCount: scored[0].churn };
+  return selectByStaleThenChurn(candidates, cursors, {
+    now,
+    staleDays: STALE_DAYS,
+    getCursorKey: (candidate) => `doc:${candidate.id}`,
+    getLastAuditedMs: (cursor) => (cursor && cursor.lastAuditedMs != null ? cursor.lastAuditedMs : null),
+    // Score by churn since last audit — the doc's own declared files:
+    // dependencies (preferred, parseFilesField) or, absent those, its
+    // incidentally backtick-quoted paths (extractDomainPaths) — UNION the
+    // doc file's own path, so editing the doc itself also counts (a doc
+    // that changed a lot recently is itself a drift risk, independent of
+    // what it references).
+    computeScore: (candidate, cursor, sinceMs) => {
+      const key = `doc:${candidate.id}`;
+      let churn;
+      if (signals) {
+        churn = signals[key] || 0;
+      } else {
+        let content;
+        try { content = fs.readFileSync(candidate.path, 'utf8'); } catch { content = ''; }
+        const relDocPath = path.relative(root, candidate.path).split(path.sep).join('/');
+        const declaredPaths = parseFilesField(content);
+        const domainPaths = declaredPaths.length > 0 ? declaredPaths : extractDomainPaths(content);
+        churn = domainChurn(root, [relDocPath, ...domainPaths], sinceMs);
+      }
+      return churn > 0 ? churn : null;
+    },
+    buildHotspotResult: (candidate, score) => ({ ...candidate, why: 'hotspot', churnCount: score }),
+  });
 }
 
 module.exports = { listDocs, extractDomainPaths, domainChurn, selectTarget };

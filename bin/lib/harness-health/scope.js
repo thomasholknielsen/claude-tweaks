@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { STALE_DAYS } = require('./score');
+const { selectByStaleThenChurn } = require('../health-core/rotation');
 
 // ─── listSkills ──────────────────────────────────────────────────────────────
 // Returns [{ kind: 'skill', id, path }] for each .claude/skills/*.md file,
@@ -103,16 +104,13 @@ function listMemory(memoryDir) {
 function selectMemoryTarget(memoryDir, cursors, opts = {}) {
   const now = opts.now != null ? opts.now : Date.now();
   const candidates = listMemory(memoryDir);
-  for (const candidate of candidates) {
-    const key = `${candidate.kind}:${candidate.id}`;
-    const cursor = cursors[key];
-    const lastAuditedMs = cursor && cursor.lastAuditedMs != null ? cursor.lastAuditedMs : null;
-    const daysSince = lastAuditedMs === null ? Infinity : (now - lastAuditedMs) / 86400000;
-    if (daysSince > STALE_DAYS) {
-      return { ...candidate, why: 'stale', daysSinceLastAudit: Number.isFinite(daysSince) ? Math.round(daysSince) : null };
-    }
-  }
-  return null;
+  return selectByStaleThenChurn(candidates, cursors, {
+    now,
+    staleDays: STALE_DAYS,
+    getCursorKey: (candidate) => `${candidate.kind}:${candidate.id}`,
+    getLastAuditedMs: (cursor) => (cursor && cursor.lastAuditedMs != null ? cursor.lastAuditedMs : null),
+    computeScore: () => null, // no Phase 2 signal for memory — always falls through to null
+  });
 }
 
 // ─── readDesignIntegrationFlag ─────────────────────────────────────────────
@@ -205,7 +203,7 @@ function domainChurn(root, relPaths, sinceMs) {
     const out = execFileSync(
       'git',
       ['-C', root, 'log', '--oneline', `--since=${since}`, '--', ...relPaths],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 },
     );
     return out.split('\n').filter(Boolean).length;
   } catch {
@@ -225,42 +223,29 @@ function selectTarget(root, cursors, opts = {}) {
 
   let candidates = listTargets(root);
   if (kindFilter) candidates = candidates.filter((c) => c.kind === kindFilter);
-  if (candidates.length === 0) return null;
 
-  // Phase 1: force-pick any target unaudited past STALE_DAYS.
-  for (const candidate of candidates) {
-    const key = `${candidate.kind}:${candidate.id}`;
-    const cursor = cursors[key];
-    const lastAuditedMs = cursor && cursor.lastAuditedMs != null ? cursor.lastAuditedMs : null;
-    const daysSince = lastAuditedMs === null ? Infinity : (now - lastAuditedMs) / 86400000;
-    if (daysSince > STALE_DAYS) {
-      return { ...candidate, why: 'stale', daysSinceLastAudit: Number.isFinite(daysSince) ? Math.round(daysSince) : null };
-    }
-  }
-
-  // Phase 2: among non-stale candidates, score by domain churn since last audit.
-  const scored = [];
-  for (const candidate of candidates) {
-    const key = `${candidate.kind}:${candidate.id}`;
-    const cursor = cursors[key] || {};
-    const sinceMs = cursor.lastAuditedMs || 0;
-    let churn;
-    if (signals) {
-      churn = signals[key] || 0;
-    } else {
-      let content;
-      try { content = fs.readFileSync(candidate.path, 'utf8'); } catch { content = ''; }
-      const domainPaths = (candidate.kind === 'rule' || candidate.kind === 'design-artifact') && candidate.pathGlobs && candidate.pathGlobs.length > 0
-        ? candidate.pathGlobs
-        : extractDomainPaths(content);
-      churn = domainChurn(root, domainPaths, sinceMs);
-    }
-    if (churn > 0) scored.push({ candidate, churn });
-  }
-
-  if (scored.length === 0) return null;
-  scored.sort((a, b) => (b.churn !== a.churn ? b.churn - a.churn : (a.candidate.id < b.candidate.id ? -1 : 1)));
-  return { ...scored[0].candidate, why: 'hotspot', churnCount: scored[0].churn };
+  return selectByStaleThenChurn(candidates, cursors, {
+    now,
+    staleDays: STALE_DAYS,
+    getCursorKey: (candidate) => `${candidate.kind}:${candidate.id}`,
+    getLastAuditedMs: (cursor) => (cursor && cursor.lastAuditedMs != null ? cursor.lastAuditedMs : null),
+    computeScore: (candidate, cursor, sinceMs) => {
+      const key = `${candidate.kind}:${candidate.id}`;
+      let churn;
+      if (signals) {
+        churn = signals[key] || 0;
+      } else {
+        let content;
+        try { content = fs.readFileSync(candidate.path, 'utf8'); } catch { content = ''; }
+        const domainPaths = (candidate.kind === 'rule' || candidate.kind === 'design-artifact') && candidate.pathGlobs && candidate.pathGlobs.length > 0
+          ? candidate.pathGlobs
+          : extractDomainPaths(content);
+        churn = domainChurn(root, domainPaths, sinceMs);
+      }
+      return churn > 0 ? churn : null;
+    },
+    buildHotspotResult: (candidate, score) => ({ ...candidate, why: 'hotspot', churnCount: score }),
+  });
 }
 
 module.exports = {

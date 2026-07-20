@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { STALE_DAYS_LIGHT, STALE_DAYS_DEEP } = require('./score');
+const { selectByStaleThenChurn } = require('../health-core/rotation');
 
 // ─── parseJourneyFiles ───────────────────────────────────────────────────────
 // Extracts a journey file's `files:` frontmatter list, e.g.:
@@ -59,7 +60,7 @@ function domainChurn(root, relPaths, sinceMs) {
     const out = execFileSync(
       'git',
       ['-C', root, 'log', '--oneline', `--since=${since}`, '--', ...relPaths],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 },
     );
     return out.split('\n').filter(Boolean).length;
   } catch {
@@ -88,7 +89,6 @@ function selectTarget(root, cursors, opts = {}) {
   const auditField = tier === 'deep' ? 'lastDeepAuditMs' : 'lastLightAuditMs';
 
   const candidates = listJourneys(root);
-  if (candidates.length === 0) return null;
 
   // Phase 0 (light tier only): force-pick any journey with a declared file
   // that no longer exists. This is a stronger, more certain signal than
@@ -96,6 +96,10 @@ function selectTarget(root, cursors, opts = {}) {
   // existence check. Deep tier does not get this phase: its own
   // post-selection "skip condition" (SKILL.md Step 3.5) already handles a
   // broken journey without permanently parking the deep-tier rotation on it.
+  // Not part of the shared rotation core (health-core/rotation.js) — it has
+  // no analogue in the other three engines' Phase 1/2 shape, so it stays
+  // here and only calls into the shared core for its own Phase 1/2 once
+  // Phase 0 has had its chance to return first.
   if (tier === 'light') {
     for (const candidate of candidates) {
       if (alreadyPicked && alreadyPicked.has(candidate.id)) continue;
@@ -108,29 +112,18 @@ function selectTarget(root, cursors, opts = {}) {
     }
   }
 
-  // Phase 1: force-pick any journey unaudited on this tier past staleDays.
-  for (const candidate of candidates) {
-    const cursor = cursors[candidate.id];
-    const lastAuditedMs = cursor && cursor[auditField] != null ? cursor[auditField] : null;
-    const daysSince = lastAuditedMs === null ? Infinity : (now - lastAuditedMs) / 86400000;
-    if (daysSince > staleDays) {
-      return { ...candidate, why: 'stale', daysSinceLastAudit: Number.isFinite(daysSince) ? Math.round(daysSince) : null };
-    }
-  }
-
-  // Phase 2: among non-stale candidates, score by churn on filesFrontmatter
-  // since last audit on this tier.
-  const scored = [];
-  for (const candidate of candidates) {
-    const cursor = cursors[candidate.id] || {};
-    const sinceMs = cursor[auditField] || 0;
-    const churn = signals ? (signals[candidate.id] || 0) : domainChurn(root, candidate.filesFrontmatter, sinceMs);
-    if (churn > 0) scored.push({ candidate, churn });
-  }
-
-  if (scored.length === 0) return null;
-  scored.sort((a, b) => (b.churn !== a.churn ? b.churn - a.churn : (a.candidate.id < b.candidate.id ? -1 : 1)));
-  return { ...scored[0].candidate, why: 'hotspot', churnCount: scored[0].churn };
+  return selectByStaleThenChurn(candidates, cursors, {
+    now,
+    staleDays,
+    getCursorKey: (candidate) => candidate.id,
+    getLastAuditedMs: (cursor) => (cursor && cursor[auditField] != null ? cursor[auditField] : null),
+    // Score by churn on filesFrontmatter since last audit on this tier.
+    computeScore: (candidate, cursor, sinceMs) => {
+      const churn = signals ? (signals[candidate.id] || 0) : domainChurn(root, candidate.filesFrontmatter, sinceMs);
+      return churn > 0 ? churn : null;
+    },
+    buildHotspotResult: (candidate, score) => ({ ...candidate, why: 'hotspot', churnCount: score }),
+  });
 }
 
 module.exports = { parseJourneyFiles, listJourneys, domainChurn, selectTarget };

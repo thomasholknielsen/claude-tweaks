@@ -4,6 +4,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 const { MAX_STALE_DAYS } = require('./score');
+const { selectByStaleThenChurn } = require('../health-core/rotation');
 
 const SKIP_DIRS = new Set([
   '.claude-tweaks', '.git', 'node_modules', 'dist', 'build', 'coverage', '.next', '.turbo',
@@ -51,7 +52,7 @@ function sourceFiles(absDir) {
         '-not', '-path', `${absDir}/.claude/*`,
         '-not', '-path', `${absDir}/.worktrees/*`,
       ],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 },
     );
     return raw
       .split('\n')
@@ -88,7 +89,7 @@ function gitChurn(root, relDir, now) {
     const out = execFileSync(
       'git',
       ['-C', root, 'log', '--oneline', `--since=${since}`, '--', relDir === '.' ? '.' : relDir],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 },
     );
     return out.split('\n').filter(Boolean).length;
   } catch {
@@ -188,40 +189,34 @@ function listWorkspaceSlices(root) {
 
 // ─── selectSlice ─────────────────────────────────────────────────────────────
 // opts: { budget?: number, now?: number, signals?: { [id]: { churn, loc } } }
-// Returns Slice & { why: 'stale' | 'hotspot' } or null.
+// Returns Slice & { why: 'stale' | 'hotspot' } or null. Phase mechanics
+// (force-pick past MAX_STALE_DAYS, else score-and-pick-highest) delegate to
+// health-core/rotation's shared selectByStaleThenChurn; this module keeps
+// ownership of the slice listing, content-hash skip, and hotspot scoring.
 function selectSlice(root, cursors, opts = {}) {
   const now = opts.now != null ? opts.now : Date.now();
   const signals = opts.signals || null; // test injection hook
 
   const candidates = listSlices(root);
 
-  // Phase 1: Force-pick any slice unjudged past MAX_STALE_DAYS (eventually-complete floor).
-  for (const slice of candidates) {
-    const cursor = cursors[slice.id];
-    const lastSweptMs = cursor && cursor.lastSweptMs != null ? cursor.lastSweptMs : null;
-    const daysSince = lastSweptMs === null ? Infinity : (now - lastSweptMs) / 86400000;
-    if (daysSince > MAX_STALE_DAYS) {
-      return { ...slice, why: 'stale' };
-    }
-  }
-
-  // Phase 2: Among non-stale candidates, compute hotspot score, skip hash-unchanged slices.
-  const scored = [];
-  for (const slice of candidates) {
-    const cursor = cursors[slice.id] || {};
-    // Skip if content-hash is unchanged (the real change-aware skip).
-    const currentHash = contentHash(slice.path);
-    if (cursor.lastHash && cursor.lastHash === currentHash) continue;
-
-    const sig = signals ? signals[slice.id] || { churn: 0, loc: 0 } : null;
-    const churn = sig ? sig.churn : gitChurn(root, slice.id, now);
-    const loc = sig ? sig.loc : sliceLoc(slice.path);
-    scored.push({ slice, score: hotspotScore(churn, loc) });
-  }
-
-  if (scored.length === 0) return null;
-  scored.sort((a, b) => b.score !== a.score ? b.score - a.score : a.slice.id < b.slice.id ? -1 : 1);
-  return { ...scored[0].slice, why: 'hotspot' };
+  return selectByStaleThenChurn(candidates, cursors, {
+    now,
+    staleDays: MAX_STALE_DAYS,
+    getCursorKey: (slice) => slice.id,
+    getLastAuditedMs: (cursor) => (cursor && cursor.lastSweptMs != null ? cursor.lastSweptMs : null),
+    // Skip if content-hash is unchanged (the real change-aware skip) —
+    // returning null excludes the slice from Phase 2 entirely.
+    computeScore: (slice, cursor) => {
+      const currentHash = contentHash(slice.path);
+      if (cursor.lastHash && cursor.lastHash === currentHash) return null;
+      const sig = signals ? signals[slice.id] || { churn: 0, loc: 0 } : null;
+      const churn = sig ? sig.churn : gitChurn(root, slice.id, now);
+      const loc = sig ? sig.loc : sliceLoc(slice.path);
+      return hotspotScore(churn, loc);
+    },
+    buildStaleResult: (slice) => ({ ...slice, why: 'stale' }),
+    buildHotspotResult: (slice) => ({ ...slice, why: 'hotspot' }),
+  });
 }
 
 module.exports = { listSlices, contentHash, selectSlice, listWorkspaceSlices };
