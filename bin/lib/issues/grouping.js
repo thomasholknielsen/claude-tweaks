@@ -4,6 +4,8 @@
 // dispatch time, before any spec exists to read a "Key Files" section from.
 'use strict';
 
+const { normalizeLabelNames } = require('./record');
+
 // Partitions items into groups whose keyFiles overlap, directly or
 // transitively (union-find over shared file paths). Items with no overlap
 // to anything else in the batch are singleton groups.
@@ -48,10 +50,6 @@ const FILES_LINE_RE = /^Files:\s*(.+)$/m;
 // ...") — the shape harness-health and journey-health both use.
 const BOLD_HEADER_RE = /^\*\*[^:*]+:\*\*\s*([^\s|]+)/m;
 
-function labelNames(labels) {
-  return (labels || []).map((l) => (typeof l === 'string' ? l : l && l.name)).filter(Boolean);
-}
-
 // A health skill's origin label appears either in the bare pre-migration form
 // (code-health, harness-health — the only two that predate the by:* origin
 // migration) or the post-6.0 `by:*` form (skills/_shared/work-record.md).
@@ -73,7 +71,7 @@ function extractBoldHeaderFile(body) {
 // Returns string[] of file paths, [] when nothing is extractable.
 function extractKeyFiles(issue) {
   const body = (issue && issue.body) || '';
-  const names = labelNames(issue && issue.labels);
+  const names = normalizeLabelNames(issue && issue.labels);
 
   if (hasOrigin(names, 'code-health')) {
     const anchor = ANCHOR_RE.exec(body);
