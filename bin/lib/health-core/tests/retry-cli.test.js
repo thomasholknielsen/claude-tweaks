@@ -136,6 +136,35 @@ test('update prints [] (not the computed-but-unpersisted escalation) when health
   assert.deepStrictEqual(JSON.parse(out), [], 'must not report an escalation that was never actually persisted to retry-queue.json');
 });
 
+test('update skips a malformed (e.g. null) results entry instead of crashing, and still processes well-formed siblings in the same batch', () => {
+  const ds = fakeDurableState({ retryQueue: [] });
+  const { update } = makeRetryQueueCommands(ds);
+  const resultsPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'retry-cli-')), 'results.json');
+  fs.writeFileSync(resultsPath, JSON.stringify([
+    null,
+    { fingerprint: 'good', payload: { title: 'Good' }, ok: false, error: 'timeout' },
+  ]));
+  let stderrOut = '';
+  const originalStderrWrite = process.stderr.write.bind(process.stderr);
+  process.stderr.write = (chunk) => { stderrOut += chunk; return true; };
+  let out;
+  try {
+    out = captureStdout(() => update({ root: '/repo', _: ['update', resultsPath] }));
+  } finally {
+    process.stderr.write = originalStderrWrite;
+  }
+  assert.ok(stderrOut.includes('skipping malformed result entry'), `expected a skip warning in stderr: ${stderrOut}`);
+  assert.deepStrictEqual(JSON.parse(out), [], 'the well-formed entry alone must not cross the escalation threshold');
+  // Prove the batch wasn't silently discarded wholesale (the pre-fix bug): the
+  // well-formed 'good' entry, which comes AFTER the malformed null in the
+  // array, must still have been enqueued into the persisted retryQueue.
+  const persisted = ds.readDurableState().retryQueue;
+  assert.ok(
+    persisted.some((e) => e.fingerprint === 'good'),
+    `expected 'good' fingerprint to be enqueued despite the malformed sibling entry; got ${JSON.stringify(persisted)}`,
+  );
+});
+
 test('update prints [] when nothing crosses the escalation threshold', () => {
   const ds = fakeDurableState({ retryQueue: [] });
   const { update } = makeRetryQueueCommands(ds);

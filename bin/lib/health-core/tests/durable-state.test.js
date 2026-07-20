@@ -5,11 +5,13 @@ const {
   HEALTH_STATE_BRANCH,
   MAX_RUN_HISTORY,
   ESCALATE_AFTER_ATTEMPTS,
+  MAX_CAS_ATTEMPTS,
   statePath,
   pruneRuns,
   enqueueRetry,
   dequeueRetry,
   shouldEscalate,
+  casBackoffMs,
   createDurableState,
 } = require('../durable-state');
 
@@ -83,6 +85,17 @@ test('shouldEscalate is false for a missing entry', () => {
   assert.strictEqual(shouldEscalate(undefined), false);
 });
 
+test('casBackoffMs windows never overlap across attempts, guaranteeing a later attempt always waits longer', () => {
+  for (let attempt = 1; attempt < MAX_CAS_ATTEMPTS; attempt++) {
+    for (let i = 0; i < 20; i++) {
+      const a = casBackoffMs(attempt);
+      const b = casBackoffMs(attempt + 1);
+      assert.ok(a > 0 && b > 0, 'both must be positive durations');
+      assert.ok(b > a, `attempt ${attempt + 1}'s backoff (${b}) must exceed attempt ${attempt}'s (${a})`);
+    }
+  }
+});
+
 // --- createDurableState: fake runner records every (cmd, args, opts) call and
 // returns canned responses keyed by a simple pattern match on args. `returns`/
 // `throws` may be a plain value OR a function of (cmd, args) called lazily on
@@ -115,9 +128,41 @@ test('readState returns empty defaults when the branch does not exist yet (inclu
   const { run } = fakeRunner([
     { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), throws: "couldn't find remote ref health-state" },
   ]);
-  const ds = createDurableState('code-health', { run, includeRemembered: true });
+  const ds = createDurableState('code-health', { run, sleep: () => {}, includeRemembered: true });
   const state = ds.readState('/repo');
   assert.deepStrictEqual(state, { cursors: {}, remembered: {}, retryQueue: [], runs: [] });
+});
+
+function withCapturedStderr(fn) {
+  let out = '';
+  const original = process.stderr.write.bind(process.stderr);
+  process.stderr.write = (chunk) => { out += chunk; return true; };
+  try {
+    fn();
+  } finally {
+    process.stderr.write = original;
+  }
+  return out;
+}
+
+test('readState stays silent on a genuinely first-ever run (branch simply does not exist yet)', () => {
+  const { run } = fakeRunner([
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), throws: "couldn't find remote ref health-state" },
+  ]);
+  const ds = createDurableState('code-health', { run, sleep: () => {}, includeRemembered: true });
+  const stderrOut = withCapturedStderr(() => ds.readState('/repo'));
+  assert.strictEqual(stderrOut, '', 'a genuine first run must not be logged as if it were a failure');
+});
+
+test('readState writes a stderr trace on a genuine fetch failure, distinguishing it from a first-ever run', () => {
+  const { run } = fakeRunner([
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), throws: 'fatal: unable to access https://github.com/x/y.git/: Could not resolve host: github.com' },
+  ]);
+  const ds = createDurableState('code-health', { run, sleep: () => {}, includeRemembered: true });
+  let state;
+  const stderrOut = withCapturedStderr(() => { state = ds.readState('/repo'); });
+  assert.deepStrictEqual(state, { cursors: {}, remembered: {}, retryQueue: [], runs: [] }, 'still degrades to empty defaults, never throws');
+  assert.ok(stderrOut.includes('fetch failed'), `expected a fetch-failure trace in stderr: ${stderrOut}`);
 });
 
 test('readState parses each file via git show, defaulting missing files to {}/[]', () => {
@@ -128,7 +173,7 @@ test('readState parses each file via git show, defaulting missing files to {}/[]
     { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'retry-queue.json'), returns: '[]' },
     { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'runs.json'), returns: '[]' },
   ]);
-  const ds = createDurableState('code-health', { run, includeRemembered: true });
+  const ds = createDurableState('code-health', { run, sleep: () => {}, includeRemembered: true });
   const state = ds.readState('/repo');
   assert.deepStrictEqual(state.cursors, { '.': { lastSweptMs: 1 } });
   assert.deepStrictEqual(state.remembered, {});
@@ -141,7 +186,7 @@ test('readState omits the remembered key entirely for a skill that does not opt 
     { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), returns: '' },
     { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show'), throws: 'fatal: path does not exist' },
   ]);
-  const ds = createDurableState('harness-health', { run });
+  const ds = createDurableState('harness-health', { run, sleep: () => {} });
   const state = ds.readState('/repo');
   assert.deepStrictEqual(state, { cursors: {}, retryQueue: [], runs: [] });
   assert.ok(!('remembered' in state), 'a skill that never opts in must never see a remembered key at all');
@@ -162,7 +207,7 @@ test('writeState succeeds on the first attempt: fetch, read, build blobs/tree/co
       returns: () => { written.updated = true; return ''; },
     },
   ]);
-  const ds = createDurableState('code-health', { run, includeRemembered: true });
+  const ds = createDurableState('code-health', { run, sleep: () => {}, includeRemembered: true });
   const result = ds.writeState('/repo', (current) => ({ ...current, cursors: { '.': { lastSweptMs: 2 } } }));
   assert.deepStrictEqual(result, { ok: true });
   assert.strictEqual(written.updated, true);
@@ -187,7 +232,7 @@ test('writeState retries on a rejected (non-fast-forward) ref update, then succe
       },
     },
   ]);
-  const ds = createDurableState('code-health', { run, includeRemembered: true });
+  const ds = createDurableState('code-health', { run, sleep: () => {}, includeRemembered: true });
   const result = ds.writeState('/repo', (current) => ({ ...current, cursors: { '.': { lastSweptMs: 2 } } }));
   assert.deepStrictEqual(result, { ok: true });
   assert.strictEqual(refAttempts, 2, 'must retry the whole read-modify-write cycle after a rejection');
@@ -207,10 +252,35 @@ test('writeState gives up gracefully (no throw) after MAX_CAS_ATTEMPTS exhausted
       throws: '422 Reference update failed (non-fast-forward)',
     },
   ]);
-  const ds = createDurableState('code-health', { run, includeRemembered: true });
+  const ds = createDurableState('code-health', { run, sleep: () => {}, includeRemembered: true });
   const result = ds.writeState('/repo', (current) => current);
   assert.strictEqual(result.ok, false);
   assert.ok(result.error, 'must report why it gave up');
+});
+
+test('writeState waits an increasing, jittered interval between CAS retry attempts', () => {
+  const { run } = fakeRunner([
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && matchArgs(args, '^{tree}'), returns: 'tree-sha-1\n' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && !matchArgs(args, '^{tree}'), returns: 'commit-sha-1\n' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), returns: '' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show'), throws: 'fatal: path does not exist' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/blobs'), returns: 'blob-sha\n' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/trees'), returns: 'tree-sha-2\n' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/commits'), returns: 'commit-sha-2\n' },
+    {
+      match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/refs/heads/health-state') && matchArgs(args, 'PATCH'),
+      throws: '422 Reference update failed (non-fast-forward)',
+    },
+  ]);
+  const sleepCalls = [];
+  const ds = createDurableState('code-health', { run, sleep: (ms) => sleepCalls.push(ms), includeRemembered: true });
+  const result = ds.writeState('/repo', (current) => current);
+  assert.strictEqual(result.ok, false, 'sanity check: this scenario exhausts every attempt, same as the test above');
+  assert.strictEqual(sleepCalls.length, MAX_CAS_ATTEMPTS - 1, 'sleeps between attempts, never after the final exhausted one');
+  for (const ms of sleepCalls) assert.ok(ms > 0, `every wait must be a positive duration, got ${ms}`);
+  for (let i = 1; i < sleepCalls.length; i++) {
+    assert.ok(sleepCalls[i] > sleepCalls[i - 1], `wait must increase across attempts: ${sleepCalls}`);
+  }
 });
 
 test('writeState bootstraps the branch when it does not exist yet, then completes the write on the bootstrapped branch', () => {
@@ -243,7 +313,7 @@ test('writeState bootstraps the branch when it does not exist yet, then complete
     },
     { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/refs/heads/health-state') && matchArgs(args, 'PATCH'), returns: '' },
   ]);
-  const ds = createDurableState('code-health', { run, includeRemembered: true });
+  const ds = createDurableState('code-health', { run, sleep: () => {}, includeRemembered: true });
   const result = ds.writeState('/repo', (current) => current);
   assert.deepStrictEqual(result, { ok: true });
   assert.ok(branchCreated, 'ensureBranch must have created the bootstrap commit before the main write proceeded');
@@ -264,7 +334,7 @@ test('writeState never includes a remembered.json blob for a skill that does not
     { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/commits'), returns: 'commit-sha-2\n' },
     { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/refs/heads/health-state') && matchArgs(args, 'PATCH'), returns: '' },
   ]);
-  const ds = createDurableState('harness-health', { run });
+  const ds = createDurableState('harness-health', { run, sleep: () => {} });
   const result = ds.writeState('/repo', (current) => current);
   assert.deepStrictEqual(result, { ok: true });
   const treeCall = calls.find((c) => c.cmd === 'gh' && c.args.includes('repos/{owner}/{repo}/git/trees'));
@@ -288,7 +358,7 @@ test('ensureBranch never throws: writeState returns { ok: false, error } (not an
     // { ok: false }.
     { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/commits'), throws: 'gh: authentication failed' },
   ]);
-  const ds = createDurableState('code-health', { run, includeRemembered: true });
+  const ds = createDurableState('code-health', { run, sleep: () => {}, includeRemembered: true });
   let result;
   assert.doesNotThrow(() => {
     result = ds.writeState('/repo', (current) => current);
@@ -327,7 +397,7 @@ test('writeState fetches at most once per CAS-loop attempt: a redundant internal
     { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/refs/heads/health-state') && matchArgs(args, 'PATCH'), returns: '' },
   ]);
   let seenCurrent = null;
-  const ds = createDurableState('code-health', { run, includeRemembered: true });
+  const ds = createDurableState('code-health', { run, sleep: () => {}, includeRemembered: true });
   const result = ds.writeState('/repo', (current) => {
     seenCurrent = current;
     return { ...current, cursors: { ...current.cursors, updated: true } };
@@ -348,7 +418,7 @@ test('writeState includes a remembered.json blob only for a skill that opts in',
     { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/commits'), returns: 'commit-sha-2\n' },
     { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/refs/heads/health-state') && matchArgs(args, 'PATCH'), returns: '' },
   ]);
-  const ds = createDurableState('code-health', { run, includeRemembered: true });
+  const ds = createDurableState('code-health', { run, sleep: () => {}, includeRemembered: true });
   const result = ds.writeState('/repo', (current) => current);
   assert.deepStrictEqual(result, { ok: true });
   const treeCall = calls.find((c) => c.cmd === 'gh' && c.args.includes('repos/{owner}/{repo}/git/trees'));

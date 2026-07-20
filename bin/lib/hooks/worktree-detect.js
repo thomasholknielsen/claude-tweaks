@@ -37,32 +37,16 @@ function nearestExistingDir(p) {
   return dir;
 }
 
-function repoRootFor(p) {
-  const dir = nearestExistingDir(p);
-  if (!dir) return null;
-  const top = git(['rev-parse', '--show-toplevel'], dir);
-  return top ? safeReal(top) : null;
-}
-
-function isLinkedWorktree(p) {
-  const dir = nearestExistingDir(p);
-  if (!dir) return false;
-  const gitDir = git(['rev-parse', '--git-dir'], dir);
-  const gitCommon = git(['rev-parse', '--git-common-dir'], dir);
-  if (!gitDir || !gitCommon) return false; // not a git repo at all
-  const superproject = git(['rev-parse', '--show-superproject-working-tree'], dir);
-  if (superproject) return false; // submodule -> not an isolated worktree
-  return safeReal(path.resolve(dir, gitDir)) !== safeReal(path.resolve(dir, gitCommon));
-}
-
-// Combined repoRootFor() + isLinkedWorktree() in a single git subprocess
-// spawn instead of four — every caller of this module needs both, back to
-// back, for the same path (pre-tool-use.js's worktree-required gate on
-// every Edit/Write/NotebookEdit/commit, session-start.js's advisory nudge).
-// `git rev-parse` accepts multiple query flags in one invocation; each
-// prints one line, in order, except --show-superproject-working-tree which
-// prints nothing at all when the path isn't a submodule — always requested
-// last here so its absence never shifts the other three lines' positions.
+// Single git subprocess spawn querying toplevel + git-dir + git-common-dir +
+// superproject in one invocation instead of four separate spawns — every
+// caller of this module needs both the repo root and the linked-worktree
+// check, back to back, for the same path (pre-tool-use.js's
+// worktree-required gate on every Edit/Write/NotebookEdit/commit,
+// session-start.js's advisory nudge). `git rev-parse` accepts multiple query
+// flags in one invocation; each prints one line, in order, except
+// --show-superproject-working-tree which prints nothing at all when the
+// path isn't a submodule — always requested last here so its absence never
+// shifts the other three lines' positions.
 function repoInfo(p) {
   const dir = nearestExistingDir(p);
   if (!dir) return { repoRoot: null, isLinkedWorktree: false };
@@ -94,4 +78,4 @@ function findPolicyFile(p) {
   return null;
 }
 
-module.exports = { nearestExistingDir, repoRootFor, isLinkedWorktree, repoInfo, findPolicyFile };
+module.exports = { nearestExistingDir, repoInfo, findPolicyFile };

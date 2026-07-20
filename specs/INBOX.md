@@ -40,10 +40,3 @@ Context: A friction audit of ledger processing confirmed Phase 2's no-default-bu
 
 Scope: Explore whether blocker-identity (as opposed to disposition-identity) is a safe enough signal to justify a narrow, non-default grouping affordance in Phase 2 without reintroducing the "obvious bulk button" bias the current guardrail explicitly forbids. No action until this gets deliberate brainstorming — the current design leans toward "no," but it's a judgment call worth a real pass, not a code-level fix.
 
-## Consolidate code-health's duplicated directory-skip logic
-
-**Added:** 2026-07-09 | **Category:** technical | **Related:** bin/lib/code-health/scope.js, bin/lib/code-health/lenses/{oversized-file,dead-export,todo-comments,dependency-freshness}.js
-
-Context: The worktree-directory-convention fix (`docs/superpowers/specs/2026-07-08-worktree-directory-convention-design.md`) needed to add `.claude`/`.worktrees` exclusions in two independent places: the 4 lens files' `SKIP_DIRS` sets, and `scope.js`'s own, separately-maintained `SKIP_DIRS` — the actual v2 run spine (lenses are demoted to optional-tool status in v2, per `lenses/index.js`). A whole-branch review had to catch that the first fix only touched the lens layer; `scope.js` was missed entirely because the design's own follow-up grep for `.worktrees` mentions couldn't find a file whose bug was that it *never* mentioned `.worktrees` at all. Five independently-maintained "skip these directories" lists for one concept is the root cause.
-
-Scope: Extract one shared skip-list module (e.g. `bin/lib/code-health/skip-dirs.js`) that `scope.js` and all 4 lenses import, so a future addition (a new infra directory, a new harness convention) only needs to land in one place. Needs a small design pass first — the lenses and `scope.js` currently have slightly different sets (`scope.js` also skips `.next`/`.turbo`; the lenses don't), so consolidation must confirm no lens-specific exclusion actually matters before merging them into one list.

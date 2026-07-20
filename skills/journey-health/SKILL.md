@@ -108,6 +108,10 @@ Otherwise:
 
 Write Step 3.5's findings to `/tmp/journey-health-findings-deep.json` whenever the **Otherwise:** block above ran — including an empty array `[]` (the QA-evidence-satisfied path and a clean live-verification pass both produce no findings, but the file must still be written so the deep-tier call below runs and the cursor advances). Skip creating this file entirely only when Step 3.5 didn't run at all (`--deep` wasn't passed), resolved `target: null`, or hit the **Skip condition** (missing declared file) — none of those three cases reach the **Otherwise:** block, and none of them should advance the deep-tier cursor.
 
+**Step 3.6 — VERIFY GATE: sanity-check surviving findings before dedup.**
+
+Before fingerprinting and dedup, re-examine every finding in `/tmp/journey-health-findings-light.json` and (when Step 3.5 ran) `/tmp/journey-health-findings-deep.json` and ask: is it real (does the journey file, coverage scan, or live-check evidence actually show this, or was it misread)? Is it actionable (a concrete `recommendation`, not vague)? Would running the recommended follow-up skill actually resolve it without further investigation? Is `severity` justified by the `reason` cited? Drop any finding that fails. This is the same adversarial-verify discipline `/code-health`, `/harness-health`, and `/docs-health` apply — do not skip it under time pressure, and do not skip it just because a finding came from a mechanical check (file-existence, coverage) rather than open-ended judgment; a mechanical check can still misfire (a path resolved against the wrong cwd, a story matched against the wrong journey).
+
 **Step 4 — GATHER OPEN ISSUES for dedup.**
 
 ```bash
@@ -159,7 +163,7 @@ Every journey-health record files onto the unified work record (`skills/_shared/
 
 Effort is always `effort:medium` — a journey-health finding carries no scope/size signal (no files-changed count, no lines-changed estimate) the way a code-health or harness-health finding's own evidence does, so there is no deterministic basis to fold into a `low`/`high` split; `medium` is the flat, honest default for every finding this skill files. Type follows the finding's `category`: `regression-suspected` files as `bug` (the journey/story text is accurate — the implementation broke); `drift` and `coverage` file as `task` (documentation or coverage maintenance, not a defect). Every filed finding is **born-`ready`** — journey-health findings are agent-sized and spec-shaped by construction (Current State / Deliverables / Acceptance Criteria), so they file with the `ready` label already applied and appear directly in the authorization gate's worklist, skipping maturation — records enter the same gate worklist as the other health-skill producers (`/code-health`, `/harness-health`); journey-health issues are not a separate lane. `toIssuePayload` (`bin/lib/journey-health/issue-payload.js`) assembles the payload via `record.js`'s `recordPayload`, then appends the category-derived diagnostic label (`journey-health:drift` / `journey-health:coverage` / `journey-health:regression-suspected`) after the canonical labels — the emitted label set is exactly `by:journey-health` + `risk:<tier>` + `effort:medium` + `ready` + the diagnostic label, matching the table above.
 
-Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures (see `_shared/health-state.md`):
+Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures and check for regressed reopens (see `_shared/health-state.md`) — both mechanics below follow the canonical shape in `_shared/health-filing-mechanics.md` (`{BINARY}` = `journey-health.js`, `{PREFIX}` = `journey-health`); check that file when either changes to keep this skill's copy in sync with its three siblings:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" retry-queue drain --root . > /tmp/journey-health-retry-payloads.json
@@ -264,6 +268,8 @@ Report: which journey (if any) was audited, whether the coverage scan ran, how m
 
 Report-only, matching `/code-health` and `/harness-health` — every finding files as a `by:journey-health`-labelled, born-`ready` GitHub issue, with no `Edit` in `allowed_tools`.
 
+**No confidence floor on headless firings.** Unlike `/code-health`'s `--min-risk` flag (which holds below-threshold findings in a `remembered` cache instead of filing them), this skill's `validate-findings` call carries no equivalent threshold — a headless Routine firing files every surviving finding regardless of `confidence`, including a `confidence: low` one that the interactive gate's own Recommended-column rule would otherwise route to Capture. Known asymmetry with `/code-health`, not yet closed: a scheduled firing is noisier than an interactive one on low-confidence findings until this skill gains an equivalent holdback mechanism.
+
 > **Billing note:** Routines run inside the subscription; verify automation-credit specifics against the live account.
 
 ## Next Actions
@@ -276,7 +282,7 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 
 ## Component-Skill Contract
 
-This skill runs standalone — it is not currently invoked as a pipeline step by `/claude-tweaks:flow` or any other skill (`/flow`'s own Allowed Steps table does not include it). It runs interactively or via a scheduled Routine, and files `by:journey-health` issues that resolve through `/claude-tweaks:triage` → `/claude-tweaks:dispatch` → `/claude-tweaks:flow` as separate, later work records — never as an inline pipeline step. If `$PIPELINE_RUN_DIR` is ever set during a direct invocation (not expected in normal use), omit the `## Next Actions` block to avoid conflicting with an active pipeline's own handoff; otherwise render Next Actions as usual.
+`/claude-tweaks:journey-health` is a **standalone-only** skill — no invocation path exists from `/claude-tweaks:flow` or any other skill in this project today (`flow/SKILL.md`'s Allowed Steps table, workflow text, and Relationship table never mention `journey-health`). The `## Next Actions` block always renders. If a future orchestrator wraps this skill, that orchestrator must update this contract to state its own `$PIPELINE_RUN_DIR`-gated handoff; until then, treat parent invocation as not applicable.
 
 ## Anti-Patterns
 
@@ -290,6 +296,7 @@ This skill runs standalone — it is not currently invoked as a pipeline step by
 | Running the deep tier's dev server without stopping it afterward | This is always a standalone invocation (no `/wrap-up` to clean up later) — Step 3.5 must stop any ephemeral server it started before returning, per `_shared/dev-url-detection.md`'s "Standalone" cleanup rule. |
 | Splitting one recurring root cause into N near-duplicate issues instead of bundling | Floods the tracker with issues that are really one fix applied to N sections. Use `relatedSections` to cover every occurrence in a single finding instead. |
 | Filing before presenting the interactive gate | The two-tier decision must run before any `gh issue create` call for new findings — see `_shared/health-filing-gate.md`'s placement rule. |
+| Skipping Step 3.6's verify gate under time pressure | A mechanical check (file-existence, coverage scan) can still misfire — a path resolved against the wrong cwd, a story matched against the wrong journey. Every surviving finding must pass the verify gate before reaching Step 4's dedup, matching `/code-health`, `/harness-health`, and `/docs-health`. |
 
 ## Relationship to Other Skills
 
@@ -303,10 +310,11 @@ This skill runs standalone — it is not currently invoked as a pipeline step by
 | `/claude-tweaks:routine` | `/routine create journey-health` instantiates this skill's `routine-template.yml` into a live, scheduled cloud Routine. |
 | `/claude-tweaks:tidy` | Step 4.8 sweeps `by:journey-health`-labelled issues alongside `by:code-health`/`by:harness-health`/`by:docs-health` ones, using the same stale/superseded triage. |
 | `/claude-tweaks:code-health` | Sibling health skill for code quality — one of the four recurring-sweep siblings (code-health, harness-health, journey-health, docs-health). Shares the unified work-record filing contract and `_shared/health-state.md`'s durable persistence, scoped to code instead of journey accuracy. |
-| `/claude-tweaks:harness-health` | Sibling health skill — same SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline shape (this skill has no verify-gate step of its own, unlike harness-health's Step 5) and `_shared/health-state.md` persistence, but scoped to `.claude/skills/**`/`.claude/rules/**`/CLAUDE.md for skill/rule/CLAUDE.md accuracy and template-conformance instead of `docs/journeys/*.md` accuracy and agent-e2e coverage. |
-| `/claude-tweaks:docs-health` | Sibling health skill — same SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline shape (this skill has no verify-gate step of its own, unlike docs-health's Step 3.5) and `_shared/health-state.md` persistence, but scoped to `docs/**` Diátaxis genre-drift + depth-mismatch + findability + staleness instead of `docs/journeys/*.md` accuracy and agent-e2e coverage. Both file born-`ready` findings on the unified work-record contract. |
+| `/claude-tweaks:harness-health` | Sibling health skill — same SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline shape (this skill's own Step 3.6 mirrors harness-health's Step 5) and `_shared/health-state.md` persistence, but scoped to `.claude/skills/**`/`.claude/rules/**`/CLAUDE.md for skill/rule/CLAUDE.md accuracy and template-conformance instead of `docs/journeys/*.md` accuracy and agent-e2e coverage. |
+| `/claude-tweaks:docs-health` | Sibling health skill — same SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline shape (this skill's own Step 3.6 mirrors docs-health's Step 3.5) and `_shared/health-state.md` persistence, but scoped to `docs/**` Diátaxis genre-drift + depth-mismatch + findability + staleness instead of `docs/journeys/*.md` accuracy and agent-e2e coverage. Both file born-`ready` findings on the unified work-record contract. |
 | `/claude-tweaks:triage` | Filed `by:journey-health` issues resolve through `/triage dispatch` → `/flow`, or manually — same path `by:code-health`/`by:harness-health` issues already take. Records enter the same gate worklist as the other health-skill producers — journey-health issues are not a separate lane. |
 | `/claude-tweaks:specify` | Journey-health findings are pre-specs — a filed `by:journey-health` issue body is `/specify`-shaped (Current State / Deliverables / Acceptance Criteria), so `/specify` consumes it with near-zero translation. |
 | `_shared/journey-self-review.md` | Canonical four-check + structural-validity criteria this skill's light tier applies — shared with `/claude-tweaks:journeys` Step 3.5. |
 | `_shared/health-filing-gate.md` | The canonical interactive file-all/route-individually gate this skill's Step 6 applies before calling `gh issue create` on new findings — shared with `/code-health`, `/harness-health`, and `/docs-health`. |
+| `_shared/health-filing-mechanics.md` | The canonical retry-queue-drain and regressed-reopen shape this skill's Step 6 inlines (as `{BINARY}` = `journey-health.js`, `{PREFIX}` = `journey-health`) — shared with `/code-health`, `/harness-health`, and `/docs-health`. |
 | `_shared/journey-coverage-check.md` | Canonical coverage computation this skill's coverage scan applies — shared with `/claude-tweaks:review`'s `3g-cov` lens. |

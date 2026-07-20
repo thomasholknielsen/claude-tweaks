@@ -6,6 +6,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const { listDocs, extractDomainPaths, domainChurn, selectTarget } = require('../scope');
 const { listTargets } = require('../../harness-health/scope');
+const { listJourneys } = require('../../journey-health/scope');
 const { STALE_DAYS } = require('../score');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'docs-health-scope-')); }
@@ -71,6 +72,28 @@ test('listDocs never overlaps with harness-health\'s own target list', () => {
   const harnessHealthPaths = new Set(listTargets(root).map((t) => t.path));
   const overlap = [...docsHealthPaths].filter((p) => harnessHealthPaths.has(p));
   assert.deepStrictEqual(overlap, [], 'docs-health and harness-health target lists must never overlap');
+});
+
+test('listDocs excludes docs/journeys/** entirely', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'docs', 'journeys'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'docs', 'decisions'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'docs', 'journeys', 'signup-flow.md'), '# journey');
+  fs.writeFileSync(path.join(root, 'docs', 'decisions', '0001-bar.md'), '# bar');
+  assert.deepStrictEqual(listDocs(root).map((d) => d.id), ['decisions/0001-bar']);
+});
+
+test('listDocs never overlaps with journey-health\'s own target list', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'docs', 'journeys'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'docs', 'guides'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'docs', 'journeys', 'signup-flow.md'), '# journey');
+  fs.writeFileSync(path.join(root, 'docs', 'guides', 'setup.md'), '# setup');
+
+  const docsHealthPaths = new Set(listDocs(root).map((d) => d.path));
+  const journeyHealthPaths = new Set(listJourneys(root).map((t) => t.path));
+  const overlap = [...docsHealthPaths].filter((p) => journeyHealthPaths.has(p));
+  assert.deepStrictEqual(overlap, [], 'docs-health and journey-health target lists must never overlap');
 });
 
 // ── extractDomainPaths / domainChurn ────────────────────────────────────

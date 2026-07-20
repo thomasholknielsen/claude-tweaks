@@ -47,6 +47,10 @@ function makeRetryQueueCommands({ readDurableState, writeDurableState }) {
       escalated = [];
       let queue = current.retryQueue;
       for (const r of results) {
+        if (!r || typeof r !== 'object') {
+          process.stderr.write('retry-queue update: skipping malformed result entry\n');
+          continue;
+        }
         if (r.ok) {
           queue = dequeueRetry(queue, r.fingerprint);
         } else {

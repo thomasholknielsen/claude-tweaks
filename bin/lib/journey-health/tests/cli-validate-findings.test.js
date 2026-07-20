@@ -148,6 +148,20 @@ test('validate-findings: a finding matching a closed non-wontfix issue is reopen
   assert.strictEqual(cache[fp].issue, 9);
 });
 
+test('validate-findings: a malformed --issues array element (e.g. null) is skipped, not a crash', () => {
+  const root = tmp();
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([finding()]));
+  const issuesFile = path.join(root, 'issues-with-null.json');
+  fs.writeFileSync(issuesFile, JSON.stringify([null, { number: 1, state: 'open', labels: [], fingerprint: 'zzz' }]));
+
+  const result = spawnSync('node', [CLI, 'validate-findings', findingsFile, '--root', root, '--issues', issuesFile], { encoding: 'utf8' });
+  assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes('skipping malformed issue entry'), `expected a skip warning in stderr: ${result.stderr}`);
+  const payloads = JSON.parse(result.stdout);
+  assert.strictEqual(payloads.length, 1, 'the well-formed finding must still file despite a malformed --issues entry');
+});
+
 // A real validate-findings run's own attempt to persist its run record can no
 // longer be observed by re-reading local disk (run history is durable now —
 // see seedDurableRuns's comment above) — a bare tmp() root has no git remote

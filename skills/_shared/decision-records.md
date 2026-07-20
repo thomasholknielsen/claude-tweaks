@@ -40,8 +40,8 @@ The literal ADR template lives in `skills/_shared/diataxis-genre-templates.md`'s
 |-------|------|
 | `/claude-tweaks:init` | Creates the `docs/decisions/` folder in the Tier-3 doc taxonomy (Phase 8.5). |
 | `/claude-tweaks:challenge` | **Flags** candidates. When a framing decision in the brief passes the 3-factor gate, tag it `[ADR-candidate]` in "Constraints to Carry Forward" — but does NOT write the file (the decision isn't final pre-brainstorm). |
-| `/claude-tweaks:deepen` | **Flags** candidates. Interface trade-offs surfaced during an architectural-depth pass are tagged `[ADR-candidate]` — same flag-only contract as `/challenge`, does NOT write the file. |
-| `/claude-tweaks:wrap-up` | **Applies the gate and writes.** Step 6.3 collects decisions surfaced during build/review/reflection (plus any `[ADR-candidate]` from the brief and from `/deepen`), runs the 3-factor gate, and proposes ADR creation. Proposed ADRs are routed through the Step 9 batch table / Review Console like any other configuration update — never written silently. |
+| `/claude-tweaks:deepen` | **Flags** candidates. Step 4 names each interface trade-off's cost/benefit; when a trade-off is genuinely hard-to-reverse, surprising, and a real choice (the same 3-factor gate below), it's tagged `[ADR-candidate]` for `/wrap-up` to pick up — does NOT write the file itself. |
+| `/claude-tweaks:wrap-up` | **Applies the gate and writes.** Step 6.3 collects decisions surfaced during build/review/reflection (plus any `[ADR-candidate]` from the brief or from `/deepen`), runs the 3-factor gate, and proposes ADR creation. Proposed ADRs are routed through the Step 9 batch table / Review Console like any other configuration update — never written silently. |
 
 ## Auto-mode
 

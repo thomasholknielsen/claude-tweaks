@@ -7,7 +7,7 @@ QA collection, recoveries, reporting, and ledger writes — Phases 4, 4.5, 5, 5.
     - Overall result: PASS, PASS_WITH_CAVEATS, or FAIL
     - Steps completed vs total (from the `Steps: X/Y` portion)
     - Caveats array (from the `REPORT_JSON` comment's `caveats` field — may be empty)
-    - Recovered selectors array (from the `REPORT_JSON` comment's `recovered_selectors` field — may be empty)
+    - Recovered locators array (from the `REPORT_JSON` comment's `recovered_locators` field — may be empty)
     - Page inventories array (from the `REPORT_JSON` comment's `page_inventories` field — one entry per unique URL visited, may be empty)
     - Trace path (from the `TRACE:` line, if present — only for failures)
     - The full agent report text
@@ -35,7 +35,7 @@ After collecting all agent reports, classify each failure into one of 5 categori
 
 **Caveat-to-finding conversion:** Each caveat from a PASS_WITH_CAVEATS story generates a `ux-issue` finding with severity Medium. These are informational and do not block the gate.
 
-**Auto-recovered selector classification:** When a locator was auto-recovered by the qa-agent (present in the `recovered_selectors` array), classify it as `stale-selector` with status `auto-fixed` rather than `open`. These do not block the gate — the locator has already been corrected in the story YAML (see Phase 4.5).
+**Auto-recovered selector classification:** When a locator was auto-recovered by the qa-agent (present in the `recovered_locators` array), classify it as `stale-selector` with status `auto-fixed` rather than `open`. These do not block the gate — the locator has already been corrected in the story YAML (see Phase 4.5).
 
 ## Phase 4.5: Apply Selector Recoveries
 
@@ -45,7 +45,7 @@ After ALL agents in a tier complete (not during execution — to avoid file writ
 
 **Procedure:**
 
-1. Collect all `recovered_selectors` arrays across all agent reports in this tier. If none have recoveries, skip this phase.
+1. Collect all `recovered_locators` arrays across all agent reports in this tier. If none have recoveries, skip this phase.
 
 2. Group recoveries by source YAML file (tracked in Phase 1, step 6 — each story knows which file it came from).
 
@@ -110,25 +110,25 @@ After ALL agents in a tier complete (not during execution — to avoid file writ
       "observation": "Observation text from the agent"
     }
   ],
-  "recovered_selectors": [
+  "recovered_locators": [
     {
       "story_id": "story-id",
       "source_file": "filename.yaml",
       "step_index": 0,
       "original_locator": "old-locator",
       "recovered_locator": "new-locator",
-      "target": "target description"
+      "reason": "reason description"
     }
   ],
   "page_inventories": [
     {
       "story_id": "story-id",
       "url": "absolute URL",
-      "element_counts": { "buttons": N, "inputs": N, "links": N, "headings": N },
-      "forms": [{ "id_or_label": "form name", "field_count": N }],
-      "nav_landmarks": ["nav role/label"],
-      "accessibility": { "missing_alts": N, "missing_labels": N },
-      "viewport": { "width": W, "height": H }
+      "interactive_elements": { "buttons": N, "links": N, "inputs": N, "selects": N, "checkboxes": N },
+      "forms": { "count": N, "fields_per_form": [N, N] },
+      "navigation": { "nav_elements": N, "breadcrumbs": true, "tabs": N },
+      "accessibility": { "aria_landmarks": N, "heading_levels": [1, 2, 3], "missing_labels": N },
+      "layout": { "viewport_overflow": false, "scroll_height": N }
     }
   ],
   "stories": [
@@ -149,7 +149,7 @@ After ALL agents in a tier complete (not during execution — to avoid file writ
 }
 ```
 
-The `summary.passed` count includes both PASS and PASS_WITH_CAVEATS stories (since caveats are informational). The `summary.pass_with_caveats` count is the subset of passed stories that had caveats. The `findings` array contains classified failure findings and caveat-derived ux-issue findings. Each failure finding includes the `trace` path captured by the qa-agent before closing the session — open the trace with `agent-browser trace view <path>`. The `caveats` array contains raw observations from PASS_WITH_CAVEATS stories. The `recovered_selectors` array contains all locator recoveries across all stories — each entry includes the source file and step index so the YAML update can be traced. The `page_inventories` array contains structured snapshot data per unique URL — consumed by `/review` lens 3h (UX analysis, `ux-analysis.md`) and `/visual-review` (`browser-review.md` Step 2) to ground page-level recommendations in observed structure.
+The `summary.passed` count includes both PASS and PASS_WITH_CAVEATS stories (since caveats are informational). The `summary.pass_with_caveats` count is the subset of passed stories that had caveats. The `findings` array contains classified failure findings and caveat-derived ux-issue findings. Each failure finding includes the `trace` path captured by the qa-agent before closing the session — open the trace with `agent-browser trace view <path>`. The `caveats` array contains raw observations from PASS_WITH_CAVEATS stories. The `recovered_locators` array contains all locator recoveries across all stories — each entry includes the source file and step index so the YAML update can be traced. The `page_inventories` array contains structured snapshot data per unique URL — consumed by `/review` lens 3h (UX analysis, `ux-analysis.md`) and `/visual-review` (`browser-review.md` Step 2) to ground page-level recommendations in observed structure.
 
 **`{RUN_DIR}/report.md`** — human-readable (same format as the report below).
 

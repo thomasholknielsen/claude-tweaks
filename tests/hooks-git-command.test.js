@@ -2,7 +2,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { gitTargets } = require('../bin/lib/hooks/git-command');
+const { gitTargets, fileWriteTargets } = require('../bin/lib/hooks/git-command');
 
 test('plain commit resolves to cwd', () => {
   assert.deepStrictEqual(gitTargets('git commit -m "x"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
@@ -164,4 +164,38 @@ test('positive control: an unquoted separator after a simple quoted string still
     { action: 'commit', dir: '/repo' },
     { action: 'push', dir: '/repo' },
   ]);
+});
+
+test('fileWriteTargets: /dev/null and friends are never a write target', () => {
+  assert.deepStrictEqual(fileWriteTargets('tee /dev/null', '/repo'), []);
+  assert.deepStrictEqual(fileWriteTargets('cp a.txt /dev/null', '/repo'), []);
+});
+
+test('fileWriteTargets: tee resolves its first non-flag argument', () => {
+  assert.deepStrictEqual(fileWriteTargets('echo hi | tee out.txt', '/repo'), [{ action: 'write', file: '/repo/out.txt' }]);
+  assert.deepStrictEqual(fileWriteTargets('echo hi | tee -a out.txt', '/repo'), [{ action: 'write', file: '/repo/out.txt' }]);
+});
+
+test('fileWriteTargets: cp/mv resolve the last non-flag argument as the destination', () => {
+  assert.deepStrictEqual(fileWriteTargets('cp a.txt b.txt', '/repo'), [{ action: 'copy', file: '/repo/b.txt' }]);
+  assert.deepStrictEqual(fileWriteTargets('mv a.txt b.txt', '/repo'), [{ action: 'move', file: '/repo/b.txt' }]);
+  assert.deepStrictEqual(fileWriteTargets('cp -r a b c/dest', '/repo'), [{ action: 'copy', file: '/repo/c/dest' }]);
+});
+
+test('fileWriteTargets: cd chains update the effective cwd before a write', () => {
+  assert.deepStrictEqual(fileWriteTargets('cd /wt/spec-1 && tee out.txt', '/repo'), [
+    { action: 'write', file: '/wt/spec-1/out.txt' },
+  ]);
+});
+
+test('fileWriteTargets: an unresolvable target (variable, backtick, tilde) yields no target', () => {
+  assert.deepStrictEqual(fileWriteTargets('tee "$FILE"', '/repo'), []);
+  assert.deepStrictEqual(fileWriteTargets('tee `pwd`/out.txt', '/repo'), []);
+  assert.deepStrictEqual(fileWriteTargets('tee ~/out.txt', '/repo'), []);
+});
+
+test('fileWriteTargets: a plain read-only command yields no target', () => {
+  assert.deepStrictEqual(fileWriteTargets('cat a.txt | grep foo', '/repo'), []);
+  assert.deepStrictEqual(fileWriteTargets('npm test', '/repo'), []);
+  assert.deepStrictEqual(fileWriteTargets('', '/repo'), []);
 });

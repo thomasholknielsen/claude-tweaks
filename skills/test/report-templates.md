@@ -43,18 +43,9 @@ Set TEST_PASSED=true (if all passed or passed with observations).
 ## Verification Results
 
 {standard verification table}
-
-## QA Validation Results
-
-**Stories:** {total} total | {pass} pass | {pass_with_caveats} pass (caveats) | {fail} fail | {skip} skipped
-**Findings:** {N findings} | **Observations:** {M caveats}
-
-{Findings table from qa-reporting.md — only if findings exist}
-{Observations table from qa-reporting.md — only if caveats exist}
-{Full QA report from qa-reporting.md}
-
-Set TEST_PASSED=true (if all passed or passed with observations).
 ```
+
+Then render the QA Validation Results section exactly as in "QA mode result" above.
 
 ## Pipeline result (VERIFICATION_PASSED + no stories)
 

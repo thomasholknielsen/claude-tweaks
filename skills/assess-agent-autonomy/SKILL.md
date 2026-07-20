@@ -58,9 +58,10 @@ Read the record's full body (Current State / Deliverables / Acceptance Criteria)
 JSON. Extract the current `risk:*`/`effort:*` labels, if present:
 
 ```bash
-node -e "const {extractRiskEffort}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/tier.js');
+node -e "const {parseRecordFacets}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js');
   const d=require('/tmp/assess-grant-${N}.json');
-  console.log(JSON.stringify(extractRiskEffort(d.labels)))"
+  const {risk, effort}=parseRecordFacets(d.labels);
+  console.log(JSON.stringify({risk, effort}))"
 ```
 
 ### Step 2: Judge
@@ -111,7 +112,15 @@ present on every group member) stays a hard binary gate in `dispatch/SKILL.md` i
 ### Step 1: Gather
 
 The calling agent has just finished this run's build, test, and review — the diff and review
-verdict are already in its own context. Confirm rather than re-derive where possible. `$MERGE_BASE` is the commit this run's worktree branched from — the same base the pipeline's own build started from — resolvable via `git merge-base main HEAD` if not already known from context.
+verdict are already in its own context. Confirm rather than re-derive where possible. `$MERGE_BASE` is the commit this run's worktree branched from — the same base the pipeline's own build started from. If not already known from context, resolve it dynamically rather than assuming `main` — some projects default to `master`, `trunk`, or another branch name, and this skill runs against whatever project has it installed:
+
+```bash
+DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
+if [ -z "$DEFAULT_BRANCH" ]; then
+  DEFAULT_BRANCH=$(git remote show origin | sed -n '/HEAD branch/s/.*: //p')
+fi
+MERGE_BASE=$(git merge-base "$DEFAULT_BRANCH" HEAD)
+```
 
 ```bash
 git diff --numstat "$MERGE_BASE"..HEAD | node -e "
@@ -135,6 +144,7 @@ friends directly rather than expecting a caller to pre-fetch and pass them:
 
 ```bash
 grep -E "^merge-sensitive-paths:|^automerge-max-lines:|^automerge-max-files:" CLAUDE.md .claude-tweaks/policy.yml 2>/dev/null
+MERGE_SENSITIVE_PATHS_CSV=$(grep -E "^merge-sensitive-paths:" CLAUDE.md .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/^[^:]*: *//')
 ```
 
 `merge-sensitive-paths` is a single line, comma-separated glob list (e.g.
@@ -247,9 +257,10 @@ Reuses the same record body/labels already fetched during materialize's Resoluti
 separate fetch needed:
 
 ```bash
-node -e "const {extractRiskEffort}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/tier.js');
+node -e "const {parseRecordFacets}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js');
   const d=require('/tmp/materialize-record-${N}.json');
-  console.log(JSON.stringify(extractRiskEffort(d.labels)))"
+  const {risk, effort}=parseRecordFacets(d.labels);
+  console.log(JSON.stringify({risk, effort}))"
 ```
 
 ### Step 2: Judge
@@ -321,7 +332,7 @@ directly by a human, and never renders a `## Next Actions` block. Its only calle
 | `/claude-tweaks:triage` | Calls `grant-check` once per worklist record in Step 2 — the output becomes the batch table's Recommended column directly. Triage still renders the human batch-confirm exactly as before; only what generates the suggestion changed. |
 | `/claude-tweaks:dispatch` | Calls `merge-check` in the Auto-merge gate (replacing layers 2-4) and `failure-check` in the Settle step (replacing the old unconditional-revocation rule). Dispatch still owns layer 1 (authorization) and all label/claim mechanics directly. |
 | `bin/lib/issues/blast-radius.js` | Pure module supplying `merge-check`'s one genuinely mechanical input — test-exclusion-aware diff sizing. This skill never computes blast radius itself. |
-| `bin/lib/issues/tier.js` | `extractRiskEffort`'s surviving colon-form reader supplies `grant-check`'s current-label input. `recommendGrants`/`recommendTier` are retired — this skill replaces them as triage's recommendation signal. |
+| `bin/lib/issues/record.js` | `parseRecordFacets`'s `risk`/`effort` fields supply `grant-check`'s and `ceremony-check`'s current-label input (the standalone `tier.js` extractor this used to read was retired as redundant with `parseRecordFacets`). `recommendGrants`/`recommendTier` are also retired — this skill replaces them as triage's recommendation signal. |
 | `bin/lib/issues/retry.js` | `countFailedAttempts` supplies `failure-check`'s retry-history input. |
 | `_shared/work-record.md` | Taxonomy home — the `merge-sensitive-paths` config key this skill's `merge-check` mode reads as a hard floor. |
 | `docs/superpowers/specs/2026-07-15-assess-agent-autonomy-design.md` | The full design rationale, motivation (the #18/#19 evidence), and calibration examples this skill's judgment procedures are anchored against. |

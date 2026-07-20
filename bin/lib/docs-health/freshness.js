@@ -45,7 +45,7 @@ function checkTrackedFreshness(content, root, sinceTimestamp) {
     try {
       const out = execFileSync(
         'git', ['-C', root, 'log', '-1', '--format=%ct', '--', relPath],
-        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 },
       ).trim();
       if (out) lastChangedMs = parseInt(out, 10) * 1000;
     } catch {
