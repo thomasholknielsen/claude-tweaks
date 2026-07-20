@@ -284,6 +284,41 @@ test('findOpenLedger colors yellow at >=3 open and red at >=10', () => {
   if (orig !== undefined) process.env.NO_COLOR = orig;
 });
 
+function withSpecs(files, fn) {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-specs-'));
+  const specs = path.join(cwd, 'specs');
+  fs.mkdirSync(specs, { recursive: true });
+  for (const [name, content] of Object.entries(files)) {
+    fs.writeFileSync(path.join(specs, name), content);
+  }
+  try {
+    return fn(cwd);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+}
+
+test('findActiveSpec returns spec: NNN for a specs/ file with a 3+ digit numeric prefix', () => {
+  withSpecs({ '042-something.md': '# content' }, (cwd) => {
+    assert.strictEqual(sl.findActiveSpec(cwd), 'spec: 042');
+  });
+});
+
+test('findActiveSpec returns null when specs/ is empty', () => {
+  withSpecs({}, (cwd) => {
+    assert.strictEqual(sl.findActiveSpec(cwd), null);
+  });
+});
+
+test('findActiveSpec returns null when specs/ does not exist', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-nospecs-'));
+  try {
+    assert.strictEqual(sl.findActiveSpec(cwd), null);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
 test('end-to-end: real Claude Code schema renders model + context', () => {
   const out = runStatusline(
     {

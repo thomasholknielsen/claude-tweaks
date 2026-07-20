@@ -122,7 +122,7 @@ function renderRateLimit(label, period, now) {
 }
 
 function findActiveSpec(cwd) {
-  const candidates = [path.join(cwd, 'specs', 'INBOX'), path.join(cwd, 'specs')];
+  const candidates = [path.join(cwd, 'specs')];
   for (const dir of candidates) {
     try {
       const entries = fs
