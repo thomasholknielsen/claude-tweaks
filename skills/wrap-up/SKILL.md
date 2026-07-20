@@ -312,6 +312,8 @@ For the run-directory resolution sequence, the multi-spec defer protocol, the fu
 
 ## Step 9: Present Consolidated Summary
 
+**Standalone multi-record batch.** When this wrap-up covers N already-completed, already-merged records from one batch (e.g. following up on a `/flow` multi-record run whose pipeline run directory was already archived — no live materialized header to key a single-record template on), render **one consolidated summary** covering all N records — a table with one row per record, mirroring `flow/multi-spec.md`'s Multi-Spec Summary shape — rather than forcing the single-record template below N separate times.
+
 ```
 ## Wrap-Up: {"Record #{n}" when a materialized header exists, else "Spec {number}"} — {title}
 {Origin: {origin} — record mode only, the materialized header's origin field: by:code-health / by:harness-health / by:journey-health / by:docs-health / by:capture, or "human" when absent. Omit this line entirely for legacy spec-file-mode runs.}
