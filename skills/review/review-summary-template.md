@@ -14,6 +14,7 @@ Present this summary after completing all review steps.
 |---------------------|--------|
 | {criterion} | {met/partially met/not met} |
 (or: No spec — file/commit-based review.)
+(or, when skipped: "Skipped — ceremony-profile: fast-lane.")
 
 ### Verification (from /test)
 - Type check: {pass/fail}
@@ -41,6 +42,7 @@ Possible QA statuses:
 ### Implementation Hindsight
 - {finding} → {change now / capture / accept as-is — not an improvement because {reason}}
 (or: No changes needed — approach is sound.)
+(or, when skipped: "Skipped — ceremony-profile: fast-lane.")
 
 ### Tradeoffs Accepted
 | Tradeoff | Rationale |

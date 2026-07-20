@@ -29,6 +29,22 @@ Post-build quality gate. `/claude-tweaks:test` answers "does it work?" — `/cla
 
 This skill is the analytical quality gate — spec compliance, human-judgment code review, and quality summary. Visual browser inspection is handled by `/claude-tweaks:visual-review`. Mechanical verification lives in `/claude-tweaks:test`.
 
+## Ceremony-Aware Step Selection
+
+When a pipeline run directory exists, read `config.yml`'s `ceremony-profile`. Under `fast-lane`,
+Steps 1 (Spec Compliance Check), 1.6 (Cross-Spec Promise Check), and 4 (Implementation Hindsight)
+are skipped — each is exact per-record overhead independent of diff size, the same shape of
+fixed-cost wrapper `ceremony-profile: fast-lane` already trims in `/claude-tweaks:build` and
+`/claude-tweaks:wrap-up`. Steps 2, 3 (the actual code-quality read of the diff), and 5 run
+unchanged regardless of tier — Step 3 is the safety-relevant judgment this whole scheme protects,
+and Step 5 already scopes to `git diff --name-only` only, with no "look beyond the diff" behavior
+to cap. Standalone review (no pipeline run directory) always runs every step, matching
+`/claude-tweaks:reflect`/`/claude-tweaks:wrap-up`'s own standalone-defaults-to-full rule. A Review
+finding at any severity still triggers the existing ceremony escape hatch
+(`/claude-tweaks:wrap-up`'s Step 3.5 downgrades `ceremony-profile` to `standard` for the rest of
+the run) — unchanged. See
+`docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md` for the full rationale.
+
 ## Review Modes
 
 | Mode | Syntax | What runs |
@@ -60,6 +76,9 @@ When invoked by `/claude-tweaks:flow`, review runs in **full** mode by default (
 In visual, journey, and discover modes, delegate entirely to `/claude-tweaks:visual-review` — skip Steps 1-7.
 
 ## Step 1: Spec Compliance Check (spec-based only)
+
+Skip this step entirely under `ceremony-profile: fast-lane` (see "Ceremony-Aware Step Selection"
+above) — proceed directly to Step 1.5.
 
 If a spec number was provided, read the spec file and verify the implementation meets it:
 
@@ -116,9 +135,11 @@ After confirming `TEST_PASSED`, read the open items ledger (`docs/plans/*-ledger
 
 ## Step 1.6: Cross-Spec Promise Check (parent-linked records only)
 
-Skip silently when this record has no resolvable parent, or its parent has no `## Cross-Spec
-Promises` section (`_shared/work-record.md`) — most records. This step never blocks the review;
-it only updates the parent record and, when relevant, notes something in the Step 7 summary.
+Skip entirely under `ceremony-profile: fast-lane` (see "Ceremony-Aware Step Selection" above).
+Otherwise, skip silently when this record has no resolvable parent, or its parent has no
+`## Cross-Spec Promises` section (`_shared/work-record.md`) — most records. This step never blocks
+the review; it only updates the parent record and, when relevant, notes something in the Step 7
+summary.
 
 **Resolve the parent**, per `work-backend`: `local-files` — `facets.parent` (kept for
 completeness; per `specify/SKILL.md`'s seeding step, only `work-backend: github-issues`
@@ -377,6 +398,9 @@ Routing logic lives entirely in `step3-routing.md` in this skill's directory: se
 
 ## Step 4: Implementation Hindsight (Decision Point)
 
+Skip this step entirely under `ceremony-profile: fast-lane` (see "Ceremony-Aware Step Selection"
+above) — proceed directly to Step 5.
+
 Run `/claude-tweaks:reflect` in **hindsight** mode. Pass:
 - **Scope** — the changes analyzed in Steps 2-3
 - **Ledger phase** — `review/hindsight`
@@ -511,7 +535,7 @@ See `review-summary-template.md` in this skill's directory for the full Next Act
 | `_shared/journey-coverage-check.md` | Canonical coverage computation lens 3g-cov applies — shared with `/claude-tweaks:journey-health`'s coverage scan. |
 | `/claude-tweaks:browse` | Used by visual, journey, and discover modes for browser interaction |
 | `_shared/work-record.md` (`parked`) | /claude-tweaks:review routes implementation-related deferrals to a new work record here (with origin, files, trigger). Step 1.6 also reads/writes a decomposition parent's `## Cross-Spec Promises` section for any parent-linked record under review. |
-| `/claude-tweaks:flow` | Invokes /review in **full** mode by default (code + visual). Flow handles browser detection and falls back to code mode when no browser backend is available. |
+| `/claude-tweaks:flow` | Invokes /review in **full** mode by default (code + visual). Flow handles browser detection and falls back to code mode when no browser backend is available. Within either mode, Steps 1/1.6/4 additionally skip when the run's `ceremony-profile` is `fast-lane` — see "Ceremony-Aware Step Selection". |
 | `/superpowers:dispatching-parallel-agents` | Used BY /claude-tweaks:review (conditional) to dispatch 3+ independent fix-now findings as parallel agents |
 | `/claude-tweaks:reflect` | Invoked BY /review (Step 4) in hindsight mode. Handles the implementation hindsight evaluation, finding routing, and ledger writes with phase `review/hindsight`. |
 | `/claude-tweaks:simplify` | Invoked BY /review (Step 5) on files modified during review. Handles code simplification and re-verification. |
@@ -527,3 +551,4 @@ See `review-summary-template.md` in this skill's directory for the full Next Act
 | `_shared/multi-agent-coordination.md` | Canonical primitive for Reproduction (Mode 1, Step 3 per-lens dispatch) and Debate (Mode 2, Step 3.5 cross-lens contradiction resolution). The deterministic comparison + resolve helpers live in `bin/lib/coordination.js`. |
 | `_shared/subagent-output-contract.md` | Per-lens reviewer agents emit Template A; debate agents inline a custom verdict template. The status line and model-tier conventions follow this contract. |
 | `/claude-tweaks:visualize` | Lens 3i-diagram emits "Visual documentation gap" informational findings when the diff added structural complexity (state machine, data model, multi-actor flow, architecture) but no matching diagram file exists. Gated by `diagram-suggestions: enabled` in CLAUDE.md (written by `/init` Step 11). |
+| `docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md` | Design rationale for which steps are fixed-cost wrapper (Steps 1, 1.6, 4 — skipped under `fast-lane`) vs. safety-relevant judgment (Step 3, never skipped). |
