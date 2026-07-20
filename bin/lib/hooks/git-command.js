@@ -95,6 +95,21 @@ function isAbsolutePlain(raw) {
   return !isUnresolvable(raw) && path.isAbsolute(raw);
 }
 
+// Shared cd-token resolution used by both gitTargets and fileWriteTargets: given
+// the current effective cwd (string, or null meaning UNKNOWN) and a `cd`
+// command's raw (unquote-stripped) argument, returns the new effective cwd (or
+// null when the argument leaves it unprovable). Kept as one function so a
+// future fix to cd-resolution edge cases (a new isUnresolvable pattern,
+// pushd/popd support, etc.) can never land in one caller and not the other.
+function resolveCd(effCwd, raw) {
+  if (isUnresolvable(raw)) return null;
+  if (effCwd === null) {
+    // Unknown cwd: only a plain absolute path restores provability.
+    return isAbsolutePlain(raw) ? path.resolve(raw) : null;
+  }
+  return path.resolve(effCwd, stripQuotes(raw));
+}
+
 function gitTargets(command, cwd) {
   const targets = [];
   let effCwd = cwd || '.'; // string, or null meaning UNKNOWN
@@ -102,17 +117,7 @@ function gitTargets(command, cwd) {
     const t = tokenize(seg.trim());
     if (!t.length) continue;
     if (t[0] === 'cd') {
-      const raw = t[1];
-      if (isUnresolvable(raw)) {
-        effCwd = null;
-        continue;
-      }
-      if (effCwd === null) {
-        // Unknown cwd: only a plain absolute path restores provability.
-        if (isAbsolutePlain(raw)) effCwd = path.resolve(raw);
-        continue;
-      }
-      effCwd = path.resolve(effCwd, stripQuotes(raw));
+      effCwd = resolveCd(effCwd, t[1]);
       continue;
     }
     if (t[0] !== 'git') continue;
@@ -178,13 +183,7 @@ function fileWriteTargets(command, cwd) {
     const t = tokenize(seg.trim());
     if (!t.length) continue;
     if (t[0] === 'cd') {
-      const raw = t[1];
-      if (isUnresolvable(raw)) { effCwd = null; continue; }
-      if (effCwd === null) {
-        if (isAbsolutePlain(raw)) effCwd = path.resolve(raw);
-        continue;
-      }
-      effCwd = path.resolve(effCwd, stripQuotes(raw));
+      effCwd = resolveCd(effCwd, t[1]);
       continue;
     }
 

@@ -5,13 +5,17 @@
 // directory. Consumed by /claude-tweaks:tidy's --scope=github rolling digest.
 'use strict';
 
+const { normalizeLabelNames } = require('./record');
+
 const AUTHORIZATION_LABELS = ['auto:build', 'auto:merge'];
 
-// Same label normalization as record.js's normalizeLabelNames/grouping.js's
-// labelNames: gh's real API returns labels (and timeline "label" fields) as
-// {name, color} objects, not plain strings.
+// Single-label convenience wrapper around record.js's normalizeLabelNames — the
+// canonical label normalizer (gh's real API returns labels, and timeline "label"
+// fields, as {name, color} objects, not plain strings) — for call sites here that
+// only ever have one label at a time (a timeline event's `label` field) rather
+// than a whole labels array.
 function labelName(label) {
-  return typeof label === 'string' ? label : (label && label.name) || '';
+  return normalizeLabelNames([label])[0] || '';
 }
 
 // A single labeled event's timestamp for the first occurrence of `label` in
@@ -61,7 +65,7 @@ function median(values) {
 function computeWontfixRate(closedIssues) {
   const byOrigin = {};
   for (const issue of closedIssues || []) {
-    const names = (issue.labels || []).map(labelName).filter(Boolean);
+    const names = normalizeLabelNames(issue.labels);
     const originLabel = names.find((l) => l.startsWith('by:'));
     const origin = originLabel ? originLabel.slice('by:'.length) : 'human';
     if (!byOrigin[origin]) byOrigin[origin] = { total: 0, wontfix: 0 };

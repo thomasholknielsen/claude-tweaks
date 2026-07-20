@@ -60,6 +60,15 @@ function hasOrigin(names, origin) {
   return names.includes(origin) || names.includes(`by:${origin}`);
 }
 
+// Extracts the file path from a spec-shaped bold header line ("**Label:**
+// value | ..."), or [] when the body has no such header. Shared core logic
+// for harness-health, journey-health, and docs-health issue bodies — all
+// three use the same header shape (BOLD_HEADER_RE above).
+function extractBoldHeaderFile(body) {
+  const targetHeader = BOLD_HEADER_RE.exec(body);
+  return targetHeader ? [targetHeader[1]] : [];
+}
+
 // issue: { body, labels } shaped like `gh api .../issues/{n}` output.
 // Returns string[] of file paths, [] when nothing is extractable.
 function extractKeyFiles(issue) {
@@ -84,30 +93,20 @@ function extractKeyFiles(issue) {
     // commonly contains its own bold, colon-terminated, line-starting labels)
     // and return a wrong, unrelated file path. Short-circuit instead.
     if (names.includes('harness-health:new-skill')) return [];
-    const targetHeader = BOLD_HEADER_RE.exec(body);
-    return targetHeader ? [targetHeader[1]] : [];
+    return extractBoldHeaderFile(body);
   }
 
-  if (hasOrigin(names, 'journey-health')) {
-    // journey-health was born after the by:* origin migration, so it never
-    // had a bare pre-migration label (label-bootstrap.md only ever registers
-    // by:journey-health) — hasOrigin's bare-form check is a no-op for every
-    // real record today, kept only for symmetry with the other two origins.
-    // Its issue header ("**Journey:** {path} | **Section:** ...",
-    // bin/lib/journey-health/issue-payload.js) is the same bold-field shape
-    // as harness-health's, so the same extraction applies.
-    const targetHeader = BOLD_HEADER_RE.exec(body);
-    return targetHeader ? [targetHeader[1]] : [];
-  }
-
-  if (hasOrigin(names, 'docs-health')) {
-    // docs-health was also born after the by:* origin migration (same
-    // reasoning as journey-health above), and its issue header
-    // ("**Doc:** {path} | **Section:** ...", bin/lib/docs-health/issue-
-    // payload.js) is the same bold-field shape as harness-health's and
-    // journey-health's, so the same extraction applies.
-    const targetHeader = BOLD_HEADER_RE.exec(body);
-    return targetHeader ? [targetHeader[1]] : [];
+  if (hasOrigin(names, 'journey-health') || hasOrigin(names, 'docs-health')) {
+    // journey-health and docs-health were both born after the by:* origin
+    // migration, so neither ever had a bare pre-migration label (label-
+    // bootstrap.md only ever registers by:journey-health / by:docs-health) —
+    // hasOrigin's bare-form check is a no-op for every real record today,
+    // kept only for symmetry with code-health/harness-health above. Both
+    // issue headers ("**Journey:** {path} | **Section:** ...", bin/lib/
+    // journey-health/issue-payload.js; "**Doc:** {path} | **Section:** ...",
+    // bin/lib/docs-health/issue-payload.js) are the same bold-field shape as
+    // harness-health's, so the same extraction applies to both.
+    return extractBoldHeaderFile(body);
   }
 
   return [];

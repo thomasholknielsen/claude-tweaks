@@ -3,6 +3,7 @@
 const { execFileSync } = require('child_process');
 const { gitTargets } = require('./git-command');
 const ctxLib = require('./context');
+const { ISSUE_REF_SOURCE } = require('../issue-branch-tracking');
 
 // Hash reflects HEAD at hook time — PostToolUse has no success signal, so a failed commit logs the previous HEAD.
 function shortHead(dir) {
@@ -50,14 +51,19 @@ const COMMIT_FRESHNESS_WINDOW_SECONDS = 30;
 // A recognized GitHub closing keyword immediately preceding a bare "#123" auto-closes
 // that issue when the commit reaches the repository's default branch. Case-insensitive;
 // covers every form GitHub recognizes (fix/fixes/fixed, close/closes/closed,
-// resolve/resolves/resolved). The trailing `$` anchors this to the END of whatever
-// substring it's tested against (see hasUnclosedRef below, which always tests a slice
-// ending exactly at the current ref) — without it, "Fixes #100, #200" would wrongly
-// read as closing #200 too, since "Fixes #100" sits inside the lookback window before
-// #200 even though the keyword only ever applied to #100. GitHub requires the keyword
-// immediately before EACH ref it closes ("Fixes #100, fixes #200"); a bare trailing
-// ref after a comma is exactly the gotcha this check exists to catch.
-const CLOSING_KEYWORD_RE = /\b(?:fix|fixes|fixed|close|closes|closed|resolve|resolves|resolved)\s+#\d+$/i;
+// resolve/resolves/resolved) — the same vocabulary bin/lib/issue-branch-tracking.js
+// already exports as ISSUE_REF_SOURCE for the generated GitHub Actions workflow, reused
+// here (composed with a trailing `$`) rather than hand-rolled a second time, so the two
+// can never silently disagree about which keywords GitHub recognizes. The trailing `$`
+// anchors this to the END of whatever substring it's tested against (see hasUnclosedRef
+// below, which always tests a slice ending exactly at the current ref) — without it,
+// "Fixes #100, #200" would wrongly read as closing #200 too, since "Fixes #100" sits
+// inside the lookback window before #200 even though the keyword only ever applied to
+// #100. GitHub requires the keyword immediately before EACH ref it closes ("Fixes #100,
+// fixes #200"); a bare trailing ref after a comma is exactly the gotcha this check
+// exists to catch. Deliberately no 'g' flag — this is reused across a `.test()` call per
+// match below, and a global flag's stateful lastIndex would silently skip matches.
+const CLOSING_KEYWORD_RE = new RegExp(ISSUE_REF_SOURCE + '$', 'i');
 const BARE_ISSUE_REF_RE = /#\d+/g;
 
 // Deliberately NOT gated on ctx.runDir, unlike the breadcrumb logic below — the

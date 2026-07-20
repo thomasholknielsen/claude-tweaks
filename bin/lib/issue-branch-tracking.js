@@ -28,6 +28,25 @@ function extractIssueNumbers(commitMessages) {
   return Array.from(found).sort((a, b) => a - b);
 }
 
+// Shared "Extract referenced issues" step — identical in both jobs below (each
+// needs its own list of issues this push references before doing job-specific
+// work with them). Kept as one array so a future fix to the extraction shell
+// (e.g. handling multi-line commit messages, or changing the sort -un dedup)
+// can never land in one job's copy and not the other's.
+function extractReferencedIssuesStep() {
+  return [
+    '      - name: Extract referenced issues',
+    '        id: extract',
+    '        env:',
+    '          COMMITS_JSON: ${{ toJson(github.event.commits) }}',
+    '        run: |',
+    `          PATTERN='${ISSUE_REF_SOURCE}'`,
+    '          echo "$COMMITS_JSON" | jq -r \'.[].message\' > "$RUNNER_TEMP/commit_messages.txt"',
+    "          ISSUES=$(grep -ioP \"$PATTERN\" \"$RUNNER_TEMP/commit_messages.txt\" | grep -oP '[0-9]+' | sort -un | tr '\\n' ' ' || true)",
+    '          echo "issues=$ISSUES" >> "$GITHUB_OUTPUT"',
+  ];
+}
+
 function generateWorkflowYaml() {
   const lines = [
     'name: Track issue fixes across branches',
@@ -50,15 +69,7 @@ function generateWorkflowYaml() {
     "    if: github.ref != format('refs/heads/{0}', github.event.repository.default_branch)",
     '    runs-on: ubuntu-latest',
     '    steps:',
-    '      - name: Extract referenced issues',
-    '        id: extract',
-    '        env:',
-    '          COMMITS_JSON: ${{ toJson(github.event.commits) }}',
-    '        run: |',
-    `          PATTERN='${ISSUE_REF_SOURCE}'`,
-    '          echo "$COMMITS_JSON" | jq -r \'.[].message\' > "$RUNNER_TEMP/commit_messages.txt"',
-    "          ISSUES=$(grep -ioP \"$PATTERN\" \"$RUNNER_TEMP/commit_messages.txt\" | grep -oP '[0-9]+' | sort -un | tr '\\n' ' ' || true)",
-    '          echo "issues=$ISSUES" >> "$GITHUB_OUTPUT"',
+    ...extractReferencedIssuesStep(),
     '      - name: Label and comment on each referenced issue',
     "        if: steps.extract.outputs.issues != ''",
     '        env:',
@@ -87,15 +98,7 @@ function generateWorkflowYaml() {
     "    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
     '    runs-on: ubuntu-latest',
     '    steps:',
-    '      - name: Extract referenced issues',
-    '        id: extract',
-    '        env:',
-    '          COMMITS_JSON: ${{ toJson(github.event.commits) }}',
-    '        run: |',
-    `          PATTERN='${ISSUE_REF_SOURCE}'`,
-    '          echo "$COMMITS_JSON" | jq -r \'.[].message\' > "$RUNNER_TEMP/commit_messages.txt"',
-    "          ISSUES=$(grep -ioP \"$PATTERN\" \"$RUNNER_TEMP/commit_messages.txt\" | grep -oP '[0-9]+' | sort -un | tr '\\n' ' ' || true)",
-    '          echo "issues=$ISSUES" >> "$GITHUB_OUTPUT"',
+    ...extractReferencedIssuesStep(),
     '      - name: Strip fix-on-* labels from closed issues',
     "        if: steps.extract.outputs.issues != ''",
     '        env:',

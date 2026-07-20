@@ -307,9 +307,10 @@ function parseDependencyAssumptions(body) {
 
 // Compose the spec-shaped body the gate's structural check re-verifies
 // (skills/_shared/work-record.md: Current State / Deliverables / Acceptance Criteria
-// present and non-empty). Owning the skeleton here means the three health builders
-// cannot drift a section heading or the footer sentence independently. Sections accept
-// a string or an array of strings (arrays render as blank-line-separated blocks).
+// present and non-empty). Owning the skeleton here means the health-suite
+// issue-payload builders (see bin/lib/*/issue-payload.js) cannot drift a section
+// heading or the footer sentence independently. Sections accept a string or an
+// array of strings (arrays render as blank-line-separated blocks).
 // recordPayload still appends the work-fingerprint marker afterward, as before.
 function specShapedBody({ header, currentState, deliverables, acceptanceCriteria, filedBy }) {
   const isEmpty = (value) => value === undefined || value === null || value === ''
@@ -341,7 +342,7 @@ function specShapedBody({ header, currentState, deliverables, acceptanceCriteria
 
 module.exports = {
   ORIGINS, TYPES, TIERS, PRIORITIES, LABELS, TYPE_LABELS, recordPayload, specShapedBody,
-  FP_RE_WORK, FP_RE_LEGACY, extractFingerprint, parseRecordFacets, parseDependencies,
-  parseDependencyAssumptions, buildNativeDependencyQuery, hasOpenNativeBlocker,
-  CLASSIFICATION_SCORING, fenceFor, fencedBlock,
+  FP_RE_WORK, FP_RE_LEGACY, extractFingerprint, normalizeLabelNames, parseRecordFacets,
+  parseDependencies, parseDependencyAssumptions, buildNativeDependencyQuery,
+  hasOpenNativeBlocker, CLASSIFICATION_SCORING, fenceFor, fencedBlock,
 };
