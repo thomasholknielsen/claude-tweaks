@@ -4,7 +4,16 @@ Loaded by `/specify` Step 5 at dispatch time. The Template A block below is inli
 
 ## Parallel dispatch
 
-> **Parallel execution:** Dispatch the three personas as parallel Task agents — each runs independently and returns Template-A findings narrowed to ambiguities, gaps, and unstated assumptions. Assemble results after all agents complete.
+**Persona selection by tier** (`ceremony:*` label, stamped on the leaf in Step 3 — see
+`docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md`): `ceremony:fast-lane` →
+dispatch **Skeptical Reviewer only**; `ceremony:standard` (or a leaf with no `ceremony:*` label at
+all — treat as `standard`, the conservative default) → dispatch all **three** personas below,
+unchanged from before.
+
+> **Parallel execution:** Dispatch the selected persona(s) as parallel Task agents (a single agent
+> for `fast-lane`, three for `standard`) — each runs independently and returns Template-A findings
+> narrowed to ambiguities, gaps, and unstated assumptions. Assemble results after all agents
+> complete.
 >
 > **Contract:** Each agent follows the Subagent Contract — minimal input (a record reference + persona lens question + Template A), one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED` as its first reply line. Tier: **Standard** (Sonnet). Read-only — personas never modify the record themselves.
 >
@@ -54,4 +63,4 @@ After all three agents return, write findings back into the record body:
    ```
    Write each entry **after** the record body is updated — if the write-back fails, the decision-log should not lie about what happened.
 
-Red-team runs on every generated leaf record regardless of `Surface:` — the lens questions are artefact-agnostic. The user (or Step 6 Self-Review) decides what to do with each finding. There is no mid-flow stop here.
+Red-team runs on every generated leaf record regardless of `Surface:` — the lens questions are artefact-agnostic. The user (or Step 6 Self-Review) decides what to do with each finding. There is no mid-flow stop here. Persona count varies by tier (see above); the write-back procedure itself is identical regardless of how many personas ran.

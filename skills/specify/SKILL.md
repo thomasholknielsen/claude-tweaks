@@ -593,9 +593,11 @@ This is what keeps the records self-contained: reading the parent, or any leaf, 
 
 ## Step 5: Multi-Persona Red-Team
 
-Before deleting the design doc, dispatch three persona-instantiated agents (Implementer / Maintainer / Skeptical Reviewer) in one parallel batch per leaf record — not the parent, which is never built directly — to surface ambiguities, gaps, and unstated assumptions. Each agent's input is a record reference, never inlined content: `work-backend: github-issues` — the leaf's number plus a `gh issue view` read instruction; `work-backend: local-files` — the leaf's record file path. Never both in the same dispatch. Findings are written **back into the record body** — inline `<!-- ambiguity: ... -->` HTML comments next to flagged sentences, or rows in an appended `## Open Questions` table — via compose-then-write-once, the same discipline every write in this skill uses. No mid-flow prompt — Step 6 Self-Review picks them up.
+Before deleting the design doc, dispatch persona-instantiated agents in one parallel batch per leaf record — not the parent, which is never built directly — to surface ambiguities, gaps, and unstated assumptions. **Persona count depends on the leaf's own `ceremony:*` label** (stamped in Step 3): `ceremony:fast-lane` dispatches **one** persona (Skeptical Reviewer only); `ceremony:standard` dispatches all **three** (Implementer / Maintainer / Skeptical Reviewer), unchanged from before. See `red-team.md` for which persona(s) to dispatch for each tier.
 
-Read `red-team.md` in this skill's directory for the dispatch prompt (Template A block must remain inlined verbatim in the dispatch prompt at runtime per the Subagent Contract), the three persona lens questions, and the write-back procedure.
+Each agent's input is a record reference, never inlined content: `work-backend: github-issues` — the leaf's number plus a `gh issue view` read instruction; `work-backend: local-files` — the leaf's record file path. Never both in the same dispatch. Findings are written **back into the record body** — inline `<!-- ambiguity: ... -->` HTML comments next to flagged sentences, or rows in an appended `## Open Questions` table — via compose-then-write-once, the same discipline every write in this skill uses. No mid-flow prompt — Step 6 Self-Review picks them up.
+
+Read `red-team.md` in this skill's directory for the dispatch prompt (Template A block must remain inlined verbatim in the dispatch prompt at runtime per the Subagent Contract), the persona lens questions, and the write-back procedure.
 
 ---
 
