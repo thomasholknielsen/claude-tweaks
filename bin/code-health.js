@@ -8,7 +8,7 @@ const {
 } = require('./lib/code-health/cache');
 const { decide, RISK_RANK } = require('./lib/code-health/dedup');
 const { computeRisk } = require('./lib/code-health/risk');
-const { validateFindingV2 } = require('./lib/code-health/validate-finding');
+const { validateFindingV2, applyConfidenceFloor } = require('./lib/code-health/validate-finding');
 const { toIssuePayloadV2 } = require('./lib/code-health/issue-payload');
 const { getCriterion } = require('./lib/code-health/criteria');
 const { classifyArea } = require('./lib/code-health/area-type');
@@ -16,21 +16,6 @@ const { listSlices, contentHash, selectSlice } = require('./lib/code-health/scop
 const { makeRetryQueueCommands } = require('./lib/health-core/retry-cli');
 
 const retryQueueCommands = makeRetryQueueCommands({ readDurableState, writeDurableState });
-
-// Confidence ordering for floor comparison. Higher index = higher confidence.
-const CONFIDENCE_ORDER = ['low', 'medium', 'high'];
-
-// Returns { pass: true } or { pass: false, reason: string }.
-function applyConfidenceFloor(finding, criterionFloor) {
-  if (!criterionFloor) return { pass: true };
-  const findingIdx = CONFIDENCE_ORDER.indexOf(finding.confidence);
-  const floorIdx = CONFIDENCE_ORDER.indexOf(criterionFloor);
-  if (findingIdx >= floorIdx) return { pass: true };
-  return {
-    pass: false,
-    reason: `confidence '${finding.confidence}' below floor '${criterionFloor}' for criterion '${finding.criterion}'`,
-  };
-}
 
 function parseArgs(argv) {
   const args = { _: [], root: process.cwd(), dryRun: false, runId: new Date().toISOString() };
@@ -376,4 +361,4 @@ function main(argv) {
 
 if (require.main === module) main(process.argv.slice(2));
 
-module.exports = { parseArgs, cmdValidateFindings, main, applyConfidenceFloor };
+module.exports = { parseArgs, cmdValidateFindings, main };

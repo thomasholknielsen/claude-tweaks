@@ -222,7 +222,7 @@ test('validate-findings: writes cache after a non-dry-run', () => {
 });
 
 // P2 additions: confidence-floor gate
-const { applyConfidenceFloor } = require('../../../code-health');
+const { applyConfidenceFloor } = require('../validate-finding');
 
 test('applyConfidenceFloor passes a high-confidence finding for a high-floor criterion', () => {
   const result = applyConfidenceFloor({ confidence: 'high' }, 'high');

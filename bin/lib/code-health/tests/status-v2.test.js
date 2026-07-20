@@ -5,6 +5,7 @@ const { execFileSync, spawnSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { seedDurableState } = require('./seed-durable-state');
 
 const CLI = path.resolve(__dirname, '..', '..', '..', 'code-health.js');
 
@@ -24,26 +25,12 @@ function writeV2Cache(root, entries) {
 // they live in the durable remembered.json on the health-state branch instead
 // (cmdStatus derives its remembered count from readDurableState(root).remembered).
 // readDurableState's read path is pure git plumbing (fetch + show), so it can
-// be exercised for real without gh/network: seed a local bare repo as
-// `origin` and commit remembered.json directly onto a health-state branch —
-// the same technique bin/lib/code-health/tests/cli-nextslice.test.js uses for
-// cursors and bin/lib/code-health/tests/churn-v2.test.js uses for runs.
+// be exercised for real without gh/network via the shared seedDurableState
+// helper (bin/lib/code-health/tests/seed-durable-state.js) — the same
+// technique bin/lib/code-health/tests/cli-nextslice.test.js uses for cursors
+// and bin/lib/code-health/tests/churn-v2.test.js uses for runs.
 function seedDurableRemembered(root, remembered) {
-  const bareDir = fs.mkdtempSync(path.join(os.tmpdir(), 'recon-status-bare-'));
-  execFileSync('git', ['init', '--bare', '-q', bareDir]);
-  const seedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'recon-status-seed-'));
-  execFileSync('git', ['init', '-q', seedDir]);
-  execFileSync('git', ['-C', seedDir, 'checkout', '-q', '-b', 'health-state']);
-  fs.mkdirSync(path.join(seedDir, 'code-health'), { recursive: true });
-  fs.writeFileSync(path.join(seedDir, 'code-health', 'remembered.json'), JSON.stringify(remembered));
-  execFileSync('git', ['-C', seedDir, 'add', '-A']);
-  execFileSync(
-    'git',
-    ['-C', seedDir, '-c', 'user.email=test@example.com', '-c', 'user.name=test', 'commit', '-q', '-m', 'seed'],
-  );
-  execFileSync('git', ['-C', seedDir, 'push', '-q', bareDir, 'health-state']);
-  execFileSync('git', ['init', '-q'], { cwd: root });
-  execFileSync('git', ['remote', 'add', 'origin', bareDir], { cwd: root });
+  seedDurableState(root, 'remembered.json', remembered);
 }
 
 test('status prints open and regressed counts from v2 cache', () => {

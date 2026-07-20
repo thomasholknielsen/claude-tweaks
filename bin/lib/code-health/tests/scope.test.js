@@ -4,8 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { listSlices, contentHash, selectSlice, listWorkspaceSlices } = require('../scope');
-
-const MAX_STALE_DAYS = 30; // mirrors score.js constant
+const { MAX_STALE_DAYS } = require('../score');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-scope-')); }
 

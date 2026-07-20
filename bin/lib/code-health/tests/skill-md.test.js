@@ -28,7 +28,17 @@ test('documents the dry-run-first then run procedure and hands payloads to gh', 
 
 test('has the required house sections in order', () => {
   const body = read();
-  const idx = (s) => body.indexOf(s);
+  // Match the heading only at the start of its own line (anchored, not a
+  // bare substring search) — SKILL.md's boilerplate "> **Interaction
+  // style:**" directive and the Component-Skill Contract prose both mention
+  // "## Next Actions" inline as a backticked reference, and a plain
+  // body.indexOf() resolves to the first of those mentions instead of the
+  // real section heading further down.
+  const idx = (s) => {
+    const escaped = s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const m = body.match(new RegExp(`^${escaped}$`, 'm'));
+    return m ? m.index : -1;
+  };
   assert.ok(idx('## When to Use') > 0);
   assert.ok(idx('## Anti-Patterns') > 0);
   assert.ok(idx('## Component-Skill Contract') > 0);

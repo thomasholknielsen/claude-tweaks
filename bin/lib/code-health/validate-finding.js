@@ -11,6 +11,23 @@ const EFFORT_VALUES = new Set(['low', 'medium', 'high']);
 
 const { getCriterion } = require('./criteria');
 
+// Confidence ordering for floor comparison. Higher index = higher confidence.
+const CONFIDENCE_ORDER = ['low', 'medium', 'high'];
+
+// Second-stage gate applied after validateFindingV2: even a well-formed
+// finding is dropped when its confidence sits below the criterion's own
+// confidenceFloor. Returns { pass: true } or { pass: false, reason: string }.
+function applyConfidenceFloor(finding, criterionFloor) {
+  if (!criterionFloor) return { pass: true };
+  const findingIdx = CONFIDENCE_ORDER.indexOf(finding.confidence);
+  const floorIdx = CONFIDENCE_ORDER.indexOf(criterionFloor);
+  if (findingIdx >= floorIdx) return { pass: true };
+  return {
+    pass: false,
+    reason: `confidence '${finding.confidence}' below floor '${criterionFloor}' for criterion '${finding.criterion}'`,
+  };
+}
+
 // v2 Finding shape: criterion (catalog id), areaId, anchor, severity, confidence,
 // title, evidence, suggestedApproach, acceptance.
 // Returns { ok: boolean, errors: string[], value? }.
@@ -74,5 +91,5 @@ function validateFindingV2(obj) {
 }
 
 module.exports = {
-  validateFindingV2, SEVERITY_VALUES, CONFIDENCE_VALUES, LIKELIHOOD_VALUES, EFFORT_VALUES,
+  validateFindingV2, applyConfidenceFloor, SEVERITY_VALUES, CONFIDENCE_VALUES, LIKELIHOOD_VALUES, EFFORT_VALUES,
 };

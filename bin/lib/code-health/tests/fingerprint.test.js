@@ -58,13 +58,11 @@ test('normalizeAnchor lowercases path, strips :line and :line:col on either side
 });
 
 test('v2 fingerprint returns a recon-<8hex> id', () => {
-  const { fingerprint } = require('../fingerprint');
   const id = fingerprint({ criterion: 'simplification', areaId: 'src/api', anchor: 'src/api/user.js#getUser' });
   assert.match(id, /^codehealth-[0-9a-f]{8}$/);
 });
 
 test('v2 fingerprint is stable when the finding moves lines (anchor stability)', () => {
-  const { fingerprint } = require('../fingerprint');
   // Line number in anchor file ref is stripped by normalizeAnchor.
   const a = fingerprint({ criterion: 'dead-code', areaId: 'src', anchor: 'src/util.js:42#trimPath' });
   const b = fingerprint({ criterion: 'dead-code', areaId: 'src', anchor: 'src/util.js:99#trimPath' });
@@ -72,7 +70,6 @@ test('v2 fingerprint is stable when the finding moves lines (anchor stability)',
 });
 
 test('v2 fingerprint is stable when prose around the anchor is reworded', () => {
-  const { fingerprint } = require('../fingerprint');
   // The anchor itself is the same; wording of the surrounding evidence is irrelevant.
   const a = fingerprint({ criterion: 'naming-clarity', areaId: 'lib', anchor: 'lib/parser.js#parse' });
   const b = fingerprint({ criterion: 'naming-clarity', areaId: 'lib', anchor: 'lib/parser.js#parse' });
@@ -80,7 +77,6 @@ test('v2 fingerprint is stable when prose around the anchor is reworded', () => 
 });
 
 test('v2 fingerprint differs when criterion, areaId, or anchor differs', () => {
-  const { fingerprint } = require('../fingerprint');
   const base = { criterion: 'resilience', areaId: 'src', anchor: 'src/http.js#fetch' };
   assert.notStrictEqual(
     fingerprint(base),
@@ -97,7 +93,6 @@ test('v2 fingerprint differs when criterion, areaId, or anchor differs', () => {
 });
 
 test('v1 and v2 forms coexist — same module, both callable', () => {
-  const { fingerprint } = require('../fingerprint');
   const v1 = fingerprint({ lens: 'todo-comments', areaId: '.', signature: 'TODO x', file: 'a.js:1' });
   const v2 = fingerprint({ criterion: 'bad-practice', areaId: '.', anchor: 'a.js#TODO x' });
   assert.match(v1, /^codehealth-[0-9a-f]{8}$/);
