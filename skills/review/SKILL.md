@@ -528,6 +528,7 @@ See `review-summary-template.md` in this skill's directory for the full Next Act
 | `/claude-tweaks:reflect` | Invoked BY /review (Step 4) in hindsight mode. Handles the implementation hindsight evaluation, finding routing, and ledger writes with phase `review/hindsight`. |
 | `/claude-tweaks:simplify` | Invoked BY /review (Step 5) on files modified during review. Handles code simplification and re-verification. |
 | `/claude-tweaks:deepen` | Lens 3e (Architecture) flags shallow modules and leaky abstractions; when module-level restructuring is the theme, /review surfaces `/claude-tweaks:deepen` as a Next Action rather than resolving it inline. /deepen is the dedicated depth pass. |
+| `/claude-tweaks:code-health` | `/review` judges diffs reactively; `/code-health` judges latent code proactively on a schedule. Both reuse the same criteria fragments from `skills/_shared/` — see the `_shared/criteria-review-quality.md` row below. |
 | `/superpowers:systematic-debugging` | Invoked BY /review when a confirmed bug finding needs a non-trivial fix — reproduce-first discipline before applying the change (see Important Notes). |
 | `/claude-tweaks:ledger` | Manages the open items ledger. /review appends findings (Step 3 Routing). Hindsight findings (Step 4) are written by /reflect using `review/*` phases. |
 | `/claude-tweaks:help` | /help flags specs awaiting review and recommends `/review` in its pipeline status scan |

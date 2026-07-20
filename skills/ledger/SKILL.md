@@ -247,6 +247,7 @@ When `$PIPELINE_RUN_DIR` is set, `/ledger` is running inside a pipeline (typical
 | `/claude-tweaks:review` | Appends code review findings (Step 3 Routing) and reads/routes existing entries. Uses phases: `review`, `review/skill`. Hindsight findings (Step 4) are written by /reflect. |
 | `/claude-tweaks:reflect` | Appends hindsight findings (via /review, phase `review/hindsight`), reflection insights (via /wrap-up, phase `wrap-up`), or standalone findings (phase `reflect`). |
 | `/claude-tweaks:deepen` | Appends staged and declined depth candidates when invoked in a pipeline. Uses phase: `deepen`. |
+| `/claude-tweaks:design-wrapper` | The wrapper's own caches (audit, recommendations, declined) are separate files from the ledger — reciprocally, /ledger does not read or clean those caches (that's /wrap-up Step 5's job). But each design-wrapper command invoked during /flow's polish phase appends one entry under phase `design` (`fixed` for auto-fit successes, `observation` for reported issues) — see the Phase Taxonomy table above. |
 | `/claude-tweaks:wrap-up` | Runs the resolve gate (Step 8.5) and deletes the ledger (Step 5). Reflection insights are written by /reflect (Step 3). |
 | `/claude-tweaks:flow` | Creates the ledger at pipeline start (Step 1), carries it forward across all phases, and runs the resolve gate before the final summary (Step 5). |
 | `/claude-tweaks:help` | Scans for active ledgers with open items and surfaces them in the status dashboard. |

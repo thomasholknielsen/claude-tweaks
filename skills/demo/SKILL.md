@@ -220,5 +220,6 @@ always renders.
 |-------|-------------|
 | `/claude-tweaks:wrap-up` | Sole producer of *label-backed* `demo:pending` + the Verification Brief (Step 10, `verification-brief.md`), gated on a clean visual-review pass — `/demo` is the sole consumer/resolver for that path. `/demo`'s session-recall source (Step 1) surfaces conversation-based work independently of `/wrap-up` ever running. |
 | `/claude-tweaks:browse` | `/demo`'s "Show me live" option (Step 3) consumes /browse's conventions directly (session naming, lifecycle) for an on-demand live look — the same relationship /claude-tweaks:visual-review has with /browse, not a workflow-step invocation |
+| `/claude-tweaks:visual-review` | `/demo`'s Verification Brief digest (Step 3) is sourced from /visual-review's own report — headline result + 1-3 committed screenshots. |
 | `/claude-tweaks:help` | `/help`'s dashboard surfaces a `demo:pending` count as a lightweight signal; `/demo` is where the actual walkthrough happens |
 | `/claude-tweaks:capture` | On "request changes," `/demo` files a follow-up backlog record using the same `recordPayload` composition `/capture` itself uses, without invoking `/capture` |
