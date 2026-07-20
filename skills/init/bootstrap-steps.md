@@ -785,11 +785,11 @@ expressions a plain file store supports, so there is nothing to detect.
 **Sub-step 15c — Label provisioning offer** (`work-backend: github-issues` only).
 Call `AskUserQuestion`:
 
-- `question`: `"Provision all 21 core work-record labels now?"`, `header`:
+- `question`: `"Provision all 23 core work-record labels now?"`, `header`:
   `"Label bootstrap"`, `multiSelect`: `false`
-- Option 1 (Recommended) — `label`: `"Yes — provision all 21 labels now"`,
+- Option 1 (Recommended) — `label`: `"Yes — provision all 23 labels now"`,
   `description`: `"Runs _shared/label-bootstrap.md's canonical LABELS_JSON whole —
-  the 21 core labels plus the 3 optional priority:* labels (24 total). That file's
+  the 23 core labels plus the 3 optional priority:* labels (26 total). That file's
   own note names this offer as the one caller allowed to use the full list, rather
   than bootstrapping only what's about to be applied. Front-loads label creation so
   the first health-skill firing or /claude-tweaks:capture call never pays the

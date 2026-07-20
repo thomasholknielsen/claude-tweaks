@@ -59,7 +59,7 @@ five members — one per filing skill: `by:code-health`, `by:harness-health`,
 
 ## Label taxonomy
 
-21 core labels + 3 optional `priority:*` labels. The canonical `LABELS_JSON` (names +
+23 core labels + 3 optional `priority:*` labels. The canonical `LABELS_JSON` (names +
 ≤100-char descriptions) lives in `_shared/label-bootstrap.md`; consumers bootstrap only the
 labels they are about to apply.
 
@@ -68,6 +68,7 @@ labels they are about to apply.
 | Origin (5) | `by:code-health`, `by:harness-health`, `by:journey-health`, `by:docs-health`, `by:capture` | Origin |
 | Risk (3) | `risk:low`, `risk:medium`, `risk:high` | Scoring |
 | Effort (3) | `effort:low`, `effort:medium`, `effort:high` | Scoring |
+| Ceremony (2) | `ceremony:fast-lane`, `ceremony:standard` | Ceremony depth — cross-cutting, not one of the seven axes; stamped by `/specify` alongside Scoring, always explicit (no unscored state) |
 | Stage (2) | `parked`, `ready` | Stage |
 | Grants (2) | `auto:build`, `auto:merge` | Authorization |
 | Bot state (2) | `bot:in-progress`, `bot:blocked` | Bot state |
@@ -89,7 +90,7 @@ Who may add / remove which labels. "Machinery" = any headless or autonomous path
 | **Human** (GitHub UI or interactive session) | anything, incl. `auto:*` | anything | — |
 | **Health skills** (`/code-health`, `/harness-health`, `/journey-health`, `/docs-health`) | `by:{self}`, `risk:*`, `effort:*`, `ready` (born-ready), Type | nothing | `auto:*`, `bot:*`, `parked` |
 | **`/capture`** | `by:capture`, Type (`type:*` only when `work-types: labels`) | nothing | scoring, stage, `auto:*`, `bot:*` |
-| **`/specify`** (shaper) | `ready`, `risk:*`/`effort:*` when unstamped, Type | `parked` (promotion) | `auto:*`, `bot:*` |
+| **`/specify`** (shaper) | `ready`, `risk:*`/`effort:*` when unstamped, `ceremony:*` (always — no unscored state), Type | `parked` (promotion) | `auto:*`, `bot:*` |
 | **`/triage`** (gate, human present) | `auto:build`, `auto:merge` (human-confirmed), scoring supplied inline | `ready` (flag back), `bot:blocked` (re-grant strip) | granting on a headless path |
 | **`/dispatch`** (queue consumer) | `bot:in-progress` (claim mirror), `bot:blocked` (at retry ceiling) | `auto:merge` (failure downgrade), `auto:*` (at ceiling), `bot:in-progress` (release) | adding `auto:*` or `ready` |
 | **`/tidy`** (hygiene) | `parked` (Defer action, with trigger) | `parked` (trigger-met wake), `bot:in-progress` (orphaned-claim sweep) | `auto:*` |

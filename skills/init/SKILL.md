@@ -131,7 +131,7 @@ Offer only on projects with a GitHub remote — writes `.github/workflows/track-
 
 ### Step 15: Work-Record Backend (Optional)
 
-Decide whether the unified work record — used by `/claude-tweaks:capture`, `/claude-tweaks:specify`, `/claude-tweaks:triage`, `/claude-tweaks:dispatch`, `/claude-tweaks:tidy`, and the health skills — is backed by GitHub issues or local record files, and write `work-backend` to CLAUDE.md under a `## Work records` section (gated on the same GHE-safe two-tier remote check Step 9 uses). Then probe GitHub-native capabilities once (`work-types`, `work-links`) and offer to provision all 21 core labels now. See `_shared/work-record.md` for the taxonomy these config keys govern. Read `bootstrap-steps.md` (Step 15) for the full procedure.
+Decide whether the unified work record — used by `/claude-tweaks:capture`, `/claude-tweaks:specify`, `/claude-tweaks:triage`, `/claude-tweaks:dispatch`, `/claude-tweaks:tidy`, and the health skills — is backed by GitHub issues or local record files, and write `work-backend` to CLAUDE.md under a `## Work records` section (gated on the same GHE-safe two-tier remote check Step 9 uses). Then probe GitHub-native capabilities once (`work-types`, `work-links`) and offer to provision all 23 core labels now. See `_shared/work-record.md` for the taxonomy these config keys govern. Read `bootstrap-steps.md` (Step 15) for the full procedure.
 
 ---
 
@@ -379,7 +379,7 @@ After writing files, surface what was created. Generate the table from the actua
 | Statusline | Installed wrapper at `~/.claude-tweaks/bin/statusline.js`; wired `~/.claude/settings.json` | Step 8 |
 | Design integration | Set `design-integration: {enabled/plugin-only/disabled}` in CLAUDE.md | Step 10 |
 | shadcn integration | Set `shadcn-integration: {enabled/cli-only/disabled}` in CLAUDE.md | Step 12 |
-| Work records | Set work-backend / work-types / work-links in CLAUDE.md; offer 21-core-label bootstrap (24 total incl. `priority:*`) | Step 15 |
+| Work records | Set work-backend / work-types / work-links in CLAUDE.md; offer 23-core-label bootstrap (26 total incl. `priority:*`) | Step 15 |
 | Routines | Instantiated {N} routine(s): `{list}` (or "Offered, none set up") | Step 13 |
 | Worktree policy | Set `worktree.always: {true/false}` in `.claude-tweaks/policy.yml` (only if Step 6 asked this run) — written last, after every other row above, to avoid mid-run self-lockout; see "Worktree Policy Finalization" below | Step 6 |
 | Classification | Confirmed maturity `{value}`, doc tier `{N}` | Phase 3 |

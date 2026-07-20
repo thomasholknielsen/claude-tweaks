@@ -29,9 +29,9 @@ consumer with its own label list — for a single label, use a one-element array
 
 ## Canonical LABELS_JSON — the full work-record taxonomy
 
-The complete label set from `_shared/work-record.md` (21 core + 3 optional `priority:*`),
+The complete label set from `_shared/work-record.md` (23 core + 3 optional `priority:*`),
 with descriptions pre-checked against GitHub's 100-character cap. **Consumers bootstrap only
-the labels they are about to apply** — copy the relevant pairs, don't create all 24
+the labels they are about to apply** — copy the relevant pairs, don't create all 26
 speculatively (except `/init`'s one-time provision-now offer, which uses this list whole):
 
 ```js
@@ -47,6 +47,8 @@ speculatively (except `/init`'s one-time provision-now offer, which uses this li
   ["effort:low",        "Scoring: small, agent-sized change"],
   ["effort:medium",     "Scoring: moderate change, may span several files"],
   ["effort:high",       "Scoring: large change — consider decomposition before building"],
+  ["ceremony:fast-lane", "Ceremony: small/clean record — proportionately fewer review & wrap-up steps"],
+  ["ceremony:standard",  "Ceremony: default depth — full review & wrap-up ceremony applies"],
   ["parked",            "Stage: deliberately on hold until its trigger fires (milestone due or watched path change)"],
   ["ready",             "Stage: spec-shaped and agent-sized — in the authorization gate's worklist"],
   ["auto:build",        "Grant: agents may build this record autonomously (human-granted; machinery only removes)"],
