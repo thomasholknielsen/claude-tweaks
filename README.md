@@ -6,6 +6,18 @@ A structured workflow system for Claude Code — from idea capture through build
 
 Claude Code is powerful but unstructured. claude-tweaks adds a complete development lifecycle: capture ideas, challenge assumptions, decompose into specs, build with quality gates, and learn from what was built. Every finding is explicitly resolved — nothing silently drops.
 
+### What's new in v6.10.0 — design-wrapper rename + visual quality boost
+
+`/claude-tweaks:design` is renamed `/claude-tweaks:design-wrapper` (clearer than a bare
+"design" for a thin dispatcher around the Impeccable plugin). Three new capabilities close the
+"bland UI" gap end to end: `/flow`'s polish phase now auto-dispatches audit's own Anti-Pattern
+`suggestion` field instead of only fixed commands; `/visual-review`'s Creative Opportunities gets
+a real one-click apply-gate, plus a new opt-in standalone "Boost" step (fix flagged issues, or
+explore alternatives via a new `live` mode); and `/specify`'s shape-time flow can now spin up a
+throwaway scaffold and hand off to `live` mode for real side-by-side variant comparison before
+`/build` ever starts, recorded as a `Visual-reference:` body-metadata line. See
+`docs/superpowers/specs/2026-07-19-visual-quality-boost-design.md`.
+
 ### What's new in v6.7.0 — Fast-lane pipeline profile
 
 A new `ceremony-profile` Manifesto lever (fed by `/claude-tweaks:assess-agent-autonomy`'s new
