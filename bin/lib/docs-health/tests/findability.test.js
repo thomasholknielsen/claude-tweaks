@@ -105,3 +105,26 @@ test('counts a reference via a nested relative link ("../config.md") from a sibl
   assert.strictEqual(result.count, 1);
   assert.deepStrictEqual(result.referencedBy, [path.join('docs', 'api', 'sub', 'other.md')]);
 });
+
+test('does NOT count a top-level doc as referenced when only a same-named doc in a NESTED subdirectory is linked', () => {
+  // docs/config.md (top-level, docId 'config') and docs/sub/config.md (docId
+  // 'sub/config') share a basename. README.md links only to
+  // docs/sub/config.md. A bare-basename qualifiedPath for the top-level
+  // docId ('config.md', since docId has no subdirectory of its own) must not
+  // substring-match inside "docs/sub/config.md" -- that's the same failure
+  // shape as the cross-directory collision above, but for the no-subdirectory
+  // docId case, which degenerates qualifiedPath back to a bare basename.
+  const root = makeTmpRoot();
+  fs.mkdirSync(path.join(root, 'docs', 'sub'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'docs', 'config.md'), '# Top-level Config\n');
+  fs.writeFileSync(path.join(root, 'docs', 'sub', 'config.md'), '# Sub Config\n');
+  fs.writeFileSync(path.join(root, 'README.md'), 'See docs/sub/config.md for details.\n');
+
+  const topResult = computeInboundReferences('config', root);
+  assert.strictEqual(topResult.count, 0, 'docs/config.md is never linked and must be reported as orphaned');
+  assert.deepStrictEqual(topResult.referencedBy, []);
+
+  const subResult = computeInboundReferences('sub/config', root);
+  assert.strictEqual(subResult.count, 1, 'docs/sub/config.md IS linked from README.md and must be counted');
+  assert.deepStrictEqual(subResult.referencedBy, ['README.md']);
+});
