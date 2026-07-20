@@ -216,7 +216,7 @@ Read `/tmp/code-health-payloads.json`. The command:
 
 Every code-health record files onto the unified work record (`skills/_shared/work-record.md`): origin `by:code-health`; `finding.risk` maps to the `risk:{value}` label; `finding.effort` maps to the `effort:{value}` label; Type is always `task`. Every filed finding is **born-`ready`** — code-health findings are agent-sized and spec-shaped by construction (Current State / Deliverables / Acceptance Criteria, verified by the Step 7 gate), so they file with the `ready` label already applied and appear directly in the authorization gate's worklist, skipping maturation. `toIssuePayloadV2` (`bin/lib/code-health/issue-payload.js`) assembles the payload via `record.js`'s `recordPayload` — the emitted label set is exactly `by:code-health`, `risk:<tier>`, `effort:<tier>`, `ready` (no per-criterion label).
 
-Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures (see `_shared/health-state.md`):
+Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures and check for regressed reopens (see `_shared/health-state.md`) — both mechanics below follow the canonical shape in `_shared/health-filing-mechanics.md` (`{BINARY}` = `code-health.js`, `{PREFIX}` = `code-health`); check that file when either changes to keep this skill's copy in sync with its three siblings:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" retry-queue drain --root . > /tmp/code-health-retry-payloads.json
@@ -385,9 +385,7 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 
 ## Component-Skill Contract
 
-When `$PIPELINE_RUN_DIR` is set, `/claude-tweaks:code-health` is running inside a pipeline (invoked by `/claude-tweaks:flow` or another pipeline orchestrator). In that case omit the `## Next Actions` block — the parent owns the handoff.
-
-Direct invocation may pass `--source <parent-skill>` as an explicit fallback when ambiguity exists (rare; `$PIPELINE_RUN_DIR` is the primary signal). Standalone (no `$PIPELINE_RUN_DIR`) is the common case and renders Next Actions as usual.
+`/claude-tweaks:code-health` is a **standalone-only** skill — no invocation path exists from `/claude-tweaks:flow` or any other skill in this project today (`flow/SKILL.md`'s Allowed Steps table, workflow text, and Relationship table never mention `code-health`). The `## Next Actions` block always renders. If a future orchestrator wraps this skill, that orchestrator must update this contract to state its own `$PIPELINE_RUN_DIR`-gated handoff; until then, treat parent invocation as not applicable.
 
 ## Anti-Patterns
 
@@ -422,3 +420,4 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `/claude-tweaks:journey-health` | Sibling health skill — same SELECT → JUDGE → VERIFY → FINGERPRINT/DEDUP → FILE pipeline shape and shared `_shared/health-state.md` persistence, but scoped to `docs/journeys/*.md` for journey accuracy and agent-e2e coverage instead of code quality. Both file born-`ready` findings on the unified work-record contract. |
 | `/claude-tweaks:docs-health` | Sibling health skill — same SELECT → JUDGE → VERIFY → FINGERPRINT/DEDUP → FILE pipeline and shared `_shared/health-state.md` persistence, but scoped to `docs/**` for Diátaxis genre-drift + depth-mismatch + findability + staleness instead of code quality. Both file born-`ready` findings on the unified work-record contract. |
 | `_shared/health-filing-gate.md` | The canonical interactive file-all/route-individually gate this skill's Step 9 applies before calling `gh issue create` on new findings — shared with `/harness-health`, `/journey-health`, and `/docs-health`. |
+| `_shared/health-filing-mechanics.md` | The canonical retry-queue-drain and regressed-reopen shape this skill's Step 9 inlines (as `{BINARY}` = `code-health.js`, `{PREFIX}` = `code-health`) — shared with `/harness-health`, `/journey-health`, and `/docs-health`. |

@@ -128,7 +128,7 @@ is **born-`ready`** — harness-health findings are agent-sized and spec-shaped 
 (Current State / Deliverables / Acceptance Criteria), so they file with the `ready` label already
 applied and appear directly in the authorization gate's worklist, skipping maturation. `toIssuePayload` (`bin/lib/harness-health/issue-payload.js`) assembles the payload via `record.js`'s `recordPayload`, then appends the classification/kind-derived diagnostic label (`harness-health:additive` / `harness-health:restructural` / `harness-health:new-skill`) after the canonical labels — the emitted label set is exactly `by:harness-health` + scoring (when present) + `ready` + the diagnostic label, matching the table above.
 
-Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures (see `_shared/health-state.md`):
+Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures and check for regressed reopens (see `_shared/health-state.md`) — both mechanics below follow the canonical shape in `_shared/health-filing-mechanics.md` (`{BINARY}` = `harness-health.js`, `{PREFIX}` = `harness-health`); check that file when either changes to keep this skill's copy in sync with its three siblings:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" retry-queue drain --root . > /tmp/harness-health-retry-payloads.json
@@ -226,6 +226,8 @@ Report: which target(s) were audited (or that only the gap scan ran), how many f
 
 Report-only, matching `/code-health` — every finding files as a `by:harness-health`-labelled, born-`ready` GitHub issue, with no `Edit` call anywhere in its documented workflow. Rotation cursors and the filing retry queue live on the durable `health-state` branch (`_shared/health-state.md`), surviving container recycling across scheduled firings — a skipped or failed firing does not lose progress.
 
+**No confidence floor on headless firings.** Unlike `/code-health`'s `--min-risk` flag (which holds below-threshold findings in a `remembered` cache instead of filing them), this skill's `validate-findings` call carries no equivalent threshold — a headless Routine firing files every surviving finding regardless of `confidence`, including a `confidence: low` one that the interactive gate's own Recommended-column rule would otherwise route to Capture. Known asymmetry with `/code-health`, not yet closed: a scheduled firing is noisier than an interactive one on low-confidence findings until this skill gains an equivalent holdback mechanism.
+
 > **Billing note:** Routines run inside the subscription; verify automation-credit specifics against the live account.
 
 ## Next Actions
@@ -238,9 +240,7 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 
 ## Component-Skill Contract
 
-When `$PIPELINE_RUN_DIR` is set, `/claude-tweaks:harness-health` is running inside a pipeline (invoked by `/claude-tweaks:flow` or another pipeline orchestrator). In that case omit the `## Next Actions` block — the parent owns the handoff.
-
-Direct invocation may pass `--source <parent-skill>` as an explicit fallback when ambiguity exists (rare; `$PIPELINE_RUN_DIR` is the primary signal). Standalone (no `$PIPELINE_RUN_DIR`) is the common case and renders Next Actions as usual.
+`/claude-tweaks:harness-health` is a **standalone-only** skill — no invocation path exists from `/claude-tweaks:flow` or any other skill in this project today (`flow/SKILL.md`'s Allowed Steps table, workflow text, and Relationship table never mention `harness-health`). The `## Next Actions` block always renders. If a future orchestrator wraps this skill, that orchestrator must update this contract to state its own `$PIPELINE_RUN_DIR`-gated handoff; until then, treat parent invocation as not applicable.
 
 ## Anti-Patterns
 
@@ -272,3 +272,4 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `/claude-tweaks:docs-health` | Sibling health skill for `docs/**` (Diátaxis genre-drift + depth-mismatch + findability + staleness) — shares this skill's SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline shape and `_shared/health-state.md`'s durable persistence, but scoped to a disjoint file set: docs-health's rotation pool only ever walks `docs/`, never `.claude/skills/**`/`.claude/rules/**`/CLAUDE.md. |
 | `/claude-tweaks:routine` | `/routine create harness-health` instantiates this skill's `routine-template.yml` into a live, scheduled cloud Routine. |
 | `_shared/health-filing-gate.md` | The canonical interactive file-all/route-individually gate this skill's Step 7 applies before calling `gh issue create` on new findings — shared with `/code-health`, `/journey-health`, and `/docs-health`. |
+| `_shared/health-filing-mechanics.md` | The canonical retry-queue-drain and regressed-reopen shape this skill's Step 7 inlines (as `{BINARY}` = `harness-health.js`, `{PREFIX}` = `harness-health`) — shared with `/code-health`, `/journey-health`, and `/docs-health`. |
