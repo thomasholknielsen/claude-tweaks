@@ -14,8 +14,13 @@ const { getCriterion } = require('./lib/code-health/criteria');
 const { classifyArea } = require('./lib/code-health/area-type');
 const { listSlices, contentHash, selectSlice } = require('./lib/code-health/scope');
 const { makeRetryQueueCommands } = require('./lib/health-core/retry-cli');
+const { loadIssueIndex } = require('./lib/health-core/issue-index');
+const { selectBudget } = require('./lib/health-core/budget');
+const { makeCmdChurnReport } = require('./lib/health-core/churn-report');
 
 const retryQueueCommands = makeRetryQueueCommands({ readDurableState, writeDurableState });
+const cmdChurnReport = makeCmdChurnReport({ readDurableState, computeChurn });
+const TOOL_NAME = 'code-health';
 
 function parseArgs(argv) {
   const args = { _: [], root: process.cwd(), dryRun: false, runId: new Date().toISOString() };
@@ -39,35 +44,6 @@ function parseArgs(argv) {
     else args._.push(a);
   }
   return args;
-}
-
-// --issues <file> is an array of { number, state, labels, fingerprint } objects
-// (the shape gh issue list + fingerprint extraction produces).
-// decide() expects a map { "<fingerprint>": { number, state, labels } }.
-function loadIssueIndex(file) {
-  if (!file) return {};
-  let arr;
-  try {
-    arr = JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch {
-    process.stderr.write(`[code-health] validate-findings: could not read or parse --issues file: ${file} — dedup falls back to the local cache only\n`);
-    return {};
-  }
-  if (!Array.isArray(arr)) {
-    process.stderr.write(`[code-health] validate-findings: --issues file must contain a JSON array: ${file} — dedup falls back to the local cache only\n`);
-    return {};
-  }
-  const index = {};
-  for (const issue of arr) {
-    if (!issue || typeof issue !== 'object') {
-      process.stderr.write('[code-health] loadIssueIndex: skipping malformed issue entry\n');
-      continue;
-    }
-    if (issue.fingerprint) {
-      index[issue.fingerprint] = { number: issue.number, state: issue.state, labels: issue.labels || [] };
-    }
-  }
-  return index;
 }
 
 function cmdStatus(args) {
@@ -95,39 +71,6 @@ function cmdStatus(args) {
     process.exit(1);
   }
   process.stdout.write(line);
-}
-
-function cmdChurnReport(args) {
-  const root = args.root || process.cwd();
-  const runs = readDurableState(root).runs;
-  if (runs.length === 0) {
-    process.stdout.write('no run logs found\n');
-    return;
-  }
-  const threshold = args['fail-on-high-churn'] != null ? parseFloat(args['fail-on-high-churn']) : null;
-  const rows = [['runId', 'runAt', 'findings', 'appeared', 'disappeared', 'ratio']];
-  let exceeded = false;
-  for (let i = 0; i < runs.length; i++) {
-    const prior = i > 0 ? runs[i - 1] : null;
-    const c = computeChurn(runs[i].fingerprints, prior);
-    rows.push([
-      runs[i].runId,
-      (runs[i].runAt || '').slice(0, 19),
-      String(runs[i].fingerprints.length),
-      String(c.appeared.length),
-      String(c.disappeared.length),
-      String(c.ratio),
-    ]);
-    if (threshold != null && prior != null && c.ratio >= threshold) exceeded = true;
-  }
-  const widths = rows[0].map((_, col) => Math.max(...rows.map((r) => String(r[col]).length)));
-  for (const row of rows) {
-    process.stdout.write(row.map((cell, i) => String(cell).padEnd(widths[i])).join('  ') + '\n');
-  }
-  if (exceeded) {
-    process.stdout.write(`\nhigh churn: one or more runs >= ${threshold}\n`);
-    process.exit(1);
-  }
 }
 
 function cmdPullIssues(args) {
@@ -231,7 +174,7 @@ function cmdValidateFindings(args) {
 
   // 3. Dedup against the issue index and local cache.
   const cache = readCache(root);
-  const issueIndex = loadIssueIndex(args.issues);
+  const issueIndex = loadIssueIndex(args.issues, TOOL_NAME);
   const durableState = readDurableState(root);
   const rememberedDelta = {};
   const payloads = [];
@@ -301,7 +244,7 @@ function cmdValidateFindings(args) {
 function cmdNextSlice(args) {
   const root = args.root || process.cwd();
   const budget = Number.isFinite(args.budget) && args.budget > 0 ? args.budget : 1;
-  let cursors = readDurableState(root).cursors;
+  const cursors = readDurableState(root).cursors;
   const now = Date.now();
 
   if (budget === 1) {
@@ -310,18 +253,12 @@ function cmdNextSlice(args) {
     return;
   }
 
-  // Budget > 1: iterate, marking each chosen slice as seen in-memory only.
-  const chosen = [];
-  for (let i = 0; i < budget; i++) {
-    const slice = selectSlice(root, cursors, { now });
-    if (!slice) break;
-    chosen.push(slice);
-    // Simulate post-judge state so the next iteration picks a different slice.
-    cursors = {
-      ...cursors,
-      [slice.id]: { lastSweptMs: now, lastHash: contentHash(slice.path) },
-    };
-  }
+  // Budget > 1: pick up to `budget` distinct slices, simulating post-judge
+  // cursor state in-memory between picks (see bin/lib/health-core/budget.js).
+  const chosen = selectBudget(budget, cursors, (c) => selectSlice(root, c, { now }), {
+    getCursorKey: (slice) => slice.id,
+    buildCursorPatch: (_, slice) => ({ lastSweptMs: now, lastHash: contentHash(slice.path) }),
+  });
   process.stdout.write(JSON.stringify(chosen, null, 2) + '\n');
 }
 

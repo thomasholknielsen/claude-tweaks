@@ -13,34 +13,42 @@ function loadModule(event) {
   try { return require('./lib/hooks/' + event); } catch { return null; }
 }
 
+// Resolves an explicit `--run <path>` argument, validating it's a real
+// directory, or falls back to ctxLib.resolveRunDir when --run is absent.
+// Shared by record-worktree and close-run below so a future change to what
+// counts as a valid --run path (e.g. also rejecting a directory that exists
+// but isn't a real run dir, or resolving symlinks first) only needs to land
+// once. `args` is the command's own argument list (cmd already stripped);
+// when --run is found, its two-element span is spliced out of the returned
+// `rest` so a caller with its own positional args (record-worktree's
+// worktree path) can still find them regardless of flag placement.
+function resolveRunArg(args, cwd, env) {
+  const flagIdx = args.indexOf('--run');
+  if (flagIdx === -1) {
+    return { runDir: ctxLib.resolveRunDir(cwd, env), invalidRunArg: null, rest: args };
+  }
+  const rest = args.slice();
+  const candidate = rest[flagIdx + 1] || null;
+  rest.splice(flagIdx, 2);
+  // An explicit --run must resolve to a real directory — falling back to
+  // resolveRunDir's "newest non-terminal run" scan on a bad path would
+  // silently record against the WRONG run, defeating the reason --run
+  // exists at all.
+  const isRealDir = candidate ? (() => { try { return fs.statSync(candidate).isDirectory(); } catch { return false; } })() : false;
+  if (isRealDir) {
+    return { runDir: candidate, invalidRunArg: null, rest };
+  }
+  return { runDir: null, invalidRunArg: candidate || '(missing value)', rest };
+}
+
 function main(argv) {
   const cmd = argv[2];
   if (cmd === 'record-worktree') {
     // --run <path> pins the target run dir explicitly, mirroring close-run
     // below — without it, this always fell through to resolveRunDir's
     // "newest non-terminal run" fallback, which a stale never-closed run
-    // could win over the run genuinely making this call. Strip --run and its
-    // value out of the remaining args so the worktree positional resolves
-    // correctly regardless of flag placement.
-    const rest = argv.slice(3);
-    const flagIdx = rest.indexOf('--run');
-    let runDir = null;
-    let invalidRunArg = null;
-    if (flagIdx !== -1) {
-      const candidate = rest[flagIdx + 1] || null;
-      rest.splice(flagIdx, 2);
-      // An explicit --run must resolve to a real directory — falling back to
-      // resolveRunDir's "newest non-terminal run" scan on a bad path would
-      // silently record against the WRONG run, defeating the reason --run
-      // exists at all (see the comment this replaces, above).
-      if (candidate && (() => { try { return fs.statSync(candidate).isDirectory(); } catch { return false; } })()) {
-        runDir = candidate;
-      } else {
-        invalidRunArg = candidate || '(missing value)';
-      }
-    } else {
-      runDir = ctxLib.resolveRunDir(process.cwd(), process.env);
-    }
+    // could win over the run genuinely making this call.
+    const { runDir, invalidRunArg, rest } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
     const worktreeArg = rest[0];
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path not found: ${invalidRunArg} — worktree not recorded\n`);
@@ -68,19 +76,7 @@ function main(argv) {
     return 0;
   }
   if (cmd === 'close-run') {
-    const flagIdx = argv.indexOf('--run');
-    let runDir = null;
-    let invalidRunArg = null;
-    if (flagIdx !== -1 && argv[flagIdx + 1]) {
-      const candidate = argv[flagIdx + 1];
-      if ((() => { try { return fs.statSync(candidate).isDirectory(); } catch { return false; } })()) {
-        runDir = candidate;
-      } else {
-        invalidRunArg = candidate;
-      }
-    } else {
-      runDir = ctxLib.resolveRunDir(process.cwd(), process.env);
-    }
+    const { runDir, invalidRunArg } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path not found: ${invalidRunArg} — run not closed\n`);
     } else if (runDir) {

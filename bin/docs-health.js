@@ -6,6 +6,10 @@ const { computeWordCount } = require('./lib/docs-health/depth');
 const { readCache, writeCache, readDurableState, writeDurableState, buildValidateFindingsUpdate } = require('./lib/docs-health/cache');
 const { computeChurn } = require('./lib/health-core/runs');
 const { makeRetryQueueCommands } = require('./lib/health-core/retry-cli');
+const { loadIssueIndex } = require('./lib/health-core/issue-index');
+const { selectBudget } = require('./lib/health-core/budget');
+const { makeCmdChurnReport } = require('./lib/health-core/churn-report');
+const { makeCmdMark } = require('./lib/health-core/mark');
 const { decide } = require('./lib/docs-health/dedup');
 const { validateFinding } = require('./lib/docs-health/validate-finding');
 const { toIssuePayload } = require('./lib/docs-health/issue-payload');
@@ -14,7 +18,10 @@ const path = require('path');
 const { computeInboundReferences } = require('./lib/docs-health/findability');
 const { checkTrackedFreshness } = require('./lib/docs-health/freshness');
 
+const TOOL_NAME = 'docs-health';
 const retryQueueCommands = makeRetryQueueCommands({ readDurableState, writeDurableState });
+const cmdChurnReport = makeCmdChurnReport({ readDurableState, computeChurn });
+const cmdMark = makeCmdMark({ readCache, writeCache, toolName: TOOL_NAME });
 
 function parseArgs(argv) {
   const args = { _: [], root: process.cwd(), dryRun: false, runId: new Date().toISOString() };
@@ -32,33 +39,6 @@ function parseArgs(argv) {
   return args;
 }
 
-// --issues <file> is an array of { number, state, labels, fingerprint } objects.
-function loadIssueIndex(file) {
-  if (!file) return {};
-  let arr;
-  try {
-    arr = JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch {
-    process.stderr.write(`[docs-health] validate-findings: could not read or parse --issues file: ${file} — dedup falls back to the local cache only\n`);
-    return {};
-  }
-  if (!Array.isArray(arr)) {
-    process.stderr.write(`[docs-health] validate-findings: --issues file must contain a JSON array: ${file} — dedup falls back to the local cache only\n`);
-    return {};
-  }
-  const index = {};
-  for (const issue of arr) {
-    if (!issue || typeof issue !== 'object') {
-      process.stderr.write('[docs-health] loadIssueIndex: skipping malformed issue entry\n');
-      continue;
-    }
-    if (issue.fingerprint) {
-      index[issue.fingerprint] = { number: issue.number, state: issue.state, labels: issue.labels || [] };
-    }
-  }
-  return index;
-}
-
 function cmdNextTarget(args) {
   const root = args.root || process.cwd();
   const now = Date.now();
@@ -71,7 +51,7 @@ function cmdNextTarget(args) {
   }
 
   const budget = Number.isFinite(args.budget) && args.budget > 0 ? args.budget : 1;
-  let cursors = readDurableState(root).cursors;
+  const cursors = readDurableState(root).cursors;
 
   if (budget === 1) {
     const target = selectTarget(root, cursors, { now });
@@ -79,14 +59,12 @@ function cmdNextTarget(args) {
     return;
   }
 
-  const targets = [];
-  for (let i = 0; i < budget; i++) {
-    const target = selectTarget(root, cursors, { now });
-    if (!target) break;
-    targets.push(target);
-    const key = `doc:${target.id}`;
-    cursors = { ...cursors, [key]: { ...(cursors[key] || {}), lastAuditedMs: now } };
-  }
+  // Budget > 1: pick up to `budget` distinct docs, simulating post-audit
+  // cursor state in-memory between picks (see bin/lib/health-core/budget.js).
+  const targets = selectBudget(budget, cursors, (c) => selectTarget(root, c, { now }), {
+    getCursorKey: (t) => `doc:${t.id}`,
+    buildCursorPatch: (existing) => ({ ...(existing || {}), lastAuditedMs: now }),
+  });
   process.stdout.write(JSON.stringify({ targets }, null, 2) + '\n');
 }
 
@@ -131,7 +109,7 @@ function cmdValidateFindings(args) {
   }
 
   const cache = readCache(root);
-  const issueIndex = loadIssueIndex(args.issues);
+  const issueIndex = loadIssueIndex(args.issues, TOOL_NAME);
   const payloads = [];
   const seen = new Set();
   for (const finding of survivors) {
@@ -162,55 +140,6 @@ function cmdValidateFindings(args) {
   process.stderr.write(
     `[docs-health] validate-findings: ${survivors.length} valid finding(s), ${payloads.length} payload(s) after dedup\n`,
   );
-}
-
-function cmdChurnReport(args) {
-  const root = args.root || process.cwd();
-  const runs = readDurableState(root).runs;
-  if (runs.length === 0) {
-    process.stdout.write('no run logs found\n');
-    return;
-  }
-  const threshold = args['fail-on-high-churn'] != null ? parseFloat(args['fail-on-high-churn']) : null;
-  const rows = [['runId', 'runAt', 'findings', 'appeared', 'disappeared', 'ratio']];
-  let exceeded = false;
-  for (let i = 0; i < runs.length; i++) {
-    const prior = i > 0 ? runs[i - 1] : null;
-    const c = computeChurn(runs[i].fingerprints, prior);
-    rows.push([
-      runs[i].runId,
-      (runs[i].runAt || '').slice(0, 19),
-      String(runs[i].fingerprints.length),
-      String(c.appeared.length),
-      String(c.disappeared.length),
-      String(c.ratio),
-    ]);
-    if (threshold != null && prior != null && c.ratio >= threshold) exceeded = true;
-  }
-  const widths = rows[0].map((_, col) => Math.max(...rows.map((r) => String(r[col]).length)));
-  for (const row of rows) {
-    process.stdout.write(row.map((cell, i) => String(cell).padEnd(widths[i])).join('  ') + '\n');
-  }
-  if (exceeded) {
-    process.stdout.write(`\nhigh churn: one or more runs >= ${threshold}\n`);
-    process.exit(1);
-  }
-}
-
-const MARK_STATUSES = new Set(['declined']);
-
-function cmdMark(args) {
-  const root = args.root || process.cwd();
-  const fp = args._[1];
-  const status = args._[2];
-  if (!fp || !MARK_STATUSES.has(status)) {
-    process.stderr.write(`usage: docs-health.js mark <fingerprint> <${[...MARK_STATUSES].join('|')}> [--root <dir>]\n`);
-    process.exit(2);
-  }
-  const cache = readCache(root);
-  cache[fp] = { status, lastSeenMs: Date.now() };
-  writeCache(root, cache);
-  process.stdout.write(JSON.stringify(cache[fp], null, 2) + '\n');
 }
 
 function cmdWordCount(args) {

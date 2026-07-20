@@ -7,6 +7,10 @@ const {
 } = require('./lib/journey-health/cache');
 const { computeChurn } = require('./lib/health-core/runs');
 const { makeRetryQueueCommands } = require('./lib/health-core/retry-cli');
+const { loadIssueIndex } = require('./lib/health-core/issue-index');
+const { selectBudget } = require('./lib/health-core/budget');
+const { makeCmdChurnReport } = require('./lib/health-core/churn-report');
+const { makeCmdMark } = require('./lib/health-core/mark');
 const { decide } = require('./lib/journey-health/dedup');
 const { validateFinding } = require('./lib/journey-health/validate-finding');
 const { toIssuePayload } = require('./lib/journey-health/issue-payload');
@@ -14,7 +18,10 @@ const { selectTarget, listJourneys } = require('./lib/journey-health/scope');
 const { STALE_DAYS_LIGHT } = require('./lib/journey-health/score');
 const { evaluateQaEvidence } = require('./lib/journey-health/qa-evidence');
 
+const TOOL_NAME = 'journey-health';
 const retryQueueCommands = makeRetryQueueCommands({ readDurableState, writeDurableState });
+const cmdChurnReport = makeCmdChurnReport({ readDurableState, computeChurn });
+const cmdMark = makeCmdMark({ readCache, writeCache, toolName: TOOL_NAME });
 
 function parseArgs(argv) {
   const args = { _: [], root: process.cwd(), dryRun: false, runId: new Date().toISOString(), tier: 'light' };
@@ -34,34 +41,6 @@ function parseArgs(argv) {
     else args._.push(a);
   }
   return args;
-}
-
-// --issues <file> is an array of { number, state, labels, fingerprint } objects
-// (the shape gh issue list + fingerprint extraction produces).
-function loadIssueIndex(file) {
-  if (!file) return {};
-  let arr;
-  try {
-    arr = JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch {
-    process.stderr.write(`[journey-health] validate-findings: could not read or parse --issues file: ${file} — dedup falls back to the local cache only\n`);
-    return {};
-  }
-  if (!Array.isArray(arr)) {
-    process.stderr.write(`[journey-health] validate-findings: --issues file must contain a JSON array: ${file} — dedup falls back to the local cache only\n`);
-    return {};
-  }
-  const index = {};
-  for (const issue of arr) {
-    if (!issue || typeof issue !== 'object') {
-      process.stderr.write('[journey-health] loadIssueIndex: skipping malformed issue entry\n');
-      continue;
-    }
-    if (issue.fingerprint) {
-      index[issue.fingerprint] = { number: issue.number, state: issue.state, labels: issue.labels || [] };
-    }
-  }
-  return index;
 }
 
 function cmdNextTarget(args) {
@@ -85,7 +64,7 @@ function cmdNextTarget(args) {
   }
 
   const budget = Number.isFinite(args.budget) && args.budget > 0 ? args.budget : 1;
-  let cursors = durableCursors;
+  const cursors = durableCursors;
 
   if (budget === 1) {
     const target = selectTarget(root, cursors, { now, tier });
@@ -93,20 +72,18 @@ function cmdNextTarget(args) {
     return;
   }
 
-  // budget > 1: iterate, simulating post-audit cursor state in-memory so each
-  // pick is a different journey (mirrors harness-health's next-target --budget).
-  // alreadyPicked additionally guards Phase 0 (deleted-file force-select),
-  // which ignores cursors and would otherwise repeat the same pick every slot.
-  const targets = [];
+  // budget > 1: pick up to `budget` distinct journeys, simulating post-audit
+  // cursor state in-memory between picks (mirrors harness-health's
+  // next-target --budget; see bin/lib/health-core/budget.js). alreadyPicked
+  // additionally guards Phase 0 (deleted-file force-select), which ignores
+  // cursors and would otherwise repeat the same pick every slot.
   const alreadyPicked = new Set();
-  for (let i = 0; i < budget; i++) {
-    const target = selectTarget(root, cursors, { now, tier, alreadyPicked });
-    if (!target) break;
-    targets.push(target);
-    alreadyPicked.add(target.id);
-    const auditField = tier === 'deep' ? 'lastDeepAuditMs' : 'lastLightAuditMs';
-    cursors = { ...cursors, [target.id]: { ...(cursors[target.id] || {}), [auditField]: now } };
-  }
+  const auditField = tier === 'deep' ? 'lastDeepAuditMs' : 'lastLightAuditMs';
+  const targets = selectBudget(budget, cursors, (c) => selectTarget(root, c, { now, tier, alreadyPicked }), {
+    getCursorKey: (t) => t.id,
+    buildCursorPatch: (existing) => ({ ...(existing || {}), [auditField]: now }),
+    onPick: (t) => alreadyPicked.add(t.id),
+  });
   process.stdout.write(JSON.stringify({ targets, coverageScanDue }, null, 2) + '\n');
 }
 
@@ -151,7 +128,7 @@ function cmdValidateFindings(args) {
   }
 
   const cache = readCache(root);
-  const issueIndex = loadIssueIndex(args.issues);
+  const issueIndex = loadIssueIndex(args.issues, TOOL_NAME);
   const payloads = [];
   const seen = new Set();
   for (const finding of survivors) {
@@ -187,55 +164,6 @@ function cmdValidateFindings(args) {
   process.stderr.write(
     `[journey-health] validate-findings: ${survivors.length} valid finding(s), ${payloads.length} payload(s) after dedup\n`,
   );
-}
-
-function cmdChurnReport(args) {
-  const root = args.root || process.cwd();
-  const runs = readDurableState(root).runs;
-  if (runs.length === 0) {
-    process.stdout.write('no run logs found\n');
-    return;
-  }
-  const threshold = args['fail-on-high-churn'] != null ? parseFloat(args['fail-on-high-churn']) : null;
-  const rows = [['runId', 'runAt', 'findings', 'appeared', 'disappeared', 'ratio']];
-  let exceeded = false;
-  for (let i = 0; i < runs.length; i++) {
-    const prior = i > 0 ? runs[i - 1] : null;
-    const c = computeChurn(runs[i].fingerprints, prior);
-    rows.push([
-      runs[i].runId,
-      (runs[i].runAt || '').slice(0, 19),
-      String(runs[i].fingerprints.length),
-      String(c.appeared.length),
-      String(c.disappeared.length),
-      String(c.ratio),
-    ]);
-    if (threshold != null && prior != null && c.ratio >= threshold) exceeded = true;
-  }
-  const widths = rows[0].map((_, col) => Math.max(...rows.map((r) => String(r[col]).length)));
-  for (const row of rows) {
-    process.stdout.write(row.map((cell, i) => String(cell).padEnd(widths[i])).join('  ') + '\n');
-  }
-  if (exceeded) {
-    process.stdout.write(`\nhigh churn: one or more runs >= ${threshold}\n`);
-    process.exit(1);
-  }
-}
-
-const MARK_STATUSES = new Set(['declined']);
-
-function cmdMark(args) {
-  const root = args.root || process.cwd();
-  const fp = args._[1];
-  const status = args._[2];
-  if (!fp || !MARK_STATUSES.has(status)) {
-    process.stderr.write(`usage: journey-health.js mark <fingerprint> <${[...MARK_STATUSES].join('|')}> [--root <dir>]\n`);
-    process.exit(2);
-  }
-  const cache = readCache(root);
-  cache[fp] = { status, lastSeenMs: Date.now() };
-  writeCache(root, cache);
-  process.stdout.write(JSON.stringify(cache[fp], null, 2) + '\n');
 }
 
 function cmdQaEvidence(args) {

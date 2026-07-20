@@ -136,25 +136,23 @@ function renderRateLimit(label, period, now) {
 }
 
 function findActiveSpec(cwd) {
-  const candidates = [path.join(cwd, 'specs')];
-  for (const dir of candidates) {
-    try {
-      const entries = fs
-        .readdirSync(dir, { withFileTypes: true })
-        .filter((e) => e.isFile() && e.name.endsWith('.md'))
-        .map((e) => {
-          const fullPath = path.join(dir, e.name);
-          const stat = fs.statSync(fullPath);
-          return { name: e.name, mtime: stat.mtimeMs };
-        })
-        .sort((a, b) => b.mtime - a.mtime);
-      if (entries.length > 0) {
-        const match = entries[0].name.match(/^(\d{3,})/);
-        if (match) return `spec: ${match[1]}`;
-      }
-    } catch {
-      /* skip */
+  const dir = path.join(cwd, 'specs');
+  try {
+    const entries = fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((e) => e.isFile() && e.name.endsWith('.md'))
+      .map((e) => {
+        const fullPath = path.join(dir, e.name);
+        const stat = fs.statSync(fullPath);
+        return { name: e.name, mtime: stat.mtimeMs };
+      })
+      .sort((a, b) => b.mtime - a.mtime);
+    if (entries.length > 0) {
+      const match = entries[0].name.match(/^(\d{3,})/);
+      if (match) return `spec: ${match[1]}`;
     }
+  } catch {
+    /* skip */
   }
   return null;
 }

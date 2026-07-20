@@ -3,6 +3,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { execFileSync, spawnSync } = require('node:child_process');
 
 const { installWrapper, buildWrapperSource } = require('../bin/install-statusline-wrapper.js');
 
@@ -22,6 +23,46 @@ test('installWrapper writes the wrapper script under the injected homedir, not t
 
   const stat = fs.statSync(expectedPath);
   assert.strictEqual(stat.mode & 0o777, 0o755);
+
+  fs.rmSync(tmpHome, { recursive: true, force: true });
+});
+
+// Regression: this test file's only assertion used to be
+// `assert.strictEqual(contents, buildWrapperSource())` — a tautological
+// self-comparison that always passes regardless of whether the generated
+// script is syntactically valid, runnable JS. `node --check` parses the
+// written file for real, so a broken regex/syntax in the wrapper source
+// (bin/lib/statusline-wrapper-source.js) fails this test instead of only
+// surfacing as a silently blank statusline after a plugin upgrade.
+test('the written wrapper script is syntactically valid JS (node --check)', () => {
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-install-sl-check-'));
+  const targetPath = installWrapper(tmpHome);
+
+  assert.doesNotThrow(
+    () => execFileSync(process.execPath, ['--check', targetPath], { stdio: 'pipe' }),
+    'installed wrapper script must be valid JS',
+  );
+
+  fs.rmSync(tmpHome, { recursive: true, force: true });
+});
+
+// Regression (same root cause as above): actually run the installed wrapper
+// and confirm it behaves like the documented "no cache dir found -> exit 0,
+// no crash" contract instead of only checking syntax. HOME is pointed at a
+// tmp dir with no `.claude/plugins/cache/...` tree, so pickLatest() finds no
+// version and the script must exit 0 without throwing.
+test('the written wrapper script actually runs and exits 0 when no cached version is installed', () => {
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-install-sl-run-'));
+  const targetPath = installWrapper(tmpHome);
+
+  const result = spawnSync(process.execPath, [targetPath], {
+    encoding: 'utf8',
+    env: { ...process.env, HOME: tmpHome },
+    timeout: 5000,
+  });
+
+  assert.strictEqual(result.status, 0, `expected exit 0, got status=${result.status} stderr=${result.stderr}`);
+  assert.strictEqual(result.signal, null, 'wrapper must not crash/be killed by a signal');
 
   fs.rmSync(tmpHome, { recursive: true, force: true });
 });
