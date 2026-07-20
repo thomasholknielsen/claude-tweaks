@@ -11,7 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { gitTargets } = require('./git-command');
+const { gitTargets, fileWriteTargets } = require('./git-command');
 const ctxLib = require('./context');
 const policy = require('../policy');
 const wtDetect = require('./worktree-detect');
@@ -52,7 +52,14 @@ function checkWorktreeRequired(ctx) {
     const command = toolInput && typeof toolInput.command === 'string' ? toolInput.command : null;
     if (command) {
       const commit = gitTargets(command, ctx.cwd).find((t) => t.action === 'commit');
-      if (commit) targetPath = commit.dir;
+      if (commit) {
+        targetPath = commit.dir;
+      } else {
+        // Non-git direct file writes (tee, cp, mv) — best-effort,
+        // not exhaustive (see fileWriteTargets' own header comment).
+        const write = fileWriteTargets(command, ctx.cwd)[0];
+        if (write) targetPath = write.file;
+      }
     }
   }
   if (!targetPath) return {};

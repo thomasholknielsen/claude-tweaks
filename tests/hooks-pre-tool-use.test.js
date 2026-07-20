@@ -299,3 +299,43 @@ test('worktree-required: a policy file in an ancestor directory OUTSIDE the targ
   const out = pre.run({ input: { tool_name: 'Edit', tool_input: { file_path: path.join(nestedRepo, 'a.txt') } }, runDir: null, runState: null, cwd: nestedRepo });
   assert.deepStrictEqual(out, {});
 });
+
+test('worktree-required: policy on denies a non-git Bash file write in the main checkout (tee, cp, mv)', () => {
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree.always: true\n');
+  const target = path.join(repo, 'a.txt');
+
+  const tee = pre.run({ input: bashInput(`echo hi | tee ${target}`, repo), runDir: null, runState: null, cwd: repo });
+  assert.strictEqual(tee.json.hookSpecificOutput.permissionDecision, 'deny');
+
+  const cp = pre.run({ input: bashInput(`cp source.txt ${target}`, repo), runDir: null, runState: null, cwd: repo });
+  assert.strictEqual(cp.json.hookSpecificOutput.permissionDecision, 'deny');
+
+  const mv = pre.run({ input: bashInput(`mv source.txt ${target}`, repo), runDir: null, runState: null, cwd: repo });
+  assert.strictEqual(mv.json.hookSpecificOutput.permissionDecision, 'deny');
+});
+
+test('worktree-required: a non-git Bash file write inside a linked worktree is allowed', () => {
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree.always: true\n');
+  execFileSync('git', ['-C', repo, 'add', '.claude-tweaks/policy.yml']);
+  execFileSync('git', ['-C', repo, 'commit', '-m', 'policy', '-q']);
+  const wt = linkedWorktreeOf(repo);
+  const target = path.join(wt, 'a.txt');
+  const out = pre.run({ input: bashInput(`cp source.txt ${target}`, wt), runDir: null, runState: null, cwd: wt });
+  assert.deepStrictEqual(out, {});
+});
+
+test('worktree-required: /dev/null is not treated as a file-write target', () => {
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree.always: true\n');
+  const out = pre.run({ input: bashInput('cp source.txt /dev/null', repo), runDir: null, runState: null, cwd: repo });
+  assert.deepStrictEqual(out, {});
+});
+
+test('worktree-required: a Bash command with no file-write shape at all (e.g. a plain read) is allowed', () => {
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree.always: true\n');
+  const out = pre.run({ input: bashInput('cat a.txt | grep foo', repo), runDir: null, runState: null, cwd: repo });
+  assert.deepStrictEqual(out, {});
+});
