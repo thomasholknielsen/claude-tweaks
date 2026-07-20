@@ -89,13 +89,13 @@ For the batch table and logging, compute display tiers from labels for all recor
 
 ```bash
 node -e "
-  const { extractRiskEffort } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/tier.js');
+  const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const fs = require('fs');
   const data = JSON.parse(fs.readFileSync('/tmp/triage-worklist.json', 'utf8'));
   const all = [...(data.fresh || []), ...(data.blocked || [])];
   const withTiers = all.map((record) => {
-    const { riskTier, effortTier } = extractRiskEffort(record.labels || []);
-    return { ...record, riskTier, effortTier };
+    const { risk, effort } = parseRecordFacets(record.labels || []);
+    return { ...record, riskTier: risk, effortTier: effort };
   });
   console.log(JSON.stringify(withTiers));
 " > /tmp/triage-with-tiers.json
@@ -114,7 +114,7 @@ node -e "
 | 4 | #118: {title} | by:harness-health | low | low | re-authorize (bot:blocked) |
 ```
 
-`Origin` reads `facets.origin` from Step 1's output (`by:{origin}`, or `(human-filed)` when absent). `Risk` and `Effort` are derived from the record's current `risk:*` and `effort:*` labels via `bin/lib/issues/tier.js`'s `extractRiskEffort` function — for records scored by `/specify`, these display `low`/`medium`/`high`; for unscored records, they display `—` (dash, a placeholder allowing inline scoring override in the next step). For 10 or more records, lead with a one-line count summary before the table (e.g. "14 records: 9 auto:build-eligible, 2 auto:build+auto:merge-eligible, 2 need scoring, 1 re-authorization candidate") so the human sees the batch's shape before the row detail.
+`Origin` reads `facets.origin` from Step 1's output (`by:{origin}`, or `(human-filed)` when absent). `Risk` and `Effort` are derived from the record's current `risk:*` and `effort:*` labels via `bin/lib/issues/record.js`'s `parseRecordFacets` function — for records scored by `/specify`, these display `low`/`medium`/`high`; for unscored records, they display `—` (dash, a placeholder allowing inline scoring override in the next step). For 10 or more records, lead with a one-line count summary before the table (e.g. "14 records: 9 auto:build-eligible, 2 auto:build+auto:merge-eligible, 2 need scoring, 1 re-authorization candidate") so the human sees the batch's shape before the row detail.
 
 Then one `AskUserQuestion`:
 
@@ -220,6 +220,7 @@ If Step 4 granted nothing this session (every row was flagged back), omit Option
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:dispatch` | The queue consumer — claims records this gate authorized (`auto:build`) and hands each to `/claude-tweaks:flow`. Triage never claims, dispatches, or executes; it only grants, strips, or flags. |
+| `/claude-tweaks:flow` | Indirect only, via `/claude-tweaks:dispatch` — `/flow` builds and (with `auto:merge`) merges records this gate has authorized. Triage never invokes `/flow` directly, and `/flow` never asks triage for authorization at execution time — that check already happened before `/dispatch` claimed the record. |
 | `/claude-tweaks:code-health`, `/claude-tweaks:harness-health`, `/claude-tweaks:journey-health`, `/claude-tweaks:docs-health` | Feeders — file records born `ready` (spec-shaped, scored) per `_shared/work-record.md`'s born-ready rule. Triage never files or closes their records. |
 | `/claude-tweaks:capture` | Feeder — files raw backlog records; they reach this gate's worklist only after `/claude-tweaks:specify` shapes them to `ready`. |
 | `/claude-tweaks:specify` | The shaper — stamps `ready` + scoring before a record can enter this gate's worklist, and is where a flagged-back record returns for re-shaping. |
@@ -232,5 +233,5 @@ If Step 4 granted nothing this session (every row was flagged back), omit Option
 | `_shared/label-bootstrap.md` | Canonical check-then-create snippet for the `auto:build`/`auto:merge`/`risk:*`/`effort:*` pairs this gate applies. |
 | `_shared/auto-mode-contract.md` | Governs `decisions.md` logging for this gate's standalone run dir; the grants themselves are never auto-mode behavior — they require an interactive session by construction. |
 | `/claude-tweaks:assess-agent-autonomy` | Called inline (not a fresh Task dispatch) once per worklist record in Step 2, `grant-check` mode — its `RECOMMEND_BUILD`/`RECOMMEND_MERGE` output becomes the batch table's Recommended column directly. Triage's human batch-confirm is unchanged; only what generates the suggestion changed. |
-| `bin/lib/issues/tier.js` | `extractRiskEffort`'s surviving colon-form reader supplies `grant-check`'s current-label input (an input to assess-agent-autonomy's judgment now, not triage's own recommendation logic). `recommendGrants`/`recommendTier` are retired. |
+| `bin/lib/issues/record.js` | `parseRecordFacets`'s `risk`/`effort` fields supply this skill's own display-tier computation and `grant-check`'s current-label input (an input to assess-agent-autonomy's judgment now, not triage's own recommendation logic). `recommendGrants`/`recommendTier` are retired. |
 | `bin/lib/issues/record.js` | `parseRecordFacets` — the facet parser Step 1 uses to filter the `ready` queue down to ungranted records. |

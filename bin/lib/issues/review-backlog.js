@@ -4,7 +4,7 @@
 // Lane B's bounded LLM synthesis pass. Records are expected to already carry
 // `.facets` (via record.js's parseRecordFacets or local-store.js's
 // readRecord/queryRecords) and, where sorting depends on it, a `.createdAt` ISO
-// string. No network, no fs — mirrors record.js/tier.js's purity contract.
+// string. No network, no fs — mirrors record.js's purity contract.
 'use strict';
 
 const RANK = { high: 0, medium: 1, low: 2 };

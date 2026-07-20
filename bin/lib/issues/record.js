@@ -116,7 +116,7 @@ function extractFingerprint(body) {
   return legacy ? legacy[1] : null;
 }
 
-// Same label normalization as tier.js/ingest.js: accept strings or {name} objects.
+// Accepts either bare label-name strings or {name} objects (gh's own shape).
 function normalizeLabelNames(labels) {
   return (labels || []).map((l) => (typeof l === 'string' ? l : l.name)).filter(Boolean);
 }
