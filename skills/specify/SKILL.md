@@ -470,36 +470,38 @@ PARENT_ID=$(node -e "const {writeRecord, allocateId}=require(process.env.CLAUDE_
 
 **Scoring** — judge each leaf's `risk` and `effort` (low/medium/high each) from its own Deliverables and Acceptance Criteria — blast radius and reversibility for `risk`, estimated size and file spread for `effort` — per `_shared/work-record.md`'s Scoring axis. This is the same judgment Shaping mode's stamping step applies to a single record, run here once per leaf; the tiers become `$LEAF_RISK`/`$LEAF_EFFORT` below.
 
+**Ceremony** — invoke `/claude-tweaks:assess-agent-autonomy` in `ceremony-check` mode (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "ceremony-check")`) against this leaf's own composed body — never the parent, which carries no `ceremony:*` label either, mirroring the no-risk/effort-on-parents rule above. The verdict (always explicit — no unscored state for this axis) becomes `$LEAF_CEREMONY` below.
+
 **Fingerprint** — `{design-doc-slug}:{unit-slug}`, the leaf half of the deterministic scheme the Idempotency section above defines.
 
 ```bash
 node -e "const {recordPayload}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js');
   const p=recordPayload({
     title: process.argv[1], body: process.argv[2], type: process.argv[3],
-    risk: process.argv[4], effort: process.argv[5], ready: true,
-    fingerprint: process.argv[6]
+    risk: process.argv[4], effort: process.argv[5], ceremony: process.argv[6], ready: true,
+    fingerprint: process.argv[7]
   });
   require('fs').writeFileSync('/tmp/specify-leaf-payload.json', JSON.stringify(p))" \
-  "$LEAF_TITLE" "$LEAF_BODY" "$LEAF_TYPE" "$LEAF_RISK" "$LEAF_EFFORT" "${DESIGN_DOC_SLUG}:${UNIT_SLUG}"
+  "$LEAF_TITLE" "$LEAF_BODY" "$LEAF_TYPE" "$LEAF_RISK" "$LEAF_EFFORT" "$LEAF_CEREMONY" "${DESIGN_DOC_SLUG}:${UNIT_SLUG}"
 
 node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/specify-leaf-payload.json','utf8')).body)" > /tmp/specify-leaf-body.md
 ```
 
 `recordPayload` embeds the fingerprint as `<!-- work-fingerprint: {design-doc-slug}:{unit-slug} -->` in the returned body — `/tmp/specify-leaf-body.md` above already carries it, so both drivers below write the same fingerprinted text.
 
-Bootstrap the labels this run is about to apply before the first create (per `_shared/label-bootstrap.md`): `ready` plus every `risk:{tier}`/`effort:{tier}` pair in use — and, under `work-types: labels`, the `type:{t}` pairs from `record.js`'s `TYPE_LABELS`, as with the parent.
+Bootstrap the labels this run is about to apply before the first create (per `_shared/label-bootstrap.md`): `ready` plus every `risk:{tier}`/`effort:{tier}`/`ceremony:{tier}` pair in use — and, under `work-types: labels`, the `type:{t}` pairs from `record.js`'s `TYPE_LABELS`, as with the parent.
 
-**`work-backend: github-issues`** — same Type expression branch as the parent. The three `--label` flags are exactly the payload's `.labels`: `recordPayload` emitted `risk:{tier}`, `effort:{tier}`, `ready` and nothing else, because no `origin` was passed — a decomposition is human-shaped work, not a health-skill filing, so leaves carry no `by:*` label:
+**`work-backend: github-issues`** — same Type expression branch as the parent. The four `--label` flags are exactly the payload's `.labels`: `recordPayload` emitted `risk:{tier}`, `effort:{tier}`, `ceremony:{tier}`, `ready` and nothing else, because no `origin` was passed — a decomposition is human-shaped work, not a health-skill filing, so leaves carry no `by:*` label:
 
 ```bash
 # work-types: native
 LEAF_URL=$(gh issue create --title "$LEAF_TITLE" --body-file /tmp/specify-leaf-body.md \
   --type "$LEAF_TYPE" \
-  --label "risk:$LEAF_RISK" --label "effort:$LEAF_EFFORT" --label ready)
+  --label "risk:$LEAF_RISK" --label "effort:$LEAF_EFFORT" --label "ceremony:$LEAF_CEREMONY" --label ready)
 
 # work-types: labels
 LEAF_URL=$(gh issue create --title "$LEAF_TITLE" --body-file /tmp/specify-leaf-body.md \
-  --label "risk:$LEAF_RISK" --label "effort:$LEAF_EFFORT" --label ready \
+  --label "risk:$LEAF_RISK" --label "effort:$LEAF_EFFORT" --label "ceremony:$LEAF_CEREMONY" --label ready \
   --label "type:$LEAF_TYPE")
 
 LEAF_NUM=$(basename "$LEAF_URL")
@@ -514,9 +516,9 @@ LEAF_ID=$(node -e "const {writeRecord, allocateId}=require(process.env.CLAUDE_PL
   writeRecord(\`specs/\${id}-\${process.argv[1]}.md\`, {
     title: process.argv[2],
     body,
-    facets: { type: process.argv[3], risk: process.argv[4], effort: process.argv[5], stage: 'ready' }
+    facets: { type: process.argv[3], risk: process.argv[4], effort: process.argv[5], ceremony: process.argv[6], stage: 'ready' }
   });
-  console.log(id)" "$UNIT_SLUG" "$LEAF_TITLE" "$LEAF_TYPE" "$LEAF_RISK" "$LEAF_EFFORT")
+  console.log(id)" "$UNIT_SLUG" "$LEAF_TITLE" "$LEAF_TYPE" "$LEAF_RISK" "$LEAF_EFFORT" "$LEAF_CEREMONY")
 ```
 
 Capture `$LEAF_NUM` / `$LEAF_ID` for every leaf (created or resumed via the Idempotency map) — Step 4's linking pass consumes them.
