@@ -1,6 +1,6 @@
 # Frontend Detection — Sniff Rules + Body-Metadata Spec
 
-Reference for the wrapper's 3-layer detection logic. Layer 3 (file-extension sniff) is detailed here. Layer 2 reads the record's `Surface:` body-metadata line (lifted into the materialized header — spec 20), which Phase 1 does not write but does read for forward-compat (Phase 2 will write it).
+Reference for the wrapper's 3-layer detection logic. Layer 3 (file-extension sniff) is detailed here. Layer 2 reads the record's `Surface:` body-metadata line (lifted into the materialized header — spec 20), which `/specify` writes on every new leaf record today; pre-v4.5 specs predate the field, so an absent value is normal and falls through to Layer 3.
 
 ## Layer 3 — File-extension sniff (fallback)
 

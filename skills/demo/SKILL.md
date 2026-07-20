@@ -112,9 +112,14 @@ Render a batch table:
 | {ref} | {title} | {type} | {risk}/{effort} | {one-liner from the brief's "What shipped"} | {Approve \| Needs a look} |
 
 **Suggested verdict** is pre-filled **Approve** only when the record is both `risk:low` and
-`effort:low` AND its changed-file list doesn't touch any `merge-sensitive-paths` glob
-(`_shared/work-record.md`'s config key). Every other record gets **Needs a look**, no pre-fill —
-this skill exists for real judgment, not rubber-stamping. Session-recall entries never carry
+`effort:low`. Every other record gets **Needs a look**, no pre-fill —
+this skill exists for real judgment, not rubber-stamping. (This rule does not check
+`merge-sensitive-paths` (`_shared/work-record.md`'s config key): Source A's fetch is labels +
+Verification Brief only, with no changed-file list, and most `demo:pending` records merged via
+`/dispatch`'s auto-merge gate — a direct `git merge`, never a GitHub PR — so there is no
+reliable `gh`-only source for a record's changed files here. `merge-sensitive-paths` is already
+enforced as a hard floor earlier, inside that auto-merge gate's `merge-check` call to
+`/claude-tweaks:assess-agent-autonomy`.) Session-recall entries never carry
 `risk:*`/`effort:*` labels (there's no record to hold them), so they always render `{ref}` as
 `(session)`, `{type}` as `ad hoc`, `{risk}/{effort}` as `—`, and always get **Needs a look**. When overriding specific items, refer to a session-recall row as "the session item" (not a `#`).
 
@@ -205,7 +210,7 @@ always renders.
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Bulk-approving everything regardless of risk tier | This skill exists for real human judgment — only the `risk:low`+`effort:low` tier with no `merge-sensitive-paths` touch gets a pre-filled Approve suggestion, and it's still a choice, not a default |
+| Bulk-approving everything regardless of risk tier | This skill exists for real human judgment — only the `risk:low`+`effort:low` tier gets a pre-filled Approve suggestion, and it's still a choice, not a default |
 | Re-deriving "how do I test this" from the diff | The Verification Brief already has it — `/wrap-up` wrote it at build time with full context; read the brief, don't reconstruct it |
 | Merging or opening a PR from within this skill | Merge/PR decisions belong to `/superpowers:finishing-a-development-branch` — `/demo` only ever resolves the Acceptance axis |
 | Silently dropping a `demo:pending` record with no verdict | Every record gets Approve / Request changes / Skip — Skip is explicit and leaves `demo:pending` for next run, it never disappears from the worklist unrecorded |

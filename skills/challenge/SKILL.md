@@ -64,7 +64,7 @@ Not every backlog record needs debiasing. Skip when:
 
 ## Work Record Output Handling
 
-When the input is a **work record reference** (e.g., `#42`), `/challenge` posts its debiasing findings as **issue comments** on the record (GitHub driver) or **appends to the record file** (local-files driver). The work record is the durable home for record-backed challenges — `/challenge` never edits the record's body itself. The saved Brainstorming Brief remains in `docs/plans/` and feeds into downstream `/superpowers:brainstorming` and `/claude-tweaks:specify` as usual.
+When the input is a **work record reference** (e.g., `#42`), `/challenge` does not post back to the record or edit its body — no step in the Process (Steps 1-5) writes to the record itself, on either driver. The debiasing findings live only in the saved Brainstorming Brief in `docs/plans/`, which feeds into downstream `/superpowers:brainstorming` and `/claude-tweaks:specify` as usual — `/claude-tweaks:specify` is what carries the surfaced assumptions and constraints back into the record when it writes the spec's Gotchas section (see "Save the Brief" below).
 
 ## The Debiasing Lenses
 
@@ -181,7 +181,7 @@ The process is a layered Mixture of Agents (Mode 4 from `skills/_shared/multi-ag
 4. **Dispatch aggregator (sequential).** Exactly 1 aggregator agent receives all proposer outputs verbatim. Inline the verbatim Mode 4 aggregator instruction template:
 >
 > ```
-> Task scope: Read N candidate debiasing perspectives below. Identify what each captures that the others miss. Produce a single output that incorporates the strongest elements of each. Do not list which proposer contributed which idea. Do not produce an analysis of the proposers.
+> Task scope: Read N candidate responses below. Identify what each captures that the others miss. Produce a single output that incorporates the strongest elements of each. Do not list which proposer contributed which idea. Do not produce an analysis of the proposers.
 >
 > Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED.
 >

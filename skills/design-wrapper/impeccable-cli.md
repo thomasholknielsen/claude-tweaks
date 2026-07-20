@@ -1,6 +1,6 @@
 # Impeccable CLI — Invocation + JSON Parsing
 
-*Last verified against Impeccable CLI 3.2.0 (2026-07-09), verified directly against live output and the installed package source.*
+*Last verified against Impeccable CLI 3.2.1 (2026-07-20), verified directly against live output and the installed package source.*
 
 Reference for the wrapper's `test` mode dispatch. The Impeccable CLI is a deterministic Node binary that scans frontend files for design anti-patterns without LLM cost.
 
@@ -72,7 +72,7 @@ The CLI emits a single JSON array on stdout — one element per finding, no top-
 | `antipattern` | string | Yes | Rule identifier (use for de-dup, grouping) |
 | `name` | string | Yes | Short human-readable rule name |
 | `description` | string | Yes | Full explanation of the anti-pattern |
-| `severity` | string | Yes | `warning` (default — most rules) or `advisory` (9 specific rule ids: `repeated-section-kickers`, `numbered-section-markers`, `design-system-color`, `design-system-radius`, `gpt-thin-border-wide-shadow`, `repeating-stripes-gradient`, `codex-grid-background`, `theater-slop-phrase`, `image-hover-transform`) |
+| `severity` | string | Yes | `warning` (default — most rules) or `advisory` (10 specific rule ids: `repeated-section-kickers`, `numbered-section-markers`, `design-system-color`, `design-system-radius`, `design-system-font-size`, `gpt-thin-border-wide-shadow`, `repeating-stripes-gradient`, `codex-grid-background`, `theater-slop-phrase`, `image-hover-transform`) |
 | `file` | string | Yes | Absolute path (the CLI resolves before scanning) |
 | `line` | integer | Yes | Line number; `0` for file-level findings (the CLI always sets this field, defaulting to `0`) |
 | `snippet` | string | Yes | The matched text/pattern that triggered the finding |
@@ -87,7 +87,7 @@ The CLI emits a single JSON array on stdout — one element per finding, no top-
 
 ### Schema version compatibility
 
-The schema above reflects verified live CLI 3.2.0 output and source. The CLI may evolve. Defensive parsing rules:
+The schema above reflects verified live CLI 3.2.1 output and source. The CLI may evolve. Defensive parsing rules:
 
 1. **Unknown finding fields** → ignore (do not fail).
 2. **Top-level JSON is an array** → treat directly as the findings list (this is the real, verified shape).
@@ -141,5 +141,5 @@ Wrapper returns:
 
 ## Open items (tracked in parent design doc)
 
-- **Schema stability** — the CLI may change output between releases. The wrapper's defensive parsing handles unknown/missing fields, but breaking changes (e.g., renamed `severity` values) would require pinning a CLI version. This schema was last re-verified directly against live CLI output and installed package source on 2026-07-09 (CLI 3.2.0) — re-verify the same way after any future Impeccable CLI major version bump, the way the 2026-07-07 drift was originally caught.
+- **Schema stability** — the CLI may change output between releases. The wrapper's defensive parsing handles unknown/missing fields, but breaking changes (e.g., renamed `severity` values) would require pinning a CLI version. This schema was last re-verified directly against live CLI output and installed package source on 2026-07-20 (CLI 3.2.1) — that pass found the 3.2.0→3.2.1 *patch* bump had silently added a 10th advisory rule id (`design-system-font-size`) to the field-reference table above, proving "major version bump" is not a sufficient re-verification trigger. Re-verify the same way after any future Impeccable CLI version bump — major, minor, or patch — not just major, the way both the 2026-07-07 and 2026-07-20 drifts were caught.
 - **Log path** — the wrapper does not currently log invocations. The parent design proposes `~/.claude-tweaks/logs/design.jsonl` for token-cost instrumentation. That path is harness-owned (skill content must not write there); add only when the harness gains a logger for this purpose.
