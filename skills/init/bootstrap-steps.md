@@ -746,15 +746,17 @@ consumer skill that reads it — matching `design-integration`'s missing-flag
 convention. That is a read-time fallback, separate from what `/init` itself does
 when it finds the flag missing at provisioning time — see "Re-run behavior" below.
 
-**Legacy alias note.** Every consumer skill reads `backlog-backend` (the
-pre-migration flag name, under a `## Backlog integration` section) as a read-only
-legacy alias for `work-backend` until the separate migration plan retires it — this
-write path only ever emits `work-backend`, never `backlog-backend`. If this
-project's CLAUDE.md already has a `## Backlog integration` section with a
-`backlog-backend` value (a pre-migration project), do not rewrite it here — see
-"Re-run behavior" below for why that rename belongs to Update-Mode, offered as a
-staged change, never applied silently by a Phase 0 pass landing on an existing
-config.
+**Legacy alias note.** `/capture`, `/challenge`, and `/tidy` read `backlog-backend`
+(the pre-migration flag name, under a `## Backlog integration` section) as a
+read-only legacy alias for `work-backend` until the separate migration plan
+retires it — every other consumer skill reads `work-backend` directly, with no
+alias fallback (see `_shared/work-record.md`'s Config keys section, "Legacy alias
+exception"). This write path only ever emits `work-backend`, never
+`backlog-backend`. If this project's CLAUDE.md already has a `## Backlog
+integration` section with a `backlog-backend` value (a pre-migration project), do
+not rewrite it here — see "Re-run behavior" below for why that rename belongs to
+Update-Mode, offered as a staged change, never applied silently by a Phase 0 pass
+landing on an existing config.
 
 **Sub-step 15b — Capability probe.** Runs immediately after Step 15 writes
 `work-backend` fresh (either branch above) — not on a re-run where the flag was

@@ -88,37 +88,37 @@ Read the `work-backend` field from the project's CLAUDE.md (under a `## Work rec
      --label "type:$TYPE"
    ```
 
-3. **On failure** (GitHub unreachable, `gh` broken, transient API error): fall back to the local driver — write the record via `local-store.js`, using the same slug derivation rule as the local-files branch below:
+3. **On failure** (GitHub unreachable, `gh` broken, transient API error): fall back to the local driver — write the record via `local-store.js`'s `createRecord` (atomic id allocation; see the local-files branch below for why `allocateId`+`writeRecord` is unsafe for creating a brand-new record), using the same slug derivation rule as the local-files branch below:
 
    ```bash
-   node -e "const {writeRecord, allocateId}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
-     const id = allocateId('specs');
-     writeRecord(\`specs/\${id}-\${process.argv[1]}.md\`, {
+   node -e "const {createRecord}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
+     const record = createRecord('specs', {
+       slug: process.argv[1],
        title: process.argv[2],
        body: process.argv[3],
        facets: { type: process.argv[4], origin: 'capture', unsynced: true }
      });
-     console.log('specs/' + id + '-' + process.argv[1] + '.md')" "$SLUG" "$TITLE" "$BODY" "$TYPE"
+     console.log(record.path)" "$SLUG" "$TITLE" "$BODY" "$TYPE"
    ```
 
    Tell the user issue creation failed and the record landed locally instead (path printed above), `unsynced: true`. No further marker is needed beyond that facet — `/claude-tweaks:tidy`'s record scan surfaces `unsynced` local records as Sync findings, reconciling them onto GitHub on a later pass.
 
 **When `work-backend: local-files` (or the flag is missing):**
 
-Write the record via `local-store.js` directly — no `unsynced` facet (there is no GitHub side to reconcile against):
+Write the record via `local-store.js`'s `createRecord` — no `unsynced` facet (there is no GitHub side to reconcile against). Use `createRecord`, not `allocateId`+`writeRecord`: two near-simultaneous `/capture` (or `/specify` decomposition) invocations calling `allocateId`+`writeRecord` separately can both read the same directory listing, both compute the same next id, and both succeed under different slugs — two records silently sharing one numeric id, corrupting any later `facets.parent`/`facets.blockedBy` reference that assumes id uniqueness. `createRecord` closes that race by allocating the id and writing the file as one atomic step (see `bin/lib/issues/local-store.js`'s header comments on `allocateId` and `createRecord`):
 
 ```bash
-node -e "const {writeRecord, allocateId}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
-  const id = allocateId('specs');
-  writeRecord(\`specs/\${id}-\${process.argv[1]}.md\`, {
+node -e "const {createRecord}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
+  const record = createRecord('specs', {
+    slug: process.argv[1],
     title: process.argv[2],
     body: process.argv[3],
     facets: { type: process.argv[4], origin: 'capture' }
   });
-  console.log('specs/' + id + '-' + process.argv[1] + '.md')" "$SLUG" "$TITLE" "$BODY" "$TYPE"
+  console.log(record.path)" "$SLUG" "$TITLE" "$BODY" "$TYPE"
 ```
 
-Derive `{slug}` from the title: lowercase, replace runs of non-alphanumeric characters with a single `-`, trim leading/trailing `-`, truncate to 60 characters; on a collision with an existing file, append `-2`, `-3`, etc. `allocateId('specs')` assigns the numeric `{id}` prefix.
+Derive `{slug}` from the title: lowercase, replace runs of non-alphanumeric characters with a single `-`, trim leading/trailing `-`, truncate to 60 characters; on a collision with an existing file, append `-2`, `-3`, etc. `createRecord('specs', { slug, ... })` allocates the numeric `{id}` prefix atomically as part of the same call — do not call `allocateId` separately when creating a brand-new record.
 
 ## Entry Format
 
@@ -261,6 +261,7 @@ Parent invocation of `/capture` is signaled by `$PIPELINE_RUN_DIR` being set in 
 | `/claude-tweaks:challenge` | Debiases backlog records before `/superpowers:brainstorming` — /claude-tweaks:help flags candidates |
 | `/superpowers:brainstorming` | Explores promoted backlog records — produces design docs |
 | `/claude-tweaks:specify` | Shapes captured records to spec shape (adds `ready` + scoring) — the primary capture→specify path; also decomposes brainstormed design docs into ready leaf records |
+| `/claude-tweaks:triage` | Records this skill files reach triage's worklist only after `/claude-tweaks:specify` shapes them to `ready` — the reciprocal of triage/SKILL.md's own Feeder row for `/claude-tweaks:capture` |
 | `/claude-tweaks:review-backlog` | Consumes and enriches the `**Related:**` field this skill's Entry Format stamps — review-backlog is the only skill that suggests values for it, always human-confirmed. |
 | `/claude-tweaks:tidy` | Reviews the backlog for stale records — promotes, absorbs, or deletes |
 | `/claude-tweaks:review` | May file new backlog records for ideas discovered during review |
@@ -269,7 +270,7 @@ Parent invocation of `/capture` is signaled by `$PIPELINE_RUN_DIR` being set in 
 | `/claude-tweaks:build` | Calls /capture during Common Step 4 (design mode) to file blocked items and follow-up ideas before they slip |
 | `/claude-tweaks:init` | After bootstrap, /init suggests /capture as the entry point for capturing ideas that surface during setup but aren't ready to specify |
 | `/claude-tweaks:reflect` | Surfaces tangential ideas at the Wrap-Up Review Console (files new backlog records directly, not via /capture) |
-| `/claude-tweaks:visual-review` | UI ideas surfaced during visual review (creative improvements, follow-ups) file as new backlog records via /capture instead of inflating the current spec |
+| `/claude-tweaks:visual-review` | Files UI ideas (creative improvements, follow-ups) as new backlog records directly, not via /capture — only recommends /capture to the user afterward, the same pattern as /claude-tweaks:reflect above |
 | `/claude-tweaks:help` | Feeds items that /claude-tweaks:help surfaces in the status dashboard/queue counts. |
 | `_shared/work-record.md` | Taxonomy home — stage vocabulary (backlog / parked / ready), the permission-matrix row for `/capture` (`by:capture` + Type only), and the seven-axis label contract this skill files against |
 | `/claude-tweaks:research` | Research findings can be captured as backlog records; invoke `/research` when a backlog record needs evidence before specifying. |

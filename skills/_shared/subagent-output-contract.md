@@ -103,7 +103,7 @@ If no findings: return literal text "No findings."
 Do not add narration, headers, or summaries before or after the table.
 ```
 
-**Used by:** `/review` (review angles), `/visual-review` (per-page review agents), `/specify` (per-persona red-team findings), `/challenge` (per-lens proposers).
+**Used by:** `/review` (review angles), `/visual-review` (per-page review agents), `/specify` (per-persona red-team findings).
 
 ## Template B — Search-style (returns locations)
 
@@ -133,6 +133,10 @@ Maximum 200 tokens total.
 ```
 
 **Used by:** `/test` (parallel verification scouts), pre-checks before larger parallel dispatch.
+
+## Not every consumer uses A/B/C
+
+`/challenge`'s per-lens proposers follow this contract's input discipline, status-line protocol, and model-tier selection, but their output is a free-form 2-4 paragraph debiasing perspective (per `challenge/SKILL.md` Process Step 3), not Template A/B/C — the aggregator (Layered MoA, Step 4) synthesizes prose perspectives, not structured findings/locations/yes-no answers. When a dispatch's output genuinely doesn't fit A/B/C, define the format explicitly in the dispatch prompt rather than forcing it into one of the three.
 
 ## Re-prompt on violation
 

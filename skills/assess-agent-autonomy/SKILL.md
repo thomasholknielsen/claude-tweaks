@@ -37,9 +37,14 @@ general-purpose risk service.
 ## Input
 
 `$ARGUMENTS` is `{mode} #{n}`, where `mode` is one of `grant-check` | `merge-check` |
-`failure-check` | `ceremony-check` and `#{n}` is the record's issue number (used to fetch the
-record body for `grant-check`/`ceremony-check`; used for reference/logging in
-`merge-check`/`failure-check`'s rendered output).
+`failure-check` | `ceremony-check` and `#{n}` is the record's issue number. Each mode's own Step 1
+("Gather," below) is the source of truth for how it's used — they differ: `grant-check` fetches the
+record body via `gh issue view` keyed on `#{n}`; `failure-check` fetches issue/PR comments via
+`gh api ".../issues/${N}/comments..."`, also a genuine fetch keyed on `#{n}`; `ceremony-check`'s
+primary call path (from `/specify`) issues no fetch at all — it reuses body/label data the caller
+already holds in memory, and its fallback path (from `/flow`) likewise reuses data
+`materialize.md` already fetched; `merge-check` uses `#{n}` only as a temp-file-name suffix for its
+own git-diff/config-derived gather — it never fetches the record itself.
 
 Invoked inline via the Skill tool — not as a fresh Task-agent dispatch. The calling agent (a
 human-driven `/claude-tweaks:triage` session, or dispatch's per-group Task agent running `/flow`)
