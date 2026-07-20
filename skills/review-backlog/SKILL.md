@@ -146,7 +146,7 @@ node -e "
 
 **`critical`** — render `.critical` as a table (`| # | Record | Priority | Age |`). Note the excluded unscored count from `.split.unscored.length` ("N unscored records not risk-assessed yet — run bare mode for a judgment pass"). Skip to Next Actions.
 
-**`risk-value`** — render `.riskValue.ranked` as the primary ranked table, then `.riskValue.unscored` as a trailing "not yet scored" group. Skip to Next Actions.
+**`risk-value`** — render `.riskValue.ranked` as the primary ranked table, then `.riskValue.unscored` as a trailing "not yet scored" group. Add a `Tier` column reading `facets.ceremony` directly (`fast-lane`/`standard`) for every scored row — free, mechanical, already present from Step 1's fetch; no LLM judgment involved. Skip to Next Actions.
 
 **`cleanup`** — render `.cleanup` as a table, grouped for a batch sweep. Skip to Next Actions.
 
@@ -168,21 +168,29 @@ Fetch bodies only for `selected` (github: `gh issue view {n} --json body`, one p
 
 - A narrative summary + thematic clusters (group by shared theme/origin/root cause, not just by label — the same read a human gets from reading a handful of related issues side by side).
 - A per-record `priority:*` suggestion with a one-line rationale.
+- A per-record, **non-binding** tier guess (`quick`/`full`) — purely to help a human eyeball a batch before deciding what to send to `/specify` next. This is never written as a label; only `/specify`'s own `ceremony-check` (a separate, authoritative computation with deeper context — the record's fully shaped Deliverables/Acceptance Criteria, not this pass's rougher read) writes `ceremony:*`. See `docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md`.
 - Detected `**Related:**` cross-references — pairs of selected records whose bodies reference each other's context in prose without a formal link (`**Related:**` is `/capture`'s own body-template line; nothing else reads or maintains it — `_shared/work-record.md`). Never suggest `Blocked by #N` here — that's the formally-parsed hard-dependency mechanism, out of scope for this skill (`_shared/work-record.md`'s permission matrix, Task 2).
 
 If `remaining > 0`, state it plainly in the report: "`{remaining}` more unscored records exist beyond this run's `--budget {N}` — re-run to continue." Never silently drop them.
 
 ### Step 4 (bare mode only): Batch-confirm suggestions
 
-Render the priority suggestions as a batch table, mirroring `/claude-tweaks:triage`'s own Step 3 pattern:
+Render the priority suggestions as a batch table, mirroring `/claude-tweaks:triage`'s own Step 3 pattern, with an added `Suggested tier` column:
 
 ```markdown
 ### Review Backlog — {N} priority suggestions
 
-| # | Record | Current | Suggested | Rationale |
-|---|---|---|---|---|
-| 1 | #123: {title} | (none) | priority:high | {one-line rationale} |
+| # | Record | Current | Suggested | Suggested tier | Rationale |
+|---|---|---|---|---|---|
+| 1 | #123: {title} | (none) | priority:high | quick? (guess) | {one-line rationale} |
 ```
+
+Render the two sources distinguishably — a real `ceremony:*` label (already-scored records, per
+Step 1's mechanical display) plainly (`fast-lane`/`standard`); this step's own LLM guess suffixed
+(`quick? (guess)`/`full? (guess)`) — so a human scanning the batch never mistakes an unscored
+guess for `/specify`'s authoritative verdict. The `Suggested tier` column is informational only —
+it rides along with the priority batch-confirm below, never gated behind its own
+`AskUserQuestion`, and is never itself written anywhere.
 
 Then one `AskUserQuestion`:
 
