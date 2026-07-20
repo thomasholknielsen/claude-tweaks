@@ -62,9 +62,19 @@ function parseRoutineTemplate(text) {
           continue;
         }
         if (indentOf(nl) === 0) break;
-        sawNested = true;
         const nm = nl.match(/^\s*([A-Za-z_][A-Za-z0-9_.]*):\s*(.*)$/);
-        if (nm) nested[nm[1]] = coerceScalar(nm[2]);
+        if (nm) {
+          sawNested = true;
+          nested[nm[1]] = coerceScalar(nm[2]);
+        } else if (/^\s*-\s/.test(nl)) {
+          // A YAML block-style list ('- item') under a top-level key is not
+          // part of the narrow subset this parser supports (see the function
+          // docstring) — fail loudly instead of silently dropping every list
+          // entry and resolving the key to an empty object.
+          throw new Error(
+            `parseRoutineTemplate: "${key}:" has a YAML block-style list (- item), which this narrow parser does not support — use an inline [a, b] array instead`
+          );
+        }
         j++;
       }
       result[key] = sawNested ? nested : '';

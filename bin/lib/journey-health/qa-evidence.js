@@ -48,10 +48,20 @@ function evaluateQaEvidence(storyIds, report, opts = {}) {
   // pass, not evidence of a problem.
   const caveated = storyIds.map((id) => storiesById.get(id)).filter((s) => s.status === 'PASS_WITH_CAVEATS');
 
-  const findingsByStoryId = new Map((report.findings || []).map((f) => [f.story_id, f]));
+  // A story can have multiple findings entries (e.g. an early non-regression
+  // stale-selector auto-recovery plus a later genuine code-bug) per
+  // qa-reporting.md's schema, so this groups by story_id into arrays rather
+  // than keying a Map 1:1 — a 1:1 Map would let a later non-regression entry
+  // silently overwrite an earlier regression entry for the same story.
+  const findingsByStoryId = new Map();
+  for (const f of report.findings || []) {
+    if (!findingsByStoryId.has(f.story_id)) findingsByStoryId.set(f.story_id, []);
+    findingsByStoryId.get(f.story_id).push(f);
+  }
   for (const story of [...failed, ...caveated]) {
-    const findingEntry = findingsByStoryId.get(story.id);
-    if (findingEntry && REGRESSION_CATEGORIES.has(findingEntry.category)) {
+    const entries = findingsByStoryId.get(story.id) || [];
+    const findingEntry = entries.find((f) => REGRESSION_CATEGORIES.has(f.category));
+    if (findingEntry) {
       return {
         verdict: 'regression',
         finding: {

@@ -124,7 +124,7 @@ function extractFingerprint(body) {
 
 // Accepts either bare label-name strings or {name} objects (gh's own shape).
 function normalizeLabelNames(labels) {
-  return (labels || []).map((l) => (typeof l === 'string' ? l : l.name)).filter(Boolean);
+  return (labels || []).map((l) => (typeof l === 'string' ? l : l && l.name)).filter(Boolean);
 }
 
 // labels (string[] | {name}[]) -> the full record-facet shape. Explicit false/null

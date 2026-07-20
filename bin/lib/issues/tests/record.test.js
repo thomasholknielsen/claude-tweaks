@@ -196,6 +196,17 @@ test('parseRecordFacets: empty label list', () => {
   });
 });
 
+// Regression test for the line-by-line finding: normalizeLabelNames's `l.name`
+// branch had no null-guard, unlike its sibling helpers (grouping.js's
+// labelNames, metrics.js's labelName), so a null/undefined entry in a labels
+// array — e.g. from a malformed `gh api`/`gh issue list --json labels`
+// response — threw instead of being skipped.
+test('parseRecordFacets: a null or undefined entry in the labels array is skipped, not thrown on', () => {
+  const result = parseRecordFacets([null, 'ready', undefined, { name: 'risk:high' }]);
+  assert.strictEqual(result.stage, 'ready');
+  assert.strictEqual(result.risk, 'high');
+});
+
 test('parseRecordFacets: {name} label objects for risk/effort/priority, unmatched wontfix ignored', () => {
   const result = parseRecordFacets([
     { name: 'risk:high' }, { name: 'effort:low' }, { name: 'priority:medium' }, { name: 'wontfix' },

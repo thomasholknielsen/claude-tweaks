@@ -112,3 +112,22 @@ test('inconclusive when a failed story has no matching findings entry at all', (
   const result = evaluateQaEvidence(['story-1'], r, { now: NOW });
   assert.strictEqual(result.verdict, 'inconclusive');
 });
+
+// Regression test for the cross-file finding: findingsByStoryId used to be a
+// Map keyed 1:1 by story_id, so a second findings[] entry for the same story
+// silently overwrote the first. Here a genuine code-bug regression is logged
+// first, then a non-regression stale-selector auto-recovery finding for the
+// same story lands later in the array — the regression must still surface.
+test('regression is not swallowed when a later, non-regression finding shares the same story_id', () => {
+  const r = report({
+    stories: [{ id: 'story-1', status: 'FAIL' }],
+    findings: [
+      { story_id: 'story-1', category: 'code-bug', severity: 'High', finding: 'Checkout button is missing' },
+      { story_id: 'story-1', category: 'stale-selector', severity: 'Low', finding: 'Locator auto-recovered' },
+    ],
+  });
+  const result = evaluateQaEvidence(['story-1'], r, { now: NOW });
+  assert.strictEqual(result.verdict, 'regression');
+  assert.strictEqual(result.finding.severity, 'high');
+  assert.strictEqual(result.finding.description, 'Checkout button is missing');
+});

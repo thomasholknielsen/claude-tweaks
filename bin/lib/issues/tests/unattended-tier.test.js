@@ -31,6 +31,38 @@ test('clearsFloor returns true for a scope-expansion blocker', () => {
   );
 });
 
+// Regression tests for the line-by-line finding: the digit count must exceed
+// resolve-gate.md's own '>10 unrelated tests' threshold, not merely be present.
+// These deliberately avoid the standalone "expand(s) scope" phrasing (its own
+// CATEGORY_PATTERNS entry) so only the digit-count check is exercised.
+test('clearsFloor returns false for a test-break count below the >10 threshold', () => {
+  assert.strictEqual(
+    clearsFloor('This fix breaks 2 unrelated tests'),
+    false,
+  );
+});
+
+test('clearsFloor returns false at exactly 10 unrelated tests (threshold is strictly >10)', () => {
+  assert.strictEqual(
+    clearsFloor('This fix breaks 10 unrelated tests'),
+    false,
+  );
+});
+
+test('clearsFloor returns true at 11 unrelated tests (just over the >10 threshold)', () => {
+  assert.strictEqual(
+    clearsFloor('This fix breaks 11 unrelated tests'),
+    true,
+  );
+});
+
+test('clearsFloor returns true for "more than 10 unrelated tests" wording', () => {
+  assert.strictEqual(
+    clearsFloor('This fix breaks more than 10 unrelated tests'),
+    true,
+  );
+});
+
 test('clearsFloor is case-insensitive', () => {
   assert.strictEqual(clearsFloor('REQUIRES EXTERNAL STATE to proceed'), true);
 });

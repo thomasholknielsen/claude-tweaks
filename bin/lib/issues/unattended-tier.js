@@ -20,13 +20,26 @@ const CATEGORY_PATTERNS = [
   // Scope expansion: breaks many tests, long rebuild
   /scope expansion/i,
   /expands? (pipeline )?scope/i,
-  /breaks? (more than )?\d+ unrelated tests/i,
   /long rebuild/i,
 ];
 
+// A bare regex can only match a digit run, not compare its magnitude, so the
+// '>10 unrelated tests' numeric threshold ledger/resolve-gate.md's Phase 1
+// actually requires (not merely "some tests") is checked separately from
+// CATEGORY_PATTERNS above. A bare 'breaks N unrelated tests' states the exact
+// count, so N must be strictly >10; a 'breaks more than N unrelated tests'
+// phrasing already asserts the count exceeds N, so N need only be >=10 (e.g.
+// "more than 10", resolve-gate.md's own wording) to guarantee it's >10.
+const UNRELATED_TESTS_RE = /breaks? (more than )?(\d+) unrelated tests/i;
+
 function clearsFloor(blockerReason) {
   if (typeof blockerReason !== 'string' || blockerReason.trim() === '') return false;
-  return CATEGORY_PATTERNS.some((re) => re.test(blockerReason));
+  if (CATEGORY_PATTERNS.some((re) => re.test(blockerReason))) return true;
+  const testsMatch = UNRELATED_TESTS_RE.exec(blockerReason);
+  if (!testsMatch) return false;
+  const moreThan = Boolean(testsMatch[1]);
+  const count = Number(testsMatch[2]);
+  return moreThan ? count >= 10 : count > 10;
 }
 
 module.exports = { clearsFloor };

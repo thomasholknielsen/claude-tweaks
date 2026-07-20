@@ -28,26 +28,50 @@ test('countFailedAttempts returns 0 for no comments or no matches', () => {
   assert.strictEqual(countFailedAttempts([{ body: 'unrelated' }]), 0);
 });
 
-test('hasHitRetryCeiling is false below the ceiling and true at/above it', () => {
+test('hasHitRetryCeiling is false while the attempt being evaluated is still below the ceiling', () => {
+  const oneFailure = [{ body: 'Attempt 1 failed: a. Claim released, will retry.' }];
+  // comments reflects only the prior (posted) attempt — the attempt being
+  // evaluated is #2, which is below a ceiling of 3.
+  assert.strictEqual(hasHitRetryCeiling(oneFailure, 3), false);
+});
+
+test('hasHitRetryCeiling is true once the attempt being evaluated reaches the ceiling', () => {
   const twoFailures = [
     { body: 'Attempt 1 failed: a. Claim released, will retry.' },
     { body: 'Attempt 2 failed: b. Claim released, will retry.' },
   ];
-  assert.strictEqual(hasHitRetryCeiling(twoFailures, 3), false);
-  const threeFailures = [...twoFailures, { body: 'Attempt 3 failed: c. Claim released, will retry.' }];
-  assert.strictEqual(hasHitRetryCeiling(threeFailures, 3), true);
+  // comments reflects the 2 prior (posted) attempts — the attempt being
+  // evaluated is #3, which equals a ceiling of 3.
+  assert.strictEqual(hasHitRetryCeiling(twoFailures, 3), true);
 });
 
 test('hasHitRetryCeiling defaults the ceiling to 3', () => {
-  const threeFailures = [
+  const twoFailures = [
     { body: 'Attempt 1 failed: a. Claim released, will retry.' },
     { body: 'Attempt 2 failed: b. Claim released, will retry.' },
-    { body: 'Attempt 3 failed: c. Claim released, will retry.' },
   ];
-  assert.strictEqual(hasHitRetryCeiling(threeFailures), true);
+  assert.strictEqual(hasHitRetryCeiling(twoFailures), true);
 });
 
 test('hasHitRetryCeiling respects a custom ceiling', () => {
-  const oneFailure = [{ body: 'Attempt 1 failed: a. Claim released, will retry.' }];
-  assert.strictEqual(hasHitRetryCeiling(oneFailure, 1), true);
+  // No prior comments — the attempt being evaluated is #1, which already
+  // equals a ceiling of 1 (no retries permitted after the first attempt).
+  assert.strictEqual(hasHitRetryCeiling([], 1), true);
+  assert.strictEqual(hasHitRetryCeiling([], 3), false);
+});
+
+// Regression test for the off-by-one finding: hasHitRetryCeiling must agree
+// with skills/dispatch/SKILL.md's inline `attemptNumber >= ceiling` check
+// (Settle step) when given the same comments fetched before this attempt's
+// own comment is posted — the exact failure_scenario the finding describes.
+test('hasHitRetryCeiling matches the attemptNumber >= ceiling formula dispatch/SKILL.md inlines', () => {
+  const comments = [
+    { body: 'Attempt 1 failed: a. Claim released, will retry.' },
+    { body: 'Attempt 2 failed: b. Claim released, will retry.' },
+  ];
+  const ceiling = 3;
+  const attemptNumber = countFailedAttempts(comments) + 1;
+  assert.strictEqual(attemptNumber, 3);
+  assert.strictEqual(hasHitRetryCeiling(comments, ceiling), attemptNumber >= ceiling);
+  assert.strictEqual(hasHitRetryCeiling(comments, ceiling), true);
 });
