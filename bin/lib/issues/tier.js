@@ -13,7 +13,6 @@
 
 const COLON_RISK_RE = /^risk:(low|medium|high)$/;
 const COLON_EFFORT_RE = /^effort:(low|medium|high)$/;
-const COLON_CEREMONY_RE = /^ceremony:(fast-lane|standard)$/;
 
 function extractRiskEffort(labels) {
   const names = (labels || []).map((l) => (typeof l === 'string' ? l : l.name)).filter(Boolean);
@@ -25,12 +24,4 @@ function extractRiskEffort(labels) {
   };
 }
 
-// Mirrors extractRiskEffort's shape for the always-explicit ceremony:* label —
-// see docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md.
-function extractCeremony(labels) {
-  const names = (labels || []).map((l) => (typeof l === 'string' ? l : l.name)).filter(Boolean);
-  const ceremony = names.map((n) => COLON_CEREMONY_RE.exec(n)).find(Boolean);
-  return { ceremonyTier: ceremony ? ceremony[1] : undefined };
-}
-
-module.exports = { extractRiskEffort, extractCeremony };
+module.exports = { extractRiskEffort };
