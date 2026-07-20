@@ -9,6 +9,7 @@ const ORIGINS = ['code-health', 'harness-health', 'journey-health', 'docs-health
 const TYPES = ['bug', 'feature', 'task'];
 const TIERS = ['low', 'medium', 'high'];
 const PRIORITIES = ['high', 'medium', 'low'];
+const CEREMONY_TIERS = ['fast-lane', 'standard'];
 
 const LABELS = {
   READY: 'ready',
@@ -52,6 +53,7 @@ const BY_RE = /^by:(.+)$/;
 const RISK_LABEL_RE = /^risk:(.+)$/;
 const EFFORT_LABEL_RE = /^effort:(.+)$/;
 const PRIORITY_LABEL_RE = /^priority:(.+)$/;
+const CEREMONY_LABEL_RE = /^ceremony:(.+)$/;
 
 function oneOf(name, value, allowed) {
   if (!allowed.includes(value)) {
@@ -59,10 +61,10 @@ function oneOf(name, value, allowed) {
   }
 }
 
-// { title, body, type, origin?, risk?, effort?, ready?, parked?, priority?, fingerprint? }
+// { title, body, type, origin?, risk?, effort?, ceremony?, ready?, parked?, priority?, fingerprint? }
 // -> { title, body, labels: string[], type }
 // Validates supplied enum values; absence of an optional field never throws.
-function recordPayload({ title, body, type, origin, risk, effort, ready, parked, priority, fingerprint } = {}) {
+function recordPayload({ title, body, type, origin, risk, effort, ceremony, ready, parked, priority, fingerprint } = {}) {
   if (typeof title !== 'string' || !title) {
     throw new Error(`title must be a non-empty string (got ${typeof title})`);
   }
@@ -75,7 +77,7 @@ function recordPayload({ title, body, type, origin, risk, effort, ready, parked,
     throw new Error('a record cannot be both ready and parked');
   }
 
-  // Deterministic emission order: by:*, risk:*, effort:*, ready, parked, priority:*.
+  // Deterministic emission order: by:*, risk:*, effort:*, ceremony:*, ready, parked, priority:*.
   const labels = [];
 
   if (origin !== undefined) {
@@ -89,6 +91,10 @@ function recordPayload({ title, body, type, origin, risk, effort, ready, parked,
   if (effort !== undefined) {
     oneOf('effort', effort, TIERS);
     labels.push(`effort:${effort}`);
+  }
+  if (ceremony !== undefined) {
+    oneOf('ceremony', ceremony, CEREMONY_TIERS);
+    labels.push(`ceremony:${ceremony}`);
   }
   if (ready) labels.push(LABELS.READY);
   if (parked) labels.push(LABELS.PARKED);
@@ -136,6 +142,7 @@ function parseRecordFacets(labels) {
     origin: null,
     risk: null,
     effort: null,
+    ceremony: null,
     priority: null,
     stage: 'backlog',
     grants: { build: false, merge: false },
@@ -194,6 +201,11 @@ function parseRecordFacets(labels) {
     const effort = EFFORT_LABEL_RE.exec(name);
     if (effort && TIERS.includes(effort[1])) {
       facets.effort = effort[1];
+      continue;
+    }
+    const ceremony = CEREMONY_LABEL_RE.exec(name);
+    if (ceremony && CEREMONY_TIERS.includes(ceremony[1])) {
+      facets.ceremony = ceremony[1];
       continue;
     }
     const priority = PRIORITY_LABEL_RE.exec(name);
