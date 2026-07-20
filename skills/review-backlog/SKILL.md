@@ -146,7 +146,7 @@ node -e "
 
 **`critical`** — render `.critical` as a table (`| # | Record | Priority | Age |`). Note the excluded unscored count from `.split.unscored.length` ("N unscored records not risk-assessed yet — run bare mode for a judgment pass"). Skip to Next Actions.
 
-**`risk-value`** — render `.riskValue.ranked` as the primary ranked table, then `.riskValue.unscored` as a trailing "not yet scored" group. Add a `Tier` column reading `facets.ceremony` directly (`fast-lane`/`standard`) for every scored row — free, mechanical, already present from Step 1's fetch; no LLM judgment involved. Skip to Next Actions.
+**`risk-value`** — render `.riskValue.ranked` as the primary ranked table, then `.riskValue.unscored` as a trailing "not yet scored" group. Add a `Tier` column reading `facets.ceremony` directly (`fast-lane`/`standard`) for every scored row — free, mechanical, already present from Step 1's fetch; no LLM judgment involved. A record scored before this ceremony-tiering feature shipped (has `risk:*`/`effort:*` but no `ceremony:*`) renders `—` in this column rather than a blank cell. Skip to Next Actions.
 
 **`cleanup`** — render `.cleanup` as a table, grouped for a batch sweep. Skip to Next Actions.
 

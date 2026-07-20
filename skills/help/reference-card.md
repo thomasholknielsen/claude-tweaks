@@ -27,7 +27,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/claude-tweaks:journeys` | Create/update user journey documentation | spec #, file paths |
 | `/claude-tweaks:visual-review` | Browser-based UI inspection, journey walks, discovery | URL, `journey:{name}`, `discover` |
 | `/claude-tweaks:visualize` | Themed diagram generation — architecture, flowchart, sequence, state, ER, timeline, swimlane, quadrant, nested, tree, org chart, layers, venn, pyramid | `<type> <topic>` |
-| `/claude-tweaks:assess-agent-autonomy` | Inline judgment helper — grant-check informs triage's recommendation, merge-check replaces dispatch's blast-radius gate, failure-check replaces dispatch's blanket failure-revocation rule, ceremony-check informs flow's per-record wrap-up ceremony depth. Never invoked directly by a human. | `{mode} #{n}` (`grant-check`\|`merge-check`\|`failure-check`\|`ceremony-check`) |
+| `/claude-tweaks:assess-agent-autonomy` | Inline judgment helper — grant-check informs triage's recommendation, merge-check replaces dispatch's blast-radius gate, failure-check replaces dispatch's blanket failure-revocation rule, ceremony-check informs specify's per-record ceremony depth (flow falls back to it only for records that never went through specify). Never invoked directly by a human. | `{mode} #{n}` (`grant-check`\|`merge-check`\|`failure-check`\|`ceremony-check`) |
 
 ## Utility
 

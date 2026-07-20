@@ -6,6 +6,19 @@ A structured workflow system for Claude Code — from idea capture through build
 
 Claude Code is powerful but unstructured. claude-tweaks adds a complete development lifecycle: capture ideas, challenge assumptions, decompose into specs, build with quality gates, and learn from what was built. Every finding is explicitly resolved — nothing silently drops.
 
+### What's new in v6.11.0 — Lifecycle ceremony tiering
+
+`ceremony-check` (the fast-lane/standard verdict introduced in v6.7.0) now runs at
+`/claude-tweaks:specify`'s record-creation step instead of waiting until `/claude-tweaks:flow`'s
+materialize step — so `/specify`'s own Step 5 Multi-Persona Red-Team can scale with it too
+(`fast-lane` leaves get one persona instead of three). The verdict is now an always-explicit
+`ceremony:fast-lane`/`ceremony:standard` label, visible everywhere `risk:*`/`effort:*` already
+are, instead of a materialize-only header field. `/claude-tweaks:review` gains matching
+ceremony-aware step skipping (spec-compliance re-check, cross-spec-promise check, and hindsight
+skip under `fast-lane`; the actual code-quality read of the diff never does), and
+`/claude-tweaks:review-backlog` surfaces the tier as an advisory column. See
+`docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md`.
+
 ### What's new in v6.10.0 — design-wrapper rename + visual quality boost
 
 `/claude-tweaks:design` is renamed `/claude-tweaks:design-wrapper` (clearer than a bare
@@ -294,7 +307,7 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 
 **`/claude-tweaks:visualize`** — Generates a themed, project-local visual diagram (architecture, flowchart, sequence, state, ER, timeline, swimlane, quadrant, nested, tree, org chart, layer stack, venn, pyramid) as a self-contained HTML+SVG file, styled from the project's own `DESIGN.md` tokens (or a neutral default skin when Impeccable isn't set up). An optional D2-backed enhanced rendering path handles diagram types with a native D2 construct. Soft-hook nudges in `/journeys` Step 3.6, `/specify` Step 2.5d, and `/review` Lens 3i-diagram suggest invoking it — gated by `diagram-suggestions: enabled` in CLAUDE.md, written by `/init` Step 11. Diagrams co-locate with what they illustrate (`docs/journeys/`, `docs/plans/`) rather than a single central folder; `docs/diagrams/` is the fallback for context-free, direct invocations. Works standalone: `/claude-tweaks:visualize`.
 
-**`/claude-tweaks:assess-agent-autonomy`** — Content-aware trust and ceremony-depth verdicts replacing mechanical label lookups. Four modes: **grant-check** (informs `/triage`'s Step 2 recommendation, reading a record's actual body content rather than just its risk/effort labels), **merge-check** (replaces `/dispatch`'s Auto-merge gate — weighs diff content, review findings, and a test-exclusion-aware blast-radius summary holistically instead of a hard line-count cutoff), **failure-check** (replaces `/dispatch`'s blanket failure-revocation rule — classifies a failure as correctness/transient/ambiguous so a flaky test or infrastructure hiccup no longer permanently strips merge trust), and **ceremony-check** (informs `/flow`'s materialization step of how much wrap-up ceremony a record's actual content deserves, independent of merge trust). Invoked inline by its callers, never directly by a human.
+**`/claude-tweaks:assess-agent-autonomy`** — Content-aware trust and ceremony-depth verdicts replacing mechanical label lookups. Four modes: **grant-check** (informs `/triage`'s Step 2 recommendation, reading a record's actual body content rather than just its risk/effort labels), **merge-check** (replaces `/dispatch`'s Auto-merge gate — weighs diff content, review findings, and a test-exclusion-aware blast-radius summary holistically instead of a hard line-count cutoff), **failure-check** (replaces `/dispatch`'s blanket failure-revocation rule — classifies a failure as correctness/transient/ambiguous so a flaky test or infrastructure hiccup no longer permanently strips merge trust), and **ceremony-check** (informs `/specify`'s per-record ceremony depth, independent of merge trust — `/flow`'s materialize step falls back to it only for records that never went through `/specify`). Invoked inline by its callers, never directly by a human.
 
 ### Utility skills
 
