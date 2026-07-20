@@ -150,7 +150,7 @@ Recovery requires **high confidence** — the snapshot match must be unambiguous
 1. Take a fresh snapshot via `agent-browser --session <story-id> snapshot -i -c`.
 2. Evaluate the assertion against the snapshot.
 3. Take an annotated screenshot.
-4. Mark PASS or FAIL. On FAIL, run the Failure Handling flow (Section 6).
+4. Mark PASS or FAIL. On FAIL: capture a trace immediately, BEFORE Teardown or Close run (see Section 6 Step 1 — Failure Handling), stop executing remaining steps, mark them SKIPPED, then proceed to Teardown (Section 5) and Close (Section 6 Step 3).
 
 **Caveat Detection (after each PASS step):**
 
@@ -186,7 +186,7 @@ Collect all emitted PAGE_INVENTORY entries and include them in the REPORT_JSON a
 
 ### 5. Teardown
 
-After the step loop ends — whether every step completed or a failure stopped it early (Section 4 Step 8) — execute the **Teardown** block if present. Run teardown best-effort — do not fail the story if teardown fails. Teardown always runs regardless of pass/fail status, but on a failure it runs *after* Section 6 Step 1 has already captured the failure trace, so later teardown actions do not disturb the page state the trace was meant to diagnose. Close (Section 6 Step 3) is the last thing that happens, after Teardown, in both outcomes.
+After the step loop ends — whether every step completed or a failure stopped it early (Section 4 Step 8 for action steps, or the verify-only-steps FAIL step) — execute the **Teardown** block if present. Run teardown best-effort — do not fail the story if teardown fails. Teardown always runs regardless of pass/fail status, but on a failure it runs *after* Section 6 Step 1 has already captured the failure trace, so later teardown actions do not disturb the page state the trace was meant to diagnose. Close (Section 6 Step 3) is the last thing that happens, after Teardown, in both outcomes.
 
 ### 6. Failure Handling and Close
 
