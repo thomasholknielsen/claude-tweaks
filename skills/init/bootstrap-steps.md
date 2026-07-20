@@ -439,9 +439,10 @@ so it stops guessing at component APIs. This step wires all three, mirroring Ste
 (Impeccable) install-and-flag pattern.
 
 **Detect frontend signals from Phase 2 reconnaissance** (or run a quick sniff of the
-project root if Phase 0 is being run before Phase 2): look for any of `.tsx`, `.jsx`,
-`.vue`, `.svelte`, `.html`, `.css` files, or directories `components/`, `pages/`, `app/`,
-`routes/`, `views/`, `ui/`. If none are detected, skip this step entirely.
+project root if Phase 0 is being run before Phase 2) — the same frontend-signal list
+Step 10 above uses (`.tsx`/`.jsx`/`.vue`/`.svelte`/`.html`/`.css` files, or
+`components/`/`pages/`/`app/`/`routes/`/`views/`/`ui/` directories); if that list is ever
+tightened, update it in both places. If none are detected, skip this step entirely.
 
 Then check whether `components.json` already exists at the project root.
 
@@ -606,7 +607,7 @@ Derive `REPO_SLUG` once, the same way `/claude-tweaks:routine`'s own CREATE Step
 
 **Resolve environment once**, shared across every candidate the user may select: check `.claude-tweaks/routine-environment-cache.yml` first, then `RemoteTrigger {action: "list"}` (read `job_config.ccr.environment_id` off the most recent routine) — identical sources and order to `/claude-tweaks:routine`'s own CREATE Step 4. Use it silently if either source yields a value. Only ask the user directly when neither source has anything.
 
-**Present the picklist.** Call `AskUserQuestion` with one multiSelect question per group of up to 4 candidates (all groups issued together, in the same call — the tool caps `options` at 4 per question but allows up to 4 questions per call, so up to 16 candidates fit in a single call; today's 6 candidates need exactly 2 groups). For a single group of 4 or fewer candidates, one question is enough — omit the group-numbering suffix. Not reachable with today's 6 shipped templates, but if candidates ever exceed 16, split into multiple sequential `AskUserQuestion` calls (present the first 16, act on that selection, then offer the remainder in a follow-up call) rather than silently truncating the list.
+**Present the picklist.** Call `AskUserQuestion` with one multiSelect question per group of up to 4 candidates (all groups issued together, in the same call — the tool caps `options` at 4 per question but allows up to 4 questions per call, so up to 16 candidates fit in a single call; today's 7 candidates need exactly 2 groups). For a single group of 4 or fewer candidates, one question is enough — omit the group-numbering suffix. Not reachable with today's 7 shipped templates, but if candidates ever exceed 16, split into multiple sequential `AskUserQuestion` calls (present the first 16, act on that selection, then offer the remainder in a follow-up call) rather than silently truncating the list.
 
 - `question` (group 1): `"Which routines do you want to set up?"` (or, when there is more than one group, `"Which routines do you want to set up? (1/{G})"`), `header`: `"Routines"`, `multiSelect`: `true`, one option per candidate in this group: `label` = the candidate's routine identity (e.g. `"code-health"`, `"tidy"`, `"tidy --variant=github-triage"`), `description` = its human-readable default schedule (e.g. `"Daily, 03:00 UTC"`)
 - Repeat for each subsequent group, `question`: `"Which routines do you want to set up? ({i}/{G})"`
@@ -784,11 +785,11 @@ expressions a plain file store supports, so there is nothing to detect.
 **Sub-step 15c — Label provisioning offer** (`work-backend: github-issues` only).
 Call `AskUserQuestion`:
 
-- `question`: `"Provision all 20 core work-record labels now?"`, `header`:
+- `question`: `"Provision all 21 core work-record labels now?"`, `header`:
   `"Label bootstrap"`, `multiSelect`: `false`
-- Option 1 (Recommended) — `label`: `"Yes — provision all 20 labels now"`,
+- Option 1 (Recommended) — `label`: `"Yes — provision all 21 labels now"`,
   `description`: `"Runs _shared/label-bootstrap.md's canonical LABELS_JSON whole —
-  the 20 core labels plus the 3 optional priority:* labels (23 total). That file's
+  the 21 core labels plus the 3 optional priority:* labels (24 total). That file's
   own note names this offer as the one caller allowed to use the full list, rather
   than bootstrapping only what's about to be applied. Front-loads label creation so
   the first health-skill firing or /claude-tweaks:capture call never pays the

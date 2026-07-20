@@ -640,9 +640,7 @@ git commit -m "Mark phase-{N} specified in design doc"
 
 When fully consumed, do NOT keep these around. They create dangling references and stale artifacts. The leaf records are the durable artifact.
 
-## Step 8: Retired
-
-Retired: a captured record is shaped in place (Shaping mode); there is no separate backlog entry to delete.
+(Step 8 — the old backlog-entry deletion — is retired: a captured record is shaped in place, so there is nothing to delete.)
 
 ---
 
@@ -744,6 +742,8 @@ Always recommend `/flow` over `/build` — `/flow` is the canonical path through
 | `/claude-tweaks:visualize` | Step 2.5d suggests invoking this skill for every leaf record (not gated to frontend) when the design doc describes state machines, schemas, multi-actor flows, decision branches, hierarchies, or architectures. Gated by `diagram-suggestions: enabled` in CLAUDE.md (written by `/init` Step 11). |
 | `/claude-tweaks:research` | Prior-art lookup before authoring a record — `/research` reports can be cited directly in a leaf's `Technical Approach` or `Gotchas` section. |
 | `/claude-tweaks:code-health` | `/code-health` files improvement findings as `by:code-health`-labelled records, born-`ready` and spec-shaped by construction (Current State / Deliverables / Acceptance Criteria) — per `_shared/work-record.md`'s born-ready rule, these skip Shaping mode's translation work entirely. `/specify` shapes captured and human-filed records (no `by:*` label, still in `backlog`); Resolve-the-input case 1 fetches either kind the same way, stamping `ready` + scoring only on the ones that don't already have them. |
+| `/claude-tweaks:harness-health` | Same pattern as `/code-health`/`/journey-health`/`/docs-health` — `/harness-health` files `by:harness-health` findings born-`ready` and spec-shaped by construction (Current State / Deliverables / Acceptance Criteria), so Resolve-the-input case 1 consumes them with near-zero translation, stamping nothing already present. |
+| `/claude-tweaks:journey-health` | Same pattern as `/code-health`/`/harness-health`/`/docs-health` — `/journey-health` files `by:journey-health` findings born-`ready` and spec-shaped by construction (Current State / Deliverables / Acceptance Criteria), so Resolve-the-input case 1 consumes them with near-zero translation, stamping nothing already present. |
 | `/claude-tweaks:docs-health` | Same pattern as `/code-health`/`/harness-health`/`/journey-health` — `/docs-health` files `by:docs-health` findings born-`ready` and spec-shaped by construction (Current State / Deliverables / Acceptance Criteria), so Resolve-the-input case 1 consumes them with near-zero translation, stamping nothing already present. |
 | `/claude-tweaks:challenge` | Runs BEFORE /specify on backlog work records — produces a debiased brief whose assumptions, blind spots, and constraints /specify absorbs into leaf Gotchas sections (Step 1's Rules; Step 4's systematic completeness pass) |
 | `/claude-tweaks:flow` | Accepts `#N` / `#A,#B` leaf record references — records arrive pre-shaped from `/specify`, so `/flow` never calls `/specify` internally (spec 20's contract: materialization hard-gates on record shape instead of a design-doc-rejection step). `/specify` remains the enforcement point that produces `ready` leaves in the first place. |

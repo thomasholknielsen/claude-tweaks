@@ -92,6 +92,65 @@ test('reproduction: severity buckets collapse correctly (critical+high vs medium
   assert.strictEqual(c.findingsMatch(a, otherBucket), false);
 });
 
+test('parsePathLine / normalizeFinding: bridges Template A\'s combined "Path:Line" column into separate path/line fields', () => {
+  assert.deepStrictEqual(c.parsePathLine('src/auth.ts:42'), { path: 'src/auth.ts', line: 42 });
+  assert.deepStrictEqual(c.parsePathLine('src/auth.ts'), { path: 'src/auth.ts', line: undefined });
+
+  // Already-split findings pass through untouched.
+  const alreadySplit = { path: 'src/x.ts', line: 10, severity: 'high' };
+  assert.strictEqual(c.normalizeFinding(alreadySplit), alreadySplit);
+
+  // Naive transcription: combined string kept under `.path`, no separate `.line`.
+  const combinedUnderPath = c.normalizeFinding({ path: 'src/x.ts:10', severity: 'high' });
+  assert.strictEqual(combinedUnderPath.path, 'src/x.ts');
+  assert.strictEqual(combinedUnderPath.line, 10);
+  assert.strictEqual(combinedUnderPath.severity, 'high');
+
+  // Naive transcription: literal table-header key "Path:Line", capitalized "Severity".
+  const headerKeyTranscription = c.normalizeFinding({
+    Severity: 'critical',
+    'Path:Line': 'src/x.ts:10',
+    Finding: 'missing check',
+  });
+  assert.strictEqual(headerKeyTranscription.path, 'src/x.ts');
+  assert.strictEqual(headerKeyTranscription.line, 10);
+  assert.strictEqual(headerKeyTranscription.severity, 'critical');
+});
+
+test('reproduction: Template A contract gap — combined "path:line" field (no separate .line) is normalized before comparison, not silently treated as a universal match', () => {
+  // Regression for the cross-file-contract bug: without normalizeFinding,
+  // a.path/b.path/a.line/b.line end up undefined for every finding (since
+  // the real field lives in a combined string), so findingsMatch's
+  // `a.path !== b.path` (undefined !== undefined = false) and
+  // `Math.abs(a.line - b.line) > tolerance` (NaN > tolerance = false) both
+  // fail to short-circuit — every pair spuriously "matches" as confirmed
+  // regardless of actual location.
+  const a = [{ path: 'src/auth.ts:42', severity: 'critical', text: 'missing check' }];
+  const b = [{ path: 'src/auth.ts:43', severity: 'high', text: 'missing check' }];
+  const same = c.categoriseReproduction(a, b);
+  assert.strictEqual(same.confirmed.length, 1, 'same file, line within tolerance, should reproduce');
+  assert.strictEqual(same.unconfirmed.length, 0);
+  assert.strictEqual(same.confirmed[0].path, 'src/auth.ts');
+  assert.strictEqual(same.confirmed[0].line, 42);
+
+  // Two genuinely different locations must NOT spuriously match once the
+  // combined field is correctly split — this is what the pre-fix NaN
+  // short-circuit failure would have gotten wrong.
+  const c1 = [{ path: 'src/other.ts:100', severity: 'critical', text: 'x' }];
+  const d1 = [{ path: 'src/different.ts:900', severity: 'critical', text: 'y' }];
+  const different = c.categoriseReproduction(c1, d1);
+  assert.strictEqual(different.confirmed.length, 0, 'different files/lines must not spuriously match');
+  assert.strictEqual(different.unconfirmed.length, 2);
+
+  // Header-key transcription shape also normalizes and compares correctly.
+  const headerA = [{ Severity: 'high', 'Path:Line': 'src/auth.ts:100', Finding: 'x' }];
+  const headerB = [{ Severity: 'high', 'Path:Line': 'src/auth.ts:101', Finding: 'x' }];
+  const headerResult = c.categoriseReproduction(headerA, headerB);
+  assert.strictEqual(headerResult.confirmed.length, 1);
+  assert.strictEqual(headerResult.confirmed[0].path, 'src/auth.ts');
+  assert.strictEqual(headerResult.confirmed[0].line, 100);
+});
+
 // ============================================================
 // Debate
 // ============================================================

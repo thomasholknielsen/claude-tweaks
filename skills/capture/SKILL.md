@@ -41,7 +41,7 @@ When `$ARGUMENTS` is empty, prompt the user for the idea body.
 |------|------|
 | 1 | Add the record — GitHub issue via `recordPayload`, or a `specs/{id}-{slug}.md` record via `local-store.js`, per Backend Selection below. |
 | 2 | Route per `--route` arg, or via the Routing Prompt below. |
-| 3 | Commit (when this is a standalone invocation; component-skill callers commit themselves). `work-backend: github-issues` captures have nothing new to commit unless the failure fallback wrote a local `specs/{id}-{slug}.md` record, or the route was `absorb:N` (which edits the target record locally regardless of backend). |
+| 3 | Commit (when this is a standalone invocation; component-skill callers commit themselves). `work-backend: local-files` captures always have something to commit — the new record file, or, under route `absorb:N`, the edited/deleted target record file. `work-backend: github-issues` captures have nothing new to commit unless the failure fallback wrote a local `specs/{id}-{slug}.md` record — its `absorb:N` route edits the target issue via `gh` CLI only (see Route execution below), so no local file is touched. |
 
 ## Backend Selection
 
@@ -270,6 +270,7 @@ Parent invocation of `/capture` is signaled by `$PIPELINE_RUN_DIR` being set in 
 | `/claude-tweaks:init` | After bootstrap, /init suggests /capture as the entry point for capturing ideas that surface during setup but aren't ready to specify |
 | `/claude-tweaks:reflect` | Surfaces tangential ideas at the Wrap-Up Review Console (files new backlog records directly, not via /capture) |
 | `/claude-tweaks:visual-review` | UI ideas surfaced during visual review (creative improvements, follow-ups) file as new backlog records via /capture instead of inflating the current spec |
+| `/claude-tweaks:help` | Feeds items that /claude-tweaks:help surfaces in the status dashboard/queue counts. |
 | `_shared/work-record.md` | Taxonomy home — stage vocabulary (backlog / parked / ready), the permission-matrix row for `/capture` (`by:capture` + Type only), and the seven-axis label contract this skill files against |
 | `/claude-tweaks:research` | Research findings can be captured as backlog records; invoke `/research` when a backlog record needs evidence before specifying. |
 | `/claude-tweaks:code-health` | `/code-health` routes fuzzy or below-threshold findings to the backlog via `/capture` instead of filing a GitHub issue, so they get human triage before promotion. |

@@ -163,11 +163,15 @@ Invoke `/claude-tweaks:design-wrapper test <changed-files>`. Resolve `<changed-f
 
 See `_shared/design-wrapper-handling.md` for the canonical return-shape contract and the "why skips don't fail" rationale.
 
-**Reporting:** Include a "Design CLI" row in the verification results table:
+**Reporting:** How the Design CLI result surfaces depends on which Step 2 template is active:
 
-```markdown
-| Design CLI | {pass/fail/skipped} | {Xs} | {N findings: Y warning, Z advisory} or {skip reason} |
-```
+- **Standard mode / All mode** (renders the `verification.md` Step 3 table) — add a "Design CLI" row to that table:
+
+  ```markdown
+  | Design CLI | {pass/fail/skipped} | {Xs} | {N findings: Y warning, Z advisory} or {skip reason} |
+  ```
+
+- **Pipeline mode** (`## Pipeline result (VERIFICATION_PASSED + no stories)` / `... + stories` in `report-templates.md` — bare status lines, no table) — append a `Design CLI: {pass/fail/skipped} ({N findings: Y warning, Z advisory} or {skip reason})` line to the pipeline result output.
 
 If `severity: warning` findings are present, append a Design Findings section before the standard test-failure section:
 
@@ -254,7 +258,7 @@ Whichever matches the current run's actual signal gets `(Recommended)` on its la
 
 ## Component-Skill Contract
 
-`/claude-tweaks:test` is invoked by `/claude-tweaks:flow` between build and review, and by `/claude-tweaks:review` Step 1.5 as the test gate. Parent invocation is signaled by the `PIPELINE_RUN_DIR` env var or by the caller setting `TEST_PASSED` in the calling context. When `PIPELINE_RUN_DIR` is set, omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user, render Next Actions as documented. The skip-qa flag and qa-mode args are user-facing; parents pass `skip-qa` during the `/flow` polish re-verify gate and never invoke qa mode themselves (qa runs at its own pipeline stage).
+`/claude-tweaks:test` is invoked by `/claude-tweaks:flow` between build and review, and by `/claude-tweaks:review` Step 1.5 as the test gate. Parent invocation is signaled by the `PIPELINE_RUN_DIR` env var — the primary signal. `/claude-tweaks:review`'s standalone auto-trigger (Step 1.5, "No recent pass" branch — no pipeline run dir exists yet) may pass `--source review` as an explicit fallback. When `PIPELINE_RUN_DIR` is set, omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user, render Next Actions as documented. The skip-qa flag and qa-mode args are user-facing; parents pass `skip-qa` during the `/flow` polish re-verify gate and never invoke qa mode themselves (qa runs at its own pipeline stage).
 
 ## Anti-Patterns
 
@@ -282,10 +286,11 @@ Whichever matches the current run's actual signal gets `(Recommended)` on its la
 | `/claude-tweaks:review` | /review gates on `TEST_PASSED=true` from /test. /review never runs verification itself — that's /test's job. |
 | `/claude-tweaks:stories` | /stories generates the YAML stories that /test qa validates. Stories with a `journey:` field can be filtered with `/test qa journey={name}`. Both skills consume `dev-url-detection.md` from `skills/_shared/` for URL resolution. |
 | `/claude-tweaks:flow` | /flow chains build → [stories →] test → review → polish → re-verify → wrap-up. /test is the mechanical gate between build/stories and review. The polish-phase re-verify gate invokes `/test skip-qa` to verify polish modifications without re-running browser QA. |
+| `/claude-tweaks:wrap-up` | Indirect dependency — /test passes before /review, which passes before /wrap-up. Open `test/qa`-phase ledger entries /test appends (see the `/claude-tweaks:ledger` row above) carry forward and surface in /wrap-up's Step 8.5 resolve gate as items requiring per-item user decision. |
 | `/claude-tweaks:help` | /help can recommend /test when code changes exist but no review is warranted |
 | `/claude-tweaks:ledger` | Manages the open items ledger. /test appends QA findings and observations with phase `test/qa`. |
 | `/claude-tweaks:design-wrapper` | /test invokes `/claude-tweaks:design-wrapper test <files>` as Step 1.5 after the standard suite. Findings with `severity: warning` fail the gate; `advisory` findings and skips do not. The wrapper handles its own detection and availability checks. |
-| `/claude-tweaks:browse` | /browse may invoke /test indirectly when story validation requires browser-driven QA — both share `dev-url-detection.md` from `skills/_shared/`. |
+| `/claude-tweaks:browse` | /test's QA mode dispatches `qa-agent`, which speaks /browse's operation vocabulary (session naming, trace-on-failure, semantic locators) for browser-driven story validation — /test invokes qa-agent, not /browse directly; /browse never invokes /test. |
 | `/claude-tweaks:journeys` | /journeys feeds journey files into /stories which /test qa consumes; `journey={name}` filter lets /test run only the QA stories tied to a single journey. |
 | `/claude-tweaks:journey-health` | The deep tier drives `/test journey={name}` when auditing a journey that has story coverage — this is the "agent e2e testing" journey-health exists to protect. |
 | `/claude-tweaks:reflect` | /reflect may surface implementation findings that reference /test verification gaps; /test does not invoke /reflect, but reflection insights can call for new test coverage. |

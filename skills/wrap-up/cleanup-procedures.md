@@ -209,7 +209,8 @@ stop before attempting any release.
 3. **Ownership check (per `_shared/issue-claims.md`, "Release triggers").** Resolve `$RUN_ID`
    first: `RUN_ID="${CLAIM_RUN_ID:-$(basename "$PIPELINE_RUN_DIR")}"`. `CLAIM_RUN_ID` is set by
    `/flow` whenever *its own* caller set it (dispatch always does for both issue-mode singletons
-   and multi-spec bundles — see `triage/SKILL.md` Step 3) — the issue was claimed under that run
+   and multi-spec bundles — see `dispatch/SKILL.md`'s "Step 5: Dispatch — one Task agent per
+   group") — the issue was claimed under that run
    id, a different and earlier one than this pipeline's own `PIPELINE_RUN_DIR`, so using the
    latter here would make every dispatch-originated release wrongly conclude "a successor holds
    the lock" and skip the delete and the comment on every success. A spec reaching this point

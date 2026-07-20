@@ -4,6 +4,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 const { MAX_STALE_DAYS } = require('./score');
+const { selectByStaleThenChurn } = require('../health-core/rotation');
 
 const SKIP_DIRS = new Set([
   '.claude-tweaks', '.git', 'node_modules', 'dist', 'build', 'coverage', '.next', '.turbo',
@@ -21,7 +22,7 @@ const SOURCE_EXTS = new Set(['.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs']);
 function listSlices(root) {
   const slices = [{ id: '.', path: root }];
   const workspaceSlices = listWorkspaceSlices(root);
-  const coveredTopLevel = new Set(workspaceSlices.map((s) => s.id.split('/')[0]));
+  const coveredTopLevel = fullyCoveredTopLevelDirs(root);
   let entries;
   try { entries = fs.readdirSync(root, { withFileTypes: true }); } catch { return slices; }
   for (const entry of entries) {
@@ -39,19 +40,14 @@ function listSlices(root) {
 // Falls back to hashing the directory listing string if find/read fails.
 function sourceFiles(absDir) {
   try {
+    const excludeArgs = [];
+    for (const dir of SKIP_DIRS) {
+      excludeArgs.push('-not', '-path', `${absDir}/${dir}/*`);
+    }
     const raw = execFileSync(
       'find',
-      [absDir, '-type', 'f',
-        '-not', '-path', `${absDir}/.claude-tweaks/*`,
-        '-not', '-path', `${absDir}/.git/*`,
-        '-not', '-path', `${absDir}/node_modules/*`,
-        '-not', '-path', `${absDir}/dist/*`,
-        '-not', '-path', `${absDir}/build/*`,
-        '-not', '-path', `${absDir}/coverage/*`,
-        '-not', '-path', `${absDir}/.claude/*`,
-        '-not', '-path', `${absDir}/.worktrees/*`,
-      ],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+      [absDir, '-type', 'f', ...excludeArgs],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 },
     );
     return raw
       .split('\n')
@@ -88,7 +84,7 @@ function gitChurn(root, relDir, now) {
     const out = execFileSync(
       'git',
       ['-C', root, 'log', '--oneline', `--since=${since}`, '--', relDir === '.' ? '.' : relDir],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 },
     );
     return out.split('\n').filter(Boolean).length;
   } catch {
@@ -171,6 +167,23 @@ function expandWorkspacePattern(root, rawPattern) {
   return [];
 }
 
+// Top-level dirs genuinely enumerated in full by a "<dir>/*" workspace pattern —
+// i.e. every immediate child of <dir> is covered, so <dir> itself should not
+// also appear as its own top-level slice. A literal single-package pattern
+// (e.g. "tools/cli") does NOT cover "tools" — unlisted siblings like
+// "tools/scripts" must still reach a top-level slice, so they aren't silently
+// dropped from scope.
+function fullyCoveredTopLevelDirs(root) {
+  const patterns = readWorkspacePatterns(root);
+  const covered = new Set();
+  for (const rawPattern of patterns) {
+    const pattern = rawPattern.replace(/^\.\//, '').replace(/\/$/, '');
+    const m = pattern.match(/^([^*!{}?]+)\/\*$/);
+    if (m) covered.add(m[1]);
+  }
+  return covered;
+}
+
 // Returns [] when no workspace manifest exists or none of its patterns resolve.
 function listWorkspaceSlices(root) {
   const patterns = readWorkspacePatterns(root);
@@ -188,40 +201,34 @@ function listWorkspaceSlices(root) {
 
 // ─── selectSlice ─────────────────────────────────────────────────────────────
 // opts: { budget?: number, now?: number, signals?: { [id]: { churn, loc } } }
-// Returns Slice & { why: 'stale' | 'hotspot' } or null.
+// Returns Slice & { why: 'stale' | 'hotspot' } or null. Phase mechanics
+// (force-pick past MAX_STALE_DAYS, else score-and-pick-highest) delegate to
+// health-core/rotation's shared selectByStaleThenChurn; this module keeps
+// ownership of the slice listing, content-hash skip, and hotspot scoring.
 function selectSlice(root, cursors, opts = {}) {
   const now = opts.now != null ? opts.now : Date.now();
   const signals = opts.signals || null; // test injection hook
 
   const candidates = listSlices(root);
 
-  // Phase 1: Force-pick any slice unjudged past MAX_STALE_DAYS (eventually-complete floor).
-  for (const slice of candidates) {
-    const cursor = cursors[slice.id];
-    const lastSweptMs = cursor && cursor.lastSweptMs != null ? cursor.lastSweptMs : null;
-    const daysSince = lastSweptMs === null ? Infinity : (now - lastSweptMs) / 86400000;
-    if (daysSince > MAX_STALE_DAYS) {
-      return { ...slice, why: 'stale' };
-    }
-  }
-
-  // Phase 2: Among non-stale candidates, compute hotspot score, skip hash-unchanged slices.
-  const scored = [];
-  for (const slice of candidates) {
-    const cursor = cursors[slice.id] || {};
-    // Skip if content-hash is unchanged (the real change-aware skip).
-    const currentHash = contentHash(slice.path);
-    if (cursor.lastHash && cursor.lastHash === currentHash) continue;
-
-    const sig = signals ? signals[slice.id] || { churn: 0, loc: 0 } : null;
-    const churn = sig ? sig.churn : gitChurn(root, slice.id, now);
-    const loc = sig ? sig.loc : sliceLoc(slice.path);
-    scored.push({ slice, score: hotspotScore(churn, loc) });
-  }
-
-  if (scored.length === 0) return null;
-  scored.sort((a, b) => b.score !== a.score ? b.score - a.score : a.slice.id < b.slice.id ? -1 : 1);
-  return { ...scored[0].slice, why: 'hotspot' };
+  return selectByStaleThenChurn(candidates, cursors, {
+    now,
+    staleDays: MAX_STALE_DAYS,
+    getCursorKey: (slice) => slice.id,
+    getLastAuditedMs: (cursor) => (cursor && cursor.lastSweptMs != null ? cursor.lastSweptMs : null),
+    // Skip if content-hash is unchanged (the real change-aware skip) —
+    // returning null excludes the slice from Phase 2 entirely.
+    computeScore: (slice, cursor) => {
+      const currentHash = contentHash(slice.path);
+      if (cursor.lastHash && cursor.lastHash === currentHash) return null;
+      const sig = signals ? signals[slice.id] || { churn: 0, loc: 0 } : null;
+      const churn = sig ? sig.churn : gitChurn(root, slice.id, now);
+      const loc = sig ? sig.loc : sliceLoc(slice.path);
+      return hotspotScore(churn, loc);
+    },
+    buildStaleResult: (slice) => ({ ...slice, why: 'stale' }),
+    buildHotspotResult: (slice) => ({ ...slice, why: 'hotspot' }),
+  });
 }
 
 module.exports = { listSlices, contentHash, selectSlice, listWorkspaceSlices };

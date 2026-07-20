@@ -178,9 +178,10 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `/claude-tweaks:reflect` | /reflect's structural-debt lens ("premature abstractions, wrong boundaries") seeds /deepen candidates; /reflect surfaces /deepen as a Next Action when it finds structural debt. |
 | `/claude-tweaks:test` | /deepen uses the shared verification procedure from /test's `verification.md` to confirm a refactor preserved behavior. |
 | `/claude-tweaks:build` | Produces the modules /deepen evaluates. Architectural deviations build catches in Common Step 4.5 can route to /deepen for restructuring. |
-| `/claude-tweaks:ledger` | When invoked in a pipeline, staged depth candidates and declined candidates are tracked so they aren't dropped; /deepen appends entries with phase `deepen`. |
 | `/claude-tweaks:help` | /help references /deepen in the workflow diagram and reference card. |
 | `/claude-tweaks:flow` | Invoked BY /flow at the Pipeline Summary (Step 5) in analysis-only mode — /flow runs the read-only depth analysis hands-off and renders the ranked candidates as a Depth Opportunities recommendation block, but never applies a refactor (the responsible boundary for low-reversibility work in an auto pipeline). Skipped by `no-deepen`. |
+| `/claude-tweaks:wrap-up` | Hard-to-reverse interface trade-offs /deepen flags `[ADR-candidate]` in Step 4 are picked up by /wrap-up's Step 6.3 and run through the 3-factor gate for possible ADR creation — see the `_shared/decision-records.md` row below. |
+| `/claude-tweaks:code-health` | `/code-health` applies the architecture-depth criterion proactively on a schedule; `/deepen` applies it reactively to code you are changing. Both read `_shared/criteria-architecture-depth.md` — see that row below. |
 | `_shared/decision-records.md` | Hard-to-reverse interface trade-offs surfaced in Step 4 are flagged `[ADR-candidate]` for /wrap-up to record. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — /deepen always stages in auto (architecture is low-reversibility), never auto-refactors. |
 | `_shared/subagent-output-contract.md` | The Working-Directory Discipline rule referenced by Step 5 verify lives here (CWD anchoring before `git` / `node --test`). |

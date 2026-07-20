@@ -1,25 +1,19 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
-const { recordRun, computeChurn } = require('../runs');
+const { computeChurn } = require('../runs');
 
-function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'health-core-runs-')); }
+// recordRun/readRuns (local-disk run-log persistence) were removed by the
+// durable-state migration — run history now lives on the health-state git
+// branch (bin/lib/health-core/durable-state.js), read via
+// readDurableState(root).runs, not from a local runsDir. recordRun had zero
+// callers outside its own tests (harness-health, journey-health, and
+// docs-health only ever import computeChurn from this module), so it was
+// deleted rather than wired up.
 
-test('recordRun writes a run file under the given runsDir', () => {
-  const dir = path.join(tmp(), 'runs');
-  const record = recordRun(dir, 'run-1', ['a', 'b']);
-  assert.strictEqual(record.runId, 'run-1');
-  assert.deepStrictEqual(record.fingerprints, ['a', 'b']);
-  assert.ok(fs.existsSync(path.join(dir, 'run-1.json')));
-});
-
-test('recordRun creates the runsDir if it does not exist', () => {
-  const dir = path.join(tmp(), 'nested', 'runs');
-  recordRun(dir, 'run-1', ['a']);
-  assert.ok(fs.existsSync(dir));
+test('runs module exports only computeChurn — recordRun was removed as dead code', () => {
+  const runs = require('../runs');
+  assert.deepStrictEqual(Object.keys(runs), ['computeChurn']);
 });
 
 test('computeChurn: no prior run treats every fingerprint as appeared, giving ratio 1', () => {

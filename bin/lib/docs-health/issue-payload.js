@@ -24,13 +24,30 @@ const MISLEADS_LABELS = {
   both: 'human engineer + coding agent',
 };
 
+// Returns a backtick fence at least one character longer than the longest run
+// of backticks found inside `text`, so a fenced code block wrapping arbitrary
+// finding content (a docs/** excerpt, which routinely contains fenced bash/YAML
+// examples) can never be closed early by a ``` sequence already present in
+// that content — GitHub's fence-matching rule only treats a run of >= the
+// opening fence's length as a closer.
+function fenceFor(text) {
+  const runs = String(text).match(/`+/g) || [];
+  const longest = runs.reduce((max, run) => Math.max(max, run.length), 0);
+  return '`'.repeat(Math.max(3, longest + 1));
+}
+
+function fencedBlock(text) {
+  const fence = fenceFor(text);
+  return `${fence}\n${text}\n${fence}`;
+}
+
 function toIssuePayload(finding) {
   const categoryLabel = CATEGORY_LABELS[finding.category] || finding.category;
   const misleadsLabel = MISLEADS_LABELS[finding.misleads] || finding.misleads;
 
   const kindLine = `**Doc:** ${finding.target} | **Section:** ${finding.section} | **Category:** ${finding.category} | **Misleads:** ${misleadsLabel} | **Classification:** ${finding.classification} | **Confidence:** ${finding.confidence}`;
 
-  const deliverables = `**Current:**\n\`\`\`\n${finding.oldString || '(N/A — new content)'}\n\`\`\`\n\n**Proposed:**\n\`\`\`\n${finding.newString}\n\`\`\``;
+  const deliverables = `**Current:**\n${fencedBlock(finding.oldString || '(N/A — new content)')}\n\n**Proposed:**\n${fencedBlock(finding.newString)}`;
 
   // Only ever populated when multiple findings in one doc audit share the same
   // root cause — see the "Bundling rule" in skills/docs-health/SKILL.md Step 3.

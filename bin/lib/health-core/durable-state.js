@@ -21,6 +21,27 @@ const ESCALATE_AFTER_ATTEMPTS = 3;
 const MAX_CAS_ATTEMPTS = 3;
 const EMPTY_TREE_SHA = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'; // git's well-known empty-tree sha
 
+// Randomized, increasing backoff between CAS retry attempts — up to 4
+// engines (code-health, harness-health, docs-health, journey-health) write to
+// this SAME branch ref (only the file paths underneath it are namespaced),
+// so a collision on retry is exactly as likely as the first one without some
+// jitter to de-synchronize concurrent writers. attempt is 1-based; each
+// attempt's window (attempt*CAS_BACKOFF_BASE_MS to (attempt+1)*BASE) never
+// overlaps the next, so later attempts always wait at least as long.
+const CAS_BACKOFF_BASE_MS = 100;
+const CAS_BACKOFF_JITTER_MS = 100;
+
+function casBackoffMs(attempt) {
+  return attempt * CAS_BACKOFF_BASE_MS + Math.random() * CAS_BACKOFF_JITTER_MS;
+}
+
+// Synchronous sleep, consistent with this module's execFileSync-based style
+// (no async/await anywhere else in it). Injectable so tests substitute a fake
+// that records calls instead of actually blocking.
+function defaultSleep(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
 function statePath(skillName, file) {
   return `${skillName}/${file}`;
 }
@@ -61,11 +82,17 @@ function shouldEscalate(entry) {
   return !!entry && entry.attempts >= ESCALATE_AFTER_ATTEMPTS;
 }
 
+// 30s — a hung git fetch or gh api call fails fast instead of blocking the
+// CLI invocation (and, transitively, the calling skill's Bash tool call)
+// indefinitely. Callers can still override via opts, spread after this
+// default.
+const DEFAULT_RUN_TIMEOUT_MS = 30000;
+
 function defaultRun(cmd, args, opts = {}) {
-  return execFileSync(cmd, args, { encoding: 'utf8', ...opts });
+  return execFileSync(cmd, args, { encoding: 'utf8', timeout: DEFAULT_RUN_TIMEOUT_MS, ...opts });
 }
 
-function createDurableState(skillName, { run = defaultRun, includeRemembered = false } = {}) {
+function createDurableState(skillName, { run = defaultRun, sleep = defaultSleep, includeRemembered = false } = {}) {
   function showFile(root, relPath, fallback) {
     try {
       const out = run('git', ['-C', root, 'show', `origin/${HEALTH_STATE_BRANCH}:${relPath}`]);
@@ -120,7 +147,17 @@ function createDurableState(skillName, { run = defaultRun, includeRemembered = f
   function readState(root) {
     try {
       run('git', ['-C', root, 'fetch', 'origin', HEALTH_STATE_BRANCH]);
-    } catch {
+    } catch (err) {
+      // Distinguish a genuine first run (the branch simply doesn't exist yet)
+      // from a real fetch failure (network/auth/timeout) — both degrade to
+      // the same empty defaults, but only the latter is worth a trace. Every
+      // caller of readState (cmdNextSlice/cmdNextTarget/cmdStatus/
+      // cmdChurnReport across all 4 engines) consumes the return value
+      // directly with no failure signal of its own, so this is the only
+      // place a maintainer could see the difference.
+      if (!/couldn't find remote ref/i.test(String(err.message))) {
+        process.stderr.write(`health-state: fetch failed, treating as empty state: ${err.message}\n`);
+      }
       return includeRemembered
         ? { cursors: {}, remembered: {}, retryQueue: [], runs: [] }
         : { cursors: {}, retryQueue: [], runs: [] };
@@ -236,6 +273,7 @@ function createDurableState(skillName, { run = defaultRun, includeRemembered = f
         return { ok: true };
       } catch (err) {
         lastError = err;
+        if (attempt < MAX_CAS_ATTEMPTS) sleep(casBackoffMs(attempt));
       }
     }
     return { ok: false, error: lastError && lastError.message };
@@ -248,10 +286,12 @@ module.exports = {
   HEALTH_STATE_BRANCH,
   MAX_RUN_HISTORY,
   ESCALATE_AFTER_ATTEMPTS,
+  MAX_CAS_ATTEMPTS,
   statePath,
   pruneRuns,
   enqueueRetry,
   dequeueRetry,
   shouldEscalate,
+  casBackoffMs,
   createDurableState,
 };

@@ -70,7 +70,7 @@ Parse from `$ARGUMENTS` after the `qa` keyword (keyword detection, case-insensit
     ```bash
     RUN_DIR="screenshots/qa/{YYYYMMDD}_{HHMMSS}_{6-char-random-hex}"
     # Generate the timestamp and random suffix using a cross-platform method:
-    # node -e "const d=new Date();console.log('screenshots/qa/'+d.toISOString().replace(/[-T:.Z]/g,'').slice(0,15)+'_'+require('crypto').randomBytes(3).toString('hex'))"
+    # node -e "const d=new Date();const s=d.toISOString().replace(/[-T:.Z]/g,'').slice(0,14);console.log('screenshots/qa/'+s.slice(0,8)+'_'+s.slice(8,14)+'_'+require('crypto').randomBytes(3).toString('hex'))"
     ```
 11. For each story, build its `SCREENSHOT_PATH`:
     - `{RUN_DIR}/{file-stem}/{story-id-or-slug}/`

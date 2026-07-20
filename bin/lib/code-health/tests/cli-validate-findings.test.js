@@ -183,6 +183,21 @@ test('validate-findings: malformed --issues file warns on stderr and falls back 
   assert.strictEqual(payloads.length, 1, 'must still file the finding, just without issue-based dedup');
 });
 
+test('validate-findings: a malformed --issues array element (e.g. null) is skipped, not a crash', () => {
+  const root = tmp();
+  const f = validFinding({ severity: 'high' });
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([f]));
+  const issuesFile = path.join(root, 'issues-with-null.json');
+  fs.writeFileSync(issuesFile, JSON.stringify([null, { number: 1, state: 'open', labels: [], fingerprint: 'zzz' }]));
+
+  const result = runValidateFindings(root, findingsFile, ['--issues', issuesFile, '--slice', 'src/api', '--run-id', 'r-null-issue']);
+  assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes('skipping malformed issue entry'), `expected a skip warning in stderr: ${result.stderr}`);
+  const payloads = JSON.parse(result.stdout);
+  assert.strictEqual(payloads.length, 1, 'the well-formed finding must still file despite a malformed --issues entry');
+});
+
 test('validate-findings: exits non-zero when findings file is missing', () => {
   const root = tmp();
   const result = runValidateFindings(

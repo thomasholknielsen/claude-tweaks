@@ -300,13 +300,13 @@ After option 1, apply `ledger/resolve-gate.md` Phase 3's `Acknowledge` dispositi
 
 ## Step 8.6: Wrap-Up Review Console (back-loaded review)
 
-The Review Console is the **second bookend** of the pipeline (see `_shared/auto-mode-contract.md`). Runs in `auto` or `hybrid` mode when a pipeline run directory exists. Skipped in `interactive` mode and in standalone wrap-up. Reads `decisions.md`, `staged/`, and `config.yml` from the run directory, then presents one consolidated batch table with up to six sections (Auto-applied / Pending review / Low-confidence findings / Contested findings / Skill updates / Configuration updates) and three actions (Approve all / Override / Stop). The two coordination-derived sections (Low-confidence findings, Contested findings) render only when non-empty.
+The Review Console is the **second bookend** of the pipeline (see `_shared/auto-mode-contract.md`). Runs in `auto` or `hybrid` mode when a pipeline run directory exists. Skipped in `interactive` mode and in standalone wrap-up. Reads `decisions.md`, `staged/`, and `config.yml` from the run directory, then presents one consolidated batch table with up to seven sections (Auto-applied / Pending review / Low-confidence findings / Contested findings / Skill updates / Configuration updates / Cleanup actions) and three actions (Approve all / Override / Stop). The two coordination-derived sections (Low-confidence findings, Contested findings) render only when non-empty.
 
 **Multi-spec defer:** when `MULTISPEC_REVIEW_DEFER=1` is set by `/flow` multi-spec orchestration, skip the per-spec console — the consolidated end-of-run console at `/flow` handles all approvals across every spec in the run. Leave `staged/` and `decisions.md` untouched, append a "deferred" log entry, and proceed to Step 9.
 
 Empty-console fast path: if `decisions.md` has zero entries AND `staged/` is empty AND no skill/config updates exist, skip the console entirely and proceed to Step 9.
 
-For the run-directory resolution sequence, the multi-spec defer protocol, the full console template with all six section tables (including the conditionally-rendered Low-confidence and Contested findings sections), approval/override/stop semantics, and the sort-order requirement, read `review-console.md` in this skill's directory.
+For the run-directory resolution sequence, the multi-spec defer protocol, the full console template with all seven section tables (including the conditionally-rendered Low-confidence and Contested findings sections), approval/override/stop semantics, and the sort-order requirement, read `review-console.md` in this skill's directory.
 
 ---
 
@@ -513,9 +513,10 @@ When `$PIPELINE_RUN_DIR` is unset, `/wrap-up` runs standalone — render Next Ac
 | `/claude-tweaks:ledger` | Manages the open items ledger. /wrap-up appends reflection insights (Step 3), runs the resolve gate (Step 8.5), plans deletion in Step 5, and executes deletion in Step 10. |
 | `/claude-tweaks:design-wrapper` | /wrap-up plans cleanup of the design wrapper's per-spec caches (`*-audit.json`, `*-recommendations.json`, `*-declined.json` in `docs/plans/`) in Step 5 and executes the deletion in Step 10 alongside the ledger. |
 | `/claude-tweaks:flow` | Invoked BY /flow as the pipeline's final step; flow waits for /wrap-up's Review Console (Step 8.6) before archiving the run directory. Multi-spec runs set `MULTISPEC_REVIEW_DEFER=1` so per-spec wrap-ups defer to flow's consolidated console. |
+| `/claude-tweaks:dispatch` | Cleanup Section E releases the claim on success using the `CLAIM_RUN_ID` dispatch threads through `/flow` (not /wrap-up's own `PIPELINE_RUN_DIR`) — see the ownership-check procedure in `cleanup-procedures.md`. Dispatch's own group-scoped Auto-merge gate then runs its checks against this skill's Review Console output before it would otherwise render. |
 | `/claude-tweaks:deepen` | Interface trade-offs /deepen flags `[ADR-candidate]` are picked up by Step 6.3 and run through the 3-factor gate for possible ADR creation |
 | `_shared/decision-records.md` | Canonical 3-factor ADR gate, location convention, and template applied by Step 6.3 |
-| `_shared/criteria-docs-diataxis.md`, `docs-health-integration.md` | Step 6.1 item 4 applies this shared judgment inline to docs touched by the current work (same reuse pattern as `_shared/harness-health-analysis.md` in Step 7), and detects missing documentation from the diff. |
+| `/claude-tweaks:docs-health` and `_shared/criteria-docs-diataxis.md`, `docs-health-integration.md` | Step 6.1 item 4 applies this shared judgment inline to docs touched by the current work (same reuse pattern as `_shared/harness-health-analysis.md` in Step 7), and detects missing documentation from the diff. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
 | `_shared/issue-claims.md` | Cleanup item 7 (Section E of `cleanup-procedures.md`) releases claims for specs with a materialized header, with the branch outcome as the release reason. |
 | `/claude-tweaks:harness-health` and `_shared/harness-health-analysis.md` | Step 7's 7.3-7.5 apply this shared procedure instead of an inline copy — sharing its judgment logic and its `.claude-tweaks/harness-health/` cursor/cache state with `/claude-tweaks:init` and the standalone `/claude-tweaks:harness-health` routine. |

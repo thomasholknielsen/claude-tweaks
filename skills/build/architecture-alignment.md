@@ -47,6 +47,7 @@ Apply the `Architecture alignment (/build Common Step 4.5)` row from the silence
 
 - Design mode with no formal spec (no stated architecture to compare against)
 - The plan was trivial (< 3 tasks, single-file changes)
+- `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh from the run directory) — a deliberate bet on `ceremony-check`'s upfront judgment, not an oversight; the safety net is `/claude-tweaks:review` and `/claude-tweaks:reflect`'s safety-regression check. Standalone `/build` (no `config.yml`) always falls back to the first two conditions alone.
 
 ## Skill Observation
 

@@ -36,7 +36,7 @@ Scan the codebase to build a map of what exists before opening the browser.
 
 ## Phase 2: Journey Candidates
 
-**Left as prose, not a blocking prompt:** this list is dynamically sized (N candidates, no fixed cap) and the skill auto-proceeds without waiting for a reply — the "say skip {numbers}" mechanism is a free-text opt-out on an already-in-progress action, not a blocking fixed-option choice, so it isn't converted (see spec 10 Gotchas).
+**Left as prose, not a blocking prompt:** this list is dynamically sized (N candidates, no fixed cap) and the skill auto-proceeds without waiting for a reply — the "say skip {numbers}" mechanism is a free-text opt-out on an already-in-progress action, not a blocking fixed-option choice, so it isn't converted.
 
 From the codebase scan, compile a list of candidate journeys. Each candidate is a hypothesis: "a {persona} probably does {goal} by going through {these pages}."
 

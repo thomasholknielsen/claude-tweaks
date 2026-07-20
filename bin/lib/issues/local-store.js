@@ -174,16 +174,24 @@ function serializeFrontmatter(facets) {
   return lines;
 }
 
-// (filePath, { title, body, facets }) -> void. Composes frontmatter + '# {title}'
-// + body. Creates the parent directory when missing.
-function writeRecord(filePath, { title, body, facets } = {}) {
+// { title, body, facets } -> full file text (frontmatter fence + '# {title}' +
+// body). Pure composition, shared by writeRecord and createRecord so the two
+// write paths (overwrite vs. exclusive-create) can't drift on file shape.
+function composeRecordContent({ title, body, facets } = {}) {
   const fmLines = serializeFrontmatter(facets || {});
   const parts = ['---', ...fmLines, '---', ''];
   if (title) parts.push(`# ${title}`, '');
   if (body) parts.push(body);
+  return parts.join('\n') + '\n';
+}
 
+// (filePath, { title, body, facets }) -> void. Composes frontmatter + '# {title}'
+// + body. Creates the parent directory when missing. Overwrites unconditionally —
+// callers that need to allocate a fresh id and write it without racing another
+// concurrent writer should use createRecord instead.
+function writeRecord(filePath, { title, body, facets } = {}) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, parts.join('\n') + '\n', 'utf8');
+  fs.writeFileSync(filePath, composeRecordContent({ title, body, facets }), 'utf8');
 }
 
 // filePath -> void. Marks a record closed without deleting it — mirrors a GitHub
@@ -212,6 +220,20 @@ function listRecordFilenames(dir) {
 }
 
 // dir -> max existing numeric filename prefix + 1; 1 when empty/missing.
+//
+// NOTE: this alone is NOT safe for concurrent record creation — it only reads a
+// directory listing. Two near-simultaneous callers can both read the same
+// listing, both compute the same next id, and both writeRecord() at that id.
+// Because the two callers' filenames only match when they also pick the same
+// slug, the likelier real-world outcome is actually the "shared id, different
+// filename" case (two records that both claim, say, id 13, under different
+// slugs — breaking any parent/blocked-by reference that assumes id uniqueness)
+// rather than one writer silently overwriting the other's identically-named
+// file. Callers creating a brand-new record should use createRecord (below),
+// which allocates the id and writes the file as one atomic step regardless of
+// what slug either side picks. allocateId remains exported/used as today for
+// callers that only need to preview the next id (e.g. to reference it in text
+// before the record is actually written) without creating anything.
 function allocateId(dir = DEFAULT_DIR) {
   let max = 0;
   for (const name of listRecordFilenames(dir)) {
@@ -219,6 +241,68 @@ function allocateId(dir = DEFAULT_DIR) {
     if (n > max) max = n;
   }
   return max + 1;
+}
+
+// Bounds the retry loop in createRecord. Real contention resolves in a handful
+// of retries at most (one per concurrent writer that raced ahead of us); this is
+// a runaway-loop guard for a persistently broken directory, not a realistic
+// ceiling.
+const MAX_CREATE_ATTEMPTS = 1000;
+
+// dir, id -> the transient claim-file path used by createRecord to reserve `id`
+// before it's known (or matters) what slug the eventual record will have.
+// Deliberately does NOT match ID_PREFIX_RE (no '-' immediately after the digits,
+// no '.md' suffix) — invisible to listRecordFilenames/allocateId/queryRecords,
+// so a claim file that outlives its writer (crash between claim and rename)
+// never surfaces as a phantom record; it just permanently retires that one id
+// number, a safe degrade rather than a correctness problem.
+function claimPathFor(dir, id) {
+  return path.join(dir, `${id}.claim`);
+}
+
+// (dir, { slug, title, body, facets }) -> record (same shape as readRecord's
+// return value: { path, id, slug, title, body, facets }).
+//
+// Atomically allocates an id and writes the record as one step, closing the
+// allocateId-then-writeRecord race described above — for ANY combination of
+// slugs the racing callers happen to pick, not just when they collide on the
+// same one. Starts from allocateId(dir)'s candidate id; for each candidate,
+// exclusively creates ({ flag: 'wx' }, which throws EEXIST if the target already
+// exists) a claim file keyed ONLY on the numeric id (see claimPathFor) — never
+// on the full `{id}-{slug}.md` name. Keying the claim on the id alone is what
+// makes two racing callers that pick DIFFERENT slugs still correctly collide:
+// an exclusive-create on the full slugged filename would let both of their
+// (differently-named) writes succeed, silently reproducing the "two files
+// sharing one numeric id" bug this function exists to close. Whichever caller
+// wins the claim renames it (same-directory rename is atomic on POSIX, so the
+// file is never visible half-written or under the wrong name) to the real
+// `{id}-{slug}.md` and returns; the loser observes EEXIST on the claim and
+// retries at id + 1.
+//
+// This is additive: allocateId/writeRecord/queryRecords are unchanged and still
+// exported for callers that have a reason to call them individually (e.g. a
+// single-writer script, or a caller previewing an id before deciding whether to
+// write at all).
+function createRecord(dir = DEFAULT_DIR, { slug, title, body, facets } = {}) {
+  if (!slug) throw new Error('createRecord requires a slug');
+  const content = composeRecordContent({ title, body, facets });
+  fs.mkdirSync(dir, { recursive: true });
+
+  let id = allocateId(dir);
+  for (let attempt = 0; attempt < MAX_CREATE_ATTEMPTS; attempt++) {
+    const claimPath = claimPathFor(dir, id);
+    try {
+      fs.writeFileSync(claimPath, content, { encoding: 'utf8', flag: 'wx' });
+    } catch (err) {
+      if (err.code !== 'EEXIST') throw err;
+      id += 1;
+      continue;
+    }
+    const filePath = path.join(dir, `${id}-${slug}.md`);
+    fs.renameSync(claimPath, filePath);
+    return readRecord(filePath);
+  }
+  throw new Error(`createRecord: exhausted ${MAX_CREATE_ATTEMPTS} id attempts writing to ${dir}`);
 }
 
 // Every key in facetFilter must deep-equal the record's same-named facet
@@ -248,4 +332,4 @@ function queryRecords(dir = DEFAULT_DIR, facetFilter = {}) {
   return records;
 }
 
-module.exports = { DEFAULT_DIR, readRecord, writeRecord, allocateId, queryRecords, closeRecord };
+module.exports = { DEFAULT_DIR, readRecord, writeRecord, allocateId, createRecord, queryRecords, closeRecord };

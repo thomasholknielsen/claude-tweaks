@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { DEFAULT_DIR, readRecord, writeRecord, allocateId, queryRecords, closeRecord } = require('../local-store');
+const { DEFAULT_DIR, readRecord, writeRecord, allocateId, createRecord, queryRecords, closeRecord } = require('../local-store');
 
 function tmp(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'local-store-'));
@@ -261,4 +261,107 @@ test('queryRecords returns closed records only when the caller explicitly filter
   const openOnlyExplicit = queryRecords(dir, { closed: false });
   assert.strictEqual(openOnlyExplicit.length, 1);
   assert.strictEqual(openOnlyExplicit[0].slug, 'a');
+});
+
+// --- createRecord (concurrency fix) ---
+
+test('createRecord writes at allocateId\'s candidate id and returns a readRecord-shaped record', (t) => {
+  const dir = tmp(t);
+  fs.writeFileSync(path.join(dir, '5-existing.md'), 'x');
+
+  const record = createRecord(dir, { slug: 'new-idea', title: 'New Idea', body: 'body text', facets: baseFacets({ origin: 'capture' }) });
+
+  assert.strictEqual(record.id, 6);
+  assert.strictEqual(record.slug, 'new-idea');
+  assert.strictEqual(record.title, 'New Idea');
+  assert.strictEqual(record.body, 'body text');
+  assert.strictEqual(record.facets.origin, 'capture');
+  assert.strictEqual(record.path, path.join(dir, '6-new-idea.md'));
+  assert.ok(fs.existsSync(path.join(dir, '6-new-idea.md')));
+
+  // no leftover claim file after a successful create
+  assert.deepStrictEqual(fs.readdirSync(dir).filter((n) => n.endsWith('.claim')), []);
+});
+
+test('createRecord requires a slug', (t) => {
+  const dir = tmp(t);
+  assert.throws(() => createRecord(dir, { title: 'No slug', body: 'b', facets: baseFacets() }), /requires a slug/);
+});
+
+// This is the core proof the race is fixed. It reproduces the EXACT window the
+// finding describes: two near-simultaneous callers both read the same directory
+// listing (both would compute allocateId(dir) === 2 here) before either has
+// written anything. We simulate caller A having already won that id an instant
+// earlier by pre-placing A's claim marker (see claimPathFor) at id 2 — this is
+// deliberately slug-agnostic, exactly like the real claim file, so it proves the
+// fix holds even when the two callers pick DIFFERENT slugs (the likelier
+// real-world shape for two independent /capture-style calls) — the naive
+// "exclusive-create the final {id}-{slug}.md path" approach would NOT have
+// caught this, since two different slugs produce two different filenames that
+// would both succeed under that approach and silently share id 2.
+test('createRecord: a same-tick competing claim at the candidate id is not silently collided with — the caller advances to the next id', (t) => {
+  const dir = tmp(t);
+  writeRecord(path.join(dir, '1-first.md'), { title: 'First', body: 'a', facets: baseFacets() });
+  assert.strictEqual(allocateId(dir), 2, 'both racing callers would compute the same starting candidate');
+
+  // Caller A wins the race a moment earlier and is mid-write: its claim on id 2
+  // already exists on disk (this is exactly what createRecord itself would have
+  // just done inside its own loop for a real competing call).
+  fs.writeFileSync(path.join(dir, '2.claim'), 'competitor in flight', { flag: 'wx' });
+
+  // Caller B (this test), using a DIFFERENT slug than whatever A intends,
+  // starts from the same candidate id 2 but must not collide with A.
+  const recordB = createRecord(dir, { slug: 'second-caller', title: 'Second', body: 'b', facets: baseFacets() });
+
+  assert.strictEqual(recordB.id, 3, 'must have skipped the already-claimed id 2 entirely');
+  assert.strictEqual(recordB.path, path.join(dir, '3-second-caller.md'));
+  assert.ok(fs.existsSync(path.join(dir, '3-second-caller.md')));
+
+  // A's in-flight claim at id 2 is untouched — B never wrote or renamed it.
+  assert.ok(fs.existsSync(path.join(dir, '2.claim')));
+  assert.strictEqual(fs.readFileSync(path.join(dir, '2.claim'), 'utf8'), 'competitor in flight');
+
+  // No id-2 record was ever created by B, and no file silently shares id 2 with
+  // a different name written by B.
+  assert.ok(!fs.existsSync(path.join(dir, '2-second-caller.md')));
+});
+
+// Drives several createRecord calls against the same directory back-to-back with
+// distinct slugs (simulating a burst of near-simultaneous callers before any of
+// them would naturally have observed each other's completed writes) and asserts
+// every call lands a distinct, correctly-numbered record with no collisions and
+// no leftover claim litter.
+test('createRecord: a rapid burst of calls against the same directory produces distinct, non-colliding ids', (t) => {
+  const dir = tmp(t);
+  const slugs = ['alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel'];
+
+  const records = slugs.map((slug) => createRecord(dir, { slug, title: slug, body: 'x', facets: baseFacets() }));
+
+  const ids = records.map((r) => r.id);
+  assert.strictEqual(new Set(ids).size, ids.length, 'every id must be unique');
+  assert.deepStrictEqual([...ids].sort((a, b) => a - b), [1, 2, 3, 4, 5, 6, 7, 8]);
+
+  // every record actually round-trips from disk at its claimed path
+  for (const record of records) {
+    const reread = readRecord(record.path);
+    assert.strictEqual(reread.id, record.id);
+    assert.strictEqual(reread.slug, record.slug);
+  }
+
+  // no claim files left behind
+  assert.deepStrictEqual(fs.readdirSync(dir).filter((n) => n.endsWith('.claim')), []);
+});
+
+test('createRecord: an EEXIST on the claim retries forward past MULTIPLE already-claimed ids in a row', (t) => {
+  const dir = tmp(t);
+  // Simulate three competing in-flight claims stacked at the very ids
+  // allocateId would hand out next (dir is empty, so allocateId(dir) === 1).
+  fs.writeFileSync(path.join(dir, '1.claim'), 'x', { flag: 'wx' });
+  fs.writeFileSync(path.join(dir, '2.claim'), 'x', { flag: 'wx' });
+  fs.writeFileSync(path.join(dir, '3.claim'), 'x', { flag: 'wx' });
+
+  const record = createRecord(dir, { slug: 'late-arrival', title: 'Late', body: 'b', facets: baseFacets() });
+
+  assert.strictEqual(record.id, 4, 'must skip past every already-claimed id before succeeding');
+  assert.ok(fs.existsSync(path.join(dir, '4-late-arrival.md')));
 });

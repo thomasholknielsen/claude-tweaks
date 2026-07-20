@@ -290,16 +290,7 @@ For the full validation rules, dependency-ordering procedure, conflict-detection
 
 ## Parallel Development with Worktrees
 
-For true parallel execution, run separate terminals with `worktree` mode — each terminal gets an isolated copy of the repository:
-
-```
-# Terminal 1                          # Terminal 2                          # Terminal 3
-/claude-tweaks:flow 42 worktree      /claude-tweaks:flow 45 worktree      /claude-tweaks:flow 48 worktree
-```
-
-Each terminal creates its own worktree and feature branch. There is no file overlap risk because each worktree is a full, isolated copy.
-
-For mode-selection guidance (worktree vs current-branch), the merge reconciliation procedure (merge order, conflict handling, conflict resolution prompt), and the post-merge summary template, read `worktree-merge.md` in this skill's directory.
+For the terminal-example syntax for true parallel execution, mode-selection guidance (worktree vs current-branch), the merge reconciliation procedure (merge order, conflict handling, conflict resolution prompt), and the post-merge summary template, read `worktree-merge.md` in this skill's directory.
 
 ---
 
@@ -358,3 +349,4 @@ Next Actions in `/flow` are outcome-conditional and rendered as part of the Pipe
 | `_shared/pipeline-run-dir.md` | /flow creates the pipeline run directory at Step 3 (Manifesto) and exports `PIPELINE_RUN_DIR` to every downstream skill per this shared procedure. Multi-spec runs use the per-spec subdirectory layout documented in `multi-spec.md`, also rooted in this contract. |
 | `_shared/issue-claims.md` | `/flow` no longer claims records itself — `/claude-tweaks:dispatch` claims before handing off. Release on a record-mode run happens via `/wrap-up`'s generic Section E `abandoned:` path (user doesn't merge) or a failure-card-offered release (gate failure) — the same mechanisms any single-spec run already uses, not a flow-specific "console decline" step. |
 | `/claude-tweaks:routine` | `/flow` no longer ships its own routine template — `/routine create dispatch` instantiates the scheduled headless dispatcher instead (see `/claude-tweaks:dispatch`). |
+| `/claude-tweaks:assess-agent-autonomy` | Calls `ceremony-check` inline (not a fresh Task dispatch) once per record during materialization (`skills/flow/materialize.md`) — the verdict becomes that record's `ceremony:` header field, later folded into the `ceremony-profile` Manifesto lever. |

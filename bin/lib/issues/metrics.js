@@ -7,11 +7,18 @@
 
 const AUTHORIZATION_LABELS = ['auto:build', 'auto:merge'];
 
+// Same label normalization as record.js's normalizeLabelNames/grouping.js's
+// labelNames: gh's real API returns labels (and timeline "label" fields) as
+// {name, color} objects, not plain strings.
+function labelName(label) {
+  return typeof label === 'string' ? label : (label && label.name) || '';
+}
+
 // A single labeled event's timestamp for the first occurrence of `label` in
 // `events` ([{event: 'labeled'|'unlabeled', label, created_at}]), or null when
 // that label never appears — never fabricated as 0.
 function firstLabelTime(events, label) {
-  const match = (events || []).find((e) => e.event === 'labeled' && e.label === label);
+  const match = (events || []).find((e) => e.event === 'labeled' && labelName(e.label) === label);
   return match ? new Date(match.created_at).getTime() : null;
 }
 
@@ -54,7 +61,8 @@ function median(values) {
 function computeWontfixRate(closedIssues) {
   const byOrigin = {};
   for (const issue of closedIssues || []) {
-    const originLabel = (issue.labels || []).find((l) => l.startsWith('by:'));
+    const names = (issue.labels || []).map(labelName).filter(Boolean);
+    const originLabel = names.find((l) => l.startsWith('by:'));
     const origin = originLabel ? originLabel.slice('by:'.length) : 'human';
     if (!byOrigin[origin]) byOrigin[origin] = { total: 0, wontfix: 0 };
     byOrigin[origin].total += 1;

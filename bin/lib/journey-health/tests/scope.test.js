@@ -141,3 +141,71 @@ test('selectTarget respects alreadyPicked so Phase 0 does not repeat the same de
   const result = selectTarget(root, cursors, { now, tier: 'light', signals: {}, alreadyPicked });
   assert.strictEqual(result, null);
 });
+
+// ─── caching regression tests ───────────────────────────────────────────────
+// Covers the efficiency finding: selectTarget used to unconditionally
+// re-list+re-read every journey file (and re-spawn `git log` per candidate in
+// Phase 2) on every call, so a --budget > 1 loop redid the full scan from
+// scratch on every slot even though nothing on disk changes between
+// iterations of the same run.
+
+test('listJourneys caches parsed content across calls when the directory is unchanged (regression: a --budget>1 loop must not re-read every file every slot)', () => {
+  const root = tmp();
+  writeJourney(root, 'checkout-flow', ['src/checkout/Cart.tsx']);
+  writeJourney(root, 'signup-flow', ['src/signup/Form.tsx']);
+
+  const originalReadFileSync = fs.readFileSync;
+  let readCount = 0;
+  fs.readFileSync = (...fsArgs) => {
+    readCount += 1;
+    return originalReadFileSync(...fsArgs);
+  };
+  try {
+    const first = listJourneys(root);
+    assert.strictEqual(readCount, 2); // one read per journey file on the cold call
+    const second = listJourneys(root);
+    assert.strictEqual(readCount, 2); // unchanged directory -> no additional reads
+    assert.strictEqual(second, first); // cache hit returns the same array reference
+    // Simulate a --budget=5 loop hitting the same unchanged directory 5 times.
+    for (let i = 0; i < 3; i++) listJourneys(root);
+    assert.strictEqual(readCount, 2);
+  } finally {
+    fs.readFileSync = originalReadFileSync;
+  }
+});
+
+test('listJourneys re-reads a journey after its content changes (cache correctly invalidates, not just wins on staleness)', () => {
+  const root = tmp();
+  writeJourney(root, 'checkout-flow', ['src/checkout/Cart.tsx']);
+  const first = listJourneys(root);
+  assert.deepStrictEqual(first[0].filesFrontmatter, ['src/checkout/Cart.tsx']);
+
+  fs.writeFileSync(
+    path.join(root, 'docs', 'journeys', 'checkout-flow.md'),
+    '---\nfiles:\n  - src/checkout/Cart.tsx\n  - src/checkout/Payment.tsx\n---\n\n# checkout-flow\n',
+    'utf8',
+  );
+  const second = listJourneys(root);
+  assert.deepStrictEqual(second[0].filesFrontmatter, ['src/checkout/Cart.tsx', 'src/checkout/Payment.tsx']);
+});
+
+test('domainChurn caches identical (root, paths, sinceMs) calls instead of re-spawning git', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'src', 'a.ts'), '', 'utf8');
+  execFileSync('git', ['-C', root, 'init', '-q']);
+  execFileSync('git', ['-C', root, 'config', 'user.email', 'test@example.com']);
+  execFileSync('git', ['-C', root, 'config', 'user.name', 'test']);
+  execFileSync('git', ['-C', root, 'add', '.']);
+  execFileSync('git', ['-C', root, 'commit', '-q', '-m', 'init']);
+
+  const first = domainChurn(root, ['src/a.ts'], 0);
+  assert.ok(first > 0);
+
+  // Remove .git so a second, uncached call would fall through to the
+  // execFileSync catch block and silently return 0 — proves the second call
+  // below is served from the cache, not a fresh `git log` subprocess.
+  fs.rmSync(path.join(root, '.git'), { recursive: true, force: true });
+  const second = domainChurn(root, ['src/a.ts'], 0);
+  assert.strictEqual(second, first);
+});

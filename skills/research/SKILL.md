@@ -89,6 +89,15 @@ When unavailable, the inline fallback runs automatically — no setup required, 
 - **Enhanced.** When Dynamic Workflows are enabled, the skill delegates to `/deep-research`
   for cross-checked, vote-validated synthesis.
 
+## Next Actions
+
+After the report completes, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+
+- Option 1 — `label`: `"Promote to backlog"`, `description`: `"/claude-tweaks:capture <findings-summary> — promote findings into a backlog work record"`. Suffix the label `(Recommended)` when the topic was exploratory; when it wasn't, leave this — and every other option in this call — unmarked (`AskUserQuestion` doesn't require a Recommended option).
+- Option 2 — `label`: `"Debias a problem"`, `description`: `"/claude-tweaks:challenge <record-ref> — use findings to debias a problem"`
+- Option 3 — `label`: `"Cite in a new spec"`, `description`: `"/claude-tweaks:specify <spec-name> — cite findings in a new spec"`
+- Option 4 (include only if current mode left obvious gaps — otherwise this is a 3-option call, not a 4-option call with a greyed-out or caveated choice) — `label`: `"Re-run deeper"`, `description`: `"/claude-tweaks:research --mode=deep <topic> — re-run in deeper mode"`
+
 ## Anti-Patterns
 
 | Pattern | Why It Fails |
@@ -113,12 +122,4 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `/claude-tweaks:challenge` | `/challenge` invokes `/research` to back debiasing lenses with evidence; this skill's reports can be cited as challenge sources. |
 | `/claude-tweaks:specify` | `/specify` uses `/research` outputs for prior-art sections; this skill's Next Actions block offers a direct "cite findings in a new spec" path. |
 | `/claude-tweaks:browse` | Both are utility skills (no fixed lifecycle position). `/browse` covers interactive browser automation; `/research` covers autonomous multi-source research. |
-
-## Next Actions
-
-After the report completes, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
-
-- Option 1 — `label`: `"Promote to backlog"`, `description`: `"/claude-tweaks:capture <findings-summary> — promote findings into a backlog work record"`. Suffix the label `(Recommended)` when the topic was exploratory; when it wasn't, leave this — and every other option in this call — unmarked (`AskUserQuestion` doesn't require a Recommended option).
-- Option 2 — `label`: `"Debias a problem"`, `description`: `"/claude-tweaks:challenge <record-ref> — use findings to debias a problem"`
-- Option 3 — `label`: `"Cite in a new spec"`, `description`: `"/claude-tweaks:specify <spec-name> — cite findings in a new spec"`
-- Option 4 (include only if current mode left obvious gaps — otherwise this is a 3-option call, not a 4-option call with a greyed-out or caveated choice) — `label`: `"Re-run deeper"`, `description`: `"/claude-tweaks:research --mode=deep <topic> — re-run in deeper mode"`
+| `/claude-tweaks:help` | Utility skill — /help lists it in the utility skills table. /research has no fixed lifecycle position; /help may surface it as an option when a backlog record or pending spec would benefit from prior-art research. |

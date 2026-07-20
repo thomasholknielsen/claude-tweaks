@@ -72,6 +72,16 @@ test('listSlices: falls back to one-level behavior when no workspace manifest ex
   assert.deepStrictEqual(ids, ['.', 'lib', 'src']);
 });
 
+test('listSlices: a literal (non-glob) single-package workspace entry does NOT swallow sibling top-level subdirs', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ workspaces: ['tools/cli'] }));
+  fs.mkdirSync(path.join(root, 'tools', 'cli'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'tools', 'scripts'), { recursive: true }); // unrelated sibling, not in any pattern
+  const ids = listSlices(root).map((s) => s.id).sort();
+  assert.ok(ids.includes('tools/cli'), 'the literal workspace entry must still appear');
+  assert.ok(ids.includes('tools'), 'the "tools" top-level dir must still appear so tools/scripts is reachable — a literal pattern does not cover its whole parent');
+});
+
 test('listSlices: a workspace-expanded slice.path is the absolute path to the package', () => {
   const root = tmp();
   fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ workspaces: ['packages/*'] }));
@@ -114,6 +124,26 @@ test('contentHash does NOT change when .claude-tweaks content changes', () => {
   fs.writeFileSync(path.join(root, '.claude-tweaks', 'cache.json'), '{}');
   const h2 = contentHash(root);
   assert.strictEqual(h1, h2, '.claude-tweaks must be excluded from the hash');
+});
+
+test('contentHash does NOT change when .next content changes (build cache, matches SKIP_DIRS)', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'a.js'), 'const x = 1;\n');
+  const h1 = contentHash(root);
+  fs.mkdirSync(path.join(root, '.next', 'static'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.next', 'static', 'chunk.js'), 'regenerated bundle content');
+  const h2 = contentHash(root);
+  assert.strictEqual(h1, h2, '.next must be excluded from the hash, same as it is excluded from listSlices via SKIP_DIRS');
+});
+
+test('contentHash does NOT change when .turbo content changes (build cache, matches SKIP_DIRS)', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'a.js'), 'const x = 1;\n');
+  const h1 = contentHash(root);
+  fs.mkdirSync(path.join(root, '.turbo'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.turbo', 'cache.js'), 'regenerated turbo cache content');
+  const h2 = contentHash(root);
+  assert.strictEqual(h1, h2, '.turbo must be excluded from the hash, same as it is excluded from listSlices via SKIP_DIRS');
 });
 
 test('contentHash does NOT change when .claude/worktrees content changes (other sessions\' live worktrees)', () => {

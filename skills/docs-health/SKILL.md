@@ -17,11 +17,11 @@ finding -> validate-findings -> file GitHub issue (by:docs-health, ready)
 
 ## When to Use
 
-- You want `docs/**` (guides, references, ADRs, journeys, retrospectives) to stay accurate, appropriately scoped, and correctly shaped — Diátaxis genre where it applies, native genre otherwise (an ADR stays ADR-shaped, not forced into a tutorial/how-to/reference/explanation mold) — between manual edits, without driving each check yourself.
+- You want `docs/**` (guides, references, ADRs, retrospectives) to stay accurate, appropriately scoped, and correctly shaped — Diátaxis genre where it applies, native genre otherwise (an ADR stays ADR-shaped, not forced into a tutorial/how-to/reference/explanation mold) — between manual edits, without driving each check yourself.
 - You want a scheduled Routine that periodically rotates through `docs/**` and flags genre-drift, depth-mismatch, findability, or staleness as it's found.
 - You want to check one specific doc right now (`--target <id>`).
 
-Not for: mechanical/unambiguous checks (broken links, malformed frontmatter, missing structural metadata) — those belong in the consuming project's own build/CI pipeline, the same "CI stays reactive" boundary `/code-health` already draws for code. Not for `.claude/skills/*.md`/`.claude/rules/*.md`/CLAUDE.md — that is `/claude-tweaks:harness-health`'s exclusive territory; docs-health's rotation pool only ever walks `docs/`, so it structurally never touches those files. Not for `docs/superpowers/**` — ephemeral `/claude-tweaks:specify` + `/superpowers:writing-plans` build history, not Diátaxis-portal content; excluded from the rotation pool entirely.
+Not for: mechanical/unambiguous checks (broken links, malformed frontmatter, missing structural metadata) — those belong in the consuming project's own build/CI pipeline, the same "CI stays reactive" boundary `/code-health` already draws for code. Not for `.claude/skills/*.md`/`.claude/rules/*.md`/CLAUDE.md — that is `/claude-tweaks:harness-health`'s exclusive territory; docs-health's rotation pool only ever walks `docs/`, so it structurally never touches those files. Not for `docs/superpowers/**` — ephemeral `/claude-tweaks:specify` + `/superpowers:writing-plans` build history, not Diátaxis-portal content; excluded from the rotation pool entirely. Not for `docs/journeys/**` — that is `/claude-tweaks:journey-health`'s exclusive territory (journey accuracy and agent-e2e coverage instead of Diátaxis genre-drift); excluded from the rotation pool entirely, mirroring the harness-health exclusion above.
 
 ## Input
 
@@ -145,7 +145,7 @@ Every docs-health record files onto the unified work record (`skills/_shared/wor
 
 Every filed finding is **born-`ready`** — docs-health findings are agent-sized and spec-shaped by construction (Current State / Deliverables / Acceptance Criteria), so they file with the `ready` label already applied and appear directly in the authorization gate's worklist, skipping maturation. `toIssuePayload` (`bin/lib/docs-health/issue-payload.js`) assembles the payload via `record.js`'s `recordPayload`, then appends the classification-derived diagnostic label (`docs-health:additive` / `docs-health:restructural`) after the canonical labels — the emitted label set is exactly `by:docs-health` + scoring + `ready` + the diagnostic label.
 
-Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures (see `_shared/health-state.md`):
+Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures and check for regressed reopens (see `_shared/health-state.md`) — both mechanics below follow the canonical shape in `_shared/health-filing-mechanics.md` (`{BINARY}` = `docs-health.js`, `{PREFIX}` = `docs-health`); check that file when either changes to keep this skill's copy in sync with its three siblings:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" retry-queue drain --root . > /tmp/docs-health-retry-payloads.json
@@ -240,6 +240,8 @@ Report: which target(s) were audited, how many findings were emitted, how many f
 
 Report-only, matching `/code-health`/`/harness-health` — every finding files as a `by:docs-health`-labelled, born-`ready` GitHub issue, with no `Edit` call anywhere in its documented workflow. Rotation cursors and the filing retry queue live on the durable `health-state` branch (`_shared/health-state.md`), surviving container recycling across scheduled firings — a skipped or failed firing does not lose progress.
 
+**No confidence floor on headless firings.** Unlike `/code-health`'s `--min-risk` flag (which holds below-threshold findings in a `remembered` cache instead of filing them), this skill's `validate-findings` call carries no equivalent threshold — a headless Routine firing files every surviving finding regardless of `confidence`, including a `confidence: low` one that the interactive gate's own Recommended-column rule would otherwise route to Capture. Known asymmetry with `/code-health`, not yet closed: a scheduled firing is noisier than an interactive one on low-confidence findings until this skill gains an equivalent holdback mechanism.
+
 > **Billing note:** Routines run inside the subscription; verify automation-credit specifics against the live account.
 
 ## Next Actions
@@ -252,9 +254,7 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 
 ## Component-Skill Contract
 
-When `$PIPELINE_RUN_DIR` is set, `/claude-tweaks:docs-health` is running inside a pipeline (invoked by `/claude-tweaks:flow` or another pipeline orchestrator). In that case omit the `## Next Actions` block — the parent owns the handoff.
-
-Direct invocation may pass `--source <parent-skill>` as an explicit fallback when ambiguity exists (rare; `$PIPELINE_RUN_DIR` is the primary signal). Standalone (no `$PIPELINE_RUN_DIR`) is the common case and renders Next Actions as usual.
+`/claude-tweaks:docs-health` is a **standalone-only** skill — no invocation path exists from `/claude-tweaks:flow` or any other skill in this project today (`flow/SKILL.md`'s Allowed Steps table, workflow text, and Relationship table never mention `docs-health`). The `## Next Actions` block always renders. If a future orchestrator wraps this skill, that orchestrator must update this contract to state its own `$PIPELINE_RUN_DIR`-gated handoff; until then, treat parent invocation as not applicable.
 
 ## Anti-Patterns
 
@@ -280,7 +280,7 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 |-------|-------------|
 | `/claude-tweaks:harness-health` | Sibling health skill — mirrors the same SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline and shares `_shared/health-state.md`'s durable persistence, but scoped to `docs/**` (excluding harness-health's own `.claude/skills/**`/`.claude/rules/**`/CLAUDE.md territory) for Diátaxis genre-drift + depth-mismatch + findability + staleness instead of skill/rule/CLAUDE.md accuracy and template-conformance. |
 | `/claude-tweaks:code-health` | Sibling health skill for code quality — one of the four recurring-sweep siblings (code-health, harness-health, journey-health, docs-health). Shares the unified work-record filing contract. |
-| `/claude-tweaks:journey-health` | Sibling health skill for `docs/journeys/*.md` accuracy and agent-e2e coverage — same SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline and `_shared/health-state.md` persistence, scoped to journeys instead of `docs/**` Diátaxis genre-drift + depth-mismatch + findability + staleness. Both file born-`ready` findings on the unified work-record contract. |
+| `/claude-tweaks:journey-health` | Sibling health skill for `docs/journeys/*.md` accuracy and agent-e2e coverage — same SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline shape (journey-health's Step 3.6 mirrors this skill's own Step 3.5) and `_shared/health-state.md` persistence, scoped to journeys instead of `docs/**` Diátaxis genre-drift + depth-mismatch + findability + staleness. Both file born-`ready` findings on the unified work-record contract. |
 | `/claude-tweaks:specify` | docs-health findings are pre-specs — a filed `by:docs-health` issue body is `/specify`-shaped (Current State / Deliverables / Acceptance Criteria), so `/specify` consumes it with near-zero translation. |
 | `/claude-tweaks:wrap-up` | Step 6.1 applies the same `_shared/criteria-docs-diataxis.md` procedure inline to docs touched by the just-completed work (see `docs-health-integration.md` in that skill's directory), and separately detects missing documentation from the diff — the same reuse pattern `/wrap-up` Step 7 applies to `_shared/harness-health-analysis.md`. |
 | `/claude-tweaks:tidy` | `/tidy` Step 4.8 audits open `by:code-health`/`by:harness-health`/`by:journey-health` issues in its hygiene pass; docs-health follows the same pattern for `by:docs-health` issues. |
@@ -290,3 +290,4 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `_shared/health-state.md` | Durable cross-firing storage contract — docs-health's cursors, retry queue, and run history live on the `health-state` branch, reusing the exact same `bin/lib/health-core/*` primitives harness-health and code-health already use. No new persistence mechanism. |
 | `_shared/work-record.md` | Canonical taxonomy docs-health files against — origin `by:docs-health`, scoring, `ready` stage, born-ready rule. |
 | `_shared/health-filing-gate.md` | The canonical interactive file-all/route-individually gate this skill's Step 6 applies before calling `gh issue create` on new findings — shared with `/code-health`, `/harness-health`, and `/journey-health`. |
+| `_shared/health-filing-mechanics.md` | The canonical retry-queue-drain and regressed-reopen shape this skill's Step 6 inlines (as `{BINARY}` = `docs-health.js`, `{PREFIX}` = `docs-health`) — shared with `/code-health`, `/harness-health`, and `/journey-health`. |

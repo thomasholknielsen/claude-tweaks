@@ -2,12 +2,17 @@
 const fs = require('fs');
 const path = require('path');
 
-// Generic gitignored cache/cursor/runs persistence shared by the four
-// health skills (code-health, harness-health, journey-health, docs-health). Each skill's own
-// cache.js binds `skillName` once via createCache() and layers its own
-// recordAudit()/cursor-shape logic on top — the shape of a cursor entry is
+// Generic gitignored cache persistence shared by the four health skills
+// (code-health, harness-health, journey-health, docs-health). Each skill's
+// own cache.js binds `skillName` once via createCache() and layers its own
+// recordAudit()/cursor-shape logic on top — the shape of a cache entry is
 // domain-specific per skill; this module only owns where/how the JSON lives
-// on disk.
+// on disk. Cursor and run-record local-disk persistence (cursorsPath/
+// readCursors/writeCursors/runsDir/readRuns) was removed by the
+// durable-state migration: cursors and run history now live on the
+// health-state git branch (see _shared/health-state.md), read via
+// readDurableState(root), not from local disk — see runs.js's
+// recordRun/readRuns removal for the same migration on the sibling module.
 function createCache(skillName) {
   function cachePath(root) { return path.join(root, '.claude-tweaks', skillName, 'cache.json'); }
   function readCache(root) {
@@ -20,35 +25,7 @@ function createCache(skillName) {
     fs.writeFileSync(p, JSON.stringify(cache, null, 2) + '\n', 'utf8');
     return p;
   }
-  function cursorsPath(root) { return path.join(root, '.claude-tweaks', skillName, 'cursors.json'); }
-  function readCursors(root) {
-    try { return JSON.parse(fs.readFileSync(cursorsPath(root), 'utf8')); }
-    catch { return {}; }
-  }
-  function writeCursors(root, cursors) {
-    const p = cursorsPath(root);
-    fs.mkdirSync(path.dirname(p), { recursive: true });
-    fs.writeFileSync(p, JSON.stringify(cursors, null, 2) + '\n', 'utf8');
-    return p;
-  }
-  function runsDir(root) { return path.join(root, '.claude-tweaks', skillName, 'runs'); }
-  function readRuns(root) {
-    let entries;
-    try { entries = fs.readdirSync(runsDir(root)); }
-    catch { return []; }
-    return entries
-      .filter((f) => f.endsWith('.json'))
-      .map((f) => {
-        try { return JSON.parse(fs.readFileSync(path.join(runsDir(root), f), 'utf8')); }
-        catch { return null; }
-      })
-      .filter((r) => r && Array.isArray(r.fingerprints) && r.runId)
-      .sort((a, b) => {
-        const x = a.runAt || '', y = b.runAt || '';
-        return x < y ? -1 : x > y ? 1 : 0;
-      });
-  }
-  return { cachePath, readCache, writeCache, cursorsPath, readCursors, writeCursors, runsDir, readRuns };
+  return { cachePath, readCache, writeCache };
 }
 
 module.exports = { createCache };

@@ -1,19 +1,13 @@
 'use strict';
-const fs = require('fs');
-const path = require('path');
 
-// Simple run-record persistence + churn calc, shared by harness-health,
-// journey-health, and docs-health (byte-identical across the three today).
-// code-health keeps its own recordRun/computeChurn locally — its recordRun
-// also sweeps area cursors as a side effect, and its computeChurn returns
-// an extra `stayed` field, neither of which the other skills have.
-function recordRun(runsDir, runId, fingerprints) {
-  fs.mkdirSync(runsDir, { recursive: true });
-  const record = { runId, runAt: new Date().toISOString(), fingerprints: [...fingerprints] };
-  fs.writeFileSync(path.join(runsDir, `${runId}.json`), JSON.stringify(record, null, 2) + '\n', 'utf8');
-  return record;
-}
-
+// Churn calc, shared by harness-health, journey-health, and docs-health
+// (byte-identical across the three today). code-health keeps its own
+// computeChurn locally — it returns an extra `stayed` field the other
+// skills don't have. Run-record persistence (recordRun/readRuns, local-disk)
+// was removed by the durable-state migration: run history now lives on the
+// health-state git branch (see _shared/health-state.md), read via
+// readDurableState(root).runs, not from a local runsDir.
+//
 // Churn vs the prior run. ratio = (appeared + disappeared) / |prior ∪ current|.
 function computeChurn(currentFps, priorRun) {
   const priorFps = priorRun && Array.isArray(priorRun.fingerprints) ? priorRun.fingerprints : [];
@@ -27,4 +21,4 @@ function computeChurn(currentFps, priorRun) {
   return { appeared, disappeared, ratio };
 }
 
-module.exports = { recordRun, computeChurn };
+module.exports = { computeChurn };

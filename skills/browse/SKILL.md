@@ -40,7 +40,7 @@ Conventions skill for browser automation. Defines session naming, screenshot/tra
 | `<URL>` | `https://example.com` | Open a default session at the URL and snapshot |
 | `<task description>` | `walk the checkout flow on https://example.com` | Plan and execute multi-step ops to satisfy the task |
 | `--session <name> open <URL>` | `--session checkout-flow open https://example.com` | Open a named session |
-| `--session <name> click "<selector>"` | `--session checkout-flow click "button[name='Pay']"` | Operate within a named session |
+| `--session <name> click <ref>` | `--session checkout-flow click @e12` | Operate within a named session (ref resolved via a prior `find`, e.g. `find role button --name Pay`) |
 | `set viewport <wxh>` | `set viewport 1280x800` | Adjust viewport for the active session |
 | `set device "<name>"` | `set device "iPhone 14"` | Emulate a device profile |
 | `backend=chrome <URL or task>` | `backend=chrome https://app.example.com/settings` | Routes through the native `mcp__claude-in-chrome__*` tools (user's live authenticated Chrome session) instead of `agent-browser`. Human-invoked only. |

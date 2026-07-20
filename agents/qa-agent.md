@@ -1,6 +1,7 @@
 ---
 name: qa-agent
 description: UI validation agent that executes user stories against web apps using agent-browser and reports pass/fail results with annotated screenshots at every step. Use for QA, acceptance testing, user story validation, or UI verification. Each agent owns a single named agent-browser session and runs in parallel with other instances. Keywords - QA, validation, user story, UI testing, acceptance testing.
+tools: Bash
 color: green
 skills:
   - browse
@@ -111,7 +112,7 @@ For each step in the steps array:
    - `click` → `agent-browser --session <story-id> click <ref>`
    - `fill` → `agent-browser --session <story-id> fill <ref> "<value>"`
    - `type` → `agent-browser --session <story-id> type <ref> "<text>"`
-   - `screenshot` → `agent-browser --session <story-id> screenshot --filename {SCREENSHOT_PATH}/<NN>_<step>.png`
+   - `screenshot` → `agent-browser --session <story-id> screenshot --filename {SCREENSHOT_PATH}/<NN>_<step-name>-raw.png` (unannotated; step 5 below captures the annotated version separately, at the plain `<NN>_<step-name>.png` path)
    - `assert_visible` → resolve via `find` (success = element found); no further command needed
    - `navigate` (rare; only inside step blocks) → `agent-browser --session <story-id> open <url>`
 

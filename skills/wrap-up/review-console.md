@@ -125,8 +125,14 @@ with no ambiguous residue, the Queue writes section below therefore renders empt
 
 Do not sweep up reflect's non-queue-write staged findings (convention drift, pattern
 observations, skill-update proposals) here — identify a queue write the same way this console
-already distinguishes one: a `decisions.md` `STAGED` entry phrased as a record proposal ("--
-backlog candidate" / a `leftover-` or `ledger-record-` staged file), not a bare stage path.
+already distinguishes one: a `decisions.md` `STAGED or AUTO` entry phrased as a record proposal
+("-- backlog candidate" / a `leftover-` or `ledger-record-` staged file), not a bare stage path.
+(Ledger Phase 2's own narrowing step logs its entry as `AUTO`, not `STAGED` — the detection
+heuristic must catch both kinds, not just `STAGED`.)
+
+Note: auto-filing a narrowed item here therefore produces two `AUTO` log entries — the
+narrowing step's own entry plus this step's own entry for the same item. This is expected,
+not a bug; it is just undocumented elsewhere.
 
 If record creation fails for one proposal, leave that one staged and let it render normally in
 Queue writes below — do not drop it.

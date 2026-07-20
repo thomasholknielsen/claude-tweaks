@@ -53,6 +53,10 @@ function loadIssueIndex(file) {
   }
   const index = {};
   for (const issue of arr) {
+    if (!issue || typeof issue !== 'object') {
+      process.stderr.write('[harness-health] loadIssueIndex: skipping malformed issue entry\n');
+      continue;
+    }
     if (issue.fingerprint) {
       index[issue.fingerprint] = { number: issue.number, state: issue.state, labels: issue.labels || [] };
     }
@@ -63,7 +67,13 @@ function loadIssueIndex(file) {
 function cmdNextTarget(args) {
   const root = args.root || process.cwd();
   const now = Date.now();
-  const gapScan = readDurableState(root).cursors.__gapScan || { lastScannedSha: null, lastScannedMs: null };
+  // Fetch durable state exactly once and reuse it for both the gap-scan check
+  // and the target-selection cursors below, so gapScanDue and cursors answer
+  // the same point in time and the CLI doesn't pay for a second git
+  // fetch/show round-trip per invocation (mirrors bin/code-health.js's
+  // cmdNextSlice, which also reads durable state exactly once).
+  const durableCursors = readDurableState(root).cursors;
+  const gapScan = durableCursors.__gapScan || { lastScannedSha: null, lastScannedMs: null };
   const gapScanDue = gapScan.lastScannedMs == null || (now - gapScan.lastScannedMs) / 86400000 > STALE_DAYS;
 
   if (args.kind === 'memory') {
@@ -71,7 +81,7 @@ function cmdNextTarget(args) {
       process.stderr.write('harness-health.js: next-target --kind memory requires --memory-dir <path>\n');
       process.exit(2);
     }
-    let memCursors = readDurableState(root).cursors;
+    let memCursors = durableCursors;
 
     if (args.target) {
       const found = listMemory(args.memoryDir).find((t) => t.id === args.target) || null;
@@ -110,7 +120,7 @@ function cmdNextTarget(args) {
   }
 
   const budget = Number.isFinite(args.budget) && args.budget > 0 ? args.budget : 1;
-  let cursors = readDurableState(root).cursors;
+  let cursors = durableCursors;
 
   if (budget === 1) {
     const target = selectTarget(root, cursors, { now, kind: args.kind });

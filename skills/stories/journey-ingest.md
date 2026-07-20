@@ -57,4 +57,4 @@ When update mode is active (Step 1 found existing YAML files):
 
 1. For each existing story WITHOUT a `journey:` field, check whether its URL matches any entry in JOURNEY_URL_INDEX.
 2. If a match is found, add to JOURNEY_LINK_SUGGESTIONS: `{ storyId, storyFile, storyUrl, suggestedJourney }`.
-3. These suggestions are presented in Step 6 (Report) as a batch decision — they are not auto-applied.
+3. These suggestions are resolved in Step 6 (Report) per the auto/interactive flow in `coverage-report.md` — auto mode auto-applies all suggestions (the `journey:` field is a reversible single-line YAML addition); interactive mode presents them as a separate batch decision.

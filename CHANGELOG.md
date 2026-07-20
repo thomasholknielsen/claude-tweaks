@@ -1,8 +1,43 @@
 # Changelog
 
+## v6.11.0 — Lifecycle ceremony tiering
+
+`ceremony-check` (the fast-lane/standard verdict introduced in v6.7.0) now runs at
+`/claude-tweaks:specify`'s record-creation step instead of waiting until `/claude-tweaks:flow`'s
+materialize step — so `/specify`'s own Step 5 Multi-Persona Red-Team can scale with it too
+(`fast-lane` leaves get one persona instead of three). The verdict is now an always-explicit
+`ceremony:fast-lane`/`ceremony:standard` label, visible everywhere `risk:*`/`effort:*` already
+are, instead of a materialize-only header field. `/claude-tweaks:review` gains matching
+ceremony-aware step skipping (spec-compliance re-check, cross-spec-promise check, and hindsight
+skip under `fast-lane`; the actual code-quality read of the diff never does), and
+`/claude-tweaks:review-backlog` surfaces the tier as an advisory column. See
+`docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md`.
+
+## v6.10.0 — design-wrapper rename + visual quality boost
+
+`/claude-tweaks:design` is renamed `/claude-tweaks:design-wrapper` (clearer than a bare
+"design" for a thin dispatcher around the Impeccable plugin). Three new capabilities close the
+"bland UI" gap end to end: `/flow`'s polish phase now auto-dispatches audit's own Anti-Pattern
+`suggestion` field instead of only fixed commands; `/visual-review`'s Creative Opportunities gets
+a real one-click apply-gate, plus a new opt-in standalone "Boost" step (fix flagged issues, or
+explore alternatives via a new `live` mode); and `/specify`'s shape-time flow can now spin up a
+throwaway scaffold and hand off to `live` mode for real side-by-side variant comparison before
+`/build` ever starts, recorded as a `Visual-reference:` body-metadata line. See
+`docs/superpowers/specs/2026-07-19-visual-quality-boost-design.md`.
+
+## v6.9.0 — /demo session-recall fallback
+
+`/claude-tweaks:demo` now aggregates a second, independent source alongside `demo:pending`
+records: work done directly in the current conversation with no backing record at all. When
+`/demo` finds nothing pending and the session itself did unrecorded implementation/verification
+work, it recaps that work in the same Verification Brief shape (composed from recall, not a
+diff) and asks for a verdict. Approve/Skip leave no trace — the verdict lives in the
+conversation — while Request changes files a real follow-up record, same as it always has for
+record-backed items.
+
 ## v6.7.0 — Fast-lane pipeline profile
 
-A new `ceremony-check` mode on `/claude-tweaks:assess-agent-autonomy` judges once, at materialize time, how much retrospective/documentation ceremony a record's actual content deserves — stored as a `ceremony:` materialized-header field and folded into a new `ceremony-profile` Manifesto lever (10th canonical lever; `unattended-tier` keeps its existing slot 9).
+A new `ceremony-check` mode on `/claude-tweaks:assess-agent-autonomy` judges once, at materialize time, how much retrospective/documentation ceremony a record's actual content deserves — stored as a `ceremony:` materialized-header field and folded into a new `ceremony-profile` Manifesto lever (10th canonical lever; `unattended-tier` keeps its existing slot 9), letting small, clean records skip proportionate ceremony while a Safety-regression finding still trips an escape hatch back to full depth for the rest of the run.
 
 - **`/claude-tweaks:reflect` light mode** — new `skills/reflect/light-mode.md`: 2 lenses (Near-misses, Fresh start), no tradeoff review. Runs instead of full mode when `config.yml`'s `ceremony-profile` is `fast-lane`.
 - **`/claude-tweaks:build` audit skip conditions** — Plan Audit and Architecture Alignment steps skip under `ceremony-profile: fast-lane`, on top of their existing size-based skip conditions.
@@ -20,6 +55,78 @@ Extends `/claude-tweaks:docs-health` with three new/strengthened judging dimensi
 - **`/claude-tweaks:wrap-up` docs-health integration** — new `skills/wrap-up/docs-health-integration.md`, loaded by Step 6.1: D1 applies the full docs-health JUDGE procedure inline to every doc this work's diff touched (additive findings fold into the Configuration Updates batch table; restructural findings file as `by:docs-health` GitHub issues through the same dedup/filing CLI machinery `/claude-tweaks:docs-health` itself uses), and D2 detects documentation this work should have produced but didn't, scaffolding new docs from the genre template library.
 - **Unified 6-genre template library** — new `skills/_shared/diataxis-genre-templates.md` is now the single source of truth for all six doc genres `/claude-tweaks:docs-health` recognizes: the four core Diátaxis genres (Tutorial, How-To, Reference, Explanation — new) plus the two native-exempt genres it already judged, ADR and Journey, whose canonical skeletons migrated here from `_shared/decision-records.md` and `journeys/journey-template.md` (which now point here instead of duplicating the literal skeleton). Consumed by `/claude-tweaks:init` Phase 8.5's missing-doc backlog items and `/claude-tweaks:wrap-up`'s D2 missing-doc detection.
 - `/claude-tweaks:wrap-up` Step 9/10 templates gained a `docs-health-issue` config-update type and two new Step 10 execution bullets (new-doc scaffolding from the template library, restructural docs-health filing) so approved docs-health findings from the Console/batch have somewhere to land.
+
+## v6.5.0 — Demo walkthrough redesign
+
+`/claude-tweaks:demo`'s Verification Brief is now a self-contained digest instead of a pointer to
+re-run another skill — vision/why, what shipped, and confirmed evidence (visual-review's result +
+up to 3 committed screenshots, or a code-review digest + diff for non-UI work). `/wrap-up` gains a
+safety-net gate that triggers a real visual-review pass before `demo:pending` is ever applied, for
+the one path (`/review` outside `full` mode) where one might not have already run.
+`/claude-tweaks:demo`'s verdict prompt reframes around vision/fit ("Does this do what you asked
+for?") and gains an on-demand "Show me live" option for a live look via `agent-browser`.
+
+## v6.4.0 — Unattended tier: fewer clicks in `auto` mode
+
+A new opt-in policy lever, `unattended-tier` (off by default), lets three narrow, low-stakes
+decision points — floor-clearing ledger residue, queue-write record creation, and ops-item
+acknowledgment — resolve without a live click, everywhere `auto`/`hybrid` mode runs (headless
+`/claude-tweaks:dispatch` firings or local `/claude-tweaks:flow` runs alike). Every action is
+still logged to `decisions.md` and rolled into one consolidated push notification; HARD-GATEs,
+merge conflicts, and every `Fix anyway`/`Accept`/`Drop` ledger disposition stay fully
+human-gated regardless of the lever's state. See `skills/_shared/unattended-tier.md`.
+
+## v6.3.0 — Human acceptance sign-off (`/claude-tweaks:demo`)
+
+A new seventh work-record axis (`demo:pending` / `demo:approved` / `demo:changes-requested`)
+closes the gap between tests passing, spec completion, and an actual human verifying a built
+feature does what was asked. `/claude-tweaks:wrap-up` applies `demo:pending` and writes a
+Verification Brief (what changed, why, how to verify) while it still has full build context;
+the new `/claude-tweaks:demo` skill aggregates every pending record — across parallel threads,
+regardless of merge timing — and captures your verdict.
+
+## v6.0.0 — The unified work record
+
+Every captured idea, health-skill finding, and human-filed issue is now the same thing: **one durable work record** (a GitHub issue, or its `local-files` twin — a plain markdown file), tracked through a single spine instead of the old two-file backlog design and per-artifact frontmatter:
+
+```
+BACKLOG ──/specify shapes──► READY ──human grants──► AUTHORIZED ──/dispatch claims──► BUILDING ──user merges──► CLOSED
+```
+
+with `parked` (on hold, wakes on a trigger) and not-planned (wontfix/duplicate/absorbed) exits at any stage. Two storage drivers back the same taxonomy — `work-backend: github-issues` (labels + native Issue Types) or `work-backend: local-files` (frontmatter on a tracked file) — set once by `/init`, read identically by every consumer skill. See "Work Records" in README.md and `skills/_shared/work-record.md` for the full contract.
+
+Human-granted `auto:build`/`auto:merge` labels replace the retired `tier:approved`/`tier:fast-track`/`tier:needs-review` three-way split — `/claude-tweaks:triage` is now the interactive grant gate only. A new skill, **`/claude-tweaks:dispatch`**, is the queue consumer: it claims an authorized record's whole file-overlap group and hands it to `/flow` — the `triage dispatch` headless subcommand no longer exists.
+
+`/claude-tweaks:specify` and `/claude-tweaks:build`/`/flow` now **materialize** a record reference (`#N`) into a build-time header + spec-shaped body file rather than requiring a pre-existing numbered spec file — the legacy `specs/{n}-*.md` path still works as an alias for projects that haven't migrated. `/claude-tweaks:tidy` and `/claude-tweaks:help` scan the live record queue directly; the former INBOX scan, Deferred-Work scan, and the separate spec index they used to read are retired.
+
+See "Migrating from 5.x" in README.md if a project still carries pre-6.0 state (live `tier:*`/`status:*` labels, `specs/backlog/` files, or the old `backlog-backend` flag name).
+
+## v5.27.0 — Native diagram generation replaces the Diagram Design companion
+
+**`/claude-tweaks:visualize`** replaces the external `diagram-design` companion-plugin integration introduced in v4.7 with a fully native skill — no separate plugin install. It generates self-contained HTML+SVG diagrams (architecture, flowchart, sequence, state, ER, timeline, swimlane, quadrant, nested, tree, org chart, layers, venn, pyramid), themed from the project's own `DESIGN.md` tokens (or a neutral default skin when Impeccable isn't set up). An optional D2-backed enhanced rendering path handles diagrams-as-code source generation for types with a native D2 construct. The same three soft-hook call sites — `/journeys` Step 3.6, `/specify` Step 2.5d, `/review` Lens 3i-diagram — now suggest invoking it directly, gated by `diagram-suggestions: enabled` in CLAUDE.md (renamed from `diagram-integration:`), written by `/init` Step 11. Diagrams co-locate with what they illustrate (`docs/journeys/`, `docs/plans/`) rather than a single central folder; `docs/diagrams/` is the fallback for context-free, direct invocations.
+
+## v5.18.0 — shadcn/ui bootstrap + Phase 0 step renumbering
+
+`/init` gains a new Optional Enhancement step: on a detected frontend project without `components.json`, it offers to bootstrap [shadcn/ui](https://ui.shadcn.com/) — CLI init, plus wiring shadcn's own first-party MCP server into `.mcp.json` and installing shadcn's official Skill (`skills add shadcn/ui`), both of which give Claude Code live project context so it stops guessing at component APIs. Writes a `shadcn-integration: enabled | cli-only | disabled` flag to CLAUDE.md's `## Design integration` section (currently write-only — no other skill reads it yet). See `/init` Step 12.
+
+Also folded in: Phase 0's internal step numbering (previously `Step 0.1`–`Step 0.97`, an ad-hoc decimal scheme approaching its practical ceiling) is now two clean sequential groups — Core Bootstrap (Steps 1–8) and Optional Enhancements (Steps 9–14, order-agnostic and append-only). Every cross-reference in README and the plugin's skill files was updated to match.
+
+## v5.15.0 — code-health: risk-based triage + closing-keyword safety net
+
+`/claude-tweaks:recon` is renamed to `/claude-tweaks:code-health` (bare rename, no migration shim — the fingerprint-marker convention this rename introduced has since been unified into the single `work-fingerprint` marker every filing skill writes; see `skills/_shared/work-record.md`'s Fingerprint marker section). Findings now carry a `likelihood` and `effort` alongside `severity`; a new deterministic helper (`bin/lib/code-health/risk.js`) computes a `risk` tier (`severity × likelihood`, product-bucketed) the same way `dedup.js#decide()` already computes decisions — never LLM-judged. GitHub labels move from `code-health:{severity}` to `code-health:risk-{tier}` + `code-health:effort-{tier}` (criterion labels are kept, now with real descriptions); filing and CI gates move from `--min-severity`/`--fail-on critical` to `--min-risk`/`--fail-on risk-high`. Downstream, `/build` reads the `code-health-effort:` frontmatter to pick its implementer's model tier. (The `/flow --from-code-health`/`--quick-wins` batch-selection flags described here at v5.15.0 were later removed — issue selection and dispatch now live in `/claude-tweaks:triage` (grants authorization) and `/claude-tweaks:dispatch` (claims and executes); `/flow` itself never selects records.) Separately, a new harness-wide PostToolUse hook (warn tier, not gated on a resolved pipeline run) flags any commit that references a bare `#N` issue number without an immediately-preceding GitHub closing keyword — catching ad hoc fix commits that would otherwise silently leave the issue open.
+
+## v5.1.0 — Hook surface: pipeline continuity + working-directory enforcement
+
+A dispatcher-based hook surface (`bin/hooks.js`, registered via `hooks/hooks.json`) adds two things with no skill-level opt-in required:
+
+- **Pipeline-run continuity across sessions and compaction** — SessionStart/SessionEnd/PreCompact hooks track the active pipeline run and re-surface it after a session restart or context compaction.
+- **Mechanical working-directory enforcement during worktree runs** — PreToolUse/PostToolUse/SubagentStop hooks deny commits that land in the wrong checkout (scoped since v5.1.1 to the session that owns the run — commits from other sessions are allowed with a warning), log commit breadcrumbs, and flag Subagent Contract status-line violations.
+
+Near-inert outside pipeline runs: SessionStart's dependency check always runs regardless of a resolved run directory, and each matched git command pays a ~30ms no-op spawn to check for one. With no run directory, there is no state to write or enforce — except three deliberate, run-independent exceptions added since this hook surface first shipped: a PostToolUse check warns (non-blocking) whenever a commit references a bare issue number without a recognized GitHub closing keyword immediately before it, since that gap matters most for ad hoc fix commits made outside any pipeline run; the `worktree.always` PreToolUse policy gate blocks Edit/Write/NotebookEdit/commit outside an isolated worktree, since its job is to require one even before any pipeline run exists; and a PostToolUse check warns on any write to a `docs/superpowers/specs/*-design.md` brainstorming artifact, since a session that hasn't reached `/specify` yet has no pipeline run to gate on either. See CLAUDE.md Conventions → Hooks for the full contract.
+
+## v5.0.0 — Code-health v2: LLM-as-judge + scheduled Routine
+
+Code-health v2 replaces the v1 mechanical-lens spine with an LLM-as-judge model: the LLM evaluates the repo against a criteria catalog, calling deterministic tool checks as evidence. Area-type routing, content-hash skip, hotspot priority, fingerprinting, and dedup are handled by deterministic helpers. The v1 subagent dance and `plan-judgment` / `ingest-judgment` phases are removed. Code-health now runs as a scheduled Routine for continuous, hands-off coverage — no manual invocation needed.
 
 ## v4.15.0 — Research delegates to the built-in /deep-research
 
@@ -51,6 +158,19 @@ Two additions, both folded in together: smarter bash-output compaction, and a st
 ## v4.7.1 — Statusline ledger fix
 
 - **Statusline `ledger` segment now sums open rows across *all* `-ledger.md` files in the current checkout's `docs/plans`**, instead of reading only the most-recently-modified file. The old "newest file wins" logic both undercounted (open items in older ledgers were invisible) and relied on mtimes that are unreliable right after a worktree checkout. Worktree isolation is preserved — the scan is relative to the session's `cwd`, so side-by-side worktrees never see each other's uncommitted ledgers. Added `findOpenLedger` test coverage (previously none).
+
+## v4.7 — Deep web research + Diagram Design companion
+
+**`/claude-tweaks:research`** adds citation-audited deep web research to the plugin. Four runtime modes trade depth for time:
+
+- **quick** (~2-5 min, 5+ sources) — fast scan
+- **standard** (~5-10 min, 10+ sources) — balanced default
+- **deep** (~10-20 min, 15+ sources) — comprehensive synthesis with broader source pool
+- **ultradeep** (~20-45 min) — multi-persona red-team with adversarial review
+
+As of v4.15.0 this delegates to Claude Code's built-in `/deep-research` Dynamic Workflow when available, with a lean inline fallback otherwise. Reports land under `.claude-tweaks/research/`.
+
+**`/claude-tweaks:visualize`** — native diagram generation, replacing the former `diagram-design` companion-plugin integration. Generates self-contained HTML+SVG diagrams (architecture, flowchart, sequence, state, ER, timeline, swimlane, quadrant, nested, tree, org chart, layers, venn, pyramid), themed from the project's own `DESIGN.md` tokens (or a neutral default skin when Impeccable isn't set up), with an optional D2-backed enhanced rendering path. Soft-hook nudges in `/journeys` Step 3.6, `/specify` Step 2.5d, and `/review` Lens 3i-diagram suggest invoking it — gated by `diagram-suggestions: enabled` in CLAUDE.md, written by `/init` Step 11. Diagrams co-locate with what they illustrate (`docs/journeys/`, `docs/plans/`) rather than a single central folder; `docs/diagrams/` is the fallback for context-free, direct invocations.
 
 ## v4.6 — Bookend Architecture + Auto-Mode Contract
 

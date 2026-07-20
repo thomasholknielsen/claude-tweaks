@@ -47,6 +47,10 @@ function makeRetryQueueCommands({ readDurableState, writeDurableState }) {
       escalated = [];
       let queue = current.retryQueue;
       for (const r of results) {
+        if (!r || typeof r !== 'object') {
+          process.stderr.write('retry-queue update: skipping malformed result entry\n');
+          continue;
+        }
         if (r.ok) {
           queue = dequeueRetry(queue, r.fingerprint);
         } else {
@@ -59,6 +63,14 @@ function makeRetryQueueCommands({ readDurableState, writeDurableState }) {
     });
     if (!result.ok) {
       process.stderr.write(`retry-queue update: health-state persistence failed after retries: ${result.error}\n`);
+      // The escalated list above was computed against the final (rejected)
+      // mutator attempt's in-memory state, which never actually persisted —
+      // printing it would tell the caller a 3rd-strike crossing happened
+      // durably when it didn't. Print an empty result instead so the caller's
+      // "non-empty output -> file a filing-failed issue" check doesn't act on
+      // an escalation that was never actually saved to retry-queue.json.
+      process.stdout.write('[]\n');
+      return;
     }
     process.stdout.write(JSON.stringify(escalated, null, 2) + '\n');
   }

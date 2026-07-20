@@ -88,7 +88,7 @@ Where `ISO-timestamp` is `YYYY-MM-DDTHHMMSS` (no colons; portable across filesys
 
 **Cleanup:** the Wrap-Up Review Console moves completed runs to `.claude-tweaks/pipelines/archive/{run-id}/` on successful pipeline closure (preserving the audit trail). `/tidy`'s Standalone-auto path additionally compacts standalone run directories older than 30 days into a monthly rollup — see `_shared/auto-decision-log.md`'s Archival section for the exact behavior.
 
-**Gitignore:** `.claude-tweaks/` is runtime state — `/init` adds it to `.gitignore`. Pipeline runs are not committed history; the auto-decision log is for the user, not the repo.
+**Gitignore:** most of `.claude-tweaks/` is runtime state, but `/init` deliberately does **not** blanket-ignore the directory — it adds split entries (`.claude-tweaks/pipelines/`, `.claude-tweaks/research/`, `.claude-tweaks/code-health/`, `.claude-tweaks/routine-environment-cache.yml`) instead, because `.claude-tweaks/routines/{name}.yml` (instantiated cloud-Routine records) is explicitly meant to stay committable, and git's `!` negation can't reliably re-include a subdirectory of an already-ignored parent (see `init/bootstrap-steps.md` Step 4). Pipeline runs are not committed history; the auto-decision log is for the user, not the repo.
 
 ## Auto-decision log
 
@@ -172,6 +172,7 @@ The hook surface (`bin/hooks.js`, see CLAUDE.md Conventions → Hooks) mechanize
 |---|---|
 | Ledger resolve gate Phase 2 (every open item, per-item) | Items represent unfinished work — silently dropping them is the bug `auto` is *not* allowed to introduce, unless `unattended-tier` is on — see `_shared/unattended-tier.md` for the narrow, backlog-only carve-out |
 | Work-record creation (new backlog records) | Each record filed on the user's tracker needs explicit user approval — the record queue is the user's, not the model's. Scheduled health-skill filing is exempt — born-ready records are those skills' documented output (see `_shared/work-record.md`, born-ready rule). Queue-write proposals are also exempt when `unattended-tier` is on — see `_shared/unattended-tier.md`. |
+| Ops-acknowledgment (`/wrap-up` "Ops acknowledgment" step, when ops items exist) | Ops items represent infrastructure changes the user must action post-merge — bulk-acknowledging without the user reading each one risks a missed action, so every item requires explicit confirmation. Exempt only when `unattended-tier` is on — see `_shared/unattended-tier.md` for the narrow, logged carve-out. |
 | Marking records `parked` | Same — putting work on hold is a user decision |
 | `/challenge`'s Listen + Reflect-back steps | The user-engagement entry points where the problem statement is supplied and confirmed. After Reflect-back, lens proposers + the aggregator run autonomously per Mode 4 (Layered MoA) — those are not user-prompt cycles. |
 | `/init` Phase 4 (skill manifest), Phase 8 (Impeccable), Phase 9 (final confirmation), scope-selection gate | Project-shape governance decisions are user-only |

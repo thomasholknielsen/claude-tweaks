@@ -169,7 +169,7 @@ Type, stage/scoring labels, and parent/dependency links are **record facets** â€
 |-------|------------------|----------------|
 | Type | Native GitHub Issue Type (`work-types: native`) or a `type:*` label (`work-types: labels`) | `type:` frontmatter line |
 | Stage + scoring | `ready`, `risk:*`, `effort:*` labels | `stage:`, `risk:`, `effort:` frontmatter lines |
-| Parent link | Sub-issue relationship (`work-links: native`) or a parent task-list entry + `Blocked by #N` body line (`work-links: body-text`) | `parent:` frontmatter line |
+| Parent link | Sub-issue relationship (`work-links: native`) or a parent task-list entry (`- [ ] #{leafNum}`) + the leaf's own `Parent: #N` body line (`work-links: body-text`) | `parent:` frontmatter line |
 | Dependency links | Blocked-by dependency API (`work-links: native`) or `Blocked by #N` body lines (`work-links: body-text`) | `blocked-by: [...]` frontmatter line |
 
 The `local-files` frontmatter keys above are exactly `local-store.js`'s documented set (`bin/lib/issues/local-store.js`) â€” don't invent new keys here.

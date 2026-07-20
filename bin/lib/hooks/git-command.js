@@ -148,4 +148,63 @@ function gitTargets(command, cwd) {
   return targets;
 }
 
-module.exports = { gitTargets, splitSegments, tokenize };
+// Best-effort detection of common non-git, non-Edit/Write direct file-write
+// shapes in a Bash command: tee, cp, mv. Scoped to what hooks.json can also
+// gate on structurally via its own if-matcher (Bash(cp *)/Bash(mv *)/
+// Bash(tee *)) — output redirection (>, >>) is deliberately NOT covered here,
+// since the if-matcher can't recognize a bare shell operator (only a named
+// subcommand), and firing this on every Bash call to catch it unconditionally
+// would add latency to every Bash invocation in every session using this
+// plugin, not just ones exercising the gap. sed -i, python -c, perl -i, awk,
+// and nested `sh -c "..."` invocations are also NOT covered — this catches
+// representative common cases, not every possible one. Ambiguity resolves to
+// "no target" (allow), matching gitTargets' own safety posture: never
+// fabricate a target from a path this can't prove.
+const DEVNULL_LIKE = new Set(['/dev/null', '/dev/stdout', '/dev/stderr']);
+
+function resolveWriteTarget(effCwd, raw) {
+  if (isUnresolvable(raw)) return null;
+  const stripped = stripQuotes(raw);
+  if (DEVNULL_LIKE.has(stripped)) return null;
+  if (path.isAbsolute(stripped)) return path.resolve(stripped);
+  if (effCwd === null) return null; // cwd UNKNOWN and a relative path — not provable
+  return path.resolve(effCwd, stripped);
+}
+
+function fileWriteTargets(command, cwd) {
+  const targets = [];
+  let effCwd = cwd || '.';
+  for (const seg of splitSegments(command)) {
+    const t = tokenize(seg.trim());
+    if (!t.length) continue;
+    if (t[0] === 'cd') {
+      const raw = t[1];
+      if (isUnresolvable(raw)) { effCwd = null; continue; }
+      if (effCwd === null) {
+        if (isAbsolutePlain(raw)) effCwd = path.resolve(raw);
+        continue;
+      }
+      effCwd = path.resolve(effCwd, stripQuotes(raw));
+      continue;
+    }
+
+    if (t[0] === 'tee') {
+      const arg = t.slice(1).find((a) => !a.startsWith('-'));
+      const file = resolveWriteTarget(effCwd, arg);
+      if (file) targets.push({ action: 'write', file });
+      continue;
+    }
+
+    if (t[0] === 'cp' || t[0] === 'mv') {
+      const nonFlags = t.slice(1).filter((a) => !a.startsWith('-'));
+      if (nonFlags.length >= 2) {
+        const file = resolveWriteTarget(effCwd, nonFlags[nonFlags.length - 1]);
+        if (file) targets.push({ action: t[0] === 'cp' ? 'copy' : 'move', file });
+      }
+      continue;
+    }
+  }
+  return targets;
+}
+
+module.exports = { gitTargets, fileWriteTargets, splitSegments, tokenize };

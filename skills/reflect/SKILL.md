@@ -107,7 +107,7 @@ Default behavior: **defer everything** to the Review Console. The exception is s
 **Category:** {convention | tangential | observation}
 **Severity:** {low | med | high}
 **Reversibility:** {high | med | low}
-**Source:** {full | hindsight} mode, lens "{lens name}"
+**Source:** {full | hindsight | light} mode, lens "{lens name}"
 **Files:** {comma-separated paths or "general"}
 
 ## Finding
@@ -122,6 +122,42 @@ Default behavior: **defer everything** to the Review Console. The exception is s
 
 {Copy the matching `STAGED …` line from `decisions.md` so the Console can cross-link.}
 ```
+
+For a **tangential** finding specifically — the one category that becomes a Queue-writes record
+proposal (see `review-console.md`'s "On approval" step 5 and `flow/multispec-review-console.md`,
+both of which read a `Title:`/`Type:`/`Labels:` header off the staged file to create the record) —
+prepend that header above the `# Reflect —` line, the same shape `wrap-up/leftover-routing.md`
+step 3 writes for `leftover-{slug}.md`:
+
+```markdown
+Title: {short work-record title}
+Type: {bug | feature | task}
+Labels: {comma-separated labels or "none"}
+
+# Reflect — staged finding {n}
+
+**Category:** tangential
+**Severity:** {low | med | high}
+**Reversibility:** {high | med | low}
+**Source:** {full | hindsight | light} mode, lens "{lens name}"
+**Files:** {comma-separated paths or "general"}
+
+## Finding
+
+{1-3 sentences. What was observed; why it might matter.}
+
+## Suggested resolution
+
+{Optional. Concrete change or routing recommendation.}
+
+## Decision-log reference
+
+{Copy the matching `STAGED …` line from `decisions.md` so the Console can cross-link.}
+```
+
+Without this header the Console's record-creation step has nothing to read a title, type, or
+labels from — it is required whenever `**Category:** tangential`, and omitted for `convention`/
+`observation` findings (those are never Queue writes).
 
 Number `{n}` is a per-run sequence counter — increment as each staged file is written so multiple stages in one run never collide.
 

@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { STALE_DAYS_LIGHT, STALE_DAYS_DEEP } = require('./score');
+const { selectByStaleThenChurn } = require('../health-core/rotation');
 
 // ─── parseJourneyFiles ───────────────────────────────────────────────────────
 // Extracts a journey file's `files:` frontmatter list, e.g.:
@@ -29,16 +30,52 @@ function parseJourneyFiles(content) {
   return paths;
 }
 
+// ─── caches ──────────────────────────────────────────────────────────────────
+// selectTarget is called once per slot in a --budget > 1 loop (see
+// journey-health.js's cmdNextTarget), and nothing on disk changes between
+// slots of the same run. Without caching, every slot redid the full
+// docs/journeys readdir+readFile scan (listJourneys) and, once Phase 1
+// staleness is exhausted, a fresh `git log` subprocess per remaining
+// candidate (domainChurn) — purely wasted I/O that scaled with budget times
+// journey count. Both caches below are keyed on inputs that only change when
+// the underlying data actually could, so a call repeated with the same
+// inputs in the same process reuses the prior result instead of redoing the
+// I/O; a call whose inputs genuinely changed (a journey file edited, a
+// candidate's cursor bumped to a new sinceMs after being picked) still gets
+// a fresh read.
+const journeysCache = new Map(); // root -> { fingerprint, journeys }
+const churnCache = new Map(); // "root relPaths sinceMs" -> count
+
 // ─── listJourneys ────────────────────────────────────────────────────────────
 // Returns [{ kind: 'journey', id, path, filesFrontmatter }] for each
 // docs/journeys/*.md file, sorted by id. Empty array if the directory doesn't
 // exist — a project with no journeys yet is a valid state, not an error.
+// Caches the parsed result per root, validated on each call against a cheap
+// name+mtime+size fingerprint (stat only, no content read) — so repeated
+// calls in the same process skip the expensive readFileSync+parse work
+// unless a journey file was actually added, removed, or modified.
 function listJourneys(root) {
   const dir = path.join(root, 'docs', 'journeys');
   let entries;
   try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return []; }
-  return entries
-    .filter((e) => e.isFile() && e.name.endsWith('.md'))
+  const mdFiles = entries.filter((e) => e.isFile() && e.name.endsWith('.md'));
+
+  const fingerprint = mdFiles
+    .map((e) => {
+      try {
+        const st = fs.statSync(path.join(dir, e.name));
+        return `${e.name}:${st.mtimeMs}:${st.size}`;
+      } catch {
+        return `${e.name}:?`;
+      }
+    })
+    .sort()
+    .join('|');
+
+  const cached = journeysCache.get(root);
+  if (cached && cached.fingerprint === fingerprint) return cached.journeys;
+
+  const journeys = mdFiles
     .map((e) => {
       const filePath = path.join(dir, e.name);
       let content = '';
@@ -46,25 +83,37 @@ function listJourneys(root) {
       return { kind: 'journey', id: e.name.slice(0, -3), path: filePath, filesFrontmatter: parseJourneyFiles(content) };
     })
     .sort((a, b) => (a.id < b.id ? -1 : 1));
+
+  journeysCache.set(root, { fingerprint, journeys });
+  return journeys;
 }
 
 // ─── domainChurn ─────────────────────────────────────────────────────────────
 // Count commits touching any of `relPaths` since `sinceMs` (epoch ms). Returns
 // 0 (not an error) when git is unavailable, paths don't exist, or there is no
 // churn — the caller treats 0 as "nothing changed," not a failure signal.
+// Memoized per exact (root, relPaths, sinceMs) triple — see the caches
+// comment above listJourneys — so a --budget > 1 loop's repeated Phase 2 pass
+// over the same not-yet-picked candidates reuses the prior `git log` result
+// instead of re-spawning the subprocess every slot.
 function domainChurn(root, relPaths, sinceMs) {
   if (!relPaths || relPaths.length === 0) return 0;
+  const key = `${root} ${relPaths.join(' ')} ${sinceMs || 0}`;
+  if (churnCache.has(key)) return churnCache.get(key);
+  let count;
   try {
     const since = new Date(sinceMs || 0).toISOString().slice(0, 10);
     const out = execFileSync(
       'git',
       ['-C', root, 'log', '--oneline', `--since=${since}`, '--', ...relPaths],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 },
     );
-    return out.split('\n').filter(Boolean).length;
+    count = out.split('\n').filter(Boolean).length;
   } catch {
-    return 0;
+    count = 0;
   }
+  churnCache.set(key, count);
+  return count;
 }
 
 // ─── selectTarget ────────────────────────────────────────────────────────────
@@ -88,7 +137,6 @@ function selectTarget(root, cursors, opts = {}) {
   const auditField = tier === 'deep' ? 'lastDeepAuditMs' : 'lastLightAuditMs';
 
   const candidates = listJourneys(root);
-  if (candidates.length === 0) return null;
 
   // Phase 0 (light tier only): force-pick any journey with a declared file
   // that no longer exists. This is a stronger, more certain signal than
@@ -96,6 +144,10 @@ function selectTarget(root, cursors, opts = {}) {
   // existence check. Deep tier does not get this phase: its own
   // post-selection "skip condition" (SKILL.md Step 3.5) already handles a
   // broken journey without permanently parking the deep-tier rotation on it.
+  // Not part of the shared rotation core (health-core/rotation.js) — it has
+  // no analogue in the other three engines' Phase 1/2 shape, so it stays
+  // here and only calls into the shared core for its own Phase 1/2 once
+  // Phase 0 has had its chance to return first.
   if (tier === 'light') {
     for (const candidate of candidates) {
       if (alreadyPicked && alreadyPicked.has(candidate.id)) continue;
@@ -108,29 +160,18 @@ function selectTarget(root, cursors, opts = {}) {
     }
   }
 
-  // Phase 1: force-pick any journey unaudited on this tier past staleDays.
-  for (const candidate of candidates) {
-    const cursor = cursors[candidate.id];
-    const lastAuditedMs = cursor && cursor[auditField] != null ? cursor[auditField] : null;
-    const daysSince = lastAuditedMs === null ? Infinity : (now - lastAuditedMs) / 86400000;
-    if (daysSince > staleDays) {
-      return { ...candidate, why: 'stale', daysSinceLastAudit: Number.isFinite(daysSince) ? Math.round(daysSince) : null };
-    }
-  }
-
-  // Phase 2: among non-stale candidates, score by churn on filesFrontmatter
-  // since last audit on this tier.
-  const scored = [];
-  for (const candidate of candidates) {
-    const cursor = cursors[candidate.id] || {};
-    const sinceMs = cursor[auditField] || 0;
-    const churn = signals ? (signals[candidate.id] || 0) : domainChurn(root, candidate.filesFrontmatter, sinceMs);
-    if (churn > 0) scored.push({ candidate, churn });
-  }
-
-  if (scored.length === 0) return null;
-  scored.sort((a, b) => (b.churn !== a.churn ? b.churn - a.churn : (a.candidate.id < b.candidate.id ? -1 : 1)));
-  return { ...scored[0].candidate, why: 'hotspot', churnCount: scored[0].churn };
+  return selectByStaleThenChurn(candidates, cursors, {
+    now,
+    staleDays,
+    getCursorKey: (candidate) => candidate.id,
+    getLastAuditedMs: (cursor) => (cursor && cursor[auditField] != null ? cursor[auditField] : null),
+    // Score by churn on filesFrontmatter since last audit on this tier.
+    computeScore: (candidate, cursor, sinceMs) => {
+      const churn = signals ? (signals[candidate.id] || 0) : domainChurn(root, candidate.filesFrontmatter, sinceMs);
+      return churn > 0 ? churn : null;
+    },
+    buildHotspotResult: (candidate, score) => ({ ...candidate, why: 'hotspot', churnCount: score }),
+  });
 }
 
 module.exports = { parseJourneyFiles, listJourneys, domainChurn, selectTarget };

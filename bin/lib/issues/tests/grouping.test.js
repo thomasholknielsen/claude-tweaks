@@ -186,6 +186,34 @@ test('extracts the journey file from a by:journey-health issue body', () => {
   assert.deepStrictEqual(extractKeyFiles(issue), ['docs/journeys/checkout.md']);
 });
 
+test('extracts the doc file from a by:docs-health issue body', () => {
+  // Real header shape from bin/lib/docs-health/issue-payload.js:31 —
+  // "**Doc:** {path} | **Section:** ..." — the same bold-field shape
+  // BOLD_HEADER_RE already extracts for harness-health and journey-health.
+  const issue = {
+    labels: ['by:docs-health', 'docs-health:additive', 'risk:low', 'effort:low'],
+    body: '**Doc:** docs/api.md | **Section:** Overview | **Category:** genre-drift | **Misleads:** human engineer | **Classification:** additive | **Confidence:** high',
+  };
+  assert.deepStrictEqual(extractKeyFiles(issue), ['docs/api.md']);
+});
+
+test('two by:docs-health issues targeting the same doc land in one group via extractKeyFiles + groupByFileOverlap', () => {
+  const issueA = {
+    id: 1,
+    labels: ['by:docs-health'],
+    body: '**Doc:** docs/api.md | **Section:** Overview | **Category:** genre-drift | **Misleads:** human engineer | **Classification:** additive | **Confidence:** high',
+  };
+  const issueB = {
+    id: 2,
+    labels: ['by:docs-health'],
+    body: '**Doc:** docs/api.md | **Section:** Auth | **Category:** staleness | **Misleads:** coding agent | **Classification:** additive | **Confidence:** medium',
+  };
+  const items = [issueA, issueB].map((issue) => ({ id: issue.id, keyFiles: extractKeyFiles(issue) }));
+  const groups = groupByFileOverlap(items);
+  assert.strictEqual(groups.length, 1);
+  assert.deepStrictEqual(groups[0].sort(), [1, 2]);
+});
+
 test('returns [] when the issue carries neither code-health nor harness-health labels', () => {
   const issue = { labels: ['backlog'], body: 'Files: a.js' };
   assert.deepStrictEqual(extractKeyFiles(issue), []);

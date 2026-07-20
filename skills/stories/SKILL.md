@@ -405,23 +405,6 @@ Otherwise read `refine.md` in this skill's directory for the full Refine procedu
 
 One row per story file written, updated, or deleted. Omit unchanged files.
 
-## Next Actions
-
-When invoked by a parent skill (e.g., `/claude-tweaks:flow`), omit this block — the parent owns the handoff. When invoked directly by a user, resolve 2-4 options based on context — include the smoke option only when at least one story is tagged `smoke`; include the `affected` option only when update mode regenerated stories; include the journey option only when a journey was the dominant story source.
-
-If none of the three conditional options apply (no smoke stories, no update-mode regeneration, no journeys), only the always-present validate-all option remains — a lone option isn't a decision, so skip `AskUserQuestion` and state the command directly: "Next: `/claude-tweaks:test qa` — validate all {N} stories against the running app."
-
-Otherwise, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
-
-- Option 1 (always) — `label`: `"Validate all (Recommended)"`, `description`: `"/claude-tweaks:test qa — validate all {N} stories against the running app"`
-- Option 2 (when smoke stories exist) — `label`: `"Smoke pass"`, `description`: `"/claude-tweaks:test qa tag=smoke — quick pass on {N} smoke stories first"`
-- Option 3 (when update mode regenerated stories) — `label`: `"Affected only"`, `description`: `"/claude-tweaks:test qa affected — validate only changed stories"`
-- Option 4 (when journeys exist) — `label`: `"By journey"`, `description`: `"/claude-tweaks:test qa journey={name} — validate {N} stories for the {name} journey"`
-
-## Component-Skill Contract
-
-This skill is a **component skill** — invoked by `/claude-tweaks:flow` (auto-triggered between build and test when UI files change, unless `no-stories`). Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (set by `/flow`, `/build`, or other pipeline orchestrators). Direct invocations may pass `--source <parent>` as an explicit fallback. When invoked by a parent, omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user, render Next Actions as shown above.
-
 ## Examples
 
 For complete YAML examples covering DOM-only stories, source-aware stories (with boundary-value and error-path coverage), and journey-aware stories, read `story-examples.md` in this skill's directory.
@@ -449,6 +432,23 @@ For complete YAML examples covering DOM-only stories, source-aware stories (with
 - Always set `journey:` on stories derived from a journey file — this enables coverage tracking and filtered test execution via `/test qa journey={name}`
 - When a story has `journey:` set, seed `source_files` from the journey's `files:` frontmatter before extending with component-level files from source analysis
 - Every generated YAML file starts with `schema_version: 2` at the top — required for v2 compatibility checks
+
+## Next Actions
+
+When invoked by a parent skill (e.g., `/claude-tweaks:flow`), omit this block — the parent owns the handoff. When invoked directly by a user, resolve 2-4 options based on context — include the smoke option only when at least one story is tagged `smoke`; include the `affected` option only when update mode regenerated stories; include the journey option only when a journey was the dominant story source.
+
+If none of the three conditional options apply (no smoke stories, no update-mode regeneration, no journeys), only the always-present validate-all option remains — a lone option isn't a decision, so skip `AskUserQuestion` and state the command directly: "Next: `/claude-tweaks:test qa` — validate all {N} stories against the running app."
+
+Otherwise, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
+
+- Option 1 (always) — `label`: `"Validate all (Recommended)"`, `description`: `"/claude-tweaks:test qa — validate all {N} stories against the running app"`
+- Option 2 (when smoke stories exist) — `label`: `"Smoke pass"`, `description`: `"/claude-tweaks:test qa tag=smoke — quick pass on {N} smoke stories first"`
+- Option 3 (when update mode regenerated stories) — `label`: `"Affected only"`, `description`: `"/claude-tweaks:test qa affected — validate only changed stories"`
+- Option 4 (when journeys exist) — `label`: `"By journey"`, `description`: `"/claude-tweaks:test qa journey={name} — validate {N} stories for the {name} journey"`
+
+## Component-Skill Contract
+
+This skill is a **component skill** — invoked by `/claude-tweaks:flow` (auto-triggered between build and test when UI files change, unless `no-stories`). Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (set by `/flow`, `/build`, or other pipeline orchestrators). Direct invocations may pass `--source <parent>` as an explicit fallback. When invoked by a parent, omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user, render Next Actions as shown above.
 
 ## Anti-Patterns
 
@@ -480,6 +480,7 @@ For complete YAML examples covering DOM-only stories, source-aware stories (with
 | `/claude-tweaks:test` | `/test qa` and `/test all` validate the stories that /stories generates via the `qa-agent`. `/test qa journey={name}` filters to stories for a specific journey. Failed stories surface trace paths captured during /stories refinement. Both skills consume `dev-url-detection.md` from `skills/_shared/` for auto-detection. |
 | `/claude-tweaks:review` | /review gates on /test passing (which includes QA when stories exist). /review checks journey-to-story coverage in its code review — uncovered journey steps and orphaned stories are surfaced as informational findings. |
 | `/claude-tweaks:journeys` | /journeys creates journey files (`docs/journeys/*.md`) that /stories ingests in Step 1.1 for journey-aware story generation. Stories reference their source journey via the `journey:` field. |
+| `/claude-tweaks:journey-health` | /journey-health's coverage scan checks journeys against the QA story YAMLs /stories produces; coverage-gap findings recommend `/claude-tweaks:stories journey={name}` to close the gap. |
 | `/claude-tweaks:build` | Runs BEFORE /stories — recommends /stories when UI files change. /build may create journey files via /journeys that /stories then ingests. |
 | `/claude-tweaks:flow` | Auto-triggers /stories between build and test when UI files change (unless `no-stories`). Both consume `dev-url-detection.md` from `skills/_shared/` for URL resolution. |
 | `/claude-tweaks:init` | Detects `agent-browser` availability during setup; without it /stories' browse-exploration and refinement steps cannot run (degrades gracefully — generates from journey/source-analysis data only). |
