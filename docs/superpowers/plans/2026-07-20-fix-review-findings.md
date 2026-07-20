@@ -738,7 +738,7 @@ git commit -m "Fix review finding(s): .claude-plugin/plugin.json, bin/claude-twe
 ### Task 16: bin/journey-health.js, bin/lib/code-health/cache.js, +4 more
 
 **Files:**
-- Modify: `bin/journey-health.js` (1 finding)
+- Modify: `bin/journey-health.js` (1 finding, ALREADY RESOLVED by Task 2 -- see below)
 - Modify: `bin/lib/code-health/cache.js` (1 finding)
 - Modify: `bin/lib/code-health/scope.js` (1 finding)
 - Modify: `bin/lib/docs-health/findability.js` (1 finding)
@@ -748,7 +748,7 @@ git commit -m "Fix review finding(s): .claude-plugin/plugin.json, bin/claude-twe
 **Findings to fix (full detail in `docs/superpowers/plans/2026-07-20-fix-review-findings-data.json`):**
 
 `bin/journey-health.js`:
-- **[efficiency]** bin/journey-health.js:71 -- cmdNextTarget calls readDurableState(root) twice per invocation instead of once, and each call performs a real `git fetch origin health-state` network round-trip.
+- ~~**[efficiency]** bin/journey-health.js:71 -- cmdNextTarget calls readDurableState(root) twice per invocation instead of once, and each call performs a real `git fetch origin health-state` network round-trip.~~ **ALREADY RESOLVED by Task 2** (commit c8f929e): Task 2's `cross-file` finding at line 82 was the same underlying duplicate-`readDurableState`-call bug, described from a different angle (cross-file consistency vs. efficiency) and not deduped during review synthesis. Task 2 already reads `readDurableState(root).cursors` once and reuses it. Verify `bin/journey-health.js` no longer has a duplicate call and skip -- there is no remaining diff to produce here.
 
 `bin/lib/code-health/cache.js`:
 - **[simplification]** bin/lib/code-health/cache.js:21 -- code-health/cache.js's computeChurn duplicates health-core/runs.js's computeChurn wholesale just to add one derivable extra field (`stayed`), rather than computing `stayed` in the shared version and letting the other three engines ignore the extra return key.
