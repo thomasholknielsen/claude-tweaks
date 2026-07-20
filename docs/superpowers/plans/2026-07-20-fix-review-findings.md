@@ -561,7 +561,8 @@ git commit -m "Fix review finding(s): skills/docs-health/SKILL.md, skills/flow/S
 - Modify: `skills/init/SKILL.md` (2 findings)
 - Modify: `skills/init/bootstrap-steps.md` (1 finding)
 - Modify: `skills/journey-health/SKILL.md` (2 findings)
-- Modify: `skills/ledger/SKILL.md` (1 finding)
+- Modify: `skills/ledger/SKILL.md` (2 findings: 1 original + 1 NEW, discovered during Task 10's execution -- see below)
+- Modify: `skills/help/context-flow.md` (1 finding, NEW, same discovery -- not in original brief's file list)
 - Modify: `skills/research/SKILL.md` (1 finding)
 - Modify: `skills/specify/SKILL.md` (1 finding)
 
@@ -580,6 +581,10 @@ git commit -m "Fix review finding(s): skills/docs-health/SKILL.md, skills/flow/S
 
 `skills/ledger/SKILL.md`:
 - **[line-by-line]** skills/ledger/SKILL.md:251 -- The Relationship-to-Other-Skills row for /claude-tweaks:wrap-up states 'deletes the ledger (Step 5),' directly contradicting this same file's own 'Delete' section three paragraphs earlier (line 185: 'Called by /claude-tweaks:wrap-up Step 10 (planned in Step 5)') and wrap-up/SKILL.md's own text, which explicitly separates planning cleanup at Step 5 from executing it at Step 10.
+- **[cross-file] NEW, discovered during Task 10's execution (not in the original 147; Task 10's own report flagged this as a real, unclaimed instance, verified against deepen/SKILL.md's actual documented behavior)** -- ledger/SKILL.md's Relationship-table row for /claude-tweaks:deepen ("Appends staged and declined depth candidates when invoked in a pipeline. Uses phase: `deepen`") and its Phase Taxonomy table entry for phase `deepen` both claim deepen writes items to the pipeline ledger file. This does not match deepen/SKILL.md's own documented behavior (Step 3's "Auto mode" note + Component-Skill Contract): pipeline staging goes through the Auto-Mode Contract's `decisions.md` + `{run-dir}/staged/deepen-{n}.md`, and /flow's Depth Opportunities survey renders returned candidates directly -- never via the ledger. No other invocation path (/review, /reflect, /build) passes deepen a ledger context either; they only recommend it as a manual follow-up. Likely stale documentation surviving from a design that predates the current Auto-Mode Contract / Depth Opportunities mechanism. Task 10 already added an honestly-worded reciprocal row to deepen/SKILL.md's own Relationship table (commit in Task 10, describing the real `decisions.md`/`staged/` mechanism and flagging this exact mismatch) -- this finding's fix is to correct ledger/SKILL.md's Relationship-table row AND its Phase Taxonomy entry for `deepen` to match deepen's real behavior, removing the false ledger-writing claim (or scoping it accurately if some narrower true version of it exists -- verify against deepen/SKILL.md's current text, already fixed by Task 10, before writing the correction).
+
+`skills/help/context-flow.md`:
+- **[cross-file] NEW, same discovery as the ledger/SKILL.md finding above** -- context-flow.md's `/deepen` row ("Depth refactors (in-place) or staged candidates; ledger items (phase `deepen`)") makes the identical false ledger-writing claim, in a third location across 2 files. Fix using the same corrected understanding of deepen's real behavior (decisions.md + staged/ folder, not the ledger).
 
 `skills/research/SKILL.md`:
 - **[structural-contract]** skills/research/SKILL.md:111 -- research's '## Component-Skill Contract' section is placed after '## Anti-Patterns' (line 101) instead of immediately before it, violating CLAUDE.md's explicit CSC placement rule.
@@ -602,7 +607,7 @@ Expected: all tests pass, 0 failures, no drop from the 1282-test baseline.
 
 ```bash
 cd "/Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude/worktrees/fix-review-findings"
-git add "skills/init/SKILL.md" "skills/init/bootstrap-steps.md" "skills/journey-health/SKILL.md" "skills/ledger/SKILL.md" "skills/research/SKILL.md" "skills/specify/SKILL.md"
+git add "skills/init/SKILL.md" "skills/init/bootstrap-steps.md" "skills/journey-health/SKILL.md" "skills/ledger/SKILL.md" "skills/help/context-flow.md" "skills/research/SKILL.md" "skills/specify/SKILL.md"
 git commit -m "Fix review finding(s): skills/init/SKILL.md, skills/init/bootstrap-steps.md, skills/journey-health/SKILL.md..."
 ```
 
