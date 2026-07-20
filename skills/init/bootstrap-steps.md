@@ -356,7 +356,7 @@ Use the appropriate value:
 | Option 2 (Plugin only) | `plugin-only` |
 | Option 3 (Skip) | `disabled` |
 
-The `/claude-tweaks:design` wrapper reads this flag as Layer 1 of its detection logic. Missing flag is treated identically to `disabled` — design integration only activates when explicitly enabled by `/init`.
+The `/claude-tweaks:design-wrapper` wrapper reads this flag as Layer 1 of its detection logic. Missing flag is treated identically to `disabled` — design integration only activates when explicitly enabled by `/init`.
 
 **For option 3:** Write `design-integration: disabled` to CLAUDE.md and continue. The wrapper short-circuits universally — no CLI calls, no LLM invocations, no token cost.
 
@@ -567,7 +567,7 @@ shadcn-integration: enabled
 
 **Scope note:** this flag is currently write-only — no other claude-tweaks skill reads
 it yet. Re-run idempotency for this step comes entirely from the filesystem checks above
-(Case A/B/C), not from this flag. The flag is reserved for a future consumer (e.g. `/design`
+(Case A/B/C), not from this flag. The flag is reserved for a future consumer (e.g. `/design-wrapper`
 preferring shadcn components when it reads `enabled`), the same role `design-integration`
 plays for Step 10.
 

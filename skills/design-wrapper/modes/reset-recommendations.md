@@ -1,6 +1,6 @@
 # Design Mode — reset-recommendations
 
-Invoked via `/claude-tweaks:design reset-recommendations <spec>`. Returns `{mode, result: "ok", deleted}` to caller. Cache-management utility, not a mode that invokes Impeccable.
+Invoked via `/claude-tweaks:design-wrapper reset-recommendations <spec>`. Returns `{mode, result: "ok", deleted}` to caller. Cache-management utility, not a mode that invokes Impeccable.
 
 ## When this runs
 

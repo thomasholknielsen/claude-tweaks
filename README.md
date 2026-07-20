@@ -6,6 +6,28 @@ A structured workflow system for Claude Code — from idea capture through build
 
 Claude Code is powerful but unstructured. claude-tweaks adds a complete development lifecycle: capture ideas, challenge assumptions, decompose into specs, build with quality gates, and learn from what was built. Every finding is explicitly resolved — nothing silently drops.
 
+### What's new in v6.10.0 — design-wrapper rename + visual quality boost
+
+`/claude-tweaks:design` is renamed `/claude-tweaks:design-wrapper` (clearer than a bare
+"design" for a thin dispatcher around the Impeccable plugin). Three new capabilities close the
+"bland UI" gap end to end: `/flow`'s polish phase now auto-dispatches audit's own Anti-Pattern
+`suggestion` field instead of only fixed commands; `/visual-review`'s Creative Opportunities gets
+a real one-click apply-gate, plus a new opt-in standalone "Boost" step (fix flagged issues, or
+explore alternatives via a new `live` mode); and `/specify`'s shape-time flow can now spin up a
+throwaway scaffold and hand off to `live` mode for real side-by-side variant comparison before
+`/build` ever starts, recorded as a `Visual-reference:` body-metadata line. See
+`docs/superpowers/specs/2026-07-19-visual-quality-boost-design.md`.
+
+### What's new in v6.9.0 — /demo session-recall fallback
+
+`/claude-tweaks:demo` now aggregates a second, independent source alongside `demo:pending`
+records: work done directly in the current conversation with no backing record at all. When
+`/demo` finds nothing pending and the session itself did unrecorded implementation/verification
+work, it recaps that work in the same Verification Brief shape (composed from recall, not a
+diff) and asks for a verdict. Approve/Skip leave no trace — the verdict lives in the
+conversation — while Request changes files a real follow-up record, same as it always has for
+record-backed items.
+
 ### What's new in v6.7.0 — Fast-lane pipeline profile
 
 A new `ceremony-profile` Manifesto lever (fed by `/claude-tweaks:assess-agent-autonomy`'s new
@@ -167,7 +189,7 @@ See [CHANGELOG.md](CHANGELOG.md) for earlier release notes (v4.6, v4.5, v4.2, v4
                             applies demo:pending + posts a Verification Brief on
                             the record — record mode only)
      │
-  ┈┈ /claude-tweaks:demo resolves demo:pending → approved/changes-requested (utility skill, no fixed position — run anytime, aggregates every in-flight thread) ┈┈
+  ┈┈ /claude-tweaks:demo resolves demo:pending → approved/changes-requested (utility skill, no fixed position — run anytime, aggregates every in-flight thread, plus this session's own unrecorded work via session-recall) ┈┈
 ```
 
 > **Left column:** `/claude-tweaks:{name}` — **Right column:** `/superpowers:{name}` ([Superpowers plugin](https://github.com/obra/superpowers))
@@ -278,15 +300,15 @@ Stories include `source_files:` and `journey:` fields for change-aware scoping a
 
 **`/claude-tweaks:flow`** — Automated pipeline: build → [stories →] test → review → polish → wrap-up in one command. **Runs hands-off by default (`auto` mode)** — the Pipeline Config Manifesto displays as a read-only FYI and the pipeline proceeds without an approval stop; the only user-facing stop is the Wrap-Up Review Console at the end. Pass `confirm` to inspect/override the policy levers at a Manifesto gate first, `interactive` for per-skill prompts. Defaults to worktree git strategy; pass `current-branch` to commit on the current branch instead. Add `no-stories` to skip QA generation, `no-polish` to skip the polish phase entirely, `no-deepen` to skip the end-of-run depth survey. At the Pipeline Summary, flow runs `/claude-tweaks:deepen`'s read-only analysis and surfaces shallow-module candidates as a **Depth Opportunities** recommendation block — it never refactors module interfaces in a hands-off run (architecture is low-reversibility; you run `/deepen` deliberately to act). Resume from any step with `/claude-tweaks:flow 42 review`. Run multiple specs sequentially (`/claude-tweaks:flow 42,45,48`) or in parallel across terminals — each terminal gets its own isolated worktree.
 
-**Polish phase:** After review verdict PASS on a frontend spec, `/flow` invokes `/claude-tweaks:design polish <spec>` to dispatch Impeccable's auto-fit commands (`polish` / `clarify` / `harden`), issue-driven commands (`typeset` / `layout` / `adapt` / `optimize` when audit flagged matching findings), and intent-driven commands (`bolder` / `quieter` / `distill` / `delight`+`animate` / `onboard` per the spec's `design-intent:` frontmatter). When polish modifies code, a re-verify gate runs `/test skip-qa` (types + lint + tests, no QA) with a one-cycle cap — a re-verify failure stops the pipeline with a "Polish broke verification" failure card. Backend specs and projects without Impeccable installed skip polish cleanly.
+**Polish phase:** After review verdict PASS on a frontend spec, `/flow` invokes `/claude-tweaks:design-wrapper polish <spec>` to dispatch Impeccable's auto-fit commands (`polish` / `clarify` / `harden`), issue-driven commands (`typeset` / `layout` / `adapt` / `optimize` when audit flagged matching findings), and intent-driven commands (`bolder` / `quieter` / `distill` / `delight`+`animate` / `onboard` per the spec's `design-intent:` frontmatter). When polish modifies code, a re-verify gate runs `/test skip-qa` (types + lint + tests, no QA) with a one-cycle cap — a re-verify failure stops the pipeline with a "Polish broke verification" failure card. Backend specs and projects without Impeccable installed skip polish cleanly.
 
-**Pipeline summary Creative Opportunities block:** Before Next Actions, `/flow` invokes `/claude-tweaks:design survey` against the full pipeline diff and renders a Creative Opportunities table when survey returns recommendations. `/flow` handles decline detection across re-runs by comparing the previous recommendations cache to the new diff and incrementing a per-spec decline counter for un-invoked recommendations; suggestions declined twice are suppressed.
+**Pipeline summary Creative Opportunities block:** Before Next Actions, `/flow` invokes `/claude-tweaks:design-wrapper survey` against the full pipeline diff and renders a Creative Opportunities table when survey returns recommendations. `/flow` handles decline detection across re-runs by comparing the previous recommendations cache to the new diff and incrementing a per-spec decline counter for un-invoked recommendations; suggestions declined twice are suppressed.
 
 **`/claude-tweaks:help`** — Dashboard with workflow status, command reference, and context-aware recommendations. Warns about dependency conflicts between in-progress specs. Surfaces the current branch's open PR (review decision, CI checks, unresolved threads) and ranks blocked-PR work first in recommendations.
 
 **`/claude-tweaks:tidy`** — Batch backlog hygiene. Scans the live work-record queue (backlog, parked, unsynced, unscored `ready`, `bot:blocked`, legacy-taxonomy records), scans review/wrap-up history for recurring patterns across specs, audits the documentation registry, and recommends project-level fixes. Also audits GitHub state — stale open PRs, code-health/harness-health/journey-health/docs-health-filed issues, addressed-but-unresolved review threads — with GitHub mutations (close, resolve) executing only after batch approval. Pass `--scope=<name>[,<name>...]` to narrow a run to specific scan steps (e.g. `--scope=github` for GitHub PR/issue triage only) instead of the full sweep.
 
-**`/claude-tweaks:demo`** — The durable, cross-thread acceptance gate: aggregates every record `/claude-tweaks:wrap-up` has labeled `demo:pending` (open or closed — covers already-merged `auto:merge` work too), replays the Verification Brief `/wrap-up` wrote at build time so you never re-derive "how do I test this," and captures a real human verdict distinct from tests passing (`/test`) or code-quality review (`/review`). Approve resolves to `demo:approved`; requesting changes resolves to `demo:changes-requested` and files a linked follow-up backlog record. Bare `/demo` sweeps everything pending; `/demo #N` scopes to one record.
+**`/claude-tweaks:demo`** — The durable, cross-thread acceptance gate: aggregates every record `/claude-tweaks:wrap-up` has labeled `demo:pending` (open or closed — covers already-merged `auto:merge` work too), plus any work the current conversation itself did with no backing record at all, replays or recomposes the Verification Brief so you never re-derive "how do I test this," and captures a real human verdict distinct from tests passing (`/test`) or code-quality review (`/review`). Approve resolves a label-backed record to `demo:approved`; for a session-recall entry, Approve/Skip write nothing anywhere — the verdict just lives in the conversation. Requesting changes always files a linked follow-up backlog record, label-backed or not. Bare `/demo` sweeps everything pending plus this session's own unrecorded work; `/demo #N` scopes to one label-backed record.
 
 **`/claude-tweaks:browse`** — Browser automation via agent-browser. Defines session naming, screenshot/trace paths, and operation vocabulary used by /stories, /visual-review, and /review.
 
@@ -314,14 +336,15 @@ For the full picture of how a work record moves through filing → shaping → a
 
 **`/claude-tweaks:docs-health`** — Recurring health check for `docs/**`: picks one doc to audit, judges it against the shared `_shared/criteria-docs-diataxis.md` procedure — Diátaxis genre-drift (implied doc type vs. actual content shape), depth-mismatch (implied reading investment vs. actual word count), findability (can a reader or agent actually discover this doc), factual staleness, and dual-persona misleading-risk tagging (human engineer vs. coding agent) — and always files a `docs-health`-labelled GitHub issue. Never edits docs content — report-only, matching `/code-health` and `/harness-health`. Scoped strictly to `docs/**`, excluding `docs/superpowers/**` (ephemeral build artifacts) and never overlapping `harness-health`'s `.claude/skills/**`/`.claude/rules/**`/CLAUDE.md territory. Runs on a scheduled Routine for continuous coverage.
 
-**`/claude-tweaks:design`** — Wrapper for the [Impeccable](https://github.com/pbakaus/impeccable) frontend-design plugin. Six active modes:
+**`/claude-tweaks:design-wrapper`** — Wrapper for the [Impeccable](https://github.com/pbakaus/impeccable) frontend-design plugin. Seven active modes:
 
 - **`test`** — invoked by `/test` for the deterministic CLI gate (`npx impeccable detect`)
 - **`review`** — invoked by `/review` for LLM `critique` + `audit` (advisory findings; writes audit cache for `polish`)
 - **`shape`** — invoked by `/specify` on frontend design docs (runs `/impeccable shape`, output appended to design doc)
 - **`pre-build`** — invoked by `/build` to lazy-load Impeccable references + project design context (`docs/design/PRODUCT.md`, `DESIGN.md` from `/impeccable init`) into the implementer subagent
 - **`polish`** — invoked by `/flow`'s polish phase to dispatch auto-fit (`polish` / `clarify` / `harden`) + issue-driven (`typeset` / `layout` / `adapt` / `optimize`) + intent-driven (`bolder` / `quieter` / `distill` / `delight`+`animate` / `onboard` per spec's `design-intent:` frontmatter) commands. **First wrapper mode that modifies code** — `/flow` follows up with the re-verify gate.
-- **`survey`** — invoked by `/visual-review` (with screenshots) and `/flow`'s pipeline summary (with the full diff). Produces ranked Creative Opportunities recommendations spanning intent-driven and manual-only commands (`colorize` / `extract` / `overdrive`). Read-only — never invokes commands. Per-spec declined-recommendation tracking suppresses noise after 2 declines; reset via `/claude-tweaks:design reset-recommendations <spec>`.
+- **`survey`** — invoked by `/visual-review` (with screenshots) and `/flow`'s pipeline summary (with the full diff). Produces ranked Creative Opportunities recommendations spanning intent-driven and manual-only commands (`colorize` / `extract` / `overdrive`). Read-only — never invokes commands. Per-spec declined-recommendation tracking suppresses noise after 2 declines; reset via `/claude-tweaks:design-wrapper reset-recommendations <spec>`.
+- **`live`** — invoked by `/specify`'s shape-time variant-exploration step and `/visual-review`'s standalone Boost gate. Thin dispatcher to Impeccable's own interactive `live` command (element picker, real HTML/CSS variants, live parameter tuning, accept-to-source cleanup). Interactive-only — no auto-mode branch, by the same reasoning `live` itself has none.
 
 The wrapper produces three independent surfacing anchors so creative commands cannot get buried: intent dispatch in polish, the Creative Opportunities block in `/visual-review`, and the Creative Opportunities block in `/flow`'s pipeline summary.
 

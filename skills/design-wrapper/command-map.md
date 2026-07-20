@@ -86,8 +86,15 @@ Read the audit findings cache written by `review` mode (`docs/plans/...-audit.js
 | `spacing`, `layout`, `grid`, `padding`, `margin`, `whitespace` | `/impeccable:impeccable layout <files>` |
 | `responsive`, `breakpoint`, `mobile`, `tablet`, `viewport`, `adaptive` | `/impeccable:impeccable adapt <files>` |
 | `performance`, `bundle`, `render`, `slow`, `lazy-load`, `lcp`, `cls` | `/impeccable:impeccable optimize <files>` |
+| `anti-pattern`, `ai slop`, `ai-generated`, `generic` | *suggestion-driven — see "Anti-Pattern dispatch" below, not a fixed command* |
 
 When multiple findings match the same category, the wrapper dispatches the command **once** with the union of affected files (de-duplicated). When findings span multiple categories, dispatch each command separately.
+
+### Anti-Pattern dispatch — suggestion-driven, not fixed
+
+Unlike the four fixed-command rows above, an `anti-pattern`/`ai slop`/`ai-generated`/`generic` category match does not dispatch one hardcoded command. Impeccable's own `audit` command already tags every Anti-Patterns-dimension finding with a `suggestion` field naming its own best-fit remediation (see `audit.md`'s "Suggested command" convention — drawn from the full command palette, not limited to typeset/layout/adapt/optimize). Read that finding's `suggestion` field and dispatch the named command directly, subject to one filter: if the named command is one of the three manual-only commands (`colorize`, `extract`, `overdrive`), do not dispatch it — instead stage it (see `modes/polish.md` Step 5) so the user still sees it without the pipeline silently applying an aggressive creative change. Any other named command (most commonly `bolder`, sometimes `delight` or `typeset`) dispatches normally, exactly like the four fixed rows above.
+
+When multiple Anti-Pattern findings in one run name the **same** suggested command, dispatch it once with the union of affected files — same rule as the fixed rows. When they name **different** commands (e.g. one finding suggests `bolder`, another suggests `delight`), dispatch each named command once, each scoped to the union of files whose findings named it.
 
 ### Step 3 — Intent-driven
 

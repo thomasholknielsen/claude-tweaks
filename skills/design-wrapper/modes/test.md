@@ -1,6 +1,6 @@
 # Design Mode — test
 
-Invoked via `/claude-tweaks:design test <files>`. Returns `{mode, result, files_scanned, findings}` or `{mode, skipped, ...}` to caller.
+Invoked via `/claude-tweaks:design-wrapper test <files>`. Returns `{mode, result, files_scanned, findings}` or `{mode, skipped, ...}` to caller.
 
 ## When this runs
 

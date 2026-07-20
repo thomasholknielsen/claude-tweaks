@@ -1,6 +1,6 @@
 # Design Mode — survey
 
-Invoked via `/claude-tweaks:design survey <files>` (or `--screenshots <paths>` when called from `/visual-review`). Returns `{mode, result: "ok", context, recommendations, suppressed}` or `{mode, skipped, ...}` to caller.
+Invoked via `/claude-tweaks:design-wrapper survey <files>` (or `--screenshots <paths>` when called from `/visual-review`). Returns `{mode, result: "ok", context, recommendations, suppressed}` or `{mode, skipped, ...}` to caller.
 
 ## When this runs
 

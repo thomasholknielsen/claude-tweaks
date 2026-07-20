@@ -143,10 +143,10 @@ Reconnaissance (Step 0) runs before the main steps in **page** and **journey** m
 
 ## Step 4: Creative Opportunities Survey
 
-After the visual review report is assembled (per `browser-review.md` Step 6: Report & Route), invoke the `/claude-tweaks:design` wrapper's `survey` mode to surface ranked Creative Opportunities — recommendations for which Impeccable creative commands (`bolder` / `delight` / `animate` / `colorize` / `extract` / `onboard` / `quieter` / `distill` / `overdrive`) might enhance the reviewed pages.
+After the visual review report is assembled (per `browser-review.md` Step 6: Report & Route), invoke the `/claude-tweaks:design-wrapper` wrapper's `survey` mode to surface ranked Creative Opportunities — recommendations for which Impeccable creative commands (`bolder` / `delight` / `animate` / `colorize` / `extract` / `onboard` / `quieter` / `distill` / `overdrive`) might enhance the reviewed pages.
 
 ```
-/claude-tweaks:design survey <changed-files> --screenshots <captured-paths>
+/claude-tweaks:design-wrapper survey <changed-files> --screenshots <captured-paths>
 ```
 
 Pass:
@@ -157,7 +157,8 @@ Handle the wrapper's return:
 
 | Return shape | Action |
 |--------------|--------|
-| `{result: "ok", recommendations: [...]}` with non-empty list | Render the Creative Opportunities block (template below) appended to the review report. |
+| `{result: "ok", recommendations: [...]}` with non-empty list, `$PIPELINE_RUN_DIR` set | Render the Creative Opportunities block (template below) appended to the review report — recommendations-only, unchanged from prior behavior. The parent pipeline owns any further decision. |
+| `{result: "ok", recommendations: [...]}` with non-empty list, no `$PIPELINE_RUN_DIR` (standalone) | Render the Creative Opportunities block (template below), then the apply-gate (see "Applying a recommendation" below). |
 | `{result: "ok", recommendations: []}` | Omit the block entirely — no opportunities surfaced is a valid outcome, not a failure. |
 | `{skipped: ...}` | Omit the block. Note the skip reason inline only when it would surprise the user (e.g., "Creative survey skipped — Impeccable plugin not installed"). |
 
@@ -166,15 +167,65 @@ Handle the wrapper's return:
 ```markdown
 ### Creative Opportunities (from /visual-review)
 
-| Page | Observation | Suggested command |
-|------|------------|-------------------|
-| /pricing | Hero feels generic — pure black on white, no personality | `/impeccable:impeccable bolder pricing` |
-| /empty-cart | Empty state shows only "No items" text | `/impeccable:impeccable delight empty-cart` |
-
-> These are recommendations only. Run any command manually if you want to apply it.
+| # | Page | Observation | Suggested command |
+|---|------|------------|-------------------|
+| 1 | /pricing | Hero feels generic — pure black on white, no personality | `/impeccable:impeccable bolder pricing` |
+| 2 | /empty-cart | Empty state shows only "No items" text | `/impeccable:impeccable delight empty-cart` |
 ```
 
-When the wrapper reports `suppressed > 0` in its return, append a small note below the table: `> N suggestion(s) hidden — previously declined for this spec. Reset with /claude-tweaks:design reset-recommendations <spec>.`
+When the wrapper reports `suppressed > 0` in its return, append a small note below the table: `> N suggestion(s) hidden — previously declined for this spec. Reset with /claude-tweaks:design-wrapper reset-recommendations <spec>.`
+
+### Applying a recommendation (standalone only)
+
+When running standalone (no `$PIPELINE_RUN_DIR`), the block above is never the final word — follow it with the standard apply-all/override gate. Call `AskUserQuestion` with `question`: `"Apply any of these?"`, `header`: `"Creative Opportunities"`, `multiSelect`: `false`, and:
+
+- Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Run every suggested command above against its listed page"`
+- Option 2 — `label`: `"Choose individually"`, `description`: `"Pick which suggestions to apply"`
+- Option 3 — `label`: `"None — just the report"`, `description`: `"Leave the report as-is, apply nothing"`
+
+If "Choose individually," ask which row numbers to apply as a follow-up free-text prompt (the table above is already numbered for this — no per-row `AskUserQuestion` needed).
+
+For every accepted row, invoke its `Suggested command` directly via the Skill tool (e.g. `/impeccable:impeccable bolder pricing`) — the same low-level invocation `design-wrapper`'s own modes perform internally; no new wrapper mode is needed since `survey`'s own precondition check already confirmed Impeccable is available before producing this recommendation. After all accepted commands run, re-verify: invoke `/claude-tweaks:test skip-qa` and report the result. If re-verification fails, report the failure and name the most recently invoked command as the likely cause rather than reverting automatically — reverting is the user's call.
+
+When "None," no further action — the report stands as rendered.
+
+## Step 5: Boost (standalone only)
+
+Runs only when `/visual-review` is standalone and interactive — no `$PIPELINE_RUN_DIR` set (same signal Step 4 and the Component-Skill Contract already use). When parent-invoked, this step does not apply; behavior is unchanged.
+
+After Step 4's Creative Opportunities block (and any apply-gate action from it) completes, offer once, as its own message:
+
+> Want me to go further?
+>
+> 1. Fix flagged issues **(Recommended)**
+> 2. Explore alternatives
+> 3. Both
+> 4. No thanks, just the report
+
+**Option 1 or 3 — Fix flagged issues:**
+
+1. Invoke `/claude-tweaks:design-wrapper review` via the Skill tool with no explicit target — the wrapper's `review` mode documents its target as a spec number or path, not a file list, and always resolves scope itself: an active spec's file list intersected with `git diff --name-only`, or a full-diff fallback filtered to frontend paths (see `design-wrapper/modes/review.md` Step 2). This means Fix path's scope tracks the current uncommitted diff, not necessarily every page walked in this browser session — if the two differ noticeably, note that in the report.
+2. The wrapper runs `critique` + `audit` and returns `{result: "advisory", findings: [...], score_trend: {...}}`. Render the findings as a batch table:
+
+   ```
+   | # | Source | File | Category | Severity | Message | Recommended |
+   |---|--------|------|----------|----------|---------|-------------|
+   | 1 | {source} | {file} | {category} | {severity} | {message} | {Fix\|Skip} |
+   ```
+
+   Pre-fill Recommended: `severity: error` or `severity: warning` → `"Fix"`; `severity: info` → `"Skip"`.
+3. Call `AskUserQuestion` with `question`: `"How do you want to handle these findings?"`, `header`: `"Findings"`, `multiSelect`: `false`, and:
+   - Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"Fix each finding marked Fix above"`
+   - Option 2 — `label`: `"Choose individually"`, `description`: `"Pick which findings to fix"`
+   - Option 3 — `label`: `"Skip fixes"`, `description`: `"Leave the code as-is"`
+4. For each accepted finding, invoke its `suggestion`-named Impeccable command directly via the Skill tool against the finding's `file` (same direct-invocation approach as Step 4's apply-gate). Group findings that share the same file and suggested command into one invocation.
+5. If any command ran, re-verify: invoke `/claude-tweaks:test skip-qa` and report the result inline. A re-verify failure is reported, not silently swallowed — name the most recently applied command as the likely cause; do not auto-revert.
+
+**Option 2 or 3 — Explore alternatives:**
+
+Invoke `/claude-tweaks:design-wrapper live <APP_URL>` via the Skill tool, targeting the already-running app (the `APP_URL` resolved back in Step 2). The human explores alternatives directly in their browser; this skill does not process the outcome further — `live` mode's own accept flow already writes any accepted change to source. After the live session ends, note in the report that a live-mode session ran and mention re-running `/claude-tweaks:test` if changes were accepted.
+
+**Option 4:** No further action.
 
 ## Next Actions
 
@@ -191,6 +242,8 @@ This is the canonical handoff block for the skill. Mode-specific Next Actions ex
 
 This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step 6) in `full` mode and by `/claude-tweaks:init` (Phase 8) for brownfield journey discovery. Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (the parent is running inside an active pipeline run). When invoked by a parent, omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user (no `$PIPELINE_RUN_DIR`), render Next Actions as shown above.
 
+**Code-modifying exception.** `/visual-review` is otherwise read-only with respect to code. Two specific, standalone-only, always-consent-gated paths modify code: Step 4's Creative Opportunities apply-gate, and Step 5's Boost gate (Fix option). Both re-verify afterward via `/claude-tweaks:test skip-qa`. Parent-invoked `/visual-review` (`$PIPELINE_RUN_DIR` set) never modifies code — Steps 4 and 5's apply/boost paths do not run in that context.
+
 ## Anti-Patterns
 
 | Pattern | Why It Fails |
@@ -206,7 +259,7 @@ This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step
 | Closing the session before saving a trace on failure | Failure reports without a trace path are not actionable — `trace save` first, then `close` |
 | Per-step `agent-browser` invocations during journey walks | Use `batch` for journey walks — one process, one session lifecycle, fewer tokens and less latency |
 | Batching across sessions | One `agent-browser batch` invocation owns a single session — never mix session names |
-| Auto-running commands suggested by the Creative Opportunities block | The block is recommendations only. The user invokes any command manually. /visual-review never executes Impeccable creative commands directly. |
+| Silently auto-applying a Creative Opportunities suggestion without the apply-gate | The block is recommendations only until the user explicitly accepts via the apply-gate (standalone mode) or takes it away to run manually (parent-invoked mode). /visual-review never executes an Impeccable creative command without that explicit accept. |
 | Rendering the Creative Opportunities block when the wrapper returned `recommendations: []` or `{skipped}` | An empty result is a valid outcome — omit the block entirely. Surfacing "no opportunities found" as positive signal is misleading because survey is heuristic, not exhaustive. |
 | Duplicating browser procedures in SKILL.md | `browser-review.md` is canonical for all mechanical browser procedures. SKILL.md is for mode resolution, auto-mode policy, and orientation — never copy procedure detail here. |
 
@@ -223,7 +276,7 @@ This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step
 | `/claude-tweaks:flow` | /flow invokes /review in full mode, which delegates to /visual-review for the browser portion. |
 | `/claude-tweaks:init` | Detects `agent-browser` availability during setup. Phase 8 delegates to /visual-review discover for brownfield journey bootstrapping. |
 | `/claude-tweaks:capture` | /visual-review may recommend capturing ideas surfaced during the review. |
-| `/claude-tweaks:design` | After the review report is assembled, /visual-review invokes `/claude-tweaks:design survey` with the captured screenshot paths and renders the resulting Creative Opportunities block in the report (anchor 2 of v4.5.0's creative surfacing system). The wrapper handles its own detection (non-frontend skips); the block is omitted when the wrapper returns no recommendations. |
+| `/claude-tweaks:design-wrapper` | After the review report is assembled, /visual-review invokes `/claude-tweaks:design-wrapper survey` with the captured screenshot paths and renders the resulting Creative Opportunities block in the report (anchor 2 of v4.5.0's creative surfacing system). The wrapper handles its own detection (non-frontend skips); the block is omitted when the wrapper returns no recommendations. Standalone-only, the Step 5 Boost gate additionally invokes `review` mode (Fix flagged issues, which re-verifies via `/claude-tweaks:test skip-qa` after applying) and `live` mode (Explore alternatives, which notes in the report that re-running `/claude-tweaks:test` may be worth it if changes were accepted, rather than re-verifying itself) — both consent-gated. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. The "Auto mode" branches in Step 1 (browser prereqs) and Step 2 (dev URL) implement the contract's auto-skip + stage-at-Review-Console pattern. |
 | `/claude-tweaks:wrap-up` | `verification-brief.md`'s Step 2.5 safety-net gate invokes /visual-review directly (same mode resolution as /review Step 6) when a testable record reaches wrap-up without a full pass already having run. Any bug found gates `demo:pending` the same way /review's Step 3 Routing gates PASS. |
 | `/claude-tweaks:demo` | `/demo`'s Verification Brief digest (Step 3) is sourced from /visual-review's own report — headline result + 1-3 committed screenshots. `/demo`'s optional "Show me live" escape hatch consumes /browse's conventions directly (the same relationship /visual-review itself has with /browse), not a re-invocation of /visual-review. |

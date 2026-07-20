@@ -2,17 +2,17 @@
 
 Loaded by `/claude-tweaks:specify` Step 2.5 when the design doc (decomposition mode) or the record's own content (shaping mode) covers a frontend surface. Skip this file entirely when the input is backend / infra-only — the frontend-detection sniff below determines whether to load this file at all. Step 2.5a and Step 2.5c run in both modes (Shaping mode calls them directly against the record's own body — see `SKILL.md`'s Shaping mode section); Step 2.5b is decomposition-mode only, since there's no design doc to plan UX/UI for ahead of a shaping-mode record that already exists.
 
-These pre-steps capture design context (`shape`) and creative direction (`Design-intent:`) so the resulting records carry both forward to `/build` and `/flow`'s polish phase as body-metadata lines.
+These pre-steps capture design context (`shape`), an optional accepted visual direction (`Visual-reference:`), and creative direction (`Design-intent:`) so the resulting records carry all three forward to `/build` and `/flow`'s polish phase as body-metadata lines.
 
 ## Step 2.5a: Frontend detection
 
-Sniff the input for frontend signals using the same rules as `/claude-tweaks:design`'s Layer 3 — the design doc's contents in decomposition mode, the record's own title/body in shaping mode:
+Sniff the input for frontend signals using the same rules as `/claude-tweaks:design-wrapper`'s Layer 3 — the design doc's contents in decomposition mode, the record's own title/body in shaping mode:
 
 - File-extension references (e.g., `.tsx`, `.jsx`, `.vue`, `.svelte`, `.html`, `.css`)
 - Path references containing `/components/`, `/pages/`, `/app/`, `/routes/`, `/views/`, `/ui/`
 - Explicit "UI", "frontend", "component", "page", "screen" terminology
 
-For the canonical sniff rules, read `frontend-detection.md` in the `/claude-tweaks:design` skill's directory.
+For the canonical sniff rules, read `frontend-detection.md` in the `/claude-tweaks:design-wrapper` skill's directory.
 
 If no frontend signals are detected, stop reading this file — return to SKILL.md and skip Steps 2.5b and 2.5c entirely. Write `Surface: backend` (or `infra` when the input clearly targets infra) as a body-metadata line on the affected record(s); omit `Design-intent:` entirely for non-frontend records — there is no "none" sentinel for the non-frontend case, absence is the signal.
 
@@ -20,7 +20,7 @@ If no frontend signals are detected, stop reading this file — return to SKILL.
 
 **Auto mode:** auto-run the shape pre-step for a frontend design doc (detection is deterministic from Step 2.5a). Log entry:
 ```
-AUTO {time} — Step 2.5b: auto-ran /claude-tweaks:design shape for the frontend design doc. Output appended to design doc. Reversibility: high.
+AUTO {time} — Step 2.5b: auto-ran /claude-tweaks:design-wrapper shape for the frontend design doc. Output appended to design doc. Reversibility: high.
 ```
 On `{skipped}` (Impeccable not installed, design integration disabled): note the skip in the log and proceed to Step 2.5c.
 
@@ -33,9 +33,30 @@ Frontend design detected. Run /impeccable:impeccable shape to plan UX/UI before 
 2. Skip — proceed directly to decomposition
 ```
 
-On option 1: invoke `/claude-tweaks:design shape <topic>` via the Skill tool. The wrapper runs `/impeccable:impeccable shape <topic>` and returns `{result: "ok", output: "..."}`. Append the returned output verbatim to the design doc under a `## Shape (Impeccable)` section. This enriches the design doc with UX/UI planning that the decomposed leaf records and downstream `/build` can reference.
+On option 1: invoke `/claude-tweaks:design-wrapper shape <topic>` via the Skill tool. The wrapper runs `/impeccable:impeccable shape <topic>` and returns `{result: "ok", output: "..."}`. Append the returned output verbatim to the design doc under a `## Shape (Impeccable)` section. This enriches the design doc with UX/UI planning that the decomposed leaf records and downstream `/build` can reference.
 
 On `{skipped}` (Impeccable not installed, design integration disabled): note the skip and proceed to Step 2.5c.
+
+## Step 2.5b-ii: Variant exploration (interactive only, shape confirmed)
+
+Runs only when Step 2.5b's shape pre-step actually produced a confirmed brief (option 1 was taken and Impeccable's own brief-confirmation exchange completed) — skip entirely if Step 2.5b was skipped, auto-ran, or returned `{skipped}`. **No auto-mode branch** — this step requires a human in a browser by construction (same reason `/impeccable:impeccable live` itself has no non-interactive mode); auto-mode design docs proceed straight from the text brief.
+
+Offer once, as its own message:
+
+> Want to compare a few real variants of {primary surface, from the brief's "Primary User Action"} before I build it for real? I'll put together a quick throwaway version and let you pick a direction in the browser.
+>
+> 1. Yes — build a scaffold and open live mode **(Recommended)**
+> 2. Skip — proceed to decomposition from the text brief only
+
+On option 2, or if the user doesn't respond affirmatively: proceed to Step 2.5c with no further action.
+
+On option 1:
+
+1. **Generate the scaffold.** Write a minimal, disposable static HTML file implementing the brief's primary surface — realistic placeholder content per the brief's "Key States" and "Content Requirements" sections, no real data wiring, no routing, no framework integration, no test coverage. Save it to `docs/plans/YYYY-MM-DD-{feature}-shape-scaffold.html` (same co-location convention as the audit/recommendations/declined caches).
+2. **Serve it.** Follow `_shared/dev-url-detection.md`'s "Ephemeral server start" procedure to serve the scaffold's containing directory on a free port. Set `SCAFFOLD_URL = http://localhost:{free-port}/{scaffold-filename}`.
+3. **Hand off to live mode.** Invoke `/claude-tweaks:design-wrapper live <SCAFFOLD_URL>` via the Skill tool. The human explores variants, tunes parameters, and accepts a direction — or exits without accepting, which is treated as a skip: proceed to Step 2.5c with no `Visual-reference:` line.
+4. **Stop the ephemeral server** per `_shared/dev-url-detection.md`'s "Cleanup" — Standalone rule (no pipeline run dir exists yet at this point in `/specify`'s flow).
+5. **Record the reference.** If a variant was accepted, note the scaffold's path for Step 3 (decomposition mode's own compose-then-write-once step) to write as a new `Visual-reference: docs/plans/YYYY-MM-DD-{feature}-shape-scaffold.html` body-metadata line, alongside `Surface:` and `Design-intent:`, on every generated leaf record covering this surface. Step 2.5b-ii never runs in Shaping mode — Step 2.5b itself is decomposition-mode only, per this file's opening note — so there is no Shaping-mode counterpart to wire up here.
 
 ## Step 2.5c: Design-intent question (frontend only)
 

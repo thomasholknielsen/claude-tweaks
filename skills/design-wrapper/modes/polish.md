@@ -1,6 +1,6 @@
 # Design Mode — polish
 
-Invoked via `/claude-tweaks:design polish <spec>`. Returns `{mode, result: "ok", commands_invoked, files_modified}` or `{mode, skipped, ...}` to caller. **First wrapper mode that modifies code.**
+Invoked via `/claude-tweaks:design-wrapper polish <spec>`. Returns `{mode, result: "ok", commands_invoked, files_modified}` or `{mode, skipped, ...}` to caller. **First wrapper mode that modifies code.**
 
 ## When this runs
 
@@ -53,7 +53,9 @@ Invoke each via the Skill tool, in order:
 
 Read the audit findings from Step 3. For each category match, invoke the corresponding command per `../command-map.md` Step 2 table. Match by checking the audit finding's `category` or `rule` field (case-insensitive substring match against the category keywords).
 
-When the audit produces multiple matches for the same category, dispatch the command once with the union of affected files.
+**Anti-Pattern category is suggestion-driven.** When a finding's category matches `anti-pattern`/`ai slop`/`ai-generated`/`generic` (per `../command-map.md`'s "Anti-Pattern dispatch" section), read that finding's `suggestion` field instead of using a fixed command. If the named command is `colorize`, `extract`, or `overdrive` (the manual-only set), do not dispatch it — instead append one entry to `staged_suggestions` (see Output to caller below) so the caller can surface it without the pipeline applying it silently. Otherwise dispatch the named command normally, same as the fixed-category rows.
+
+When the audit produces multiple matches for the same category **and the same resolved command** (fixed rows: always the same command per category; Anti-Pattern row: same `suggestion` value across findings), dispatch the command once with the union of affected files. When Anti-Pattern findings within one run name different commands, dispatch each named command once, each with the union of files whose findings named it.
 
 ### Step 6: Intent-driven dispatch
 
@@ -92,14 +94,20 @@ When `commands_invoked` is empty, do not build `decision_summary` — omit the f
   "commands_invoked": [
     { "command": "/impeccable:impeccable polish", "files": ["..."], "category": "auto-fit" },
     { "command": "/impeccable:impeccable typeset", "files": ["..."], "category": "issue-driven", "trigger": "audit:typography" },
+    { "command": "/impeccable:impeccable bolder", "files": ["..."], "category": "issue-driven", "trigger": "audit:anti-pattern" },
     { "command": "/impeccable:impeccable bolder", "files": ["..."], "category": "intent-driven", "trigger": "intent:bold" },
     { "command": "/impeccable:impeccable delight", "files": ["..."], "category": "intent-driven", "trigger": "intent:delightful" },
     { "command": "/impeccable:impeccable animate", "files": ["..."], "category": "intent-driven", "trigger": "intent:delightful" }
   ],
+  "staged_suggestions": [
+    { "command": "/impeccable:impeccable overdrive", "files": ["..."], "trigger": "audit:anti-pattern" }
+  ],
   "files_modified": [ "<path>", ... ],
-  "decision_summary": "Dispatched 5 Impeccable commands on 3 files — auto-fit: polish; issue-driven: typeset (audit:typography); intent-driven: bolder (intent:bold), delight (intent:delightful), animate (intent:delightful)."
+  "decision_summary": "Dispatched 6 Impeccable commands on 3 files — auto-fit: polish; issue-driven: typeset (audit:typography), bolder (audit:anti-pattern); intent-driven: bolder (intent:bold), delight (intent:delightful), animate (intent:delightful)."
 }
 ```
+
+`staged_suggestions` is an array with the same per-entry shape as `commands_invoked` minus `category` (staged entries never ran, so a dispatch category doesn't apply) — omit the field entirely when empty, same convention as `decision_summary`.
 
 Or, when no commands ran (skip from preconditions, or zero files in scope, or no findings + no auto-fit applicable):
 

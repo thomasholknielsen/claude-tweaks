@@ -150,7 +150,7 @@ After types/lint/tests pass (or if they were skipped via `VERIFICATION_PASSED`),
 
 **Invocation:**
 
-Invoke `/claude-tweaks:design test <changed-files>`. Resolve `<changed-files>` from `git diff --name-only` (the wrapper handles its own filtering and detection).
+Invoke `/claude-tweaks:design-wrapper test <changed-files>`. Resolve `<changed-files>` from `git diff --name-only` (the wrapper handles its own filtering and detection).
 
 **Result handling:**
 
@@ -284,7 +284,7 @@ Whichever matches the current run's actual signal gets `(Recommended)` on its la
 | `/claude-tweaks:flow` | /flow chains build → [stories →] test → review → polish → re-verify → wrap-up. /test is the mechanical gate between build/stories and review. The polish-phase re-verify gate invokes `/test skip-qa` to verify polish modifications without re-running browser QA. |
 | `/claude-tweaks:help` | /help can recommend /test when code changes exist but no review is warranted |
 | `/claude-tweaks:ledger` | Manages the open items ledger. /test appends QA findings and observations with phase `test/qa`. |
-| `/claude-tweaks:design` | /test invokes `/claude-tweaks:design test <files>` as Step 1.5 after the standard suite. Findings with `severity: warning` fail the gate; `advisory` findings and skips do not. The wrapper handles its own detection and availability checks. |
+| `/claude-tweaks:design-wrapper` | /test invokes `/claude-tweaks:design-wrapper test <files>` as Step 1.5 after the standard suite. Findings with `severity: warning` fail the gate; `advisory` findings and skips do not. The wrapper handles its own detection and availability checks. |
 | `/claude-tweaks:browse` | /browse may invoke /test indirectly when story validation requires browser-driven QA — both share `dev-url-detection.md` from `skills/_shared/`. |
 | `/claude-tweaks:journeys` | /journeys feeds journey files into /stories which /test qa consumes; `journey={name}` filter lets /test run only the QA stories tied to a single journey. |
 | `/claude-tweaks:journey-health` | The deep tier drives `/test journey={name}` when auditing a journey that has story coverage — this is the "agent e2e testing" journey-health exists to protect. |

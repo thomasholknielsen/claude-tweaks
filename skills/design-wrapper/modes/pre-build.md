@@ -1,6 +1,6 @@
 # Design Mode — pre-build
 
-Invoked via `/claude-tweaks:design pre-build <spec>`. Returns `{mode, result: "ok", loaded, context_size, missed}` or `{mode, skipped, ...}` to caller.
+Invoked via `/claude-tweaks:design-wrapper pre-build <spec>`. Returns `{mode, result: "ok", loaded, context_size, missed}` or `{mode, skipped, ...}` to caller.
 
 ## When this runs
 

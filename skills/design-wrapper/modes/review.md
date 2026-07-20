@@ -1,6 +1,6 @@
 # Design Mode — review
 
-Invoked via `/claude-tweaks:design review <spec>`. Returns `{mode, result: "advisory", files_scanned, findings, score_trend}` or `{mode, skipped, ...}` to caller. Also writes an audit cache that `polish` mode consumes, and appends to a persistent design-score history log.
+Invoked via `/claude-tweaks:design-wrapper review <spec>`. Returns `{mode, result: "advisory", files_scanned, findings, score_trend}` or `{mode, skipped, ...}` to caller. Also writes an audit cache that `polish` mode consumes, and appends to a persistent design-score history log.
 
 ## When this runs
 

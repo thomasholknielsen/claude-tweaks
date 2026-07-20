@@ -4,7 +4,7 @@ Reusable procedure for producing themed, self-contained HTML+SVG visual output: 
 
 ## Step 1: Token extraction
 
-Read the project's `DESIGN.md` (canonical path: project root; fallback: `docs/design/DESIGN.md`, `docs/DESIGN.md` — same resolution order `/claude-tweaks:design`'s `pre-build` mode already uses). Parse the YAML frontmatter for `colors`, `typography`, `rounded`, `spacing`. Also read the sibling `DESIGN.json` sidecar (same directory, same basename) when present, for `extensions.colorMeta` tonal ramps and any dark-mode-specific values.
+Read the project's `DESIGN.md` (canonical path: project root; fallback: `docs/design/DESIGN.md`, `docs/DESIGN.md` — same resolution order `/claude-tweaks:design-wrapper`'s `pre-build` mode already uses). Parse the YAML frontmatter for `colors`, `typography`, `rounded`, `spacing`. Also read the sibling `DESIGN.json` sidecar (same directory, same basename) when present, for `extensions.colorMeta` tonal ramps and any dark-mode-specific values.
 
 Map each `colors.<slug>` entry to a CSS custom property named `--<slug>` (kebab-case slugs pass through unchanged, e.g. `colors.basil-green` → `--basil-green`). Map `typography.<role>.fontFamily`/`fontSize`/`fontWeight`/`lineHeight`/`letterSpacing` to `--font-<role>-family`, `--font-<role>-size`, `--font-<role>-weight`, `--font-<role>-line-height`, `--font-<role>-letter-spacing`.
 
@@ -26,7 +26,7 @@ If no `DESIGN.md` is found at any of the three paths, before generating, call `A
 
 If Impeccable itself isn't installed (no `/impeccable:impeccable*` skill resolves in the available skills list), Option 1's description becomes `"Install Impeccable, then run /impeccable document — then this diagram (and every one after it) picks up your real palette"` instead.
 
-**Per-session dedupe:** the first time the user picks Option 2, set an in-memory session marker (never written to disk). Every subsequent call within the same session skips this `AskUserQuestion` entirely and goes straight to the neutral default skin — the same dedupe `/claude-tweaks:design`'s own availability check uses ("if the same mode skips twice for the same reason in a session, surface only the first skip"). The marker does not persist across sessions; a project's Impeccable setup can change between them.
+**Per-session dedupe:** the first time the user picks Option 2, set an in-memory session marker (never written to disk). Every subsequent call within the same session skips this `AskUserQuestion` entirely and goes straight to the neutral default skin — the same dedupe `/claude-tweaks:design-wrapper`'s own availability check uses ("if the same mode skips twice for the same reason in a session, surface only the first skip"). The marker does not persist across sessions; a project's Impeccable setup can change between them.
 
 **Neutral default skin** (used when `DESIGN.md` is absent and the user either declined or the session marker is set): a small fixed palette, not derived from any project:
 
