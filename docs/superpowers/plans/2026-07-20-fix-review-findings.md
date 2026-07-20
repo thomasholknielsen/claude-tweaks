@@ -367,14 +367,14 @@ git commit -m "Fix review finding(s): tests/hooks-worktree-detect.test.js, tests
 ### Task 8: CLAUDE.md, agents/qa-agent.md, +1 more
 
 **Files:**
-- Modify: `CLAUDE.md` (2 findings)
+- Modify: `CLAUDE.md` (2 findings, 1 already resolved by Task 1 -- see below)
 - Modify: `agents/qa-agent.md` (5 findings)
 - Modify: `skills/_shared/auto-mode-contract.md` (1 finding)
 
 **Findings to fix (full detail in `docs/superpowers/plans/2026-07-20-fix-review-findings-data.json`):**
 
 `CLAUDE.md`:
-- **[cross-file-promise]** CLAUDE.md:5 -- CLAUDE.md's own opening line states the plugin is "v5.7.0" while the actual version in `.claude-plugin/plugin.json` (the documented single source of truth per the Versioning section) is 6.11.1.
+- ~~**[cross-file-promise]** CLAUDE.md:5 -- CLAUDE.md's own opening line states the plugin is "v5.7.0" while the actual version in `.claude-plugin/plugin.json` (the documented single source of truth per the Versioning section) is 6.11.1.~~ **ALREADY RESOLVED by Task 1** (commit 51c1f87): Task 1's Finding 1 was filed against `.claude-plugin/plugin.json:4` for the same underlying cross-file version drift; the implementer determined plugin.json was already correct and fixed CLAUDE.md's opening line instead (the two findings were the same real bug, described from two different files' perspectives, and were not deduped against each other during the review synthesis). Do not re-fix this — verify CLAUDE.md's opening line already reads the current version and skip.
 - **[cross-file-promise]** CLAUDE.md:23 -- CLAUDE.md's Dependencies line lists label-bootstrap.md's consumers as "capture/specify/triage/dispatch/tidy/wrap-up/init/code-health/harness-health/journey-health/docs-health/flow," omitting /demo and /review-backlog, both of which genuinely bootstrap labels through `_shared/label-bootstrap.md` (demo's `demo:changes-requested` check-then-create loop at demo/SKILL.md:155; review-backlog's `priority:*` bootstrap with its own explicit Relationship-table row citing the file as canonical at review-backlog/SKILL.md:274).
 
 `agents/qa-agent.md`:
