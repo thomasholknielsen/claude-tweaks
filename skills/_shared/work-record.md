@@ -59,9 +59,10 @@ five members — one per filing skill: `by:code-health`, `by:harness-health`,
 
 ## Label taxonomy
 
-23 core labels + 3 optional `priority:*` labels. The canonical `LABELS_JSON` (names +
-≤100-char descriptions) lives in `_shared/label-bootstrap.md`; consumers bootstrap only the
-labels they are about to apply.
+The core label families below, plus an optional `priority:*` family (see the table for the
+current per-family and total counts). The canonical `LABELS_JSON` (names + ≤100-char
+descriptions) lives in `_shared/label-bootstrap.md`; consumers bootstrap only the labels they
+are about to apply.
 
 | Family | Labels | Axis |
 |---|---|---|
