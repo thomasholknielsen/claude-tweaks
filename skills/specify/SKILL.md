@@ -634,9 +634,7 @@ git commit -m "Mark phase-{N} specified in design doc"
 
 When fully consumed, do NOT keep these around. They create dangling references and stale artifacts. The leaf records are the durable artifact.
 
-## Step 8: Retired
-
-Retired: a captured record is shaped in place (Shaping mode); there is no separate backlog entry to delete.
+(Step 8 — the old backlog-entry deletion — is retired: a captured record is shaped in place, so there is nothing to delete.)
 
 ---
 

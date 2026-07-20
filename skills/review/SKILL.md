@@ -433,17 +433,17 @@ See `_shared/design-wrapper-handling.md` for the canonical return-shape contract
 
 **Why findings are advisory (review-specific):** Impeccable critiques are LLM-generated and opinionated. The user judges which findings to action. The wrapper's `review` mode is read-only — code-modifying behavior lives in `polish` (invoked separately). Surfacing findings is the value-add; the user routes them to fixes, deferrals, or accepted decisions through Step 3 Routing if they choose.
 
-**Routing (optional):** When the user wants to action design findings inline, route them through Step 3-bis below — Step 3 has already completed by this point, so design findings get their own branch reachable only from Step 6.5. When the user opts not to action them inline, they remain in the Design Quality summary section as informational.
+**Routing (optional):** When the user wants to action design findings inline, route them through Step 6.6 below — Step 3 has already completed by this point, so design findings get their own branch reachable only from Step 6.5. When the user opts not to action them inline, they remain in the Design Quality summary section as informational.
 
-## Step 3-bis: Design Findings Routing (from Step 6.5)
+## Step 6.6: Design Findings Routing
 
 Reachable only when Step 6.5 produced `{result: "advisory", findings: [...]}` AND the user opted to action findings inline. This branch reuses the routing mechanics from `step3-routing.md` (severity-based auto routing, interactive batch table, deferral gate, parallel-fix dispatch) but operates on a separate findings set scoped to category `Design Quality`.
 
-1. Treat each design finding as a row in a Step 3-bis batch table with category `Design Quality`, severity from the wrapper output (`info` → low, `warning` → medium, `error` → high), and the wrapper's suggestion as the recommended fix.
+1. Treat each design finding as a row in a Step 6.6 batch table with category `Design Quality`, severity from the wrapper output (`info` → low, `warning` → medium, `error` → high), and the wrapper's suggestion as the recommended fix.
 2. Run the same severity-routing table from `step3-routing.md` — low → AUTO, medium → STAGED, high → STAGED, critical → KEPT-PROMPT.
 3. After resolution, fold the resolved findings back into the Step 7 summary's "Design Quality" section with their final status (fixed / deferred / accepted).
 
-Step 3-bis does NOT replay Step 3.5 (cross-lens debate) — design findings come from a single source and have no peers to debate against. Step 3-bis also does NOT re-dispatch reproduction pairs — Impeccable's output is already filtered upstream.
+Step 6.6 does NOT replay Step 3.5 (cross-lens debate) — design findings come from a single source and have no peers to debate against. Step 6.6 also does NOT re-dispatch reproduction pairs — Impeccable's output is already filtered upstream.
 
 ## Step 7: Present Review Summary
 
