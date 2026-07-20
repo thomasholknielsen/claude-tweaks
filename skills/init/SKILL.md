@@ -149,7 +149,7 @@ After Phase 0 completes, present the scope selection — unless `$ARGUMENTS` alr
 
 **Not silenced by `auto`.** The scope-selection gate is on the "What `auto` does NOT silence" list in `_shared/auto-mode-contract.md` — it is a project-shape governance decision that requires explicit user input regardless of `auto` state. The prompt below always renders unless `$ARGUMENTS` already specified a scope.
 
-Call `AskUserQuestion` (see "Phases at a Glance" above for the full table; Phase 8 is auto-marked "Skip — no UI detected" when reconnaissance finds no user-facing surface):
+Call `AskUserQuestion` (see "Phases at a Glance" above for the full table):
 
 - `question`: `"Bootstrap complete. How much setup do you want?"`, `header`: `"Setup scope"`, `multiSelect`: `false`
 - Option 1 — `label`: `"Auto (Recommended)"`, `description`: `"Run all included phases without stopping"`
@@ -159,11 +159,11 @@ Call `AskUserQuestion` (see "Phases at a Glance" above for the full table; Phase
 
 **Option 1 (Auto):** Run all included phases end-to-end. Phase 3 auto-confirms classification when detection confidence is `high` and signals are consistent (otherwise presents the confirmation gate as a KEPT-PROMPT). Phase 4 still presents the skill selection (governance decision — never silenceable). Phase 9 still presents the final summary for confirmation (governance decision). All other phases run without pausing.
 
-**Option 2 (Interactive):** After each phase completes, present its output, then call `AskUserQuestion`. This is a template — re-issue it once per phase (not a single static site), substituting `{N}`, `{N+1}`, `{description}`, and `{N+2}` each time:
+**Option 2 (Interactive):** After each phase completes, present its output, then call `AskUserQuestion`. This is a template — re-issue it once per phase (not a single static site), substituting `{phase}`, `{next phase}`, `{description}`, and `{phase after next}` each time. Resolve "next phase" and "phase after next" by walking the actual sequence in "Phases at a Glance" (0, 1, 2, 3, 4, 5, 6, 7, 8, 8.5, 9) — not `{N+1}`/`{N+2}` integer arithmetic, which breaks at the 8 → 8.5 → 9 step. For example, after Phase 7 the next phase is 8; skipping Phase 8 moves to Phase 8.5, never Phase 9:
 
-- `question`: `"Phase {N} complete. Continue to Phase {N+1} ({description})?"`, `header`: `"Phase gate"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Continue (Recommended)"`, `description`: `"Proceed to Phase {N+1} ({description})"`
-- Option 2 — `label`: `"Skip Phase {N+1}"`, `description`: `"Move to Phase {N+2}"`
+- `question`: `"Phase {phase} complete. Continue to Phase {next phase} ({description})?"`, `header`: `"Phase gate"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Continue (Recommended)"`, `description`: `"Proceed to Phase {next phase} ({description})"`
+- Option 2 — `label`: `"Skip Phase {next phase}"`, `description`: `"Move to Phase {phase after next}"`
 - Option 3 — `label`: `"Done"`, `description`: `"Stop here"`
 
 If the user selects this template's "Done" and Step 6 queued a `worktree.always` decision, write it now — see "Finalizing the worktree.always Decision" above.
