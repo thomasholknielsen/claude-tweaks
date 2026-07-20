@@ -123,6 +123,20 @@ test('record-worktree with a non-existent --run path fails loudly instead of fal
     'an invalid --run must not silently fall back to a different run dir');
 });
 
+test('record-worktree --run with no following value fails loudly instead of falling back or claiming success', () => {
+  const project = tmpProject(); // has a real run dir the fallback WOULD find if we silently fell through
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  // '--run' as the trailing token — flag present, no path follows it. Keep
+  // the worktree positional present (before --run) so this isolates the
+  // missing-value case from the separate "no worktree given" branch.
+  const result = runHook(['record-worktree', '/tmp/wt-2', '--run'], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /claude-tweaks: --run path not found: \(missing value\) — worktree not recorded/);
+  assert.doesNotMatch(result.stdout, /worktree recorded/);
+  assert.strictEqual(fs.existsSync(path.join(run, 'run-state.json')), false,
+    '--run with a missing value must not silently fall back to a different run dir');
+});
+
 test('record-worktree reports a distinct failure when the run-state write itself fails', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
@@ -147,6 +161,23 @@ test('close-run with a non-existent --run path fails loudly instead of falling b
   assert.match(result.stdout, /--run path not found/);
   const state = readRunState(run);
   assert.strictEqual(state.status, 'active', 'an invalid --run must not touch a different run dir at all');
+});
+
+test('close-run --run with no following value fails loudly instead of falling back to the newest non-terminal run', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  // Prove the fallback WOULD find and close this run if --run's missing
+  // value were silently ignored: record a worktree so it's active and
+  // non-terminal — exactly what resolveRunDir's "newest non-terminal run"
+  // scan picks up (see the #19/#36 cross-contamination shape above).
+  assert.strictEqual(runHook(['record-worktree', '/tmp/wt-1'], { cwd: project }).code, 0);
+  assert.strictEqual(readRunState(run).status, 'active');
+
+  const result = runHook(['close-run', '--run'], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /claude-tweaks: --run path not found: \(missing value\) — run not closed/);
+  assert.strictEqual(readRunState(run).status, 'active',
+    '--run with a missing value must not fall back to closing the newest non-terminal run');
 });
 
 // Regression: record-worktree's if/else-if chain had no branch for "a run
