@@ -561,8 +561,8 @@ git commit -m "Fix review finding(s): skills/docs-health/SKILL.md, skills/flow/S
 - Modify: `skills/init/SKILL.md` (2 findings)
 - Modify: `skills/init/bootstrap-steps.md` (1 finding)
 - Modify: `skills/journey-health/SKILL.md` (2 findings)
-- Modify: `skills/ledger/SKILL.md` (2 findings: 1 original + 1 NEW, discovered during Task 10's execution -- see below)
-- Modify: `skills/help/context-flow.md` (1 finding, NEW, same discovery -- not in original brief's file list)
+- Modify: `skills/ledger/SKILL.md` (4 findings: 1 original + 3 NEW, discovered during Tasks 10 and 11's execution -- see below)
+- Modify: `skills/help/context-flow.md` (1 finding, NEW, discovered during Task 10's execution -- not in original brief's file list)
 - Modify: `skills/research/SKILL.md` (1 finding)
 - Modify: `skills/specify/SKILL.md` (1 finding)
 
@@ -585,6 +585,8 @@ git commit -m "Fix review finding(s): skills/docs-health/SKILL.md, skills/flow/S
 
 `skills/help/context-flow.md`:
 - **[cross-file] NEW, same discovery as the ledger/SKILL.md finding above** -- context-flow.md's `/deepen` row ("Depth refactors (in-place) or staged candidates; ledger items (phase `deepen`)") makes the identical false ledger-writing claim, in a third location across 2 files. Fix using the same corrected understanding of deepen's real behavior (decisions.md + staged/ folder, not the ledger).
+- **[cross-file-promise] NEW, discovered during Task 11's execution (not in the original 147; Task 11's own report flagged this, verified by reading status-scan.md's actual 7 stages end to end)** -- ledger/SKILL.md's Relationship-table row for `/claude-tweaks:help` claims "/help scans for active ledgers with open items and surfaces them in the status dashboard" -- this is false and is the reciprocal side of the same bug Task 11 already fixed in help/SKILL.md's own Relationship table (that fix states accurately that `/help` does not scan ledger files; `/ledger resolve`, run by wrap-up Step 8.5 or flow Step 5, is what actually catches them). Fix ledger/SKILL.md's `/claude-tweaks:help` row (line ~253) to match the corrected, accurate understanding already written into help/SKILL.md.
+- **[cross-file-promise] NEW, same discovery as directly above, same file** -- ledger/SKILL.md's own "## When to Use" section (line ~26) lists "When `/claude-tweaks:help` flags unresolved ledger items" as a trigger for using `/ledger` standalone -- same false premise (that /help flags/scans ledger items), needs the same correction.
 
 `skills/research/SKILL.md`:
 - **[structural-contract]** skills/research/SKILL.md:111 -- research's '## Component-Skill Contract' section is placed after '## Anti-Patterns' (line 101) instead of immediately before it, violating CLAUDE.md's explicit CSC placement rule.
@@ -931,7 +933,7 @@ git commit -m "Fix review finding(s): agents/qa-agent.md, skills/_shared/dev-url
 
 **Files:**
 - Modify: `skills/browse/SKILL.md` (1 finding)
-- Modify: `skills/build/SKILL.md` (1 finding)
+- Modify: `skills/build/SKILL.md` (2 findings: 1 original + 1 NEW, discovered during Task 11's execution -- see below)
 - Modify: `skills/build/failure-recovery.md` (1 finding)
 - Modify: `skills/build/worktree-setup.md` (1 finding)
 - Modify: `skills/capture/SKILL.md` (1 finding)
@@ -944,6 +946,7 @@ git commit -m "Fix review finding(s): agents/qa-agent.md, skills/_shared/dev-url
 
 `skills/build/SKILL.md`:
 - **[efficiency]** skills/build/SKILL.md:95 -- Spec Step 2.5's per-Manual-Steps-item CLI/credential probing (`which {tool}`, then `{tool} auth status`) carries no "Parallel execution" directive, unlike the structurally identical probe-then-classify procedure in `operational-checklist.md` (same skill directory, Common Step 5.5) which explicitly calls out parallel tool calls for its probes.
+- **[cross-file-promise] NEW, discovered during Task 11's execution (not in the original 147; cited in Task 11's own finding's failure_scenario, not independently discovered -- the third leg of the same broken "/help scans for ledger items" promise Task 11 fixed in help/SKILL.md and Task 12 is fixing in ledger/SKILL.md)** -- skills/build/SKILL.md:221 tells the implementer, for ledger-appended blocked items, "These will be picked up by `/claude-tweaks:help` when scanning for actionable work" -- false, per the same verification Task 11 already did against status-scan.md's actual 7 stages (no stage reads ledger files). Fix to accurately describe how blocked ledger items actually get resolved (via `/ledger resolve`, run by wrap-up Step 8.5 or flow Step 5 -- matching the corrected text Task 11 wrote into help/SKILL.md's Relationship table).
 
 `skills/build/failure-recovery.md`:
 - **[altitude]** skills/build/failure-recovery.md:19 -- The "reproduce a behavioral bug before fixing it" discipline is a cross-cutting concern independently restated with drifting wording in at least four places (build/SKILL.md:235, build/failure-recovery.md:19, test/SKILL.md:225, review/SKILL.md:508) rather than centralized in one `_shared/*.md` fragment, unlike other repeated cross-cutting concerns in this codebase (Working Directory Discipline, git rules, auto-mode routing) which do have a canonical shared home.
