@@ -1029,7 +1029,7 @@ git commit -m "Fix review finding(s): skills/demo/SKILL.md, skills/design-wrappe
 - Modify: `skills/research/reference/methodology.md` (1 finding)
 - Modify: `skills/review-backlog/SKILL.md` (1 finding)
 - Modify: `skills/review/SKILL.md` (1 finding)
-- Modify: `skills/specify/SKILL.md` (1 finding)
+- Modify: `skills/specify/SKILL.md` (2 findings: 1 original + 1 NEW, discovered during Task 9's execution -- see below)
 
 **Findings to fix (full detail in `docs/superpowers/plans/2026-07-20-fix-review-findings-data.json`):**
 
@@ -1051,6 +1051,7 @@ git commit -m "Fix review finding(s): skills/demo/SKILL.md, skills/design-wrappe
 
 `skills/specify/SKILL.md`:
 - **[efficiency]** skills/specify/SKILL.md:198 -- Decomposition mode fetches the full issue list twice within one run — Step 1's Landscape read (--state open --json number,title,labels,body, line 198) and Step 3's Idempotency map (--state all --json number,body, line 390) — with no note that Step 3 could reuse or extend Step 1's already-fetched data.
+- **[cross-file] NEW, discovered during Task 9's fix for skills/capture/SKILL.md's identical bug (not in the original 147; Task 9's own report flagged this as a real, unclaimed instance)** -- specify/SKILL.md's parent/leaf record creation (lines ~443-451 and ~512-520) instructs creating brand-new local-files records via `allocateId()` + `writeRecord()`, the exact pattern `bin/lib/issues/local-store.js`'s own header comments say is "NOT safe for concurrent record creation" -- two sessions decomposing specs near-simultaneously can allocate the same id under different slugs, corrupting any later `facets.parent`/`facets.blockedBy` reference that assumes id uniqueness. Fix using the same pattern Task 9 already applied to capture/SKILL.md: replace both call sites with `createRecord(dir, { slug, title, body, facets })` (see `bin/lib/issues/local-store.js` and `bin/lib/issues/tests/local-store.test.js` for its exact signature/contract), and add the same race-explanation prose Task 9 used, adapted for a reader of this skill file.
 
 - [ ] **Step 1: Read each target file and the matching entries in `docs/superpowers/plans/2026-07-20-fix-review-findings-data.json` for this task's files, to get the full `failure_scenario` for each finding.**
 
