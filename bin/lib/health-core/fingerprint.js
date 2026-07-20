@@ -14,4 +14,26 @@ function fingerprintFromBasis(prefix, basis) {
   return `${prefix}-${hash}`;
 }
 
-module.exports = { normalizeText, fingerprintFromBasis };
+// Parametrized per-skill fingerprint wrapper — same shape as
+// createCache(skillName)/createDurableState(skillName, opts) in
+// cache.js/durable-state.js. `fields` is the caller's basis field order,
+// pulled off a findings-shaped object; a `description` field is run through
+// normalizeDescription (== normalizeText) first so cosmetic rewording
+// doesn't mint a new id. `skillName`'s dashes are stripped for the id
+// prefix ('journey-health' -> 'journeyhealth-<hash>'), matching every
+// existing per-skill prefix. Docs-health, harness-health, and journey-health
+// all use this; code-health's fingerprint.js is intentionally NOT built on
+// this factory — it hashes a different basis shape entirely (v1
+// lens/areaId/file/signature vs. v2 criterion/areaId/anchor, with its own
+// normalizeSignature/normalizeAnchor, not normalizeText).
+function createFingerprint(skillName, fields) {
+  const prefix = skillName.replace(/-/g, '');
+  function normalizeDescription(description) { return normalizeText(description); }
+  function fingerprint(obj) {
+    const basis = fields.map((field) => (field === 'description' ? normalizeDescription(obj[field]) : obj[field]));
+    return fingerprintFromBasis(prefix, basis);
+  }
+  return { fingerprint, normalizeDescription };
+}
+
+module.exports = { normalizeText, fingerprintFromBasis, createFingerprint };
