@@ -107,6 +107,10 @@ are always explicit once a record is scored. `bin/lib/issues/tier.js` gains a sm
 `extractCeremony(labels)` reader (same shape as the existing `extractRiskEffort`). Bootstrap both
 label values per `_shared/label-bootstrap.md`'s canonical check-then-create snippet.
 
+The materialized pinned header field follows the same always-explicit convention as the label it
+now mirrors (`ceremony: fast-lane` or `ceremony: standard`, never omitted) — one convention for
+one concept, rather than an explicit label paired with an omit-on-default header field.
+
 This also fixes a latent edge case in the original design: previously, a record missing the
 `ceremony:` header field for any reason silently defaulted to `standard` forever (per the original
 Error Handling section). Under the always-explicit-label convention, "label absent" now
@@ -143,8 +147,14 @@ standalone-defaults-to-full rule):
 | Step 2 (Change analysis) | Always runs | Runs (needed to scope Step 3) |
 | Step 3 (Code review of the diff) | Always runs | **Unchanged — always runs at full strength** |
 | Step 4 (Hindsight) | Always runs | Skipped |
-| Step 5 (Simplification) | Full breadth | Reduced breadth (mirrors Reflect light's narrowed-lens principle) |
-| Step 6 (Summary) | Always runs | Always runs, notes light mode |
+| Step 5 (Simplification) | Runs | **Unchanged — always runs** |
+| Step 7 (Summary) | Always runs | Always runs, notes light mode |
+
+Checked directly against `skills/review/SKILL.md`: Step 5 already scopes to `git diff
+--name-only` only — unlike Wrap-up's skill-curation (which searches the *wider* skill library
+beyond the diff, hence its top-5→top-2 breadth cap), Review's Step 5 has no "look beyond the
+diff" behavior to cap in the first place. It's already proportional to diff size, exactly like
+Step 3. No change needed there — dropped from the tiered set.
 
 Step 3 is the actual bug-catching substance and is deliberately never touched — this design draws
 the same line the original one drew for Reflect (keep the safety-relevant judgment, trim the
@@ -216,9 +226,13 @@ itself is unchanged — only the call site and input source move.
 - **Modified:** `skills/specify/SKILL.md` (Step 3 — ceremony-check call + label write, both
   shaping-mode and decomposition-mode paths; Step 5 — persona-count-by-tier),
   `skills/flow/materialize.md` (line ~77 — label-read-with-fallback instead of always-compute;
-  drop the omit-when-standard note), `skills/assess-agent-autonomy/SKILL.md` (`ceremony-check`
-  mode's "Called from" line), `skills/review/SKILL.md` (mode table gains `light`, mirroring
-  `reflect/SKILL.md`'s existing table), `skills/review-backlog/SKILL.md` +
+  drop the omit-when-standard note), `skills/flow/manifesto.md` (per-spec preview table's
+  "Ceremony" row — wording only, from "omitted means standard" to "always present"; the
+  bundle-fold-AND logic itself is unchanged), `skills/assess-agent-autonomy/SKILL.md`
+  (`ceremony-check` mode's "Called from" line), `skills/review/SKILL.md` (new ceremony-aware
+  step-skip subsection gating Steps 1/1.6/4 — not a new `$ARGUMENTS` mode; the existing Review
+  Modes table (`code`/`full`/`visual`/`journey`/`discover`) is a separate, orthogonal axis and
+  is untouched), `skills/review-backlog/SKILL.md` +
   `bin/lib/issues/review-backlog.js` (Suggested tier column, Step 2/3/4), `_shared/label-
   bootstrap.md`-pattern label registration for `ceremony:fast-lane`/`ceremony:standard`.
 - **Amended:** `docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md` (see
