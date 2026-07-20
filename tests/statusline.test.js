@@ -9,11 +9,16 @@ const STATUSLINE = path.join(__dirname, '..', 'bin', 'claude-tweaks-statusline.j
 const sl = require('../bin/claude-tweaks-statusline.js');
 
 function runStatusline(input, env = {}) {
-  return execFileSync('node', [STATUSLINE], {
-    input: JSON.stringify(input),
-    encoding: 'utf8',
-    env: { ...process.env, HOME: fs.mkdtempSync(path.join(os.tmpdir(), 'ct-sl-')), ...env },
-  });
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-sl-'));
+  try {
+    return execFileSync('node', [STATUSLINE], {
+      input: JSON.stringify(input),
+      encoding: 'utf8',
+      env: { ...process.env, HOME: home, ...env },
+    });
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
 }
 
 test('parseStatusBranch: clean branch with no upstream', () => {
@@ -236,18 +241,26 @@ test('colorByPct skips colors when NO_COLOR set', () => {
   else process.env.NO_COLOR = orig;
 });
 
-function withLedgers(files, fn) {
-  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ledger-'));
-  const plans = path.join(cwd, 'docs', 'plans');
-  fs.mkdirSync(plans, { recursive: true });
+// Shared temp-directory fixture scaffolding: mkdtemp, mkdir a fixture
+// subdir, write files, run fn(cwd), clean up in `finally`. withLedgers and
+// withSpecs below were structurally identical copies of this, differing
+// only in the mkdtemp prefix and the docs/plans vs specs subpath.
+function withFixtureDir(prefix, subpathSegments, files, fn) {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  const dir = path.join(cwd, ...subpathSegments);
+  fs.mkdirSync(dir, { recursive: true });
   for (const [name, content] of Object.entries(files)) {
-    fs.writeFileSync(path.join(plans, name), content);
+    fs.writeFileSync(path.join(dir, name), content);
   }
   try {
     return fn(cwd);
   } finally {
     fs.rmSync(cwd, { recursive: true, force: true });
   }
+}
+
+function withLedgers(files, fn) {
+  return withFixtureDir('ct-ledger-', ['docs', 'plans'], files, fn);
 }
 
 const LEDGER_HEADER = '| # | Phase | Item | Status | Resolution |\n| --- | --- | --- | --- | --- |\n';
@@ -311,17 +324,7 @@ test('findOpenLedger colors yellow at >=3 open and red at >=10', () => {
 });
 
 function withSpecs(files, fn) {
-  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-specs-'));
-  const specs = path.join(cwd, 'specs');
-  fs.mkdirSync(specs, { recursive: true });
-  for (const [name, content] of Object.entries(files)) {
-    fs.writeFileSync(path.join(specs, name), content);
-  }
-  try {
-    return fn(cwd);
-  } finally {
-    fs.rmSync(cwd, { recursive: true, force: true });
-  }
+  return withFixtureDir('ct-specs-', ['specs'], files, fn);
 }
 
 test('findActiveSpec returns spec: NNN for a specs/ file with a 3+ digit numeric prefix', () => {

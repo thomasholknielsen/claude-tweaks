@@ -9,6 +9,12 @@ const PRIMITIVE_DOC = fs.readFileSync(
   path.join(__dirname, '..', 'skills', '_shared', 'multi-agent-coordination.md'),
   'utf8',
 );
+const REVIEW_SKILL = fs.readFileSync(path.join(__dirname, '..', 'skills', 'review', 'SKILL.md'), 'utf8');
+const SPECIFY_RED_TEAM = fs.readFileSync(
+  path.join(__dirname, '..', 'skills', 'specify', 'red-team.md'),
+  'utf8',
+);
+const CHALLENGE_SKILL = fs.readFileSync(path.join(__dirname, '..', 'skills', 'challenge', 'SKILL.md'), 'utf8');
 
 // ---------- Dispatch recorder helper ----------
 //
@@ -24,6 +30,84 @@ function makeRecorder() {
       calls.push(call);
     },
   };
+}
+
+// ---------- Decision-log entry schema helper ----------
+//
+// The decision-log-entry tests below assert a constructed entry against the
+// *documented* format (skills/_shared/multi-agent-coordination.md,
+// skills/review/SKILL.md, skills/specify/red-team.md,
+// skills/challenge/SKILL.md) instead of a regex hand-authored by the same
+// test to match its own hand-authored string. Deriving the pattern live
+// from the doc means a real rewording of the documented format (dropped
+// period, changed phrasing, etc.) changes what these tests require, so they
+// can actually fail on real drift — unlike a self-referential regex, which
+// can never fail regardless of real behavior.
+
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Matches a single {placeholder}, tolerating one level of nesting (the
+// documented `{topic|record #{N}}` token in challenge/SKILL.md has a
+// placeholder inside a placeholder).
+const PLACEHOLDER_RE = /\{(?:[^{}]|\{[^{}]*\})*\}/g;
+
+function templateToRegex(templateLine) {
+  // Decision-log entries are always markdown bullets ("- AUTO ..."); some
+  // source docs show the template without the leading "- " (it's implied by
+  // surrounding prose or a numbered-list bullet), so normalize it in.
+  const normalized = templateLine.startsWith('- ') ? templateLine : `- ${templateLine}`;
+  const segments = normalized.split(PLACEHOLDER_RE).map(escapeRegex);
+  return new RegExp(`^${segments.join('.+?')}$`);
+}
+
+// Finds the single doc line containing every substring in `mustInclude`,
+// then extracts its decision-log template: either the content of an inline
+// backtick span containing "{HH:MM:SS}" (prose docs, e.g. review/SKILL.md),
+// or the whole trimmed line (fenced-code templates, e.g.
+// multi-agent-coordination.md / red-team.md / challenge/SKILL.md).
+function decisionLogPattern(docText, mustInclude) {
+  const matches = docText.split('\n').filter((line) => mustInclude.every((s) => line.includes(s)));
+  assert.strictEqual(
+    matches.length,
+    1,
+    `expected exactly one doc line containing ${JSON.stringify(mustInclude)}, found ${matches.length}`,
+  );
+  const backtick = matches[0].match(/`([^`]*\{HH:MM:SS\}[^`]*)`/);
+  return templateToRegex(backtick ? backtick[1] : matches[0].trim());
+}
+
+// ---------- Shared red-team write-back fixture ----------
+//
+// Applies write-back logic: precise-location findings become an inline
+// `<!-- ambiguity: ... -->` comment; general-location findings accumulate
+// into an `## Open Questions` table. Shared by both the populated-findings
+// and zero-findings integration tests below — the zero-findings case
+// exercises exactly this function's `findings.length === 0` short-circuit
+// (the `for` loop never runs, `openQuestions` stays empty, so the body is
+// returned unchanged), so a second, separately-written copy adds nothing.
+function applyRedTeamFindings(specBody, findings) {
+  let body = specBody;
+  const openQuestions = [];
+  for (const f of findings) {
+    if (f.location === 'general') {
+      openQuestions.push(f);
+    } else {
+      const comment = `<!-- ambiguity: ${f.persona} — ${f.finding}${f.resolution ? `; suggested: ${f.resolution}` : ''} -->`;
+      // Insert comment after the line containing the location identifier.
+      body = body.replace(/(1\. The API should be fast\.)/, `$1 ${comment}`);
+    }
+  }
+  if (openQuestions.length > 0) {
+    const rows = openQuestions
+      .map((f) => `| ${f.persona} | ${f.finding} | ${f.resolution || '—'} |`)
+      .join('\n');
+    body +=
+      '\n\n## Open Questions\n\n| Persona | Finding | Suggested Resolution |\n|---------|---------|---------------------|\n' +
+      rows;
+  }
+  return body;
 }
 
 // ============================================================
@@ -47,7 +131,7 @@ test('reproduction: matching Path:Line + matching severity bucket → confirmed'
   assert.strictEqual(confirmed[0].path, 'src/auth.ts');
 });
 
-test('reproduction: one-side-only finding → unconfirmed with STAGED entry text in correct schema', () => {
+test('reproduction: one-side-only finding → unconfirmed with STAGED entry matching the documented schema', () => {
   const a = [{ path: 'src/auth.ts', line: 42, severity: 'critical', text: 'only-A' }];
   const b = [];
   const { confirmed, unconfirmed } = c.categoriseReproduction(a, b);
@@ -58,8 +142,7 @@ test('reproduction: one-side-only finding → unconfirmed with STAGED entry text
   const entry =
     `- STAGED 14:32:08 — /review reproduction: finding ${unconfirmed[0].path}:${unconfirmed[0].line} ` +
     `surfaced by one agent only. Stage path: staged/review-unconfirmed-1.patch.`;
-  const schema = /^- (AUTO|STAGED|KEPT-PROMPT) \d{2}:\d{2}:\d{2} — .+\. .+\.$/;
-  assert.match(entry, schema);
+  assert.match(entry, decisionLogPattern(PRIMITIVE_DOC, ['surfaced by one agent only']));
 });
 
 test('reproduction: line numbers within ±2 are treated as matching', () => {
@@ -206,25 +289,25 @@ test('debate: runs exactly 1 round with 2 agents', () => {
   assert.strictEqual(c.DEBATE_AGENT_COUNT, 2);
 });
 
-test('debate: both agree → confirmed with AUTO entry', () => {
+test('debate: both agree → confirmed with AUTO entry matching the documented schema', () => {
   assert.strictEqual(c.resolveDebate('agree', 'agree'), 'confirmed');
   const entry = `- AUTO 14:41:02 — /review debate: src/auth.ts:42 confirmed (both agreed). Reversibility: high.`;
-  assert.match(entry, /^- AUTO \d{2}:\d{2}:\d{2} — .+confirmed.+Reversibility: high\.$/);
+  assert.match(entry, decisionLogPattern(PRIMITIVE_DOC, ['confirmed (both agreed)']));
 });
 
-test('debate: both disagree → unconfirmed with AUTO entry', () => {
+test('debate: both disagree → unconfirmed with AUTO entry matching the documented schema', () => {
   assert.strictEqual(c.resolveDebate('disagree', 'disagree'), 'unconfirmed');
   const entry = `- AUTO 14:41:05 — /review debate: src/auth.ts:42 unconfirmed (both disagreed). Reversibility: high.`;
-  assert.match(entry, /^- AUTO \d{2}:\d{2}:\d{2} — .+unconfirmed.+Reversibility: high\.$/);
+  assert.match(entry, decisionLogPattern(PRIMITIVE_DOC, ['unconfirmed (both disagreed)']));
 });
 
-test('debate: mixed/partial verdicts → contested with STAGED entry', () => {
+test('debate: mixed/partial verdicts → contested with STAGED entry matching the documented schema', () => {
   assert.strictEqual(c.resolveDebate('agree', 'disagree'), 'contested');
   assert.strictEqual(c.resolveDebate('agree', 'partial'), 'contested');
   assert.strictEqual(c.resolveDebate('disagree', 'partial'), 'contested');
   assert.strictEqual(c.resolveDebate('partial', 'partial'), 'contested');
   const entry = `- STAGED 14:41:08 — /review debate: src/auth.ts:42 contested (mixed verdicts). Stage path: staged/review-debate-1.md.`;
-  assert.match(entry, /^- STAGED \d{2}:\d{2}:\d{2} — .+contested.+Stage path:.+$/);
+  assert.match(entry, decisionLogPattern(PRIMITIVE_DOC, ['contested (mixed verdicts)']));
 });
 
 // ============================================================
@@ -328,16 +411,10 @@ test('/review reproduction integration: per-lens reproduction → confirmed/unco
   const lensName = 'security';
   const confirmedEntry =
     `- AUTO 14:32:08 — Reproduction: lens "${lensName}" finding ${confirmed[0].path}:${confirmed[0].line} reproduced. Confirmed. Reversibility: high.`;
-  assert.match(
-    confirmedEntry,
-    /^- AUTO \d{2}:\d{2}:\d{2} — Reproduction: lens ".+" finding .+:.+ reproduced\. Confirmed\. Reversibility: high\.$/,
-  );
+  assert.match(confirmedEntry, decisionLogPattern(REVIEW_SKILL, ['Findings present in both agents']));
   const unconfirmedEntry =
     `- STAGED 14:32:11 — Reproduction: lens "${lensName}" finding ${unconfirmed[0].path}:${unconfirmed[0].line} not reproduced. Staged to Review Console as low-confidence. Reversibility: high.`;
-  assert.match(
-    unconfirmedEntry,
-    /^- STAGED \d{2}:\d{2}:\d{2} — Reproduction: lens ".+" finding .+:.+ not reproduced\. Staged to Review Console as low-confidence\. Reversibility: high\.$/,
-  );
+  assert.match(unconfirmedEntry, decisionLogPattern(REVIEW_SKILL, ['Findings present in only one']));
 });
 
 test('/review debate integration: cross-lens overlap with contradicting verdicts → debate dispatched → confirmed/unconfirmed/contested resolution per verdict combination', () => {
@@ -362,20 +439,11 @@ test('/review debate integration: cross-lens overlap with contradicting verdicts
   assert.strictEqual(c.resolveDebate('agree', 'partial'), 'contested');
 
   const confirmedEntry = `- AUTO 14:41:02 — Debate: cross-lens disagreement on src/auth.ts:42 converged positive after 1 round. Reversibility: high.`;
-  assert.match(
-    confirmedEntry,
-    /^- AUTO \d{2}:\d{2}:\d{2} — Debate: cross-lens disagreement on .+ converged positive after 1 round\. Reversibility: high\.$/,
-  );
+  assert.match(confirmedEntry, decisionLogPattern(REVIEW_SKILL, ['Both `agree`']));
   const unconfirmedEntry = `- AUTO 14:41:05 — Debate: cross-lens disagreement on src/auth.ts:42 converged negative after 1 round. Reversibility: high.`;
-  assert.match(
-    unconfirmedEntry,
-    /^- AUTO \d{2}:\d{2}:\d{2} — Debate: cross-lens disagreement on .+ converged negative after 1 round\. Reversibility: high\.$/,
-  );
+  assert.match(unconfirmedEntry, decisionLogPattern(REVIEW_SKILL, ['Both `disagree`']));
   const contestedEntry = `- STAGED 14:41:08 — Debate: cross-lens disagreement on src/auth.ts:42 inconclusive (agree, partial). Both verdicts staged. Reversibility: high.`;
-  assert.match(
-    contestedEntry,
-    /^- STAGED \d{2}:\d{2}:\d{2} — Debate: cross-lens disagreement on .+ inconclusive \(.+\)\. Both verdicts staged\. Reversibility: high\.$/,
-  );
+  assert.match(contestedEntry, decisionLogPattern(REVIEW_SKILL, ['Mixed / partial']));
 });
 
 test('/review summary assembly: confirmed flow to summary; unconfirmed + contested flow to Wrap-Up Console subsections', () => {
@@ -478,29 +546,7 @@ test('/specify red-team integration: ambiguous draft spec → red-team flags it 
   ];
 
   // Apply write-back logic: precise-location → inline comment; general → Open Questions row.
-  function applyRedTeamFindings(specBody, findings) {
-    let body = specBody;
-    const openQuestions = [];
-    for (const f of findings) {
-      if (f.location === 'general') {
-        openQuestions.push(f);
-      } else {
-        const comment = `<!-- ambiguity: ${f.persona} — ${f.finding}${f.resolution ? `; suggested: ${f.resolution}` : ''} -->`;
-        // Insert comment after the line containing the location identifier.
-        body = body.replace(/(1\. The API should be fast\.)/, `$1 ${comment}`);
-      }
-    }
-    if (openQuestions.length > 0) {
-      const rows = openQuestions
-        .map((f) => `| ${f.persona} | ${f.finding} | ${f.resolution || '—'} |`)
-        .join('\n');
-      body +=
-        '\n\n## Open Questions\n\n| Persona | Finding | Suggested Resolution |\n|---------|---------|---------------------|\n' +
-        rows;
-    }
-    return body;
-  }
-
+  // (applyRedTeamFindings is the module-level shared fixture defined above.)
   const updated = applyRedTeamFindings(draftSpec, personaFindings);
 
   // Precise-location finding → inline ambiguity comment
@@ -524,27 +570,25 @@ test('/specify red-team integration: ambiguous draft spec → red-team flags it 
     'Open Questions table must contain the general-location finding',
   );
 
-  // Decision-log entry schema for one staged finding
+  // Decision-log entry schema for one staged finding. Note: "Written to
+  // record as" (not "spec") — skills/specify/red-team.md's Step 4 template
+  // uses "record" (the record-model terminology this repo migrated to), a
+  // wording the previous self-authored regex ("Written to spec as .+")
+  // never caught because it only ever checked its own hand-typed string.
   const entry =
     `- STAGED 11:22:33 — Red-team: persona "Skeptical Reviewer" flagged ambiguity at Acceptance Criteria 1. ` +
-    `Written to spec as <!-- ambiguity: --> marker.`;
-  assert.match(
-    entry,
-    /^- STAGED \d{2}:\d{2}:\d{2} — Red-team: persona ".+" flagged (ambiguity|gap|unstated assumption) at .+\. Written to spec as .+\.$/,
-  );
+    `Written to record as <!-- ambiguity: --> marker.`;
+  assert.match(entry, decisionLogPattern(SPECIFY_RED_TEAM, ['Red-team: persona']));
 });
 
 test('/specify red-team integration: zero findings → Open Questions section is omitted entirely (no empty placeholder)', () => {
   const draftSpec = '# Spec 100\n\nNo issues here.';
-  function applyRedTeamFindings(specBody, findings) {
-    if (findings.length === 0) return specBody; // Section omitted entirely
-    let body = specBody;
-    const general = findings.filter((f) => f.location === 'general');
-    if (general.length > 0) {
-      body += '\n\n## Open Questions\n\n| Persona | Finding | Suggested Resolution |\n|---|---|---|\n';
-    }
-    return body;
-  }
+  // Exercises applyRedTeamFindings' own findings.length === 0 short-circuit
+  // (the module-level shared fixture defined above): the `for` loop never
+  // runs, `openQuestions` stays empty, so its `if (openQuestions.length > 0)`
+  // guard is false and it returns specBody unchanged — the same behavior a
+  // second, separately-written `if (findings.length === 0) return specBody;`
+  // copy would provide, so there is no need for one.
   const result = applyRedTeamFindings(draftSpec, []);
   assert.ok(!result.includes('## Open Questions'), 'empty findings must not emit a placeholder header');
   assert.strictEqual(result, draftSpec, 'spec body unchanged when there are no findings');
@@ -638,10 +682,7 @@ test('/challenge MoA integration: fixture INBOX item → 7 proposers + 1 aggrega
 
   // Decision-log entry: ONE AUTO entry per MoA invocation
   const entry = `- AUTO 14:55:01 — MoA: applied ${proposerCount} proposers + 1 aggregator on INBOX item "${inboxItem}". Aggregator tier: Capable.`;
-  assert.match(
-    entry,
-    /^- AUTO \d{2}:\d{2}:\d{2} — MoA: applied \d+ proposers \+ 1 aggregator on .+\. Aggregator tier: Capable\.$/,
-  );
+  assert.match(entry, decisionLogPattern(CHALLENGE_SKILL, ['MoA: applied']));
 });
 
 test('/challenge Quick mode: 2 proposers + 1 aggregator dispatched (lens 1 + lens 7); brief schema unchanged', () => {

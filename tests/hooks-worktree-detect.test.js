@@ -6,20 +6,7 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { nearestExistingDir, repoInfo, findPolicyFile } = require('../bin/lib/hooks/worktree-detect');
-
-function gitRepo() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-wtd-'));
-  execFileSync('git', ['-C', dir, 'init', '-q']);
-  execFileSync('git', ['-C', dir, 'commit', '--allow-empty', '-m', 'init', '-q']);
-  return fs.realpathSync(dir);
-}
-
-function linkedWorktreeOf(main) {
-  const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-wtd-parent-'));
-  const wt = path.join(parent, 'wt');
-  execFileSync('git', ['-C', main, 'worktree', 'add', '-q', wt, '-b', `wt-branch-${path.basename(parent)}`]);
-  return fs.realpathSync(wt);
-}
+const { gitRepo, linkedWorktreeOf } = require('./helpers/git-fixtures');
 
 test('nearestExistingDir: existing directory returns itself', () => {
   const dir = gitRepo();
