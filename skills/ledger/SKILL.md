@@ -105,6 +105,7 @@ The qualifier adds specificity when a skill produces multiple finding types, but
 | `wrap-up` | `/claude-tweaks:reflect` (full mode, via /wrap-up) | Reflection insights |
 | `reflect` | `/claude-tweaks:reflect` (standalone) | Standalone reflection findings |
 | `deepen` | `/claude-tweaks:deepen` | Staged depth candidates and declined candidates from the architectural depth pass |
+| `design` | `/claude-tweaks:flow` (polish phase, via `/claude-tweaks:design-wrapper`) | One entry per design-wrapper command invoked during polish — `fixed` for auto-fit successes, `observation` for reported issues |
 
 > **Phase taxonomy:** Use the item description and category column to distinguish finding types within a phase. Sub-phases (`build/ops`, `build/skill`, `review/skill`, `review/hindsight`, `test/qa`) carry semantic meaning that downstream skills filter on — keep them distinct. Lens-specific review sub-phases (e.g., `review/convention`, `review/ux`, `review/coverage`) collapse into `review`; the lens is recorded in the entry body, not the phase.
 

@@ -281,9 +281,13 @@ When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
 
    If `CLASSIFICATION` is `transient`, **preserve** `auto:merge` — do not remove it. This is the one behavior change from the old rule: a transient/infrastructure failure no longer permanently strips merge trust from a record that was never at fault. If `NOTIFY_NOW` is `true`, send a `PushNotification` immediately ("Record #{n} may be stuck — same failure recurred: {rationale}"), in addition to (not instead of) the retry-ceiling notification in step 6 below if the ceiling is also hit on this same attempt.
 
-4. Fetch existing comments and compute this attempt's number and whether it hits the ceiling (read `dispatch-retry-ceiling` from CLAUDE.md/`policy.yml`, default 3), in one pass — fetching comments *before* posting this attempt's comment is what makes the attempt number and ceiling check correct:
+4. Fetch existing comments and compute this attempt's number and whether it hits the ceiling (read `dispatch-retry-ceiling` from CLAUDE.md/`policy.yml`, default 3, falling back to the legacy `triage-retry-ceiling` alias per the Configuration table below when the new key is absent), in one pass — fetching comments *before* posting this attempt's comment is what makes the attempt number and ceiling check correct:
 
    ```bash
+   DISPATCH_RETRY_CEILING=$(grep -E "^dispatch-retry-ceiling:" CLAUDE.md .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*dispatch-retry-ceiling:[[:space:]]*//')
+   if [ -z "$DISPATCH_RETRY_CEILING" ]; then
+     DISPATCH_RETRY_CEILING=$(grep -E "^triage-retry-ceiling:" CLAUDE.md .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*triage-retry-ceiling:[[:space:]]*//')
+   fi
    gh api "repos/{owner}/{repo}/issues/${ISSUE}/comments?per_page=100" > "/tmp/dispatch-comments-${ISSUE}.json"
    node -e "
      const { countFailedAttempts } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/retry.js');
@@ -429,7 +433,7 @@ Render only when a human is present to answer — the bare form is definitionall
 | `_shared/work-record.md` | Taxonomy home — the seven-axis label contract and the permission-matrix row dispatch implements (`bot:in-progress` / `bot:blocked` add; `auto:merge` / `auto:*` / `bot:in-progress` remove; never add `auto:*` or `ready`). |
 | `/claude-tweaks:tidy` | Surfaces orphaned or stale claims dispatch left behind (Step 4.7) and `bot:blocked` records as re-authorization candidates; a headless firing's outcome ultimately surfaces on `/tidy`'s own rolling GitHub-triage digest rather than a console dispatch renders itself — see Reporting above. |
 | `/claude-tweaks:wrap-up` | Releases the claim on success (cleanup Section E) using the `CLAIM_RUN_ID` dispatch threaded through `/flow`, not its own `PIPELINE_RUN_DIR` — the ownership check depends on this. The auto-merge gate's checks run against wrap-up's own Review Console output before it would otherwise render. |
-| `/claude-tweaks:help` | Surfaces the authorized-queue size, `bot:blocked` count, and a rolling auto-merge count on the dashboard. |
+| `/claude-tweaks:help` | Surfaces the `authorized` and `building` counts on the dashboard (Stage 1) — the reciprocal of `help/SKILL.md`'s own `/claude-tweaks:dispatch` row. |
 | `/claude-tweaks:routine` | `/routine create dispatch` instantiates `skills/dispatch/routine-template.yml` as a scheduled headless dispatcher (`prompt: /claude-tweaks:dispatch next`). |
 | `_shared/subagent-output-contract.md` | Each group's `Task()` prompt follows the contract's Input Discipline and status-line protocol; the GROUP/OUTCOME/MANIFEST template is this skill's own minimal shape (none of Templates A/B/C fit a full-pipeline-execution agent). |
 | `_shared/label-bootstrap.md` | Canonical check-then-create snippet for `bot:in-progress` / `bot:blocked` — the only two labels dispatch itself ever adds. |

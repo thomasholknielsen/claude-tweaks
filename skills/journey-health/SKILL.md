@@ -185,7 +185,8 @@ Before filing, bootstrap only the label families this run applies, with real des
 #  ["ready",              "Stage: spec-shaped and agent-sized — in the authorization gate's worklist"],
 #  ["journey-health:drift",                "Journey category: the journey file no longer matches the codebase"],
 #  ["journey-health:coverage",             "Journey category: a journey step or story has a coverage gap"],
-#  ["journey-health:regression-suspected", "Journey category: live behavior appears to have regressed"]]
+#  ["journey-health:regression-suspected", "Journey category: live behavior appears to have regressed"],
+#  ["journey-health:filing-failed",        "Escalation: gh issue create failed repeatedly for this fingerprint — needs human attention"]]
 ```
 
 Each payload in `/tmp/journey-health-payloads-light.json` and (when Step 3.5 ran) `/tmp/journey-health-payloads-deep.json` carries structured fields, not just the GitHub issue text — `id`, `journey`, `category`, `section`, `severity`, `confidence` are all present directly on the payload object (not just embedded in `payload.body`'s markdown), alongside `title`, `body`, `labels`, and `type`. These stay on the payload as triage metadata — nothing here branches on them anymore.
@@ -272,12 +273,6 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 - Option 1 — `label`: `"Schedule a Routine"`, `description`: `"/claude-tweaks:routine create journey-health — schedule this as a recurring Routine"`. Suffix the label `(Recommended)` after a first standalone run confirms the output looks right.
 - Option 2 — `label`: `"Audit one journey"`, `description`: `"/claude-tweaks:journey-health --target <name> — audit one specific journey right now"`
 - Option 3 — `label`: `"Backlog hygiene"`, `description`: `"/claude-tweaks:tidy — fold any filed journey-health issues into a backlog-hygiene pass"`
-
-## Component-Skill Contract
-
-When `$PIPELINE_RUN_DIR` is set, `/claude-tweaks:journey-health` is running inside a pipeline (invoked by `/claude-tweaks:flow` or another pipeline orchestrator). In that case omit the `## Next Actions` block — the parent owns the handoff.
-
-Direct invocation may pass `--source <parent-skill>` as an explicit fallback when ambiguity exists (rare; `$PIPELINE_RUN_DIR` is the primary signal). Standalone (no `$PIPELINE_RUN_DIR`) is the common case and renders Next Actions as usual.
 
 ## Anti-Patterns
 

@@ -45,10 +45,50 @@ function severityBucket(severity) {
   return SEVERITY_BUCKETS[severity] || 'low';
 }
 
+// Template A (skills/_shared/subagent-output-contract.md) mandates dispatched
+// agents return findings as a markdown table with a single combined
+// "Path:Line" column (e.g. "src/auth.ts:42"), not separate path/line fields.
+// findingsMatch/categoriseReproduction/detectCrossLensOverlap below compare
+// on separate `.path`/`.line` fields, so parsePathLine/normalizeFinding are
+// the bridge between Template A's literal output shape and what these
+// functions require — without it, a caller that transcribes the table
+// without splitting that column (leaving `.path`/`.line` undefined, or
+// `.path` holding the combined string with no `.line`) makes every finding
+// pair spuriously "match": `a.path !== b.path` is `undefined !== undefined`
+// = false, and `Math.abs(a.line - b.line) > tolerance` is `NaN > tolerance`
+// = false — neither check short-circuits, so the reproduction/overlap gate
+// silently passes everything regardless of actual location.
+
+function parsePathLine(pathLine) {
+  if (typeof pathLine !== 'string') return { path: pathLine, line: undefined };
+  const idx = pathLine.lastIndexOf(':');
+  if (idx === -1) return { path: pathLine, line: undefined };
+  const line = Number(pathLine.slice(idx + 1));
+  if (Number.isNaN(line)) return { path: pathLine, line: undefined };
+  return { path: pathLine.slice(0, idx), line };
+}
+
+function normalizeFinding(finding) {
+  if (!finding || typeof finding !== 'object') return finding;
+  const hasSeparateFields = finding.path !== undefined && finding.line !== undefined && finding.line !== null;
+  if (hasSeparateFields) return finding;
+  // finding.path may itself hold the combined "path:line" string (a naive
+  // transcription that never split it out), or the combined string may be
+  // sitting under the literal table-header key "Path:Line" (a transcription
+  // that copied the markdown column header verbatim as the JSON key).
+  const rawPathLine = finding.path !== undefined ? finding.path : finding['Path:Line'];
+  const parsed = parsePathLine(rawPathLine);
+  if (parsed.line === undefined) return finding;
+  const severity = finding.severity !== undefined ? finding.severity : finding.Severity;
+  return { ...finding, path: parsed.path, line: parsed.line, severity };
+}
+
 function findingsMatch(a, b, tolerance = LINE_TOLERANCE_REPRODUCTION) {
-  if (a.path !== b.path) return false;
-  if (Math.abs(a.line - b.line) > tolerance) return false;
-  return severityBucket(a.severity) === severityBucket(b.severity);
+  const na = normalizeFinding(a);
+  const nb = normalizeFinding(b);
+  if (na.path !== nb.path) return false;
+  if (Math.abs(na.line - nb.line) > tolerance) return false;
+  return severityBucket(na.severity) === severityBucket(nb.severity);
 }
 
 function categoriseReproduction(agentAFindings, agentBFindings) {
@@ -56,7 +96,8 @@ function categoriseReproduction(agentAFindings, agentBFindings) {
   const unconfirmed = [];
   const matchedB = new Set();
 
-  for (const fa of agentAFindings) {
+  for (const rawFa of agentAFindings) {
+    const fa = normalizeFinding(rawFa);
     const matchIdx = agentBFindings.findIndex(
       (fb, i) => !matchedB.has(i) && findingsMatch(fa, fb, LINE_TOLERANCE_REPRODUCTION),
     );
@@ -68,8 +109,8 @@ function categoriseReproduction(agentAFindings, agentBFindings) {
     }
   }
 
-  agentBFindings.forEach((fb, i) => {
-    if (!matchedB.has(i)) unconfirmed.push({ ...fb, source: 'B' });
+  agentBFindings.forEach((rawFb, i) => {
+    if (!matchedB.has(i)) unconfirmed.push({ ...normalizeFinding(rawFb), source: 'B' });
   });
 
   return { confirmed, unconfirmed };
@@ -83,8 +124,10 @@ function detectCrossLensOverlap(findingsByLens) {
     for (let j = i + 1; j < lenses.length; j++) {
       const lensA = lenses[i];
       const lensB = lenses[j];
-      for (const fa of findingsByLens[lensA]) {
-        for (const fb of findingsByLens[lensB]) {
+      for (const rawFa of findingsByLens[lensA]) {
+        for (const rawFb of findingsByLens[lensB]) {
+          const fa = normalizeFinding(rawFa);
+          const fb = normalizeFinding(rawFb);
           if (fa.path === fb.path && Math.abs(fa.line - fb.line) <= LINE_TOLERANCE_DEBATE) {
             overlaps.push({ lensA, lensB, findingA: fa, findingB: fb });
           }
@@ -171,6 +214,8 @@ module.exports = {
   MOA_AGGREGATOR_INSTRUCTION,
   // Comparison / aggregation logic
   severityBucket,
+  parsePathLine,
+  normalizeFinding,
   findingsMatch,
   categoriseReproduction,
   detectCrossLensOverlap,

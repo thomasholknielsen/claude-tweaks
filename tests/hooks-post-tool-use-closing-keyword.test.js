@@ -8,12 +8,15 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const post = require('../bin/lib/hooks/post-tool-use');
 
-function gitRepoWithMessage(message) {
+function gitRepoWithMessage(message, dateOverride) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ck-'));
   execFileSync('git', ['-C', dir, 'init', '-q']);
-  execFileSync('git', ['-C', dir, 'commit', '--allow-empty', '-m', message, '-q'], {
-    env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' },
-  });
+  const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
+  if (dateOverride) {
+    env.GIT_AUTHOR_DATE = dateOverride;
+    env.GIT_COMMITTER_DATE = dateOverride;
+  }
+  execFileSync('git', ['-C', dir, 'commit', '--allow-empty', '-m', message, '-q'], { env });
   return fs.realpathSync(dir);
 }
 
@@ -90,5 +93,24 @@ test('warns on a comma-separated trailing ref with no keyword of its own ("Fixes
 
 test('does not warn when every ref has its own keyword ("Fixes #100, fixes #200")', () => {
   const repo = gitRepoWithMessage('Fixes #100, fixes #200');
+  assert.deepStrictEqual(runPostToolUse(repo), {});
+});
+
+test('does not warn when the same issue is cited twice, once bare and once with a keyword (finding 1 regression)', () => {
+  // A repeated identical ref used to break the "before" slice: message.indexOf(ref)
+  // always resolves to the FIRST occurrence, so both the bare mention and the
+  // properly-closed mention were tested against the same (bare) slice, producing
+  // a false "unclosed" warning even though the issue is legitimately closed.
+  const repo = gitRepoWithMessage('See #100 for context. Fixes #100.');
+  assert.deepStrictEqual(runPostToolUse(repo), {});
+});
+
+test('does not evaluate a stale HEAD left over from a git commit that never landed (finding 2 regression)', () => {
+  // Simulates a rejected/failed `git commit` attempt: PostToolUse still fires, but
+  // HEAD is an old, unrelated commit rather than anything the just-attempted Bash
+  // command actually created. Without a freshness check, reading this stale HEAD
+  // back (message has a bare ref, no closing keyword) would fire a warning that's
+  // misattributed to the current tool call.
+  const repo = gitRepoWithMessage('Addresses #999 — old, unrelated commit', '2020-01-01T00:00:00');
   assert.deepStrictEqual(runPostToolUse(repo), {});
 });

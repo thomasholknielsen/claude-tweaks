@@ -25,6 +25,28 @@ function commitMessage(dir) {
   } catch { return null; }
 }
 
+// HEAD's committer timestamp (unix seconds), used by checkClosingKeyword to tell
+// a genuinely fresh commit apart from an unrelated prior one still sitting at HEAD
+// because the just-attempted `git commit` didn't actually land (pre-commit hook
+// rejection, "nothing to commit", merge conflict, etc.) — PostToolUse fires
+// regardless of exit code, so without this, reading HEAD back could silently judge
+// a completely different, older commit instead of the (nonexistent) new one.
+function commitTimestamp(dir) {
+  try {
+    const out = execFileSync('git', ['-C', dir, 'log', '-1', '--format=%ct'], {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 3000,
+    }).trim();
+    const n = Number(out);
+    return Number.isFinite(n) ? n : null;
+  } catch { return null; }
+}
+
+// How recent HEAD's commit timestamp must be for checkClosingKeyword to trust it
+// as the outcome of the just-attempted commit, rather than a stale prior commit.
+// Generous enough to absorb hook-dispatch latency and clock skew without letting a
+// genuinely unrelated older commit through.
+const COMMIT_FRESHNESS_WINDOW_SECONDS = 30;
+
 // A recognized GitHub closing keyword immediately preceding a bare "#123" auto-closes
 // that issue when the commit reaches the repository's default branch. Case-insensitive;
 // covers every form GitHub recognizes (fix/fixes/fixed, close/closes/closed,
@@ -47,15 +69,32 @@ const BARE_ISSUE_REF_RE = /#\d+/g;
 function checkClosingKeyword(targets) {
   const commitTargets = targets.filter((t) => t.action === 'commit');
   for (const target of commitTargets) {
+    // Guard against a `git commit` that never actually landed — see
+    // commitTimestamp()'s comment. If HEAD isn't fresh, skip this target
+    // entirely rather than judging an unrelated prior commit.
+    const ts = commitTimestamp(target.dir);
+    if (ts === null || Math.abs(Date.now() / 1000 - ts) > COMMIT_FRESHNESS_WINDOW_SECONDS) continue;
     const message = commitMessage(target.dir);
     if (!message) continue;
-    const refs = message.match(BARE_ISSUE_REF_RE);
-    if (!refs) continue;
-    const hasUnclosedRef = refs.some((ref) => {
-      const idx = message.indexOf(ref);
+    // Group occurrences by issue number rather than testing each occurrence in
+    // isolation: the same issue can legitimately appear twice in one message
+    // (once bare for context, once with a proper closing keyword), and it only
+    // takes ONE closing occurrence to auto-close it. Each match's own `.index`
+    // (not `message.indexOf(ref)`, which always resolves to the FIRST
+    // occurrence of a repeated ref) keeps repeated identical refs from all
+    // being tested against the same "before" slice.
+    const matches = [...message.matchAll(BARE_ISSUE_REF_RE)];
+    if (matches.length === 0) continue;
+    const closedRefs = new Set();
+    const seenRefs = new Set();
+    for (const match of matches) {
+      const ref = match[0];
+      seenRefs.add(ref);
+      const idx = match.index;
       const before = message.slice(Math.max(0, idx - 20), idx + ref.length);
-      return !CLOSING_KEYWORD_RE.test(before);
-    });
+      if (CLOSING_KEYWORD_RE.test(before)) closedRefs.add(ref);
+    }
+    const hasUnclosedRef = [...seenRefs].some((ref) => !closedRefs.has(ref));
     if (hasUnclosedRef) {
       return {
         json: {

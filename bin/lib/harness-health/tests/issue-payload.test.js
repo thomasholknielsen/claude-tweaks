@@ -177,3 +177,30 @@ test('toIssuePayload for a new-skill finding never renders "Also affects" (no se
   const payload = toIssuePayload(newSkillFinding());
   assert.ok(!payload.body.includes('Also affects:'));
 });
+
+// ── fenced Current/Proposed blocks (a nested ``` in oldString/newString must
+//    not prematurely close the outer fence) ─────────────────────────────────
+
+test('toIssuePayload widens the Current/Proposed fence when oldString or newString itself contains a ``` fenced block', () => {
+  const oldString = 'Example:\n```bash\necho hi\n```\nEnd.';
+  const newString = 'Example:\n```bash\necho bye\n```\nEnd.';
+  const payload = toIssuePayload(patchFinding({ oldString, newString }));
+
+  // The outer fence must be longer than any backtick run inside the content
+  // (here 3), so it opens with 4+ backticks, not exactly 3.
+  const currentMatch = payload.body.match(/\*\*Current:\*\*\n(`{4,})\n/);
+  assert.ok(currentMatch, `expected a >=4-backtick opening fence around Current, got: ${payload.body.slice(0, 200)}`);
+  const proposedMatch = payload.body.match(/\*\*Proposed:\*\*\n(`{4,})\n/);
+  assert.ok(proposedMatch, `expected a >=4-backtick opening fence around Proposed, got: ${payload.body}`);
+
+  // The inner ``` sequences must survive intact inside the widened fence,
+  // proving the outer fence did not close early.
+  assert.ok(payload.body.includes(oldString), 'oldString with its own ``` block must be preserved verbatim');
+  assert.ok(payload.body.includes(newString), 'newString with its own ``` block must be preserved verbatim');
+});
+
+test('toIssuePayload uses the minimal 3-backtick fence when oldString/newString contain no backticks', () => {
+  const payload = toIssuePayload(patchFinding({ oldString: 'plain old text', newString: 'plain new text' }));
+  assert.ok(payload.body.includes('**Current:**\n```\nplain old text\n```'));
+  assert.ok(payload.body.includes('**Proposed:**\n```\nplain new text\n```'));
+});

@@ -178,7 +178,6 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `/claude-tweaks:reflect` | /reflect's structural-debt lens ("premature abstractions, wrong boundaries") seeds /deepen candidates; /reflect surfaces /deepen as a Next Action when it finds structural debt. |
 | `/claude-tweaks:test` | /deepen uses the shared verification procedure from /test's `verification.md` to confirm a refactor preserved behavior. |
 | `/claude-tweaks:build` | Produces the modules /deepen evaluates. Architectural deviations build catches in Common Step 4.5 can route to /deepen for restructuring. |
-| `/claude-tweaks:ledger` | When invoked in a pipeline, staged depth candidates and declined candidates are tracked so they aren't dropped; /deepen appends entries with phase `deepen`. |
 | `/claude-tweaks:help` | /help references /deepen in the workflow diagram and reference card. |
 | `/claude-tweaks:flow` | Invoked BY /flow at the Pipeline Summary (Step 5) in analysis-only mode — /flow runs the read-only depth analysis hands-off and renders the ranked candidates as a Depth Opportunities recommendation block, but never applies a refactor (the responsible boundary for low-reversibility work in an auto pipeline). Skipped by `no-deepen`. |
 | `_shared/decision-records.md` | Hard-to-reverse interface trade-offs surfaced in Step 4 are flagged `[ADR-candidate]` for /wrap-up to record. |

@@ -39,6 +39,72 @@ test('parseStatusBranch: empty or unparseable output reports no branch', () => {
   assert.deepStrictEqual(sl.parseStatusBranch(''), { branch: null, dirty: false });
 });
 
+test('renderGit: uses the passed cwd rather than the process-wide cwd', () => {
+  const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-git-'));
+  try {
+    execFileSync('git', ['init', '-q', '-b', 'feature/isolated-branch'], { cwd: repoDir });
+    execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: repoDir });
+    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: repoDir });
+    fs.writeFileSync(path.join(repoDir, 'file.txt'), 'hello\n');
+    execFileSync('git', ['add', 'file.txt'], { cwd: repoDir });
+    execFileSync('git', ['commit', '-q', '-m', 'init'], { cwd: repoDir });
+
+    // The real process cwd (this repo checkout) is on a different branch, so if renderGit
+    // ever regresses to relying on execSync's implicit process.cwd() instead of the passed
+    // cwd, this would report the wrong (or no) branch instead of the isolated repo's.
+    const realBranch = execFileSync('git', ['branch', '--show-current'], { cwd: process.cwd(), encoding: 'utf8' }).trim();
+    assert.notStrictEqual(realBranch, 'feature/isolated-branch');
+
+    const orig = process.env.NO_COLOR;
+    process.env.NO_COLOR = '1';
+    try {
+      assert.strictEqual(sl.renderGit(repoDir), 'feature/isolated-branch');
+    } finally {
+      if (orig === undefined) delete process.env.NO_COLOR;
+      else process.env.NO_COLOR = orig;
+    }
+  } finally {
+    fs.rmSync(repoDir, { recursive: true, force: true });
+  }
+});
+
+test('readStdin: clears the 50ms fallback timeout once stdin ends (regression: dangling timer)', async () => {
+  const { EventEmitter } = require('node:events');
+  const fakeStdin = new EventEmitter();
+  fakeStdin.isTTY = false;
+  fakeStdin.setEncoding = () => {};
+
+  const stdinDescriptor = Object.getOwnPropertyDescriptor(process, 'stdin');
+  Object.defineProperty(process, 'stdin', { value: fakeStdin, configurable: true });
+
+  const originalSetTimeout = global.setTimeout;
+  const originalClearTimeout = global.clearTimeout;
+  let capturedTimer = null;
+  let clearedWith = null;
+  global.setTimeout = (fn, ms, ...args) => {
+    capturedTimer = originalSetTimeout(fn, ms, ...args);
+    return capturedTimer;
+  };
+  global.clearTimeout = (t) => {
+    clearedWith = t;
+    return originalClearTimeout(t);
+  };
+
+  try {
+    const promise = sl.readStdin();
+    fakeStdin.emit('data', '{"ok":true}');
+    fakeStdin.emit('end');
+    const result = await promise;
+    assert.strictEqual(result, '{"ok":true}');
+    assert.ok(capturedTimer !== null, 'expected the 50ms fallback timer to be scheduled');
+    assert.strictEqual(clearedWith, capturedTimer, 'expected the fallback timer to be cleared once stdin ended');
+  } finally {
+    global.setTimeout = originalSetTimeout;
+    global.clearTimeout = originalClearTimeout;
+    Object.defineProperty(process, 'stdin', stdinDescriptor);
+  }
+});
+
 test('renderModel: nested display_name', () => {
   assert.strictEqual(sl.renderModel({ model: { display_name: 'Sonnet 4.6', id: 'claude-sonnet-4-6' } }), 'Sonnet 4.6');
 });

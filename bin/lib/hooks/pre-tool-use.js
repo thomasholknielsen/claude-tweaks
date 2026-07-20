@@ -7,6 +7,18 @@
 // side, which preserves the pre-stamp behavior). A commit from a DIFFERENT
 // session — e.g. unrelated fix work in the main checkout while a pipeline runs
 // elsewhere — is not provably this run's work: allow, warn, log.
+//
+// Deny signal: every return below — including a deny — sets `exit: 0`. A
+// PreToolUse deny is communicated entirely via `hookSpecificOutput.
+// permissionDecision: 'deny'` on stdout, not via the process exit code; exit
+// 2 is a separate, cruder mechanism (Claude Code reads only stderr for the
+// block reason and does not also parse stdout JSON), which would silently
+// drop the custom permissionDecisionReason built below. This has been the
+// behavior since this file's first commit (362e209). Do not "fix" this by
+// setting a non-zero exit on deny — CLAUDE.md's "the only deliberate
+// non-zero outcome is the pre-tool-use deny" and bin/hooks.js's matching
+// header comment describe an invariant that was never actually implemented
+// this way and describes stale intent, not this module's real contract.
 'use strict';
 const fs = require('fs');
 const path = require('path');

@@ -18,6 +18,22 @@ const CLASSIFICATION_SCORING = {
   restructural: { risk: 'medium', effort: 'high' },
 };
 
+// Returns a backtick fence at least one character longer than the longest run
+// of backticks found inside `text`, so a fenced code block wrapping arbitrary
+// finding content (a skill/rule/CLAUDE.md excerpt) can never be closed early by
+// a ``` sequence already present in that content — GitHub's fence-matching
+// rule only treats a run of >= the opening fence's length as a closer.
+function fenceFor(text) {
+  const runs = String(text).match(/`+/g) || [];
+  const longest = runs.reduce((max, run) => Math.max(max, run.length), 0);
+  return '`'.repeat(Math.max(3, longest + 1));
+}
+
+function fencedBlock(text) {
+  const fence = fenceFor(text);
+  return `${fence}\n${text}\n${fence}`;
+}
+
 function toIssuePayload(finding) {
   const isNewSkill = finding.kind === 'new-skill';
   const assetLabel = ASSET_TYPE_LABELS[finding.assetType] || finding.assetType;
@@ -29,7 +45,7 @@ function toIssuePayload(finding) {
 
   const deliverables = isNewSkill
     ? `Proposed new skill \`${finding.target}\`:\n\n${finding.proposedBody}`
-    : `**Current:**\n\`\`\`\n${finding.oldString || '(N/A — new content)'}\n\`\`\`\n\n**Proposed:**\n\`\`\`\n${finding.newString}\n\`\`\``;
+    : `**Current:**\n${fencedBlock(finding.oldString || '(N/A — new content)')}\n\n**Proposed:**\n${fencedBlock(finding.newString)}`;
 
   // Only ever populated for kind: "patch" findings — new-skill candidates have
   // no section to bundle by, so finding.relatedSections is always absent there.

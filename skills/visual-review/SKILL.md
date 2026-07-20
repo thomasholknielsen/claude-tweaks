@@ -240,7 +240,7 @@ This is the canonical handoff block for the skill. Mode-specific Next Actions ex
 
 ## Component-Skill Contract
 
-This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step 6) in `full` mode and by `/claude-tweaks:init` (Phase 8) for brownfield journey discovery. Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (the parent is running inside an active pipeline run). When invoked by a parent, omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user (no `$PIPELINE_RUN_DIR`), render Next Actions as shown above.
+This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step 6) in `full` mode, by `/claude-tweaks:init` (Phase 8) for brownfield journey discovery, and by `/claude-tweaks:wrap-up` (`verification-brief.md` Step 2.5 safety-net gate) when a testable record reaches wrap-up without a full pass already having run. Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (the parent is running inside an active pipeline run). When invoked by a parent, omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user (no `$PIPELINE_RUN_DIR`), render Next Actions as shown above.
 
 **Code-modifying exception.** `/visual-review` is otherwise read-only with respect to code. Two specific, standalone-only, always-consent-gated paths modify code: Step 4's Creative Opportunities apply-gate, and Step 5's Boost gate (Fix option). Both re-verify afterward via `/claude-tweaks:test skip-qa`. Parent-invoked `/visual-review` (`$PIPELINE_RUN_DIR` set) never modifies code — Steps 4 and 5's apply/boost paths do not run in that context.
 

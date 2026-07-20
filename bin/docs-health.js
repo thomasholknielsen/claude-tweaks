@@ -230,7 +230,13 @@ function cmdWordCount(args) {
 // path argument — mirrors scope.js's own id-deriving logic in walk().
 function deriveDocId(targetPath, root) {
   const docsRoot = path.join(root, 'docs');
-  const rel = path.relative(docsRoot, path.resolve(targetPath));
+  // Resolve targetPath against root, not process.cwd(): --root means
+  // "audit a project elsewhere," so a relative targetPath is meant to be
+  // read relative to that root, not to wherever the command happens to be
+  // invoked from. path.resolve(root, targetPath) is also correct when
+  // targetPath is already absolute — path.resolve discards the leading
+  // `root` segment in that case, per Node's own right-to-left resolution.
+  const rel = path.relative(docsRoot, path.resolve(root, targetPath));
   return rel.split(path.sep).join('/').replace(/\.md$/, '');
 }
 
@@ -297,4 +303,4 @@ function main(argv) {
 
 if (require.main === module) main(process.argv.slice(2));
 
-module.exports = { parseArgs, cmdNextTarget, cmdValidateFindings, cmdChurnReport, cmdMark, cmdWordCount, cmdFindRefs, cmdCheckFreshness, main };
+module.exports = { parseArgs, cmdNextTarget, cmdValidateFindings, cmdChurnReport, cmdMark, cmdWordCount, cmdFindRefs, cmdCheckFreshness, deriveDocId, main };

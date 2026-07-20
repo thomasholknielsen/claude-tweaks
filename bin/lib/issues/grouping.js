@@ -100,6 +100,16 @@ function extractKeyFiles(issue) {
     return targetHeader ? [targetHeader[1]] : [];
   }
 
+  if (hasOrigin(names, 'docs-health')) {
+    // docs-health was also born after the by:* origin migration (same
+    // reasoning as journey-health above), and its issue header
+    // ("**Doc:** {path} | **Section:** ...", bin/lib/docs-health/issue-
+    // payload.js) is the same bold-field shape as harness-health's and
+    // journey-health's, so the same extraction applies.
+    const targetHeader = BOLD_HEADER_RE.exec(body);
+    return targetHeader ? [targetHeader[1]] : [];
+  }
+
   return [];
 }
 

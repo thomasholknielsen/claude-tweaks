@@ -11,10 +11,14 @@ function readStdin() {
     let data = '';
     if (process.stdin.isTTY) return resolve('');
     process.stdin.setEncoding('utf8');
+    const timer = setTimeout(() => resolve(data), 50);
+    const finish = () => {
+      clearTimeout(timer);
+      resolve(data);
+    };
     process.stdin.on('data', (chunk) => (data += chunk));
-    process.stdin.on('end', () => resolve(data));
-    process.stdin.on('error', () => resolve(data));
-    setTimeout(() => resolve(data), 50);
+    process.stdin.on('end', finish);
+    process.stdin.on('error', finish);
   });
 }
 
@@ -90,9 +94,13 @@ function parseStatusBranch(output) {
   return { branch: branch || null, dirty: lines.length > 1 };
 }
 
-function renderGit() {
+function renderGit(cwd) {
   try {
-    const output = execSync('git status --porcelain -b', { stdio: ['ignore', 'pipe', 'ignore'], encoding: 'utf8' });
+    const output = execSync('git status --porcelain -b', {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      encoding: 'utf8',
+      cwd,
+    });
     const { branch, dirty } = parseStatusBranch(output);
     if (!branch) return null;
     return dirty ? `${branch}${color.yellow('●')}` : branch;
@@ -179,7 +187,7 @@ async function main() {
     renderModel(input),
     renderContext(input),
     renderEffort(input),
-    renderGit(),
+    renderGit(cwd),
     renderRateLimit('sess', rateLimits.five_hour, now),
     renderRateLimit('week', rateLimits.seven_day, now),
     findActiveSpec(cwd),
@@ -198,10 +206,12 @@ module.exports = {
   renderProject,
   renderContext,
   renderEffort,
+  renderGit,
   renderRateLimit,
   findActiveSpec,
   findOpenLedger,
   formatDuration,
   colorByPct,
   parseStatusBranch,
+  readStdin,
 };

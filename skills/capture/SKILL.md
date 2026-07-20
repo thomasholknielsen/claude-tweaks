@@ -41,7 +41,7 @@ When `$ARGUMENTS` is empty, prompt the user for the idea body.
 |------|------|
 | 1 | Add the record — GitHub issue via `recordPayload`, or a `specs/{id}-{slug}.md` record via `local-store.js`, per Backend Selection below. |
 | 2 | Route per `--route` arg, or via the Routing Prompt below. |
-| 3 | Commit (when this is a standalone invocation; component-skill callers commit themselves). `work-backend: github-issues` captures have nothing new to commit unless the failure fallback wrote a local `specs/{id}-{slug}.md` record, or the route was `absorb:N` (which edits the target record locally regardless of backend). |
+| 3 | Commit (when this is a standalone invocation; component-skill callers commit themselves). `work-backend: local-files` captures always have something to commit — the new record file, or, under route `absorb:N`, the edited/deleted target record file. `work-backend: github-issues` captures have nothing new to commit unless the failure fallback wrote a local `specs/{id}-{slug}.md` record — its `absorb:N` route edits the target issue via `gh` CLI only (see Route execution below), so no local file is touched. |
 
 ## Backend Selection
 

@@ -289,6 +289,29 @@ test('worktree-required: policy is read from the EDIT TARGET\'s own repo, not th
   assert.deepStrictEqual(out, {});
 });
 
+test('deny paths always carry exit: 0 — the deny signal is JSON permissionDecision, never the process exit code', () => {
+  // Claude Code's PreToolUse deny is communicated entirely via
+  // hookSpecificOutput.permissionDecision on stdout with exit 0; exit 2 is a
+  // separate, stderr-only mechanism that would drop the custom
+  // permissionDecisionReason built by this module. A future edit that adds a
+  // non-zero exit to either deny path (worktree-required gate or wd-deny),
+  // e.g. to chase CLAUDE.md's misleading "the only deliberate non-zero
+  // outcome is the pre-tool-use deny" line, would break the corrective
+  // reason message actually shown — this test guards against that.
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree.always: true\n');
+  const gateOut = pre.run({ input: { tool_name: 'Edit', tool_input: { file_path: path.join(repo, 'a.txt') } }, runDir: null, runState: null, cwd: repo });
+  assert.strictEqual(gateOut.json.hookSpecificOutput.permissionDecision, 'deny');
+  assert.strictEqual(gateOut.exit, 0);
+
+  const wt = gitRepo();
+  const other = gitRepo();
+  const { run, state } = mkRun(wt);
+  const wdOut = pre.run({ input: bashInput('git commit -m "x"', other), runDir: run, runState: state, cwd: other });
+  assert.strictEqual(wdOut.json.hookSpecificOutput.permissionDecision, 'deny');
+  assert.strictEqual(wdOut.exit, 0);
+});
+
 test('worktree-required: a policy file in an ancestor directory OUTSIDE the target repo does not leak in (repo-scoped, not filesystem-ancestor-scoped)', () => {
   const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-e1-ancestor-'));
   withPolicy(parent, 'worktree.always: true\n');

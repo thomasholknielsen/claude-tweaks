@@ -16,7 +16,7 @@ The staged file lists the v1 stories with the proposed migration command: `/clau
 
 **Interactive mode:** present:
 
-> v1 stories detected (N stories, CSS selectors). v4 of claude-tweaks uses semantic locators (role/text/testid). Regenerate?
+> v1 stories detected (N stories, CSS selectors). claude-tweaks now uses semantic locators (role/text/testid). Regenerate?
 >
 > 1. Regenerate all (preserves story names, descriptions, intent — re-derives locators from live DOM) **(Recommended)**
 > 2. Show me the changes first
@@ -43,7 +43,7 @@ Triggered when `{OUTPUT_DIR}/auth.yml` exists from a v3 install during Step 2's 
 
 Present:
 
-> Legacy `{OUTPUT_DIR}/auth.yml` detected ({N} profile(s)). v4 stores credentials in the Auth Vault. Migrate?
+> Legacy `{OUTPUT_DIR}/auth.yml` detected ({N} profile(s)). claude-tweaks now stores credentials in the Auth Vault. Migrate?
 >
 > 1. Print the `agent-browser auth set` commands for me to run, one per profile **(Recommended)**
 > 2. Keep `auth.yml` for now (stories will continue using profile references — supported but deprecated)

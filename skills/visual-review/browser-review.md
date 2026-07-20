@@ -38,12 +38,7 @@ Run the canonical procedure in `dev-url-detection.md` in `skills/_shared/` — i
 
 ### Ensure the app is running
 
-Before navigating, confirm the application is accessible. If the URL doesn't respond, call `AskUserQuestion` with `question`: `"The app doesn't seem to be running at {url}. Should I:"`, `header`: `"Dev server"`, `multiSelect`: `false`:
-
-- Option 1 — `label`: `"Try different URL"`, `description`: `"provide a different URL to check"`
-- Option 2 — `label`: `"Wait"`, `description`: `"wait while you start the dev server"`
-
-Do NOT attempt to start the dev server yourself — the user knows their setup best.
+Before navigating, confirm the application is accessible. Dev URL resolution — including what to do when the URL doesn't respond — is handled by `SKILL.md` Step 2 (Dev URL Resolution) before this file's mode-specific procedures run; it covers both auto mode (ephemeral worktree server, pre-authorized) and interactive mode (`AskUserQuestion` offering to start the dev server, try a different URL, or wait — consent-gated). If a page open still fails mid-session after that resolution (e.g., the server died between steps), treat it as a health-check failure per Step 1: capture a trace, close the session, and report — don't re-prompt with a different option set than Step 2 already offered.
 
 ---
 

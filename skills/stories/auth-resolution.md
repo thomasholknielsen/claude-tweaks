@@ -29,11 +29,11 @@ Stay consistent with whatever vault list `agent-browser auth list` already shows
    1. Ready — vault was created **(Recommended)**
    2. Skip auth-gated stories for now
    ```
-   On `1` (Ready): re-run `agent-browser auth list`, confirm, continue. On `2` (Skip): tag stories needing auth as `needs-auth-vault` and skip them in Step 5 refinement.
+   On `1` (Ready): re-run `agent-browser auth list`, confirm, continue. On `2` (Skip): tag stories needing auth as `needs-auth-vault`. Note: Step 5 refinement's sample selection (5a) filters only by `priority`, not tags, so a tagged story can still be selected for validation — if it is, the auth step is inapplicable and the story is expected to fail validation until a vault exists (not a defect).
 
-   **Auto mode:** never block — tag auth-gated stories as `needs-auth-vault`, skip them in Step 5 refinement, and stage the install hint. Log:
+   **Auto mode:** never block — tag auth-gated stories as `needs-auth-vault` and stage the install hint. (Step 5 refinement's sample selection filters only by `priority`, not tags, so a tagged story may still be validated and is expected to fail its auth step until a vault exists.) Log:
    ```
-   STAGED {HH:MM:SS} — Auth Resolution: no matching vault for {auth-gated-page-list}. Auth-gated stories tagged `needs-auth-vault` and skipped in Refine. User can create a vault with `agent-browser auth set default-user <username> <password>` and re-run /stories. Reversibility: high (re-run /stories or /test qa).
+   STAGED {HH:MM:SS} — Auth Resolution: no matching vault for {auth-gated-page-list}. Auth-gated stories tagged `needs-auth-vault` (may still be sampled by Step 5 refinement and fail the auth step until a vault exists). User can create a vault with `agent-browser auth set default-user <username> <password>` and re-run /stories. Reversibility: high (re-run /stories or /test qa).
    ```
    Surface the install hint at the Wrap-Up Review Console.
 4. **Multiple vaults exist** (e.g., `default-user`, `admin-user`): map each story's persona to the matching vault; fall back to `default-user` with a comment when no clean match.

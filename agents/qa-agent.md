@@ -111,7 +111,7 @@ For each step in the steps array:
    - `click` → `agent-browser --session <story-id> click <ref>`
    - `fill` → `agent-browser --session <story-id> fill <ref> "<value>"`
    - `type` → `agent-browser --session <story-id> type <ref> "<text>"`
-   - `screenshot` → `agent-browser --session <story-id> screenshot --filename {SCREENSHOT_PATH}/<NN>_<step>.png`
+   - `screenshot` → `agent-browser --session <story-id> screenshot --filename {SCREENSHOT_PATH}/<NN>_<step-name>-raw.png` (unannotated; step 5 below captures the annotated version separately, at the plain `<NN>_<step-name>.png` path)
    - `assert_visible` → resolve via `find` (success = element found); no further command needed
    - `navigate` (rare; only inside step blocks) → `agent-browser --session <story-id> open <url>`
 

@@ -290,16 +290,7 @@ For the full validation rules, dependency-ordering procedure, conflict-detection
 
 ## Parallel Development with Worktrees
 
-For true parallel execution, run separate terminals with `worktree` mode — each terminal gets an isolated copy of the repository:
-
-```
-# Terminal 1                          # Terminal 2                          # Terminal 3
-/claude-tweaks:flow 42 worktree      /claude-tweaks:flow 45 worktree      /claude-tweaks:flow 48 worktree
-```
-
-Each terminal creates its own worktree and feature branch. There is no file overlap risk because each worktree is a full, isolated copy.
-
-For mode-selection guidance (worktree vs current-branch), the merge reconciliation procedure (merge order, conflict handling, conflict resolution prompt), and the post-merge summary template, read `worktree-merge.md` in this skill's directory.
+For the terminal-example syntax for true parallel execution, mode-selection guidance (worktree vs current-branch), the merge reconciliation procedure (merge order, conflict handling, conflict resolution prompt), and the post-merge summary template, read `worktree-merge.md` in this skill's directory.
 
 ---
 

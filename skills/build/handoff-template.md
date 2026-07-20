@@ -51,5 +51,4 @@ Render the markdown below, substituting placeholders. Generate field values from
 | Simplified | {what} — `{file}` | `{hash}` |
 | Operational | {schema push, env update} | `{hash}` |
 | Journey | {created/updated} {name} — `{file}` | `{hash}` |
-| Doc update | {doc} — {what changed} | `{hash}` |
 | Ledger fix | {item} ({phase}) — `{file}` | `{hash}` |
