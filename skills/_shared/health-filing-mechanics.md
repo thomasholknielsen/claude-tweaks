@@ -12,7 +12,7 @@ Runs before this firing's own new findings are considered, so a `gh` failure fro
 node "${CLAUDE_PLUGIN_ROOT}/bin/{BINARY}" retry-queue drain --root . > /tmp/{PREFIX}-retry-payloads.json
 ```
 
-For each payload in `/tmp/{PREFIX}-retry-payloads.json`, attempt `gh issue create` exactly as the Type-expression-branch below describes. Track every attempt's outcome (retry-queue payloads AND any brand-new payload from this step's own filing loop that fails) as `[{ fingerprint, payload, ok: true }]` or `[{ fingerprint, payload, ok: false, error: "<gh's error output>" }]`, write to `/tmp/{PREFIX}-retry-results.json`, then:
+For each payload in `/tmp/{PREFIX}-retry-payloads.json`, attempt `gh issue create` exactly as this consumer's own **Type expression branch** describes — the `work-types: native` vs. `work-types: labels` branch each of the four consuming skills' own FILE step documents inline (e.g. `skills/code-health/SKILL.md`'s "Type expression branch" paragraph); this shared file has no copy of that branch itself, per the self-contained-inline convention in the intro paragraph above. Track every attempt's outcome (retry-queue payloads AND any brand-new payload from this step's own filing loop that fails) as `[{ fingerprint, payload, ok: true }]` or `[{ fingerprint, payload, ok: false, error: "<gh's error output>" }]`, write to `/tmp/{PREFIX}-retry-results.json`, then:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/{BINARY}" retry-queue update /tmp/{PREFIX}-retry-results.json --root . > /tmp/{PREFIX}-escalated.json

@@ -64,6 +64,8 @@ Required fields for every finding: `kind` (`patch` | `new-skill`), `target` (the
 
 Before forming any finding, run these mechanical checks and treat their output as evidence the judgment step weighs — not findings themselves:
 
+> **Parallel execution:** Use parallel tool calls aggressively — checks 1-8 below are independent read-only ls/grep/find/wc/sed calls against the same target with no dependency on one another and should run concurrently.
+
 1. **Stale-example check.** For every backtick-quoted file path or command referenced in the target (e.g. `` `src/auth/login.js` ``, `` `npm run build` ``), verify it still exists / still works:
    ```bash
    ls "<referenced-path>" 2>&1

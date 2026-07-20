@@ -29,10 +29,12 @@ consumer with its own label list — for a single label, use a one-element array
 
 ## Canonical LABELS_JSON — the full work-record taxonomy
 
-The complete label set from `_shared/work-record.md` (23 core + 3 optional `priority:*`),
-with descriptions pre-checked against GitHub's 100-character cap. **Consumers bootstrap only
-the labels they are about to apply** — copy the relevant pairs, don't create all 26
-speculatively (except `/init`'s one-time provision-now offer, which uses this list whole):
+The complete label set from `_shared/work-record.md`'s Label taxonomy table (the core label
+families plus the optional `priority:*` family — see that table for the current per-family
+and total counts, rather than a count restated here), with descriptions pre-checked against
+GitHub's 100-character cap. **Consumers bootstrap only the labels they are about to apply** —
+copy the relevant pairs, don't create the full array below speculatively (except `/init`'s
+one-time provision-now offer, which uses this list whole):
 
 ```js
 [

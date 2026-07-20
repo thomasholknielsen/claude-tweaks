@@ -77,11 +77,11 @@ e. **Apply auth** before any interactive step:
   ```
   agent-browser auth set <vault-name> <username> <password>
   ```
-  If the vault is missing, the orchestrator's Phase 2.5 pre-flight will have caught it — abort with a clear message rather than improvising.
+  If the vault is missing, the orchestrator's Phase 2.5 pre-flight will have caught it — abort with a clear message rather than improvising: capture a trace immediately, BEFORE Teardown or Close run (see Section 6 Step 1 — Failure Handling), then proceed to Teardown (Section 5) and Close (Section 6 Step 3) before reporting FAIL.
 - **Auth (legacy) present** — fallback for projects that have not yet migrated. Navigate to the legacy auth `url`, fill the resolved username/password into the form, and submit.
 - **Neither present** — proceed without auth.
 
-f. **Setup block** (if present in the YAML): execute each setup step using the structured step executor described in Section 4 below. Setup step failures abort the story immediately (capture a trace and close before reporting FAIL).
+f. **Setup block** (if present in the YAML): execute each setup step using the structured step executor described in Section 4 below. Setup step failures abort the story immediately: capture a trace immediately, BEFORE Teardown or Close run (see Section 6 Step 1 — Failure Handling), skip the remaining Setup steps and all Steps, then proceed to Teardown (Section 5) and Close (Section 6 Step 3) before reporting FAIL.
 
 ### 3. Auto-Navigate
 
@@ -186,7 +186,7 @@ Collect all emitted PAGE_INVENTORY entries and include them in the REPORT_JSON a
 
 ### 5. Teardown
 
-After the step loop ends — whether every step completed or a failure stopped it early (Section 4 Step 8 for action steps, or the verify-only-steps FAIL step) — execute the **Teardown** block if present. Run teardown best-effort — do not fail the story if teardown fails. Teardown always runs regardless of pass/fail status, but on a failure it runs *after* Section 6 Step 1 has already captured the failure trace, so later teardown actions do not disturb the page state the trace was meant to diagnose. Close (Section 6 Step 3) is the last thing that happens, after Teardown, in both outcomes.
+Teardown runs at the end of every path through Setup and the step loop — whether every step completed, a failure stopped the step loop early (Section 4 Step 8 for action steps, or the verify-only-steps FAIL step), or Setup itself aborted before the step loop began (Section 2 Step e or Step f). Execute the **Teardown** block if present. Run teardown best-effort — do not fail the story if teardown fails. Teardown always runs regardless of pass/fail status, but on a failure it runs *after* Section 6 Step 1 has already captured the failure trace, so later teardown actions do not disturb the page state the trace was meant to diagnose. Close (Section 6 Step 3) is the last thing that happens, after Teardown, in both outcomes.
 
 ### 6. Failure Handling and Close
 
@@ -231,6 +231,8 @@ Return the structured report as detailed in the "Report" section below. If `reco
 5. **Return** the structured report (with `TRACE:` line if a trace was captured).
 
 ## Report
+
+**Canonical schema.** The `REPORT_JSON` envelope in the examples below — including the full nested `page_inventories` shape (`interactive_elements`/`forms`/`navigation`/`accessibility`/`layout`) — is the canonical schema for this agent's structured output. `skills/test/qa-prompts.md`'s dispatch prompt templates re-specify this same shape inline (required by that file's own no-sibling-file-references contract, since each template is copied verbatim into a dispatched Task agent's prompt and that agent never sees this file) — any future change to this schema must be mirrored there byte-for-byte on the nested `page_inventories` part.
 
 ### On success
 
