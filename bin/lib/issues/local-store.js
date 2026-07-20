@@ -31,6 +31,7 @@ function defaultFacets() {
     origin: null,
     risk: null,
     effort: null,
+    ceremony: null,
     priority: null,
     stage: 'backlog',
     grants: { build: false, merge: false },
@@ -88,6 +89,7 @@ function parseFrontmatterLines(fmLines) {
     if ((m = /^origin:\s*(.+)$/.exec(line))) { facets.origin = m[1].trim(); continue; }
     if ((m = /^risk:\s*(.+)$/.exec(line))) { facets.risk = m[1].trim(); continue; }
     if ((m = /^effort:\s*(.+)$/.exec(line))) { facets.effort = m[1].trim(); continue; }
+    if ((m = /^ceremony:\s*(.+)$/.exec(line))) { facets.ceremony = m[1].trim(); continue; }
     if ((m = /^priority:\s*(.+)$/.exec(line))) { facets.priority = m[1].trim(); continue; }
     if ((m = /^stage:\s*(.+)$/.exec(line))) { facets.stage = m[1].trim(); continue; }
     if ((m = /^closed:\s*(true|false)$/.exec(line))) { facets.closed = m[1] === 'true'; continue; }
@@ -151,6 +153,7 @@ function serializeFrontmatter(facets) {
   if (facets.origin) lines.push(`origin: ${facets.origin}`);
   if (facets.risk) lines.push(`risk: ${facets.risk}`);
   if (facets.effort) lines.push(`effort: ${facets.effort}`);
+  if (facets.ceremony) lines.push(`ceremony: ${facets.ceremony}`);
   if (facets.priority) lines.push(`priority: ${facets.priority}`);
   if (facets.stage && facets.stage !== 'backlog') lines.push(`stage: ${facets.stage}`);
   if (facets.closed) lines.push('closed: true');

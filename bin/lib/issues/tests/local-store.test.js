@@ -22,7 +22,7 @@ test('writeRecord then readRecord round-trips facets, id, slug, title, and body'
   const dir = tmp(t);
   const filePath = path.join(dir, '14-bar.md');
   const facets = {
-    type: 'feature', origin: 'capture', risk: 'medium', effort: 'low', priority: null,
+    type: 'feature', origin: 'capture', risk: 'medium', effort: 'low', ceremony: 'fast-lane', priority: null,
     stage: 'parked', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
     parent: 12, blockedBy: [12, 7], unsynced: true, acceptance: null, closed: false, closedAt: null,
   };
@@ -44,7 +44,7 @@ test('writeRecord omits default/absent frontmatter keys from the written file', 
   writeRecord(filePath, {
     title: 'Min', body: 'b',
     facets: {
-      type: 'task', origin: null, risk: null, effort: null, priority: null,
+      type: 'task', origin: null, risk: null, effort: null, ceremony: null, priority: null,
       stage: 'backlog', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
       parent: null, blockedBy: [], unsynced: false, acceptance: null, closed: false, closedAt: null,
     },
@@ -100,7 +100,7 @@ test('allocateId ignores non-matching filenames', (t) => {
 
 function baseFacets(overrides) {
   return Object.assign({
-    type: 'task', origin: null, risk: null, effort: null, priority: null,
+    type: 'task', origin: null, risk: null, effort: null, ceremony: null, priority: null,
     stage: 'backlog', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
     parent: null, blockedBy: [], unsynced: false, acceptance: null, closed: false, closedAt: null,
   }, overrides);
@@ -163,6 +163,21 @@ test('queryRecords filters by acceptance facet', (t) => {
 test('queryRecords returns an empty array for a missing dir', (t) => {
   const dir = tmp(t);
   assert.deepStrictEqual(queryRecords(path.join(dir, 'nope'), {}), []);
+});
+
+test('writeRecord writes ceremony:{tier}, readRecord reads it back, and a null ceremony writes no line', (t) => {
+  const dir = tmp(t);
+  const withCeremony = path.join(dir, '1-a.md');
+  writeRecord(withCeremony, { title: 'A', body: 'b', facets: baseFacets({ ceremony: 'standard' }) });
+  const rawWith = fs.readFileSync(withCeremony, 'utf8');
+  assert.ok(/^ceremony: standard$/m.test(rawWith));
+  assert.strictEqual(readRecord(withCeremony).facets.ceremony, 'standard');
+
+  const withoutCeremony = path.join(dir, '2-b.md');
+  writeRecord(withoutCeremony, { title: 'B', body: 'b', facets: baseFacets() });
+  const rawWithout = fs.readFileSync(withoutCeremony, 'utf8');
+  assert.ok(!/^ceremony:/m.test(rawWithout));
+  assert.strictEqual(readRecord(withoutCeremony).facets.ceremony, null);
 });
 
 // --- malformed file (AC 5) ---
