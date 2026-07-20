@@ -17,8 +17,9 @@ their own tier-aware behavior. Surface the tier as a non-binding advisory column
 `/review-backlog`'s existing synthesis pass.
 
 **Tech Stack:** Markdown skill-file changes (prose procedure, no new dependencies); small pure-
-function extensions to `bin/lib/issues/tier.js` (ceremony-label parsing) and
-`bin/lib/issues/review-backlog.js` (advisory column), tested via `node --test`.
+function extensions to `bin/lib/issues/{tier,record,local-store}.js` (ceremony label/facet
+parsing and payload assembly), tested via `node --test`. `review-backlog.js` needs no code
+change — its filter/sort functions already pass every record's `.facets` through unchanged.
 
 ## Motivation
 
@@ -181,13 +182,18 @@ authoritative verdict.
 
 ## Testing
 
-- `extractCeremony` (label parsing) — ordinary pure-function test, same shape as
-  `extractRiskEffort`'s existing coverage in `bin/lib/issues/tier.js`'s test suite.
-- Materialize's fallback branch (label-absent → invoke `ceremony-check` → backfill) — testable as
-  a pure branch once the mechanical read/write shape is extracted, mirroring the existing header-
-  composition tests.
-- `/review-backlog`'s mechanical display column — extend the existing `review-backlog.js` test
-  fixtures with a `ceremony:*`-labeled record and assert it surfaces in the rendered view.
+- `extractCeremony` (label parsing) and `recordPayload`'s new `ceremony` param — ordinary
+  pure-function tests, same shape as `extractRiskEffort`/`recordPayload`'s existing coverage in
+  `bin/lib/issues/tier.js`/`record.js`'s test suites. `parseRecordFacets`'s `facets.ceremony` and
+  `local-store.js`'s matching facet (its own explicit whitelist, separate from `record.js`) get
+  the same treatment.
+- Materialize's fallback branch (label-absent → invoke `ceremony-check`, used for that run's own
+  header only — no label write-back) is prose logic, not a pure function; not unit-tested
+  directly, mirroring how the original design's own header-composition logic wasn't either.
+- `/review-backlog`'s mechanical display column needs no new code — `review-backlog.js`'s
+  filter/sort functions already pass every record's full `.facets` through unchanged, so
+  `facets.ceremony` (once Task 1 lands) is already there for the rendering prose to read. No new
+  test needed for this specifically; it's covered by `parseRecordFacets`'s own coverage above.
 - Step 5's persona-count-by-tier and Review's step-skip-by-tier logic are LLM judgment, not
   unit-testable in the traditional sense — calibrated via the worked examples above and in
   `assess-agent-autonomy`'s existing calibration section, the same role those examples already
@@ -221,8 +227,14 @@ itself is unchanged — only the call site and input source move.
 
 ## Known Touch Points (not exhaustive — writing-plans owns the file-by-file breakdown)
 
-- **New:** `bin/lib/issues/tier.js`'s `extractCeremony` reader; `skills/review/light-mode.md`
-  (mirroring `reflect/light-mode.md`'s existing shape).
+- **Modified (no new files):** `bin/lib/issues/tier.js` (new `extractCeremony` reader),
+  `bin/lib/issues/record.js` (`recordPayload`'s new `ceremony` param, `parseRecordFacets`'s new
+  `ceremony` facet), `bin/lib/issues/local-store.js` (its own separate facet whitelist —
+  `defaultFacets`/`parseFrontmatterLines`/`serializeFrontmatter` — needs the matching addition).
+  `/review`'s step-skip logic is small enough (one subsection + three one-line skip checks) to
+  live inline in `skills/review/SKILL.md` rather than a separate `light-mode.md` sub-file — unlike
+  `/reflect`'s light mode, which carries substantial lens-definition content justifying its own
+  file, this doesn't; no new file needed here.
 - **Modified:** `skills/specify/SKILL.md` (Step 3 — ceremony-check call + label write, both
   shaping-mode and decomposition-mode paths; Step 5 — persona-count-by-tier),
   `skills/flow/materialize.md` (line ~77 — label-read-with-fallback instead of always-compute;
@@ -232,8 +244,9 @@ itself is unchanged — only the call site and input source move.
   (`ceremony-check` mode's "Called from" line), `skills/review/SKILL.md` (new ceremony-aware
   step-skip subsection gating Steps 1/1.6/4 — not a new `$ARGUMENTS` mode; the existing Review
   Modes table (`code`/`full`/`visual`/`journey`/`discover`) is a separate, orthogonal axis and
-  is untouched), `skills/review-backlog/SKILL.md` +
-  `bin/lib/issues/review-backlog.js` (Suggested tier column, Step 2/3/4), `_shared/label-
+  is untouched), `skills/review-backlog/SKILL.md` (Suggested tier column, Step 2/3/4 — no code
+  change needed in `bin/lib/issues/review-backlog.js` itself, since its filter/sort functions
+  already pass every record's `.facets` through unchanged), `_shared/label-
   bootstrap.md`-pattern label registration for `ceremony:fast-lane`/`ceremony:standard`.
 - **Amended:** `docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md` (see
   Amendment section above) — do not edit the shipped doc's own text; a forward reference from
