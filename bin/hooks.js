@@ -24,21 +24,38 @@ function main(argv) {
     // correctly regardless of flag placement.
     const rest = argv.slice(3);
     const flagIdx = rest.indexOf('--run');
-    let explicitRun = null;
+    let runDir = null;
+    let invalidRunArg = null;
     if (flagIdx !== -1) {
-      explicitRun = rest[flagIdx + 1] || null;
+      const candidate = rest[flagIdx + 1] || null;
       rest.splice(flagIdx, 2);
+      // An explicit --run must resolve to a real directory — falling back to
+      // resolveRunDir's "newest non-terminal run" scan on a bad path would
+      // silently record against the WRONG run, defeating the reason --run
+      // exists at all (see the comment this replaces, above).
+      if (candidate && (() => { try { return fs.statSync(candidate).isDirectory(); } catch { return false; } })()) {
+        runDir = candidate;
+      } else {
+        invalidRunArg = candidate || '(missing value)';
+      }
+    } else {
+      runDir = ctxLib.resolveRunDir(process.cwd(), process.env);
     }
     const worktreeArg = rest[0];
-    const runDir = explicitRun || ctxLib.resolveRunDir(process.cwd(), process.env);
-    if (runDir && worktreeArg) {
+    if (invalidRunArg) {
+      process.stdout.write(`claude-tweaks: --run path not found: ${invalidRunArg} — worktree not recorded\n`);
+    } else if (runDir && worktreeArg) {
       // Stamp the owning session so E1 can scope enforcement to it. Absent env
       // var: omit the key rather than write null — an env-less re-record must
       // not clobber a previous stamp.
       const patch = { worktree: path.resolve(worktreeArg), status: 'active' };
       if (process.env.CLAUDE_CODE_SESSION_ID) patch.sessionId = process.env.CLAUDE_CODE_SESSION_ID;
-      ctxLib.writeRunState(runDir, patch);
-      process.stdout.write(`claude-tweaks: worktree recorded for ${path.basename(runDir)}\n`);
+      const result = ctxLib.writeRunState(runDir, patch);
+      if (result) {
+        process.stdout.write(`claude-tweaks: worktree recorded for ${path.basename(runDir)}\n`);
+      } else {
+        process.stdout.write(`claude-tweaks: failed to record worktree for ${path.basename(runDir)} — run-state.json could not be written\n`);
+      }
     } else if (!runDir) {
       process.stdout.write('claude-tweaks: no pipeline run dir found — worktree not recorded\n');
     }
@@ -46,14 +63,30 @@ function main(argv) {
   }
   if (cmd === 'close-run') {
     const flagIdx = argv.indexOf('--run');
-    const runDir = flagIdx !== -1 && argv[flagIdx + 1] ? argv[flagIdx + 1] : ctxLib.resolveRunDir(process.cwd(), process.env);
-    if (runDir) {
+    let runDir = null;
+    let invalidRunArg = null;
+    if (flagIdx !== -1 && argv[flagIdx + 1]) {
+      const candidate = argv[flagIdx + 1];
+      if ((() => { try { return fs.statSync(candidate).isDirectory(); } catch { return false; } })()) {
+        runDir = candidate;
+      } else {
+        invalidRunArg = candidate;
+      }
+    } else {
+      runDir = ctxLib.resolveRunDir(process.cwd(), process.env);
+    }
+    if (invalidRunArg) {
+      process.stdout.write(`claude-tweaks: --run path not found: ${invalidRunArg} — run not closed\n`);
+    } else if (runDir) {
       const prev = ctxLib.readRunState(runDir);
       const me = process.env.CLAUDE_CODE_SESSION_ID;
       if (prev && typeof prev.sessionId === 'string' && prev.sessionId && me && prev.sessionId !== me) {
         process.stdout.write(`claude-tweaks: closing run ${path.basename(runDir)} recorded by another session\n`);
       }
-      ctxLib.writeRunState(runDir, { status: 'clean', worktree: null });
+      const result = ctxLib.writeRunState(runDir, { status: 'clean', worktree: null });
+      if (!result) {
+        process.stdout.write(`claude-tweaks: failed to close run ${path.basename(runDir)} — run-state.json could not be written\n`);
+      }
     }
     return 0;
   }

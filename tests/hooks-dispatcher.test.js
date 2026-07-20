@@ -110,6 +110,44 @@ test('record-worktree without a run dir exits 0 and prints a not-recorded notice
   assert.match(result.stdout, /claude-tweaks: no pipeline run dir found — worktree not recorded/);
 });
 
+test('record-worktree with a non-existent --run path fails loudly instead of falling back or claiming success', () => {
+  const project = tmpProject(); // has a real run dir the fallback WOULD find if we silently fell through
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  const bogus = path.join(project, 'does-not-exist');
+  const result = runHook(['record-worktree', '--run', bogus, '/tmp/wt'], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /--run path not found/);
+  assert.doesNotMatch(result.stdout, /worktree recorded/);
+  assert.strictEqual(fs.existsSync(path.join(run, 'run-state.json')), false,
+    'an invalid --run must not silently fall back to a different run dir');
+});
+
+test('record-worktree reports a distinct failure when the run-state write itself fails', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  fs.chmodSync(run, 0o500); // read+execute only — fs.writeFileSync inside it must throw
+  try {
+    const result = runHook(['record-worktree', '/tmp/wt-1'], { cwd: project });
+    assert.strictEqual(result.code, 0);
+    assert.match(result.stdout, /failed to record worktree/);
+    assert.doesNotMatch(result.stdout, /worktree recorded for/);
+  } finally {
+    fs.chmodSync(run, 0o700);
+  }
+});
+
+test('close-run with a non-existent --run path fails loudly instead of falling back', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  runHook(['record-worktree', '/tmp/wt-1'], { cwd: project });
+  const bogus = path.join(project, 'does-not-exist');
+  const result = runHook(['close-run', '--run', bogus], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /--run path not found/);
+  const state = JSON.parse(fs.readFileSync(path.join(run, 'run-state.json'), 'utf8'));
+  assert.strictEqual(state.status, 'active', 'an invalid --run must not touch a different run dir at all');
+});
+
 test('record-worktree stamps the owning session from CLAUDE_CODE_SESSION_ID and preserves it on env-less re-record', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
