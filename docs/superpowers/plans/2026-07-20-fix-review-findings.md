@@ -873,7 +873,7 @@ git commit -m "Fix review finding(s): bin/lib/journey-health/fingerprint.js, hoo
 ### Task 19: agents/qa-agent.md, skills/_shared/dev-url-detection.md, +4 more
 
 **Files:**
-- Modify: `agents/qa-agent.md` (1 finding)
+- Modify: `agents/qa-agent.md` (3 findings: 1 original + 2 NEW, discovered during Task 8's execution -- see below)
 - Modify: `skills/_shared/dev-url-detection.md` (1 finding)
 - Modify: `skills/_shared/github-pr-scan.md` (2 findings)
 - Modify: `skills/_shared/harness-health-analysis.md` (1 finding)
@@ -884,6 +884,8 @@ git commit -m "Fix review finding(s): bin/lib/journey-health/fingerprint.js, hoo
 
 `agents/qa-agent.md`:
 - **[simplification]** agents/qa-agent.md:255 -- The REPORT_JSON envelope — including the full nested `page_inventories` shape (interactive_elements/forms/navigation/accessibility/layout) — is spelled out in full here and, byte-for-byte on the nested part, again in skills/test/qa-prompts.md's dispatch prompt template (line 114), with neither file referencing the other as the source of truth for the schema.
+- **[removed-behavior] NEW, added during Task 8's fix-round for finding 5 (not in the original 147; verified by that task's own reviewer, who conditioned approval on this follow-up existing)** -- Section 2 Step f (Setup, "Setup step failures abort the story immediately: capture a trace and close before reporting FAIL") never routes through Section 5 (Teardown) before closing, unlike both step-loop FAIL paths (Section 4 Step 8 and the verify-only-steps FAIL step), which were fixed across Task 8's commits 5be1a86/bea4eac/1a95ae2 to explicitly say "proceed to Teardown (Section 5) and Close." A literal reading has Setup-failure aborts silently skip Teardown, contradicting the Test Isolation section's claim (line 28) that "teardown and close run unconditionally." Fix using the same pattern already established by Task 8's fixes: add an explicit "proceed to Teardown (Section 5) and Close" pointer to this step, and extend Section 5's opening citation (already updated once by Task 8 for the verify-only-steps path) to also cover Setup-step-failure as a third valid entry point -- do NOT re-introduce a second "run Teardown" imperative anywhere outside Section 5 itself, that would reopen the double-imperative bug Task 8's second fix round closed.
+- **[removed-behavior] NEW, same discovery as above** -- Section 2 Step e (Setup, vault-missing abort: "abort with a clear message") has the identical gap, and is worse: it doesn't even mention trace capture or an explicit close step, just an abort. Same fix pattern as the Step f finding above; address both together since they're the same root cause in the same subsection.
 
 `skills/_shared/dev-url-detection.md`:
 - **[reuse]** skills/_shared/dev-url-detection.md:72 -- Step 2.7's `git rev-parse --git-dir` vs `--git-common-dir` check reimplements in raw bash the same linked-worktree heuristic `bin/lib/hooks/worktree-detect.js`'s `repoInfo()` already provides, without that helper's submodule guard or symlink-safe path resolution.
