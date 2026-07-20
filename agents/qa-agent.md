@@ -56,17 +56,19 @@ Extract from the prompt:
 
 a. **Create the screenshot directory** (`mkdir -p {SCREENSHOT_PATH}` via the Bash tool).
 
-b. **Open the session at the story URL:**
+b. **Create the trace directory** (`mkdir -p {TRACES_BASE}/<story-id>` via the Bash tool) so a first-failure trace save (Section 6 Step 1) has somewhere to write — the CLI does not create missing parent directories for its output path.
+
+c. **Open the session at the story URL:**
 ```
 agent-browser --session <story-id> open <url>
 ```
 
-c. **Set viewport** (if specified). The flag is cross-platform — no shell-specific env-var workarounds needed.
+d. **Set viewport** (if specified). The flag is cross-platform — no shell-specific env-var workarounds needed.
 ```
 agent-browser --session <story-id> set viewport <width> <height>
 ```
 
-d. **Apply auth** before any interactive step:
+e. **Apply auth** before any interactive step:
 - **Auth (vault) present** — preferred path. The vault stores credentials encrypted, locally; the LLM never sees the password.
   ```
   agent-browser --session <story-id> auth use <vault-name>
@@ -79,11 +81,11 @@ d. **Apply auth** before any interactive step:
 - **Auth (legacy) present** — fallback for projects that have not yet migrated. Navigate to the legacy auth `url`, fill the resolved username/password into the form, and submit.
 - **Neither present** — proceed without auth.
 
-e. **Setup block** (if present in the YAML): execute each setup step using the structured step executor described in Section 4 below. Setup step failures abort the story immediately (capture a trace and close before reporting FAIL).
+f. **Setup block** (if present in the YAML): execute each setup step using the structured step executor described in Section 4 below. Setup step failures abort the story immediately (capture a trace and close before reporting FAIL).
 
 ### 3. Auto-Navigate
 
-The `open` command in Step 2b already navigated to the story URL. Stories must NOT include a "Navigate to URL" as their first step.
+The `open` command in Step 2c already navigated to the story URL. Stories must NOT include a "Navigate to URL" as their first step.
 
 ### 4. Execute Steps Sequentially
 
@@ -102,13 +104,15 @@ For each step in the steps array:
 
    `find` returns a session-scoped `@eN` ref. NEVER store these refs across steps — each `find` resolves a fresh ref against the current snapshot.
 
+   **Escaping story-supplied strings:** every `<name>`/`<text>`/`<label>`/`<placeholder>` above (and the `<value>`/`<text>` arguments used by `fill`/`type` in Step 3 below) is a story-authored string spliced into a double-quoted Bash argument. Before splicing any such string into a command, backslash-escape it for double-quoted-shell-argument safety, in this order: `\` → `\\`, then `"` → `\"`, `` ` `` → `` \` ``, and `$` → `\$` (escape backslashes first so the newly-inserted escape characters are not themselves re-escaped). Never interpolate a story-supplied string into a shell command unescaped.
+
 2. **Locator failure recovery:** If `find` returns 0 matches, take a fresh snapshot:
    ```
    agent-browser --session <story-id> snapshot -i -c
    ```
    Search the snapshot for an element matching the locator's intent (role + accessible name, testid, exact text). If you find an unambiguous match with a different but semantically equivalent locator (e.g., the `name` shifted from "Sign in" to "Sign In"), record the recovery in `recovered_locators` and use the new locator. If multiple elements match, do not recover — mark FAIL.
 
-3. **Execute the action** against the resolved ref. Action mapping:
+3. **Execute the action** against the resolved ref. `<value>`/`<text>` are story-supplied — apply the same escaping rule from Step 1 above before splicing them into the double-quoted argument. Action mapping:
    - `click` → `agent-browser --session <story-id> click <ref>`
    - `fill` → `agent-browser --session <story-id> fill <ref> "<value>"`
    - `type` → `agent-browser --session <story-id> type <ref> "<text>"`
@@ -127,7 +131,7 @@ For each step in the steps array:
 
 7. On PASS: run the **Caveat Detection** check below.
 
-8. On FAIL: capture a trace BEFORE closing the session (see Section 6 — Failure Handling), stop execution, mark remaining steps SKIPPED.
+8. On FAIL: capture a trace immediately, BEFORE Teardown or Close run (see Section 6 Step 1 — Failure Handling), stop executing remaining steps, mark them SKIPPED, then proceed to Teardown (Section 5) and Close (Section 6 Step 3).
 
 **Locator Recovery record format:**
 
@@ -178,30 +182,30 @@ Collect all emitted PAGE_INVENTORY entries and include them in the REPORT_JSON a
 
 **Fill steps** (`action: fill`):
 - Use the `value` field for the text to enter.
-- Resolve the input via the step's semantic `locator` (testid > label > placeholder > role+name).
+- Resolve the input via the step's semantic `locator` using the Step 1 mapping above — each step's `locator` object carries exactly one locator type (schema v2 stories never populate more than one key; see `skills/stories/story-examples.md`, which documents the authoring-time preference order `testid > role+name > label > placeholder > text` used to choose that single type when the story was written).
 
 ### 5. Teardown
 
-After all steps complete (or after a failure), execute the **Teardown** block if present. Run teardown best-effort — do not fail the story if teardown fails. Teardown runs regardless of pass/fail status.
+After the step loop ends — whether every step completed or a failure stopped it early (Section 4 Step 8) — execute the **Teardown** block if present. Run teardown best-effort — do not fail the story if teardown fails. Teardown always runs regardless of pass/fail status, but on a failure it runs *after* Section 6 Step 1 has already captured the failure trace, so later teardown actions do not disturb the page state the trace was meant to diagnose. Close (Section 6 Step 3) is the last thing that happens, after Teardown, in both outcomes.
 
 ### 6. Failure Handling and Close
 
 **On any step failure (assertion mismatch, locator unrecoverable, navigation timeout, blocking console error):**
 
-1. Capture a trace BEFORE closing:
+1. Capture a trace immediately, BEFORE Teardown (Section 5) or Close (Step 3 below) run:
    ```
    agent-browser --session <story-id> trace save {TRACES_BASE}/<story-id>/<ISO-timestamp>.zip
    ```
-   Use a UTC ISO-8601 timestamp with colons replaced by `-` for filesystem safety (e.g., `2026-05-01T14-30-22Z`).
+   Use a UTC ISO-8601 timestamp with colons replaced by `-` for filesystem safety (e.g., `2026-05-01T14-30-22Z`). The `{TRACES_BASE}/<story-id>` directory was already created in Setup (Section 2 Step b).
 
 2. Record the trace path in the failure record. Include it in the REPORT_JSON's failure entry and emit a `TRACE: <path>` line in the report so the orchestrator can surface it.
 
-3. Close the session unconditionally:
+3. Run Teardown (Section 5) if present, then close the session unconditionally:
    ```
    agent-browser --session <story-id> close
    ```
 
-**On success:** close the session at the end (after teardown):
+**On success:** run Teardown (Section 5) if present, then close the session at the end:
 ```
 agent-browser --session <story-id> close
 ```
@@ -215,15 +219,15 @@ Return the structured report as detailed in the "Report" section below. If `reco
 ## Workflow — Legacy Format
 
 1. **Parse** the user story into discrete, sequential steps (support all legacy formats in the Examples section). Also parse `**Auth (vault):**` and `**Auth (legacy):**` if present.
-2. **Setup:** create the screenshot directory; open the session at the story URL; if a viewport is set, apply it via `set viewport`; apply auth (vault preferred, legacy fallback) — see Structured Format Step 2.
+2. **Setup:** create the screenshot directory and the trace directory (`{TRACES_BASE}/<story-id>`); open the session at the story URL; if a viewport is set, apply it via `set viewport`; apply auth (vault preferred, legacy fallback) — see Structured Format Step 2.
 3. **Execute each step sequentially** (maintain a `caveats` array, initially empty):
    a. Resolve the target via `find` using a semantic locator inferred from the free-text step.
    b. Execute the action via the appropriate `agent-browser` command.
    c. Take an annotated screenshot.
    d. Evaluate PASS or FAIL.
    e. On PASS: run the Caveat Detection check.
-   f. On FAIL: capture a trace, then close, then stop. Mark remaining steps SKIPPED.
-4. **Close** the session via `agent-browser --session <session> close`.
+   f. On FAIL: capture a trace, then stop. Mark remaining steps SKIPPED. Do NOT close here — Step 4 below is the single close point for both outcomes.
+4. **Close** the session via `agent-browser --session <session> close` — runs unconditionally, whether the story passed or a step 3f failure stopped it early.
 5. **Return** the structured report (with `TRACE:` line if a trace was captured).
 
 ## Report
