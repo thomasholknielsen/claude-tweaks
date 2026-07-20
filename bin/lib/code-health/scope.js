@@ -63,22 +63,47 @@ function sourceFiles(absDir) {
   }
 }
 
-function contentHash(absDir) {
+// Reads every source file under absDir exactly once, as a Buffer (so both
+// contentHash's byte-for-byte hashing and sliceLoc's line count can be
+// derived from the same in-memory read — see hashFromFileData/locFromFileData
+// below and selectSlice's computeScore, which calls this once per slice
+// instead of contentHash/sliceLoc each independently re-spawning `find` and
+// re-reading every file).
+function readSourceFileData(absDir) {
   const files = sourceFiles(absDir);
+  return files.map((file) => {
+    try {
+      return { file, buffer: fs.readFileSync(file) };
+    } catch {
+      return { file, buffer: null };
+    }
+  });
+}
+
+function hashFromFileData(absDir, fileData) {
   const hasher = crypto.createHash('sha1');
-  if (files.length === 0) {
+  if (fileData.length === 0) {
     hasher.update('empty:' + absDir);
     return hasher.digest('hex');
   }
-  for (const file of files) {
+  for (const { file, buffer } of fileData) {
     hasher.update(file + '\0');
-    try {
-      hasher.update(fs.readFileSync(file));
-    } catch {
-      hasher.update('unreadable');
-    }
+    hasher.update(buffer != null ? buffer : 'unreadable');
   }
   return hasher.digest('hex');
+}
+
+function locFromFileData(fileData) {
+  let total = 0;
+  for (const { buffer } of fileData) {
+    if (buffer == null) continue;
+    total += buffer.toString('utf8').split('\n').length;
+  }
+  return total;
+}
+
+function contentHash(absDir) {
+  return hashFromFileData(absDir, readSourceFileData(absDir));
 }
 
 // ─── Hotspot signals (impure; degrade gracefully) ────────────────────────────
@@ -97,12 +122,7 @@ function gitChurn(root, relDir, now) {
 }
 
 function sliceLoc(absDir) {
-  const files = sourceFiles(absDir);
-  let total = 0;
-  for (const f of files) {
-    try { total += fs.readFileSync(f, 'utf8').split('\n').length; } catch { /* skip */ }
-  }
-  return total;
+  return locFromFileData(readSourceFileData(absDir));
 }
 
 // Hotspot score = churn × complexity (higher = more important to judge next).
@@ -221,13 +241,18 @@ function selectSlice(root, cursors, opts = {}) {
     getCursorKey: (slice) => slice.id,
     getLastAuditedMs: (cursor) => (cursor && cursor.lastSweptMs != null ? cursor.lastSweptMs : null),
     // Skip if content-hash is unchanged (the real change-aware skip) —
-    // returning null excludes the slice from Phase 2 entirely.
+    // returning null excludes the slice from Phase 2 entirely. Reads the
+    // slice's source files exactly once (readSourceFileData) and derives
+    // both the hash and the LOC count from that single pass, instead of
+    // contentHash/sliceLoc each independently re-spawning `find` and
+    // re-reading every file.
     computeScore: (slice, cursor) => {
-      const currentHash = contentHash(slice.path);
+      const fileData = readSourceFileData(slice.path);
+      const currentHash = hashFromFileData(slice.path, fileData);
       if (cursor.lastHash && cursor.lastHash === currentHash) return null;
       const sig = signals ? signals[slice.id] || { churn: 0, loc: 0 } : null;
       const churn = sig ? sig.churn : gitChurn(root, slice.id, now);
-      const loc = sig ? sig.loc : sliceLoc(slice.path);
+      const loc = sig ? sig.loc : locFromFileData(fileData);
       return hotspotScore(churn, loc);
     },
     buildStaleResult: (slice) => ({ ...slice, why: 'stale' }),

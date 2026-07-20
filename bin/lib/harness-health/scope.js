@@ -4,6 +4,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const { STALE_DAYS } = require('./score');
 const { selectByStaleThenChurn } = require('../health-core/rotation');
+const { parseFrontmatterListField } = require('../health-core/frontmatter-list');
 
 // ─── listSkills ──────────────────────────────────────────────────────────────
 // Returns [{ kind: 'skill', id, path }] for each .claude/skills/*.md file,
@@ -26,22 +27,13 @@ function listSkills(root) {
 //     - src/api/**
 //   ---
 // Returns [] if there's no frontmatter, no `paths:` key, or no list items —
-// an unparseable header means "no declared domain," not an error.
+// an unparseable header means "no declared domain," not an error. Thin
+// wrapper over the shared parser (bin/lib/health-core/frontmatter-list.js),
+// which also backs docs-health/freshness.js's parseFilesField and
+// journey-health/scope.js's parseJourneyFiles — same bullet-list shape,
+// different frontmatter key.
 function parseRulePaths(content) {
-  const lines = content.split('\n');
-  if (lines[0] !== '---') return [];
-  const closeIdx = lines.indexOf('---', 1);
-  if (closeIdx === -1) return [];
-  const frontmatter = lines.slice(1, closeIdx);
-  const pathsIdx = frontmatter.findIndex((l) => /^paths:\s*$/.test(l));
-  if (pathsIdx === -1) return [];
-  const globs = [];
-  for (let i = pathsIdx + 1; i < frontmatter.length; i++) {
-    const m = frontmatter[i].match(/^\s*-\s*(.+?)\s*$/);
-    if (!m) break;
-    globs.push(m[1]);
-  }
-  return globs;
+  return parseFrontmatterListField(content, 'paths');
 }
 
 // ─── listRules ───────────────────────────────────────────────────────────────
@@ -199,7 +191,22 @@ function extractDomainPaths(content) {
 function domainChurn(root, relPaths, sinceMs) {
   if (!relPaths || relPaths.length === 0) return 0;
   try {
-    const since = new Date(sinceMs || 0).toISOString().slice(0, 10);
+    // Full ISO 8601 datetime (with time-of-day and a Z/UTC suffix), not a
+    // bare YYYY-MM-DD date string. A bare date string is parsed by git as
+    // local midnight and then converted to UTC, which underflows to a
+    // pre-epoch boundary (silently matching zero commits) in any positive
+    // UTC-offset timezone when sinceMs is 0. git's numeric `@<seconds>`
+    // epoch-literal syntax was tried as a fix but verified (via direct
+    // experimentation) to be unreliable for small values: git's fuzzy
+    // approxidate parser treats a small `@<N>` as an ambiguous relative
+    // offset from "now" rather than an absolute timestamp, so `--since=@0`
+    // silently degrades to "since right now" once any time at all has
+    // elapsed since the commit — worse than the original bug. A full ISO
+    // 8601 string is parsed by git's strict (non-fuzzy) date parser and
+    // was verified robust across timezones and timing. (Identical bug and
+    // fix as journey-health/scope.js commit 7f6993f and docs-health/scope.js
+    // commit 8bbb3af.)
+    const since = new Date(sinceMs || 0).toISOString();
     const out = execFileSync(
       'git',
       ['-C', root, 'log', '--oneline', `--since=${since}`, '--', ...relPaths],

@@ -6,40 +6,21 @@
 // (bin/lib/issues/record.js) — the shared work-record taxonomy
 // (skills/_shared/work-record.md): origin by:docs-health, colon-form
 // risk:*/effort:* scoring, born-ready, Type task, work-fingerprint marker.
-const { recordPayload, specShapedBody } = require('../issues/record');
+// fenceFor/fencedBlock (GitHub-fence-safe code-block wrapper) and
+// CLASSIFICATION_SCORING (classification -> risk/effort fold) also live in
+// record.js — shared with harness-health/issue-payload.js rather than
+// copy-pasted.
+const {
+  recordPayload, specShapedBody, CLASSIFICATION_SCORING, fencedBlock,
+} = require('../issues/record');
 
 const CATEGORY_LABELS = { 'genre-drift': 'genre-drift', staleness: 'staleness' };
-
-// classification -> scoring axis fold, same shape as harness-health's:
-// additive is a safe, mechanical patch (low risk, low effort);
-// restructural needs human review and more effort.
-const CLASSIFICATION_SCORING = {
-  additive: { risk: 'low', effort: 'low' },
-  restructural: { risk: 'medium', effort: 'high' },
-};
 
 const MISLEADS_LABELS = {
   human: 'human engineer',
   agent: 'coding agent',
   both: 'human engineer + coding agent',
 };
-
-// Returns a backtick fence at least one character longer than the longest run
-// of backticks found inside `text`, so a fenced code block wrapping arbitrary
-// finding content (a docs/** excerpt, which routinely contains fenced bash/YAML
-// examples) can never be closed early by a ``` sequence already present in
-// that content — GitHub's fence-matching rule only treats a run of >= the
-// opening fence's length as a closer.
-function fenceFor(text) {
-  const runs = String(text).match(/`+/g) || [];
-  const longest = runs.reduce((max, run) => Math.max(max, run.length), 0);
-  return '`'.repeat(Math.max(3, longest + 1));
-}
-
-function fencedBlock(text) {
-  const fence = fenceFor(text);
-  return `${fence}\n${text}\n${fence}`;
-}
 
 function toIssuePayload(finding) {
   const categoryLabel = CATEGORY_LABELS[finding.category] || finding.category;

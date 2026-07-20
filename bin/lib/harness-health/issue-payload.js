@@ -5,34 +5,17 @@
 // Label/marker/type assembly delegates to recordPayload (bin/lib/issues/record.js) — the
 // shared work-record taxonomy (skills/_shared/work-record.md): origin by:harness-health,
 // colon-form risk:*/effort:* scoring, born-ready, Type task, work-fingerprint marker.
-const { recordPayload, specShapedBody } = require('../issues/record');
+// fenceFor/fencedBlock (GitHub-fence-safe code-block wrapper) and
+// CLASSIFICATION_SCORING (classification -> risk/effort fold) also live in
+// record.js — shared with docs-health/issue-payload.js rather than
+// copy-pasted. kind: 'new-skill' never consults CLASSIFICATION_SCORING — it
+// stays deliberately unscored (see below).
+const {
+  recordPayload, specShapedBody, CLASSIFICATION_SCORING, fencedBlock,
+} = require('../issues/record');
 
 const ASSET_TYPE_LABELS = { skill: 'Skill', rule: 'Rule', 'claude-md': 'CLAUDE.md', 'design-artifact': 'Design Context', memory: 'Memory' };
 const CATEGORY_LABELS = { drift: 'drift', 'template-conformance': 'structure', 'best-practice': 'best-practice' };
-
-// classification -> scoring axis fold (spec 15): additive is a safe, mechanical
-// patch (low risk, low effort); restructural needs human review and more effort.
-// kind: 'new-skill' never consults this map — it stays deliberately unscored (see below).
-const CLASSIFICATION_SCORING = {
-  additive: { risk: 'low', effort: 'low' },
-  restructural: { risk: 'medium', effort: 'high' },
-};
-
-// Returns a backtick fence at least one character longer than the longest run
-// of backticks found inside `text`, so a fenced code block wrapping arbitrary
-// finding content (a skill/rule/CLAUDE.md excerpt) can never be closed early by
-// a ``` sequence already present in that content — GitHub's fence-matching
-// rule only treats a run of >= the opening fence's length as a closer.
-function fenceFor(text) {
-  const runs = String(text).match(/`+/g) || [];
-  const longest = runs.reduce((max, run) => Math.max(max, run.length), 0);
-  return '`'.repeat(Math.max(3, longest + 1));
-}
-
-function fencedBlock(text) {
-  const fence = fenceFor(text);
-  return `${fence}\n${text}\n${fence}`;
-}
 
 function toIssuePayload(finding) {
   const isNewSkill = finding.kind === 'new-skill';

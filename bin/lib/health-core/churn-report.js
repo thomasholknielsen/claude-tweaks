@@ -3,11 +3,10 @@
 // Shared churn-report renderer — byte-identical across all four
 // health-suite CLIs' cmdChurnReport (code-health.js, harness-health.js,
 // journey-health.js, docs-health.js) before this extraction. Each engine
-// supplies its own readDurableState/computeChurn: code-health's own
-// computeChurn (bin/lib/code-health/cache.js) returns an extra `stayed`
-// field the other three's (bin/lib/health-core/runs.js) don't have, but
-// this renderer never reads `stayed`, so it works unmodified against
-// either shape.
+// supplies its own readDurableState/computeChurn (all four now share the
+// same computeChurn implementation, bin/lib/health-core/runs.js, which
+// returns a `stayed` field alongside `appeared`/`disappeared`/`ratio`), but
+// this renderer never reads `stayed`, so it works unmodified regardless.
 function makeCmdChurnReport({ readDurableState, computeChurn }) {
   return function cmdChurnReport(args) {
     const root = args.root || process.cwd();

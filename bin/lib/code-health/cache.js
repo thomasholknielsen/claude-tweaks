@@ -1,6 +1,7 @@
 'use strict';
 const { createCache } = require('../health-core/cache');
 const { createDurableState } = require('../health-core/durable-state');
+const { computeChurn } = require('../health-core/runs');
 
 // Local, gitignored: cache.json only (open/closed/wontfix/regressed dedup —
 // rebuildable from `gh issue list`, so it's fine to stay local/ephemeral).
@@ -15,24 +16,10 @@ const { createDurableState } = require('../health-core/durable-state');
 const core = createCache('code-health');
 const durable = createDurableState('code-health', { includeRemembered: true });
 
-// Churn vs the prior run. ratio = (appeared + disappeared) / |prior ∪ current|.
-// PORT.md delta #5: union denominator, NOT max(prior, current).
-// A complete turnover gives ratio 1.0; no changes gives ratio 0.0.
-function computeChurn(currentFps, priorRun) {
-  const priorFps = priorRun && Array.isArray(priorRun.fingerprints) ? priorRun.fingerprints : [];
-  const current = new Set(currentFps);
-  const prior = new Set(priorFps);
-
-  const appeared = currentFps.filter((fp) => !prior.has(fp));
-  const disappeared = priorFps.filter((fp) => !current.has(fp));
-  const stayed = currentFps.filter((fp) => prior.has(fp));
-  const union = new Set([...currentFps, ...priorFps]);
-  const total = Math.max(union.size, 1);
-  const raw = (appeared.length + disappeared.length) / total;
-  const ratio = Math.round(raw * 1000) / 1000;
-
-  return { appeared, disappeared, stayed, ratio };
-}
+// computeChurn (union-denominator ratio + the `stayed` field) now lives once
+// in health-core/runs.js, shared by all four health-suite engines — re-export
+// it here so existing call sites (bin/code-health.js,
+// bin/lib/code-health/tests/*) keep importing it from this module.
 
 // Pure: computes the next durable-state object for a validate-findings run.
 // current: { cursors, remembered, retryQueue, runs } — the current durable

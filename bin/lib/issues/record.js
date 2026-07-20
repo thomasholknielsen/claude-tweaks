@@ -61,6 +61,36 @@ function oneOf(name, value, allowed) {
   }
 }
 
+// classification -> risk/effort scoring axis fold, shared by every health
+// producer's issue-payload.js (docs-health, harness-health; journey-health
+// uses its own severity-based fold instead, see journey-health/issue-payload.js):
+// additive is a safe, mechanical patch (low risk, low effort); restructural
+// needs human review and more effort. A finding kind that's deliberately
+// unscored (e.g. harness-health's "new-skill") looks this map up and gets
+// `undefined` back rather than consulting it at all — callers gate that
+// themselves, this map has no "unscored" entry.
+const CLASSIFICATION_SCORING = {
+  additive: { risk: 'low', effort: 'low' },
+  restructural: { risk: 'medium', effort: 'high' },
+};
+
+// Returns a backtick fence at least one character longer than the longest run
+// of backticks found inside `text`, so a fenced code block wrapping arbitrary
+// finding content (a docs/skill/rule/CLAUDE.md excerpt) can never be closed
+// early by a ``` sequence already present in that content — GitHub's
+// fence-matching rule only treats a run of >= the opening fence's length as
+// a closer.
+function fenceFor(text) {
+  const runs = String(text).match(/`+/g) || [];
+  const longest = runs.reduce((max, run) => Math.max(max, run.length), 0);
+  return '`'.repeat(Math.max(3, longest + 1));
+}
+
+function fencedBlock(text) {
+  const fence = fenceFor(text);
+  return `${fence}\n${text}\n${fence}`;
+}
+
 // { title, body, type, origin?, risk?, effort?, ceremony?, ready?, parked?, priority?, fingerprint? }
 // -> { title, body, labels: string[], type }
 // Validates supplied enum values; absence of an optional field never throws.
@@ -313,4 +343,5 @@ module.exports = {
   ORIGINS, TYPES, TIERS, PRIORITIES, LABELS, TYPE_LABELS, recordPayload, specShapedBody,
   FP_RE_WORK, FP_RE_LEGACY, extractFingerprint, parseRecordFacets, parseDependencies,
   parseDependencyAssumptions, buildNativeDependencyQuery, hasOpenNativeBlocker,
+  CLASSIFICATION_SCORING, fenceFor, fencedBlock,
 };

@@ -4,6 +4,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const { STALE_DAYS_LIGHT, STALE_DAYS_DEEP } = require('./score');
 const { selectByStaleThenChurn } = require('../health-core/rotation');
+const { parseFrontmatterListField } = require('../health-core/frontmatter-list');
 
 // ─── parseJourneyFiles ───────────────────────────────────────────────────────
 // Extracts a journey file's `files:` frontmatter list, e.g.:
@@ -12,22 +13,13 @@ const { selectByStaleThenChurn } = require('../health-core/rotation');
 //     - src/checkout/Cart.tsx
 //   ---
 // Returns [] if there's no frontmatter, no `files:` key, or no list items —
-// an unparseable header means "no declared domain," not an error.
+// an unparseable header means "no declared domain," not an error. Thin
+// wrapper over the shared parser (bin/lib/health-core/frontmatter-list.js),
+// which also backs harness-health/scope.js's parseRulePaths and
+// docs-health/freshness.js's parseFilesField — same bullet-list shape,
+// different frontmatter key.
 function parseJourneyFiles(content) {
-  const lines = content.split('\n');
-  if (lines[0] !== '---') return [];
-  const closeIdx = lines.indexOf('---', 1);
-  if (closeIdx === -1) return [];
-  const frontmatter = lines.slice(1, closeIdx);
-  const filesIdx = frontmatter.findIndex((l) => /^files:\s*$/.test(l));
-  if (filesIdx === -1) return [];
-  const paths = [];
-  for (let i = filesIdx + 1; i < frontmatter.length; i++) {
-    const m = frontmatter[i].match(/^\s*-\s*(.+?)\s*$/);
-    if (!m) break;
-    paths.push(m[1]);
-  }
-  return paths;
+  return parseFrontmatterListField(content, 'files');
 }
 
 // ─── caches ──────────────────────────────────────────────────────────────────

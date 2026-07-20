@@ -1,24 +1,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-
-// Recursively collects .md files under `dir` into `results`. No dotfile
-// skip needed here (unlike scope.js's listDocs) — findability only ever
-// walks docs/, which has no dotfile subdirectories in practice, and a
-// stray one would just be harmlessly searched too.
-function walkMarkdownFiles(dir, results) {
-  let entries;
-  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return results; }
-  for (const entry of entries) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      walkMarkdownFiles(full, results);
-    } else if (entry.isFile() && entry.name.endsWith('.md')) {
-      results.push(full);
-    }
-  }
-  return results;
-}
+const { listDocs } = require('./scope');
 
 function escapeForRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -55,7 +38,15 @@ function computeInboundReferences(docId, root) {
 
   const candidates = [];
   const docsDir = path.join(root, 'docs');
-  if (fs.existsSync(docsDir)) walkMarkdownFiles(docsDir, candidates);
+  // scope.js's listDocs, with both exclusion filters off: findability needs
+  // every candidate *referrer* file under docs/ (including
+  // docs/superpowers/** and docs/journeys/**, which may legitimately link to
+  // an audited doc even though they're never themselves audit targets), not
+  // just the Diátaxis-portal subset listDocs(root) returns for its usual
+  // scan-target callers.
+  if (fs.existsSync(docsDir)) {
+    candidates.push(...listDocs(root, { excludeTopLevelDirs: false, skipDotDirs: false }).map((d) => d.path));
+  }
   const readme = path.join(root, 'README.md');
   if (fs.existsSync(readme)) candidates.push(readme);
   const claudeMd = path.join(root, 'CLAUDE.md');

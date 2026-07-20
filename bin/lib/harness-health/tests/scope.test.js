@@ -321,6 +321,37 @@ test('domainChurn returns 0 when git is unavailable (bad root)', () => {
   assert.strictEqual(churn, 0);
 });
 
+test('domainChurn(root, paths, 0) counts a commit from well in the past, not just one made in the same instant as the query (regression: git --since=@0 and --since=1970-01-01 are both silently mishandled)', (t) => {
+  // sinceMs=0 is the value rotation.js's selectByStaleThenChurn passes for any
+  // never-before-audited target (lastAuditedMs is null -> sinceMs = 0). The
+  // fix must mean "since the beginning of git history," not "since whenever
+  // this process happens to run." A backdated commit (via GIT_AUTHOR_DATE /
+  // GIT_COMMITTER_DATE) proves this deterministically, without relying on
+  // wall-clock sleep or how fast the test happens to execute: two known-bad
+  // implementations both pass a naive "commit immediately before querying"
+  // check yet fail this one --
+  //   - new Date(0).toISOString().slice(0, 10) ("1970-01-01", no time-of-day)
+  //     is parsed by git as local midnight and underflows to a pre-epoch
+  //     boundary in positive-UTC-offset timezones, silently matching nothing.
+  //   - git's numeric `--since=@<seconds>` epoch-literal syntax, for small
+  //     second counts, is parsed by git's fuzzy approxidate grammar as an
+  //     ambiguous *relative* offset from "now" rather than an absolute
+  //     timestamp -- so `--since=@0` silently degrades to "since right now"
+  //     once any wall-clock time at all has elapsed since the commit.
+  const root = tmp(t);
+  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'src', 'b.ts'), '', 'utf8');
+  initGitRepo(root);
+  execFileSync('git', ['-C', root, 'add', '.']);
+  const backdated = new Date(Date.now() - 10 * 60 * 1000).toISOString(); // 10 minutes in the past
+  execFileSync('git', ['-C', root, 'commit', '-q', '-m', 'init'], {
+    env: { ...process.env, GIT_AUTHOR_DATE: backdated, GIT_COMMITTER_DATE: backdated },
+  });
+
+  const count = domainChurn(root, ['src/b.ts'], 0);
+  assert.ok(count > 0, `expected the backdated commit to be counted since sinceMs=0, got ${count}`);
+});
+
 // ─── selectTarget ──────────────────────────────────────────────────────────
 
 test('selectTarget returns null when no skills exist', (t) => {

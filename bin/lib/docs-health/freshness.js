@@ -2,27 +2,19 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const { parseFrontmatterListField } = require('../health-core/frontmatter-list');
 
 // Parses a doc's `files:` frontmatter list (repo-relative dependency
 // paths) — reuses journey docs' existing `files:` field/shape (see
 // journeys/journey-template.md's regression-detection use) rather than
 // introducing a competing field name for a near-identical concept.
-// Returns [] when absent or the doc has no frontmatter at all.
+// Returns [] when absent or the doc has no frontmatter at all. Thin wrapper
+// over the shared parser (bin/lib/health-core/frontmatter-list.js), which
+// also backs harness-health/scope.js's parseRulePaths and journey-health/
+// scope.js's parseJourneyFiles — same bullet-list shape, different
+// frontmatter key.
 function parseFilesField(content) {
-  const lines = content.split('\n');
-  if (lines[0] !== '---') return [];
-  const closeIdx = lines.indexOf('---', 1);
-  if (closeIdx === -1) return [];
-  const frontmatter = lines.slice(1, closeIdx);
-  const filesIdx = frontmatter.findIndex((l) => /^files:\s*$/.test(l));
-  if (filesIdx === -1) return [];
-  const files = [];
-  for (let i = filesIdx + 1; i < frontmatter.length; i++) {
-    const m = frontmatter[i].match(/^\s*-\s+(.+?)\s*$/);
-    if (!m) break;
-    files.push(m[1]);
-  }
-  return files;
+  return parseFrontmatterListField(content, 'files');
 }
 
 // For each files: dependency: does it exist (missing = its own staleness

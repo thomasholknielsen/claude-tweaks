@@ -22,16 +22,24 @@ const EXCLUDE_TOP_LEVEL_DIRS = new Set(['superpowers', 'journeys']);
 // Recursively walks docs/**, returning [{ kind: 'doc', id, path }] for
 // every .md file, sorted by id. id is the path relative to docs/,
 // forward-slashed, without the .md extension — e.g.
-// docs/decisions/0007-foo.md -> "decisions/0007-foo". Skips
+// docs/decisions/0007-foo.md -> "decisions/0007-foo". By default skips
 // docs/superpowers/**, docs/journeys/**, and any dotfile directory. [] if
 // docs/ doesn't exist — a project with no docs/ tree yet is a valid state,
 // not an error.
+//
+// opts: { excludeTopLevelDirs?: boolean, skipDotDirs?: boolean } — both
+// default true (this module's own scan-target callers). findability.js's
+// inbound-reference scan calls with both false: it needs every candidate
+// *referrer* file under docs/ (including docs/superpowers/** and
+// docs/journeys/**, which may legitimately link to an audited doc even
+// though they're never themselves audit targets), not just the
+// Diátaxis-portal subset this function otherwise returns.
 //
 // Structurally never returns anything under .claude/skills/**,
 // .claude/rules/**, or a project-root CLAUDE.md — this walker only ever
 // descends into docs/, so harness-health's exclusive territory is excluded
 // by construction, not by an explicit skip rule.
-function walk(dir, docsRoot, out) {
+function walk(dir, docsRoot, out, opts) {
   let entries;
   try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
   for (const entry of entries) {
@@ -40,11 +48,11 @@ function walk(dir, docsRoot, out) {
     // by construction, unlike code-health/scope.js's explicit named
     // SKIP_DIRS list, since nothing under docs/ is expected to start with
     // a dot in the first place.
-    if (entry.name.startsWith('.')) continue;
+    if (opts.skipDotDirs && entry.name.startsWith('.')) continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (dir === docsRoot && EXCLUDE_TOP_LEVEL_DIRS.has(entry.name)) continue;
-      walk(full, docsRoot, out);
+      if (opts.excludeTopLevelDirs && dir === docsRoot && EXCLUDE_TOP_LEVEL_DIRS.has(entry.name)) continue;
+      walk(full, docsRoot, out, opts);
     } else if (entry.isFile() && entry.name.endsWith('.md')) {
       const rel = path.relative(docsRoot, full).split(path.sep).join('/').replace(/\.md$/, '');
       out.push({ kind: 'doc', id: rel, path: full });
@@ -52,10 +60,11 @@ function walk(dir, docsRoot, out) {
   }
 }
 
-function listDocs(root) {
+function listDocs(root, opts = {}) {
+  const { excludeTopLevelDirs = true, skipDotDirs = true } = opts;
   const docsRoot = path.join(root, 'docs');
   const out = [];
-  walk(docsRoot, docsRoot, out);
+  walk(docsRoot, docsRoot, out, { excludeTopLevelDirs, skipDotDirs });
   return out.sort((a, b) => (a.id < b.id ? -1 : 1));
 }
 
