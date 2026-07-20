@@ -91,7 +91,7 @@ When `MULTISPEC_REVIEW_DEFER=1` is set (by `/flow` multi-spec orchestration):
    ```
    AUTO {time} — Step 8.6: Review Console deferred to multi-spec consolidated console. Per-spec staged items: {count}. Auto-decisions: {count}. Parent run dir: {MULTISPEC_PARENT_DIR}.
    ```
-4. Proceed to Step 10 (Consolidated Summary) — the per-spec summary still renders, but its "Review Console" row reads `deferred — see multi-spec consolidated console`
+4. Proceed to Step 9 (Present Consolidated Summary) — the per-spec summary still renders, but its "Review Console" row reads `deferred — see multi-spec consolidated console`
 5. Skip the run-directory archival in Step 5 — the parent `/flow` orchestration owns archival of the multi-spec parent dir after its consolidated console completes
 
 This is the *only* condition under which `/wrap-up` skips Step 8.6 when a run directory exists. Single-spec auto/hybrid always runs the per-spec console.
@@ -109,9 +109,9 @@ See `_shared/pipeline-run-dir.md` for the resolution order and bash snippet. If 
 
 ## Numbering rules
 
-- Sections 1–6 (Auto-applied through Cleanup) use a **single global sequence** starting at #1. Each row across all six sections has a unique number.
-- Section 7 (Queue writes) uses a **separate `Q`-prefixed sequence** (`Q1`, `Q2`, …) because those items require per-item approval and are NOT part of the global "Approve all" choice.
-- This applies to both the example below and any real Console output. Do not restart numbering within a section.
+- The console has **up to seven named batch sections** — Auto-applied, Pending review, Low-confidence findings, Contested findings, Skill updates, Configuration updates, Cleanup actions (the two coordination-derived sections render only when non-empty — see `wrap-up/SKILL.md`'s own "up to seven sections" summary of this same console). Together they use a **single global sequence** starting at #1: every row across every present section has a unique number, with no restart between sections.
+- Queue writes is an eighth, separate section. It uses its own **`Q`-prefixed sequence** (`Q1`, `Q2`, …) because those items require per-item approval and are NOT part of the global "Approve all" choice — it is never counted into the seven batch sections above.
+- This applies to both the example below and any real Console output. Do not restart numbering within the global sequence.
 
 ## Unattended-tier auto-file (runs before rendering)
 
@@ -142,7 +142,7 @@ Queue writes below — do not drop it.
 ```markdown
 ### Wrap-Up Review Console
 
-The pipeline auto-resolved {N} decisions and staged {M} items for your review. Sections 1–6 resolve via one batch choice; queue writes (Section 7) require per-item approval because `_shared/auto-mode-contract.md` lists work-record creation as not-silenced by `auto`.
+The pipeline auto-resolved {N} decisions and staged {M} items for your review. The named batch sections below resolve via one batch choice; Queue writes (a separate, eighth section) require per-item approval because `_shared/auto-mode-contract.md` lists work-record creation as not-silenced by `auto`.
 
 #### Auto-applied (already in commits — override = revert)
 
@@ -198,7 +198,7 @@ Render this section only when `decisions.md` contains STAGED entries from cross-
 
 #### Cleanup actions (executed in Step 10 after approval)
 
-Render the cleanup rows from the canonical list in `cleanup-procedures.md`, filtered by Condition (e.g., omit the worktree row when no worktree strategy was used). Each row gets a globally-unique # in the Section 1–6 sequence. Example:
+Render the cleanup rows from the canonical list in `cleanup-procedures.md`, filtered by Condition (e.g., omit the worktree row when no worktree strategy was used). Each row gets a globally-unique # in the shared batch-section sequence (see Numbering rules above). Example:
 
 | # | Type | Action | Details |
 |---|---|---|---|
@@ -255,7 +255,7 @@ None of these three options carries `(Recommended)` — the source text requires
 4. Execute cleanup actions (items 15–21) — Step 10 picks these up
 5. For each `Q#` queue write, prompt the user per item via its own `AskUserQuestion` call. On Apply (or Edit, after the modification): create the record — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`), reading `Title:`/`Type:`/`Labels:` and the body from the item's staged file (`staged/leftover-{slug}.md` for leftover-routed items; other sources use their own staged-file shape). Skip drops the proposal — log the decline to `decisions.md` with the user's stated reason, or "declined, no reason given" when none was offered.
 6. Commit with a wrap-up message
-7. Proceed to Step 10 (Consolidated Summary)
+7. Proceed to Step 9 (Present Consolidated Summary)
 
 ## On override (option 2)
 
@@ -264,7 +264,7 @@ None of these three options carries `(Recommended)` — the source text requires
 3. Auto-applied items the user wants reverted: `git revert {commit}` (one revert commit per item, to keep history clean)
 4. Cleanup items the user skipped: leave the target intact (spec/plan/worktree stays)
 5. Queue writes (`Q#`): still prompted per item even under override — the user can Skip or Edit them, but the per-item gate cannot be bulk-resolved
-6. Commit, then proceed to Step 10
+6. Commit, then proceed to Step 9 (Present Consolidated Summary)
 
 ## On stop (option 3)
 
@@ -272,7 +272,7 @@ Halt before applying. Leave the run directory intact. User resumes with `/claude
 
 ## Empty-console fast path
 
-If `decisions.md` has zero entries AND `staged/` is empty AND there are no skill/config updates AND no cleanup actions apply AND no queue writes are pending, skip the console entirely. Log "Review Console: nothing to review" and proceed to Step 10.
+If `decisions.md` has zero entries AND `staged/` is empty AND there are no skill/config updates AND no cleanup actions apply AND no queue writes are pending, skip the console entirely. Log "Review Console: nothing to review" and proceed to Step 9 (Present Consolidated Summary).
 
 ## Hard requirements
 
