@@ -1,5 +1,17 @@
 # Changelog
 
+## v6.11.1 — Wrap-up follow-through on v6.11.0's ceremony tiering
+
+Wrap-up reflection on v6.11.0 found `ceremony:fast-lane`/`ceremony:standard` was never added
+to `_shared/label-bootstrap.md`'s canonical `LABELS_JSON` despite `/claude-tweaks:specify`
+citing it as the bootstrap source — fixed, along with the resulting label-count drift in
+`_shared/work-record.md` and both `/claude-tweaks:init` files. Also fixes two stale
+descriptions the original branch's review missed: `/claude-tweaks:flow`'s Relationship-table
+row still described `ceremony-check` as its primary caller instead of fallback-only, and
+`_shared/multi-agent-coordination.md` — the canonical primitive for Multi-Persona Red-Team —
+still documented "3 fixed personas" with no mention of the new ceremony-tiered 1-or-3 count.
+Adds ADR 0006 documenting the ceremony-tiering design's two central decisions.
+
 ## v6.11.0 — Lifecycle ceremony tiering
 
 `ceremony-check` (the fast-lane/standard verdict introduced in v6.7.0) now runs at
