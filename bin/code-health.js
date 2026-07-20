@@ -74,6 +74,10 @@ function loadIssueIndex(file) {
   }
   const index = {};
   for (const issue of arr) {
+    if (!issue || typeof issue !== 'object') {
+      process.stderr.write('[code-health] loadIssueIndex: skipping malformed issue entry\n');
+      continue;
+    }
     if (issue.fingerprint) {
       index[issue.fingerprint] = { number: issue.number, state: issue.state, labels: issue.labels || [] };
     }
