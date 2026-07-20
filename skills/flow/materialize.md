@@ -36,7 +36,7 @@ record: {n}
 origin: {code-health|harness-health|journey-health|docs-health|capture|human}
 risk: {low|medium|high}            # omitted when unscored
 effort: {low|medium|high}          # omitted when unscored
-ceremony: fast-lane                # omitted when standard — see ceremony-check mode below
+ceremony: {fast-lane|standard}      # always present — see ceremony-check mode below
 grants: [build, merge]             # as held at materialization time; may be [build] or []
 fingerprint: {fp}                  # omitted when none
 blocked-by: [n1, n2]               # omitted when none — see Populating the header
@@ -65,7 +65,7 @@ parked-at-shaping: true            # omitted unless the record was parked when s
 
 ## Populating the header
 
-Every field except `surface`/`design-intent` (next section), `ceremony` (below), and `blocked-by` under `work-links: native` (one extra read — see its bullet below) comes straight off data already fetched during Resolution — nothing extra to read:
+Every field except `surface`/`design-intent` (next section) and `blocked-by` under `work-links: native` (one extra read — see its bullet below) comes straight off data already fetched during Resolution — nothing extra to read. `ceremony` is usually also free (`facets.ceremony`, from the label `/claude-tweaks:specify` already stamped) — see its own bullet below for the fallback case:
 
 - `record` — the id used to resolve it.
 - `origin` — `facets.origin` (`code-health` / `harness-health` / `journey-health` / `docs-health` / `capture`), or the literal `human` when `facets.origin` is `null` (no `by:*` label — human-filed, or a side-effect record, per `_shared/work-record.md`'s origin axis).
@@ -74,9 +74,9 @@ Every field except `surface`/`design-intent` (next section), `ceremony` (below),
 - `fingerprint` — from Resolution; omit the line when `null`.
 - `blocked-by` — the record's dependency targets, driver/`work-links`-dependent: `work-backend: github-issues` + `work-links: body-text` — `parseDependencies(body)` (`bin/lib/issues/record.js`) over the already-fetched body, no extra read; `work-backend: github-issues` + `work-links: native` — one batched `gh api graphql` call across every record in the run (aliased per record number, reusing `buildNativeDependencyQuery`/`hasOpenNativeBlocker` from `bin/lib/issues/record.js` — the same pattern `/claude-tweaks:dispatch` Step 2 uses for its candidate pool), resolving `blockedBy` (the field `capabilities-probe.js`'s `probeSchema` checks for), added to Resolution. A single-record run is the degenerate one-alias case of the same call; `work-backend: local-files` — `facets.blockedBy`, already present on the read record. Emit as `blocked-by: [n1, n2, ...]`; omit the line when empty. Resolution is read-only and safe to run before any run dir or worktree exists (see "When this runs" below), so this data is available to `/flow`'s multi-spec pre-flight (`multi-spec.md`'s "Frontmatter pre-flight") immediately after Resolution — it does not need to wait for the header to be composed and written to disk.
 - `parked-at-shaping` — `true` when the labels/facets fetched at materialization time still carry `parked`, omitted otherwise. `/specify` strips `parked` on promotion to `ready` (its permission-matrix row in `_shared/work-record.md`), so this is normally absent by the time a record is buildable; it stays meaningful for a record re-parked after promotion — e.g. by `/tidy`'s Defer action — that still got dispatched anyway, which is exactly the case `/wrap-up`'s restore-on-abandon step (see the reader table above) needs to detect.
-- `ceremony` — invoke `/claude-tweaks:assess-agent-autonomy` in `ceremony-check` mode (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "ceremony-check #{n}")`), once per record, using the same body/labels already fetched during Resolution. Its `CEREMONY` output becomes this field verbatim; omit the line when the verdict is `standard` (mirrors `risk`/`effort`'s omit-when-unscored convention). See `docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md` for the full mode contract.
+- `ceremony` — `facets.ceremony` (the `ceremony:fast-lane`/`ceremony:standard` label `/claude-tweaks:specify` already stamped on every record it shapes). Always emit this line explicitly — never omit it, unlike every other optional field here. **Fallback only:** when `facets.ceremony` is `null` (the record reached `/flow` without ever going through `/specify`'s Step 3 — a legacy hand-authored spec file, or a record created before this behavior shipped), invoke `/claude-tweaks:assess-agent-autonomy` in `ceremony-check` mode (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "ceremony-check #{n}")`) using the same body/labels already fetched during Resolution, and use its `CEREMONY` output for this run's header only — do not write a label back to the record; `/specify` remains the sole owner of `ceremony:*`. See `docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md` for the full rationale, and `docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md` for the mode's original contract.
 
-`surface` / `design-intent` / `ceremony` are the exceptions — `surface`/`design-intent` via the lift rule below, `ceremony` via the invocation above. `blocked-by` is a partial exception: free under `work-links: body-text`/`local-files`, one extra read under `work-links: native` — see its bullet above.
+`surface` / `design-intent` are the exceptions — via the lift rule below. `ceremony` is a partial exception, the same shape as `blocked-by`: free from Resolution's already-fetched facets in the common case, one extra invocation only in the fallback case above. `blocked-by` is a partial exception too: free under `work-links: body-text`/`local-files`, one extra read under `work-links: native` — see its bullet above.
 
 ## The Surface / Design-intent lift rule
 
