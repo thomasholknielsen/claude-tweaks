@@ -52,7 +52,7 @@ unchanged from before.
 
 ## Write-back procedure
 
-After all three agents return, write findings back into the record body:
+After all dispatched personas return, write findings back into the record body:
 
 1. **Precise-location findings** (persona named a specific sentence, quoted text, or line range) → insert `<!-- ambiguity: {persona} — {finding text}{; suggested: {resolution}} -->` immediately after the flagged sentence. On the same line if short; on the next line if long.
 2. **General findings** (no precise location) → accumulate into an `## Open Questions` table appended to the record, with columns `Persona | Finding | Suggested Resolution`. When this batch is empty, omit the section entirely — do not emit an empty header.
