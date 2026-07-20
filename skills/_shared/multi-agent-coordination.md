@@ -26,7 +26,7 @@ A coordination caller writes one Task() prompt per agent (each containing the re
 |---|---|---|---|---|
 | Reproduction | 2 | 1 | 1 | No — N=2 always |
 | Debate | 2 | 1 | 1 | No — exactly one critique round |
-| Multi-persona red-team | 3 | 1 | 1 | No — 3 fixed personas |
+| Multi-persona red-team | 1 or 3 | 1 | 1 | Persona count only (by the leaf's `ceremony:*` tier) |
 | Layered MoA | N proposers + 1 aggregator | 2 | 1 | Proposer count only |
 
 No mode composition. You cannot reproduce a debate. You cannot run MoA inside red-team. Modes are leaf operations.
@@ -157,12 +157,12 @@ Used only for `contested` outcomes:
 
 ### Purpose
 
-Surface ambiguity and under-specification in a spec doc by reading it through three fixed lenses. Each persona asks one question; their findings flag spots where the spec leaves room for diverging interpretations.
+Surface ambiguity and under-specification in a spec doc by reading it through one to three fixed lenses. Each persona asks one question; their findings flag spots where the spec leaves room for diverging interpretations.
 
 ### Shape
 
-- 3 agents, parallel, 1 turn each.
-- Three fixed personas — extending the list is not parameterizable.
+- 1 or 3 agents, parallel, 1 turn each — count set by the leaf's `ceremony:*` label: `fast-lane` dispatches Skeptical Reviewer only, `standard` (or a missing label) dispatches all three.
+- The persona roster itself is fixed — extending, swapping, or adding personas is not parameterizable; only which subset of the fixed three run is.
 
 ### Personas (inline in caller's Task() prompts, verbatim)
 
