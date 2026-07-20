@@ -200,12 +200,12 @@ After the step loop ends — whether every step completed or a failure stopped i
 
 2. Record the trace path in the failure record. Include it in the REPORT_JSON's failure entry and emit a `TRACE: <path>` line in the report so the orchestrator can surface it.
 
-3. Run Teardown (Section 5) if present, then close the session unconditionally:
+3. Close the session unconditionally — Teardown (Section 5) already ran before this point:
    ```
    agent-browser --session <story-id> close
    ```
 
-**On success:** run Teardown (Section 5) if present, then close the session at the end:
+**On success:** close the session at the end — Teardown (Section 5) already ran before this point:
 ```
 agent-browser --session <story-id> close
 ```
