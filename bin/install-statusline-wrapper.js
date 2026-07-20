@@ -3,10 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const targetDir = path.join(os.homedir(), '.claude-tweaks', 'bin');
-const targetPath = path.join(targetDir, 'statusline.js');
-
-const wrapper = `#!/usr/bin/env node
+function buildWrapperSource() {
+  return `#!/usr/bin/env node
 // claude-tweaks statusline wrapper.
 // Resolves the latest installed claude-tweaks version from the plugin cache
 // at runtime, so settings.json never needs to be updated on plugin upgrades.
@@ -49,8 +47,25 @@ try {
   process.exit(0);
 }
 `;
+}
 
-fs.mkdirSync(targetDir, { recursive: true });
-fs.writeFileSync(targetPath, wrapper, { mode: 0o755 });
+// Writes the generated wrapper script under `<homedir>/.claude-tweaks/bin/statusline.js`.
+// `homedir` is injectable (defaults to `os.homedir()`) so tests can point this at a
+// temp directory instead of the real developer home directory.
+function installWrapper(homedir = os.homedir()) {
+  const targetDir = path.join(homedir, '.claude-tweaks', 'bin');
+  const targetPath = path.join(targetDir, 'statusline.js');
+  const wrapper = buildWrapperSource();
 
-process.stdout.write(targetPath);
+  fs.mkdirSync(targetDir, { recursive: true });
+  fs.writeFileSync(targetPath, wrapper, { mode: 0o755 });
+
+  return targetPath;
+}
+
+if (require.main === module) {
+  const targetPath = installWrapper();
+  process.stdout.write(targetPath);
+}
+
+module.exports = { installWrapper, buildWrapperSource };
