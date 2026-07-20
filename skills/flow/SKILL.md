@@ -25,7 +25,7 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 ### When NOT to Use
 
 - The input is a design doc, not a spec — run `/claude-tweaks:specify {doc}` first
-- The plan has tangled cross-task dependencies — flow's shape gate (Step 2.6) will hard-fail anyway; tighten via `/claude-tweaks:specify` first
+- The plan has tangled cross-task dependencies — tighten via `/claude-tweaks:specify` first. Don't rely on flow's shape gate (Step 2.6) to stop you: under flow's own default `auto` mode, a Step 2.6 hard-fail auto-resolves to "proceed anyway" with an `ops` ledger note rather than actually stopping the pipeline (it only stops in `interactive`/`hybrid` mode)
 - When you expect significant review findings that need discussion
 
 ## Syntax

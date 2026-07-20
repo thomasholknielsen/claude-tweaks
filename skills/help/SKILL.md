@@ -31,9 +31,9 @@ One-stop reference and status dashboard for the workflow system. Combines comman
 | Argument | Behavior |
 |----------|----------|
 | *(none)* | Cheat sheet + status scan + recommendation |
-| `status` | Pipeline status scan only |
+| `status` | Pipeline status scan + recommendation (skips Section 1's cheat sheet) |
 | `commands` | Quick reference cheat sheet only — read `reference-card.md` in this skill's directory and present its contents |
-| *spec number or topic* | Targeted status for that specific spec/topic |
+| *spec number or topic* | Same as *(none)* — full cheat sheet + status scan + recommendation. No per-spec/topic filtering is implemented; none of the three sections' skip conditions below match a bare spec number or topic string. |
 
 > Default (no arg) is the cheat-sheet-first dashboard. The status scan (Section 2) is moderately expensive — when the user just wants command syntax, the `commands` arg avoids it.
 
@@ -51,7 +51,7 @@ For the canonical cheat sheet — lifecycle, component, and utility commands; co
 
 *(Skip if `$ARGUMENTS` = `commands`)*
 
-Read `status-scan.md` in this skill's directory for the full parallel-dispatch procedure (Stages 1-7 including sub-stages 4.5 and 4.6; dispatch contract, agent template, and dashboard rendering). The orchestrator dispatches all seven stages in parallel and assembles the dashboard after all agents complete.
+Read `status-scan.md` in this skill's directory for the full parallel-dispatch procedure (Stages 1-7 including sub-stages 4.5, 4.6, and 4.7; dispatch contract, agent template, and dashboard rendering). The orchestrator dispatches all seven stages in parallel and assembles the dashboard after all agents complete.
 
 ---
 
@@ -138,7 +138,7 @@ For a detailed explanation of how context flows between skills via artifacts, re
 | `/claude-tweaks:flow` | /claude-tweaks:help lists /claude-tweaks:flow as an automation option for ready specs |
 | `/claude-tweaks:browse` | Utility skill — /claude-tweaks:help lists it in the utility skills table |
 | `/claude-tweaks:stories` | Lifecycle skill — /claude-tweaks:help lists it between /test and /review |
-| `/claude-tweaks:ledger` | Utility skill — /claude-tweaks:help lists it in the utility skills table and scans for active ledgers with open items |
+| `/claude-tweaks:ledger` | Utility skill — /claude-tweaks:help lists it in the utility skills table. Does not scan ledger files or surface open items on the dashboard — the resolve gate (`/claude-tweaks:ledger resolve`, run by `/claude-tweaks:wrap-up` Step 8.5 or `/claude-tweaks:flow` Step 5) is what actually catches unresolved items. |
 | `/claude-tweaks:reflect` | Component skill — /claude-tweaks:help lists it in the component skills table |
 | `/claude-tweaks:simplify` | Component skill — /claude-tweaks:help lists it in the component skills table |
 | `/claude-tweaks:deepen` | Component skill — /claude-tweaks:help lists it in the component skills table |

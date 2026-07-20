@@ -27,7 +27,7 @@ Stage-by-stage scan procedure run by `/claude-tweaks:help` (default invocation, 
 
 ## Stage 1: Work Records (backlog / parked / ready / authorized / building / blocked)
 
-Replaces the former INBOX scan, Deferred-Work scan, Specs-Ready-to-Build scan, and Specs-In-Progress scan — all four read `specs/backlog/*.md` frontmatter or the old spec index and `specs/*.md` files directly. The record store is the current landscape now; there is no separate index file or backlog directory to read (`_shared/work-record.md`). One list call + one facet parse computes every count below, mirroring `_shared/github-pr-scan.md`'s item-7 "Grant-queue counts" snippet and `tidy/scan-procedures.md` Step 1's own query.
+Replaces the former INBOX scan, Deferred-Work scan, Specs-Ready-to-Build scan, and Specs-In-Progress scan — all four read `specs/backlog/*.md` frontmatter or the old spec index and `specs/*.md` files directly. The record store is the current landscape now; there is no separate index file or backlog directory to read (`_shared/work-record.md`). One list call + one facet parse computes every count below, mirroring `_shared/github-pr-scan.md`'s item-8 "Grant-queue counts" snippet and `tidy/scan-procedures.md` Step 1's own query.
 
 Read the `work-backend` field from the project's CLAUDE.md (`_shared/work-record.md`'s Config keys table, written by `/claude-tweaks:init`). A missing flag is treated as `local-files`.
 
