@@ -77,6 +77,29 @@ test('parseClaimMarker never throws and returns null on garbage', () => {
   }
 });
 
+// The '[1,2]' and '"just a string"' entries above never reach claims.js's
+// `fields === null || typeof fields !== 'object' || Array.isArray(fields)` guard —
+// CLAIM_RE/RELEASE_RE require a literal '{' immediately after the marker prefix, and
+// JSON.parse of a '{'-anchored capture can only ever succeed as a plain object (or throw),
+// never as an array/string/null. That guard is unreachable through the public regex-gated
+// API today, so it needs its own direct test: monkey-patch JSON.parse to simulate what a
+// future, looser marker regex could let through, and confirm the guard still rejects it.
+test('parseClaimMarker: the fields-must-be-plain-object guard rejects an array/string/null even if JSON.parse ever produced one', () => {
+  const originalParse = JSON.parse;
+  try {
+    for (const fake of [[1, 2], 'just a string', null]) {
+      JSON.parse = () => fake;
+      assert.strictEqual(
+        parseClaimMarker('<!-- agent-claim: {"anything":1} -->'),
+        null,
+        `expected null when JSON.parse yields ${JSON.stringify(fake)}`,
+      );
+    }
+  } finally {
+    JSON.parse = originalParse;
+  }
+});
+
 test('parseClaimMarker distinguishes claim from release markers', () => {
   const claim = parseClaimMarker('<!-- agent-claim: {"runId":"r1","claimedAt":"2026-07-04T00:00:00.000Z"} -->');
   assert.strictEqual(claim.kind, 'claim');

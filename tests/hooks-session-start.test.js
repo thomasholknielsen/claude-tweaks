@@ -29,32 +29,44 @@ test('deps.collect returns an array of strings and prints nothing', () => {
 
 test('stale runs are reported in additionalContext, capped at 3, newest first', () => {
   const project = tmpProject();
+  // Four non-clean runs (more than MAX_REPORTED=3) so the cap is actually exercised —
+  // with only 2 non-clean candidates, listRunDirsWithState's own clean-status filter
+  // (which drops spec-0 below) does all the work and .slice(0, 3) is a no-op, unable to
+  // distinguish "the cap correctly keeps 3" from "there is no cap at all".
   mkRun(project, '2026-07-01T090000-spec-1', { status: 'interrupted' });
   mkRun(project, '2026-07-02T090000-spec-2', { status: 'active' });
+  mkRun(project, '2026-07-03T090000-spec-3', { status: 'interrupted' });
+  mkRun(project, '2026-07-04T090000-spec-4', { status: 'active' });
   mkRun(project, '2026-06-30T090000-spec-0', { status: 'clean' });
   const out = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
   const ctx = out.json.hookSpecificOutput.additionalContext;
   assert.strictEqual(out.json.hookSpecificOutput.hookEventName, 'SessionStart');
   assert.match(ctx, /unfinished pipeline run/i);
+  assert.match(ctx, /spec-4/);
+  assert.match(ctx, /spec-3/);
   assert.match(ctx, /spec-2/);
-  assert.match(ctx, /spec-1/);
-  assert.doesNotMatch(ctx, /spec-0/);
+  assert.doesNotMatch(ctx, /spec-1/, 'the oldest of 4 non-clean runs must be excluded by the MAX_REPORTED=3 cap');
+  assert.doesNotMatch(ctx, /spec-0/, 'the clean run must be excluded before the cap ever runs');
+  assert.ok(ctx.indexOf('spec-4') < ctx.indexOf('spec-3'), 'newest-first: spec-4 before spec-3');
+  assert.ok(ctx.indexOf('spec-3') < ctx.indexOf('spec-2'), 'newest-first: spec-3 before spec-2');
 });
 
 test('close-run hint substitutes CLAUDE_PLUGIN_ROOT when set, else keeps the literal placeholder', () => {
   const project = tmpProject();
   mkRun(project, '2026-07-01T090000-spec-1', { status: 'interrupted' });
+  const orig = process.env.CLAUDE_PLUGIN_ROOT;
 
-  delete process.env.CLAUDE_PLUGIN_ROOT;
-  const withoutEnv = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
-  assert.match(withoutEnv.json.hookSpecificOutput.additionalContext, /\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/hooks\.js/);
-
-  process.env.CLAUDE_PLUGIN_ROOT = '/opt/claude-tweaks';
   try {
+    delete process.env.CLAUDE_PLUGIN_ROOT;
+    const withoutEnv = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+    assert.match(withoutEnv.json.hookSpecificOutput.additionalContext, /\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/hooks\.js/);
+
+    process.env.CLAUDE_PLUGIN_ROOT = '/opt/claude-tweaks';
     const withEnv = sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
     assert.match(withEnv.json.hookSpecificOutput.additionalContext, /\/opt\/claude-tweaks\/bin\/hooks\.js/);
   } finally {
-    delete process.env.CLAUDE_PLUGIN_ROOT;
+    if (orig === undefined) delete process.env.CLAUDE_PLUGIN_ROOT;
+    else process.env.CLAUDE_PLUGIN_ROOT = orig;
   }
 });
 

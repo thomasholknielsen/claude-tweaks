@@ -2,6 +2,8 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
+const fs = require('fs');
+const path = require('path');
 const { ensureLabelPayload } = require('../labels');
 
 test('returns { name, description } for a valid description', () => {
@@ -30,28 +32,34 @@ test('error message names the label', () => {
   assert.throws(() => ensureLabelPayload('code-health:review-quality', 'x'.repeat(101)), /code-health:review-quality/);
 });
 
+// Reads skills/_shared/label-bootstrap.md's own "Canonical LABELS_JSON" fence live, so this
+// test can never silently drift from the descriptions every real `gh label create` bootstrap
+// flow actually uses (see the [reuse] finding this replaces — 7 of these rows used to be
+// hand-copied verbatim from that file instead of read from it).
+function canonicalLabelsFromBootstrapDoc() {
+  const docPath = path.join(__dirname, '..', '..', '..', '..', 'skills', '_shared', 'label-bootstrap.md');
+  const md = fs.readFileSync(docPath, 'utf8');
+  const match = md.match(/## Canonical LABELS_JSON[\s\S]*?```js\n([\s\S]*?)\n```/);
+  assert.ok(match, `labels.test.js: could not locate the Canonical LABELS_JSON fence in ${docPath}`);
+  return JSON.parse(match[1]);
+}
+
 // Every real label description this plan introduces or keeps must pass — a single place
 // that would have caught the bot:in-progress (commit 54ab897) and code-health:*
 // criterion (this plan's Task 3) 100-char overruns before they shipped.
+// The by:*/risk:*/effort:*/ceremony:*/parked/ready/auto:*/bot:*/demo:*/wontfix/priority:*
+// rows come from label-bootstrap.md's live canonical LABELS_JSON below — that supersedes the
+// six retired code-health:risk-*/code-health:effort-* rows this array used to hand-check
+// (no code anywhere emits those anymore; see the [cross-file] finding this replaces) and adds
+// the risk:*/effort:*/by:* cap coverage those retired rows never carried. The health-engine
+// diagnostic labels below are not part of that shared taxonomy and stay hand-typed here.
 const REAL_LABEL_DESCRIPTIONS = [
   ['code-health', 'Filed by the code-health engine — a systematic maintainability finding'],
-  ['code-health:risk-low', "Risk tier if this finding's suggested fix goes wrong"],
-  ['code-health:risk-medium', "Risk tier if this finding's suggested fix goes wrong"],
-  ['code-health:risk-high', "Risk tier if this finding's suggested fix goes wrong"],
-  ['code-health:effort-low', "Estimated effort to implement this finding's suggested fix"],
-  ['code-health:effort-medium', "Estimated effort to implement this finding's suggested fix"],
-  ['code-health:effort-high', "Estimated effort to implement this finding's suggested fix"],
   ['harness-health', 'Filed by the harness-health engine — a plugin harness maintenance finding'],
   ['harness-health:additive', 'Safe, mechanical patch — additive change with no removed behavior'],
   ['harness-health:restructural', 'Structural change requiring human review before applying'],
   ['harness-health:new-skill', 'Proposes a new skill candidate surfaced by harness-health'],
-  ['auto:build', 'Grant: agents may build this record autonomously (human-granted; machinery only removes)'],
-  ['auto:merge', 'Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)'],
-  ['bot:in-progress', 'Bot state: an agent currently holds the claim on this record'],
-  ['bot:blocked', 'Bot state: retry ceiling reached — needs human re-triage before autonomous retry'],
-  ['wontfix', 'Closed as not-planned; health skills will not re-file findings with this fingerprint'],
-  ['ready', "Stage: spec-shaped and agent-sized — in the authorization gate's worklist"],
-  ['parked', 'Stage: deliberately on hold until its trigger fires (milestone due or watched path change)'],
+  ...canonicalLabelsFromBootstrapDoc(),
 ];
 
 test('every real label description used across the skill tree stays under the cap', () => {

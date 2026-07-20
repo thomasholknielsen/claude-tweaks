@@ -54,7 +54,7 @@ test('commit in a different checkout is denied with corrective reason', () => {
   const out = pre.run({ input: bashInput('git commit -m "x"', other), runDir: run, runState: state, cwd: other });
   const spec = out.json.hookSpecificOutput;
   assert.strictEqual(spec.permissionDecision, 'deny');
-  assert.match(spec.permissionDecisionReason, new RegExp(wt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(spec.permissionDecisionReason, new RegExp(esc(wt)));
   assert.match(spec.permissionDecisionReason, /git -C/);
   const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8');
   assert.match(events, /"type":"wd-deny"/);
@@ -203,19 +203,21 @@ test('two live runs: a push mismatch matching another live worktree is not logge
 test('deny reason substitutes CLAUDE_PLUGIN_ROOT when set, else keeps the literal placeholder', () => {
   const wt = gitRepo();
   const other = gitRepo();
+  const orig = process.env.CLAUDE_PLUGIN_ROOT;
 
-  delete process.env.CLAUDE_PLUGIN_ROOT;
-  const { run: run1, state: state1 } = mkRun(wt);
-  const withoutEnv = pre.run({ input: bashInput('git commit -m "x"', other), runDir: run1, runState: state1, cwd: other });
-  assert.match(withoutEnv.json.hookSpecificOutput.permissionDecisionReason, /\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/hooks\.js/);
-
-  process.env.CLAUDE_PLUGIN_ROOT = '/opt/claude-tweaks';
   try {
+    delete process.env.CLAUDE_PLUGIN_ROOT;
+    const { run: run1, state: state1 } = mkRun(wt);
+    const withoutEnv = pre.run({ input: bashInput('git commit -m "x"', other), runDir: run1, runState: state1, cwd: other });
+    assert.match(withoutEnv.json.hookSpecificOutput.permissionDecisionReason, /\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/hooks\.js/);
+
+    process.env.CLAUDE_PLUGIN_ROOT = '/opt/claude-tweaks';
     const { run: run2, state: state2 } = mkRun(wt);
     const withEnv = pre.run({ input: bashInput('git commit -m "x"', other), runDir: run2, runState: state2, cwd: other });
     assert.match(withEnv.json.hookSpecificOutput.permissionDecisionReason, /\/opt\/claude-tweaks\/bin\/hooks\.js/);
   } finally {
-    delete process.env.CLAUDE_PLUGIN_ROOT;
+    if (orig === undefined) delete process.env.CLAUDE_PLUGIN_ROOT;
+    else process.env.CLAUDE_PLUGIN_ROOT = orig;
   }
 });
 

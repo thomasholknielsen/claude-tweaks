@@ -6,6 +6,7 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { readRunState } = require('../bin/lib/hooks/context');
 
 const HOOKS = path.join(__dirname, '..', 'bin', 'hooks.js');
 
@@ -51,11 +52,11 @@ test('record-worktree writes run-state, prints a confirmation line, and close-ru
   const recorded = runHook(['record-worktree', '/tmp/wt-1'], { cwd: project });
   assert.strictEqual(recorded.code, 0);
   assert.match(recorded.stdout, /claude-tweaks: worktree recorded for 2026-07-01T090000-spec-1/);
-  let state = JSON.parse(fs.readFileSync(path.join(run, 'run-state.json'), 'utf8'));
+  let state = readRunState(run);
   assert.strictEqual(state.worktree, path.resolve('/tmp/wt-1'));
   assert.strictEqual(state.status, 'active');
   assert.strictEqual(runHook(['close-run'], { cwd: project }).code, 0);
-  state = JSON.parse(fs.readFileSync(path.join(run, 'run-state.json'), 'utf8'));
+  state = readRunState(run);
   assert.strictEqual(state.status, 'clean');
 });
 
@@ -81,15 +82,15 @@ test('record-worktree --run pins the target run dir, ignoring a newer stale non-
   // corrupted staleDir's state exactly like #19/#36. Snapshot that corrupted
   // state so the next assertion can prove the FIX (an explicitly-targeted
   // --run call) doesn't compound it by touching staleDir a second time.
-  const staleStateAfterFallback = JSON.parse(fs.readFileSync(path.join(staleDir, 'run-state.json'), 'utf8'));
+  const staleStateAfterFallback = readRunState(staleDir);
 
   const withFlag = runHook(['record-worktree', '--run', ownDir, '/tmp/wt-correct'], { cwd: project });
   assert.strictEqual(withFlag.code, 0);
   assert.match(withFlag.stdout, /worktree recorded for 2026-07-01T090000-spec-1/);
-  const ownState = JSON.parse(fs.readFileSync(path.join(ownDir, 'run-state.json'), 'utf8'));
+  const ownState = readRunState(ownDir);
   assert.strictEqual(ownState.worktree, path.resolve('/tmp/wt-correct'));
   assert.strictEqual(ownState.status, 'active');
-  const staleStateAfterExplicitCall = JSON.parse(fs.readFileSync(path.join(staleDir, 'run-state.json'), 'utf8'));
+  const staleStateAfterExplicitCall = readRunState(staleDir);
   assert.deepStrictEqual(staleStateAfterExplicitCall, staleStateAfterFallback,
     'an explicitly-targeted --run call must not touch a different run dir at all');
 });
@@ -99,7 +100,7 @@ test('record-worktree accepts --run before or after the worktree positional', ()
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   const result = runHook(['record-worktree', '/tmp/wt-2', '--run', run], { cwd: project });
   assert.strictEqual(result.code, 0);
-  const state = JSON.parse(fs.readFileSync(path.join(run, 'run-state.json'), 'utf8'));
+  const state = readRunState(run);
   assert.strictEqual(state.worktree, path.resolve('/tmp/wt-2'));
 });
 
@@ -144,7 +145,7 @@ test('close-run with a non-existent --run path fails loudly instead of falling b
   const result = runHook(['close-run', '--run', bogus], { cwd: project });
   assert.strictEqual(result.code, 0);
   assert.match(result.stdout, /--run path not found/);
-  const state = JSON.parse(fs.readFileSync(path.join(run, 'run-state.json'), 'utf8'));
+  const state = readRunState(run);
   assert.strictEqual(state.status, 'active', 'an invalid --run must not touch a different run dir at all');
 });
 
@@ -177,10 +178,10 @@ test('record-worktree stamps the owning session from CLAUDE_CODE_SESSION_ID and 
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   runHook(['record-worktree', '/tmp/wt-1'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'sess-owner' } });
-  let state = JSON.parse(fs.readFileSync(path.join(run, 'run-state.json'), 'utf8'));
+  let state = readRunState(run);
   assert.strictEqual(state.sessionId, 'sess-owner');
   runHook(['record-worktree', '/tmp/wt-1'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: '' } });
-  state = JSON.parse(fs.readFileSync(path.join(run, 'run-state.json'), 'utf8'));
+  state = readRunState(run);
   assert.strictEqual(state.sessionId, 'sess-owner', 'env-less re-record must not clobber the stamp');
 });
 
@@ -188,7 +189,7 @@ test('record-worktree without CLAUDE_CODE_SESSION_ID records no owner', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   runHook(['record-worktree', '/tmp/wt-2'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: '' } });
-  const state = JSON.parse(fs.readFileSync(path.join(run, 'run-state.json'), 'utf8'));
+  const state = readRunState(run);
   assert.ok(!('sessionId' in state), 'no env var -> no sessionId field');
 });
 
