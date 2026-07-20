@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { nearestExistingDir, repoRootFor, isLinkedWorktree, repoInfo, findPolicyFile } = require('../bin/lib/hooks/worktree-detect');
+const { nearestExistingDir, repoInfo, findPolicyFile } = require('../bin/lib/hooks/worktree-detect');
 
 function gitRepo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-wtd-'));
@@ -44,40 +44,6 @@ test('nearestExistingDir: falls back to a filesystem root when no other ancestor
   assert.strictEqual(result, path.parse(result).root);
 });
 
-test('repoRootFor: resolves the git toplevel for a path inside the repo', () => {
-  const dir = gitRepo();
-  assert.strictEqual(repoRootFor(path.join(dir, 'a.txt')), dir);
-});
-
-test('repoRootFor: non-git directory returns null', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-wtd-nongit-'));
-  assert.strictEqual(repoRootFor(dir), null);
-});
-
-test('isLinkedWorktree: main checkout is not isolated', () => {
-  const dir = gitRepo();
-  assert.strictEqual(isLinkedWorktree(dir), false);
-});
-
-test('isLinkedWorktree: a linked worktree is isolated', () => {
-  const main = gitRepo();
-  const wt = linkedWorktreeOf(main);
-  assert.strictEqual(isLinkedWorktree(wt), true);
-});
-
-test('isLinkedWorktree: non-git directory is not isolated', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-wtd-nongit2-'));
-  assert.strictEqual(isLinkedWorktree(dir), false);
-});
-
-test('isLinkedWorktree: a submodule is treated as not isolated', () => {
-  const outer = gitRepo();
-  const inner = gitRepo();
-  execFileSync('git', ['-C', outer, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', inner, 'sub']);
-  const subPath = path.join(outer, 'sub');
-  assert.strictEqual(isLinkedWorktree(subPath), false);
-});
-
 test('repoInfo: main checkout returns its toplevel and isLinkedWorktree: false', () => {
   const dir = gitRepo();
   assert.deepStrictEqual(repoInfo(dir), { repoRoot: dir, isLinkedWorktree: false });
@@ -102,16 +68,6 @@ test('repoInfo: a submodule is treated as not isolated', () => {
   const info = repoInfo(subPath);
   assert.strictEqual(info.isLinkedWorktree, false);
   assert.strictEqual(info.repoRoot, path.join(outer, 'sub'));
-});
-
-test('repoInfo agrees with repoRootFor + isLinkedWorktree called separately', () => {
-  const main = gitRepo();
-  const wt = linkedWorktreeOf(main);
-  for (const p of [main, wt]) {
-    const info = repoInfo(p);
-    assert.strictEqual(info.repoRoot, repoRootFor(p));
-    assert.strictEqual(info.isLinkedWorktree, isLinkedWorktree(p));
-  }
 });
 
 test('findPolicyFile: no policy file anywhere in the ancestor chain returns null', () => {
