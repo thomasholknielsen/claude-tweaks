@@ -988,7 +988,7 @@ git commit -m "Fix review finding(s): skills/browse/SKILL.md, skills/build/SKILL
 - Modify: `skills/design-wrapper/modes/survey.md` (1 finding)
 - Modify: `skills/flow/multispec-review-console.md` (3 findings: 1 original + 2 NEW, discovered during Task 14's execution and its standalone follow-up fix -- see below)
 - Modify: `skills/help/status-scan.md` (2 findings)
-- Modify: `skills/init/SKILL.md` (1 finding)
+- Modify: `skills/init/SKILL.md` (2 findings: 1 original + 1 NEW, discovered during Task 19's execution -- see below)
 
 **Findings to fix (full detail in `docs/superpowers/plans/2026-07-20-fix-review-findings-data.json`):**
 
@@ -1012,6 +1012,7 @@ git commit -m "Fix review finding(s): skills/browse/SKILL.md, skills/build/SKILL
 
 `skills/init/SKILL.md`:
 - **[simplification]** skills/init/SKILL.md:415 -- The Next Actions signal-resolution table's 'Everything is clean' row (line 414) and its 'Fallback (no row above matches)' row (line 415) recommend the identical action with identical description text, so the 5-row table only has 4 distinct outcomes.
+- **[conventions] NEW, discovered during Task 19's execution (not in the original 147; Task 19's own report flagged this as a real, unclaimed instance while fixing the same underlying bug in label-bootstrap.md)** -- skills/init/SKILL.md:134 says "...offer to provision all 23 core labels now," hand-typing the work-record label count as a literal number -- the same CLAUDE.md-violating pattern (restating a canonical taxonomy's cardinality in prose instead of citing it) that Task 19 just fixed in `skills/_shared/label-bootstrap.md:32`. Fix using the same by-reference pattern Task 19 established there (point at `_shared/work-record.md`'s Label taxonomy table as the source of truth, don't just update the number) -- verify `_shared/work-record.md`'s own count is itself accurate before citing it (it may also need reconciling; check whether a standalone fix already corrected it by the time you reach this task).
 
 - [ ] **Step 1: Read each target file and the matching entries in `docs/superpowers/plans/2026-07-20-fix-review-findings-data.json` for this task's files, to get the full `failure_scenario` for each finding.**
 
@@ -1035,7 +1036,7 @@ git commit -m "Fix review finding(s): skills/demo/SKILL.md, skills/design-wrappe
 ### Task 22: skills/init/bootstrap-steps.md, skills/reflect/hindsight-mode.md, +4 more
 
 **Files:**
-- Modify: `skills/init/bootstrap-steps.md` (2 findings)
+- Modify: `skills/init/bootstrap-steps.md` (3 findings: 2 original + 1 NEW, discovered during Task 19's execution -- see below)
 - Modify: `skills/reflect/hindsight-mode.md` (1 finding)
 - Modify: `skills/research/reference/methodology.md` (1 finding)
 - Modify: `skills/review-backlog/SKILL.md` (1 finding)
@@ -1047,6 +1048,7 @@ git commit -m "Fix review finding(s): skills/demo/SKILL.md, skills/design-wrappe
 `skills/init/bootstrap-steps.md`:
 - **[conventions]** skills/init/bootstrap-steps.md:395 -- Several /init decision prompts (Step 11 here; also Step 10 ~lines 306-317, Step 12 ~451-463, Step 14 ~638-648, Step 15's gate-fails case at 717, and Phase 8 in skills/init/SKILL.md lines 320-328) render a single decision as a plain markdown numbered list inside a 'Present:' block with no accompanying AskUserQuestion call.
 - **[reuse]** skills/init/bootstrap-steps.md:304 -- Step 10 and Step 12 each hardcode the same abbreviated frontend-signal detection list inline instead of referencing the existing canonical skills/design-wrapper/frontend-detection.md, which skills/specify/design-pre-steps.md (line 15, same review scope) already cites correctly for the identical question.
+- **[conventions] NEW, discovered during Task 19's execution (not in the original 147; Task 19's own report flagged this as a real, unclaimed instance while fixing the same underlying bug in label-bootstrap.md)** -- skills/init/bootstrap-steps.md:793 and :797 say "Provision all 23 core work-record labels now?" and "the 23 core labels plus the 3 optional priority:* labels (26 total)," hand-typing the work-record label count as a literal number twice -- the same CLAUDE.md-violating pattern Task 19 just fixed in `skills/_shared/label-bootstrap.md:32` (and the same fact also routed to Task 21 for skills/init/SKILL.md:134). Fix both instances using the same by-reference pattern Task 19 established (point at `_shared/work-record.md`'s Label taxonomy table as the source of truth, don't just update the numbers) -- verify `_shared/work-record.md`'s own count is itself accurate before citing it (it may also need reconciling; check whether a standalone fix already corrected it by the time you reach this task).
 
 `skills/reflect/hindsight-mode.md`:
 - **[simplification]** skills/reflect/hindsight-mode.md:44 -- hindsight-mode.md's Interactive-mode `AskUserQuestion` block (lines 44-48) is a near-verbatim copy of full-mode.md's block (lines 51-55) -- identical question shape and both options, differing only in the word "findings"/"insights" -- even though light-mode.md in the same directory already establishes the pattern of pointing at full-mode.md's block ("Same table/AskUserQuestion mechanics as full mode") instead of restating it.
@@ -1087,7 +1089,7 @@ git commit -m "Fix review finding(s): skills/init/bootstrap-steps.md, skills/ref
 
 **Files:**
 - Modify: `skills/stories/coverage-report.md` (1 finding)
-- Modify: `skills/test/qa-prompts.md` (1 finding)
+- Modify: `skills/test/qa-prompts.md` (2 findings: 1 original + 1 NEW, discovered during Task 19's execution -- see below)
 - Modify: `skills/tidy/SKILL.md` (1 finding)
 - Modify: `skills/triage/SKILL.md` (1 finding)
 - Modify: `skills/visual-review/SKILL.md` (1 finding)
@@ -1099,6 +1101,7 @@ git commit -m "Fix review finding(s): skills/init/bootstrap-steps.md, skills/ref
 
 `skills/test/qa-prompts.md`:
 - **[conventions]** skills/test/qa-prompts.md:152 -- The 'Legacy format prompt' template — which the file's own header (line 7) requires to be 'inline[d] ... verbatim per agent (no references to sibling files)' — tells the dispatched agent to emit REPORT_JSON 'with the same shape documented in the structured-format prompt above,' a reference the agent never actually receives.
+- **[reuse] NEW, discovered during Task 19's execution (not in the original 147; Task 19's own report flagged this as a real, unclaimed instance found while fixing the analogous duplication in agents/qa-agent.md)** -- this file's structured-format dispatch template (~line 114) and the legacy-format template (~line 152, the finding directly above) both re-specify the REPORT_JSON envelope's nested `page_inventories` shape (interactive_elements/forms/navigation/accessibility/layout) byte-for-byte identically to `agents/qa-agent.md`'s own `## Report` section, with neither file naming the other as canonical. Task 19 already fixed the qa-agent.md side, adding a "Canonical schema" note declaring qa-agent.md's `## Report` section canonical for this envelope. Because this file's own header (line 7) requires every dispatch template to be self-contained/inlined verbatim with no sibling-file references (the template text is copied wholesale into a dispatched Task agent's prompt, which never sees qa-agent.md), the schema inside the fenced template blocks themselves cannot be replaced with a cross-reference. The available fix is a maintainer-facing note placed OUTSIDE the fenced template blocks (mirroring the note Task 19 added to qa-agent.md) stating that the inlined `page_inventories` schema in both templates must be kept byte-for-byte in sync with `agents/qa-agent.md`'s `## Report` section -- do not attempt to replace the inlined schema itself with a reference, that would break the file's own no-sibling-references contract for dispatched agents.
 
 `skills/tidy/SKILL.md`:
 - **[efficiency]** skills/tidy/SKILL.md:58 -- Step 5.5 is documented as having no data dependency on the parallel scan batch ("git-log only... not a data dependency") yet still runs sequentially after it purely for report-assembly ordering.
