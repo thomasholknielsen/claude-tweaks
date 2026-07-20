@@ -114,7 +114,7 @@ See `cleanup-procedures.md` in this skill's directory for the canonical cleanup 
 
 When `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh — see Step 3.5), skip all three sub-scans below entirely — report "No configuration updates needed (fast-lane: diff touches no registry-matched path, no new dependency, no schema/config file)" and proceed to Step 7 — when ALL of the following hold:
 
-- `git diff --name-only` against this work's base ref matches none of `docs/REGISTRY.md`'s Auto-detect patterns. Reuse `bin/lib/issues/blast-radius.js`'s `classifyDiffFiles`, passing the registry's patterns as the `sensitivePaths` argument — a result's `isSensitive: true` means a registry-pattern hit here, not a merge-sensitivity one; the function is generic path-glob matching regardless of which patterns list it's fed, and is already fully tested.
+- `git diff --name-only` against this work's base ref matches none of `docs/REGISTRY.md`'s Auto-detect patterns. Reuse `bin/lib/issues/blast-radius.js`'s `classifyDiffFiles` — it reads `f.path` off each element of the `files` array, so map each bare filename from `git diff --name-only` to `{path: f}` before calling it (a bare string has no `.path` and would otherwise silently classify as `isSensitive: false` regardless of content). Pass the registry's patterns as the `sensitivePaths` argument — a result's `isSensitive: true` means a registry-pattern hit here, not a merge-sensitivity one; the function is generic path-glob matching regardless of which patterns list it's fed, and is already fully tested.
 - `git diff package.json` (and any workspace-level equivalent) shows no added dependency.
 - No file in the diff matches a schema/env/IaC/CI/platform-config pattern — reuse Build Common Step 5.5's own Category A/B trigger list (`operational-checklist.md` in `skills/build/`).
 
@@ -182,7 +182,7 @@ Analyze whether project skills need updating, and whether the work warrants a **
 
 Unlike a pure consumer, Step 7 **generates** candidates from the work itself. Ledger entries (`build/skill`, `review/skill`, `[skill: …]`-tagged) and reflection insights are **seeds** that focus the analysis — but an independent, domain-scoped scan inspects the skills whose domain overlaps the changed files **even when nothing was tagged**, and gap detection looks for reusable patterns no skill covers. New-skill candidates are proposed when **≥2 of 3** criteria (reusability, complexity, project-specificity) are met — not all three.
 
-For the full procedure — seed gathering (7.1), the independent scan + gap detection (7.2), the 6-dimension analysis (7.3), the ≥2-of-3 new-skill gate (7.4), quality gates (7.5), and auto/interactive stage-or-present (7.6) — read `skill-curation.md` in this skill's directory.
+For the full procedure — seed gathering (7.1), the independent scan + gap detection (7.2), the 8-dimension analysis (7.3), the ≥2-of-3 new-skill gate (7.4), quality gates (7.5), and auto/interactive stage-or-present (7.6) — read `skill-curation.md` in this skill's directory.
 
 Skill curation declares "No skill updates needed" only when seeds, the independent scan, and gap detection all come up empty — never merely because no ledger entry was tagged. Staged updates and new-skill candidates surface at the Wrap-Up Review Console (Step 8.6), or the interactive batch table per `skill-curation.md`.
 
@@ -199,10 +199,16 @@ Suggest running `/claude-tweaks:help` to see the full workflow status.
 
 The record this run just closed is already known — `record: {n}` from the materialized header (the same field the close-via-merge carrier commit used). Check whether closing it unblocked anything, purely informational — this must never gate, block, or delay the wrap-up; on any error, log and continue.
 
-**`work-backend: github-issues`:**
+**`work-backend: github-issues`:** branches on `work-links` (same grep convention `/claude-tweaks:dispatch` Step 2 uses):
 
 ```bash
+WORK_LINKS=$(grep -E "^work-links:" CLAUDE.md .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*work-links:[[:space:]]*//')
 gh issue list --state open --json number,title,body --limit 200 > /tmp/wrapup-open-records.json
+```
+
+`work-links: body-text` (default) — dependents are found via literal `Blocked by #N` body-text lines:
+
+```bash
 node -e "
   const { parseDependencies } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const records = require('/tmp/wrapup-open-records.json');
@@ -227,6 +233,45 @@ node -e "
   require('fs').writeFileSync('/tmp/wrapup-unblocked.json', JSON.stringify(unblocked));
 "
 ```
+
+`work-links: native` — `parseDependencies` matches nothing (native links write no body text at all per `_shared/work-record.md`), so this branch instead reuses `bin/lib/issues/record.js`'s `buildNativeDependencyQuery`/`hasOpenNativeBlocker`, the same pair `/claude-tweaks:dispatch` Step 2 and `flow/materialize.md` already use for this mode. One batched, aliased GraphQL query over every open record's number returns each record's `blockedBy` connection with each blocker's live `state` in the same response, so — unlike the body-text branch — no second all-states call is needed:
+
+```bash
+node -e "
+  const { buildNativeDependencyQuery } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const records = require('/tmp/wrapup-open-records.json');
+  const query = buildNativeDependencyQuery(records.map((r) => r.number));
+  if (query) require('fs').writeFileSync('/tmp/wrapup-native-query.graphql', query);
+"
+echo '{"data":{"repository":{}}}' > /tmp/wrapup-native-deps.json
+if [ -s /tmp/wrapup-native-query.graphql ]; then
+  OWNER_REPO=$(gh repo view --json owner,name -q '.owner.login + " " + .name')
+  if gh api graphql -f query="$(cat /tmp/wrapup-native-query.graphql)" \
+    -f owner="$(echo "$OWNER_REPO" | cut -d' ' -f1)" -f repo="$(echo "$OWNER_REPO" | cut -d' ' -f2)" \
+    > /tmp/wrapup-native-deps.tmp.json 2>/tmp/wrapup-native-deps.err; then
+    mv /tmp/wrapup-native-deps.tmp.json /tmp/wrapup-native-deps.json
+  else
+    echo "Warning: native dependency query failed — skipping newly-unblocked check this run: $(cat /tmp/wrapup-native-deps.err)" >&2
+  fi
+fi
+node -e "
+  const { hasOpenNativeBlocker } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const records = require('/tmp/wrapup-open-records.json');
+  const repoData = require('/tmp/wrapup-native-deps.json').data.repository;
+  const closedNum = ${CLOSED_NUM};
+  const unblocked = records
+    .filter((r) => {
+      const node = repoData['i' + r.number];
+      const nodes = node && node.blockedBy && node.blockedBy.nodes;
+      return Array.isArray(nodes) && nodes.some((n) => n && n.number === closedNum);
+    })
+    .filter((r) => !hasOpenNativeBlocker(repoData['i' + r.number]))
+    .map((r) => ({ number: r.number, title: r.title }));
+  require('fs').writeFileSync('/tmp/wrapup-unblocked.json', JSON.stringify(unblocked));
+"
+```
+
+On any GraphQL error this fails safe — skip the check for this run (an empty `wrapup-unblocked.json`) rather than blocking wrap-up, matching this section's own "must never gate, block, or delay the wrap-up" rule above and dispatch's identical native-mode fallback.
 
 **`work-backend: local-files`:**
 

@@ -145,7 +145,8 @@ For each finding, route by recommendation type:
 | **Re-triage** (Shape 5 — `bot:blocked`; no mutation, recommends `/claude-tweaks:triage`) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) |
 | **Awaiting review** (a fresh/clean, non-stale open PR surfaced by `github-pr-scan.md`'s `repo-wide` scope; no mutation, informational only) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) |
 | **Delete** (stale temp files, broken symlinks, marked-as-specified design docs, merged worktrees/branches, orphaned plans whose related spec is complete) | Auto-apply | Auto-apply | Auto-apply |
-| **Delete** (any case requiring judgment, excluding backlog records — old plans whose spec status is unclear, design docs with no specs; see the dedicated backlog-record Delete row below for `github-issues`-backend findings) | Stage | Auto-apply | Auto-apply |
+| **Delete** (any case requiring judgment, excluding backlog records — old plans whose spec status is unclear, design docs with no specs; see the dedicated backlog-record Delete rows below for `local-files`- and `github-issues`-backend findings) | Stage | Auto-apply | Auto-apply |
+| **Delete** (stale backlog record, `local-files` backend — Shape 1's "Stale" recommendation; deletes a git-tracked file, same reversibility tier as the row above) | Stage | Auto-apply | Auto-apply |
 | **Absorb** (backlog record overlaps an existing record, `local-files` backend — see the dedicated backlog-record Absorb row below for `github-issues`) | Stage | Auto-apply | Auto-apply |
 | **Promote** (ready for brainstorm/`/specify` pipeline) | Stage | Stage | Auto-apply |
 | **Defer** (`local-files` — pure file update) | Stage | Auto-apply | Auto-apply |
@@ -176,12 +177,14 @@ When this Standalone-auto firing's scope includes `github` (Step 4.8 ran), read 
 
 Under `evidence-based`, before staging any of the following four finding shapes, check whether it carries the specific cite-able evidence listed. If it does, auto-apply the mutation instead of staging it, and log the evidence literally:
 
-| Finding shape | Evidence required | Auto-applied action |
-|---|---|---|
-| Unresolved review thread whose flagged file:line a later commit touches | The commit SHA that touches those lines | Resolve thread (GraphQL `resolveReviewThread`) |
-| Parked record, `milestoneDueOn` is in the past | The due date itself | `gh issue edit {n} --remove-label parked`, then comment citing the due date |
-| Parked record, a `watchedPaths` entry has a matching commit in `git log` since the record was parked | The commit SHA `git log` returns | `gh issue edit {n} --remove-label parked`, then comment citing the commit SHA and touched path |
-| Code-health/harness-health/journey-health/docs-health issue whose flagged code is demonstrably removed or rewritten since filing (a diff shows the flagged lines gone or materially changed) | The diff reference (commit range or PR number) | `gh issue close {n} --reason "not planned"` after a comment citing the diff reference |
+| Finding shape | Evidence required | Auto-applied action | Step that produces it |
+|---|---|---|---|
+| Unresolved review thread whose flagged file:line a later commit touches | The commit SHA that touches those lines | Resolve thread (GraphQL `resolveReviewThread`) | Step 4.8 |
+| Parked record, `milestoneDueOn` is in the past | The due date itself | `gh issue edit {n} --remove-label parked`, then comment citing the due date | Step 1 |
+| Parked record, a `watchedPaths` entry has a matching commit in `git log` since the record was parked | The commit SHA `git log` returns | `gh issue edit {n} --remove-label parked`, then comment citing the commit SHA and touched path | Step 1 |
+| Code-health/harness-health/journey-health/docs-health issue whose flagged code is demonstrably removed or rewritten since filing (a diff shows the flagged lines gone or materially changed) | The diff reference (commit range or PR number) | `gh issue close {n} --reason "not planned"` after a comment citing the diff reference | Step 4.8 |
+
+**Reachability of the Parked-record rows:** per the Scope Selection table, `github` maps to Step 4.8 only — a `--scope=github` firing never runs Step 1, the sole producer of parked-record findings (scan-procedures.md Shape 2; `_shared/github-pr-scan.md`'s own `repo-wide` section disclaims backlog/parked findings as "Step 1's job now, not this scope's"). The shipped `tidy-github-triage` routine (`routine-template-github-triage.yml`) fires `--scope=github` exclusively, so in that firing context the two Parked-record rows above never match in practice — only the other two rows (thread-resolution, issue-supersession, both Step 4.8) ever auto-apply on that routine. Broadening this tier's scope beyond `--scope=github` (e.g. a routine that also covers `backlog`) is required before the Parked-record rows can ever fire; that is not implemented today — they remain documented here as this tier's intended-but-currently-unreachable design, not as a working path.
 
 These four are the only shapes this tier ever touches. Every other GitHub-mutation finding — stale-PR close-or-resume, PR-superseded-by-equivalent-work, a stale backlog record past 4 weeks (delete-or-promote), and any "still valid" code-health/harness-health/journey-health/docs-health assessment — is a judgment call per `_shared/github-pr-scan.md`'s own findings table and stays staged regardless of `tidy-routine-autonomy`. Note that removing the `parked` label is the entire mutation for the two Promote-evidence rows above — this tier never auto-runs `/claude-tweaks:specify`; the record simply becomes visible as a plain backlog record again, same as if a human had removed `parked` by hand.
 

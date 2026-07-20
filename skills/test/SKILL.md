@@ -133,10 +133,11 @@ Run types/lint/tests only — skip QA story validation entirely, even when stori
 
 **Composability:** `skip-qa` can be combined with targeted scope arguments (e.g., `/test types skip-qa` runs only type checking; `skip-qa` is redundant in that case but harmless).
 
-When invoked with `skip-qa` and verification passes, set `TEST_PASSED=true` and report:
+When invoked with `skip-qa` and verification passes, set `TEST_PASSED=true` and report (see Step 1.5 below for the `Design CLI:` line, which the Design CLI Gate still runs and reports on even in `skip-qa` mode):
 
 ```
 Verification: passed (types + lint + tests). QA: skipped (skip-qa).
+Design CLI: {pass/fail/skipped} ({N findings: Y warning, Z advisory} or {skip reason})
 Set TEST_PASSED=true.
 ```
 
@@ -172,6 +173,7 @@ See `_shared/design-wrapper-handling.md` for the canonical return-shape contract
   ```
 
 - **Pipeline mode** (`## Pipeline result (VERIFICATION_PASSED + no stories)` / `... + stories` in `report-templates.md` — bare status lines, no table) — append a `Design CLI: {pass/fail/skipped} ({N findings: Y warning, Z advisory} or {skip reason})` line to the pipeline result output.
+- **Skip-QA mode** (bare status lines per Skip-QA mode's own report format above, not a `report-templates.md` template) — append the same `Design CLI: {pass/fail/skipped} ({N findings: Y warning, Z advisory} or {skip reason})` line to that report.
 
 If `severity: warning` findings are present, append a Design Findings section before the standard test-failure section:
 
