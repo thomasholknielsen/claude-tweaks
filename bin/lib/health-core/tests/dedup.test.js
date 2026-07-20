@@ -44,3 +44,10 @@ test('decide still suppresses a closed match that carries wontfix (reopen never 
   const issueIndex = { 'x-abc': { number: 5, state: 'closed', labels: ['wontfix'] } };
   assert.deepStrictEqual(decide({ id: 'x-abc' }, issueIndex, {}), { action: 'suppress', issue: 5 });
 });
+
+test('decide skips (not files a duplicate) a finding the local cache marked regressed, when the run falls back to cache-only dedup', () => {
+  // Simulates a later firing where --issues is unavailable (issueIndex === {})
+  // after an earlier firing reopened this exact finding via the issue-index path.
+  const cache = { 'x-abc': { status: 'regressed', issue: 42, lastSeenMs: 1000 } };
+  assert.deepStrictEqual(decide({ id: 'x-abc' }, {}, cache), { action: 'skip', issue: 42 });
+});

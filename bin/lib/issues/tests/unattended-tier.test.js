@@ -57,3 +57,17 @@ test('clearsFloor returns true for a third-party-dependency blocker', () => {
     true,
   );
 });
+
+test('clearsFloor returns true for a singular "approval" blocker', () => {
+  assert.strictEqual(
+    clearsFloor('Requires stakeholder approval before proceeding'),
+    true,
+  );
+});
+
+test('clearsFloor returns true for a plural "approvals" blocker (resolve-gate.md\'s own wording)', () => {
+  assert.strictEqual(
+    clearsFloor('Requires stakeholder approvals before proceeding'),
+    true,
+  );
+});

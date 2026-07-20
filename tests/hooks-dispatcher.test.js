@@ -110,6 +110,16 @@ test('record-worktree without a run dir exits 0 and prints a not-recorded notice
   assert.match(result.stdout, /claude-tweaks: no pipeline run dir found — worktree not recorded/);
 });
 
+test('record-worktree reports failure (not the success line) when run-state.json cannot be written', () => {
+  const project = tmpProject();
+  const nonexistentRun = path.join(project, '.claude-tweaks', 'pipelines', 'does-not-exist-run-dir');
+  const result = runHook(['record-worktree', '--run', nonexistentRun, '/tmp/wt-missing'], { cwd: project });
+  assert.strictEqual(result.code, 0, 'must still exit 0 — never break a session');
+  assert.doesNotMatch(result.stdout, /claude-tweaks: worktree recorded for/);
+  assert.match(result.stdout, /claude-tweaks: FAILED to record worktree for does-not-exist-run-dir — run-state\.json write failed/);
+  assert.strictEqual(fs.existsSync(path.join(nonexistentRun, 'run-state.json')), false);
+});
+
 test('record-worktree stamps the owning session from CLAUDE_CODE_SESSION_ID and preserves it on env-less re-record', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');

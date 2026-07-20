@@ -386,9 +386,7 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 
 ## Component-Skill Contract
 
-When `$PIPELINE_RUN_DIR` is set, `/claude-tweaks:code-health` is running inside a pipeline (invoked by `/claude-tweaks:flow` or another pipeline orchestrator). In that case omit the `## Next Actions` block — the parent owns the handoff.
-
-Direct invocation may pass `--source <parent-skill>` as an explicit fallback when ambiguity exists (rare; `$PIPELINE_RUN_DIR` is the primary signal). Standalone (no `$PIPELINE_RUN_DIR`) is the common case and renders Next Actions as usual.
+This skill runs standalone — it is not currently invoked as a pipeline step by `/claude-tweaks:flow` or any other skill (`/flow`'s own Allowed Steps table does not include it). It runs interactively or via a scheduled Routine, and files `by:code-health` issues that resolve through `/claude-tweaks:triage` → `/claude-tweaks:dispatch` → `/claude-tweaks:flow` as separate, later work records — never as an inline pipeline step. If `$PIPELINE_RUN_DIR` is ever set during a direct invocation (not expected in normal use), omit the `## Next Actions` block to avoid conflicting with an active pipeline's own handoff; otherwise render Next Actions as usual.
 
 ## Anti-Patterns
 
@@ -420,6 +418,6 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `/claude-tweaks:routine` | `/routine create code-health` instantiates code-health's `routine-template.yml` into a live, scheduled cloud Routine — the mechanism behind this skill's own "Routine Configuration" section. |
 | `/claude-tweaks:simplify` | `/simplify` applies the simplification criterion reactively; `/code-health` applies it proactively. Both read `criteria-simplification.md`. |
 | `/claude-tweaks:harness-health` | Sibling health skill — same SELECT → JUDGE → VERIFY → FINGERPRINT/DEDUP → FILE pipeline shape and shared `_shared/health-state.md` persistence, but scoped to `.claude/skills/**`/`.claude/rules/**`/CLAUDE.md for skill/rule/CLAUDE.md accuracy and template-conformance instead of code quality. Both file born-`ready` findings on the unified work-record contract. |
-| `/claude-tweaks:journey-health` | Sibling health skill — same SELECT → JUDGE → VERIFY → FINGERPRINT/DEDUP → FILE pipeline shape and shared `_shared/health-state.md` persistence, but scoped to `docs/journeys/*.md` for journey accuracy and agent-e2e coverage instead of code quality. Both file born-`ready` findings on the unified work-record contract. |
+| `/claude-tweaks:journey-health` | Sibling health skill — same SELECT → JUDGE → FINGERPRINT/DEDUP → FILE pipeline (journey-health has no verify-gate step, unlike this skill's own Step 7) and shared `_shared/health-state.md` persistence, but scoped to `docs/journeys/*.md` for journey accuracy and agent-e2e coverage instead of code quality. Both file born-`ready` findings on the unified work-record contract. |
 | `/claude-tweaks:docs-health` | Sibling health skill — same SELECT → JUDGE → VERIFY → FINGERPRINT/DEDUP → FILE pipeline and shared `_shared/health-state.md` persistence, but scoped to `docs/**` for Diátaxis genre-drift + depth-mismatch + findability + staleness instead of code quality. Both file born-`ready` findings on the unified work-record contract. |
 | `_shared/health-filing-gate.md` | The canonical interactive file-all/route-individually gate this skill's Step 9 applies before calling `gh issue create` on new findings — shared with `/harness-health`, `/journey-health`, and `/docs-health`. |

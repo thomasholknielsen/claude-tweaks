@@ -38,12 +38,18 @@ function evaluateQaEvidence(storyIds, report, opts = {}) {
   }
 
   const failed = storyIds.map((id) => storiesById.get(id)).filter((s) => s.status === 'FAIL');
-  if (failed.length === 0) {
-    return { verdict: 'satisfied' };
-  }
+  // 'ux-issue' findings only ever attach to a PASS_WITH_CAVEATS story (per
+  // qa-reporting.md's "Caveat-to-finding conversion" rule) — never to a FAIL.
+  // Checking `failed` alone made that REGRESSION_CATEGORIES entry permanently
+  // unreachable, so caveated stories are checked too. A PASS_WITH_CAVEATS
+  // story doesn't affect the satisfied/inconclusive fallback below, though —
+  // only a caveat that actually lands on a regression category short-circuits
+  // to 'regression'; a caveated story with no matching finding is still a
+  // pass, not evidence of a problem.
+  const caveated = storyIds.map((id) => storiesById.get(id)).filter((s) => s.status === 'PASS_WITH_CAVEATS');
 
   const findingsByStoryId = new Map((report.findings || []).map((f) => [f.story_id, f]));
-  for (const story of failed) {
+  for (const story of [...failed, ...caveated]) {
     const findingEntry = findingsByStoryId.get(story.id);
     if (findingEntry && REGRESSION_CATEGORIES.has(findingEntry.category)) {
       return {
@@ -59,6 +65,10 @@ function evaluateQaEvidence(storyIds, report, opts = {}) {
         },
       };
     }
+  }
+
+  if (failed.length === 0) {
+    return { verdict: 'satisfied' };
   }
 
   return { verdict: 'inconclusive', reason: 'failing story(ies) attributed to QA tooling (stale-selector/flaky-env/story-bug), not journey drift' };

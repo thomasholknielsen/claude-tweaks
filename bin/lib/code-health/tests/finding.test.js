@@ -26,6 +26,11 @@ test('makeFinding rejects an invalid severity', () => {
     /severity/);
 });
 
+test('makeFinding rejects "critical" — dropped from the schema, must match validate-finding.js\'s low|medium|high', () => {
+  assert.throws(() => makeFinding({ lens: 'x', area: '.', signature: 's', title: 't', severity: 'critical' }),
+    /severity/);
+});
+
 test('FINDING_FIELDS lists every field exactly once', () => {
   assert.ok(FINDING_FIELDS.includes('acceptance'));
   assert.strictEqual(new Set(FINDING_FIELDS).size, FINDING_FIELDS.length);

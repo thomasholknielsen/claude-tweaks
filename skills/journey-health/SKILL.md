@@ -274,6 +274,10 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 - Option 2 — `label`: `"Audit one journey"`, `description`: `"/claude-tweaks:journey-health --target <name> — audit one specific journey right now"`
 - Option 3 — `label`: `"Backlog hygiene"`, `description`: `"/claude-tweaks:tidy — fold any filed journey-health issues into a backlog-hygiene pass"`
 
+## Component-Skill Contract
+
+This skill runs standalone — it is not currently invoked as a pipeline step by `/claude-tweaks:flow` or any other skill (`/flow`'s own Allowed Steps table does not include it). It runs interactively or via a scheduled Routine, and files `by:journey-health` issues that resolve through `/claude-tweaks:triage` → `/claude-tweaks:dispatch` → `/claude-tweaks:flow` as separate, later work records — never as an inline pipeline step. If `$PIPELINE_RUN_DIR` is ever set during a direct invocation (not expected in normal use), omit the `## Next Actions` block to avoid conflicting with an active pipeline's own handoff; otherwise render Next Actions as usual.
+
 ## Anti-Patterns
 
 | Pattern | Why It Fails |
@@ -299,8 +303,8 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 | `/claude-tweaks:routine` | `/routine create journey-health` instantiates this skill's `routine-template.yml` into a live, scheduled cloud Routine. |
 | `/claude-tweaks:tidy` | Step 4.8 sweeps `by:journey-health`-labelled issues alongside `by:code-health`/`by:harness-health`/`by:docs-health` ones, using the same stale/superseded triage. |
 | `/claude-tweaks:code-health` | Sibling health skill for code quality — one of the four recurring-sweep siblings (code-health, harness-health, journey-health, docs-health). Shares the unified work-record filing contract and `_shared/health-state.md`'s durable persistence, scoped to code instead of journey accuracy. |
-| `/claude-tweaks:harness-health` | Sibling health skill — same SELECT → JUDGE → FILE pipeline and `_shared/health-state.md` persistence, but scoped to `.claude/skills/**`/`.claude/rules/**`/CLAUDE.md for skill/rule/CLAUDE.md accuracy and template-conformance instead of `docs/journeys/*.md` accuracy and agent-e2e coverage. |
-| `/claude-tweaks:docs-health` | Sibling health skill — same SELECT → JUDGE → FILE pipeline and `_shared/health-state.md` persistence, but scoped to `docs/**` Diátaxis genre-drift + depth-mismatch + findability + staleness instead of `docs/journeys/*.md` accuracy and agent-e2e coverage. Both file born-`ready` findings on the unified work-record contract. |
+| `/claude-tweaks:harness-health` | Sibling health skill — same SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline shape (this skill has no verify-gate step of its own, unlike harness-health's Step 5) and `_shared/health-state.md` persistence, but scoped to `.claude/skills/**`/`.claude/rules/**`/CLAUDE.md for skill/rule/CLAUDE.md accuracy and template-conformance instead of `docs/journeys/*.md` accuracy and agent-e2e coverage. |
+| `/claude-tweaks:docs-health` | Sibling health skill — same SELECT → JUDGE → VERIFY GATE → FINGERPRINT/DEDUP → FILE pipeline shape (this skill has no verify-gate step of its own, unlike docs-health's Step 3.5) and `_shared/health-state.md` persistence, but scoped to `docs/**` Diátaxis genre-drift + depth-mismatch + findability + staleness instead of `docs/journeys/*.md` accuracy and agent-e2e coverage. Both file born-`ready` findings on the unified work-record contract. |
 | `/claude-tweaks:triage` | Filed `by:journey-health` issues resolve through `/triage dispatch` → `/flow`, or manually — same path `by:code-health`/`by:harness-health` issues already take. Records enter the same gate worklist as the other health-skill producers — journey-health issues are not a separate lane. |
 | `/claude-tweaks:specify` | Journey-health findings are pre-specs — a filed `by:journey-health` issue body is `/specify`-shaped (Current State / Deliverables / Acceptance Criteria), so `/specify` consumes it with near-zero translation. |
 | `_shared/journey-self-review.md` | Canonical four-check + structural-validity criteria this skill's light tier applies — shared with `/claude-tweaks:journeys` Step 3.5. |

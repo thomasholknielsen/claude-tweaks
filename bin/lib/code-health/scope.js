@@ -21,7 +21,7 @@ const SOURCE_EXTS = new Set(['.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs']);
 function listSlices(root) {
   const slices = [{ id: '.', path: root }];
   const workspaceSlices = listWorkspaceSlices(root);
-  const coveredTopLevel = new Set(workspaceSlices.map((s) => s.id.split('/')[0]));
+  const coveredTopLevel = fullyCoveredTopLevelDirs(root);
   let entries;
   try { entries = fs.readdirSync(root, { withFileTypes: true }); } catch { return slices; }
   for (const entry of entries) {
@@ -39,18 +39,13 @@ function listSlices(root) {
 // Falls back to hashing the directory listing string if find/read fails.
 function sourceFiles(absDir) {
   try {
+    const excludeArgs = [];
+    for (const dir of SKIP_DIRS) {
+      excludeArgs.push('-not', '-path', `${absDir}/${dir}/*`);
+    }
     const raw = execFileSync(
       'find',
-      [absDir, '-type', 'f',
-        '-not', '-path', `${absDir}/.claude-tweaks/*`,
-        '-not', '-path', `${absDir}/.git/*`,
-        '-not', '-path', `${absDir}/node_modules/*`,
-        '-not', '-path', `${absDir}/dist/*`,
-        '-not', '-path', `${absDir}/build/*`,
-        '-not', '-path', `${absDir}/coverage/*`,
-        '-not', '-path', `${absDir}/.claude/*`,
-        '-not', '-path', `${absDir}/.worktrees/*`,
-      ],
+      [absDir, '-type', 'f', ...excludeArgs],
       { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
     );
     return raw
@@ -169,6 +164,23 @@ function expandWorkspacePattern(root, rawPattern) {
     '(only "<dir>/*" and literal paths are supported)\n',
   );
   return [];
+}
+
+// Top-level dirs genuinely enumerated in full by a "<dir>/*" workspace pattern —
+// i.e. every immediate child of <dir> is covered, so <dir> itself should not
+// also appear as its own top-level slice. A literal single-package pattern
+// (e.g. "tools/cli") does NOT cover "tools" — unlisted siblings like
+// "tools/scripts" must still reach a top-level slice, so they aren't silently
+// dropped from scope.
+function fullyCoveredTopLevelDirs(root) {
+  const patterns = readWorkspacePatterns(root);
+  const covered = new Set();
+  for (const rawPattern of patterns) {
+    const pattern = rawPattern.replace(/^\.\//, '').replace(/\/$/, '');
+    const m = pattern.match(/^([^*!{}?]+)\/\*$/);
+    if (m) covered.add(m[1]);
+  }
+  return covered;
 }
 
 // Returns [] when no workspace manifest exists or none of its patterns resolve.

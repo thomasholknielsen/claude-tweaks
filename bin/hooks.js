@@ -37,8 +37,12 @@ function main(argv) {
       // not clobber a previous stamp.
       const patch = { worktree: path.resolve(worktreeArg), status: 'active' };
       if (process.env.CLAUDE_CODE_SESSION_ID) patch.sessionId = process.env.CLAUDE_CODE_SESSION_ID;
-      ctxLib.writeRunState(runDir, patch);
-      process.stdout.write(`claude-tweaks: worktree recorded for ${path.basename(runDir)}\n`);
+      const written = ctxLib.writeRunState(runDir, patch);
+      if (written) {
+        process.stdout.write(`claude-tweaks: worktree recorded for ${path.basename(runDir)}\n`);
+      } else {
+        process.stdout.write(`claude-tweaks: FAILED to record worktree for ${path.basename(runDir)} — run-state.json write failed\n`);
+      }
     } else if (!runDir) {
       process.stdout.write('claude-tweaks: no pipeline run dir found — worktree not recorded\n');
     }

@@ -23,6 +23,10 @@
 //   closed non-wontfix match   -> reopen    (regressed)
 //   'declined' in local cache  -> suppress  (user rejected this exact finding)
 //   'staged' in local cache    -> skip      (already filed, unresolved)
+//   'regressed' in local cache -> skip      (already reopened via the issue-index path above on
+//                                            some earlier run; a later run that falls back to
+//                                            cache-only dedup — e.g. --issues unavailable — must
+//                                            not re-file it as brand new)
 //   otherwise                  -> file
 function decide(finding, issueIndex, cache) {
   const fp = finding.id;
@@ -41,6 +45,7 @@ function decide(finding, issueIndex, cache) {
   const cached = cache && fp && cache[fp];
   if (cached && cached.status === 'declined') return { action: 'suppress' };
   if (cached && cached.status === 'staged') return { action: 'skip' };
+  if (cached && cached.status === 'regressed') return { action: 'skip', issue: cached.issue };
   return { action: 'file' };
 }
 

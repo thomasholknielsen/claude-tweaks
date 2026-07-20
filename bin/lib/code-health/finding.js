@@ -3,7 +3,7 @@ const FINDING_FIELDS = [
   'area', 'files', 'evidence', 'suggestion', 'acceptance', 'signature',
 ];
 
-const SEVERITIES = new Set(['low', 'medium', 'high', 'critical']);
+const SEVERITIES = new Set(['low', 'medium', 'high']);
 const CONFIDENCES = new Set(['high', 'med', 'low']);
 
 // Single source of truth for the Finding shape. Lenses call this so the shape

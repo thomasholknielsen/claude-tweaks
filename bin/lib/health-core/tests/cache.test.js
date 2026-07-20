@@ -36,25 +36,6 @@ test('readCache returns {} on corrupt JSON rather than throwing', () => {
   assert.deepStrictEqual(core.readCache(root), {});
 });
 
-test('cursorsPath is namespaced under .claude-tweaks/<skillName>/cursors.json', () => {
-  const core = createCache('some-skill');
-  const root = tmp();
-  assert.strictEqual(core.cursorsPath(root), path.join(root, '.claude-tweaks', 'some-skill', 'cursors.json'));
-});
-
-test('readCursors returns {} when the cursors file does not exist', () => {
-  const core = createCache('some-skill');
-  assert.deepStrictEqual(core.readCursors(tmp()), {});
-});
-
-test('writeCursors then readCursors round-trips', () => {
-  const core = createCache('some-skill');
-  const root = tmp();
-  const cursors = { 'target-a': { lastAuditedMs: 1000 } };
-  core.writeCursors(root, cursors);
-  assert.deepStrictEqual(core.readCursors(root), cursors);
-});
-
 test('two different skill names namespace to different directories under the same root', () => {
   const root = tmp();
   const a = createCache('skill-a');
@@ -63,34 +44,15 @@ test('two different skill names namespace to different directories under the sam
   assert.deepStrictEqual(b.readCache(root), {});
 });
 
-test('runsDir is namespaced under .claude-tweaks/<skillName>/runs', () => {
+// cursorsPath/readCursors/writeCursors/runsDir/readRuns (local-disk cursor and
+// run-log persistence) were removed by the durable-state migration — cursors
+// and run history now live on the health-state git branch
+// (bin/lib/health-core/durable-state.js), read via readDurableState(root),
+// not from local disk. None of the four skill consumers ever called these
+// (only their own recordAudit()/cursor-shape logic on top of cachePath/
+// readCache/writeCache), so they were deleted rather than wired up — same
+// migration as runs.js's recordRun/readRuns removal.
+test('createCache exports only cachePath/readCache/writeCache — cursor and runs helpers were removed as dead code', () => {
   const core = createCache('some-skill');
-  const root = tmp();
-  assert.strictEqual(core.runsDir(root), path.join(root, '.claude-tweaks', 'some-skill', 'runs'));
-});
-
-test('readRuns returns [] when no run logs exist', () => {
-  const core = createCache('some-skill');
-  assert.deepStrictEqual(core.readRuns(tmp()), []);
-});
-
-test('readRuns reads back run records written directly to disk, sorted oldest first by runAt', () => {
-  const core = createCache('some-skill');
-  const root = tmp();
-  fs.mkdirSync(core.runsDir(root), { recursive: true });
-  fs.writeFileSync(path.join(core.runsDir(root), 'run-b.json'), JSON.stringify({ runId: 'run-b', runAt: '2026-01-02T00:00:00.000Z', fingerprints: ['x'] }));
-  fs.writeFileSync(path.join(core.runsDir(root), 'run-a.json'), JSON.stringify({ runId: 'run-a', runAt: '2026-01-01T00:00:00.000Z', fingerprints: ['y'] }));
-  const runs = core.readRuns(root);
-  assert.strictEqual(runs.length, 2);
-  assert.strictEqual(runs[0].runId, 'run-a');
-  assert.strictEqual(runs[1].runId, 'run-b');
-});
-
-test('readRuns skips corrupt or malformed run files rather than throwing', () => {
-  const core = createCache('some-skill');
-  const root = tmp();
-  fs.mkdirSync(core.runsDir(root), { recursive: true });
-  fs.writeFileSync(path.join(core.runsDir(root), 'bad.json'), '{ not json');
-  fs.writeFileSync(path.join(core.runsDir(root), 'no-runid.json'), JSON.stringify({ fingerprints: ['z'] }));
-  assert.deepStrictEqual(core.readRuns(root), []);
+  assert.deepStrictEqual(Object.keys(core).sort(), ['cachePath', 'readCache', 'writeCache']);
 });

@@ -252,9 +252,7 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 
 ## Component-Skill Contract
 
-When `$PIPELINE_RUN_DIR` is set, `/claude-tweaks:docs-health` is running inside a pipeline (invoked by `/claude-tweaks:flow` or another pipeline orchestrator). In that case omit the `## Next Actions` block — the parent owns the handoff.
-
-Direct invocation may pass `--source <parent-skill>` as an explicit fallback when ambiguity exists (rare; `$PIPELINE_RUN_DIR` is the primary signal). Standalone (no `$PIPELINE_RUN_DIR`) is the common case and renders Next Actions as usual.
+This skill runs standalone — it is not currently invoked as a pipeline step by `/claude-tweaks:flow` or any other skill (`/flow`'s own Allowed Steps table does not include it). It runs interactively or via a scheduled Routine, and files `by:docs-health` issues that resolve through `/claude-tweaks:triage` → `/claude-tweaks:dispatch` → `/claude-tweaks:flow` as separate, later work records — never as an inline pipeline step. If `$PIPELINE_RUN_DIR` is ever set during a direct invocation (not expected in normal use), omit the `## Next Actions` block to avoid conflicting with an active pipeline's own handoff; otherwise render Next Actions as usual.
 
 ## Anti-Patterns
 

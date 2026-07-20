@@ -9,17 +9,20 @@ const { computeStageDurations, computeWontfixRate, summarizeFunnel } = require('
 // #21 was built by direct human /flow invocation, never triaged — so it has no
 // auto:build/auto:merge label. This is exactly the "still missing a later
 // transition" case: shapingMs is present, grantMs/buildMs are not.
+// The real API returns `label` as an object ({name, color}), not a plain
+// string — the fixture below matches that real shape (previously hand-flattened
+// to plain strings, which masked a bug where the comparison never matched).
 const ISSUE_21_FIXTURE = {
   createdAt: '2026-07-15T08:29:30Z',
   closedAt: '2026-07-19T14:46:04Z',
   events: [
-    { event: 'labeled', label: 'by:capture', created_at: '2026-07-15T08:29:31Z' },
-    { event: 'labeled', label: 'type:feature', created_at: '2026-07-15T08:29:31Z' },
-    { event: 'labeled', label: 'priority:medium', created_at: '2026-07-19T07:21:32Z' },
-    { event: 'labeled', label: 'ready', created_at: '2026-07-19T14:40:42Z' },
-    { event: 'labeled', label: 'risk:low', created_at: '2026-07-19T14:40:42Z' },
-    { event: 'labeled', label: 'effort:medium', created_at: '2026-07-19T14:40:42Z' },
-    { event: 'labeled', label: 'demo:pending', created_at: '2026-07-19T14:46:59Z' },
+    { event: 'labeled', label: { name: 'by:capture', color: '5319e7' }, created_at: '2026-07-15T08:29:31Z' },
+    { event: 'labeled', label: { name: 'type:feature', color: 'a2eeef' }, created_at: '2026-07-15T08:29:31Z' },
+    { event: 'labeled', label: { name: 'priority:medium', color: 'fbca04' }, created_at: '2026-07-19T07:21:32Z' },
+    { event: 'labeled', label: { name: 'ready', color: '0e8a16' }, created_at: '2026-07-19T14:40:42Z' },
+    { event: 'labeled', label: { name: 'risk:low', color: 'c2e0c6' }, created_at: '2026-07-19T14:40:42Z' },
+    { event: 'labeled', label: { name: 'effort:medium', color: 'c2e0c6' }, created_at: '2026-07-19T14:40:42Z' },
+    { event: 'labeled', label: { name: 'demo:pending', color: 'd4c5f9' }, created_at: '2026-07-19T14:46:59Z' },
   ],
 };
 
@@ -121,4 +124,14 @@ test('computeWontfixRate buckets by origin label and computes rate as a percenta
 
 test('computeWontfixRate on an empty list returns an empty object', () => {
   assert.deepStrictEqual(computeWontfixRate([]), {});
+});
+
+test('computeWontfixRate handles real gh issue list label shape ({name, color} objects), not just plain strings', () => {
+  const closedIssues = [
+    { number: 1, labels: [{ id: 1, name: 'by:code-health', color: '5319e7' }], stateReason: 'NOT_PLANNED' },
+    { number: 2, labels: [{ id: 2, name: 'by:code-health', color: '5319e7' }], stateReason: 'COMPLETED' },
+  ];
+  assert.doesNotThrow(() => computeWontfixRate(closedIssues));
+  const rates = computeWontfixRate(closedIssues);
+  assert.deepStrictEqual(rates['code-health'], { total: 2, wontfix: 1, rate: 50 });
 });

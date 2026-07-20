@@ -37,6 +37,20 @@ function fakeDurableStateWithRetries(initial, invocationsBeforeSuccess) {
   };
 }
 
+// Simulates writeDurableState exhausting all CAS attempts and giving up —
+// the mutator still runs once (computing an escalated list against
+// unpersisted state), but the write itself never lands.
+function fakeDurableStateThatFailsToPersist(initial) {
+  let state = { retryQueue: [], ...initial };
+  return {
+    readDurableState: () => state,
+    writeDurableState: (root, mutatorFn) => {
+      mutatorFn(state); // runs (and would compute `escalated`), but result is discarded
+      return { ok: false, error: 'exhausted 3 CAS attempts' };
+    },
+  };
+}
+
 function captureStdout(fn) {
   const original = process.stdout.write.bind(process.stdout);
   let out = '';
@@ -105,6 +119,21 @@ test('update reports each escalated fingerprint exactly once even when the mutat
   const escalated = JSON.parse(out);
   assert.strictEqual(escalated.length, 1, 'must report the fingerprint exactly once, not once per retried mutator invocation');
   assert.strictEqual(escalated[0].fingerprint, 'stuck');
+});
+
+test('update prints [] (not the computed-but-unpersisted escalation) when health-state persistence fails after retries', () => {
+  const ds = fakeDurableStateThatFailsToPersist({
+    retryQueue: [
+      { fingerprint: 'stuck', payload: { title: 'Stuck' }, firstFailedAt: 'x', attempts: 2, lastError: 'timeout' },
+    ],
+  });
+  const { update } = makeRetryQueueCommands(ds);
+  const resultsPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'retry-cli-')), 'results.json');
+  fs.writeFileSync(resultsPath, JSON.stringify([
+    { fingerprint: 'stuck', payload: { title: 'Stuck' }, ok: false, error: 'still failing' },
+  ]));
+  const out = captureStdout(() => update({ root: '/repo', _: ['update', resultsPath] }));
+  assert.deepStrictEqual(JSON.parse(out), [], 'must not report an escalation that was never actually persisted to retry-queue.json');
 });
 
 test('update prints [] when nothing crosses the escalation threshold', () => {

@@ -57,8 +57,9 @@ returns `{ readState(root), writeState(root, mutatorFn) }`:
   `readCursors`/`writeCursors` — same call shape, new storage underneath.
 - **`bin/lib/health-core/retry-cli.js`**'s `makeRetryQueueCommands({ readDurableState, writeDurableState })`
   gives the retry-queue drain/update commands (below) one shared implementation, bound to each
-  skill's own `readDurableState`/`writeDurableState` — `code-health`, `harness-health`, and
-  `journey-health`'s CLIs each call this instead of restating the same logic three times.
+  skill's own `readDurableState`/`writeDurableState` — `code-health`, `harness-health`,
+  `journey-health`, and `docs-health`'s CLIs each call this instead of restating the same logic
+  four times.
 
 This is impure (real `git`/`gh` calls via an injectable runner), unlike `bin/lib/issues/claims.js`'s
 deliberately emit-only design — issue claim/release is a decision-laden, audit-visible action

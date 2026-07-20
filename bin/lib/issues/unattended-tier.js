@@ -11,7 +11,7 @@ const CATEGORY_PATTERNS = [
   /external state/i,
   /third-party/i,
   /prod(uction)? traffic/i,
-  /\bapproval\b/i,
+  /\bapprovals?\b/i,
   // Product/design decision
   /product( or design)? decision/i,
   /design decision/i,

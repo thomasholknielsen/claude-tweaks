@@ -69,6 +69,26 @@ test('regression when a failed story has a ux-issue finding, mapping severity Me
   assert.strictEqual(result.finding.severity, 'med');
 });
 
+test('regression when a PASS_WITH_CAVEATS story (not FAIL) has a ux-issue finding — the realistic shape per qa-reporting.md, where ux-issue only ever attaches to a caveat, never a FAIL', () => {
+  const r = report({
+    stories: [{ id: 'story-1', status: 'PASS_WITH_CAVEATS' }],
+    findings: [{ story_id: 'story-1', category: 'ux-issue', severity: 'Medium', finding: 'Intermittent checkout total glitch' }],
+  });
+  const result = evaluateQaEvidence(['story-1'], r, { now: NOW });
+  assert.strictEqual(result.verdict, 'regression');
+  assert.strictEqual(result.finding.severity, 'med');
+  assert.strictEqual(result.finding.description, 'Intermittent checkout total glitch');
+});
+
+test('satisfied (not inconclusive) when a PASS_WITH_CAVEATS story has no matching regression-category finding', () => {
+  const r = report({
+    stories: [{ id: 'story-1', status: 'PASS_WITH_CAVEATS' }],
+    findings: [],
+  });
+  const result = evaluateQaEvidence(['story-1'], r, { now: NOW });
+  assert.deepStrictEqual(result, { verdict: 'satisfied' });
+});
+
 test('inconclusive when a failed story is attributed to stale-selector', () => {
   const r = report({
     stories: [{ id: 'story-1', status: 'FAIL' }],
