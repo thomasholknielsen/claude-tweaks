@@ -14,7 +14,7 @@ record/diff/failure content. Never invoked directly by a human — always a comp
 /claude-tweaks:triage Step 2          [ grant-check ]    -> RECOMMEND_BUILD / RECOMMEND_MERGE
 /claude-tweaks:dispatch Auto-merge    [ merge-check ]    -> VERDICT: auto-merge | needs-human
 /claude-tweaks:dispatch Settle        [ failure-check ]  -> CLASSIFICATION + NOTIFY_NOW
-/claude-tweaks:flow materialize.md    [ ceremony-check ] -> CEREMONY: fast-lane | standard
+/claude-tweaks:specify Step 3         [ ceremony-check ] -> CEREMONY: fast-lane | standard
 ```
 
 ## When to Use
@@ -22,8 +22,10 @@ record/diff/failure content. Never invoked directly by a human — always a comp
 - `/claude-tweaks:triage`'s Step 2 needs a grant recommendation for a worklist record.
 - `/claude-tweaks:dispatch`'s Auto-merge gate needs a merge-or-human verdict for a clean, reviewed run.
 - `/claude-tweaks:dispatch`'s Settle step needs to classify why a run failed.
-- `/claude-tweaks:flow`'s materialization step needs a ceremony-depth verdict for a record, so build
-  and wrap-up know how much retrospective/documentation ceremony it deserves.
+- `/claude-tweaks:specify`'s Step 3 (Create the Records) needs a ceremony-depth verdict for a
+  record, so `/specify` itself, `/claude-tweaks:review`, and `/claude-tweaks:wrap-up` all know how
+  much fixed-cost ceremony it deserves. `/claude-tweaks:flow`'s materialize.md calls this mode only
+  as a fallback, for a record that reaches `/flow` with no `ceremony:*` label at all.
 
 Not for: granting `auto:build`/`auto:merge` (still `/claude-tweaks:triage`'s human-confirmed job),
 merging anything itself (`/claude-tweaks:dispatch` acts on the verdict), deciding auto-merge
@@ -237,14 +239,26 @@ retry-ceiling bookkeeping, which runs unconditionally regardless of this mode's 
 
 ## Mode: ceremony-check
 
-**Called from:** `/claude-tweaks:flow`'s materialization step (`skills/flow/materialize.md`), once
-per record, immediately alongside the existing `risk:`/`effort:` header-field population — every
-record, every materialize, no pre-filtering to "borderline" records.
+**Called from:** `/claude-tweaks:specify`'s Step 3 (Create the Records) — both Shaping mode's
+single-record path and decomposition mode's per-leaf loop (never the parent, which carries no
+`risk:*`/`effort:*` scoring either) — immediately alongside the existing `risk:*`/`effort:*` label
+stamping. Every leaf/single record, every `/specify` run, no pre-filtering to "borderline" records.
+
+`/claude-tweaks:flow`'s materialize.md (`skills/flow/materialize.md`) calls this mode only as a
+**fallback**, for a record that reaches `/flow` carrying no `ceremony:*` label at all — a legacy
+hand-authored spec file, or a record created before this mode moved upstream. See
+`docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md` for the full rationale.
 
 ### Step 1: Gather
 
-Reuses the same record body/labels already fetched during materialize's Resolution step — no
-separate fetch needed:
+**Primary call, from `/specify`'s Step 3:** the record body (Current State/Deliverables/
+Acceptance Criteria) and its `risk:*`/`effort:*` labels are already composed in memory for that
+step's own create/edit call — no fetch at all, more direct than a re-fetch. Read them straight from
+whatever local variable Step 3 already holds; there's nothing to shell out for.
+
+**Fallback call, from `/flow`'s materialize.md:** only when a record reaches `/flow` carrying no
+`ceremony:*` label. Reuses the same body/labels already fetched during materialize's Resolution
+step:
 
 ```bash
 node -e "const {extractRiskEffort}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/tier.js');
@@ -283,6 +297,12 @@ RATIONALE: {one paragraph, naming the specific content signal the verdict is bas
 If nothing in the record's content clearly supports `fast-lane`, output `standard` — the same
 conservative-on-ambiguity principle as this skill's other three modes (see Error Handling).
 
+**Persisting the verdict:** `/specify`'s Step 3 (the primary caller) stamps this verdict as an
+explicit `ceremony:fast-lane`/`ceremony:standard` label — never omitted, unlike `risk:*`/
+`effort:*`'s omit-when-unscored convention (this axis has no unscored state; every record gets a
+verdict the first time it's shaped). `/flow`'s materialize.md fallback call uses the verdict only
+for that run's own materialized header — it never writes a label back to the record.
+
 ## Error Handling
 
 If this skill cannot render a clear verdict for any reason (malformed input, an inconclusive read),
@@ -298,8 +318,9 @@ bad or under-reflect on real complexity.
 `/claude-tweaks:assess-agent-autonomy` is **always** a component skill — it is never invoked
 directly by a human, and never renders a `## Next Actions` block. Its only callers are
 `/claude-tweaks:triage` (Step 2, `grant-check`), `/claude-tweaks:dispatch` (Auto-merge gate,
-`merge-check`; Settle step, `failure-check`), and `/claude-tweaks:flow` (materialization step,
-`ceremony-check`).
+`merge-check`; Settle step, `failure-check`), `/claude-tweaks:specify` (Step 3, `ceremony-check`),
+and `/claude-tweaks:flow` (materialization fallback, `ceremony-check` only when record carries no
+`ceremony:*` label).
 
 ## Anti-Patterns
 
@@ -325,5 +346,7 @@ directly by a human, and never renders a `## Next Actions` block. Its only calle
 | `bin/lib/issues/retry.js` | `countFailedAttempts` supplies `failure-check`'s retry-history input. |
 | `_shared/work-record.md` | Taxonomy home — the `merge-sensitive-paths` config key this skill's `merge-check` mode reads as a hard floor. |
 | `docs/superpowers/specs/2026-07-15-assess-agent-autonomy-design.md` | The full design rationale, motivation (the #18/#19 evidence), and calibration examples this skill's judgment procedures are anchored against. |
-| `docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md` | Design rationale and calibration examples for `ceremony-check` specifically, and for how `/claude-tweaks:flow`/`/claude-tweaks:build`/`/claude-tweaks:wrap-up` consume its verdict via the `ceremony-profile` lever. |
-| `/claude-tweaks:flow` | Calls `ceremony-check` inline (not a fresh Task dispatch) once per record during materialization (`skills/flow/materialize.md`) — the verdict becomes that record's `ceremony:` header field, later folded into the `ceremony-profile` Manifesto lever. |
+| `docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md` | Original design rationale and calibration examples for `ceremony-check` and for how `/claude-tweaks:build`/`/claude-tweaks:wrap-up` consume the `ceremony-profile` lever — amended (not superseded) by the design doc below. |
+| `docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md` | Relocates this mode's primary call site to `/claude-tweaks:specify` and promotes `ceremony:` to an always-explicit label; the rationale for why `/claude-tweaks:review` and `/claude-tweaks:specify`'s own Step 5 needed this moved upstream of materialize. |
+| `/claude-tweaks:specify` | The primary caller — Step 3 (Create the Records) invokes `ceremony-check` inline once per record (Shaping mode's single record; decomposition mode's per leaf, never the parent) immediately alongside `risk:*`/`effort:*` stamping, and persists the verdict as an explicit `ceremony:*` label. Step 5 (Multi-Persona Red-Team) also reads the freshly-stamped label to decide persona count. |
+| `/claude-tweaks:flow` | Calls `ceremony-check` inline (not a fresh Task dispatch) only as a **fallback**, for a record reaching materialization (`skills/flow/materialize.md`) with no `ceremony:*` label — the verdict populates that run's own materialized header field without writing a label back. |
