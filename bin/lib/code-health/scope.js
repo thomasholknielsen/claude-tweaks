@@ -42,7 +42,11 @@ function sourceFiles(absDir) {
   try {
     const excludeArgs = [];
     for (const dir of SKIP_DIRS) {
-      excludeArgs.push('-not', '-path', `${absDir}/${dir}/*`);
+      // `*/dir/*` (not `${absDir}/dir/*`) so a skip-directory is excluded
+      // wherever it appears in the subtree, not only as a direct child of
+      // absDir — find's -path matches against the whole path string, so `*`
+      // spans '/' and matches nested occurrences too (e.g. pkg/nested/dir/*).
+      excludeArgs.push('-not', '-path', `*/${dir}/*`);
     }
     const raw = execFileSync(
       'find',

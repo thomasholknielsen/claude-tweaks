@@ -27,7 +27,10 @@ function walkMarkdownFiles(dir, results) {
 // orphan or an intentionally standalone doc.
 function computeInboundReferences(docId, root) {
   const docPath = path.join(root, 'docs', `${docId}.md`);
-  const basename = path.basename(docPath);
+  // The docs-root-relative, path-qualified form of this doc's own path (e.g.
+  // "api/config.md") — this also matches a "docs/api/config.md"-style
+  // repo-root-relative link as a substring.
+  const qualifiedPath = `${docId}.md`;
 
   const candidates = [];
   const docsDir = path.join(root, 'docs');
@@ -42,7 +45,17 @@ function computeInboundReferences(docId, root) {
     if (path.resolve(file) === path.resolve(docPath)) continue;
     let content;
     try { content = fs.readFileSync(file, 'utf8'); } catch { continue; }
-    if (content.includes(basename)) {
+    // A bare basename substring check (e.g. "config.md") also matches
+    // content that links to a DIFFERENT doc with the same filename in
+    // another directory (e.g. "db/config.md".includes("config.md") is true
+    // even though it never mentions docs/api/config.md at all). Require the
+    // match to be path-qualified instead: either this doc's docs-root-
+    // relative path, or the relative path an actual markdown link from THIS
+    // candidate file's own directory would use (e.g. a sibling in the same
+    // directory linking with a bare "config.md", or a nested doc linking
+    // with "../config.md").
+    const relFromCandidate = path.relative(path.dirname(file), docPath).split(path.sep).join('/');
+    if (content.includes(qualifiedPath) || content.includes(relFromCandidate)) {
       referencedBy.push(path.relative(root, file));
     }
   }

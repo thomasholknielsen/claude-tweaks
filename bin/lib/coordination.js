@@ -86,6 +86,16 @@ function normalizeFinding(finding) {
 function findingsMatch(a, b, tolerance = LINE_TOLERANCE_REPRODUCTION) {
   const na = normalizeFinding(a);
   const nb = normalizeFinding(b);
+  // A finding whose path:line never parsed (normalizeFinding's early return,
+  // triggered by parsePathLine failing) leaves path/line undefined. Without
+  // this explicit guard, `undefined !== undefined` (false) and
+  // `NaN > tolerance` (false) both fail to short-circuit below, so two
+  // entirely unrelated, unlocated findings would fall through to the
+  // severity-bucket comparison and spuriously "match" — exactly the hole
+  // this function exists to close. A finding with no known location can
+  // never be judged to match another by location.
+  if (na.path === undefined || nb.path === undefined) return false;
+  if (na.line === undefined || nb.line === undefined || Number.isNaN(na.line) || Number.isNaN(nb.line)) return false;
   if (na.path !== nb.path) return false;
   if (Math.abs(na.line - nb.line) > tolerance) return false;
   return severityBucket(na.severity) === severityBucket(nb.severity);

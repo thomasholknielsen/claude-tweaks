@@ -68,7 +68,13 @@ function cmdNextTarget(args) {
   const root = args.root || process.cwd();
   const now = Date.now();
   const tier = args.tier === 'deep' ? 'deep' : 'light';
-  const coverageScan = readDurableState(root).cursors.__coverageScan || { lastScannedMs: null };
+  // Fetch durable state exactly once and reuse it for both the coverage-scan
+  // check and the target-selection cursors below, so coverageScanDue and
+  // cursors answer the same point in time and the CLI doesn't pay for a
+  // second git fetch/show round-trip per invocation (mirrors
+  // bin/harness-health.js's cmdNextTarget).
+  const durableCursors = readDurableState(root).cursors;
+  const coverageScan = durableCursors.__coverageScan || { lastScannedMs: null };
   const coverageScanDue = coverageScan.lastScannedMs == null || (now - coverageScan.lastScannedMs) / 86400000 > STALE_DAYS_LIGHT;
 
   if (args.target) {
@@ -79,7 +85,7 @@ function cmdNextTarget(args) {
   }
 
   const budget = Number.isFinite(args.budget) && args.budget > 0 ? args.budget : 1;
-  let cursors = readDurableState(root).cursors;
+  let cursors = durableCursors;
 
   if (budget === 1) {
     const target = selectTarget(root, cursors, { now, tier });

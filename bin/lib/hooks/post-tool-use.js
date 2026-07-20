@@ -91,7 +91,16 @@ function checkClosingKeyword(targets) {
       const ref = match[0];
       seenRefs.add(ref);
       const idx = match.index;
-      const before = message.slice(Math.max(0, idx - 20), idx + ref.length);
+      // Slice from the START of the message, not a fixed lookback window —
+      // a fixed window (previously 20 chars) can slice off part of a longer
+      // word immediately before the ref (e.g. the "un" in "unresolved"), and
+      // JS regex's \b treats the truncated slice's own start as a boundary
+      // even though none exists in the real message. CLOSING_KEYWORD_RE's
+      // trailing `$` anchors the match to the ref at the end of this slice
+      // regardless of how much leading text precedes it, so slicing from 0
+      // costs nothing in correctness and removes the truncation risk
+      // entirely.
+      const before = message.slice(0, idx + ref.length);
       if (CLOSING_KEYWORD_RE.test(before)) closedRefs.add(ref);
     }
     const hasUnclosedRef = [...seenRefs].some((ref) => !closedRefs.has(ref));

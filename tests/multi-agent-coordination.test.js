@@ -151,6 +151,30 @@ test('reproduction: Template A contract gap — combined "path:line" field (no s
   assert.strictEqual(headerResult.confirmed[0].line, 100);
 });
 
+test('reproduction: two findings that both fail to parse a path:line must NOT spuriously match', () => {
+  // Neither finding has any usable path field (no `.path`, no `Path:Line`,
+  // and no parseable trailing line number) — normalizeFinding's early
+  // return (parsed.line === undefined) leaves both path and line undefined
+  // on each. Pre-fix, findingsMatch's `undefined !== undefined` (false) and
+  // `NaN > tolerance` (false) both fail to short-circuit, so unrelated,
+  // unlocated findings fall through to the severity-bucket check and
+  // spuriously "match" — exactly the hole normalizeFinding's own header
+  // comment (lines 48-60) claims it closes.
+  const a = { text: 'unrelated finding A', severity: 'high' };
+  const b = { text: 'unrelated finding B', severity: 'high' };
+  assert.strictEqual(c.findingsMatch(a, b), false, 'two unlocated findings must not match by location');
+
+  const same = c.categoriseReproduction([a], [b]);
+  assert.strictEqual(same.confirmed.length, 0, 'unlocated findings must never be confirmed as reproduced');
+  assert.strictEqual(same.unconfirmed.length, 2);
+
+  // A finding with a real, parseable location must also not match one with
+  // none — asymmetric undefined vs. defined must not slip through either.
+  const located = { path: 'src/auth.ts', line: 42, severity: 'high' };
+  const unlocated = { text: 'no location info', severity: 'high' };
+  assert.strictEqual(c.findingsMatch(located, unlocated), false);
+});
+
 // ============================================================
 // Debate
 // ============================================================

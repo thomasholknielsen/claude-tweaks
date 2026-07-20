@@ -156,6 +156,22 @@ test('contentHash does NOT change when .claude/worktrees content changes (other 
   assert.strictEqual(h1, h2, '.claude must be excluded from the hash');
 });
 
+test('contentHash does NOT change when a NESTED node_modules changes (not just a direct child)', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'a.js'), 'const x = 1;\n');
+  const h1 = contentHash(root);
+  // node_modules two levels deep under a package subdir — not a direct
+  // child of root, the shape SKIP_DIRS must still exclude.
+  fs.mkdirSync(path.join(root, 'pkg', 'nested', 'node_modules'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'pkg', 'nested', 'node_modules', 'vendor.js'), 'vendor code');
+  const h2 = contentHash(root);
+  assert.strictEqual(
+    h2,
+    h1,
+    'a nested node_modules (not a direct child of root) must be excluded from the hash, same as a direct-child node_modules',
+  );
+});
+
 test('contentHash returns a stable hash for a dir with no source files', () => {
   const root = tmp();
   // No source files — should return a non-empty string without throwing

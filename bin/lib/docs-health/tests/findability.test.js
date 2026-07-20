@@ -73,3 +73,35 @@ test('returns zero when docs/ does not exist yet', () => {
   const result = computeInboundReferences('missing-doc', root);
   assert.strictEqual(result.count, 0);
 });
+
+test('does NOT count a doc as referenced when only a same-named doc in a DIFFERENT directory is linked', () => {
+  // docs/api/config.md and docs/db/config.md share a filename. README.md
+  // links only to docs/db/config.md ("see db/config.md") — a bare-basename
+  // substring check would wrongly count docs/api/config.md as referenced
+  // too, since 'db/config.md'.includes('config.md') is true.
+  const root = makeTmpRoot();
+  fs.mkdirSync(path.join(root, 'docs', 'api'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'docs', 'db'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'docs', 'api', 'config.md'), '# API Config\n');
+  fs.writeFileSync(path.join(root, 'docs', 'db', 'config.md'), '# DB Config\n');
+  fs.writeFileSync(path.join(root, 'README.md'), 'See db/config.md for database settings.\n');
+
+  const apiResult = computeInboundReferences('api/config', root);
+  assert.strictEqual(apiResult.count, 0, 'docs/api/config.md is never linked and must be reported as orphaned');
+  assert.deepStrictEqual(apiResult.referencedBy, []);
+
+  const dbResult = computeInboundReferences('db/config', root);
+  assert.strictEqual(dbResult.count, 1, 'docs/db/config.md IS linked from README.md and must be counted');
+  assert.deepStrictEqual(dbResult.referencedBy, ['README.md']);
+});
+
+test('counts a reference via a nested relative link ("../config.md") from a sibling subdirectory', () => {
+  const root = makeTmpRoot();
+  fs.mkdirSync(path.join(root, 'docs', 'api'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'docs', 'api', 'sub'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'docs', 'api', 'config.md'), '# API Config\n');
+  fs.writeFileSync(path.join(root, 'docs', 'api', 'sub', 'other.md'), 'See [config](../config.md).\n');
+  const result = computeInboundReferences('api/config', root);
+  assert.strictEqual(result.count, 1);
+  assert.deepStrictEqual(result.referencedBy, [path.join('docs', 'api', 'sub', 'other.md')]);
+});

@@ -281,6 +281,31 @@ test('worktree-required: policy on denies a git commit in the main checkout even
   assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
 });
 
+test('worktree-required: policy on denies a bare "git push" in the main checkout, not just "git commit" (finding regression)', () => {
+  // checkWorktreeRequired's Bash-command target detection previously only
+  // recognized gitTargets(...).find(t => t.action === 'commit'), never
+  // 'push' — a `git push` with no accompanying `git commit` in the same
+  // invocation never set targetPath, so the gate returned {} (allow)
+  // unconditionally, contradicting both the deny message below and
+  // CLAUDE.md's Hooks section, which both state the policy covers
+  // "git commit/push".
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree.always: true\n');
+  const out = pre.run({ input: bashInput('git push origin main', repo), runDir: null, runState: null, cwd: repo });
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny', 'a bare git push must be denied from a non-isolated checkout, same as git commit');
+  assert.match(out.json.hookSpecificOutput.permissionDecisionReason, /worktree\.always/);
+});
+
+test('worktree-required: policy on allows "git push" from inside a linked worktree', () => {
+  const repo = gitRepoWithCommit();
+  withPolicy(repo, 'worktree.always: true\n');
+  execFileSync('git', ['-C', repo, 'add', '.claude-tweaks/policy.yml']);
+  execFileSync('git', ['-C', repo, 'commit', '-m', 'policy', '-q']);
+  const wt = linkedWorktreeOf(repo);
+  const out = pre.run({ input: bashInput('git push origin HEAD', wt), runDir: null, runState: null, cwd: wt });
+  assert.deepStrictEqual(out, {});
+});
+
 test('worktree-required: policy is read from the EDIT TARGET\'s own repo, not the session cwd', () => {
   const policyRepo = gitRepoWithCommit();
   withPolicy(policyRepo, 'worktree.always: true\n');

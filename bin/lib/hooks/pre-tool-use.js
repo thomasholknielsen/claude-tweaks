@@ -63,9 +63,13 @@ function checkWorktreeRequired(ctx) {
   } else if (toolName === 'Bash') {
     const command = toolInput && typeof toolInput.command === 'string' ? toolInput.command : null;
     if (command) {
-      const commit = gitTargets(command, ctx.cwd).find((t) => t.action === 'commit');
-      if (commit) {
-        targetPath = commit.dir;
+      // Both commit AND push are covered by this policy (see the deny
+      // message below and CLAUDE.md's Hooks section) — gitTargets already
+      // detects both actions, so don't narrow to 'commit' only, or a bare
+      // `git push` from a non-isolated checkout silently bypasses the gate.
+      const gitTarget = gitTargets(command, ctx.cwd).find((t) => t.action === 'commit' || t.action === 'push');
+      if (gitTarget) {
+        targetPath = gitTarget.dir;
       } else {
         // Non-git direct file writes (tee, cp, mv) — best-effort,
         // not exhaustive (see fileWriteTargets' own header comment).

@@ -105,6 +105,19 @@ test('does not warn when the same issue is cited twice, once bare and once with 
   assert.deepStrictEqual(runPostToolUse(repo), {});
 });
 
+test('warns when a word merely ENDS in a closing-keyword suffix, glued to a disqualifying prefix, with a long gap before the ref (fixed-lookback-window regression)', () => {
+  // "unresolved" ends in "resolved" (a recognized keyword), and enough
+  // whitespace separates it from the ref that a fixed 20-char lookback
+  // window slices the "un" prefix off entirely — leaving just "resolved"
+  // at the very start of the truncated slice, where JS regex's \b wrongly
+  // treats that truncation point as a real word boundary. The real message
+  // has no genuine closing keyword here at all.
+  const repo = gitRepoWithMessage('This is unresolved            #123');
+  const out = runPostToolUse(repo);
+  assert.ok(out.json && typeof out.json.systemMessage === 'string', 'expected a systemMessage warning — "unresolved" is not a real closing keyword');
+  assert.match(out.json.systemMessage, /closing keyword/i);
+});
+
 test('does not evaluate a stale HEAD left over from a git commit that never landed (finding 2 regression)', () => {
   // Simulates a rejected/failed `git commit` attempt: PostToolUse still fires, but
   // HEAD is an old, unrelated commit rather than anything the just-attempted Bash
