@@ -5,6 +5,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+const { seedDurableState } = require('../../health-core/tests/seed-durable-state');
+
 const CLI = path.resolve(__dirname, '..', '..', '..', 'harness-health.js');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'harness-health-nt-')); }
@@ -17,28 +19,14 @@ function runNextTarget(args, root) {
 // health-state migration — cursors now live on the durable health-state
 // branch (bin/lib/health-core/durable-state.js), not local disk. Its read
 // path (readDurableState) is pure git plumbing (fetch + show), so it CAN be
-// exercised for real without gh/network: seed a local bare repo as `origin`,
-// commit the cursors file directly onto a `health-state` branch, and point
-// `root`'s own `origin` remote at it. Only the WRITE path (gh api
-// blob/tree/commit/ref calls) requires live GitHub credentials — this helper
-// never touches it. Mirrors
-// bin/lib/code-health/tests/cli-nextslice.test.js's seedDurableCursors.
+// exercised for real without gh/network via the shared
+// bin/lib/health-core/tests/seed-durable-state.js helper. This same
+// git-fixture-seeding sequence was previously hand-duplicated here (as
+// seedDurableCursors) and in bin/lib/harness-health/tests/
+// cli-validate-findings.test.js's own seedDurableRuns (still its own copy —
+// out of this fix's scope); the extraction only migrates this file's copy.
 function seedDurableCursors(root, cursors) {
-  const bareDir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-health-nt-bare-'));
-  execFileSync('git', ['init', '--bare', '-q', bareDir]);
-  const seedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-health-nt-seed-'));
-  execFileSync('git', ['init', '-q', seedDir]);
-  execFileSync('git', ['-C', seedDir, 'checkout', '-q', '-b', 'health-state']);
-  fs.mkdirSync(path.join(seedDir, 'harness-health'), { recursive: true });
-  fs.writeFileSync(path.join(seedDir, 'harness-health', 'cursors.json'), JSON.stringify(cursors));
-  execFileSync('git', ['-C', seedDir, 'add', '-A']);
-  execFileSync(
-    'git',
-    ['-C', seedDir, '-c', 'user.email=test@example.com', '-c', 'user.name=test', 'commit', '-q', '-m', 'seed'],
-  );
-  execFileSync('git', ['-C', seedDir, 'push', '-q', bareDir, 'health-state']);
-  execFileSync('git', ['init', '-q'], { cwd: root });
-  execFileSync('git', ['remote', 'add', 'origin', bareDir], { cwd: root });
+  seedDurableState(root, 'harness-health', 'cursors.json', cursors, 'harness-health-nt');
 }
 
 test('next-target returns { target: null, gapScanDue: true } for a project with no targets yet', () => {

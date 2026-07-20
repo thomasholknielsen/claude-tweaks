@@ -1,0 +1,47 @@
+'use strict';
+const { execFileSync } = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+// Shared health-state-branch git-fixture-seeding helper, for any subsystem
+// built on bin/lib/health-core/durable-state.js (harness-health,
+// journey-health, docs-health). Seeds a local bare repo as `origin`, commits
+// `<subsystemDir>/<filename>` directly onto a `health-state` branch, then
+// points `root`'s own `origin` remote at it -- letting readDurableState's
+// real fetch+show git plumbing be exercised end-to-end without gh/network
+// credentials (only the WRITE path, gh api blob/tree/commit/ref, requires
+// those, and this helper never touches it).
+//
+// Previously this same ~15-line sequence was hand-duplicated once per
+// subsystem/filename combination -- e.g.
+// bin/lib/harness-health/tests/cli-next-target.test.js's seedDurableCursors
+// (harness-health/cursors.json) and
+// bin/lib/harness-health/tests/cli-validate-findings.test.js's
+// seedDurableRuns (harness-health/runs.json) -- each independently spelling
+// out the same 8-step sequence, with each file's own comment naming the
+// others as precedent instead of extracting a shared helper. This is that
+// shared implementation; call it with the subsystem dir and filename that
+// vary per call site.
+//
+// tmpPrefix namespaces the throwaway bare/seed directories per caller so
+// concurrent test files don't collide under os.tmpdir().
+function seedDurableState(root, subsystemDir, filename, data, tmpPrefix) {
+  const bareDir = fs.mkdtempSync(path.join(os.tmpdir(), `${tmpPrefix}-bare-`));
+  execFileSync('git', ['init', '--bare', '-q', bareDir]);
+  const seedDir = fs.mkdtempSync(path.join(os.tmpdir(), `${tmpPrefix}-seed-`));
+  execFileSync('git', ['init', '-q', seedDir]);
+  execFileSync('git', ['-C', seedDir, 'checkout', '-q', '-b', 'health-state']);
+  fs.mkdirSync(path.join(seedDir, subsystemDir), { recursive: true });
+  fs.writeFileSync(path.join(seedDir, subsystemDir, filename), JSON.stringify(data));
+  execFileSync('git', ['-C', seedDir, 'add', '-A']);
+  execFileSync(
+    'git',
+    ['-C', seedDir, '-c', 'user.email=test@example.com', '-c', 'user.name=test', 'commit', '-q', '-m', 'seed'],
+  );
+  execFileSync('git', ['-C', seedDir, 'push', '-q', bareDir, 'health-state']);
+  execFileSync('git', ['init', '-q'], { cwd: root });
+  execFileSync('git', ['remote', 'add', 'origin', bareDir], { cwd: root });
+}
+
+module.exports = { seedDurableState };

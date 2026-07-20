@@ -86,6 +86,11 @@ test('update dequeues successes and enqueues failures, printing entries that jus
   const ds = fakeDurableState({
     retryQueue: [
       { fingerprint: 'stuck', payload: { title: 'Stuck' }, firstFailedAt: 'x', attempts: 2, lastError: 'timeout' },
+      // 'fresh' must already be a queued entry (not a brand-new fingerprint)
+      // so the ok:true result below has a real, pre-existing queue entry to
+      // dequeue — otherwise dequeueRetry running or not running on it is
+      // unobservable (there's nothing there to remove either way).
+      { fingerprint: 'fresh', payload: { title: 'Fresh' }, firstFailedAt: 'x', attempts: 1, lastError: 'timeout' },
     ],
   });
   const { update } = makeRetryQueueCommands(ds);
@@ -99,6 +104,14 @@ test('update dequeues successes and enqueues failures, printing entries that jus
   assert.strictEqual(escalated.length, 1);
   assert.strictEqual(escalated[0].fingerprint, 'stuck');
   assert.strictEqual(escalated[0].attempts, 3);
+  // Prove dequeueRetry actually removed the now-successful 'fresh' entry from
+  // the persisted queue, not just that it's absent from the (failures-only)
+  // escalated output.
+  const persisted = ds.readDurableState().retryQueue;
+  assert.ok(
+    !persisted.some((e) => e.fingerprint === 'fresh'),
+    `expected 'fresh' to be dequeued from the persisted retryQueue on success; got ${JSON.stringify(persisted)}`,
+  );
 });
 
 test('update reports each escalated fingerprint exactly once even when the mutator is re-invoked multiple times before the write succeeds', () => {

@@ -12,7 +12,11 @@ const {
 } = require('../scope');
 const { STALE_DAYS } = require('../score');
 
-function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'harness-health-scope-')); }
+function tmp(t) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-health-scope-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  return dir;
+}
 
 function initGitRepo(root) {
   execFileSync('git', ['-C', root, 'init', '-q']);
@@ -27,13 +31,13 @@ function commit(root, msg) {
 
 // ─── listSkills ────────────────────────────────────────────────────────────
 
-test('listSkills returns [] when .claude/skills does not exist', () => {
-  const root = tmp();
+test('listSkills returns [] when .claude/skills does not exist', (t) => {
+  const root = tmp(t);
   assert.deepStrictEqual(listSkills(root), []);
 });
 
-test('listSkills lists .md files under .claude/skills, sorted by id, tagged kind: skill', () => {
-  const root = tmp();
+test('listSkills lists .md files under .claude/skills, sorted by id, tagged kind: skill', (t) => {
+  const root = tmp(t);
   fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
   fs.writeFileSync(path.join(root, '.claude', 'skills', 'zebra.md'), '# zebra');
   fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth');
@@ -43,8 +47,8 @@ test('listSkills lists .md files under .claude/skills, sorted by id, tagged kind
   assert.strictEqual(skills[0].kind, 'skill');
 });
 
-test('listSkills ignores non-.md files', () => {
-  const root = tmp();
+test('listSkills ignores non-.md files', (t) => {
+  const root = tmp(t);
   fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
   fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth');
   fs.writeFileSync(path.join(root, '.claude', 'skills', 'notes.txt'), 'ignore me');
@@ -84,13 +88,13 @@ test('parseRulePaths returns [] when there is no paths: key', () => {
   assert.deepStrictEqual(parseRulePaths(content), []);
 });
 
-test('listRules returns [] when .claude/rules does not exist', () => {
-  const root = tmp();
+test('listRules returns [] when .claude/rules does not exist', (t) => {
+  const root = tmp(t);
   assert.deepStrictEqual(listRules(root), []);
 });
 
-test('listRules lists .claude/rules/*.md sorted by id, tagged kind: rule, with parsed pathGlobs', () => {
-  const root = tmp();
+test('listRules lists .claude/rules/*.md sorted by id, tagged kind: rule, with parsed pathGlobs', (t) => {
+  const root = tmp(t);
   fs.mkdirSync(path.join(root, '.claude', 'rules'), { recursive: true });
   fs.writeFileSync(path.join(root, '.claude', 'rules', 'api-errors.md'), '---\npaths:\n  - src/api/**\n---\nUse the error handler.');
   fs.writeFileSync(path.join(root, '.claude', 'rules', 'zzz.md'), '# no frontmatter');
@@ -103,13 +107,13 @@ test('listRules lists .claude/rules/*.md sorted by id, tagged kind: rule, with p
 
 // ─── listClaudeMd ───────────────────────────────────────────────────────────
 
-test('listClaudeMd returns [] when CLAUDE.md does not exist', () => {
-  const root = tmp();
+test('listClaudeMd returns [] when CLAUDE.md does not exist', (t) => {
+  const root = tmp(t);
   assert.deepStrictEqual(listClaudeMd(root), []);
 });
 
-test('listClaudeMd returns a single kind: claude-md item when CLAUDE.md exists', () => {
-  const root = tmp();
+test('listClaudeMd returns a single kind: claude-md item when CLAUDE.md exists', (t) => {
+  const root = tmp(t);
   fs.writeFileSync(path.join(root, 'CLAUDE.md'), '# Project\n');
   const result = listClaudeMd(root);
   assert.strictEqual(result.length, 1);
@@ -120,13 +124,13 @@ test('listClaudeMd returns a single kind: claude-md item when CLAUDE.md exists',
 
 // ─── listMemory ─────────────────────────────────────────────────────────────
 
-test('listMemory returns [] when MEMORY.md does not exist', () => {
-  const root = tmp();
+test('listMemory returns [] when MEMORY.md does not exist', (t) => {
+  const root = tmp(t);
   assert.deepStrictEqual(listMemory(root), []);
 });
 
-test('listMemory parses `- [Title](file.md) — hook` bullets into memory targets', () => {
-  const root = tmp();
+test('listMemory parses `- [Title](file.md) — hook` bullets into memory targets', (t) => {
+  const root = tmp(t);
   fs.writeFileSync(
     path.join(root, 'MEMORY.md'),
     '# Memory Index\n\n' +
@@ -139,8 +143,8 @@ test('listMemory parses `- [Title](file.md) — hook` bullets into memory target
   assert.strictEqual(targets[0].path, path.join(root, 'brainstorming-interaction-style.md'));
 });
 
-test('listMemory ignores non-bullet lines (headings, blank lines, prose)', () => {
-  const root = tmp();
+test('listMemory ignores non-bullet lines (headings, blank lines, prose)', (t) => {
+  const root = tmp(t);
   fs.writeFileSync(
     root && path.join(root, 'MEMORY.md'),
     '# Memory Index\n\nSome intro prose that is not a bullet.\n\n- [Only entry](only-entry.md) — the one real bullet\n',
@@ -150,13 +154,13 @@ test('listMemory ignores non-bullet lines (headings, blank lines, prose)', () =>
 
 // ─── selectMemoryTarget ──────────────────────────────────────────────────────
 
-test('selectMemoryTarget returns null when there are no memory entries', () => {
-  const root = tmp();
+test('selectMemoryTarget returns null when there are no memory entries', (t) => {
+  const root = tmp(t);
   assert.strictEqual(selectMemoryTarget(root, {}), null);
 });
 
-test('selectMemoryTarget picks a never-audited entry as stale', () => {
-  const root = tmp();
+test('selectMemoryTarget picks a never-audited entry as stale', (t) => {
+  const root = tmp(t);
   fs.writeFileSync(path.join(root, 'MEMORY.md'), '- [Only entry](only-entry.md) — hook\n');
   const target = selectMemoryTarget(root, {});
   assert.strictEqual(target.kind, 'memory');
@@ -164,16 +168,16 @@ test('selectMemoryTarget picks a never-audited entry as stale', () => {
   assert.strictEqual(target.why, 'stale');
 });
 
-test('selectMemoryTarget returns null when every entry was audited recently (no hotspot fallback)', () => {
-  const root = tmp();
+test('selectMemoryTarget returns null when every entry was audited recently (no hotspot fallback)', (t) => {
+  const root = tmp(t);
   fs.writeFileSync(path.join(root, 'MEMORY.md'), '- [Only entry](only-entry.md) — hook\n');
   const now = Date.now();
   const cursors = { 'memory:only-entry': { lastAuditedMs: now - 1000 } };
   assert.strictEqual(selectMemoryTarget(root, cursors, { now }), null);
 });
 
-test('selectMemoryTarget force-picks past STALE_DAYS even with a recorded cursor', () => {
-  const root = tmp();
+test('selectMemoryTarget force-picks past STALE_DAYS even with a recorded cursor', (t) => {
+  const root = tmp(t);
   fs.writeFileSync(path.join(root, 'MEMORY.md'), '- [Only entry](only-entry.md) — hook\n');
   const now = Date.now();
   const cursors = { 'memory:only-entry': { lastAuditedMs: now - (STALE_DAYS + 1) * 86400000 } };
@@ -182,8 +186,8 @@ test('selectMemoryTarget force-picks past STALE_DAYS even with a recorded cursor
   assert.strictEqual(target.daysSinceLastAudit, STALE_DAYS + 1);
 });
 
-test('listTargets never includes a kind: memory entry, even when MEMORY.md exists alongside it', () => {
-  const root = tmp();
+test('listTargets never includes a kind: memory entry, even when MEMORY.md exists alongside it', (t) => {
+  const root = tmp(t);
   fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
   fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth');
   fs.writeFileSync(path.join(root, 'CLAUDE.md'), '# Project\n');
@@ -194,38 +198,38 @@ test('listTargets never includes a kind: memory entry, even when MEMORY.md exist
 
 // ─── readDesignIntegrationFlag / listDesignArtifacts ──────────────────────
 
-test('readDesignIntegrationFlag returns disabled when CLAUDE.md does not exist', () => {
-  const root = tmp();
+test('readDesignIntegrationFlag returns disabled when CLAUDE.md does not exist', (t) => {
+  const root = tmp(t);
   assert.strictEqual(readDesignIntegrationFlag(root), 'disabled');
 });
 
-test('readDesignIntegrationFlag parses the design-integration value from CLAUDE.md', () => {
-  const root = tmp();
+test('readDesignIntegrationFlag parses the design-integration value from CLAUDE.md', (t) => {
+  const root = tmp(t);
   fs.writeFileSync(path.join(root, 'CLAUDE.md'), '# Project\n\n## Design integration\n\ndesign-integration: enabled\n');
   assert.strictEqual(readDesignIntegrationFlag(root), 'enabled');
 });
 
-test('readDesignIntegrationFlag returns disabled when the flag is absent from CLAUDE.md', () => {
-  const root = tmp();
+test('readDesignIntegrationFlag returns disabled when the flag is absent from CLAUDE.md', (t) => {
+  const root = tmp(t);
   fs.writeFileSync(path.join(root, 'CLAUDE.md'), '# Project\n\nNo design flag here.\n');
   assert.strictEqual(readDesignIntegrationFlag(root), 'disabled');
 });
 
-test('listDesignArtifacts returns [] when design-integration is not enabled', () => {
-  const root = tmp();
+test('listDesignArtifacts returns [] when design-integration is not enabled', (t) => {
+  const root = tmp(t);
   fs.writeFileSync(path.join(root, 'CLAUDE.md'), '## Design integration\n\ndesign-integration: plugin-only\n');
   fs.writeFileSync(path.join(root, 'PRODUCT.md'), '# Product context');
   assert.deepStrictEqual(listDesignArtifacts(root), []);
 });
 
-test('listDesignArtifacts returns [] when CLAUDE.md is absent, even if PRODUCT.md/DESIGN.md exist', () => {
-  const root = tmp();
+test('listDesignArtifacts returns [] when CLAUDE.md is absent, even if PRODUCT.md/DESIGN.md exist', (t) => {
+  const root = tmp(t);
   fs.writeFileSync(path.join(root, 'PRODUCT.md'), '# Product context');
   assert.deepStrictEqual(listDesignArtifacts(root), []);
 });
 
-test('listDesignArtifacts finds PRODUCT.md and DESIGN.md at the project root when enabled', () => {
-  const root = tmp();
+test('listDesignArtifacts finds PRODUCT.md and DESIGN.md at the project root when enabled', (t) => {
+  const root = tmp(t);
   fs.writeFileSync(path.join(root, 'CLAUDE.md'), '## Design integration\n\ndesign-integration: enabled\n');
   fs.writeFileSync(path.join(root, 'PRODUCT.md'), '# Product context');
   fs.writeFileSync(path.join(root, 'DESIGN.md'), '# Design system');
@@ -234,16 +238,16 @@ test('listDesignArtifacts finds PRODUCT.md and DESIGN.md at the project root whe
   assert.ok(artifacts.every((a) => a.kind === 'design-artifact'));
 });
 
-test('listDesignArtifacts omits a file that is absent at every canonical and fallback path', () => {
-  const root = tmp();
+test('listDesignArtifacts omits a file that is absent at every canonical and fallback path', (t) => {
+  const root = tmp(t);
   fs.writeFileSync(path.join(root, 'CLAUDE.md'), '## Design integration\n\ndesign-integration: enabled\n');
   fs.writeFileSync(path.join(root, 'PRODUCT.md'), '# Product context');
   const artifacts = listDesignArtifacts(root);
   assert.deepStrictEqual(artifacts.map((a) => a.id), ['PRODUCT']);
 });
 
-test('listDesignArtifacts falls back to docs/design/ then docs/ when root files are absent', () => {
-  const root = tmp();
+test('listDesignArtifacts falls back to docs/design/ then docs/ when root files are absent', (t) => {
+  const root = tmp(t);
   fs.writeFileSync(path.join(root, 'CLAUDE.md'), '## Design integration\n\ndesign-integration: enabled\n');
   fs.mkdirSync(path.join(root, 'docs', 'design'), { recursive: true });
   fs.writeFileSync(path.join(root, 'docs', 'design', 'PRODUCT.md'), '# fallback product');
@@ -255,8 +259,8 @@ test('listDesignArtifacts falls back to docs/design/ then docs/ when root files 
   assert.strictEqual(design.path, path.join(root, 'docs', 'DESIGN.md'));
 });
 
-test('listDesignArtifacts gives PRODUCT empty pathGlobs and DESIGN the frontend-signal glob list', () => {
-  const root = tmp();
+test('listDesignArtifacts gives PRODUCT empty pathGlobs and DESIGN the frontend-signal glob list', (t) => {
+  const root = tmp(t);
   fs.writeFileSync(path.join(root, 'CLAUDE.md'), '## Design integration\n\ndesign-integration: enabled\n');
   fs.writeFileSync(path.join(root, 'PRODUCT.md'), '# p');
   fs.writeFileSync(path.join(root, 'DESIGN.md'), '# d');
@@ -270,8 +274,8 @@ test('listDesignArtifacts gives PRODUCT empty pathGlobs and DESIGN the frontend-
 
 // ─── listTargets ────────────────────────────────────────────────────────────
 
-test('listTargets aggregates skills, rules, and CLAUDE.md, each correctly tagged', () => {
-  const root = tmp();
+test('listTargets aggregates skills, rules, and CLAUDE.md, each correctly tagged', (t) => {
+  const root = tmp(t);
   fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
   fs.mkdirSync(path.join(root, '.claude', 'rules'), { recursive: true });
   fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth');
@@ -284,8 +288,8 @@ test('listTargets aggregates skills, rules, and CLAUDE.md, each correctly tagged
   );
 });
 
-test('listTargets includes design artifacts when design-integration is enabled', () => {
-  const root = tmp();
+test('listTargets includes design artifacts when design-integration is enabled', (t) => {
+  const root = tmp(t);
   fs.writeFileSync(path.join(root, 'CLAUDE.md'), '## Design integration\n\ndesign-integration: enabled\n');
   fs.writeFileSync(path.join(root, 'PRODUCT.md'), '# p');
   const targets = listTargets(root);
@@ -294,13 +298,13 @@ test('listTargets includes design artifacts when design-integration is enabled',
 
 // ─── domainChurn ───────────────────────────────────────────────────────────
 
-test('domainChurn returns 0 for an empty path list', () => {
-  const root = tmp();
+test('domainChurn returns 0 for an empty path list', (t) => {
+  const root = tmp(t);
   assert.strictEqual(domainChurn(root, [], 0), 0);
 });
 
-test('domainChurn counts commits touching the given paths since sinceMs', () => {
-  const root = tmp();
+test('domainChurn counts commits touching the given paths since sinceMs', (t) => {
+  const root = tmp(t);
   initGitRepo(root);
   fs.mkdirSync(path.join(root, 'src'), { recursive: true });
   fs.writeFileSync(path.join(root, 'src', 'a.js'), 'const x = 1;\n');
@@ -319,13 +323,13 @@ test('domainChurn returns 0 when git is unavailable (bad root)', () => {
 
 // ─── selectTarget ──────────────────────────────────────────────────────────
 
-test('selectTarget returns null when no skills exist', () => {
-  const root = tmp();
+test('selectTarget returns null when no skills exist', (t) => {
+  const root = tmp(t);
   assert.strictEqual(selectTarget(root, {}, { now: Date.now() }), null);
 });
 
-test('selectTarget force-picks a never-audited skill as stale', () => {
-  const root = tmp();
+test('selectTarget force-picks a never-audited skill as stale', (t) => {
+  const root = tmp(t);
   fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
   fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth\nSee `src/auth.js`.');
   const result = selectTarget(root, {}, { now: Date.now() });
@@ -334,8 +338,8 @@ test('selectTarget force-picks a never-audited skill as stale', () => {
   assert.strictEqual(result.why, 'stale');
 });
 
-test('selectTarget force-picks a skill unaudited past STALE_DAYS even with a cursor present', () => {
-  const root = tmp();
+test('selectTarget force-picks a skill unaudited past STALE_DAYS even with a cursor present', (t) => {
+  const root = tmp(t);
   fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
   fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth');
   const staleMs = Date.now() - (90 + 5) * 86400000;
@@ -344,8 +348,8 @@ test('selectTarget force-picks a skill unaudited past STALE_DAYS even with a cur
   assert.strictEqual(result.why, 'stale');
 });
 
-test('selectTarget returns null when all skills are fresh with zero churn', () => {
-  const root = tmp();
+test('selectTarget returns null when all skills are fresh with zero churn', (t) => {
+  const root = tmp(t);
   fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
   fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth');
   const recentMs = Date.now() - 1 * 86400000;
@@ -356,8 +360,8 @@ test('selectTarget returns null when all skills are fresh with zero churn', () =
   assert.strictEqual(result, null);
 });
 
-test('selectTarget picks the highest-churn skill among fresh candidates (via signals injection)', () => {
-  const root = tmp();
+test('selectTarget picks the highest-churn skill among fresh candidates (via signals injection)', (t) => {
+  const root = tmp(t);
   fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
   fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth');
   fs.writeFileSync(path.join(root, '.claude', 'skills', 'billing.md'), '# billing');
@@ -375,8 +379,8 @@ test('selectTarget picks the highest-churn skill among fresh candidates (via sig
   assert.strictEqual(result.why, 'hotspot');
 });
 
-test('selectTarget does not collide when a skill and a rule share the same bare id', () => {
-  const root = tmp();
+test('selectTarget does not collide when a skill and a rule share the same bare id', (t) => {
+  const root = tmp(t);
   fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
   fs.mkdirSync(path.join(root, '.claude', 'rules'), { recursive: true });
   fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth');
@@ -395,8 +399,8 @@ test('selectTarget does not collide when a skill and a rule share the same bare 
   assert.strictEqual(result.id, 'auth');
 });
 
-test('selectTarget --kind filter restricts the pool to one kind', () => {
-  const root = tmp();
+test('selectTarget --kind filter restricts the pool to one kind', (t) => {
+  const root = tmp(t);
   fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
   fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth');
   fs.writeFileSync(path.join(root, 'CLAUDE.md'), '# Project\n');
@@ -405,8 +409,8 @@ test('selectTarget --kind filter restricts the pool to one kind', () => {
   assert.strictEqual(result.kind, 'claude-md');
 });
 
-test('selectTarget reports daysSinceLastAudit: null for a never-audited (no cursor) stale pick', () => {
-  const root = tmp();
+test('selectTarget reports daysSinceLastAudit: null for a never-audited (no cursor) stale pick', (t) => {
+  const root = tmp(t);
   fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
   fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth');
   const result = selectTarget(root, {}, { now: Date.now() });
@@ -414,8 +418,8 @@ test('selectTarget reports daysSinceLastAudit: null for a never-audited (no curs
   assert.strictEqual(result.daysSinceLastAudit, null);
 });
 
-test('selectTarget reports a numeric daysSinceLastAudit for a stale pick with a prior cursor', () => {
-  const root = tmp();
+test('selectTarget reports a numeric daysSinceLastAudit for a stale pick with a prior cursor', (t) => {
+  const root = tmp(t);
   fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
   fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth');
   const staleMs = Date.now() - (90 + 10) * 86400000;
@@ -424,8 +428,8 @@ test('selectTarget reports a numeric daysSinceLastAudit for a stale pick with a 
   assert.ok(result.daysSinceLastAudit >= 100, `expected >= 100, got ${result.daysSinceLastAudit}`);
 });
 
-test('selectTarget reports churnCount on a hotspot pick', () => {
-  const root = tmp();
+test('selectTarget reports churnCount on a hotspot pick', (t) => {
+  const root = tmp(t);
   fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
   fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth');
   const recentMs = Date.now() - 1 * 86400000;
@@ -437,8 +441,8 @@ test('selectTarget reports churnCount on a hotspot pick', () => {
   assert.strictEqual(result.churnCount, 7);
 });
 
-test('selectTarget Phase 2 uses a design-artifact candidate pathGlobs, not content-scraped paths', () => {
-  const root = tmp();
+test('selectTarget Phase 2 uses a design-artifact candidate pathGlobs, not content-scraped paths', (t) => {
+  const root = tmp(t);
   initGitRepo(root);
   fs.writeFileSync(path.join(root, 'CLAUDE.md'), '## Design integration\n\ndesign-integration: enabled\n');
   fs.mkdirSync(path.join(root, 'components'), { recursive: true });
@@ -458,8 +462,8 @@ test('selectTarget Phase 2 uses a design-artifact candidate pathGlobs, not conte
   assert.strictEqual(result.why, 'hotspot');
 });
 
-test('selectTarget lets PRODUCT win via hotspot from its own content-scraped paths despite empty pathGlobs', () => {
-  const root = tmp();
+test('selectTarget lets PRODUCT win via hotspot from its own content-scraped paths despite empty pathGlobs', (t) => {
+  const root = tmp(t);
   initGitRepo(root);
   fs.writeFileSync(path.join(root, 'CLAUDE.md'), '## Design integration\n\ndesign-integration: enabled\n');
   fs.mkdirSync(path.join(root, 'src'), { recursive: true });

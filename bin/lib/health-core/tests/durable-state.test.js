@@ -124,6 +124,37 @@ function matchArgs(args, needle) {
   return args.join(' ').includes(needle);
 }
 
+// The common writeState success-path rule set (rev-parse ^{tree}, rev-parse
+// commit, fetch, show, and the gh blob/tree/commit sequence) that every
+// writeState test below needs identically -- only the final ref-update rule
+// (matched separately via refUpdateRule()) actually varies per test (a plain
+// success, a retry-then-succeed, or an always-fail). Extracted so a change to
+// the real git/gh call sequence only needs updating in one place instead of
+// six near-identical copies.
+function baseWriteStateRules() {
+  return [
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && matchArgs(args, '^{tree}'), returns: 'tree-sha-1\n' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && !matchArgs(args, '^{tree}'), returns: 'commit-sha-1\n' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), returns: '' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show'), throws: 'fatal: path does not exist' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/blobs'), returns: 'blob-sha\n' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/trees'), returns: 'tree-sha-2\n' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/commits'), returns: 'commit-sha-2\n' },
+  ];
+}
+
+// The one rule each writeState test genuinely varies on: the final
+// `gh api ... git/refs/heads/health-state ... PATCH` ref update. `behavior`
+// is a { returns } or { throws } object, matching fakeRunner's own rule
+// shape, so callers can pass a plain value or a lazy function exactly as
+// they would inline.
+function refUpdateRule(behavior) {
+  return {
+    match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/refs/heads/health-state') && matchArgs(args, 'PATCH'),
+    ...behavior,
+  };
+}
+
 test('readState returns empty defaults when the branch does not exist yet (includeRemembered:true skill)', () => {
   const { run } = fakeRunner([
     { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), throws: "couldn't find remote ref health-state" },
@@ -195,17 +226,8 @@ test('readState omits the remembered key entirely for a skill that does not opt 
 test('writeState succeeds on the first attempt: fetch, read, build blobs/tree/commit, non-force ref update', () => {
   const written = {};
   const { run } = fakeRunner([
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && matchArgs(args, '^{tree}'), returns: 'tree-sha-1\n' },
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && !matchArgs(args, '^{tree}'), returns: 'commit-sha-1\n' },
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), returns: '' },
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show'), throws: 'fatal: path does not exist' },
-    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/blobs'), returns: 'blob-sha\n' },
-    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/trees'), returns: 'tree-sha-2\n' },
-    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/commits'), returns: 'commit-sha-2\n' },
-    {
-      match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/refs/heads/health-state') && matchArgs(args, 'PATCH'),
-      returns: () => { written.updated = true; return ''; },
-    },
+    ...baseWriteStateRules(),
+    refUpdateRule({ returns: () => { written.updated = true; return ''; } }),
   ]);
   const ds = createDurableState('code-health', { run, sleep: () => {}, includeRemembered: true });
   const result = ds.writeState('/repo', (current) => ({ ...current, cursors: { '.': { lastSweptMs: 2 } } }));
@@ -216,21 +238,14 @@ test('writeState succeeds on the first attempt: fetch, read, build blobs/tree/co
 test('writeState retries on a rejected (non-fast-forward) ref update, then succeeds', () => {
   let refAttempts = 0;
   const { run } = fakeRunner([
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && matchArgs(args, '^{tree}'), returns: 'tree-sha-1\n' },
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && !matchArgs(args, '^{tree}'), returns: 'commit-sha-1\n' },
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), returns: '' },
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show'), throws: 'fatal: path does not exist' },
-    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/blobs'), returns: 'blob-sha\n' },
-    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/trees'), returns: 'tree-sha-2\n' },
-    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/commits'), returns: 'commit-sha-2\n' },
-    {
-      match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/refs/heads/health-state') && matchArgs(args, 'PATCH'),
+    ...baseWriteStateRules(),
+    refUpdateRule({
       returns: () => {
         refAttempts += 1;
         if (refAttempts === 1) throw new Error('422 Reference update failed (non-fast-forward)');
         return '';
       },
-    },
+    }),
   ]);
   const ds = createDurableState('code-health', { run, sleep: () => {}, includeRemembered: true });
   const result = ds.writeState('/repo', (current) => ({ ...current, cursors: { '.': { lastSweptMs: 2 } } }));
@@ -240,17 +255,8 @@ test('writeState retries on a rejected (non-fast-forward) ref update, then succe
 
 test('writeState gives up gracefully (no throw) after MAX_CAS_ATTEMPTS exhausted', () => {
   const { run } = fakeRunner([
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && matchArgs(args, '^{tree}'), returns: 'tree-sha-1\n' },
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && !matchArgs(args, '^{tree}'), returns: 'commit-sha-1\n' },
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), returns: '' },
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show'), throws: 'fatal: path does not exist' },
-    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/blobs'), returns: 'blob-sha\n' },
-    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/trees'), returns: 'tree-sha-2\n' },
-    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/commits'), returns: 'commit-sha-2\n' },
-    {
-      match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/refs/heads/health-state') && matchArgs(args, 'PATCH'),
-      throws: '422 Reference update failed (non-fast-forward)',
-    },
+    ...baseWriteStateRules(),
+    refUpdateRule({ throws: '422 Reference update failed (non-fast-forward)' }),
   ]);
   const ds = createDurableState('code-health', { run, sleep: () => {}, includeRemembered: true });
   const result = ds.writeState('/repo', (current) => current);
@@ -260,17 +266,8 @@ test('writeState gives up gracefully (no throw) after MAX_CAS_ATTEMPTS exhausted
 
 test('writeState waits an increasing, jittered interval between CAS retry attempts', () => {
   const { run } = fakeRunner([
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && matchArgs(args, '^{tree}'), returns: 'tree-sha-1\n' },
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && !matchArgs(args, '^{tree}'), returns: 'commit-sha-1\n' },
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), returns: '' },
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show'), throws: 'fatal: path does not exist' },
-    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/blobs'), returns: 'blob-sha\n' },
-    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/trees'), returns: 'tree-sha-2\n' },
-    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/commits'), returns: 'commit-sha-2\n' },
-    {
-      match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/refs/heads/health-state') && matchArgs(args, 'PATCH'),
-      throws: '422 Reference update failed (non-fast-forward)',
-    },
+    ...baseWriteStateRules(),
+    refUpdateRule({ throws: '422 Reference update failed (non-fast-forward)' }),
   ]);
   const sleepCalls = [];
   const ds = createDurableState('code-health', { run, sleep: (ms) => sleepCalls.push(ms), includeRemembered: true });
@@ -325,14 +322,8 @@ test('writeState bootstraps the branch when it does not exist yet, then complete
 
 test('writeState never includes a remembered.json blob for a skill that does not opt in', () => {
   const { run, calls } = fakeRunner([
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && matchArgs(args, '^{tree}'), returns: 'tree-sha-1\n' },
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && !matchArgs(args, '^{tree}'), returns: 'commit-sha-1\n' },
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), returns: '' },
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show'), throws: 'fatal: path does not exist' },
-    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/blobs'), returns: 'blob-sha\n' },
-    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/trees'), returns: 'tree-sha-2\n' },
-    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/commits'), returns: 'commit-sha-2\n' },
-    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/refs/heads/health-state') && matchArgs(args, 'PATCH'), returns: '' },
+    ...baseWriteStateRules(),
+    refUpdateRule({ returns: '' }),
   ]);
   const ds = createDurableState('harness-health', { run, sleep: () => {} });
   const result = ds.writeState('/repo', (current) => current);
@@ -409,14 +400,8 @@ test('writeState fetches at most once per CAS-loop attempt: a redundant internal
 
 test('writeState includes a remembered.json blob only for a skill that opts in', () => {
   const { run, calls } = fakeRunner([
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && matchArgs(args, '^{tree}'), returns: 'tree-sha-1\n' },
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && !matchArgs(args, '^{tree}'), returns: 'commit-sha-1\n' },
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), returns: '' },
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show'), throws: 'fatal: path does not exist' },
-    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/blobs'), returns: 'blob-sha\n' },
-    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/trees'), returns: 'tree-sha-2\n' },
-    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/commits'), returns: 'commit-sha-2\n' },
-    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/refs/heads/health-state') && matchArgs(args, 'PATCH'), returns: '' },
+    ...baseWriteStateRules(),
+    refUpdateRule({ returns: '' }),
   ]);
   const ds = createDurableState('code-health', { run, sleep: () => {}, includeRemembered: true });
   const result = ds.writeState('/repo', (current) => current);
