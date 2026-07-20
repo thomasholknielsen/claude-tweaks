@@ -105,6 +105,32 @@ test('readStdin: clears the 50ms fallback timeout once stdin ends (regression: d
   }
 });
 
+test('readStdin: detaches listeners and pauses stdin once the 50ms fallback timeout fires (regression: hung process)', async () => {
+  const { EventEmitter } = require('node:events');
+  const fakeStdin = new EventEmitter();
+  fakeStdin.isTTY = false;
+  fakeStdin.setEncoding = () => {};
+  let paused = false;
+  fakeStdin.pause = () => { paused = true; };
+
+  const stdinDescriptor = Object.getOwnPropertyDescriptor(process, 'stdin');
+  Object.defineProperty(process, 'stdin', { value: fakeStdin, configurable: true });
+
+  try {
+    // Never emit 'data' or 'end' — force the read to resolve via the 50ms
+    // fallback timer, the exact path that used to leave listeners attached
+    // and the stream unpaused, keeping the event loop referenced forever.
+    const result = await sl.readStdin();
+    assert.strictEqual(result, '');
+    assert.strictEqual(paused, true, 'expected stdin to be paused once the fallback timeout fires');
+    assert.strictEqual(fakeStdin.listenerCount('data'), 0, 'expected the data listener to be detached');
+    assert.strictEqual(fakeStdin.listenerCount('end'), 0, 'expected the end listener to be detached');
+    assert.strictEqual(fakeStdin.listenerCount('error'), 0, 'expected the error listener to be detached');
+  } finally {
+    Object.defineProperty(process, 'stdin', stdinDescriptor);
+  }
+});
+
 test('renderModel: nested display_name', () => {
   assert.strictEqual(sl.renderModel({ model: { display_name: 'Sonnet 4.6', id: 'claude-sonnet-4-6' } }), 'Sonnet 4.6');
 });

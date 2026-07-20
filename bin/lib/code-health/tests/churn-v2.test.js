@@ -72,3 +72,17 @@ test('churn-report CLI exits 0 when ratio is below threshold', () => {
   const result = spawnSync('node', [CLI, 'churn-report', '--root', root, '--fail-on-high-churn', '0.5'], { encoding: 'utf8' });
   assert.strictEqual(result.status, 0, `stdout: ${result.stdout} stderr: ${result.stderr}`);
 });
+
+// Regression: cmdChurnReport used to read args.root bare, without the
+// `args.root || process.cwd()` fallback every other command in this file
+// uses. A malformed --root (trailing flag, no value) silently made it
+// report "no run logs found" instead of falling back to cwd.
+test('churn-report falls back to process.cwd() when --root is a trailing flag with no value', () => {
+  const root = tmp();
+  seedDurableRuns(root, [
+    { runId: 'run-001', runAt: '2026-01-01T00:00:00.000Z', fingerprints: ['recon-aaaa0001', 'recon-bbbb0002'] },
+    { runId: 'run-002', runAt: '2026-01-02T00:00:00.000Z', fingerprints: ['recon-cccc0003', 'recon-dddd0004'] },
+  ]);
+  const result = spawnSync('node', [CLI, 'churn-report', '--fail-on-high-churn', '0.5', '--root'], { cwd: root, encoding: 'utf8' });
+  assert.strictEqual(result.status, 1, `expected the seeded high-churn run at cwd to be found: stdout: ${result.stdout} stderr: ${result.stderr}`);
+});

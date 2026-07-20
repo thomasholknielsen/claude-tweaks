@@ -251,7 +251,10 @@ function cmdFindRefs(args) {
     process.exit(2);
   }
   const root = args.root || process.cwd();
-  if (!fs.existsSync(targetPath)) {
+  // Resolve against root, not process.cwd(), the same way deriveDocId does
+  // just below: --root means "audit a project elsewhere," so a relative
+  // targetPath is meant to be read relative to that root.
+  if (!fs.existsSync(path.resolve(root, targetPath))) {
     process.stderr.write(`find-refs: could not read file: ${targetPath}\n`);
     process.exit(1);
   }
@@ -269,7 +272,10 @@ function cmdCheckFreshness(args) {
   const root = args.root || process.cwd();
   let content;
   try {
-    content = fs.readFileSync(targetPath, 'utf8');
+    // Resolve against root, not process.cwd(), the same way deriveDocId does
+    // just below: --root means "audit a project elsewhere," so a relative
+    // targetPath is meant to be read relative to that root.
+    content = fs.readFileSync(path.resolve(root, targetPath), 'utf8');
   } catch {
     process.stderr.write(`check-freshness: could not read file: ${targetPath}\n`);
     process.exit(1);

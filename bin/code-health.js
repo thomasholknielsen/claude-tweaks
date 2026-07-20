@@ -86,9 +86,10 @@ function loadIssueIndex(file) {
 }
 
 function cmdStatus(args) {
-  const cache = readCache(args.root);
+  const root = args.root || process.cwd();
+  const cache = readCache(root);
   const findings = Object.values(cache);
-  const remembered = Object.keys(readDurableState(args.root).remembered).length;
+  const remembered = Object.keys(readDurableState(root).remembered).length;
   const counts = {
     open: findings.filter((f) => f.status === 'open').length,
     regressed: findings.filter((f) => f.status === 'regressed').length,
@@ -112,7 +113,8 @@ function cmdStatus(args) {
 }
 
 function cmdChurnReport(args) {
-  const runs = readDurableState(args.root).runs;
+  const root = args.root || process.cwd();
+  const runs = readDurableState(root).runs;
   if (runs.length === 0) {
     process.stdout.write('no run logs found\n');
     return;
@@ -149,7 +151,7 @@ function cmdPullIssues(args) {
     process.stderr.write('usage: code-health.js pull-issues --label <label> --issues <file> [--min-severity <sev>]\n');
     process.exit(2);
   }
-  if (args['min-severity'] && !(args['min-severity'] in RISK_RANK)) {
+  if (args['min-severity'] && !Object.prototype.hasOwnProperty.call(RISK_RANK, args['min-severity'])) {
     process.stderr.write(
       `pull-issues: --min-severity "${args['min-severity']}" is not a recognized risk tier ` +
       `(must be one of ${Object.keys(RISK_RANK).join('|')}) — an unrecognized value silently disables ` +
@@ -196,7 +198,7 @@ function cmdValidateFindings(args) {
     process.exit(2);
   }
 
-  if (args['min-risk'] && !(args['min-risk'] in RISK_RANK)) {
+  if (args['min-risk'] && !Object.prototype.hasOwnProperty.call(RISK_RANK, args['min-risk'])) {
     process.stderr.write(
       `validate-findings: --min-risk "${args['min-risk']}" is not a recognized risk tier ` +
       '(must be one of low|medium|high) — an unrecognized value silently remembers every ' +

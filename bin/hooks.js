@@ -58,6 +58,12 @@ function main(argv) {
       }
     } else if (!runDir) {
       process.stdout.write('claude-tweaks: no pipeline run dir found — worktree not recorded\n');
+    } else {
+      // runDir resolved but worktreeArg is falsy — the only remaining case
+      // in this chain. Without this branch, a call that omits the worktree
+      // positional (e.g. "record-worktree --run <dir>" with nothing after)
+      // printed nothing and exited 0, indistinguishable from success.
+      process.stdout.write(`claude-tweaks: no worktree path given for ${path.basename(runDir)} — worktree not recorded\n`);
     }
     return 0;
   }
@@ -87,6 +93,12 @@ function main(argv) {
       if (!result) {
         process.stdout.write(`claude-tweaks: failed to close run ${path.basename(runDir)} — run-state.json could not be written\n`);
       }
+    } else {
+      // No --run was given (or it resolved to nothing) and resolveRunDir's
+      // fallback also found no run dir — the only remaining case in this
+      // chain. Without this branch, a call that can't resolve any run dir
+      // printed nothing and exited 0, indistinguishable from success.
+      process.stdout.write('claude-tweaks: no pipeline run dir found — run not closed\n');
     }
     return 0;
   }

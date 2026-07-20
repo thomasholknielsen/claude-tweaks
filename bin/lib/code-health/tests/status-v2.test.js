@@ -102,3 +102,20 @@ test('status --fail-on regressed exits 0 when no regressed entries', () => {
   const result = spawnSync('node', [CLI, 'status', '--fail-on', 'regressed', '--root', root], { encoding: 'utf8' });
   assert.strictEqual(result.status, 0);
 });
+
+// Regression: cmdStatus used to read args.root bare, without the
+// `args.root || process.cwd()` fallback every other command here (and every
+// sibling health CLI) uses. A malformed --root (e.g. a trailing flag with no
+// value, which parseArgs turns into `undefined`) silently made status
+// report empty state instead of falling back to cwd — defeating a
+// --fail-on regressed CI/Routine gate even with a regressed finding sitting
+// right in the invoking directory.
+test('status falls back to process.cwd() when --root is a trailing flag with no value', () => {
+  const root = tmp();
+  writeV2Cache(root, [
+    { fp: 'recon-aaaabbbb', status: 'regressed', severity: 'high' },
+  ]);
+  const result = spawnSync('node', [CLI, 'status', '--fail-on', 'regressed', '--root'], { cwd: root, encoding: 'utf8' });
+  assert.strictEqual(result.status, 1, `expected the regressed finding at cwd to be found: ${result.stdout}`);
+  assert.ok(result.stdout.includes('FAIL: 1 regressed'), `expected FAIL in: ${result.stdout}`);
+});

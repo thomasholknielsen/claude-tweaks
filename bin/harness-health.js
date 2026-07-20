@@ -151,6 +151,22 @@ function cmdValidateFindings(args) {
     process.exit(2);
   }
 
+  // buildValidateFindingsUpdate only patches a cursor when both target AND
+  // kind are present (see lib/harness-health/cache.js), or when gapScan is
+  // set. A real run that omits all three (a flag typo, or a skill-prompt
+  // drift) still writes the run record and dedup cache correctly but never
+  // advances any audit cursor — the target then gets perpetually
+  // re-selected as stale/overdue on every future run. Mirrors
+  // code-health.js's own --slice hard-gate for validate-findings.
+  if (!args.dryRun && !((args.target && args.kind) || args.gapScan)) {
+    process.stderr.write(
+      'validate-findings: a real (non-dry-run) run requires --target with --kind, or --gap-scan (or both) — ' +
+      'without one of them, no audit cursor advances and rotation state silently drifts. ' +
+      'Pass --dry-run to preview without it.\n',
+    );
+    process.exit(2);
+  }
+
   let raw;
   try {
     raw = JSON.parse(fs.readFileSync(findingsPath, 'utf8'));

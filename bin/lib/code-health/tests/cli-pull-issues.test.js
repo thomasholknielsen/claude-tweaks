@@ -53,6 +53,20 @@ test('pull-issues: a recognized --min-severity value still works normally', () =
   assert.deepStrictEqual(briefs, []);
 });
 
+// Regression: the guard used `!(value in RISK_RANK)` against the plain
+// object literal { high, medium, low }. `in` walks the prototype chain, so
+// an Object.prototype property name like "constructor" passed validation as
+// if it were a real risk tier, silently disabling the severity filter
+// instead of restricting output (or erroring, as intended).
+test('pull-issues: exits 2 when --min-severity is an Object.prototype property name', () => {
+  const root = tmp();
+  const issuesFile = path.join(root, 'issues.json');
+  fs.writeFileSync(issuesFile, JSON.stringify([]));
+  const result = runPullIssues(issuesFile, ['--min-severity', 'constructor']);
+  assert.strictEqual(result.status, 2, `expected exit 2, got ${result.status}. stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes('--min-severity'), `expected --min-severity mentioned in stderr: ${result.stderr}`);
+});
+
 test('pull-issues: "info" is no longer recognized — --min-severity now shares --min-risk\'s 3-tier scale', () => {
   const root = tmp();
   const issuesFile = path.join(root, 'issues.json');

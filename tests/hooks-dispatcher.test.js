@@ -148,6 +148,31 @@ test('close-run with a non-existent --run path fails loudly instead of falling b
   assert.strictEqual(state.status, 'active', 'an invalid --run must not touch a different run dir at all');
 });
 
+// Regression: record-worktree's if/else-if chain had no branch for "a run
+// dir was resolved but no worktree argument was given" — that case printed
+// nothing and exited 0, indistinguishable from success.
+test('record-worktree with a resolvable run dir but no worktree argument prints a not-recorded notice instead of silent success', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  const result = runHook(['record-worktree'], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.ok(result.stdout.trim().length > 0, 'expected a diagnostic message, not silent success');
+  assert.doesNotMatch(result.stdout, /worktree recorded/);
+  assert.strictEqual(fs.existsSync(path.join(run, 'run-state.json')), false,
+    'no worktree path was given — nothing should be recorded');
+});
+
+// Regression: close-run's analogous chain had no branch for "no run dir
+// could be resolved and --run wasn't invalid" (i.e. --run omitted entirely
+// and resolveRunDir's own fallback also found nothing) — that case also
+// printed nothing and exited 0.
+test('close-run with no resolvable run dir and no --run given prints a not-closed notice instead of silent success', () => {
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bare-'));
+  const result = runHook(['close-run'], { cwd: bare });
+  assert.strictEqual(result.code, 0);
+  assert.ok(result.stdout.trim().length > 0, 'expected a diagnostic message, not silent success');
+});
+
 test('record-worktree stamps the owning session from CLAUDE_CODE_SESSION_ID and preserves it on env-less re-record', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');

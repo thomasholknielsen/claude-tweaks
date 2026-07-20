@@ -11,12 +11,26 @@ function readStdin() {
     let data = '';
     if (process.stdin.isTTY) return resolve('');
     process.stdin.setEncoding('utf8');
-    const timer = setTimeout(() => resolve(data), 50);
+    const onData = (chunk) => (data += chunk);
+    // finish() is reached either by stdin actually ending, or by the 50ms
+    // fallback timer. Either way it must detach every listener and pause the
+    // stream — without this, a harness that doesn't promptly close the write
+    // end of piped stdin leaves data/end/error listeners attached, which
+    // keeps the stream (and the event loop) referenced forever even though
+    // the process already wrote its output and has nothing left to do.
+    let finished = false;
     const finish = () => {
+      if (finished) return;
+      finished = true;
       clearTimeout(timer);
+      process.stdin.removeListener('data', onData);
+      process.stdin.removeListener('end', finish);
+      process.stdin.removeListener('error', finish);
+      if (typeof process.stdin.pause === 'function') process.stdin.pause();
       resolve(data);
     };
-    process.stdin.on('data', (chunk) => (data += chunk));
+    const timer = setTimeout(finish, 50);
+    process.stdin.on('data', onData);
     process.stdin.on('end', finish);
     process.stdin.on('error', finish);
   });

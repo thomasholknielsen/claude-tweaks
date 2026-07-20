@@ -433,3 +433,23 @@ test('validate-findings: a recognized --min-risk value still works normally', ()
   const payloads = JSON.parse(result.stdout);
   assert.strictEqual(payloads.length, 1, 'high-risk finding must still file with a valid --min-risk value');
 });
+
+// Regression: the guard used `!(value in RISK_RANK)` against the plain
+// object literal { high, medium, low }. `in` walks the prototype chain, so
+// any Object.prototype property name (constructor, toString,
+// hasOwnProperty, ...) passed validation as if it were a real risk tier —
+// then RISK_RANK['constructor'] read the Object constructor function
+// instead of a number, the rank comparison was never true, and every
+// finding (including a risk: "high" one) silently resolved to 'remember'
+// instead of 'file'.
+test('validate-findings: exits 2 when --min-risk is an Object.prototype property name', () => {
+  const root = tmp();
+  const f = validFinding({ severity: 'high' });
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([f]));
+  const result = runValidateFindings(
+    root, findingsFile, ['--slice', 'src/api', '--run-id', 'r-proto-pollution', '--min-risk', 'constructor'],
+  );
+  assert.strictEqual(result.status, 2, `expected exit 2, got ${result.status}. stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes('--min-risk'), `expected --min-risk mentioned in stderr: ${result.stderr}`);
+});

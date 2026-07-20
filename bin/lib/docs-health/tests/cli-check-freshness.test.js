@@ -50,3 +50,24 @@ test('check-freshness exits 1 for a missing file', () => {
   const result = spawnSync('node', [CLI, 'check-freshness', path.join(root, 'docs', 'nope.md'), '--root', root]);
   assert.strictEqual(result.status, 1);
 });
+
+// Regression: cmdCheckFreshness read fs.readFileSync(targetPath, 'utf8')
+// using the raw, unresolved targetPath instead of resolving it against
+// --root the way deriveDocId's own path.resolve(root, targetPath) correctly
+// does. A relative targetPath invoked from a cwd other than --root (the
+// exact "audit a project elsewhere" scenario --root exists to support)
+// failed with "could not read file" even though the file genuinely exists
+// under --root.
+test('check-freshness resolves a relative path against --root, not the invoking cwd', () => {
+  const root = makeTmpGitRoot();
+  fs.mkdirSync(path.join(root, 'docs'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'docs', 'tracked.md'), '---\nfiles:\n  - src/nope.ts\n---\n\n# Doc\n');
+
+  const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), 'docs-health-cli-check-freshness-elsewhere-'));
+  const out = execFileSync(
+    'node', [CLI, 'check-freshness', 'docs/tracked.md', '--root', root],
+    { cwd: elsewhere, encoding: 'utf8' },
+  );
+  const parsed = JSON.parse(out);
+  assert.deepStrictEqual(parsed.result.missing, ['src/nope.ts']);
+});
