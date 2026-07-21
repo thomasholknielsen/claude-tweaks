@@ -87,6 +87,87 @@ test('installWrapper restores 0o755 when re-run over an existing, non-executable
   fs.rmSync(tmpHome, { recursive: true, force: true });
 });
 
+// Regression: the wrapper used to unconditionally `spawn('node', [target])`
+// to run the real statusline logic, doubling Node startup latency on every
+// render. It must now `require(target)` and call the exported `main()`
+// in-process instead — proven here by having the fake cached target write
+// `process.pid` to stdout: if the wrapper truly runs it in-process, that PID
+// must equal the wrapper's own process (the PID spawnSync reports as the
+// child it launched), not a second, different PID from a grandchild spawn.
+function fakeCacheWithTarget(tmpHome, version, targetContents) {
+  const targetDir = path.join(
+    tmpHome,
+    '.claude',
+    'plugins',
+    'cache',
+    'claude-tweaks-marketplace',
+    'claude-tweaks',
+    version,
+    'bin',
+  );
+  fs.mkdirSync(targetDir, { recursive: true });
+  fs.writeFileSync(path.join(targetDir, 'claude-tweaks-statusline.js'), targetContents);
+}
+
+test('the wrapper runs the cached statusline in-process (no second Node spawn) when the target exports main()', () => {
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-install-sl-inprocess-'));
+  const wrapperPath = installWrapper(tmpHome);
+
+  fakeCacheWithTarget(
+    tmpHome,
+    '9.9.9',
+    [
+      "module.exports = { main: async () => { process.stdout.write(String(process.pid)); } };",
+      '',
+    ].join('\n'),
+  );
+
+  const result = spawnSync(process.execPath, [wrapperPath], {
+    encoding: 'utf8',
+    env: { ...process.env, HOME: tmpHome },
+    timeout: 5000,
+  });
+
+  assert.strictEqual(result.status, 0, `expected exit 0, got status=${result.status} stderr=${result.stderr}`);
+  assert.strictEqual(
+    result.stdout.trim(),
+    String(result.pid),
+    'expected the target module\'s main() to run in the wrapper\'s own process (same PID), not a spawned child',
+  );
+
+  fs.rmSync(tmpHome, { recursive: true, force: true });
+});
+
+test('the wrapper falls back to spawning a child process for a cached version that does not export main() (pre-upgrade compatibility)', () => {
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-install-sl-legacy-'));
+  const wrapperPath = installWrapper(tmpHome);
+
+  fakeCacheWithTarget(
+    tmpHome,
+    '9.9.9',
+    [
+      "if (require.main === module) { process.stdout.write(String(process.pid)); }",
+      '',
+    ].join('\n'),
+  );
+
+  const result = spawnSync(process.execPath, [wrapperPath], {
+    encoding: 'utf8',
+    env: { ...process.env, HOME: tmpHome },
+    timeout: 5000,
+  });
+
+  assert.strictEqual(result.status, 0, `expected exit 0, got status=${result.status} stderr=${result.stderr}`);
+  assert.notStrictEqual(
+    result.stdout.trim(),
+    String(result.pid),
+    'expected the legacy (no main() export) target to run as a spawned child with a different PID',
+  );
+  assert.match(result.stdout.trim(), /^\d+$/, 'expected the spawned child to still print a PID');
+
+  fs.rmSync(tmpHome, { recursive: true, force: true });
+});
+
 test('installWrapper creates the target directory recursively when it does not exist', () => {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-install-sl-'));
   const binDir = path.join(tmpHome, '.claude-tweaks', 'bin');
