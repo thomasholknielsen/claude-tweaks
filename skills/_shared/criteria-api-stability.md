@@ -18,7 +18,6 @@ Shared, criteria-only fragment — what to flag for API and contract stability i
 
 ## Severity calibration
 
-- **critical** — a breaking change to a widely-consumed public API with no version bump and no migration guide.
-- **high** — a breaking change in a public API that is not yet widely distributed (can still be caught pre-release).
+- **high** — a breaking change to a public API with no version bump and no migration guide, especially when it is already widely consumed (a breaking change not yet widely distributed can still be caught pre-release, but is still `high`).
 - **medium** — an undocumented public export or a missing deprecation marker.
 - **low** — a minor contract ambiguity (optional parameter semantics not documented).

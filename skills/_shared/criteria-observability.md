@@ -19,7 +19,6 @@ Shared, criteria-only fragment — what to flag when judging observability on cr
 
 ## Severity calibration
 
-- **critical** — a secret or PII is logged (security defect).
-- **high** — a critical business event is entirely untraceable when it fails.
+- **high** — a secret or PII is logged (security defect), or a critical business event is entirely untraceable when it fails.
 - **medium** — a slow path has no timing; degraded performance would be invisible.
 - **low** — a non-critical path lacks a debug log.

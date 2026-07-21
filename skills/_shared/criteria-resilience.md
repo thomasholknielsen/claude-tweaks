@@ -1,6 +1,6 @@
 # Criteria: Resilience / Fault-Tolerance
 
-Shared, criteria-only fragment — what to flag when judging resilience. No workflow, no Next Actions. Consumed by `/claude-tweaks:code-health`'s resilience judgment lens. One source of truth so every sweep applies identical calibration.
+Shared, criteria-only fragment — what to flag when judging resilience. No workflow, no Next Actions. Consumed by `/claude-tweaks:code-health`'s resilience judgment lens. One source of truth so every sweep applies identical calibration. Confidence floor: `high` — flag only a concrete failure path with a real trigger, not an abstract "could fail" concern.
 
 ## What to flag
 
@@ -19,7 +19,6 @@ Shared, criteria-only fragment — what to flag when judging resilience. No work
 
 ## Severity calibration
 
-- **critical** — a failure in this path leaves shared persistent state corrupt (partial write, double-spend, orphaned lock).
-- **high** — a failure causes a silent data loss or silently drops messages that will not be replayed.
+- **high** — a failure in this path leaves shared persistent state corrupt (partial write, double-spend, orphaned lock), causes silent data loss, or silently drops messages that will not be replayed.
 - **medium** — a failure causes a request timeout or a degraded user experience but the system recovers without data loss.
 - **low** — a missing timeout that slows a non-critical background job.

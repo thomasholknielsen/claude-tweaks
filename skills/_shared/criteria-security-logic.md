@@ -1,6 +1,6 @@
 # Criteria: Security Logic
 
-Shared, criteria-only fragment — logic-level security defects, not static analysis findings or dependency vulnerabilities. No workflow, no Next Actions. Consumed by `/claude-tweaks:code-health`'s security-logic judgment lens.
+Shared, criteria-only fragment — logic-level security defects, not static analysis findings or dependency vulnerabilities. No workflow, no Next Actions. Consumed by `/claude-tweaks:code-health`'s security-logic judgment lens. Confidence floor: `high` — do not file speculative security findings.
 
 This fragment is for what a careful security reviewer would catch by reading the code, not what a linter reports.
 
@@ -20,9 +20,6 @@ This fragment is for what a careful security reviewer would catch by reading the
 
 ## Severity calibration
 
-- **critical** — broken auth or direct data exposure exploitable without authentication.
-- **high** — exploitable after authentication, or a logic defect that enables privilege escalation.
+- **high** — broken auth or direct data exposure exploitable without authentication; exploitable after authentication; or a logic defect that enables privilege escalation.
 - **medium** — a security misconfiguration that reduces defense-in-depth but is not directly exploitable.
 - **low** — a minor hardening gap (missing `HttpOnly` on a non-session cookie).
-
-Confidence floor for this criterion is `high` — do not file speculative security findings.
