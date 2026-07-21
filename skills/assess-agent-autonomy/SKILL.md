@@ -79,16 +79,16 @@ Read the body content directly — don't just trust the risk/effort labels as gr
 - Does the Deliverables/Acceptance Criteria text describe touching authentication, session
   handling, claim/locking logic, or other structurally sensitive behavior, regardless of what the
   risk/effort labels say? That's a reason to recommend more cautiously than the labels alone imply.
-- Does the record describe creating or substantially editing a file under `skills/**/*.md` (a new
-  or changed skill)? This includes `harness-health:new-skill` findings — their body reads
-  "**New skill candidate**" with a "Proposed new skill" deliverable (see
-  `bin/lib/harness-health/issue-payload.js`). Recognize this from body content, not from a label —
-  `new-skill` findings currently carry no `risk:*`/`effort:*` labels at all, by design, so labels
-  alone tell you nothing here. A well-specified new-skill proposal can still reasonably recommend
-  `RECOMMEND_BUILD: true` (drafting the content autonomously is fine — a human still confirms the
-  grant, and reviews again before any merge), but recommend `RECOMMEND_MERGE: false` — new skill
-  files encode instructions future agents follow, which is high-leverage independent of how small
-  or clean the proposal looks.
+- Does the record describe creating or substantially editing a file under `skills/**/*.md` or
+  `agents/**/*.md` (a new or changed skill, or a new or changed subagent definition)? This includes
+  `harness-health:new-skill` findings — their body reads "**New skill candidate**" with a "Proposed
+  new skill" deliverable (see `bin/lib/harness-health/issue-payload.js`). Recognize this from body
+  content, not from a label — `new-skill` findings currently carry no `risk:*`/`effort:*` labels at
+  all, by design, so labels alone tell you nothing here. A well-specified new-skill proposal can
+  still reasonably recommend `RECOMMEND_BUILD: true` (drafting the content autonomously is fine — a
+  human still confirms the grant, and reviews again before any merge), but recommend
+  `RECOMMEND_MERGE: false` — new skill and agent-definition files encode instructions future agents
+  follow, which is high-leverage independent of how small or clean the proposal looks.
 - Is the described change actually lower-risk than its labels suggest (e.g. a `risk:medium` record
   that turns out to be a pure documentation correction with no behavioral surface)? Judge accuracy,
   not blanket caution — recommend generously when the content genuinely supports it.
@@ -181,9 +181,10 @@ caller, since this skill reads its own config rather than depending on one.)
 
 - **Sensitive-path hit is a hard floor.** If `sensitiveFilesTouched` is non-empty, render
   `needs-human` immediately — do not weigh anything else. No content judgment overrides this.
-- **A new or substantially-edited `skills/**/*.md` file is `needs-human`, regardless of size.**
-  Generalizes the old `harness-health:new-skill` exclusion — a skill file shapes future agent
-  behavior, which is high-leverage independent of how small the diff looks.
+- **A new or substantially-edited `skills/**/*.md` or `agents/**/*.md` file is `needs-human`,
+  regardless of size.** Generalizes the old `harness-health:new-skill` exclusion — both directories
+  hold files that shape future agent behavior (skill procedures, subagent definitions like
+  `agents/qa-agent.md`), which is high-leverage independent of how small the diff looks.
 - **Weigh `blastRadiusSummary.implLines`/`implFiles` against the project's configured
   `automerge-max-lines`/`automerge-max-files`** as one input, not a cutoff — a diff comfortably
   under the configured guideline (e.g. #18's 33 impl lines under a 40-line guideline) supports
@@ -227,8 +228,12 @@ logs) — already in the calling agent's context from the run that just failed.
 ### Step 2: Judge
 
 - **Transient signatures**: `gh api` rate-limit (HTTP 429) responses, network timeouts,
-  `ECONNREFUSED`, or a failure in a test this repo already documents as flaky (currently
-  `statusline.test.js`'s render-timing assertion). Classify `transient`.
+  `ECONNREFUSED`, or a test failure the calling agent can independently confirm is pre-existing and
+  unrelated to this run's diff (e.g., rerunning the same test against unchanged code on the default
+  branch also fails intermittently). Do not classify a test as flaky from memory of a specific test
+  name — a test once known to be flaky may since have been fixed, and a genuine regression that
+  happens to fail the same assertion must not inherit an old flakiness verdict. Classify
+  `transient`.
 - **Correctness signatures**: a test failure showing an assertion mismatch directly tied to code
   the record's own diff changed (expected/actual values diverging in logic the change touched).
   Classify `correctness`.
@@ -236,9 +241,11 @@ logs) — already in the calling agent's context from the run that just failed.
   handle it exactly like `correctness` downstream (see Output) — when genuinely unsure, err toward
   the existing conservative behavior, never toward the new permissive one.
 - **`NOTIFY_NOW`**: set `true` when this is the *same* `correctness`-class failure recurring
-  verbatim across two or more consecutive attempts (compare this failure's content against
-  `priorAttempts`' recorded reasons in the comment history) — a signal the agent may be stuck
-  rather than making incremental progress. Otherwise `false`.
+  verbatim across two or more consecutive attempts — compare this failure's content against the
+  prior `Attempt N failed: {reason}` comment bodies in `/tmp/assess-failure-comments-${N}.json`
+  (the raw comments fetched in Step 1; `priorAttempts` itself is only the count from
+  `countFailedAttempts`, not the reason text) — a signal the agent may be stuck rather than making
+  incremental progress. Otherwise `false`.
 
 ### Step 3: Render
 
@@ -347,7 +354,7 @@ and `/claude-tweaks:flow` (materialization fallback, `ceremony-check` only when 
 | Weighing test-file line count toward risk in `merge-check` | The entire reason this skill exists is that test-line bulk isn't implementation risk — `testLines`/`testFiles` are informational only. |
 | Skipping the sensitive-path hard floor because the content judgment "looks fine" | Sensitive paths are a floor precisely because they're the cases where content judgment alone isn't sufficient signal — never overridden. |
 | Classifying an unclear failure as `transient` "to be less conservative" | Ambiguity always resolves to `correctness`'s conservative handling — the point of this skill is accuracy, not blanket permissiveness. |
-| Recommending `RECOMMEND_MERGE: true` for a new-or-changed `skills/**/*.md` file | Skill files shape future agent behavior — this is a hard `needs-human`/`false` case regardless of how clean or small the change looks. |
+| Recommending `RECOMMEND_MERGE: true` for a new-or-changed `skills/**/*.md` or `agents/**/*.md` file | Skill and agent-definition files shape future agent behavior — this is a hard `needs-human`/`false` case regardless of how clean or small the change looks. |
 | Dispatching this as a fresh Task agent instead of an inline Skill invocation | The calling agent already has the diff/review-findings/failure-output in its own context — a subagent restart only pays to re-derive what's already known. |
 | Treating `ceremony-check`'s verdict as a merge-safety signal | `ceremony-profile` and `auto:merge` are independent axes — a `fast-lane` record can still fail `merge-check` and fall back to a human-reviewed PR (this is exactly what happened to #18 before `merge-check` existed, for an unrelated reason). Never let ceremony depth influence merge eligibility or vice versa. |
 | Writing to `decisions.md` from inside this skill | This skill doesn't know about run-dir resolution — logging is the caller's job (`/claude-tweaks:triage` or `/claude-tweaks:dispatch`), matching every other auto-decision log entry in this codebase. |

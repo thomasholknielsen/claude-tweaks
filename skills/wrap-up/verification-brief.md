@@ -42,8 +42,11 @@ field (`review-summary-template.md`). Branch on its value:
 | No `/review` summary available for this run (standalone `/wrap-up`, no recent `/review` run) | No signal exists | Treat as `Recommended` — trigger the gate below |
 
 **Trigger the gate** (`Recommended` / no-summary / `Skipped — no UI changes` cases): invoke
-`/claude-tweaks:visual-review` now, using the same mode resolution `/review` Step 6 already
-applies — `journey:{name}` when a journey was named (by the recommendation, or by matching
+`/claude-tweaks:visual-review` now, passing `--source wrap-up` (this run has no `$PIPELINE_RUN_DIR`
+of its own to signal parent invocation on — the same fallback `skills/wrap-up/SKILL.md` Step 3
+already passes to `/claude-tweaks:reflect` for standalone wrap-up), using the same mode
+resolution `/review` Step 6 already applies — `journey:{name}` when a journey was named (by the
+recommendation, or by matching
 `docs/journeys/*.md` against the changed files), otherwise page mode against the resolved
 `APP_URL` (`dev-url-detection.md`), otherwise discover mode. Route every finding through the same
 severity floors `_shared/criteria-review-quality.md` defines: **high/critical** (broken layout,

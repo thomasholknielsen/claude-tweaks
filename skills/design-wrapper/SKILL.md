@@ -214,7 +214,7 @@ The table above stays as-is — it's the assistant's own resolution logic for pi
 
 ## Component-Skill Contract
 
-This skill is a **component skill** (utility wrapper) — invoked by `/claude-tweaks:test`, `/claude-tweaks:review`, `/claude-tweaks:build`, `/claude-tweaks:flow`, `/claude-tweaks:specify`, and `/claude-tweaks:visual-review`. Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (the parent is running inside an active pipeline run). When invoked from a caller skill, omit the `## Next Actions` block (callers consume the return shape themselves). When invoked directly by a user (no `$PIPELINE_RUN_DIR`), render the Next Actions table above.
+This skill is a **component skill** (utility wrapper) — invoked by `/claude-tweaks:test`, `/claude-tweaks:review`, `/claude-tweaks:build`, `/claude-tweaks:flow`, `/claude-tweaks:specify`, and `/claude-tweaks:visual-review`. Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (the parent is running inside an active pipeline run) — or, when the caller is itself running standalone with no `$PIPELINE_RUN_DIR` of its own to forward, by an explicit `--source <parent-skill>` flag the caller passes instead. Standalone `/claude-tweaks:visual-review` is exactly this case: its Step 4 `survey` call and Step 5 Boost-gate `review`/`live` calls all pass `--source visual-review` so this wrapper still recognizes them as caller-invoked even with no run directory in play. When invoked from a caller skill (via either signal), omit the `## Next Actions` block (callers consume the return shape themselves). When invoked directly by a user (neither signal present), render the Next Actions table above.
 
 ## Anti-Patterns
 

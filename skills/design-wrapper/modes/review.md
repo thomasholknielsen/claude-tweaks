@@ -86,7 +86,7 @@ Cache shape:
 }
 ```
 
-Cache entries are stale after one flow run; they get overwritten on the next `review` invocation for the same spec. Cleanup is handled by `/wrap-up` Step 5 alongside the ledger.
+Cache entries are stale after one flow run; they get overwritten on the next `review` invocation for the same spec. Cleanup is handled by `/claude-tweaks:wrap-up` Step 5 alongside the ledger.
 
 If the cache write fails (disk full, permission denied), surface the failure as a one-time skip and continue — `polish` mode degrades to auto-fit-only when the cache is absent.
 

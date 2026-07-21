@@ -160,17 +160,17 @@ Select 6-10 perspectives from the library below based on the classification. Eac
 |---|-------------|---------------------|--------------------|
 | 1 | **First Impression / Squint Test** | Does the page communicate its purpose in 3 seconds with blurred vision? | Content/Detail, Landing/Marketing, Consumer, Public-facing |
 | 2 | **Information Hierarchy** | Does the visual weight match the content importance? | Complex, Overloaded, Content/Detail, List/Dashboard |
-| 3 | **Conversion Funnel** | Does the page guide visitors toward the primary action without friction? | Landing/Marketing, Public-facing, Consumer, Growth, Pre-launch |
+| 3 | **Conversion Funnel** | Does the page guide visitors toward the primary action without friction? | Landing/Marketing, Public-facing, Consumer, Growth, Pre-launch / Early |
 | 4 | **Content Density vs. Breathing Room** | Is the page too packed or too sparse for its content type? | Complex, Overloaded, List/Dashboard, Rich |
 | 5 | **Mobile Readiness** | Would this page survive a thumb-only, small-screen interaction? | Consumer, Public-facing, Content/Detail, Complex |
-| 6 | **Empty State Design** | Do zero-data states guide users toward value or show a void? | Empty, Mixed (data), Pre-launch, Sparse |
-| 7 | **Social Proof / Trust** | Does the page earn credibility through evidence, not claims? | Landing/Marketing, Consumer, Public-facing, Pre-launch |
+| 6 | **Empty State Design** | Do zero-data states guide users toward value or show a void? | Empty, Mixed (data), Pre-launch / Early, Sparse |
+| 7 | **Social Proof / Trust** | Does the page earn credibility through evidence, not claims? | Landing/Marketing, Consumer, Public-facing, Pre-launch / Early |
 | 8 | **CTA Clarity** | Is there one clear primary action, or do competing actions dilute focus? | Landing/Marketing, Form/Wizard, Public-facing, Consumer |
 | 9 | **Component Bloat / Section Count** | Does every section earn its place, or is this a feature dump? | Complex, Overloaded, Moderate (borderline) |
 | 10 | **Visual Rhythm** | Do sections flow with a consistent pace, or is the page arrhythmic? | Content/Detail, Complex, Overloaded, Rich |
 | 11 | **Form Friction** | Can a user complete this form without confusion, error, or abandonment? | Form/Wizard, Authenticated, Consumer, Enterprise |
 | 12 | **Data Scan-ability** | Can a user find what they need in a table/list without reading every row? | List/Dashboard, Rich, Enterprise, Internal/Admin |
-| 13 | **Onboarding Clarity** | Does a new user know where to start and what to do first? | Empty, Pre-launch, Growth, Authenticated |
+| 13 | **Onboarding Clarity** | Does a new user know where to start and what to do first? | Empty, Pre-launch / Early, Growth, Authenticated |
 | 14 | **Power User Efficiency** | Can an experienced user accomplish repeated tasks without ceremony? | Authenticated, List/Dashboard, Enterprise, Internal/Admin, Mature |
 | 15 | **Error Recovery** | When something goes wrong, does the page help the user recover? | Form/Wizard, Authenticated, Complex |
 | 16 | **Auth State Coherence** | Does the page make sense in both logged-in and logged-out states? | Mixed (auth), Public-facing, Growth |
@@ -197,12 +197,12 @@ Based on the classification and selected perspectives, formulate a single questi
 The central question is NOT generic — it must reference the specific page context.
 
 **Examples by classification:**
-- Content/Detail + Pre-launch + Empty: "Does this page serve the business goal or the developer's feature checklist?"
+- Content/Detail + Pre-launch / Early + Empty: "Does this page serve the business goal or the developer's feature checklist?"
 - Landing/Marketing + Consumer + Public-facing: "Would a visitor who doesn't know this product understand what it does and want to try it?"
 - List/Dashboard + Authenticated + Complex: "Can a user find what they need and take action without being overwhelmed?"
 - Form/Wizard + Consumer + Authenticated: "Would a user complete this form on the first attempt without help?"
 - Utility + Enterprise + Mature: "Can a user change what they need and be confident nothing else broke?"
-- Content/Detail + Public-facing + Pre-launch + Mixed: "Would a Google searcher who lands here trust this enough to engage and sign up?"
+- Content/Detail + Public-facing + Pre-launch / Early + Mixed: "Would a Google searcher who lands here trust this enough to engage and sign up?"
 
 ## Output: The Review Brief
 
