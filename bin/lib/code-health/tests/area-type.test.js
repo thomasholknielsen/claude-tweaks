@@ -146,6 +146,53 @@ test('types are additive: frontend+library from react+exports', () => {
   assert.ok(types.includes('library'), `types: ${types}`);
 });
 
+test('detects backend from a Flask requirements.txt (non-npm ecosystem, no package.json at all)', () => {
+  const d = tmp();
+  fs.writeFileSync(path.join(d, 'requirements.txt'), 'flask==3.0.0\n');
+  fs.writeFileSync(path.join(d, 'app.py'), 'from flask import Flask\n');
+  const { types } = classifyArea(d, d);
+  assert.ok(types.includes('backend'), `types: ${types}`);
+});
+
+test('detects backend from a Django pyproject.toml', () => {
+  const d = tmp();
+  fs.writeFileSync(path.join(d, 'pyproject.toml'), '[tool.poetry.dependencies]\ndjango = "^5.0"\n');
+  const { types } = classifyArea(d, d);
+  assert.ok(types.includes('backend'), `types: ${types}`);
+});
+
+test('detects backend from a Go gin go.mod', () => {
+  const d = tmp();
+  fs.writeFileSync(path.join(d, 'go.mod'), 'module example.com/app\n\nrequire github.com/gin-gonic/gin v1.9.1\n');
+  const { types } = classifyArea(d, d);
+  assert.ok(types.includes('backend'), `types: ${types}`);
+});
+
+test('does not detect backend from an unrelated requirements.txt with no known framework', () => {
+  const d = tmp();
+  fs.writeFileSync(path.join(d, 'requirements.txt'), 'numpy==1.26.0\npandas==2.1.0\n');
+  const { types } = classifyArea(d, d);
+  assert.ok(!types.includes('backend'), `types: ${types}`);
+});
+
+test('backend guard excludes on frontend evidence from extension/components alone, not just deps (workspace slice with local express + hoisted-root react via components/)', () => {
+  const d = tmp();
+  fs.mkdirSync(path.join(d, 'components'));
+  fs.writeFileSync(path.join(d, 'package.json'),
+    JSON.stringify({ dependencies: { express: '^4.18.0' } }));
+  const { types } = classifyArea(d, d);
+  assert.ok(types.includes('frontend'), `types: ${types}`);
+  assert.ok(!types.includes('backend'), `frontend evidence (components/) must suppress backend even without a UI framework dep: ${types}`);
+});
+
+test('detects cli via shebang in a file much larger than the historical 30-char read window', () => {
+  const d = tmp();
+  const big = '#!/usr/bin/env node\n' + '// padding\n'.repeat(200000); // well over a few hundred KB
+  fs.writeFileSync(path.join(d, 'cli.js'), big);
+  const { types } = classifyArea(d, d);
+  assert.ok(types.includes('cli'), `types: ${types}`);
+});
+
 test('classify CLI command prints { areaId, types } JSON for a frontend dir', () => {
   const d = tmp();
   fs.writeFileSync(path.join(d, 'package.json'),
