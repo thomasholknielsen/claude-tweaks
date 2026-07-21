@@ -10,12 +10,12 @@ Refine validates a sample of newly-written stories against the live app, capture
     - All `priority: high` stories.
     - Up to 3 randomly selected `priority: medium` stories.
     - Skip `priority: low` stories in the validation sample.
-    - Maximum 10 stories total.
+    - Maximum 10 stories total — but never at the expense of validating every `priority: high` story. When the high-priority set alone exceeds 10, validate all of them anyway, skip the medium-priority sampling for this run, and note the overflow explicitly in the refinement summary (the reported count reflects the actual, uncapped total) — never silently truncate the high-priority set (same "note the overflow, never silently truncate" rule `wrap-up/skill-curation.md` applies to its own cap).
     - When NEGATIVE is also active, include a mix of positive and negative stories.
 
 2. For each selected story, validate against the live app using agent-browser:
     a. `agent-browser --session <story-id> open <story.url>` (kebab-case session, derived from the story id).
-    b. If the story declares `auth: { vault: "<name>" }`: `agent-browser --session <story-id> auth use <name>`.
+    b. If the story declares `auth: { vault: "<name>" }`: `agent-browser --session <story-id> auth use <name>`. Otherwise, if the story uses legacy `setup.auth: <profile>` and `{OUTPUT_DIR}/auth.yml` exists (per `auth-resolution.md`'s Legacy `auth.yml` detection — the project has chosen to keep `auth.yml` rather than migrate): read and parse `auth.yml`, resolve the named profile's `url`/`username`/`password`, and perform the login flow inline (navigate, fill, submit) before proceeding. A story with neither `auth.vault` nor a resolvable legacy profile is unauthenticated for this validation — its subsequent steps are expected to fail for that reason, not a story defect.
     c. `agent-browser --session <story-id> snapshot -i -c` to get the accessibility tree.
     d. For each step, attempt execution:
        - **Locator resolution:** Run `agent-browser --session <story-id> find <type> <args>` for the step's semantic locator. If `find` returns 0 matches, record failure: `{ storyId, stepIndex, issue: "locator_unresolved", locator }`. If `find` returns >1 matches, record: `{ storyId, stepIndex, issue: "locator_ambiguous", locator, matchCount }` — flag for disambiguation. If exactly 1, capture the resulting `@eN` ref and proceed.

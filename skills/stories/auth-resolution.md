@@ -25,11 +25,12 @@ Stay consistent with whatever vault list `agent-browser auth list` already shows
        agent-browser auth set <vault-name> <username> <password>
 
    Recommended vault name: `default-user` (or `<project-slug>-user`).
-
-   1. Ready — vault was created **(Recommended)**
-   2. Skip auth-gated stories for now
    ```
-   On `1` (Ready): re-run `agent-browser auth list`, confirm, continue. On `2` (Skip): tag stories needing auth as `needs-auth-vault`. Note: Step 5 refinement's sample selection (5a) filters only by `priority`, not tags, so a tagged story can still be selected for validation — if it is, the auth step is inapplicable and the story is expected to fail validation until a vault exists (not a defect).
+   Then call `AskUserQuestion` with `question`: `"Auth vault ready?"`, `header`: `"Auth vault"`, `multiSelect`: `false`:
+   - Option 1 — `label`: `"Ready (Recommended)"`, `description`: `"Vault was created — re-run agent-browser auth list, confirm, and continue"`
+   - Option 2 — `label`: `"Skip for now"`, `description`: `"Skip auth-gated stories — tag them needs-auth-vault"`
+
+   On "Ready": re-run `agent-browser auth list`, confirm, continue. On "Skip for now": tag stories needing auth as `needs-auth-vault`. Note: Step 5 refinement's sample selection (5a) filters only by `priority`, not tags, so a tagged story can still be selected for validation — if it is, the auth step is inapplicable and the story is expected to fail validation until a vault exists (not a defect).
 
    **Auto mode:** never block — tag auth-gated stories as `needs-auth-vault` and stage the install hint. (Step 5 refinement's sample selection filters only by `priority`, not tags, so a tagged story may still be validated and is expected to fail its auth step until a vault exists.) Log:
    ```

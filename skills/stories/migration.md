@@ -14,16 +14,14 @@ STAGED {time} — Step 1: legacy v1 stories detected ({N} files). Stage path: st
 
 The staged file lists the v1 stories with the proposed migration command: `/claude-tweaks:stories migrate`. Surface at Review Console. Stories continue to run as-is for the rest of the pipeline (best-effort; v1 selectors may fail in QA).
 
-**Interactive mode:** present:
+**Interactive mode:** call `AskUserQuestion` with `question`: `"v1 stories detected ({N} stories, CSS selectors). claude-tweaks now uses semantic locators (role/text/testid). Regenerate?"`, `header`: `"Story migration"`, `multiSelect`: `false`:
 
-> v1 stories detected (N stories, CSS selectors). claude-tweaks now uses semantic locators (role/text/testid). Regenerate?
->
-> 1. Regenerate all (preserves story names, descriptions, intent — re-derives locators from live DOM) **(Recommended)**
-> 2. Show me the changes first
-> 3. Cancel
+- Option 1 — `label`: `"Regenerate all (Recommended)"`, `description`: `"Preserves story names, descriptions, intent — re-derives locators from live DOM"`
+- Option 2 — `label`: `"Show me the changes first"`, `description`: `"Dump a per-story locator diff before deciding"`
+- Option 3 — `label`: `"Cancel"`, `description`: `"Leave stories in v1 — not used by the rest of the workflow"`
 
-- **Choice 1:** invoke the standard `/stories <url>` flow with each existing story's `id`, `name`/`description`, `journey`, `priority`, `tags`, and `source_files` passed as scaffolding so the AI preserves intent and only replaces locators. The browse-exploration step (Step 2) and source analysis (Step 1.5) run normally; locator selection in Step 3 reads the new accessibility-tree snapshot via `agent-browser snapshot -i -c` instead of capturing CSS selectors.
-- **Choice 2:** dump a per-story diff for review (one row per step):
+- **"Regenerate all" chosen:** invoke the standard `/stories <url>` flow with each existing story's `id`, `name`/`description`, `journey`, `priority`, `tags`, and `source_files` passed as scaffolding so the AI preserves intent and only replaces locators. The browse-exploration step (Step 2) and source analysis (Step 1.5) run normally; locator selection in Step 3 reads the new accessibility-tree snapshot via `agent-browser snapshot -i -c` instead of capturing CSS selectors.
+- **"Show me the changes first" chosen:** dump a per-story diff for review (one row per step):
   ```
   Story 'checkout-flow' — 3 step(s) need migration
   | Step | Old (v1 CSS)              | Inferred semantic locator (v2)         |
@@ -32,8 +30,12 @@ The staged file lists the v1 stories with the proposed migration command: `/clau
   | 2    | input[name=email]         | { testid: "email-input" }              |
   | 3    | .confirmation-message     | { text: "Order confirmed" }            |
   ```
-  After review, prompt: "Proceed with regeneration? 1. Yes (Recommended)  2. Cancel". Inference uses the live DOM snapshot; if the old selector cannot be confidently mapped, the row shows `(needs manual review)` and that story is tagged `needs-review` after regeneration.
-- **Choice 3:** stop. Stories stay in v1 and are not used by the rest of the workflow.
+  After review, call `AskUserQuestion` with `question`: `"Proceed with regeneration?"`, `header`: `"Story migration"`, `multiSelect`: `false`:
+  - Option 1 — `label`: `"Yes (Recommended)"`, `description`: `"Regenerate using the inferred locators above"`
+  - Option 2 — `label`: `"Cancel"`, `description`: `"Leave stories in v1 — not used by the rest of the workflow"`
+
+  Inference uses the live DOM snapshot; if the old selector cannot be confidently mapped, the row shows `(needs manual review)` and that story is tagged `needs-review` after regeneration.
+- **"Cancel" chosen:** stop. Stories stay in v1 and are not used by the rest of the workflow.
 
 After regeneration, write `schema_version: 2` at the top of every regenerated YAML file.
 
@@ -41,15 +43,13 @@ After regeneration, write `schema_version: 2` at the top of every regenerated YA
 
 Triggered when `{OUTPUT_DIR}/auth.yml` exists from a v3 install during Step 2's Auth Resolution.
 
-Present:
+Call `AskUserQuestion` with `question`: `"Legacy {OUTPUT_DIR}/auth.yml detected ({N} profile(s)). claude-tweaks now stores credentials in the Auth Vault. Migrate?"`, `header`: `"Auth migration"`, `multiSelect`: `false`:
 
-> Legacy `{OUTPUT_DIR}/auth.yml` detected ({N} profile(s)). claude-tweaks now stores credentials in the Auth Vault. Migrate?
->
-> 1. Print the `agent-browser auth set` commands for me to run, one per profile **(Recommended)**
-> 2. Keep `auth.yml` for now (stories will continue using profile references — supported but deprecated)
-> 3. Delete `auth.yml` (only safe after vault entries exist)
+- Option 1 — `label`: `"Print auth set commands (Recommended)"`, `description`: `"Print the agent-browser auth set commands for me to run, one per profile"`
+- Option 2 — `label`: `"Keep auth.yml for now"`, `description`: `"Stories continue using profile references — supported but deprecated"`
+- Option 3 — `label`: `"Delete auth.yml"`, `description`: `"Only safe after vault entries exist"`
 
-On choice 1, print commands like:
+On "Print auth set commands", print commands like:
 
 ```
 agent-browser auth set default <username-from-default-profile> <password-from-default-profile>

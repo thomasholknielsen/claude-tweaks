@@ -124,7 +124,7 @@ For the full procedure (component-file identification, journey-seeded source fil
 
 ## Step 2: Explore
 
-> **Parallel execution (custom):** Stories explores N pages in parallel sub-processes, one agent-browser session per page (`agent-browser --session <name> batch ...`). Sessions are processes, not Task agents — each runs concurrently in its own process. Use a single batch per session to bundle `open + snapshot + screenshot`. Pages that share state (login → dashboard → settings) must run sequentially within a single session.
+> **Parallel execution:** Use parallel tool calls aggressively — all independent agent-browser session operations in Step 2's exploration are independent and should run concurrently, one session per page (`agent-browser --session <name> batch ...`), each in its own process (not a Task agent). Use a single batch per session to bundle `open + snapshot + screenshot`. Pages that share state (login → dashboard → settings) must run sequentially within a single session instead.
 
 1. Create the output directory if it doesn't exist (use `mkdir -p` via the Bash tool — `-p` creates parent directories and silently no-ops if the directory already exists; plain `mkdir` does NOT create parents on macOS/Linux).
 2. Use the `/claude-tweaks:browse` skill to open the site. The concrete command is `agent-browser --session <session-name> open <url>`. Choose `<session-name>` per the kebab-case convention (e.g., `stories-explore`, `stories-checkout`). Use `agent-browser batch --session <name>` to bundle open + initial snapshot + reconnaissance screenshot in one process invocation.
@@ -401,9 +401,9 @@ Otherwise read `refine.md` in this skill's directory for the full Refine procedu
 
 | Action | Detail | Ref |
 |--------|--------|-----|
-| {Generated/Updated/Deleted} | {story description} — `{yaml file}` | — |
+| Operational | {Generated/Updated/Deleted} {story description} — `{yaml file}` | — |
 
-One row per story file written, updated, or deleted. Omit unchanged files.
+One row per story file written, updated, or deleted. Omit unchanged files. `Operational` is CLAUDE.md's canonical Action type for this kind of tooling/test-artifact write — the same type `wrap-up/SKILL.md` and `specify/SKILL.md` use for non-implementation file changes.
 
 ## Examples
 
