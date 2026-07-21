@@ -81,6 +81,45 @@ test('status --fail-on risk-high exits 1 when open risk-high entries exist in v2
   assert.ok(result.stdout.includes('FAIL'));
 });
 
+// REGRESSION: a risk-high finding that got reopened (status: 'regressed',
+// e.g. it was fixed, closed, then reappeared) is just as live/unresolved as
+// an 'open' one — --fail-on risk-high must not silently pass while it sits
+// open in the tracker.
+test('status --fail-on risk-high exits 1 when a REGRESSED (not just open) risk-high entry exists', () => {
+  const root = tmp();
+  writeV2Cache(root, [
+    { fp: 'recon-aaaabbbb', status: 'regressed', severity: 'high', risk: 'high' },
+  ]);
+  const result = spawnSync('node', [CLI, 'status', '--fail-on', 'risk-high', '--root', root], { encoding: 'utf8' });
+  assert.strictEqual(result.status, 1, `expected FAIL for a regressed risk-high finding: ${result.stdout}`);
+  assert.ok(result.stdout.includes('FAIL'));
+});
+
+test('status --fail-on with an unrecognized value exits 2 (does not silently disable the gate)', () => {
+  const root = tmp();
+  writeV2Cache(root, [
+    { fp: 'recon-aaaabbbb', status: 'regressed', severity: 'high', risk: 'high' },
+  ]);
+  const result = spawnSync('node', [CLI, 'status', '--fail-on', 'Regressed', '--root', root], { encoding: 'utf8' });
+  assert.strictEqual(result.status, 2, `expected exit 2 for a typo'd --fail-on value, got ${result.status}: ${result.stdout}${result.stderr}`);
+  assert.ok(result.stderr.includes('--fail-on'), `expected --fail-on mentioned in stderr: ${result.stderr}`);
+});
+
+// REGRESSION: --fail-on used to unconditionally fetch the durable
+// remembered store (a `git fetch origin health-state`, up to a 30s timeout
+// when offline) purely to print an informational count neither gate branch
+// reads. --fail-on mode must not surface a remembered count at all — a
+// plain `status` invocation still does.
+test('status --fail-on output omits the remembered count (the durable-state fetch is skipped in this mode)', () => {
+  const root = tmp();
+  writeV2Cache(root, [
+    { fp: 'recon-aaaabbbb', status: 'open', severity: 'medium' },
+  ]);
+  const result = spawnSync('node', [CLI, 'status', '--fail-on', 'regressed', '--root', root], { encoding: 'utf8' });
+  assert.strictEqual(result.status, 0);
+  assert.ok(!result.stdout.includes('remembered:'), `--fail-on output must not include remembered: ${result.stdout}`);
+});
+
 test('status --fail-on regressed exits 0 when no regressed entries', () => {
   const root = tmp();
   writeV2Cache(root, [

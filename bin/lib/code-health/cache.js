@@ -24,16 +24,26 @@ const durable = createDurableState('code-health', { includeRemembered: true });
 // Pure: computes the next durable-state object for a validate-findings run.
 // current: { cursors, remembered, retryQueue, runs } — the current durable
 // health-state shape (as returned by readDurableState).
-// opts: { areasSwept: string[], hashes: { [areaId]: string }, rememberedDelta: object,
+// opts: { areasSwept: string[], hashes: { [areaId]: string },
+//         rememberCandidates: [{ id, severity, risk }],
 //         runRecord: { runId, runAt, fingerprints }, now?: number }
+//
+// rememberCandidates (not a pre-computed delta object) so the "already
+// remembered, don't touch it" check below is evaluated against THIS
+// invocation's own `current.remembered` — writeDurableState's CAS loop calls
+// its mutator fresh (a real refetch) on every retry attempt, so computing
+// the delta here, inside the mutator, means the check always sees the
+// freshest available state instead of a snapshot the caller read before the
+// CAS loop even started (which could be stale by the time of the write —
+// e.g. a concurrent code-health firing in the intervening window).
 //
 // This is the exact logic bin/code-health.js's cmdValidateFindings hands to
 // writeDurableState as its mutator — extracted here (no git, no gh, no I/O)
 // so its four behaviors (selective per-swept-area cursor update, un-swept-area
-// cursor preservation, remembered-delta merge, run-history append) can be
+// cursor preservation, remembered-candidate merge, run-history append) can be
 // unit tested directly with plain-object fixtures. See
 // bin/lib/code-health/tests/build-validate-findings-update.test.js.
-function buildValidateFindingsUpdate(current, { areasSwept, hashes, rememberedDelta, runRecord, now = Date.now() }) {
+function buildValidateFindingsUpdate(current, { areasSwept, hashes, rememberCandidates, runRecord, now = Date.now() }) {
   const cursors = { ...current.cursors };
   for (const areaId of areasSwept) {
     const existing = cursors[areaId] || {};
@@ -43,10 +53,16 @@ function buildValidateFindingsUpdate(current, { areasSwept, hashes, rememberedDe
       ...(hashes[areaId] != null ? { lastHash: hashes[areaId] } : {}),
     };
   }
+  const remembered = { ...current.remembered };
+  for (const { id, severity, risk } of rememberCandidates || []) {
+    if (!remembered[id]) {
+      remembered[id] = { status: 'remembered', issue: null, severity, risk };
+    }
+  }
   return {
     ...current,
     cursors,
-    remembered: { ...current.remembered, ...rememberedDelta },
+    remembered,
     runs: [...current.runs, runRecord],
   };
 }

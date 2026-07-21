@@ -21,6 +21,21 @@ const { makeCmdChurnReport } = require('./lib/health-core/churn-report');
 const retryQueueCommands = makeRetryQueueCommands({ readDurableState, writeDurableState });
 const cmdChurnReport = makeCmdChurnReport({ readDurableState, computeChurn });
 const TOOL_NAME = 'code-health';
+const FAIL_ON_VALUES = new Set(['regressed', 'risk-high']);
+
+// Shared by cmdPullIssues' --min-severity and cmdValidateFindings' --min-risk —
+// both reject a value that isn't a RISK_RANK key, print an error naming the
+// offending flag/command, and exit(2), so a future change to RISK_RANK's tiers
+// (or the error-reporting convention) only has to be made in one place.
+function validateRiskArg(value, { argName, cmdName, consequence }) {
+  if (value == null) return;
+  if (Object.prototype.hasOwnProperty.call(RISK_RANK, value)) return;
+  process.stderr.write(
+    `${cmdName}: --${argName} "${value}" is not a recognized risk tier ` +
+    `(must be one of ${Object.keys(RISK_RANK).join('|')}) — ${consequence}\n`,
+  );
+  process.exit(2);
+}
 
 function parseArgs(argv) {
   const args = { _: [], root: process.cwd(), dryRun: false, runId: new Date().toISOString() };
@@ -48,20 +63,43 @@ function parseArgs(argv) {
 
 function cmdStatus(args) {
   const root = args.root || process.cwd();
+  const failOn = args['fail-on'];
+  if (failOn != null && !FAIL_ON_VALUES.has(failOn)) {
+    process.stderr.write(
+      `status: --fail-on "${failOn}" is not a recognized value ` +
+      `(must be one of ${[...FAIL_ON_VALUES].join('|')}) — an unrecognized value silently disables ` +
+      'the gate (always exits 0) regardless of how many regressed/risk-high findings actually exist.\n',
+    );
+    process.exit(2);
+  }
+
   const cache = readCache(root);
   const findings = Object.values(cache);
-  const remembered = Object.keys(readDurableState(root).remembered).length;
   const counts = {
     open: findings.filter((f) => f.status === 'open').length,
     regressed: findings.filter((f) => f.status === 'regressed').length,
     closed: findings.filter((f) => f.status === 'closed').length,
     wontfix: findings.filter((f) => f.status === 'wontfix').length,
-    remembered,
-    riskHigh: findings.filter((f) => f.status === 'open' && f.risk === 'high').length,
+    // A regressed finding is a previously-closed GitHub issue that
+    // validate-findings just reopened — i.e. currently open and unresolved,
+    // exactly as live as an 'open' one. Excluding it here would let
+    // --fail-on risk-high silently pass while a high-risk issue sits open
+    // in the tracker under status 'regressed'.
+    riskHigh: findings.filter((f) => (f.status === 'open' || f.status === 'regressed') && f.risk === 'high').length,
   };
+
+  // The `remembered` count is purely informational (sub-threshold, not yet
+  // filed) — neither --fail-on gate branch below reads it, only the printed
+  // summary line does. Computing it requires readDurableState's `git fetch
+  // origin health-state`, which can take up to a 30s timeout when offline —
+  // wasteful on every invocation of the documented CI/pre-push fast pass/fail
+  // gate, for a value that gate never consults. Skip it in --fail-on mode;
+  // a plain `status` invocation (informational, interactive) still fetches
+  // and shows it.
+  const remembered = failOn ? null : Object.keys(readDurableState(root).remembered).length;
   const line = `open:${counts.open} regressed:${counts.regressed} closed:${counts.closed} ` +
-    `wontfix:${counts.wontfix} remembered:${counts.remembered}\n`;
-  const failOn = args['fail-on'];
+    `wontfix:${counts.wontfix}` + (remembered != null ? ` remembered:${remembered}` : '') + '\n';
+
   if (failOn === 'regressed' && counts.regressed > 0) {
     process.stdout.write(`FAIL: ${counts.regressed} regressed finding(s)\n` + line);
     process.exit(1);
@@ -79,14 +117,11 @@ function cmdPullIssues(args) {
     process.stderr.write('usage: code-health.js pull-issues --label <label> --issues <file> [--min-severity <sev>]\n');
     process.exit(2);
   }
-  if (args['min-severity'] && !Object.prototype.hasOwnProperty.call(RISK_RANK, args['min-severity'])) {
-    process.stderr.write(
-      `pull-issues: --min-severity "${args['min-severity']}" is not a recognized risk tier ` +
-      `(must be one of ${Object.keys(RISK_RANK).join('|')}) — an unrecognized value silently disables ` +
-      'the severity filter instead of restricting output.\n',
-    );
-    process.exit(2);
-  }
+  validateRiskArg(args['min-severity'], {
+    argName: 'min-severity',
+    cmdName: 'pull-issues',
+    consequence: 'an unrecognized value silently disables the severity filter instead of restricting output.',
+  });
   let issuesJson;
   try {
     issuesJson = JSON.parse(fs.readFileSync(args.issues, 'utf8'));
@@ -126,14 +161,11 @@ function cmdValidateFindings(args) {
     process.exit(2);
   }
 
-  if (args['min-risk'] && !Object.prototype.hasOwnProperty.call(RISK_RANK, args['min-risk'])) {
-    process.stderr.write(
-      `validate-findings: --min-risk "${args['min-risk']}" is not a recognized risk tier ` +
-      '(must be one of low|medium|high) — an unrecognized value silently remembers every ' +
-      'finding instead of filing it, including high-risk ones.\n',
-    );
-    process.exit(2);
-  }
+  validateRiskArg(args['min-risk'], {
+    argName: 'min-risk',
+    cmdName: 'validate-findings',
+    consequence: 'an unrecognized value silently remembers every finding instead of filing it, including high-risk ones.',
+  });
 
   let raw;
   try {
@@ -175,8 +207,16 @@ function cmdValidateFindings(args) {
   // 3. Dedup against the issue index and local cache.
   const cache = readCache(root);
   const issueIndex = loadIssueIndex(args.issues, TOOL_NAME);
-  const durableState = readDurableState(root);
-  const rememberedDelta = {};
+  // Collected as raw candidates, not a pre-computed delta object — the
+  // "already remembered, don't touch it" decision is made later, inside
+  // writeDurableState's mutator (buildValidateFindingsUpdate), against
+  // whatever state that CAS attempt actually fetched. Deciding it here
+  // would need its own readDurableState(root) call purely to consult one
+  // field (remembered[id]) — a second, redundant network fetch on top of
+  // writeDurableState's own (and one that also runs even in --dry-run mode,
+  // when nothing is written at all), reading a snapshot that could already
+  // be stale by the time of the actual write.
+  const rememberCandidates = [];
   const payloads = [];
   const seen = new Set();
   for (const finding of survivors) {
@@ -200,9 +240,7 @@ function cmdValidateFindings(args) {
         : { status: 'open', issue: null, severity: finding.severity, risk: finding.risk };
       payloads.push(toIssuePayloadV2(finding));
     } else if (decision.action === 'remember') {
-      if (!durableState.remembered[finding.id] && !rememberedDelta[finding.id]) {
-        rememberedDelta[finding.id] = { status: 'remembered', issue: null, severity: finding.severity, risk: finding.risk };
-      }
+      rememberCandidates.push({ id: finding.id, severity: finding.severity, risk: finding.risk });
     }
   }
 
@@ -212,14 +250,26 @@ function cmdValidateFindings(args) {
   // update) and, unless dry-run, the durable cursor/run/remembered update in
   // a single batched health-state write.
   if (!args.dryRun) {
-    writeCache(root, cache);
+    // Non-fatal, same as the writeDurableState block below: cache.json is
+    // rebuildable from `gh issue list` (see cache.js's header comment), so a
+    // write failure here (unwritable dir, read-only checkout, disk full)
+    // must not crash the process before payloads are ever emitted on stdout —
+    // an entire sweep's worth of already-judged, already-deduped findings
+    // would otherwise be silently discarded on a local-persistence hiccup.
+    try {
+      writeCache(root, cache);
+    } catch (err) {
+      process.stderr.write(
+        `[code-health] validate-findings: local cache write failed (non-fatal, payloads still emitted): ${err.message}\n`,
+      );
+    }
     try {
       const sliceId = args.slice;
       const areasSwept = sliceId ? [sliceId] : [];
       const hashes = sliceId ? { [sliceId]: contentHash(path.resolve(root, sliceId)) } : {};
       const runRecord = { runId: args.runId, runAt: new Date().toISOString(), fingerprints: [...seen] };
       const result = writeDurableState(root, (current) => buildValidateFindingsUpdate(
-        current, { areasSwept, hashes, rememberedDelta, runRecord },
+        current, { areasSwept, hashes, rememberCandidates, runRecord },
       ));
       if (!result.ok) {
         process.stderr.write(
@@ -246,18 +296,25 @@ function cmdNextSlice(args) {
   const budget = Number.isFinite(args.budget) && args.budget > 0 ? args.budget : 1;
   const cursors = readDurableState(root).cursors;
   const now = Date.now();
+  // Shared across every selectSlice call in this one CLI invocation (and the
+  // final buildCursorPatch hash below) — on-disk content can't change during
+  // a single invocation, so a slice's source files only need to be read (and
+  // hashed) once, not once per budget iteration plus once more for the
+  // picked slice's cursor-patch hash. See scope.js's selectSlice/contentHash
+  // fileDataCache doc comments.
+  const fileDataCache = new Map();
 
   if (budget === 1) {
-    const slice = selectSlice(root, cursors, { now });
+    const slice = selectSlice(root, cursors, { now, fileDataCache });
     process.stdout.write(JSON.stringify(slice, null, 2) + '\n');
     return;
   }
 
   // Budget > 1: pick up to `budget` distinct slices, simulating post-judge
   // cursor state in-memory between picks (see bin/lib/health-core/budget.js).
-  const chosen = selectBudget(budget, cursors, (c) => selectSlice(root, c, { now }), {
+  const chosen = selectBudget(budget, cursors, (c) => selectSlice(root, c, { now, fileDataCache }), {
     getCursorKey: (slice) => slice.id,
-    buildCursorPatch: (_, slice) => ({ lastSweptMs: now, lastHash: contentHash(slice.path) }),
+    buildCursorPatch: (_, slice) => ({ lastSweptMs: now, lastHash: contentHash(slice.path, fileDataCache) }),
   });
   process.stdout.write(JSON.stringify(chosen, null, 2) + '\n');
 }

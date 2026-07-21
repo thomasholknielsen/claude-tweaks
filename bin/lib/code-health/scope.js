@@ -92,6 +92,20 @@ function readSourceFileData(absDir) {
   });
 }
 
+// Same as readSourceFileData, but reuses a caller-supplied Map (keyed by
+// absDir) across repeated calls for the same directory instead of
+// re-spawning `find` and re-reading every file each time. Used by
+// selectSlice's computeScore AND the final cursor-patch hash lookup in a
+// --budget > 1 next-slice invocation — cache is null/undefined for a normal
+// single-pick call, which falls straight through to the uncached read.
+function readSourceFileDataCached(absDir, cache) {
+  if (!cache) return readSourceFileData(absDir);
+  if (cache.has(absDir)) return cache.get(absDir);
+  const data = readSourceFileData(absDir);
+  cache.set(absDir, data);
+  return data;
+}
+
 function hashFromFileData(absDir, fileData) {
   const hasher = crypto.createHash('sha1');
   if (fileData.length === 0) {
@@ -114,8 +128,11 @@ function locFromFileData(fileData) {
   return total;
 }
 
-function contentHash(absDir) {
-  return hashFromFileData(absDir, readSourceFileData(absDir));
+// cache: optional Map (see readSourceFileDataCached) — pass the same Map
+// across repeated calls for the same absDir within one CLI invocation to
+// avoid re-spawning `find` and re-reading every file.
+function contentHash(absDir, cache) {
+  return hashFromFileData(absDir, readSourceFileDataCached(absDir, cache));
 }
 
 // ─── Hotspot signals (impure; degrade gracefully) ────────────────────────────
@@ -249,14 +266,24 @@ function listWorkspaceSlices(root, patterns) {
 }
 
 // ─── selectSlice ─────────────────────────────────────────────────────────────
-// opts: { budget?: number, now?: number, signals?: { [id]: { churn, loc } } }
+// opts: { budget?: number, now?: number, signals?: { [id]: { churn, loc } },
+//         fileDataCache?: Map }
 // Returns Slice & { why: 'stale' | 'hotspot' } or null. Phase mechanics
 // (force-pick past MAX_STALE_DAYS, else score-and-pick-highest) delegate to
 // health-core/rotation's shared selectByStaleThenChurn; this module keeps
 // ownership of the slice listing, content-hash skip, and hotspot scoring.
+//
+// fileDataCache (optional): a Map the caller can create once and pass into
+// every selectSlice call across a --budget > 1 loop (see cmdNextSlice in
+// bin/code-health.js) and into a subsequent contentHash() call for the
+// winning slice — on-disk content doesn't change during one CLI invocation,
+// so this avoids re-spawning `find` and re-reading every source file once
+// per budget iteration per candidate, plus once more for the final picked
+// slice's cursor-patch hash.
 function selectSlice(root, cursors, opts = {}) {
   const now = opts.now != null ? opts.now : Date.now();
   const signals = opts.signals || null; // test injection hook
+  const fileDataCache = opts.fileDataCache || null;
 
   const candidates = listSlices(root);
 
@@ -267,11 +294,12 @@ function selectSlice(root, cursors, opts = {}) {
     getLastAuditedMs: (cursor) => (cursor && cursor.lastSweptMs != null ? cursor.lastSweptMs : null),
     // Skip if content-hash is unchanged (the real change-aware skip) —
     // returning null excludes the slice from Phase 2 entirely. Reads the
-    // slice's source files exactly once (readSourceFileData) and derives
-    // both the hash and the LOC count from that single pass, instead of
-    // independently re-spawning `find` and re-reading every file for each.
+    // slice's source files exactly once per candidate per fileDataCache
+    // lifetime (readSourceFileDataCached) and derives both the hash and the
+    // LOC count from that single pass, instead of independently
+    // re-spawning `find` and re-reading every file for each.
     computeScore: (slice, cursor) => {
-      const fileData = readSourceFileData(slice.path);
+      const fileData = readSourceFileDataCached(slice.path, fileDataCache);
       const currentHash = hashFromFileData(slice.path, fileData);
       if (cursor.lastHash && cursor.lastHash === currentHash) return null;
       const sig = signals ? signals[slice.id] || { churn: 0, loc: 0 } : null;

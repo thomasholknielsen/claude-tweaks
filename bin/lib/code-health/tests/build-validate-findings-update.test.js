@@ -28,7 +28,7 @@ test('buildValidateFindingsUpdate: a swept area cursor gets lastSweptMs/lastHash
   const next = buildValidateFindingsUpdate(current, {
     areasSwept: ['src/api'],
     hashes: { 'src/api': 'hash-abc' },
-    rememberedDelta: {},
+    rememberCandidates: [],
     runRecord: { runId: 'r1', runAt: 'now', fingerprints: [] },
     now,
   });
@@ -44,7 +44,7 @@ test('buildValidateFindingsUpdate: an un-swept area\'s existing cursor is preser
   const next = buildValidateFindingsUpdate(current, {
     areasSwept: ['src/api'], // only src/api is swept this run
     hashes: { 'src/api': 'hash-abc' },
-    rememberedDelta: {},
+    rememberCandidates: [],
     runRecord: { runId: 'r1', runAt: 'now', fingerprints: [] },
     now: 999,
   });
@@ -56,20 +56,46 @@ test('buildValidateFindingsUpdate: an un-swept area\'s existing cursor is preser
   assert.ok(next.cursors['src/api'], 'swept area must still get its own cursor entry');
 });
 
-test('buildValidateFindingsUpdate: rememberedDelta is merged into (not replacing) current.remembered', () => {
+test('buildValidateFindingsUpdate: a new rememberCandidate is merged into (not replacing) current.remembered', () => {
   const current = baseCurrent({
     remembered: { 'recon-existing01': { status: 'remembered', issue: null, severity: 'medium', risk: 'medium' } },
   });
   const next = buildValidateFindingsUpdate(current, {
     areasSwept: [],
     hashes: {},
-    rememberedDelta: { 'recon-newone02': { status: 'remembered', issue: null, severity: 'low', risk: 'low' } },
+    rememberCandidates: [{ id: 'recon-newone02', severity: 'low', risk: 'low' }],
     runRecord: { runId: 'r1', runAt: 'now', fingerprints: [] },
     now: 1,
   });
   assert.ok(next.remembered['recon-existing01'], 'pre-existing remembered entry must survive the merge');
-  assert.ok(next.remembered['recon-newone02'], 'new rememberedDelta entry must be present');
+  assert.ok(next.remembered['recon-newone02'], 'new rememberCandidate entry must be present');
   assert.strictEqual(Object.keys(next.remembered).length, 2);
+});
+
+// REGRESSION: the "already remembered, don't touch it" check must be
+// evaluated against `current.remembered` (the state passed INTO this
+// invocation — i.e. whatever writeDurableState's CAS loop most recently
+// fetched), never a caller-side pre-computed delta that already decided
+// which candidates to include/exclude before this function ever saw the
+// freshest state. A candidate whose id already exists in current.remembered
+// must be left untouched, not overwritten with this run's own values.
+test('buildValidateFindingsUpdate: a rememberCandidate already present in current.remembered is left untouched (its original entry wins)', () => {
+  const current = baseCurrent({
+    remembered: { 'recon-existing01': { status: 'remembered', issue: null, severity: 'high', risk: 'high' } },
+  });
+  const next = buildValidateFindingsUpdate(current, {
+    areasSwept: [],
+    hashes: {},
+    // Same id, different severity/risk this run — must NOT overwrite.
+    rememberCandidates: [{ id: 'recon-existing01', severity: 'low', risk: 'low' }],
+    runRecord: { runId: 'r1', runAt: 'now', fingerprints: [] },
+    now: 1,
+  });
+  assert.deepStrictEqual(
+    next.remembered['recon-existing01'],
+    { status: 'remembered', issue: null, severity: 'high', risk: 'high' },
+    'an already-remembered entry (from current.remembered, the freshest available state) must not be overwritten',
+  );
 });
 
 test('buildValidateFindingsUpdate: the new run record is appended to (not replacing) current.runs', () => {
@@ -79,7 +105,7 @@ test('buildValidateFindingsUpdate: the new run record is appended to (not replac
   const next = buildValidateFindingsUpdate(current, {
     areasSwept: [],
     hashes: {},
-    rememberedDelta: {},
+    rememberCandidates: [],
     runRecord: newRun,
     now: 1,
   });
@@ -91,7 +117,7 @@ test('buildValidateFindingsUpdate: passes through unrelated current fields (e.g.
   const next = buildValidateFindingsUpdate(current, {
     areasSwept: [],
     hashes: {},
-    rememberedDelta: {},
+    rememberCandidates: [],
     runRecord: { runId: 'r1', runAt: 'now', fingerprints: [] },
     now: 1,
   });

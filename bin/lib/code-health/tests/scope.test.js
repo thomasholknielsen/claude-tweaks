@@ -178,6 +178,47 @@ test('contentHash does NOT change when a NESTED node_modules changes (not just a
   );
 });
 
+// REGRESSION: a shared cache Map lets contentHash (and selectSlice's
+// internal computeScore) reuse a prior read for the same absDir instead of
+// re-spawning `find` and re-reading every file — used by cmdNextSlice's
+// --budget path to avoid re-hashing every candidate on every budget
+// iteration, and to avoid a second, fully-redundant hash pass for the
+// eventually-picked slice's cursor-patch write.
+test('contentHash with a shared cache reuses the first read (proven by deleting the file in between — a fresh read would see the deletion, the cached read would not)', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'a.js'), 'const x = 1;\n');
+  const cache = new Map();
+  const first = contentHash(root, cache);
+  fs.rmSync(path.join(root, 'a.js'));
+  const second = contentHash(root, cache);
+  assert.strictEqual(second, first, 'second call with the same cache must reuse the first read, not re-scan the now-empty dir');
+});
+
+test('contentHash without a cache (or with a fresh cache) does re-read the filesystem', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'a.js'), 'const x = 1;\n');
+  const first = contentHash(root);
+  fs.rmSync(path.join(root, 'a.js'));
+  const second = contentHash(root);
+  assert.notStrictEqual(second, first, 'without a shared cache, the deleted file must be reflected in a new hash');
+});
+
+test('selectSlice reuses a caller-supplied fileDataCache across repeated calls for the same slice (no cache: computes fresh; with cache: the winning slice\'s hash matches contentHash computed via that same cache)', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'a.js'), 'const x = 1;\n');
+  const cache = new Map();
+  const oldHash = 'stale-hash-from-last-run';
+  const cursors = { '.': { lastSweptMs: Date.now() - 86400000, lastHash: oldHash } };
+  const result = selectSlice(root, cursors, { now: Date.now(), fileDataCache: cache });
+  assert.ok(result !== null);
+  // The cache must now hold this slice's file data — contentHash(path, cache)
+  // must return the exact same hash without needing the file on disk anymore.
+  fs.rmSync(path.join(root, 'a.js'));
+  const hashViaCache = contentHash(result.path, cache);
+  const expectedHash = contentHash(root); // fresh dir is now empty — different value; used only to confirm cache !== a fresh read
+  assert.notStrictEqual(hashViaCache, expectedHash, 'the cached hash must reflect the pre-deletion content, not a fresh (now-empty) read');
+});
+
 test('contentHash returns a stable hash for a dir with no source files', () => {
   const root = tmp();
   // No source files — should return a non-empty string without throwing
