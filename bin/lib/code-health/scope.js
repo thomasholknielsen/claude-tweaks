@@ -21,8 +21,13 @@ const SOURCE_EXTS = new Set(['.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs']);
 // today's exact one-level-deep behavior.
 function listSlices(root) {
   const slices = [{ id: '.', path: root }];
-  const workspaceSlices = listWorkspaceSlices(root);
-  const coveredTopLevel = fullyCoveredTopLevelDirs(root);
+  // Read the workspace manifest exactly once and hand the parsed patterns to
+  // both consumers below — listWorkspaceSlices and fullyCoveredTopLevelDirs
+  // each independently called readWorkspacePatterns(root) before, doubling
+  // the package.json/pnpm-workspace.yaml read+parse on every listSlices call.
+  const patterns = readWorkspacePatterns(root);
+  const workspaceSlices = listWorkspaceSlices(root, patterns);
+  const coveredTopLevel = fullyCoveredTopLevelDirs(root, patterns);
   let entries;
   try { entries = fs.readdirSync(root, { withFileTypes: true }); } catch { return slices; }
   for (const entry of entries) {
@@ -32,6 +37,13 @@ function listSlices(root) {
     slices.push({ id: entry.name, path: path.join(root, entry.name) });
   }
   slices.push(...workspaceSlices);
+  // fs.readdirSync order is not guaranteed by Node's API, so without an
+  // explicit sort, selectByStaleThenChurn's Phase 1 (first-qualifying-wins)
+  // could force-pick a different slice across environments/checkouts for
+  // the identical repo state, undermining round-robin coverage. Sibling
+  // engines (e.g. harness-health/scope.js's listSkills/listRules) already
+  // sort their candidate lists for the same reason.
+  slices.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   return slices;
 }
 
@@ -64,11 +76,11 @@ function sourceFiles(absDir) {
 }
 
 // Reads every source file under absDir exactly once, as a Buffer (so both
-// contentHash's byte-for-byte hashing and sliceLoc's line count can be
+// contentHash's byte-for-byte hashing and selectSlice's line count can be
 // derived from the same in-memory read — see hashFromFileData/locFromFileData
 // below and selectSlice's computeScore, which calls this once per slice
-// instead of contentHash/sliceLoc each independently re-spawning `find` and
-// re-reading every file).
+// instead of independently re-spawning `find` and re-reading every file for
+// hash and LOC separately).
 function readSourceFileData(absDir) {
   const files = sourceFiles(absDir);
   return files.map((file) => {
@@ -78,6 +90,20 @@ function readSourceFileData(absDir) {
       return { file, buffer: null };
     }
   });
+}
+
+// Same as readSourceFileData, but reuses a caller-supplied Map (keyed by
+// absDir) across repeated calls for the same directory instead of
+// re-spawning `find` and re-reading every file each time. Used by
+// selectSlice's computeScore AND the final cursor-patch hash lookup in a
+// --budget > 1 next-slice invocation — cache is null/undefined for a normal
+// single-pick call, which falls straight through to the uncached read.
+function readSourceFileDataCached(absDir, cache) {
+  if (!cache) return readSourceFileData(absDir);
+  if (cache.has(absDir)) return cache.get(absDir);
+  const data = readSourceFileData(absDir);
+  cache.set(absDir, data);
+  return data;
 }
 
 function hashFromFileData(absDir, fileData) {
@@ -102,14 +128,24 @@ function locFromFileData(fileData) {
   return total;
 }
 
-function contentHash(absDir) {
-  return hashFromFileData(absDir, readSourceFileData(absDir));
+// cache: optional Map (see readSourceFileDataCached) — pass the same Map
+// across repeated calls for the same absDir within one CLI invocation to
+// avoid re-spawning `find` and re-reading every file.
+function contentHash(absDir, cache) {
+  return hashFromFileData(absDir, readSourceFileDataCached(absDir, cache));
 }
 
 // ─── Hotspot signals (impure; degrade gracefully) ────────────────────────────
 function gitChurn(root, relDir, now) {
   try {
-    const since = new Date(now - 30 * 86400000).toISOString().slice(0, 10);
+    // Full ISO 8601 datetime (with time-of-day and Z/UTC suffix), not a bare
+    // YYYY-MM-DD date string — a bare date string is parsed by git as local
+    // midnight and then converted to UTC, silently skewing (or, near the
+    // epoch, underflowing to pre-epoch and matching zero commits) the
+    // boundary in positive-UTC-offset timezones. Identical bug and fix as
+    // harness-health/scope.js's domainChurn, journey-health/scope.js, and
+    // docs-health/scope.js.
+    const since = new Date(now - 30 * 86400000).toISOString();
     const out = execFileSync(
       'git',
       ['-C', root, 'log', '--oneline', `--since=${since}`, '--', relDir === '.' ? '.' : relDir],
@@ -119,10 +155,6 @@ function gitChurn(root, relDir, now) {
   } catch {
     return 0;
   }
-}
-
-function sliceLoc(absDir) {
-  return locFromFileData(readSourceFileData(absDir));
 }
 
 // Hotspot score = churn × complexity (higher = more important to judge next).
@@ -196,24 +228,34 @@ function expandWorkspacePattern(root, rawPattern) {
 // also appear as its own top-level slice. A literal single-package pattern
 // (e.g. "tools/cli") does NOT cover "tools" — unlisted siblings like
 // "tools/scripts" must still reach a top-level slice, so they aren't silently
-// dropped from scope.
-function fullyCoveredTopLevelDirs(root) {
-  const patterns = readWorkspacePatterns(root);
+// dropped from scope. A literal pattern with NO path separator at all (e.g.
+// "packages", naming a top-level dir directly) DOES cover that dir — it
+// becomes one whole-directory package slice via expandWorkspacePattern's
+// literal branch, so it must not also appear as its own top-level mega-slice
+// from the plain readdir loop (they'd otherwise be listed — and scored —
+// twice, as the same id and path).
+// patterns: optional pre-read result of readWorkspacePatterns(root), so
+// callers that already have it (listSlices) don't re-read the manifest.
+function fullyCoveredTopLevelDirs(root, patterns) {
+  const pats = patterns || readWorkspacePatterns(root);
   const covered = new Set();
-  for (const rawPattern of patterns) {
+  for (const rawPattern of pats) {
     const pattern = rawPattern.replace(/^\.\//, '').replace(/\/$/, '');
-    const m = pattern.match(/^([^*!{}?]+)\/\*$/);
-    if (m) covered.add(m[1]);
+    const globMatch = pattern.match(/^([^*!{}?]+)\/\*$/);
+    if (globMatch) { covered.add(globMatch[1]); continue; }
+    if (!/[*!{}?]/.test(pattern) && !pattern.includes('/')) covered.add(pattern);
   }
   return covered;
 }
 
 // Returns [] when no workspace manifest exists or none of its patterns resolve.
-function listWorkspaceSlices(root) {
-  const patterns = readWorkspacePatterns(root);
+// patterns: optional pre-read result of readWorkspacePatterns(root), so
+// callers that already have it (listSlices) don't re-read the manifest.
+function listWorkspaceSlices(root, patterns) {
+  const pats = patterns || readWorkspacePatterns(root);
   const slices = [];
   const seen = new Set();
-  for (const pattern of patterns) {
+  for (const pattern of pats) {
     for (const slice of expandWorkspacePattern(root, pattern)) {
       if (seen.has(slice.id)) continue;
       seen.add(slice.id);
@@ -224,14 +266,24 @@ function listWorkspaceSlices(root) {
 }
 
 // ─── selectSlice ─────────────────────────────────────────────────────────────
-// opts: { budget?: number, now?: number, signals?: { [id]: { churn, loc } } }
+// opts: { budget?: number, now?: number, signals?: { [id]: { churn, loc } },
+//         fileDataCache?: Map }
 // Returns Slice & { why: 'stale' | 'hotspot' } or null. Phase mechanics
 // (force-pick past MAX_STALE_DAYS, else score-and-pick-highest) delegate to
 // health-core/rotation's shared selectByStaleThenChurn; this module keeps
 // ownership of the slice listing, content-hash skip, and hotspot scoring.
+//
+// fileDataCache (optional): a Map the caller can create once and pass into
+// every selectSlice call across a --budget > 1 loop (see cmdNextSlice in
+// bin/code-health.js) and into a subsequent contentHash() call for the
+// winning slice — on-disk content doesn't change during one CLI invocation,
+// so this avoids re-spawning `find` and re-reading every source file once
+// per budget iteration per candidate, plus once more for the final picked
+// slice's cursor-patch hash.
 function selectSlice(root, cursors, opts = {}) {
   const now = opts.now != null ? opts.now : Date.now();
   const signals = opts.signals || null; // test injection hook
+  const fileDataCache = opts.fileDataCache || null;
 
   const candidates = listSlices(root);
 
@@ -242,12 +294,12 @@ function selectSlice(root, cursors, opts = {}) {
     getLastAuditedMs: (cursor) => (cursor && cursor.lastSweptMs != null ? cursor.lastSweptMs : null),
     // Skip if content-hash is unchanged (the real change-aware skip) —
     // returning null excludes the slice from Phase 2 entirely. Reads the
-    // slice's source files exactly once (readSourceFileData) and derives
-    // both the hash and the LOC count from that single pass, instead of
-    // contentHash/sliceLoc each independently re-spawning `find` and
-    // re-reading every file.
+    // slice's source files exactly once per candidate per fileDataCache
+    // lifetime (readSourceFileDataCached) and derives both the hash and the
+    // LOC count from that single pass, instead of independently
+    // re-spawning `find` and re-reading every file for each.
     computeScore: (slice, cursor) => {
-      const fileData = readSourceFileData(slice.path);
+      const fileData = readSourceFileDataCached(slice.path, fileDataCache);
       const currentHash = hashFromFileData(slice.path, fileData);
       if (cursor.lastHash && cursor.lastHash === currentHash) return null;
       const sig = signals ? signals[slice.id] || { churn: 0, loc: 0 } : null;
@@ -260,4 +312,4 @@ function selectSlice(root, cursors, opts = {}) {
   });
 }
 
-module.exports = { listSlices, contentHash, selectSlice, listWorkspaceSlices };
+module.exports = { listSlices, contentHash, selectSlice, listWorkspaceSlices, gitChurn };

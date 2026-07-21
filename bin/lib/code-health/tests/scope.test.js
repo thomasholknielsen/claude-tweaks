@@ -3,10 +3,17 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { listSlices, contentHash, selectSlice, listWorkspaceSlices } = require('../scope');
+const { execFileSync } = require('child_process');
+const { listSlices, contentHash, selectSlice, listWorkspaceSlices, gitChurn } = require('../scope');
 const { MAX_STALE_DAYS } = require('../score');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-scope-')); }
+
+function initGitRepo(root) {
+  execFileSync('git', ['-C', root, 'init', '-q']);
+  execFileSync('git', ['-C', root, 'config', 'user.email', 'test@test.com']);
+  execFileSync('git', ['-C', root, 'config', 'user.name', 'Test']);
+}
 
 // ─── listSlices ────────────────────────────────────────────────────────────
 
@@ -169,6 +176,47 @@ test('contentHash does NOT change when a NESTED node_modules changes (not just a
     h1,
     'a nested node_modules (not a direct child of root) must be excluded from the hash, same as a direct-child node_modules',
   );
+});
+
+// REGRESSION: a shared cache Map lets contentHash (and selectSlice's
+// internal computeScore) reuse a prior read for the same absDir instead of
+// re-spawning `find` and re-reading every file — used by cmdNextSlice's
+// --budget path to avoid re-hashing every candidate on every budget
+// iteration, and to avoid a second, fully-redundant hash pass for the
+// eventually-picked slice's cursor-patch write.
+test('contentHash with a shared cache reuses the first read (proven by deleting the file in between — a fresh read would see the deletion, the cached read would not)', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'a.js'), 'const x = 1;\n');
+  const cache = new Map();
+  const first = contentHash(root, cache);
+  fs.rmSync(path.join(root, 'a.js'));
+  const second = contentHash(root, cache);
+  assert.strictEqual(second, first, 'second call with the same cache must reuse the first read, not re-scan the now-empty dir');
+});
+
+test('contentHash without a cache (or with a fresh cache) does re-read the filesystem', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'a.js'), 'const x = 1;\n');
+  const first = contentHash(root);
+  fs.rmSync(path.join(root, 'a.js'));
+  const second = contentHash(root);
+  assert.notStrictEqual(second, first, 'without a shared cache, the deleted file must be reflected in a new hash');
+});
+
+test('selectSlice reuses a caller-supplied fileDataCache across repeated calls for the same slice (no cache: computes fresh; with cache: the winning slice\'s hash matches contentHash computed via that same cache)', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'a.js'), 'const x = 1;\n');
+  const cache = new Map();
+  const oldHash = 'stale-hash-from-last-run';
+  const cursors = { '.': { lastSweptMs: Date.now() - 86400000, lastHash: oldHash } };
+  const result = selectSlice(root, cursors, { now: Date.now(), fileDataCache: cache });
+  assert.ok(result !== null);
+  // The cache must now hold this slice's file data — contentHash(path, cache)
+  // must return the exact same hash without needing the file on disk anymore.
+  fs.rmSync(path.join(root, 'a.js'));
+  const hashViaCache = contentHash(result.path, cache);
+  const expectedHash = contentHash(root); // fresh dir is now empty — different value; used only to confirm cache !== a fresh read
+  assert.notStrictEqual(hashViaCache, expectedHash, 'the cached hash must reflect the pre-deletion content, not a fresh (now-empty) read');
 });
 
 test('contentHash returns a stable hash for a dir with no source files', () => {
@@ -369,3 +417,77 @@ test('listSlices: a leading "./" workspace pattern still replaces the mega-slice
   assert.deepStrictEqual(ids, ['.', 'packages/a']);
   assert.ok(!ids.includes('packages'), 'raw mega-slice must not survive alongside the expanded child');
 });
+
+test('listSlices: a literal workspace entry that exactly names a top-level dir does NOT also produce a duplicate top-level slice for the same dir', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ workspaces: ['packages'] }));
+  fs.mkdirSync(path.join(root, 'packages'), { recursive: true });
+  const slices = listSlices(root);
+  const packagesSlices = slices.filter((s) => s.id === 'packages');
+  assert.strictEqual(
+    packagesSlices.length,
+    1,
+    `"packages" must appear exactly once, got ${packagesSlices.length}: ${JSON.stringify(packagesSlices)}`,
+  );
+  assert.strictEqual(packagesSlices[0].path, path.join(root, 'packages'));
+});
+
+// ─── listSlices ordering (deterministic, not readdir-order-dependent) ─────────
+
+test('listSlices returns slices sorted by id, not raw readdir order', () => {
+  const root = tmp();
+  // Create in an order that is very unlikely to already be alphabetical.
+  for (const name of ['zeta', 'alpha', 'mu', 'beta']) {
+    fs.mkdirSync(path.join(root, name));
+  }
+  const ids = listSlices(root).map((s) => s.id);
+  assert.deepStrictEqual(ids, [...ids].sort(), 'listSlices output must already be in sorted order');
+  assert.deepStrictEqual(ids, ['.', 'alpha', 'beta', 'mu', 'zeta']);
+});
+
+// ─── gitChurn ──────────────────────────────────────────────────────────────
+
+test('gitChurn counts a commit within the 30-day window', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'src', 'a.js'), 'const x = 1;\n');
+  initGitRepo(root);
+  execFileSync('git', ['-C', root, 'add', '.']);
+  execFileSync('git', ['-C', root, 'commit', '-q', '-m', 'init']);
+  const churn = gitChurn(root, '.', Date.now());
+  assert.ok(churn >= 1, `expected the just-made commit to be counted, got churn=${churn}`);
+});
+
+test(
+  'gitChurn does not collapse its --since boundary to a bare date string ' +
+  '(regression: a bare "1970-01-01" --since value is silently mishandled by git ' +
+  'and matches zero commits in some timezones — confirmed by direct experimentation ' +
+  'with TZ=Asia/Tokyo against this exact repo/commit shape)',
+  () => {
+    const root = tmp();
+    fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'src', 'a.js'), 'const x = 1;\n');
+    initGitRepo(root);
+    execFileSync('git', ['-C', root, 'add', '.']);
+    execFileSync('git', ['-C', root, 'commit', '-q', '-m', 'init']);
+
+    const originalTz = process.env.TZ;
+    process.env.TZ = 'Asia/Tokyo';
+    try {
+      // now = 30 days (in ms) after the epoch, so gitChurn's internal
+      // `now - 30*86400000` boundary is exactly epoch (0). The old buggy
+      // implementation (`.toISOString().slice(0, 10)`) turns that into the
+      // bare string "1970-01-01"; the fix uses the full ISO datetime
+      // instead. Both are handed to `git log --since=`, but only the bare
+      // form is silently mishandled under TZ=Asia/Tokyo.
+      const now = 30 * 86400000;
+      const churn = gitChurn(root, '.', now);
+      assert.ok(
+        churn >= 1,
+        `expected the just-made commit to be counted with a full-ISO --since boundary, got churn=${churn}`,
+      );
+    } finally {
+      if (originalTz === undefined) delete process.env.TZ; else process.env.TZ = originalTz;
+    }
+  },
+);

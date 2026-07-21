@@ -1,6 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { fingerprint, normalizeSignature } = require('../fingerprint');
+const { fingerprintFromBasis } = require('../../health-core/fingerprint');
 
 test('fingerprint returns a recon-<8hex> id', () => {
   const id = fingerprint({ lens: 'todo-comments', areaId: '.', signature: 'TODO x', file: 'a.js:12' });
@@ -90,6 +91,23 @@ test('v2 fingerprint differs when criterion, areaId, or anchor differs', () => {
     fingerprint(base),
     fingerprint({ ...base, anchor: 'src/http.js#retry' }),
   );
+});
+
+// REGRESSION: both v1 and v2 branches must delegate to health-core's shared
+// fingerprintFromBasis primitive (the same one harness-health/journey-health/
+// docs-health use), not a hand-rolled inline sha1 — so a future change to the
+// id format lands in one place instead of code-health's copy silently
+// drifting out of sync.
+test('v1 fingerprint is byte-identical to fingerprintFromBasis(\'codehealth\', [lens, areaId, normFile, normalizeSignature(signature)])', () => {
+  const args = { lens: 'todo-comments', areaId: 'src', signature: 'TODO fix this', file: 'src/a.js:12' };
+  const expected = fingerprintFromBasis('codehealth', ['todo-comments', 'src', 'src/a.js', normalizeSignature('TODO fix this')]);
+  assert.strictEqual(fingerprint(args), expected);
+});
+
+test('v2 fingerprint is byte-identical to fingerprintFromBasis(\'codehealth\', [criterion, areaId, normalizeAnchor(anchor)])', () => {
+  const args = { criterion: 'simplification', areaId: 'src/api', anchor: 'src/api/user.js#getUser' };
+  const expected = fingerprintFromBasis('codehealth', ['simplification', 'src/api', normalizeAnchor('src/api/user.js#getUser')]);
+  assert.strictEqual(fingerprint(args), expected);
 });
 
 test('v1 and v2 forms coexist — same module, both callable', () => {

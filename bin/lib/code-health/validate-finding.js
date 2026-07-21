@@ -4,15 +4,22 @@
 // Returns { ok:true, value } or { ok:false, errors:string[] }.
 // Zero deps; accumulates all errors in one pass so the caller logs one line per drop.
 
-const SEVERITY_VALUES = new Set(['low', 'medium', 'high']);
-const CONFIDENCE_VALUES = new Set(['high', 'medium', 'low']);
-const LIKELIHOOD_VALUES = new Set(['low', 'medium', 'high']);
-const EFFORT_VALUES = new Set(['low', 'medium', 'high']);
+// Single source of truth for the shared low/medium/high tier vocabulary —
+// severity, confidence, likelihood, and effort are all independently-typed
+// fields over the identical three-value domain. Deriving all four Sets (and
+// the confidence ordering) from this one array means a future tier addition
+// (e.g. 'critical') only has to be made in one place instead of four
+// separately hand-typed literals that could drift out of sync silently.
+const TIER_VALUES = ['low', 'medium', 'high'];
+const SEVERITY_VALUES = new Set(TIER_VALUES);
+const CONFIDENCE_VALUES = new Set(TIER_VALUES);
+const LIKELIHOOD_VALUES = new Set(TIER_VALUES);
+const EFFORT_VALUES = new Set(TIER_VALUES);
 
 const { getCriterion } = require('./criteria');
 
 // Confidence ordering for floor comparison. Higher index = higher confidence.
-const CONFIDENCE_ORDER = ['low', 'medium', 'high'];
+const CONFIDENCE_ORDER = TIER_VALUES;
 
 // Second-stage gate applied after validateFindingV2: even a well-formed
 // finding is dropped when its confidence sits below the criterion's own
@@ -91,5 +98,6 @@ function validateFindingV2(obj) {
 }
 
 module.exports = {
-  validateFindingV2, applyConfidenceFloor, SEVERITY_VALUES, CONFIDENCE_VALUES, LIKELIHOOD_VALUES, EFFORT_VALUES,
+  validateFindingV2, applyConfidenceFloor,
+  TIER_VALUES, SEVERITY_VALUES, CONFIDENCE_VALUES, LIKELIHOOD_VALUES, EFFORT_VALUES,
 };

@@ -26,8 +26,17 @@ const RISK_RANK = { high: 0, medium: 1, low: 2 };
 // bin/lib/code-health/risk.js#computeRisk), not raw severity.
 function decide(finding, issueIndex, cache, opts) {
   const threshold = (opts && opts.threshold) || 'high';
-  // Support both finding.id (fingerprint hash from Phase 1) and finding.fingerprint (direct string).
-  const fp = finding.fingerprint || finding.id;
+  // finding.id is the derived, trusted fingerprint hash computed in Phase 1
+  // (cmdValidateFindings always sets it, overriding any same-named key on the
+  // raw finding). finding.fingerprint is only a fallback for a finding that
+  // never went through that derivation — it must NOT take precedence over an
+  // already-present finding.id, since validateFindingV2 echoes back unknown
+  // keys verbatim and nothing forbids a raw LLM-produced finding from
+  // carrying a stray/hallucinated `fingerprint` field of its own. Preferring
+  // the untrusted field here would let such a value silently redirect
+  // dedup/issue-index/cache lookups to the wrong key (the same shape as the
+  // spoofed-"kind" claim-marker-parser bug).
+  const fp = finding.id || finding.fingerprint;
   const match = issueIndex && fp && issueIndex[fp];
   if (match) {
     if ((match.labels || []).includes('wontfix')) return { action: 'suppress', issue: match.number };
@@ -41,7 +50,7 @@ function decide(finding, issueIndex, cache, opts) {
     return { action: 'skip', issue: match.number };
   }
   const cached = cache && fp && cache[fp];
-  if (cached && cached.status === 'wontfix') return { action: 'suppress' };
+  if (cached && cached.status === 'wontfix') return { action: 'suppress', issue: cached.issue };
   const rank = RISK_RANK[finding.risk];
   const thresholdRank = RISK_RANK[threshold];
   if (rank !== undefined && thresholdRank !== undefined && rank <= thresholdRank) return { action: 'file' };

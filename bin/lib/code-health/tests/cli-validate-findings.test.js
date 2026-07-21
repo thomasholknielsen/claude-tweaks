@@ -300,6 +300,37 @@ test('validate-findings: a real run with --slice still succeeds when durable per
   );
 });
 
+// REGRESSION: writeCache(root, cache) used to be unguarded by a try/catch,
+// unlike the immediately-following writeDurableState call (which is
+// explicitly wrapped and treated as non-fatal — cache.json's own header
+// comment describes it as "rebuildable from `gh issue list`", so a local
+// write failure must not crash the whole run before payloads are emitted.
+// Force writeCache to throw by putting a plain FILE where the cache's parent
+// directory (.claude-tweaks/code-health/) needs to exist, so
+// fs.mkdirSync(..., { recursive: true }) fails with ENOTDIR.
+test('validate-findings: a real run still emits payloads on stdout when the local cache write fails (unwritable cache dir)', () => {
+  const root = tmp();
+  const f = validFinding({ areaId: '.', anchor: 'index.js#module', severity: 'high' });
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(path.join(root, 'index.js'), 'module.exports = 1;\n');
+  fs.writeFileSync(findingsFile, JSON.stringify([f]));
+
+  // Pre-create .claude-tweaks/code-health as a FILE, not a directory, so
+  // writeCache's mkdirSync(dirname(cachePath), { recursive: true }) throws.
+  fs.mkdirSync(path.join(root, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude-tweaks', 'code-health'), 'not a directory');
+
+  const result = runValidateFindings(root, findingsFile, ['--slice', '.', '--run-id', 'test-run-cache-fail']);
+  assert.strictEqual(result.status, 0, `must not crash: stderr=${result.stderr}`);
+
+  const payloads = JSON.parse(result.stdout);
+  assert.strictEqual(payloads.length, 1, 'payload must still be emitted even though the local cache write failed');
+  assert.ok(
+    result.stderr.includes('cache write failed') || result.stderr.includes('non-fatal'),
+    `expected a non-fatal warning about the cache write failure in stderr: ${result.stderr}`,
+  );
+});
+
 test('validate-findings: --dry-run with --slice writes neither cursors nor cache', () => {
   const root = tmp();
   const f = validFinding({ areaId: '.', anchor: 'index.js#module' });
