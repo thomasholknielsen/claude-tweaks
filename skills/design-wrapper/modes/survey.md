@@ -50,7 +50,7 @@ Cache shape:
 }
 ```
 
-Suppress any observation whose `(command, page)` pair has `decline_count >= 2`. Increment in-place when a previously-recommended `(command, page)` from the recommendations cache (see Step 6) is being re-surfaced for the same spec — but DO NOT increment within a single survey call (the increment happens at the next `/flow` run when comparing prior recommendations to the new diff).
+Suppress any observation whose `(command, page)` pair has `decline_count >= 2`. This mode never increments `decline_count` itself — see "Ownership" below for who does and when.
 
 ### Step 5: Rank the surviving observations
 

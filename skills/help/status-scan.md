@@ -34,20 +34,39 @@ Read the `work-backend` field from the project's CLAUDE.md (`_shared/work-record
 **`work-backend: github-issues`:**
 
 ```bash
-gh issue list --state open --json number,title,labels,milestone,updatedAt --limit 200 > /tmp/help-records.json
+gh issue list --state open --json number,title,labels,milestone,updatedAt,body --limit 200 > /tmp/help-records.json
 node -e "
   const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const issues = require('/tmp/help-records.json');
+  console.log(JSON.stringify(issues.map((i) => ({ ...i, facets: parseRecordFacets(i.labels) }))));
+" > /tmp/help-records-faceted.json
+```
+
+`--json` includes `body` here so this same fetch also feeds Conflict detection below — one `gh issue list --state open` round-trip covers both the count computation and the conflict-detection body extraction, instead of two.
+
+**`work-backend: local-files`:**
+
+```bash
+node -e "
+  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
+  console.log(JSON.stringify(queryRecords('specs', {})));
+" > /tmp/help-records-faceted.json
+```
+
+Both drivers land in the same faceted-record shape (`{ ..., facets }`) at `/tmp/help-records-faceted.json` — fetch varies per driver, the six-bucket classification below is described once and runs identically against either driver's output (mirrors `tidy/scan-procedures.md` Step 1's fetch-varies/classify-once split):
+
+```bash
+node -e "
+  const records = require('/tmp/help-records-faceted.json');
   const now = Date.now();
   const FOUR_WEEKS_MS = 28 * 24 * 60 * 60 * 1000;
-  const rows = issues.map((i) => ({ ...i, facets: parseRecordFacets(i.labels) }));
-  const blocked = rows.filter((r) => r.facets.bot.blocked);
-  const building = rows.filter((r) => !r.facets.bot.blocked && r.facets.bot.inProgress);
-  const authorized = rows.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'ready' && (r.facets.grants.build || r.facets.grants.merge));
-  const ready = rows.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'ready' && !r.facets.grants.build && !r.facets.grants.merge);
-  const parked = rows.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'parked');
-  const backlog = rows.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'backlog');
-  const stale = backlog.filter((r) => now - Date.parse(r.updatedAt) > FOUR_WEEKS_MS);
+  const blocked = records.filter((r) => r.facets.bot.blocked);
+  const building = records.filter((r) => !r.facets.bot.blocked && r.facets.bot.inProgress);
+  const authorized = records.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'ready' && (r.facets.grants.build || r.facets.grants.merge));
+  const ready = records.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'ready' && !r.facets.grants.build && !r.facets.grants.merge);
+  const parked = records.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'parked');
+  const backlog = records.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'backlog');
+  const stale = backlog.filter((r) => r.updatedAt && now - Date.parse(r.updatedAt) > FOUR_WEEKS_MS);
   const wakeReady = parked.filter((r) => r.milestone && r.milestone.dueOn && Date.parse(r.milestone.dueOn) < now);
   console.log(JSON.stringify({
     backlog: backlog.length, backlogStale: stale.length,
@@ -58,28 +77,9 @@ node -e "
 "
 ```
 
-**`work-backend: local-files`:**
+`building` and `blocked` are always 0 under `local-files` — the local driver carries no bot state (`_shared/work-record.md`). `authorized` still counts: grants are recorded as frontmatter for isomorphism even though no headless consumer acts on them under this driver (`triage/SKILL.md`'s Preflight). `local-files` records carry no `updatedAt`/`milestone` field, so this script's `backlogStale`/`parkedWakeReady` naturally come back 0 for that driver — see "Staleness clock" and "Wake-ready sub-count" below for what this driver reports instead.
 
-```bash
-node -e "
-  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
-  const records = queryRecords('specs', {});
-  const blocked = records.filter((r) => r.facets.bot.blocked);
-  const building = records.filter((r) => !r.facets.bot.blocked && r.facets.bot.inProgress);
-  const authorized = records.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'ready' && (r.facets.grants.build || r.facets.grants.merge));
-  const ready = records.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'ready' && !r.facets.grants.build && !r.facets.grants.merge);
-  const parked = records.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'parked');
-  const backlog = records.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'backlog');
-  console.log(JSON.stringify({
-    backlog: backlog.length, parked: parked.length, ready: ready.length,
-    authorized: authorized.length, building: building.length, blocked: blocked.length,
-  }));
-"
-```
-
-`building` and `blocked` are always 0 under `local-files` — the local driver carries no bot state (`_shared/work-record.md`). `authorized` still counts: grants are recorded as frontmatter for isomorphism even though no headless consumer acts on them under this driver (`triage/SKILL.md`'s Preflight).
-
-**Staleness clock** (backlog sub-count): `github-issues` uses the query's own `updatedAt`, as above. `local-files` has no timestamp facet — use the record file's own last-commit date instead, same as `tidy/scan-procedures.md` Step 1: `git -C "{REPO_ROOT}" log -1 --format=%cI -- "{path}"` per backlog record (an empty result — an uncommitted/brand-new record — treat as fresh).
+**Staleness clock** (backlog sub-count): `github-issues` uses the query's own `updatedAt`, as computed above. `local-files` has no timestamp facet — use the record file's own last-commit date instead, same as `tidy/scan-procedures.md` Step 1: `git -C "{REPO_ROOT}" log -1 --format=%cI -- "{path}"` per backlog record (an empty result — an uncommitted/brand-new record — treat as fresh).
 
 **Wake-ready sub-count** (parked, milestone due in the past) is a cheap heuristic, not full trigger evaluation — a `local-files` parked record's trigger lives as body prose (`**Trigger:**`/`**Watched paths:**` lines), too expensive to read per-record on a dashboard pass. Omit the sub-count under this driver and report the bare `parked` count only. Full trigger evaluation (including watched-path `git log` checks on both drivers) stays `/claude-tweaks:tidy`'s job — this is a maintenance signal, not a substitute.
 
@@ -87,11 +87,16 @@ node -e "
 
 ### Conflict detection (file overlap)
 
-Feeds from open **in-flight** records — any record with `facets.stage === 'ready'` (covers the ready, authorized, building, and blocked sub-states alike: the `ready` label persists for a record's entire life once shaped, and is never removed by `/claude-tweaks:dispatch`, `/claude-tweaks:build`, `/claude-tweaks:flow`, or `/claude-tweaks:wrap-up` — `_shared/work-record.md`'s permission matrix). Backlog and parked records are never spec-shaped, so they carry no `### Key Files` subsection and would contribute nothing to the map — same reasoning `/claude-tweaks:specify`'s Step 1 File Reference Map documents — so skip fetching their bodies entirely.
+Feeds from open **in-flight** records — any record with `facets.stage === 'ready'` (covers the ready, authorized, building, and blocked sub-states alike: the `ready` label persists for a record's entire life once shaped, and is never removed by `/claude-tweaks:dispatch`, `/claude-tweaks:build`, `/claude-tweaks:flow`, or `/claude-tweaks:wrap-up` — `_shared/work-record.md`'s permission matrix). Backlog and parked records are never spec-shaped, so they carry no `### Key Files` subsection and would contribute nothing to the map — same reasoning `/claude-tweaks:specify`'s Step 1 File Reference Map documents — so skip them.
+
+`work-backend: github-issues`: filter Stage 1's already-fetched `/tmp/help-records-faceted.json` to `facets.stage === 'ready'` — its `body` field (fetched in Stage 1's `gh issue list` call above) is already populated, so no second `gh issue list --state open` call is needed:
 
 ```bash
-# work-backend: github-issues
-gh issue list --label ready --state open --json number,title,body --limit 200 > /tmp/help-inflight-bodies.json
+node -e "
+  const records = require('/tmp/help-records-faceted.json');
+  const inFlight = records.filter((r) => r.facets.stage === 'ready');
+  console.log(JSON.stringify(inFlight));
+" > /tmp/help-inflight-bodies.json
 ```
 
 `work-backend: local-files`: `queryRecords('specs', { stage: 'ready' })` returns matching records with `.body` already populated — no separate fetch.

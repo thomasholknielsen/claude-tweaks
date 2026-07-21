@@ -37,7 +37,7 @@ If the multi-spec run aborted early (one spec hit a HARD-GATE), still render the
 
 ## Numbering rules
 
-Rows across Auto-applied through Translated briefs use a single global sequence starting at #1 (mirrors `wrap-up/review-console.md`). Queue writes use a separate `Q`-prefixed sequence (`Q1`, `Q2`, …) — aggregated across every spec's staged record-proposal files (`staged/leftover-*.md`, `staged/ledger-record-*.md`, or any staged file carrying a `Title:`/`Type:`/`Labels:` header) plus the parent run dir's own — because those items require per-item approval and are not part of the global "Approve all" choice, exactly as `wrap-up/review-console.md`'s Section 7. Do not restart either sequence per spec or per section.
+Rows across Auto-applied through Translated briefs use a single global sequence starting at #1 (mirrors `wrap-up/review-console.md`). Queue writes use a separate `Q`-prefixed sequence (`Q1`, `Q2`, …) — aggregated across every spec's staged record-proposal files (`staged/leftover-*.md`, `staged/ledger-record-*.md`, or any staged file carrying a `Title:`/`Type:`/`Labels:` header) plus the parent run dir's own — because those items require per-item approval and are not part of the global "Approve all" choice, exactly as `wrap-up/review-console.md`'s Queue writes section (an eighth, separate section there, never counted into its seven named batch sections). Do not restart either sequence per spec or per section.
 
 ## Present the consolidated console
 
@@ -155,12 +155,8 @@ writes GitHub state (releases, grant removal), so there is no fail-open degraded
 3. Apply skill updates and create new skills (from each spec's Step 7)
 4. Apply config updates (docs, CLAUDE.md, rules)
 5. Commit with a multi-spec wrap-up message that lists which specs contributed which changes
-6. **Tear down the shared ephemeral dev server** if one was started (`{parent-run-dir}/ephemeral-server.txt` — see `wrap-up/cleanup-procedures.md` Section D). It was kept up across all specs (per-spec wrap-ups deferred it under `MULTISPEC_REVIEW_DEFER=1`); kill it once here.
-7. **Finish the shared branch** per `multi-spec.md` — complete it via `/superpowers:finishing-a-development-branch` (merge / PR / discard). The outcome decides each spec's release reason and `$LINK` (merge commit sha or PR URL) for the next step.
-8. Release each issue claim this run holds — enumerate by globbing `spec-*/work/*-spec.md` (only specs materialized from a record via `materialize.md` have a `work/` file at all — a legacy spec-file-mode spec in the same batch has none) and reading each file's header `record:` field for the issue number. Unlike the legacy spec file, the materialized file is never deleted before this point — only archived at step 11 below — so it's read directly here; there is no separate pre-deletion capture. Use the outcome-mapped reason and procedure from `wrap-up/cleanup-procedures.md` Section E (merged → `merged: spec {spec}`, PR → `pr-opened: spec {spec}`, discarded → `abandoned: spec {spec}`). Log each release to `decisions.md`. Include the work-ready `link` (the branch-finish outcome's merge commit sha or PR URL (from the previous step)) via `releasePayload`'s `link` param, and honor the ownership check in Section E — a successor's claim is never deleted.
-9. **Remove grants** for each issue released with a `merged:` or `pr-opened:` outcome: remove `auto:build` and `auto:merge`, whichever are present (`gh issue edit "$ISSUE" --remove-label auto:build` / `--remove-label auto:merge`, best-effort per label) — reversible, log each removal to `decisions.md`. Skip issues released as `abandoned:` (the grant is the standing retry request) and issues carrying no `auto:*` label. See "Grant revocation" and the "Release triggers" table in `_shared/issue-claims.md`.
-10. **Remove `bot:in-progress`; restore `parked` if applicable** — see "Per-issue label cleanup" below.
-11. Archive the parent run dir to `.claude-tweaks/pipelines/archive/{run-id}/` (subdirs included)
+6. Run "Shared teardown" below (dev server → branch finish → claim release → grant removal → label cleanup)
+7. Archive the parent run dir to `.claude-tweaks/pipelines/archive/{run-id}/` (subdirs included)
 
 ## On override (option 2)
 
@@ -168,16 +164,22 @@ writes GitHub state (releases, grant removal), so there is no fail-open degraded
 2. Apply, skip, or modify per item
 3. Queue writes (`Q#`): still prompted per item even under override — see "Present the consolidated console" above; the user can Skip or Edit them, but the per-item gate cannot be bulk-resolved across specs either
 4. For items the user wants reverted: `git revert {commit}` (one revert commit per item)
-5. Tear down the shared ephemeral dev server if one was started (`{parent-run-dir}/ephemeral-server.txt` — see `wrap-up/cleanup-procedures.md` Section D)
-6. **Finish the shared branch** per `multi-spec.md` — complete it via `/superpowers:finishing-a-development-branch` (merge / PR / discard). The outcome decides each spec's release reason and `$LINK` (merge commit sha or PR URL) for the next step.
-7. Release each issue claim this run holds — enumerate by globbing `spec-*/work/*-spec.md` (only specs materialized from a record via `materialize.md` have a `work/` file at all — a legacy spec-file-mode spec in the same batch has none) and reading each file's header `record:` field for the issue number. Unlike the legacy spec file, the materialized file is never deleted before this point — only archived once the shared branch finishes — so it's read directly here; there is no separate pre-deletion capture. Use the outcome-mapped reason and procedure from `wrap-up/cleanup-procedures.md` Section E (merged → `merged: spec {spec}`, PR → `pr-opened: spec {spec}`, discarded → `abandoned: spec {spec}`). Log each release to `decisions.md`. Include the work-ready `link` (the branch-finish outcome's merge commit sha or PR URL (from the previous step)) via `releasePayload`'s `link` param, and honor the ownership check in Section E — a successor's claim is never deleted.
-8. **Remove grants** for each issue released with a `merged:` or `pr-opened:` outcome: remove `auto:build` and `auto:merge`, whichever are present (`gh issue edit "$ISSUE" --remove-label auto:build` / `--remove-label auto:merge`, best-effort per label) — reversible, log each removal to `decisions.md`. Skip issues released as `abandoned:` (the grant is the standing retry request) and issues carrying no `auto:*` label. See "Grant revocation" and the "Release triggers" table in `_shared/issue-claims.md`.
-9. **Remove `bot:in-progress`; restore `parked` if applicable** — see "Per-issue label cleanup" below.
-10. Archive the parent run dir
+5. Run "Shared teardown" below (dev server → branch finish → claim release → grant removal → label cleanup)
+6. Archive the parent run dir
+
+### Shared teardown (dev server, branch finish, claim release, grants)
+
+Applies identically after both "On approval" step 5 and "On override" step 4 — this is the same five-step sequence either way, only what triggered it differs:
+
+1. **Tear down the shared ephemeral dev server** if one was started (`{parent-run-dir}/ephemeral-server.txt` — see `wrap-up/cleanup-procedures.md` Section D). It was kept up across all specs (per-spec wrap-ups deferred it under `MULTISPEC_REVIEW_DEFER=1`); kill it once here.
+2. **Finish the shared branch** per `multi-spec.md` — complete it via `/superpowers:finishing-a-development-branch` (merge / PR / discard). The outcome decides each spec's release reason and `$LINK` (merge commit sha or PR URL) for the next step.
+3. Release each issue claim this run holds — enumerate by globbing `spec-*/work/*-spec.md` (only specs materialized from a record via `materialize.md` have a `work/` file at all — a legacy spec-file-mode spec in the same batch has none) and reading each file's header `record:` field for the issue number. Unlike the legacy spec file, the materialized file is never deleted before this point — only archived once the run dir is archived — so it's read directly here; there is no separate pre-deletion capture. Use the outcome-mapped reason and procedure from `wrap-up/cleanup-procedures.md` Section E (merged → `merged: spec {spec}`, PR → `pr-opened: spec {spec}`, discarded → `abandoned: spec {spec}`). Log each release to `decisions.md`. Include the work-ready `link` (the branch-finish outcome's merge commit sha or PR URL (from the previous step)) via `releasePayload`'s `link` param, and honor the ownership check in Section E — a successor's claim is never deleted.
+4. **Remove grants** for each issue released with a `merged:` or `pr-opened:` outcome: remove `auto:build` and `auto:merge`, whichever are present (`gh issue edit "$ISSUE" --remove-label auto:build` / `--remove-label auto:merge`, best-effort per label) — reversible, log each removal to `decisions.md`. Skip issues released as `abandoned:` (the grant is the standing retry request) and issues carrying no `auto:*` label. See "Grant revocation" and the "Release triggers" table in `_shared/issue-claims.md`.
+5. **Remove `bot:in-progress`; restore `parked` if applicable** — see "Per-issue label cleanup" below.
 
 ### Per-issue label cleanup
 
-Applies identically from both "On approval" item 10 and "On override" item 9 — this is the same per-issue procedure either way, only what triggered it differs. Per `wrap-up/cleanup-procedures.md` Section E: always remove `bot:in-progress` (`gh issue edit "$ISSUE" --remove-label bot:in-progress`, best-effort). Then, only when the release reason was `abandoned: spec {spec}` (not `merged:`/`pr-opened:`) AND that record's materialized header (`spec-{spec}/work/{issue}-spec.md` — read directly; per the release item above, the file is never deleted before this point) carries `parked-at-shaping: true` (`materialize.md`'s field for exactly this restore-on-abandon case), restore `parked` (bootstrap if missing per _shared/label-bootstrap.md, LABELS_JSON = [['parked', 'Deferred backlog entry, waiting on a trigger condition']], then `gh issue edit "$ISSUE" --add-label parked`) — best-effort, log and continue on failure either way. Log each removal/restoration to `decisions.md`.
+Applies identically from "Shared teardown" step 5 above, regardless of whether it ran after "On approval" or "On override" — this is the same per-issue procedure either way, only what triggered it differs. Per `wrap-up/cleanup-procedures.md` Section E: always remove `bot:in-progress` (`gh issue edit "$ISSUE" --remove-label bot:in-progress`, best-effort). Then, only when the release reason was `abandoned: spec {spec}` (not `merged:`/`pr-opened:`) AND that record's materialized header (`spec-{spec}/work/{issue}-spec.md` — read directly; per the release item above, the file is never deleted before this point) carries `parked-at-shaping: true` (`materialize.md`'s field for exactly this restore-on-abandon case), restore `parked` (bootstrap if missing per _shared/label-bootstrap.md, LABELS_JSON = [['parked', 'Deferred backlog entry, waiting on a trigger condition']], then `gh issue edit "$ISSUE" --add-label parked`) — best-effort, log and continue on failure either way. Log each removal/restoration to `decisions.md`.
 
 ## On stop (option 3)
 
@@ -185,7 +187,7 @@ Halt before applying. Leave the parent run dir intact. User resumes with `/claud
 
 ## Empty-console fast path
 
-If every per-spec `decisions.md` has zero entries AND every per-spec `staged/` is empty AND the parent `staged/` is empty AND there are no skill or config updates across the run, skip the console entirely. Log "Multi-spec Review Console: nothing to review" and archive silently.
+If every per-spec `decisions.md` has zero entries AND every per-spec `staged/` is empty AND the parent `staged/` is empty AND there are no skill or config updates across the run AND no cleanup actions apply across any spec AND no queue writes are pending across any spec, skip the console entirely. Log "Multi-spec Review Console: nothing to review" and archive silently.
 
 ## Sort order
 
@@ -196,7 +198,7 @@ Within each section: reversibility:low first (highest-stakes revert), then rever
 - The console MUST present every entry from every per-spec `decisions.md` AND the parent run dir's `decisions.md` (auto-applied + staged + kept-prompt), and every file in every per-spec `staged/` directory and every file in the parent run dir's `staged/`. Silently dropping any item is forbidden.
 - The `Spec` column is mandatory in every table — the user must be able to trace any row to its originating spec for context.
 - The `Not run` footer is mandatory when any spec was skipped due to a HARD-GATE earlier in the pipeline — those specs' contexts are explicit, not buried.
-- **Queue writes are per-item only.** Never group them under "Approve all," and never batch two `Q#` items (even from different specs) into one `AskUserQuestion` call — this enforces `_shared/auto-mode-contract.md`'s not-silenced rule for work-record creation, the same as `wrap-up/review-console.md`'s Section 7.
+- **Queue writes are per-item only.** Never group them under "Approve all," and never batch two `Q#` items (even from different specs) into one `AskUserQuestion` call — this enforces `_shared/auto-mode-contract.md`'s not-silenced rule for work-record creation, the same as `wrap-up/review-console.md`'s Queue writes section (its eighth, separate section).
 
 ## Anti-Patterns
 
@@ -206,4 +208,4 @@ Within each section: reversibility:low first (highest-stakes revert), then rever
 | Aggregating across runs (e.g., yesterday's spec + today's spec in one console) | Each `/flow` invocation has its own parent run dir. The consolidated console is scoped to one `/flow` invocation only. |
 | Omitting the `Spec` column to keep the table narrow | Spec attribution is the whole point of the consolidated view. Wide tables wrap; the column stays. |
 | Replacing per-spec audit trails with a merged `decisions.md` | The per-spec subdirectories are the audit trail. Merging discards the spec attribution and makes archive review harder. The consolidated console *reads* multiple per-spec files; it does not *replace* them. |
-| Bulk-approving queue writes under "Approve all" or "Override" | Work-record creation is never silenced by `auto` (`_shared/auto-mode-contract.md`). Each `Q#` item requires its own `AskUserQuestion` call, aggregated across specs but never grouped — the same contract `wrap-up/review-console.md`'s Section 7 enforces for a single-spec run. |
+| Bulk-approving queue writes under "Approve all" or "Override" | Work-record creation is never silenced by `auto` (`_shared/auto-mode-contract.md`). Each `Q#` item requires its own `AskUserQuestion` call, aggregated across specs but never grouped — the same contract `wrap-up/review-console.md`'s Queue writes section (its eighth, separate section) enforces for a single-spec run. |

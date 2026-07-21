@@ -60,6 +60,8 @@ what makes retrospective sign-off on already-merged `auto:merge` work possible. 
 given, scope Source A to that single record instead of the full list, and skip Source B entirely
 — session-recall entries have no record number to match against an explicit `#N`.
 
+> **Parallel execution:** Use parallel tool calls aggressively — under `work-backend: github-issues`, each matching record's `gh issue view {n} --json comments` Verification Brief fetch is independent of every other record's and should run concurrently, not one at a time.
+
 For each matching record, fetch its Verification Brief: the last issue comment containing
 `## Verification Brief` (`gh issue view {n} --json comments -q '.comments[-1].body'` if only one
 build/demo cycle occurred; otherwise search all comments for the last one containing that
@@ -170,8 +172,19 @@ the first swap this run.
      convention — plus the reason and a link back to the original. `work-backend: github-issues`:
      use the same `recordPayload` composition `/claude-tweaks:capture` uses
      (`bin/lib/issues/record.js`), just without invoking `/claude-tweaks:capture` itself.
-     `work-backend: local-files`: use `allocateId`/`writeRecord`
-     from `bin/lib/issues/local-store.js` instead.
+     `work-backend: local-files`: use `createRecord(dir, { slug, title, body, facets })` from
+     `bin/lib/issues/local-store.js` — `title` is the reason text just collected, `body` is the
+     reason plus the link back to the original plus the `Origin:` line above, `facets: { type,
+     stage: 'backlog' }` (`type` being `bug` or the overridden type). Compute `slug` via that
+     same module's `deriveSlug(title, existingSlugs)`. Never `allocateId`+`writeRecord`
+     separately: two near-simultaneous follow-up filings — two `/demo` "Request changes"
+     verdicts landing in the same run, or `/demo` racing a `/capture`/`/specify` decomposition —
+     calling `allocateId`+`writeRecord` independently can both read the same directory listing,
+     both compute the same next id, and both succeed under different slugs, silently sharing one
+     numeric id and corrupting any later `facets.parent`/`facets.blockedBy` reference that
+     assumes id uniqueness. `createRecord` closes that race by allocating the id and writing the
+     file as one atomic step — the same fix `capture/SKILL.md`'s local-files branch uses; see
+     that file's Backend Selection section for the full call shape to mirror.
   3. Note the bidirectional link back on the original record. `work-backend: github-issues`:
      comment on the original issue with the new follow-up's issue number. `work-backend:
      local-files`: there is no comment mechanism (same constraint `verification-brief.md` and
@@ -187,9 +200,12 @@ bootstraps a label or writes to GitHub/local-files for Approve or Skip:
   reappear in a future `/demo` run — a different session has no memory of this conversation to
   recall from. This is the accepted tradeoff of not persisting anything, not a bug.
 - **Request changes** — the exact same follow-up-filing procedure as the label-backed path's
-  Request changes above (step 2), reusing `recordPayload`/`allocateId` directly — the only
-  difference is there is no original record to relabel or comment a link back onto, or reference within the follow-up's own body — the `Origin:` line is the sole provenance marker for a session-recall follow-up. The `Origin:` body line reads `Origin: demo changes-requested from session recall` instead of
-  `from #{n}`.
+  Request changes above (step 2), reusing `recordPayload` (`work-backend: github-issues`) or
+  `createRecord`+`deriveSlug` (`work-backend: local-files`) directly — the only difference is
+  there is no original record to relabel or comment a link back onto, or reference within the
+  follow-up's own body — the `Origin:` line is the sole provenance marker for a session-recall
+  follow-up. The `Origin:` body line reads `Origin: demo changes-requested from session recall`
+  instead of `from #{n}`.
 
 ## Next Actions
 
