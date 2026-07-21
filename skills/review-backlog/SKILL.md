@@ -196,10 +196,17 @@ For every record the priority decision resolved to apply:
 # [['priority:high', 'Priority: dispatch picks this band first'],
 #  ['priority:medium', 'Priority: dispatch picks after priority:high'],
 #  ['priority:low', 'Priority: dispatch picks last among prioritized records']]
-gh issue edit "$ISSUE" --add-label "priority:$TIER"
+CURRENT_PRIORITY=$(gh issue view "$ISSUE" --json labels -q '.labels[].name' | grep -E '^priority:' || true)
+if [ -n "$CURRENT_PRIORITY" ] && [ "$CURRENT_PRIORITY" != "priority:$TIER" ]; then
+  gh issue edit "$ISSUE" --remove-label "$CURRENT_PRIORITY" --add-label "priority:$TIER"
+else
+  gh issue edit "$ISSUE" --add-label "priority:$TIER"
+fi
 ```
 
-Local-files driver: recompose the record's full facets (`priority: $TIER`) and call `writeRecord` (`bin/lib/issues/local-store.js`) — same compose-then-write-once pattern `/specify`'s local-driver path already uses.
+A record can already carry a different-tier `priority:*` label from an earlier run or a human edit — swap it out rather than adding the new tier alongside it, the same way every other label-state transition in this skill family pairs `--remove-label` with `--add-label` (demo's `demo:pending`→`demo:approved`, triage's `bot:blocked`→`auto:build`, dispatch's `auto:build`→`bot:blocked`). Two contradictory `priority:*` labels on one record would corrupt `/claude-tweaks:dispatch`'s `next` tie-break ordering, which reads `facets.priority` as a single value via `parseRecordFacets`.
+
+Local-files driver: recompose the record's full facets (`priority: $TIER`, replacing any prior value) and call `writeRecord` (`bin/lib/issues/local-store.js`) — same compose-then-write-once pattern `/specify`'s local-driver path already uses.
 
 For every record the `**Related:**` decision resolved to apply, replace the existing `**Related:** {...}` line in the body (github: `gh issue edit "$ISSUE" --body-file`, rewriting the fetched body with the line replaced; local-files: `writeRecord` with the updated body).
 
@@ -221,6 +228,8 @@ When a mode's output has a natural actionable batch (a `cleanup` run, a chosen s
 # Terminal 1                          # Terminal 2                          # Terminal 3
 /claude-tweaks:specify #201           /claude-tweaks:specify #205           /claude-tweaks:specify #210
 ```
+
+- A selection spanning both stages (possible from `risk-value`'s combined ranked + trailing unscored view, per Step 2) — split it by stage and render **both** blocks in the same Next Actions turn, each carrying only the records that actually belong to it: the `/claude-tweaks:dispatch #N,#M,...` line for the `ready` + `auto:build`-granted subset, the multi-terminal `/claude-tweaks:specify` block for the `backlog`-stage subset. Never pick only one form for a mixed selection and silently drop the other subset's records.
 
 ## Next Actions
 
