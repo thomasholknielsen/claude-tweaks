@@ -47,7 +47,7 @@ For each step's block in the batched output:
 1. **Health check** — console errors, failed network requests, broken rendering visible in the snapshot. If the step is broken, capture a trace (see "Trace on failure" below) and continue to the next step.
 2. **Should-feel test** — the journey says this step should feel like "{should_feel}." Does the snapshot + annotated screenshot support that? Be honest and specific about gaps. This is the key per-step test.
 3. **Red-flag check** — does the step exhibit any of the journey's documented red flags?
-4. **Vitals check** — compare the step's Web Vitals against thresholds (LCP > 2.5s, CLS > 0.1, INP > 200ms). Vitals findings flow into the Step 6 table.
+4. **Vitals check** — compare the step's Web Vitals against the thresholds in `browser-review.md`'s Step 1 "Vitals interpretation" table (LCP/CLS/INP/TTFB/FCP) — that table is canonical; this file doesn't restate the values. Vitals findings flow into the Step 6 table.
 
 Note transition quality between steps (jarring? smooth? lost momentum?) as a one-word annotation for the arc assessment. Reference annotated overlay numbers when describing visual issues — "primary CTA at element [3] competes visually with the secondary link at [5]" beats "the button on the right looks heavier than the link."
 

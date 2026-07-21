@@ -446,7 +446,7 @@ After the findings table:
 
 After the verdict, the parent `SKILL.md` Step 4 invokes `/claude-tweaks:design-wrapper survey` with the captured screenshot paths and renders a Creative Opportunities block from the wrapper's recommendations. The block is appended verbatim to this report — it lives below the verdict and above Next Actions.
 
-The survey block is a separate concern from the findings table: the findings table catalogs issues and idea routing; the Creative Opportunities block surfaces ranked Impeccable command suggestions (`bolder` / `delight` / `animate` / `colorize` / `extract` / `onboard` / `quieter` / `distill` / `overdrive`). Recommendations are never auto-applied — the user runs any command manually if it resonates.
+The survey block is a separate concern from the findings table: the findings table catalogs issues and idea routing; the Creative Opportunities block surfaces ranked Impeccable command suggestions per the survey "would help" criteria → command mapping in `design-wrapper/command-map.md` (the single source of truth for that set). Recommendations are never auto-applied — the user runs any command manually if it resonates.
 
 When the survey wrapper returns no recommendations or a skip (non-frontend, Impeccable not installed, integration disabled), omit the block entirely. Do not surface "no creative opportunities found" as a positive signal — survey is heuristic and an empty result means "nothing matched the criteria," not "design is complete."
 
