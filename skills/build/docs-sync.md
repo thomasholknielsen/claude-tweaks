@@ -13,14 +13,9 @@ After journey capture, check if the build's code changes affect documented areas
 
    a. Read the doc file
    b. Read the relevant changed source files
-   c. Determine the update using the doc update patterns from `docs-structure.md` in the `/claude-tweaks:init` skill's directory. Each doc type has specific triggers and update actions:
-      - API endpoint added/changed/removed → add/update/remove rows in the endpoint table
-      - New env variable or config → add to prerequisites or env setup section
-      - New dependency or tool → update stack or prerequisites
-      - Broken file path references → fix paths to new locations
-      - Architectural change → flag for wrap-up (too big for inline)
-   d. **Update inline** when the change is clearly scoped (adding a table row, updating a command, fixing a path — < 5 minutes of editing). Commit separately:
+   c. Determine the update and the inline-vs-defer decision using `docs-structure.md`'s own "Doc Update Patterns (for /build Step 6.5)" section, in the `/claude-tweaks:init` skill's directory — the canonical doc-type/trigger/action table and the inline-vs-defer threshold live there; this step doesn't restate them.
+   d. **Update inline** (per that threshold). Commit separately:
       `git commit -m "Update {doc} — {what changed}"`
-   e. **Defer to wrap-up** when the change is structural (doc needs reorganization, new section, or requires reading multiple files to understand impact). Append to ledger with phase `build/docs` and status `open`:
+   e. **Defer to wrap-up** (per that threshold). Append to ledger with phase `build/docs` and status `open`:
       "{doc} may need updates — {what changed in code}. Review in wrap-up."
 5. **No matches** — skip silently. No output.

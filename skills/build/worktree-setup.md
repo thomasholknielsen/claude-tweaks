@@ -6,14 +6,12 @@ Runs only when the user specified `worktree` (or it's the default). Skipped enti
 
 ## Base ref — branch from local HEAD, not stale origin
 
-claude-tweaks branches a worktree from your **current local state** (the branch you ran `/build` on, which may carry merged specs and in-progress integration commits) — NOT from the remote default branch.
-
-The native `EnterWorktree` tool exposes **no base-ref parameter** (it accepts only `name`/`path`). The base is governed entirely by the harness setting **`worktree.baseRef`**:
-
-- `fresh` (the harness **default**) → branches from `origin/<default-branch>`. On a project whose integration branch is local and ahead of the remote default (e.g. a long-lived `dev`), this silently branches from a **stale** commit.
-- `head` → branches from your current local HEAD. **This is the value claude-tweaks expects.**
-
-Set `worktree.baseRef: "head"` in `settings.json`. Because the plugin cannot pass the base ref through the tool, Step 0 below **verifies** the resulting base and surfaces a mismatch loudly rather than letting it pass silently.
+For why `worktree.baseRef` matters and what `fresh` vs `head` do, see
+`_shared/worktree-base-ref.md` — the canonical explanation, shared with
+`init/bootstrap-steps.md` Step 6's provisioning-time offer. Set
+`worktree.baseRef: "head"` in `settings.json`. Because the plugin cannot pass
+the base ref through the tool, Step 0 below **verifies** the resulting base and
+surfaces a mismatch loudly rather than letting it pass silently.
 
 ## Procedure
 
@@ -78,6 +76,7 @@ In interactive mode, surface the consent prompt as the skill normally would.
 | **Superpowers not installed** | Stop. Tell the user: "Superpowers plugin required for worktree mode. Install: `/plugin install superpowers@claude-plugins-official`" — or fall back to current-branch with confirmation. |
 | **Git state prevents worktree** (uncommitted changes, dirty index) | Stop. Present the git issue and suggest: `git stash` or commit first, then retry. |
 | **Branch already exists** | Offer: (1) Use existing worktree, (2) Remove and recreate, (3) Fall back to current-branch. |
+| **Anything else** (disk full, permissions error on the target path, corrupted `.git/worktrees` metadata, or any failure not matching a row above) | Stop. Present the actual error text verbatim — do not guess at a cause. Offer: (1) Retry, (2) Fall back to current-branch with confirmation, (3) Let the user resolve it manually and re-invoke. Never silently retry or improvise an unreviewed recovery. |
 
 ## Impeccable hook consent (per-worktree)
 

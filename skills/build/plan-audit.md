@@ -25,9 +25,9 @@ Read the project's `Plan audit / scope-keywords-required` CLAUDE.md setting:
 
 ## On Check B finding files outside the plan
 
-### Auto mode (pipeline run dir exists)
+### Auto mode (resolved mode is `auto`, including a standalone `/claude-tweaks:build {N} auto` invocation with no `/flow` parent)
 
-Read `scope-creep` from `config.yml` (resolve the run dir via `_shared/pipeline-run-dir.md`; default `add-to-plan` per Manifesto). Apply:
+Resolve `scope-creep` via the standard precedence in `_shared/auto-mode-contract.md`: `config.yml` in the active run dir when one resolves with a Manifesto-computed policy (spawned by `/flow`, or record-mode's own standalone run dir per `_shared/pipeline-run-dir.md`'s materialization exception), else the project's `scope-creep:` setting under CLAUDE.md's `## Auto-mode policy`, else the skill default `add-to-plan`. Log the decision to whatever run dir resolves, per `_shared/pipeline-run-dir.md`'s resolution order — an explicit `auto` CLI arg always applies this branch, never the Interactive-mode prompt below, regardless of whether a Manifesto-computed `config.yml` exists. Apply:
 
 | Policy | Action | Log entry |
 |---|---|---|

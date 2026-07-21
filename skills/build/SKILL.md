@@ -173,9 +173,9 @@ Audit the plan against the actual repo before dispatching execution. Two checks:
 - **Check A (always):** verify every path in the plan's Files: sections exists (or its parent directory exists for Create).
 - **Check B (conditional):** when the plan declares `Scope keywords:`, grep the repo for each keyword and list any matched files not in the plan.
 
-**Auto mode:** apply the `scope-creep` policy from `config.yml` (default `add-to-plan`). **Interactive mode:** call `AskUserQuestion` with three options: "Add to plan and continue" (Recommended), "Continue without", "Stop".
+**Auto mode** (including a standalone `auto` invocation with no pipeline run dir): apply the `scope-creep` policy, resolved per the standard precedence (default `add-to-plan`). **Interactive mode:** call `AskUserQuestion` with three options: "Add to plan and continue" (Recommended), "Continue without", "Stop".
 
-**Skip this step entirely when** the plan has fewer than 3 file references AND no `Scope keywords:` field is present, **or** when `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh from the run directory) — a `ceremony-check` verdict of `fast-lane` is itself a judgment that this record's plan doesn't need auditing against scope creep. Standalone `/build` (no `config.yml`) always falls back to the size-based condition alone.
+**Skip this step entirely** under the size + ceremony-profile conditions detailed in plan-audit.md's own Skip section — read that section rather than this summary for the exact gate, since it's the one place this condition is defined.
 
 > **Project setting:** When CLAUDE.md declares `scope-keywords-required: true` under a `## Build` section, plans without a `Scope keywords:` field are treated as failed audits (require the field, not just optional). See `plan-audit.md` for the policy table.
 
@@ -226,7 +226,7 @@ If any part of the plan is blocked (missing infrastructure, unresolved dependenc
 
 Compare what was actually built to what the spec or design doc said. For the full diff procedure, mismatch categorization (Beneficial / Fix now / Update the spec), the batch decision table format (interactive vs. auto-mode handling), and the Skill Observation sub-step, read `architecture-alignment.md` in this skill's directory.
 
-**Skip this step if:** design mode with no formal spec, the plan was trivial (< 3 tasks, single-file changes), or `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh from the run directory). Skipping this check under fast-lane is a deliberate bet on `ceremony-check`'s upfront judgment, not an oversight — the safety net for "this was gnarlier than it looked" is `/claude-tweaks:review` and `/claude-tweaks:reflect`'s safety-regression check, both unaffected by `ceremony-profile` and both evaluated against the real, finished diff (see `docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md`'s Escape Hatch section). Standalone `/build` (no `config.yml`) always falls back to the existing two conditions alone.
+**Skip this step if:** design mode with no formal spec, the plan was trivial (< 3 tasks, single-file changes), or `config.yml`'s `ceremony-profile` is `fast-lane` — see `architecture-alignment.md`'s own Skip section for the full rationale (why fast-lane skip is deliberate, not an oversight, and what the safety net is).
 
 ### Common Step 5: Final Verification
 
@@ -300,7 +300,7 @@ Once the signals are resolved, call `AskUserQuestion` with `question`: `"What's 
 
 ## Component-Skill Contract
 
-`/claude-tweaks:build` is invoked by `/claude-tweaks:flow` as the implementation stage of the pipeline. Parent invocation is signaled by the `PIPELINE_RUN_DIR` env var (set by `/flow` when it spawns this skill — also resolvable via the most-recent matching run under `.claude-tweaks/pipelines/`). When `PIPELINE_RUN_DIR` is set, omit the `## Next Actions` block at the end of Step 7 — the parent `/flow` owns the handoff and renders its own Pipeline Summary + Next Actions. When invoked directly by a user (no `PIPELINE_RUN_DIR`), render Next Actions as documented in Step 7. The Manual Steps section likewise defers its rendering to the parent's summary when invoked under `/flow` (see Step 5.5).
+`/claude-tweaks:build` is invoked by `/claude-tweaks:flow` as the implementation stage of the pipeline. Parent invocation is signaled by the `PIPELINE_RUN_DIR` env var (set by `/flow` when it spawns this skill — also resolvable via the most-recent matching run under `.claude-tweaks/pipelines/`). When `PIPELINE_RUN_DIR` is set, omit the `## Next Actions` block at the end of Step 7 — the parent `/flow` owns the handoff and renders its own Pipeline Summary + Next Actions. When invoked directly by a user (no `PIPELINE_RUN_DIR`), render Next Actions as documented in Step 7. The Manual Steps section likewise defers its rendering to the parent's summary when invoked under `/flow` (see Step 7's `handoff-template.md`).
 
 ## Anti-Patterns
 
