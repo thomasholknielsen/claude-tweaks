@@ -43,10 +43,16 @@ returns `{ readState(root), writeState(root, mutatorFn) }`:
   then updates the ref with `force: false`. GitHub's fast-forward-only ref update is the
   compare-and-swap: if another firing moved the branch first, the update is rejected and
   `writeState` retries the whole read-modify-write cycle (bounded at 3 attempts). On
-  exhaustion, it returns `{ ok: false, error }` rather than throwing — a lost bookkeeping write
-  just means the next firing might redo some rotation/retry work, which is safe (GitHub-issue
-  fingerprint dedup means a redundant re-file attempt resolves to `skip`, never a duplicate
-  issue).
+  exhaustion, it returns `{ ok: false, error }` rather than throwing — for cursor/run-history
+  bookkeeping, a lost write just means the next firing might redo some rotation work, which is
+  safe (GitHub-issue fingerprint dedup during `validate-findings` means a redundant scan
+  resolves to `skip`, never a duplicate issue). The retry queue is the one exception:
+  `retry-cli.js`'s `drain()` returns the queued payloads as-is, with no existence/fingerprint
+  check against GitHub before the calling skill re-attempts `gh issue create` — so if a
+  payload's `gh issue create` succeeds but the same firing's end-of-run `writeState` (which
+  bundles that dequeue with the cursor/run-history update) then exhausts its retries, the
+  un-dequeued entry survives in `retry-queue.json` and the next firing's drain re-files it,
+  creating a real duplicate issue rather than a safely-redone no-op.
 - `includeRemembered` (default `false`) gates whether `remembered.json` is ever read or written
   at all for this skill — a property decided once, at `createDurableState` call time, not
   inferred per-write from whether the in-memory state object happens to carry a `remembered`
