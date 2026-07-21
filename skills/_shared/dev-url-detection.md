@@ -20,7 +20,7 @@ Before probing ports, check if a URL was previously detected and persisted:
 1. Read `stories/servers.yml` (or `{STORIES_DIR}/servers.yml`) using the Glob tool to check existence first
 2. If file exists and has a `servers.default.url` entry:
    a. Probe the persisted URL with the same HTTP check used in Step 1
-   b. If it responds (2xx or 3xx) → use it. Set `APP_URL = {persisted URL}`. Log: "Using persisted dev URL: {url}". Skip Steps 1-2.
+   b. If it responds (2xx or 3xx) → before accepting it, run the worktree-awareness check from Step 2.7 (MATCH/FOREIGN) against the persisted URL's port. A persisted URL is exactly as fallible as a freshly-probed port here — `stories/servers.yml` is "safe to commit," so it is present and identical in the worktree's own checkout, and a URL it persisted from an earlier run against the main checkout can still be responding. On **MATCH** (or non-worktree) → use it. Set `APP_URL = {persisted URL}`. Log: "Using persisted dev URL: {url}". Skip Steps 1-2. On **FOREIGN** (or PID/cwd can't be resolved) → treat the persisted URL as not responding for this worktree. Log: "Persisted URL {url} responds but serves a foreign checkout — probing ports..." and continue to Step 1.
    c. If it doesn't respond → log: "Persisted URL {url} not responding — probing ports..." and continue to Step 1
 3. If no file or no `servers` section → continue to Step 1
 
