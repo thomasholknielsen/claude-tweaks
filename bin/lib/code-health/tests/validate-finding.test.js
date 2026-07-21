@@ -155,3 +155,24 @@ test('validateFindingV2: valid result carries likelihood and effort', () => {
   assert.strictEqual(result.value.likelihood, 'high');
   assert.strictEqual(result.value.effort, 'low');
 });
+
+// REGRESSION: severity/confidence/likelihood/effort must all validate over
+// the identical tier vocabulary — they used to be four separately hand-typed
+// `new Set([...])` literals (one even in a different member order), which
+// could silently drift apart if only one was updated for a future tier
+// change. Deriving all four from one shared TIER_VALUES array keeps them
+// permanently in sync.
+test('SEVERITY_VALUES, CONFIDENCE_VALUES, LIKELIHOOD_VALUES, EFFORT_VALUES, and TIER_VALUES all contain the exact same members', () => {
+  const {
+    TIER_VALUES, SEVERITY_VALUES, CONFIDENCE_VALUES, LIKELIHOOD_VALUES, EFFORT_VALUES,
+  } = require('../validate-finding');
+  const expected = [...TIER_VALUES].sort();
+  for (const [name, set] of [
+    ['SEVERITY_VALUES', SEVERITY_VALUES],
+    ['CONFIDENCE_VALUES', CONFIDENCE_VALUES],
+    ['LIKELIHOOD_VALUES', LIKELIHOOD_VALUES],
+    ['EFFORT_VALUES', EFFORT_VALUES],
+  ]) {
+    assert.deepStrictEqual([...set].sort(), expected, `${name} must match TIER_VALUES exactly`);
+  }
+});
