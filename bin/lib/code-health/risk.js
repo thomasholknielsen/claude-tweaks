@@ -17,10 +17,17 @@ function bucket(score) {
 }
 
 function computeRisk(severity, likelihood) {
-  if (!(severity in SCORE)) {
+  // Object.prototype.hasOwnProperty, not the bare `in` operator — `in` also
+  // matches inherited Object.prototype property names ('toString',
+  // 'constructor', 'valueOf', 'hasOwnProperty', ...), which would let a
+  // malformed severity/likelihood value silently read an inherited function
+  // instead of a number, coerce to NaN, and fall through bucket()'s
+  // comparisons to the highest risk tier — defeating this validation
+  // instead of throwing as documented.
+  if (!Object.prototype.hasOwnProperty.call(SCORE, severity)) {
     throw new Error(`computeRisk: severity must be one of low|medium|high (got "${severity}")`);
   }
-  if (!(likelihood in SCORE)) {
+  if (!Object.prototype.hasOwnProperty.call(SCORE, likelihood)) {
     throw new Error(`computeRisk: likelihood must be one of low|medium|high (got "${likelihood}")`);
   }
   return bucket(SCORE[severity] * SCORE[likelihood]);
