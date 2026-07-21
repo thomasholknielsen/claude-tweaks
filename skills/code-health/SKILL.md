@@ -153,7 +153,7 @@ For each finding, emit exactly this shape:
 }
 ```
 
-**Some criterion fragments (e.g. `criteria-review-quality.md`, `criteria-security-logic.md`) reference a `critical` or `info` tier inherited from `/claude-tweaks:review`'s broader 5-tier scale.** Code-health's own schema accepts only `low|medium|high` for `severity` — never emit `critical` or `info`. When a fragment's calibration language points toward `critical`, map it to `severity: high` (code-health has no higher tier); treat anything a fragment would call `info` as not worth filing at all rather than as a `low` finding.
+**`criteria-review-quality.md` references a `critical` or `info` tier inherited from `/claude-tweaks:review`'s broader 5-tier scale** (the only fragment this applies to — every other criterion fragment's own severity calibration already uses only `high`/`medium`/`low`, matching the schema directly). Code-health's own schema accepts only `low|medium|high` for `severity` — never emit `critical` or `info`. When this fragment's calibration language points toward `critical`, map it to `severity: high` (code-health has no higher tier); treat anything it would call `info` as not worth filing at all rather than as a `low` finding.
 
 **Severity, likelihood, and effort are three separate, simpler judgments — do not conflate them:**
 
