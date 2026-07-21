@@ -222,7 +222,7 @@ Return the structured report as detailed in the "Report" section below. If `reco
 2. **Setup:** create the screenshot directory and the trace directory (`{TRACES_BASE}/<story-id>`); open the session at the story URL; if a viewport is set, apply it via `set viewport`; apply auth (vault preferred, legacy fallback) — see Structured Format Step 2.
 3. **Execute each step sequentially** (maintain a `caveats` array, initially empty):
    a. Resolve the target via `find` using a semantic locator inferred from the free-text step.
-   b. Execute the action via the appropriate `agent-browser` command.
+   b. Execute the action via the appropriate `agent-browser` command. Free-text-derived values (the story's narrative/checklist/BDD text) are spliced into double-quoted Bash arguments the same way structured-format `<value>`/`<text>` fields are — apply the escaping rule from "Escaping story-supplied strings" (Structured Format, Section 4 Step 1) before splicing any such string into a command.
    c. Take an annotated screenshot.
    d. Evaluate PASS or FAIL.
    e. On PASS: run the Caveat Detection check.
@@ -232,7 +232,7 @@ Return the structured report as detailed in the "Report" section below. If `reco
 
 ## Report
 
-**Canonical schema.** The `REPORT_JSON` envelope in the examples below — including the full nested `page_inventories` shape (`interactive_elements`/`forms`/`navigation`/`accessibility`/`layout`) — is the canonical schema for this agent's structured output. `skills/test/qa-prompts.md`'s dispatch prompt templates re-specify this same shape inline (required by that file's own no-sibling-file-references contract, since each template is copied verbatim into a dispatched Task agent's prompt and that agent never sees this file), and `skills/test/qa-reporting.md`'s aggregated `report.json` schema re-specifies it again for the orchestrator's own output artifact — any future change to this schema must be mirrored byte-for-byte across all four locations: both `qa-prompts.md` templates and `qa-reporting.md`.
+**Canonical schema.** The nested `page_inventories` shape shown in the `REPORT_JSON` examples below (`interactive_elements`/`forms`/`navigation`/`accessibility`/`layout`) is the canonical schema for that structure. `skills/test/qa-prompts.md`'s dispatch prompt templates and `skills/test/qa-reporting.md`'s aggregated `report.json` schema both re-specify this same nested shape (required by `qa-prompts.md`'s own no-sibling-file-references contract, since each template is copied verbatim into a dispatched Task agent's prompt and that agent never sees this file) — any future change to the `page_inventories` shape must be mirrored byte-for-byte across all three locations: both `qa-prompts.md` templates and `qa-reporting.md`. The rest of the `REPORT_JSON` envelope shown in the examples below (`id`/`status`/`steps_passed`/`steps_total`/`error`/`trace`) illustrates this agent's full internal state, not a separate cross-file contract: the `REPORT_JSON` comment actually emitted by the dispatch templates in `qa-prompts.md` carries only `caveats`/`recovered_locators`/`page_inventories`, since `id`/`status`/`steps_passed`/`steps_total`/`error`/`trace` are already carried by the separate `RESULT:`/`TRACE:` lines that `qa-reporting.md`'s Phase 4 parses independently.
 
 ### On success
 
