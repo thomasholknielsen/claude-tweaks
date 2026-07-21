@@ -224,6 +224,15 @@ test('formatDuration scales correctly', () => {
   assert.strictEqual(sl.formatDuration(2 * 86400), '2d');
 });
 
+// Regression: Math.round could round a value up past its own bucket's
+// boundary (the bucket itself was chosen from the un-rounded value), so a
+// value one second under an hour/day boundary used to display as a
+// self-contradictory "60m"/"24h" instead of "59m"/"23h".
+test('formatDuration does not round past its own bucket boundary', () => {
+  assert.strictEqual(sl.formatDuration(3599), '59m');
+  assert.strictEqual(sl.formatDuration(86399), '23h');
+});
+
 test('colorByPct adds ANSI red at >=90%', () => {
   const orig = process.env.NO_COLOR;
   delete process.env.NO_COLOR;
@@ -323,6 +332,57 @@ test('findOpenLedger colors yellow at >=3 open and red at >=10', () => {
   if (orig !== undefined) process.env.NO_COLOR = orig;
 });
 
+// Regression: findOpenLedger's per-file fs.readFileSync call used to live
+// inside the same outer try/catch as fs.readdirSync — other claude-tweaks
+// skills concurrently create/archive ledger files (e.g. /wrap-up archival),
+// so one file becoming unreadable between the directory listing and this
+// loop reaching it (a real race) made the whole function return null,
+// discarding valid open-row counts from every other untouched ledger.
+test('findOpenLedger skips a ledger file raced out between readdir and readFileSync, instead of discarding every other ledger', () => {
+  withLedgers(
+    {
+      'a-ledger.md': `${LEDGER_HEADER}| 1 | build | item | open | — |\n`,
+      'b-ledger.md': `${LEDGER_HEADER}| 1 | build | item | open | — |\n`,
+    },
+    (cwd) => {
+      const dir = path.join(cwd, 'docs', 'plans');
+      const racedPath = path.join(dir, 'b-ledger.md');
+      const originalReadFileSync = fs.readFileSync;
+      fs.readFileSync = (p, ...rest) => {
+        if (p === racedPath) {
+          fs.rmSync(racedPath);
+          const err = new Error('ENOENT: no such file or directory');
+          err.code = 'ENOENT';
+          throw err;
+        }
+        return originalReadFileSync(p, ...rest);
+      };
+      try {
+        assert.match(sl.findOpenLedger(cwd), /ledger: 1 open/);
+      } finally {
+        fs.readFileSync = originalReadFileSync;
+      }
+    },
+  );
+});
+
+// Drift guard: findOpenLedger hardcodes cells[4] as the Status column of the
+// 5-column `| # | Phase | Item | Status | Resolution |` table documented as
+// the canonical ledger shape in skills/ledger/SKILL.md (a file this module
+// never reads). If that table's column order ever changes there with no
+// mechanical link back to this assumption, the statusline's ledger segment
+// would silently break or miscount — this test fails loudly instead.
+test('findOpenLedger cells[4] assumption matches the documented ledger table shape in skills/ledger/SKILL.md', () => {
+  const skillDoc = fs.readFileSync(path.join(__dirname, '..', 'skills', 'ledger', 'SKILL.md'), 'utf8');
+  const headerLine = skillDoc.split('\n').find((l) => {
+    const t = l.trim();
+    return t.startsWith('| #') && t.includes('Status');
+  });
+  assert.ok(headerLine, 'expected to find the "| # | Phase | Item | Status | Resolution |" header in skills/ledger/SKILL.md');
+  const cells = headerLine.split('|').map((c) => c.trim());
+  assert.strictEqual(cells[4], 'Status', 'findOpenLedger hardcodes cells[4] as the Status column — this must match the documented table shape');
+});
+
 function withSpecs(files, fn) {
   return withFixtureDir('ct-specs-', ['specs'], files, fn);
 }
@@ -346,6 +406,65 @@ test('findActiveSpec returns null when specs/ does not exist', () => {
   } finally {
     fs.rmSync(cwd, { recursive: true, force: true });
   }
+});
+
+// Regression: findActiveSpec used to inspect only the single newest-mtime
+// entry; an unrelated non-numerically-prefixed file (scratch notes, etc.)
+// with a newer mtime hid an actually-active, correctly-numbered spec sitting
+// right behind it instead of the function continuing down the sorted list.
+test('findActiveSpec skips a newer non-numerically-prefixed file and finds an older numbered spec behind it', () => {
+  withSpecs(
+    {
+      '042-real-feature.md': '# real spec',
+      'notes.md': '# scratch notes, touched more recently',
+    },
+    (cwd) => {
+      const dir = path.join(cwd, 'specs');
+      const older = new Date(Date.now() - 60_000);
+      const newer = new Date();
+      fs.utimesSync(path.join(dir, '042-real-feature.md'), older, older);
+      fs.utimesSync(path.join(dir, 'notes.md'), newer, newer);
+      assert.strictEqual(sl.findActiveSpec(cwd), 'spec: 042');
+    },
+  );
+});
+
+// Regression: findActiveSpec's per-file fs.statSync call used to live inside
+// the same outer try/catch as fs.readdirSync — other claude-tweaks skills
+// concurrently create/archive spec files, so one file becoming unreadable
+// between the directory listing and this loop reaching it (a real race)
+// made the whole function return null, discarding a still-valid older spec.
+test('findActiveSpec skips a file raced out between readdir and stat, instead of discarding every other entry', () => {
+  withSpecs(
+    {
+      '010-older.md': '# older, still-valid spec',
+      '099-newer.md': '# newer spec, about to be raced out mid-loop',
+    },
+    (cwd) => {
+      const dir = path.join(cwd, 'specs');
+      const racedPath = path.join(dir, '099-newer.md');
+      const newer = new Date();
+      const older = new Date(Date.now() - 60_000);
+      fs.utimesSync(racedPath, newer, newer);
+      fs.utimesSync(path.join(dir, '010-older.md'), older, older);
+
+      const originalStatSync = fs.statSync;
+      fs.statSync = (p, ...rest) => {
+        if (p === racedPath) {
+          fs.rmSync(racedPath);
+          const err = new Error('ENOENT: no such file or directory');
+          err.code = 'ENOENT';
+          throw err;
+        }
+        return originalStatSync(p, ...rest);
+      };
+      try {
+        assert.strictEqual(sl.findActiveSpec(cwd), 'spec: 010');
+      } finally {
+        fs.statSync = originalStatSync;
+      }
+    },
+  );
 });
 
 test('end-to-end: real Claude Code schema renders model + context', () => {
