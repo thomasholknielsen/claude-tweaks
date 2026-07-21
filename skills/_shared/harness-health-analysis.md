@@ -104,12 +104,22 @@ Before forming any finding, run these mechanical checks and treat their output a
    grep -nE 'as of [0-9]{4}-[0-9]{2}-[0-9]{2}|currently [0-9]+ (items?|entries|rules)|pruned from [0-9]+' "<target-path>"
    ```
    A match is mechanical evidence for a `best-practice` finding — a hand-typed count or date claim drifts the moment reality changes, because nothing recomputes it. Recommend removing the claim, or replacing it with a pointer to a live check (`/claude-tweaks:harness-health --target <name>`) instead of a hardcoded number.
-7. **Narrative-density heuristic** (any kind, new, approximate). For a file or section whose stated shape is a terse list (a rule file's body; a `## Don'ts`-style section), compute average words-per-bullet-line:
+7. **Narrative-density heuristic** (any kind, new, approximate). For a file or section whose stated shape is a terse list (a rule file's body; a `## Don'ts`-style section), compute average words-per-bullet-line — when the terse-list shape is only *part* of the target file (e.g. CLAUDE.md's `## Don'ts` section among many other sections), extract just that section first, since running `wc -w` over the whole file dilutes the ratio with unrelated prose and produces a meaningless number:
    ```bash
+   # Whole-file target (e.g. a rule file whose entire body is the terse list):
    grep -c '^- ' "<target-path>"
    wc -w "<target-path>"
+
+   # Section-scoped target (e.g. CLAUDE.md's `## Don'ts` section specifically) — isolate the
+   # section first, from its heading up to (not including) the next `## ` heading. Use awk, not
+   # a `sed` range + trailing `sed '$d'`: when the target section is the LAST one in the file
+   # (no following `## ` heading to end the range on), a range print runs to EOF and an
+   # unconditional `$d` then deletes the genuine last content line instead of a heading.
+   awk '/^## {section heading}$/{p=1; print; next} /^## /{ if (p) exit } p' "<target-path>" > /tmp/harness-health-section.txt
+   grep -c '^- ' /tmp/harness-health-section.txt
+   wc -w /tmp/harness-health-section.txt
    ```
-   Divide word count by bullet count for a rough average. Above roughly 40 words/bullet is evidence — not a verdict — that specific bullets have drifted from a terse constraint into an incident narrative. Feed this as an anchor into dimension 8's existing best-practice judgment rather than treating it as a standalone finding; tune the threshold from real findings over time.
+   Divide word count by bullet count for a rough average, computing both counts over the same extracted content. Above roughly 40 words/bullet is evidence — not a verdict — that specific bullets have drifted from a terse constraint into an incident narrative. Feed this as an anchor into dimension 8's existing best-practice judgment rather than treating it as a standalone finding; tune the threshold from real findings over time.
 8. **Bare skill-invocation reference check** (skills only, new). Grep the target skill's actionable instruction text — `## Step N` bodies and `## Next Actions` blocks — for a bare `/{other-skill-name}` referencing another skill in the same project, without a `claude-tweaks:`-style fully-qualified prefix:
    ```bash
    grep -nE '/[a-z][a-z0-9-]*\b' "<target-path>"
