@@ -123,14 +123,17 @@ Status values:
 
 Populate this footer from `manifest.yml` — any spec with `status: failed`, `not-run`, or `incomplete` gets a row.
 
----
-
-1. **Approve all** — apply pending items, accept auto-applied, apply skill + config updates **(Recommended)**
-2. **Override specific items** — reply with `#`s to skip/modify (e.g., `skip 6, modify 8, revert 2`)
-3. **Stop and re-engage** — pause; resume after manual review
-
 Below each table, show the full patch / diff for each pending item.
 ```
+
+Immediately after presenting the console tables above, call `AskUserQuestion` with:
+
+- `question`: `"How do you want to handle the Multi-Spec Review Console items?"`, `header`: `"Review Console"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Approve all (Recommended)"`, `description`: `"Apply pending items, accept auto-applied, apply skill + config updates."`
+- Option 2 — `label`: `"Override specific items"`, `description`: `"Reply with #s to skip/modify (e.g., \"skip 6, modify 8, revert 2\")."`
+- Option 3 — `label`: `"Stop and re-engage"`, `description`: `"Pause; resume after manual review."`
+
+If "Override specific items" is chosen, the skip/modify list is ordinary free-text chat in the next message, per CLAUDE.md's Multi-item decisions convention — not the tool's `Other` field.
 
 Queue writes (Q1, Q2, …) are handled separately from the three terminal options above — they are never part of that decision, regardless of which option is chosen. After the user selects option 1 or 2, prompt the queue writes individually — one small `AskUserQuestion` call per `Q#` item, issued separately (never batched into a single call, and never batched across specs).
 

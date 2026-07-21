@@ -141,11 +141,12 @@ Server URLs are written to `stories/servers.yml` (safe to commit). Credentials, 
 `stories/servers.yml` is safe to commit — it contains no credentials. Do NOT add it to `.gitignore`.
 
 If a legacy `stories/auth.yml` exists (older projects stored credentials there), ensure it is gitignored. Check `.gitignore` for `stories/auth.yml` (or `{STORIES_DIR}/auth.yml`). If not present, offer to add it:
-```
-Add stories/auth.yml to .gitignore? This file contains credentials and must not be committed.
-1. Yes (Recommended)
-2. No — I manage .gitignore manually
-```
+
+**Call `AskUserQuestion`:**
+
+- `question`: `"Add stories/auth.yml to .gitignore? This file contains credentials and must not be committed."`, `header`: `"Gitignore auth.yml"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Yes (Recommended)"`, `description`: `"Add stories/auth.yml to .gitignore."`
+- Option 2 — `label`: `"No"`, `description`: `"I manage .gitignore manually."`
 
 ### Cleanup
 

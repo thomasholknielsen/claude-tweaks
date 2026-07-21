@@ -26,12 +26,11 @@ On `{skipped}` (Impeccable not installed, design integration disabled): note the
 
 **Interactive mode:** offer the shape pre-step:
 
-```
-Frontend design detected. Run /impeccable:impeccable shape to plan UX/UI before decomposition?
+**Call `AskUserQuestion`:**
 
-1. Yes — run /impeccable:impeccable shape and append output to design doc **(Recommended)**
-2. Skip — proceed directly to decomposition
-```
+- `question`: `"Frontend design detected. Run /impeccable:impeccable shape to plan UX/UI before decomposition?"`, `header`: `"Shape pre-step"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Yes — run shape (Recommended)"`, `description`: `"Run /impeccable:impeccable shape and append output to the design doc."`
+- Option 2 — `label`: `"Skip"`, `description`: `"Proceed directly to decomposition."`
 
 On option 1: invoke `/claude-tweaks:design-wrapper shape <topic>` via the Skill tool. The wrapper runs `/impeccable:impeccable shape <topic>` and returns `{result: "ok", output: "..."}`. Append the returned output verbatim to the design doc under a `## Shape (Impeccable)` section. This enriches the design doc with UX/UI planning that the decomposed leaf records and downstream `/build` can reference.
 
@@ -43,10 +42,11 @@ Runs only when Step 2.5b's shape pre-step actually produced a confirmed brief (o
 
 Offer once, as its own message:
 
-> Want to compare a few real variants of {primary surface, from the brief's "Primary User Action"} before I build it for real? I'll put together a quick throwaway version and let you pick a direction in the browser.
->
-> 1. Yes — build a scaffold and open live mode **(Recommended)**
-> 2. Skip — proceed to decomposition from the text brief only
+**Call `AskUserQuestion`:**
+
+- `question`: `"Want to compare a few real variants of {primary surface, from the brief's \"Primary User Action\"} before I build it for real? I'll put together a quick throwaway version and let you pick a direction in the browser."`, `header`: `"Variant exploration"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Yes — build a scaffold (Recommended)"`, `description`: `"Build a disposable scaffold and open live mode to pick a direction."`
+- Option 2 — `label`: `"Skip"`, `description`: `"Proceed to decomposition from the text brief only."`
 
 On option 2, or if the user doesn't respond affirmatively: proceed to Step 2.5c with no further action.
 
@@ -79,18 +79,17 @@ Sets the `Design-intent:` body-metadata line that Phase 3's `polish` mode will r
 
 **Interactive mode (or KEPT-PROMPT fallback):** ask the user:
 
-```
-Design vibe for this record? (sets the Design-intent body-metadata line)
+**Call `AskUserQuestion`:**
 
-1. Bold — eye-catching, confident
-2. Quiet — restrained, refined
-3. Minimal — strip to essence
-4. Delightful — personality, micro-interactions
-5. Onboarding — first-run flows, empty states
-6. None — no specific creative direction
-```
+- `question`: `"Design vibe for this record? (sets the Design-intent body-metadata line — select one or more)"`, `header`: `"Design intent"`, `multiSelect`: `true`
+- Option 1 — `label`: `"Bold"`, `description`: `"Eye-catching, confident."`
+- Option 2 — `label`: `"Quiet"`, `description`: `"Restrained, refined."`
+- Option 3 — `label`: `"Minimal"`, `description`: `"Strip to essence."`
+- Option 4 — `label`: `"Delightful"`, `description`: `"Personality, micro-interactions."`
+- Option 5 — `label`: `"Onboarding"`, `description`: `"First-run flows, empty states."`
+- Option 6 — `label`: `"None"`, `description`: `"No specific creative direction."`
 
-The user can answer with multiple numbers (e.g., `1,4` for bold + delightful). Map the answers:
+The user can select multiple options (e.g., Bold + Delightful). Map the answers:
 
 | User answer | `Design-intent:` value |
 |-------------|------------------------|
