@@ -398,14 +398,15 @@ node -e "
 
 If `/tmp/specify-all-issues.json` is unavailable (a resumed decomposition run in a fresh session with no Step 1 state from this session — shaping mode never reaches this step, so this only matters for a resumed decomposition), fall back to fetching it fresh: `gh issue list --state all --json number,title,labels,body,state --limit 200 > /tmp/specify-all-issues.json`.
 
-`work-backend: local-files` (the local marker search — same idea, read every record body and extract its marker):
+`work-backend: local-files` (the local marker search — same idea, read every record body and extract its marker). `queryRecords('specs', {})` alone excludes closed records by default (its `filtersOnClosed` check treats an empty filter object as "open, as today," per `local-store.js`'s own header comment on the function) — this map needs both open and closed, mirroring the github driver's `--state all` fetch above: a fingerprint match against an already-closed local record still means "already exists" and must not be recreated on a resumed decomposition. Merge a default (open) query with an explicit `{ closed: true }` query — the same two-call idiom `bin/lib/issues/tests/local-store.test.js` demonstrates:
 
 ```bash
 node -e "
   const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
   const { extractFingerprint } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const records = [...queryRecords('specs', {}), ...queryRecords('specs', { closed: true })];
   const map = {};
-  for (const r of queryRecords('specs', {})) { const fp = extractFingerprint(r.body); if (fp && !(fp in map)) map[fp] = r.id; }
+  for (const r of records) { const fp = extractFingerprint(r.body); if (fp && !(fp in map)) map[fp] = r.id; }
   require('fs').writeFileSync('/tmp/specify-existing-fingerprints.json', JSON.stringify(map));
 "
 ```
