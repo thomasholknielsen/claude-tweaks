@@ -114,7 +114,7 @@ If any findings are "Fix now", make the changes, re-run `/claude-tweaks:test`, a
 
 ## Parallel fix dispatch (3+ independent fixes)
 
-> **Working Directory Discipline (applies to every fix-agent Task() dispatch):** Resolve `WORKTREE = $(git rev-parse --show-toplevel)` once in the dispatcher. Anchor every git command in the agent prompt as `git -C "$WORKTREE" …`, and prefix any path-sensitive shell command with `cd "$WORKTREE" && …`. CWD does not propagate reliably to parallel agents; without the anchor, fix-agents can edit the wrong checkout. See `_shared/git-discipline.md` and the Working Directory Discipline section in `_shared/subagent-output-contract.md`.
+> **Working Directory Discipline:** Applies to every fix-agent `Task()` dispatch. Apply the Working Directory Discipline rule from `_shared/subagent-output-contract.md` before any git or path-sensitive command in the agent prompt. See also `_shared/git-discipline.md`.
 
 > **Parallel execution (conditional):** When there are 3+ "Fix now" findings across different files with no shared file dependencies, dispatch fixes as parallel agents using the `/superpowers:dispatching-parallel-agents` pattern — one agent per independent fix domain. Each agent gets: specific file scope, finding details, constraint to not modify other files. Returns summary of changes. After all agents complete, check for conflicts between agent changes, then re-run `/claude-tweaks:test`. When fixes overlap files or there are fewer than 3 findings, fix sequentially in the main thread.
 >
