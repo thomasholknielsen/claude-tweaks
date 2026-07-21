@@ -22,12 +22,24 @@ test('color: NO_COLOR=anything disables (per standard)', () => {
   else process.env.NO_COLOR = orig;
 });
 
-test('color: empty NO_COLOR enables color', () => {
+// Regression: per the NO_COLOR convention (https://no-color.org/), the
+// variable's mere *presence* disables color regardless of its value — a
+// script/CI harness exporting `NO_COLOR=` (present but empty) must still
+// suppress ANSI codes, the same as every other value.
+test('color: empty NO_COLOR still disables color (presence, not value, is what matters)', () => {
   const orig = process.env.NO_COLOR;
   process.env.NO_COLOR = '';
-  assert.strictEqual(color.colorEnabled(), true);
+  assert.strictEqual(color.colorEnabled(), false);
+  assert.strictEqual(color.red('x'), 'x');
   if (orig === undefined) delete process.env.NO_COLOR;
   else process.env.NO_COLOR = orig;
+});
+
+test('color: unset NO_COLOR enables color', () => {
+  const orig = process.env.NO_COLOR;
+  delete process.env.NO_COLOR;
+  assert.strictEqual(color.colorEnabled(), true);
+  if (orig !== undefined) process.env.NO_COLOR = orig;
 });
 
 test('color: red wraps with ANSI 31 when enabled', () => {
