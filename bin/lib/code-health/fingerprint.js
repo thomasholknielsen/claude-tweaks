@@ -1,4 +1,4 @@
-const crypto = require('crypto');
+const { fingerprintFromBasis } = require('../health-core/fingerprint');
 
 // Remove :line and :line:col refs, collapse whitespace, lowercase. Keeps the
 // fingerprint stable when a finding moves lines or is reformatted.
@@ -36,13 +36,15 @@ function normalizeAnchor(anchor) {
 function fingerprint({ lens, areaId, signature, file, criterion, anchor }) {
   if (criterion !== undefined) {
     // v2: LLM-judge finding. Hash criterion + areaId + normalizeAnchor(anchor).
-    const basis = JSON.stringify([criterion, areaId, normalizeAnchor(anchor || '')]);
-    return 'codehealth-' + crypto.createHash('sha1').update(basis).digest('hex').slice(0, 8);
+    // Uses the shared health-core primitive (same one harness-health,
+    // journey-health, and docs-health use) so a future change to the id
+    // format lands in one place and propagates to code-health automatically,
+    // instead of code-health's inline copy silently drifting out of sync.
+    return fingerprintFromBasis('codehealth', [criterion, areaId, normalizeAnchor(anchor || '')]);
   }
   // v1: mechanical-lens finding. Keep the existing logic exactly.
   const normFile = String(file || '').replace(/:\d+(:\d+)?$/, '');
-  const basis = JSON.stringify([lens, areaId, normFile, normalizeSignature(signature)]);
-  return 'codehealth-' + crypto.createHash('sha1').update(basis).digest('hex').slice(0, 8);
+  return fingerprintFromBasis('codehealth', [lens, areaId, normFile, normalizeSignature(signature)]);
 }
 
 module.exports = { fingerprint, normalizeSignature, normalizeAnchor };
