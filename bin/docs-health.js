@@ -6,7 +6,7 @@ const { computeWordCount } = require('./lib/docs-health/depth');
 const { readCache, writeCache, readDurableState, writeDurableState, buildValidateFindingsUpdate } = require('./lib/docs-health/cache');
 const { computeChurn } = require('./lib/health-core/runs');
 const { makeRetryQueueCommands } = require('./lib/health-core/retry-cli');
-const { loadIssueIndex } = require('./lib/health-core/issue-index');
+const { dedupAndDispatch } = require('./lib/health-core/validate-findings-dispatch');
 const { selectBudget } = require('./lib/health-core/budget');
 const { makeCmdChurnReport } = require('./lib/health-core/churn-report');
 const { makeCmdMark } = require('./lib/health-core/mark');
@@ -78,6 +78,23 @@ function cmdValidateFindings(args) {
     process.exit(2);
   }
 
+  // buildValidateFindingsUpdate only patches a cursor when target is present
+  // (see lib/docs-health/cache.js) — docs-health has no gap-scan-equivalent
+  // fallback (unlike harness-health/journey-health), so --target is the sole
+  // mechanism for cursor advancement. A real (non-dry-run) run that omits it
+  // (a flag typo, or a skill-prompt drift) still writes the run record and
+  // dedup cache correctly but never advances any audit cursor — the doc then
+  // gets perpetually re-selected as stale/overdue on every future run.
+  // Mirrors bin/harness-health.js's own hard-gate for validate-findings.
+  if (!args.dryRun && !args.target) {
+    process.stderr.write(
+      'validate-findings: a real (non-dry-run) run requires --target — ' +
+      'without it, no audit cursor advances and rotation state silently drifts. ' +
+      'Pass --dry-run to preview without it.\n',
+    );
+    process.exit(2);
+  }
+
   let raw;
   try {
     raw = JSON.parse(fs.readFileSync(findingsPath, 'utf8'));
@@ -108,24 +125,9 @@ function cmdValidateFindings(args) {
     survivors.push({ ...v.value, id });
   }
 
-  const cache = readCache(root);
-  const issueIndex = loadIssueIndex(args.issues, TOOL_NAME);
-  const payloads = [];
-  const seen = new Set();
-  for (const finding of survivors) {
-    if (seen.has(finding.id)) continue;
-    seen.add(finding.id);
-
-    const decision = decide(finding, issueIndex, cache);
-    if (decision.action === 'skip' || decision.action === 'suppress') continue;
-
-    if (decision.action === 'file' || decision.action === 'reopen') {
-      cache[finding.id] = decision.action === 'reopen'
-        ? { status: 'regressed', issue: decision.issue || null, lastSeenMs: Date.now() }
-        : { status: 'staged', lastSeenMs: Date.now() };
-      payloads.push(toIssuePayload(finding));
-    }
-  }
+  const { cache, payloads, seen } = dedupAndDispatch({
+    root, issuesPath: args.issues, toolName: TOOL_NAME, survivors, readCache, decide, toIssuePayload,
+  });
 
   if (!args.dryRun) {
     writeCache(root, cache);

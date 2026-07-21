@@ -517,3 +517,69 @@ test('selectTarget lets PRODUCT win via hotspot from its own content-scraped pat
   assert.deepStrictEqual(result.pathGlobs, [], 'the returned target.pathGlobs must stay the static [], not the scraped paths');
   assert.ok(result.churnCount > 0, `expected churnCount > 0 from the scraped-path churn, got ${result.churnCount}`);
 });
+
+// Regression: computeScore must UNION the candidate's own file path into the
+// domainChurn pathspec, not just its content-scraped/pathGlobs references —
+// otherwise a skill that's been heavily hand-rewritten, with no change to
+// the files it happens to reference, is invisible to the rotation algorithm
+// even though its own edit history is a real drift signal (mirrors
+// docs-health/scope.js's [relDocPath, ...domainPaths] union).
+test('selectTarget registers churn from a skill\'s own edit history, even when its referenced path never changed', (t) => {
+  const root = tmp(t);
+  initGitRepo(root);
+  fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'src', 'auth.js'), 'export const login = () => {};\n');
+  fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth\nSee `src/auth.js`.');
+  commit(root, 'first');
+  const sinceMs = Date.now() - 86400000;
+  // Only the skill file itself changes — src/auth.js (its sole referenced
+  // path) is never touched again.
+  fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth (rewritten)\nSee `src/auth.js`.\nMore detail.');
+  commit(root, 'second');
+
+  const result = selectTarget(root, { 'skill:auth': { lastAuditedMs: sinceMs } }, { now: Date.now() });
+  assert.ok(result !== null, 'must pick auth via its own edit history, not just its referenced path');
+  assert.strictEqual(result.id, 'auth');
+  assert.strictEqual(result.why, 'hotspot');
+  assert.ok(result.churnCount > 0, `expected churnCount > 0 from the skill's own commit, got ${result.churnCount}`);
+});
+
+// ─── listTargets caching ────────────────────────────────────────────────────
+
+test('listTargets caches the parsed rule content across calls when nothing on disk changed (regression: a --budget>1 loop must not re-read every rule every slot)', (t) => {
+  const root = tmp(t);
+  fs.mkdirSync(path.join(root, '.claude', 'rules'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude', 'rules', 'api-errors.md'), '---\npaths:\n  - src/api/**\n---\n');
+
+  const originalReadFileSync = fs.readFileSync;
+  let ruleReadCount = 0;
+  fs.readFileSync = (...fsArgs) => {
+    if (typeof fsArgs[0] === 'string' && fsArgs[0].endsWith('api-errors.md')) ruleReadCount += 1;
+    return originalReadFileSync(...fsArgs);
+  };
+  try {
+    const first = listTargets(root);
+    assert.strictEqual(ruleReadCount, 1); // one content read on the cold call
+    const second = listTargets(root);
+    assert.strictEqual(ruleReadCount, 1); // unchanged directory -> no additional reads
+    assert.strictEqual(second, first); // cache hit returns the same array reference
+    // Simulate a --budget=4 loop hitting the same unchanged tree repeatedly.
+    for (let i = 0; i < 3; i++) listTargets(root);
+    assert.strictEqual(ruleReadCount, 1);
+  } finally {
+    fs.readFileSync = originalReadFileSync;
+  }
+});
+
+test('listTargets re-reads a rule after its content changes (cache correctly invalidates, not just wins on staleness)', (t) => {
+  const root = tmp(t);
+  fs.mkdirSync(path.join(root, '.claude', 'rules'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude', 'rules', 'api-errors.md'), '---\npaths:\n  - src/api/**\n---\n');
+  const first = listTargets(root);
+  assert.deepStrictEqual(first.find((t2) => t2.id === 'api-errors').pathGlobs, ['src/api/**']);
+
+  fs.writeFileSync(path.join(root, '.claude', 'rules', 'api-errors.md'), '---\npaths:\n  - src/api/**\n  - src/web/**\n---\n');
+  const second = listTargets(root);
+  assert.deepStrictEqual(second.find((t2) => t2.id === 'api-errors').pathGlobs, ['src/api/**', 'src/web/**']);
+});

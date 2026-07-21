@@ -1,10 +1,10 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { execFileSync } = require('child_process');
 const { STALE_DAYS_LIGHT, STALE_DAYS_DEEP } = require('./score');
 const { selectByStaleThenChurn } = require('../health-core/rotation');
 const { parseFrontmatterListField } = require('../health-core/frontmatter-list');
+const { domainChurn } = require('../health-core/churn');
 
 // ─── parseJourneyFiles ───────────────────────────────────────────────────────
 // Extracts a journey file's `files:` frontmatter list, e.g.:
@@ -26,17 +26,16 @@ function parseJourneyFiles(content) {
 // selectTarget is called once per slot in a --budget > 1 loop (see
 // journey-health.js's cmdNextTarget), and nothing on disk changes between
 // slots of the same run. Without caching, every slot redid the full
-// docs/journeys readdir+readFile scan (listJourneys) and, once Phase 1
-// staleness is exhausted, a fresh `git log` subprocess per remaining
-// candidate (domainChurn) — purely wasted I/O that scaled with budget times
-// journey count. Both caches below are keyed on inputs that only change when
-// the underlying data actually could, so a call repeated with the same
+// docs/journeys readdir+readFile scan (listJourneys) — purely wasted I/O that
+// scaled with budget times journey count. Keyed on inputs that only change
+// when the underlying data actually could, so a call repeated with the same
 // inputs in the same process reuses the prior result instead of redoing the
-// I/O; a call whose inputs genuinely changed (a journey file edited, a
-// candidate's cursor bumped to a new sinceMs after being picked) still gets
-// a fresh read.
+// I/O; a call whose inputs genuinely changed (a journey file edited) still
+// gets a fresh read. domainChurn (the git-log-based churn counter, also
+// memoized) now lives in bin/lib/health-core/churn.js, shared with
+// harness-health/scope.js and docs-health/scope.js — see the require at the
+// top of this file.
 const journeysCache = new Map(); // root -> { fingerprint, journeys }
-const churnCache = new Map(); // "root relPaths sinceMs" -> count
 
 // ─── listJourneys ────────────────────────────────────────────────────────────
 // Returns [{ kind: 'journey', id, path, filesFrontmatter }] for each
@@ -78,47 +77,6 @@ function listJourneys(root) {
 
   journeysCache.set(root, { fingerprint, journeys });
   return journeys;
-}
-
-// ─── domainChurn ─────────────────────────────────────────────────────────────
-// Count commits touching any of `relPaths` since `sinceMs` (epoch ms). Returns
-// 0 (not an error) when git is unavailable, paths don't exist, or there is no
-// churn — the caller treats 0 as "nothing changed," not a failure signal.
-// Memoized per exact (root, relPaths, sinceMs) triple — see the caches
-// comment above listJourneys — so a --budget > 1 loop's repeated Phase 2 pass
-// over the same not-yet-picked candidates reuses the prior `git log` result
-// instead of re-spawning the subprocess every slot.
-function domainChurn(root, relPaths, sinceMs) {
-  if (!relPaths || relPaths.length === 0) return 0;
-  const key = `${root} ${relPaths.join(' ')} ${sinceMs || 0}`;
-  if (churnCache.has(key)) return churnCache.get(key);
-  let count;
-  try {
-    // Full ISO 8601 datetime (with time-of-day and a Z/UTC suffix), not a
-    // bare YYYY-MM-DD date string. A bare date string is parsed by git as
-    // local midnight and then converted to UTC, which underflows to a
-    // pre-epoch boundary (silently matching zero commits) in any positive
-    // UTC-offset timezone when sinceMs is 0. git's numeric `@<seconds>`
-    // epoch-literal syntax was tried as a fix but verified (via direct
-    // experimentation) to be unreliable for small values: git's fuzzy
-    // approxidate parser treats a small `@<N>` as an ambiguous relative
-    // offset from "now" rather than an absolute timestamp, so `--since=@0`
-    // silently degrades to "since right now" once any time at all has
-    // elapsed since the commit — worse than the original bug. A full ISO
-    // 8601 string is parsed by git's strict (non-fuzzy) date parser and
-    // was verified robust across timezones and timing.
-    const since = new Date(sinceMs || 0).toISOString();
-    const out = execFileSync(
-      'git',
-      ['-C', root, 'log', '--oneline', `--since=${since}`, '--', ...relPaths],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 },
-    );
-    count = out.split('\n').filter(Boolean).length;
-  } catch {
-    count = 0;
-  }
-  churnCache.set(key, count);
-  return count;
 }
 
 // ─── selectTarget ────────────────────────────────────────────────────────────
@@ -170,9 +128,19 @@ function selectTarget(root, cursors, opts = {}) {
     staleDays,
     getCursorKey: (candidate) => candidate.id,
     getLastAuditedMs: (cursor) => (cursor && cursor[auditField] != null ? cursor[auditField] : null),
-    // Score by churn on filesFrontmatter since last audit on this tier.
+    // Score by churn on filesFrontmatter since last audit on this tier,
+    // UNION the journey file's own path — mirrors docs-health/scope.js's
+    // [relDocPath, ...domainPaths] union, so a journey that's been heavily
+    // hand-rewritten (its narrative changed substantially) still registers
+    // churn even when its declared `files:` dependencies haven't themselves
+    // seen matching commits.
     computeScore: (candidate, cursor, sinceMs) => {
-      const churn = signals ? (signals[candidate.id] || 0) : domainChurn(root, candidate.filesFrontmatter, sinceMs);
+      if (signals) {
+        const churn = signals[candidate.id] || 0;
+        return churn > 0 ? churn : null;
+      }
+      const relJourneyPath = path.relative(root, candidate.path).split(path.sep).join('/');
+      const churn = domainChurn(root, [relJourneyPath, ...candidate.filesFrontmatter], sinceMs);
       return churn > 0 ? churn : null;
     },
     buildHotspotResult: (candidate, score) => ({ ...candidate, why: 'hotspot', churnCount: score }),

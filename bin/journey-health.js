@@ -7,7 +7,7 @@ const {
 } = require('./lib/journey-health/cache');
 const { computeChurn } = require('./lib/health-core/runs');
 const { makeRetryQueueCommands } = require('./lib/health-core/retry-cli');
-const { loadIssueIndex } = require('./lib/health-core/issue-index');
+const { dedupAndDispatch } = require('./lib/health-core/validate-findings-dispatch');
 const { selectBudget } = require('./lib/health-core/budget');
 const { makeCmdChurnReport } = require('./lib/health-core/churn-report');
 const { makeCmdMark } = require('./lib/health-core/mark');
@@ -97,6 +97,23 @@ function cmdValidateFindings(args) {
     process.exit(2);
   }
 
+  // buildValidateFindingsUpdate only patches a cursor when target is present,
+  // or sets __coverageScan when coverageScan is set (see
+  // lib/journey-health/cache.js). A real (non-dry-run) run that omits both (a
+  // flag typo, or a caller path that forgets to thread the journey id
+  // through) still writes the run record and dedup cache correctly but never
+  // advances any audit cursor — the journey then gets perpetually re-selected
+  // as stale/overdue on every future run. Mirrors bin/harness-health.js's own
+  // hard-gate for validate-findings.
+  if (!args.dryRun && !(args.target || args.coverageScan)) {
+    process.stderr.write(
+      'validate-findings: a real (non-dry-run) run requires --target, or --coverage-scan (or both) — ' +
+      'without one of them, no audit cursor advances and rotation state silently drifts. ' +
+      'Pass --dry-run to preview without it.\n',
+    );
+    process.exit(2);
+  }
+
   let raw;
   try {
     raw = JSON.parse(fs.readFileSync(findingsPath, 'utf8'));
@@ -127,24 +144,9 @@ function cmdValidateFindings(args) {
     survivors.push({ ...v.value, id });
   }
 
-  const cache = readCache(root);
-  const issueIndex = loadIssueIndex(args.issues, TOOL_NAME);
-  const payloads = [];
-  const seen = new Set();
-  for (const finding of survivors) {
-    if (seen.has(finding.id)) continue;
-    seen.add(finding.id);
-
-    const decision = decide(finding, issueIndex, cache);
-    if (decision.action === 'skip' || decision.action === 'suppress') continue;
-
-    if (decision.action === 'file' || decision.action === 'reopen') {
-      cache[finding.id] = decision.action === 'reopen'
-        ? { status: 'regressed', issue: decision.issue || null, lastSeenMs: Date.now() }
-        : { status: 'staged', lastSeenMs: Date.now() };
-      payloads.push(toIssuePayload(finding));
-    }
-  }
+  const { cache, payloads, seen } = dedupAndDispatch({
+    root, issuesPath: args.issues, toolName: TOOL_NAME, survivors, readCache, decide, toIssuePayload,
+  });
 
   if (!args.dryRun) {
     writeCache(root, cache);

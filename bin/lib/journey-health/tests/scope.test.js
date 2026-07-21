@@ -242,3 +242,38 @@ test('domainChurn(root, paths, 0) counts a commit from well in the past, not jus
   const count = domainChurn(root, ['src/b.ts'], 0);
   assert.ok(count > 0, `expected the backdated commit to be counted since sinceMs=0, got ${count}`);
 });
+
+// Regression: computeScore must UNION the journey file's own path into the
+// domainChurn pathspec, not just its declared filesFrontmatter — otherwise a
+// journey that's been heavily hand-rewritten, with no change to the files it
+// happens to declare, is invisible to the rotation algorithm even though its
+// own edit history is a real drift signal (mirrors docs-health/scope.js's
+// [relDocPath, ...domainPaths] union).
+test('selectTarget registers hotspot churn from a journey\'s own edit history, even when its declared files never changed', () => {
+  const root = tmp();
+  writeJourney(root, 'checkout-flow', ['src/checkout/Cart.tsx']);
+  execFileSync('git', ['-C', root, 'init', '-q']);
+  execFileSync('git', ['-C', root, 'config', 'user.email', 'test@example.com']);
+  execFileSync('git', ['-C', root, 'config', 'user.name', 'test']);
+  execFileSync('git', ['-C', root, 'add', '.']);
+  execFileSync('git', ['-C', root, 'commit', '-q', '-m', 'first']);
+
+  const sinceMs = Date.now() - 86400000;
+  // Only the journey file itself changes — its declared src/checkout/Cart.tsx
+  // dependency is never touched again.
+  fs.writeFileSync(
+    path.join(root, 'docs', 'journeys', 'checkout-flow.md'),
+    '---\nfiles:\n  - src/checkout/Cart.tsx\n---\n\n# checkout-flow (rewritten)\nMore narrative detail.\n',
+    'utf8',
+  );
+  execFileSync('git', ['-C', root, 'add', '.']);
+  execFileSync('git', ['-C', root, 'commit', '-q', '-m', 'second']);
+
+  const now = Date.now();
+  const cursors = { 'checkout-flow': { lastLightAuditMs: sinceMs } };
+  const result = selectTarget(root, cursors, { now, tier: 'light' });
+  assert.ok(result !== null, 'must pick checkout-flow via its own edit history, not just its declared files');
+  assert.strictEqual(result.id, 'checkout-flow');
+  assert.strictEqual(result.why, 'hotspot');
+  assert.ok(result.churnCount > 0, `expected churnCount > 0 from the journey's own commit, got ${result.churnCount}`);
+});

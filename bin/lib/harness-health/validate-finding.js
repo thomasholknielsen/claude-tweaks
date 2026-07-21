@@ -4,6 +4,8 @@
 // against the Finding Shape in _shared/harness-health-analysis.md.
 // Returns { ok:true, value } or { ok:false, errors:string[] }.
 
+const { requireNonEmptyStrings, validateRelatedSections } = require('../health-core/finding-validation');
+
 const KIND_VALUES = new Set(['patch', 'new-skill']);
 const ASSET_TYPE_VALUES = new Set(['skill', 'rule', 'claude-md', 'design-artifact', 'memory']);
 const CATEGORY_VALUES = new Set(['drift', 'template-conformance', 'best-practice']);
@@ -19,12 +21,7 @@ function validateFinding(obj) {
     return { ok: false, errors: ['finding: must be an object'] };
   }
 
-  for (const field of REQUIRED_STRINGS) {
-    const v = obj[field];
-    if (typeof v !== 'string' || v.trim() === '') {
-      errors.push(`${field}: required non-empty string (got ${JSON.stringify(v)})`);
-    }
-  }
+  errors.push(...requireNonEmptyStrings(obj, REQUIRED_STRINGS));
 
   if (typeof obj.kind === 'string' && !KIND_VALUES.has(obj.kind)) {
     errors.push(`kind: must be one of ${[...KIND_VALUES].join('|')} (got "${obj.kind}")`);
@@ -67,13 +64,7 @@ function validateFinding(obj) {
   // cause). Only ever populated for kind: "patch" findings — "new-skill"
   // candidates have no section to bundle by — but validated unconditionally
   // here, same as the required-field blocks above.
-  if (obj.relatedSections !== undefined) {
-    const isValidArray = Array.isArray(obj.relatedSections) &&
-      obj.relatedSections.every((s) => typeof s === 'string' && s.trim() !== '');
-    if (!isValidArray) {
-      errors.push(`relatedSections: when present, must be an array of non-empty strings (got ${JSON.stringify(obj.relatedSections)})`);
-    }
-  }
+  errors.push(...validateRelatedSections(obj));
 
   if (errors.length > 0) return { ok: false, errors };
   return { ok: true, errors: [], value: { ...obj } };

@@ -13,8 +13,11 @@
 const {
   recordPayload, specShapedBody, CLASSIFICATION_SCORING, fencedBlock,
 } = require('../issues/record');
+const { buildRelatedBlocks } = require('../issues/related-blocks');
 
-const CATEGORY_LABELS = { 'genre-drift': 'genre-drift', staleness: 'staleness' };
+const CATEGORY_LABELS = {
+  'genre-drift': 'genre-drift', staleness: 'staleness', 'depth-mismatch': 'depth-mismatch', findability: 'findability',
+};
 
 const MISLEADS_LABELS = {
   human: 'human engineer',
@@ -32,9 +35,7 @@ function toIssuePayload(finding) {
 
   // Only ever populated when multiple findings in one doc audit share the same
   // root cause — see the "Bundling rule" in skills/docs-health/SKILL.md Step 3.
-  const relatedBlocks = Array.isArray(finding.relatedSections) && finding.relatedSections.length > 0
-    ? [`Also affects: ${finding.relatedSections.map((s) => `\`${s}\``).join(', ')}`]
-    : [];
+  const relatedBlocks = buildRelatedBlocks(finding.relatedSections);
 
   const body = specShapedBody({
     header: kindLine,
@@ -46,15 +47,23 @@ function toIssuePayload(finding) {
 
   const title = `Doc ${categoryLabel}: ${finding.target} — ${finding.section}`;
   const diagnosticLabel = `docs-health:${finding.classification}`;
+  // Guard with optional chaining, matching harness-health/issue-payload.js's
+  // identical CLASSIFICATION_SCORING lookup — an unmapped classification
+  // (a future value added to docs-health's own CLASSIFICATION_VALUES without
+  // a matching CLASSIFICATION_SCORING entry) must degrade to risk/effort:
+  // undefined (recordPayload's `if (risk !== undefined)` guard simply omits
+  // the label), not throw and abort the whole validate-findings batch.
   const scoring = CLASSIFICATION_SCORING[finding.classification];
+  const risk = scoring?.risk;
+  const effort = scoring?.effort;
 
   const payload = recordPayload({
     title,
     body,
     type: 'task',
     origin: 'docs-health',
-    risk: scoring.risk,
-    effort: scoring.effort,
+    risk,
+    effort,
     ready: true,
     fingerprint: finding.id,
   });

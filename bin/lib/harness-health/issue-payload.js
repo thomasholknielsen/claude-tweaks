@@ -13,6 +13,7 @@
 const {
   recordPayload, specShapedBody, CLASSIFICATION_SCORING, fencedBlock,
 } = require('../issues/record');
+const { buildRelatedBlocks } = require('../issues/related-blocks');
 
 const ASSET_TYPE_LABELS = { skill: 'Skill', rule: 'Rule', 'claude-md': 'CLAUDE.md', 'design-artifact': 'Design Context', memory: 'Memory' };
 const CATEGORY_LABELS = { drift: 'drift', 'template-conformance': 'structure', 'best-practice': 'best-practice' };
@@ -32,9 +33,7 @@ function toIssuePayload(finding) {
 
   // Only ever populated for kind: "patch" findings — new-skill candidates have
   // no section to bundle by, so finding.relatedSections is always absent there.
-  const relatedBlocks = Array.isArray(finding.relatedSections) && finding.relatedSections.length > 0
-    ? [`Also affects: ${finding.relatedSections.map((s) => `\`${s}\``).join(', ')}`]
-    : [];
+  const relatedBlocks = buildRelatedBlocks(finding.relatedSections);
 
   const body = specShapedBody({
     header: kindLine,
