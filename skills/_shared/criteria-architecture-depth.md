@@ -1,6 +1,6 @@
 # Criteria: Architecture Depth
 
-Shared, criteria-only fragment — the "what is worth flagging" knowledge for architectural depth. No workflow, no auto-mode handling, no Next Actions. Consumed by `/claude-tweaks:deepen` (the reactive depth pass) and by `/claude-tweaks:code-health`'s architecture-depth judgment lens (Phase 2 subagents). One source of truth so a reactive review and a proactive sweep apply identical criteria.
+Shared, criteria-only fragment — the "what is worth flagging" knowledge for architectural depth. No workflow, no auto-mode handling, no Next Actions. Consumed by `/claude-tweaks:deepen` (the reactive depth pass), `/claude-tweaks:code-health`'s architecture-depth judgment lens (Phase 2 subagents), and `/claude-tweaks:review`'s Architecture lens shallow-module check. One source of truth so a reactive review and a proactive sweep apply identical criteria.
 
 ## Depth = leverage, not line ratio
 
