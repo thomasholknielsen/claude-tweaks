@@ -14,12 +14,11 @@ Shared, criteria-only fragment — what to flag in database-backed areas for mig
 ## What NOT to flag
 
 - Schema changes on tables that are empty or trivially small in production.
-- Missing indexes that are already covered by Task 4 (scalability criterion).
+- Missing indexes that are already covered by `_shared/criteria-scalability.md` (the scalability criterion).
 - Stylistic SQL formatting issues.
 
 ## Severity calibration
 
-- **critical** — a migration that can corrupt existing data or cause irreversible loss (e.g., `DROP COLUMN` without confirming the column is no longer read by live code).
-- **high** — a migration that will cause downtime on a large table, or that is non-idempotent and will fail on a retry.
+- **high** — a migration that can corrupt existing data or cause irreversible loss (e.g., `DROP COLUMN` without confirming the column is no longer read by live code), that will cause downtime on a large table, or that is non-idempotent and will fail on a retry.
 - **medium** — a missing rollback path or a missing FK constraint.
 - **low** — a minor best-practice gap (inline comment missing, non-standard migration filename).

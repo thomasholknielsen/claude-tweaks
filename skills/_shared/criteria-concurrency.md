@@ -19,7 +19,6 @@ Shared, criteria-only fragment — what to flag for concurrency defects in async
 
 ## Severity calibration
 
-- **critical** — a race on financial data, authentication state, or access-control decisions.
-- **high** — a race that can cause data loss or silent corruption in a high-traffic path.
+- **high** — a race on financial data, authentication state, or access-control decisions; or a race that can cause data loss or silent corruption in a high-traffic path.
 - **medium** — an async-correctness defect (missing `await`, unbounded Promise.all) that causes incorrect behavior under realistic load.
 - **low** — a pattern that is technically racy but harmless at current scale (e.g., a counter that can drift by one under concurrent load with no downstream consequence).

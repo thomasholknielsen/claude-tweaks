@@ -20,7 +20,6 @@ Shared, criteria-only fragment — what to flag in code that touches personally 
 
 ## Severity calibration
 
-- **critical** — PII logged at a level that reaches a third-party log aggregator or is included in error reports sent externally.
-- **high** — PII persisted without any retention limit or transmitted in a URL that will be logged server-side.
+- **high** — PII logged at a level that reaches a third-party log aggregator or is included in error reports sent externally; PII persisted without any retention limit; or PII transmitted in a URL that will be logged server-side.
 - **medium** — an API response including unneeded sensitive fields.
 - **low** — a minor over-inclusion (e.g., user ID in a URL parameter when it is already in the auth context).
