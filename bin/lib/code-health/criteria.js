@@ -1,7 +1,9 @@
 'use strict';
 
 // Universal criteria catalog for code-health v2.
-// P1 populates all 15 universal criteria. Domain criteria (a11y, i18n, etc.) are added in P2.
+// P1 populates the universal criteria below (see the CRITERIA array itself
+// for the current catalog — don't hardcode its size here, it drifts).
+// Domain criteria (a11y, i18n, etc.) are added in P2.
 // Each entry: { id, appliesTo, fragment, confidenceFloor }
 //   appliesTo:      'universal' | string[]  (area type strings, e.g. ['frontend','library'])
 //   fragment:       path relative to skills/_shared/ for a criteria detail file, or null
