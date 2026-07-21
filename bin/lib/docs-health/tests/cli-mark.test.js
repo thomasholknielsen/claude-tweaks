@@ -37,10 +37,14 @@ test('a finding marked declined is suppressed by a later validate-findings run o
     description: 'x', oldString: 'a', newString: 'b', reason: 'y',
   };
   fs.writeFileSync(findingsFile, JSON.stringify([finding]));
-  const first = JSON.parse(execFileSync('node', [CLI, 'validate-findings', findingsFile, '--root', root], { encoding: 'utf8' }));
+  const first = JSON.parse(execFileSync(
+    'node', [CLI, 'validate-findings', findingsFile, '--root', root, '--target', 'decisions/0007-foo'], { encoding: 'utf8' },
+  ));
   assert.strictEqual(first.length, 1, 'first run must file the finding');
   const fp = first[0].id;
   execFileSync('node', [CLI, 'mark', fp, 'declined', '--root', root], { encoding: 'utf8' });
-  const second = JSON.parse(execFileSync('node', [CLI, 'validate-findings', findingsFile, '--root', root], { encoding: 'utf8' }));
+  const second = JSON.parse(execFileSync(
+    'node', [CLI, 'validate-findings', findingsFile, '--root', root, '--target', 'decisions/0007-foo'], { encoding: 'utf8' },
+  ));
   assert.strictEqual(second.length, 0, 'declined finding must be suppressed on the next run');
 });
