@@ -1,10 +1,10 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { execFileSync } = require('child_process');
 const { STALE_DAYS } = require('./score');
 const { parseFilesField } = require('./freshness');
 const { selectByStaleThenChurn } = require('../health-core/rotation');
+const { domainChurn } = require('../health-core/churn');
 
 // Directory names excluded when they sit directly under docs/. `superpowers`
 // is ephemeral /specify + /superpowers:writing-plans build artifacts (specs,
@@ -79,37 +79,9 @@ function extractDomainPaths(content) {
   return [...new Set(paths)];
 }
 
-// ─── domainChurn ─────────────────────────────────────────────────────────────
-// Count commits touching any of `relPaths` since `sinceMs` (epoch ms).
-// Returns 0 (not an error) when git is unavailable, paths don't exist, or
-// there is no churn.
-function domainChurn(root, relPaths, sinceMs) {
-  if (!relPaths || relPaths.length === 0) return 0;
-  try {
-    // Full ISO 8601 datetime (with time-of-day and a Z/UTC suffix), not a
-    // bare YYYY-MM-DD date string. A bare date string is parsed by git as
-    // local midnight and then converted to UTC, which underflows to a
-    // pre-epoch boundary (silently matching zero commits) in any positive
-    // UTC-offset timezone when sinceMs is 0. git's numeric `@<seconds>`
-    // epoch-literal syntax was tried as a fix but verified (via direct
-    // experimentation) to be unreliable for small values: git's fuzzy
-    // approxidate parser treats a small `@<N>` as an ambiguous relative
-    // offset from "now" rather than an absolute timestamp, so `--since=@0`
-    // silently degrades to "since right now" once any time at all has
-    // elapsed since the commit — worse than the original bug. A full ISO
-    // 8601 string is parsed by git's strict (non-fuzzy) date parser and
-    // was verified robust across timezones and timing.
-    const since = new Date(sinceMs || 0).toISOString();
-    const out = execFileSync(
-      'git',
-      ['-C', root, 'log', '--oneline', `--since=${since}`, '--', ...relPaths],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 },
-    );
-    return out.split('\n').filter(Boolean).length;
-  } catch {
-    return 0;
-  }
-}
+// domainChurn (git-log-based commit counter, memoized) now lives in
+// bin/lib/health-core/churn.js, shared with harness-health/scope.js and
+// journey-health/scope.js — see the require at the top of this file.
 
 // ─── selectTarget ────────────────────────────────────────────────────────────
 // opts: { now?: number, signals?: { [id]: number } }

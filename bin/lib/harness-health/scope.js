@@ -1,10 +1,10 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { execFileSync } = require('child_process');
 const { STALE_DAYS } = require('./score');
 const { selectByStaleThenChurn } = require('../health-core/rotation');
 const { parseFrontmatterListField } = require('../health-core/frontmatter-list');
+const { domainChurn } = require('../health-core/churn');
 
 // ─── listSkills ──────────────────────────────────────────────────────────────
 // Returns [{ kind: 'skill', id, path }] for each .claude/skills/*.md file,
@@ -160,11 +160,71 @@ function listDesignArtifacts(root) {
   return results;
 }
 
+// ─── listTargets cache ──────────────────────────────────────────────────────
+// selectTarget is called once per slot in a --budget > 1 loop (see
+// harness-health.js's cmdNextTarget), and nothing on disk changes between
+// slots of the same run. Without caching, every slot redid listRules' content
+// read (parseRulePaths needs each rule's frontmatter) and
+// listDesignArtifacts' CLAUDE.md read for every remaining candidate — wasted
+// I/O that scaled with budget times target count. Mirrors journey-health/
+// scope.js's journeysCache. Keyed on a cheap name+mtime+size fingerprint
+// across .claude/skills/*.md, .claude/rules/*.md, CLAUDE.md, and any resolved
+// design artifact — computing the fingerprint itself never reads file
+// content, only fs.statSync, so a cache hit still avoids every content read.
+const targetsCache = new Map(); // root -> { fingerprint, targets }
+
+function statPart(label, filePath) {
+  try {
+    const st = fs.statSync(filePath);
+    return `${label}:${st.mtimeMs}:${st.size}`;
+  } catch {
+    return null;
+  }
+}
+
+function computeTargetsFingerprint(root) {
+  const parts = [];
+  const skillsDir = path.join(root, '.claude', 'skills');
+  try {
+    for (const e of fs.readdirSync(skillsDir, { withFileTypes: true })) {
+      if (e.isFile() && e.name.endsWith('.md')) {
+        const part = statPart(`skill:${e.name}`, path.join(skillsDir, e.name));
+        if (part) parts.push(part);
+      }
+    }
+  } catch { /* no skills dir */ }
+  const rulesDir = path.join(root, '.claude', 'rules');
+  try {
+    for (const e of fs.readdirSync(rulesDir, { withFileTypes: true })) {
+      if (e.isFile() && e.name.endsWith('.md')) {
+        const part = statPart(`rule:${e.name}`, path.join(rulesDir, e.name));
+        if (part) parts.push(part);
+      }
+    }
+  } catch { /* no rules dir */ }
+  const claudeMdPart = statPart('claude-md', path.join(root, 'CLAUDE.md'));
+  if (claudeMdPart) parts.push(claudeMdPart);
+  for (const artifact of listDesignArtifacts(root)) {
+    const part = statPart(`design:${artifact.id}`, artifact.path);
+    if (part) parts.push(part);
+  }
+  return parts.sort().join('|');
+}
+
 // ─── listTargets ────────────────────────────────────────────────────────────
 // Aggregates listSkills + listRules + listClaudeMd + listDesignArtifacts into
-// one flat pool for the unified rotation/selection algorithm.
+// one flat pool for the unified rotation/selection algorithm. Cached per
+// root, validated on each call against computeTargetsFingerprint — a call
+// repeated with an unchanged fingerprint in the same process reuses the prior
+// result instead of re-reading every rule's content and CLAUDE.md again.
 function listTargets(root) {
-  return [...listSkills(root), ...listRules(root), ...listClaudeMd(root), ...listDesignArtifacts(root)];
+  const fingerprint = computeTargetsFingerprint(root);
+  const cached = targetsCache.get(root);
+  if (cached && cached.fingerprint === fingerprint) return cached.targets;
+
+  const targets = [...listSkills(root), ...listRules(root), ...listClaudeMd(root), ...listDesignArtifacts(root)];
+  targetsCache.set(root, { fingerprint, targets });
+  return targets;
 }
 
 // ─── extractDomainPaths ────────────────────────────────────────────────────────
@@ -181,42 +241,9 @@ function extractDomainPaths(content) {
   return [...new Set(paths)];
 }
 
-// ─── domainChurn ─────────────────────────────────────────────────────────────
-// Count commits touching any of `relPaths` since `sinceMs` (epoch ms). Returns
-// 0 (not an error) when git is unavailable, paths don't exist, or there is no
-// churn — the caller treats 0 as "nothing changed," not a failure signal.
-// relPaths may be exact file paths (skills, CLAUDE.md's extracted references)
-// or glob pathspecs (a rule's pathGlobs) — git's pathspec matching accepts
-// both.
-function domainChurn(root, relPaths, sinceMs) {
-  if (!relPaths || relPaths.length === 0) return 0;
-  try {
-    // Full ISO 8601 datetime (with time-of-day and a Z/UTC suffix), not a
-    // bare YYYY-MM-DD date string. A bare date string is parsed by git as
-    // local midnight and then converted to UTC, which underflows to a
-    // pre-epoch boundary (silently matching zero commits) in any positive
-    // UTC-offset timezone when sinceMs is 0. git's numeric `@<seconds>`
-    // epoch-literal syntax was tried as a fix but verified (via direct
-    // experimentation) to be unreliable for small values: git's fuzzy
-    // approxidate parser treats a small `@<N>` as an ambiguous relative
-    // offset from "now" rather than an absolute timestamp, so `--since=@0`
-    // silently degrades to "since right now" once any time at all has
-    // elapsed since the commit — worse than the original bug. A full ISO
-    // 8601 string is parsed by git's strict (non-fuzzy) date parser and
-    // was verified robust across timezones and timing. (Identical bug and
-    // fix as journey-health/scope.js commit 7f6993f and docs-health/scope.js
-    // commit 8bbb3af.)
-    const since = new Date(sinceMs || 0).toISOString();
-    const out = execFileSync(
-      'git',
-      ['-C', root, 'log', '--oneline', `--since=${since}`, '--', ...relPaths],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 },
-    );
-    return out.split('\n').filter(Boolean).length;
-  } catch {
-    return 0;
-  }
-}
+// domainChurn (git-log-based commit counter, memoized) now lives in
+// bin/lib/health-core/churn.js, shared with journey-health/scope.js and
+// docs-health/scope.js — see the require at the top of this file.
 
 // ─── selectTarget ────────────────────────────────────────────────────────────
 // opts: { now?: number, signals?: { [kind:id]: number }, kind?: string }
@@ -247,7 +274,15 @@ function selectTarget(root, cursors, opts = {}) {
         const domainPaths = (candidate.kind === 'rule' || candidate.kind === 'design-artifact') && candidate.pathGlobs && candidate.pathGlobs.length > 0
           ? candidate.pathGlobs
           : extractDomainPaths(content);
-        churn = domainChurn(root, domainPaths, sinceMs);
+        // UNION the candidate's own path, so a heavily-rewritten skill/rule
+        // whose backtick-quoted references (or a rule's pathGlobs) haven't
+        // themselves seen matching commits still registers churn from its
+        // own edit history — mirrors docs-health/scope.js's [relDocPath,
+        // ...domainPaths] union (a doc/skill/rule that changed a lot
+        // recently is itself a drift risk, independent of what it
+        // references).
+        const relCandidatePath = path.relative(root, candidate.path).split(path.sep).join('/');
+        churn = domainChurn(root, [relCandidatePath, ...domainPaths], sinceMs);
       }
       return churn > 0 ? churn : null;
     },
