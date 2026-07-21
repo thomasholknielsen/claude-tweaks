@@ -52,11 +52,14 @@ Based on codebase analysis:
 
 ### Doc Structure (derived from tier)
 - {list of docs that will be proposed in Phase 8.5, based on tier + what exists}
-
-1. Confirm **(Recommended)**
-2. Override maturity (changes philosophy)
-3. Override doc tier (changes structure)
-4. Override both
 ```
+
+**Call `AskUserQuestion`:**
+
+- `question`: `"Confirm this project classification (maturity + doc tier), or override before it drives CLAUDE.md philosophy and doc structure?"`, `header`: `"Classification"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Confirm (Recommended)"`, `description`: `"Accept the detected maturity and doc tier as shown above."`
+- Option 2 — `label`: `"Override maturity"`, `description`: `"Change the detected maturity — changes the derived philosophy."`
+- Option 3 — `label`: `"Override doc tier"`, `description`: `"Change the detected doc tier — changes the derived doc structure."`
+- Option 4 — `label`: `"Override both"`, `description`: `"Change both maturity and doc tier."`
 
 Wait for confirmation. The user may know things the code doesn't reveal (e.g., "this is 6 months old but we haven't launched yet — treat it as pre-launch"). Carry the confirmed maturity and doc tier forward to Phase 5 (CLAUDE.md Philosophy) and Phase 8.5 (Doc Registry).
