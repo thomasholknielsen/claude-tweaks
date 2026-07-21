@@ -38,6 +38,19 @@ test('filterCritical keeps only risk:high, sorted by priority band then oldest-f
   assert.deepStrictEqual(result.map((r) => r.number), [2, 1]);
 });
 
+test('bandOf/riskBandOf treat an out-of-vocabulary facet value like the null/absent case (band 3), never NaN', () => {
+  // local-store.js's frontmatter parser accepts priority:/risk: values
+  // verbatim with no enum check, so a hand-edited or future-taxonomy record
+  // can carry a value outside PRIORITIES/TIERS. Before the fix, RANK['critical']
+  // was undefined, and `undefined - 0` is NaN — a NaN-valued sort comparator
+  // has spec-undefined ordering, so 'critical' could sort AHEAD of a real
+  // 'high' record instead of behind it.
+  const bogus = record({ number: 1, createdAt: '2026-01-01T00:00:00Z', facets: { risk: 'high', effort: 'low', priority: 'critical' } });
+  const high = record({ number: 2, createdAt: '2026-01-01T00:00:00Z', facets: { risk: 'high', effort: 'low', priority: 'high' } });
+  const result = filterCritical([bogus, high]);
+  assert.deepStrictEqual(result.map((r) => r.number), [2, 1], 'an out-of-vocabulary priority must sort AFTER a real "high", not corrupt the order');
+});
+
 test('rankRiskValue sorts scored records by priority band then risk band then oldest-first, trailing unscored separately', () => {
   const a = record({ number: 1, createdAt: '2026-01-01T00:00:00Z', facets: { risk: 'low', effort: 'low', priority: 'high' } });
   const b = record({ number: 2, createdAt: '2026-01-02T00:00:00Z', facets: { risk: 'high', effort: 'low', priority: 'high' } });
@@ -75,21 +88,43 @@ test('selectBudgetSlice reports zero remaining when the budget covers everything
   assert.strictEqual(result.selected.length, 2);
 });
 
-test('deriveCreatedAtFromGit uses the trimmed git log output as createdAt when the command succeeds', () => {
+test('deriveCreatedAtFromGit resolves createdAt for every record from a SINGLE batched git-log call, not one call per record', () => {
   const calls = [];
   const execFn = (cmd) => {
     calls.push(cmd);
-    return '2026-01-05T12:00:00+00:00\n';
+    return [
+      '\x012026-01-05T12:00:00+00:00',
+      'specs/1-foo.md',
+      '',
+      '\x012026-01-01T00:00:00+00:00',
+      'specs/2-bar.md',
+      'specs/1-foo.md',
+      '',
+    ].join('\n');
   };
-  const records = [{ number: 1, path: 'specs/1-foo.md' }];
+  const records = [
+    { number: 1, path: 'specs/1-foo.md' },
+    { number: 2, path: 'specs/2-bar.md' },
+  ];
   const result = deriveCreatedAtFromGit(records, { execFn });
-  assert.strictEqual(result[0].createdAt, '2026-01-05T12:00:00+00:00');
+  assert.strictEqual(calls.length, 1, 'must resolve every record from a single git-log invocation, not one per record');
+  assert.match(calls[0], /^git log --name-only --format=/);
+  assert.strictEqual(result[0].createdAt, '2026-01-05T12:00:00+00:00', 'must use the MOST RECENT commit touching the path (first-seen in newest-first git log order)');
   assert.strictEqual(result[0].number, 1);
-  assert.strictEqual(calls.length, 1);
-  assert.strictEqual(calls[0], 'git log -1 --format=%cI -- ' + JSON.stringify('specs/1-foo.md'));
+  assert.strictEqual(result[1].createdAt, '2026-01-01T00:00:00+00:00');
 });
 
-test('deriveCreatedAtFromGit falls back to the current time when git log fails (no history / not a git repo)', () => {
+test('deriveCreatedAtFromGit falls back to the current time for a record whose path never appears in the git-log history', () => {
+  const execFn = () => '\x012026-01-01T00:00:00+00:00\nspecs/1-foo.md\n';
+  const before = Date.now();
+  const records = [{ number: 2, path: 'specs/2-missing.md' }];
+  const result = deriveCreatedAtFromGit(records, { execFn });
+  const after = Date.now();
+  const fallbackTime = new Date(result[0].createdAt).getTime();
+  assert.ok(fallbackTime >= before && fallbackTime <= after, 'createdAt should fall back to now()');
+});
+
+test('deriveCreatedAtFromGit falls back to the current time for every record when git log fails (no history / not a git repo)', () => {
   const execFn = () => {
     throw new Error('fatal: not a git repository');
   };
@@ -101,7 +136,7 @@ test('deriveCreatedAtFromGit falls back to the current time when git log fails (
   assert.ok(fallbackTime >= before && fallbackTime <= after, 'createdAt should fall back to now()');
 });
 
-test('deriveCreatedAtFromGit falls back to the current time when git log returns empty output', () => {
+test('deriveCreatedAtFromGit falls back to the current time for every record when git log returns empty output', () => {
   const execFn = () => '   \n';
   const records = [{ number: 3, path: 'specs/3-baz.md' }];
   const result = deriveCreatedAtFromGit(records, { execFn });
@@ -110,14 +145,28 @@ test('deriveCreatedAtFromGit falls back to the current time when git log returns
 });
 
 test('deriveCreatedAtFromGit preserves record order and does not mutate the input records', () => {
-  const execFn = (cmd) => (cmd.includes('1-foo') ? '2026-01-01T00:00:00+00:00' : '2026-02-02T00:00:00+00:00');
+  const execFn = () => [
+    '\x012026-02-02T00:00:00+00:00',
+    'specs/2-bar.md',
+    '',
+    '\x012026-01-01T00:00:00+00:00',
+    'specs/1-foo.md',
+    '',
+  ].join('\n');
   const records = [
     { number: 1, path: 'specs/1-foo.md' },
     { number: 2, path: 'specs/2-bar.md' },
   ];
   const result = deriveCreatedAtFromGit(records, { execFn });
   assert.deepStrictEqual(result.map((r) => r.number), [1, 2]);
-  assert.strictEqual(records[0].createdAt, undefined);
+  assert.strictEqual(records[0].createdAt, undefined, 'must not mutate the input record objects');
+});
+
+test('deriveCreatedAtFromGit returns [] immediately (no git call at all) for an empty records array', () => {
+  const calls = [];
+  const execFn = (cmd) => { calls.push(cmd); return ''; };
+  assert.deepStrictEqual(deriveCreatedAtFromGit([], { execFn }), []);
+  assert.strictEqual(calls.length, 0);
 });
 
 test('mergeUnsyncedRecords concatenates github-first then unsynced, tagging facets.unsynced explicitly on both', () => {
