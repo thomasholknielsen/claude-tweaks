@@ -40,3 +40,13 @@ test('computeChurn: partial overlap gives a ratio between 0 and 1', () => {
   assert.deepStrictEqual(result.disappeared, ['a']);
   assert.strictEqual(result.ratio, 0.5);
 });
+
+test('computeChurn degrades gracefully instead of throwing when currentFps is malformed/missing — the same guard priorRun.fingerprints already had', () => {
+  const prior = { fingerprints: ['a', 'b'] };
+  assert.doesNotThrow(() => computeChurn(undefined, prior));
+  const result = computeChurn(undefined, prior);
+  assert.deepStrictEqual(result.appeared, []);
+  assert.deepStrictEqual(result.disappeared, ['a', 'b']);
+  assert.deepStrictEqual(result.stayed, []);
+  assert.strictEqual(result.ratio, 1);
+});

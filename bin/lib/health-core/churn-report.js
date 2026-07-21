@@ -15,7 +15,14 @@ function makeCmdChurnReport({ readDurableState, computeChurn }) {
       process.stdout.write('no run logs found\n');
       return;
     }
-    const threshold = args['fail-on-high-churn'] != null ? parseFloat(args['fail-on-high-churn']) : null;
+    let threshold = null;
+    if (args['fail-on-high-churn'] != null) {
+      threshold = parseFloat(args['fail-on-high-churn']);
+      if (!Number.isFinite(threshold)) {
+        process.stderr.write(`churn-report: invalid --fail-on-high-churn value: ${args['fail-on-high-churn']}\n`);
+        process.exit(2);
+      }
+    }
     const rows = [['runId', 'runAt', 'findings', 'appeared', 'disappeared', 'ratio']];
     let exceeded = false;
     for (let i = 0; i < runs.length; i++) {

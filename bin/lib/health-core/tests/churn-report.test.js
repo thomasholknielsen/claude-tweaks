@@ -80,6 +80,29 @@ test('exits 1 and prints a high-churn notice when --fail-on-high-churn threshold
   assert.match(out, /high churn/);
 });
 
+test('exits 2 with a usage error instead of silently disabling the gate when --fail-on-high-churn is not a number', () => {
+  const runs = [
+    { runId: 'r1', runAt: '2026-01-01T00:00:00.000Z', fingerprints: ['a', 'b'] },
+    { runId: 'r2', runAt: '2026-01-02T00:00:00.000Z', fingerprints: ['c', 'd'] }, // total churn
+  ];
+  const { readDurableState } = fakeDurableState(runs);
+  const cmdChurnReport = makeCmdChurnReport({ readDurableState, computeChurn });
+  const origExit = process.exit;
+  const origStderrWrite = process.stderr.write;
+  let exitCode = null;
+  let errOut = '';
+  process.exit = (code) => { exitCode = code; throw new Error('__exit__'); };
+  process.stderr.write = (chunk) => { errOut += chunk; return true; };
+  try {
+    assert.throws(() => cmdChurnReport({ root: '/tmp', 'fail-on-high-churn': 'hihg' }), /__exit__/);
+  } finally {
+    process.exit = origExit;
+    process.stderr.write = origStderrWrite;
+  }
+  assert.strictEqual(exitCode, 2, 'a malformed threshold must be a usage error, not a silently-disabled gate (exit 0/null)');
+  assert.match(errOut, /invalid --fail-on-high-churn/);
+});
+
 test('does not exit when ratio stays under threshold', () => {
   const runs = [
     { runId: 'r1', runAt: '2026-01-01T00:00:00.000Z', fingerprints: ['a', 'b'] },

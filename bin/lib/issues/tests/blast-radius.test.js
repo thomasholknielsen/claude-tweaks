@@ -45,6 +45,88 @@ test('classifyDiffFiles defaults sensitivePaths to an empty list when omitted', 
   assert.strictEqual(result[0].isSensitive, false);
 });
 
+// --- #18: broader test-path recognition across ecosystems ---
+
+test('classifyDiffFiles recognizes Java/Gradle\'s singular src/test/java/... convention as isTest', () => {
+  const files = [{ path: 'src/test/java/com/example/FooTest.java', additions: 100, deletions: 0 }];
+  assert.strictEqual(classifyDiffFiles(files, [])[0].isTest, true);
+});
+
+test('classifyDiffFiles recognizes Go\'s _test.go suffix as isTest', () => {
+  const files = [{ path: 'pkg/foo_test.go', additions: 20, deletions: 0 }];
+  assert.strictEqual(classifyDiffFiles(files, [])[0].isTest, true);
+});
+
+test('classifyDiffFiles recognizes Python\'s test_*.py and *_test.py conventions as isTest', () => {
+  assert.strictEqual(classifyDiffFiles([{ path: 'tests/test_foo.py', additions: 1, deletions: 0 }], [])[0].isTest, true);
+  assert.strictEqual(classifyDiffFiles([{ path: 'pkg/foo_test.py', additions: 1, deletions: 0 }], [])[0].isTest, true);
+  assert.strictEqual(classifyDiffFiles([{ path: 'test_bare.py', additions: 1, deletions: 0 }], [])[0].isTest, true);
+});
+
+test('classifyDiffFiles recognizes .spec.ts/.test.tsx TypeScript suffixes as isTest', () => {
+  assert.strictEqual(classifyDiffFiles([{ path: 'src/widget.spec.ts', additions: 1, deletions: 0 }], [])[0].isTest, true);
+  assert.strictEqual(classifyDiffFiles([{ path: 'src/widget.test.tsx', additions: 1, deletions: 0 }], [])[0].isTest, true);
+});
+
+test('classifyDiffFiles does not false-positive on a path merely containing "test" as a substring', () => {
+  assert.strictEqual(classifyDiffFiles([{ path: 'src/latest/widget.js', additions: 1, deletions: 0 }], [])[0].isTest, false);
+  assert.strictEqual(classifyDiffFiles([{ path: 'src/contest.js', additions: 1, deletions: 0 }], [])[0].isTest, false);
+});
+
+// --- #9: '?' in a sensitive-path glob must be a literal character ---
+
+test('a literal "?" in a sensitive-path glob does not act as a regex "optional preceding character" quantifier', () => {
+  // Before the fix, '?' was unescaped regex syntax: 'skills/foo?/file.md'
+  // would match paths WITHOUT the '?' character too (the preceding char
+  // becomes optional), even though a maintainer writing '?' into config
+  // almost certainly means it as a literal (as '*' and '?' both are in this
+  // codebase's own shell-glob conventions elsewhere).
+  const files = [{ path: 'skills/foo/file.md', additions: 1, deletions: 0 }];
+  const result = classifyDiffFiles(files, ['skills/foo?/file.md']);
+  assert.strictEqual(result[0].isSensitive, false, 'must not match a path missing the literal "?" character');
+});
+
+test('a sensitive-path glob containing a literal "?" still matches a path that actually has that character', () => {
+  const files = [{ path: 'skills/foo?/file.md', additions: 1, deletions: 0 }];
+  const result = classifyDiffFiles(files, ['skills/foo?/file.md']);
+  assert.strictEqual(result[0].isSensitive, true);
+});
+
+// --- #14: glob->RegExp compilation is memoized, not redone per file ---
+
+test('the same sensitive-path glob is compiled to a RegExp only once, reused across multiple files, not recompiled per file', () => {
+  const originalRegExp = global.RegExp;
+  let compileCount = 0;
+  class CountingRegExp extends originalRegExp {
+    constructor(...args) {
+      super(...args);
+      compileCount += 1;
+    }
+  }
+  global.RegExp = CountingRegExp;
+  // A glob string unique to this test (not reused by any other test in this
+  // file) — globToRegExp's memoization cache is module-level and persists
+  // across tests/requires, so reusing an already-seen glob here would find
+  // it pre-cached from an earlier test and report a false compileCount of 0
+  // regardless of whether the fix works.
+  const uniqueGlob = 'skills/_only-this-test-uses-me/*.md';
+  let files;
+  try {
+    files = classifyDiffFiles(
+      [
+        { path: 'skills/_only-this-test-uses-me/a.md', additions: 1, deletions: 0 },
+        { path: 'skills/_only-this-test-uses-me/b.md', additions: 1, deletions: 0 },
+        { path: 'skills/_only-this-test-uses-me/c.md', additions: 1, deletions: 0 },
+      ],
+      [uniqueGlob],
+    );
+  } finally {
+    global.RegExp = originalRegExp;
+  }
+  assert.strictEqual(compileCount, 1, 'the same glob must be compiled to a RegExp exactly once across the whole file batch, not once per file');
+  assert.ok(files.every((f) => f.isSensitive), 'sanity check: memoization must not have broken correctness');
+});
+
 test('blastRadiusSummary sums impl and test lines separately, #18-shaped fixture', () => {
   const classified = classifyDiffFiles(
     [

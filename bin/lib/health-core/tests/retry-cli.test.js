@@ -134,7 +134,7 @@ test('update reports each escalated fingerprint exactly once even when the mutat
   assert.strictEqual(escalated[0].fingerprint, 'stuck');
 });
 
-test('update prints [] (not the computed-but-unpersisted escalation) when health-state persistence fails after retries', () => {
+test('update prints [] AND sets a failing exit code (not the computed-but-unpersisted escalation, and never a silent exit 0) when health-state persistence fails after retries', () => {
   const ds = fakeDurableStateThatFailsToPersist({
     retryQueue: [
       { fingerprint: 'stuck', payload: { title: 'Stuck' }, firstFailedAt: 'x', attempts: 2, lastError: 'timeout' },
@@ -145,7 +145,23 @@ test('update prints [] (not the computed-but-unpersisted escalation) when health
   fs.writeFileSync(resultsPath, JSON.stringify([
     { fingerprint: 'stuck', payload: { title: 'Stuck' }, ok: false, error: 'still failing' },
   ]));
-  const out = captureStdout(() => update({ root: '/repo', _: ['update', resultsPath] }));
+  // Save/restore process.exitCode around the call: update() sets it as a
+  // real side effect (the fix under test), and leaving it set to 1 would
+  // leak into this whole test FILE's own eventual exit code once node
+  // finishes running it, unrelated to whether every assertion here passes.
+  const originalExitCode = process.exitCode;
+  process.exitCode = undefined;
+  let out;
+  try {
+    out = captureStdout(() => update({ root: '/repo', _: ['update', resultsPath] }));
+    assert.strictEqual(
+      process.exitCode,
+      1,
+      'a genuinely failed durable write must set a non-zero exit code, or a calling shell/Routine checking $? sees success and never surfaces the failure',
+    );
+  } finally {
+    process.exitCode = originalExitCode;
+  }
   assert.deepStrictEqual(JSON.parse(out), [], 'must not report an escalation that was never actually persisted to retry-queue.json');
 });
 
@@ -175,6 +191,34 @@ test('update skips a malformed (e.g. null) results entry instead of crashing, an
   assert.ok(
     persisted.some((e) => e.fingerprint === 'good'),
     `expected 'good' fingerprint to be enqueued despite the malformed sibling entry; got ${JSON.stringify(persisted)}`,
+  );
+});
+
+test('update reports an escalated fingerprint only on the firing it first crosses the threshold, not on every subsequent still-failing firing', () => {
+  const ds = fakeDurableState({
+    retryQueue: [
+      // Already at/above the escalation threshold BEFORE this firing's own
+      // failure is recorded — i.e. this fingerprint was already escalated on
+      // an earlier firing.
+      { fingerprint: 'stuck', payload: { title: 'Stuck' }, firstFailedAt: 'x', attempts: 3, lastError: 'timeout' },
+    ],
+  });
+  const { update } = makeRetryQueueCommands(ds);
+  const resultsPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'retry-cli-')), 'results.json');
+  fs.writeFileSync(resultsPath, JSON.stringify([
+    { fingerprint: 'stuck', payload: { title: 'Stuck' }, ok: false, error: 'still failing' },
+  ]));
+  const out = captureStdout(() => update({ root: '/repo', _: ['update', resultsPath] }));
+  assert.deepStrictEqual(
+    JSON.parse(out),
+    [],
+    'an already-escalated fingerprint (attempts already >= threshold before this firing) must not be re-reported every firing it keeps failing',
+  );
+  const persisted = ds.readDurableState().retryQueue;
+  assert.strictEqual(
+    persisted.find((e) => e.fingerprint === 'stuck').attempts,
+    4,
+    'attempts must still increment even though it is not re-escalated',
   );
 });
 

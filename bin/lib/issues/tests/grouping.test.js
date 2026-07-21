@@ -223,6 +223,37 @@ test('returns [] when body is missing', () => {
   assert.deepStrictEqual(extractKeyFiles({ labels: ['code-health'] }), []);
 });
 
+test('preserves a space in a bold-header target path instead of truncating at the first whitespace character', () => {
+  const issue = {
+    labels: ['by:docs-health'],
+    body: '**Doc:** docs/User Guide.md | **Section:** Overview | **Category:** genre-drift | **Misleads:** human engineer | **Classification:** additive | **Confidence:** high',
+  };
+  assert.deepStrictEqual(extractKeyFiles(issue), ['docs/User Guide.md']);
+});
+
+test('a code-health-shaped issue and a docs-health-shaped issue targeting the same space-containing path extract identically and group together', () => {
+  const codeHealthIssue = { labels: ['by:code-health'], body: 'Files: docs/User Guide.md' };
+  const docsHealthIssue = {
+    labels: ['by:docs-health'],
+    body: '**Doc:** docs/User Guide.md | **Section:** Overview',
+  };
+  const items = [
+    { id: 1, keyFiles: extractKeyFiles(codeHealthIssue) },
+    { id: 2, keyFiles: extractKeyFiles(docsHealthIssue) },
+  ];
+  assert.deepStrictEqual(
+    items[0].keyFiles,
+    items[1].keyFiles,
+    'both extraction paths must produce the identical string for the same real file',
+  );
+  const groups = groupByFileOverlap(items);
+  assert.strictEqual(
+    groups.length,
+    1,
+    'must union into one dispatch claim group — the whole point of extractKeyFiles is preventing two agents from claiming the same file',
+  );
+});
+
 test('accepts label objects ({name}) as well as plain strings', () => {
   const issue = {
     labels: [{ name: 'code-health' }],

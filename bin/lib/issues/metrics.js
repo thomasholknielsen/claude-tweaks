@@ -5,7 +5,8 @@
 // directory. Consumed by /claude-tweaks:tidy's --scope=github rolling digest.
 'use strict';
 
-const { normalizeLabelNames } = require('./record');
+const { normalizeLabelNames, ORIGINS } = require('./record');
+const { hasOrigin } = require('./grouping');
 
 const AUTHORIZATION_LABELS = ['auto:build', 'auto:merge'];
 
@@ -33,15 +34,28 @@ function earliestLabelTime(events, labels) {
   return times.length > 0 ? Math.min(...times) : null;
 }
 
+// x -> parsed epoch ms, or null when x is falsy OR does not parse to a valid
+// date. A truthy-but-unparseable timestamp must degrade exactly like the
+// already-handled missing case, never survive as a poisoning NaN that flows
+// into a duration subtraction and then a median (see summarizeFunnel) — the
+// resulting NaN would still pass a bare `!== null` guard and, once
+// JSON.stringify'd for a downstream consumer, silently render as `null`,
+// indistinguishable from ordinary "no data".
+function safeTimestamp(x) {
+  if (!x) return null;
+  const t = new Date(x).getTime();
+  return Number.isFinite(t) ? t : null;
+}
+
 // { createdAt, closedAt, events } -> { shapingMs?, grantMs?, buildMs? }.
 // Each key is present only when both its start and end timestamps are known —
 // an issue still in an earlier stage yields fewer keys, not zeroed ones, so a
 // later aggregate median is never silently corrupted by a fabricated 0.
 function computeStageDurations({ createdAt, closedAt, events } = {}) {
-  const created = createdAt ? new Date(createdAt).getTime() : null;
+  const created = safeTimestamp(createdAt);
   const readyAt = firstLabelTime(events, 'ready');
   const grantAt = earliestLabelTime(events || [], AUTHORIZATION_LABELS);
-  const closed = closedAt ? new Date(closedAt).getTime() : null;
+  const closed = safeTimestamp(closedAt);
 
   const durations = {};
   if (created !== null && readyAt !== null) durations.shapingMs = readyAt - created;
@@ -58,16 +72,21 @@ function median(values) {
 }
 
 // closedIssues: [{number, labels: string[], stateReason}] -> per-origin
-// wontfix rate. Origin is the first by:* label found, or 'human' when absent
-// (_shared/work-record.md's origin axis convention). An origin with zero
-// closed issues never occurs here by construction (it's only ever computed
-// from issues that exist), so no div-by-zero guard is needed beyond total > 0.
+// wontfix rate. Origin is whichever known ORIGINS entry the issue's labels
+// carry — checked via grouping.js's hasOrigin, which (unlike a bare `by:`
+// prefix scan) also recognizes the bare pre-migration label form
+// (code-health/harness-health only ever had this form before the by:*
+// migration; see grouping.js's own hasOrigin doc comment) — or 'human' when
+// none match (_shared/work-record.md's origin axis convention). An origin
+// with zero closed issues never occurs here by construction (it's only ever
+// computed from issues that exist), so no div-by-zero guard is needed beyond
+// total > 0.
 function computeWontfixRate(closedIssues) {
   const byOrigin = {};
   for (const issue of closedIssues || []) {
     const names = normalizeLabelNames(issue.labels);
-    const originLabel = names.find((l) => l.startsWith('by:'));
-    const origin = originLabel ? originLabel.slice('by:'.length) : 'human';
+    const matchedOrigin = ORIGINS.find((candidate) => hasOrigin(names, candidate));
+    const origin = matchedOrigin || 'human';
     if (!byOrigin[origin]) byOrigin[origin] = { total: 0, wontfix: 0 };
     byOrigin[origin].total += 1;
     if (issue.stateReason === 'NOT_PLANNED') byOrigin[origin].wontfix += 1;
