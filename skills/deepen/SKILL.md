@@ -105,7 +105,11 @@ For each candidate the user picked, hold a focused interface conversation — do
 
 ## Step 5: Apply and Verify
 
-1. Implement the approved interface change(s) within the scoped files. Preserve behavior — depth refactors change *structure*, not *behavior*.
+When Step 4 approved multiple candidates (batched per the adaptive convention), apply them **one module at a time** — implement, verify, and commit each before starting the next. This is what makes "reverted cleanly" (item 4 below) actually true at the moment it matters: if verification fails partway through a multi-candidate batch, only the in-progress module is uncommitted; every prior module in the batch already has its own clean, independently-revertible commit.
+
+For each approved candidate, in order:
+
+1. Implement the approved interface change within that module's scoped files. Preserve behavior — depth refactors change *structure*, not *behavior*.
 2. Run the shared verification procedure from `verification.md` in the `/claude-tweaks:test` skill's directory (types, lint, tests). Apply the Working Directory Discipline rule from `_shared/subagent-output-contract.md` before any verification command.
 3. **If verification fails** — this is a BLOCKED gate. Never silently retry or self-fix. Surface the failing check and return control:
 
@@ -113,12 +117,14 @@ For each candidate the user picked, hold a focused interface conversation — do
 BLOCKED
 Reason: verification failed after a depth refactor.
 Failing check: {typecheck | lint | tests}
-Next: caller decides whether to revert the refactor, fix the regression, or stage for review.
+Module: {path} ({N} of {total approved candidates})
+Already-committed modules from this batch: {list, or "none"}
+Next: caller decides whether to revert this module's uncommitted change (`git checkout -- <files>` / `git restore`), fix the regression, or stage for review. Prior modules in this batch are already committed and unaffected.
 ```
 
 A depth refactor that breaks tests is suspect — it likely changed behavior, not just structure. Prefer reverting over patching.
 
-4. Commit each accepted refactor separately (one commit per module) so any single change can be reverted cleanly.
+4. On verification pass, commit this module's change on its own (one commit per module) before moving to the next approved candidate — this is what lets any single change be reverted cleanly without touching the others.
 
 ## Report
 
