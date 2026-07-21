@@ -270,6 +270,8 @@ test('listDesignArtifacts gives PRODUCT empty pathGlobs and DESIGN the frontend-
   assert.deepStrictEqual(product.pathGlobs, []);
   assert.ok(design.pathGlobs.includes('components/'));
   assert.ok(design.pathGlobs.includes('*.tsx'));
+  assert.ok(design.pathGlobs.includes('*.html'));
+  assert.ok(design.pathGlobs.includes('*.mdx'));
 });
 
 // ─── listTargets ────────────────────────────────────────────────────────────

@@ -122,7 +122,7 @@ function readDesignIntegrationFlag(root) {
 // system, so churn here since its last regeneration is a meaningful
 // staleness proxy.
 const DESIGN_DOMAIN_PATHS = [
-  '*.tsx', '*.jsx', '*.vue', '*.svelte', '*.css',
+  '*.tsx', '*.jsx', '*.vue', '*.svelte', '*.html', '*.css', '*.scss', '*.sass', '*.less', '*.astro', '*.mdx',
   'components/', 'pages/', 'app/', 'routes/', 'views/', 'ui/',
 ];
 
