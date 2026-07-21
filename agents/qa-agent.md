@@ -232,7 +232,7 @@ Return the structured report as detailed in the "Report" section below. If `reco
 
 ## Report
 
-**Canonical schema.** The `REPORT_JSON` envelope in the examples below — including the full nested `page_inventories` shape (`interactive_elements`/`forms`/`navigation`/`accessibility`/`layout`) — is the canonical schema for this agent's structured output. `skills/test/qa-prompts.md`'s dispatch prompt templates re-specify this same shape inline (required by that file's own no-sibling-file-references contract, since each template is copied verbatim into a dispatched Task agent's prompt and that agent never sees this file) — any future change to this schema must be mirrored there byte-for-byte on the nested `page_inventories` part.
+**Canonical schema.** The `REPORT_JSON` envelope in the examples below — including the full nested `page_inventories` shape (`interactive_elements`/`forms`/`navigation`/`accessibility`/`layout`) — is the canonical schema for this agent's structured output. `skills/test/qa-prompts.md`'s dispatch prompt templates re-specify this same shape inline (required by that file's own no-sibling-file-references contract, since each template is copied verbatim into a dispatched Task agent's prompt and that agent never sees this file), and `skills/test/qa-reporting.md`'s aggregated `report.json` schema re-specifies it again for the orchestrator's own output artifact — any future change to this schema must be mirrored byte-for-byte across all four locations: both `qa-prompts.md` templates and `qa-reporting.md`.
 
 ### On success
 

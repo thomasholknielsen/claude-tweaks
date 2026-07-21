@@ -72,6 +72,9 @@ After ALL agents in a tier complete (not during execution — to avoid file writ
 25. Write report artifacts to disk:
 
 **`{RUN_DIR}/report.json`** — machine-readable:
+
+**Canonical schema.** The `page_inventories` array below (`interactive_elements`/`forms`/`navigation`/`accessibility`/`layout`) re-specifies the same nested shape declared canonical by `agents/qa-agent.md`'s `## Report` section — this file's `page_inventories` block must be kept byte-for-byte in sync with it.
+
 ```json
 {
   "run_dir": "{RUN_DIR}",

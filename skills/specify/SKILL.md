@@ -210,7 +210,7 @@ src/api/items.ts → #41
 src/pages/shopping.tsx → #45, #52
 ```
 
-Records without a `Key Files` subsection contribute nothing to the map — a record still in `backlog` or `parked` isn't spec-shaped yet, so it has no such section; skip it silently rather than treating the absence as an error. `work-backend: local-files` — same extraction, over every file `queryRecords('specs', {})` returns; reference by record id instead of `#N`. "Non-completed" is automatic for local records: there's no separate closed-but-visible state the way GitHub issues have — a local record's file is gone once its work is done, so every file the query returns is by definition still open.
+Records without a `Key Files` subsection contribute nothing to the map — a record still in `backlog` or `parked` isn't spec-shaped yet, so it has no such section; skip it silently rather than treating the absence as an error. `work-backend: local-files` — same extraction, over every file `queryRecords('specs', {})` returns; reference by record id instead of `#N`. "Non-completed" is automatic for local records: `queryRecords(dir, facetFilter)` (`bin/lib/issues/local-store.js`) auto-excludes closed records whenever the caller's `facetFilter` doesn't itself filter on the `closed` key, and this step's `queryRecords('specs', {})` call passes an empty filter, so it hits that default-exclude path — every file the query returns is by definition still open.
 
 This map is used in Step 2 to detect implicit file-based dependencies when creating new leaves. If a new leaf will touch files that an open record also touches, that's an implicit dependency — even if neither one names the other yet.
 

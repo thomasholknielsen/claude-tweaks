@@ -28,9 +28,10 @@ notes: >
   already sets `auto-mode: default-on` — a bare scheduled firing has no other
   way to supply an auto-mode signal, and without that project policy the
   routine will block on an interactive prompt that never gets answered. `Task`
-  is included in allowed_tools so tidy's parallel-agent scan (Steps 1-4.8) can
-  dispatch as designed; if Task-based subagent dispatch isn't supported in a
-  given cloud routine session, those steps degrade to running sequentially
-  instead. See skills/tidy/SKILL.md's "Standalone auto" fallback and its own
+  is included in allowed_tools so tidy's parallel-agent scan (Steps 1, 3, 4,
+  4.5, 4.6, 4.7, 4.8, and 5.5) can dispatch as designed; if Task-based
+  subagent dispatch isn't supported in a given cloud routine session, those
+  steps degrade to running sequentially instead. See skills/tidy/SKILL.md's
+  "Standalone auto" fallback and its own
   Routine Configuration section for tuning guidance, and
   skills/_shared/auto-mode-contract.md for the mode-precedence rules.

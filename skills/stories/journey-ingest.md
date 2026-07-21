@@ -55,6 +55,5 @@ Log: "Journey ingest: found {N} journey(s) covering {M} unique URLs."
 
 When update mode is active (Step 1 found existing YAML files):
 
-1. For each existing story WITHOUT a `journey:` field, check whether its URL matches any entry in JOURNEY_URL_INDEX.
-2. If a match is found, add to JOURNEY_LINK_SUGGESTIONS: `{ storyId, storyFile, storyUrl, suggestedJourney }`.
-3. These suggestions are resolved in Step 6 (Report) per the auto/interactive flow in `coverage-report.md` — auto mode auto-applies all suggestions (the `journey:` field is a reversible single-line YAML addition); interactive mode presents them as a separate batch decision.
+1. This matching step is the same computation as the shared procedure's "Orphaned stories with a URL match" result set — run it via `_shared/journey-coverage-check.md` rather than re-deriving the URL match here. For each existing story its computation matches (a story without a `journey:` field whose URL matches a journey step URL), add to JOURNEY_LINK_SUGGESTIONS: `{ storyId, storyFile, storyUrl, suggestedJourney }`.
+2. These suggestions are resolved in Step 6 (Report) per the auto/interactive flow in `coverage-report.md` — auto mode auto-applies all suggestions (the `journey:` field is a reversible single-line YAML addition); interactive mode presents them as a separate batch decision.
