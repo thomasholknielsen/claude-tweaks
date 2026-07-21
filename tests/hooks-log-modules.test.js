@@ -114,6 +114,32 @@ test('subagent-stop checks the LAST assistant message, not an earlier non-compli
   assert.ok(!fs.existsSync(path.join(run, 'events.jsonl')));
 });
 
+function toolOnlyLastTurnTranscript() {
+  const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-e3-toolonly-')), 'agent.jsonl');
+  const lines = [
+    JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'text', text: 'go' }] } }),
+    JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'still investigating, not done yet' }] } }),
+    JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', content: 'ok' }] } }),
+    // The TRUE last assistant turn — tool-call only, no text block at all.
+    JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 'x', name: 'SomeTool', input: {} }] } }),
+  ];
+  fs.writeFileSync(f, lines.join('\n') + '\n');
+  return f;
+}
+
+test('subagent-stop treats a tool-call-only LAST assistant turn as nothing to grade, not a fallback to an earlier text message (finding regression)', () => {
+  const run = mkRun();
+  const t = toolOnlyLastTurnTranscript();
+  const out = substop.run({ input: { agent_transcript_path: t }, runDir: run, runState: null, cwd: '/x' });
+  // The real last turn has no text at all — best-effort no-op, matching
+  // this file's "unreadable/ungradable -> no-op" posture. Previously the
+  // scan fell through to the EARLIER "still investigating" text (which
+  // doesn't start with a status keyword) and wrongly flagged it as a
+  // contract violation.
+  assert.deepStrictEqual(out, {});
+  assert.ok(!fs.existsSync(path.join(run, 'events.jsonl')));
+});
+
 test('subagent-stop with unreadable transcript or no run dir is a silent no-op', () => {
   const run = mkRun();
   assert.deepStrictEqual(substop.run({ input: { agent_transcript_path: '/nope.jsonl' }, runDir: run, runState: null, cwd: '/x' }), {});

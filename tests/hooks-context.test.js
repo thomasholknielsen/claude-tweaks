@@ -5,6 +5,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { spawn } = require('child_process');
 const ctx = require('../bin/lib/hooks/context');
 
 function tmpProject() {
@@ -120,4 +121,59 @@ test('appendEvent writes one JSON line per call, never throws on bad dir', () =>
   assert.strictEqual(first.hash, 'abc123');
   assert.ok(first.ts);
   assert.doesNotThrow(() => ctx.appendEvent('/nonexistent/run', 'x', {}));
+});
+
+test('appendEvent: derived ts/type always win over same-named keys in caller-supplied data (finding regression)', () => {
+  // CLAUDE.md: "Don't spread parsed external JSON after derived/trusted
+  // fields" — spreading `data` AFTER `ts`/`type` would let a caller-supplied
+  // object silently override this event's own classification/timestamp.
+  const project = tmpProject();
+  const run = mkRun(project, '2026-07-01T090000-spec-1');
+  ctx.appendEvent(run, 'wd-deny', { type: 'spoofed-type', ts: 'spoofed-ts', reason: 'real-reason' });
+  const line = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8').trim();
+  const entry = JSON.parse(line);
+  assert.strictEqual(entry.type, 'wd-deny', 'the derived type must win over a same-named key in data');
+  assert.notStrictEqual(entry.ts, 'spoofed-ts', 'the derived ts must win over a same-named key in data');
+  assert.match(entry.ts, /^\d{4}-\d{2}-\d{2}T/, 'ts must be a real ISO timestamp, not the spoofed value');
+  assert.strictEqual(entry.reason, 'real-reason', 'non-colliding data fields are still preserved');
+});
+
+test('writeRunState serializes concurrent writers — no lost updates under real cross-process concurrency (finding regression)', async () => {
+  // Reproduces the exact shape the finding describes: many real OS
+  // processes racing a read-modify-write against the same run-state.json,
+  // each patching its OWN field. Without a lock, a writer's stale-snapshot
+  // write (taken before another writer's update landed) silently reverts
+  // that other writer's field when it overwrites the whole file.
+  const project = tmpProject();
+  const run = mkRun(project, '2026-07-01T090000-spec-1');
+  ctx.writeRunState(run, { seed: true });
+
+  const WORKERS = 8;
+  const ITERATIONS = 40;
+  const contextPath = path.join(__dirname, '..', 'bin', 'lib', 'hooks', 'context.js');
+  const workerScript = (i) => `
+    const ctx = require(${JSON.stringify(contextPath)});
+    for (let n = 0; n < ${ITERATIONS}; n++) {
+      ctx.writeRunState(${JSON.stringify(run)}, { w${i}: n + 1 });
+    }
+  `;
+
+  const procs = [];
+  for (let i = 0; i < WORKERS; i++) {
+    procs.push(new Promise((resolve, reject) => {
+      const p = spawn(process.execPath, ['-e', workerScript(i)]);
+      let stderr = '';
+      p.stderr.on('data', (d) => { stderr += d; });
+      p.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`worker ${i} exited ${code}: ${stderr}`))));
+      p.on('error', reject);
+    }));
+  }
+  await Promise.all(procs);
+
+  const final = ctx.readRunState(run);
+  assert.strictEqual(final.seed, true, 'the pre-existing seed field must survive every concurrent writer');
+  for (let i = 0; i < WORKERS; i++) {
+    assert.strictEqual(final[`w${i}`], ITERATIONS,
+      `worker ${i}'s field must reflect its LAST write, not be lost to a concurrent writer's stale snapshot`);
+  }
 });
