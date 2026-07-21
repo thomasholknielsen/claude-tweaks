@@ -98,7 +98,7 @@ Call the `classify` command to determine the area's type:
 node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" classify --root . --area "<slice-id>"
 ```
 
-The command prints `{ areaId, types }`. Use the `types` array to select the applicable criteria via `criteriaForArea(types)` from `bin/lib/code-health/criteria.js`. Types are additive — a `['frontend', 'library']` area gets universal criteria plus `a11y` and `api-stability`.
+The command prints `{ areaId, types }`. Use the `types` array to select the applicable criteria via `criteriaForArea(types)` from `bin/lib/code-health/criteria.js`. Types are additive — matching is a `.some()` intersection against each domain criterion's `appliesTo` array, not exact-equality, so an area gets universal criteria plus *every* domain criterion whose `appliesTo` includes at least one of the area's types. A `['frontend', 'library']` area, for example, currently pulls in `a11y`, `i18n`, `api-stability`, and `privacy-pii` — do not hand-copy this example list into a mental shortcut; call `criteriaForArea` for the real slice instead, since `criteria.js` is the single source of truth and this list will drift as domain criteria are added.
 
 If `types` is `[]` (unknown area), apply universal criteria only — run the same `criteriaForArea([])` call below to get the current list (do not hand-maintain a separate copy of it; the catalog in `criteria.js` is the single source of truth):
 
@@ -164,7 +164,7 @@ For each finding, emit exactly this shape:
   - **Exploitability** — for security-relevant criteria specifically: can external input actually reach and trigger this, or is it a theoretical concern with no real attack surface? Non-security criteria simply have no exploitability consideration to weigh.
 - **`effort`** — the cost/complexity of the finding's own `suggestedApproach`. A one-line parameter addition is `low`; a bundled fix across several sibling occurrences is `medium`; a structural change (new abstraction, cross-file rework) is `high`.
 
-**Bundling rule (recurring root causes):** when the same criterion and the same suggested fix recur at multiple call sites within the slice being judged, file **one** finding, not one per call site. Pick the clearest/most representative occurrence as the primary `anchor`; list every other occurrence in `relatedAnchors`; make `evidence` enumerate all occurrences; make `acceptance` require all of them fixed, not just the primary. Only bundle occurrences that share both the criterion AND the fix — do not bundle unrelated findings under one anchor just because they're nearby in the same file or directory.
+**Bundling rule (recurring root causes)** (canonical shape in `_shared/health-finding-shapes.md` — check that file when either changes to keep this skill's copy in sync with its three siblings): when the same criterion and the same suggested fix recur at multiple call sites within the slice being judged, file **one** finding, not one per call site. Pick the clearest/most representative occurrence as the primary `anchor`; list every other occurrence in `relatedAnchors`; make `evidence` enumerate all occurrences; make `acceptance` require all of them fixed, not just the primary. Only bundle occurrences that share both the criterion AND the fix — do not bundle unrelated findings under one anchor just because they're nearby in the same file or directory.
 
 **Anchor rules (critical for dedup stability):**
 - Format: `relative/file/path#NearestNamedSymbol`
@@ -177,7 +177,7 @@ Write the array to `/tmp/code-health-findings.json`.
 
 **Step 7 — VERIFY GATE: sanity-check surviving findings before dedup.**
 
-Before fingerprinting and dedup, re-examine each finding the judge emitted and ask five questions:
+Before fingerprinting and dedup, re-examine each finding the judge emitted and ask five questions — this is the canonical shape in `_shared/health-verify-gate.md` (worded here against this skill's own finding schema); check that file when either changes to keep this skill's copy in sync with `docs-health`/`journey-health`'s own inline copies and `harness-health`'s embedded one:
 
 1. **Is it real?** Does the code actually exhibit the problem, or did the judge misread the structure? If the code is correctly guarded (a timeout IS configured, a check IS present), drop the finding.
 2. **Is it actionable?** Is the `suggestedApproach` concrete and executable? A finding like "consider improving error handling" with no specific location or change is not actionable — drop it or refine it until it is.
@@ -240,17 +240,20 @@ Before filing, bootstrap only the label families this run applies, with real des
 #  ["effort:low",      "Scoring: small, agent-sized change"],
 #  ["effort:medium",   "Scoring: moderate change, may span several files"],
 #  ["effort:high",     "Scoring: large change — consider decomposition before building"],
-#  ["ready",           "Stage: spec-shaped and agent-sized — in the authorization gate's worklist"]]
+#  ["ready",           "Stage: spec-shaped and agent-sized — in the authorization gate's worklist"],
+#  ["code-health:filing-failed", "Escalation: gh issue create failed repeatedly for this fingerprint — needs human attention"]]
 ```
 
 There is no per-criterion label anymore — the criterion is already in the issue body's header line (`**Criterion:** ...`), and nothing reads it back off a label; this was also the label class that hit GitHub's 100-char cap (see `bin/lib/code-health/issue-payload.js`).
 
-For `reopen` decisions (a finding matching a closed non-`wontfix` issue has reappeared), reopen the issue and comment:
+For a payload whose fingerprint marker (embedded in `payload.body`, read via `extractFingerprint`) matches a `status: "regressed"` entry in `.claude-tweaks/code-health/cache.json` after this run, the finding was previously closed and has reappeared — reopen the existing issue instead of filing a new one:
 
 ```bash
 gh issue reopen <issue_number>
 gh issue comment <issue_number> --body "Regressed: this finding reappeared. Run: ${RUN_ID}"
 ```
+
+`<issue_number>` is that cache entry's `issue` field.
 
 Per `_shared/health-filing-gate.md`'s applicability/scope/placement rule: in interactive mode, before filing this firing's own new findings (not the retry-queue drains or reopen decisions above, which already executed unconditionally), route survivors through a two-tier decision:
 
@@ -262,7 +265,7 @@ Per `_shared/health-filing-gate.md`'s applicability/scope/placement rule: in int
    | 1 | {title} | {criterion} | {severity} | {confidence} | {File issue|Capture} |
    ```
 
-   Pre-fill the Recommended column: high severity + high confidence → `"File issue"`; below `--min-risk` or low confidence → `"Capture"`; everything else (e.g. medium severity + high confidence) → `"File issue"` — file issue is the safe default whenever a finding clears the confidence bar but isn't low-risk enough for `Capture`.
+   Pre-fill the Recommended column: high severity + high confidence → `"File issue"`; low confidence → `"Capture"`; everything else (e.g. medium severity + high confidence) → `"File issue"` — file issue is the safe default whenever a finding clears the confidence bar. (Below-`--min-risk` findings never reach this table at all: Step 8's `validate-findings` already diverts them into the `remembered` cache before Step 9 runs.)
 
 2. Call `AskUserQuestion` with `question`: `"How do you want to handle these findings?"`, `header`: `"Findings"`, `multiSelect`: `false`, and:
    - Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"File / Capture each finding per the Recommended column above"`
@@ -276,7 +279,7 @@ Per `_shared/health-filing-gate.md`'s applicability/scope/placement rule: in int
 
 For each survivor disposed as "File issue" (every payload if "Apply all recommended" was chosen and its Recommended value was `"File issue"`; only the individually-chosen ones otherwise), call `gh issue create`. The engine is emit-only; filing is always done by the skill.
 
-**Type expression branch.** Read the project's `work-types` config key once before filing and branch — never re-probe mid-flow (`_shared/work-record.md`'s config-key table; the key is written by `/init`). `work-types: native` applies `payload.type` (always `task`) via GitHub's native Issue Type; `work-types: labels` adds the matching `type:task` label instead (the pair lives in `record.js`'s `TYPE_LABELS`):
+**Type expression branch** (canonical shape in `_shared/health-finding-shapes.md` — check that file when either changes to keep this skill's copy in sync with its three siblings). Read the project's `work-types` config key once before filing and branch — never re-probe mid-flow (`_shared/work-record.md`'s config-key table; the key is written by `/init`). `work-types: native` applies `payload.type` (always `task`) via GitHub's native Issue Type; `work-types: labels` adds the matching `type:task` label instead (the pair lives in `record.js`'s `TYPE_LABELS`):
 
 ```bash
 # work-types: native
@@ -334,7 +337,7 @@ This resolves the account- and project-specific values a portable template can't
 
 A skipped run (e.g., `next-slice` returns `null` because all slices are fresh) is harmless — rotation resumes from the same position on the next window. This is now actually true across a scheduled cloud-routine's container recycling too: rotation cursors, the sub-threshold remembered cache, and the filing retry queue all live on the durable `health-state` branch (`_shared/health-state.md`), not local disk that a fresh container wouldn't have.
 
-> **Billing note:** Routines run inside the subscription; verify automation-credit specifics against the live account.
+> **Billing note:** Routines run inside the subscription; verify automation-credit specifics against the live account. (Canonical text in `_shared/health-routine-notes.md` — shared with `/harness-health`, `/journey-health`, and `/docs-health`.)
 
 ## Regression and Risk Gating
 
@@ -410,7 +413,7 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 | `/claude-tweaks:specify` | Code-health findings are pre-specs — a filed `by:code-health` issue body is `/specify`-shaped (Current State / Deliverables / Acceptance Criteria), so `/specify` consumes it with near-zero translation. |
 | `/claude-tweaks:capture` | Fuzzy or below-threshold findings route to the backlog via `/capture` instead of inflating the tracker. |
 | `/claude-tweaks:tidy` | `/tidy` Step 4.8 audits open `by:code-health`-labelled issues in its hygiene pass — stale/superseded ones are closed (with comment) after batch approval; still-valid ones are suggested for `/claude-tweaks:triage` or captured to the backlog. |
-| `/claude-tweaks:triage` | Triage's bare invocation is the primary consumer of code-health's `risk:<tier>`/`effort:<tier>` labels — the Tier Rule reads them directly to recommend an authorization tier. `triage dispatch` claims each authorized issue and hands it to `/claude-tweaks:flow #{issue}` for pure execution — `/flow` no longer selects or claims issues itself. |
+| `/claude-tweaks:triage` | Triage's bare invocation is the primary consumer of code-health's `risk:<tier>`/`effort:<tier>` labels — Step 2's `grant-check` (via `/claude-tweaks:assess-agent-autonomy`) reads them as input to its authorization recommendation, not a direct label-driven rule. `/claude-tweaks:dispatch` (not `triage dispatch`, which no longer exists) then claims each authorized record's file-overlap group and hands it to `/claude-tweaks:flow` for pure execution. |
 | `/claude-tweaks:review` | `/review` judges diffs reactively; `/code-health` judges latent code proactively. Both reuse the same criteria fragments from `skills/_shared/`. |
 | `/claude-tweaks:deepen` | `/deepen` applies the architecture-depth criterion reactively to code you are changing; `/code-health` applies it proactively on a schedule. Both read `criteria-architecture-depth.md`. |
 | `/claude-tweaks:routine` | `/routine create code-health` instantiates code-health's `routine-template.yml` into a live, scheduled cloud Routine — the mechanism behind this skill's own "Routine Configuration" section. |
@@ -420,3 +423,6 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 | `/claude-tweaks:docs-health` | Sibling health skill — same SELECT → JUDGE → VERIFY → FINGERPRINT/DEDUP → FILE pipeline and shared `_shared/health-state.md` persistence, but scoped to `docs/**` for Diátaxis genre-drift + depth-mismatch + findability + staleness instead of code quality. Both file born-`ready` findings on the unified work-record contract. |
 | `_shared/health-filing-gate.md` | The canonical interactive file-all/route-individually gate this skill's Step 9 applies before calling `gh issue create` on new findings — shared with `/harness-health`, `/journey-health`, and `/docs-health`. |
 | `_shared/health-filing-mechanics.md` | The canonical retry-queue-drain and regressed-reopen shape this skill's Step 9 inlines (as `{BINARY}` = `code-health.js`, `{PREFIX}` = `code-health`) — shared with `/harness-health`, `/journey-health`, and `/docs-health`. |
+| `_shared/health-verify-gate.md` | The canonical adversarial-verify-gate question shape this skill's Step 7 inlines — shared with `/docs-health` and `/journey-health` (both inline their own copy the same way); `/harness-health` applies the identical discipline via its embedded copy in `_shared/harness-health-analysis.md`. |
+| `_shared/health-finding-shapes.md` | The canonical type-expression-branch and bundling-rule shape this skill's Step 6/Step 9 inline — shared with `/harness-health`, `/journey-health`, and `/docs-health`. |
+| `_shared/health-routine-notes.md` | The canonical text of this skill's Routine Configuration billing note — shared with `/harness-health`, `/journey-health`, and `/docs-health` (which also share its confidence-floor-asymmetry paragraph, not applicable to this skill since `--min-risk` closes that gap here). |

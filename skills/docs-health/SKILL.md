@@ -104,13 +104,13 @@ Emit each finding in this shape:
 }
 ```
 
-**Bundling rule (recurring root causes):** when two or more findings within this doc audit share both the same `category` and the same root-cause explanation, file **one** finding, not one per section. Pick the clearest/most representative occurrence as the primary `section`; list every other occurrence in `relatedSections`; make `reason` state the shared root cause explaining all of them; make `description` (the acceptance criteria) require every listed section fixed, not just the primary one. Only bundle occurrences that share both `category` AND the root cause — never bundle unrelated findings just because they're in the same doc.
+**Bundling rule (recurring root causes)** (canonical shape in `_shared/health-finding-shapes.md` — check that file when either changes to keep this skill's copy in sync with its three siblings): when two or more findings within this doc audit share both the same `category` and the same root-cause explanation, file **one** finding, not one per section. Pick the clearest/most representative occurrence as the primary `section`; list every other occurrence in `relatedSections`; make `reason` state the shared root cause explaining all of them; make `description` (the acceptance criteria) require every listed section fixed, not just the primary one. Only bundle occurrences that share both `category` AND the root cause — never bundle unrelated findings just because they're in the same doc.
 
 Write the array to `/tmp/docs-health-findings.json`.
 
 **Step 3.5 — VERIFY GATE: sanity-check surviving findings before dedup.**
 
-Before fingerprinting and dedup, re-examine each finding and ask: is it real (does the doc actually say this, or was it misread)? Is it actionable (a concrete `oldString`/`newString`, not vague)? Would a human editor be able to apply the fix without further investigation? Is `misleads` justified by which reader would actually encounter this doc's failure mode? Drop any finding that fails. This is the same adversarial-verify discipline `/code-health` and `/harness-health` apply — do not skip it under time pressure.
+Before fingerprinting and dedup, re-examine each finding and ask: is it real (does the doc actually say this, or was it misread)? Is it actionable (a concrete `oldString`/`newString`, not vague)? Would a human editor be able to apply the fix without further investigation? Is `misleads` justified by which reader would actually encounter this doc's failure mode? Drop any finding that fails. This is the canonical shape in `_shared/health-verify-gate.md` (the same adversarial-verify discipline `/code-health` and `/journey-health` apply inline, and `/harness-health` applies via its embedded copy) — check that file when either changes to keep this skill's copy in sync with its siblings; do not skip it under time pressure.
 
 **Step 4 — GATHER OPEN ISSUES for dedup.**
 
@@ -178,7 +178,8 @@ Before filing, bootstrap only the label families this run applies, with real des
 #  ["effort:high",      "Scoring: large change — consider decomposition before building"],
 #  ["ready",            "Stage: spec-shaped and agent-sized — in the authorization gate's worklist"],
 #  ["docs-health:additive",     "Safe, mechanical patch — additive change with no removed content"],
-#  ["docs-health:restructural", "Structural change requiring human review before applying"]]
+#  ["docs-health:restructural", "Structural change requiring human review before applying"],
+#  ["docs-health:filing-failed", "Escalation: gh issue create failed repeatedly for this fingerprint — needs human attention"]]
 ```
 
 Each payload in `/tmp/docs-health-payloads.json` carries structured fields directly (`target`, `assetType`, `category`, `misleads`, `section`, `classification`, `confidence`, `reversibility`, `oldString`, `newString`), alongside `title`, `body`, `labels`, and `type`.
@@ -209,7 +210,7 @@ For "dismiss," run `node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" mark "<paylo
 
 For each survivor disposed as "File issue" (every payload if "Apply all recommended" was chosen and its Recommended value was `"File issue"`; only the individually-chosen ones otherwise), call `gh issue create`.
 
-**Type expression branch.** Read the project's `work-types` config key once before filing and branch — never re-probe mid-flow (`_shared/work-record.md`'s config-key table). `work-types: native` applies `payload.type` (always `task`) via GitHub's native Issue Type; `work-types: labels` adds the matching `type:task` label instead:
+**Type expression branch** (canonical shape in `_shared/health-finding-shapes.md` — check that file when either changes to keep this skill's copy in sync with its three siblings). Read the project's `work-types` config key once before filing and branch — never re-probe mid-flow (`_shared/work-record.md`'s config-key table). `work-types: native` applies `payload.type` (always `task`) via GitHub's native Issue Type; `work-types: labels` adds the matching `type:task` label instead:
 
 ```bash
 # work-types: native
@@ -241,9 +242,9 @@ Report: which target(s) were audited, how many findings were emitted, how many f
 
 Report-only, matching `/code-health`/`/harness-health` — every finding files as a `by:docs-health`-labelled, born-`ready` GitHub issue, with no `Edit` call anywhere in its documented workflow. Rotation cursors and the filing retry queue live on the durable `health-state` branch (`_shared/health-state.md`), surviving container recycling across scheduled firings — a skipped or failed firing does not lose progress.
 
-**No confidence floor on headless firings.** Unlike `/code-health`'s `--min-risk` flag (which holds below-threshold findings in a `remembered` cache instead of filing them), this skill's `validate-findings` call carries no equivalent threshold — a headless Routine firing files every surviving finding regardless of `confidence`, including a `confidence: low` one that the interactive gate's own Recommended-column rule would otherwise route to Capture. Known asymmetry with `/code-health`, not yet closed: a scheduled firing is noisier than an interactive one on low-confidence findings until this skill gains an equivalent holdback mechanism.
+**No confidence floor on headless firings** (canonical text in `_shared/health-routine-notes.md` — check that file when either changes to keep this skill's copy in sync with `harness-health`/`journey-health`'s own inline copies). Unlike `/code-health`'s `--min-risk` flag (which holds below-threshold findings in a `remembered` cache instead of filing them), this skill's `validate-findings` call carries no equivalent threshold — a headless Routine firing files every surviving finding regardless of `confidence`, including a `confidence: low` one that the interactive gate's own Recommended-column rule would otherwise route to Capture. Known asymmetry with `/code-health`, not yet closed: a scheduled firing is noisier than an interactive one on low-confidence findings until this skill gains an equivalent holdback mechanism.
 
-> **Billing note:** Routines run inside the subscription; verify automation-credit specifics against the live account.
+> **Billing note:** Routines run inside the subscription; verify automation-credit specifics against the live account. (Canonical text in `_shared/health-routine-notes.md` — shared with `/code-health`, `/harness-health`, and `/journey-health`.)
 
 ## Next Actions
 
@@ -292,3 +293,6 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 | `_shared/work-record.md` | Canonical taxonomy docs-health files against — origin `by:docs-health`, scoring, `ready` stage, born-ready rule. |
 | `_shared/health-filing-gate.md` | The canonical interactive file-all/route-individually gate this skill's Step 6 applies before calling `gh issue create` on new findings — shared with `/code-health`, `/harness-health`, and `/journey-health`. |
 | `_shared/health-filing-mechanics.md` | The canonical retry-queue-drain and regressed-reopen shape this skill's Step 6 inlines (as `{BINARY}` = `docs-health.js`, `{PREFIX}` = `docs-health`) — shared with `/code-health`, `/harness-health`, and `/journey-health`. |
+| `_shared/health-verify-gate.md` | The canonical adversarial-verify-gate question shape this skill's Step 3.5 inlines — shared with `/code-health` and `/journey-health` (both inline their own copy the same way); `/harness-health` applies the identical discipline via its embedded copy in `_shared/harness-health-analysis.md`. |
+| `_shared/health-finding-shapes.md` | The canonical type-expression-branch and bundling-rule shape this skill's Step 3/Step 6 inline — shared with `/code-health`, `/harness-health`, and `/journey-health`. |
+| `_shared/health-routine-notes.md` | The canonical text of this skill's confidence-floor-asymmetry paragraph and billing note — shared with `/harness-health` and `/journey-health` (both carry the same asymmetry paragraph); `/code-health` shares only the billing note, since `--min-risk` closes the asymmetry gap for that skill. |
