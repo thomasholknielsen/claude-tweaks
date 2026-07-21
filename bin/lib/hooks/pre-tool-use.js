@@ -15,10 +15,12 @@
 // block reason and does not also parse stdout JSON), which would silently
 // drop the custom permissionDecisionReason built below. This has been the
 // behavior since this file's first commit (362e209). Do not "fix" this by
-// setting a non-zero exit on deny — CLAUDE.md's "the only deliberate
-// non-zero outcome is the pre-tool-use deny" and bin/hooks.js's matching
-// header comment describe an invariant that was never actually implemented
-// this way and describes stale intent, not this module's real contract.
+// setting a non-zero exit on deny — CLAUDE.md and bin/hooks.js's header
+// comment both now correctly describe this (exit is always 0; the deny
+// signal lives only in the stdout JSON) after correcting an earlier version
+// of both that claimed "the only deliberate non-zero outcome is the
+// pre-tool-use deny," which never actually matched this module's real
+// contract.
 'use strict';
 const fs = require('fs');
 const path = require('path');

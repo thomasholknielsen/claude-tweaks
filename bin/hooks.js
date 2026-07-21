@@ -1,7 +1,13 @@
 #!/usr/bin/env node
 // bin/hooks.js — single dispatcher for all claude-tweaks hook registrations.
-// Cardinal invariant: never break a session. Exit 0 on ANY error; the only
-// deliberate non-zero exit is the pre-tool-use deny.
+// Cardinal invariant: never break a session. Every path — including a
+// PreToolUse deny — exits 0; no module ever sets a non-zero `exit`. A deny
+// is communicated entirely via `hookSpecificOutput.permissionDecision:
+// 'deny'` in the stdout JSON (see pre-tool-use.js's own header comment for
+// why: exit 2 is a cruder, stderr-only mechanism that would silently drop
+// the custom permissionDecisionReason). This corrects an earlier version of
+// this comment ("the only deliberate non-zero exit is the pre-tool-use
+// deny") that never actually matched pre-tool-use.js's real behavior.
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -25,7 +31,7 @@ function loadModule(event) {
 function resolveRunArg(args, cwd, env) {
   const flagIdx = args.indexOf('--run');
   if (flagIdx === -1) {
-    return { runDir: ctxLib.resolveRunDir(cwd, env), invalidRunArg: null, rest: args };
+    return { runDir: ctxLib.resolveRunDir(cwd, env), invalidRunArg: null, rest: args, explicit: false };
   }
   const rest = args.slice();
   const candidate = rest[flagIdx + 1] || null;
@@ -36,9 +42,9 @@ function resolveRunArg(args, cwd, env) {
   // exists at all.
   const isRealDir = candidate ? (() => { try { return fs.statSync(candidate).isDirectory(); } catch { return false; } })() : false;
   if (isRealDir) {
-    return { runDir: candidate, invalidRunArg: null, rest };
+    return { runDir: candidate, invalidRunArg: null, rest, explicit: true };
   }
-  return { runDir: null, invalidRunArg: candidate || '(missing value)', rest };
+  return { runDir: null, invalidRunArg: candidate || '(missing value)', rest, explicit: true };
 }
 
 function main(argv) {
@@ -76,13 +82,24 @@ function main(argv) {
     return 0;
   }
   if (cmd === 'close-run') {
-    const { runDir, invalidRunArg } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const { runDir, invalidRunArg, explicit } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path not found: ${invalidRunArg} — run not closed\n`);
     } else if (runDir) {
       const prev = ctxLib.readRunState(runDir);
       const me = process.env.CLAUDE_CODE_SESSION_ID;
-      if (prev && typeof prev.sessionId === 'string' && prev.sessionId && me && prev.sessionId !== me) {
+      const foreignOwner = !!(prev && typeof prev.sessionId === 'string' && prev.sessionId && me && prev.sessionId !== me);
+      if (foreignOwner && !explicit) {
+        // The implicit fallback ("newest non-terminal run") landed on a run
+        // recorded by a DIFFERENT, still-active session — closing it here
+        // would silently disarm that session's E1/E2/E3 enforcement with no
+        // way for it to know (see CLAUDE.md's Hooks section). Refuse rather
+        // than act; pass an explicit --run if closing someone else's run is
+        // genuinely intended.
+        process.stdout.write(`claude-tweaks: run ${path.basename(runDir)} was recorded by another session — refusing to close it without an explicit --run\n`);
+        return 0;
+      }
+      if (foreignOwner) {
         process.stdout.write(`claude-tweaks: closing run ${path.basename(runDir)} recorded by another session\n`);
       }
       const result = ctxLib.writeRunState(runDir, { status: 'clean', worktree: null });
