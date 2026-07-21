@@ -19,12 +19,7 @@ All checks passed. Set TEST_PASSED=true.
 ```
 ## QA Validation Results
 
-**Stories:** {total} total | {pass} pass | {pass_with_caveats} pass (caveats) | {fail} fail | {skip} skipped
-**Findings:** {N findings} | **Observations:** {M caveats}
-
-{Findings table from qa-reporting.md — only if findings exist}
-{Observations table from qa-reporting.md — only if caveats exist}
-{Full QA report from qa-reporting.md}
+{Full QA report from qa-reporting.md — its own header already carries the Stories/Findings/Observations summary; do not restate those counts or tables here, only the embed}
 
 Set TEST_PASSED=true (if all passed or passed with observations).
 ```
@@ -61,11 +56,7 @@ Verification: passed in build.
 
 ## QA Validation Results
 
-**Stories:** {total} total | {pass} pass | {pass_with_caveats} pass (caveats) | {fail} fail | {skip} skipped
-**Findings:** {N findings} | **Observations:** {M caveats}
-
-{Findings and Observations tables if applicable}
-{QA report}
+{Full QA report from qa-reporting.md — its own header already carries the Stories/Findings/Observations summary; do not restate those counts or tables here, only the embed}
 
 Set TEST_PASSED=true (if all passed or passed with observations).
 ```

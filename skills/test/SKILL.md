@@ -92,10 +92,7 @@ When `$ARGUMENTS` specifies a targeted scope, resolve commands from CLAUDE.md (s
 Run QA story validation only — types, lint, and tests are skipped.
 
 1. **Discover stories:** Glob `stories/*.yaml` (or `STORIES_DIR` from pipeline context, or `dir=` argument).
-2. **No stories found** — report and stop:
-   ```
-   No user stories found in `{STORIES_DIR}/*.yaml`. Generate stories with `/claude-tweaks:stories` or create YAML files manually. Use `dir=<path>` to specify a custom directory.
-   ```
+2. **No stories found** — report and stop, using the canonical message from `qa-procedures.md`'s Story Check section (that file owns the wording; do not restate it separately here).
 3. **Stories found:**
    a. Auto-detect the dev server URL using the shared procedure from `dev-url-detection.md` in `skills/_shared/` (or use `DEV_URL` from pipeline context).
    b. If no dev server is reachable and none can be started — stop and report: "QA validation failed — no dev server available."

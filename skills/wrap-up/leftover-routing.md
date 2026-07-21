@@ -46,20 +46,30 @@ When the pipeline run directory exists (see `_shared/pipeline-run-dir.md` for th
 
 ## Interactive mode (per-item user input)
 
-For each unfinished section that genuinely cannot be finished, present a numbered table and **wait for explicit per-item user input**:
+For each unfinished section that genuinely cannot be finished, first present a summary table (dense multi-row data, per CLAUDE.md's Multi-item decisions convention):
 
 ```
-| # | Section | Status | Why not finish now | Choices |
-|---|---------|--------|--------------------|---------|
-| 1 | {section} | partial | {specific blocker} | 1: merge into an existing record / 2: new record, parked / 3: new record, backlog / 4: drop / 5: finish now |
+| # | Section | Status | Why not finish now |
+|---|---------|--------|--------------------|
+| 1 | {section} | partial | {specific blocker} |
 ```
 
-### Routing options
+Then, for each section, run a two-step `AskUserQuestion` drill (the five routing choices exceed the tool's 4-option-per-question cap — same shape as `ledger/resolve-gate.md`'s per-item drill).
 
-1. **Merge into an existing record** — work fits naturally into another record's scope (or, under the legacy spec-file alias, another spec's); edit its body to absorb this section rather than filing a new one
-2. **Create a record, parked** — work needs its own context and has a clear trigger (a date, a watched path, another spec landing). Compose the body and build the payload exactly as the Auto mode steps above (`Origin:` line, `Trigger:` line, `parked: true`), then create it directly — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`). Bootstrap the `parked` label first if missing (per `_shared/label-bootstrap.md`, `LABELS_JSON = [['parked', 'Deferred backlog entry, waiting on a trigger condition']]`)
-3. **Create a record, backlog** — genuinely new idea discovered during implementation, no specific trigger yet. Same composition and payload as option 2, minus the `Trigger:` line and `parked` — the record files with no stage label (open, unparked, unready): the unified taxonomy's equivalent of the pre-migration "inbox" destination
-4. **Drop entirely** — no longer relevant
-5. **Finish now** — agent attempts completion in this pipeline (returns to fix-exhaust)
+**Step 1 (always) — call `AskUserQuestion` with `question`: `"How do you want to handle section #{N}: {section name}?"`, `header`: `"Section #{N}"`, `multiSelect`: `false`, and:**
 
-Wait for per-item response. Do not bulk-route. Options 2 and 3 both create a real work record — here, unlike auto mode, nothing stages first: the user's explicit per-item confirmation in this table **is** the required approval (`_shared/auto-mode-contract.md`'s work-record-creation row). Rough guidance: option 2 fits sections with a clear trigger; option 3 fits captured ideas without one yet.
+- Option 1 — `label`: `"Finish now"`, `description`: `"Agent attempts completion in this pipeline (returns to fix-exhaust)"`
+- Option 2 — `label`: `"Route to a record"`, `description`: `"Merge into an existing record, or create a new one (parked or backlog)"`
+- Option 3 — `label`: `"Drop"`, `description`: `"No longer relevant"`
+
+None of these three options carries `(Recommended)` — fix-exhaust already attempted completion before this section reached the drill, so there is no safe default among the remaining choices.
+
+**Step 2 (only if "Route to a record" was chosen) — call `AskUserQuestion` with `question`: `"Where should section #{N} go?"`, `header`: `"Route section #{N}"`, `multiSelect`: `false`, and:**
+
+- Option 1 — `label`: `"Merge"`, `description`: `"Work fits naturally into another record's scope (or, under the legacy spec-file alias, another spec's) — edit its body to absorb this section rather than filing a new one"`
+- Option 2 — `label`: `"New record, parked"`, `description`: `"Work needs its own context and has a clear trigger (a date, a watched path, another spec landing)"`
+- Option 3 — `label`: `"New record, backlog"`, `description`: `"Genuinely new idea discovered during implementation, no specific trigger yet"`
+
+For "New record, parked" or "New record, backlog": compose the body and build the payload exactly as the Auto mode steps above (`Origin:` line, plus `Trigger:` line and `parked: true` for the parked case), then create it directly — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`). Bootstrap the `parked` label first if missing (per `_shared/label-bootstrap.md`, `LABELS_JSON = [['parked', 'Deferred backlog entry, waiting on a trigger condition']]`). "New record, backlog" omits the `Trigger:` line and `parked` — the record files with no stage label (open, unparked, unready): the unified taxonomy's equivalent of the pre-migration "inbox" destination.
+
+**Wait for the user's reply at every step.** Do not bulk-route. Creating a record here — unlike auto mode, where it only stages a proposal — is the user's explicit per-item confirmation itself, which **is** the required approval (`_shared/auto-mode-contract.md`'s work-record-creation row).

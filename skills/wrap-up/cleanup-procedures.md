@@ -1,6 +1,6 @@
 # Wrap-Up Cleanup Procedures
 
-Canonical home for the wrap-up cleanup enumeration. Loaded by `/claude-tweaks:wrap-up` Step 5 (planning), Step 9 (summary checklist), Step 10 (execution), and by `review-console.md` (Section 6 of the Review Console). All four call sites reference this list — do NOT duplicate the table inline elsewhere.
+Canonical home for the wrap-up cleanup enumeration. Loaded by `/claude-tweaks:wrap-up` Step 5 (planning), Step 9 (summary checklist), Step 10 (execution), and by `review-console.md` (Section 7 of the Review Console). All four call sites reference this list — do NOT duplicate the table inline elsewhere.
 
 ## Canonical cleanup list
 
@@ -117,9 +117,11 @@ If the build used worktree git strategy, clean up the worktree directory:
    merge commit or PR body. See "Close-via-merge" in `_shared/issue-claims.md` for the full
    contract, including the multi-terminal parallel path (`flow/worktree-merge.md`), which
    performs its own merge directly with `--no-ff` and does not need this carrier commit.
-3. Verify the feature branch was completed (merged, PR created, or discarded) via `/superpowers:finishing-a-development-branch`:
-   - **Already completed** → proceed to step 4.
-   - **Not completed** → run `/superpowers:finishing-a-development-branch` now (do not stop and ask the user to run it separately). Present the merge/PR/discard options as the skill normally would, unmodified — step 2's carrier commit already guarantees closure regardless of which option is chosen, so this skill's own literal git commands need no adaptation. After the branch is completed, proceed to step 4.
+3. Verify the feature branch reached an outcome (merged, PR created, discarded, or explicitly kept as-is) via `/superpowers:finishing-a-development-branch`:
+   - **Already completed (merged, PR created, or discarded)** → proceed to step 4.
+   - **Not yet decided** → run `/superpowers:finishing-a-development-branch` now (do not stop and ask the user to run it separately). Present the merge/PR/discard/keep-as-is options as the skill normally would, unmodified — step 2's carrier commit already guarantees closure regardless of which option is chosen, so this skill's own literal git commands need no adaptation. Then branch on the outcome:
+     - **Merged, PR created, or discarded** → proceed to step 4.
+     - **Kept as-is** → the user is deliberately continuing work in this worktree. Skip steps 4-6 below entirely for this spec (do NOT remove the worktree, do NOT delete the branch) and skip Section E (issue claim release) — the claim stays held since the work is still in progress; releasing it here would let another agent claim an issue that's still mid-work. Note in the wrap-up summary that this spec's worktree/branch/claim cleanup is deliberately incomplete, pending a future finish decision (a later re-run of `/superpowers:finishing-a-development-branch`, directly or via `/claude-tweaks:wrap-up`).
    In `current-branch` mode (no worktree, no branch finish) there is no feature branch to stamp
    — the carrier is the final wrap-up commit message instead: include the same
    `Fixes #{issue}` lines there; GitHub closes the issues when that commit reaches the default
@@ -201,7 +203,9 @@ stop before attempting any release.
 2. Map the outcome from `/superpowers:finishing-a-development-branch` to a release reason:
    merged → `merged: spec {spec}`; PR opened → `pr-opened: spec {spec}`; discarded →
    `abandoned: spec {spec}`. Set `$LINK` to the merge commit sha/URL (merged), the PR URL
-   (pr-opened), or empty (abandoned).
+   (pr-opened), or empty (abandoned). **Kept as-is has no release reason here** — per Section C
+   step 3, this whole section is skipped for that outcome; the claim stays held while the work
+   continues.
    In `current-branch` mode (no branch finish): the reason is `merged: spec {spec}` and
    `$LINK` is the final wrap-up commit sha — and that wrap-up commit's MESSAGE must carry the
    closing keywords (one `Fixes #{issue}` line per resolved issue; see Section C's carrier

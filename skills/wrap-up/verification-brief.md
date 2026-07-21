@@ -38,7 +38,7 @@ field (`review-summary-template.md`). Branch on its value:
 | `Completed (code + visual)` or `Completed (code + visual, QA-enriched)` | A full browser walk already ran; any bug it found was already fixed and reverified through `/review`'s Step 3 Routing before `/review` could PASS | Proceed to Step 3 — no further action |
 | `Recommended — journeys affected` or `Recommended — UI changed (no journeys)` | Only recommendation mode ran — no browser walk happened | Trigger the gate below |
 | `Skipped — no UI changes` | Contradicts Step 2 finding an interactive surface | Treat as `Recommended` — trigger the gate below and let `/visual-review`'s own detection re-confirm |
-| `Skipped — browser tools not configured` | Nothing was walked, nothing can be | See the browser-unavailable fallback below |
+| `Skipped — browser tools not configured` or `Completed (code only — no browser)` | Nothing was walked, nothing can be — the latter is full-mode `/review` completing with a code-only fallback when no browser backend was available at invocation, same practical outcome as the former | See the browser-unavailable fallback below |
 | No `/review` summary available for this run (standalone `/wrap-up`, no recent `/review` run) | No signal exists | Treat as `Recommended` — trigger the gate below |
 
 **Trigger the gate** (`Recommended` / no-summary / `Skipped — no UI changes` cases): invoke

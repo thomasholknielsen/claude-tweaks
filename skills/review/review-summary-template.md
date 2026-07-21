@@ -22,13 +22,13 @@ Present this summary after completing all review steps.
 - Tests: {pass/fail}
 
 ### QA Validation (from /test)
-- **Status:** {ALL PASSED (N stories, M caveats) | PASSED WITH OBSERVATIONS (N stories, M caveats) | PARTIAL FAILURE (N passed, M failed) | Skipped — no stories | Skipped — no dev server | Not run}
+- **Status:** {ALL PASSED | PASSED WITH OBSERVATIONS (N stories, M caveats) | PARTIAL FAILURE (N passed, M failed) | ALL FAILED (M failed) | Skipped — no stories | Skipped — no dev server | Not run}
 
-Possible QA statuses:
-- **ALL PASSED** — all stories passed with no caveats
-- **ALL PASSED (N stories, M caveats)** — all stories passed, some had caveats (informational, not blocking)
-- **PASSED WITH OBSERVATIONS** — all stories passed but at least one reported PASS_WITH_CAVEATS
-- **PARTIAL FAILURE** — some stories failed (see findings in QA report)
+Possible QA statuses (the four canonical values from qa-reporting.md's Status determination, plus /review's own Skipped/Not run variants):
+- **ALL PASSED** — every story passed (PASS or PASS_WITH_CAVEATS), no failures
+- **PASSED WITH OBSERVATIONS** — every story passed but at least one reported PASS_WITH_CAVEATS
+- **PARTIAL FAILURE** — some stories passed, some failed
+- **ALL FAILED** — no stories passed
 - **Skipped** / **Not run** — QA did not execute
 
 ### Code Review Findings (confirmed)

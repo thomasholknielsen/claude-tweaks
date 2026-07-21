@@ -16,14 +16,14 @@ This phase dispatches qa-agent subagents in parallel — one per story, bounded 
 
     ```
     Queue = [all stories in this tier]
-    Active = {}          # map of agent_id -> story
+    Active = {}          # map of agent_id -> {story, dispatched_at}
     Results = []
 
     # Initial fill — dispatch up to MAX_PARALLEL agents
     While Active.size < MAX_PARALLEL and Queue is not empty:
       story = Queue.shift()
       agent = Task(story_prompt, run_in_background=true)
-      Active[agent.id] = story
+      Active[agent.id] = {story: story, dispatched_at: now()}
 
     # Streaming loop — poll and refill
     While Active is not empty:
@@ -36,11 +36,19 @@ This phase dispatches qa-agent subagents in parallel — one per story, bounded 
           If Queue is not empty:
             next_story = Queue.shift()
             next_agent = Task(next_story_prompt, run_in_background=true)
-            Active[next_agent.id] = next_story
+            Active[next_agent.id] = {story: next_story, dispatched_at: now()}
+        Else if now() - Active[agent_id].dispatched_at > AGENT_TIMEOUT:
+          # AGENT_TIMEOUT exceeded with no result — force-complete as a timeout failure so the tier isn't blocked indefinitely.
+          Active.remove(agent_id)
+          Results.push({story: Active[agent_id].story, status: FAIL, error: "Agent timeout after {AGENT_TIMEOUT}ms"})
+          If Queue is not empty:
+            next_story = Queue.shift()
+            next_agent = Task(next_story_prompt, run_in_background=true)
+            Active[next_agent.id] = {story: next_story, dispatched_at: now()}
       # Brief pause before next poll cycle to avoid busy-waiting
     ```
 
-    **Implementation with the Task tool:** Dispatch agents with `run_in_background=true`. Poll active agents using `TaskOutput` with `block=false`. When any agent completes, collect its result and immediately dispatch the next queued story into the open slot. Continue until both the queue and the active set are empty.
+    **Implementation with the Task tool:** Dispatch agents with `run_in_background=true`. Poll active agents using `TaskOutput` with `block=false`. When any agent completes, collect its result and immediately dispatch the next queued story into the open slot. On each poll cycle, also check each still-active agent's elapsed time against `AGENT_TIMEOUT` (qa-procedures.md's Variables table, default 300000ms) — an agent that exceeds it with no result is force-completed as a FAIL (`"Agent timeout"`) so a hung session cannot block the rest of the tier. Continue until both the queue and the active set are empty.
 
     **Progress updates:** After each completion, emit a progress line:
     ```
@@ -88,6 +96,7 @@ Instructions:
 - If `Auth (vault)` is present, run `agent-browser --session {story.id} auth use <vault-name>` immediately after `open` and before the first interactive step.
 - If `Auth (legacy)` is present and no vault is configured, perform the login flow inline using the resolved credentials (navigate to auth.url, fill, submit).
 - If a `Viewport` is set, run `agent-browser --session {story.id} set viewport <w> <h>`.
+- If `Setup` is present, execute its steps first, using the same step semantics as the Steps loop below (locator-first, snapshot-fallback, annotated screenshot). Setup failures are treated like any other step failure (capture trace, stop, report).
 - For each step in the steps array sequentially:
   - Use semantic locators (role/name, testid, text, label, placeholder) — never CSS or `@eN` refs from prior snapshots.
   - For action steps: try the locator first; if it fails, take a snapshot (`snapshot -i -c`) and resolve the target from the fresh tree.
@@ -97,8 +106,10 @@ Instructions:
   - Capture a trace BEFORE closing the session:
     `agent-browser --session {story.id} trace save {TRACES_BASE}/{story.id}/{ISO-timestamp}.zip`
   - Include the trace path in the failure report.
+  - If `Teardown` is present, execute its steps now, before closing the session.
   - Then close the session: `agent-browser --session {story.id} close`.
   - Stop executing remaining steps.
+- On success, if `Teardown` is present, execute its steps now, before closing the session.
 - On success, close the session at the end: `agent-browser --session {story.id} close`.
 - Report each step as PASS or FAIL with a brief explanation.
 - **Status line (required, line 1 of your reply):** emit exactly one of `DONE` | `DONE_WITH_CONCERNS` | `NEEDS_CONTEXT` | `BLOCKED`. Mapping:
