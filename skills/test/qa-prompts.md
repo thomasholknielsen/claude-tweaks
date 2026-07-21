@@ -55,6 +55,8 @@ This phase dispatches qa-agent subagents in parallel — one per story, bounded 
 
 19. For each Task call, use the appropriate prompt template. If the story has `auth: { vault: "<name>" }`, include the `**Auth (vault):**` field. If the story uses legacy `setup.auth` resolved from `auth.yml`, include the `**Auth (legacy):**` field instead. The agent uses one or the other — never both.
 
+**Canonical schema.** Both templates below inline the `REPORT_JSON` envelope's nested `page_inventories` shape (`interactive_elements`/`forms`/`navigation`/`accessibility`/`layout`) verbatim rather than referencing it — required by this file's own no-sibling-file-references contract (line 7), since each template is copied wholesale into a dispatched Task agent's prompt and that agent never sees another file. `agents/qa-agent.md`'s `## Report` section declares this same shape canonical for the agent's structured output. Any future change to the schema must be mirrored byte-for-byte across all three locations: `agents/qa-agent.md` and both templates below.
+
 **Structured format prompt:**
 ```
 Execute this user story and report results using the agent-browser CLI.
@@ -149,7 +151,11 @@ Instructions:
   RESULT: {PASS|PASS_WITH_CAVEATS|FAIL} | ID: {story.id or "legacy-" + slugified-name} | Steps: {passed}/{total}
 - If a trace was captured, append a second line:
   TRACE: {trace path}
-- After the summary line(s), emit a `REPORT_JSON` HTML comment with the same shape documented in the structured-format prompt above (`caveats`, `recovered_locators`, `page_inventories` — all keys required, use `[]` when empty). Legacy stories typically have no `recovered_locators`; populate `page_inventories` from snapshot data at each URL transition.
+- After the summary line(s), emit a single-line HTML comment containing structured JSON named `REPORT_JSON`. The reporting pipeline parses this comment in Phase 4 (`qa-reporting.md`). Use exactly this shape:
+  ```
+  <!-- REPORT_JSON: {"caveats": ["{observation 1}", "{observation 2}"], "recovered_locators": [{"step_index": {N}, "original_locator": "{old}", "recovered_locator": "{new}", "reason": "{description}"}], "page_inventories": [{"url": "{absolute URL}", "interactive_elements": {"buttons": {N}, "links": {N}, "inputs": {N}, "selects": {N}, "checkboxes": {N}}, "forms": {"count": {N}, "fields_per_form": [{N}, {N}]}, "navigation": {"nav_elements": {N}, "breadcrumbs": {bool}, "tabs": {N}}, "accessibility": {"aria_landmarks": {N}, "heading_levels": [1, 2, 3], "missing_labels": {N}}, "layout": {"viewport_overflow": {bool}, "scroll_height": {N}}}]} -->
+  ```
+  All three arrays are required keys (use `[]` when empty — never omit). `caveats` is non-empty only when RESULT is `PASS_WITH_CAVEATS`. Legacy stories typically have no `recovered_locators` — use `[]`. `page_inventories` is one entry per unique URL visited; populate it from snapshot data at each URL transition (interactive element counts, form structure, navigation, accessibility, layout details). Keep the entire comment on a single line so downstream parsing can use a simple regex.
 
 **Note (legacy auth):** this prompt receives plaintext credentials in the `Auth (legacy)` field. The LLM sees them. Migrate to Auth Vault (`agent-browser auth set <vault> <user> <pass>`) as soon as possible — the structured prompt above never receives credentials, only the vault name. Treat this template as a deprecated fallback for legacy story files.
 ```

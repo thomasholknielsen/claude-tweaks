@@ -177,17 +177,25 @@ When the wrapper reports `suppressed > 0` in its return, append a small note bel
 
 ### Applying a recommendation (standalone only)
 
-When running standalone (no `$PIPELINE_RUN_DIR`), the block above is never the final word — follow it with the standard apply-all/override gate. Call `AskUserQuestion` with `question`: `"Apply any of these?"`, `header`: `"Creative Opportunities"`, `multiSelect`: `false`, and:
+When running standalone (no `$PIPELINE_RUN_DIR`), the block above is never the final word — follow it with the apply gate below, using `question`: `"Apply any of these?"`, `header`: `"Creative Opportunities"`. "Apply all" means every row above; each row's target is its listed page.
 
-- Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Run every suggested command above against its listed page"`
-- Option 2 — `label`: `"Choose individually"`, `description`: `"Pick which suggestions to apply"`
-- Option 3 — `label`: `"None — just the report"`, `description`: `"Leave the report as-is, apply nothing"`
+#### Apply gate (shared procedure — used here and by Step 5's "Fix flagged issues")
 
-If "Choose individually," ask which row numbers to apply as a follow-up free-text prompt (the table above is already numbered for this — no per-row `AskUserQuestion` needed).
+Both this section and Step 5's "Fix flagged issues" resolve their own already-rendered batch table through this same three-branch procedure. The caller supplies its own `question`/`header` (see each call site); the branches, invocation mechanics, and re-verify step below are identical for both.
 
-For every accepted row, invoke its `Suggested command` directly via the Skill tool (e.g. `/impeccable:impeccable bolder pricing`) — the same low-level invocation `design-wrapper`'s own modes perform internally; no new wrapper mode is needed since `survey`'s own precondition check already confirmed Impeccable is available before producing this recommendation. After all accepted commands run, re-verify: invoke `/claude-tweaks:test skip-qa` and report the result. If re-verification fails, report the failure and name the most recently invoked command as the likely cause rather than reverting automatically — reverting is the user's call.
+Call `AskUserQuestion` with `multiSelect`: `false` and:
 
-When "None," no further action — the report stands as rendered.
+- Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Apply every item the table above recommends"`
+- Option 2 — `label`: `"Choose individually"`, `description`: `"Pick which items to apply"`
+- Option 3 — `label`: `"None"`, `description`: `"Leave things as-is, apply nothing"`
+
+- **"Apply all"** — apply every item the table above already marks for action (this section: every row; Step 5: every row marked `Fix`).
+- **"Choose individually"** — narrow to a subset via a follow-up free-text list of row numbers (the table is already numbered — no per-row `AskUserQuestion` needed).
+- **"None"** — no further action; the report stands as rendered.
+
+For each accepted item, invoke its listed command directly via the Skill tool against its target (page or file) — e.g. `/impeccable:impeccable bolder pricing` — the same low-level invocation the relevant `design-wrapper` mode performs internally; no new wrapper mode is needed, since the upstream check (`survey`'s own precondition check here, `review`'s own gate for Step 5) already confirmed Impeccable is available before producing the recommendation. Group items that share the same file and command into one invocation (relevant to Step 5's findings table; a no-op here, since each row here targets its own page).
+
+If any command ran, re-verify: invoke `/claude-tweaks:test skip-qa` and report the result. If re-verification fails, report the failure and name the most recently invoked command as the likely cause rather than reverting automatically — reverting is the user's call.
 
 ## Step 5: Boost (standalone only)
 
@@ -214,12 +222,7 @@ After Step 4's Creative Opportunities block (and any apply-gate action from it) 
    ```
 
    Pre-fill Recommended: `severity: error` or `severity: warning` → `"Fix"`; `severity: info` → `"Skip"`.
-3. Call `AskUserQuestion` with `question`: `"How do you want to handle these findings?"`, `header`: `"Findings"`, `multiSelect`: `false`, and:
-   - Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"Fix each finding marked Fix above"`
-   - Option 2 — `label`: `"Choose individually"`, `description`: `"Pick which findings to fix"`
-   - Option 3 — `label`: `"Skip fixes"`, `description`: `"Leave the code as-is"`
-4. For each accepted finding, invoke its `suggestion`-named Impeccable command directly via the Skill tool against the finding's `file` (same direct-invocation approach as Step 4's apply-gate). Group findings that share the same file and suggested command into one invocation.
-5. If any command ran, re-verify: invoke `/claude-tweaks:test skip-qa` and report the result inline. A re-verify failure is reported, not silently swallowed — name the most recently applied command as the likely cause; do not auto-revert.
+3. Run the apply gate (Step 4's "Apply gate (shared procedure)" above), using `question`: `"How do you want to handle these findings?"`, `header`: `"Findings"`. "Apply all" here means every row marked `Fix` above; each accepted finding's command is its `suggestion`-named Impeccable command, invoked against the finding's `file`.
 
 **Option 2 or 3 — Explore alternatives:**
 

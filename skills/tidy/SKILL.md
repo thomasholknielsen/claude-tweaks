@@ -55,11 +55,11 @@ Rules:
 
 > **No decisions during scanning.** Steps 1-4.8 silently collect all findings. Everything is presented as one batch in Step 6 for approval. This replaces the previous per-item decision model.
 
-> **Parallel execution:** Dispatch every step selected by the active scope (all of Steps 1, 3, 4, 4.5, 4.6, 4.7, and 4.8 for an unscoped/full run; a `--scope`-filtered subset otherwise, per "Scope Selection" above) as parallel Task agents — each scan is independent (Work Records, Design Docs + Briefs, Plans, Git, Doc Registry, Issue Claims, GitHub PRs/Issues). Each agent returns findings in the `[type] item — detail — recommendation` format. Step 3's classification tables are inlined directly into its agent prompt (see Step 3 below) so subagents have everything they need. After the selected parallel scans complete, run Step 5 and/or Step 5.5 sequentially when either is in scope. Step 5 depends on Step 1's record-scan results (its `ready`, unclaimed rows), which is why `specs` pulls in both Step 1 and Step 5 (per "Scope Selection" above); Step 5.5 is independent (git-log only) and runs sequentially purely for report-assembly ordering, not a data dependency. Assemble all findings into the Step 6 report.
+> **Parallel execution:** Dispatch every step selected by the active scope (all of Steps 1, 3, 4, 4.5, 4.6, 4.7, 4.8, and 5.5 for an unscoped/full run; a `--scope`-filtered subset otherwise, per "Scope Selection" above) as parallel Task agents — each scan is independent (Work Records, Design Docs + Briefs, Plans, Git, Doc Registry, Issue Claims, GitHub PRs/Issues, Patterns) — the same technique `skills/help/status-scan.md` uses to run all of its stages, including independent sub-stages 4.5/4.6/4.7, in one parallel batch with no sequential carve-out. Each agent returns findings in the `[type] item — detail — recommendation` format. Step 3's classification tables are inlined directly into its agent prompt (see Step 3 below) so subagents have everything they need. Step 5.5 has no data dependency on any other step (git-log only), so it joins the parallel batch directly — its output is simply slotted into the correct Step 6 report section afterward. Step 5 is the one step that stays sequential: it depends on Step 1's record-scan results (its `ready`, unclaimed rows), which is why `specs` pulls in both Step 1 and Step 5 (per "Scope Selection" above), and it runs only after the parallel batch (including Step 1) completes. Assemble all findings into the Step 6 report.
 >
 > **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input, status line first, output template inlined verbatim. Model tier: Fast.
 >
-> **Model tier:** Fast (Haiku) — each scan is a mechanical read of a single data source (the open work-record queue, design-doc directory, plan directory, `git worktree list` + branches, REGISTRY, issue-claim refs + comments, gh PR/issue queries). No cross-cutting analysis at the per-scan level; Step 5/5.5 do the synthesis sequentially in the main thread.
+> **Model tier:** Fast (Haiku) — each scan is a mechanical read of a single data source (the open work-record queue, design-doc directory, plan directory, `git worktree list` + branches, REGISTRY, issue-claim refs + comments, gh PR/issue queries, recent git history). No cross-cutting analysis at the per-scan level; Step 5 does the synthesis sequentially in the main thread after the parallel batch (including Step 5.5) completes.
 >
 > **Output template (each agent must follow exactly):**
 >
@@ -95,7 +95,7 @@ Read `scan-procedures.md` in this skill's directory for the full classification 
 | 4.7 | `gh api git/matching-refs/claims/` + issue comments | `[claim]` |
 | 4.8 | `gh pr list` / `gh issue list --label by:code-health` / `--label by:harness-health` / `--label by:journey-health` / `--label by:docs-health` per `_shared/github-pr-scan.md` (`repo-wide` scope) | `[pr]`, `[gh-issue]` |
 | 5 (sequential, after Step 1) | `ready` records not yet claimed | `[sizing]` |
-| 5.5 (sequential, independent of Step 1) | Recent git history of review/wrap-up commits | `[pattern]`, `[health]` |
+| 5.5 (parallel, independent of every other step) | Recent git history of review/wrap-up commits | `[pattern]`, `[health]` |
 
 There is no Step 2 — it merged into Step 1 (see Scope Selection above). The rest of the numbering is unchanged from before this merge, including the decimal sub-steps under Step 4, so existing cross-references from other skills keep pointing at the right step.
 
@@ -173,7 +173,7 @@ Auto-applied items are committed. Staged items surface at the Wrap-Up Review Con
 
 This subsection applies only inside the Standalone-auto path above — an interactive invocation or a `/tidy` run embedded in a larger pipeline never reads `tidy-routine-autonomy` and never auto-mutates on evidence; those runs always route through the aggressiveness table exactly as documented there, unaffected by this flag's value.
 
-When this Standalone-auto firing's scope includes `github` (Step 4.8 ran), read `tidy-routine-autonomy` from CLAUDE.md (default `conservative`). Under `conservative`, nothing in this subsection applies — every GitHub-mutation finding routes through the table above exactly as always (all four "Stage — never auto-applied" rows stay staged).
+When this Standalone-auto firing was invoked with `--scope=github` exactly (Step 4.8 ran and no other step did — not a full/unscoped sweep or a multi-scope combination that happens to include `github`), read `tidy-routine-autonomy` from CLAUDE.md (default `conservative`). Under `conservative`, nothing in this subsection applies — every GitHub-mutation finding routes through the table above exactly as always (all four "Stage — never auto-applied" rows stay staged).
 
 Under `evidence-based`, before staging any of the following four finding shapes, check whether it carries the specific cite-able evidence listed. If it does, auto-apply the mutation instead of staging it, and log the evidence literally:
 

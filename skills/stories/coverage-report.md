@@ -2,9 +2,13 @@
 
 Detailed report template and decision flow for Step 6 of `/claude-tweaks:stories` when JOURNEY_MAP is non-empty. This file is lazy-loaded — only read it when journey files exist and you need to produce coverage analysis, list orphaned stories, or apply journey-link suggestions.
 
+## Computing coverage
+
+Run the computation in `_shared/journey-coverage-check.md` (shared with `/claude-tweaks:review`'s `3g-cov` lens and `/claude-tweaks:journey-health`'s coverage scan; that file also documents the skip condition and parallel-execution note). Format its three result sets into this skill's own output shapes below rather than recomputing coverage or orphan-detection independently.
+
 ## Journey Coverage Table
 
-Present the journey-to-story coverage analysis:
+Present the journey-to-story coverage analysis, built from the shared computation's per-journey story counts and uncovered-step results:
 
 ```
 ### Journey Coverage
@@ -21,7 +25,7 @@ Status values:
 
 ## Orphaned Stories
 
-List all stories that have no `journey:` field:
+List the stories the shared computation identified as orphaned (no `journey:` field, or a `journey:` value referencing a non-existent journey file):
 
 ```
 ### Orphaned Stories
@@ -31,10 +35,10 @@ List all stories that have no `journey:` field:
 | {id} | {yaml file} | {url} | {journey name} / -- (negative, no journey needed) / {name} (create new) |
 ```
 
-Suggested-journey rules:
+Suggested-journey rules — applied on top of the shared computation's "orphaned stories with a URL match" / "orphaned stories with no match" result sets:
 
 - For **negative stories** (IDs starting with `neg-`), suggest "-- (negative, no journey needed)" unless the negative story tests a specific journey's red flag.
-- For **non-negative orphans whose URL matches a journey step URL**, suggest the matching journey name.
+- For **non-negative orphans the shared computation matched to a journey step URL**, suggest that matching journey name.
 - For **orphans with no URL match**, suggest "(create new)" if the flow is substantial enough to warrant a journey file.
 
 ## Journey Link Suggestions (update mode only)
