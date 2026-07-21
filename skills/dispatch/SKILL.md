@@ -74,11 +74,33 @@ node -e "
   const { parseRecordFacets, parseDependencies } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const issues = require('/tmp/dispatch-queue-raw.json');
   const openNumbers = new Set(require('/tmp/dispatch-open-numbers.json').map((i) => i.number));
-  const eligible = issues
+  const eligiblePreDep = issues
     .map((i) => ({ ...i, facets: parseRecordFacets(i.labels) }))
-    .filter((i) => i.facets.grants.build && !i.facets.bot.inProgress && !i.facets.bot.blocked)
-    .filter((i) => !parseDependencies(i.body).some((dep) => openNumbers.has(dep)));
-  require('fs').writeFileSync('/tmp/dispatch-eligible.json', JSON.stringify(eligible));
+    .filter((i) => i.facets.grants.build && !i.facets.bot.inProgress && !i.facets.bot.blocked);
+  // '--limit 200' can silently truncate the open-issues pull on a repo with more open
+  // issues than that — a dependency number absent from openNumbers means 'not in the
+  // fetched 200', not 'closed'. Collect those as unresolved for a targeted live check below
+  // rather than treating the absence as proof the blocker is closed.
+  const unresolved = [...new Set(eligiblePreDep.flatMap((i) => parseDependencies(i.body)).filter((dep) => !openNumbers.has(dep)))];
+  require('fs').writeFileSync('/tmp/dispatch-eligible-pre-dep.json', JSON.stringify(eligiblePreDep));
+  require('fs').writeFileSync('/tmp/dispatch-unresolved-deps.json', JSON.stringify(unresolved));
+"
+: > /tmp/dispatch-verified-open-deps.txt
+for DEP in $(node -e "console.log(require('/tmp/dispatch-unresolved-deps.json').join(' '))"); do
+  STATE=$(gh issue view "$DEP" --json state -q .state 2>/dev/null)
+  if [ "$STATE" = "OPEN" ]; then echo "$DEP" >> /tmp/dispatch-verified-open-deps.txt; fi
+done
+node -e "
+  const fs = require('fs');
+  const { parseDependencies } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+  const eligiblePreDep = require('/tmp/dispatch-eligible-pre-dep.json');
+  const openNumbers = new Set(require('/tmp/dispatch-open-numbers.json').map((i) => i.number));
+  const verifiedOpen = fs.existsSync('/tmp/dispatch-verified-open-deps.txt')
+    ? fs.readFileSync('/tmp/dispatch-verified-open-deps.txt', 'utf8').trim().split('\n').filter(Boolean).map(Number)
+    : [];
+  for (const dep of verifiedOpen) openNumbers.add(dep);
+  const eligible = eligiblePreDep.filter((i) => !parseDependencies(i.body).some((dep) => openNumbers.has(dep)));
+  fs.writeFileSync('/tmp/dispatch-eligible.json', JSON.stringify(eligible));
 "
 echo '{"data":{"repository":{}}}' > /tmp/dispatch-native-deps.json
 if [ "$WORK_LINKS" = "native" ]; then
@@ -113,7 +135,7 @@ node -e "
 " > /tmp/dispatch-groups.json
 ```
 
-Two bulk calls, not per-issue re-fetches — the second pull is a cheap existence check for `parseDependencies`' targets (an open blocker under `work-links: body-text`; a record isn't eligible while any `Blocked by #N` line still names an open issue). Grouping still runs before claiming, unlike the pre-grants design, so the full issue body/labels/createdAt needed for eligibility, dependency-checking, and `extractKeyFiles` is already in hand from the first pull.
+Two bulk calls plus a small, bounded fallback — the second pull is a cheap existence check for `parseDependencies`' targets (an open blocker under `work-links: body-text`; a record isn't eligible while any `Blocked by #N` line still names an open issue), but `--limit 200` can silently truncate that pull on a repo with more open issues than that. Rather than raise the cap and still have the same failure mode at a higher threshold, any referenced dependency number the capped pull didn't confirm as open gets one targeted `gh issue view --json state` check of its own — bounded by how many distinct blockers this firing's `auto:build`-eligible records actually reference (typically a handful), not by the repo's total open-issue count. Grouping still runs before claiming, unlike the pre-grants design, so the full issue body/labels/createdAt needed for eligibility, dependency-checking, and `extractKeyFiles` is already in hand from the first pull.
 
 **`work-links: native` support.** Under `work-links: native`, one additional batched `gh api graphql` call (`buildNativeDependencyQuery`/`hasOpenNativeBlocker`, `bin/lib/issues/record.js`) queries every eligible candidate's native `blockedBy` connection in a single aliased request and drops any candidate with an `OPEN` native blocker — the same outcome `parseDependencies` already produces for an open `Blocked by #N` body-text line under `work-links: body-text`. The two modes are mutually exclusive per record, mirroring `flow/materialize.md`'s existing `blocked-by` driver/work-links branching — a project mid-migration with stale body-text lines under `native` is out of scope. The GraphQL call fails safe: on any error (network, auth, or a schema mismatch — e.g. a GitHub Enterprise host exposing only `issueDependenciesSummary`, not `blockedBy`) it logs a warning and falls back to no native filtering for that run rather than crashing Step 2's queue-build entirely — a missed native-dependency check degrades to the pre-`work-links: native` behavior, not a hard failure of headless dispatch.
 
@@ -204,7 +226,7 @@ node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.
 
 Any other `gh` failure during claim: skip, log, continue.
 
-**Partial claim.** If any member of the group resolves to Skip (a live claim held elsewhere) or hits an unresolvable `gh` failure, the group cannot be fully claimed: release every member this firing already claimed this round (`releasePayload`, reason `never-started: file-overlap group partial claim`), log, and move to the next candidate group (bare) or report nothing eligible this firing (`next` / `#N`). A Break outcome (stale-claim takeover) is not a partial-claim failure — it succeeds in claiming that member, so it never triggers the abort path on its own.
+**Partial claim.** If any member of the group resolves to Skip (a live claim held elsewhere) or hits an unresolvable `gh` failure, the group cannot be fully claimed: release every member this firing already claimed this round (`releasePayload`, reason `never-started: file-overlap group partial claim`), log, and move to the next candidate group (bare, and `#N,#M,...` — per Step 3, an explicit-list group proceeds "exactly as a bare-mode pick would," so a partial-claim failure on one named group moves to the next named group rather than aborting the rest of the list) or report nothing eligible this firing (`next` / `#N`, which each name only one group to begin with). A Break outcome (stale-claim takeover) is not a partial-claim failure — it succeeds in claiming that member, so it never triggers the abort path on its own.
 
 ### Step 5: Dispatch — one Task agent per group
 
@@ -317,7 +339,7 @@ When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
    # [['bot:blocked', 'Bot state: retry ceiling reached - needs human re-triage before autonomous retry']]
    ```
 
-   Then remove `auto:build` (the only `auto:*` label that could still be present in the common case — step 3 above revoked `auto:merge` unless the failure was classified transient), add `bot:blocked`, and send a `PushNotification` ("Record #{n} hit its retry ceiling — needs a look: {title}").
+   Then remove `auto:build` and, if still present (a `transient`-classified attempt preserves it per step 3 above, so it can still be there at the ceiling), `auto:merge` too — per `_shared/issue-claims.md`'s canonical rule, the retry ceiling removes **all** `auto:*` labels, not just whichever one step 3 didn't already strip. Add `bot:blocked`, and send a `PushNotification` ("Record #{n} hit its retry ceiling — needs a look: {title}").
 7. **If `false`:** leave `auto:build` in place — the next `dispatch next` firing pulls it again naturally (the claim was already released). There is nothing further to downgrade in the common case: step 3 revoked `auto:merge` unless the failure was classified transient, and that conditional revocation *is* the failure-downgrade rule in this model. Unlike the pre-grants design there is no separate two-tier label to step down between — a record either still has `auto:build` (and can retry) or, at the ceiling, has neither.
 
 A `correctness`- or `ambiguous`-classified failure revokes `auto:merge` before the next retry, per step 3 above — that record doesn't get another unsupervised shot at auto-merge until a human re-grants it at `/claude-tweaks:triage`. A `transient`-classified failure preserves `auto:merge` — the retry-ceiling counting below still runs unconditionally regardless of classification (an attempt is an attempt), but classification alone no longer determines merge trust the way it did before.
@@ -373,7 +395,7 @@ A headless (Routine-fired) firing's report has nobody live to read it — the du
 
 ## Configuration
 
-Read from CLAUDE.md or `.claude-tweaks/policy.yml`:
+These four rows mirror `_shared/work-record.md`'s canonical Config keys table (which every filing/shaping/dispatching skill is meant to cite rather than restate) — kept spelled out here too since this is the skill that actually reads and branches on them; check that file when a default or meaning changes to keep this copy in sync. Read from CLAUDE.md or `.claude-tweaks/policy.yml`:
 
 | Flag | Default | Meaning |
 |---|---|---|
@@ -430,7 +452,7 @@ Render only when a human is present to answer — the bare form is definitionall
 | `/claude-tweaks:review-backlog` | The only skill that ever suggests a `priority:*` value (human-confirmed) — dispatch's `next` form consumes whatever value results for its tie-break ordering. Review-backlog never claims, dispatches, or grants. |
 | `/claude-tweaks:flow` | The executor dispatch hands claimed groups to — `CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow #{n}[,#{m}...]`. `/flow` is opaque to dispatch: materialization (spec derivation, multi-issue bundling) is `/flow`'s own concern, not dispatch's. |
 | `_shared/issue-claims.md` | Defines the claim protocol (the lock, the mirror, the group-claim rule, release triggers, the ownership rule) that dispatch implements start to finish — claim in Step 4, release in Settle. |
-| `_shared/work-record.md` | Taxonomy home — the seven-axis label contract and the permission-matrix row dispatch implements (`bot:in-progress` / `bot:blocked` add; `auto:merge` / `auto:*` / `bot:in-progress` remove; never add `auto:*` or `ready`). |
+| `_shared/work-record.md` | Taxonomy home — the seven-axis label contract and the permission-matrix row dispatch implements (`bot:in-progress` / `bot:blocked` add; `auto:merge` / `auto:*` / `bot:in-progress` remove; never add `auto:*` or `ready`). Also the canonical home of this skill's own `## Configuration` table's four rows (`dispatch-retry-ceiling`, `automerge-max-lines`, `automerge-max-files`, `dispatch-pick-max-concurrent`) — see that section's own cross-reference. |
 | `/claude-tweaks:tidy` | Surfaces orphaned or stale claims dispatch left behind (Step 4.7) and `bot:blocked` records as re-authorization candidates; a headless firing's outcome ultimately surfaces on `/tidy`'s own rolling GitHub-triage digest rather than a console dispatch renders itself — see Reporting above. |
 | `/claude-tweaks:wrap-up` | Releases the claim on success (cleanup Section E) using the `CLAIM_RUN_ID` dispatch threaded through `/flow`, not its own `PIPELINE_RUN_DIR` — the ownership check depends on this. The auto-merge gate's checks run against wrap-up's own Review Console output before it would otherwise render. |
 | `/claude-tweaks:help` | Surfaces the `authorized` and `building` counts on the dashboard (Stage 1) — the reciprocal of `help/SKILL.md`'s own `/claude-tweaks:dispatch` row. |
