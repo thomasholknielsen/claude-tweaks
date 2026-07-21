@@ -71,7 +71,12 @@ Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "grant-check #{n}")
 
 Each invocation returns `RECOMMEND_BUILD`/`RECOMMEND_MERGE`/`RATIONALE` (see
 `skills/assess-agent-autonomy/SKILL.md`'s `grant-check` mode). Derive the batch table's
-Recommended column directly from this output:
+Recommended column directly from this output, and carry `RATIONALE` through to the table's own
+Rationale column (Step 3) and the `decisions.md` log line (Step 4) — a content-aware judgment the
+human is about to act on must stay visible at decision time and stay in the audit trail
+afterward, not be computed and then silently discarded. `blocked` rows (below) have no
+`assess-agent-autonomy` call to draw a rationale from — their Rationale column reads a fixed
+string instead, per Step 3.
 
 - **`RECOMMEND_BUILD: true`** → `auto:build` (append `+ auto:merge` when `RECOMMEND_MERGE` is also
   `true`).
@@ -106,15 +111,15 @@ node -e "
 ```markdown
 ### Triage — {N} records awaiting authorization
 
-| # | Record | Origin | Risk | Effort | Recommended |
-|---|---|---|---|---|---|
-| 1 | #123: {title} | by:code-health | low | low | auto:build + auto:merge |
-| 2 | #124: {title} | by:capture | medium | high | auto:build |
-| 3 | #125: {title} | (human-filed) | — | — | flag back (needs scoring) |
-| 4 | #118: {title} | by:harness-health | low | low | re-authorize (bot:blocked) |
+| # | Record | Origin | Risk | Effort | Recommended | Rationale |
+|---|---|---|---|---|---|---|
+| 1 | #123: {title} | by:code-health | low | low | auto:build + auto:merge | {grant-check's RATIONALE} |
+| 2 | #124: {title} | by:capture | medium | high | auto:build | {grant-check's RATIONALE} |
+| 3 | #125: {title} | (human-filed) | — | — | flag back (needs scoring) | {grant-check's RATIONALE} |
+| 4 | #118: {title} | by:harness-health | low | low | re-authorize (bot:blocked) | Prior failure — human judgment required, not a mechanical replay |
 ```
 
-`Origin` reads `facets.origin` from Step 1's output (`by:{origin}`, or `(human-filed)` when absent). `Risk` and `Effort` are derived from the record's current `risk:*` and `effort:*` labels via `bin/lib/issues/record.js`'s `parseRecordFacets` function — for records scored by `/specify`, these display `low`/`medium`/`high`; for unscored records, they display `—` (dash, a placeholder allowing inline scoring override in the next step). For 10 or more records, lead with a one-line count summary before the table (e.g. "14 records: 9 auto:build-eligible, 2 auto:build+auto:merge-eligible, 2 need scoring, 1 re-authorization candidate") so the human sees the batch's shape before the row detail.
+`Origin` reads `facets.origin` from Step 1's output (`by:{origin}`, or `(human-filed)` when absent). `Risk` and `Effort` are derived from the record's current `risk:*` and `effort:*` labels via `bin/lib/issues/record.js`'s `parseRecordFacets` function — for records scored by `/specify`, these display `low`/`medium`/`high`; for unscored records, they display `—` (dash, a placeholder allowing inline scoring override in the next step). `Rationale` is `grant-check`'s own `RATIONALE` output verbatim (truncate to roughly one line if it runs long — the full text is still preserved in `decisions.md`'s log line, Step 4) for every `fresh` row; `blocked` rows carry the fixed re-authorization rationale shown above instead, since they skip `grant-check` entirely. For 10 or more records, lead with a one-line count summary before the table (e.g. "14 records: 9 auto:build-eligible, 2 auto:build+auto:merge-eligible, 2 need scoring, 1 re-authorization candidate") so the human sees the batch's shape before the row detail.
 
 Then one `AskUserQuestion`:
 
@@ -165,6 +170,12 @@ else
 fi
 # Row also grants auto:merge:
 gh issue edit "$ISSUE" --add-label auto:merge
+# Row's scoring came from an inline override in Step 3 (an unscored "—" row the human supplied
+# risk:$RISK_TIER / effort:$EFFORT_TIER for directly, rather than flagging back or accepting the
+# default "needs scoring" recommendation) — persist the human-supplied scoring as labels too,
+# not just the grant, so the record doesn't re-enter later batch views (e.g.
+# /claude-tweaks:review-backlog's risk-value table) still showing as unscored:
+gh issue edit "$ISSUE" --add-label "risk:$RISK_TIER" --add-label "effort:$EFFORT_TIER"
 ```
 
 Stripping `bot:blocked` in the same edit as the grant matters: without it, the record carries both `bot:blocked` and a fresh `auto:build`, and `/claude-tweaks:dispatch`'s skip rule ignores anything `bot:blocked` forever regardless of the new grant.
@@ -179,10 +190,12 @@ gh issue comment "$ISSUE" --body-file /tmp/triage-flagback-${ISSUE}.md
 Log every action to this run's `decisions.md` (standalone-auto run dir per `_shared/pipeline-run-dir.md` — `/claude-tweaks:triage` is on the allowlist):
 
 ```
-AUTO {time} — Triage: granted auto:build{ + auto:merge} to #{n} (risk:{riskTier}, effort:{effortTier}).
+AUTO {time} — Triage: granted auto:build{ + auto:merge} to #{n} (risk:{riskTier}, effort:{effortTier}). Rationale: {grant-check's RATIONALE}.
 AUTO {time} — Triage: re-authorized #{n} — stripped bot:blocked, granted auto:build{ + auto:merge}.
 AUTO {time} — Triage: flagged back #{n} — {missing sections | needs scoring}.
 ```
+
+The granted-row log line carries the full `RATIONALE` text (not truncated, unlike the batch table's own display) — this is the durable record of why a content-aware judge deemed the record safe to build (and merge) unsupervised, for anyone auditing `decisions.md` after the fact.
 
 ### Concurrency
 
