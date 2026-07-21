@@ -97,6 +97,23 @@ function cmdValidateFindings(args) {
     process.exit(2);
   }
 
+  // buildValidateFindingsUpdate only patches a cursor when target is present,
+  // or sets __coverageScan when coverageScan is set (see
+  // lib/journey-health/cache.js). A real (non-dry-run) run that omits both (a
+  // flag typo, or a caller path that forgets to thread the journey id
+  // through) still writes the run record and dedup cache correctly but never
+  // advances any audit cursor — the journey then gets perpetually re-selected
+  // as stale/overdue on every future run. Mirrors bin/harness-health.js's own
+  // hard-gate for validate-findings.
+  if (!args.dryRun && !(args.target || args.coverageScan)) {
+    process.stderr.write(
+      'validate-findings: a real (non-dry-run) run requires --target, or --coverage-scan (or both) — ' +
+      'without one of them, no audit cursor advances and rotation state silently drifts. ' +
+      'Pass --dry-run to preview without it.\n',
+    );
+    process.exit(2);
+  }
+
   let raw;
   try {
     raw = JSON.parse(fs.readFileSync(findingsPath, 'utf8'));

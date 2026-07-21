@@ -37,7 +37,7 @@ test('validate-findings: valid finding emits one payload on stdout', () => {
   const findingsFile = path.join(root, 'findings.json');
   fs.writeFileSync(findingsFile, JSON.stringify([validFinding()]));
 
-  const result = runValidateFindings(root, findingsFile);
+  const result = runValidateFindings(root, findingsFile, ['--target', 'decisions/0007-foo']);
   assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
 
   const payloads = JSON.parse(result.stdout);
@@ -57,7 +57,7 @@ test('validate-findings: malformed finding is dropped with a stderr reason, vali
   const findingsFile = path.join(root, 'findings.json');
   fs.writeFileSync(findingsFile, JSON.stringify([malformed, good]));
 
-  const result = runValidateFindings(root, findingsFile);
+  const result = runValidateFindings(root, findingsFile, ['--target', 'guides/setup']);
   assert.strictEqual(result.status, 0);
   const payloads = JSON.parse(result.stdout);
   assert.strictEqual(payloads.length, 1);
@@ -80,14 +80,14 @@ test('validate-findings: a finding already open in the issue index is skipped (d
   const findingsFile = path.join(root, 'findings.json');
   fs.writeFileSync(findingsFile, JSON.stringify([validFinding()]));
 
-  const first = runValidateFindings(root, findingsFile);
+  const first = runValidateFindings(root, findingsFile, ['--target', 'decisions/0007-foo']);
   const firstPayloads = JSON.parse(first.stdout);
   const fp = firstPayloads[0].body.match(/<!--\s*work-fingerprint:\s*(docshealth-[0-9a-f]{8})\s*-->/)[1];
 
   const issuesFile = path.join(root, 'issues.json');
   fs.writeFileSync(issuesFile, JSON.stringify([{ number: 1, state: 'open', labels: ['by:docs-health'], fingerprint: fp }]));
 
-  const second = runValidateFindings(root, findingsFile, ['--issues', issuesFile]);
+  const second = runValidateFindings(root, findingsFile, ['--issues', issuesFile, '--target', 'decisions/0007-foo']);
   assert.strictEqual(JSON.parse(second.stdout).length, 0, 'open finding must be skipped');
 });
 
@@ -99,7 +99,7 @@ test('validate-findings: a malformed --issues file degrades gracefully with a st
   const badIssuesFile = path.join(root, 'bad-issues.json');
   fs.writeFileSync(badIssuesFile, 'not valid json{{{');
 
-  const result = runValidateFindings(root, findingsFile, ['--issues', badIssuesFile]);
+  const result = runValidateFindings(root, findingsFile, ['--issues', badIssuesFile, '--target', 'decisions/0007-foo']);
   assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
   const payloads = JSON.parse(result.stdout);
   assert.strictEqual(payloads.length, 1, 'must still file the finding, just without issue-based dedup');
@@ -113,7 +113,7 @@ test('validate-findings: a malformed --issues array element (e.g. null) is skipp
   const issuesFile = path.join(root, 'issues-with-null.json');
   fs.writeFileSync(issuesFile, JSON.stringify([null, { number: 1, state: 'open', labels: [], fingerprint: 'zzz' }]));
 
-  const result = runValidateFindings(root, findingsFile, ['--issues', issuesFile]);
+  const result = runValidateFindings(root, findingsFile, ['--issues', issuesFile, '--target', 'decisions/0007-foo']);
   assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
   assert.ok(result.stderr.includes('skipping malformed issue entry'), `expected a skip warning in stderr: ${result.stderr}`);
   const payloads = JSON.parse(result.stdout);
@@ -122,8 +122,37 @@ test('validate-findings: a malformed --issues array element (e.g. null) is skipp
 
 test('validate-findings: exits non-zero when the findings file is missing', () => {
   const root = tmp();
-  const result = runValidateFindings(root, path.join(root, 'nonexistent.json'));
+  const result = runValidateFindings(root, path.join(root, 'nonexistent.json'), ['--target', 'decisions/0007-foo']);
   assert.notStrictEqual(result.status, 0);
+});
+
+// ── Persistence hardening: --target required for a real run ──
+//
+// buildValidateFindingsUpdate only patches an audit cursor when target is
+// present — see bin/lib/docs-health/cache.js. Without a hard gate, a
+// non-dry-run call that omits it (a flag typo, or a skill-prompt drift) used
+// to still write the run record and dedup cache correctly but never advance
+// any cursor, so that doc would be perpetually re-selected as stale/overdue.
+// Mirrors bin/harness-health.js's own hard-gate for validate-findings.
+
+test('validate-findings: exits 2 when --target is omitted on a non-dry-run call', () => {
+  const root = tmp();
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([]));
+
+  const result = runValidateFindings(root, findingsFile);
+  assert.strictEqual(result.status, 2, `expected exit 2, got ${result.status}. stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes('--target'), `expected the gate message in stderr: ${result.stderr}`);
+});
+
+test('validate-findings: --dry-run without --target still succeeds (preview mode unaffected)', () => {
+  const root = tmp();
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([validFinding()]));
+
+  const result = runValidateFindings(root, findingsFile, ['--dry-run']);
+  assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+  assert.strictEqual(JSON.parse(result.stdout).length, 1);
 });
 
 test('churn-report: prints "no run logs found" when no runs exist', () => {
@@ -138,14 +167,14 @@ test('validate-findings: a finding matching a closed non-wontfix issue is reopen
   const findingsFile = path.join(root, 'findings.json');
   fs.writeFileSync(findingsFile, JSON.stringify([validFinding()]));
 
-  const first = runValidateFindings(root, findingsFile);
+  const first = runValidateFindings(root, findingsFile, ['--target', 'decisions/0007-foo']);
   const firstPayloads = JSON.parse(first.stdout);
   const fp = firstPayloads[0].body.match(/<!--\s*work-fingerprint:\s*(docshealth-[0-9a-f]{8})\s*-->/)[1];
 
   const issuesFile = path.join(root, 'issues.json');
   fs.writeFileSync(issuesFile, JSON.stringify([{ number: 9, state: 'closed', labels: ['by:docs-health'], fingerprint: fp }]));
 
-  const second = runValidateFindings(root, findingsFile, ['--issues', issuesFile]);
+  const second = runValidateFindings(root, findingsFile, ['--issues', issuesFile, '--target', 'decisions/0007-foo']);
   assert.strictEqual(second.status, 0, `stderr: ${second.stderr}`);
   const payloads = JSON.parse(second.stdout);
   assert.strictEqual(payloads.length, 1, 'a regressed finding must still emit a payload, not be silently dropped');
@@ -160,7 +189,7 @@ test('validate-findings: a real run still succeeds and emits its payload when du
   const findingsFile = path.join(root, 'findings.json');
   fs.writeFileSync(findingsFile, JSON.stringify([validFinding()]));
 
-  const result = runValidateFindings(root, findingsFile, ['--run-id', 'test-run-1']);
+  const result = runValidateFindings(root, findingsFile, ['--run-id', 'test-run-1', '--target', 'decisions/0007-foo']);
   assert.strictEqual(result.status, 0, `expected non-fatal exit, got stderr: ${result.stderr}`);
   const payloads = JSON.parse(result.stdout);
   assert.strictEqual(payloads.length, 1, 'payload must still emit despite the persistence failure');

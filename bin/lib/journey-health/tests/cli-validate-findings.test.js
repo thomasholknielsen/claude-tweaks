@@ -72,7 +72,7 @@ test('validate-findings drops an invalid finding and reports 0 payloads', () => 
   const root = tmp();
   const findingsFile = path.join(root, 'findings.json');
   fs.writeFileSync(findingsFile, JSON.stringify([finding({ category: 'bogus' })]));
-  const raw = execFileSync('node', [CLI, 'validate-findings', findingsFile, '--root', root], { encoding: 'utf8' });
+  const raw = execFileSync('node', [CLI, 'validate-findings', findingsFile, '--target', 'checkout-flow', '--root', root], { encoding: 'utf8' });
   assert.deepStrictEqual(JSON.parse(raw), []);
 });
 
@@ -112,11 +112,11 @@ test('a finding marked declined is suppressed by a later validate-findings run o
   const root = tmp();
   const findingsFile = path.join(root, 'findings.json');
   fs.writeFileSync(findingsFile, JSON.stringify([finding()]));
-  const first = JSON.parse(execFileSync('node', [CLI, 'validate-findings', findingsFile, '--root', root], { encoding: 'utf8' }));
+  const first = JSON.parse(execFileSync('node', [CLI, 'validate-findings', findingsFile, '--target', 'checkout-flow', '--root', root], { encoding: 'utf8' }));
   assert.strictEqual(first.length, 1, 'first run must file the finding');
   const fp = first[0].id;
   execFileSync('node', [CLI, 'mark', fp, 'declined', '--root', root], { encoding: 'utf8' });
-  const second = JSON.parse(execFileSync('node', [CLI, 'validate-findings', findingsFile, '--root', root], { encoding: 'utf8' }));
+  const second = JSON.parse(execFileSync('node', [CLI, 'validate-findings', findingsFile, '--target', 'checkout-flow', '--root', root], { encoding: 'utf8' }));
   assert.strictEqual(second.length, 0, 'declined finding must be suppressed on the next run');
 });
 
@@ -126,19 +126,51 @@ test('validate-findings exits non-zero for a missing findings file argument', ()
   assert.notStrictEqual(result.status, 0);
 });
 
+// ── Persistence hardening: --target or --coverage-scan required for a real run ──
+//
+// buildValidateFindingsUpdate only patches an audit cursor when target is
+// present, or sets __coverageScan when coverageScan is set — see
+// bin/lib/journey-health/cache.js. Without a hard gate, a non-dry-run call
+// that omits both (a flag typo, or a caller path that forgets to thread the
+// journey id through) used to still write the run record and dedup cache
+// correctly but never advance any cursor, so that journey would be
+// perpetually re-selected as stale/overdue. Mirrors
+// bin/harness-health.js's own hard-gate for validate-findings.
+
+test('validate-findings: exits 2 when neither --target nor --coverage-scan is given on a non-dry-run call', () => {
+  const root = tmp();
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([]));
+
+  const result = spawnSync('node', [CLI, 'validate-findings', findingsFile, '--root', root], { encoding: 'utf8' });
+  assert.strictEqual(result.status, 2, `expected exit 2, got ${result.status}. stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes('--target') && result.stderr.includes('--coverage-scan'),
+    `expected the gate message in stderr: ${result.stderr}`);
+});
+
+test('validate-findings: --dry-run without --target/--coverage-scan still succeeds (preview mode unaffected)', () => {
+  const root = tmp();
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([finding()]));
+
+  const result = spawnSync('node', [CLI, 'validate-findings', findingsFile, '--dry-run', '--root', root], { encoding: 'utf8' });
+  assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+  assert.strictEqual(JSON.parse(result.stdout).length, 1);
+});
+
 test('validate-findings: a finding matching a closed non-wontfix issue is reopened, not dropped', () => {
   const root = tmp();
   const findingsFile = path.join(root, 'findings.json');
   fs.writeFileSync(findingsFile, JSON.stringify([finding()]));
 
-  const first = spawnSync('node', [CLI, 'validate-findings', findingsFile, '--root', root], { encoding: 'utf8' });
+  const first = spawnSync('node', [CLI, 'validate-findings', findingsFile, '--target', 'checkout-flow', '--root', root], { encoding: 'utf8' });
   const firstPayloads = JSON.parse(first.stdout);
   const fp = firstPayloads[0].body.match(/<!--\s*work-fingerprint:\s*(journeyhealth-[0-9a-f]{8})\s*-->/)[1];
 
   const issuesFile = path.join(root, 'issues.json');
   fs.writeFileSync(issuesFile, JSON.stringify([{ number: 9, state: 'closed', labels: ['by:journey-health'], fingerprint: fp }]));
 
-  const second = spawnSync('node', [CLI, 'validate-findings', findingsFile, '--root', root, '--issues', issuesFile], { encoding: 'utf8' });
+  const second = spawnSync('node', [CLI, 'validate-findings', findingsFile, '--target', 'checkout-flow', '--root', root, '--issues', issuesFile], { encoding: 'utf8' });
   assert.strictEqual(second.status, 0, `stderr: ${second.stderr}`);
   const payloads = JSON.parse(second.stdout);
   assert.strictEqual(payloads.length, 1, 'a regressed finding must still emit a payload, not be silently dropped');
@@ -155,7 +187,7 @@ test('validate-findings: a malformed --issues array element (e.g. null) is skipp
   const issuesFile = path.join(root, 'issues-with-null.json');
   fs.writeFileSync(issuesFile, JSON.stringify([null, { number: 1, state: 'open', labels: [], fingerprint: 'zzz' }]));
 
-  const result = spawnSync('node', [CLI, 'validate-findings', findingsFile, '--root', root, '--issues', issuesFile], { encoding: 'utf8' });
+  const result = spawnSync('node', [CLI, 'validate-findings', findingsFile, '--target', 'checkout-flow', '--root', root, '--issues', issuesFile], { encoding: 'utf8' });
   assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
   assert.ok(result.stderr.includes('skipping malformed issue entry'), `expected a skip warning in stderr: ${result.stderr}`);
   const payloads = JSON.parse(result.stdout);
@@ -172,7 +204,7 @@ test('validate-findings: a real run still succeeds and emits its payload when du
   const findingsFile = path.join(root, 'findings.json');
   fs.writeFileSync(findingsFile, JSON.stringify([finding()]));
 
-  const result = spawnSync('node', [CLI, 'validate-findings', findingsFile, '--root', root, '--run-id', 'test-run-1'], { encoding: 'utf8' });
+  const result = spawnSync('node', [CLI, 'validate-findings', findingsFile, '--target', 'checkout-flow', '--root', root, '--run-id', 'test-run-1'], { encoding: 'utf8' });
   assert.strictEqual(result.status, 0, `expected non-fatal exit, got stderr: ${result.stderr}`);
   const payloads = JSON.parse(result.stdout);
   assert.strictEqual(payloads.length, 1, 'payload must still emit despite the persistence failure');
