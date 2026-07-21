@@ -47,7 +47,7 @@ Existing CLAUDE.md files may pre-date claude-tweaks contract changes (auto-mode,
 | `## claude-tweaks Pipeline` section | `^## claude-tweaks Pipeline` in CLAUDE.md | v4.0+ | `claude-md-template.md` Initial Mode template |
 | Auto-mode flag (`auto-mode: default-off` / `default-on`) | `auto-mode:` in CLAUDE.md | v4.5+ | `claude-md-template.md` Project Defaults block |
 | Bookend architecture paragraph | `Bookend architecture` in CLAUDE.md | v4.6+ | `claude-md-template.md` Pipeline section |
-| `## Auto-mode policy` block (7 levers) | `^## Auto-mode policy` in CLAUDE.md | v4.6+ | `claude-md-template.md` Auto-mode policy block |
+| `## Auto-mode policy` block (lever count matches `claude-md-template.md`'s block — see there, not restated here) | `^## Auto-mode policy` in CLAUDE.md | v4.6+ | `claude-md-template.md` Auto-mode policy block |
 | Pipeline run directory reference | `pipelines/{run-id}` in CLAUDE.md | v4.6+ | `claude-md-template.md` Pipeline section |
 
 For each missing marker, record a **Contract Drift** entry with the suggested patch — the body comes verbatim from `claude-md-template.md`, so no creative writing required. Carry these forward into the Drift Report (Phase 3) under a dedicated "Contract Drift" section so the user can approve them as a batch alongside other CLAUDE.md patches.
@@ -87,7 +87,8 @@ After Phase 1u (inventory) and Phase 1u.5 (contract drift) complete, evaluate th
 
 **Early-exit criteria:**
 
-- Total drift count = 0 **AND** preliminary gap signal < 3 → **early-exit fast path**
+- `$ARGUMENTS` contains `--full` → skip this gate entirely, go straight to the full pass (Phase 2 onward) regardless of drift/gap counts. This is the override the early-exit output text and `SKILL.md` both advertise as the way to force the complete reconnaissance pass.
+- Otherwise: Total drift count = 0 **AND** preliminary gap signal < 3 → **early-exit fast path**
 
 **On early-exit:**
 

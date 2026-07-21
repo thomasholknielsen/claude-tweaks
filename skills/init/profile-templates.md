@@ -86,11 +86,7 @@ CLAUDE.md sections required by the current claude-tweaks contract that are missi
 
 | Missing Marker | Contract Version | Patch Source |
 |---|---|---|
-| `## claude-tweaks Pipeline` section | v4.0+ | `claude-md-template.md` Initial Mode → Pipeline section |
-| `auto-mode:` flag in Project Defaults | v4.5+ | `claude-md-template.md` Project Defaults block |
-| Bookend architecture paragraph | v4.6+ | `claude-md-template.md` Pipeline section (paragraph) |
-| `## Auto-mode policy` block (7 levers) | v4.6+ | `claude-md-template.md` Auto-mode policy block |
-| Pipeline run directory reference | v4.6+ | `claude-md-template.md` Pipeline section (sentence) |
+| {one row per marker flagged missing in Phase 1u.5's marker table — see `update-mode.md`, the canonical owner of the marker list} | {version} | {patch source} |
 
 Call `AskUserQuestion`:
 
