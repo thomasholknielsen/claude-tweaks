@@ -115,7 +115,7 @@ See `cleanup-procedures.md` in this skill's directory for the canonical cleanup 
 When `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh — see Step 3.5), skip all three sub-scans below entirely — report "No configuration updates needed (fast-lane: diff touches no registry-matched path, no new dependency, no schema/config file)" and proceed to Step 7 — when ALL of the following hold:
 
 - `git diff --name-only` against this work's base ref matches none of `docs/REGISTRY.md`'s Auto-detect patterns. Reuse `bin/lib/issues/blast-radius.js`'s `classifyDiffFiles` — it reads `f.path` off each element of the `files` array, so map each bare filename from `git diff --name-only` to `{path: f}` before calling it (a bare string has no `.path` and would otherwise silently classify as `isSensitive: false` regardless of content). Pass the registry's patterns as the `sensitivePaths` argument — a result's `isSensitive: true` means a registry-pattern hit here, not a merge-sensitivity one; the function is generic path-glob matching regardless of which patterns list it's fed, and is already fully tested.
-- `git diff package.json` (and any workspace-level equivalent) shows no added dependency.
+- The diff shows no added dependency in the project's own dependency manifest(s) — `package.json` (and any workspace-level equivalent), or `pyproject.toml`, `Cargo.toml`, `go.mod`, or equivalent for the project's stack (same manifest set `verification.md` Step 1 scans).
 - No file in the diff matches a schema/env/IaC/CI/platform-config pattern — reuse Build Common Step 5.5's own Category A/B trigger list (`operational-checklist.md` in `skills/build/`).
 
 If `docs/REGISTRY.md` doesn't exist, this pre-check cannot resolve the first condition — treat it as unmet (run the sub-scans normally) rather than skipping on incomplete information. This pre-check only applies under `fast-lane`; a `standard`-profile run (or standalone wrap-up, where no `config.yml` exists) always runs all three sub-scans as before.
@@ -413,7 +413,7 @@ Generate from: cleanup actions in Step 10, config/skill updates applied, ledger 
 **Conditional batch decision** — only present when the Wrap-Up Review Console (Step 8.6) did NOT run:
 
 - **Step 8.6 ran** (`auto` or `hybrid` mode with a pipeline run directory) → cleanup + config items were already approved at the Review Console. Skip this batch table and proceed to Step 10 execution. Rendering a second batch table here duplicates the Review Console and violates the "one decision per message" + bookend ("at most two stops in auto") promises.
-- **Step 8.6 was skipped** (interactive mode, standalone wrap-up, or empty-console fast path) → present the batch decision below.
+- **Step 8.6 was skipped** — interactive mode, standalone wrap-up, or empty-console fast path → present the batch decision below. **Except** `MULTISPEC_REVIEW_DEFER=1` (Step 8.6's multi-spec defer branch): that case also skips the per-spec console, but do NOT present the batch decision here — `staged/` and `decisions.md` were deliberately left untouched for the parent `/flow`'s single consolidated end-of-run console to approve later across every spec in the run. Proceed straight to Step 10 the same as the "Step 8.6 ran" branch above; presenting this batch table here would reintroduce the duplicate, premature approval prompt the defer protocol exists to prevent.
 
 Render the cleanup rows from `cleanup-procedures.md`'s canonical list (filtered by Condition), followed by configuration update rows from Step 6:
 
