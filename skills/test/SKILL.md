@@ -224,7 +224,7 @@ Call `AskUserQuestion` with:
 
 If the user chooses to fix:
 - **Mechanical failures (lint/type):** make the changes directly, re-run the failed checks, report results.
-- **Behavioral test failures:** do not edit-and-pray. Invoke `/superpowers:systematic-debugging` — reproduce the failure on command, identify the confirmed cause, then fix it. A failing test is a reproduction you already have; use it. Re-run the failed checks to verify the fix and that nothing else regressed. If the root cause can't be pinned down, surface what you found rather than guessing at a patch.
+- **Behavioral test failures:** follow the reproduce-first discipline in `_shared/reproduce-first-discipline.md` (reproduce via `/superpowers:systematic-debugging`, fix the confirmed cause, escalate rather than guess if it can't be reproduced), then re-run the failed checks to verify the fix and that nothing else regressed.
 - Report the results.
 
 **Auto-fix for lint/type-only failures (interactive default):** When failures are exclusively lint errors or type errors (no test failures), auto-fix and re-verify without asking. State: "Auto-fixing {N} lint/type errors" and re-run the failed checks. If re-verification passes, proceed. If re-verification fails or new issues appear, stop and present the 3-option choice above. For test failures or mixed failure types (lint + test), always present the choice — and resolve test failures via reproduce-first debugging, not blind patching.
@@ -232,11 +232,11 @@ If the user chooses to fix:
 **QA failures** are not auto-fixable — they indicate broken user-facing behavior that requires investigation. For QA failures, call `AskUserQuestion` with:
 
 - `question`: `"{N} QA story failure(s) found. QA failures require investigation — they cannot be auto-fixed. What do you want to do?"`, `header`: `"QA failures"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Show failure details (Recommended)"`, `description`: `"I'll investigate the root cause via reproduce-first debugging (/superpowers:systematic-debugging)"`
+- Option 1 — `label`: `"Show failure details (Recommended)"`, `description`: `"I'll investigate the root cause via the reproduce-first discipline (/superpowers:systematic-debugging)"`
 - Option 2 — `label`: `"Re-run failed stories"`, `description`: `"/claude-tweaks:test qa retry={RUN_DIR}"`
 - Option 3 — `label`: `"Skip"`, `description`: `"I'll investigate manually"`
 
-When investigating a QA failure (option 1), use `/superpowers:systematic-debugging` — a QA story failure is already a reproduction; confirm it reproduces, find the cause, then fix. Do not patch the symptom (e.g., loosening a selector) without confirming the underlying behavior is correct.
+When investigating a QA failure (option 1), follow the reproduce-first discipline in `_shared/reproduce-first-discipline.md` via `/superpowers:systematic-debugging` — the QA story failure is already a reproduction; confirm it, find the confirmed cause, then fix it, without patching the symptom (e.g., loosening a selector).
 
 ## Next Actions
 
@@ -273,7 +273,7 @@ Whichever matches the current run's actual signal gets `(Recommended)` on its la
 | Ignoring lint warnings | Warnings accumulate into a noisy codebase — surface them |
 | Running QA on broken code | Verification must pass before QA is meaningful — types/lint/tests gate QA in `all` mode |
 | Auto-fixing QA failures | QA failures indicate broken user-facing behavior — they need investigation, not automated patches |
-| Patching a behavioral test/QA failure without reproducing the cause | A failing test is a reproduction you already have — confirm it reproduces, find the root cause via `/superpowers:systematic-debugging`, then fix. Loosening assertions or selectors to make red go green hides the bug. |
+| Patching a behavioral test/QA failure without reproducing the cause | Follow the reproduce-first discipline in `_shared/reproduce-first-discipline.md` — confirm the repro, find the root cause via `/superpowers:systematic-debugging`, then fix. Never loosen an assertion or selector to make red go green. |
 | Skipping QA when stories exist in pipeline | Stories exist to be validated — if `VERIFICATION_PASSED` is set and stories exist, QA must run |
 | Treating Design CLI skip as a test failure | The wrapper skips for legitimate reasons (backend project, Impeccable not installed, kill-switch disabled). None are test failures — only `result: fail` from the wrapper is a gate failure. |
 | Auto-fixing Design CLI findings | Design findings require human judgment — surface them, do not auto-modify code. The Phase 1 wrapper's `test` mode is read-only by design (the Phase 2 `polish` mode is the code-modifying counterpart, invoked separately by `/flow`). |
