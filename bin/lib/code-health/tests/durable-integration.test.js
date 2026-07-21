@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { execFileSync } = require('child_process');
+const { execFileSync, spawnSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -41,6 +41,14 @@ test('retry-queue update <results.json> dispatches correctly against a repo with
     { fingerprint: 'codehealth-aaaa0001', payload: { title: 'Stale skill count' }, ok: false, error: 'filing failed: 500' },
   ]));
 
-  const out = execFileSync('node', [CLI, 'retry-queue', 'update', resultsFile, '--root', root], { encoding: 'utf8' });
-  assert.deepStrictEqual(JSON.parse(out), [], 'a single failed attempt has not crossed the 3-attempt escalation threshold');
+  // spawnSync, not execFileSync: against this fixture's unreachable fake git
+  // remote, the durable-state write itself genuinely fails after exhausting
+  // its retries, so the CLI now correctly exits non-zero (a real, intended
+  // consequence of the retry-cli.js fix — a genuinely failed persistence
+  // attempt must not silently report success to the calling shell/Routine).
+  // execFileSync would throw on that non-zero exit before this test ever got
+  // to inspect stdout; spawnSync returns a result object instead.
+  const result = spawnSync('node', [CLI, 'retry-queue', 'update', resultsFile, '--root', root], { encoding: 'utf8' });
+  assert.deepStrictEqual(JSON.parse(result.stdout), [], 'a single failed attempt has not crossed the 3-attempt escalation threshold');
+  assert.notStrictEqual(result.status, 0, 'the durable write against this unreachable remote genuinely fails, so this must not exit 0');
 });
