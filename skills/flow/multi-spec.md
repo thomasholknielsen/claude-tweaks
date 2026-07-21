@@ -9,7 +9,7 @@ Before starting, validate the list:
 1. **Parse** — split on commas, resolve each to a record (`materialize.md`) or, under the legacy spec-file alias, a spec file
 2. **Prerequisites** — for a record-reference target, check that each `blocked-by:` dependency (`materialize.md`'s Populating the header — sourced from `record.js`'s `parseDependencies`, `facets.blockedBy`, or the native dependency API depending on driver/`work-links`) is satisfied; for the legacy spec-file alias, check that each spec's `depends-on:` frontmatter is satisfied. Reject any target with unmet prerequisites.
 
-> A record-reference target's dependency data (`blocked-by:`) is read via `materialize.md`'s Resolution step — read-only, safe before any run dir or worktree exists — or the materialized header once composed; see Steps 3-4 below. `Files:`-based conflict detection (Step 5) remains legacy-spec-file-alias-only for now: the materialized header carries no per-record file-list field, so cross-record conflict detection for record-reference targets is a known gap, not covered by this fix.
+> A record-reference target's dependency data (`blocked-by:`) is read via `materialize.md`'s Resolution step — read-only, safe before any run dir or worktree exists — or the materialized header once composed; see Steps 3-4 below. Cross-spec conflict detection (Step 5) covers both target types: the legacy `Files:` frontmatter path for spec-file targets, and the record body's `### Key Files` subsection (via the same `groupByFileOverlap` primitive `/claude-tweaks:help`'s and `/claude-tweaks:specify`'s own conflict detection already use) for record-reference targets — see "Cross-spec conflict detection" below.
 
 > **Parallel execution:** Use parallel tool calls aggressively — frontmatter/record reads across N targets (step 3 below) are independent and should run concurrently.
 
@@ -35,16 +35,18 @@ A target may declare prerequisite records/specs — `blocked-by:` on a record-re
 3. **Topologically sort** the specs
 4. **Compare against user order:**
    - **Match** → proceed silently with the user's order
-   - **Mismatch** (user order violates a dependency edge) → surface and offer:
+   - **Mismatch** (user order violates a dependency edge) → surface:
      ```
      Spec order doesn't match dependencies:
        You requested: 159 → 160 → 157
        Topological:   157 → 159 → 160   (157 is depended-on by 159; 159 by 160)
-     
-     1. Use topological order (Recommended)
-     2. Keep my order — I know what I'm doing
-     3. Cancel
      ```
+     then call `AskUserQuestion`:
+     - `question`: `"Spec order doesn't match dependencies — how do you want to proceed?"`, `header`: `"Dependency order"`, `multiSelect`: `false`
+     - Option 1 — `label`: `"Use topological order (Recommended)"`, `description`: `"Re-order to 157 → 159 → 160"`
+     - Option 2 — `label`: `"Keep my order"`, `description`: `"I know what I'm doing — run 159 → 160 → 157 as requested"`
+     - Option 3 — `label`: `"Cancel"`, `description`: `"Stop; I'll fix the dependencies or the order myself"`
+
      In `auto` mode, **default to option 1** silently and log: `AUTO {time} — Step 1: re-ordered specs to match dependency graph. User order: 159,160,157. Topological: 157,159,160. Reversibility: high.`
 
 ### Targets with a dependency on a target NOT in the run
@@ -57,13 +59,13 @@ The dependency check is the same regardless of whether the prerequisite is in-ru
 
 ## Cross-spec conflict detection
 
-When two specs in the run declare overlapping `Files:` entries, sequential execution can compound (spec 159 builds on top of spec 157's changes, possibly conflicting with what spec 159's spec assumed) and parallel execution (when added later) would conflict outright.
+When two specs in the run declare overlapping files, sequential execution can compound (spec 159 builds on top of spec 157's changes, possibly conflicting with what spec 159's spec assumed) and parallel execution (when added later) would conflict outright.
 
 ### Procedure
 
-1. Read each spec's `Files:` declarations from frontmatter and from the plan if one exists
-2. For each pair of specs in the run, compute the file intersection
-3. For pairs with non-empty intersection, record a **conflict warning**
+1. Collect each target's key files into a single `[{id, keyFiles}]` list: for a legacy spec-file target, read `Files:` declarations from frontmatter and from the plan if one exists; for a record-reference target, extract the `### Key Files` subsection (under `## Technical Approach`, per `spec-template.md`'s record body template) from the record body already fetched during Validation step 3 above — the same extraction `/claude-tweaks:specify` Step 1 and `help/status-scan.md`'s Conflict detection section perform. A record with no `### Key Files` subsection (not yet spec-shaped — shouldn't happen for a target that reached this pipeline, but treat defensively) contributes an empty `keyFiles` array rather than erroring.
+2. Call the shared grouping primitive — `groupByFileOverlap` (`bin/lib/issues/grouping.js`), the same one `/claude-tweaks:help`'s dashboard conflict detection and `/claude-tweaks:specify`'s creation-time check both use — over the combined list.
+3. Any group of size > 1 returned by `groupByFileOverlap` shares files across targets — record a **conflict warning** for each pair in that group.
 
 ### Presentation
 

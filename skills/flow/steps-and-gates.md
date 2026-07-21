@@ -12,7 +12,7 @@ Only automatable skills can be included in the pipeline:
 | `stories` | `/claude-tweaks:stories` | Autonomous — browses app, generates YAML stories. Auto-triggered when build produces UI file changes (unless `no-stories`). |
 | `test` | `/claude-tweaks:test` | Mechanical pass/fail gate — types, lint, tests, QA story validation. Sets `TEST_PASSED=true` on pass. |
 | `review` | `/claude-tweaks:review` | Code review, simplification, visual browser review with idea generation (when browser available) — produces a verdict. Gates on `TEST_PASSED`. |
-| `polish` | `/claude-tweaks:design-wrapper polish <spec>` | Invokes Impeccable polish + clarify + harden (auto-fit) plus issue-driven commands when audit findings exist. Modifies code. Always followed by re-verify (`/test skip-qa`). Gates on review verdict PASS. Skipped on non-frontend specs (wrapper detection). |
+| `polish` | `/claude-tweaks:design-wrapper polish <spec>` | Invokes Impeccable polish + clarify + harden (auto-fit) plus issue-driven commands when audit findings exist. Modifies code. Followed by re-verify (`/test skip-qa`) only when polish modified code — see the polish-phase decision tree below. Gates on review verdict PASS. Skipped on non-frontend specs (wrapper detection). |
 | `wrap-up` | `/claude-tweaks:wrap-up` | Reflection, cleanup, knowledge routing — produces actionable summary |
 
 **Not allowed in flow:** `capture`, `challenge`, `specify`, `init`, `tidy`, `help`, `browse` — these require interactive decision-making or are utility skills.
