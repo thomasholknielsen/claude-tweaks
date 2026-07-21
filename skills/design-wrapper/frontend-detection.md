@@ -70,7 +70,7 @@ Every leaf record may declare two design-related body-metadata lines: `Surface:`
 
 **The canonical definition of these fields lives in the spec template** at `skills/specify/spec-template.md` (see the body-metadata block description near the top of the fenced template). Both the wrapper (which reads the fields) and `/specify` (which writes them) reference that single source of truth — do not duplicate the value enumerations across multiple files.
 
-For Layer 2 detection, see `Surface:` values in `skills/specify/spec-template.md` (canonical source). Wrapper behavior: `web`, `mobile`, or `desktop` → pass Layer 2 (Layer 3 sniff still runs to filter the file list; legacy `frontend` reads as `web`); `backend` or `infra` → skip with `{skipped: "non-frontend spec (surface declared)"}`; missing → fall through to Layer 3 sniff.
+For Layer 2 detection, see `Surface:` values in `skills/specify/spec-template.md` (canonical source for the value enumeration). The Layer 2 pass/skip/fall-through decision table itself lives in `SKILL.md`'s "Universal preconditions" Step 1 (Layer 2 section, this skill's own directory) — the operational procedure every mode's Step 1 actually runs; this file doesn't restate it, to avoid the two drifting apart.
 
 `Design-intent:` is not read in Layer 2 — it gates intent-driven command dispatch in `polish` mode. See the spec template's body-metadata block description for its enumeration.
 

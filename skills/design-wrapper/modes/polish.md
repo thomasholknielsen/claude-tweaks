@@ -20,7 +20,7 @@ Run the universal preconditions from `../SKILL.md` (all three detection layers +
 
 ### Step 1: Run preconditions
 
-On any skip, return the skip object — `/flow` notes the skip and proceeds to wrap-up without invoking re-verify.
+On any skip, return the skip object — `/claude-tweaks:flow` notes the skip and proceeds to wrap-up without invoking re-verify.
 
 ### Step 2: Resolve changed files
 
@@ -53,19 +53,19 @@ Invoke each via the Skill tool, in order:
 
 Read the audit findings from Step 3. For each category match, invoke the corresponding command per `../command-map.md` Step 2 table. Match by checking the audit finding's `category` or `rule` field (case-insensitive substring match against the category keywords).
 
-**Anti-Pattern category is suggestion-driven.** When a finding's category matches `anti-pattern`/`ai slop`/`ai-generated`/`generic` (per `../command-map.md`'s "Anti-Pattern dispatch" section), read that finding's `suggestion` field instead of using a fixed command. If the named command is `colorize`, `extract`, or `overdrive` (the manual-only set), do not dispatch it — instead append one entry to `staged_suggestions` (see Output to caller below) so the caller can surface it without the pipeline applying it silently. Otherwise dispatch the named command normally, same as the fixed-category rows.
+**Anti-Pattern category is suggestion-driven.** When a finding's category matches `anti-pattern`/`ai slop`/`ai-generated`/`generic` (per `../command-map.md`'s "Anti-Pattern dispatch" section), read that finding's `suggestion` field instead of using a fixed command. If the named command is one of the manual-only commands (see `../command-map.md`'s Full command map table for current membership), do not dispatch it — instead append one entry to `staged_suggestions` (see Output to caller below), which `/claude-tweaks:flow`'s polish-phase execution writes to `{run-dir}/staged/` and logs to `decisions.md` so the user sees it at the Wrap-Up Review Console rather than the pipeline applying it silently. Otherwise dispatch the named command normally, same as the fixed-category rows.
 
 When the audit produces multiple matches for the same category **and the same resolved command** (fixed rows: always the same command per category; Anti-Pattern row: same `suggestion` value across findings), dispatch the command once with the union of affected files. When Anti-Pattern findings within one run name different commands, dispatch each named command once, each with the union of files whose findings named it.
 
 ### Step 6: Intent-driven dispatch
 
-Read `Design-intent:` from the record's body-metadata line (lifted into the materialized header — spec 20; written by `/specify`; the canonical field definition lives in `skills/specify/spec-template.md`; the dispatch table is in `../command-map.md` Step 3). For each declared intent value, invoke the matching command via the Skill tool on the same scoped file list used in Steps 4–5.
+Read `Design-intent:` from the record's body-metadata line (lifted into the materialized header — spec 20; written by `/claude-tweaks:specify`; the canonical field definition lives in `skills/specify/spec-template.md`; the dispatch table is in `../command-map.md` Step 3). For each declared intent value, invoke the matching command via the Skill tool on the same scoped file list used in Steps 4–5.
 
 **Multi-intent ordering.** When the user declared comma-separated intents (e.g., `design-intent: bold, delightful`), invoke commands in the order declared. The fixed `delight` → `animate` pairing for `delightful` is preserved even when interleaved with other intents — treat `delightful` as a single dispatch unit that produces two commands. The wrapper does not run a re-verify cycle between intent commands; the polish phase as a whole shares a single re-verify cycle (capped by `/flow`'s polish phase, see flow's polish-phase decision tree).
 
 **Frequency Gate guardrail.** The `animate` command's target argument always carries a fixed Frequency Gate guardrail suffix, appended after the file list — see `../command-map.md`'s `### Step 3 — Intent-driven` section for the exact text and rationale. Do not treat `animate`'s target as a bare file list when reasoning about this dispatch; the suffix is not optional and is not gated by audit findings or `design-intent` value.
 
-**Manual-only commands.** `colorize`, `extract`, and `overdrive` are not intent-driven in this phase. They surface via `survey` mode recommendations (`extract` also surfaces via `/claude-tweaks:tidy` Step 5.5's cross-spec pattern scan, same Design Quality category recurring across 3+ specs); `colorize` and `overdrive` surface only that way. Do not auto-dispatch them from `polish`.
+**Manual-only commands.** The manual-only commands (see `../command-map.md`'s Full command map table for current membership) are not intent-driven in this phase — they surface via `survey` mode recommendations only (`extract`'s additional discoverability channel is noted on its row in `../command-map.md`). Do not auto-dispatch them from `polish`.
 
 **No declined-recommendation suppression in polish.** Declined-recommendation tracking applies to `survey` mode only — `polish` always honors the explicit `design-intent:` declaration. The user changes intent dispatch behavior by editing the record's `Design-intent:` body-metadata line (lifted into the materialized header — spec 20 — at the next materialization), not by declining recommendations.
 
@@ -123,4 +123,4 @@ Or, when no commands ran (skip from preconditions, or zero files in scope, or no
 
 Note `decision_summary` is absent from the empty-`commands_invoked` case above — there is nothing to log.
 
-`polish` is the **first wrapper mode that modifies code.** Callers (`/flow` polish phase) must follow up with re-verification (types/lint/tests) when `files_modified` is non-empty. When `decision_summary` is present, callers must also append it to the auto-decision log (see `_shared/auto-mode-contract.md`).
+`polish` is the **first wrapper mode that modifies code.** Callers (`/flow` polish phase) must follow up with re-verification (types/lint/tests) when `files_modified` is non-empty. When `decision_summary` is present, callers must also append it to the auto-decision log (see `_shared/auto-mode-contract.md`). When `staged_suggestions` is non-empty, callers must also write one file per entry to `{run-dir}/staged/` and log a `STAGED` entry per entry to `decisions.md` (see `_shared/auto-decision-log.md`) — otherwise the suggestion is silently dropped instead of surfacing at the Wrap-Up Review Console.
