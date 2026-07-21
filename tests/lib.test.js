@@ -60,6 +60,30 @@ test('deps: has() returns true for node', () => {
   assert.strictEqual(deps.has('node'), true);
 });
 
+// Regression: has('node') can only ever run while a Node process is already
+// executing, so shelling out to `node --version` to answer "is node
+// present" spawns a subprocess purely to re-derive a fact this process
+// already has for free.
+test('deps: has(\'node\') never shells out to `node --version` (no subprocess)', () => {
+  const modulePath = require.resolve('../bin/lib/deps');
+  const childProcess = require('node:child_process');
+  const originalExecSync = childProcess.execSync;
+  let called = false;
+  childProcess.execSync = (...args) => {
+    called = true;
+    return originalExecSync(...args);
+  };
+  delete require.cache[modulePath];
+  try {
+    const freshDeps = require('../bin/lib/deps');
+    assert.strictEqual(freshDeps.has('node'), true);
+    assert.strictEqual(called, false, "has('node') must not shell out to `node --version`");
+  } finally {
+    childProcess.execSync = originalExecSync;
+    delete require.cache[modulePath];
+  }
+});
+
 test('deps: installCommand returns expected mapping', () => {
   assert.strictEqual(deps.installCommand({ name: 'brew' }, 'node'), 'brew install node');
   assert.strictEqual(deps.installCommand({ name: 'winget' }, 'git'), 'winget install Git.Git');
