@@ -13,9 +13,9 @@ Before starting, validate the list:
 
 > **Parallel execution:** Use parallel tool calls aggressively — frontmatter/record reads across N targets (step 3 below) are independent and should run concurrently.
 
-3. **Frontmatter pre-flight** — for the legacy spec-file alias, read frontmatter in one parallel pass and collect `depends-on:`, `Files:`, `surface:`, `design-intent:`. For a record-reference target, collect the equivalent set from `materialize.md`'s Resolution (facets + body, already fetched read-only): dependencies via `blocked-by:` (see Populating the header's `blocked-by` bullet), `surface:`/`design-intent:` via the lift rule — `Files:` has no record-mode equivalent yet (see the caveat above). Both collections feed the same ordering check and Pipeline Preview; only conflict detection (Step 5) stays legacy-only.
+3. **Frontmatter pre-flight** — for the legacy spec-file alias, read frontmatter in one parallel pass and collect `depends-on:`, `Files:`, `surface:`, `design-intent:`. For a record-reference target, collect the equivalent set from `materialize.md`'s Resolution (facets + body, already fetched read-only): dependencies via `blocked-by:` (see Populating the header's `blocked-by` bullet), `surface:`/`design-intent:` via the lift rule, and key files via the record body's `### Key Files` subsection (`Files:` itself has no record-mode equivalent, but `### Key Files` covers the same need — see "Cross-spec conflict detection" below). Both collections feed the same ordering check, Pipeline Preview, and conflict detection (Step 5).
 4. **Dependency-aware ordering** — see "Dependency-aware ordering" below. Topologically sort and reconcile with the user's order.
-5. **Conflict detection** — see "Cross-spec conflict detection" below. Warn on overlapping `Files:` declarations.
+5. **Conflict detection** — see "Cross-spec conflict detection" below. Warn on overlapping key files (`Files:` frontmatter for legacy spec-file targets, `### Key Files` for record-reference targets).
 
 ## Dependency-aware ordering
 
