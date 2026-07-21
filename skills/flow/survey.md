@@ -35,7 +35,7 @@ Handle the wrapper return:
 
 **Decline detection (Phase 3).** Before invoking survey, read the prior `docs/plans/...-recommendations.json` cache (if it exists) for this spec. After the new pipeline diff is final (post-polish, post-re-verify), compare the prior recommendations against the diff:
 
-- For each prior recommendation, check whether its expected file changes appear in the new diff. The expected change is "the suggested command was invoked and modified the recommended page" — heuristic: file paths that the recommendation's `page` substring matches AND have a polish-style diff signature (touched between the previous and current pipeline run).
+- For each prior recommendation, check whether its expected file changes appear in the new diff. The expected change is "the suggested command was invoked and modified the recommended page" — heuristic: a file path counts as evidence when it matches the recommendation's `page` substring AND was touched by a commit landing between the previous and current pipeline run. This touched-file check is the entire heuristic — there is no separate content-based "diff signature" beyond it, so an unrelated commit that happens to touch the same file (e.g. an incidental bug fix) also counts; the heuristic is deliberately coarse, not proof the recommended command specifically ran.
 - For prior recommendations whose expected changes did NOT appear, increment `decline_count` for that `(command, page)` in `docs/plans/...-declined.json`. Initialize the entry if absent.
 - The wrapper's survey call (next step) reads this declined cache and suppresses observations whose `decline_count >= 2`.
 

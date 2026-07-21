@@ -303,6 +303,10 @@ For the terminal-example syntax for true parallel execution, mode-selection guid
 
 Next Actions in `/flow` are outcome-conditional and rendered as part of the Pipeline Summary (Step 5 success template) or Failure Card (see `failure-cards.md`). See `## Pipeline Summary template` above for the canonical `AskUserQuestion` call on success; see `failure-cards.md` for the per-failure-shape Next Actions blocks. There is no standalone Next Actions block here — the rendered block fires inside the success or failure template that matches the pipeline outcome.
 
+## Component-Skill Contract
+
+`/claude-tweaks:dispatch` is the only skill that invokes `/claude-tweaks:flow` as a caller (`CLAIM_RUN_ID="{run-id}" /claude-tweaks:flow #{n}[,#{m}...]` — see `dispatch/SKILL.md` Step 5 and the Relationship table below). Unlike a nested component skill (`/simplify`, `/reflect`, `/deepen`, and the others this convention targets), `/flow` is never folded into a larger pipeline's own handoff — it always creates and owns its own `PIPELINE_RUN_DIR` (Step 3), whether invoked by a human directly or by `/claude-tweaks:dispatch`, and dispatch renders no console of its own that would supersede it (`dispatch/SKILL.md`'s Reporting section: a headless firing's durable trace is label state + `decisions.md`, not a rendered console). `/flow` therefore always renders its own outcome-conditional Next Actions (embedded in the success or failure template — see above), regardless of caller; there is no parent-vs-direct branch to detect.
+
 ## Anti-Patterns
 
 | Pattern | Why It Fails |

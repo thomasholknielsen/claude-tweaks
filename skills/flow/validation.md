@@ -20,7 +20,10 @@ git status --porcelain specs/ docs/specs/ 2>/dev/null   # any output = uncommitt
 If any target spec is untracked, **or** `specs/` (or the project's spec/INDEX path) has uncommitted changes → **hard fail (HARD-GATE)**:
 
 - Surface the specific spec(s) and the dirty paths.
-- Offer: (1) Commit the specs to the base branch now, then proceed **(Recommended)**, (2) Cancel.
+- Call `AskUserQuestion`:
+  - `question`: `"Uncommitted spec changes were found before creating the worktree — how do you want to proceed?"`, `header`: `"Spec-committed check"`, `multiSelect`: `false`
+  - Option 1 — `label`: `"Commit and proceed (Recommended)"`, `description`: `"Commit the specs to the base branch now, then continue"`
+  - Option 2 — `label`: `"Cancel"`, `description`: `"Stop the pipeline; I'll commit manually"`
 - The commit message names the specs (e.g. `Commit specs {N},{M} for pipeline run`). After committing, verify with `git log --oneline -1` per `_shared/git-discipline.md`, then continue.
 - Under `auto`, automatically choose option 1 — specs are low-risk planning artifacts and committing them is the natural durable state (reversibility: high). Commit, then log:
 
@@ -41,7 +44,12 @@ git fetch "${UPSTREAM%%/*}" "${UPSTREAM#*/}" 2>/dev/null
 ahead=$(git rev-list --count "HEAD..$UPSTREAM" 2>/dev/null)
 ```
 
-If `ahead > 0`, surface the divergence (`git log --oneline HEAD..$UPSTREAM | head -5`) and offer: (1) Rebase first **(Recommended)**, (2) Continue and acknowledge in ledger. In `auto` mode, automatically choose option 2 and add an `ops` ledger entry; also log:
+If `ahead > 0`, surface the divergence (`git log --oneline HEAD..$UPSTREAM | head -5`) and call `AskUserQuestion`:
+- `question`: `"{UPSTREAM} is {N} commits ahead — how do you want to proceed?"`, `header`: `"Merge check"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Rebase first (Recommended)"`, `description`: `"Rebase onto {UPSTREAM} before continuing"`
+- Option 2 — `label`: `"Continue anyway"`, `description`: `"Proceed as-is; add an ops ledger entry noting the divergence"`
+
+In `auto` mode, automatically choose option 2 and add an `ops` ledger entry; also log:
 
 ```
 AUTO {time} — Step 2.5: pre-flight merge-check — {UPSTREAM} is {N} ahead. Continued and added ops ledger entry. Reversibility: low (divergence persists).
@@ -71,7 +79,12 @@ Replaces the previous size-based scope check. Plan size (line count, file count,
 
 **Behavior:**
 
-- **Hard fail** → present the specific signal, recommend `/claude-tweaks:specify {plan-path}` to tighten, offer (1) tighten via `/claude-tweaks:specify` **(Recommended)**, (2) proceed anyway and accept tangled-task risk, (3) cancel. Under `auto`, choose option 2 and add an `ops` ledger entry naming the specific signal hit.
+- **Hard fail** → present the specific signal, then call `AskUserQuestion`:
+  - `question`: `"{signal} was detected — how do you want to proceed?"`, `header`: `"Shape check"`, `multiSelect`: `false`
+  - Option 1 — `label`: `"Tighten via /specify (Recommended)"`, `description`: `"Run /claude-tweaks:specify {plan-path} to decompose before continuing"`
+  - Option 2 — `label`: `"Proceed anyway"`, `description`: `"Accept tangled-task risk and continue"`
+  - Option 3 — `label`: `"Cancel"`, `description`: `"Stop the pipeline"`
+  Under `auto`, choose option 2 and add an `ops` ledger entry naming the specific signal hit.
 - **Soft warning** → proceed by default. Add an `ops` ledger entry with the warning text. Do NOT prompt the user. Under `auto` or in default mode, behavior is identical (silent proceed with ledger note).
 
 **Anti-pattern:** Stopping the pipeline because the plan is "big." Size is not a coupling signal. See `_shared/auto-mode-contract.md` — the model is forbidden under `auto` from inserting size-driven reality-checks beyond what this step prescribes.

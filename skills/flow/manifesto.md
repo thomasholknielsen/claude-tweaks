@@ -49,11 +49,11 @@ A lever is **suppressed** (hidden from the Manifesto) when no skill in the resol
 |---|---|
 | **Overlap** (3) | `/specify` not in the pipeline (always suppressed for `/flow` — specs already exist) |
 | **Design intent** (4) | All records have `design-intent:` locked in their materialized header (or body metadata / legacy spec header), OR all records are non-frontend (polish auto-skips regardless) |
-| **Tidy aggressiveness** (8) | Effectively always suppressed by `/flow` — `/tidy` is not in the default step list. This lever is consulted only when a `/flow` caller explicitly adds `/tidy` to the step list (rare). Kept in the canonical lever count for stable numbering across all skills that reference these levers. |
+| **Tidy aggressiveness** (8) | Always suppressed by `/flow` — `/tidy` is not an allowed flow step at all (`steps-and-gates.md`'s Allowed Steps table lists it unconditionally under "Not allowed in flow") and can never be added to a step list. Still written to `config.yml` (per the "suppression is a UI affordance" rule below) since a standalone `/tidy` run can independently resolve the same run directory and read this lever's value. Kept in the canonical lever count for stable numbering across all skills that reference these levers. |
 | **Auto-fix threshold** (6) | `/test` not in the step list |
 | **Review severity floor** (7) | `/review` not in the step list |
 | **Leftover routing** (5) | `/wrap-up` not in the step list |
-| **Unattended tier** (9) | `/wrap-up` not in the step list — none of its three behaviors (ledger routing, queue-write filing, ops-ack) run outside wrap-up |
+| **Unattended tier** (9) | `/wrap-up` not in the step list — but only 2 of its 3 behaviors (queue-write filing, ops-ack) are actually absent then. The ledger-routing narrowing (`ledger/resolve-gate.md` Phase 2) still runs at Step 5's nothing-left-behind gate on every `/flow` run regardless of the step list, so this lever is never fully inert even when marked suppressed here |
 
 Always visible: **Mode** (1), **Scope-creep** (2), **Ceremony profile** (10) — they affect every pipeline.
 
