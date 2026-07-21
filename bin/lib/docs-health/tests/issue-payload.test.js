@@ -121,3 +121,38 @@ test('toIssuePayload uses the minimal 3-backtick fence when oldString/newString 
   assert.ok(payload.body.includes('**Current:**\n```\nplain old text\n```'));
   assert.ok(payload.body.includes('**Proposed:**\n```\nplain new text\n```'));
 });
+
+// ── CLASSIFICATION_SCORING lookup must degrade gracefully, not throw ────────
+// Regression: an unmapped classification used to be dereferenced directly
+// (scoring.risk/scoring.effort), throwing a TypeError instead of degrading
+// to risk/effort: undefined the way harness-health/issue-payload.js's
+// identical lookup already does. Unreachable through the real validated
+// pipeline today (docs-health's CLASSIFICATION_VALUES matches
+// CLASSIFICATION_SCORING's two keys exactly), but toIssuePayload itself must
+// not crash on an out-of-map value from any caller that bypasses validation.
+
+test('toIssuePayload does not throw for a classification absent from CLASSIFICATION_SCORING, and omits risk/effort labels', () => {
+  const payload = toIssuePayload(finding({ classification: 'cosmetic' }));
+  assert.ok(!payload.labels.some((l) => l.startsWith('risk:')), 'risk label must be omitted, not a stale/wrong value');
+  assert.ok(!payload.labels.some((l) => l.startsWith('effort:')), 'effort label must be omitted, not a stale/wrong value');
+  assert.ok(payload.labels.includes('docs-health:cosmetic'));
+});
+
+// ── CATEGORY_LABELS must cover every CATEGORY_VALUES entry ───────────────────
+// Regression: CATEGORY_LABELS previously only covered 2 of the 4 values
+// validate-finding.js's CATEGORY_VALUES allows ('depth-mismatch' and
+// 'findability' were missing) — a hand-maintained map silently drifted out
+// of sync with its own enum. Exercises the title-generation path for every
+// declared category so a future desynchronization (a new category added to
+// one file but not the other) is caught here, not just by an identity
+// fallback that happens to produce the same string today.
+
+test('toIssuePayload title reflects the depth-mismatch category', () => {
+  const payload = toIssuePayload(finding({ category: 'depth-mismatch' }));
+  assert.ok(payload.title.startsWith('Doc depth-mismatch:'), payload.title);
+});
+
+test('toIssuePayload title reflects the findability category', () => {
+  const payload = toIssuePayload(finding({ category: 'findability' }));
+  assert.ok(payload.title.startsWith('Doc findability:'), payload.title);
+});

@@ -6,6 +6,7 @@
 // shared work-record taxonomy (skills/_shared/work-record.md): origin by:journey-health,
 // colon-form risk:*/effort:medium scoring, born-ready, Type bug|task, work-fingerprint marker.
 const { recordPayload, specShapedBody } = require('../issues/record');
+const { buildRelatedBlocks } = require('../issues/related-blocks');
 
 const CATEGORY_LABELS = { drift: 'drift', coverage: 'coverage', 'regression-suspected': 'regression' };
 
@@ -24,9 +25,7 @@ function toIssuePayload(finding) {
 
   // Only ever populated for category: "coverage" findings — the other three
   // sections each emit at most one finding per violation and have nothing to bundle.
-  const relatedBlocks = Array.isArray(finding.relatedSections) && finding.relatedSections.length > 0
-    ? [`Also affects: ${finding.relatedSections.map((s) => `\`${s}\``).join(', ')}`]
-    : [];
+  const relatedBlocks = buildRelatedBlocks(finding.relatedSections);
 
   const body = specShapedBody({
     header: `**Journey:** ${finding.journey} | **Section:** ${finding.section} | **Category:** ${finding.category} | **Severity:** ${finding.severity} | **Confidence:** ${finding.confidence}`,
