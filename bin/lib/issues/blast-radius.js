@@ -5,8 +5,20 @@
 // weighs as one input alongside review findings and diff content — never a pass/fail gate on its
 // own. See docs/superpowers/specs/2026-07-15-assess-agent-autonomy-design.md.
 
-const TEST_PATH_RE = /(^|\/)tests\//;
-const TEST_SUFFIX_RE = /\.test\.js$/;
+// Recognizes multiple ecosystems' test-path conventions, since
+// classifyDiffFiles/blastRadiusSummary judge diffs from arbitrary downstream
+// projects assess-agent-autonomy's merge-check reviews, not just this
+// plugin's own JS 'tests/*.test.js' shape:
+//   - a 'test' or 'tests' path segment (this plugin's own convention, and
+//     Maven/Gradle Java's canonical singular 'src/test/java/...')
+//   - a .test./.spec. filename suffix for js/jsx/ts/tsx
+//   - Go's '_test.go' suffix
+//   - Python's 'test_*.py' / '*_test.py' conventions
+// Both anchored to a '/' or string boundary so a path merely CONTAINING
+// "test" as a substring (e.g. 'src/latest/widget.js', 'src/contest.js')
+// never false-positives.
+const TEST_PATH_RE = /(^|\/)tests?\//;
+const TEST_SUFFIX_RE = /\.(test|spec)\.(jsx?|tsx?)$|_test\.go$|(^|\/)test_[^/]+\.py$|[^/]+_test\.py$/;
 
 function isTestPath(path) {
   return TEST_PATH_RE.test(path) || TEST_SUFFIX_RE.test(path);
@@ -14,9 +26,26 @@ function isTestPath(path) {
 
 // Minimal glob support: '*' matches within a path segment (not '/'). Sufficient for this
 // project's own sensitive-path shapes (e.g. 'skills/_shared/*.md', 'bin/hooks.js' as a literal).
+// Every other ECMAScript regex metacharacter (including '?', which a maintainer
+// could plausibly write into a config value as a literal character, given '*'
+// and '?' are both standard single-char/wildcard shell-glob tokens elsewhere in
+// this codebase's own bash conventions) is escaped so it can never be
+// misinterpreted as regex syntax.
+//
+// Compiled RegExp objects are memoized per glob string: classifyDiffFiles calls
+// isSensitivePath once per changed file, and without this cache every file in a
+// diff would recompile the SAME sensitive-path globs from scratch (F files * G
+// globs worth of redundant RegExp construction, for only G compilations that
+// are actually needed).
+const globRegExpCache = new Map();
 function globToRegExp(glob) {
-  const escaped = glob.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*');
-  return new RegExp(`^${escaped}$`);
+  let re = globRegExpCache.get(glob);
+  if (!re) {
+    const escaped = glob.replace(/[.+^${}()|[\]\\?]/g, '\\$&').replace(/\*/g, '[^/]*');
+    re = new RegExp(`^${escaped}$`);
+    globRegExpCache.set(glob, re);
+  }
+  return re;
 }
 
 function isSensitivePath(path, sensitivePaths) {

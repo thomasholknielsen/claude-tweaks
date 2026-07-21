@@ -47,8 +47,13 @@ const ANCHOR_RE = /Anchor:\s*`([^`#]+)/;
 const FILES_LINE_RE = /^Files:\s*(.+)$/m;
 // Matches the first bold "**Label:** value" field of a spec-shaped issue
 // header (e.g. "**Skill:** path | **Section:** ..." or "**Journey:** path |
-// ...") — the shape harness-health and journey-health both use.
-const BOLD_HEADER_RE = /^\*\*[^:*]+:\*\*\s*([^\s|]+)/m;
+// ...") — the shape harness-health and journey-health both use. The value
+// itself is captured up to the next " | " field separator (or end of line)
+// rather than stopping at the first whitespace character, so a target path
+// containing a literal space (e.g. "docs/User Guide.md") extracts intact —
+// matching code-health's ANCHOR_RE/FILES_LINE_RE above, which already
+// preserve spaces for the identical extraction purpose.
+const BOLD_HEADER_RE = /^\*\*[^:*]+:\*\*\s*([^|]+?)\s*(?:\||$)/m;
 
 // A health skill's origin label appears either in the bare pre-migration form
 // (code-health, harness-health — the only two that predate the by:* origin
@@ -142,4 +147,4 @@ function selectGroupsForExplicitList(requestedNumbers, groups) {
   return { selectedGroups, notFound };
 }
 
-module.exports = { groupByFileOverlap, extractKeyFiles, parseExplicitIssueList, selectGroupsForExplicitList };
+module.exports = { groupByFileOverlap, extractKeyFiles, parseExplicitIssueList, selectGroupsForExplicitList, hasOrigin };

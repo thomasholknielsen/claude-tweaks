@@ -92,7 +92,9 @@ function defaultRun(cmd, args, opts = {}) {
   return execFileSync(cmd, args, { encoding: 'utf8', timeout: DEFAULT_RUN_TIMEOUT_MS, ...opts });
 }
 
-function createDurableState(skillName, { run = defaultRun, sleep = defaultSleep, includeRemembered = false } = {}) {
+function createDurableState(skillName, {
+  run = defaultRun, sleep = defaultSleep, includeRemembered = false, includeDeclined = false,
+} = {}) {
   function showFile(root, relPath, fallback) {
     try {
       const out = run('git', ['-C', root, 'show', `origin/${HEALTH_STATE_BRANCH}:${relPath}`]);
@@ -110,11 +112,16 @@ function createDurableState(skillName, { run = defaultRun, sleep = defaultSleep,
     }
   }
 
-  function currentTreeSha(root) {
+  // Combined commit+tree sha lookup for writeState's hot path — one process
+  // spawn instead of two separate `git rev-parse` calls against the exact
+  // same already-fetched ref, on every CAS attempt.
+  function currentRefShas(root) {
     try {
-      return run('git', ['-C', root, 'rev-parse', `origin/${HEALTH_STATE_BRANCH}^{tree}`]).trim();
+      const out = run('git', ['-C', root, 'rev-parse', `origin/${HEALTH_STATE_BRANCH}`, `origin/${HEALTH_STATE_BRANCH}^{tree}`]);
+      const lines = out.trim().split('\n');
+      return { commitSha: lines[0] ? lines[0].trim() : null, treeSha: lines[1] ? lines[1].trim() : null };
     } catch {
-      return null;
+      return { commitSha: null, treeSha: null };
     }
   }
 
@@ -135,15 +142,17 @@ function createDurableState(skillName, { run = defaultRun, sleep = defaultSleep,
       runs: showFile(root, statePath(skillName, 'runs.json'), []),
     };
     if (includeRemembered) state.remembered = showFile(root, statePath(skillName, 'remembered.json'), {});
+    if (includeDeclined) state.declined = showFile(root, statePath(skillName, 'declined.json'), {});
     return state;
   }
 
   // Reads never throw: a missing branch/file degrades to the empty default,
   // matching cache.js's existing "corrupt/missing JSON -> {}" convention.
-  // `remembered` is only ever present when this skill opted in via
-  // includeRemembered — a skill that didn't must never see the key at all,
-  // so harness-health/journey-health can't accidentally pick up a spurious
-  // remembered.json (see buildFiles below, which gates on the same flag).
+  // `remembered`/`declined` are only ever present when this skill opted in
+  // via includeRemembered/includeDeclined — a skill that didn't must never
+  // see the key at all, so a skill that never opted in can't accidentally
+  // pick up a spurious file (see buildFiles below, which gates on the same
+  // flags).
   function readState(root) {
     try {
       run('git', ['-C', root, 'fetch', 'origin', HEALTH_STATE_BRANCH]);
@@ -158,9 +167,10 @@ function createDurableState(skillName, { run = defaultRun, sleep = defaultSleep,
       if (!/couldn't find remote ref/i.test(String(err.message))) {
         process.stderr.write(`health-state: fetch failed, treating as empty state: ${err.message}\n`);
       }
-      return includeRemembered
-        ? { cursors: {}, remembered: {}, retryQueue: [], runs: [] }
-        : { cursors: {}, retryQueue: [], runs: [] };
+      const empty = { cursors: {}, retryQueue: [], runs: [] };
+      if (includeRemembered) empty.remembered = {};
+      if (includeDeclined) empty.declined = {};
+      return empty;
     }
     return readFilesAtFetchedTip(root);
   }
@@ -247,6 +257,12 @@ function createDurableState(skillName, { run = defaultRun, sleep = defaultSleep,
     if (includeRemembered) {
       files.push({ path: statePath(skillName, 'remembered.json'), content: JSON.stringify(next.remembered || {}, null, 2) });
     }
+    // Same truthy-{}-is-not-enough reasoning as includeRemembered above:
+    // gated on the skill-level flag, decided once at createDurableState call
+    // time, not on runtime shape of next.declined.
+    if (includeDeclined) {
+      files.push({ path: statePath(skillName, 'declined.json'), content: JSON.stringify(next.declined || {}, null, 2) });
+    }
     return files;
   }
 
@@ -254,10 +270,10 @@ function createDurableState(skillName, { run = defaultRun, sleep = defaultSleep,
     ensureBranch(root);
     let lastError = null;
     for (let attempt = 1; attempt <= MAX_CAS_ATTEMPTS; attempt++) {
+      let commitSha = null;
       try {
         run('git', ['-C', root, 'fetch', 'origin', HEALTH_STATE_BRANCH]);
-        const parentSha = currentCommitSha(root);
-        const baseTreeSha = currentTreeSha(root);
+        const { commitSha: parentSha, treeSha: baseTreeSha } = currentRefShas(root);
         const current = readFilesAtFetchedTip(root);
         const next = mutatorFn(current);
         const files = buildFiles(next);
@@ -268,11 +284,28 @@ function createDurableState(skillName, { run = defaultRun, sleep = defaultSleep,
           sha: createBlob(root, f.content),
         }));
         const treeSha = createTree(root, baseTreeSha, entries);
-        const commitSha = createCommit(root, treeSha, parentSha, `health-state: ${skillName} update`);
+        commitSha = createCommit(root, treeSha, parentSha, `health-state: ${skillName} update`);
         updateRef(root, commitSha);
         return { ok: true };
       } catch (err) {
         lastError = err;
+        // The commit we attempted to point the ref at was successfully built
+        // (createCommit succeeded) and updateRef's own PATCH then failed —
+        // but "failed" here is ambiguous: it could be a genuine rejection
+        // (branch moved to a DIFFERENT commit, fast-forward check failed —
+        // safe to retry) or GitHub actually applied the ref update
+        // server-side and only the HTTP response never reached us (a
+        // network drop or upstream 5xx after origin processed it). Blindly
+        // retrying in the ambiguous case would re-run mutatorFn a SECOND
+        // time against its own already-applied result — silently
+        // double-counting a non-idempotent mutator like enqueueRetry's
+        // attempts++ for a single real failure. Re-checking the ref here
+        // tells the two apart: if it now points at the commit we just tried
+        // to set, our update DID land and this attempt must be treated as a
+        // success, not retried.
+        if (commitSha && currentCommitSha(root) === commitSha) {
+          return { ok: true };
+        }
         if (attempt < MAX_CAS_ATTEMPTS) sleep(casBackoffMs(attempt));
       }
     }
@@ -294,4 +327,5 @@ module.exports = {
   shouldEscalate,
   casBackoffMs,
   createDurableState,
+  defaultSleep,
 };

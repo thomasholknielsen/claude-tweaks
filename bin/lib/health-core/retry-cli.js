@@ -1,6 +1,6 @@
 'use strict';
 const fs = require('fs');
-const { enqueueRetry, dequeueRetry, shouldEscalate } = require('./durable-state');
+const { enqueueRetry, dequeueRetry, shouldEscalate, ESCALATE_AFTER_ATTEMPTS } = require('./durable-state');
 
 // Shared retry-queue CLI command bodies for code-health, harness-health,
 // journey-health, and docs-health — each CLI calls makeRetryQueueCommands
@@ -54,9 +54,17 @@ function makeRetryQueueCommands({ readDurableState, writeDurableState }) {
         if (r.ok) {
           queue = dequeueRetry(queue, r.fingerprint);
         } else {
+          // Capture attempts BEFORE this failure is enqueued so escalation is
+          // edge-triggered (fires only on the firing that first crosses the
+          // threshold), not level-triggered (which would re-report the same
+          // fingerprint on every subsequent still-failing firing — attempts
+          // only ever increments by 1 per real firing, so "previousAttempts
+          // was already >= threshold" reliably means "already escalated").
+          const before = queue.find((e) => e.fingerprint === r.fingerprint);
+          const previousAttempts = before ? before.attempts : 0;
           queue = enqueueRetry(queue, { fingerprint: r.fingerprint, payload: r.payload, lastError: r.error });
           const entry = queue.find((e) => e.fingerprint === r.fingerprint);
-          if (shouldEscalate(entry)) escalated.push(entry);
+          if (shouldEscalate(entry) && previousAttempts < ESCALATE_AFTER_ATTEMPTS) escalated.push(entry);
         }
       }
       return { ...current, retryQueue: queue };
@@ -70,6 +78,12 @@ function makeRetryQueueCommands({ readDurableState, writeDurableState }) {
       // "non-empty output -> file a filing-failed issue" check doesn't act on
       // an escalation that was never actually saved to retry-queue.json.
       process.stdout.write('[]\n');
+      // A genuinely failed durable write must not exit 0 — a calling
+      // shell/Routine checking $? would otherwise see success and never
+      // surface the failure, silently losing this firing's retry-count
+      // increments (matching the resultsPath/JSON-parse failure branches
+      // above, which both already exit non-zero).
+      process.exitCode = 1;
       return;
     }
     process.stdout.write(JSON.stringify(escalated, null, 2) + '\n');

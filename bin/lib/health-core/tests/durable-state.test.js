@@ -133,7 +133,10 @@ function matchArgs(args, needle) {
 // six near-identical copies.
 function baseWriteStateRules() {
   return [
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && matchArgs(args, '^{tree}'), returns: 'tree-sha-1\n' },
+    // writeState's own combined commit+tree rev-parse (one process, both
+    // refs in a single call — see durable-state.js's currentRefShas).
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && matchArgs(args, '^{tree}'), returns: 'commit-sha-1\ntree-sha-1\n' },
+    // ensureBranch's separate single-ref existence check.
     { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && !matchArgs(args, '^{tree}'), returns: 'commit-sha-1\n' },
     { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), returns: '' },
     { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show'), throws: 'fatal: path does not exist' },
@@ -294,7 +297,7 @@ test('writeState bootstraps the branch when it does not exist yet, then complete
       match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse'),
       returns: (cmd, args) => {
         if (!branchCreated) throw new Error('unknown revision');
-        return matchArgs(args, '^{tree}') ? 'tree-sha-1\n' : 'commit-sha-1\n';
+        return matchArgs(args, '^{tree}') ? 'commit-sha-1\ntree-sha-1\n' : 'commit-sha-1\n';
       },
     },
     { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show'), throws: 'fatal: path does not exist' },
@@ -361,7 +364,7 @@ test('ensureBranch never throws: writeState returns { ok: false, error } (not an
 test('writeState fetches at most once per CAS-loop attempt: a redundant internal readState fetch (now removed) would fail, but the write still succeeds using the already-fetched branch state', () => {
   let fetchCount = 0;
   const { run } = fakeRunner([
-    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && matchArgs(args, '^{tree}'), returns: 'tree-sha-1\n' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && matchArgs(args, '^{tree}'), returns: 'commit-sha-1\ntree-sha-1\n' },
     { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && !matchArgs(args, '^{tree}'), returns: 'commit-sha-1\n' },
     {
       match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'),
@@ -398,6 +401,88 @@ test('writeState fetches at most once per CAS-loop attempt: a redundant internal
   assert.strictEqual(fetchCount, 2, 'exactly ensureBranch + one CAS-loop fetch — no redundant internal readState fetch');
 });
 
+test('writeState resolves the parent commit sha and base tree sha from a SINGLE combined rev-parse call, not two separate subprocess spawns', () => {
+  let revParseCallCount = 0;
+  const { run } = fakeRunner([
+    {
+      match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && matchArgs(args, '^{tree}'),
+      returns: () => { revParseCallCount += 1; return 'commit-sha-1\ntree-sha-1\n'; },
+    },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && !matchArgs(args, '^{tree}'), returns: 'commit-sha-1\n' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), returns: '' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show'), throws: 'fatal: path does not exist' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/blobs'), returns: 'blob-sha\n' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/trees'), returns: 'tree-sha-2\n' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/commits'), returns: 'commit-sha-2\n' },
+    refUpdateRule({ returns: '' }),
+  ]);
+  const ds = createDurableState('code-health', { run, sleep: () => {}, includeRemembered: true });
+  const result = ds.writeState('/repo', (current) => current);
+  assert.deepStrictEqual(result, { ok: true });
+  assert.strictEqual(revParseCallCount, 1, 'the CAS loop must resolve both the parent commit sha AND the base tree sha from one rev-parse call, not two');
+});
+
+test('writeState treats a rejected-looking ref update as success (and does not retry the mutator a second time) when the ref actually already points at the commit we just tried to set — an ambiguous PATCH failure where the update landed server-side but the response never reached us', () => {
+  let mutatorCalls = 0;
+  let updateAttempted = false;
+  const { run } = fakeRunner([
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && matchArgs(args, '^{tree}'), returns: 'commit-sha-1\ntree-sha-1\n' },
+    {
+      // ensureBranch's existence check, AND writeState's own post-failure
+      // ambiguity check both hit this rule. Before the ref update is
+      // attempted, the branch is at commit-sha-1 (the stale parent). After
+      // the ref update "secretly" applies server-side despite throwing
+      // client-side, this must report the NEW commit (commit-sha-2, the one
+      // createCommit built) — simulating the real world where the PATCH
+      // really did move the ref even though our HTTP client saw an error.
+      match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && !matchArgs(args, '^{tree}'),
+      returns: () => (updateAttempted ? 'commit-sha-2\n' : 'commit-sha-1\n'),
+    },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), returns: '' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show'), throws: 'fatal: path does not exist' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/blobs'), returns: 'blob-sha\n' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/trees'), returns: 'tree-sha-2\n' },
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, 'git/commits'), returns: 'commit-sha-2\n' },
+    refUpdateRule({
+      returns: () => {
+        updateAttempted = true;
+        throw new Error('network drop after origin applied the PATCH');
+      },
+    }),
+  ]);
+  const ds = createDurableState('code-health', { run, sleep: () => {}, includeRemembered: true });
+  const result = ds.writeState('/repo', (current) => {
+    mutatorCalls += 1;
+    return { ...current, retryQueue: [] };
+  });
+  assert.deepStrictEqual(result, { ok: true });
+  assert.strictEqual(mutatorCalls, 1, 'mutator must not be re-invoked once the ref update is confirmed to have actually landed — a second invocation would double-apply a non-idempotent mutator like enqueueRetry\'s attempts++');
+});
+
+test('writeState still retries normally on a GENUINE rejection (ref moved to a DIFFERENT commit, not ours) — the ambiguity check must not swallow a real conflict', () => {
+  // This is baseWriteStateRules() + refUpdateRule() exactly as the
+  // pre-existing "writeState retries on a rejected ref update" test uses —
+  // the rev-parse rule there is static (always 'commit-sha-1'), so the new
+  // ambiguity check's currentCommitSha(root) === commitSha comparison
+  // ('commit-sha-2' !== 'commit-sha-1') correctly falls through to a real
+  // retry, proving the fix doesn't change behavior for a genuine conflict.
+  let refAttempts = 0;
+  const { run } = fakeRunner([
+    ...baseWriteStateRules(),
+    refUpdateRule({
+      returns: () => {
+        refAttempts += 1;
+        if (refAttempts === 1) throw new Error('422 Reference update failed (non-fast-forward)');
+        return '';
+      },
+    }),
+  ]);
+  const ds = createDurableState('code-health', { run, sleep: () => {}, includeRemembered: true });
+  const result = ds.writeState('/repo', (current) => ({ ...current, cursors: { '.': { lastSweptMs: 2 } } }));
+  assert.deepStrictEqual(result, { ok: true });
+  assert.strictEqual(refAttempts, 2, 'a genuine rejection must still retry the whole read-modify-write cycle');
+});
+
 test('writeState includes a remembered.json blob only for a skill that opts in', () => {
   const { run, calls } = fakeRunner([
     ...baseWriteStateRules(),
@@ -414,4 +499,70 @@ test('writeState includes a remembered.json blob only for a skill that opts in',
     'code-health/retry-queue.json',
     'code-health/runs.json',
   ]);
+});
+
+// --- includeDeclined: durable persistence for the 'declined' dismissal mark
+// (mirrors includeRemembered's opt-in-flag pattern above) ---
+
+test('readState omits the declined key entirely for a skill that does not opt in (includeDeclined defaults to false)', () => {
+  const { run } = fakeRunner([
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), returns: '' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show'), throws: 'fatal: path does not exist' },
+  ]);
+  const ds = createDurableState('harness-health', { run, sleep: () => {} });
+  const state = ds.readState('/repo');
+  assert.ok(!('declined' in state), 'a skill that never opts in must never see a declined key at all');
+});
+
+test('readState parses declined.json via git show for a skill that opts in, defaulting to {} when missing', () => {
+  const { run } = fakeRunner([
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), returns: '' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'declined.json'), returns: JSON.stringify({ 'hh-abc123': { lastSeenMs: 1 } }) },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show'), throws: 'fatal: path does not exist' },
+  ]);
+  const ds = createDurableState('harness-health', { run, sleep: () => {}, includeDeclined: true });
+  const state = ds.readState('/repo');
+  assert.deepStrictEqual(state.declined, { 'hh-abc123': { lastSeenMs: 1 } });
+});
+
+test('readState degrades declined to {} (not thrown/missing) when the branch does not exist yet, for a skill that opts in', () => {
+  const { run } = fakeRunner([
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), throws: "couldn't find remote ref health-state" },
+  ]);
+  const ds = createDurableState('harness-health', { run, sleep: () => {}, includeDeclined: true });
+  const state = ds.readState('/repo');
+  assert.deepStrictEqual(state, { cursors: {}, declined: {}, retryQueue: [], runs: [] });
+});
+
+test('writeState includes a declined.json blob only for a skill that opts in', () => {
+  const { run, calls } = fakeRunner([
+    ...baseWriteStateRules(),
+    refUpdateRule({ returns: '' }),
+  ]);
+  const ds = createDurableState('harness-health', { run, sleep: () => {}, includeDeclined: true });
+  const result = ds.writeState('/repo', (current) => ({ ...current, declined: { ...(current.declined || {}), 'hh-abc123': { lastSeenMs: 1 } } }));
+  assert.deepStrictEqual(result, { ok: true });
+  const treeCall = calls.find((c) => c.cmd === 'gh' && c.args.includes('repos/{owner}/{repo}/git/trees'));
+  const paths = JSON.parse(treeCall.opts.input).tree.map((e) => e.path).sort();
+  assert.deepStrictEqual(paths, [
+    'harness-health/cursors.json',
+    'harness-health/declined.json',
+    'harness-health/retry-queue.json',
+    'harness-health/runs.json',
+  ]);
+  const declinedBlobCall = calls.filter((c) => c.cmd === 'gh' && c.args.includes('repos/{owner}/{repo}/git/blobs'));
+  assert.ok(declinedBlobCall.length >= 3, 'sanity check: at least cursors/retry-queue/runs/declined blobs were built');
+});
+
+test('writeState never includes a declined.json blob for a skill that does not opt in', () => {
+  const { run, calls } = fakeRunner([
+    ...baseWriteStateRules(),
+    refUpdateRule({ returns: '' }),
+  ]);
+  const ds = createDurableState('journey-health', { run, sleep: () => {} });
+  const result = ds.writeState('/repo', (current) => current);
+  assert.deepStrictEqual(result, { ok: true });
+  const treeCall = calls.find((c) => c.cmd === 'gh' && c.args.includes('repos/{owner}/{repo}/git/trees'));
+  const paths = JSON.parse(treeCall.opts.input).tree.map((e) => e.path).sort();
+  assert.deepStrictEqual(paths, ['journey-health/cursors.json', 'journey-health/retry-queue.json', 'journey-health/runs.json']);
 });

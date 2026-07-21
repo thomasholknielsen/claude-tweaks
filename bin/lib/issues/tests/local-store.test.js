@@ -352,6 +352,48 @@ test('createRecord: a rapid burst of calls against the same directory produces d
   assert.deepStrictEqual(fs.readdirSync(dir).filter((n) => n.endsWith('.claim')), []);
 });
 
+// Reproduces the exact race the finding describes: two near-simultaneous
+// createRecord calls both call allocateId(dir) while the directory is still
+// empty and both get id=1. The first caller (A) completes its ENTIRE
+// write+rename cycle (finalizing 1-alice.md and freeing 1.claim) before the
+// second caller (B) — whose OWN `id` variable was already snapshotted as 1,
+// per createRecord's own single up-front allocateId(dir) call — reaches its
+// first claim attempt. We simulate B's stale snapshot by making the FIRST
+// fs.readdirSync call (the one inside allocateId) see an empty directory,
+// then restoring the real fs.readdirSync for every subsequent call (used by
+// createRecord's own new finalized-id check) so it sees A's real, already-
+// finalized file.
+test('createRecord: a stale allocateId snapshot does not silently share an id with a since-finalized record', (t) => {
+  const dir = tmp(t);
+  writeRecord(path.join(dir, '1-alice.md'), { title: 'Alice', body: 'a', facets: baseFacets() });
+
+  const originalReaddir = fs.readdirSync;
+  let first = true;
+  fs.readdirSync = function (...args) {
+    if (first && args[0] === dir) {
+      first = false;
+      return [];
+    }
+    return originalReaddir.apply(fs, args);
+  };
+  let record;
+  try {
+    record = createRecord(dir, { slug: 'bob', title: 'Bob', body: 'b', facets: baseFacets() });
+  } finally {
+    fs.readdirSync = originalReaddir;
+  }
+
+  assert.strictEqual(record.id, 2, 'must not silently share id 1 with the already-finalized rival record');
+  assert.strictEqual(record.path, path.join(dir, '2-bob.md'));
+  assert.ok(fs.existsSync(path.join(dir, '2-bob.md')));
+  assert.ok(!fs.existsSync(path.join(dir, '1-bob.md')), 'must never have written a second file under the already-claimed id 1');
+  // Exactly one record at id 1 (alice's), not two files sharing the id.
+  const idOneFiles = fs.readdirSync(dir).filter((n) => /^1-.*\.md$/.test(n));
+  assert.deepStrictEqual(idOneFiles, ['1-alice.md']);
+  // No leftover claim litter from B's spurious, released claim.
+  assert.deepStrictEqual(fs.readdirSync(dir).filter((n) => n.endsWith('.claim')), []);
+});
+
 test('createRecord: an EEXIST on the claim retries forward past MULTIPLE already-claimed ids in a row', (t) => {
   const dir = tmp(t);
   // Simulate three competing in-flight claims stacked at the very ids

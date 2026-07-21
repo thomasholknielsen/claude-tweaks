@@ -11,13 +11,18 @@
 //
 // Churn vs the prior run. ratio = (appeared + disappeared) / |prior ∪ current|.
 function computeChurn(currentFps, priorRun) {
+  // Symmetric guard: priorRun.fingerprints already degraded gracefully to []
+  // on a malformed/missing shape (a partially-written durable-state run
+  // record, or a hand-edited/pre-migration entry) — currentFps must degrade
+  // the same way instead of throwing on the very next .filter() call below.
+  const curFps = Array.isArray(currentFps) ? currentFps : [];
   const priorFps = priorRun && Array.isArray(priorRun.fingerprints) ? priorRun.fingerprints : [];
-  const current = new Set(currentFps);
+  const current = new Set(curFps);
   const prior = new Set(priorFps);
-  const appeared = currentFps.filter((fp) => !prior.has(fp));
+  const appeared = curFps.filter((fp) => !prior.has(fp));
   const disappeared = priorFps.filter((fp) => !current.has(fp));
-  const stayed = currentFps.filter((fp) => prior.has(fp));
-  const union = new Set([...currentFps, ...priorFps]);
+  const stayed = curFps.filter((fp) => prior.has(fp));
+  const union = new Set([...curFps, ...priorFps]);
   const total = Math.max(union.size, 1);
   const ratio = Math.round(((appeared.length + disappeared.length) / total) * 1000) / 1000;
   return { appeared, disappeared, stayed, ratio };

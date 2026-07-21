@@ -66,6 +66,35 @@ test('computeStageDurations on a record with no events at all returns an empty o
   assert.deepStrictEqual(computeStageDurations({ createdAt: '2026-01-01T00:00:00Z', events: [] }), {});
 });
 
+test('computeStageDurations treats a truthy-but-unparseable createdAt like the missing case (omits shapingMs), never leaks a NaN', () => {
+  const durations = computeStageDurations({
+    createdAt: 'not-a-real-date',
+    closedAt: '2026-01-10T00:00:00Z',
+    events: [
+      { event: 'labeled', label: 'ready', created_at: '2026-01-03T00:00:00Z' },
+      { event: 'labeled', label: 'auto:build', created_at: '2026-01-05T00:00:00Z' },
+    ],
+  });
+  assert.strictEqual('shapingMs' in durations, false, 'a malformed createdAt must omit shapingMs, not set it to NaN');
+  // grantMs/buildMs don't depend on createdAt at all and must still compute normally.
+  assert.strictEqual(typeof durations.grantMs, 'number');
+  assert.strictEqual(typeof durations.buildMs, 'number');
+});
+
+test('computeStageDurations treats a truthy-but-unparseable closedAt like the missing case (omits buildMs), never leaks a NaN', () => {
+  const durations = computeStageDurations({
+    createdAt: '2026-01-01T00:00:00Z',
+    closedAt: 'also-not-a-real-date',
+    events: [
+      { event: 'labeled', label: 'ready', created_at: '2026-01-03T00:00:00Z' },
+      { event: 'labeled', label: 'auto:build', created_at: '2026-01-05T00:00:00Z' },
+    ],
+  });
+  assert.strictEqual('buildMs' in durations, false, 'a malformed closedAt must omit buildMs, not set it to NaN');
+  assert.strictEqual(typeof durations.shapingMs, 'number');
+  assert.strictEqual(typeof durations.grantMs, 'number');
+});
+
 test('summarizeFunnel computes the median across an odd-length sample', () => {
   const perIssue = [{ shapingMs: 100 }, { shapingMs: 300 }, { shapingMs: 200 }];
   const summary = summarizeFunnel(perIssue, {}, { failedAttempts: 0, totalAttempts: 0 });
@@ -120,6 +149,17 @@ test('computeWontfixRate buckets by origin label and computes rate as a percenta
   assert.deepStrictEqual(rates['code-health'], { total: 3, wontfix: 1, rate: (1 / 3) * 100 });
   assert.deepStrictEqual(rates['capture'], { total: 1, wontfix: 0, rate: 0 });
   assert.deepStrictEqual(rates['human'], { total: 1, wontfix: 1, rate: 100 });
+});
+
+test('computeWontfixRate attributes a bare pre-migration origin label (code-health/harness-health, no by: prefix) correctly instead of falling back to "human"', () => {
+  const closedIssues = [
+    { number: 1, labels: ['code-health'], stateReason: 'NOT_PLANNED' },
+    { number: 2, labels: ['harness-health'], stateReason: 'COMPLETED' },
+  ];
+  const rates = computeWontfixRate(closedIssues);
+  assert.deepStrictEqual(rates['code-health'], { total: 1, wontfix: 1, rate: 100 });
+  assert.deepStrictEqual(rates['harness-health'], { total: 1, wontfix: 0, rate: 0 });
+  assert.strictEqual('human' in rates, false, 'must not misattribute bare pre-migration labels to human');
 });
 
 test('computeWontfixRate on an empty list returns an empty object', () => {

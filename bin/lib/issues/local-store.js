@@ -12,6 +12,7 @@
 const fs = require('fs');
 const path = require('path');
 const util = require('util');
+const { splitFrontmatterFence } = require('../health-core/frontmatter-list');
 
 const DEFAULT_DIR = 'specs';
 
@@ -59,13 +60,15 @@ function trimTrailingBlank(lines) {
 
 // raw file text -> { fmLines, afterLines }. fmLines is null when the file doesn't
 // open with a '---' fence on its very first line, or the fence never closes —
-// both treated as "no frontmatter" (the malformed-file case).
+// both treated as "no frontmatter" (the malformed-file case). Delegates the
+// actual fence-boundary detection to health-core/frontmatter-list.js's
+// splitFrontmatterFence — the canonical implementation, extracted specifically
+// to stop this exact class of drift across independent hand-rolled copies
+// (this was itself a 4th such copy before being folded in here).
 function splitFrontmatter(raw) {
-  const lines = raw.split('\n');
-  if (lines[0] !== '---') return { fmLines: null, afterLines: lines };
-  const closeIdx = lines.indexOf('---', 1);
-  if (closeIdx === -1) return { fmLines: null, afterLines: lines };
-  return { fmLines: lines.slice(1, closeIdx), afterLines: lines.slice(closeIdx + 1) };
+  const split = splitFrontmatterFence(raw);
+  if (!split) return { fmLines: null, afterLines: raw.split('\n') };
+  return { fmLines: split.frontmatter, afterLines: split.afterLines };
 }
 
 // "a, b" -> ['a', 'b']; "" -> [].
@@ -243,6 +246,17 @@ function allocateId(dir = DEFAULT_DIR) {
   return max + 1;
 }
 
+// dir, id -> true when a finalized `{id}-*.md` record already exists —
+// i.e. some caller (possibly one whose own claim file has since been
+// renamed away and is therefore no longer visible) already finished
+// creating a record at this exact id. Used by createRecord's retry loop
+// (see there) to detect a stale allocateId() snapshot: a `.claim` file
+// existing vs. not existing alone isn't enough, since a completed rename
+// makes the claim disappear at the exact moment the final file appears.
+function idAlreadyFinalized(dir, id) {
+  return listRecordFilenames(dir).some((name) => Number(ID_PREFIX_RE.exec(name)[1]) === id);
+}
+
 // Bounds the retry loop in createRecord. Real contention resolves in a handful
 // of retries at most (one per concurrent writer that raced ahead of us); this is
 // a runaway-loop guard for a persistently broken directory, not a realistic
@@ -295,6 +309,21 @@ function createRecord(dir = DEFAULT_DIR, { slug, title, body, facets } = {}) {
       fs.writeFileSync(claimPath, content, { encoding: 'utf8', flag: 'wx' });
     } catch (err) {
       if (err.code !== 'EEXIST') throw err;
+      id += 1;
+      continue;
+    }
+    // We now exclusively hold the claim for `id` (the wx create above only
+    // succeeds for one caller at a time). But the winner of an EARLIER race
+    // for this same id may already have renamed its own claim away and
+    // finished — freeing `id.claim` for us to (wrongly) re-claim here, since
+    // allocateId's candidate was computed once, before the loop, from a
+    // directory listing that can be stale relative to another caller's
+    // completed write. Detect that here, while we hold the claim (so no
+    // THIRD caller can race us on this same id in between): if a finalized
+    // `{id}-*.md` record already exists, our claim is spurious — release it
+    // and advance, exactly like the EEXIST branch above.
+    if (idAlreadyFinalized(dir, id)) {
+      fs.unlinkSync(claimPath);
       id += 1;
       continue;
     }

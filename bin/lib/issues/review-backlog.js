@@ -12,10 +12,18 @@
 'use strict';
 
 const { execSync } = require('child_process');
+const { PRIORITIES, TIERS } = require('./record');
 
+// Urgency order shared by both bands (high first). Values are validated
+// against record.js's canonical PRIORITIES/TIERS vocabulary before this
+// lookup — local-store.js's frontmatter parser accepts priority:/risk:
+// values verbatim with no enum check, so a hand-edited or future-taxonomy
+// record can carry an out-of-vocabulary value; treating that like the null/
+// absent case (band 3) instead of looking it up unconditionally avoids an
+// `undefined - 0 = NaN` comparator silently corrupting sort order.
 const RANK = { high: 0, medium: 1, low: 2 };
-const bandOf = (r) => (r.facets.priority ? RANK[r.facets.priority] : 3);
-const riskBandOf = (r) => (r.facets.risk ? RANK[r.facets.risk] : 3);
+const bandOf = (r) => (r.facets.priority && PRIORITIES.includes(r.facets.priority) ? RANK[r.facets.priority] : 3);
+const riskBandOf = (r) => (r.facets.risk && TIERS.includes(r.facets.risk) ? RANK[r.facets.risk] : 3);
 const byCreatedAtAsc = (a, b) => new Date(a.createdAt) - new Date(b.createdAt);
 
 // records[] -> { scored: records[], unscored: records[] }. Scored = carries both
@@ -86,24 +94,52 @@ function mergeUnsyncedRecords(githubRecords, unsyncedRecords) {
   ];
 }
 
-// (records[], { execFn? }) -> records[]. For each record, derives `createdAt`
-// from its own last-commit date via `git log -1 --format=%cI -- <path>` — used
-// for records whose driver carries no timestamp facet (local-files backend, and
-// any unsynced-fallback record), the same approach /tidy's Step 1 staleness clock
-// already uses. A git failure (no history, not a git repo) or empty output falls
-// back to the current time, matching the two duplicated inline scripts this
-// replaces (skills/review-backlog/SKILL.md's Step 1). `execFn` defaults to
-// `child_process.execSync` and is injectable so tests never need a real git repo.
+// Sentinel byte prefixing each commit's date line in the batched `git log`
+// output below — a control character that can never appear at the START of
+// a real relative file path, so it unambiguously distinguishes "this line is
+// a commit-date marker" from "this line is a filename" without relying on
+// git's own (format-dependent, easy to mis-parse) blank-line conventions.
+const COMMIT_DATE_MARKER = '\x01';
+
+// (records[], { execFn? }) -> records[]. Derives `createdAt` for every record
+// from its own last-commit date — used for records whose driver carries no
+// timestamp facet (local-files backend, and any unsynced-fallback record),
+// the same approach /tidy's Step 1 staleness clock already uses. Resolves
+// every record from a SINGLE `git log --name-only` walk of the whole
+// repository history (newest commit first, git log's default order) instead
+// of one `git log -1 -- <path>` subprocess per record: for each path, the
+// FIRST commit encountered while walking newest-to-oldest is by construction
+// the most recent commit touching it, so a single pass building a
+// path->date map answers every record's lookup. A record whose path never
+// appears in that map (git failure — no history, not a git repo — or a path
+// with no commits yet) falls back to the current time, matching the two
+// duplicated inline scripts this replaces (skills/review-backlog/SKILL.md's
+// Step 1). `execFn` defaults to `child_process.execSync` and is injectable so
+// tests never need a real git repo.
 function deriveCreatedAtFromGit(records, { execFn = execSync } = {}) {
-  return records.map((r) => {
-    let createdAt;
-    try {
-      createdAt = execFn('git log -1 --format=%cI -- ' + JSON.stringify(r.path), { encoding: 'utf8' }).trim();
-    } catch {
-      createdAt = null;
+  if (records.length === 0) return [];
+
+  const dateByPath = {};
+  try {
+    const out = execFn(`git log --name-only --format=${COMMIT_DATE_MARKER}%cI`, {
+      encoding: 'utf8',
+      maxBuffer: 1024 * 1024 * 64,
+    });
+    let currentDate = null;
+    for (const rawLine of out.split('\n')) {
+      if (rawLine.startsWith(COMMIT_DATE_MARKER)) {
+        currentDate = rawLine.slice(COMMIT_DATE_MARKER.length);
+        continue;
+      }
+      const p = rawLine.trim();
+      if (p !== '' && currentDate && !(p in dateByPath)) dateByPath[p] = currentDate;
     }
-    return { ...r, createdAt: createdAt || new Date().toISOString() };
-  });
+  } catch {
+    // Degrade to every record falling back to now() below — same contract
+    // as the previous per-record implementation's catch branch.
+  }
+
+  return records.map((r) => ({ ...r, createdAt: dateByPath[r.path] || new Date().toISOString() }));
 }
 
 module.exports = {
