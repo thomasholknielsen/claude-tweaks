@@ -203,9 +203,11 @@ Check:
 - .claude/settings.json? Read it.
 ```
 
-### If nothing exists → **Initial Mode** (skip to Phase 2)
+### If `$ARGUMENTS` includes `--update` or `update` → **Update Mode** (proceed to Phase 1u), regardless of what the existence check above found — this is the explicit override from the `## Input` section, for a bare/near-empty `.claude/` the existence check alone would otherwise route to Initial Mode
 
-### If config exists → **Update Mode** (proceed to Phase 1u)
+### Else if nothing exists → **Initial Mode** (skip to Phase 2)
+
+### Else (config exists) → **Update Mode** (proceed to Phase 1u)
 
 Update Mode runs three sub-phases before deciding whether to continue with the full reconnaissance:
 
@@ -219,7 +221,9 @@ Update Mode procedures live in `update-mode.md` — load only when Phase 1 detec
 
 ## Phase 2: Codebase Reconnaissance
 
-Work through these detection steps systematically. Use parallel tool calls aggressively — all glob/grep operations within a substep are independent and should run concurrently.
+Work through these detection steps systematically.
+
+> **Parallel execution:** Use parallel tool calls aggressively — all glob/grep operations within a substep are independent and should run concurrently.
 
 ### 2a: Project Identity
 
@@ -469,7 +473,7 @@ If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it
 | `/claude-tweaks:stories` | /init Phase 8 (journey discovery) feeds /stories — discovered journeys become input for story generation |
 | `/claude-tweaks:version` | /version reads the same `plugin.json` that /init may print during bootstrap |
 | `/claude-tweaks:routine` | Step 13 discovers claude-tweaks skills shipping a `routine-template.yml` (plus any named `routine-template-<variant>.yml` siblings) with no existing instantiated record, presents them via one multiSelect `AskUserQuestion` call (grouped into ≤4-option questions when there are more than 4 candidates) with their default schedules, resolves environment once, then invokes `/claude-tweaks:routine create <skill> [--variant=<name>] --defaults --environment=<id> --source init` for each selected candidate — pure discovery + handoff, no logic duplicated. |
-| `/claude-tweaks:harness-health` and `_shared/harness-health-analysis.md` | Phase 6's drift-patch procedure and Phase 3/1u's skill classification apply this shared procedure instead of an inline copy, sharing its judgment logic and `.claude-tweaks/harness-health/` cursor/cache state with `/claude-tweaks:wrap-up` Step 7 and the standalone routine. |
+| `/claude-tweaks:harness-health` and `_shared/harness-health-analysis.md` | Phase 6's drift-patch procedure and Phase 3/1u's skill classification apply this shared procedure instead of an inline copy, sharing its judgment logic with `/claude-tweaks:wrap-up` Step 7 and the standalone routine. Cursor state lives on the durable `health-state` git branch, not local disk (see `skill-template.md`'s Cursor Participation section); only `.claude-tweaks/harness-health/cache.json` is still local (see `bootstrap-steps.md` Step 4). |
 | `_shared/work-record.md` | Step 15 provisions the `work-backend` / `work-types` / `work-links` config keys this file documents as the record taxonomy's driver and capability contract. The label-provisioning offer (Step 15c) runs `_shared/label-bootstrap.md`'s canonical label list, which this file names as the taxonomy home. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. Phase 3 classification auto-confirm follows the contract's confidence-gated pattern. |
 | All workflow skills | Depend on the structure /claude-tweaks:init creates |

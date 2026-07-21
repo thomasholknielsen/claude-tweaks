@@ -134,7 +134,7 @@ The workflow system relies on git for change tracking (`/claude-tweaks:review` u
 1. Check if `.worktrees/` exists in the project root.
 2. If it doesn't exist, create it and verify it's in `.gitignore` (suggest adding if not) — this keeps the git-fallback path ready even on projects that primarily use a native tool.
 3. If a `.claude/worktrees/` directory exists, leave it alone — it belongs to the native tool's own harness-managed lifecycle, not superpowers'. Do not suggest migrating it into `.worktrees/`: doing so would relocate a live, harness-tracked worktree into the one path superpowers' own cleanup step will later remove, deleting it out from under the harness's bookkeeping.
-4. **Base ref** — claude-tweaks branches worktrees from the current local HEAD, but the harness setting `worktree.baseRef` defaults to `fresh` (branches from `origin/<default-branch>`). On a project whose integration branch is local and ahead of the remote default (a long-lived `dev`), `fresh` silently uses a stale base. Read `settings.json`; if `worktree.baseRef` is unset or `fresh`, surface:
+4. **Base ref** — see `_shared/worktree-base-ref.md` for why this matters (shared with `build/worktree-setup.md`'s runtime verification of the same setting). Read `settings.json`; if `worktree.baseRef` is unset or `fresh`, surface:
    ```
    Worktree base ref is `{current value or 'unset (default: fresh)'}`. claude-tweaks branches from your current local HEAD — `fresh` can branch from a stale `origin/<default-branch>`. Set `worktree.baseRef: "head"`? (Y/n)
    ```
@@ -231,7 +231,7 @@ When migrating from a versioned path, announce: "Migrating to wrapper at `<wrapp
 
 ## Optional Enhancement Steps
 
-Order-agnostic and append-only — each step below is an independent "detect condition → offer → write artifact → idempotent" companion integration. New enhancements are added at the end of this group; no renumbering is needed for future additions.
+Order-agnostic and append-only — each step below is an independent "detect condition → offer → write artifact → idempotent" companion integration. New enhancements are added at the end of this group; no renumbering is needed for future additions. One narrow exception: Step 9's native-Type mention reads a config key (`work-types`) that only Step 15 writes — see Step 9's own note for how it handles running before Step 15 on a fresh bootstrap.
 
 ### Step 9 — GitHub issue form template (agent-task)
 
@@ -254,7 +254,14 @@ satisfying "the section is present").
 When this project's `work-types` config key reads `native`, mention to the user that the
 filed issue can also carry a native Type — GitHub's own Type picker in the create-issue UI
 sits alongside this form (it is not a templated YAML field below), so a filer sets Type
-there directly instead of a filing skill inferring it from prose afterward.
+there directly instead of a filing skill inferring it from prose afterward. `work-types`
+is only ever written by Step 15's capability probe, so on a fresh bootstrap run (where
+this step executes before Step 15 in the file's presented order) it is still unset when
+Step 9 runs — the template-install offer itself proceeds regardless (it doesn't depend on
+Type), but defer this specific mention: re-check `work-types` once Step 15 completes and
+surface the native-Type note then as a short addendum, not a repeat of the whole offer. On
+an `/init update` re-run, `work-types` is already set from a prior run, so this step can
+check and mention it inline as written, with no deferral needed.
 
 ```yaml
 name: Agent task
@@ -504,8 +511,11 @@ Call `AskUserQuestion`:
 **Case B — `components.json` exists, MCP/skills not fully wired:**
 
 Check `.mcp.json` for an existing `mcpServers.shadcn` entry, and check whether the
-shadcn Skill is installed (its directory/marker file, per the `skills` CLI's own
-convention). If either is missing, call `AskUserQuestion`:
+shadcn Skill is installed by looking for a `shadcn*`-named entry in the available
+skills list the harness provides — the same skill-list-resolution technique
+`design-wrapper/SKILL.md` uses to detect whether Impeccable is installed (look for
+`/impeccable:impeccable*` in that same list); treat no match as not installed. If
+either is missing, call `AskUserQuestion`:
 
 - `question`: `"shadcn/ui is already initialized in this project. Wire up the MCP server and shadcn/skills for Claude Code?"`, `header`: `"shadcn/ui wiring"`, `multiSelect`: `false`
 - Option 1 — `label`: `"Yes — wire remaining layers (Recommended)"`, `description`: `"Runs steps 4-5 above (skipping CLI init, already done)."`
@@ -754,7 +764,9 @@ Call `AskUserQuestion`:
   `description`: `"Runs _shared/label-bootstrap.md's canonical LABELS_JSON whole —
   the core label families plus the optional priority:* family (see
   _shared/work-record.md's Label taxonomy table for the current per-family and
-  total counts). That file's own note names this offer as the one caller allowed
+  total counts) — plus, when work-types reads labels, the three type:* labels
+  (record.js's TYPE_LABELS), which the canonical LABELS_JSON structurally
+  excludes. That file's own note names this offer as the one caller allowed
   to use the full list, rather than bootstrapping only what's about to be applied.
   Front-loads label creation so the first health-skill firing or
   /claude-tweaks:capture call never pays the lazy-create path."`
@@ -765,9 +777,14 @@ Call `AskUserQuestion`:
   first appear on GitHub, not whether the system works."`
 
 On option 1, run the check-then-create loop from `_shared/label-bootstrap.md` with
-its canonical `LABELS_JSON`. See `_shared/work-record.md` for the taxonomy each
-label expresses (the seven axes: type, origin, scoring, stage, authorization, bot
-state, acceptance).
+its canonical `LABELS_JSON`. When `work-types: labels` (per Sub-step 15b's probe
+result), also run the same loop with `record.js`'s `TYPE_LABELS` — the canonical
+`LABELS_JSON` structurally excludes `type:*`, so without this second pass the
+option's "never pays the lazy-create path" promise would be false for Type labels
+the first time `/claude-tweaks:capture` or a health skill files one. Skip this second
+pass under `work-types: native` — there's nothing to bootstrap. See
+`_shared/work-record.md` for the taxonomy each label expresses (the seven axes:
+type, origin, scoring, stage, authorization, bot state, acceptance).
 
 **Pre-existing artifacts.** Projects that used the earlier two-file backlog design
 may still have `specs/backlog/*.md` entries, or live GitHub issues carrying retired
