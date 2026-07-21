@@ -217,15 +217,12 @@ grants; it never adds them:
   `auto-merge` (the two-layer gate defined in `skills/dispatch/SKILL.md`). Additive on
   `auto:build`; alone it is inert.
 
-**Grant revocation (machinery-owned, the only direction machinery moves):**
+**Grant revocation (machinery-owned, the only direction machinery moves):** the
+correctness/ambiguous-vs-transient failure classification and the retry-ceiling
+`auto:*`-removal + `bot:blocked` rule are `_shared/work-record.md`'s "Grant semantics"
+section (the taxonomy home cited above) — see that section for the full rule rather than a
+second restatement here. The one addition specific to this gate, not covered there:
 
-- A `correctness`- or `ambiguous`-classified failure (per `/claude-tweaks:assess-agent-autonomy`'s
-  `failure-check` mode) revokes `auto:merge` before the next retry; a `transient`-classified one
-  preserves it — the retry-ceiling counting below still runs unconditionally regardless of
-  classification.
-- At the retry ceiling (`dispatch-retry-ceiling`), remove all `auto:*` labels and add
-  `bot:blocked` — the record leaves the autonomous queue until a human re-grants at the gate
-  (which strips `bot:blocked` alongside the new grant).
 - Flag-back at the gate (remove `ready`, comment why) returns an unshaped record to backlog
   state for more shaping — the gate's equivalent of "not yet."
 
