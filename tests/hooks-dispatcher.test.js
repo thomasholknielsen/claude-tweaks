@@ -224,18 +224,38 @@ test('record-worktree without CLAUDE_CODE_SESSION_ID records no owner', () => {
   assert.ok(!('sessionId' in state), 'no env var -> no sessionId field');
 });
 
-test('close-run notes when closing a run recorded by another session, stays silent for the owner', () => {
+test('close-run without --run REFUSES to close a run recorded by another (still-active) session, stays silent for the owner (finding regression)', () => {
+  // Previously, a cross-session mismatch reached via the implicit fallback
+  // (no --run) was only ever NOTED via a printed message but still
+  // unconditionally closed — silently disarming the OTHER session's E1/E2/E3
+  // enforcement with no way for it to know.
   const foreignProject = tmpProject();
+  const foreignRun = path.join(foreignProject, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   runHook(['record-worktree', '/tmp/wt'], { cwd: foreignProject, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
   const foreign = runHook(['close-run'], { cwd: foreignProject, env: { CLAUDE_CODE_SESSION_ID: 'bystander' } });
   assert.strictEqual(foreign.code, 0);
   assert.match(foreign.stdout, /recorded by another session/);
+  assert.match(foreign.stdout, /refusing to close/);
+  const foreignState = readRunState(foreignRun);
+  assert.strictEqual(foreignState.status, 'active', 'the foreign session\'s run must remain active, not be silently closed');
+  assert.strictEqual(foreignState.worktree, path.resolve('/tmp/wt'), 'the foreign session\'s worktree assignment must survive');
 
   const ownProject = tmpProject();
   runHook(['record-worktree', '/tmp/wt'], { cwd: ownProject, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
   const own = runHook(['close-run'], { cwd: ownProject, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
   assert.strictEqual(own.code, 0);
   assert.strictEqual(own.stdout, '');
+});
+
+test('close-run WITH an explicit --run still closes a run recorded by another session — the refusal only applies to the implicit fallback', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  runHook(['record-worktree', '/tmp/wt'], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
+  const result = runHook(['close-run', '--run', run], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'bystander' } });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /recorded by another session/);
+  assert.doesNotMatch(result.stdout, /refusing to close/);
+  assert.strictEqual(readRunState(run).status, 'clean', 'an explicitly-targeted --run intentionally overrides the cross-session refusal');
 });
 
 test('e2e: foreign-session commit in the main checkout is allowed with a systemMessage, not denied', () => {
@@ -280,6 +300,27 @@ test('hooks.json registers PreToolUse matchers for Edit, Write, and NotebookEdit
   assert.ok(matchers.includes('Edit'), 'expected an Edit matcher');
   assert.ok(matchers.includes('Write'), 'expected a Write matcher');
   assert.ok(matchers.includes('NotebookEdit'), 'expected a NotebookEdit matcher');
+});
+
+test("hooks.json's PreToolUse/PostToolUse Bash `if` patterns cover every VALUE_FLAGS entry git-command.js's gitTargets() resolves (finding regression)", () => {
+  // git-command.js's gitTargets() is written and unit-tested to correctly
+  // resolve a commit/push target through `-c`, `--exec-path`, and
+  // `--namespace` (VALUE_FLAGS), not just `-C` — but the parser is only ever
+  // invoked at all if one of hooks.json's own `if` matchers first recognizes
+  // the command shape enough to spawn bin/hooks.js. A commit issued as
+  // `git -c user.name=x commit -m y` previously never even reached the
+  // parser: no registered `if` pattern matched its literal text, so both
+  // the worktree.always deny and the E1 wrong-checkout deny silently never
+  // fired for this shape.
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'hooks', 'hooks.json'), 'utf8'));
+  const requiredPatterns = ['Bash(git -c *)', 'Bash(git --exec-path=*)', 'Bash(git --namespace=*)'];
+  for (const event of ['PreToolUse', 'PostToolUse']) {
+    const bashEntry = config.hooks[event].find((e) => e.matcher === 'Bash');
+    const ifs = bashEntry.hooks.map((h) => h.if);
+    for (const pattern of requiredPatterns) {
+      assert.ok(ifs.includes(pattern), `expected ${event}'s Bash matcher to include an "if": "${pattern}" entry`);
+    }
+  }
 });
 
 test('e2e: pre-tool-use CLI denies an Edit when worktree.always policy is set in the main checkout', () => {

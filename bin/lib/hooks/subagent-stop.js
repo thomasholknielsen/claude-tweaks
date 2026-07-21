@@ -11,10 +11,10 @@ function lastAssistantText(transcriptPath) {
   let raw;
   try { raw = fs.readFileSync(transcriptPath, 'utf8'); } catch { return null; }
   const lines = raw.split('\n');
-  // Scan from the tail and stop at the first match — the last assistant
-  // message is almost always near the end of a long-running transcript, so
-  // this avoids JSON.parse-ing every earlier line just to confirm none of
-  // them is the true last one.
+  // Scan from the tail and stop at the first assistant message found — the
+  // last assistant message is almost always near the end of a long-running
+  // transcript, so this avoids JSON.parse-ing every earlier line just to
+  // confirm none of them is the true last one.
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i];
     if (!line.trim()) continue;
@@ -22,8 +22,15 @@ function lastAssistantText(transcriptPath) {
     try { entry = JSON.parse(line); } catch { continue; }
     const msg = entry && entry.message;
     if (!msg || msg.role !== 'assistant' || !Array.isArray(msg.content)) continue;
+    // This IS the transcript's true last assistant turn (first match found
+    // scanning backward) — decide based on IT alone and stop here. Falling
+    // through to an EARLIER assistant message when this one has no text
+    // blocks (e.g. a tool-call-only final turn) would silently grade stale,
+    // unrelated content instead of correctly recognizing "the real last
+    // turn had nothing to grade" — matching this file's own best-effort
+    // posture (unreadable/ungradable -> no-op, not a violation).
     const texts = msg.content.filter((c) => c && c.type === 'text' && typeof c.text === 'string');
-    if (texts.length) return texts[texts.length - 1].text;
+    return texts.length ? texts[texts.length - 1].text : null;
   }
   return null;
 }

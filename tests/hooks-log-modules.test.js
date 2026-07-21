@@ -35,6 +35,26 @@ test('post-tool-use logs commit breadcrumb with hash', () => {
   assert.match(ev[0].hash, /^[0-9a-f]{4,}$/);
 });
 
+test('post-tool-use logs a DISTINCT hash for each of two real commits to the same dir in one invocation, not the current-HEAD hash twice', () => {
+  const repo = gitRepoWithCommit();
+  const run = mkRun();
+  const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
+  execFileSync('git', ['-C', repo, 'commit', '--allow-empty', '-q', '-m', 'first'], { env });
+  const firstHash = execFileSync('git', ['-C', repo, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim();
+  execFileSync('git', ['-C', repo, 'commit', '--allow-empty', '-q', '-m', 'second'], { env });
+  const secondHash = execFileSync('git', ['-C', repo, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim();
+
+  post.run({
+    input: { tool_name: 'Bash', tool_input: { command: 'git commit -m "a" && git commit --allow-empty -m "b"' }, cwd: repo },
+    runDir: run, runState: { status: 'active' }, cwd: repo,
+  });
+  const ev = readEvents(run);
+  assert.strictEqual(ev.length, 2);
+  assert.strictEqual(ev[0].hash, firstHash, 'the first target should log the OLDER commit\'s own hash');
+  assert.strictEqual(ev[1].hash, secondHash, 'the second target should log the NEWER commit\'s own hash');
+  assert.notStrictEqual(ev[0].hash, ev[1].hash, 'the two commit targets must not both log the same current-HEAD hash');
+});
+
 test('post-tool-use without run dir or without git targets is a no-op', () => {
   const repo = gitRepoWithCommit();
   assert.deepStrictEqual(post.run({ input: { tool_name: 'Bash', tool_input: { command: 'git commit -m x' }, cwd: repo }, runDir: null, runState: null, cwd: repo }), {});
@@ -90,6 +110,32 @@ test('subagent-stop checks the LAST assistant message, not an earlier non-compli
   const run = mkRun();
   const t = multiTurnTranscript(['still investigating', 'DONE\nAll checks green.']);
   const out = substop.run({ input: { agent_transcript_path: t }, runDir: run, runState: null, cwd: '/x' });
+  assert.deepStrictEqual(out, {});
+  assert.ok(!fs.existsSync(path.join(run, 'events.jsonl')));
+});
+
+function toolOnlyLastTurnTranscript() {
+  const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-e3-toolonly-')), 'agent.jsonl');
+  const lines = [
+    JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'text', text: 'go' }] } }),
+    JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'still investigating, not done yet' }] } }),
+    JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', content: 'ok' }] } }),
+    // The TRUE last assistant turn — tool-call only, no text block at all.
+    JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 'x', name: 'SomeTool', input: {} }] } }),
+  ];
+  fs.writeFileSync(f, lines.join('\n') + '\n');
+  return f;
+}
+
+test('subagent-stop treats a tool-call-only LAST assistant turn as nothing to grade, not a fallback to an earlier text message (finding regression)', () => {
+  const run = mkRun();
+  const t = toolOnlyLastTurnTranscript();
+  const out = substop.run({ input: { agent_transcript_path: t }, runDir: run, runState: null, cwd: '/x' });
+  // The real last turn has no text at all — best-effort no-op, matching
+  // this file's "unreadable/ungradable -> no-op" posture. Previously the
+  // scan fell through to the EARLIER "still investigating" text (which
+  // doesn't start with a status keyword) and wrongly flagged it as a
+  // contract violation.
   assert.deepStrictEqual(out, {});
   assert.ok(!fs.existsSync(path.join(run, 'events.jsonl')));
 });

@@ -199,3 +199,67 @@ test('fileWriteTargets: a plain read-only command yields no target', () => {
   assert.deepStrictEqual(fileWriteTargets('npm test', '/repo'), []);
   assert.deepStrictEqual(fileWriteTargets('', '/repo'), []);
 });
+
+test('an empty -C value ("git -C \'\' commit") behaves like omitting -C entirely, not like an unparseable command', () => {
+  // A truthy check on t[i+1] treats a genuinely-present-but-empty value as
+  // "no value follows", mis-consuming only the -C flag and leaving the
+  // leftover '' to be misread as the subcommand — silently producing zero
+  // targets for a command real git treats as fully valid.
+  assert.deepStrictEqual(gitTargets('git -C "" commit -m "msg"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
+});
+
+test('an empty value for a global VALUE_FLAG (-c) does not swallow the subcommand either', () => {
+  assert.deepStrictEqual(gitTargets('git -c "" commit -m "msg"', '/repo'), [{ action: 'commit', dir: '/repo' }]);
+});
+
+test('a trailing # comment is inert — no fabricated segments from && / ; / | inside it', () => {
+  assert.deepStrictEqual(
+    gitTargets('git commit -m "wip: refactor" # note && git -C /evil commit --amend', '/repo'),
+    [{ action: 'commit', dir: '/repo' }],
+  );
+});
+
+test('a # comment ends at the newline, not swallowing a real command that follows on the next line', () => {
+  assert.deepStrictEqual(
+    gitTargets('git commit -m "a" # comment\ngit push', '/repo'),
+    [{ action: 'commit', dir: '/repo' }, { action: 'push', dir: '/repo' }],
+  );
+});
+
+test('a # not at the start of a word (glued to preceding text) is NOT a comment — a real separator right after it still splits normally', () => {
+  assert.deepStrictEqual(
+    gitTargets('echo hi#comment && git commit -m "x"', '/repo'),
+    [{ action: 'commit', dir: '/repo' }],
+  );
+});
+
+test('a cd argument formed by a quoted prefix glued (no whitespace) to an unresolvable unquoted suffix poisons cwd instead of resolving just the quoted part', () => {
+  assert.deepStrictEqual(gitTargets('cd "/tmp/safe/"$SUFFIX && git commit -m "x"', '/repo'), []);
+});
+
+test("cd's own flags (-P, -L, --) are not mistaken for a path argument — poisons cwd instead of resolving a bogus child directory", () => {
+  assert.deepStrictEqual(gitTargets('cd -P /abs/other-repo && git commit -m "x"', '/repo'), []);
+  assert.deepStrictEqual(gitTargets('cd -L /abs/other-repo && git commit -m "x"', '/repo'), []);
+  assert.deepStrictEqual(gitTargets('cd -- /abs/other-repo && git commit -m "x"', '/repo'), []);
+});
+
+test('fileWriteTargets: tee with multiple destination files reports every one of them, not just the first', () => {
+  assert.deepStrictEqual(fileWriteTargets('tee /worktree/notes.txt /etc/important-file', '/repo'), [
+    { action: 'write', file: '/worktree/notes.txt' },
+    { action: 'write', file: '/etc/important-file' },
+  ]);
+});
+
+test('fileWriteTargets: cp/mv -t DIR names the real destination directory, not the last source', () => {
+  assert.deepStrictEqual(fileWriteTargets('cp -t /main/checkout secret.txt', '/repo'), [{ action: 'copy', file: '/main/checkout' }]);
+  assert.deepStrictEqual(fileWriteTargets('mv -t /main/checkout a.txt b.txt', '/repo'), [{ action: 'move', file: '/main/checkout' }]);
+});
+
+test('fileWriteTargets: cp/mv --target-directory=DIR and --target-directory DIR are both recognized', () => {
+  assert.deepStrictEqual(fileWriteTargets('cp --target-directory=/main/checkout secret.txt', '/repo'), [{ action: 'copy', file: '/main/checkout' }]);
+  assert.deepStrictEqual(fileWriteTargets('cp --target-directory /main/checkout secret.txt', '/repo'), [{ action: 'copy', file: '/main/checkout' }]);
+});
+
+test('fileWriteTargets: a tee argument formed by a quoted prefix glued to an unresolvable unquoted suffix yields no target', () => {
+  assert.deepStrictEqual(fileWriteTargets('tee "/safe/"$X', '/repo'), []);
+});

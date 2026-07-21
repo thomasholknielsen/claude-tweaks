@@ -6,20 +6,17 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { execFileSync } = require('child_process');
+const { execGit: git } = require('./git-exec');
 
-function git(args, cwd) {
-  try {
-    return execFileSync('git', ['-C', cwd, ...args], {
-      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 3000,
-    }).trim();
-  } catch {
-    return null;
-  }
-}
-
+// Returns null (not the original, unresolved path) on failure — matching
+// pre-tool-use.js's own identically-named/-purposed safeReal(). This
+// project's fail-open invariant ("a recorded worktree whose path no longer
+// exists resolves to allow") depends on unresolvable paths being falsy;
+// returning the raw path here would let repoInfo() below hand back a
+// truthy-looking-but-unverified repoRoot/isLinkedWorktree if a directory is
+// torn down between the `git rev-parse` call and this realpath call.
 function safeReal(p) {
-  try { return fs.realpathSync(p); } catch { return p; }
+  try { return fs.realpathSync(p); } catch { return null; }
 }
 
 function nearestExistingDir(p) {
@@ -78,4 +75,4 @@ function findPolicyFile(p) {
   return null;
 }
 
-module.exports = { nearestExistingDir, repoInfo, findPolicyFile };
+module.exports = { nearestExistingDir, repoInfo, findPolicyFile, safeReal };

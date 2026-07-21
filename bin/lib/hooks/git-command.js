@@ -48,6 +48,18 @@ function splitSegments(command) {
     if (ch === '&' && str[i + 1] === '&') { segments.push(current); current = ''; i += 1; continue; }
     if (ch === '|' && str[i + 1] === '|') { segments.push(current); current = ''; i += 1; continue; }
     if (ch === ';' || ch === '|' || ch === '\n') { segments.push(current); current = ''; continue; }
+    // Unquoted `#` at the start of a word begins a bash comment that runs to
+    // the end of the line — real bash never executes anything after it, so
+    // any &&/;/| inside it must not fabricate a segment boundary. Only
+    // recognized at a word boundary (start of string, or immediately after
+    // whitespace/a separator) to match bash's own rule: `#` glued to
+    // preceding non-whitespace text (e.g. `foo#bar`) is NOT a comment.
+    if (ch === '#' && (i === 0 || /[\s;&|]/.test(str[i - 1]))) {
+      let j = i + 1;
+      while (j < str.length && str[j] !== '\n') j++;
+      i = j - 1; // for-loop's i++ lands exactly on the newline (or end of string)
+      continue;
+    }
     current += ch;
   }
   segments.push(current);
@@ -58,12 +70,26 @@ function stripQuotes(s) {
   return s.replace(/^['"]|['"]$/g, '');
 }
 
-// Tokenizer that keeps quoted spans (with spaces) as one token.
+// Tokenizer that keeps quoted spans (with spaces) as one token. Also merges a
+// quoted span into an immediately-adjacent (no whitespace between) match —
+// matching real shell word-splitting, where `"/tmp/safe/"$SUFFIX` is ONE word
+// (`/tmp/safe/<value-of-$SUFFIX>`), not two. Without this, resolveCd/isUnresolvable
+// only ever see the quoted portion in isolation, judge it fully resolvable, and
+// silently drop the unresolvable suffix that would otherwise poison the target.
 function tokenize(seg) {
   const out = [];
   const re = /"([^"]*)"|'([^']*)'|(\S+)/g;
   let m;
-  while ((m = re.exec(seg)) !== null) out.push(m[1] !== undefined ? m[1] : m[2] !== undefined ? m[2] : m[3]);
+  let prevEnd = -1;
+  while ((m = re.exec(seg)) !== null) {
+    const val = m[1] !== undefined ? m[1] : m[2] !== undefined ? m[2] : m[3];
+    if (out.length && m.index === prevEnd) {
+      out[out.length - 1] += val;
+    } else {
+      out.push(val);
+    }
+    prevEnd = re.lastIndex;
+  }
   return out;
 }
 
@@ -78,11 +104,16 @@ const UNPROVABLE_FLAGS = ['--git-dir', '--work-tree'];
 // ambiguity: the regex tokenizer below is not escape-aware, so a value that
 // still carries a backslash or stray quote (from an escaped-quote sequence
 // upstream) cannot be trusted as a literal path — never claim an unprovable
-// target.
+// target. Also unresolvable: anything else that looks like a FLAG (starts
+// with "-", length > 1) — cd's own flags (-L, -P, -e, -@, --) are not path
+// arguments; without this, `cd -P /other-repo` would resolve "-P" itself as
+// a literal (almost certainly nonexistent) child directory of the current
+// cwd instead of recognizing the real target is unprovable from here.
 function isUnresolvable(raw) {
   return (
     raw === undefined ||
     raw === '-' ||
+    (raw.length > 1 && raw.startsWith('-')) ||
     raw.startsWith('~') ||
     raw.includes('$') ||
     raw.includes('`') ||
@@ -110,8 +141,14 @@ function resolveCd(effCwd, raw) {
   return path.resolve(effCwd, stripQuotes(raw));
 }
 
-function gitTargets(command, cwd) {
-  const targets = [];
+// Shared segment/token walk used by both gitTargets and fileWriteTargets:
+// splits the command into shell segments, tokenizes each, and tracks `cd` to
+// keep the effective cwd in sync. `handler(t, effCwd)` is invoked for every
+// non-cd, non-empty segment with the cwd value in effect for it (string, or
+// null meaning UNKNOWN). Extracted so a future fix to cd-resolution (a new
+// isUnresolvable pattern, pushd/popd support, etc.) can never land in one
+// caller's copy of this preamble and not the other's.
+function forEachCommandSegment(command, cwd, handler) {
   let effCwd = cwd || '.'; // string, or null meaning UNKNOWN
   for (const seg of splitSegments(command)) {
     const t = tokenize(seg.trim());
@@ -120,14 +157,27 @@ function gitTargets(command, cwd) {
       effCwd = resolveCd(effCwd, t[1]);
       continue;
     }
-    if (t[0] !== 'git') continue;
+    handler(t, effCwd);
+  }
+}
+
+function gitTargets(command, cwd) {
+  const targets = [];
+  forEachCommandSegment(command, cwd, (t, effCwd) => {
+    if (t[0] !== 'git') return;
     let i = 1;
     let dir = effCwd; // may be null (UNKNOWN)
     let unprovable = false;
     while (i < t.length && t[i].startsWith('-')) {
       const flag = t[i];
       if (UNPROVABLE_FLAGS.some((u) => flag === u || flag.startsWith(u + '='))) { unprovable = true; i += flag.includes('=') ? 1 : 2; continue; }
-      if (flag === '-C' && t[i + 1]) {
+      // Use an explicit index-bound check (i + 1 < t.length), not a truthy
+      // check on t[i + 1] — a truthy check treats a genuinely-present but
+      // EMPTY value (`-C ""`, which real git treats as equivalent to
+      // omitting -C entirely) as "no value follows", mis-consuming only the
+      // flag token and leaving the leftover '' to be misread as the git
+      // subcommand two lines below.
+      if (flag === '-C' && i + 1 < t.length) {
         const raw = t[i + 1];
         if (isUnresolvable(raw)) {
           unprovable = true;
@@ -142,14 +192,14 @@ function gitTargets(command, cwd) {
         i += 2;
         continue;
       }
-      if (VALUE_FLAGS.has(flag) && t[i + 1]) { i += 2; continue; }
+      if (VALUE_FLAGS.has(flag) && i + 1 < t.length) { i += 2; continue; }
       i += 1;
     }
-    if (unprovable) continue;
-    if (dir === null) continue; // cwd UNKNOWN and no provable -C — no target
+    if (unprovable) return;
+    if (dir === null) return; // cwd UNKNOWN and no provable -C — no target
     const sub = t[i];
     if (sub === 'commit' || sub === 'push') targets.push({ action: sub, dir });
-  }
+  });
   return targets;
 }
 
@@ -178,31 +228,51 @@ function resolveWriteTarget(effCwd, raw) {
 
 function fileWriteTargets(command, cwd) {
   const targets = [];
-  let effCwd = cwd || '.';
-  for (const seg of splitSegments(command)) {
-    const t = tokenize(seg.trim());
-    if (!t.length) continue;
-    if (t[0] === 'cd') {
-      effCwd = resolveCd(effCwd, t[1]);
-      continue;
-    }
-
+  forEachCommandSegment(command, cwd, (t, effCwd) => {
     if (t[0] === 'tee') {
-      const arg = t.slice(1).find((a) => !a.startsWith('-'));
-      const file = resolveWriteTarget(effCwd, arg);
-      if (file) targets.push({ action: 'write', file });
-      continue;
+      // tee genuinely writes to EVERY non-flag argument, not just the
+      // first — `tee a.txt b.txt` writes both files. .find() silently
+      // dropped every destination after the first.
+      for (const arg of t.slice(1).filter((a) => !a.startsWith('-'))) {
+        const file = resolveWriteTarget(effCwd, arg);
+        if (file) targets.push({ action: 'write', file });
+      }
+      return;
     }
 
     if (t[0] === 'cp' || t[0] === 'mv') {
-      const nonFlags = t.slice(1).filter((a) => !a.startsWith('-'));
-      if (nonFlags.length >= 2) {
+      // `-t DIR` / `--target-directory[=]DIR` names the real destination
+      // directory explicitly; every remaining positional argument is a
+      // SOURCE, not the destination — the plain "last positional arg is
+      // the destination" rule below only applies when neither form is
+      // present.
+      const rest = t.slice(1);
+      let targetDirRaw = null;
+      const nonFlags = [];
+      for (let i = 0; i < rest.length; i++) {
+        const a = rest[i];
+        if (a === '-t' || a === '--target-directory') {
+          targetDirRaw = rest[i + 1];
+          i += 1;
+          continue;
+        }
+        if (a.startsWith('--target-directory=')) {
+          targetDirRaw = a.slice('--target-directory='.length);
+          continue;
+        }
+        if (a.startsWith('-')) continue; // other flags — never a positional
+        nonFlags.push(a);
+      }
+      if (targetDirRaw !== null) {
+        const file = resolveWriteTarget(effCwd, targetDirRaw);
+        if (file) targets.push({ action: t[0] === 'cp' ? 'copy' : 'move', file });
+      } else if (nonFlags.length >= 2) {
         const file = resolveWriteTarget(effCwd, nonFlags[nonFlags.length - 1]);
         if (file) targets.push({ action: t[0] === 'cp' ? 'copy' : 'move', file });
       }
-      continue;
+      return;
     }
-  }
+  });
   return targets;
 }
 

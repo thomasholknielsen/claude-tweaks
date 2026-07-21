@@ -28,6 +28,9 @@
           { "type": "command", "if": "Bash(git commit *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
           { "type": "command", "if": "Bash(git push *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
           { "type": "command", "if": "Bash(git -C *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
+          { "type": "command", "if": "Bash(git -c *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
+          { "type": "command", "if": "Bash(git --exec-path=*)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
+          { "type": "command", "if": "Bash(git --namespace=*)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
           { "type": "command", "if": "Bash(cp *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
           { "type": "command", "if": "Bash(mv *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" },
           { "type": "command", "if": "Bash(tee *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" pre-tool-use" }
@@ -58,7 +61,10 @@
         "hooks": [
           { "type": "command", "if": "Bash(git commit *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" },
           { "type": "command", "if": "Bash(git push *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" },
-          { "type": "command", "if": "Bash(git -C *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" }
+          { "type": "command", "if": "Bash(git -C *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" },
+          { "type": "command", "if": "Bash(git -c *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" },
+          { "type": "command", "if": "Bash(git --exec-path=*)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" },
+          { "type": "command", "if": "Bash(git --namespace=*)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hooks.js\" post-tool-use" }
         ]
       },
       {
