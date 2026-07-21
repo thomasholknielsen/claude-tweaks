@@ -27,14 +27,9 @@ Every consumer renders its own batch table (columns matching its own Finding Sha
 
 - `question`: `"How do you want to handle these findings?"`, `header`: `"Findings"`, `multiSelect`: `false`
   - Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"File / Capture each finding per the Recommended column above"`
-  - Option 2 — `label`: `"Route individually"`, `description`: `"Decide each finding one at a time"`
+  - Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which #s to change"`
 
-If "Route individually" is chosen, call `AskUserQuestion` once per finding — `question`: `"How do you want to handle finding #{N}: {title}?"`, `header`: `"Finding #{N}"`, `multiSelect`: `false`:
-
-- Option 1 — `label`: `"File issue"`, `description`: `"File as a GitHub by:{skill} issue"`
-- Option 2 — `label`: `"Capture"`, `description`: `"Capture via /claude-tweaks:capture for later triage"`
-- Option 3 — `label`: `"/claude-tweaks:specify directly"`, `description`: `"Promote straight to a spec, skipping the issue"`
-- Option 4 — `label`: `"Dismiss"`, `description`: `"Run mark declined so it doesn't reappear"`
+If "Override specific items" is chosen, the follow-up is ordinary free-text chat in the next message, per CLAUDE.md's Multi-item decisions convention — not the tool's `Other` field (a single answer to the batch question above, not a per-item list). The user names findings by number and states each one's disposition — `File issue` (file as a GitHub `by:{skill}` issue), `Capture` (via `/claude-tweaks:capture` for later triage), `/claude-tweaks:specify directly` (promote straight to a spec, skipping the issue), or `Dismiss` (run `mark <id> declined` so it doesn't reappear) — e.g. "file 2, capture 5, dismiss 7." Apply the stated disposition to those specific findings; every finding not named keeps its Recommended-column value from the batch table.
 
 Each consumer's own Recommended-column pre-fill rule uses whatever fields its own Finding Shape already computes. `code-health` keeps its existing `--min-risk`-driven severity×confidence rule (with a third fallback tier held in its `remembered` cache). `docs-health`, `harness-health`, and `journey-health` all use the same rule instead of inventing separate ones: pre-fill `"File issue"` when `confidence` is `high` or `med`, `"Capture"` when `confidence` is `low`.
 
