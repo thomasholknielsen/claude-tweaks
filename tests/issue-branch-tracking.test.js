@@ -105,3 +105,116 @@ test('generateWorkflowYaml skips posting a duplicate tracking comment when one f
     'must only post the tracking comment when no existing comment for this SHA was found'
   );
 });
+
+// Regression: the JS side (extractIssueNumbers) matches ISSUE_REF_SOURCE
+// against each whole commit message, so `\s+` spans an embedded newline
+// (e.g. a hard-wrapped "This closes\n#123"). The old generated shell step
+// piped `jq -r '.[].message'` into plain `grep -ioP`, which processes input
+// line-by-line even under `-P` — `\s+` could never bridge that newline
+// there, so the same reference was silently missed on the actual runner.
+test('generateWorkflowYaml uses jq --raw-output0 + grep -z (NUL-delimited) so a reference is not missed', () => {
+  const yaml = generateWorkflowYaml();
+  const occurrences = (needle) => yaml.split(needle).length - 1;
+  assert.strictEqual(occurrences('jq --raw-output0'), 2, 'both jobs must NUL-terminate each commit message');
+  assert.strictEqual(occurrences('grep -zoiP'), 2, 'both jobs must grep in NUL-delimited (-z) mode');
+  assert.strictEqual(occurrences("tr '\\0' '\\n'"), 2, 'both jobs must convert NUL-separated matches back to newline-separated before the [0-9]+ extraction');
+});
+
+function resolveGnuGrep() {
+  const { spawnSync } = require('node:child_process');
+  for (const candidate of ['grep', 'ggrep']) {
+    const r = spawnSync(candidate, ['--version'], { encoding: 'utf8' });
+    if (r.status === 0 && /GNU grep/.test(r.stdout || '')) return candidate;
+  }
+  return null;
+}
+
+function hasJq() {
+  const { spawnSync } = require('node:child_process');
+  const r = spawnSync('jq', ['--version'], { encoding: 'utf8' });
+  return r.status === 0;
+}
+
+// Extracts the literal "Extract referenced issues" run-body from the real
+// generated YAML (between the `PATTERN=` line and the `echo "issues=..."`
+// line, inclusive) — the exact same lines a GitHub Actions runner would
+// execute — rather than re-implementing the pipeline in the test itself.
+// A re-implementation would keep passing even if generateWorkflowYaml()
+// regressed back to the old `jq -r` / plain `grep -ioP` shape, since it
+// would never actually exercise the generated output.
+function extractRunBody(yaml) {
+  const lines = yaml.split('\n');
+  const startIdx = lines.findIndex((l) => l.includes("PATTERN='"));
+  const endIdx = lines.findIndex((l, i) => i >= startIdx && l.includes('echo "issues=$ISSUES"'));
+  assert.ok(startIdx !== -1 && endIdx !== -1, 'expected to find the extract-step run body in the generated YAML');
+  return lines.slice(startIdx, endIdx + 1).map((l) => l.trim()).join('\n');
+}
+
+// Runs the literal extracted run-body against a fixture commit list, with
+// `grep` on PATH resolved to a real GNU grep (this environment may only
+// have it under a different name, e.g. `ggrep` on macOS — every GitHub
+// Actions ubuntu-latest runner ships GNU grep natively as `grep`).
+function runExtractStep(t, commits) {
+  const gnuGrep = resolveGnuGrep();
+  if (!gnuGrep) {
+    t.skip('no GNU grep found (checked `grep` and `ggrep`) — every GitHub Actions ubuntu-latest runner ships GNU grep natively, so this is a local-environment gap, not a real gap');
+    return null;
+  }
+  if (!hasJq()) {
+    t.skip('jq not found in this environment');
+    return null;
+  }
+
+  const { execFileSync } = require('node:child_process');
+  const os = require('node:os');
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-issue-track-'));
+  try {
+    const binDir = path.join(tmp, 'bin');
+    fs.mkdirSync(binDir);
+    if (gnuGrep !== 'grep') {
+      // Shim `grep` -> the real GNU grep binary so the extracted script
+      // (which hardcodes the literal command name `grep`) runs unmodified.
+      fs.writeFileSync(path.join(binDir, 'grep'), `#!/bin/sh\nexec ${gnuGrep} "$@"\n`, { mode: 0o755 });
+    }
+
+    const runBody = extractRunBody(generateWorkflowYaml());
+    const githubOutput = path.join(tmp, 'github_output.txt');
+    fs.writeFileSync(githubOutput, '');
+    execFileSync('bash', ['-c', runBody], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: `${binDir}:${process.env.PATH}`,
+        RUNNER_TEMP: tmp,
+        GITHUB_OUTPUT: githubOutput,
+        COMMITS_JSON: JSON.stringify(commits),
+      },
+    });
+    const outputContent = fs.readFileSync(githubOutput, 'utf8');
+    const match = outputContent.match(/^issues=(.*)$/m);
+    return match ? match[1].trim() : '';
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+test('extraction pipeline (literal generated script): finds an issue reference hard-wrapped across a commit-message line break (the actual failure scenario)', (t) => {
+  // A plain hard-wrap at ~72 columns, a common git commit-body convention —
+  // not a contrived input.
+  const commits = [{ message: 'Fix the flaky login test\n\nThis closes\n#123 for good.' }];
+  const issues = runExtractStep(t, commits);
+  if (issues === null) return; // skipped — see runExtractStep
+  assert.strictEqual(issues, '123', `expected the hard-wrapped issue reference to be found, got: "${issues}"`);
+});
+
+test('extraction pipeline (literal generated script): does not falsely join two separate commit messages at their boundary', (t) => {
+  const commits = [
+    { message: 'Random commit that ends with the word closes' },
+    { message: '#999 is an unrelated commit that starts with a hash' },
+  ];
+  const issues = runExtractStep(t, commits);
+  if (issues === null) return; // skipped — see runExtractStep
+  assert.strictEqual(issues, '', `two unrelated commit messages must not be joined across their NUL boundary, got: "${issues}"`);
+});
