@@ -88,17 +88,23 @@ Read the `work-backend` field from the project's CLAUDE.md (under a `## Work rec
      --label "type:$TYPE"
    ```
 
-3. **On failure** (GitHub unreachable, `gh` broken, transient API error): fall back to the local driver — write the record via `local-store.js`'s `createRecord` (atomic id allocation; see the local-files branch below for why `allocateId`+`writeRecord` is unsafe for creating a brand-new record), using the same slug derivation rule as the local-files branch below:
+3. **On failure** (GitHub unreachable, `gh` broken, transient API error): fall back to the local driver — write the record via `local-store.js`'s `createRecord` (atomic id allocation; see the local-files branch below for why `allocateId`+`writeRecord` is unsafe for creating a brand-new record), using the same `deriveSlug` call as the local-files branch below:
 
    ```bash
-   node -e "const {createRecord}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
-     const record = createRecord('specs', {
-       slug: process.argv[1],
-       title: process.argv[2],
-       body: process.argv[3],
-       facets: { type: process.argv[4], origin: 'capture', unsynced: true }
+   node -e "const fs=require('fs');
+     const {createRecord, deriveSlug}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
+     const dir='specs';
+     const existingSlugs=fs.existsSync(dir)
+       ? fs.readdirSync(dir).map((n)=>/^\d+-(.+)\.md$/.exec(n)).filter(Boolean).map((m)=>m[1])
+       : [];
+     const slug=deriveSlug(process.argv[1], existingSlugs);
+     const record = createRecord(dir, {
+       slug,
+       title: process.argv[1],
+       body: process.argv[2],
+       facets: { type: process.argv[3], origin: 'capture', unsynced: true }
      });
-     console.log(record.path)" "$SLUG" "$TITLE" "$BODY" "$TYPE"
+     console.log(record.path)" "$TITLE" "$BODY" "$TYPE"
    ```
 
    Tell the user issue creation failed and the record landed locally instead (path printed above), `unsynced: true`. No further marker is needed beyond that facet — `/claude-tweaks:tidy`'s record scan surfaces `unsynced` local records as Sync findings, reconciling them onto GitHub on a later pass.
@@ -108,17 +114,23 @@ Read the `work-backend` field from the project's CLAUDE.md (under a `## Work rec
 Write the record via `local-store.js`'s `createRecord` — no `unsynced` facet (there is no GitHub side to reconcile against). Use `createRecord`, not `allocateId`+`writeRecord`: two near-simultaneous `/capture` (or `/specify` decomposition) invocations calling `allocateId`+`writeRecord` separately can both read the same directory listing, both compute the same next id, and both succeed under different slugs — two records silently sharing one numeric id, corrupting any later `facets.parent`/`facets.blockedBy` reference that assumes id uniqueness. `createRecord` closes that race by allocating the id and writing the file as one atomic step (see `bin/lib/issues/local-store.js`'s header comments on `allocateId` and `createRecord`):
 
 ```bash
-node -e "const {createRecord}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
-  const record = createRecord('specs', {
-    slug: process.argv[1],
-    title: process.argv[2],
-    body: process.argv[3],
-    facets: { type: process.argv[4], origin: 'capture' }
+node -e "const fs=require('fs');
+  const {createRecord, deriveSlug}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
+  const dir='specs';
+  const existingSlugs=fs.existsSync(dir)
+    ? fs.readdirSync(dir).map((n)=>/^\d+-(.+)\.md$/.exec(n)).filter(Boolean).map((m)=>m[1])
+    : [];
+  const slug=deriveSlug(process.argv[1], existingSlugs);
+  const record = createRecord(dir, {
+    slug,
+    title: process.argv[1],
+    body: process.argv[2],
+    facets: { type: process.argv[3], origin: 'capture' }
   });
-  console.log(record.path)" "$SLUG" "$TITLE" "$BODY" "$TYPE"
+  console.log(record.path)" "$TITLE" "$BODY" "$TYPE"
 ```
 
-Derive `{slug}` from the title: lowercase, replace runs of non-alphanumeric characters with a single `-`, trim leading/trailing `-`, truncate to 60 characters; on a collision with an existing file, append `-2`, `-3`, etc. `createRecord('specs', { slug, ... })` allocates the numeric `{id}` prefix atomically as part of the same call — do not call `allocateId` separately when creating a brand-new record.
+`{slug}` is derived from the title by `local-store.js`'s `deriveSlug(title, existingSlugs)` — lowercase, collapse runs of non-alphanumeric characters to a single `-`, trim leading/trailing `-`, truncate to 60 characters, dedupe against `existingSlugs` with a numeric suffix (`-2`, `-3`, ...). One deterministic implementation, not a hand-executed algorithm — see `bin/lib/issues/local-store.js` and its tests in `bin/lib/issues/tests/local-store.test.js`. `createRecord('specs', { slug, ... })` allocates the numeric `{id}` prefix atomically as part of the same call — do not call `allocateId` separately when creating a brand-new record.
 
 ## Entry Format
 

@@ -91,22 +91,7 @@ Consumer skills speak abstract operation names (open, snapshot, find, click, fil
 
 ## Operation Mapping
 
-Condensed pointer table. Full reference (batch, react, auth vault, vitals, trace, viewport/device flags) lives in `agent-browser-reference.md`.
-
-| Operation | Command |
-|---|---|
-| open | `agent-browser --session <name> open <url>` |
-| snapshot (interactive, compact) | `agent-browser --session <name> snapshot -i -c` |
-| find by role + name | `agent-browser --session <name> find role <role> --name <name>` |
-| find by testid | `agent-browser --session <name> find testid <id>` |
-| click | `agent-browser --session <name> click <ref>` |
-| fill | `agent-browser --session <name> fill <ref> <value>` |
-| type | `agent-browser --session <name> type <ref> <text>` |
-| screenshot | `agent-browser --session <name> screenshot --filename <path>` |
-| annotated screenshot | `agent-browser --session <name> screenshot --annotate --filename <path>` |
-| vitals | `agent-browser --session <name> vitals` |
-| trace save | `agent-browser --session <name> trace save traces/<session>/<timestamp>.zip` |
-| close | `agent-browser --session <name> close` |
+No local copy here — `agent-browser-reference.md` in this skill's directory is the single source of truth for every operation-to-command mapping (open, snapshot, find variants, click, fill, type, screenshot, vitals, trace, close, batch, react, auth vault, viewport/device flags). Read that file directly rather than relying on a second, independently-maintained table in this SKILL.md — a copy here would drift the moment the reference file's CLI syntax changes.
 
 ## Parallel Sessions
 

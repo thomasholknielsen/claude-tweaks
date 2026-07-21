@@ -305,6 +305,32 @@ function createRecord(dir = DEFAULT_DIR, { slug, title, body, facets } = {}) {
   throw new Error(`createRecord: exhausted ${MAX_CREATE_ATTEMPTS} id attempts writing to ${dir}`);
 }
 
+// title, existingSlugs? -> slug. The single implementation of the slug rule
+// for callers creating a brand-new local-files record (currently /capture;
+// specify/SKILL.md's parent/leaf creation still derives slugs inline and is
+// a candidate to adopt this too): lowercase, collapse runs of
+// non-alphanumeric characters to a single '-', trim leading/trailing '-',
+// truncate to 60 chars, then dedupe against existingSlugs (if given) by
+// appending a numeric suffix ('-2', '-3', ...). Falls back to 'untitled'
+// when the title has no alphanumeric characters at all, so callers never
+// hand createRecord an empty slug (which would produce an unparseable
+// '{id}-.md' filename).
+function deriveSlug(title, existingSlugs = []) {
+  let slug = String(title)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60)
+    .replace(/-+$/g, '');
+
+  if (!slug) slug = 'untitled';
+  if (!existingSlugs.includes(slug)) return slug;
+
+  let suffix = 2;
+  while (existingSlugs.includes(`${slug}-${suffix}`)) suffix += 1;
+  return `${slug}-${suffix}`;
+}
+
 // Every key in facetFilter must deep-equal the record's same-named facet
 // (assert.deepStrictEqual semantics via util.isDeepStrictEqual): scalar keys
 // compare like ===, object-valued keys like grants compare structurally —
@@ -332,4 +358,4 @@ function queryRecords(dir = DEFAULT_DIR, facetFilter = {}) {
   return records;
 }
 
-module.exports = { DEFAULT_DIR, readRecord, writeRecord, allocateId, createRecord, queryRecords, closeRecord };
+module.exports = { DEFAULT_DIR, readRecord, writeRecord, allocateId, createRecord, queryRecords, closeRecord, deriveSlug };

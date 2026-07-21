@@ -14,11 +14,7 @@ Referenced from Common Step 2 of `/claude-tweaks:build`. Loaded only when an exe
 
 ## Behavioral bugs (distinct from execution-skill failures)
 
-The table above covers *execution-skill* failures (the Superpowers chain itself breaking). A **behavioral bug** — code that runs but produces the wrong result, a failing test that reflects a real defect — is different. Do not edit-and-pray:
-
-1. **Reproduce first.** Invoke `/superpowers:systematic-debugging`. Build a deterministic, runnable pass/fail signal for the bug (a failing test, a one-line repro) *before* touching production code. Spend disproportionate effort here — with a reliable repro the cause follows; without one, staring at code rarely does.
-2. **Fix the confirmed cause**, then re-run the repro to confirm it's gone, and the suite to confirm no regression.
-3. **If you cannot reproduce it, stop and escalate.** State what you tried and ask for what would unblock you (environment access, a captured artifact, permission for temporary instrumentation). Escalation is the correct move, not a failure — do not proceed to guess at a fix without a reproduction loop.
+The table above covers *execution-skill* failures (the Superpowers chain itself breaking). A **behavioral bug** — code that runs but produces the wrong result, a failing test that reflects a real defect — is different. See `_shared/reproduce-first-discipline.md` for the canonical reproduce-first procedure (build a deterministic pass/fail signal before touching code, fix the confirmed cause, escalate rather than guess if it can't be reproduced).
 
 ## Project-Specific Context
 

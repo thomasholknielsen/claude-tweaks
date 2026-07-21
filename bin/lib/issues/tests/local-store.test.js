@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { DEFAULT_DIR, readRecord, writeRecord, allocateId, createRecord, queryRecords, closeRecord } = require('../local-store');
+const { DEFAULT_DIR, readRecord, writeRecord, allocateId, createRecord, queryRecords, closeRecord, deriveSlug } = require('../local-store');
 
 function tmp(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'local-store-'));
@@ -364,4 +364,56 @@ test('createRecord: an EEXIST on the claim retries forward past MULTIPLE already
 
   assert.strictEqual(record.id, 4, 'must skip past every already-claimed id before succeeding');
   assert.ok(fs.existsSync(path.join(dir, '4-late-arrival.md')));
+});
+
+// --- deriveSlug ---
+// Matches the algorithm previously spelled out in prose in capture/SKILL.md:
+// lowercase, collapse runs of non-alphanumeric characters to a single '-',
+// trim leading/trailing '-', truncate to 60 chars, dedupe against existing
+// slugs with a numeric suffix.
+
+test('deriveSlug lowercases and collapses runs of non-alphanumeric characters to a single dash', () => {
+  assert.strictEqual(deriveSlug('Fix Flaky Statusline Test!!'), 'fix-flaky-statusline-test');
+  assert.strictEqual(deriveSlug('A/B---Testing   Rollout'), 'a-b-testing-rollout');
+});
+
+test('deriveSlug trims leading and trailing separators produced by boundary punctuation', () => {
+  assert.strictEqual(deriveSlug('  ---Leading and trailing---  '), 'leading-and-trailing');
+  assert.strictEqual(deriveSlug('***Ready***'), 'ready');
+});
+
+test('deriveSlug truncates to 60 characters', () => {
+  const longTitle = 'a'.repeat(58) + ' b c d e f g'; // collapses to 58 a's, then dash-separated letters
+  const slug = deriveSlug(longTitle);
+  assert.ok(slug.length <= 60, `expected length <= 60, got ${slug.length}`);
+  assert.strictEqual(slug, 'a'.repeat(58) + '-b');
+});
+
+test('deriveSlug does not leave a trailing separator when truncation lands exactly on one', () => {
+  // Collapsed form is 59 a's, a single '-', then more letters — the 60-char cut
+  // point lands exactly on the dash, which must be trimmed off afterward.
+  const longTitle = 'a'.repeat(59) + ' bcdef';
+  const slug = deriveSlug(longTitle);
+  assert.strictEqual(slug, 'a'.repeat(59));
+  assert.ok(!slug.endsWith('-'), 'must not end with a trailing separator after truncation');
+});
+
+test('deriveSlug returns the base slug unchanged when there is no collision', () => {
+  assert.strictEqual(deriveSlug('New Idea', ['existing-one', 'existing-two']), 'new-idea');
+});
+
+test('deriveSlug dedupes against existing slugs with a numeric suffix', () => {
+  assert.strictEqual(deriveSlug('New Idea', ['new-idea']), 'new-idea-2');
+  assert.strictEqual(deriveSlug('New Idea', ['new-idea', 'new-idea-2']), 'new-idea-3');
+  assert.strictEqual(deriveSlug('New Idea', ['new-idea', 'new-idea-2', 'new-idea-3']), 'new-idea-4');
+});
+
+test('deriveSlug treats a missing existingSlugs argument as no collisions', () => {
+  assert.strictEqual(deriveSlug('Plain Title'), 'plain-title');
+});
+
+test('deriveSlug falls back to a non-empty slug when the title has no alphanumeric characters', () => {
+  const slug = deriveSlug('!!! *** ???');
+  assert.ok(slug.length > 0, 'must not produce an empty slug');
+  assert.strictEqual(slug, 'untitled');
 });

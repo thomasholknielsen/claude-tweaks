@@ -50,7 +50,7 @@ Set `worktree.baseRef: "head"` in `settings.json`. Because the plugin cannot pas
    ```
    If `ACTUAL_BASE != EXPECTED_BASE`, the worktree branched from the wrong commit (almost always `worktree.baseRef: fresh` pulling a stale `origin/<default-branch>`). **STOP and surface it** — do not proceed on a stale base:
    ```
-   ⚠ Worktree base mismatch — branched from {ACTUAL_BASE short} but expected {EXPECTED_BASE short} ({BASE_BRANCH}).
+   **Worktree base mismatch** — branched from {ACTUAL_BASE short} but expected {EXPECTED_BASE short} ({BASE_BRANCH}).
    This is the harness `worktree.baseRef` setting (default `fresh` = origin default branch), which the plugin cannot override through EnterWorktree.
 
    Fix: set `worktree.baseRef: "head"` in settings.json, then options:

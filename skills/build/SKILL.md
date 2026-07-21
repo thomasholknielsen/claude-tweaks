@@ -92,6 +92,8 @@ Proceed to Spec Step 3.
 
 If the spec has a "Manual Steps" section, classify each item before deciding what to do with it. "Outside the codebase" is not the same as "human-only" — many such tasks have CLIs and should be executed inline rather than dumped to the ledger.
 
+> **Parallel execution:** Use parallel tool calls — the CLI/credential probes for each Manual Steps item are independent Bash operations and should run concurrently, the same shape `operational-checklist.md`'s Common Step 5.5 already parallelizes for its own probes.
+
 For each item, probe in this order:
 
 1. **CLI/API check** — infer the relevant tool from the item text, then probe: `which terraform`, `which vercel`, `which gh`, `which fly`, `which wrangler`, `which stripe`, `which ldcli`, `which aws`, `which gcloud`, etc.
@@ -218,7 +220,7 @@ If any part of the plan is blocked (missing infrastructure, unresolved dependenc
    - **Design mode:** file a backlog work record via `/claude-tweaks:capture`
 2. Note what unblocks them
 3. Append blocked items to the open items ledger (see `/claude-tweaks:ledger`) with phase `build/*` and status `open`
-4. These will be picked up by `/claude-tweaks:help` when scanning for actionable work
+4. These are resolved by the ledger resolve gate (`/claude-tweaks:ledger resolve`), run by `/claude-tweaks:wrap-up` Step 8.5 or `/claude-tweaks:flow` Step 5 — not by `/claude-tweaks:help`, which does not scan ledger files
 
 ### Common Step 4.5: Architecture Alignment Check
 
@@ -232,7 +234,7 @@ After code simplification, run the shared verification procedure (`skills/test/v
 
 **Note:** `/build` always runs verification (it is the *producer* of `VERIFICATION_PASSED`). The skip-if-recent rule in `test/verification.md` applies only to `/test` callers — never to this step.
 
-If anything fails, fix it and commit the fix. **When a failure is a behavioral bug — not a mechanical type/lint error — invoke `/superpowers:systematic-debugging` before changing code:** reproduce the bug on command (a deterministic, runnable pass/fail signal) first, then fix the confirmed cause. Do not guess at fixes and re-run tests hoping they pass. If the bug cannot be reproduced, stop and escalate (state what you tried and what you need) rather than flailing — see `failure-recovery.md`.
+If anything fails, fix it and commit the fix. **When a failure is a behavioral bug — not a mechanical type/lint error — follow the reproduce-first discipline in `_shared/reproduce-first-discipline.md` before changing code** (reproduce on command, fix the confirmed cause, escalate rather than guess if it can't be reproduced) — see `failure-recovery.md` for the fuller recovery table this step falls back to.
 
 ### Common Step 5.5: Operational Checklist
 

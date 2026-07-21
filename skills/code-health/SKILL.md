@@ -100,9 +100,7 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" classify --root . --area "<slice
 
 The command prints `{ areaId, types }`. Use the `types` array to select the applicable criteria via `criteriaForArea(types)` from `bin/lib/code-health/criteria.js`. Types are additive — a `['frontend', 'library']` area gets universal criteria plus `a11y` and `api-stability`.
 
-If `types` is `[]` (unknown area), apply universal criteria only: `architecture-depth`, `simplification`, `review-quality`, `scalability`, `security-logic`, `bad-practice`, `doc-freshness`, `dead-code`, `test-quality`, `resilience`, `observability`, `config-secrets`, `dependency-health`, `input-validation`, `naming-clarity`.
-
-You can verify the catalog at any time:
+If `types` is `[]` (unknown area), apply universal criteria only — run the same `criteriaForArea([])` call below to get the current list (do not hand-maintain a separate copy of it; the catalog in `criteria.js` is the single source of truth):
 
 ```bash
 node -e "const {criteriaForArea}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/code-health/criteria.js'); console.log(criteriaForArea([]).map(c=>c.id).join(', '))"
