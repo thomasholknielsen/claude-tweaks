@@ -2,8 +2,11 @@ const ESC = '\x1b[';
 const RESET = `${ESC}0m`;
 
 function colorEnabled() {
+  // Per the NO_COLOR convention (https://no-color.org/), the variable's mere
+  // presence suppresses color, regardless of its value — including
+  // `NO_COLOR=` (present but empty).
   const noColor = process.env.NO_COLOR;
-  if (noColor !== undefined && noColor !== '') return false;
+  if (noColor !== undefined) return false;
   return true;
 }
 

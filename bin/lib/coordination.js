@@ -42,7 +42,15 @@ const MOA_AGGREGATOR_INSTRUCTION =
   'Do not produce an analysis of the proposers.';
 
 function severityBucket(severity) {
-  return SEVERITY_BUCKETS[severity] || 'low';
+  // Case-insensitive: a dispatched agent's transcription may capitalize the
+  // severity value (normalizeFinding's own header-key handling below already
+  // anticipates a capitalized "Severity" table-header key, so a capitalized
+  // *value* like "Critical" is an equally realistic input shape). Without
+  // lowercasing first, 'Critical' misses every key in SEVERITY_BUCKETS (which
+  // is all-lowercase) and silently falls into the 'low' bucket regardless of
+  // its real severity.
+  if (typeof severity !== 'string') return 'low';
+  return SEVERITY_BUCKETS[severity.toLowerCase()] || 'low';
 }
 
 // Template A (skills/_shared/subagent-output-contract.md) mandates dispatched
@@ -63,14 +71,26 @@ function parsePathLine(pathLine) {
   if (typeof pathLine !== 'string') return { path: pathLine, line: undefined };
   const idx = pathLine.lastIndexOf(':');
   if (idx === -1) return { path: pathLine, line: undefined };
-  const line = Number(pathLine.slice(idx + 1));
+  const lineStr = pathLine.slice(idx + 1);
+  // An empty (or whitespace-only) trailing segment — e.g. "src/auth.ts:" with
+  // no line number after the colon — must resolve to "no line", not 0.
+  // Number("") and Number(" ") both coerce to 0 in JS (not NaN), which would
+  // otherwise silently produce a real, matchable line number out of a
+  // location nobody actually reported.
+  if (lineStr.trim() === '') return { path: pathLine, line: undefined };
+  const line = Number(lineStr);
   if (Number.isNaN(line)) return { path: pathLine, line: undefined };
   return { path: pathLine.slice(0, idx), line };
 }
 
 function normalizeFinding(finding) {
   if (!finding || typeof finding !== 'object') return finding;
-  const hasSeparateFields = finding.path !== undefined && finding.line !== undefined && finding.line !== null;
+  // `.line` must actually be a real, finite number for the "already split"
+  // fast path to be trusted — a non-numeric leftover (e.g. `line: 'n/a'`)
+  // must NOT short-circuit here, or the garbage value survives untouched
+  // into findingsMatch's guard below.
+  const hasNumericLine = typeof finding.line === 'number' && !Number.isNaN(finding.line);
+  const hasSeparateFields = finding.path !== undefined && hasNumericLine;
   if (hasSeparateFields) return finding;
   // finding.path may itself hold the combined "path:line" string (a naive
   // transcription that never split it out), or the combined string may be
@@ -78,26 +98,39 @@ function normalizeFinding(finding) {
   // that copied the markdown column header verbatim as the JSON key).
   const rawPathLine = finding.path !== undefined ? finding.path : finding['Path:Line'];
   const parsed = parsePathLine(rawPathLine);
-  if (parsed.line === undefined) return finding;
   const severity = finding.severity !== undefined ? finding.severity : finding.Severity;
+  if (parsed.line === undefined) {
+    // No usable location could be recovered — either the combined-string
+    // parse failed, or `.line` held a non-numeric value with no colon-
+    // embedded fallback in `.path`. Explicitly clear `.line` (rather than
+    // leaving whatever garbage was there) so downstream guards see this as
+    // unlocated instead of quietly falling through with a value that looks
+    // present but isn't a real number.
+    return { ...finding, line: undefined, severity };
+  }
   return { ...finding, path: parsed.path, line: parsed.line, severity };
+}
+
+// Shared "do these two normalized findings refer to the same location?"
+// guard, used by both findingsMatch and detectCrossLensOverlap. A finding
+// with no known, numeric location can never be judged to match another by
+// location — without these explicit checks, `undefined !== undefined`
+// (false) and `NaN > tolerance` / `NaN <= tolerance` (also false) all fail
+// to short-circuit, so two entirely unrelated, unlocated findings would
+// fall through and spuriously "match".
+function sameLocation(na, nb, tolerance) {
+  if (!na || typeof na !== 'object' || !nb || typeof nb !== 'object') return false;
+  if (na.path === undefined || nb.path === undefined) return false;
+  if (typeof na.line !== 'number' || typeof nb.line !== 'number') return false;
+  if (Number.isNaN(na.line) || Number.isNaN(nb.line)) return false;
+  if (na.path !== nb.path) return false;
+  return Math.abs(na.line - nb.line) <= tolerance;
 }
 
 function findingsMatch(a, b, tolerance = LINE_TOLERANCE_REPRODUCTION) {
   const na = normalizeFinding(a);
   const nb = normalizeFinding(b);
-  // A finding whose path:line never parsed (normalizeFinding's early return,
-  // triggered by parsePathLine failing) leaves path/line undefined. Without
-  // this explicit guard, `undefined !== undefined` (false) and
-  // `NaN > tolerance` (false) both fail to short-circuit below, so two
-  // entirely unrelated, unlocated findings would fall through to the
-  // severity-bucket comparison and spuriously "match" — exactly the hole
-  // this function exists to close. A finding with no known location can
-  // never be judged to match another by location.
-  if (na.path === undefined || nb.path === undefined) return false;
-  if (na.line === undefined || nb.line === undefined || Number.isNaN(na.line) || Number.isNaN(nb.line)) return false;
-  if (na.path !== nb.path) return false;
-  if (Math.abs(na.line - nb.line) > tolerance) return false;
+  if (!sameLocation(na, nb, tolerance)) return false;
   return severityBucket(na.severity) === severityBucket(nb.severity);
 }
 
@@ -138,7 +171,7 @@ function detectCrossLensOverlap(findingsByLens) {
         for (const rawFb of findingsByLens[lensB]) {
           const fa = normalizeFinding(rawFa);
           const fb = normalizeFinding(rawFb);
-          if (fa.path === fb.path && Math.abs(fa.line - fb.line) <= LINE_TOLERANCE_DEBATE) {
+          if (sameLocation(fa, fb, LINE_TOLERANCE_DEBATE)) {
             overlaps.push({ lensA, lensB, findingA: fa, findingB: fb });
           }
         }
@@ -226,6 +259,7 @@ module.exports = {
   severityBucket,
   parsePathLine,
   normalizeFinding,
+  sameLocation,
   findingsMatch,
   categoriseReproduction,
   detectCrossLensOverlap,

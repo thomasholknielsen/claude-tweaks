@@ -25,7 +25,15 @@ function installWrapper(homedir = os.homedir()) {
   const wrapper = buildWrapperSource();
 
   fs.mkdirSync(targetDir, { recursive: true });
-  fs.writeFileSync(targetPath, wrapper, { mode: 0o755 });
+  // fs.writeFileSync's `mode` option is only applied by the underlying
+  // open() syscall's O_CREAT path — re-running the installer over an
+  // already-existing wrapper file (the documented, expected re-invocation
+  // path on every plugin upgrade) silently leaves whatever permissions the
+  // file already had. chmod explicitly and unconditionally afterward so a
+  // wrapper that was ever written non-executable gets restored to 0o755 on
+  // every re-run, not just the first.
+  fs.writeFileSync(targetPath, wrapper);
+  fs.chmodSync(targetPath, 0o755);
 
   return targetPath;
 }

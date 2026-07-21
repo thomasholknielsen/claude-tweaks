@@ -23,6 +23,49 @@ function indentOf(line) {
   return line.match(/^(\s*)/)[1].length;
 }
 
+// Strips a trailing ` # comment` from a YAML scalar/value string, honoring
+// simple single/double quoting (a `#` inside a matched '...'/"..." span is
+// literal text, not a comment start). Per the YAML spec, a `#` only starts a
+// comment when preceded by whitespace or at the start of the string.
+function stripTrailingComment(s) {
+  let inSingle = false;
+  let inDouble = false;
+  for (let idx = 0; idx < s.length; idx++) {
+    const ch = s[idx];
+    if (ch === "'" && !inDouble) inSingle = !inSingle;
+    else if (ch === '"' && !inSingle) inDouble = !inDouble;
+    else if (ch === '#' && !inSingle && !inDouble && (idx === 0 || /\s/.test(s[idx - 1]))) {
+      return s.slice(0, idx).trimEnd();
+    }
+  }
+  return s;
+}
+
+// Collects the indented continuation block belonging to a top-level `key:`
+// line, starting at `startIndex`. Returns each line verbatim (blank lines
+// represented as `null` markers so callers can tell a paragraph/entry break
+// apart from real content) plus the index of the first line past the block
+// (either EOF or the next indentOf === 0 line). Shared by the nested-map
+// branch and the folded block-scalar branch below, which otherwise hand-
+// implement the identical "skip blank lines, stop at the next top-level
+// line" loop as two separately-maintained copies.
+function collectIndentedContinuation(lines, startIndex) {
+  const collected = [];
+  let j = startIndex;
+  while (j < lines.length) {
+    const nl = lines[j];
+    if (nl.trim() === '') {
+      collected.push(null);
+      j++;
+      continue;
+    }
+    if (indentOf(nl) === 0) break;
+    collected.push(nl);
+    j++;
+  }
+  return { collected, next: j };
+}
+
 // Parses the narrow YAML subset every routine-template.yml uses: top-level
 // scalars, inline flow arrays, one level of nested map, and a single folded
 // block scalar (`>`). Not a general-purpose YAML parser by design — see
@@ -49,23 +92,18 @@ function parseRoutineTemplate(text) {
       continue;
     }
     const key = m[1];
-    const rest = m[2].trim();
+    const rest = stripTrailingComment(m[2].trim());
 
     if (rest === '') {
       const nested = {};
-      let j = i + 1;
       let sawNested = false;
-      while (j < lines.length) {
-        const nl = lines[j];
-        if (nl.trim() === '') {
-          j++;
-          continue;
-        }
-        if (indentOf(nl) === 0) break;
+      const { collected, next } = collectIndentedContinuation(lines, i + 1);
+      for (const nl of collected) {
+        if (nl === null) continue;
         const nm = nl.match(/^\s*([A-Za-z_][A-Za-z0-9_.]*):\s*(.*)$/);
         if (nm) {
           sawNested = true;
-          nested[nm[1]] = coerceScalar(nm[2]);
+          nested[nm[1]] = coerceScalar(stripTrailingComment(nm[2]));
         } else if (/^\s*-\s/.test(nl)) {
           // A YAML block-style list ('- item') under a top-level key is not
           // part of the narrow subset this parser supports (see the function
@@ -75,25 +113,31 @@ function parseRoutineTemplate(text) {
             `parseRoutineTemplate: "${key}:" has a YAML block-style list (- item), which this narrow parser does not support — use an inline [a, b] array instead`
           );
         }
-        j++;
       }
       result[key] = sawNested ? nested : '';
-      i = j;
+      i = next;
     } else if (rest === '>') {
-      let j = i + 1;
-      const parts = [];
-      while (j < lines.length) {
-        const nl = lines[j];
-        if (nl.trim() === '') {
-          j++;
+      const { collected, next } = collectIndentedContinuation(lines, i + 1);
+      // Fold each run of consecutive content lines into one space-joined
+      // line (real YAML folding); a blank line inside the block is a
+      // paragraph break, preserved as `\n\n` between paragraphs rather than
+      // silently discarded (which would run every paragraph together with
+      // only a single space between them).
+      const paragraphs = [];
+      let current = [];
+      for (const nl of collected) {
+        if (nl === null) {
+          if (current.length > 0) {
+            paragraphs.push(current.join(' '));
+            current = [];
+          }
           continue;
         }
-        if (indentOf(nl) === 0) break;
-        parts.push(nl.trim());
-        j++;
+        current.push(nl.trim());
       }
-      result[key] = parts.join(' ');
-      i = j;
+      if (current.length > 0) paragraphs.push(current.join(' '));
+      result[key] = paragraphs.join('\n\n');
+      i = next;
     } else if (rest.startsWith('[')) {
       result[key] = parseInlineArray(rest);
       i++;

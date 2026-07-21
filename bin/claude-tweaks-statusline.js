@@ -37,10 +37,17 @@ function readStdin() {
 }
 
 function formatDuration(seconds) {
+  // Math.floor (not round): the bucket itself is already chosen from the
+  // raw, un-rounded `seconds` value, so a rounded-up display can overshoot
+  // its own bucket's boundary — e.g. formatDuration(3599) would round to
+  // "60m" despite being selected by the `< 3600` (minutes) branch. Flooring
+  // guarantees the displayed number can never reach the next unit's
+  // boundary, since `seconds` is strictly less than that boundary by
+  // construction of the if-chain above.
   if (seconds < 60) return null;
-  if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
-  if (seconds < 86400) return `${Math.round(seconds / 3600)}h`;
-  return `${Math.round(seconds / 86400)}d`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86400)}d`;
 }
 
 function colorByPct(pct, text) {
@@ -137,48 +144,77 @@ function renderRateLimit(label, period, now) {
 
 function findActiveSpec(cwd) {
   const dir = path.join(cwd, 'specs');
+  let dirents;
   try {
-    const entries = fs
-      .readdirSync(dir, { withFileTypes: true })
-      .filter((e) => e.isFile() && e.name.endsWith('.md'))
-      .map((e) => {
-        const fullPath = path.join(dir, e.name);
-        const stat = fs.statSync(fullPath);
-        return { name: e.name, mtime: stat.mtimeMs };
-      })
-      .sort((a, b) => b.mtime - a.mtime);
-    if (entries.length > 0) {
-      const match = entries[0].name.match(/^(\d{3,})/);
-      if (match) return `spec: ${match[1]}`;
-    }
+    dirents = fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isFile() && e.name.endsWith('.md'));
   } catch {
-    /* skip */
+    return null;
+  }
+  const entries = [];
+  for (const e of dirents) {
+    try {
+      // Per-file stat, not part of the outer try/catch: other claude-tweaks
+      // skills concurrently create/archive spec files, so a file that
+      // existed at readdir time can legitimately be gone by the time we
+      // stat it. Skip that one file instead of discarding every other
+      // still-valid entry already collected.
+      const stat = fs.statSync(path.join(dir, e.name));
+      entries.push({ name: e.name, mtime: stat.mtimeMs });
+    } catch {
+      continue;
+    }
+  }
+  entries.sort((a, b) => b.mtime - a.mtime);
+  // Walk the whole sorted list, not just the newest entry — an unrelated
+  // non-numerically-prefixed file (scratch notes, README, etc.) with a
+  // newer mtime must not hide an actually-active, correctly-numbered spec
+  // sitting right behind it.
+  for (const entry of entries) {
+    const match = entry.name.match(/^(\d{3,})/);
+    if (match) return `spec: ${match[1]}`;
   }
   return null;
 }
 
+// cells[4] assumes the 5-column `| # | Phase | Item | Status | Resolution |`
+// table documented as the canonical ledger shape in skills/ledger/SKILL.md
+// (declared there twice) — this file never reads that doc, so the two are
+// linked only by convention. tests/statusline.test.js's own drift-detection
+// test reads skills/ledger/SKILL.md directly to catch this assumption going
+// stale if that table's column order ever changes.
 function findOpenLedger(cwd) {
   const dir = path.join(cwd, 'docs', 'plans');
+  let ledgers;
   try {
-    const ledgers = fs.readdirSync(dir).filter((f) => f.endsWith('-ledger.md'));
-    if (ledgers.length === 0) return null;
-    let openCount = 0;
-    for (const f of ledgers) {
-      const content = fs.readFileSync(path.join(dir, f), 'utf8');
-      for (const line of content.split('\n')) {
-        if (!line.startsWith('|')) continue;
-        const cells = line.split('|').map((c) => c.trim());
-        if (cells.length >= 5 && cells[4] === 'open') openCount += 1;
-      }
-    }
-    if (openCount === 0) return null;
-    const text = `ledger: ${openCount} open`;
-    if (openCount >= 10) return color.red(text);
-    if (openCount >= 3) return color.yellow(text);
-    return text;
+    ledgers = fs.readdirSync(dir).filter((f) => f.endsWith('-ledger.md'));
   } catch {
     return null;
   }
+  if (ledgers.length === 0) return null;
+  let openCount = 0;
+  for (const f of ledgers) {
+    let content;
+    try {
+      // Per-file read, not part of the outer try/catch: other claude-tweaks
+      // skills concurrently create/archive ledger files (e.g. /wrap-up
+      // archival), so a file listed by readdir can legitimately be gone by
+      // the time we read it. Skip that one file instead of discarding every
+      // other still-valid ledger's already-counted rows.
+      content = fs.readFileSync(path.join(dir, f), 'utf8');
+    } catch {
+      continue;
+    }
+    for (const line of content.split('\n')) {
+      if (!line.startsWith('|')) continue;
+      const cells = line.split('|').map((c) => c.trim());
+      if (cells.length >= 5 && cells[4] === 'open') openCount += 1;
+    }
+  }
+  if (openCount === 0) return null;
+  const text = `ledger: ${openCount} open`;
+  if (openCount >= 10) return color.red(text);
+  if (openCount >= 3) return color.yellow(text);
+  return text;
 }
 
 async function main() {
@@ -214,6 +250,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  main,
   renderModel,
   renderProject,
   renderContext,

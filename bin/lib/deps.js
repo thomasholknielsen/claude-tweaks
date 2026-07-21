@@ -3,6 +3,12 @@ const { execSync } = require('child_process');
 const os = require('os');
 
 function has(cmd) {
+  // This code can only ever execute while a Node process is already
+  // running, so shelling out to `node --version` to answer "is node
+  // present" spawns a subprocess purely to re-derive a fact this process
+  // already knows for free — the same principle detectVersionManager()
+  // below already applies to the node *path* via process.execPath.
+  if (cmd === 'node') return true;
   try {
     execSync(`${cmd} --version`, { stdio: 'ignore' });
     return true;

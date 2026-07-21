@@ -33,6 +33,17 @@ function extractIssueNumbers(commitMessages) {
 // work with them). Kept as one array so a future fix to the extraction shell
 // (e.g. handling multi-line commit messages, or changing the sort -un dedup)
 // can never land in one job's copy and not the other's.
+//
+// The JS side (extractIssueNumbers) matches ISSUE_REF_SOURCE against each
+// commit message as one whole string, so `\s+` between the closing keyword
+// and the issue number spans an embedded newline (a hard-wrapped commit
+// body, e.g. "This closes\n#123"). `grep` without `-z` processes its input
+// line-by-line even under `-P`, so `\s+` can never bridge a real newline
+// there — the same pattern would silently miss that reference. `jq
+// --raw-output0` NUL-terminates each commit message (instead of `-r`'s
+// per-message trailing newline), and `grep -z` treats NUL, not newline, as
+// the record separator, so `\s+` can span a message's own internal newlines
+// while still never crossing into the next commit's message.
 function extractReferencedIssuesStep() {
   return [
     '      - name: Extract referenced issues',
@@ -41,8 +52,8 @@ function extractReferencedIssuesStep() {
     '          COMMITS_JSON: ${{ toJson(github.event.commits) }}',
     '        run: |',
     `          PATTERN='${ISSUE_REF_SOURCE}'`,
-    '          echo "$COMMITS_JSON" | jq -r \'.[].message\' > "$RUNNER_TEMP/commit_messages.txt"',
-    "          ISSUES=$(grep -ioP \"$PATTERN\" \"$RUNNER_TEMP/commit_messages.txt\" | grep -oP '[0-9]+' | sort -un | tr '\\n' ' ' || true)",
+    '          echo "$COMMITS_JSON" | jq --raw-output0 \'.[].message\' > "$RUNNER_TEMP/commit_messages.txt"',
+    "          ISSUES=$(grep -zoiP \"$PATTERN\" \"$RUNNER_TEMP/commit_messages.txt\" | tr '\\0' '\\n' | grep -oP '[0-9]+' | sort -un | tr '\\n' ' ' || true)",
     '          echo "issues=$ISSUES" >> "$GITHUB_OUTPUT"',
   ];
 }
@@ -108,9 +119,13 @@ function generateWorkflowYaml() {
     '        run: |',
     '          for ISSUE in $ISSUES; do',
     '            LABELS=$(gh issue view "$ISSUE" --repo "$REPO" --json labels -q \'.labels[].name\' | grep \'^fix-on-\' || true)',
-    '            for LABEL in $LABELS; do',
-    '              gh issue edit "$ISSUE" --remove-label "$LABEL" --repo "$REPO" || true',
-    '            done',
+    '            if [ -n "$LABELS" ]; then',
+    '              REMOVE_ARGS=()',
+    '              while IFS= read -r LABEL; do',
+    '                [ -n "$LABEL" ] && REMOVE_ARGS+=(--remove-label "$LABEL")',
+    '              done <<< "$LABELS"',
+    '              gh issue edit "$ISSUE" "${REMOVE_ARGS[@]}" --repo "$REPO" || true',
+    '            fi',
     '          done',
     '',
   ];

@@ -259,6 +259,74 @@ test('reproduction: two findings that both fail to parse a path:line must NOT sp
 });
 
 // ============================================================
+// Regression: location-comparison guard hardening
+// ============================================================
+
+test('parsePathLine: an empty trailing line segment ("path:") parses to no line, not 0', () => {
+  // Consistent with the existing "parse failed" contract elsewhere in this
+  // function: when the trailing segment can't be read as a real line number,
+  // the original combined string is returned unsplit as `.path` (not
+  // stripped of its colon) — callers must not trust a split they can't
+  // fully complete. What matters for this regression is that `.line` is
+  // `undefined`, not the JS `Number("") === 0` coercion.
+  assert.deepStrictEqual(c.parsePathLine('src/auth.ts:'), { path: 'src/auth.ts:', line: undefined });
+  assert.deepStrictEqual(c.parsePathLine('src/auth.ts: '), { path: 'src/auth.ts: ', line: undefined });
+});
+
+test('findingsMatch: two findings that both transcribed a trailing-colon, no-line "Path:Line" cell must not spuriously match', () => {
+  // Pre-fix: parsePathLine("src/auth.ts:") returned {path, line: 0} (JS's
+  // Number("") === 0 quirk), so two independently-unlocated findings that
+  // both happen to share a path would spuriously match on line 0.
+  const a = { 'Path:Line': 'src/auth.ts:', severity: 'high' };
+  const b = { 'Path:Line': 'src/auth.ts:', severity: 'high' };
+  assert.strictEqual(c.findingsMatch(a, b), false);
+});
+
+test('severityBucket / findingsMatch: capitalized severity values bucket the same as lowercase', () => {
+  assert.strictEqual(c.severityBucket('Critical'), c.severityBucket('critical'));
+  assert.strictEqual(c.severityBucket('Critical'), 'high');
+  assert.strictEqual(
+    c.findingsMatch({ path: 'x.js', line: 10, severity: 'Critical' }, { path: 'x.js', line: 10, severity: 'critical' }),
+    true,
+  );
+});
+
+test('normalizeFinding / findingsMatch: a non-numeric `.line` (e.g. "n/a") is treated as unlocated, not a universal match', () => {
+  const garbageLine = { path: 'auth.ts', line: 'n/a', severity: 'low' };
+  const real = { path: 'auth.ts', line: 12, severity: 'low' };
+  assert.strictEqual(c.findingsMatch(garbageLine, real), false);
+  assert.strictEqual(c.normalizeFinding(garbageLine).line, undefined);
+});
+
+test('findingsMatch / detectCrossLensOverlap / categoriseReproduction: a null/undefined finding element does not crash', () => {
+  assert.strictEqual(c.findingsMatch(null, { path: 'x.js', line: 1, severity: 'low' }), false);
+  assert.strictEqual(c.findingsMatch(undefined, undefined), false);
+
+  const { confirmed, unconfirmed } = c.categoriseReproduction([null], [{ path: 'x.js', line: 1, severity: 'low' }]);
+  assert.strictEqual(confirmed.length, 0);
+  assert.strictEqual(unconfirmed.length, 2);
+
+  const overlaps = c.detectCrossLensOverlap({
+    lensA: [null],
+    lensB: [{ path: 'x.js', line: 1, severity: 'low' }],
+  });
+  assert.strictEqual(overlaps.length, 0);
+});
+
+test('detectCrossLensOverlap: two unlocated findings from different lenses do not spuriously overlap', () => {
+  // Pre-fix: detectCrossLensOverlap hand-rolled its own comparison
+  // (`fa.path === fb.path && Math.abs(fa.line - fb.line) <= tolerance`)
+  // without the undefined/NaN guard findingsMatch has, so two findings each
+  // missing a location (`fa.path`/`fb.path` both undefined, `NaN <= tolerance`
+  // false) would still spuriously "overlap".
+  const overlaps = c.detectCrossLensOverlap({
+    security: [{ line: 42, severity: 'high', text: 'A' }],
+    architecture: [{ line: 44, severity: 'low', text: 'B' }],
+  });
+  assert.strictEqual(overlaps.length, 0);
+});
+
+// ============================================================
 // Debate
 // ============================================================
 

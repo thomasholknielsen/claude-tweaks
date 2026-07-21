@@ -18,7 +18,12 @@ function readPolicyFile(repoRoot) {
 function isWorktreeAlwaysOn(repoRoot) {
   const raw = readPolicyFile(repoRoot);
   if (!raw) return false;
-  return raw.split('\n').some((line) => /^worktree\.always:\s*true$/.test(line.trim()));
+  // Allow (and ignore) a trailing `# comment` after the value — policy.yml is
+  // documented as hand-editable (skills/_shared/git-discipline.md,
+  // skills/init/SKILL.md), and a user who hand-writes
+  // `worktree.always: true  # enabled after the incident on 2026-07-10` must
+  // not have that natural annotation silently read as policy-OFF.
+  return raw.split('\n').some((line) => /^worktree\.always:\s*true(\s*#.*)?$/.test(line.trim()));
 }
 
 module.exports = { isWorktreeAlwaysOn };

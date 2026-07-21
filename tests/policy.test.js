@@ -48,3 +48,21 @@ test('the key can appear alongside other policy lines in either order', () => {
   writePolicy(repo, 'issues.autonomous-eligibility: label agent:eligible\nworktree.always: true\n');
   assert.strictEqual(isWorktreeAlwaysOn(repo), true);
 });
+
+test('a trailing inline # comment after true is ignored, not treated as policy-OFF', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'worktree.always: true  # enabled after the incident on 2026-07-10\n');
+  assert.strictEqual(isWorktreeAlwaysOn(repo), true);
+});
+
+test('a trailing inline # comment with no space before it is still ignored', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'worktree.always: true# comment\n');
+  assert.strictEqual(isWorktreeAlwaysOn(repo), true);
+});
+
+test('garbage trailing content that is not a # comment is still rejected', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'worktree.always: true and some other text\n');
+  assert.strictEqual(isWorktreeAlwaysOn(repo), false);
+});

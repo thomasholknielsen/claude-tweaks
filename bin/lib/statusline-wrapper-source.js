@@ -34,9 +34,30 @@ try {
   if (!latest) process.exit(0);
   const target = path.join(CACHE, latest, 'bin', 'claude-tweaks-statusline.js');
   if (!fs.existsSync(target)) process.exit(0);
-  const child = spawn('node', [target], { stdio: 'inherit' });
-  child.on('exit', (code) => process.exit(code || 0));
-  child.on('error', () => process.exit(0));
+
+  // Prefer running the real statusline logic in-process — requiring the
+  // resolved target and calling its exported main() directly, instead of
+  // spawning a second Node interpreter merely to run it, saves a full
+  // Node cold-start (~30ms) on every single statusline render. Falls back
+  // to spawning a child process for any cached version whose
+  // claude-tweaks-statusline.js predates the `main` export (keeps working
+  // through the upgrade window instead of hard-failing on a mismatch).
+  let mod = null;
+  try {
+    mod = require(target);
+  } catch {
+    mod = null;
+  }
+  if (mod && typeof mod.main === 'function') {
+    mod
+      .main()
+      .catch(() => process.stdout.write(''))
+      .then(() => process.exit(0));
+  } else {
+    const child = spawn('node', [target], { stdio: 'inherit' });
+    child.on('exit', (code) => process.exit(code || 0));
+    child.on('error', () => process.exit(0));
+  }
 } catch {
   process.exit(0);
 }
