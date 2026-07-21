@@ -28,9 +28,16 @@ test('wontfix-labelled issue -> suppress (standing decision)', () => {
   assert.deepStrictEqual(decide(F('recon-ccc'), index, {}), { action: 'suppress', issue: 9 });
 });
 
-test('wontfix in cache, no issue -> suppress', () => {
+test('wontfix in cache, no issue on record -> suppress with issue: null', () => {
   assert.deepStrictEqual(decide(F('recon-ddd'), {}, { 'recon-ddd': { status: 'wontfix', issue: null } }),
-    { action: 'suppress' });
+    { action: 'suppress', issue: null });
+});
+
+test('wontfix in cache with a known issue number -> suppress carries that issue number through (regression: the cache-fallback suppress path used to silently drop it, unlike the issueIndex-match suppress path)', () => {
+  assert.deepStrictEqual(
+    decide(F('recon-ddd-2'), {}, { 'recon-ddd-2': { status: 'wontfix', issue: 42 } }),
+    { action: 'suppress', issue: 42 },
+  );
 });
 
 test('new finding at/above threshold -> file', () => {
@@ -46,8 +53,8 @@ test('threshold is overridable', () => {
   assert.deepStrictEqual(decide(F('recon-ggg', 'medium'), {}, {}, { threshold: 'medium' }), { action: 'file' });
 });
 
-test('decide uses finding.fingerprint over finding.id when both are present', () => {
-  const finding = { id: 'wrong-key', fingerprint: 'recon-hhh', risk: 'high' };
+test('decide uses finding.id over finding.fingerprint when both are present (regression: finding.id is the derived/trusted key; finding.fingerprint is unvalidated echoed-back input and must not override it)', () => {
+  const finding = { id: 'recon-hhh', fingerprint: 'wrong-key', risk: 'high' };
   const index = { 'recon-hhh': { number: 11, state: 'open', labels: [] } };
   assert.deepStrictEqual(decide(finding, index, {}), { action: 'skip', issue: 11 });
 });
