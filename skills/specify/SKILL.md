@@ -309,9 +309,16 @@ Each is independently buildable with clear dependencies (73 → 74 → 75).
 
 ### Implicit Dependency Detection
 
-After decomposing into work units, before creating any records, build the input set — every new work unit plus every open record (from the file reference map in Step 1), each as `{id, keyFiles}` — and partition it with the shared grouping primitive:
+After decomposing into work units, before creating any records, build the input set — every new work unit plus every open record (from the file reference map in Step 1), each as `{id, keyFiles}` — and write it to `/tmp/specify-key-files.json`:
+
+- **Every open record** — invert Step 1's File Reference Map (`file → [record refs]`) into one `{id, keyFiles}` entry per record ref, `keyFiles` being every file that mapped to it.
+- **Every new work unit from this decomposition** — its own `keyFiles` is the file list identified while applying the Decomposition Heuristics and drafting its own Key Files section (Step 1 item 6's codebase pass plus the design doc's Data/API Surface feed this; the same list that will populate the leaf's `### Key Files` subsection in Step 3). Use `{design-doc-slug}:{unit-slug}` as `id` — the same slug the fingerprint below uses — since these units have no record number yet.
 
 ```bash
+node -e "
+  const items = ${WORK_UNIT_KEY_FILES_JSON}.concat(${OPEN_RECORD_KEY_FILES_JSON}); // both assembled above: [{id, keyFiles}]
+  require('fs').writeFileSync('/tmp/specify-key-files.json', JSON.stringify(items));
+"
 node -e "
   const { groupByFileOverlap } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/grouping.js');
   const items = require('/tmp/specify-key-files.json'); // [{id, keyFiles}] — new work units + open records
@@ -719,7 +726,7 @@ This "Situation → options" table is the assistant's own lookup logic to pick w
 
 Once the matching situation is resolved, replace the rendering of its numbered list with a call to `AskUserQuestion`: `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and one option per entry in that row — `label`: a short one-line summary (e.g. "Pipeline this record", "Build only", "Pipeline dashboard"), `description`: the full command text from that entry, the entry marked `(Recommended)` in the table gets `(Recommended)` suffixed on its label.
 
-Always recommend `/flow` over `/build` — `/flow` is the canonical path through the pipeline, and the shape gate at materialization time (spec 20's contract) accepts well-structured leaf records of any size.
+Always recommend `/claude-tweaks:flow` over `/claude-tweaks:build` — `/claude-tweaks:flow` is the canonical path through the pipeline, and the shape gate at materialization time (spec 20's contract) accepts well-structured leaf records of any size.
 
 ## Component-Skill Contract
 
