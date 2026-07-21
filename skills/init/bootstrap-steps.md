@@ -304,21 +304,19 @@ that section); the form just removes the translation judgment.
 
 claude-tweaks v4.5+ integrates [Impeccable](https://impeccable.style/) — a frontend-design plugin that ships LLM commands (`critique`, `audit`, `polish`, `bolder`, `delight`, etc.) and a deterministic Node CLI (`impeccable detect`) for catching design anti-patterns. The integration is opt-in and only runs on frontend projects.
 
-**Detect frontend signals from Phase 2 reconnaissance** (or run a quick sniff of the project root if Phase 0 is being run before Phase 2): look for any of `.tsx`, `.jsx`, `.vue`, `.svelte`, `.html`, `.css` files, or directories `components/`, `pages/`, `app/`, `routes/`, `views/`, `ui/`. If none are detected, skip this step entirely — the project is not frontend-facing.
+**Detect frontend signals from Phase 2 reconnaissance** (or run a quick sniff of the
+project root if Phase 0 is being run before Phase 2), using the same trigger-extension
+and trigger-path rules as `/claude-tweaks:design-wrapper`'s Layer 3 sniff — for the
+canonical list, read `frontend-detection.md` in the `/claude-tweaks:design-wrapper`
+skill's directory. If none are detected, skip this step entirely — the project is not
+frontend-facing.
 
-**If frontend is detected, present:**
+**If frontend is detected, call `AskUserQuestion`:**
 
-```
-Detected frontend project. Set up Impeccable design integration?
-
-Impeccable provides design-quality commands invoked by /test (deterministic CLI
-gate) and /review (LLM critique + audit). All findings are advisory in v4.5 —
-code is never auto-modified.
-
-1. Full integration **(Recommended)** — install plugin, run init + document
-2. Plugin only — install plugin, skip the design-context interview (run later)
-3. Skip — disable design integration
-```
+- `question`: `"Detected frontend project. Set up Impeccable design integration? Impeccable provides design-quality commands invoked by /test (deterministic CLI gate) and /review (LLM critique + audit). All findings are advisory in v4.5 — code is never auto-modified."`, `header`: `"Impeccable integration"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Full integration (Recommended)"`, `description`: `"Install plugin, run init + document."`
+- Option 2 — `label`: `"Plugin only"`, `description`: `"Install plugin, skip the design-context interview (run later)."`
+- Option 3 — `label`: `"Skip"`, `description`: `"Disable design integration."`
 
 **For options 1 or 2 — install the plugin.** Surface this exact three-command sequence (claude-tweaks does not programmatically install plugins):
 
@@ -395,19 +393,11 @@ claude-tweaks ships a native diagram-generation skill, `/claude-tweaks:visualize
 
 This recommendation is **offered for every project** — architecture, ER, sequence, and state diagrams help backend and infra specs equally, the same as frontend ones.
 
-**Present:**
+**Call `AskUserQuestion`:**
 
-```
-Enable diagram suggestions?
-
-/journeys, /specify, and /review can suggest generating a themed diagram
-(via /claude-tweaks:visualize, a native skill — nothing to install) when
-they detect a state machine, data model, multi-actor flow, decision tree,
-or layered architecture.
-
-1. Enable (Recommended) — writes diagram-suggestions: enabled
-2. Skip — writes diagram-suggestions: disabled (silences future nudges)
-```
+- `question`: `"Enable diagram suggestions? /journeys, /specify, and /review can suggest generating a themed diagram (via /claude-tweaks:visualize, a native skill — nothing to install) when they detect a state machine, data model, multi-actor flow, decision tree, or layered architecture."`, `header`: `"Diagram suggestions"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Enable (Recommended)"`, `description`: `"Writes diagram-suggestions: enabled."`
+- Option 2 — `label`: `"Skip"`, `description`: `"Writes diagram-suggestions: disabled (silences future nudges)."`
 
 **Write the flag to CLAUDE.md.** Extend (or create) the existing `## Design integration` section with a second line:
 
@@ -442,29 +432,21 @@ so it stops guessing at component APIs. This step wires all three, mirroring Ste
 (Impeccable) install-and-flag pattern.
 
 **Detect frontend signals from Phase 2 reconnaissance** (or run a quick sniff of the
-project root if Phase 0 is being run before Phase 2) — the same frontend-signal list
-Step 10 above uses (`.tsx`/`.jsx`/`.vue`/`.svelte`/`.html`/`.css` files, or
-`components/`/`pages/`/`app/`/`routes/`/`views/`/`ui/` directories); if that list is ever
-tightened, update it in both places. If none are detected, skip this step entirely.
+project root if Phase 0 is being run before Phase 2) — the same canonical sniff rules
+Step 10 above uses (`/claude-tweaks:design-wrapper`'s Layer 3 file-extension/path sniff;
+read `frontend-detection.md` in that skill's directory for the current list). If none
+are detected, skip this step entirely.
 
 Then check whether `components.json` already exists at the project root.
 
 **Case A — no `components.json`, frontend detected:**
 
-Present:
+Call `AskUserQuestion`:
 
-```
-Detected frontend project. Set up shadcn/ui integration?
-
-shadcn/ui provides a CLI-driven component system plus first-party AI-agent
-tooling: an MCP server (search/browse/install/audit registry items) and an
-installable Skill that gives Claude Code live project context, so it
-discovers and installs components correctly instead of guessing.
-
-1. Full integration (Recommended) — CLI init, wire MCP server, install shadcn/skills
-2. CLI only — CLI init, skip MCP/skills wiring
-3. Skip — disable shadcn integration
-```
+- `question`: `"Detected frontend project. Set up shadcn/ui integration? Provides a CLI-driven component system plus first-party AI-agent tooling: an MCP server (search/browse/install/audit registry items) and an installable Skill that gives Claude Code live project context, so it discovers and installs components correctly instead of guessing."`, `header`: `"shadcn/ui integration"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Full integration (Recommended)"`, `description`: `"CLI init, wire MCP server, install shadcn/skills."`
+- Option 2 — `label`: `"CLI only"`, `description`: `"CLI init, skip MCP/skills wiring."`
+- Option 3 — `label`: `"Skip"`, `description`: `"Disable shadcn integration."`
 
 **Options 1 and 2 both run:**
 
@@ -531,15 +513,11 @@ discovers and installs components correctly instead of guessing.
 
 Check `.mcp.json` for an existing `mcpServers.shadcn` entry, and check whether the
 shadcn Skill is installed (its directory/marker file, per the `skills` CLI's own
-convention). If either is missing, present:
+convention). If either is missing, call `AskUserQuestion`:
 
-```
-shadcn/ui is already initialized in this project. Wire up the MCP server and
-shadcn/skills for Claude Code?
-
-1. Yes — wire remaining layers (Recommended)
-2. Skip
-```
+- `question`: `"shadcn/ui is already initialized in this project. Wire up the MCP server and shadcn/skills for Claude Code?"`, `header`: `"shadcn/ui wiring"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Yes — wire remaining layers (Recommended)"`, `description`: `"Runs steps 4-5 above (skipping CLI init, already done)."`
+- Option 2 — `label`: `"Skip"`, `description`: `"Leave both layers unwired."`
 
 Option 1 runs steps 4-5 above (skipping CLI init, already done). Option 2 skips both.
 
@@ -638,17 +616,11 @@ commit lands on the repository's default branch. Projects whose workflow lands f
 an integration branch first (`dev`, `staging`, a feature branch) get no signal at all —
 the issue just sits open with no record that it's already fixed somewhere.
 
-**Present:**
+**Call `AskUserQuestion`:**
 
-```
-claude-tweaks can wire up automatic issue tracking for non-default branches.
-GitHub only auto-closes Fixes #N/Closes #N on the default branch — fixes
-landed elsewhere lose that signal entirely and the issue looks untouched.
-
-Set up the tracking workflow?
-1. Yes — write .github/workflows/track-issue-fixes.yml (Recommended)
-2. Skip — I'll handle issue tracking manually
-```
+- `question`: `"claude-tweaks can wire up automatic issue tracking for non-default branches. GitHub only auto-closes Fixes #N/Closes #N on the default branch — fixes landed elsewhere lose that signal entirely and the issue looks untouched. Set up the tracking workflow?"`, `header`: `"Issue tracking"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Yes — write the tracking workflow (Recommended)"`, `description`: `"Writes .github/workflows/track-issue-fixes.yml."`
+- Option 2 — `label`: `"Skip"`, `description`: `"Handle issue tracking manually."`
 
 **For option 1 — write the workflow file.** The full YAML is generated by
 `bin/lib/issue-branch-tracking.js`'s `generateWorkflowYaml()` — do not hand-author the
@@ -717,17 +689,11 @@ of how it was set.
 **When the gate fails** (no GitHub-flavored remote): present the choice below,
 defaulted to option 2 — unchanged from today.
 
-**Present (gate-fails case only):**
+**Call `AskUserQuestion` (gate-fails case only):**
 
-```
-How should claude-tweaks store work records (captured ideas, specs, and everything
-/claude-tweaks:triage, /claude-tweaks:dispatch, and /claude-tweaks:tidy act on)?
-
-1. GitHub issues (Recommended when a GitHub remote is available) — filterable,
-   visible outside the repo, works with /claude-tweaks:triage for authorization
-   and headless dispatch
-2. Local record files (specs/{id}-{slug}.md, one file per record) — no GitHub dependency
-```
+- `question`: `"How should claude-tweaks store work records (captured ideas, specs, and everything /claude-tweaks:triage, /claude-tweaks:dispatch, and /claude-tweaks:tidy act on)?"`, `header`: `"Work-record backend"`, `multiSelect`: `false`
+- Option 1 — `label`: `"GitHub issues (Recommended when a GitHub remote is available)"`, `description`: `"Filterable, visible outside the repo, works with /claude-tweaks:triage for authorization and headless dispatch."`
+- Option 2 — `label`: `"Local record files"`, `description`: `"specs/{id}-{slug}.md, one file per record — no GitHub dependency."`
 
 **Write the flag to CLAUDE.md.** Add (or update) a `## Work records` section:
 
@@ -790,15 +756,16 @@ expressions a plain file store supports, so there is nothing to detect.
 **Sub-step 15c — Label provisioning offer** (`work-backend: github-issues` only).
 Call `AskUserQuestion`:
 
-- `question`: `"Provision all 23 core work-record labels now?"`, `header`:
+- `question`: `"Provision all core work-record labels now?"`, `header`:
   `"Label bootstrap"`, `multiSelect`: `false`
-- Option 1 (Recommended) — `label`: `"Yes — provision all 23 labels now"`,
+- Option 1 (Recommended) — `label`: `"Yes — provision all labels now"`,
   `description`: `"Runs _shared/label-bootstrap.md's canonical LABELS_JSON whole —
-  the 23 core labels plus the 3 optional priority:* labels (26 total). That file's
-  own note names this offer as the one caller allowed to use the full list, rather
-  than bootstrapping only what's about to be applied. Front-loads label creation so
-  the first health-skill firing or /claude-tweaks:capture call never pays the
-  lazy-create path."`
+  the core label families plus the optional priority:* family (see
+  _shared/work-record.md's Label taxonomy table for the current per-family and
+  total counts). That file's own note names this offer as the one caller allowed
+  to use the full list, rather than bootstrapping only what's about to be applied.
+  Front-loads label creation so the first health-skill firing or
+  /claude-tweaks:capture call never pays the lazy-create path."`
 - Option 2 — `label`: `"No — create labels lazily as each skill needs them"`,
   `description`: `"Every filing/shaping/dispatching skill already bootstraps its
   own labels via the same check-then-create loop on first use

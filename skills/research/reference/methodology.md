@@ -48,7 +48,14 @@ REFUTE it. Scale the fan-out to the tier (table above).
 > **Contract:** Each agent follows the Subagent Contract
 > (`skills/_shared/subagent-output-contract.md`) — minimal input (the claim + its source quote
 > + URL), one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED` as its first line, then
-> Template C (yes/no + ≤3 evidence bullets). Use the Fast or Standard tier.
+> the literal output format (Template C), inlined verbatim in the dispatch prompt:
+> ```
+> OUTPUT FORMAT (required):
+> First line: "yes" or "no"
+> Second line onward: up to 3 bullet lines of evidence (path:line — context).
+> Maximum 200 tokens total.
+> ```
+> Use the Fast or Standard tier.
 
 A claim survives only if it is NOT refuted by a majority of its verifiers. Drop or hedge
 refuted claims.

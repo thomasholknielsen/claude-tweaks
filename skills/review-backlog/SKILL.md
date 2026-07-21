@@ -76,20 +76,13 @@ node -e "
 " > /tmp/review-backlog-unsynced.json
 ```
 
-For each unsynced record, attach a `createdAt` from its own last-commit date (the local driver carries no timestamp facet — same approach `/tidy`'s Step 1 staleness clock already uses):
+For each unsynced record, attach a `createdAt` from its own last-commit date (the local driver carries no timestamp facet — same approach `/tidy`'s Step 1 staleness clock already uses) via `review-backlog.js`'s shared `deriveCreatedAtFromGit` helper (also used by the local-files fetch below — one implementation, not two copies):
 
 ```bash
 node -e "
-  const { execSync } = require('child_process');
+  const { deriveCreatedAtFromGit } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/review-backlog.js');
   const records = require('/tmp/review-backlog-unsynced.json');
-  const withDates = records.map((r) => {
-    let createdAt;
-    try {
-      createdAt = execSync('git log -1 --format=%cI -- ' + JSON.stringify(r.path), { encoding: 'utf8' }).trim();
-    } catch { createdAt = null; }
-    return { ...r, createdAt: createdAt || new Date().toISOString() };
-  });
-  console.log(JSON.stringify(withDates));
+  console.log(JSON.stringify(deriveCreatedAtFromGit(records)));
 " > /tmp/review-backlog-unsynced-dated.json
 node -e "
   const { mergeUnsyncedRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/review-backlog.js');
@@ -107,16 +100,9 @@ node -e "
   console.log(JSON.stringify(records));
 " > /tmp/review-backlog-local.json
 node -e "
-  const { execSync } = require('child_process');
+  const { deriveCreatedAtFromGit } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/review-backlog.js');
   const records = require('/tmp/review-backlog-local.json');
-  const withDates = records.map((r) => {
-    let createdAt;
-    try {
-      createdAt = execSync('git log -1 --format=%cI -- ' + JSON.stringify(r.path), { encoding: 'utf8' }).trim();
-    } catch { createdAt = null; }
-    return { ...r, createdAt: createdAt || new Date().toISOString() };
-  });
-  console.log(JSON.stringify(withDates));
+  console.log(JSON.stringify(deriveCreatedAtFromGit(records)));
 " > /tmp/review-backlog-local-dated.json
 node -e "
   const { mergeUnsyncedRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/review-backlog.js');
@@ -127,7 +113,7 @@ node -e "
 
 Local-files records have no dedicated timestamp facet either, so the block above derives `createdAt` from each record's own last-commit date the same way the unsynced-record fold-in does (an uncommitted/brand-new record counts as fresh — `git log -1` returning empty falls back to the current time).
 
-Tag every fetched record with an `⚠ not yet synced` marker in rendered output wherever `facets.unsynced === true` — this skill surfaces those records, it never fixes them (`/claude-tweaks:tidy`'s job).
+Tag every fetched record with a **not yet synced** marker in rendered output wherever `facets.unsynced === true` — this skill surfaces those records, it never fixes them (`/claude-tweaks:tidy`'s job).
 
 ### Step 2: Route by mode
 
@@ -273,5 +259,5 @@ When a mode's output has a natural actionable batch (a `cleanup` run, a chosen s
 | `_shared/github-pr-scan.md` | Detection Ladder — this skill's preflight hard gate under `work-backend: github-issues`. |
 | `_shared/label-bootstrap.md` | Canonical check-then-create snippet for the `priority:*` labels this skill applies. |
 | `_shared/pipeline-run-dir.md` | Review-backlog resolves a standalone-auto run dir (allowlist item 3) for its own `decisions.md`. |
-| `bin/lib/issues/review-backlog.js` | The pure filter/sort/split/merge helpers behind every mode — `splitScoredUnscored`, `filterCritical`, `rankRiskValue`, `filterCleanup`, `selectBudgetSlice`, `mergeUnsyncedRecords`. |
+| `bin/lib/issues/review-backlog.js` | The filter/sort/split/merge helpers behind every mode — `splitScoredUnscored`, `filterCritical`, `rankRiskValue`, `filterCleanup`, `selectBudgetSlice`, `mergeUnsyncedRecords` (pure), plus `deriveCreatedAtFromGit` (the one git-shelling exception — shared by Step 1's unsynced fold-in and local-files fetch). |
 | `bin/lib/issues/{record,local-store}.js` | `record.js`'s `parseRecordFacets` facet-parses every fetched GitHub issue in Step 1; `local-store.js`'s `queryRecords`/`writeRecord` back the entire `local-files` driver path. |

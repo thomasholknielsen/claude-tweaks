@@ -41,11 +41,7 @@ Present all findings as a batch:
 | 4 | {description} | Capture — needs exploration |
 ```
 
-The table renders as markdown, as above. Immediately below it, call `AskUserQuestion` with:
-
-- `question`: `"How do you want to handle these findings?"`, `header`: `"Findings"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Apply all recommendations"`
-- Option 2 — `label`: `"Override specific items"`, `description`: `"tell me which #s to change"`
+The table renders as markdown, as above. Same `AskUserQuestion` mechanics as full mode (see `full-mode.md`'s Interactive mode section) — substitute "findings" for "insights" in the question text and header (`question`: `"How do you want to handle these findings?"`, `header`: `"Findings"`); the two options are identical.
 
 **Recommendation rules:**
 - **Change now** — the strong default. If the improvement is clear, make the change. Most hindsight findings are small enough to fix in a few minutes.

@@ -461,25 +461,28 @@ See `_shared/design-wrapper-handling.md` for the canonical return-shape contract
 
 **Routing (optional):** When the user wants to action design findings inline, route them through Step 6.6 below — Step 3 has already completed by this point, so design findings get their own branch reachable only from Step 6.5. When the user opts not to action them inline, they remain in the Design Quality summary section as informational.
 
+## Category Findings Routing (shared by Step 6.6 and Step 3-ter)
+
+Reused by Step 6.6 (Design Findings Routing) and Step 3-ter (Visual Findings Routing) below — both reachable only after Step 3 Routing has already completed, each gated on its own upstream step having produced actionable findings AND the user opting to action them inline. This shared mechanics reuses the routing rules from `step3-routing.md` (severity-based auto routing, interactive batch table, deferral gate, parallel-fix dispatch) applied to a separate findings set scoped to the caller's own category.
+
+1. Treat each finding as a row in a batch table scoped to the category below, with severity mapped per the source and its recommended fix (if any).
+2. Run the same severity-routing table from `step3-routing.md` — low → AUTO, medium → STAGED, high → STAGED, critical → KEPT-PROMPT.
+3. After resolution, fold the resolved findings back into the Step 7 summary's matching section, noting each finding's final status (fixed / deferred / accepted).
+
+Neither caller replays Step 3.5 (cross-lens debate) — each source's findings have no peers to debate against — and neither re-dispatches reproduction pairs, since each upstream source's output is already filtered/classified before it reaches this routing.
+
+| Caller | Category | Severity source | Step 7 summary section |
+|---|---|---|---|
+| Step 6.6 (from Step 6.5) | `Design Quality` | Wrapper output (`info` → low, `warning` → medium, `error` → high) | "Design Quality" |
+| Step 3-ter (from Step 6) | `UI / Visual` | `/visual-review`'s own report classification | "Visual Review" (alongside the narrative summary) |
+
 ## Step 6.6: Design Findings Routing
 
-Reachable only when Step 6.5 produced `{result: "advisory", findings: [...]}` AND the user opted to action findings inline. This branch reuses the routing mechanics from `step3-routing.md` (severity-based auto routing, interactive batch table, deferral gate, parallel-fix dispatch) but operates on a separate findings set scoped to category `Design Quality`.
-
-1. Treat each design finding as a row in a Step 6.6 batch table with category `Design Quality`, severity from the wrapper output (`info` → low, `warning` → medium, `error` → high), and the wrapper's suggestion as the recommended fix.
-2. Run the same severity-routing table from `step3-routing.md` — low → AUTO, medium → STAGED, high → STAGED, critical → KEPT-PROMPT.
-3. After resolution, fold the resolved findings back into the Step 7 summary's "Design Quality" section with their final status (fixed / deferred / accepted).
-
-Step 6.6 does NOT replay Step 3.5 (cross-lens debate) — design findings come from a single source and have no peers to debate against. Step 6.6 also does NOT re-dispatch reproduction pairs — Impeccable's output is already filtered upstream.
+Reachable only when Step 6.5 produced `{result: "advisory", findings: [...]}` AND the user opted to action findings inline. Uses the shared Category Findings Routing above, scoped to `Design Quality`.
 
 ## Step 3-ter: Visual Findings Routing (from Step 6)
 
-Reachable only when Step 6 ran in full mode and `/claude-tweaks:visual-review` produced actionable "UI / Visual" findings AND the user opted to action findings inline. This branch reuses the routing mechanics from `step3-routing.md` (severity-based auto routing, interactive batch table, deferral gate, parallel-fix dispatch) but operates on a separate findings set scoped to category `UI / Visual`.
-
-1. Treat each visual finding as a row in a Step 3-ter batch table with category `UI / Visual`, severity as classified by `/visual-review`'s own report, and its recommended fix (if any).
-2. Run the same severity-routing table from `step3-routing.md` — low → AUTO, medium → STAGED, high → STAGED, critical → KEPT-PROMPT.
-3. After resolution, fold the resolved findings back into the Step 7 summary's "Visual Review" section, noting each finding's final status (fixed / deferred / accepted) alongside the narrative summary.
-
-Step 3-ter does NOT replay Step 3.5 (cross-lens debate) — visual findings come from a single source (`/visual-review`) and have no peers to debate against. Step 3-ter also does NOT re-dispatch reproduction pairs — `/visual-review`'s output is already a finished, classified report.
+Reachable only when Step 6 ran in full mode and `/claude-tweaks:visual-review` produced actionable "UI / Visual" findings AND the user opted to action findings inline. Uses the shared Category Findings Routing above, scoped to `UI / Visual`.
 
 ## Step 7: Present Review Summary
 
@@ -505,7 +508,7 @@ If no notable learnings emerged, state: "No key learnings — straightforward re
 - Code simplification runs on changed files only — never expand scope to unrelated code
 - Skip review lenses that don't apply to the type of change
 - This skill reviews the *current work* — it is not a codebase-wide audit
-- When a confirmed bug finding needs a fix that isn't a one-line mechanical correction, root-cause it via `/superpowers:systematic-debugging` (reproduce first, then fix) before applying the change — don't guess at fixes during routing
+- When a confirmed bug finding needs a fix that isn't a one-line mechanical correction, follow the reproduce-first discipline in `_shared/reproduce-first-discipline.md` before applying the change — don't guess at fixes during routing
 
 ## Next Actions
 
@@ -553,7 +556,7 @@ See `review-summary-template.md` in this skill's directory for the full Next Act
 | `/claude-tweaks:simplify` | Invoked BY /review (Step 5) on files modified during review. Handles code simplification and re-verification. |
 | `/claude-tweaks:deepen` | Lens 3e (Architecture) flags shallow modules and leaky abstractions; when module-level restructuring is the theme, /review surfaces `/claude-tweaks:deepen` as a Next Action rather than resolving it inline. /deepen is the dedicated depth pass. |
 | `/claude-tweaks:code-health` | `/review` judges diffs reactively; `/code-health` judges latent code proactively on a schedule. Both reuse the same criteria fragments from `skills/_shared/` — see the `_shared/criteria-review-quality.md` row below. |
-| `/superpowers:systematic-debugging` | Invoked BY /review when a confirmed bug finding needs a non-trivial fix — reproduce-first discipline before applying the change (see Important Notes). |
+| `/superpowers:systematic-debugging` | Invoked BY /review when a confirmed bug finding needs a non-trivial fix — see the reproduce-first discipline in `_shared/reproduce-first-discipline.md` (also referenced from Important Notes). |
 | `/claude-tweaks:ledger` | Manages the open items ledger. /review appends findings (Step 3 Routing). Hindsight findings (Step 4) are written by /reflect using `review/*` phases. |
 | `/claude-tweaks:help` | /help flags specs awaiting review and recommends `/review` in its pipeline status scan |
 | `/claude-tweaks:design-wrapper` | /review invokes `/claude-tweaks:design-wrapper review <spec>` as Step 6.5 to run Impeccable's `critique` + `audit` commands. Findings are advisory, surfaced in the "Design Quality" section of the review summary. The wrapper handles its own detection and availability checks; skips are silent (section omitted). |

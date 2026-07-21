@@ -195,7 +195,7 @@ Shaping mode ends here — proceed directly to `## Next Actions`.
 
 1. **The design doc** — understand what was decided, the scope, and the technical approach
 2. **The brainstorming brief** (if one exists in `docs/plans/*-brief.md` for this topic) — contains assumptions surfaced by `/claude-tweaks:challenge`, blind spots, and constraints. These should be absorbed into leaf Gotchas sections.
-3. **Open records** — the record store itself is the current landscape; there is no separate index file to read. Query once, per driver: `work-backend: github-issues` — `gh issue list --state open --json number,title,labels,body --limit 200`, then `parseRecordFacets` (`bin/lib/issues/record.js`) over each issue's `labels`; `work-backend: local-files` — `queryRecords('specs', {})` (`bin/lib/issues/local-store.js`), which returns parsed `facets` directly.
+3. **Open records** — the record store itself is the current landscape; there is no separate index file to read. Query once, per driver, fetching the union of fields both this step and Step 3's Idempotency map need so Step 3 can reuse this same fetch instead of paying for a second round-trip: `work-backend: github-issues` — `gh issue list --state all --json number,title,labels,body,state --limit 200 > /tmp/specify-all-issues.json`, then filter in-memory to `state === 'OPEN'` and run `parseRecordFacets` (`bin/lib/issues/record.js`) over each issue's `labels` for this step's Landscape/Overlap Analysis use. Fetching `--state all` here (rather than `--state open`) is deliberate — Step 3's Idempotency map needs the closed records too, and reuses `/tmp/specify-all-issues.json` directly instead of re-fetching (see Step 3). `work-backend: local-files` — `queryRecords('specs', {})` (`bin/lib/issues/local-store.js`), which returns parsed `facets` directly.
 4. **Every open record's body** (from the query above) — scan for overlap with the design doc's scope; feeds the File Reference Map below.
 5. **Recent git log** — check if any part of the design has already been implemented
 6. **The codebase** — identify existing files, schemas, APIs, and patterns that the new work will build on. This context is critical for writing leaf records that `/superpowers:writing-plans` can act on.
@@ -384,10 +384,9 @@ Every record this step creates carries a deterministic fingerprint: `{design-doc
 
 Before creating anything, build a fingerprint→number map of every existing marker, once:
 
-`work-backend: github-issues` (REST list, NOT the search index — the search index lags behind fresh writes, including this same run's own):
+`work-backend: github-issues` — reuse Step 1's `/tmp/specify-all-issues.json` (already fetched `--state all --json number,title,labels,body,state`, the REST list, NOT the search index — the search index lags behind fresh writes, including this same run's own); no second `gh issue list` round-trip:
 
 ```bash
-gh issue list --state all --json number,body --limit 200 > /tmp/specify-all-issues.json
 node -e "
   const { extractFingerprint } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const issues = require('/tmp/specify-all-issues.json');
@@ -396,6 +395,8 @@ node -e "
   require('fs').writeFileSync('/tmp/specify-existing-fingerprints.json', JSON.stringify(map));
 "
 ```
+
+If `/tmp/specify-all-issues.json` is unavailable (a resumed decomposition run in a fresh session with no Step 1 state from this session — shaping mode never reaches this step, so this only matters for a resumed decomposition), fall back to fetching it fresh: `gh issue list --state all --json number,title,labels,body,state --limit 200 > /tmp/specify-all-issues.json`.
 
 `work-backend: local-files` (the local marker search — same idea, read every record body and extract its marker):
 
@@ -438,18 +439,19 @@ PARENT_URL=$(gh issue create --title "$PARENT_TITLE" --body-file /tmp/specify-pa
 PARENT_NUM=$(basename "$PARENT_URL")
 ```
 
-**`work-backend: local-files`:**
+**`work-backend: local-files`:** use `createRecord`, not `allocateId`+`writeRecord` separately — two near-simultaneous decomposition runs (or a `/specify` decomposition racing a `/capture` filing) calling `allocateId`+`writeRecord` independently can both read the same directory listing, both compute the same next id, and both succeed under different slugs — two records silently sharing one numeric id, corrupting any later `facets.parent`/`facets.blockedBy` reference that assumes id uniqueness (exactly the kind of reference this decomposition is about to write). `createRecord` closes that race by allocating the id and writing the file as one atomic step (see `bin/lib/issues/local-store.js`'s header comments on `allocateId` and `createRecord`; the same fix `capture/SKILL.md`'s local-files branch already applies). The slug is `deriveSlug(title, existingSlugs)` from that same module — not a hand-derived slugification:
 
 ```bash
-PARENT_ID=$(node -e "const {writeRecord, allocateId}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
-  const id = allocateId('specs');
-  const body = require('fs').readFileSync('/tmp/specify-parent-body.md', 'utf8');
-  writeRecord(\`specs/\${id}-\${process.argv[1]}.md\`, {
-    title: process.argv[2],
-    body,
-    facets: { type: 'feature' }
-  });
-  console.log(id)" "$PARENT_SLUG" "$PARENT_TITLE")
+PARENT_ID=$(node -e "const fs=require('fs');
+  const {createRecord, deriveSlug}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
+  const dir='specs';
+  const existingSlugs=fs.existsSync(dir)
+    ? fs.readdirSync(dir).map((n)=>/^\d+-(.+)\.md$/.exec(n)).filter(Boolean).map((m)=>m[1])
+    : [];
+  const slug=deriveSlug(process.argv[1], existingSlugs);
+  const body=fs.readFileSync('/tmp/specify-parent-body.md', 'utf8');
+  const record=createRecord(dir, { slug, title: process.argv[1], body, facets: { type: 'feature' } });
+  console.log(record.id)" "$PARENT_TITLE")
 ```
 
 `$PARENT_NUM` / `$PARENT_ID` is now captured — every leaf below links back to it.
@@ -472,7 +474,21 @@ PARENT_ID=$(node -e "const {writeRecord, allocateId}=require(process.env.CLAUDE_
 
 **Ceremony** — invoke `/claude-tweaks:assess-agent-autonomy` in `ceremony-check` mode (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "ceremony-check")`) against this leaf's own composed body — never the parent, which carries no `ceremony:*` label either, mirroring the no-risk/effort-on-parents rule above. The verdict (always explicit — no unscored state for this axis) becomes `$LEAF_CEREMONY` below.
 
-**Fingerprint** — `{design-doc-slug}:{unit-slug}`, the leaf half of the deterministic scheme the Idempotency section above defines.
+**Slug derivation** — `$UNIT_SLUG` is `deriveSlug(title, existingSlugs)` (`bin/lib/issues/local-store.js`) — the same deterministic algorithm `/claude-tweaks:capture` and `/claude-tweaks:demo` use for their own record creation, not a hand-derived slugification. Seed `existingSlugs` with the literal string `'parent'` (a leaf slug must never collide with the parent's reserved fingerprint suffix — see above) plus, under `work-backend: local-files`, the current `specs/` directory listing (same scan `/claude-tweaks:capture`'s local-files branch uses — since each leaf's `createRecord` call below writes its file before the next leaf runs, this rescan also naturally dedupes against slugs already assigned earlier in this same decomposition loop):
+
+```bash
+UNIT_SLUG=$(node -e "const fs=require('fs');
+  const {deriveSlug}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
+  const dir='specs';
+  const onDisk=fs.existsSync(dir)
+    ? fs.readdirSync(dir).map((n)=>/^\d+-(.+)\.md$/.exec(n)).filter(Boolean).map((m)=>m[1])
+    : [];
+  console.log(deriveSlug(process.argv[1], ['parent', ...onDisk]))" "$LEAF_TITLE")
+```
+
+Reuse this same `$UNIT_SLUG` value below for both the fingerprint and, under `work-backend: local-files`, the record's own slug — do not re-derive it separately at write time.
+
+**Fingerprint** — `{design-doc-slug}:{unit-slug}` (`$UNIT_SLUG` from Slug derivation, above), the leaf half of the deterministic scheme the Idempotency section above defines.
 
 ```bash
 node -e "const {recordPayload}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js');
@@ -507,18 +523,18 @@ LEAF_URL=$(gh issue create --title "$LEAF_TITLE" --body-file /tmp/specify-leaf-b
 LEAF_NUM=$(basename "$LEAF_URL")
 ```
 
-**`work-backend: local-files`** — one `writeRecord` call carries the same state as facets: `stage: 'ready'` instead of the `ready` label, `origin` omitted for the same no-`by:*` reason. `/tmp/specify-leaf-body.md` already carries the fingerprint marker, so the local write preserves it:
+**`work-backend: local-files`** — use `createRecord`, not `allocateId`+`writeRecord` separately, for the same concurrent-creation-race reason as the parent above (`createRecord` allocates the id and writes the file as one atomic step; see `bin/lib/issues/local-store.js`'s header comments). One call carries the same state as facets: `stage: 'ready'` instead of the `ready` label, `origin` omitted for the same no-`by:*` reason. `/tmp/specify-leaf-body.md` already carries the fingerprint marker, so the local write preserves it:
 
 ```bash
-LEAF_ID=$(node -e "const {writeRecord, allocateId}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
-  const id = allocateId('specs');
+LEAF_ID=$(node -e "const {createRecord}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
   const body = require('fs').readFileSync('/tmp/specify-leaf-body.md', 'utf8');
-  writeRecord(\`specs/\${id}-\${process.argv[1]}.md\`, {
+  const record = createRecord('specs', {
+    slug: process.argv[1],
     title: process.argv[2],
     body,
     facets: { type: process.argv[3], risk: process.argv[4], effort: process.argv[5], ceremony: process.argv[6], stage: 'ready' }
   });
-  console.log(id)" "$UNIT_SLUG" "$LEAF_TITLE" "$LEAF_TYPE" "$LEAF_RISK" "$LEAF_EFFORT" "$LEAF_CEREMONY")
+  console.log(record.id)" "$UNIT_SLUG" "$LEAF_TITLE" "$LEAF_TYPE" "$LEAF_RISK" "$LEAF_EFFORT" "$LEAF_CEREMONY")
 ```
 
 Capture `$LEAF_NUM` / `$LEAF_ID` for every leaf (created or resumed via the Idempotency map) — Step 4's linking pass consumes them.

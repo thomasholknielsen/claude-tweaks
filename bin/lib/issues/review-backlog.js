@@ -1,11 +1,17 @@
 // bin/lib/issues/review-backlog.js
-// Pure: mechanical filter/sort/split/merge logic for /claude-tweaks:review-backlog's
+// Mechanical filter/sort/split/merge logic for /claude-tweaks:review-backlog's
 // Lane A (scored records, unlimited scale) and the scored/unscored split feeding
 // Lane B's bounded LLM synthesis pass. Records are expected to already carry
 // `.facets` (via record.js's parseRecordFacets or local-store.js's
 // readRecord/queryRecords) and, where sorting depends on it, a `.createdAt` ISO
-// string. No network, no fs — mirrors record.js's purity contract.
+// string. Every function except `deriveCreatedAtFromGit` is pure — no network, no
+// fs — mirroring record.js's purity contract; `deriveCreatedAtFromGit` is the one
+// deliberate exception (it shells out to `git log`), with its side effect isolated
+// behind an injectable `execFn` so callers (and tests) don't have to touch a real
+// git repo to exercise it.
 'use strict';
+
+const { execSync } = require('child_process');
 
 const RANK = { high: 0, medium: 1, low: 2 };
 const bandOf = (r) => (r.facets.priority ? RANK[r.facets.priority] : 3);
@@ -80,6 +86,26 @@ function mergeUnsyncedRecords(githubRecords, unsyncedRecords) {
   ];
 }
 
+// (records[], { execFn? }) -> records[]. For each record, derives `createdAt`
+// from its own last-commit date via `git log -1 --format=%cI -- <path>` — used
+// for records whose driver carries no timestamp facet (local-files backend, and
+// any unsynced-fallback record), the same approach /tidy's Step 1 staleness clock
+// already uses. A git failure (no history, not a git repo) or empty output falls
+// back to the current time, matching the two duplicated inline scripts this
+// replaces (skills/review-backlog/SKILL.md's Step 1). `execFn` defaults to
+// `child_process.execSync` and is injectable so tests never need a real git repo.
+function deriveCreatedAtFromGit(records, { execFn = execSync } = {}) {
+  return records.map((r) => {
+    let createdAt;
+    try {
+      createdAt = execFn('git log -1 --format=%cI -- ' + JSON.stringify(r.path), { encoding: 'utf8' }).trim();
+    } catch {
+      createdAt = null;
+    }
+    return { ...r, createdAt: createdAt || new Date().toISOString() };
+  });
+}
+
 module.exports = {
   splitScoredUnscored,
   filterCritical,
@@ -87,4 +113,5 @@ module.exports = {
   filterCleanup,
   selectBudgetSlice,
   mergeUnsyncedRecords,
+  deriveCreatedAtFromGit,
 };

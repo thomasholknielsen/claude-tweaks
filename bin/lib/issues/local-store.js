@@ -306,15 +306,15 @@ function createRecord(dir = DEFAULT_DIR, { slug, title, body, facets } = {}) {
 }
 
 // title, existingSlugs? -> slug. The single implementation of the slug rule
-// for callers creating a brand-new local-files record (currently /capture;
-// specify/SKILL.md's parent/leaf creation still derives slugs inline and is
-// a candidate to adopt this too): lowercase, collapse runs of
-// non-alphanumeric characters to a single '-', trim leading/trailing '-',
-// truncate to 60 chars, then dedupe against existingSlugs (if given) by
-// appending a numeric suffix ('-2', '-3', ...). Falls back to 'untitled'
-// when the title has no alphanumeric characters at all, so callers never
-// hand createRecord an empty slug (which would produce an unparseable
-// '{id}-.md' filename).
+// for callers creating a brand-new local-files record (/capture, /demo's
+// changes-requested follow-up, and /specify's parent/leaf decomposition
+// creation all call this rather than deriving slugs inline): lowercase,
+// collapse runs of non-alphanumeric characters to a single '-', trim
+// leading/trailing '-', truncate to 60 chars, then dedupe against
+// existingSlugs (if given) by appending a numeric suffix ('-2', '-3', ...).
+// Falls back to 'untitled' when the title has no alphanumeric characters at
+// all, so callers never hand createRecord an empty slug (which would produce
+// an unparseable '{id}-.md' filename).
 function deriveSlug(title, existingSlugs = []) {
   let slug = String(title)
     .toLowerCase()

@@ -8,6 +8,7 @@ const {
   filterCleanup,
   selectBudgetSlice,
   mergeUnsyncedRecords,
+  deriveCreatedAtFromGit,
 } = require('../review-backlog');
 
 function record(overrides) {
@@ -72,6 +73,51 @@ test('selectBudgetSlice reports zero remaining when the budget covers everything
   const result = selectBudgetSlice(records, 5);
   assert.strictEqual(result.remaining, 0);
   assert.strictEqual(result.selected.length, 2);
+});
+
+test('deriveCreatedAtFromGit uses the trimmed git log output as createdAt when the command succeeds', () => {
+  const calls = [];
+  const execFn = (cmd) => {
+    calls.push(cmd);
+    return '2026-01-05T12:00:00+00:00\n';
+  };
+  const records = [{ number: 1, path: 'specs/1-foo.md' }];
+  const result = deriveCreatedAtFromGit(records, { execFn });
+  assert.strictEqual(result[0].createdAt, '2026-01-05T12:00:00+00:00');
+  assert.strictEqual(result[0].number, 1);
+  assert.strictEqual(calls.length, 1);
+  assert.strictEqual(calls[0], 'git log -1 --format=%cI -- ' + JSON.stringify('specs/1-foo.md'));
+});
+
+test('deriveCreatedAtFromGit falls back to the current time when git log fails (no history / not a git repo)', () => {
+  const execFn = () => {
+    throw new Error('fatal: not a git repository');
+  };
+  const before = Date.now();
+  const records = [{ number: 2, path: 'specs/2-bar.md' }];
+  const result = deriveCreatedAtFromGit(records, { execFn });
+  const after = Date.now();
+  const fallbackTime = new Date(result[0].createdAt).getTime();
+  assert.ok(fallbackTime >= before && fallbackTime <= after, 'createdAt should fall back to now()');
+});
+
+test('deriveCreatedAtFromGit falls back to the current time when git log returns empty output', () => {
+  const execFn = () => '   \n';
+  const records = [{ number: 3, path: 'specs/3-baz.md' }];
+  const result = deriveCreatedAtFromGit(records, { execFn });
+  assert.ok(!Number.isNaN(new Date(result[0].createdAt).getTime()));
+  assert.notStrictEqual(result[0].createdAt, '');
+});
+
+test('deriveCreatedAtFromGit preserves record order and does not mutate the input records', () => {
+  const execFn = (cmd) => (cmd.includes('1-foo') ? '2026-01-01T00:00:00+00:00' : '2026-02-02T00:00:00+00:00');
+  const records = [
+    { number: 1, path: 'specs/1-foo.md' },
+    { number: 2, path: 'specs/2-bar.md' },
+  ];
+  const result = deriveCreatedAtFromGit(records, { execFn });
+  assert.deepStrictEqual(result.map((r) => r.number), [1, 2]);
+  assert.strictEqual(records[0].createdAt, undefined);
 });
 
 test('mergeUnsyncedRecords concatenates github-first then unsynced, tagging facets.unsynced explicitly on both', () => {
