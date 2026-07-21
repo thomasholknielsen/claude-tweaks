@@ -1,7 +1,31 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { parseFrontmatterListField } = require('../frontmatter-list');
+const { parseFrontmatterListField, splitFrontmatterFence } = require('../frontmatter-list');
+
+// --- splitFrontmatterFence: the canonical fence-boundary detector other
+// modules (e.g. bin/lib/issues/local-store.js's splitFrontmatter) reuse
+// instead of hand-rolling their own copy. ---
+
+test('splitFrontmatterFence returns null when there is no opening fence', () => {
+  assert.strictEqual(splitFrontmatterFence('# no frontmatter here'), null);
+});
+
+test('splitFrontmatterFence returns null when the fence never closes', () => {
+  assert.strictEqual(splitFrontmatterFence('---\npaths:\n  - src/a.ts\n'), null);
+});
+
+test('splitFrontmatterFence splits frontmatter lines from the content after the closing fence', () => {
+  const result = splitFrontmatterFence('---\ntype: task\nrisk: low\n---\n\n# Title\n\nbody\n');
+  assert.deepStrictEqual(result.frontmatter, ['type: task', 'risk: low']);
+  assert.deepStrictEqual(result.afterLines, ['', '# Title', '', 'body', '']);
+});
+
+test('splitFrontmatterFence returns an empty frontmatter array for an empty fenced block', () => {
+  const result = splitFrontmatterFence('---\n---\nbody\n');
+  assert.deepStrictEqual(result.frontmatter, []);
+  assert.deepStrictEqual(result.afterLines, ['body', '']);
+});
 
 test('parseFrontmatterListField returns [] when there is no frontmatter', () => {
   assert.deepStrictEqual(parseFrontmatterListField('# no frontmatter here', 'paths'), []);

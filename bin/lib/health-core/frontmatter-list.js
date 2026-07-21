@@ -22,12 +22,27 @@
 // docs-health's former callers, not a behavior break — verified against
 // bin/lib/docs-health/tests/freshness.test.js's fixtures, which all use a
 // real space after the dash.
-function parseFrontmatterListField(content, fieldName) {
+// Splits raw file content at the YAML-style '---' fence boundaries into
+// { frontmatter, afterLines }, or returns null when there's no frontmatter
+// (the first line isn't '---', or the fence never closes) — the single
+// canonical fence-boundary algorithm this module's own header describes
+// consolidating three independent hand-rolled copies into. Exported so other
+// modules that need "where does the frontmatter block start/end" (not just
+// this file's own bullet-list extraction) can share it instead of hand-
+// rolling a fourth copy — see bin/lib/issues/local-store.js's splitFrontmatter,
+// which was exactly that fourth copy before being folded into this helper.
+function splitFrontmatterFence(content) {
   const lines = content.split('\n');
-  if (lines[0] !== '---') return [];
+  if (lines[0] !== '---') return null;
   const closeIdx = lines.indexOf('---', 1);
-  if (closeIdx === -1) return [];
-  const frontmatter = lines.slice(1, closeIdx);
+  if (closeIdx === -1) return null;
+  return { frontmatter: lines.slice(1, closeIdx), afterLines: lines.slice(closeIdx + 1) };
+}
+
+function parseFrontmatterListField(content, fieldName) {
+  const split = splitFrontmatterFence(content);
+  if (!split) return [];
+  const { frontmatter } = split;
   const escapedFieldName = fieldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const fieldRe = new RegExp(`^${escapedFieldName}:\\s*$`);
   const fieldIdx = frontmatter.findIndex((l) => fieldRe.test(l));
@@ -41,4 +56,4 @@ function parseFrontmatterListField(content, fieldName) {
   return items;
 }
 
-module.exports = { parseFrontmatterListField };
+module.exports = { parseFrontmatterListField, splitFrontmatterFence };

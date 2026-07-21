@@ -18,22 +18,37 @@
 //   the engine never calls network.
 //
 // Decision logic:
-//   open issue match           -> skip      (already filed, don't re-file)
-//   wontfix-labelled issue     -> suppress  (standing decision — never re-propose)
-//   closed non-wontfix match   -> reopen    (regressed)
-//   'declined' in local cache  -> suppress  (user rejected this exact finding)
-//   'staged' in local cache    -> skip      (already filed, unresolved)
-//   'regressed' in local cache -> skip      (already reopened via the issue-index path above on
-//                                            some earlier run; a later run that falls back to
-//                                            cache-only dedup — e.g. --issues unavailable — must
-//                                            not re-file it as brand new)
-//   otherwise                  -> file
-function decide(finding, issueIndex, cache) {
+//   open issue match             -> skip      (already filed, don't re-file)
+//   wontfix-labelled issue       -> suppress  (standing decision — never re-propose)
+//   closed non-wontfix match     -> reopen    (regressed)
+//   'declined' in durableDeclined-> suppress  (user rejected this exact finding — durable form)
+//   'declined' in local cache    -> suppress  (user rejected this exact finding — local-only form)
+//   'staged' in local cache      -> skip      (already filed, unresolved)
+//   'regressed' in local cache   -> skip      (already reopened via the issue-index path above on
+//                                              some earlier run; a later run that falls back to
+//                                              cache-only dedup — e.g. --issues unavailable — must
+//                                              not re-file it as brand new)
+//   otherwise                    -> file
+//
+// durableDeclined (optional 4th arg): a plain { "<fingerprint>": {...} } map
+// of fingerprints a human explicitly declined, sourced from the health-state
+// git branch (bin/lib/health-core/durable-state.js's `declined` slice) rather
+// than the local gitignored cache — the cache alone does not survive a
+// scheduled Routine firing's fresh, stateless container, so a declined
+// finding with no filed GitHub issue (nothing for dedup to reconstruct from)
+// would otherwise silently reappear on the next firing. Omitting this
+// parameter preserves this function's pre-existing cache-only behavior
+// exactly (backward compatible with every existing caller).
+function decide(finding, issueIndex, cache, durableDeclined) {
   const fp = finding.id;
   const match = issueIndex && fp && issueIndex[fp];
   if (match) {
     if ((match.labels || []).includes('wontfix')) return { action: 'suppress', issue: match.number };
-    if (match.state === 'closed') {
+    // gh's real API returns state as uppercase 'OPEN'/'CLOSED' (confirmed
+    // live: `gh issue list --json number,state,title`), not lowercase —
+    // record.js's hasOpenNativeBlocker already checks GraphQL state this
+    // same case-insensitive way for the identical reason.
+    if (String(match.state).toLowerCase() === 'closed') {
       return {
         action: 'reopen',
         issue: match.number,
@@ -42,6 +57,7 @@ function decide(finding, issueIndex, cache) {
     }
     return { action: 'skip', issue: match.number };
   }
+  if (durableDeclined && fp && durableDeclined[fp]) return { action: 'suppress' };
   const cached = cache && fp && cache[fp];
   if (cached && cached.status === 'declined') return { action: 'suppress' };
   if (cached && cached.status === 'staged') return { action: 'skip' };

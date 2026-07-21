@@ -30,32 +30,49 @@ function defaultRunner(args) {
   return execFileSync('gh', args, { encoding: 'utf8' });
 }
 
+// Shared skeleton both probes below follow: call the runner with a fixed args
+// array, JSON.parse the result, hand the parsed body to `extract`, and fail
+// safe to `fallback` on ANY failure (unsupported query, network error,
+// garbage JSON) — each probe still fails independently of the other (callers
+// pass their own `args`/`extract`/`fallback`, no shared mutable state), so
+// this is purely deduplicating the try/parse/catch skeleton itself, not
+// coupling the two probes' failure behavior together.
+function runGraphQLProbe(runner, args, extract, fallback) {
+  try {
+    const out = runner(args);
+    const parsed = JSON.parse(out);
+    return extract(parsed);
+  } catch {
+    return fallback;
+  }
+}
+
 // One call: introspect the Issue type's field names on this GitHub host.
 function probeSchema(runner) {
-  try {
-    const out = runner(['api', 'graphql', '-f', 'query={ __type(name: "Issue") { fields { name } } }']);
-    const parsed = JSON.parse(out);
-    const fields = parsed?.data?.__type?.fields;
-    const names = Array.isArray(fields) ? fields.map((f) => f && f.name) : [];
-    return {
-      subIssues: names.includes('subIssues'),
-      dependencies: names.includes('blockedBy'),
-    };
-  } catch {
-    return { subIssues: false, dependencies: false };
-  }
+  return runGraphQLProbe(
+    runner,
+    ['api', 'graphql', '-f', 'query={ __type(name: "Issue") { fields { name } } }'],
+    (parsed) => {
+      const fields = parsed?.data?.__type?.fields;
+      const names = Array.isArray(fields) ? fields.map((f) => f && f.name) : [];
+      return {
+        subIssues: names.includes('subIssues'),
+        dependencies: names.includes('blockedBy'),
+      };
+    },
+    { subIssues: false, dependencies: false },
+  );
 }
 
 // One call: does this repo's org have Issue Types enabled?
 function probeIssueTypes(runner, owner, repo) {
-  try {
-    const query = 'query($o:String!,$n:String!){ repository(owner:$o, name:$n) { issueTypes(first:1) { totalCount } } }';
-    const out = runner(['api', 'graphql', '-f', `query=${query}`, '-f', `o=${owner}`, '-f', `n=${repo}`]);
-    const parsed = JSON.parse(out);
-    return parsed?.data?.repository?.issueTypes != null;
-  } catch {
-    return false;
-  }
+  const query = 'query($o:String!,$n:String!){ repository(owner:$o, name:$n) { issueTypes(first:1) { totalCount } } }';
+  return runGraphQLProbe(
+    runner,
+    ['api', 'graphql', '-f', `query=${query}`, '-f', `o=${owner}`, '-f', `n=${repo}`],
+    (parsed) => parsed?.data?.repository?.issueTypes != null,
+    false,
+  );
 }
 
 // { owner, repo, runner? } -> { types, subIssues, dependencies }. Two probes,
