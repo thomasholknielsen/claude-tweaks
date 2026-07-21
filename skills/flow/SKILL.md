@@ -68,7 +68,7 @@ Flow always uses **subagent** execution strategy — its purpose is hands-off au
 
 ### Automatic story generation
 
-After build completes, flow checks the build output for UI file changes (`.tsx`, `.jsx`, `.vue`, `.svelte`, `.html`, `.css`, or files in component/page directories). If UI files changed and `no-stories` was not specified:
+After build completes, flow checks the build output for UI file changes — the same trigger-extension/trigger-path rules as `/claude-tweaks:design-wrapper`'s Layer 3 sniff (for the canonical list, read `frontend-detection.md` in that skill's directory). If UI files changed and `no-stories` was not specified:
 
 1. Auto-detect the dev server URL using `dev-url-detection.md` in `skills/_shared/`
 2. Run `/claude-tweaks:stories` with the detected URL. When journey files exist in `docs/journeys/` (created by `/build` Common Step 6), the stories step ingests them before browsing — the `journey:` field is set on derived stories, source files are inherited from the journey's `files:` frontmatter, and browsing is enrichment rather than fresh discovery for journey-documented pages.
@@ -156,7 +156,7 @@ For each step in order:
 2. **Execute** the full skill as documented in its own SKILL.md. For the `build` step in record mode: compose, write, and commit the materialized file now (`materialize.md`'s Composing the file + When this runs) — `{run-dir}/work/{n}-spec.md` per record, committed on the current branch before any worktree exists — then invoke `/claude-tweaks:build #{n}[,#{m}...]`, which reads that file exactly as it reads a legacy spec file (and, when `/build` is invoked standalone with no `/flow` parent, performs this same materialize step itself instead of relying on it being pre-done).
 3. **Check the gate** — if the step fails its gate, stop the pipeline
 4. **Pass context forward** — each step's output feeds into the next:
-   - `build` → check output for UI file changes (`.tsx`, `.jsx`, `.vue`, `.svelte`, `.html`, `.css`, component/page directories). If UI changed and `no-stories` not set → auto-detect dev URL via `dev-url-detection.md` in `skills/_shared/` and run `stories` step.
+   - `build` → check output for UI file changes, using the same trigger-extension/trigger-path rules as `/claude-tweaks:design-wrapper`'s Layer 3 sniff (for the canonical list, read `frontend-detection.md` in that skill's directory). If UI changed and `no-stories` not set → auto-detect dev URL via `dev-url-detection.md` in `skills/_shared/` and run `stories` step.
    - `stories` → `test` receives the stories directory
    - `build` → `test` receives `VERIFICATION_PASSED=true` (so test skips redundant types/lint/tests — see `verification.md` in the `/claude-tweaks:test` skill). Test still runs QA if stories exist.
    - `test` → `review` receives `TEST_PASSED=true` and QA results. Flow invokes `/claude-tweaks:review` in **full** mode (code + visual review) by default. The review skill delegates visual review to `/claude-tweaks:visual-review`, which handles its own browser **and** dev-server resolution:

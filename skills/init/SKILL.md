@@ -317,15 +317,12 @@ For projects with user-facing surfaces (web app, CLI, API with docs), offer to d
 
 ### Present the option:
 
-```
-This project has user-facing features but no documented user journeys.
-User journeys help /review test the app against experiential expectations.
+**Call `AskUserQuestion`:**
 
-Would you like to discover and document journeys?
-1. Yes — scan codebase for routes and user flows, create journey files **(Recommended)**
-2. Yes, with browser — scan codebase AND walk the app in a browser for richer "should feel" details
-3. Skip — I'll add journeys later
-```
+- `question`: `"This project has user-facing features but no documented user journeys. User journeys help /review test the app against experiential expectations. Would you like to discover and document journeys?"`, `header`: `"Journey discovery"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Codebase-only (Recommended)"`, `description`: `"Scan codebase for routes and user flows, create journey files."`
+- Option 2 — `label`: `"Hybrid (codebase + browser)"`, `description`: `"Scan codebase AND walk the app in a browser for richer 'should feel' details."`
+- Option 3 — `label`: `"Skip"`, `description`: `"I'll add journeys later."`
 
 ### Option 1: Codebase-only discovery
 
