@@ -84,7 +84,7 @@ Where `ISO-timestamp` is `YYYY-MM-DDTHHMMSS` (no colons; portable across filesys
 
 1. Reading the `PIPELINE_RUN_DIR` env var if set by an explicit caller (preferred path used by `/flow`)
 2. Else picking the most recent directory in `.claude-tweaks/pipelines/` whose `spec-slug` matches the current spec or topic
-3. Else, if running in `auto` mode and the skill is on the standalone-auto allowlist (`/tidy`, `/init`, `/capture`, `/claude-tweaks:dispatch`, `/claude-tweaks:triage`, `/claude-tweaks:review-backlog`), creating a standalone run dir at `.claude-tweaks/pipelines/{ISO-timestamp}-{skill-name}-standalone/` — see `_shared/pipeline-run-dir.md`'s Resolution order step 3 for the full allowlist rationale and exceptions
+3. Else, if running in `auto` mode and the skill is on the standalone-auto allowlist (`/tidy`, `/init`, `/capture`, `/claude-tweaks:dispatch`, `/claude-tweaks:triage`, `/claude-tweaks:review-backlog`), creating a standalone run dir at `.claude-tweaks/pipelines/{ISO-timestamp}-{skill-name}-standalone/` — see `_shared/pipeline-run-dir.md`'s Resolution order step 4 for the full allowlist rationale and exceptions
 4. Else falling back to `interactive` mode (no policy available — no auto-decisions allowed)
 
 **Cleanup:** the Wrap-Up Review Console moves completed runs to `.claude-tweaks/pipelines/archive/{run-id}/` on successful pipeline closure (preserving the audit trail). `/tidy`'s Standalone-auto path additionally compacts standalone run directories older than 30 days into a monthly rollup — see `_shared/auto-decision-log.md`'s Archival section for the exact behavior.
