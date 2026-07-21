@@ -12,18 +12,7 @@ Read the `work-backend` field from the project's CLAUDE.md (under a `## Work rec
 
 One query per driver feeds every finding shape below — the record store itself is the current landscape; there is no separate directory or index file to read (`_shared/work-record.md`). This single step replaces the old file-scan (former Step 1), spec-directory scan (former Step 2), and the backlog-issue portion of Step 4.8's `repo-wide` scan — all three read from the same record taxonomy now, so they collapse into one query + one facet parse.
 
-**`work-backend: github-issues`:**
-
-```bash
-gh issue list --state open --json number,title,labels,milestone,updatedAt --limit 200 > /tmp/tidy-records.json
-node -e "
-  const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
-  const issues = require('/tmp/tidy-records.json');
-  console.log(JSON.stringify(issues.map((i) => ({ ...i, facets: parseRecordFacets(i.labels) }))));
-" > /tmp/tidy-records-faceted.json
-```
-
-`parseRecordFacets` silently ignores any label it doesn't recognize (`bin/lib/issues/record.js`) — the legacy-taxonomy shape below needs the raw `labels` array, not just the parsed facets, so both stay in scope (the spread above keeps `labels` alongside the derived `facets`).
+Fetch and facet-parse the queue per `_shared/record-queue-fetch.md` — the dispatcher inlines that file's `work-backend` resolution and both drivers' fetch commands into this agent's prompt (the same pattern already used for `_shared/github-pr-scan.md`), with `{tmp-records-file}` = `/tmp/tidy-records.json`, `{tmp-faceted-file}` = `/tmp/tidy-records-faceted.json`, and no `{EXTRA_FIELDS}` needed for this fetch — the legacy-taxonomy shape below needs the raw `labels` array, not just the parsed `facets`, and the shared fetch's script already preserves both (its spread keeps `labels` alongside the derived `facets`).
 
 Also pull any local fallback records left behind by a failed GitHub write — these feed the Sync shape below:
 
@@ -34,18 +23,9 @@ node -e "
 " > /tmp/tidy-unsynced.json
 ```
 
-**`work-backend: local-files`:**
+Every record returned by the `local-files` driver's fetch already carries its parsed `.facets` — no separate parse pass needed. Three of the seven shapes below don't apply under this driver: no Sync finding (`facets.unsynced` is a github-issues-fallback-only concept — see `_shared/work-record.md`), no `bot:blocked` finding (the local driver "carries no bot state"), and no legacy-taxonomy finding (its frontmatter schema never held the retired label vocabulary in the first place — that vocabulary is GitHub-label-only).
 
-```bash
-node -e "
-  const { queryRecords } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
-  console.log(JSON.stringify(queryRecords('specs', {})));
-" > /tmp/tidy-records.json
-```
-
-Every record returned already carries its parsed `.facets` — no separate parse pass needed. Three of the seven shapes below don't apply under this driver: no Sync finding (`facets.unsynced` is a github-issues-fallback-only concept — see `_shared/work-record.md`), no `bot:blocked` finding (the local driver "carries no bot state"), and no legacy-taxonomy finding (its frontmatter schema never held the retired label vocabulary in the first place — that vocabulary is GitHub-label-only).
-
-**Staleness clock**, either driver: `github-issues` uses the query's own `updatedAt`. `local-files` has no timestamp facet (`local-store.js`'s schema carries none), so use the record file's own last-commit date instead — `git -C "{REPO_ROOT}" log -1 --format=%cI -- "{path}"` (`{REPO_ROOT}` resolves the same way Step 4.5 below already documents; an empty result means an uncommitted/brand-new record — treat as fresh). Same three-band scale used throughout this file:
+**Staleness clock**, either driver: per `_shared/record-queue-fetch.md`'s Staleness clock section (`{REPO_ROOT}` resolves the same way Step 4.5 below already documents). Same three-band scale used throughout this file:
 
 | Age | Classification |
 |-----|---------------|

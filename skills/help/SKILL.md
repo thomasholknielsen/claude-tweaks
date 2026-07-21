@@ -43,7 +43,7 @@ One-stop reference and status dashboard for the workflow system. Combines comman
 
 *(Skip if `$ARGUMENTS` = `status`)*
 
-For the canonical cheat sheet — lifecycle, component, and utility commands; common workflows; artifact lifecycle; bookend architecture summary — read `reference-card.md` in this skill's directory. **Rendering rule:** present the Lifecycle / Component / Utility command tables verbatim. Collapse the Common Workflows section to a list of workflow headings (e.g., "New repo bootstrap", "Full pipeline", "Resume from step") unless the user explicitly asked for "examples" or "workflows" in `$ARGUMENTS` — in that case, render the workflows verbatim too. Always keep the Artifact Lifecycle and Bookend Architecture summary verbatim. The reference card is the single source of truth for the command catalog; do not maintain a separate copy here.
+For the canonical cheat sheet — lifecycle, component, and utility commands; common workflows; artifact lifecycle; bookend architecture summary — read `reference-card.md` in this skill's directory. **Rendering rule:** present the Lifecycle / Component / Utility command tables verbatim. Collapse the Common Workflows section to a list of workflow headings (e.g., "Feature from scratch", "Fast pipeline (spec ready)", "Brownfield onboarding" — see `reference-card.md`'s own Common Workflows section for the current, authoritative list) unless the user explicitly asked for "examples" or "workflows" in `$ARGUMENTS` — in that case, render the workflows verbatim too. Always keep the Artifact Lifecycle and Bookend Architecture summary verbatim. The reference card is the single source of truth for the command catalog; do not maintain a separate copy here.
 
 ---
 
@@ -51,7 +51,7 @@ For the canonical cheat sheet — lifecycle, component, and utility commands; co
 
 *(Skip if `$ARGUMENTS` = `commands`)*
 
-Read `status-scan.md` in this skill's directory for the full parallel-dispatch procedure (Stages 1-7 including sub-stages 4.5, 4.6, and 4.7; dispatch contract, agent template, and dashboard rendering). The orchestrator dispatches all seven stages in parallel and assembles the dashboard after all agents complete.
+Read `status-scan.md` in this skill's directory for the full parallel-dispatch procedure (Stages 1-7 including sub-stages 4.5, 4.6, and 4.7; dispatch contract, agent template, and dashboard rendering). The orchestrator dispatches all eight stages (1, 2, 4.5, 4.6, 4.7, 5, 6, 7) in parallel and assembles the dashboard after all agents complete.
 
 ---
 
@@ -151,4 +151,4 @@ For a detailed explanation of how context flows between skills via artifacts, re
 | `/claude-tweaks:research` | Utility skill — /help lists it in the utility skills table. /research has no fixed lifecycle position; /help may surface it as an option when a backlog record or pending spec would benefit from prior-art research. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling to /help (e.g., if a future status scan ever auto-resolves recommendations) |
 | `_shared/github-pr-scan.md` | Stage 4.5 scans the current branch's PR per this shared procedure (`current-pr` scope); Stage 4.6 scans the triage queue (`triage-queue` scope); Stage 4.7 scans the acceptance queue (`acceptance-queue` scope) — detection ladder, exact gh/GraphQL commands, output contract, severity mapping |
-| `_shared/work-record.md` | Taxonomy home — the seven-axis label contract (stage / grants / bot state / origin / scoring / type / acceptance) Stage 1's record scan reads. /help has no row in the permission matrix — it never adds or removes a label, only queries the taxonomy every other row writes to. |
+| `_shared/work-record.md` | Taxonomy home — the record label contract Stage 1's record scan reads (see that file's "The seven axes" table for the canonical list; not restated here). /help has no row in the permission matrix — it never adds or removes a label, only queries the taxonomy every other row writes to. |

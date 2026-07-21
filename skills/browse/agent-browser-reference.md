@@ -110,10 +110,4 @@ field. See `skills/stories/SKILL.md` for the schema.
 
 ## Anti-Patterns
 
-| Pattern | Why it fails |
-|---|---|
-| Polling the dashboard programmatically | Dashboard is a human debug surface |
-| Storing `@eN` refs in story files | Refs are session-scoped — they regenerate each snapshot |
-| Batching across sessions | One `batch` invocation = one session's lifecycle |
-| Using CSS selectors with `find` | `/stories` schema v2 forbids CSS — use semantic locators only |
-| Skipping `set viewport` and relying on env vars | Use the first-class `set viewport`/`set device` commands — env-var workarounds are not supported |
+No local copy here — `SKILL.md`'s own Anti-Patterns table in this skill's directory is the single source of truth (same "no local copy" principle as the Operation Mapping section above). Read that table directly rather than relying on a second, independently-worded copy in this reference file — a copy here already drifted once (this table covered only CSS selectors where `SKILL.md`'s now covers CSS and XPath both).

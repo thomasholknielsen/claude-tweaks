@@ -1,6 +1,6 @@
 ---
 name: claude-tweaks:browse
-description: Use for browser automation via agent-browser — defines session naming, screenshot/trace paths, and operation vocabulary used by /stories, /visual-review, /review, and /demo. Keywords - browse, browser, agent-browser, screenshot, scrape, automation.
+description: Use when you need browser automation via agent-browser — defines session naming, screenshot/trace paths, and operation vocabulary used by /stories, /visual-review, /review, and /demo. Keywords - browse, browser, agent-browser, screenshot, scrape, automation.
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -161,6 +161,7 @@ Call `AskUserQuestion`:
 | Forgetting to close sessions | Leaked sessions consume memory — always `close` at the end of a run |
 | Skipping the trace on failure | Failure reports without a trace path are not actionable — capture before closing |
 | A consumer skill routes through `backend=chrome` | Breaks portability to hosted Routines — `agent-browser` is the only backend that works headless; this flag is human-invoked only |
+| Skipping `set viewport`/`set device` and relying on env vars | Use the first-class `set viewport`/`set device` commands — env-var workarounds are not supported |
 
 ## Relationship to Other Skills
 
