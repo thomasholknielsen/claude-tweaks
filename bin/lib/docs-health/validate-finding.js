@@ -6,6 +6,8 @@
 // harness-health, docs-health has no kind discriminator (no
 // "new-skill"-equivalent second shape).
 
+const { requireNonEmptyStrings, validateRelatedSections } = require('../health-core/finding-validation');
+
 const ASSET_TYPE_VALUES = new Set(['doc']);
 const CATEGORY_VALUES = new Set(['genre-drift', 'staleness', 'depth-mismatch', 'findability']);
 const MISLEADS_VALUES = new Set(['human', 'agent', 'both']);
@@ -24,12 +26,7 @@ function validateFinding(obj) {
     return { ok: false, errors: ['finding: must be an object'] };
   }
 
-  for (const field of REQUIRED_STRINGS) {
-    const v = obj[field];
-    if (typeof v !== 'string' || v.trim() === '') {
-      errors.push(`${field}: required non-empty string (got ${JSON.stringify(v)})`);
-    }
-  }
+  errors.push(...requireNonEmptyStrings(obj, REQUIRED_STRINGS));
 
   if (typeof obj.assetType === 'string' && !ASSET_TYPE_VALUES.has(obj.assetType)) {
     errors.push(`assetType: must be one of ${[...ASSET_TYPE_VALUES].join('|')} (got "${obj.assetType}")`);
@@ -59,13 +56,7 @@ function validateFinding(obj) {
 
   // relatedSections is optional: when present, every entry must be a non-empty
   // string (same shape as `section` — sibling occurrences of the same root cause).
-  if (obj.relatedSections !== undefined) {
-    const isValidArray = Array.isArray(obj.relatedSections) &&
-      obj.relatedSections.every((s) => typeof s === 'string' && s.trim() !== '');
-    if (!isValidArray) {
-      errors.push(`relatedSections: when present, must be an array of non-empty strings (got ${JSON.stringify(obj.relatedSections)})`);
-    }
-  }
+  errors.push(...validateRelatedSections(obj));
 
   if (errors.length > 0) return { ok: false, errors };
   return { ok: true, errors: [], value: { ...obj } };
