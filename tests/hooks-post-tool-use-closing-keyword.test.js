@@ -118,6 +118,25 @@ test('warns when a word merely ENDS in a closing-keyword suffix, glued to a disq
   assert.match(out.json.systemMessage, /closing keyword/i);
 });
 
+test('two real commits to the SAME dir in one Bash invocation are each evaluated on their OWN message, not both against current HEAD (finding regression)', () => {
+  // Previously, checkClosingKeyword re-read `git log -1` for EVERY
+  // commit-action target sharing a dir — always returning the SAME
+  // (current-HEAD, i.e. the LAST) commit's message. An earlier commit in
+  // the same compound command with its own unclosed ref was never actually
+  // evaluated at all.
+  const repo = gitRepoWithMessage('Addresses #100 — no closing keyword'); // the OLDER commit
+  execFileSync('git', ['-C', repo, 'commit', '--allow-empty', '-q', '-m', 'Fixes #200'], {
+    env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' },
+  }); // the NEWER commit — fully closes its own ref, but must not mask the older one's
+  const out = post.run({
+    input: { tool_name: 'Bash', tool_input: { command: 'git commit -m "a" && git commit --allow-empty -m "b"' }, cwd: repo },
+    runDir: null, runState: null, cwd: repo,
+  });
+  assert.ok(out.json && typeof out.json.systemMessage === 'string',
+    'the older commit (#100, no closing keyword) must still be caught even though the newer commit in the same invocation properly closes its own ref');
+  assert.match(out.json.systemMessage, /closing keyword/i);
+});
+
 test('does not evaluate a stale HEAD left over from a git commit that never landed (finding 2 regression)', () => {
   // Simulates a rejected/failed `git commit` attempt: PostToolUse still fires, but
   // HEAD is an old, unrelated commit rather than anything the just-attempted Bash

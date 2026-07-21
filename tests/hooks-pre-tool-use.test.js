@@ -389,3 +389,35 @@ test('worktree-required: a Bash command with no file-write shape at all (e.g. a 
   const out = pre.run({ input: bashInput('cat a.txt | grep foo', repo), runDir: null, runState: null, cwd: repo });
   assert.deepStrictEqual(out, {});
 });
+
+test('worktree-required: a compound Bash command checks EVERY git commit/push target, not just the first (finding regression)', () => {
+  // checkWorktreeRequired previously took only gitTargets(...).find(...) —
+  // the FIRST commit/push target in the command. A compliant first target
+  // (no policy, or an isolated worktree) short-circuited enforcement for
+  // every subsequent target in the same compound command.
+  const compliant = gitRepoWithCommit(); // no policy.yml — first target, must not mask what follows
+  const violating = gitRepoWithCommit();
+  withPolicy(violating, 'worktree.always: true\n');
+  const out = pre.run({
+    input: bashInput(`git -C ${compliant} commit -q --allow-empty -m "a" && git -C ${violating} commit -q --allow-empty -m "b"`, compliant),
+    runDir: null, runState: null, cwd: compliant,
+  });
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny',
+    'the second target violates worktree.always and must be caught even though the first target was compliant');
+  assert.match(out.json.hookSpecificOutput.permissionDecisionReason, new RegExp(esc(violating)));
+});
+
+test('worktree-required: a compound Bash command checks EVERY cp/mv/tee write target, not just the first (finding regression)', () => {
+  const compliant = gitRepoWithCommit();
+  const violating = gitRepoWithCommit();
+  withPolicy(violating, 'worktree.always: true\n');
+  const out = pre.run({
+    input: bashInput(
+      `cp source.txt ${path.join(compliant, 'a.txt')} && cp source.txt ${path.join(violating, 'b.txt')}`,
+      compliant,
+    ),
+    runDir: null, runState: null, cwd: compliant,
+  });
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny',
+    'the second cp destination violates worktree.always and must be caught even though the first was compliant');
+});

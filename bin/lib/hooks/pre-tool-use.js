@@ -22,22 +22,18 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { execFileSync } = require('child_process');
 const { gitTargets, fileWriteTargets } = require('./git-command');
 const ctxLib = require('./context');
 const policy = require('../policy');
 const wtDetect = require('./worktree-detect');
+const { execGit } = require('./git-exec');
 
 function pluginRoot() {
   return process.env.CLAUDE_PLUGIN_ROOT || '${CLAUDE_PLUGIN_ROOT}';
 }
 
 function toplevel(dir) {
-  try {
-    return execFileSync('git', ['-C', dir, 'rev-parse', '--show-toplevel'], {
-      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 3000,
-    }).trim();
-  } catch { return null; }
+  return execGit(['rev-parse', '--show-toplevel'], dir);
 }
 
 function safeReal(p) {
@@ -48,18 +44,23 @@ function safeReal(p) {
 // state at all — it fires on the first Edit/Write/NotebookEdit/commit of a
 // session, before any skill has ever run, whenever the target repo has opted
 // into `worktree.always: true` in its .claude-tweaks/policy.yml.
-function checkWorktreeRequired(ctx) {
+//
+// `precomputedGitTargets` (Bash calls only) lets run() share the one
+// gitTargets() parse of the command with its own later E1 loop instead of
+// re-running git-command.js's quote-aware segment/token walk a second time
+// over the same string.
+function checkWorktreeRequired(ctx, precomputedGitTargets) {
   const toolName = ctx.input && ctx.input.tool_name;
   const toolInput = ctx.input && ctx.input.tool_input;
-  let targetPath = null;
+  let targetPaths = [];
 
   // Keep this tool list in sync with the Edit/Write/NotebookEdit matchers in
   // hooks/hooks.json — a new file-mutation tool must be added to both or it
   // silently bypasses this gate.
   if (toolName === 'Edit' || toolName === 'Write') {
-    if (toolInput && typeof toolInput.file_path === 'string') targetPath = toolInput.file_path;
+    if (toolInput && typeof toolInput.file_path === 'string') targetPaths = [toolInput.file_path];
   } else if (toolName === 'NotebookEdit') {
-    if (toolInput && typeof toolInput.notebook_path === 'string') targetPath = toolInput.notebook_path;
+    if (toolInput && typeof toolInput.notebook_path === 'string') targetPaths = [toolInput.notebook_path];
   } else if (toolName === 'Bash') {
     const command = toolInput && typeof toolInput.command === 'string' ? toolInput.command : null;
     if (command) {
@@ -67,59 +68,72 @@ function checkWorktreeRequired(ctx) {
       // message below and CLAUDE.md's Hooks section) — gitTargets already
       // detects both actions, so don't narrow to 'commit' only, or a bare
       // `git push` from a non-isolated checkout silently bypasses the gate.
-      const gitTarget = gitTargets(command, ctx.cwd).find((t) => t.action === 'commit' || t.action === 'push');
-      if (gitTarget) {
-        targetPath = gitTarget.dir;
-      } else {
-        // Non-git direct file writes (tee, cp, mv) — best-effort,
-        // not exhaustive (see fileWriteTargets' own header comment).
-        const write = fileWriteTargets(command, ctx.cwd)[0];
-        if (write) targetPath = write.file;
-      }
+      // Check EVERY target the command contains, not just the first — a
+      // single compound Bash call can chain multiple independent
+      // git/write targets (e.g. `git -C $A commit ... && git -C $B commit
+      // ...`, or a git commit alongside a separate cp/mv/tee write), and
+      // each one is checked on its own below: a violation later in the
+      // chain must not be masked by an earlier, compliant target.
+      const targets = precomputedGitTargets || gitTargets(command, ctx.cwd);
+      const gitTargetPaths = targets.filter((t) => t.action === 'commit' || t.action === 'push').map((t) => t.dir);
+      // Non-git direct file writes (tee, cp, mv) — best-effort,
+      // not exhaustive (see fileWriteTargets' own header comment).
+      const writeTargetPaths = fileWriteTargets(command, ctx.cwd).map((t) => t.file);
+      targetPaths = [...gitTargetPaths, ...writeTargetPaths];
     }
   }
-  if (!targetPath) return {};
+  if (!targetPaths.length) return {};
 
-  // Cheap fs-only pre-check: if no policy.yml exists anywhere in the ancestor
-  // chain, there is definitely nothing to enforce — skip forking git entirely
-  // for the overwhelming majority of projects that never opt into this
-  // policy. This is a fast-reject filter ONLY: once it finds a policy file
-  // somewhere, the actual enforcement check below still re-scopes to the
-  // target's own git repo root, since a policy file belonging to an
-  // unrelated ANCESTOR directory outside this repo's boundary must not leak
-  // into a nested repo (e.g. a submodule) that never opted in itself.
-  if (!wtDetect.findPolicyFile(targetPath)) return {};
+  for (const targetPath of targetPaths) {
+    // Cheap fs-only pre-check: if no policy.yml exists anywhere in the
+    // ancestor chain, there is definitely nothing to enforce for THIS
+    // target — skip forking git entirely for the overwhelming majority of
+    // projects that never opt into this policy. This is a fast-reject
+    // filter ONLY: once it finds a policy file somewhere, the actual
+    // enforcement check below still re-scopes to the target's own git repo
+    // root, since a policy file belonging to an unrelated ANCESTOR
+    // directory outside this repo's boundary must not leak into a nested
+    // repo (e.g. a submodule) that never opted in itself.
+    if (!wtDetect.findPolicyFile(targetPath)) continue;
 
-  const { repoRoot, isLinkedWorktree } = wtDetect.repoInfo(targetPath);
-  if (!repoRoot) return {}; // not a git repo at all -> allow
-  if (!policy.isWorktreeAlwaysOn(repoRoot)) return {};
-  if (isLinkedWorktree) return {};
+    const { repoRoot, isLinkedWorktree } = wtDetect.repoInfo(targetPath);
+    if (!repoRoot) continue; // not a git repo at all -> allow
+    if (!policy.isWorktreeAlwaysOn(repoRoot)) continue;
+    if (isLinkedWorktree) continue;
 
-  return {
-    exit: 0,
-    json: {
-      hookSpecificOutput: {
-        hookEventName: 'PreToolUse',
-        permissionDecision: 'deny',
-        permissionDecisionReason:
-          `claude-tweaks: this project requires an isolated worktree for Edit/Write/NotebookEdit, ` +
-          `git commit/push, and Bash cp/mv/tee writes (not every possible Bash write shape — see CLAUDE.md) ` +
-          `(policy: worktree.always in .claude-tweaks/policy.yml). You're currently working in ` +
-          `a non-isolated checkout (${repoRoot}). Set one up first: invoke /superpowers:using-git-worktrees, ` +
-          `then retry this edit inside the new worktree.`,
+    return {
+      exit: 0,
+      json: {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'deny',
+          permissionDecisionReason:
+            `claude-tweaks: this project requires an isolated worktree for Edit/Write/NotebookEdit, ` +
+            `git commit/push, and Bash cp/mv/tee writes (not every possible Bash write shape — see CLAUDE.md) ` +
+            `(policy: worktree.always in .claude-tweaks/policy.yml). You're currently working in ` +
+            `a non-isolated checkout (${repoRoot}). Set one up first: invoke /superpowers:using-git-worktrees, ` +
+            `then retry this edit inside the new worktree.`,
+        },
       },
-    },
-  };
+    };
+  }
+  return {};
 }
 
 function run(ctx) {
-  const gate = checkWorktreeRequired(ctx);
+  const command = ctx.input && ctx.input.tool_name === 'Bash' && ctx.input.tool_input
+    && typeof ctx.input.tool_input.command === 'string' ? ctx.input.tool_input.command : null;
+  // Shared by checkWorktreeRequired's Bash branch above and the E1 loop
+  // below — parsing the same command/cwd through gitTargets twice per
+  // invocation was pure repeated work.
+  const commandGitTargets = command ? gitTargets(command, ctx.cwd) : null;
+
+  const gate = checkWorktreeRequired(ctx, commandGitTargets);
   if (gate.json) return gate;
 
   if (!ctx.runDir || !ctx.runState || !ctx.runState.worktree) return {};
   if (ctx.runState.status === 'clean') return {};
   if (ctx.input.tool_name !== 'Bash') return {};
-  const command = ctx.input.tool_input && ctx.input.tool_input.command;
   if (typeof command !== 'string' || !command) return {};
   const assigned = safeReal(ctx.runState.worktree);
   if (!assigned) return {};
@@ -137,7 +151,7 @@ function run(ctx) {
     if (!otherWorktrees.has(real)) otherWorktrees.set(real, dir);
   }
 
-  for (const target of gitTargets(command, ctx.cwd)) {
+  for (const target of commandGitTargets || []) {
     const top = toplevel(target.dir);
     if (!top) continue; // cannot prove the target -> allow
     const actual = safeReal(top);

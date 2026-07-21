@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { nearestExistingDir, repoInfo, findPolicyFile } = require('../bin/lib/hooks/worktree-detect');
+const { nearestExistingDir, repoInfo, findPolicyFile, safeReal } = require('../bin/lib/hooks/worktree-detect');
 const { gitRepo, linkedWorktreeOf } = require('./helpers/git-fixtures');
 
 test('nearestExistingDir: existing directory returns itself', () => {
@@ -67,6 +67,16 @@ test('findPolicyFile: policy file present at the target\'s own directory returns
   fs.mkdirSync(path.join(dir, '.claude-tweaks'), { recursive: true });
   fs.writeFileSync(path.join(dir, '.claude-tweaks', 'policy.yml'), 'worktree.always: true\n');
   assert.strictEqual(findPolicyFile(path.join(dir, 'a.txt')), dir);
+});
+
+test('safeReal: returns null (not the raw, unresolved path) when realpathSync fails — matches pre-tool-use.js\'s own identically-named helper', () => {
+  // This project's fail-open invariant ("a recorded worktree whose path no
+  // longer exists resolves to allow") depends on unresolvable paths being
+  // falsy. Returning the raw path here instead would let repoInfo() hand
+  // back a truthy-looking-but-unverified repoRoot in the race window where
+  // a directory is torn down between the `git rev-parse` call and this
+  // realpath call.
+  assert.strictEqual(safeReal('/this/path/should/not/exist/anywhere/xyz'), null);
 });
 
 test('findPolicyFile: policy file present several directories up returns that ancestor directory', () => {
