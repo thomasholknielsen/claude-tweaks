@@ -67,6 +67,26 @@ test('the written wrapper script actually runs and exits 0 when no cached versio
   fs.rmSync(tmpHome, { recursive: true, force: true });
 });
 
+// Regression: fs.writeFileSync's `mode` option is only honored by the
+// underlying open() syscall's O_CREAT path — it's silently ignored when the
+// target file already exists. Re-running the installer (the documented,
+// expected path on every plugin upgrade) over a wrapper that was ever
+// written non-executable must still restore 0o755, not leave the stale mode.
+test('installWrapper restores 0o755 when re-run over an existing, non-executable wrapper file', () => {
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-install-sl-rechmod-'));
+
+  const targetPath = installWrapper(tmpHome);
+  fs.chmodSync(targetPath, 0o644);
+  assert.strictEqual(fs.statSync(targetPath).mode & 0o777, 0o644, 'precondition: file is non-executable before re-install');
+
+  installWrapper(tmpHome);
+
+  const stat = fs.statSync(targetPath);
+  assert.strictEqual(stat.mode & 0o777, 0o755, 'expected mode restored to 0o755 after re-running installWrapper over an existing file');
+
+  fs.rmSync(tmpHome, { recursive: true, force: true });
+});
+
 test('installWrapper creates the target directory recursively when it does not exist', () => {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-install-sl-'));
   const binDir = path.join(tmpHome, '.claude-tweaks', 'bin');
