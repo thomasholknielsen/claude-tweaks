@@ -93,7 +93,7 @@ When unavailable, the inline fallback runs automatically — no setup required, 
 
 After the report completes, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`, and:
 
-- Option 1 — `label`: `"Promote to backlog"`, `description`: `"/claude-tweaks:capture <findings-summary> — promote findings into a backlog work record"`. Suffix the label `(Recommended)` when the topic was exploratory; when it wasn't, leave this — and every other option in this call — unmarked (`AskUserQuestion` doesn't require a Recommended option).
+- Option 1 — `label`: `"Promote to backlog (Recommended)"`, `description`: `"/claude-tweaks:capture <findings-summary> — promote findings into a backlog work record"`. Default Recommended choice — capturing findings is the safe general follow-up regardless of topic. If the run was invoked to feed a specific downstream skill instead (e.g. from `/claude-tweaks:challenge` to debias a named problem, or from `/claude-tweaks:specify` to cite in a spec already underway), move `(Recommended)` to that option instead — exactly one option carries it, per the Interaction style directive.
 - Option 2 — `label`: `"Debias a problem"`, `description`: `"/claude-tweaks:challenge <record-ref> — use findings to debias a problem"`
 - Option 3 — `label`: `"Cite in a new spec"`, `description`: `"/claude-tweaks:specify <spec-name> — cite findings in a new spec"`
 - Option 4 (include only if current mode left obvious gaps — otherwise this is a 3-option call, not a 4-option call with a greyed-out or caveated choice) — `label`: `"Re-run deeper"`, `description`: `"/claude-tweaks:research --mode=deep <topic> — re-run in deeper mode"`
