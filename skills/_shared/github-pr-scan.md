@@ -50,10 +50,10 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
 
 > **Parallel execution:** Use parallel tool calls aggressively — items 1, 3, 4, 5, 6, 7, and 8 below, plus each open PR's own review-thread query in item 2, are independent gh/bash calls with no dependency on one another and should run concurrently.
 
-1. **Open PRs** — `gh pr list --state open --json number,title,updatedAt,isDraft,reviewDecision,headRefName,url` → classify each per the Staleness Thresholds. A PR that is simultaneously not draft, not yet `Stale` (< 4 weeks since `updatedAt` — spans both the `Fresh` and `Review` bands, since neither currently has its own finding for a PR with nothing wrong), has zero unresolved review threads (item 2 below), and has no failing/pending CI (`gh pr checks`) gets its own finding: `[pr] PR #{n}: {title} — awaiting review — last updated {age} ago, CI {status}, 0 unresolved threads`. This is informational only — see the Severity mapping and `tidy/SKILL.md`'s Step 6 routing below.
+1. **Open PRs** — `gh pr list --state open --json number,title,updatedAt,isDraft,reviewDecision,headRefName,url` → classify each per the Staleness Thresholds. A PR that is simultaneously not draft, not yet `Stale` (< 4 weeks since `updatedAt` — spans both the `Fresh` and `Review` bands, since neither currently has its own finding for a PR with nothing wrong), has zero unresolved review threads (item 2 below), and has no failing/pending CI (`gh pr checks`) gets its own finding: `[pr] PR #{n}: {title} — awaiting review — last updated {age} ago, CI {status}, 0 unresolved threads`. This is informational only — see the Severity mapping and `tidy/SKILL.md`'s Step 6 routing below. A PR with failing/pending CI (`gh pr checks`) or `reviewDecision: CHANGES_REQUESTED` instead gets its own finding, regardless of staleness: `[pr] PR #{n}: {title} — CI failing/pending or changes requested — CI {status}, review {reviewDecision}`. This is `high` severity per the Severity mapping below, not informational — see the Findings and recommendations table below.
 2. **Unresolved threads per open PR** — the same GraphQL query as `current-pr` item 2, once per open PR.
 3. **Code-health issues** — `gh issue list --label by:code-health --state open --json number,title,labels,updatedAt,url`.
-4. **Merged/closed PRs with local remnants** — `gh pr list --state merged --limit 50 --json number,headRefName`; cross-check each `headRefName` against `git -C "{REPO_ROOT}" branch --list` output.
+4. **Merged/closed PRs with local remnants** — `gh pr list --state merged --limit 50 --json number,headRefName` AND `gh pr list --state closed --limit 50 --json number,headRefName` (GitHub's PR `state` is `OPEN`/`CLOSED`/`MERGED` — mutually exclusive — so `--state closed` never overlaps `--state merged`; both queries are needed to cover "merged or closed without merging"); cross-check each `headRefName` from either result against `git -C "{REPO_ROOT}" branch --list` output.
 5. **Harness-health issues** — `gh issue list --label by:harness-health --state open --json number,title,labels,updatedAt,url`.
 6. **Journey-health issues** — `gh issue list --label by:journey-health --state open --json number,title,updatedAt,url`.
 7. **Docs-health issues** — `gh issue list --label by:docs-health --state open --json number,title,labels,updatedAt,url`.
@@ -63,10 +63,11 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
    gh issue list --state open --json number,title,labels --limit 200 > /tmp/pr-scan-records.json
    node -e "
      const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+     const { isPendingAuthorization } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/pending-authorization.js');
      const issues = require('/tmp/pr-scan-records.json');
      const faceted = issues.map((i) => parseRecordFacets(i.labels));
      const withFacets = issues.map((i, idx) => ({ number: i.number, title: i.title, facets: faceted[idx] }));
-     const pendingList = withFacets.filter((i) => i.facets.stage === 'ready' && !i.facets.grants.build && !i.facets.grants.merge && !i.facets.bot.inProgress && !i.facets.bot.blocked);
+     const pendingList = withFacets.filter((i) => i.facets.stage === 'ready' && isPendingAuthorization(i.facets));
      const blockedList = withFacets.filter((i) => i.facets.bot.blocked);
      const backlogList = withFacets.filter((i) => i.facets.stage === 'backlog');
      const strip = (list) => list.map(({ number, title }) => ({ number, title }));
@@ -83,6 +84,21 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
 
    Surface all three in the digest's "Still needs your review" section (see `tidy/SKILL.md`'s digest section) as a summary line plus an enumerated bullet per record: `**Pending authorization:** {N} records awaiting a grant` followed by one `- #{number}: {title}` line per entry in `pendingList` (same pattern for `**Blocked:**`/`blockedList` and `**Backlog:**`/`backlogList`) — omit both the summary line and its bullet list when a bucket's count is 0. No cap on list length.
 
+Findings and recommendations (tidy Action Vocabulary):
+
+| Finding | Recommendation |
+|---------|---------------|
+| Open PR has failing/pending CI or `CHANGES_REQUESTED` (item 1's second finding) | Investigate the CI failure or address the requested changes — local action |
+| Open PR stale (>4 weeks, no updates) | Close (GitHub) or Resume — judgment call |
+| Open PR superseded (related spec complete, equivalent changes merged) | Close (GitHub) |
+| Merged/closed PR whose head branch or worktree still exists locally | Corroborates Step 4.5 `[git]` cleanup — dispatcher merges at assembly |
+| Unresolved review thread addressed by a later commit (evidence: commit touching the flagged lines) | Resolve thread |
+| Unresolved review thread not addressed | Capture to backlog or run `/claude-tweaks:review` — local action |
+| `by:{skill}` issue stale (>4 weeks, the flagged code/target/journey/doc has since changed or been removed) — `{skill}` is any of `code-health`/`harness-health`/`journey-health`/`docs-health` | Close (GitHub) — superseded |
+| `by:{skill}` issue still valid | Suggest `/claude-tweaks:triage` or Capture to backlog — all four health skills are report-only and never apply patches directly (see each skill's own SKILL.md Anti-Patterns table), so a still-valid issue always needs a human-routed fix regardless of which skill filed it |
+
+Emit `[pr]` and `[gh-issue]` rows per the Output Contract. Backlog-record findings (the record-scan shapes: stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) no longer originate from this scope — see `tidy/scan-procedures.md` Step 1 for their findings table and `[backlog]`/`[parked]`/`[unsynced]`/`[scoring]`/`[blocked]`/`[legacy]` row prefixes.
+
 ## Scope: `triage-queue` (consumed by /help Stage 4.6)
 
 Three cheap counts for the dashboard's Triage Queue section. This scope exists so `/help` never hand-writes its own query for these numbers — see the fix this closes: Stage 4.6 previously computed "pending authorization" without excluding `bot:blocked` records, so a blocked record counted as both pending AND blocked on the same dashboard.
@@ -93,11 +109,9 @@ Three cheap counts for the dashboard's Triage Queue section. This scope exists s
    gh issue list --label ready --state open --json number,labels --limit 200 > /tmp/triage-queue-ready.json
    node -e "
      const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
+     const { isPendingAuthorization } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/pending-authorization.js');
      const issues = require('/tmp/triage-queue-ready.json');
-     const pending = issues.filter((i) => {
-       const f = parseRecordFacets(i.labels);
-       return !f.grants.build && !f.grants.merge && !f.bot.inProgress && !f.bot.blocked;
-     }).length;
+     const pending = issues.filter((i) => isPendingAuthorization(parseRecordFacets(i.labels))).length;
      console.log(pending);
    "
    ```
@@ -114,20 +128,6 @@ Three cheap counts for the dashboard's Triage Queue section. This scope exists s
    The commits endpoint defaults to the default branch when no `sha=` param is given — correct regardless of which branch/worktree `/help` itself runs from under `worktree.always`. `SINCE` is computed via `node`, not shell `date` arithmetic, which differs between BSD/macOS and GNU date.
 
 Render as three lines: `Pending authorization: **{N}** records awaiting your decision` / `Blocked: **{N}** records hit their retry ceiling` / `Auto-merged this week: **{N}** auto-merges` — omit any line whose count is 0.
-
-Findings and recommendations (tidy Action Vocabulary):
-
-| Finding | Recommendation |
-|---------|---------------|
-| Open PR stale (>4 weeks, no updates) | Close (GitHub) or Resume — judgment call |
-| Open PR superseded (related spec complete, equivalent changes merged) | Close (GitHub) |
-| Merged/closed PR whose head branch or worktree still exists locally | Corroborates Step 4.5 `[git]` cleanup — dispatcher merges at assembly |
-| Unresolved review thread addressed by a later commit (evidence: commit touching the flagged lines) | Resolve thread |
-| Unresolved review thread not addressed | Capture to backlog or run `/claude-tweaks:review` — local action |
-| `by:{skill}` issue stale (>4 weeks, the flagged code/target/journey/doc has since changed or been removed) — `{skill}` is any of `code-health`/`harness-health`/`journey-health`/`docs-health` | Close (GitHub) — superseded |
-| `by:{skill}` issue still valid | Suggest `/claude-tweaks:triage` or Capture to backlog — all four health skills are report-only and never apply patches directly (see each skill's own SKILL.md Anti-Patterns table), so a still-valid issue always needs a human-routed fix regardless of which skill filed it |
-
-Emit `[pr]` and `[gh-issue]` rows per the Output Contract. Backlog-record findings (the record-scan shapes: stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) no longer originate from this scope — see `tidy/scan-procedures.md` Step 1 for their findings table and `[backlog]`/`[parked]`/`[unsynced]`/`[scoring]`/`[blocked]`/`[legacy]` row prefixes.
 
 ## Scope: `acceptance-queue` (consumed by /help Stage 4.7)
 
