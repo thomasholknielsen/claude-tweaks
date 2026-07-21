@@ -36,6 +36,8 @@ When `.claude-tweaks/policy.yml` sets `worktree.always: true`, the Git axis has 
 
 When `.claude-tweaks/policy.yml` sets `execution.always: subagent`, the Execution axis has only one value: `batched` is not offered and is rejected if passed explicitly — unlike the Git axis, there is no mechanical backstop for this one (see `_shared/git-discipline.md`).
 
+("Rejected" means: substitute the locked value and surface a one-line inline notice, never a hard error or an `AskUserQuestion` prompt — see `build-options.md`'s "Default resolution" step 0 for the exact wording.)
+
 Read `build-options.md` in this skill's directory for the full options matrix, invocation grammar (six combinations), default-resolution order, the build-options prompt template, the record-vs-spec-vs-design mode table, and the input-resolution rules. `$ARGUMENTS` = record reference (`#N`, primary) / spec number (legacy alias) / design doc path / topic name, optionally followed by execution strategy, git strategy, and/or `auto`.
 
 ## Workflow
