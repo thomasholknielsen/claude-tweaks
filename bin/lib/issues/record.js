@@ -5,6 +5,8 @@
 // import from this file rather than re-declaring their own copies. No network.
 'use strict';
 
+const { sharedFacetDefaults } = require('./facet-shape');
+
 const ORIGINS = ['code-health', 'harness-health', 'journey-health', 'docs-health', 'capture', 'dispatch'];
 const TYPES = ['bug', 'feature', 'task'];
 const TIERS = ['low', 'medium', 'high'];
@@ -165,20 +167,13 @@ function normalizeLabelNames(labels) {
 // Acceptance has no such precedence — the three demo:* labels are mutually exclusive
 // by construction, so a plain last-match-in-array-wins assignment (same style as
 // origin/risk/effort/priority below) is enough.
+// Shared-key defaults come from facet-shape.js — local-store.js's defaultFacets
+// builds on the same shape (plus its own local-only keys). Add a new shared
+// facet key there, not independently here.
 function parseRecordFacets(labels) {
   const names = normalizeLabelNames(labels);
 
-  const facets = {
-    origin: null,
-    risk: null,
-    effort: null,
-    ceremony: null,
-    priority: null,
-    stage: 'backlog',
-    grants: { build: false, merge: false },
-    bot: { inProgress: false, blocked: false },
-    acceptance: null,
-  };
+  const facets = sharedFacetDefaults();
 
   for (const name of names) {
     if (name === LABELS.READY) {

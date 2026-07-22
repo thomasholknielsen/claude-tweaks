@@ -3,16 +3,18 @@
 // frontmatter facets. Frontmatter is parsed with the same no-dependency line-regex
 // style bin/lib/policy.js uses — the plugin ships zero runtime npm deps, so there
 // is no YAML library here. `facets` is a superset of record.js's parseRecordFacets
-// shape (same keys — origin, risk, effort, priority, stage, grants{build,merge},
-// bot{inProgress,blocked}, acceptance — plus type, parent, blockedBy, unsynced); the
-// github driver's callers get type/parent/blockedBy from the issue JSON itself, not
-// from labels. No network calls.
+// shape (shared keys sourced from facet-shape.js's sharedFacetDefaults() — origin,
+// risk, effort, ceremony, priority, stage, grants{build,merge}, bot{inProgress,
+// blocked}, acceptance — plus type, parent, blockedBy, unsynced, closed, closedAt);
+// the github driver's callers get type/parent/blockedBy from the issue JSON itself,
+// not from labels. No network calls.
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
 const util = require('util');
 const { splitFrontmatterFence } = require('../health-core/frontmatter-list');
+const { sharedFacetDefaults } = require('./facet-shape');
 
 const DEFAULT_DIR = 'specs';
 
@@ -26,21 +28,18 @@ const GRANT_KEYS = ['build', 'merge'];
 // Explicit defaults first, only ever flipped/assigned by a matching frontmatter
 // line elsewhere — never inferred from truthiness (parseRecordFacets style).
 // `bot` is always this value: the local driver carries no bot state.
+// Shared-key defaults come from facet-shape.js's sharedFacetDefaults() —
+// record.js's parseRecordFacets builds on the same shape. The keys below the
+// spread (type/parent/blockedBy/unsynced/closed/closedAt) are local-files-only
+// and have no analog in the GitHub label-derived shape; add a new shared facet
+// key to facet-shape.js, not independently here.
 function defaultFacets() {
   return {
     type: null,
-    origin: null,
-    risk: null,
-    effort: null,
-    ceremony: null,
-    priority: null,
-    stage: 'backlog',
-    grants: { build: false, merge: false },
-    bot: { inProgress: false, blocked: false },
+    ...sharedFacetDefaults(),
     parent: null,
     blockedBy: [],
     unsynced: false,
-    acceptance: null,
     closed: false,
     closedAt: null,
   };
@@ -387,4 +386,4 @@ function queryRecords(dir = DEFAULT_DIR, facetFilter = {}) {
   return records;
 }
 
-module.exports = { DEFAULT_DIR, readRecord, writeRecord, allocateId, createRecord, queryRecords, closeRecord, deriveSlug };
+module.exports = { DEFAULT_DIR, readRecord, writeRecord, allocateId, createRecord, queryRecords, closeRecord, deriveSlug, defaultFacets };
