@@ -125,6 +125,12 @@ Before forming any finding, run these mechanical checks and treat their output a
    grep -nE '/[a-z][a-z0-9-]*\b' "<target-path>"
    ```
    A bare reference sitting inside imperative instruction text ("Run `/X`", "`/X` handles it") — as opposed to a Relationship-to-Other-Skills table row or other descriptive prose, where a bare short name is never passed to a tool call — is evidence for a `best-practice` finding: the `Skill` tool requires the fully-qualified name, and a bare short form fails at invocation time. Distinguishing actionable text from descriptive prose requires reading the surrounding section, not just the grep hit — treat this as a candidate list to triage, not a verdict. Feed confirmed hits into dimension 8's best-practice judgment.
+9. **Legacy-alias-without-replacement check** (CLAUDE.md only, new). For any config key documented with a grandfathered legacy-alias exception (today: `work-backend`'s `backlog-backend` alias, per `_shared/work-record.md`'s "Legacy alias exception" paragraph), grep whether the legacy key is present without its replacement:
+   ```bash
+   grep -q '^work-backend:' CLAUDE.md || echo "MISSING: work-backend"
+   grep -q '^backlog-backend:' CLAUDE.md && echo "PRESENT: backlog-backend"
+   ```
+   The legacy key present AND the replacement key missing is mechanical, unambiguous evidence for a `template-conformance` finding — every consumer skill *except* the small alias-fallback list (`_shared/work-record.md`'s Consumers table: `/capture`, `/challenge`, `/tidy`) silently defaults to `local-files` in this state, a correctness-affecting drift, not just a doc-staleness one. This bit the claude-tweaks repo itself: `/claude-tweaks:dispatch` was non-functional against a real `github-issues` project until a session's own preflight check surfaced the gap by accident (2026-07-22, fixed in commit `03fb4dd`) — nothing had checked for it proactively before that.
 
 Checks 1-2 are optional assists — skip gracefully if a referenced path/command genuinely can't be checked mechanically (e.g., a described convention with no clean grep signature). A finding grounded in one of these checks is higher-confidence than one based on reading alone.
 
@@ -158,6 +164,7 @@ Always reason about *why* the ratio is low before emitting a finding — never r
 - **Don'ts are guardrails, not wishes** — every Don't must describe an *existing* pattern (grep-checkable, same evidence style as dimension 2), never aspirational infrastructure.
 - **Philosophy matches current maturity** — re-derive today's maturity signal (the classification `/claude-tweaks:init` Phase 2h would compute right now) and compare it to what the Philosophy section says; flags e.g. a project that shipped to real users since the CLAUDE.md was written but still reads "Greenfield."
 - **Project Defaults / claude-tweaks Pipeline sections in sync with the installed plugin version** — does the documented auto-mode-policy lever list match what the currently installed claude-tweaks plugin version actually supports? This one is checked against the plugin's own evolving contract (its bundled `_shared/auto-mode-contract.md`), not the target project's own source — a genuinely different kind of drift from every other check in this file.
+- **Legacy-alias config completeness** — Step 1's check 9: does a grandfathered legacy-alias key (e.g. `backlog-backend`) appear without its replacement (`work-backend`)? A silent behavioral default to `local-files` for most consumers, not just a doc-staleness issue.
 
 ## Memory-Specific Checks (`assetType: memory` targets)
 
