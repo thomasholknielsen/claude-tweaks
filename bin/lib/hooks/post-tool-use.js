@@ -1,4 +1,4 @@
-// bin/lib/hooks/post-tool-use.js — E2: commit breadcrumbs (log tier) + closing-keyword check (warn tier) + design-doc capture nudge (warn tier).
+// bin/lib/hooks/post-tool-use.js — E2: commit breadcrumbs (log tier) + closing-keyword check (warn tier) + design-doc capture nudge (warn tier) + plugin-version-bump marketplace-mirror nudge (warn tier).
 'use strict';
 const { gitTargets } = require('./git-command');
 const ctxLib = require('./context');
@@ -158,6 +158,56 @@ function checkDesignDocWrite(ctx) {
   };
 }
 
+// Marketplace-mirror nudge (warn tier). This repo's own release convention
+// (CLAUDE.md's "Releasing (two repos)") requires mirroring a plugin.json
+// version bump into the separate claude-tweaks-marketplace repo's
+// marketplace.json — a step with no code-level enforcement, missed twice in
+// practice before this check existed. Fires unconditionally whenever a
+// commit touches `.claude-plugin/plugin.json` at all, without trying to
+// parse whether the change was actually a version bump (same "cheap false
+// positive, no smart detection" precedent checkClosingKeyword and
+// checkDesignDocWrite set above) — plugin.json changes for any other reason
+// are rare enough that a false-positive reminder costs nothing.
+//
+// Scoped to this specific project via the committed file's own `name` field
+// rather than the path alone: `.claude-plugin/plugin.json` is the standard
+// manifest path for ANY Claude Code plugin repo, so an unscoped check would
+// misfire with an irrelevant marketplace-mirror reminder in a completely
+// unrelated plugin repo that happens to have this plugin active.
+const PLUGIN_MANIFEST_PATH = '.claude-plugin/plugin.json';
+
+function checkPluginVersionBump(recentByDir) {
+  for (const [dir, commits] of recentByDir) {
+    for (const commit of commits) {
+      // Same freshness guard as checkClosingKeyword — don't judge a stale
+      // HEAD left over from a `git commit` that never actually landed.
+      if (commit.ts === null || Math.abs(Date.now() / 1000 - commit.ts) > COMMIT_FRESHNESS_WINDOW_SECONDS) continue;
+      if (!commit.hash) continue;
+      const changedFiles = execGit(['diff-tree', '--no-commit-id', '--name-only', '-r', commit.hash], dir);
+      if (changedFiles === null || !changedFiles.split('\n').includes(PLUGIN_MANIFEST_PATH)) continue;
+      const manifestAtCommit = execGit(['show', `${commit.hash}:${PLUGIN_MANIFEST_PATH}`], dir);
+      if (manifestAtCommit === null) continue;
+      let manifest;
+      try {
+        manifest = JSON.parse(manifestAtCommit);
+      } catch {
+        continue;
+      }
+      if (manifest.name !== 'claude-tweaks') continue;
+      return {
+        json: {
+          systemMessage:
+            'claude-tweaks: this commit touched .claude-plugin/plugin.json (likely a version bump). ' +
+            "Remember to mirror the new version into the claude-tweaks-marketplace repo's " +
+            'marketplace.json (plugins[].version) and push both repos — see CLAUDE.md\'s ' +
+            '"Releasing (two repos)" section.',
+        },
+      };
+    }
+  }
+  return null;
+}
+
 function run(ctx) {
   const command = ctx.input.tool_name === 'Bash' ? (ctx.input.tool_input && ctx.input.tool_input.command) : null;
   const hasCommand = typeof command === 'string' && !!command;
@@ -209,6 +259,12 @@ function run(ctx) {
   // Deferred-subproject capture nudge (warn tier) — deliberately NOT gated on ctx.runDir.
   const designDocNudge = checkDesignDocWrite(ctx);
   if (designDocNudge) return designDocNudge;
+
+  // Plugin-version-bump marketplace-mirror nudge (warn tier) — deliberately NOT gated on ctx.runDir.
+  if (hasCommand) {
+    const versionBumpNudge = checkPluginVersionBump(recentByDir);
+    if (versionBumpNudge) return versionBumpNudge;
+  }
 
   return {};
 }
