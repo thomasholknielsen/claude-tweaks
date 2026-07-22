@@ -1,5 +1,28 @@
 # Changelog
 
+## v6.13.0 — Smoke-test follow-through: dispatch diagnostics, audit-log hardening, grant-time disclosure
+
+A live cross-terminal smoke test of `/capture` → `/specify` → `/triage` → `/dispatch` (real repo,
+real GitHub issues, four independently-session'd agents with no shared context) validated the
+claim-race concurrency mechanism cleanly, but surfaced a repo config gap (`work-backend` missing
+alongside the legacy `backlog-backend` alias) that had made `/claude-tweaks:dispatch` completely
+non-functional until discovered by accident, plus a silently-skipped `/claude-tweaks:triage`
+audit-log write under `worktree.always`. Both fixed, and hardened: a new harness-health evidence
+check catches the legacy-alias-without-replacement config gap proactively, and
+`_shared/auto-decision-log.md` now documents a `worktree.always`-safe Bash-append mechanism for
+every standalone-auto skill's `decisions.md` write.
+
+Six process optimizations followed from the same analysis: `/claude-tweaks:dispatch --claim-only`
+(claim without building, for safely testing or operating the claim mechanism); Preflight now
+distinguishes an incomplete `work-backend` migration from a deliberate `local-files` choice and
+reports the exact fix; a headless `dispatch next` firing self-files a `by:dispatch` issue on
+Preflight failure instead of failing silently with nobody present; `/claude-tweaks:tidy` gained a
+backstop for a completed standalone run with an empty `decisions.md`; `grant-check`'s `RATIONALE`
+now discloses when a `ceremony:fast-lane` `auto:merge` recommendation means self-review only, not
+the full review lens matrix — the actual tradeoff a human granting merge trust is taking, previously
+invisible at grant time; `/claude-tweaks:triage`'s batch-confirm gained an explicit "grant
+`auto:build` only, hold merge" option for supervising a pipeline's first autonomous run.
+
 ## v6.11.1 — Wrap-up follow-through on v6.11.0's ceremony tiering
 
 Wrap-up reflection on v6.11.0 found `ceremony:fast-lane`/`ceremony:standard` was never added
