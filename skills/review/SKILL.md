@@ -59,9 +59,11 @@ Code mode is the default. Append `full` to include a visual pass after code revi
 
 When invoked by `/claude-tweaks:flow`, review runs in **full** mode by default (code + visual). Flow handles browser detection and falls back to code mode when no browser backend is available.
 
+**Effort** is a separate, orthogonal argument — see Input resolution below and Step 2.5. It applies only within `code`/`full` modes (where Steps 1-7's lens system runs); it's a no-op when combined with `visual`, `journey:`, or `discover`, which delegate entirely to `/claude-tweaks:visual-review` and skip Steps 1-7 outright.
+
 ## Input
 
-`$ARGUMENTS` = spec number, file paths, mode, or visual review target.
+`$ARGUMENTS` = spec number, file paths, mode, effort tier, or visual review target.
 
 ### Resolve the input:
 
@@ -72,8 +74,9 @@ When invoked by `/claude-tweaks:flow`, review runs in **full** mode by default (
 5. **`journey:{name}`** (e.g., "journey:checkout") — browser review only (journey mode)
 6. **`discover`** — browser review only (discover mode)
 7. **No arguments** — use `git diff` against the base branch or recent commits to identify changed files. Mode: code.
+8. **Effort token** — the literal `low`, `medium`, `high`, `xhigh`, or `max`, appearing anywhere among the other tokens above (e.g. `/claude-tweaks:review 42 high` or `/claude-tweaks:review 42 full xhigh`). Sets the `review-effort` tier explicitly (see Step 2.5), overriding derivation. Order-independent relative to the other tokens. Unambiguous against the rest of this grammar — spec numbers are numeric, `full`/`visual`/`journey:`/`discover` are fixed keywords that never collide with the five effort words.
 
-In visual, journey, and discover modes, delegate entirely to `/claude-tweaks:visual-review` — skip Steps 1-7.
+In visual, journey, and discover modes, delegate entirely to `/claude-tweaks:visual-review` — skip Steps 1-7 (an effort token passed alongside one of these mode keywords is silently ignored, since Steps 1-7 are exactly where the lens system it gates lives).
 
 ## Step 1: Spec Compliance Check (spec-based only)
 
@@ -192,6 +195,51 @@ In a multi-spec batch (`/claude-tweaks:flow 42,45,48`, or any run where several 
 If the current diff is instead an **overlapping superset** — the branch has moved forward since the cited review ran (new commits from this spec or another), even a small amount — the cited review does not cover that delta. Do not treat "we reviewed the branch already" as covering commits that landed after its `HEAD`. Instead: cite the prior review for the range it actually covered, and run a supplementary review scoped to just the delta (`git diff <cited-review-HEAD>..<current-HEAD>`) — not a fresh full whole-branch review.
 
 When it's unclear which case applies, default to overlapping superset (the conservative assumption) and run the supplementary check. Confirm byte-identical scope explicitly (diff the two commit ranges) before skipping re-dispatch — an unverified assumption of "same scope" is exactly how partial coverage escapes review.
+
+## Step 2.5: Derive Review Effort
+
+Resolve a `review-effort` tier — one of `low` / `medium` / `high` / `xhigh` / `max`, the same vocabulary Claude Code's native `/code-review` command uses for its own effort argument — before dispatching Step 3's lenses. This tier gates which lenses run (Step 3), whether cross-lens debate runs (Step 3.5), and how findings surface (`step3-routing.md`). It is never persisted back to the work record — it's derived fresh on every review run, unlike `risk:*`/`effort:*`/`ceremony:*`.
+
+Resolution order — stop at the first that applies:
+
+1. **Explicit argument.** If `$ARGUMENTS` contained an effort token (Input resolution rule 8), use it. Always wins — including over a high-risk record's own labels. A user who explicitly asks for `low` on a scary change, or `max` on a trivial one, gets what they asked for.
+
+2. **Record risk/effort labels.** Applies only when Input resolution resolved a spec/record number (rules 1-2) — file-path and no-argument reviews (rules 3, 7) have no record to read and go straight to step 3 below. Fetch the record's `risk:*`/`effort:*` labels with a fresh, minimal read — independent of whether Step 1 ran (Step 1 is skipped under `ceremony-profile: fast-lane`, so this cannot assume a Step 1 fetch happened), per `work-backend`:
+
+   **`github-issues`:**
+   ```bash
+   gh issue view {n} --json labels > /tmp/review-record-{n}.json
+   node -e "const {parseRecordFacets}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js');
+     const d=JSON.parse(require('fs').readFileSync('/tmp/review-record-{n}.json'));
+     const {risk, effort}=parseRecordFacets(d.labels);
+     console.log(JSON.stringify({risk, effort}))"
+   ```
+
+   **`local-files`:**
+   ```bash
+   node -e "const {readRecord}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
+     const {risk, effort}=readRecord(process.argv[1]).facets;
+     console.log(JSON.stringify({risk, effort}))" "{record-file-path}"
+   ```
+
+   Both resolve to the same `{risk, effort}` shape. If either is `null`/`undefined` (record never scored) or the read fails (malformed labels, backend error), fall through to step 3 below — never default straight to `low`. Otherwise combine via this table:
+
+   | risk ↓ / record effort → | low | medium | high |
+   |---|---|---|---|
+   | **low** | low | low | medium |
+   | **medium** | medium | medium | high |
+   | **high** | high | xhigh | max |
+
+   Risk (blast radius/safety) is the primary driver — `risk:high` always yields at least `high`. `risk:low` floors at `low` unless the record's own size (`effort:*`) compounds it to `medium`.
+
+3. **Diff heuristic (fallback).** No record, the record carries no `risk:*`/`effort:*` labels, or the label read failed. Derive proxies from Step 2's change analysis and feed the same table above:
+   - Risk proxy = **high** if the diff touches a path matching the `merge-sensitive-paths` config key (the same key `assess-agent-autonomy`'s `merge-check` mode already reads for the identical "elevated risk from touched paths" purpose), a schema/migration file, infra/CI-CD config, or introduces a new dependency (Step 2 already flags all of these for its ops-ledger check); **medium** if it touches public API surface or a cross-package interface; **low** otherwise.
+   - Record-effort proxy (size — not the `review-effort` tier being derived here) = **high** at 10+ files or 300+ lines changed; **medium** at 3-9 files or 50-299 lines; **low** otherwise. These thresholds are fixed defaults — no config layer exists for this derivation.
+   - If `git diff` produces no output to classify, default to `high` directly (skip the table) — see the ambiguity rule below.
+
+**Ambiguity never resolves toward less scrutiny.** If reading record labels fails, fall through to the diff heuristic rather than defaulting to `low`. If the diff heuristic itself can't render a clear signal, default to `high` — the tier that reproduces this skill's pre-existing default behavior — never `low`.
+
+Record the resolved tier and which resolution step produced it, for Step 7's summary: `{explicit argument | record labels: risk:{x} × effort:{y} | diff heuristic: {reasoning}}`.
 
 ## Step 3: Code Review
 
