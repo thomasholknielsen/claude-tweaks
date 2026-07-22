@@ -202,6 +202,7 @@ claude-tweaks pipelines have at most two stops in `auto` mode: a **Pipeline Conf
 
 Legacy section/flag name — `/capture`, `/challenge`, and `/tidy` read `backlog-backend` as a read-only alias of the current `work-backend` config key; every other consumer skill reads `work-backend` directly with no alias fallback (see `_shared/work-record.md`'s Config keys section, "Legacy alias exception," for the full current list and caveat). Renaming this section and value, and extending the alias to every consumer, is pending, separate migration work (see README.md's "Migrating from 5.x").
 
+work-backend: github-issues
 backlog-backend: github-issues
 
 ## Don'ts
