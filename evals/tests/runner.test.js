@@ -5,12 +5,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { runScenarioWith } from '../runner.js';
 
-// A fake queryFn matching the shape runner.js expects: given (prompt, options),
+// A fake queryFn matching the shape runner.js expects: given a single
+// { prompt, options } argument (matching the real SDK's query() signature),
 // returns an async generator yielding SDKMessage-shaped objects, ending with a
 // result message. Built as a real async generator function (not a pre-built
 // array), so each call produces fresh output rather than a shared, eagerly-
 // evaluated fixture.
-async function* fakeQuery(prompt, options) {
+async function* fakeQuery({ prompt, options }) {
   await options.canUseTool('Read', { file_path: '/tmp/x' }, {});
   yield { type: 'assistant', message: { content: [{ type: 'text', text: 'No findings — code is clean.' }] } };
   yield { type: 'result', total_cost_usd: 0.01, usage: { input_tokens: 100, output_tokens: 50 } };

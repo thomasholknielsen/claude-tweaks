@@ -55,12 +55,15 @@ export async function runScenarioWith(scenarioPath, opts = {}) {
   let tokens = null;
   const startedAt = Date.now();
 
-  const stream = queryFn(scenario.skill_invocation.prompt, {
-    cwd: repoDir,
-    plugins: [{ type: 'local', path: PLUGIN_ROOT }],
-    canUseTool: async (toolName, input, options) => {
-      toolCalls.push(toolName);
-      return actor(toolName, input, options);
+  const stream = queryFn({
+    prompt: scenario.skill_invocation.prompt,
+    options: {
+      cwd: repoDir,
+      plugins: [{ type: 'local', path: PLUGIN_ROOT }],
+      canUseTool: async (toolName, input, options) => {
+        toolCalls.push(toolName);
+        return actor(toolName, input, options);
+      },
     },
   });
 
