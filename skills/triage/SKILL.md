@@ -40,6 +40,18 @@ This skill takes no arguments. `/claude-tweaks:triage` always runs the same inte
 
 Read the project's `work-backend` config key (per `_shared/work-record.md`'s Config keys table, written by `/claude-tweaks:init`). **`work-backend: local-files`** — report that grants are not applicable here and stop: the local driver records grants as frontmatter for isomorphism only, with no headless consumer that acts on them (headless dispatch is github-issues only). Point the user at running `/claude-tweaks:flow` manually against a chosen record instead. Only `work-backend: github-issues` proceeds.
 
+**Missing key vs. deliberate `local-files` choice.** Before treating an absent `work-backend` line as an intentional `local-files` project, check whether CLAUDE.md's `## Backlog integration` section already carries a `backlog-backend:` line (the pre-6.0 legacy key, per `_shared/work-record.md`'s "Legacy alias exception"):
+
+```bash
+grep -q '^work-backend:' CLAUDE.md && echo "OK" || { grep -qE '^backlog-backend:[[:space:]]*\S' CLAUDE.md && echo "MIGRATION_GAP" || echo "GENUINE_LOCAL_FILES"; }
+```
+
+`MIGRATION_GAP` means this is very likely an incomplete migration, not a deliberate `local-files` choice — report exactly this message (substituting the actual `backlog-backend` value for `{value}`) and stop, instead of the generic local-files redirect above:
+
+> CLAUDE.md has backlog-backend but no work-backend: line — add work-backend: {value} (the same value as backlog-backend) to CLAUDE.md's Backlog integration section to fix this.
+
+`GENUINE_LOCAL_FILES` (neither key present, or `work-backend` present) proceeds through the normal branch above unchanged.
+
 Before any `gh` command, run the Detection Ladder from `_shared/github-pr-scan.md` (checks 1-3: GitHub remote exists, `gh` CLI installed, `gh` authenticated + repo reachable). Unlike `/tidy`/`/help`'s use of this ladder, which fails open into a skipped scan, `/claude-tweaks:triage` treats any ladder failure as a hard gate — this skill's entire purpose is writing GitHub state, so there is no meaningful degraded mode to fall back into. Report the specific failing check and stop.
 
 ## Workflow
@@ -127,8 +139,9 @@ Then one `AskUserQuestion`:
 - Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"Grant / re-authorize / flag back exactly per the table above"`
 - Option 2 — `label`: `"Override specific items"`, `description`: `"I'll specify #-by-# corrections in my next message"`
 - Option 3 — `label`: `"Flag some back instead"`, `description`: `"Mark specific records for re-shaping rather than granting them"`
+- Option 4 — `label`: `"Grant auto:build only, hold merge"`, `description`: `"Apply auto:build/re-authorize to every row Step 2 recommended granting, but withhold auto:merge session-wide — even rows recommended for it. Useful for a first supervised run of the autonomous pipeline."`
 
-Overrides (including inline scoring for an unscored row) are ordinary free-text in the user's next message, not the `Other` field, which answers this one batch question, not a per-item list.
+Overrides (including inline scoring for an unscored row) are ordinary free-text in the user's next message, not the `Other` field, which answers this one batch question, not a per-item list. Option 4 needs no further input — it's a session-wide modifier on Step 4's Apply, not a per-item override.
 
 ### Step 3.5: Body-shape re-verification (before granting)
 
@@ -153,6 +166,8 @@ node -e "console.log(\`Flagged back by /triage: body is not spec-shaped — miss
 Report every downgrade to the user before proceeding — a silent downgrade would look like the grant simply never happened.
 
 ### Step 4: Apply
+
+**Option 4 modifier (hold merge).** When Step 3 resolved to `"Grant auto:build only, hold merge"`, skip every `auto:merge` grant below for the remainder of this session — apply `auto:build`/re-authorize exactly as the table recommended, but never the `gh issue edit "$ISSUE" --add-label auto:merge` line, regardless of what the row's own Recommended column said. This is a session-wide override, not a per-row judgment call — it doesn't change what Step 2 recommended or what the batch table displayed, only what Step 4 writes.
 
 For every row still marked for granting after Step 3.5:
 

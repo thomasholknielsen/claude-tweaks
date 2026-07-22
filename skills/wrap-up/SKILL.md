@@ -361,7 +361,7 @@ For the run-directory resolution sequence, the multi-spec defer protocol, the fu
 
 ```
 ## Wrap-Up: {"Record #{n}" when a materialized header exists, else "Spec {number}"} — {title}
-{Origin: {origin} — record mode only, the materialized header's origin field: by:code-health / by:harness-health / by:journey-health / by:docs-health / by:capture, or "human" when absent. Omit this line entirely for legacy spec-file-mode runs.}
+{Origin: {origin} — record mode only, the materialized header's origin field: by:code-health / by:harness-health / by:journey-health / by:docs-health / by:capture / by:dispatch, or "human" when absent. Omit this line entirely for legacy spec-file-mode runs.}
 
 ### Reflection Insights
 1. {insight} → {destination}

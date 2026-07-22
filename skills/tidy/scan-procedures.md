@@ -248,6 +248,31 @@ command the release step itself would run.
 
 → Collect each as: `[claim] issue #{n} — bot:in-progress present, no active claim — likely missed bot:in-progress removal`
 
+### Backstop: empty decisions.md on a completed standalone run
+
+Same audit-trail-integrity concern as the two backstops above, applied to the standalone-auto
+run directories the human-gate skills (`/claude-tweaks:triage`, `/claude-tweaks:dispatch`,
+`/claude-tweaks:review-backlog`) write against — a `worktree.always`-blocked or otherwise
+silently-skipped log write leaves no trace anywhere except an empty file:
+
+```bash
+find .claude-tweaks/pipelines -maxdepth 1 -type d -name "*-standalone" 2>/dev/null | while read -r RUN_DIR; do
+  STATUS=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync(process.argv[1]+'/run-state.json','utf8')).status)}catch(e){console.log('unknown')}" "$RUN_DIR")
+  [ "$STATUS" = "clean" ] || continue
+  SIZE=$(wc -c < "$RUN_DIR/decisions.md" 2>/dev/null || echo 0)
+  [ "$SIZE" -eq 0 ] && echo "$RUN_DIR"
+done
+```
+
+A standalone-auto run whose `run-state.json` reports `clean` (completed) but whose `decisions.md`
+is empty means either the skill that ran there took auto-decisions with no audit trail (forbidden
+per `_shared/auto-decision-log.md`'s Anti-Patterns table) or the run genuinely made zero
+auto-decisions (legitimate — e.g. a `/triage` session where every row was flagged back). File
+state alone can't distinguish the two; flag for manual review rather than auto-resolving either
+way.
+
+→ Collect each as: `[claim] {run-dir} — clean standalone run, empty decisions.md — possible skipped audit-log write (manual review)`
+
 ## Step 4.8: Audit GitHub PRs and Issues
 
 Scan per `_shared/github-pr-scan.md`, **`repo-wide`** scope. The dispatcher inlines that file's Detection Ladder, `repo-wide` scope section (including its findings table), and Output Contract into this agent's prompt. The detection ladder makes this fail-open — skip with a single info row when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.

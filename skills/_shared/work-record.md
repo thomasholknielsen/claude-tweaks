@@ -43,7 +43,7 @@ Stage vocabulary is exactly these three words — **backlog** (absence of stage 
 | Axis | Values | Expressed as |
 |---|---|---|
 | **Type** | `bug` \| `feature` \| `task` | Native GitHub Issue Type when `work-types: native`; `type:*` label when `work-types: labels` |
-| **Origin** | `by:code-health`, `by:harness-health`, `by:journey-health`, `by:docs-health`, `by:capture` — or no label | Label. Absence = human-filed directly, or a side-effect record (see below) |
+| **Origin** | `by:code-health`, `by:harness-health`, `by:journey-health`, `by:docs-health`, `by:capture`, `by:dispatch` — or no label | Label. Absence = human-filed directly, or a side-effect record (see below) |
 | **Scoring** | `risk:low\|medium\|high` × `effort:low\|medium\|high` | Labels — at most one of each family |
 | **Stage** | backlog (no label) \| `parked` \| `ready` | Labels — backlog is the absence of stage labels |
 | **Authorization** | `auto:build`, `auto:merge` | Labels — human-granted only, absence is the default not-authorized state |
@@ -66,7 +66,7 @@ are about to apply.
 
 | Family | Labels | Axis |
 |---|---|---|
-| Origin (5) | `by:code-health`, `by:harness-health`, `by:journey-health`, `by:docs-health`, `by:capture` | Origin |
+| Origin (6) | `by:code-health`, `by:harness-health`, `by:journey-health`, `by:docs-health`, `by:capture`, `by:dispatch` | Origin |
 | Risk (3) | `risk:low`, `risk:medium`, `risk:high` | Scoring |
 | Effort (3) | `effort:low`, `effort:medium`, `effort:high` | Scoring |
 | Ceremony (2) | `ceremony:fast-lane`, `ceremony:standard` | Ceremony depth — cross-cutting, not one of the seven axes; stamped by `/specify` alongside Scoring, always explicit (no unscored state) |
@@ -283,7 +283,7 @@ these literal names** — per-skill aliases and env-var renames are forbidden:
 | `/capture` | Files raw backlog records (`by:capture`, Type only) |
 | `/specify` | Shapes records to spec shape; decomposes designs into parent + `ready` leaves; seeds `## Cross-Spec Promises` on the parent for decompositions at or above `promise-register-min-leaves` |
 | `/triage` | The human gate — grants `auto:build` / `auto:merge` over the `ready` queue |
-| `/dispatch` | Queue consumer — claims authorized records, invokes `/flow`, settles (release / revoke / report) |
+| `/dispatch` | Queue consumer — claims authorized records, invokes `/flow`, settles (release / revoke / report); also files `by:dispatch`-labeled backlog records when its own headless `next` firing hits a Preflight failure with nobody present to see it (`skills/dispatch/SKILL.md`'s Preflight, "Headless self-report") |
 | `/flow`, `/build` | Executors — materialize the record into `{run-dir}/work/{n}-spec.md` and build it |
 | `/wrap-up` | Closes the loop — carrier commit (close-via-merge), claim release, leftover records; applies `demo:pending` + posts the Verification Brief |
 | `/demo` | Resolves the Acceptance axis — `demo:pending` → `demo:approved`/`demo:changes-requested`; files a linked follow-up backlog record on changes-requested |

@@ -43,6 +43,7 @@ one-time provision-now offer, which uses this list whole):
   ["by:journey-health", "Origin: filed by the journey-health skill"],
   ["by:docs-health",    "Origin: filed by the docs-health skill"],
   ["by:capture",        "Origin: filed via /capture"],
+  ["by:dispatch",       "Origin: self-filed by /claude-tweaks:dispatch on a headless Preflight failure"],
   ["risk:low",          "Scoring: low blast radius — safe for autonomous build"],
   ["risk:medium",       "Scoring: moderate blast radius — review before merge recommended"],
   ["risk:high",         "Scoring: high blast radius — human review required"],

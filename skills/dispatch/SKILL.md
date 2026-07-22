@@ -47,12 +47,58 @@ Not for: granting authorization (`/claude-tweaks:triage`'s job), deriving a spec
 | `next` | Headless-safe — claim + dispatch exactly one group, chosen by priority-then-age ordering; the unit a scheduled Routine fires |
 | `#N` | Direct — claim + dispatch record `#N`'s whole file-overlap group |
 | `#N,#M,...` | Explicit list — claim + dispatch each named record's whole file-overlap group, deduplicated; skips interactive selection since the set is already named |
+| `--claim-only` (modifier) | Suffix any of the four forms above — run through Step 4's claim and stop before Step 5's Task-agent dispatch. Diagnostic/testing use: exercises the real claim mechanism (atomic ref, `bot:in-progress`, claim comment) without spending build time. The claim is left held afterward — release manually (Step 4's stop-point output prints the exact commands) or let it expire via the standard 72h TTL. |
 
 ## Preflight
 
 Read the project's `work-backend` config key (per `_shared/work-record.md`'s Config keys table). **`work-backend: local-files`** — report that headless dispatch is github-issues only (GitHub's RBAC + atomic refs are the mechanism this protocol depends on, not a policy choice) and stop; point the user at running `/claude-tweaks:flow` or `/claude-tweaks:build` manually against a chosen record instead. Only `work-backend: github-issues` proceeds.
 
-Before any `gh` command, run the Detection Ladder from `_shared/github-pr-scan.md` (checks 1-3: GitHub remote exists, `gh` CLI installed, `gh` authenticated + repo reachable). Unlike `/tidy`/`/help`'s use of this ladder, which fails open into a skipped scan, `/claude-tweaks:dispatch` treats any ladder failure as a hard gate — this skill's entire purpose is writing GitHub state (claims, labels, merges), so there is no meaningful degraded mode to fall back into. Report the specific failing check and stop.
+**Missing key vs. deliberate `local-files` choice.** Before treating an absent `work-backend` line as an intentional `local-files` project, check whether CLAUDE.md's `## Backlog integration` section already carries a `backlog-backend:` line (the pre-6.0 legacy key, per `_shared/work-record.md`'s "Legacy alias exception"):
+
+```bash
+grep -q '^work-backend:' CLAUDE.md && echo "OK" || { grep -qE '^backlog-backend:[[:space:]]*\S' CLAUDE.md && echo "MIGRATION_GAP" || echo "GENUINE_LOCAL_FILES"; }
+```
+
+`MIGRATION_GAP` means this is very likely an incomplete migration, not a deliberate `local-files` choice — report exactly this message (substituting the actual `backlog-backend` value for `{value}`) and stop, instead of the generic local-files redirect above:
+
+> CLAUDE.md has backlog-backend but no work-backend: line — add work-backend: {value} (the same value as backlog-backend) to CLAUDE.md's Backlog integration section to fix this.
+
+`GENUINE_LOCAL_FILES` (neither key present, or `work-backend` present) proceeds through the normal branch above unchanged.
+
+**Headless self-report (`next` form only).** The `next` form fires unattended — the unit a scheduled Routine fires with nobody present to read a stop message (see the Input table above). A Preflight failure here needs a durable trace instead of a message nobody sees. Before stopping on any Preflight failure (the `work-backend` checks above, or the Detection Ladder below), search for an existing open report first, to avoid re-filing on every firing:
+
+```bash
+gh issue list --label by:dispatch --state open --search "{failing-check-name} in:title" --json number -q '.[].number'
+```
+
+If one already exists, reference it in the stop output and file nothing new. Otherwise, read the
+project's `work-types` config key (per `_shared/work-record.md`'s Config keys table) and branch —
+same pattern `/capture`'s Backend Selection already uses, Type is always `bug` here (a Preflight
+failure is definitionally a defect):
+
+```bash
+# Bootstrap per _shared/label-bootstrap.md, LABELS_JSON =
+# [['by:dispatch', 'Origin: self-filed by /claude-tweaks:dispatch on a headless Preflight failure']]
+# — bootstrap the matching type:bug pair too under work-types: labels, same as /capture does.
+
+# work-types: native
+gh issue create \
+  --title "Dispatch Preflight failure: {failing-check-name}" \
+  --body "{the exact diagnostic message this check would otherwise report to a human}" \
+  --type bug \
+  --label by:dispatch
+
+# work-types: labels
+gh issue create \
+  --title "Dispatch Preflight failure: {failing-check-name}" \
+  --body "{the exact diagnostic message this check would otherwise report to a human}" \
+  --label by:dispatch \
+  --label type:bug
+```
+
+No `ready`/`auto:build` on the filed issue — a human confirms and applies the fix, the same conservative default `/capture`'s `keep` route uses elsewhere in this codebase. The bare/`#N`/explicit-list forms always run with a human present (per the Input table framing above) — they still just report and stop; self-filing is `next`-only.
+
+Before any `gh` command, run the Detection Ladder from `_shared/github-pr-scan.md` (checks 1-3: GitHub remote exists, `gh` CLI installed, `gh` authenticated + repo reachable). Unlike `/tidy`/`/help`'s use of this ladder, which fails open into a skipped scan, `/claude-tweaks:dispatch` treats any ladder failure as a hard gate — this skill's entire purpose is writing GitHub state (claims, labels, merges), so there is no meaningful degraded mode to fall back into. Report the specific failing check and stop (headless self-report above still applies for the `next` form).
 
 ## Workflow
 
@@ -227,6 +273,19 @@ node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.
 Any other `gh` failure during claim: skip, log, continue.
 
 **Partial claim.** If any member of the group resolves to Skip (a live claim held elsewhere) or hits an unresolvable `gh` failure, the group cannot be fully claimed: release every member this firing already claimed this round (`releasePayload`, reason `never-started: file-overlap group partial claim`), log, and move to the next candidate group (bare, and `#N,#M,...` — per Step 3, an explicit-list group proceeds "exactly as a bare-mode pick would," so a partial-claim failure on one named group moves to the next named group rather than aborting the rest of the list) or report nothing eligible this firing (`next` / `#N`, which each name only one group to begin with). A Break outcome (stale-claim takeover) is not a partial-claim failure — it succeeds in claiming that member, so it never triggers the abort path on its own.
+
+**`--claim-only` stop point.** When this modifier is present (Input table above), stop here for every successfully claimed group — do not proceed to Step 5. Report each claimed group's members, confirm `bot:in-progress` and the claim comment landed, and print the manual-release commands for each member (mirrors `_shared/issue-claims.md`'s "The lock" → Release):
+
+```bash
+gh api -X DELETE "repos/{owner}/{repo}/git/refs/claims/issue-{n}"
+gh issue edit {n} --remove-label bot:in-progress
+```
+
+Every Skip/Break/partial-claim outcome above is unaffected by this modifier — it only short-circuits the path between a *successful* claim and Step 5's Task-agent dispatch.
+
+### Concurrency note (Preflight reads, not claim correctness)
+
+Two `/dispatch` firings running close together (e.g. two terminals, or a Routine firing overlapping a human-run session) each do their own single Preflight read of CLAUDE.md's `work-backend` key. That read is not synchronized against a concurrent CLAUDE.md edit by a third actor (a human hand-edit, or another firing's own out-of-band fix) — one firing's Preflight can see different content than another's, purely from wall-clock timing. This is accepted, not engineered around, for the same reason `/claude-tweaks:triage`'s own Concurrency section accepts its last-writer-wins label race: it's self-correcting (the next Preflight read picks up whatever state won) and never risks a double-build — Step 4's atomic claim ref, not the Preflight read, is the actual correctness boundary, and it's completely unaffected by what any concurrent Preflight check decided. Worst case is a firing bailing on a Preflight check that would have passed a few seconds later (or vice versa), not a corrupted claim or a double-build.
 
 ### Step 5: Dispatch — one Task agent per group
 

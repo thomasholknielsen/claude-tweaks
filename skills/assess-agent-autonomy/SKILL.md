@@ -63,13 +63,13 @@ gh issue view "$N" --json body,labels -q '{body: .body, labels: [.labels[].name]
 ```
 
 Read the record's full body (Current State / Deliverables / Acceptance Criteria) from the fetched
-JSON. Extract the current `risk:*`/`effort:*` labels, if present:
+JSON. Extract the current `risk:*`/`effort:*`/`ceremony:*` labels, if present:
 
 ```bash
 node -e "const {parseRecordFacets}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/record.js');
   const d=require('/tmp/assess-grant-${N}.json');
-  const {risk, effort}=parseRecordFacets(d.labels);
-  console.log(JSON.stringify({risk, effort}))"
+  const {risk, effort, ceremony}=parseRecordFacets(d.labels);
+  console.log(JSON.stringify({risk, effort, ceremony}))"
 ```
 
 ### Step 2: Judge
@@ -110,6 +110,18 @@ RATIONALE: {one paragraph, naming the specific content signal the recommendation
 If nothing in the record's content or scoring supports any recommendation, output
 `RECOMMEND_BUILD: false` / `RECOMMEND_MERGE: false` — triage's Step 2 already treats this the same
 as today's "flag back (needs scoring)" case; no separate error path is needed here.
+
+**Ceremony-tier disclosure.** When recommending `RECOMMEND_MERGE: true` for a record whose
+`ceremony:*` label is `fast-lane`, the RATIONALE must explicitly state the review-depth this
+implies — this is the actual fact a human granting `auto:merge` is trusting, not an implementation
+detail to leave buried in ceremony-tiering machinery the batch table never surfaces: a
+`ceremony:fast-lane` build routes through `/flow`'s lightweight self-review, not a full
+`/claude-tweaks:review` lens dispatch. Append one clause naming this plainly, e.g. "...; note this
+will route through self-review only (ceremony:fast-lane), not the full review lens matrix." A
+`ceremony:standard` record needs no such clause — it gets the full review path regardless of the
+merge recommendation, so there's no tradeoff to disclose. This clause rides on the existing
+plumbing (`/claude-tweaks:triage`'s Step 2 already carries `RATIONALE` verbatim into the batch
+table's Rationale column and the `decisions.md` log line) — no new field, no separate mechanism.
 
 ## Mode: merge-check
 
