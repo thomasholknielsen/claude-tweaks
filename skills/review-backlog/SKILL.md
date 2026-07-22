@@ -179,17 +179,41 @@ Render the two sources distinguishably — a real `ceremony:*` label (already-sc
 Step 1's mechanical display) plainly (`fast-lane`/`standard`); this step's own LLM guess suffixed
 (`quick? (guess)`/`full? (guess)`) — so a human scanning the batch never mistakes an unscored
 guess for `/specify`'s authoritative verdict. The `Suggested tier` column is informational only —
-it rides along with the priority batch-confirm below, never gated behind its own
-`AskUserQuestion`, and is never itself written anywhere.
+it rides along with the priority table, never gated behind its own `AskUserQuestion`, and is
+never itself written anywhere.
 
-Then one `AskUserQuestion`:
+If any `**Related:**` suggestions exist, render them as a second batch table under its own
+heading, directly beneath the priority table:
 
-- `question`: `"Apply the suggested priority to all, or override specific records?"`, `header`: `"Priority batch"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Apply all suggested (Recommended)"`, `description`: `"Set priority:* exactly per the table above"`
-- Option 2 — `label`: `"Override specific items"`, `description`: `"I'll specify #-by-# corrections in my next message"`
-- Option 3 — `label`: `"Skip priority suggestions"`, `description`: `"Leave every record unprioritized for now"`
+```markdown
+### Related suggestions
 
-Then, separately, render the `**Related:**` suggestions as their own batch table and a second, separate `AskUserQuestion` (same three-option shape, `header`: `"Related batch"`, question text `"Apply the suggested **Related:** updates to all, or override specific records?"`) — never combined into the priority call, per this repo's one-decision-per-`AskUserQuestion` convention.
+| # | Record | Current **Related:** | Suggested addition | Rationale |
+|---|---|---|---|---|
+| 1 | #16: {title} | (none) | Add **Related:** #23 | {one-line rationale} |
+```
+
+If a run produces only one suggestion type, render only that table and its heading — never a
+forced empty table for the other.
+
+Then one `AskUserQuestion` confirms both tables at once:
+
+- `question`: `"Apply all suggested updates, or customize?"`, `header`: `"Confirm suggestions"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Apply all suggested (Recommended)"`, `description`: `"Set priority:* and update **Related:** exactly per the tables above"`
+- Option 2 — `label`: `"Customize"`, `description`: `"I'll specify #-by-# corrections in my next message"`
+- Option 3 — `label`: `"Skip all suggestions"`, `description`: `"Leave every record untouched for now"`
+
+If "Customize" was chosen, the user's next message gives free-text #-by-# corrections covering
+either or both suggestion types (e.g. "apply priority on all except #16, skip the related
+suggestion") — the same override convention this repo already uses for batch tables generally,
+just spanning both suggestion types in one reply instead of two separate ones.
+
+This merges what were previously two separate confirms (priority, then Related) into one
+front-door confirm — CLAUDE.md's "Front-door confirm + opt-in Customize" pattern collapses
+sequential inputs before one consequential action into a single gate. Applying priority and
+Related suggestions together is, in substance, one decision ("apply the backlog housekeeping this
+run suggested"), not two unrelated ones crammed into a single call — the one-decision-per-call
+convention this reverses was never meant to forbid that.
 
 ### Step 5: Apply
 
