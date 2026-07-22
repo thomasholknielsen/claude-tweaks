@@ -261,6 +261,22 @@ The severity scale, category enum, per-lens floors, and the CALIBRATION filter a
 | 3h UX (when QA data) | high | Capable model — judgment-heavy synthesis. |
 | 3i Doc freshness | low / informational | Never blocks the review. |
 
+**Lens scope by `review-effort` tier** (resolved in Step 2.5): lower tiers dispatch fewer agent-based lenses, trading breadth for speed and higher-confidence-only output — mirroring native `/code-review`'s own effort semantics (fewer, higher-confidence findings at the low end; broader coverage at the high end).
+
+| Tier | Agent-dispatched lenses in scope |
+|------|------|
+| `low` | 3b, 3c |
+| `medium` | 3b, 3c, 3a, 3f |
+| `high` | 3b, 3c, 3a, 3f, 3d, 3e, 3h — every applicable lens. **Reproduces this skill's pre-existing default behavior.** |
+| `xhigh` | Same lens set as `high` |
+| `max` | Same lens set as `high` |
+
+A lens outside the resolved tier's scope is never dispatched — it does not run and produces no findings. The pre-existing "skip a lens if it doesn't apply to this change type" rule (above) still applies on top of whichever set the tier allows — e.g. at `high`, Performance is still skipped for a docs-only diff. Lens 3h additionally requires QA data to be available at all (its own existing, effort-independent gate) — when QA data isn't available, 3h doesn't run even at `high`+. Lenses 3g-cov, 3i, and 3i-diagram are **not** gated by effort at all — they're main-thread/deterministic, not agent-dispatched, and stay gated only by their own existing data-availability conditions.
+
+Reproduction pairs (the 2-agent verification dispatch below) always run for every lens that's in scope, at every tier — verification is never skipped, only the initial lens set that gets a chance to flag something.
+
+At `xhigh` and `max`, append this sentence to each dispatched lens's prompt, after the Output Format block (do not modify the CALIBRATION block itself — it stays byte-identical across all tiers, per `step3-routing.md`'s dispatch contract): "Apply careful, thorough reasoning to this pass — consider subtle edge cases and second-order effects a faster read might miss." This is a best-effort prompt-level nudge, not a verified change to the dispatched agent's actual reasoning depth — the lens-scope table above is the load-bearing mechanism.
+
 > **Working Directory Discipline:** Applies to every `Task()` dispatch in Step 3 and Step 3.5 (reproductions and debate agents). Apply the Working Directory Discipline rule from `_shared/subagent-output-contract.md` before any git or path-sensitive command in the agent prompt. See also `_shared/git-discipline.md`.
 
 > **Parallel execution:** Before running any lens, gather all context upfront — read all changed files and their surrounding context (imports, tests, schemas) as parallel Read/Grep calls. Each lens needs the same files, so front-loading reads avoids redundant I/O.
@@ -397,6 +413,8 @@ Like other Lens 3i findings, these are informational and don't block review — 
 - A matching diagram already exists → emit nothing (we're not gating on freshness for diagrams since they're hand-drawn)
 
 ### Step 3.5: Cross-Lens Debate
+
+**Skip this entire step when the resolved `review-effort` tier (Step 2.5) is `low` or `medium`** — contested findings remain `unconfirmed`/staged without a debate round, trading resolution depth for speed at the lower tiers, matching Step 3's own narrower lens scope there. At `high` and above, run as follows:
 
 After per-lens reproduction completes, scan for contradictions across lenses before routing. Two lenses that both flagged the same region with mismatched severity get exactly one debate round to converge or escalate to `contested`. A silent lens — one that reviewed the region but produced no finding there at all — cannot enter this mechanism: `detectCrossLensOverlap` below only pairs findings that exist in *both* lenses' arrays, so the asymmetric "one flagged, the other did not" case has no data to pair against and is never dispatched (see step 5's skip condition).
 
