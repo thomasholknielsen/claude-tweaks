@@ -57,7 +57,9 @@ Read the `work-backend` field from the project's CLAUDE.md (`_shared/work-record
 
 ```bash
 # work-backend: github-issues
-gh issue list --state open --json number,title,labels,createdAt,updatedAt --limit 500 > /tmp/review-backlog-open.json
+JSON_FIELDS="number,title,labels,createdAt,updatedAt"
+if [ "${MODE:-bare}" = "bare" ]; then JSON_FIELDS="number,title,body,labels,createdAt,updatedAt"; fi
+gh issue list --state open --json "$JSON_FIELDS" --limit 500 > /tmp/review-backlog-open.json
 node -e "
   const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const issues = require('/tmp/review-backlog-open.json');
@@ -65,6 +67,8 @@ node -e "
   console.log(JSON.stringify(rows));
 " > /tmp/review-backlog-github.json
 ```
+
+Bare mode fetches each record's `body` in this same call — Step 3's synthesis pass below reads it directly with zero additional `gh` calls. Named modes (`critical`/`risk-value`/`cleanup`) never read bodies, so they keep the lean 5-field list.
 
 Fold in `unsynced: true` local fallback records (per `/tidy`'s existing Shape 3 — a failed GitHub write, not a supported dual-driver mode):
 
@@ -150,7 +154,7 @@ node -e "
 " > /tmp/review-backlog-budget.json
 ```
 
-Fetch bodies only for `selected` (github: `gh issue view {n} --json body`, one per record; local-files: bodies are already present from Step 1's `queryRecords`). Read every selected body in one pass and produce:
+Bodies for `selected` are already present in the merged record objects from Step 1 — github: Step 1's bare-mode fetch now includes `body` in its field list; local-files: bodies are already present from Step 1's `queryRecords`. No additional per-record `gh` call is needed. Read every selected body in one pass and produce:
 
 - A narrative summary + thematic clusters (group by shared theme/origin/root cause, not just by label — the same read a human gets from reading a handful of related issues side by side).
 - A per-record `priority:*` suggestion with a one-line rationale.
