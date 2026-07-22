@@ -70,7 +70,16 @@ export async function runScenarioWith(scenarioPath, opts = {}) {
   for await (const message of stream) {
     if (message.type === 'assistant' && message.message && message.message.content) {
       const textParts = message.message.content.filter((c) => c.type === 'text').map((c) => c.text);
-      if (textParts.length > 0) resultText = textParts.join('\n');
+      // Accumulate across every assistant text message, not just the last one.
+      // A skill like /claude-tweaks:review produces many narrative messages
+      // across its own internal steps (and, once its Next Actions question is
+      // answered, the agent may keep going into whatever it recommended next)
+      // — the message carrying the actual findings table is very often not
+      // the final one. Keeping only the last message silently discards
+      // earlier substantive output; assertions here (parseFindingsTable) key
+      // off a specific heading located anywhere in the text via indexOf, so
+      // concatenating is safe and finds the first (correct) occurrence.
+      if (textParts.length > 0) resultText += (resultText ? '\n' : '') + textParts.join('\n');
     }
     if (message.type === 'result') {
       costUsd = message.total_cost_usd != null ? message.total_cost_usd : null;

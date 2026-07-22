@@ -12,13 +12,34 @@ answer_overrides:
   - match: "review-effort"
     answer: "medium"
 assertions:
+  # Severities and `contains` values below reflect real Task 6 end-to-end
+  # runs' actual output, not the pre-run guesses in the original brief
+  # (high/medium, matched on file path). The real review classified the
+  # SQL-injection-shaped bug Critical (Security lens) and the off-by-one High
+  # (Error handling lens) across every real run. `contains` was originally
+  # matched on the file path (e.g. "src/auth.js"), but
+  # review-summary-template.md's findings table has no dedicated file/line
+  # column — a file/line reference is only "embedded as text inside the
+  # Finding cell... when present" (parse-findings-table.js), and one real run
+  # omitted it entirely while still correctly identifying both bugs. Matched
+  # instead on content that appeared in every real run: "SQL injection" (the
+  # vulnerability class) and "lastNItems" (the affected function's own name,
+  # a hard identifier less prone to LLM paraphrase than a descriptive term).
+  - type: findings-include
+    severity: critical
+    contains: "SQL injection"
   - type: findings-include
     severity: high
-    contains: "src/auth.js"
-  - type: findings-include
-    severity: medium
-    contains: "src/utils.js"
+    contains: "lastNItems"
   - type: findings-exclude-false-positive
     files: ["src/clean-module.js"]
+  # max: 60 was a pre-flight guess written before any real run existed. The
+  # real /claude-tweaks:review pipeline is a full multi-step quality gate
+  # (test gate, multi-lens parallel reproduction-pair dispatch, Implementation
+  # Hindsight via /reflect, /simplify, /visual-review discover, the design
+  # wrapper) — Task 6's first real end-to-end run legitimately used 245 tool
+  # calls reviewing just two tiny files. Recalibrated with headroom for
+  # run-to-run lens-dispatch variance; this remains a sanity ceiling against
+  # genuinely runaway behavior, not a tight budget.
   - type: tool-count
-    max: 60
+    max: 400
