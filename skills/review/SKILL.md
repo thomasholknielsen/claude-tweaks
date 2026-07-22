@@ -606,6 +606,7 @@ See `review-summary-template.md` in this skill's directory for the full Next Act
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:build` | Produces the code and journey files that /claude-tweaks:review evaluates |
+| `/claude-tweaks:specify` | Stamps the `risk:*`/`effort:*` labels Step 2.5 reads (via `parseRecordFacets` on `work-backend: github-issues`, `local-store.js`'s facet reader on `local-files`) to auto-derive `review-effort` when no explicit argument is passed. |
 | `/claude-tweaks:test` | /test is the mechanical "does it work?" gate. /review gates on `TEST_PASSED=true` — it never runs verification or QA itself. Standalone /review auto-triggers /test if no recent pass. |
 | `/claude-tweaks:wrap-up` | Runs after /claude-tweaks:review passes — focuses on reflection, cleanup, and knowledge capture. Skill-routed entries from lens 3a (phase `review/skill`) and from /reflect hindsight findings tagged `[skill: …]` (phase `review/hindsight`) feed into wrap-up's skill update analysis (Step 7). `/wrap-up`'s own Step 10 safety-net gate (`verification-brief.md`) reads this skill's `### Visual Review` summary status and, when it shows only `Recommended` (no browser walk ran), triggers `/claude-tweaks:visual-review` itself using the same Step 6 mode resolution — never a separate implementation. |
 | `/claude-tweaks:capture` | /claude-tweaks:review may route new ideas discovered during review through /capture, which files a fresh backlog work record |

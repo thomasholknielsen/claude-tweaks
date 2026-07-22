@@ -14,7 +14,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 | `/claude-tweaks:build` | Implement a work record, spec, or design doc | record ref (`#N`), spec # (legacy alias), doc path + `auto`, `batched`, `worktree` |
 | `/claude-tweaks:stories` | Generate or update QA story YAML files (journey-aware) | URL (auto-detected if omitted) + `persona=`, `dir=`, `journey=`, `browser=`, `refine=`, `negative=` |
 | `/claude-tweaks:test` | Verification gate — types, lint, tests, QA stories | `types`, `lint`, `unit`, path, `affected`, `qa`, `qa journey={name}`, `qa affected`, `all` |
-| `/claude-tweaks:review` | Analytical quality gate: code review, UX analysis (when QA data available), visual + creative ideas (default in `/claude-tweaks:flow`). Gates on `/claude-tweaks:test`. | spec #, files + `full`/`visual`/`journey:{name}`/`discover` |
+| `/claude-tweaks:review` | Analytical quality gate: code review, UX analysis (when QA data available), visual + creative ideas (default in `/claude-tweaks:flow`). Gates on `/claude-tweaks:test`. | spec #, files + `full`/`visual`/`journey:{name}`/`discover` + `low`/`medium`/`high`/`xhigh`/`max` (effort, auto-derived if omitted) |
 | `/claude-tweaks:wrap-up` | Reflect, capture learnings, clean up | spec # |
 
 ## Component (standalone or called by lifecycle skills)
