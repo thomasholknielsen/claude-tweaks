@@ -198,7 +198,7 @@ When it's unclear which case applies, default to overlapping superset (the conse
 
 ## Step 2.5: Derive Review Effort
 
-Resolve a `review-effort` tier — one of `low` / `medium` / `high` / `xhigh` / `max`, the same vocabulary Claude Code's native `/code-review` command uses for its own effort argument — before dispatching Step 3's lenses. This tier gates which lenses run (Step 3), whether cross-lens debate runs (Step 3.5), and how findings surface (`step3-routing.md`). It is never persisted back to the work record — it's derived fresh on every review run, unlike `risk:*`/`effort:*`/`ceremony:*`.
+Resolve a `review-effort` tier — one of `low` / `medium` / `high` / `xhigh` / `max` — before dispatching Step 3's lenses. This tier gates which lenses run (Step 3), whether cross-lens debate runs (Step 3.5), and how findings surface (`step3-routing.md`). It is never persisted back to the work record — it's derived fresh on every review run, unlike `risk:*`/`effort:*`/`ceremony:*`.
 
 Resolution order — stop at the first that applies:
 
@@ -261,7 +261,7 @@ The severity scale, category enum, per-lens floors, and the CALIBRATION filter a
 | 3h UX (when QA data) | high | Capable model — judgment-heavy synthesis. |
 | 3i Doc freshness | low / informational | Never blocks the review. |
 
-**Lens scope by `review-effort` tier** (resolved in Step 2.5): lower tiers dispatch fewer agent-based lenses, trading breadth for speed and higher-confidence-only output — mirroring native `/code-review`'s own effort semantics (fewer, higher-confidence findings at the low end; broader coverage at the high end).
+**Lens scope by `review-effort` tier** (resolved in Step 2.5): lower tiers dispatch fewer agent-based lenses, trading breadth for speed and higher-confidence-only output; higher tiers trade speed for broader coverage.
 
 | Tier | Agent-dispatched lenses in scope |
 |------|------|
