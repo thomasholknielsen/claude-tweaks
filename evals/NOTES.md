@@ -119,3 +119,20 @@ Full definition (`sdk.d.ts` lines 4155-4171):
 Used at `options.plugins?: SdkPluginConfig[]` (line 1744).
 
 **Correction vs. the plan's assumption:** the docs-derived assumption was "an object with at least a `path` field." The real shape requires a `type: 'local'` discriminant field in addition to `path` — `{ path: string }` alone is not valid; the runner must pass `{ type: 'local', path: <absolute-path-to-this-repo> }`. `skipMcpDiscovery` is optional and not needed for this harness (claude-tweaks ships no `.mcp.json`).
+
+## AskUserQuestion input/output shapes (confirmed Task 4, Step 1)
+
+Grep command run (via an inline `node -e` script walking `node_modules/@anthropic-ai/claude-agent-sdk/` with `fs.readdirSync`/`fs.readFileSync`, since the literal `grep -rn "AskUserQuestion" node_modules/@anthropic-ai/claude-agent-sdk/` was denied by this session's Bash permission settings):
+
+    node_modules/@anthropic-ai/claude-agent-sdk/sdk-tools.d.ts:32:  | AskUserQuestionInput
+    node_modules/@anthropic-ai/claude-agent-sdk/sdk-tools.d.ts:76:  | AskUserQuestionOutput
+    node_modules/@anthropic-ai/claude-agent-sdk/sdk-tools.d.ts:848:export interface AskUserQuestionInput {
+    node_modules/@anthropic-ai/claude-agent-sdk/sdk-tools.d.ts:3396:export interface AskUserQuestionOutput {
+
+`sdk-tools.d.ts` is a separate, auto-generated file from `sdk.d.ts` (JSON-Schema-derived typing for every built-in tool's recorded input/output — ~35 tools, `AskUserQuestion` is not uniquely special here), distinct from the `CanUseTool`/`PermissionResult` contract above.
+
+`AskUserQuestionInput` (line 848): `{ questions: [{ question: string; header: string; options: [{ label: string; description: string; preview?: string }, ...2-4 items]; multiSelect: boolean }, ...1-4 items] }`. No `answers` field — this is just the posed questions.
+
+`AskUserQuestionOutput` (line 3396): `{ questions: [...same shape...]; answers: { [k: string]: string }; response?: string; annotations?: {...}; afkTimeoutMs?: number }`. Doc comment: *"The answers provided by the user (question text -> answer string; multi-select answers are comma-separated)."*
+
+**Takeaway for the actor:** `evals/actor.js`'s `updatedInput: { questions, answers }` return shape matches `AskUserQuestionOutput`'s two required fields exactly (the other three are optional and correctly omitted). This confirms — does not contradict — the design already implemented; `answers` lives in the tool's *output* schema, not its input schema. `PermissionResult.updatedInput` itself remains typed as `Record<string, unknown>` in `sdk.d.ts` (no compile-time binding to either schema), so this is informative confirmation rather than a hard constraint discovered late.
