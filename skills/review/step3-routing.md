@@ -44,6 +44,13 @@ Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_
 - Findings table merged from lenses 3a-3i, plus open QA ledger entries with phase `test/qa`.
 - Pipeline run directory (when in auto/hybrid mode).
 - `review-severity-floor` value from `config.yml` (default `low`).
+- The resolved `review-effort` tier from `/claude-tweaks:review`'s Step 2.5.
+
+**Effort-tier surfacing.** By default (`review-effort` at `low`/`medium`/`high`), this table includes only `confirmed` findings — `unconfirmed` (single-source, or debate converged negative) and `contested` (debate inconclusive) findings bypass this table entirely and route straight to the Wrap-Up Review Console's Low-confidence and Contested subsections, unchanged from this skill's pre-existing behavior.
+
+At **`xhigh`**, `unconfirmed` findings additionally appear inline in this table too — add them as ordinary rows with `(low-confidence)` appended to the Finding column, alongside the `confirmed` rows. They still also get staged to the Wrap-Up Console as before (surfacing inline doesn't remove the staging).
+
+At **`max`**, `contested` findings additionally appear inline as well — add them as ordinary rows with `(contested — {debate verdicts})` appended to the Finding column, summarizing the side-by-side verdicts from Step 3.5's debate. They still also get staged to `staged/review-contested-{N}.md` as before.
 
 **Every finding from lenses 3a-3i must be explicitly resolved.** When lenses were dispatched as parallel Task agents, merge their results into a single table here: combine all findings, preserve their category labels, and de-duplicate — if two lenses flag the same issue, keep the entry with the higher severity. UX findings from lens 3h, coverage findings from lens 3g-cov, and documentation findings from lens 3i are merged into the batch table alongside code review findings with their respective categories ("UX", "Coverage", "Docs").
 
