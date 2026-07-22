@@ -1,0 +1,24 @@
+name: review-catches-planted-bugs
+description: >
+  Does /claude-tweaks:review find planted defects of known severity without
+  false-positiving on clean code nearby?
+fixture:
+  base: minimal-node-repo
+  seed:
+    - apply-patch: planted-bugs.patch
+skill_invocation:
+  prompt: "/claude-tweaks:review"
+answer_overrides:
+  - match: "review-effort"
+    answer: "medium"
+assertions:
+  - type: findings-include
+    severity: high
+    contains: "src/auth.js"
+  - type: findings-include
+    severity: medium
+    contains: "src/utils.js"
+  - type: findings-exclude-false-positive
+    files: ["src/clean-module.js"]
+  - type: tool-count
+    max: 60
