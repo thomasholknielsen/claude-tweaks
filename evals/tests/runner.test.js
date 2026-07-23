@@ -17,6 +17,18 @@ async function* fakeQuery({ prompt, options }) {
   yield { type: 'result', total_cost_usd: 0.01, usage: { input_tokens: 100, output_tokens: 50 } };
 }
 
+// Captures the options object the fake queryFn was invoked with, so a test
+// can assert on the managedSettings.sandbox config runner.js wires through —
+// regression coverage for the incident-driven Task 7.5 hardening (a model
+// escaping the fixture via Bash `cd` into the real repo, see task-7.5-brief.md).
+let capturedOptions = null;
+async function* fakeQueryCapturingOptions({ prompt, options }) {
+  capturedOptions = options;
+  await options.canUseTool('Read', { file_path: '/tmp/x' }, {});
+  yield { type: 'assistant', message: { content: [{ type: 'text', text: 'No findings — code is clean.' }] } };
+  yield { type: 'result', total_cost_usd: 0.01, usage: { input_tokens: 100, output_tokens: 50 } };
+}
+
 // A multi-message fake matching real /claude-tweaks:review shape: a findings
 // table appears in an early assistant message, followed by later narrative
 // messages (e.g. Implementation Hindsight, Simplify, or a cascaded next
@@ -94,4 +106,34 @@ test('runScenarioWith: resultText accumulates across assistant messages so an ea
 
   assert.strictEqual(result.allPassed, true, JSON.stringify(result.assertions));
   assert.strictEqual(result.assertions[0].pass, true);
+});
+
+test('runScenarioWith: wires managedSettings.sandbox into the SDK options to contain Bash-tool filesystem/network access to the fixture (Task 7.5 hardening)', async () => {
+  const scenariosDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-scen-'));
+  const scenarioPath = path.join(scenariosDir, 'sample.yaml');
+  fs.writeFileSync(scenarioPath, [
+    'name: sample-sandbox',
+    'fixture:',
+    '  base: none',
+    '  seed: []',
+    'skill_invocation:',
+    '  prompt: "hello"',
+    'assertions:',
+    '  - type: tool-called',
+    '    name: Read',
+    '    atLeast: 1',
+  ].join('\n'));
+
+  const resultsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-results-'));
+
+  capturedOptions = null;
+  await runScenarioWith(scenarioPath, { queryFn: fakeQueryCapturingOptions, resultsDir, fixturesDir: scenariosDir });
+
+  assert.ok(capturedOptions, 'queryFn should have been invoked with an options object');
+  assert.deepStrictEqual(capturedOptions.managedSettings.sandbox, {
+    enabled: true,
+    failIfUnavailable: true,
+    allowUnsandboxedCommands: false,
+    network: { allowedDomains: [] },
+  });
 });

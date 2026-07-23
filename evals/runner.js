@@ -60,6 +60,14 @@ export async function runScenarioWith(scenarioPath, opts = {}) {
     options: {
       cwd: repoDir,
       plugins: [{ type: 'local', path: PLUGIN_ROOT }],
+      managedSettings: {
+        sandbox: {
+          enabled: true,
+          failIfUnavailable: true,
+          allowUnsandboxedCommands: false,
+          network: { allowedDomains: [] },
+        },
+      },
       canUseTool: async (toolName, input, options) => {
         toolCalls.push(toolName);
         return actor(toolName, input, options);
