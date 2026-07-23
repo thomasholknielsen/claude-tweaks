@@ -47,7 +47,7 @@ export async function runScenarioWith(scenarioPath, opts = {}) {
   const { queryFn = realQuery, resultsDir = RESULTS_DIR, fixturesDir = FIXTURES_DIR } = opts;
   const scenario = loadYaml(fs.readFileSync(scenarioPath, 'utf8'));
   const repoDir = buildFixture(scenario, fixturesDir);
-  const actor = createActor({ answerOverrides: scenario.answer_overrides });
+  const actor = createActor({ answerOverrides: scenario.answer_overrides, repoDir });
 
   const toolCalls = [];
   let resultText = '';

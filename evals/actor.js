@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 // canUseTool callback (Claude Agent SDK @anthropic-ai/claude-agent-sdk@0.3.217):
 //   CanUseTool = (toolName, input, options) => Promise<PermissionResult | null>
 //   PermissionResult = {behavior:'allow', updatedInput?, ...} | {behavior:'deny', message, ...}
@@ -26,9 +28,52 @@ function findOverride(question, answerOverrides) {
   return (answerOverrides || []).find((o) => question.toLowerCase().includes(o.match.toLowerCase()));
 }
 
-export function createActor({ answerOverrides = [] } = {}) {
+// Scope guard: when a repoDir is supplied, deny any non-AskUserQuestion tool
+// call whose path-like input resolves to a path OUTSIDE repoDir. Checks
+// whichever of file_path/path/notebook_path is present on the tool's input
+// (the SDK's built-in file tools all use one of these three keys). A call
+// with none of these keys present is allowed regardless of repoDir, since
+// there is no path to check.
+//
+// Known, accepted limitation: this does NOT inspect or restrict Bash command
+// text — there is no reliable way to parse an arbitrary shell command string
+// into a target path, so a Bash call is always allowed unmodified by this
+// guard. This narrows the fix to what's mechanically checkable; it is not a
+// full sandbox.
+const PATH_INPUT_KEYS = ['file_path', 'path', 'notebook_path'];
+
+function findPathInput(input) {
+  for (const key of PATH_INPUT_KEYS) {
+    if (input && Object.prototype.hasOwnProperty.call(input, key)) {
+      return { key, value: input[key] };
+    }
+  }
+  return null;
+}
+
+// Resolved-candidate must be exactly the repo dir, or nested under it via a
+// real path.sep boundary — a plain string-prefix check would incorrectly
+// treat a sibling directory like "/tmp/ct-eval-123-evil" as inside
+// "/tmp/ct-eval-123".
+function isInsideRepoDir(candidatePath, resolvedRepoDir) {
+  const resolvedCandidate = path.resolve(candidatePath);
+  return resolvedCandidate === resolvedRepoDir || resolvedCandidate.startsWith(resolvedRepoDir + path.sep);
+}
+
+export function createActor({ answerOverrides = [], repoDir } = {}) {
+  const resolvedRepoDir = repoDir ? path.resolve(repoDir) : null;
+
   return async function canUseTool(toolName, input, _options) {
     if (toolName !== 'AskUserQuestion') {
+      if (resolvedRepoDir) {
+        const pathInput = findPathInput(input);
+        if (pathInput && !isInsideRepoDir(pathInput.value, resolvedRepoDir)) {
+          return {
+            behavior: 'deny',
+            message: `Scope guard: ${toolName}'s "${pathInput.key}" (${pathInput.value}) resolves outside the fixture repoDir (${resolvedRepoDir}) and was denied.`,
+          };
+        }
+      }
       return { behavior: 'allow', updatedInput: input };
     }
     const answers = {};
