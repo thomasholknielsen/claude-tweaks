@@ -188,6 +188,18 @@ function resolveDebate(verdictA, verdictB) {
   return 'contested';
 }
 
+// Sibling to resolveDebate, not an overload of it — the input/output shape
+// differs on purpose. resolveDebate reconciles two judges into one of three
+// buckets (confirmed/unconfirmed/contested); resolveRefutation takes a
+// single verdict from one falsification agent and only ever moves a finding
+// one direction: a `confirmed` finding that survives refutation stays
+// `confirmed`, one that gets refuted downgrades to `unconfirmed`. There is
+// no "contested" outcome here — a single agent's verdict has no second
+// judge to disagree with.
+function resolveRefutation(verdict) {
+  return verdict === 'refuted' ? 'unconfirmed' : 'confirmed';
+}
+
 function buildReproductionDispatch(taskScope, tier = 'Standard') {
   const prompt = `${taskScope}\n\n[Use: ${tier} model — reproduction agent. Independent run.]`;
   return {
@@ -264,6 +276,7 @@ module.exports = {
   categoriseReproduction,
   detectCrossLensOverlap,
   resolveDebate,
+  resolveRefutation,
   // Dispatch shape builders (pure data — no actual Task() calls)
   buildReproductionDispatch,
   buildDebateDispatch,

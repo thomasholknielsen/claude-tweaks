@@ -177,7 +177,25 @@ gate anywhere).
 
 ## Step 2: Identify What Changed
 
-Analyze `git diff` (or `git diff` against the base branch) to understand the scope:
+### Merge-Provenance Check
+
+Before analyzing the diff, check whether the base branch was merged into this branch mid-history — content that arrived via such a merge should not be misattributed as work this branch introduced. This was caught concretely during the #45 native-review prototype: a CHANGELOG entry that actually rode into the branch via a merge from `main` was flagged as if it were part of this branch's own work, and was only correctly attributed by manually tracing merge-commit parentage.
+
+```bash
+git log --merges {base}..{branch} --oneline                                      # detect
+git log --first-parent --no-merges {base}..{branch} --name-only --pretty=format:  # own-work files
+git diff {base}...{branch} --name-only                                           # full diff files
+```
+
+`{base}`/`{branch}` reuse whatever base-branch resolution the rest of this step already uses (the base branch, or the recent-commits fallback from Input resolution rule 7) — no new base-resolution logic needed.
+
+- **No merge commits detected** (the common case) — this check is a no-op: no further computation, no new output section. The rest of Step 2 proceeds exactly as before, against the full diff.
+- **Merge commits detected** — diff the "own-work files" list above against the full diff's file list. `--first-parent --no-merges` walks only the branch's own sequential commit chain, skipping content that entered solely through a merge commit's second parent — so files present in the full diff but absent from this list arrived via merge from `{base}`, not this branch's own work. Report them separately ("arrived via merge from {base}, not this branch's own work"), stating the count of files/lines excluded and why, feeding Step 7's summary. Do not fold them silently into "what changed."
+- The **own-work scope** (not the raw `git diff` scope) is what feeds the change analysis below, and what Step 3's lens dispatch and Step 3.5's debate dispatch review — merged-in-only content is excluded from review scope by default.
+
+Not to be confused with "Reusing a Prior Whole-Branch Review" below — that handles a *later spec's* review citing an *earlier spec's already-completed* whole-branch review in a multi-spec batch; this check handles what's *in the diff at all* for a single review, independent of whether any prior review exists.
+
+Analyze `git diff` (or `git diff` against the base branch) — scoped to the own-work file set above when merge commits were detected — to understand the scope:
 
 - Which files changed and in which packages/apps
 - Lines added/removed
@@ -198,7 +216,7 @@ When it's unclear which case applies, default to overlapping superset (the conse
 
 ## Step 2.5: Derive Review Effort
 
-Resolve a `review-effort` tier — one of `low` / `medium` / `high` / `xhigh` / `max` — before dispatching Step 3's lenses. This tier gates which lenses run (Step 3), whether cross-lens debate runs (Step 3.5), and how findings surface (`step3-routing.md`). It is never persisted back to the work record — it's derived fresh on every review run, unlike `risk:*`/`effort:*`/`ceremony:*`.
+Resolve a `review-effort` tier — one of `low` / `medium` / `high` / `xhigh` / `max` — before dispatching Step 3's lenses. This tier gates which lenses run (Step 3), whether cross-lens debate and the per-candidate refutation pass run (Step 3.5), whether the gap-sweep pass runs (Step 3.6), and how findings surface (`step3-routing.md`). It is never persisted back to the work record — it's derived fresh on every review run, unlike `risk:*`/`effort:*`/`ceremony:*`.
 
 Resolution order — stop at the first that applies:
 
@@ -277,7 +295,7 @@ Reproduction pairs (the 2-agent verification dispatch below) always run for ever
 
 At `xhigh` and `max`, append this sentence to each dispatched lens's prompt, after the Output Format block (do not modify the CALIBRATION block itself — it stays byte-identical across all tiers, per `step3-routing.md`'s dispatch contract): "Apply careful, thorough reasoning to this pass — consider subtle edge cases and second-order effects a faster read might miss." This is a best-effort prompt-level nudge, not a verified change to the dispatched agent's actual reasoning depth — the lens-scope table above is the load-bearing mechanism.
 
-> **Working Directory Discipline:** Applies to every `Task()` dispatch in Step 3 and Step 3.5 (reproductions and debate agents). Apply the Working Directory Discipline rule from `_shared/subagent-output-contract.md` before any git or path-sensitive command in the agent prompt. See also `_shared/git-discipline.md`.
+> **Working Directory Discipline:** Applies to every `Task()` dispatch in Step 3, Step 3.5, and Step 3.6 (reproduction, debate, refutation, and gap-sweep agents). Apply the Working Directory Discipline rule from `_shared/subagent-output-contract.md` before any git or path-sensitive command in the agent prompt. See also `_shared/git-discipline.md`.
 
 > **Parallel execution:** Before running any lens, gather all context upfront — read all changed files and their surrounding context (imports, tests, schemas) as parallel Read/Grep calls. Each lens needs the same files, so front-loading reads avoids redundant I/O.
 
@@ -412,7 +430,11 @@ Like other Lens 3i findings, these are informational and don't block review — 
 - Signal detection produced no matches → emit nothing (most reviews trigger zero diagram findings; this is correct)
 - A matching diagram already exists → emit nothing (we're not gating on freshness for diagrams since they're hand-drawn)
 
-### Step 3.5: Cross-Lens Debate
+### Step 3.5: Cross-Lens Debate & Per-Candidate Refutation
+
+Two independent findings-quality mechanisms live in this step, each gated at its own `review-effort` tier (Step 2.5). Cross-Lens Debate resolves contradictions between different lenses reviewing the same region. The Per-Candidate Refutation Pass re-examines every individually `confirmed` finding for correlated error that reproduction-pair agreement alone can't catch — two reproduction agents sharing the same blind spot, or the same miscalibration, still agree with each other. They operate on different inputs — debate on cross-lens contradiction pairs, refutation on the whole `confirmed` bucket once debate has resolved — and both can fire in the same `xhigh`/`max` review without interfering with each other.
+
+#### Cross-Lens Debate
 
 **Skip this entire step when the resolved `review-effort` tier (Step 2.5) is `low` or `medium`** — contested findings remain `unconfirmed`/staged without a debate round, trading resolution depth for speed at the lower tiers, matching Step 3's own narrower lens scope there. At `high` and above, run as follows:
 
@@ -454,7 +476,70 @@ After per-lens reproduction completes, scan for contradictions across lenses bef
 
 5. **Skip debate** when no overlap is detected, or when only one lens covered a region. Avoid running debate on every `Path:Line` where any two lenses touched — that explodes the token budget for no value.
 
-After Step 3.5, every finding has a final bucket — `confirmed`, `unconfirmed`, or `contested`. Only `confirmed` findings flow into Step 3 Routing. `unconfirmed` and `contested` are already staged to the Wrap-Up Console.
+#### Per-Candidate Refutation Pass
+
+**Skip this entire step when the resolved `review-effort` tier (Step 2.5) is not `xhigh` or `max`** — one tier stricter than Cross-Lens Debate's `high`+ gate above, so `high`-tier reviews aren't paying for both mechanisms at once. At `xhigh` and `max`, run as follows:
+
+This is explicitly NOT a second reproduction pair — reproduction pairs (Step 3) check agreement between two initial readers; refutation is a distinct, later agent whose only job is to try to break a finding that already survived that agreement. Correlated error (both reproduction agents sharing the same blind spot, or the same miscalibration) is exactly what agreement alone can't catch. This was caught concretely during the #45 native-review prototype: a dedicated verifier subagent, dispatched per surviving candidate finding with the explicit job of trying to falsify it using fresh evidence-gathering, caught false positives that reproduction-pair agreement alone had let through.
+
+> **Parallel execution:** Dispatch one refutation agent per `confirmed` candidate as parallel Task agents — each runs independently, sees only its own candidate finding (not the other candidates or the lens's original reasoning chain), and returns a `refuted`/`not-refuted` verdict. Assemble results after all agents complete.
+
+1. **Collect candidates.** Once Cross-Lens Debate above has resolved, take the full `confirmed` bucket — every finding that would otherwise proceed to Step 3 Routing, whether it got there via plain reproduction or via debate converging positive.
+
+2. **Dispatch one refutation agent per candidate, given fresh file access.** Each agent gets the finding's path/line/severity/evidence and fresh read access to the actual current file content (not the finding's cached evidence text) — instructed to actively try to falsify it: re-trace whether the claimed failure is actually reachable, verify the cited evidence still matches the current code, and challenge the reasoning rather than restate it. Inline this template literally in each `Task()` prompt:
+>
+>    ```
+>    You are trying to FALSIFY this finding, not confirm it. Re-read the actual current file
+>    content at {path}:{line} (do not trust the cached evidence text below) and determine
+>    whether the claimed issue is real and reachable.
+>
+>    First line: one of DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED. Then:
+>    1. Verdict: refuted / not-refuted
+>    2. One paragraph of reasoning, citing what you actually found in the current file.
+>
+>    Candidate finding: {path}:{line}
+>    Severity: {severity}  Category: {category}
+>    Finding: {finding text}
+>    Cached evidence: {evidence text}
+>
+>    [Use: Capable model — refutation agent. Independent run; fresh file read, not the
+>    lens's original context.]
+>    ```
+
+3. **Resolve.** Apply `resolveRefutation`:
+   ```bash
+   node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/coordination.js');
+     console.log(c.resolveRefutation(process.argv[1]))" "$VERDICT"
+   ```
+   - `refuted` → finding downgraded to `unconfirmed` (lands in Low-confidence subsection). Write `AUTO {HH:MM:SS} — Refutation: {path}:{line} refuted — {one-line reasoning}. Downgraded to unconfirmed. Reversibility: high.`
+   - `not-refuted` → finding proceeds unchanged toward Step 3 Routing. Write `AUTO {HH:MM:SS} — Refutation: {path}:{line} not refuted — stands as confirmed. Reversibility: high.`
+
+After Step 3.5, every finding has a final bucket — `confirmed`, `unconfirmed`, or `contested`. A `confirmed` finding downgraded by the Per-Candidate Refutation Pass above joins `unconfirmed` with the same visibility rules as any other unconfirmed finding. Only `confirmed` findings flow into Step 3 Routing. `unconfirmed` and `contested` are already staged to the Wrap-Up Console.
+
+### Step 3.6: Gap-Sweep / Completeness Critic
+
+**Skip this entire step when the resolved `review-effort` tier (Step 2.5) is not `xhigh` or `max`** — the same gate as the Per-Candidate Refutation Pass above, one tier stricter than Cross-Lens Debate's `high`+ gate, since this stacks additional cost on top of an already-thorough pass. At `low`/`medium`/`high`, this step is a no-op: no dispatch, nothing added to the summary. At `xhigh` and `max`, run as follows:
+
+Each of lenses 3a-3i is angle-scoped by construction — 3b only looks for security issues, 3e only architecture, and so on — so a real defect that doesn't cleanly fit any single lens's angle can pass through every lens unflagged. This step asks the question none of them do: what did every lens, collectively, miss? This was caught concretely during the #45 native-review prototype: its own final "what did we miss" fresh-eyes pass caught 2 of 4 real findings that none of the angle-based finders surfaced.
+
+Dispatch **exactly one** Capable-model (Opus) agent — **not a reproduction pair**. A fresh-eyes pass loses its value if paired/averaged against a second identical fresh-eyes agent, so resist the urge to "fix" this into a pair even though the pattern immediately above (Cross-Lens Debate, Per-Candidate Refutation Pass) dispatches multiple agents per unit of work — this step is deliberately single-source. Give the agent: the diff scope from Step 2 (the branch's-own-work scope when the Merge-Provenance Check found merge commits) and a compact list of what lenses 3a-3i already flagged — `path:line` + one-line summary for every `confirmed` and `unconfirmed` finding so far, after Step 3.5's debate and refutation have both resolved. Inline this template literally in the `Task()` prompt, per the Subagent Contract (`_shared/subagent-output-contract.md`) — Template A output:
+
+```
+You are a fresh-eyes reviewer. The following lenses have already reviewed this diff and
+produced these findings: {already-flagged findings list, path:line + one-line summary}.
+Do NOT restate any of these. Find genuine gaps — real defects the above list does not
+already cover. If you find nothing beyond what's already flagged, return "No findings."
+
+[... CALIBRATION + OUTPUT FORMAT block, byte-identical to the per-lens dispatch contract
+in step3-routing.md ...]
+
+[Use: Capable model — gap-sweep agent. Independent run; single dispatch, not a
+reproduction pair.]
+```
+
+Findings returned are tagged with an internal `source: gap-sweep` marker (parallel to how lenses tag findings with their own lens name for Step 3 Routing's Category column) and inserted directly into the `unconfirmed` bucket — the same confidence tier a single-source, non-reproduction-paired lens finding gets. They are **not** auto-promoted to `confirmed` — there's no second agent to reproduce them against, by design. This reuses `step3-routing.md`'s existing `xhigh`/`max` inline-visibility rules (unconfirmed findings surface inline at `xhigh`+) — no new routing table needed. Write `STAGED {HH:MM:SS} — Gap-sweep: {path}:{line} — {one-line finding}. Staged to Review Console as low-confidence (gap-sweep, single-source by design). Reversibility: high.`
+
+If the agent returns "No findings," log that and add nothing to the summary — matches the existing per-lens "No findings" convention. No decision-log entry is needed for a zero-findings pass.
 
 ### Step 3 Routing — Code Review Findings
 
