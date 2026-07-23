@@ -1,6 +1,7 @@
 ---
 name: claude-tweaks:demo
 description: Use when you want to sweep every built-but-unsigned-off work record — or recap and sign off on ad hoc work from this same conversation that has no work record at all — and give each one a human verdict, approve or request changes. The durable acceptance gate distinct from tests passing (/test) and code-quality review (/review). Keywords - acceptance, sign-off, demo, verification brief, human verdict, demo:pending, session-recall.
+argument-hint: "[#N]"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 

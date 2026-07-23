@@ -1,6 +1,7 @@
 ---
 name: claude-tweaks:capture
 description: Use when capturing ideas that need specification later — brain dumps, half-formed features, things to not forget
+argument-hint: '<idea text> [--route=challenge|brainstorm|keep|absorb:N] [--title="..."]'
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 

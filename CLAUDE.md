@@ -105,6 +105,7 @@ Every skill follows this structure:
 - **`name`** — required. Format: `claude-tweaks:{skill}`.
 - **`description`** — required. Trigger sentence ("Use when …") followed by optional keywords.
 - **`allowed-tools`** — **omit by default**. Skills inherit the global tool set when this field is absent. Declare `allowed-tools:` only to **restrict** — e.g., a read-only auditing skill that should never modify files would declare `allowed-tools: Read, Grep, Glob, Bash`. Declaring a narrow set (like `allowed-tools: Bash`) when the skill actually uses Read/Edit/Glob/Task is a bug — it either lies about the contract or silently breaks the skill if the harness enforces it. When in doubt, omit the field.
+- **`argument-hint`** — required whenever a skill's `## Input` section documents any accepted argument grammar; omit only for the rare skill that takes no arguments at all (e.g. `/claude-tweaks:triage`). Shows as greyed-out placeholder text in the terminal when the user types `/claude-tweaks:{skill}` — purely cosmetic, has no effect on how `$ARGUMENTS`/`$1`/`$2` are parsed at runtime. Always quote the value (`"..."`, or `'...'` when the hint itself contains a literal `"`) — an unquoted value starting with `[` is invalid YAML (parsed as a flow sequence, not a string). Derive the hint directly from the skill's own `## Input` section — same bracket/pipe convention as `.claude/commands/*.md`: `[optional]`, `<required>`, `a|b` for alternatives. Keep it in sync when `## Input` changes.
 
 ### Interaction style directive
 
