@@ -397,12 +397,24 @@ test('refutation: not-refuted verdict leaves the finding confirmed', () => {
 
 test('refutation: is a sibling of resolveDebate, not an overload — single verdict in, two buckets out, no "contested" outcome', () => {
   // resolveDebate takes two verdicts and can produce 'contested'; resolveRefutation
-  // takes exactly one and never does — any non-'refuted' string (including a
+  // takes exactly one and never does — every non-'not-refuted' string (including a
   // stray 'partial'-style value, which is meaningful for debate but not here)
-  // falls through to 'confirmed', not a third bucket.
+  // falls through to 'unconfirmed', not a third bucket.
   assert.strictEqual(c.resolveRefutation('not-refuted'), 'confirmed');
-  assert.strictEqual(c.resolveRefutation('partial'), 'confirmed');
+  assert.strictEqual(c.resolveRefutation('partial'), 'unconfirmed');
   assert.notStrictEqual(c.resolveRefutation, c.resolveDebate);
+});
+
+test('refutation: fails toward scrutiny, not away from it — a missing, empty, or malformed verdict (e.g. from a BLOCKED or unparseable dispatch) downgrades to unconfirmed rather than silently standing as confirmed', () => {
+  // This is the opposite fail-safety direction from a naive "anything but the
+  // negative case defaults to the positive case" implementation. A failed
+  // refutation attempt must never be indistinguishable from a genuine
+  // "not-refuted" verdict — see resolveDebate's own conservative default,
+  // which this mirrors.
+  assert.strictEqual(c.resolveRefutation(undefined), 'unconfirmed');
+  assert.strictEqual(c.resolveRefutation(''), 'unconfirmed');
+  assert.strictEqual(c.resolveRefutation('refuted'), 'unconfirmed');
+  assert.strictEqual(c.resolveRefutation('REFUTED'), 'unconfirmed'); // exact-match only, no case-folding
 });
 
 test('/review refutation integration: confirmed findings surviving reproduction each get exactly one refutation dispatch; refuted ones join the unconfirmed bucket', () => {
