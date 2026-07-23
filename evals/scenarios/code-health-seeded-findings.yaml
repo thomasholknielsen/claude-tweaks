@@ -1,0 +1,56 @@
+name: code-health-seeded-findings
+description: >
+  Does /claude-tweaks:code-health run its JUDGE -> VERIFY GATE -> FINGERPRINT/DEDUP
+  pipeline to completion and persist its local dedup cache even when gh/GitHub is
+  unreachable (this fixture repo has no real remote at all), rather than erroring
+  out or silently leaving no trace? Per skills/code-health/SKILL.md Step 2, the
+  skill is documented to treat "gh unavailable" as a graceful degrade (ISSUES_FILE=""
+  -> dedup against the local cache only) rather than a hard failure — this scenario
+  exercises that path for real. Investigation (see .superpowers/sdd/task-7-report.md)
+  found no GitHub-issue-filing assertion is meaningful here: bin/code-health.js's
+  validate-findings always calls writeCache(root, cache) unconditionally whenever
+  --dry-run is not passed, regardless of whether gh is reachable or any finding
+  actually reached "file" tier, and the durable health-state branch write
+  (bin/lib/health-core/durable-state.js) never throws even when the fixture has no
+  "origin" remote at all — so the local cache file's existence is the one
+  degrade-path artifact this fixture can reliably assert on. Dedup-across-runs
+  (a second invocation reusing the same fixture instance) is NOT covered here:
+  runner.js's buildFixture always creates a fresh temp repo per run, and adding a
+  --repo-dir override to test that is out of this task's scope (see task-7-report.md).
+  KNOWN OPEN ISSUE (see task-7-report.md's Real run section for the full incident
+  writeup): the one real run made against this scenario during authoring did NOT
+  validate against this fixture at all — the model, cued by the harness's own
+  auto-injected "Base directory for this skill: <real-worktree-absolute-path>"
+  line, `cd`-ed via Bash into the actual live claude-tweaks checkout instead of
+  staying in the fixture repoDir the SDK's `options.cwd` set, bypassing
+  evals/actor.js's path-based scope guard entirely (Bash command text isn't
+  inspected — a known, documented, accepted residual gap). As a real
+  consequence it filed a real GitHub issue on the live repo, which this task
+  then had to close. This scenario's fixture/assertions are believed structurally sound
+  (see the reasoning above) but are UNCONFIRMED by any clean real pass — treat a
+  future real run of this scenario as carrying the same live-repo-escape risk
+  until that harness-level gap is addressed (out of this task's scope to fix).
+fixture:
+  base: code-health-repo
+  seed: []
+skill_invocation:
+  prompt: "/claude-tweaks:code-health"
+answer_overrides:
+  # The interactive filing-gate question ("How do you want to handle these
+  # findings?") is deliberately left at its default Recommended answer
+  # ("Apply all recommended") — that's what actually exercises the real
+  # gh-unavailable `gh issue create` failure path this scenario is testing.
+  # Only the trailing "## Next Actions" question is steered here, to a
+  # deliberately low-cost, non-cascading option (Capture just files a backlog
+  # entry) — every other option ("Promote to a spec", "Re-run elsewhere",
+  # "Backlog hygiene") would launch a second, larger skill invocation
+  # (/specify, a whole second /code-health sweep, or /tidy) on top of this
+  # scenario's own real API cost, per runner.js's documented "the agent may
+  # keep going into whatever it recommended next" behavior.
+  - match: "what's next"
+    answer: "Capture"
+assertions:
+  - type: file-exists
+    path: .claude-tweaks/code-health/cache.json
+  - type: tool-count
+    max: 150
