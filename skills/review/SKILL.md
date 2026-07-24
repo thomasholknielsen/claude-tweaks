@@ -1,7 +1,7 @@
 ---
 name: claude-tweaks:review
 description: Use when a build is complete and you need analytical judgment on code quality, correctness, and simplicity before wrapping up. Gates on /claude-tweaks:test passing. The quality gate between implementation and lifecycle cleanup.
-argument-hint: "[<spec-number> [full]|<file-path>...|visual <url>|journey:<name>|discover] [low|medium|high|xhigh|max]"
+argument-hint: "[<spec-number>|<file-path>...|visual <url-or-description>|journey:<name>|discover] [full] [low|medium|high|xhigh|max]"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -50,8 +50,8 @@ the run) — unchanged. See
 
 | Mode | Syntax | What runs |
 |------|--------|-----------|
-| **code** (default) | `/claude-tweaks:review 42` | Steps 1-7: spec compliance, test gate, change analysis, code review, hindsight, simplification, summary |
-| **full** | `/claude-tweaks:review 42 full` | Code review (Steps 1-5) + visual browser review via `/claude-tweaks:visual-review` (Step 6) + summary (Step 7) |
+| **code** (default) | `/claude-tweaks:review 42` | Steps 1-7, including Step 6 (visual-review recommendation only, non-blocking) and Step 6.5 (Design Quality Pass via Impeccable): spec compliance, test gate, change analysis, code review, hindsight, simplification, visual-review recommendation, design quality pass, summary |
+| **full** | `/claude-tweaks:review 42 full` | Code review (Steps 1-5) + visual browser review via `/claude-tweaks:visual-review` (Step 6) + Design Quality Pass via Impeccable (Step 6.5) + summary (Step 7) |
 | **visual** | `/claude-tweaks:review visual {url}` | Delegates entirely to `/claude-tweaks:visual-review` — page mode |
 | **journey** | `/claude-tweaks:review journey:{name}` | Delegates entirely to `/claude-tweaks:visual-review` — journey mode |
 | **discover** | `/claude-tweaks:review discover` | Delegates entirely to `/claude-tweaks:visual-review` — discover mode |
@@ -70,11 +70,11 @@ When invoked by `/claude-tweaks:flow`, review runs in **full** mode by default (
 
 1. **Spec number** (e.g., "42") — find all files changed for that spec via git history. Mode: code.
 2. **Spec number + `full`** (e.g., "42 full") — code review + visual browser review
-3. **File paths** — review those specific files. Mode: code.
+3. **File paths** — review those specific files. Mode: code. Append `full` (e.g. `/claude-tweaks:review src/foo.ts full`) to run full mode instead — code review scoped to those files, followed by a visual browser review pass (Step 6). With no spec to resolve an explicit journey/URL target, Step 6 falls back to `/claude-tweaks:visual-review discover`'s own UI-file/affected-journey detection, same as code mode's Step 6 behavior.
 4. **`visual` + URL or description** (e.g., "visual http://localhost:3000") — browser review only (page mode)
 5. **`journey:{name}`** (e.g., "journey:checkout") — browser review only (journey mode)
 6. **`discover`** — browser review only (discover mode)
-7. **No arguments** — use `git diff` against the base branch or recent commits to identify changed files. Mode: code.
+7. **No arguments** — use `git diff` against the base branch or recent commits to identify changed files. Mode: code. Append `full` (e.g. `/claude-tweaks:review full`) to run full mode on this same git-diff-derived scope — code review followed by a visual browser review pass (Step 6), resolved via `/claude-tweaks:visual-review discover`'s UI-file/affected-journey detection since no spec exists to look up an explicit target.
 8. **Effort token** — the literal `low`, `medium`, `high`, `xhigh`, or `max`, appearing anywhere among the other tokens above (e.g. `/claude-tweaks:review 42 high` or `/claude-tweaks:review 42 full xhigh`). Sets the `review-effort` tier explicitly (see Step 2.5), overriding derivation. Order-independent relative to the other tokens. Unambiguous against the rest of this grammar — spec numbers are numeric, `full`/`visual`/`journey:`/`discover` are fixed keywords that never collide with the five effort words. A standalone effort token with no other tokens (e.g. `/claude-tweaks:review high`) sets the tier and otherwise falls back to rule 7 — no spec number, so mode resolves via `git diff` against the base branch, same as no arguments at all.
 
 In visual, journey, and discover modes, delegate entirely to `/claude-tweaks:visual-review` — skip Steps 1-7 (an effort token passed alongside one of these mode keywords is silently ignored, since Steps 1-7 are exactly where the lens system it gates lives).
@@ -85,6 +85,8 @@ Skip this step entirely under `ceremony-profile: fast-lane` (see "Ceremony-Aware
 above) — proceed directly to Step 1.5.
 
 If a spec number was provided, read the spec file and verify the implementation meets it:
+
+> **Parallel execution:** Use parallel tool calls aggressively — all Grep/Glob/Read operations searching the codebase for each deliverable's implementation and each criterion's verifiability are independent and should run concurrently.
 
 1. **Deliverables** — for each deliverable checkbox in the spec, search the codebase for the implementation. Mark each as `done`, `partial`, or `missing`.
 2. **Acceptance Criteria** — for each criterion, determine whether it's verifiable from the code and tests. Mark as `met`, `partially met`, or `not met`.
@@ -253,12 +255,14 @@ Resolution order — stop at the first that applies:
 
 3. **Diff heuristic (fallback).** No record, the record carries no `risk:*`/`effort:*` labels, or the label read failed. Derive proxies from Step 2's change analysis and feed the same table above:
    - Risk proxy = **high** if the diff touches a path matching the `merge-sensitive-paths` config key (the same key `assess-agent-autonomy`'s `merge-check` mode already reads for the identical "elevated risk from touched paths" purpose), a schema/migration file, infra/CI-CD config, or introduces a new dependency (Step 2 already flags all of these for its ops-ledger check); **medium** if it touches public API surface or a cross-package interface; **low** otherwise.
-   - Record-effort proxy (size — not the `review-effort` tier being derived here) = **high** at 10+ files or 300+ lines changed; **medium** at 3-9 files or 50-299 lines; **low** otherwise. These thresholds are fixed defaults — no config layer exists for this derivation.
+   - Record-effort proxy (size — not the `review-effort` tier being derived here): read `review-diff-heuristic-thresholds` from `.claude-tweaks/policy.yml` — shape `{high: {files, lines}, medium: {files, lines}}`, default `{high: {files: 10, lines: 300}, medium: {files: 3, lines: 50}}` (matches this skill's pre-existing hardcoded behavior when the key is unset). **high** at `high.files`+ files or `high.lines`+ lines changed; **medium** at `medium.files`-`(high.files - 1)` files or `medium.lines`-`(high.lines - 1)` lines; **low** otherwise.
    - If `git diff` produces no output to classify, default to `high` directly (skip the table) — see the ambiguity rule below.
+
+4. **Project-level floor (non-explicit resolutions only).** After step 2 or 3 above resolves a tier, read `review-effort-floor` from `.claude-tweaks/policy.yml`, mirroring `review-severity-floor`'s existing lookup precedent (`step3-routing.md`). If set, raise the resolved tier to at least the floor — never lower it (e.g. `review-effort-floor: high` turns a diff-heuristic `low` into `high`, but leaves an already-`xhigh` record-label resolution untouched). This step never applies when step 1 (explicit argument) already set the tier — an explicit token always wins, per step 1's rule above. Unset by default — no floor, current behavior unchanged.
 
 **Ambiguity never resolves toward less scrutiny.** If reading record labels fails, fall through to the diff heuristic rather than defaulting to `low`. If the diff heuristic itself can't render a clear signal, default to `high` — the tier that reproduces this skill's pre-existing default behavior — never `low`.
 
-Record the resolved tier and which resolution step produced it, for Step 7's summary: `{explicit argument | record labels: risk:{x} × effort:{y} | diff heuristic: {reasoning}}`.
+Record the resolved tier and which resolution step produced it, for Step 7's summary: `{explicit argument | record labels: risk:{x} × effort:{y} | diff heuristic: {reasoning}}`, plus `floor applied: {value}` when step 4's `review-effort-floor` raised the tier.
 
 ## Step 3: Code Review
 
@@ -431,119 +435,15 @@ Like other Lens 3i findings, these are informational and don't block review — 
 - Signal detection produced no matches → emit nothing (most reviews trigger zero diagram findings; this is correct)
 - A matching diagram already exists → emit nothing (we're not gating on freshness for diagrams since they're hand-drawn)
 
-### Step 3.5: Cross-Lens Debate & Per-Candidate Refutation
+### Step 3.5 & 3.6: Cross-Lens Debate, Per-Candidate Refutation, and Gap-Sweep
 
-Two independent findings-quality mechanisms live in this step, each gated at its own `review-effort` tier (Step 2.5). Cross-Lens Debate resolves contradictions between different lenses reviewing the same region. The Per-Candidate Refutation Pass re-examines every individually `confirmed` finding for correlated error that reproduction-pair agreement alone can't catch — two reproduction agents sharing the same blind spot, or the same miscalibration, still agree with each other. They operate on different inputs — debate on cross-lens contradiction pairs, refutation on the whole `confirmed` bucket once debate has resolved — and both can fire in the same `xhigh`/`max` review without interfering with each other.
+Three effort-gated findings-quality mechanisms run after Step 3's per-lens reproduction completes: Cross-Lens Debate (resolves contradictions between different lenses reviewing the same region), the Per-Candidate Refutation Pass (re-examines every `confirmed` finding for correlated error reproduction-pair agreement alone can't catch), and Gap-Sweep / Completeness Critic (a single fresh-eyes agent asking what every angle-scoped lens, collectively, missed).
 
-#### Cross-Lens Debate
+**Skip all three entirely when the resolved `review-effort` tier (Step 2.5) is `low` or `medium`** — proceed directly to Step 3 Routing below, matching Step 3's own narrower lens scope at those tiers.
 
-**Skip this entire step when the resolved `review-effort` tier (Step 2.5) is `low` or `medium`** — contested findings remain `unconfirmed`/staged without a debate round, trading resolution depth for speed at the lower tiers, matching Step 3's own narrower lens scope there. At `high` and above, run as follows:
+**At `high` and above**, Cross-Lens Debate runs. **At `xhigh` and `max` only**, the Per-Candidate Refutation Pass and Gap-Sweep additionally run (one tier stricter, so `high`-tier reviews aren't paying for all three mechanisms at once). Read `step3-debate-and-refutation.md` in this skill's directory for the full procedure — dispatch templates, `detectCrossLensOverlap`/`resolveDebate`/`resolveRefutation` invocations, and decision-log formats — lazy-loaded only when the resolved tier is `high` or above, following the same lazy-load pattern as `step3-routing.md`.
 
-After per-lens reproduction completes, scan for contradictions across lenses before routing. Two lenses that both flagged the same region with mismatched severity get exactly one debate round to converge or escalate to `contested`. A silent lens — one that reviewed the region but produced no finding there at all — cannot enter this mechanism: `detectCrossLensOverlap` below only pairs findings that exist in *both* lenses' arrays, so the asymmetric "one flagged, the other did not" case has no data to pair against and is never dispatched (see step 5's skip condition).
-
-1. **Detect overlap.** Collect each lens's `confirmed` and `unconfirmed` findings into one `{lensName: [findings...]}` object, write it to a temp file, and call `detectCrossLensOverlap`:
-   ```bash
-   node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/coordination.js');
-     console.log(JSON.stringify(c.detectCrossLensOverlap(require(process.argv[1]))))" \
-     /tmp/findings-by-lens.json
-   ```
-   It returns pairs `{lensA, lensB, findingA, findingB}` for findings on the same `path` within ±5 lines from *different* lenses.
-
-2. **Filter to contradictions.** Each overlap pair already has a finding from both lenses (by construction of step 1) — keep only those where the two findings' severities don't match. Pairs where the severities match (both lenses agree) produce no debate.
-
-3. **Dispatch debate (Mode 2 — 2 agents, 1 round, parallel).** For each contradiction, dispatch 2 agents using the original lens-agents' identity (re-dispatch the affected lens's reviewer with the *stripped opposing finding* as input — no model identity, no reasoning chain, just finding text + evidence). Both judges return `agree | disagree | partial` plus one paragraph of reasoning. Inline this template literally in each `Task()` prompt:
->
->    ```
->    Two lenses disagreed on this region. Review the conflicting findings below and return:
->    First line: one of DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED. Then:
->    1. Verdict: agree / disagree / partial
->    2. One paragraph of reasoning.
->
->    Contested region: {path}:{line}
->    Finding A (lens: {lensA}): {finding text}
->    Finding B (lens: {lensB}): {finding text}
->
->    [Use: Capable model — debate agent. Independent run; do not see the other judge's reasoning.]
->    ```
-
-4. **Resolve.** Apply `resolveDebate`:
-   ```bash
-   node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/coordination.js');
-     console.log(c.resolveDebate(process.argv[1], process.argv[2]))" "$VERDICT_A" "$VERDICT_B"
-   ```
-   - Both `agree` → finding upgraded to `confirmed`. Write `AUTO {HH:MM:SS} — Debate: cross-lens disagreement on {path}:{line} converged positive after 1 round. Reversibility: high.`
-   - Both `disagree` → finding downgraded to `unconfirmed` (lands in Low-confidence subsection). Write `AUTO {HH:MM:SS} — Debate: cross-lens disagreement on {path}:{line} converged negative after 1 round. Reversibility: high.`
-   - Mixed / partial → finding becomes `contested`. Write `STAGED {HH:MM:SS} — Debate: cross-lens disagreement on {path}:{line} inconclusive ({verdicts}). Both verdicts staged. Reversibility: high.` Stage the side-by-side verdicts to `staged/review-contested-{N}.md`.
-
-5. **Skip debate** when no overlap is detected, or when only one lens covered a region. Avoid running debate on every `Path:Line` where any two lenses touched — that explodes the token budget for no value.
-
-#### Per-Candidate Refutation Pass
-
-**Skip this entire step when the resolved `review-effort` tier (Step 2.5) is not `xhigh` or `max`** — one tier stricter than Cross-Lens Debate's `high`+ gate above, so `high`-tier reviews aren't paying for both mechanisms at once. At `xhigh` and `max`, run as follows:
-
-This is explicitly NOT a second reproduction pair — reproduction pairs (Step 3) check agreement between two initial readers; refutation is a distinct, later agent whose only job is to try to break a finding that already survived that agreement. Correlated error (both reproduction agents sharing the same blind spot, or the same miscalibration) is exactly what agreement alone can't catch. This was caught concretely during the #45 native-review prototype: a dedicated verifier subagent, dispatched per surviving candidate finding with the explicit job of trying to falsify it using fresh evidence-gathering, caught false positives that reproduction-pair agreement alone had let through.
-
-> **Parallel execution:** Dispatch one refutation agent per `confirmed` candidate as parallel Task agents — each runs independently, sees only its own candidate finding (not the other candidates or the lens's original reasoning chain), and returns a `refuted`/`not-refuted` verdict. Assemble results after all agents complete.
-
-1. **Collect candidates.** Once Cross-Lens Debate above has resolved, take the full `confirmed` bucket — every finding that would otherwise proceed to Step 3 Routing, whether it got there via plain reproduction or via debate converging positive.
-
-2. **Dispatch one refutation agent per candidate, given fresh file access.** Each agent gets the finding's path/line/severity/evidence and fresh read access to the actual current file content (not the finding's cached evidence text) — instructed to actively try to falsify it: re-trace whether the claimed failure is actually reachable, verify the cited evidence still matches the current code, and challenge the reasoning rather than restate it. Inline this template literally in each `Task()` prompt:
->
->    ```
->    You are trying to FALSIFY this finding, not confirm it. Re-read the actual current file
->    content at {path}:{line} (do not trust the cached evidence text below) and determine
->    whether the claimed issue is real and reachable.
->
->    First line: one of DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED. Then:
->    1. Verdict: refuted / not-refuted
->    2. One paragraph of reasoning, citing what you actually found in the current file.
->
->    Candidate finding: {path}:{line}
->    Severity: {severity}  Category: {category}
->    Finding: {finding text}
->    Cached evidence: {evidence text}
->
->    [Use: Capable model — refutation agent. Independent run; fresh file read, not the
->    lens's original context.]
->    ```
-
-3. **Resolve.** First check the dispatched agent's own status line, per the Subagent Contract (`_shared/subagent-output-contract.md`): a `BLOCKED`/`NEEDS_CONTEXT` status, or a response with no parseable `Verdict:` line, means the refutation attempt itself failed — do not fabricate a verdict for `resolveRefutation`. Treat this case directly: downgrade to `unconfirmed` and write `AUTO {HH:MM:SS} — Refutation: {path}:{line} — dispatch failed ({status}/unparseable verdict), not genuinely re-examined. Downgraded to unconfirmed out of caution. Reversibility: high.` A failed dispatch must never be logged as if a real falsification attempt happened.
-
-   Otherwise, apply `resolveRefutation` to the parsed `Verdict:` value:
-   ```bash
-   node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/coordination.js');
-     console.log(c.resolveRefutation(process.argv[1]))" "$VERDICT"
-   ```
-   `resolveRefutation` itself also fails toward scrutiny on any unrecognized value — only the exact literal `not-refuted` keeps a finding `confirmed`; `refuted` and anything else downgrade to `unconfirmed`. This is defense in depth against a malformed verdict slipping past the explicit status check above, not a substitute for it.
-   - `refuted` → finding downgraded to `unconfirmed` (lands in Low-confidence subsection). Write `AUTO {HH:MM:SS} — Refutation: {path}:{line} refuted — {one-line reasoning}. Downgraded to unconfirmed. Reversibility: high.`
-   - `not-refuted` → finding proceeds unchanged toward Step 3 Routing. Write `AUTO {HH:MM:SS} — Refutation: {path}:{line} not refuted — stands as confirmed. Reversibility: high.`
-
-After Step 3.5, every finding has a final bucket — `confirmed`, `unconfirmed`, or `contested`. A `confirmed` finding downgraded by the Per-Candidate Refutation Pass above joins `unconfirmed` with the same visibility rules as any other unconfirmed finding. Only `confirmed` findings flow into Step 3 Routing. `unconfirmed` and `contested` are already staged to the Wrap-Up Console.
-
-### Step 3.6: Gap-Sweep / Completeness Critic
-
-**Skip this entire step when the resolved `review-effort` tier (Step 2.5) is not `xhigh` or `max`** — the same gate as the Per-Candidate Refutation Pass above, one tier stricter than Cross-Lens Debate's `high`+ gate, since this stacks additional cost on top of an already-thorough pass. At `low`/`medium`/`high`, this step is a no-op: no dispatch, nothing added to the summary. At `xhigh` and `max`, run as follows:
-
-Each of lenses 3a-3i is angle-scoped by construction — 3b only looks for security issues, 3e only architecture, and so on — so a real defect that doesn't cleanly fit any single lens's angle can pass through every lens unflagged. This step asks the question none of them do: what did every lens, collectively, miss? This was caught concretely during the #45 native-review prototype: its own final "what did we miss" fresh-eyes pass caught 2 of 4 real findings that none of the angle-based finders surfaced.
-
-Dispatch **exactly one** Capable-model (Opus) agent — **not a reproduction pair**. A fresh-eyes pass loses its value if paired/averaged against a second identical fresh-eyes agent, so resist the urge to "fix" this into a pair even though the pattern immediately above (Cross-Lens Debate, Per-Candidate Refutation Pass) dispatches multiple agents per unit of work — this step is deliberately single-source. Give the agent: the diff scope from Step 2 (the branch's-own-work scope when the Merge-Provenance Check found merge commits) and a compact list of what lenses 3a-3i already flagged — `path:line` + one-line summary for every `confirmed` and `unconfirmed` finding so far, after Step 3.5's debate and refutation have both resolved. Inline this template literally in the `Task()` prompt, per the Subagent Contract (`_shared/subagent-output-contract.md`) — Template A output:
-
-```
-You are a fresh-eyes reviewer. The following lenses have already reviewed this diff and
-produced these findings: {already-flagged findings list, path:line + one-line summary}.
-Do NOT restate any of these. Find genuine gaps — real defects the above list does not
-already cover. If you find nothing beyond what's already flagged, return "No findings."
-
-[... CALIBRATION + OUTPUT FORMAT block, byte-identical to the per-lens dispatch contract
-in step3-routing.md ...]
-
-[Use: Capable model — gap-sweep agent. Independent run; single dispatch, not a
-reproduction pair.]
-```
-
-Findings returned are tagged with an internal `source: gap-sweep` marker (parallel to how lenses tag findings with their own lens name for Step 3 Routing's Category column) and inserted directly into the `unconfirmed` bucket — the same confidence tier a single-source, non-reproduction-paired lens finding gets. They are **not** auto-promoted to `confirmed` — there's no second agent to reproduce them against, by design. This reuses `step3-routing.md`'s existing `xhigh`/`max` inline-visibility rules (unconfirmed findings surface inline at `xhigh`+) — no new routing table needed. Write `STAGED {HH:MM:SS} — Gap-sweep: {path}:{line} — {one-line finding}. Staged to Review Console as low-confidence (gap-sweep, single-source by design). Reversibility: high.`
-
-Check the agent's status line first, per the Subagent Contract: a `BLOCKED`/`NEEDS_CONTEXT` status, or a response that parses as neither a findings table nor the literal `No findings.`, means the sweep did not actually complete — write `STAGED {HH:MM:SS} — Gap-sweep: dispatch failed ({status}), sweep not genuinely performed. Reversibility: high.` so a persistently broken dispatch stays visible rather than silently reading as "we checked and found nothing." Only a genuine `DONE`/`DONE_WITH_CONCERNS` response with literal `No findings.` text logs nothing further, per the existing per-lens convention — no decision-log entry is needed for an actually-completed zero-findings pass.
+After Step 3.5, every finding has a final bucket — `confirmed`, `unconfirmed`, or `contested`. Only `confirmed` findings flow into Step 3 Routing. `unconfirmed` and `contested` are already staged to the Wrap-Up Console.
 
 ### Step 3 Routing — Code Review Findings
 
@@ -568,7 +468,7 @@ If the reflect skill produces "Change now" fixes, re-run `/claude-tweaks:test` b
 
 ## Step 5: Simplify Changed Code
 
-Run `/claude-tweaks:simplify` on files modified during this work (use `git diff --name-only`).
+Run `/claude-tweaks:simplify` on the same own-work file scope Steps 2-4 use — the Merge-Provenance Check's own-work file list (Step 2) when merge commits were detected, otherwise the full `git diff --name-only` file set. Do not hand `/claude-tweaks:simplify` the raw diff unfiltered when merge commits were found: `/claude-tweaks:simplify` has no merge-provenance handling of its own, so it fully trusts whatever scope this step passes it — passing the raw diff would let it edit code this branch never actually introduced, the exact outcome the Merge-Provenance Check exists to prevent.
 
 The simplify skill handles scope resolution, running the code-simplifier subagent, and re-verification after changes. See `/claude-tweaks:simplify` for details.
 
@@ -577,7 +477,7 @@ The simplify skill handles scope resolution, running the code-simplifier subagen
 ## Step 6: Visual Review
 
 **When this step runs:**
-- **Code mode:** Delegate to `/claude-tweaks:visual-review discover` — it detects UI changes + affected journeys and surfaces a recommendation. Do not stop to ask; note any recommendation in the summary (Step 7).
+- **Code mode:** Delegate to `/claude-tweaks:visual-review --mode=recommendation` — it detects UI changes via `git diff` and identifies affected journeys, returning a structured recommendation without opening a browser (no `agent-browser` dependency). Do not stop to ask; note any recommendation in the summary (Step 7). This is `recommendation` mode, not `discover` mode — `discover` actually opens a browser and walks the app, which would contradict this step's "recommendation only, non-blocking" design.
 - **Full mode:** Invoke `/claude-tweaks:visual-review` with the target URL/journey and QA data (if available). The visual review owns UI/journey detection and the procedure. Findings feed into the summary (Step 7) as the "UI / Visual" lens with their own severity classifications.
 - **Visual/journey/discover mode:** Delegate entirely to `/claude-tweaks:visual-review` — skip Steps 1-5 and 7.
 

@@ -1,7 +1,7 @@
 ---
 name: claude-tweaks:simplify
 description: Use when you want to simplify recently changed code — catches unnecessary complexity from iterative development, verbose debugging patterns, and cross-file inconsistencies. Works standalone or as a step within /claude-tweaks:build and /claude-tweaks:review.
-argument-hint: "[<file-or-dir>...]"
+argument-hint: "[<file-or-dir>...|#N|<spec-number>]"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -33,12 +33,15 @@ Run the code-simplifier subagent on recently changed files. Catches complexity t
 ### Standalone (invoked directly):
 
 1. **File paths** — specific files or directories to simplify
-2. **No arguments** — use `git diff --name-only` against the base branch or recent commits
+2. **Record/spec reference** (`#N`, or legacy bare spec number) — scope to files changed for that record
+3. **No arguments** — use `git diff --name-only` against the base branch or recent commits
 
 ```
 /claude-tweaks:simplify                       → simplify all recently changed files
 /claude-tweaks:simplify src/api/ src/db/      → simplify files in those directories
 /claude-tweaks:simplify src/utils/validate.ts → simplify a specific file
+/claude-tweaks:simplify #42                   → simplify files changed for record #42
+/claude-tweaks:simplify 42                    → simplify files changed for spec 42 (legacy form)
 ```
 
 ### Pipeline context (invoked by parent skill):
@@ -51,16 +54,15 @@ The simplifier always operates on the provided scope. It never expands to unrela
 ## Step 1: Resolve Scope
 
 1. **From arguments** — use the provided file paths or directories
-2. **From git diff** — `git diff --name-only` (or against the base branch) to identify changed files
-3. **From parent** — accept the file list passed by the parent skill
+2. **From a record/spec reference** — `#N` or a legacy bare spec number resolves to the files changed for that record (its associated commits/branch), mirroring `/claude-tweaks:deepen`'s and `/claude-tweaks:reflect`'s resolution rule
+3. **From git diff** — `git diff --name-only` (or against the base branch) to identify changed files
+4. **From parent** — accept the file list passed by the parent skill
 
 Filter to source files only — skip generated files, lock files, and non-code artifacts.
 
 If no files are in scope, state: "No changed files to simplify." and stop.
 
 ## Step 2: Run Code Simplifier
-
-> **Parallel execution:** Dispatch to `code-simplifier:code-simplifier` subagent. **Contract:** the subagent follows `_shared/subagent-output-contract.md` — minimal input scope, status line first, output template inlined.
 
 Invoke the `code-simplifier:code-simplifier` subagent on the scoped files. Follow the **Subagent Contract** (`_shared/subagent-output-contract.md`) — minimal input (file paths + the output template, no conversation history), tier **Standard (Sonnet)**, and the literal output template below inlined verbatim in the dispatch prompt (the subagent cannot read sibling files):
 
@@ -114,7 +116,7 @@ Write a stage entry to `{run-dir}/staged/simplify-{n}.md` naming the failing che
 - STAGED {HH:MM:SS} — Step 3 verify: {check} failed after simplifying {files}. Stage path: staged/simplify-{n}.md.
 ```
 
-Surface at the Wrap-Up Review Console. Continue only if the simplification can be safely reverted via `git revert` at the console; if not, fall back to BLOCKED.
+Surface at the Wrap-Up Review Console. At this point the simplification is still an uncommitted change in the working tree (`/simplify` never commits — see Step 4's Note on committing). Continue only if it can be safely discarded via `git checkout -- <files>` / `git restore <files>` if the caller ultimately rejects it at the console; if not, fall back to BLOCKED.
 
 Silent self-fixing is forbidden — see `_shared/auto-mode-contract.md`.
 
@@ -138,6 +140,10 @@ Verification: {pass/fail}
 ```
 No simplifications needed — code is already clean.
 ```
+
+### Note on committing
+
+`/simplify` never commits — it edits the working tree and verifies, then returns control. When invoked by `/claude-tweaks:build` or `/claude-tweaks:review`, the parent skill commits the resulting changes as part of its own flow. When invoked standalone, the user commits (or discards, via `git checkout -- <files>` / `git restore`) the changes themselves.
 
 ## Next Actions
 

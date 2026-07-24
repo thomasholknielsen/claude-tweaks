@@ -10,9 +10,9 @@ const { buildValidateFindingsUpdate } = require('../cache');
 // health-state` first (no real GitHub-hosted remote configured in any test),
 // so the mutator itself was never actually invoked. Extracting it as a pure
 // function (no git, no gh, no I/O) lets these plain-object fixtures exercise
-// its behaviors directly. Unlike code-health's buildValidateFindingsUpdate,
-// harness-health has no `remembered` tier to merge — every surviving finding
-// files unconditionally — so there's no rememberedDelta parameter here.
+// its behaviors directly. Mirrors code-health's own `remembered` merge
+// (bin/lib/code-health/cache.js) for findings held below a `--min-confidence`
+// floor.
 
 function baseCurrent(overrides = {}) {
   return {
@@ -143,4 +143,50 @@ test('buildValidateFindingsUpdate: passes through unrelated current fields (e.g.
     now: 1,
   });
   assert.deepStrictEqual(next.retryQueue, current.retryQueue);
+});
+
+test('buildValidateFindingsUpdate: rememberCandidates below the --min-confidence floor are merged into remembered, not lost', () => {
+  const current = baseCurrent();
+  const next = buildValidateFindingsUpdate(current, {
+    target: 'auth',
+    kind: 'skill',
+    gapScan: false,
+    runRecord: { runId: 'r1', runAt: 'now', fingerprints: [] },
+    rememberCandidates: [{ id: 'harnesshealth-aaaa0001', confidence: 'low' }],
+    now: 1,
+  });
+  assert.deepStrictEqual(next.remembered['harnesshealth-aaaa0001'], { status: 'remembered', confidence: 'low' });
+});
+
+test('buildValidateFindingsUpdate: an already-remembered fingerprint is left untouched, not overwritten, by a later run', () => {
+  const current = baseCurrent({
+    remembered: { 'harnesshealth-aaaa0001': { status: 'remembered', confidence: 'low' } },
+  });
+  const next = buildValidateFindingsUpdate(current, {
+    target: undefined,
+    kind: undefined,
+    gapScan: false,
+    runRecord: { runId: 'r1', runAt: 'now', fingerprints: [] },
+    rememberCandidates: [{ id: 'harnesshealth-aaaa0001', confidence: 'med' }],
+    now: 2,
+  });
+  assert.deepStrictEqual(
+    next.remembered['harnesshealth-aaaa0001'],
+    { status: 'remembered', confidence: 'low' },
+    'the pre-existing remembered entry must not be clobbered by a same-run re-remember',
+  );
+});
+
+test('buildValidateFindingsUpdate: no rememberCandidates leaves an existing remembered map untouched', () => {
+  const current = baseCurrent({
+    remembered: { 'harnesshealth-bbbb0002': { status: 'remembered', confidence: 'low' } },
+  });
+  const next = buildValidateFindingsUpdate(current, {
+    target: undefined,
+    kind: undefined,
+    gapScan: false,
+    runRecord: { runId: 'r1', runAt: 'now', fingerprints: [] },
+    now: 1,
+  });
+  assert.deepStrictEqual(next.remembered, current.remembered);
 });

@@ -1,6 +1,6 @@
 # Shared Verification Procedure
 
-Canonical verification procedure used by `/claude-tweaks:build` (Common Step 5) and `/claude-tweaks:test` (Step 1). This file is the single source of truth — both skills reference it instead of duplicating the logic.
+Canonical verification procedure used by `/claude-tweaks:build` (Common Step 5), `/claude-tweaks:test` (Step 1), `/claude-tweaks:deepen` (Step 5), and `/claude-tweaks:simplify`. This file is the single source of truth — all four skills reference it instead of duplicating the logic.
 
 ## Step 1: Resolve Commands
 

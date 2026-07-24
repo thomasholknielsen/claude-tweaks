@@ -84,6 +84,17 @@ test('next-target gapScanDue is false right after a gap scan was recorded (durab
   assert.strictEqual(result.gapScanDue, false);
 });
 
+test('next-target --force-gap-scan forces gapScanDue: true even when the cursor says it is not due', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth');
+  seedDurableCursors(root, { __gapScan: { lastScannedSha: null, lastScannedMs: Date.now() } });
+  const withoutForce = runNextTarget([], root);
+  assert.strictEqual(withoutForce.gapScanDue, false, 'sanity check: the seeded cursor makes it not due without the flag');
+  const withForce = runNextTarget(['--force-gap-scan'], root);
+  assert.strictEqual(withForce.gapScanDue, true, '--force-gap-scan must bypass the 90-day cursor');
+});
+
 test('next-target --budget 2 returns an array of up to 2 unique targets', () => {
   const root = tmp();
   fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });

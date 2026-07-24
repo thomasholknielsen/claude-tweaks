@@ -6,6 +6,8 @@ These pre-steps capture design context (`shape`), an optional accepted visual di
 
 ## Step 2.5a: Frontend detection
 
+**`--surface` override.** When `--surface <value>` was passed on the command line (SKILL.md's Input section), skip the sniff below entirely — use the given value directly as `Surface:` for every record this run produces. Still continue to Step 2.5b/2.5c when the given value is a frontend surface (`web`/`mobile`/`desktop`); skip them, as the no-signal case below does, when it's `backend`/`infra`.
+
 Sniff the input for frontend signals using the same rules as `/claude-tweaks:design-wrapper`'s Layer 3 — the design doc's contents in decomposition mode, the record's own title/body in shaping mode:
 
 - File-extension references (e.g., `.tsx`, `.jsx`, `.vue`, `.svelte`, `.html`, `.css`)

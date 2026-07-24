@@ -6,49 +6,49 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 
 | Command | What it does | Takes |
 |---------|-------------|-------|
-| `/claude-tweaks:init` | Bootstrap structure, generate CLAUDE.md, skills, rules | `[<path>\|<github-url>\|<description>\|--update\|bootstrap\|config\|skills\|journeys\|docs]` |
-| `/claude-tweaks:capture` | Brain-dump idea into the backlog | `<idea text> [--route=challenge\|brainstorm\|keep\|absorb:N] [--title="..."]` |
-| `/claude-tweaks:challenge` | Debias assumptions before brainstorming | `[quick] <#n\|topic\|problem statement>` |
+| `/claude-tweaks:init` | Bootstrap structure, generate CLAUDE.md, skills, rules | `[<path>\|<github-url>\|<description>\|--update\|update\|--full\|--core-only\|bootstrap\|config\|skills\|journeys\|docs]` |
+| `/claude-tweaks:capture` | Brain-dump idea into the backlog | `<idea text> [--route=challenge\|brainstorm\|keep\|absorb:N] [--title="..."] [--type=bug\|feature\|task]` |
+| `/claude-tweaks:challenge` | Debias assumptions before brainstorming | `[quick\|--lens=<n[,n...]>] <#n\|topic\|problem statement>` |
 | `/superpowers:brainstorming` | Brainstorm solutions (Superpowers plugin) | topic |
-| `/claude-tweaks:specify` | Shape a work record to spec-shape, or decompose a design doc into ready leaf records | `<#N\|<design-doc-path>\|<topic>> [phase-N]` |
-| `/claude-tweaks:build` | Implement a work record, spec, or design doc | `[#<n>\|<spec>\|<design-doc-path>\|<topic>] [subagent\|batched] [worktree\|current-branch] [auto]` |
-| `/claude-tweaks:stories` | Generate or update QA story YAML files (journey-aware) | `[<url>] [persona=<name>] [dir=<path>] [focus=<area>] [refine=false] [negative=false] [journey=<name>]` |
-| `/claude-tweaks:test` | Verification gate — types, lint, tests, QA stories | `[types\|lint\|unit\|integration\|e2e\|affected\|qa\|all\|skip-qa\|<path>]` |
-| `/claude-tweaks:review` | Analytical quality gate: code review, UX analysis (when QA data available), visual + creative ideas (default in `/claude-tweaks:flow`). Gates on `/claude-tweaks:test`. | `[<spec-number> [full]\|<file-path>...\|visual <url>\|journey:<name>\|discover] [low\|medium\|high\|xhigh\|max]` |
-| `/claude-tweaks:wrap-up` | Reflect, capture learnings, clean up | `[#N\|<spec>\|<context>]` |
+| `/claude-tweaks:specify` | Shape a work record to spec-shape, or decompose a design doc into ready leaf records | `<#N\|record-id\|design-doc-path\|topic\|backlog-title> [phase-N] [--surface <web\|mobile\|desktop\|backend\|infra>] [--granularity <fine\|standard\|coarse>]` |
+| `/claude-tweaks:build` | Implement a work record, spec, or design doc | `[#<n>\|<spec>\|<design-doc-path>\|<topic>] [subagent\|batched] [auto] [worktree\|current-branch] [tier=<fast\|standard\|capable>] [ops=confirm]` |
+| `/claude-tweaks:stories` | Generate or update QA story YAML files (journey-aware) | `[<url>] [persona=<name>] [dir=<path>] [focus=<area>] [pages=<n>] [refine=false] [negative=false] [journey=<name>] [migrate]` |
+| `/claude-tweaks:test` | Verification gate — types, lint, tests, QA stories | `[types\|lint\|unit\|integration\|e2e\|affected\|qa\|all\|skip-qa\|<path>] [tag=<tag>] [story=<name>] [retry=<path>] [journey=<name>] [dir=<path>] [priority=<level>] [max_parallel=N] [timeout=<ms>] [headless]` |
+| `/claude-tweaks:review` | Analytical quality gate: code review, UX analysis (when QA data available), visual + creative ideas (default in `/claude-tweaks:flow`). Gates on `/claude-tweaks:test`. | `[<spec-number>\|<file-path>...\|visual <url-or-description>\|journey:<name>\|discover] [full] [low\|medium\|high\|xhigh\|max]` |
+| `/claude-tweaks:wrap-up` | Reflect, capture learnings, clean up | `[#N\|<spec>\|<context>\|resume] [--dry-run] [--skill-budget <n>]` |
 
 ## Component (standalone or called by lifecycle skills)
 
 | Command | What it does | Takes |
 |---------|-------------|-------|
-| `/claude-tweaks:reflect` | Structured evaluation: hindsight, surprises, near-misses | `[hindsight\|full] [<spec-number>\|<file-path>...]` |
-| `/claude-tweaks:simplify` | Code simplification via code-simplifier subagent | `[<file-or-dir>...]` |
-| `/claude-tweaks:deepen` | Architectural depth pass — finds shallow modules, proposes deepening/collapsing ranked by leverage | `[<file-or-dir>...\|<spec-number>]` |
-| `/claude-tweaks:journeys` | Create/update user journey documentation | `[<spec-number>\|<file-path>...]` |
-| `/claude-tweaks:visual-review` | Browser-based UI inspection, journey walks, discovery | `[<url>\|journey:<name>\|discover]` |
-| `/claude-tweaks:design-wrapper` | Wrapper that lets lifecycle skills invoke Impeccable design-quality commands. Modes: `pre-build`, `test`, `review`, `shape`, `polish`, `survey`, `reset-recommendations`, `live` | `<shape\|pre-build\|test\|review\|polish\|survey\|reset-recommendations\|live> <target>` |
-| `/claude-tweaks:visualize` | Themed diagram generation — architecture, flowchart, sequence, state, ER, timeline, swimlane, quadrant, nested, tree, org chart, layers, venn, pyramid | `<architecture\|flowchart\|sequence\|state\|er\|timeline\|swimlane\|quadrant\|nested\|tree\|org-chart\|layers\|venn\|pyramid> <topic>` |
-| `/claude-tweaks:assess-agent-autonomy` | Inline judgment helper — grant-check informs triage's recommendation, merge-check replaces dispatch's blast-radius gate, failure-check replaces dispatch's blanket failure-revocation rule, ceremony-check informs specify's per-record ceremony depth (flow falls back to it only for records that never went through specify). Never invoked directly by a human. | `[grant-check\|merge-check\|failure-check\|ceremony-check] #<n>` |
+| `/claude-tweaks:reflect` | Structured evaluation: hindsight, surprises, near-misses | `[hindsight\|full\|light] [<spec-number>\|<file-path>...]` |
+| `/claude-tweaks:simplify` | Code simplification via code-simplifier subagent | `[<file-or-dir>...\|#N\|<spec-number>]` |
+| `/claude-tweaks:deepen` | Architectural depth pass — finds shallow modules, proposes deepening/collapsing ranked by leverage | `[<file-or-dir>...\|<spec-number>] [--kind deepen\|collapse]` |
+| `/claude-tweaks:journeys` | Create/update user journey documentation | `[<spec-number>\|<file-path>...\|--journey <name>]` |
+| `/claude-tweaks:visual-review` | Browser-based UI inspection, journey walks, discovery | `[<url>\|journey:<name>\|discover [--budget <n>]\|--mode=recommendation] [--source <parent-skill>]` |
+| `/claude-tweaks:design-wrapper` | Wrapper that lets lifecycle skills invoke Impeccable design-quality commands. Modes: `pre-build`, `test`, `review`, `shape`, `polish`, `survey`, `reset-recommendations`, `live` | `<shape\|pre-build\|test\|review\|polish\|survey\|reset-recommendations\|live> <target> [--screenshots <paths>] [--source <parent-skill>] [--dry-run] [--limit <n>]` |
+| `/claude-tweaks:visualize` | Themed diagram generation — architecture, flowchart, sequence, state, ER, timeline, swimlane, quadrant, nested, tree, org chart, layers, venn, pyramid | `<architecture\|flowchart\|sequence\|state\|er\|timeline\|swimlane\|quadrant\|nested\|tree\|org-chart\|layers\|venn\|pyramid> <topic> [--source <caller>] [--ephemeral]` |
+| `/claude-tweaks:assess-agent-autonomy` | Inline judgment helper — grant-check informs triage's recommendation, merge-check replaces dispatch's blast-radius gate, failure-check replaces dispatch's blanket failure-revocation rule, ceremony-check informs specify's per-record ceremony depth (flow falls back to it only for records that never went through specify). Never invoked directly by a human. | `<grant-check\|merge-check\|failure-check\|ceremony-check> [#<n>] [--base <ref>]` |
 
 ## Utility
 
 | Command | What it does | Takes |
 |---------|-------------|-------|
-| `/claude-tweaks:help` | Dashboard: commands + status (incl. current PR) + recommendations | `[status\|commands]` |
-| `/claude-tweaks:tidy` | Batch backlog hygiene (incl. GitHub PRs + code-health/harness-health/journey-health/docs-health issues) | `[--scope=<name>[,<name>...]]` |
-| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → polish → wrap-up (+ end-of-run depth survey); pure executor — never selects records itself | `<#n>[,#m,#o] [worktree\|current-branch] [no-stories] [no-polish] [no-deepen] [auto\|interactive\|hybrid\|confirm] [keep-going] [step1,step2,step3]` |
-| `/claude-tweaks:triage` | The interactive human gate over the `ready` queue — grants `auto:build`/`auto:merge`, or flags an unshaped record back for re-shaping. Always interactive; no headless mode. | *(none — takes no arguments)* |
-| `/claude-tweaks:review-backlog` | Understand and prioritize the open backlog — thematic clusters, `priority:*`/`**Related:**` suggestions via batch-confirm | `[critical\|risk-value\|cleanup] [--budget N]` |
-| `/claude-tweaks:dispatch` | The queue consumer — claims an authorized record's whole file-overlap group (atomic ref lock) and hands it to `/flow`; settles on success/failure | `[next\|#N[,#M...]] [--claim-only]` |
-| `/claude-tweaks:browse` | Unified browser automation (utility) | `[<url>\|<task description>] [--session <name> ...] [backend=chrome ...]` |
-| `/claude-tweaks:ledger` | Open items tracking — query, resolve ledger entries | `[resolve\|<feature-name>]` |
-| `/claude-tweaks:research` | Deep web research with citation-audited reports — 4 runtime modes from quick to ultradeep. | `<topic> [--mode=quick\|standard\|deep\|ultradeep] [--output=<path>]` |
-| `/claude-tweaks:version` | Print the installed plugin version | `[plain\|full]` |
+| `/claude-tweaks:help` | Dashboard: commands + status (incl. current PR) + recommendations | `[status\|commands\|<topic>] [--budget <n>]` |
+| `/claude-tweaks:tidy` | Batch backlog hygiene (incl. GitHub PRs + code-health/harness-health/journey-health/docs-health issues) | `[--scope=<name>[,<name>...]] [--dry-run]` |
+| `/claude-tweaks:flow` | Automated pipeline: build → [stories →] test → review → polish → wrap-up (+ end-of-run depth survey); pure executor — never selects records itself | `<#n>[,#m,#o]\|<spec>[,spec...] [worktree\|current-branch] [no-stories] [no-polish] [no-deepen] [no-creative] [auto\|interactive\|hybrid\|confirm] [keep-going] [step1,step2,step3]` |
+| `/claude-tweaks:triage` | The interactive human gate over the `ready` queue — grants `auto:build`/`auto:merge`, or flags an unshaped record back for re-shaping. Always interactive; no headless mode. | `[--origin <code-health\|harness-health\|journey-health\|docs-health\|capture\|human>]` |
+| `/claude-tweaks:review-backlog` | Understand and prioritize the open backlog — thematic clusters, `priority:*`/`**Related:**` suggestions via batch-confirm | `[critical\|risk-value\|cleanup] [--budget <n>]` |
+| `/claude-tweaks:dispatch` | The queue consumer — claims an authorized record's whole file-overlap group (atomic ref lock) and hands it to `/flow`; settles on success/failure | `[next\|#N[,#M...]] [--claim-only] [--concurrent <n>] [--priority high\|medium\|low]` |
+| `/claude-tweaks:browse` | Unified browser automation (utility) | `[<url>\|<task description>] [--session <name> ...] [set viewport <wxh>\|set device "<name>"] [backend=chrome ...] [--quick]` |
+| `/claude-tweaks:ledger` | Open items tracking — query, resolve ledger entries | `[resolve [<feature-name>]\|<feature-name>]` |
+| `/claude-tweaks:research` | Deep web research with citation-audited reports — 4 runtime modes from quick to ultradeep. | `<topic> [--mode=quick\|standard\|deep\|ultradeep] [--engine=auto\|inline] [--output=<path>]` |
+| `/claude-tweaks:version` | Print the installed plugin version | `[plain\|full] [--min <version>]` |
 | `/claude-tweaks:code-health` | LLM-as-judge recurring sweep — applies criteria holistically to a directory slice, deduplicates against open GitHub issues, files pre-specs as GitHub issues. Scheduled Routine. Never edits code. | `[--area <path>] [--budget <n>] [--min-risk low\|medium\|high] [--dry-run] [--root <dir>]` |
-| `/claude-tweaks:routine` | Instantiate a skill's routine template (e.g. code-health's) into a live cloud Routine via `RemoteTrigger` — template-driven, resolves project/account values with minimal prompts | `<create\|update\|status> <skill> [--variant <name>] [--dry-run] [--defaults] [--environment <id>]` |
-| `/claude-tweaks:harness-health` | Recurring health check auditing `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md for drift, template-conformance, and best-practice gaps, sharing its judgment procedure with `/init`/`/wrap-up`. Scheduled Routine. Never edits anything — always files a GitHub issue. | `[--target <id>] [--kind skill\|rule\|claude-md\|design-artifact\|memory] [--budget <n>] [--dry-run] [--root <dir>]` |
-| `/claude-tweaks:journey-health` | Recurring health check auditing `docs/journeys/*.md` for drift and journey-story coverage gaps (light tier); an interactive-only deep tier actually runs a journey's QA stories or walks it live. Scheduled Routine (light tier only). Never edits anything — always files a GitHub issue. | `[--target <journey-name>] [--budget <n>] [--deep] [--dry-run] [--root <dir>]` |
-| `/claude-tweaks:docs-health` | Recurring health check auditing `docs/**` for Diátaxis genre-drift, depth-mismatch, findability, and factual staleness, with dual-persona misleading-risk tagging. Scheduled Routine. Never edits anything — always files a GitHub issue. | `[--target <id>] [--budget <n>] [--dry-run] [--root <dir>]` |
+| `/claude-tweaks:routine` | Instantiate a skill's routine template (e.g. code-health's) into a live cloud Routine via `RemoteTrigger` — template-driven, resolves project/account values with minimal prompts | `<create\|update\|status> <skill> [--variant <name>] [--dry-run] [--defaults] [--environment <id>] [--refresh-environment]` |
+| `/claude-tweaks:harness-health` | Recurring health check auditing `.claude/skills/*.md`, `.claude/rules/*.md`, and CLAUDE.md for drift, template-conformance, and best-practice gaps, sharing its judgment procedure with `/init`/`/wrap-up`. Scheduled Routine. Never edits anything — always files a GitHub issue. | `[--target <id>] [--kind skill\|rule\|claude-md\|design-artifact\|memory] [--memory-dir <path>] [--budget <n>] [--min-confidence low\|med\|high] [--force-gap-scan] [--dry-run] [--root <dir>]` |
+| `/claude-tweaks:journey-health` | Recurring health check auditing `docs/journeys/*.md` for drift and journey-story coverage gaps (light tier); an interactive-only deep tier actually runs a journey's QA stories or walks it live. Scheduled Routine (light tier only). Never edits anything — always files a GitHub issue. | `[--target <journey-name>] [--budget <n>] [--deep] [--dry-run] [--root <dir>] [--min-confidence <low\|med\|high>]` |
+| `/claude-tweaks:docs-health` | Recurring health check auditing `docs/**` for Diátaxis genre-drift, depth-mismatch, findability, and factual staleness, with dual-persona misleading-risk tagging. Scheduled Routine. Never edits anything — always files a GitHub issue. | `[--target <id>] [--dir <path>] [--budget <n>] [--min-confidence low\|med\|high] [--dry-run] [--root <dir>]` |
 | `/claude-tweaks:demo` | Aggregates every `demo:pending` record (open or closed) plus this session's own unrecorded work, briefs you on each, and captures a human verdict — approve or request changes | `[#N]` |
 
 ## Recommended Companion Tools

@@ -1,7 +1,7 @@
 ---
 name: claude-tweaks:wrap-up
 description: Use when /claude-tweaks:review passes and you need to capture learnings, clean up specs/plans, update skills, and decide next steps. The lifecycle closure step.
-argument-hint: "[#N|<spec>|<context>]"
+argument-hint: "[#N|<spec>|<context>|resume] [--dry-run] [--skill-budget <n>]"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -34,8 +34,20 @@ Determine what type of work was completed:
 
 ### If `$ARGUMENTS` is provided:
 
-- If it's a spec or record number (e.g., "42", "73"), proceed as **record- or spec-based work**
-- Otherwise, use it as context for **conversation-based work**
+- If it's exactly `resume` (case-insensitive), this is not conversation-based work — see "Resuming a halted Review Console" below instead of falling through to the branches below.
+- If it's a `#`-prefixed record reference (e.g., `#42` — the primary form) or a bare spec/record number (e.g., "42", "73" — legacy alias), strip the leading `#` if present, then proceed as **record- or spec-based work**.
+- Otherwise, use it as context for **conversation-based work**.
+
+Flags (`--dry-run`, `--skill-budget <n>`) may appear anywhere in `$ARGUMENTS` alongside any of the above forms — strip them before applying the branches above. See "Flags" below.
+
+### Resuming a halted Review Console
+
+`resume` recovers a run halted at Step 8.6's "Stop and re-engage" option (`review-console.md`'s "On stop"). Locate the run directory: per `_shared/pipeline-run-dir.md`'s resolution order, find the most recent directory under `.claude-tweaks/pipelines/` whose `run-state.json` has `status: interrupted`. If none exists, report "No halted wrap-up run found to resume" and stop — do not fall through to conversation-based work. Otherwise, set `$PIPELINE_RUN_DIR` to that directory and jump directly to Step 8.6, which re-reads `decisions.md`, `staged/`, and `config.yml` from it and re-presents the console exactly as it stood before the stop.
+
+### Flags
+
+- **`--dry-run`** — run the full analysis (reflection, leftover routing, config/skill scans, the Step 8.6 auto-merge verdict) but make no commits, no file deletions or archival, and no `gh issue create` / `git merge` / `git push` calls. Console and summary tables render as previews of what *would* happen instead of records of what *did*. See `review-console.md`'s "Dry-run mode" section and Step 10's dry-run note below. Most useful for validating a `/claude-tweaks:dispatch`- or Routine-driven `auto`-mode wrap-up before letting it merge and push for real.
+- **`--skill-budget <n>`** — override Step 7.2's default domain-overlap skill-read cap (top ~5, or top ~2 under a `fast-lane` ceremony profile) for this invocation only. See `skill-curation.md` 7.2.
 
 ### If no arguments, detect from context:
 
@@ -198,105 +210,7 @@ Suggest running `/claude-tweaks:help` to see the full workflow status.
 
 ### Newly unblocked records (record mode only)
 
-The record this run just closed is already known — `record: {n}` from the materialized header (the same field the close-via-merge carrier commit used). Check whether closing it unblocked anything, purely informational — this must never gate, block, or delay the wrap-up; on any error, log and continue.
-
-**`work-backend: github-issues`:** branches on `work-links` (same grep convention `/claude-tweaks:dispatch` Step 2 uses):
-
-```bash
-WORK_LINKS=$(grep -E "^work-links:" CLAUDE.md .claude-tweaks/policy.yml 2>/dev/null | head -1 | sed 's/.*work-links:[[:space:]]*//')
-gh issue list --state open --json number,title,body --limit 200 > /tmp/wrapup-open-records.json
-```
-
-`work-links: body-text` (default) — dependents are found via literal `Blocked by #N` body-text lines:
-
-```bash
-node -e "
-  const { parseDependencies } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
-  const records = require('/tmp/wrapup-open-records.json');
-  const closedNum = ${CLOSED_NUM};
-  const dependents = records
-    .map((r) => ({ number: r.number, title: r.title, blockedBy: parseDependencies(r.body) }))
-    .filter((r) => r.blockedBy.includes(closedNum));
-  require('fs').writeFileSync('/tmp/wrapup-dependents.json', JSON.stringify(dependents));
-"
-```
-
-If `dependents` is non-empty, check whether **every other** blocker (excluding the record that just closed) is also already resolved — one batch call, not one query per blocker id:
-
-```bash
-gh issue list --state all --json number,state --limit 200 > /tmp/wrapup-all-states.json
-node -e "
-  const dependents = require('/tmp/wrapup-dependents.json');
-  const allStates = require('/tmp/wrapup-all-states.json');
-  const stateOf = new Map(allStates.map((i) => [i.number, i.state]));
-  const closedNum = ${CLOSED_NUM};
-  const unblocked = dependents.filter((d) => d.blockedBy.every((b) => b === closedNum || stateOf.get(b) === 'CLOSED'));
-  require('fs').writeFileSync('/tmp/wrapup-unblocked.json', JSON.stringify(unblocked));
-"
-```
-
-`work-links: native` — `parseDependencies` matches nothing (native links write no body text at all per `_shared/work-record.md`), so this branch instead reuses `bin/lib/issues/record.js`'s `buildNativeDependencyQuery`/`hasOpenNativeBlocker`, the same pair `/claude-tweaks:dispatch` Step 2 and `flow/materialize.md` already use for this mode. One batched, aliased GraphQL query over every open record's number returns each record's `blockedBy` connection with each blocker's live `state` in the same response, so — unlike the body-text branch — no second all-states call is needed:
-
-```bash
-node -e "
-  const { buildNativeDependencyQuery } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
-  const records = require('/tmp/wrapup-open-records.json');
-  const query = buildNativeDependencyQuery(records.map((r) => r.number));
-  if (query) require('fs').writeFileSync('/tmp/wrapup-native-query.graphql', query);
-"
-echo '{"data":{"repository":{}}}' > /tmp/wrapup-native-deps.json
-if [ -s /tmp/wrapup-native-query.graphql ]; then
-  OWNER_REPO=$(gh repo view --json owner,name -q '.owner.login + " " + .name')
-  if gh api graphql -f query="$(cat /tmp/wrapup-native-query.graphql)" \
-    -f owner="$(echo "$OWNER_REPO" | cut -d' ' -f1)" -f repo="$(echo "$OWNER_REPO" | cut -d' ' -f2)" \
-    > /tmp/wrapup-native-deps.tmp.json 2>/tmp/wrapup-native-deps.err; then
-    mv /tmp/wrapup-native-deps.tmp.json /tmp/wrapup-native-deps.json
-  else
-    echo "Warning: native dependency query failed — skipping newly-unblocked check this run: $(cat /tmp/wrapup-native-deps.err)" >&2
-  fi
-fi
-node -e "
-  const { hasOpenNativeBlocker } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
-  const records = require('/tmp/wrapup-open-records.json');
-  const repoData = require('/tmp/wrapup-native-deps.json').data.repository;
-  const closedNum = ${CLOSED_NUM};
-  const unblocked = records
-    .filter((r) => {
-      const node = repoData['i' + r.number];
-      const nodes = node && node.blockedBy && node.blockedBy.nodes;
-      return Array.isArray(nodes) && nodes.some((n) => n && n.number === closedNum);
-    })
-    .filter((r) => !hasOpenNativeBlocker(repoData['i' + r.number]))
-    .map((r) => ({ number: r.number, title: r.title }));
-  require('fs').writeFileSync('/tmp/wrapup-unblocked.json', JSON.stringify(unblocked));
-"
-```
-
-On any GraphQL error this fails safe — skip the check for this run (an empty `wrapup-unblocked.json`) rather than blocking wrap-up, matching this section's own "must never gate, block, or delay the wrap-up" rule above and dispatch's identical native-mode fallback.
-
-**`work-backend: local-files`:**
-
-```bash
-node -e "
-  const { queryRecords, readRecord } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/local-store.js');
-  const glob = require('fs').readdirSync('specs').filter((f) => /^\d+-.*\.md\$/.test(f));
-  const closedNum = ${CLOSED_NUM};
-  const openRecords = queryRecords('specs', {}); // excludes closed by default — correct for finding open dependents
-  const dependents = openRecords
-    .map((r) => ({ id: r.id, title: r.title, blockedBy: r.facets.blockedBy || [] }))
-    .filter((r) => r.blockedBy.includes(closedNum));
-  const isBlockerResolved = (id) => {
-    const file = glob.find((f) => f.startsWith(id + '-'));
-    if (!file) return true; // already gone — treat as resolved
-    const r = readRecord('specs/' + file);
-    return r.facets.closed === true;
-  };
-  const unblocked = dependents.filter((d) => d.blockedBy.every((b) => b === closedNum || isBlockerResolved(b)));
-  require('fs').writeFileSync('/tmp/wrapup-unblocked.json', JSON.stringify(unblocked));
-"
-```
-
-For every record in the resulting `/tmp/wrapup-unblocked.json`: log one line to `decisions.md` (`AUTO {time} — Step 8: closing #{n} unblocked #{m} ("{title}"). Reversibility: n/a (informational).`), and carry it forward as this run's "newly unblocked" signal — feeds the Next Actions table below and the Pipeline Summary's Key Outputs.
+The record this run just closed is already known — `record: {n}` from the materialized header (the same field the close-via-merge carrier commit used). Check whether closing it unblocked anything, purely informational — this must never gate, block, or delay the wrap-up; on any error, log and continue. Record- or spec-based only; the `work-backend: github-issues` (`work-links: body-text` or `native`) and `work-backend: local-files` procedures — including the failure-mode handling and the `decisions.md` log line — live in `unblocked-records.md` in this skill's directory, read only when this run is record-based.
 
 ---
 
@@ -452,6 +366,8 @@ Next Actions are rendered as a top-level `## Next Actions` section after Step 10
 
 ## Step 10: Execute Approved Actions
 
+**Dry-run mode.** When `--dry-run` was passed (Step 1's Flags), skip actual execution entirely — print each planned cleanup / configuration / skill / acceptance-labeling action as a preview line instead of running it, skip the final commit and the closing line, and stop after Step 9's summary. This applies whether Step 8.6 rendered (which already previewed instead of applied — see `review-console.md`'s "Dry-run mode") or was skipped (interactive mode, standalone wrap-up).
+
 Execute the cleanup planned in Step 5 (canonical list in `cleanup-procedures.md`) plus the configuration / skill updates approved at the Review Console (Step 8.6) or batch decision (Step 9). The 8 cleanup items, in execution order, are defined in `cleanup-procedures.md`'s canonical list — do not re-enumerate here. Filter rows by Condition.
 
 **MULTISPEC_REVIEW_DEFER branch:** When `$MULTISPEC_REVIEW_DEFER=1` is set, Step 10 SKIPS the state-changing cleanups marked deferred in `cleanup-procedures.md` (items 3 Design caches, 4 Git worktree, 6 Ephemeral dev server, 7 Issue claim release, 8 Pipeline run dir archival). Those defer to `/flow`'s consolidated multi-spec Review Console at end-of-run, which has authority to apply or override them across all specs in the run. Step 10 still executes the idempotent cleanups (items 1 Execution plans, 2 Open items ledger, 5 Record/spec lifecycle) — those do not interact with parent-orchestrated cleanup.
@@ -517,11 +433,11 @@ Once the signals are resolved, call `AskUserQuestion` with `question`: `"What's 
 
 ## Component-Skill Contract
 
-When `$PIPELINE_RUN_DIR` is set, `/wrap-up` is running inside a `/flow` pipeline. In that case:
-- Omit the `## Next Actions` block at the end of Step 9 — the parent `/flow` renders its own pipeline summary.
-- Step 8.6 (Review Console) honors `$MULTISPEC_REVIEW_DEFER` — if set, skip the per-spec console and let `/flow`'s consolidated console handle approvals.
+When `$PIPELINE_RUN_DIR` is set, `/claude-tweaks:wrap-up` is running inside a `/claude-tweaks:flow` pipeline. In that case:
+- Omit the `## Next Actions` block at the end of Step 9 — the parent `/claude-tweaks:flow` renders its own pipeline summary.
+- Step 8.6 (Review Console) honors `$MULTISPEC_REVIEW_DEFER` — if set, skip the per-spec console and let `/claude-tweaks:flow`'s consolidated console handle approvals.
 
-When `$PIPELINE_RUN_DIR` is unset, `/wrap-up` runs standalone — render Next Actions as usual.
+When `$PIPELINE_RUN_DIR` is unset, `/claude-tweaks:wrap-up` runs standalone — render Next Actions as usual.
 
 ## Anti-Patterns
 

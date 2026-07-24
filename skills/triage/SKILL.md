@@ -1,6 +1,7 @@
 ---
 name: claude-tweaks:triage
 description: Use when you want to authorize GitHub work records for autonomous building — the interactive human gate over the ready queue. Grants auto:build / auto:merge; flags unshaped records back. Keywords - triage, authorize, grant, auto:build, auto:merge, ready queue, gate.
+argument-hint: "[--origin <code-health|harness-health|journey-health|docs-health|capture|human>]"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -34,7 +35,7 @@ Not for: building anything yourself, claiming or dispatching authorized work (th
 
 ## Input
 
-This skill takes no arguments. `/claude-tweaks:triage` always runs the same interactive batch-authorization workflow against the current `ready` queue — there is no headless or argument-driven mode. (Headless, unattended consumption of what this gate authorizes is `/claude-tweaks:dispatch`'s separate job — see Relationship below.)
+`/claude-tweaks:triage` always runs the same interactive batch-authorization workflow against the current `ready` queue — there is no headless mode. The only accepted argument is an optional `--origin <code-health|harness-health|journey-health|docs-health|capture|human>` filter, narrowing Step 1's worklist to records whose `facets.origin` matches (`human` selects records with no `by:*` label at all). Omitted — the default, and by far the common case — Step 1's worklist stays unfiltered exactly as documented there: health-filed, captured, and human-filed records all enter the same batch regardless of origin. (Headless, unattended consumption of what this gate authorizes is `/claude-tweaks:dispatch`'s separate job — see Relationship below.)
 
 ## Preflight
 
@@ -50,20 +51,24 @@ grep -q '^work-backend:' CLAUDE.md && echo "OK" || { grep -qE '^backlog-backend:
 
 > CLAUDE.md has backlog-backend but no work-backend: line — add work-backend: {value} (the same value as backlog-backend) to CLAUDE.md's Backlog integration section to fix this.
 
-`GENUINE_LOCAL_FILES` (neither key present, or `work-backend` present) proceeds through the normal branch above unchanged.
+`OK` (`work-backend` present) and `GENUINE_LOCAL_FILES` (neither key present) both proceed through the normal branch above unchanged — each takes whichever fork matches the project's actual `work-backend` value (or its absence), per the Preflight paragraph above.
 
 Before any `gh` command, run the Detection Ladder from `_shared/github-pr-scan.md` (checks 1-3: GitHub remote exists, `gh` CLI installed, `gh` authenticated + repo reachable). Unlike `/tidy`/`/help`'s use of this ladder, which fails open into a skipped scan, `/claude-tweaks:triage` treats any ladder failure as a hard gate — this skill's entire purpose is writing GitHub state, so there is no meaningful degraded mode to fall back into. Report the specific failing check and stop.
 
 ## Workflow
 
-### Step 1: Pull the ready queue (origin-agnostic)
+### Step 1: Pull the ready queue (origin-agnostic by default)
 
 ```bash
-gh issue list --label ready --state open --json number,title,labels,updatedAt --limit 100 > /tmp/triage-ready.json
+gh issue list --label ready --state open --json number,title,labels,updatedAt --limit 200 > /tmp/triage-ready.json
 node -e "
   const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const issues = require('/tmp/triage-ready.json');
-  const rows = issues.map((i) => ({ ...i, facets: parseRecordFacets(i.labels) }));
+  const originFilter = process.env.TRIAGE_ORIGIN || '';
+  let rows = issues.map((i) => ({ ...i, facets: parseRecordFacets(i.labels) }));
+  if (originFilter) {
+    rows = rows.filter((r) => (originFilter === 'human' ? r.facets.origin === null : r.facets.origin === originFilter));
+  }
   const worklist = rows.filter((r) => !r.facets.grants.build && !r.facets.grants.merge);
   const fresh = worklist.filter((r) => !r.facets.bot.blocked);
   const blocked = worklist.filter((r) => r.facets.bot.blocked);
@@ -71,7 +76,9 @@ node -e "
 " > /tmp/triage-worklist.json
 ```
 
-The filter is simply "no `auto:*` grant present" — a record currently mid-build keeps `auto:build` set for the length of the run (the grant persists until successful wrap-up), so it's already excluded without a separate in-progress check. Survivors split into two groups: **fresh** (no bot-state label — never touched by machinery) and **blocked** (`bot:blocked` — hit its retry ceiling, now a re-authorization candidate; Step 4 strips the label when granting one). There is no `by:*` filtering anywhere in this step — health-filed, captured, and human-filed records all enter the same worklist regardless of origin.
+When `--origin <name>` was passed (see Input), export `TRIAGE_ORIGIN=<name>` before running the script above; omitted, `TRIAGE_ORIGIN` is unset and the script runs unfiltered exactly as shown. `--limit 200` matches `_shared/github-pr-scan.md`'s `triage-queue` scope, which counts this same ready-queue-minus-grants-minus-blocked query for `/help`'s dashboard — keeping both at the same cap means the two never disagree on how many records are pending authorization. A ready queue that grows past 200 open records loses its oldest entries every session (`gh issue list` returns newest-first by default), a starvation risk worth knowing about rather than a one-time miss; narrowing a session with `--origin` does not raise this cap, since the 200-record pull happens before the origin filter is applied.
+
+The grant filter is simply "no `auto:*` grant present" — a record currently mid-build keeps `auto:build` set for the length of the run (the grant persists until successful wrap-up), so it's already excluded without a separate in-progress check. Survivors split into two groups: **fresh** (no bot-state label — never touched by machinery) and **blocked** (`bot:blocked` — hit its retry ceiling, now a re-authorization candidate; Step 4 strips the label when granting one). With no `--origin` flag, there is no `by:*` filtering anywhere in this step — health-filed, captured, and human-filed records all enter the same worklist regardless of origin.
 
 ### Step 2: Recommend
 
@@ -106,17 +113,15 @@ For the batch table and logging, compute display tiers from labels for all recor
 
 ```bash
 node -e "
-  const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const fs = require('fs');
   const data = JSON.parse(fs.readFileSync('/tmp/triage-worklist.json', 'utf8'));
   const all = [...(data.fresh || []), ...(data.blocked || [])];
-  const withTiers = all.map((record) => {
-    const { risk, effort } = parseRecordFacets(record.labels || []);
-    return { ...record, riskTier: risk, effortTier: effort };
-  });
+  const withTiers = all.map((record) => ({ ...record, riskTier: record.facets.risk, effortTier: record.facets.effort }));
   console.log(JSON.stringify(withTiers));
 " > /tmp/triage-with-tiers.json
 ```
+
+Each record already carries `.facets.risk`/`.facets.effort` from Step 1's `parseRecordFacets` pass — this script reads them directly instead of re-parsing every label array from scratch.
 
 ### Step 3: Batch table
 
@@ -148,7 +153,14 @@ Overrides (including inline scoring for an unscored row) are ordinary free-text 
 For every row the decision just resolved to **grant** — not flag-back rows, which don't need it — fetch the body and re-verify spec shape before writing any label. Labels are projection, not truth: a `ready` label only got the record into this worklist; it never authorizes the grant by itself (`_shared/work-record.md`).
 
 ```bash
-gh issue view "$ISSUE" --json body -q .body > /tmp/triage-body-${ISSUE}.md
+if [ -f "/tmp/assess-grant-${ISSUE}.json" ]; then
+  # Fresh row already went through Step 2's grant-check, which fetched and cached the
+  # body — reuse it instead of a second GitHub API round-trip for the same content.
+  node -e "console.log(require('/tmp/assess-grant-${ISSUE}.json').body)" > /tmp/triage-body-${ISSUE}.md
+else
+  # Blocked row skipped grant-check entirely (Step 2), so no cached body exists yet.
+  gh issue view "$ISSUE" --json body -q .body > /tmp/triage-body-${ISSUE}.md
+fi
 ```
 
 Check per `_shared/work-record.md`'s spec-shaped body definition: the sections `## Current State`, `## Deliverables`, and `## Acceptance Criteria` are present and each non-empty, and no unresolved placeholder marker (`TBD`, `TODO`, `<!-- ambiguity:`) remains anywhere in the body. This is structural-plus-minimal — whether the deliverables are the *right* ones stays human judgment (the batch table just confirmed), not this check.
@@ -229,7 +241,7 @@ If Step 4 granted nothing this session (every row was flagged back), omit Option
 
 ## Component-Skill Contract
 
-`/claude-tweaks:triage` is human-only — no pipeline orchestrator ever invokes it as a component step; a human runs it directly, every time. It always renders `## Next Actions` (mirrors `/claude-tweaks:specify`'s stance, which is user-facing for the same reason). `$PIPELINE_RUN_DIR` may be set during a run, but only because this skill resolves its own standalone run dir per `_shared/pipeline-run-dir.md`'s allowlist (item 3) to write `decisions.md` — that resolution is for logging only and never suppresses interactivity or the Next Actions block.
+`/claude-tweaks:triage` is human-only — no pipeline orchestrator ever invokes it as a component step; a human runs it directly, every time. It always renders `## Next Actions` (mirrors `/claude-tweaks:specify`'s stance, which is user-facing for the same reason). `$PIPELINE_RUN_DIR` may be set during a run, but only because this skill resolves its own standalone run dir per `_shared/pipeline-run-dir.md`'s allowlist (item 4) to write `decisions.md` — that resolution is for logging only and never suppresses interactivity or the Next Actions block.
 
 ## Anti-Patterns
 
@@ -237,9 +249,8 @@ If Step 4 granted nothing this session (every row was flagged back), omit Option
 |---------|--------------|
 | Granting `auto:build`/`auto:merge` from anything but an interactive human session | `auto:*` labels are only ever added by an interactive human session — there is no machinery path that originates a grant (`_shared/work-record.md`'s grant semantics). This is the security boundary, not a discretionary nicety. |
 | Granting on a `ready` label alone, skipping Step 3.5's body-shape re-verification | Labels are projection, not truth — a `ready` label only got the record into this worklist; an unshaped body must flag back, never grant. |
-| Skipping the batch-confirm because the recommendation "looks obviously right" | The human action, however trivial, is the load-bearing security signature — never skip it, even for an all-`auto:build`-eligible batch. |
+| Skipping or bulk-bypassing the batch-confirm — because the recommendation "looks obviously right," or by never rendering the batch table / `AskUserQuestion` decision at all | The human action, however trivial, is the load-bearing security signature — never skip it, even for an all-`auto:build`-eligible batch; an unattended "grant everything" bypasses the one interactive checkpoint the whole authorization model depends on. |
 | Adding any `bot:*` label from this gate | `bot:*` is `/claude-tweaks:dispatch`'s visibility layer, mirroring its own claim ref — the permission matrix reserves it for machinery. This gate only ever *strips* `bot:blocked` (re-grant); it never adds one. |
-| Bulk-granting without rendering the batch table / `AskUserQuestion` decision | Same load-bearing-signature reasoning — an unattended "grant everything" bypasses the one interactive checkpoint the whole authorization model depends on. |
 | Auto-granting `auto:merge` on a `re-authorize (bot:blocked)` row | A prior failure means the recommendation alone isn't sufficient signal to re-extend unsupervised merge trust — the default grants `auto:build` only; restoring `auto:merge` needs an explicit override. |
 | Filing or closing records from inside triage | Triage is a *consumer* of the `ready` queue — filing belongs to `/claude-tweaks:capture`/the health skills/`/claude-tweaks:specify`; closing happens at merge time (close-via-merge), a user decision. |
 
@@ -259,6 +270,7 @@ If Step 4 granted nothing this session (every row was flagged back), omit Option
 | `_shared/issue-claims.md` | Defines the claim protocol `/claude-tweaks:dispatch` uses after this gate grants — triage itself never claims. |
 | `_shared/github-pr-scan.md` | Detection Ladder — this skill's preflight hard gate — plus the `repo-wide`/`triage-queue` scopes that surface this gate's pending-authorization count elsewhere. |
 | `_shared/label-bootstrap.md` | Canonical check-then-create snippet for the `auto:build`/`auto:merge`/`risk:*`/`effort:*` pairs this gate applies. |
+| `_shared/pipeline-run-dir.md` | Triage resolves a standalone-auto run dir (allowlist item 4) for its own `decisions.md`. |
 | `_shared/auto-mode-contract.md` | Governs `decisions.md` logging for this gate's standalone run dir; the grants themselves are never auto-mode behavior — they require an interactive session by construction. |
 | `/claude-tweaks:assess-agent-autonomy` | Called inline (not a fresh Task dispatch) once per worklist record in Step 2, `grant-check` mode — its `RECOMMEND_BUILD`/`RECOMMEND_MERGE` output becomes the batch table's Recommended column directly. Triage's human batch-confirm is unchanged; only what generates the suggestion changed. |
 | `bin/lib/issues/record.js` | `parseRecordFacets` — the facet parser Step 1 uses to filter the `ready` queue down to ungranted records; its `risk`/`effort` fields also supply this skill's own display-tier computation and `grant-check`'s current-label input (an input to assess-agent-autonomy's judgment now, not triage's own recommendation logic). `recommendGrants`/`recommendTier` are retired. |

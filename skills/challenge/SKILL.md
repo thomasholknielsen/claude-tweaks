@@ -1,7 +1,7 @@
 ---
 name: claude-tweaks:challenge
 description: Use when you need to challenge assumptions and remove bias from a problem statement before brainstorming. Takes a backlog record or topic and produces a debiased problem framing.
-argument-hint: "[quick] <#n|topic|problem statement>"
+argument-hint: "[quick|--lens=<n[,n...]>] <#n|topic|problem statement>"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -23,25 +23,6 @@ The user is about to invest significant time brainstorming and specifying a feat
 
 > **HARD-GATE:** Do NOT accept the user's problem statement at face value. Do NOT jump to solutions. Do NOT brainstorm within their existing frame. Your entire purpose is to challenge the frame itself before any brainstorming begins.
 
-## Input
-
-`$ARGUMENTS` = a backlog record reference (e.g., `#42`), a topic about to be brainstormed, or a problem statement — optionally preceded by `quick`.
-
-### Mode detection:
-
-| Trigger | Mode | Lenses run |
-|---|---|---|
-| `quick` keyword in `$ARGUMENTS` (e.g., `/challenge quick meal planning`) | Quick | Lens 1 (Surface Hidden Assumptions) + Lens 7 (The Meta-Question) — two lens proposers instead of seven |
-| No `quick` keyword | Full | All applicable lenses (default) |
-
-### Resolve the input:
-
-Driver selection (GitHub vs. local-files) follows the same `work-backend` (legacy alias `backlog-backend`) CLAUDE.md flag as `/claude-tweaks:capture`'s Backend Selection.
-
-1. **Work record reference** (e.g., `#42`) — fetch via `gh issue view {n} --json title,body` (GitHub driver) or the record file via `local-store.js`'s `readRecord` (local-files driver; a bare `{n}` resolves to the `specs/{n}-*.md` glob match before `readRecord(path)` is called) and use the record's title + body as the problem statement
-2. **Topic** (e.g., `"meal planning"`) — use the topic as the problem statement
-3. **No arguments** — ask the user what they want to challenge
-
 ## When to Use
 
 - A backlog record bakes in a specific solution (e.g., "Add Redis caching" instead of "Improve response times")
@@ -58,6 +39,28 @@ Not every backlog record needs debiasing. Skip when:
 - The problem is clear and well-scoped (e.g., "Add dark mode toggle to settings page")
 - The item is a straightforward technical task with no ambiguity
 - The user has already explored the problem space thoroughly
+
+## Input
+
+`$ARGUMENTS` = a backlog record reference (e.g., `#42`), a topic about to be brainstormed, or a problem statement — optionally preceded by `quick` or `--lens=<n[,n...]>`.
+
+### Mode detection:
+
+| Trigger | Mode | Lenses run |
+|---|---|---|
+| `quick` keyword in `$ARGUMENTS` (e.g., `/challenge quick meal planning`) | Quick | Lens 1 (Surface Hidden Assumptions) + Lens 7 (The Meta-Question) — two lens proposers instead of seven |
+| `--lens=<n[,n...]>` flag (e.g., `/challenge --lens=3,5 meal planning`) | Targeted | Exactly the lens(es) named, by number (1-7) — bypasses the quick/full binary. Use to re-examine specific lenses after an earlier pass, or to dispatch a single lens directly (see Next Actions Option 2, "Re-examine"). |
+| No `quick` keyword or `--lens` flag | Full | All applicable lenses (default) |
+
+`quick` and `--lens` are mutually exclusive. If both are present in `$ARGUMENTS`, `--lens` takes precedence and note this to the user before dispatching.
+
+### Resolve the input:
+
+Driver selection (GitHub vs. local-files) follows the same `work-backend` (legacy alias `backlog-backend`) CLAUDE.md flag as `/claude-tweaks:capture`'s Backend Selection.
+
+1. **Work record reference** (e.g., `#42`) — fetch via `gh issue view {n} --json title,body` (GitHub driver) or the record file via `local-store.js`'s `readRecord` (local-files driver; a bare `{n}` resolves to the `specs/{n}-*.md` glob match before `readRecord(path)` is called) and use the record's title + body as the problem statement
+2. **Topic** (e.g., `"meal planning"`) — use the topic as the problem statement
+3. **No arguments** — ask the user what they want to challenge
 
 ## Auto-mode
 
@@ -147,11 +150,11 @@ Ask: *"Is this even the right question to ask?"*
 
 ## Process
 
-The process is a layered Mixture of Agents (Mode 4 from `skills/_shared/multi-agent-coordination.md`) — parallel lens proposers, then one sequential aggregator. Listen + Reflect-back are the only user-engagement steps; everything after Step 2 runs autonomously.
+The process is a layered Mixture of Agents (Mode 4 from `skills/_shared/multi-agent-coordination.md`) — parallel lens proposers, then one sequential aggregator (see Auto-mode above).
 
-1. **Listen** — Let the user explain their problem fully. Do not interrupt. (User-engagement step — protected in `auto` mode per `_shared/auto-mode-contract.md`.)
+1. **Listen** — Let the user explain their problem fully. Do not interrupt. (Protected — see Auto-mode above.)
 
-2. **Reflect back** — Summarize what you heard in 2-3 sentences. Ask if that's accurate. If the user disagrees, fix the summary via dialog before dispatching proposers — do not pre-dispatch and then dialog. (Also protected in `auto` mode.)
+2. **Reflect back** — Summarize what you heard in 2-3 sentences. Ask if that's accurate. If the user disagrees, fix the summary via dialog before dispatching proposers — do not pre-dispatch and then dialog. (Also protected — see Auto-mode above.)
 
 3. **Dispatch proposers (parallel).** Dispatch one proposer per applicable lens via the Subagent Contract.
 
@@ -178,6 +181,7 @@ The process is a layered Mixture of Agents (Mode 4 from `skills/_shared/multi-ag
 
    - **Full mode:** Dispatch all 7 lens proposers in parallel. The aggregator will deweight any irrelevant proposer outputs during synthesis — do NOT pre-filter lenses for "relevance," dispatch all 7.
    - **Quick mode:** Dispatch 2 lens proposers in parallel — Lens 1 (Surface Hidden Assumptions) and Lens 7 (The Meta-Question). Aggregation still runs.
+   - **Targeted mode (`--lens=<n[,n...]>`):** Dispatch exactly the lens proposer(s) named, in parallel. Aggregation still runs, over just those outputs. Use this to re-run a first pass's most interesting lens(es) without paying for the other 5-6, or to check a single lens on its own.
 
 4. **Dispatch aggregator (sequential).** Exactly 1 aggregator agent receives all proposer outputs verbatim. Inline the verbatim Mode 4 aggregator instruction template:
 >
@@ -206,13 +210,13 @@ The process is a layered Mixture of Agents (Mode 4 from `skills/_shared/multi-ag
 
    Aggregator tier: **Capable** (Opus). Do not downgrade to Standard — synthesis quality is the entire reason `/challenge` exists, and the Subagent Contract recommends Capable for "design synthesis, UX analysis, ambiguous calibration."
 
-5. **Save the brief.** Write the aggregator's output to `docs/plans/{YYYY-MM-DD}-{topic}-brief.md` using the schema in the Output section below (no schema drift). Append exactly ONE `AUTO` entry to `decisions.md` per MoA invocation:
+5. **Save the brief.** Write the aggregator's output to `docs/plans/{YYYY-MM-DD}-{topic}-brief.md` using the schema in the Output section below (no schema drift). If a pipeline run directory is resolved (`$PIPELINE_RUN_DIR` set, or the most-recent-matching-directory fallback in `_shared/pipeline-run-dir.md` resolves one), append exactly ONE `AUTO` entry to `decisions.md` per MoA invocation:
    ```
    - AUTO {HH:MM:SS} — MoA: applied {N} proposers + 1 aggregator on {topic|record #{N}}. Aggregator tier: Capable.
    ```
-   Do NOT log per-proposer dispatches separately — the MoA invocation is a single coordination event.
+   Do NOT log per-proposer dispatches separately — the MoA invocation is a single coordination event. When no pipeline run directory is resolved — the common case for a direct standalone invocation, since `/claude-tweaks:challenge` is not on `_shared/pipeline-run-dir.md`'s standalone-auto allowlist — skip the `decisions.md` write entirely; there is no run dir to write to and no Review Console will read it.
 
-After Step 5, run the Brief Self-Review pass (unchanged — see below).
+After Step 5, run the Brief Self-Review pass below.
 
 ---
 
@@ -257,7 +261,7 @@ Save the brief to `docs/plans/{YYYY-MM-DD}-{topic}-brief.md` so it survives acro
 
 Look at the saved brief with fresh eyes. Fix issues inline — no subagent, no separate pass.
 
-1. **Assumption check** — every assumption named in the brief should be either declared *validated* (with the evidence that made you confident) or declared *unvalidated* (with the test that would resolve it). Hedged language like "probably true" is a placeholder; replace it with one or the other.
+1. **Assumption check** — every assumption named in the brief should be either declared *validated* (with the evidence that made you confident) or declared *unvalidated* (with the test that would resolve it). Hedged language like "probably true" is a placeholder; replace it with one or the other. If an assumption is left *unvalidated* and resolving it needs evidence beyond this conversation (market data, prior art, published benchmarks), this is the trigger for `/claude-tweaks:research`: note it as an Open Question and, if time allows before handoff, invoke `/claude-tweaks:research quick {the assumption as a question}` and fold the finding back into the assumption's status. Otherwise leave it as an open question for the user to research before or during brainstorming.
 2. **Constraint vs. preference** — are listed constraints actually non-negotiable, or did a preference get promoted to a constraint during the lenses? If brainstorming could legitimately propose an alternative that violates the "constraint", it's a preference — relabel it.
 3. **Reframe coherence** — does the reframed problem statement still match what the user originally wanted to do? Major reframes are fine; *unrecognizable* reframes mean the lenses overcorrected. If so, soften back toward the original.
 4. **Open question quality** — every open question should be answerable. "What should we do?" is too vague; "Should we support multi-tenant from day one, or single-tenant first?" is actionable. Rewrite vague ones.
@@ -268,7 +272,7 @@ After saving the brief, hand off to brainstorming. If the user wants to adjust t
 
 - `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`
 - Option 1 — `label`: `"Brainstorm (Recommended)"`, `description`: `"/superpowers:brainstorming — explore solutions for the reframed problem. After brainstorm produces the design doc, run /claude-tweaks:specify next (not /superpowers:writing-plans — specify handles decomposition into agent-sized specs before planning)"`
-- Option 2 — `label`: `"Re-examine"`, `description`: `"Revisit a specific lens or adjust the reframing"`
+- Option 2 — `label`: `"Re-examine"`, `description`: `"/claude-tweaks:challenge --lens=<n[,n...]> {topic|#N} — revisit specific lens(es) (e.g. --lens=3,5) without re-running the full 7-lens dispatch"`
 - Option 3 — `label`: `"Save and resume later"`, `description`: `"Keep the brief on disk; pick up at brainstorming when ready"`
 
 ## Component-Skill Contract

@@ -9,6 +9,7 @@ A section qualifies for "finish now" if **all** of these hold:
 - No dependency on functionality not yet built in this pipeline
 - No required user product/design decisions
 - No required external state
+- Does not materially expand pipeline scope (does not trigger long rebuilds, does not break >10 unrelated tests)
 
 Finish qualifying sections silently, commit, then present only the residue.
 

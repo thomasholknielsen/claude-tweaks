@@ -1,7 +1,7 @@
 ---
 name: claude-tweaks:assess-agent-autonomy
 description: Use when triage or dispatch need a content-aware trust verdict instead of a mechanical label lookup, or when specify's record-creation step needs a content-aware ceremony-depth verdict — grant-check informs triage's recommendation, merge-check replaces dispatch's blast-radius gate, failure-check replaces dispatch's blanket failure-revocation rule, ceremony-check informs specify's per-record ceremony depth (flow's materialize step falls back to it only for records that never went through specify). Inline helper, never invoked directly by a human. Keywords - autonomy, trust, judgment, grant recommendation, auto-merge, blast radius, failure classification, ceremony profile, fast-lane.
-argument-hint: "[grant-check|merge-check|failure-check|ceremony-check] #<n>"
+argument-hint: "<grant-check|merge-check|failure-check|ceremony-check> [#<n>] [--base <ref>]"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -37,15 +37,26 @@ general-purpose risk service.
 
 ## Input
 
-`$ARGUMENTS` is `{mode} #{n}`, where `mode` is one of `grant-check` | `merge-check` |
-`failure-check` | `ceremony-check` and `#{n}` is the record's issue number. Each mode's own Step 1
-("Gather," below) is the source of truth for how it's used — they differ: `grant-check` fetches the
-record body via `gh issue view` keyed on `#{n}`; `failure-check` fetches issue/PR comments via
-`gh api ".../issues/${N}/comments..."`, also a genuine fetch keyed on `#{n}`; `ceremony-check`'s
-primary call path (from `/specify`) issues no fetch at all — it reuses body/label data the caller
-already holds in memory, and its fallback path (from `/flow`) likewise reuses data
-`materialize.md` already fetched; `merge-check` uses `#{n}` only as a temp-file-name suffix for its
-own git-diff/config-derived gather — it never fetches the record itself.
+`$ARGUMENTS` is `{mode} [#{n}] [--base <ref>]`, where `mode` is one of `grant-check` |
+`merge-check` | `failure-check` | `ceremony-check` and `#{n}` is the record's issue number. Each
+mode's own Step 1 ("Gather," below) is the source of truth for how it's used — they differ:
+`grant-check` fetches the record body via `gh issue view` keyed on `#{n}`; `failure-check` fetches
+issue/PR comments via `gh api ".../issues/${N}/comments..."`, also a genuine fetch keyed on `#{n}`;
+`ceremony-check`'s primary call path (from `/specify`) issues no fetch at all — it reuses
+body/label data the caller already holds in memory, and its fallback path (from `/flow`) likewise
+reuses data `materialize.md` already fetched; `merge-check` uses `#{n}` only as a temp-file-name
+suffix for its own git-diff/config-derived gather — it never fetches the record itself.
+
+`#{n}` is omitted only from `ceremony-check`'s primary call in `/specify`'s Step 3
+decomposition-mode per-leaf loop — the leaf has no issue number yet at that point in the
+procedure (it's assigned only after the record is created, later in the same step), so that call
+site invokes this skill as bare `ceremony-check` with no trailing `#{n}` at all. Every other mode,
+and `ceremony-check`'s own Shaping-mode and `/flow`-fallback calls, always pass `#{n}`.
+
+`--base <ref>` is `merge-check`-only: an optional pre-known merge-base commit or ref the caller
+already has in context (e.g. dispatch's per-group Task agent, which ran `/flow` and set up the
+worktree itself). When present, `merge-check`'s Step 1 uses it directly instead of re-deriving
+`$MERGE_BASE` from `$DEFAULT_BRANCH`. Ignored by the other three modes.
 
 Invoked inline via the Skill tool — not as a fresh Task-agent dispatch. The calling agent (a
 human-driven `/claude-tweaks:triage` session, or dispatch's per-group Task agent running `/flow`)
@@ -132,14 +143,37 @@ present on every group member) stays a hard binary gate in `dispatch/SKILL.md` i
 
 ### Step 1: Gather
 
+> **Parallel execution:** Use parallel tool calls aggressively — resolving `$MERGE_BASE` (below)
+> and reading this project's `merge-sensitive-paths`/`automerge-max-lines`/`automerge-max-files`
+> config are independent read-only operations and should run concurrently; only the blast-radius
+> compute at the end of this step depends on both of their outputs.
+
 The calling agent has just finished this run's build, test, and review — the diff and review
-verdict are already in its own context. Confirm rather than re-derive where possible. `$MERGE_BASE` is the commit this run's worktree branched from — the same base the pipeline's own build started from. If not already known from context, resolve it dynamically rather than assuming `main` — some projects default to `master`, `trunk`, or another branch name, and this skill runs against whatever project has it installed:
+verdict are already in its own context. Confirm rather than re-derive where possible. `$MERGE_BASE`
+is the commit this run's worktree branched from — the same base the pipeline's own build started
+from.
+
+- **If the caller passed `--base <ref>`** (see Input — e.g. dispatch's per-group Task agent, which
+  ran `/flow` and set up the worktree itself, often already knows this value), use it directly:
+  `MERGE_BASE="<ref>"`. Skip the derivation below entirely.
+- **Otherwise**, if not already known from context, resolve it dynamically rather than assuming
+  `main` — some projects default to `master`, `trunk`, or another branch name, and this skill runs
+  against whatever project has it installed. `gh` is already a hard dependency of this skill
+  (`grant-check`/`failure-check` both shell out to it), so reuse the same one-liner
+  `skills/dispatch/SKILL.md`'s own auto-merge flow already uses for this:
 
 ```bash
-DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
-if [ -z "$DEFAULT_BRANCH" ]; then
-  DEFAULT_BRANCH=$(git remote show origin | sed -n '/HEAD branch/s/.*: //p')
-fi
+DEFAULT_BRANCH=$(gh api "repos/{owner}/{repo}" -q .default_branch 2>/dev/null)
+```
+
+  If `$DEFAULT_BRANCH` comes back empty (no `origin` remote configured, no `gh` auth, or an
+  offline/detached runner), stop here — this is exactly the "inconclusive read" case `## Error
+  Handling` already covers, not a hard crash to let the rest of Gather fail on. Render Step 3
+  directly — `VERDICT: needs-human` / `RATIONALE: {name the specific resolution failure, e.g.
+  "could not resolve this project's default branch via gh api"}` — and skip the rest of this
+  mode's procedure.
+
+```bash
 MERGE_BASE=$(git merge-base "$DEFAULT_BRANCH" HEAD)
 ```
 
@@ -161,7 +195,9 @@ process.stdin.on('end', () => {
 Read this project's own configured `merge-sensitive-paths`/`automerge-max-lines`/
 `automerge-max-files` directly — this skill reads its own config, the same way
 `skills/dispatch/SKILL.md`'s existing Configuration section reads `dispatch-retry-ceiling` and
-friends directly rather than expecting a caller to pre-fetch and pass them:
+friends directly rather than expecting a caller to pre-fetch and pass them. This grep is
+independent of the `$MERGE_BASE`/diff-derivation chain above (see the parallel-execution note) and
+can be issued as a concurrent tool call:
 
 ```bash
 grep -E "^merge-sensitive-paths:|^automerge-max-lines:|^automerge-max-files:" CLAUDE.md .claude-tweaks/policy.yml 2>/dev/null
@@ -318,9 +354,10 @@ Read the record's full body (Current State / Deliverables / Acceptance Criteria)
   `risk:low`/`effort:low`.
 - Is the record's Deliverables a pure prose/comment/documentation correction with no behavioral
   surface at all? That supports `fast-lane` regardless of labels.
-- A missing Current State/Deliverables/Acceptance Criteria section, or an unresolved
-  `TBD`/`TODO`/`<!-- ambiguity:` marker, is not this mode's job to catch — that's the
-  materialization hard gate's own job, which runs before this mode regardless of its output.
+- Same non-goal as `grant-check`'s Step 2 (above): a missing Current State/Deliverables/Acceptance
+  Criteria section, or an unresolved `TBD`/`TODO`/`<!-- ambiguity:` marker, is not this mode's job
+  to catch — here that's the materialization hard gate's own job, which runs *before* this mode
+  regardless of its output (`grant-check`'s analogous gate runs *after*).
 
 ### Step 3: Render
 

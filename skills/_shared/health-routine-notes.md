@@ -5,17 +5,19 @@ This file is their one canonical home; each consumer keeps a short pointer sente
 than the full paragraph, so a future fix (e.g. closing the asymmetry, updating the billing
 language) only needs to land here once.
 
-## Confidence-floor asymmetry (harness-health, docs-health, journey-health)
+## Confidence floor (harness-health, docs-health, journey-health)
 
-Unlike `/code-health`'s `--min-risk` flag (which holds below-threshold findings in a `remembered`
-cache instead of filing them), `harness-health`'s, `docs-health`'s, and `journey-health`'s
-`validate-findings` calls carry no equivalent threshold — a headless Routine firing files every
-surviving finding regardless of `confidence`, including a `confidence: low` one that the
-interactive gate's own Recommended-column rule would otherwise route to Capture. Known asymmetry
-with `/code-health`, not yet closed: a scheduled firing on any of these three skills is noisier
-than an interactive one on low-confidence findings until each gains an equivalent holdback
-mechanism (or the mechanism is generalized once into the shared `bin/lib/health-core/` layer all
-four already build on, rather than reimplemented three more times).
+All three now carry a `--min-confidence <low|med|high>` flag, closing the asymmetry with
+`/code-health`'s `--min-risk`. Same flag name and enum across all three, but the holdback
+mechanism itself isn't fully uniform: `harness-health` and `docs-health` mirror `--min-risk`
+exactly — a below-floor finding is held in the durable `remembered` cache (not dropped, not
+filed) until a later, deliberately deeper run lowers the bar. `journey-health` has no
+`remembered` cache tier by design — a below-floor finding is simply not filed for that run and
+re-surfaces fresh (not resumed from where it was held) on a future firing. `journey-health`'s
+Routine template passes `--min-confidence high` by default; harness-health/docs-health leave it
+unset by default (every surviving finding still files unconditionally unless a human or the
+routine template passes the flag explicitly) — check each skill's own Routine Configuration
+section for its current default before assuming parity.
 
 ## Billing note (all four health skills)
 

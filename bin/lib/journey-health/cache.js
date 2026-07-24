@@ -11,7 +11,12 @@ const { createDurableState } = require('../health-core/durable-state');
 // doesn't survive a scheduled cloud-routine firing's container recycling.
 
 const core = createCache('journey-health');
-const durable = createDurableState('journey-health');
+// includeDeclined: true — a `mark ... declined` disposition also persists here
+// (not just the local gitignored cache), so it survives a scheduled Routine's
+// fresh, stateless container. See bin/lib/health-core/mark.js's own header
+// comment and bin/journey-health.js's cmdMark wiring. No includeRemembered
+// here — journey-health has no `remembered` tier, see comment below.
+const durable = createDurableState('journey-health', { includeDeclined: true });
 
 // Pure: computes the next durable-state object for a validate-findings run.
 // current: { cursors, retryQueue, runs } — the current durable health-state

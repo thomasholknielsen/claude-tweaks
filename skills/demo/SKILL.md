@@ -47,7 +47,7 @@ then merge before Step 2.
 **`work-backend: github-issues`:**
 
 ```bash
-gh issue list --state all --label demo:pending --json number,title,labels,url --limit 200 > /tmp/demo-pending.json
+gh issue list --state all --label demo:pending --json number,title,labels,url --limit 500 > /tmp/demo-pending.json
 node -e "
   const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const issues = require('/tmp/demo-pending.json');
@@ -68,7 +68,11 @@ For each matching record, fetch its Verification Brief: the last issue comment c
 build/demo cycle occurred; otherwise search all comments for the last one containing that
 heading).
 
-**`work-backend: local-files`:** `queryRecords(dir, { acceptance: 'pending' })`
+**`work-backend: local-files`:** `queryRecords` filters on `closed` only when the caller
+explicitly passes that key, so a bare `{ acceptance: 'pending' }` call silently drops every
+closed record — mirror the `--state all` behavior above with two calls, merged:
+`queryRecords(dir, { acceptance: 'pending' })` (open) plus
+`queryRecords(dir, { acceptance: 'pending', closed: true })` (closed)
 (`bin/lib/issues/local-store.js`) — the Verification Brief is the record's own
 `## Verification Brief` body section, not a separate fetch.
 
@@ -172,20 +176,21 @@ the first swap this run.
      `Origin: demo changes-requested from #{n}` per `_shared/work-record.md`'s side-effect-record
      convention — plus the reason and a link back to the original. `work-backend: github-issues`:
      use the same `recordPayload` composition `/claude-tweaks:capture` uses
-     (`bin/lib/issues/record.js`), just without invoking `/claude-tweaks:capture` itself.
+     (`bin/lib/issues/record.js`), just without invoking `/claude-tweaks:capture` itself —
+     and, unlike `/capture`'s own call, **omit the `origin` field entirely** rather than passing
+     `origin:'demo'`: `record.js`'s `ORIGINS` enum has no `'demo'` entry, so passing it throws;
+     omitting `origin` is also what keeps this follow-up label-free, consistent with the
+     "no `by:*` label" requirement above (`recordPayload` only pushes a `by:*` label when
+     `origin` is set).
      `work-backend: local-files`: use `createRecord(dir, { slug, title, body, facets })` from
      `bin/lib/issues/local-store.js` — `title` is the reason text just collected, `body` is the
      reason plus the link back to the original plus the `Origin:` line above, `facets: { type,
      stage: 'backlog' }` (`type` being `bug` or the overridden type). Compute `slug` via that
      same module's `deriveSlug(title, existingSlugs)`. Never `allocateId`+`writeRecord`
-     separately: two near-simultaneous follow-up filings — two `/demo` "Request changes"
-     verdicts landing in the same run, or `/demo` racing a `/capture`/`/specify` decomposition —
-     calling `allocateId`+`writeRecord` independently can both read the same directory listing,
-     both compute the same next id, and both succeed under different slugs, silently sharing one
-     numeric id and corrupting any later `facets.parent`/`facets.blockedBy` reference that
-     assumes id uniqueness. `createRecord` closes that race by allocating the id and writing the
-     file as one atomic step — the same fix `capture/SKILL.md`'s local-files branch uses; see
-     that file's Backend Selection section for the full call shape to mirror.
+     separately — same allocateId+writeRecord race `capture/SKILL.md`'s Backend Selection
+     section documents (two near-simultaneous filings, e.g. two `/demo` "Request changes"
+     verdicts landing in the same run, or `/demo` racing a `/capture`/`/specify` decomposition,
+     can silently share one numeric id); see that section for the full call shape to mirror.
   3. Note the bidirectional link back on the original record. `work-backend: github-issues`:
      comment on the original issue with the new follow-up's issue number. `work-backend:
      local-files`: there is no comment mechanism (same constraint `verification-brief.md` and

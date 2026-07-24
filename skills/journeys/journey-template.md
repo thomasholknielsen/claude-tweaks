@@ -17,3 +17,4 @@ The literal journey template lives in `skills/_shared/diataxis-genre-templates.m
 - **One journey per goal**, not per feature. A journey may span features from multiple specs.
 - **Include the entry point and success state.** These bookend the journey and define what "complete" means.
 - **Personas are specific people**, not roles. "Developer who just joined the team and is setting up for the first time" not "developer."
+- **Record a persona handoff in the step's Action text.** The template has one top-level `**Persona:**` field, not a per-step persona field — when a journey crosses to a second actor mid-flow (e.g. shopper → support agent), name that actor explicitly at the start of the step's Action ("**Support agent** escalates the ticket to billing") rather than leaving the handoff implicit. This is what Step 3.6's `multi-persona` diagram signal scans for — an unnamed handoff won't be detected.

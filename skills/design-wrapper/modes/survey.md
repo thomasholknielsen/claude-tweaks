@@ -1,6 +1,6 @@
 # Design Mode — survey
 
-Invoked via `/claude-tweaks:design-wrapper survey <files>` (or `--screenshots <paths>` when called from `/visual-review`). Returns `{mode, result: "ok", context, recommendations, suppressed}` or `{mode, skipped, ...}` to caller.
+Invoked via `/claude-tweaks:design-wrapper survey <files> [--screenshots <paths>] [--limit <n>]` (`--screenshots` when called from `/visual-review`; `--limit` overrides the default recommendation cap). Returns `{mode, result: "ok", context, recommendations, suppressed}` or `{mode, skipped, ...}` to caller.
 
 ## When this runs
 
@@ -31,6 +31,8 @@ The caller signals which surface produced the call:
 - **From `/flow` pipeline summary** — caller passes the full diff file list (no screenshots). Survey applies heuristic per-file checks (e.g., file with motion-related imports but zero `transition`/`animate` references → animate could help; page component with no error/empty-state JSX → delight could help).
 - **From a user invocation directly** — same as the `/flow` path (heuristic, no screenshots) unless `--screenshots` is provided.
 
+When no file list is passed (and no `--screenshots`), the file list defaults to `git diff --name-only`; if that command itself fails, return `{skipped: "unable to resolve target files (git diff failed)"}` immediately — see `../SKILL.md`'s Input section for this shared fallback-failure rule.
+
 ### Step 3: Apply the "would help" criteria
 
 Produce raw observations. Each observation maps to one creative command per the criteria table in `../command-map.md` (Survey-mode section). Summary of mapped commands: `bolder`, `quieter`, `distill`, `delight`, `animate`, `colorize`, `onboard`, `extract`, `overdrive`.
@@ -59,7 +61,7 @@ Rank by signal strength:
 - Per-screenshot LLM-graded observations rank above heuristic ones.
 - Among heuristics, file-pattern matches with multiple supporting signals (e.g., motion-imports AND zero transitions) rank above single-signal matches.
 
-Cap output at 5 recommendations to avoid noise.
+Cap output at 5 recommendations to avoid noise, or at `--limit <n>` when the caller passes it (e.g. `--limit 1` for a quick-glance summary during `/flow`'s pipeline summary, or a higher `--limit` for a deliberately thorough standalone pass via `/visual-review`'s Boost gate). An omitted or invalid (non-positive, non-integer) `--limit` falls back to the default of 5.
 
 ### Step 6: Write the recommendations cache
 

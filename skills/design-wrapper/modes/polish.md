@@ -1,6 +1,6 @@
 # Design Mode — polish
 
-Invoked via `/claude-tweaks:design-wrapper polish <spec>`. Returns `{mode, result: "ok", commands_invoked, files_modified}` or `{mode, skipped, ...}` to caller. **First wrapper mode that modifies code.**
+Invoked via `/claude-tweaks:design-wrapper polish <spec> [--dry-run]`. Returns `{mode, result: "ok", commands_invoked, files_modified}` or `{mode, skipped, ...}` to caller. **First wrapper mode that modifies code** — unless `--dry-run` is passed, see Step 8.
 
 ## When this runs
 
@@ -26,7 +26,7 @@ On any skip, return the skip object — `/claude-tweaks:flow` notes the skip and
 
 If `<spec>` was passed and lists scoped files, intersect with `git diff --name-only`. Otherwise use the full diff filtered to frontend extensions/paths.
 
-If zero files remain after filtering, return `{skipped: "no UI files changed"}`.
+If zero files remain after filtering, return `{skipped: "no UI files changed"}`. If `git diff --name-only` itself fails (non-git directory, git error, mid-rebase state), return `{skipped: "unable to resolve target files (git diff failed)"}` immediately — see `../SKILL.md`'s Input section for this shared fallback-failure rule.
 
 ### Step 3: Read prior audit findings cache
 
@@ -85,6 +85,10 @@ Dispatched 5 Impeccable commands on 3 files — auto-fit: polish, clarify, harde
 
 When `commands_invoked` is empty, do not build `decision_summary` — omit the field entirely from the output.
 
+### Step 8: `--dry-run` short-circuit
+
+When the caller passes `--dry-run`, run Steps 1-7 exactly as above to compute the full `commands_invoked` (including each entry's `category`/`trigger`) and `staged_suggestions` lists and the `decision_summary`, but stop before Step 4's actual Skill-tool invocations — do not dispatch any Impeccable command, and do not modify any file. Return the same output shape as a normal run (see Output to caller below) with `files_modified: []` unconditionally and `dry_run: true` added to the top level, so callers can distinguish a real no-op (`files_modified: []` with no `dry_run` key) from a dry-run preview. `staged_suggestions` and `decision_summary` still reflect what *would* run — callers must not append `decision_summary` to the auto-decision log or write `staged_suggestions` to `{run-dir}/staged/` for a dry-run response, since nothing was actually decided or staged.
+
 ## Output to caller
 
 ```json
@@ -123,4 +127,4 @@ Or, when no commands ran (skip from preconditions, or zero files in scope, or no
 
 Note `decision_summary` is absent from the empty-`commands_invoked` case above — there is nothing to log.
 
-`polish` is the **first wrapper mode that modifies code.** Callers (`/flow` polish phase) must follow up with re-verification (types/lint/tests) when `files_modified` is non-empty. When `decision_summary` is present, callers must also append it to the auto-decision log (see `_shared/auto-mode-contract.md`). When `staged_suggestions` is non-empty, callers must also write one file per entry to `{run-dir}/staged/` and log a `STAGED` entry per entry to `decisions.md` (see `_shared/auto-decision-log.md`) — otherwise the suggestion is silently dropped instead of surfacing at the Wrap-Up Review Console.
+`polish` is the **first wrapper mode that modifies code** — unless invoked with `--dry-run` (Step 8), in which case `dry_run: true` is present and `files_modified` is always `[]`. Callers (`/flow` polish phase) must follow up with re-verification (types/lint/tests) when `files_modified` is non-empty. When `decision_summary` is present *and* `dry_run` is absent, callers must also append it to the auto-decision log (see `_shared/auto-mode-contract.md`). When `staged_suggestions` is non-empty *and* `dry_run` is absent, callers must also write one file per entry to `{run-dir}/staged/` and log a `STAGED` entry per entry to `decisions.md` (see `_shared/auto-decision-log.md`) — otherwise the suggestion is silently dropped instead of surfacing at the Wrap-Up Review Console. A `dry_run: true` response is a preview only — callers must not log or stage anything from it.

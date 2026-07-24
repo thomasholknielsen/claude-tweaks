@@ -18,7 +18,7 @@ Run all three detection layers + availability. On any skip, return the skip obje
 
 ### Step 2: Resolve target files
 
-If `<files>` was passed, use that list. Otherwise run `git diff --name-only` to collect uncommitted changes (staged + unstaged).
+If `<files>` was passed, use that list. Otherwise run `git diff --name-only` to collect uncommitted changes (staged + unstaged). If that command itself fails (non-git directory, git error, mid-rebase state), return `{skipped: "unable to resolve target files (git diff failed)"}` immediately — see `../SKILL.md`'s Input section for this shared fallback-failure rule.
 
 ### Step 3: Filter to frontend files
 

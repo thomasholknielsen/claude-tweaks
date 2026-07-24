@@ -6,6 +6,8 @@ Loaded by `/claude-tweaks:stories` when it detects legacy v1 stories OR a legacy
 
 Triggered when `/stories` reads a YAML file lacking `schema_version: 2` at the top.
 
+**Explicit re-entry (`migrate` keyword):** When MIGRATE_MODE is set (the user ran the literal `/claude-tweaks:stories migrate` command surfaced by a staged migration item), skip the auto-mode staging branch below even inside an otherwise-auto pipeline context and go straight to the Interactive mode branch — running `migrate` is itself the explicit human action that resolves the staged item, so there is nothing left to stage.
+
 **Auto mode:** auto-skip migration. Stage as a Review Console item — never regenerate stories autonomously (a migration changes test assertions, which is high-stakes). Log:
 
 ```

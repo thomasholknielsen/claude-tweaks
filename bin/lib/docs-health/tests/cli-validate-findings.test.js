@@ -6,6 +6,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+const { seedDurableState } = require('../../health-core/tests/seed-durable-state');
+
 const CLI = path.resolve(__dirname, '..', '..', '..', 'docs-health.js');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'docs-health-vf-')); }
@@ -182,6 +184,100 @@ test('validate-findings: a finding matching a closed non-wontfix issue is reopen
   const cache = JSON.parse(fs.readFileSync(path.join(root, '.claude-tweaks', 'docs-health', 'cache.json'), 'utf8'));
   assert.strictEqual(cache[fp].status, 'regressed');
   assert.strictEqual(cache[fp].issue, 9);
+});
+
+// ── --min-confidence: sub-threshold findings are remembered, not filed ──
+
+test('validate-findings: --min-confidence high withholds a low-confidence finding from payloads (remembered instead)', () => {
+  const root = tmp();
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([validFinding({ confidence: 'low' })]));
+
+  const result = runValidateFindings(root, findingsFile, ['--target', 'decisions/0007-foo', '--min-confidence', 'high']);
+  assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+  const payloads = JSON.parse(result.stdout);
+  assert.strictEqual(payloads.length, 0, 'a low-confidence finding below the floor must not be filed');
+});
+
+test('validate-findings: --min-confidence high still files a high-confidence finding', () => {
+  const root = tmp();
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([validFinding({ confidence: 'high' })]));
+
+  const result = runValidateFindings(root, findingsFile, ['--target', 'decisions/0007-foo', '--min-confidence', 'high']);
+  assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+  const payloads = JSON.parse(result.stdout);
+  assert.strictEqual(payloads.length, 1, 'a finding at or above the floor must still be filed');
+});
+
+test('validate-findings: without --min-confidence, a low-confidence finding still files (default file-everything behavior unchanged)', () => {
+  const root = tmp();
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([validFinding({ confidence: 'low' })]));
+
+  const result = runValidateFindings(root, findingsFile, ['--target', 'decisions/0007-foo']);
+  assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+  const payloads = JSON.parse(result.stdout);
+  assert.strictEqual(payloads.length, 1, 'omitting the flag must preserve today\'s no-floor default');
+});
+
+test('validate-findings: --min-confidence <invalid value> exits 2', () => {
+  const root = tmp();
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([]));
+
+  const result = runValidateFindings(root, findingsFile, ['--target', 'decisions/0007-foo', '--min-confidence', 'bogus']);
+  assert.strictEqual(result.status, 2);
+  assert.ok(result.stderr.includes('min-confidence'), `expected the gate message in stderr: ${result.stderr}`);
+});
+
+test('validate-findings: a below-floor finding is recorded in the local cache as remembered (not staged/dropped)', () => {
+  const root = tmp();
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([validFinding({ confidence: 'low' })]));
+
+  const result = runValidateFindings(root, findingsFile, ['--target', 'decisions/0007-foo', '--min-confidence', 'high']);
+  assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+
+  const cache = JSON.parse(fs.readFileSync(path.join(root, '.claude-tweaks', 'docs-health', 'cache.json'), 'utf8'));
+  const entries = Object.values(cache);
+  assert.strictEqual(entries.length, 1);
+  assert.strictEqual(entries[0].status, 'remembered');
+  assert.strictEqual(entries[0].confidence, 'low');
+});
+
+// ── declined marks must survive a fresh (different) container ──
+//
+// bin/lib/health-core/mark.js's readDurableState/writeDurableState wiring
+// (now enabled for docs-health.js's cmdMark, mirroring harness-health.js)
+// persists a "declined" mark to the health-state branch, not just the local
+// gitignored cache.json — but that's only half the fix: cmdValidateFindings
+// also has to read it back. This test proves the read/merge side
+// (mergeDeclinedIntoCache, wired into cmdValidateFindings's cache read)
+// genuinely works end-to-end by seeding the health-state branch directly
+// (bypassing `mark`'s own `gh api` write path, which needs real GitHub
+// credentials this sandboxed test doesn't have) and confirming a *fresh*
+// root — no local cache.json for this fingerprint at all, simulating a
+// different, since-recycled scheduled-Routine container — still suppresses it.
+test('validate-findings: a fingerprint declined only on the durable health-state branch (simulating a different, since-recycled Routine container) is still suppressed', () => {
+  const root = tmp();
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([validFinding()]));
+
+  // Compute the real fingerprint the same way a first run would, without
+  // touching git at all yet (bare tmp root => no remote, dry-run writes nothing).
+  const first = runValidateFindings(root, findingsFile, ['--dry-run', '--target', 'decisions/0007-foo']);
+  const fp = JSON.parse(first.stdout)[0].body.match(/<!--\s*work-fingerprint:\s*(docshealth-[0-9a-f]{8})\s*-->/)[1];
+
+  seedDurableState(root, 'docs-health', 'declined.json', { [fp]: { lastSeenMs: Date.now() } }, 'docs-health-vf-declined');
+
+  const second = runValidateFindings(root, findingsFile, ['--target', 'decisions/0007-foo']);
+  assert.strictEqual(second.status, 0, `stderr: ${second.stderr}`);
+  assert.strictEqual(
+    JSON.parse(second.stdout).length,
+    0,
+    'a durably-declined finding must be suppressed even though this root has no local cache.json for it',
+  );
 });
 
 test('validate-findings: a real run still succeeds and emits its payload when durable persistence cannot complete', () => {

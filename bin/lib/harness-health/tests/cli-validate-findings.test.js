@@ -6,6 +6,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+const { seedDurableState } = require('../../health-core/tests/seed-durable-state');
+
 const CLI = path.resolve(__dirname, '..', '..', '..', 'harness-health.js');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'harness-health-vf-')); }
@@ -236,6 +238,82 @@ test('validate-findings: exits non-zero when the findings file is missing', () =
   const root = tmp();
   const result = runValidateFindings(root, path.join(root, 'nonexistent.json'), ['--target', 'auth', '--kind', 'skill']);
   assert.notStrictEqual(result.status, 0);
+});
+
+// ── declined marks must survive a fresh (different) container ──
+//
+// bin/lib/health-core/mark.js's readDurableState/writeDurableState wiring
+// (now enabled for harness-health.js's cmdMark) persists a "declined" mark
+// to the health-state branch, not just the local gitignored cache.json — but
+// that's only half the fix: cmdValidateFindings also has to read it back.
+// This test proves the read/merge side (mergeDeclinedIntoCache, wired into
+// cmdValidateFindings's readCache) genuinely works end-to-end by seeding the
+// health-state branch directly (bypassing `mark`'s own `gh api` write path,
+// which needs real GitHub credentials this sandboxed test doesn't have) and
+// confirming a *fresh* root — no local cache.json for this fingerprint at
+// all, simulating a different, since-recycled scheduled-Routine container —
+// still suppresses it, unlike cli-mark.test.js's same-container coverage.
+test('validate-findings: a fingerprint declined only on the durable health-state branch (simulating a different, since-recycled Routine container) is still suppressed', () => {
+  const root = tmp();
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([validFinding()]));
+
+  // Compute the real fingerprint the same way a first run would, without
+  // touching git at all yet (bare tmp root => no remote, dry-run writes nothing).
+  const first = runValidateFindings(root, findingsFile, ['--dry-run', '--target', 'auth', '--kind', 'skill']);
+  const fp = JSON.parse(first.stdout)[0].body.match(/<!--\s*work-fingerprint:\s*(harnesshealth-[0-9a-f]{8})\s*-->/)[1];
+
+  seedDurableState(root, 'harness-health', 'declined.json', { [fp]: { lastSeenMs: Date.now() } }, 'harness-health-vf-declined');
+
+  const second = runValidateFindings(root, findingsFile, ['--target', 'auth', '--kind', 'skill']);
+  assert.strictEqual(second.status, 0, `stderr: ${second.stderr}`);
+  assert.strictEqual(
+    JSON.parse(second.stdout).length,
+    0,
+    'a durably-declined finding must be suppressed even though this root has no local cache.json for it',
+  );
+});
+
+// ── --min-confidence: hold sub-floor findings instead of filing them ──
+
+test('validate-findings: --min-confidence med holds a confidence: low finding, never emits its payload', () => {
+  const root = tmp();
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([validFinding({ confidence: 'low' })]));
+
+  const result = runValidateFindings(root, findingsFile, ['--target', 'auth', '--kind', 'skill', '--min-confidence', 'med']);
+  assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+  assert.strictEqual(JSON.parse(result.stdout).length, 0, 'a below-floor finding must never emit a payload');
+  assert.ok(result.stderr.includes('1 remembered'), `expected a remembered count in stderr: ${result.stderr}`);
+});
+
+test('validate-findings: --min-confidence med still files a confidence: high finding', () => {
+  const root = tmp();
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([validFinding({ confidence: 'high' })]));
+
+  const result = runValidateFindings(root, findingsFile, ['--target', 'auth', '--kind', 'skill', '--min-confidence', 'med']);
+  assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+  assert.strictEqual(JSON.parse(result.stdout).length, 1, 'a confidence: high finding must clear a med floor');
+});
+
+test('validate-findings: without --min-confidence, a confidence: low finding still files (backward compatible default)', () => {
+  const root = tmp();
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([validFinding({ confidence: 'low' })]));
+
+  const result = runValidateFindings(root, findingsFile, ['--target', 'auth', '--kind', 'skill']);
+  assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+  assert.strictEqual(JSON.parse(result.stdout).length, 1, 'omitting the flag must preserve the pre-existing no-floor behavior');
+});
+
+test('validate-findings: exits 2 for an unrecognized --min-confidence value', () => {
+  const root = tmp();
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([validFinding()]));
+
+  const result = runValidateFindings(root, findingsFile, ['--target', 'auth', '--kind', 'skill', '--min-confidence', 'bogus']);
+  assert.strictEqual(result.status, 2, `expected exit 2, got ${result.status}. stderr: ${result.stderr}`);
 });
 
 test('churn-report: prints "no run logs found" when no runs exist', () => {

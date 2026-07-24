@@ -1,7 +1,7 @@
 ---
 name: claude-tweaks:visual-review
 description: Use when you want to visually review a running application in the browser — inspect UI quality, walk user journeys, discover undocumented journeys, or generate creative improvement ideas. Works standalone or as a step within /claude-tweaks:review.
-argument-hint: "[<url>|journey:<name>|discover]"
+argument-hint: "[<url>|journey:<name>|discover [--budget <n>]|--mode=recommendation] [--source <parent-skill>]"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -34,7 +34,7 @@ This SKILL.md is the **orientation + mode resolution** layer. The mechanical bro
 |------|-------|-------------|
 | **page** | URL or description | Review a single page or flow. Full creative framework + vitals. |
 | **journey** | `journey:{name}` | Walk a documented journey step by step using a single batch invocation. Each step reviewed against its "should feel" / "red flags." Vitals captured per page. |
-| **discover** | `discover` | Explore the running app to identify and document undocumented user journeys. Vitals captured per discovered page. |
+| **discover** | `discover [--budget <n>]` | Explore the running app to identify and document undocumented user journeys. Vitals captured per discovered page. `--budget <n>` caps the walkthrough to the top `n` scored candidates instead of walking every candidate found — see `discover-mode.md` Phase 2. |
 | **recommendation** | `--mode=recommendation` (typically passed by `/review` Step 6 code-only) | Detect UI changes via `git diff` and identify affected journeys. Returns a structured recommendation (which journeys to walk, severity) without opening the browser. No agent-browser dependency. |
 
 ### When to use each mode
@@ -54,6 +54,8 @@ This SKILL.md is the **orientation + mode resolution** layer. The mechanical bro
 /claude-tweaks:visual-review http://localhost:3000           → page mode
 /claude-tweaks:visual-review journey:checkout                → journey mode
 /claude-tweaks:visual-review discover                        → discover mode
+/claude-tweaks:visual-review discover --budget 5              → discover mode, capped to the top 5 scored candidates (see discover-mode.md Phase 2)
+/claude-tweaks:visual-review --mode=recommendation             → recommendation mode (no browser; typically passed by /review Step 6 code-only)
 /claude-tweaks:visual-review                                 → page mode, auto-detect dev URL
 ```
 
@@ -65,6 +67,12 @@ The parent skill passes:
 - **Spec context** — spec number or changed files for scoping
 
 When invoked by `/review` in **full** mode, the visual review runs after code review steps complete. In standalone visual/journey/discover modes, the code review is skipped.
+
+### Fallback signal (`--source`)
+
+When a parent skill invokes this one but has no `$PIPELINE_RUN_DIR` of its own to signal pipeline context (e.g. a standalone `/claude-tweaks:wrap-up` running its verification-brief safety-net gate, or `/claude-tweaks:journey-health` running standalone or on a schedule), it passes `--source <parent-skill>` instead — see the Component-Skill Contract below for the full signal precedence and the list of recognized callers.
+
+Example: `/claude-tweaks:visual-review journey:checkout --source wrap-up`
 
 ## Step 0.5: Mode — `recommendation` (short-circuit)
 
@@ -178,62 +186,11 @@ Handle the wrapper's return:
 
 When the wrapper reports `suppressed > 0` in its return, append a small note below the table: `> N suggestion(s) hidden — previously declined for this spec. Reset with /claude-tweaks:design-wrapper reset-recommendations <spec>.`
 
-### Applying a recommendation (standalone only)
+### Applying a recommendation, and Boost (standalone only)
 
-When running standalone (no `$PIPELINE_RUN_DIR`), the block above is never the final word — follow it with the apply gate below, using `question`: `"Apply any of these?"`, `header`: `"Creative Opportunities"`. "Apply all" means every row above; each row's target is its listed page.
+When running standalone (no `$PIPELINE_RUN_DIR`), read `standalone-followup.md` in this skill's directory and run its full procedure: the apply gate for the Creative Opportunities block above (Step 4 continued), followed by the Step 5 Boost offer (fix flagged issues via `/claude-tweaks:design-wrapper review`, and/or explore alternatives via `/claude-tweaks:design-wrapper live`). Both paths are consent-gated and re-verify via `/claude-tweaks:test skip-qa` after any code change.
 
-#### Apply gate (shared procedure — used here and by Step 5's "Fix flagged issues")
-
-Both this section and Step 5's "Fix flagged issues" resolve their own already-rendered batch table through this same three-branch procedure. The caller supplies its own `question`/`header` (see each call site); the branches, invocation mechanics, and re-verify step below are identical for both.
-
-Call `AskUserQuestion` with `multiSelect`: `false` and:
-
-- Option 1 — `label`: `"Apply all (Recommended)"`, `description`: `"Apply every item the table above recommends"`
-- Option 2 — `label`: `"Choose individually"`, `description`: `"Pick which items to apply"`
-- Option 3 — `label`: `"None"`, `description`: `"Leave things as-is, apply nothing"`
-
-- **"Apply all"** — apply every item the table above already marks for action (this section: every row; Step 5: every row marked `Fix`).
-- **"Choose individually"** — narrow to a subset via a follow-up free-text list of row numbers (the table is already numbered — no per-row `AskUserQuestion` needed).
-- **"None"** — no further action; the report stands as rendered.
-
-Before invoking any accepted item's command, verify Impeccable plugin availability directly — check whether `/impeccable:impeccable` resolves in the available skills list (same check as `design-wrapper/SKILL.md` Step 2). This check is required here: `survey`'s own precondition check does NOT gate on availability (design-wrapper/SKILL.md's "Universal preconditions" `survey` note — it's informational only, so `survey` can still return non-empty recommendations when Impeccable isn't installed), unlike `review`'s own gate for Step 5, which does confirm availability before returning findings. If unavailable, report `"Impeccable plugin not installed — run /claude-tweaks:init to set up integration"` for the affected item(s) and skip invocation entirely rather than calling the Skill tool.
-
-For each accepted item (once availability is confirmed), invoke its listed command directly via the Skill tool against its target (page or file) — e.g. `/impeccable:impeccable bolder pricing` — the same low-level invocation the relevant `design-wrapper` mode performs internally; no new wrapper mode is needed. Group items that share the same file and command into one invocation (relevant to Step 5's findings table; a no-op here, since each row here targets its own page).
-
-If any command ran, re-verify: invoke `/claude-tweaks:test skip-qa` and report the result. If re-verification fails, report the failure and name the most recently invoked command as the likely cause rather than reverting automatically — reverting is the user's call.
-
-## Step 5: Boost (standalone only)
-
-Runs only when `/visual-review` is standalone and interactive — no `$PIPELINE_RUN_DIR` set (same signal Step 4 and the Component-Skill Contract already use). When parent-invoked, this step does not apply; behavior is unchanged.
-
-After Step 4's Creative Opportunities block (and any apply-gate action from it) completes, offer once, as its own message:
-
-> Want me to go further?
->
-> 1. Fix flagged issues **(Recommended)**
-> 2. Explore alternatives
-> 3. Both
-> 4. No thanks, just the report
-
-**Option 1 or 3 — Fix flagged issues:**
-
-1. Invoke `/claude-tweaks:design-wrapper review --source visual-review` via the Skill tool with no explicit target — the wrapper's `review` mode documents its target as a spec number or path, not a file list, and always resolves scope itself: an active spec's file list intersected with `git diff --name-only`, or a full-diff fallback filtered to frontend paths (see `design-wrapper/modes/review.md` Step 2). This means Fix path's scope tracks the current uncommitted diff, not necessarily every page walked in this browser session — if the two differ noticeably, note that in the report.
-2. The wrapper runs `critique` + `audit` and returns `{result: "advisory", findings: [...], score_trend: {...}}`. Render the findings as a batch table:
-
-   ```
-   | # | Source | File | Category | Severity | Message | Recommended |
-   |---|--------|------|----------|----------|---------|-------------|
-   | 1 | {source} | {file} | {category} | {severity} | {message} | {Fix\|Skip} |
-   ```
-
-   Pre-fill Recommended: `severity: error` or `severity: warning` → `"Fix"`; `severity: info` → `"Skip"`.
-3. Run the apply gate (Step 4's "Apply gate (shared procedure)" above), using `question`: `"How do you want to handle these findings?"`, `header`: `"Findings"`. "Apply all" here means every row marked `Fix` above; each accepted finding's command is its `suggestion`-named Impeccable command, invoked against the finding's `file`.
-
-**Option 2 or 3 — Explore alternatives:**
-
-Invoke `/claude-tweaks:design-wrapper live <APP_URL> --source visual-review` via the Skill tool, targeting the already-running app (the `APP_URL` resolved back in Step 2). The human explores alternatives directly in their browser; this skill does not process the outcome further — `live` mode's own accept flow already writes any accepted change to source. After the live session ends, note in the report that a live-mode session ran and mention re-running `/claude-tweaks:test` if changes were accepted.
-
-**Option 4:** No further action.
+When parent-invoked (`$PIPELINE_RUN_DIR` set, or an explicit `--source <parent-skill>` fallback), skip `standalone-followup.md` entirely — the Creative Opportunities block above is the final word; the parent pipeline takes any follow-up from there. This content is lazy-loaded (rather than kept inline) because it only applies to the standalone path, not the more common parent-invoked path — the same lazy-loading discipline this skill already applies to `qa-accelerated.md` and the mode-specific sub-files.
 
 ## Next Actions
 
@@ -248,9 +205,9 @@ This is the canonical handoff block for the skill. Mode-specific Next Actions ex
 
 ## Component-Skill Contract
 
-This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step 6) in `full` mode, by `/claude-tweaks:init` (Phase 8) for brownfield journey discovery, and by `/claude-tweaks:wrap-up` (`verification-brief.md` Step 2.5 safety-net gate) when a testable record reaches wrap-up without a full pass already having run. Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (the parent is running inside an active pipeline run) — or, when the caller has no run directory of its own to signal with (standalone `/wrap-up` invoking this safety-net gate), by an explicit `--source wrap-up` flag it passes instead, the same fallback `/claude-tweaks:reflect`'s Component-Skill Contract documents. When invoked by a parent (via either signal), omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user (neither signal present), render Next Actions as shown above.
+This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step 6) in `full` mode, by `/claude-tweaks:init` (Phase 8) for brownfield journey discovery, by `/claude-tweaks:wrap-up` (`verification-brief.md` Step 2.5 safety-net gate) when a testable record reaches wrap-up without a full pass already having run, and by `/claude-tweaks:journey-health` (its deep-tier fallback, when a journey under audit has no story coverage yet). Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (the parent is running inside an active pipeline run) — or, when the caller has no run directory of its own to signal with (standalone `/wrap-up` invoking this safety-net gate, or `/journey-health` running standalone or on a scheduled Routine), by an explicit `--source wrap-up` / `--source journey-health` flag it passes instead, the same fallback `/claude-tweaks:reflect`'s Component-Skill Contract documents. When invoked by a parent (via either signal), omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user (neither signal present), render Next Actions as shown above.
 
-**Code-modifying exception.** `/visual-review` is otherwise read-only with respect to code. Two specific, standalone-only, always-consent-gated paths modify code: Step 4's Creative Opportunities apply-gate, and Step 5's Boost gate (Fix option). Both re-verify afterward via `/claude-tweaks:test skip-qa`. Parent-invoked `/visual-review` (`$PIPELINE_RUN_DIR` set) never modifies code — Steps 4 and 5's apply/boost paths do not run in that context.
+**Code-modifying exception.** `/visual-review` is otherwise read-only with respect to code. Two specific, standalone-only, always-consent-gated paths modify code: Step 4's Creative Opportunities apply-gate, and Step 5's Boost gate (Fix option) — both procedures live in `standalone-followup.md`, lazy-loaded only on the standalone path. Both re-verify afterward via `/claude-tweaks:test skip-qa`. Parent-invoked `/visual-review` (`$PIPELINE_RUN_DIR` set) never modifies code — Steps 4 and 5's apply/boost paths do not run in that context.
 
 ## Anti-Patterns
 
@@ -279,7 +236,7 @@ This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step
 | `/claude-tweaks:browse` | /visual-review uses /browse's conventions (session naming, screenshot path, trace path) and operation vocabulary. /browse is the conventions reference; /visual-review is the review procedure. Annotated screenshots, batch walks, vitals, and trace-on-failure all follow /browse's contract. |
 | `/claude-tweaks:stories` | Both skills consume `dev-url-detection.md` from `skills/_shared/` for URL resolution. /visual-review may recommend running /stories after discovering pages. |
 | `/claude-tweaks:journeys` | /visual-review (journey mode) walks journeys created by /journeys. /visual-review (discover mode) creates new journey files. |
-| `/claude-tweaks:journey-health` | The deep tier falls back to `/visual-review journey:{name}` when auditing a journey that has no story coverage yet. |
+| `/claude-tweaks:journey-health` | The deep tier falls back to `/visual-review journey:{name}` when auditing a journey that has no story coverage yet. Since journey-health runs standalone or on a scheduled Routine with no `$PIPELINE_RUN_DIR` of its own, that call should pass `--source journey-health` per the Component-Skill Contract's fallback signal — otherwise it is indistinguishable from a direct human invocation and hits live `AskUserQuestion` prompts. |
 | `/claude-tweaks:test` | QA data from /test enriches the visual review (page inventories, caveats, screenshots). Trace-on-failure convention is shared with qa-agent. |
 | `/claude-tweaks:flow` | /flow invokes /review in full mode, which delegates to /visual-review for the browser portion. |
 | `/claude-tweaks:init` | Detects `agent-browser` availability during setup. Phase 8 delegates to /visual-review discover for brownfield journey bootstrapping. |
@@ -289,3 +246,4 @@ This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step
 | `/claude-tweaks:wrap-up` | `verification-brief.md`'s Step 2.5 safety-net gate invokes /visual-review directly (same mode resolution as /review Step 6) when a testable record reaches wrap-up without a full pass already having run. Any bug found gates `demo:pending` the same way /review's Step 3 Routing gates PASS. |
 | `/claude-tweaks:demo` | `/demo`'s Verification Brief digest (Step 3) is sourced from /visual-review's own report — headline result + 1-3 committed screenshots. `/demo`'s optional "Show me live" escape hatch consumes /browse's conventions directly (the same relationship /visual-review itself has with /browse), not a re-invocation of /visual-review. |
 | `/claude-tweaks:help` | Component skill — /claude-tweaks:help lists it in the component skills table. |
+| `_shared/subagent-output-contract.md` | Page mode's per-page review agents (`browser-review.md`) and discover mode's per-journey walk agents (`discover-mode.md` Phase 3) both dispatch parallel Task agents per this contract — minimal input, status line first (`DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`), Template A-shaped output inlined verbatim. Model tier: Standard. |

@@ -46,7 +46,7 @@ Not for: auto-fixing (report-only), CI gating (CI stays reactive), or replacing 
 Unless `--area` was provided, call the engine to pick the next slice to judge:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" next-slice --root .
+node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" next-slice --root "${ROOT:-$PWD}" ${BUDGET:+--budget "$BUDGET"}
 ```
 
 This is named `next-slice`, not `next-target` like its three sibling health skills (harness-health, journey-health, docs-health) — those rotate over one specific file at a time, while code-health rotates over an area/directory that gets fully swept per firing, a coarser unit worth its own name.
@@ -67,6 +67,8 @@ ls "${ROOT:-$PWD}/${AREA}"
 ```
 
 If the path does not exist, stop and report the error. Set `AREA` and `ROOT` for the rest of the steps.
+
+> **Parallel execution:** Use parallel tool calls aggressively — Step 2's `gh issue list` dedup-index query and Step 3's file reads under `${ROOT}/${AREA}` are independent read-only Bash operations (Step 2 depends only on the repo's issue tracker; Step 3 depends only on Step 1's resolved path) and should run concurrently rather than sequentially.
 
 **Step 2 — GATHER OPEN ISSUES for dedup.**
 
@@ -96,7 +98,7 @@ Read each file in full. Hold the full content in context — this is the materia
 Call the `classify` command to determine the area's type:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" classify --root . --area "<slice-id>"
+node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" classify --root "${ROOT:-$PWD}" --area "<slice-id>"
 ```
 
 The command prints `{ areaId, types }`. Use the `types` array to select the applicable criteria via `criteriaForArea(types)` from `bin/lib/code-health/criteria.js`. Types are additive — matching is a `.some()` intersection against each domain criterion's `appliesTo` array, not exact-equality, so an area gets universal criteria plus *every* domain criterion whose `appliesTo` includes at least one of the area's types. A `['frontend', 'library']` area, for example, currently pulls in `a11y`, `i18n`, `api-stability`, and `privacy-pii` — do not hand-copy this example list into a mental shortcut; call `criteriaForArea` for the real slice instead, since `criteria.js` is the single source of truth and this list will drift as domain criteria are added.
@@ -106,6 +108,8 @@ If `types` is `[]` (unknown area), apply universal criteria only — run the sam
 ```bash
 node -e "const {criteriaForArea}=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/code-health/criteria.js'); console.log(criteriaForArea([]).map(c=>c.id).join(', '))"
 ```
+
+> **Parallel execution:** Use parallel tool calls aggressively — each selected criterion's fragment file is an independent Read and should run concurrently.
 
 Load each selected criterion's fragment file (the `fragment` field in the catalog) and embed it in the judge prompt for Step 5. Fragments live under `skills/_shared/` — read each one and include its content so the judge has the calibration text inline.
 
@@ -219,13 +223,13 @@ Every code-health record files onto the unified work record (`skills/_shared/wor
 Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures and check for regressed reopens (see `_shared/health-state.md`) — both mechanics below follow the canonical shape in `_shared/health-filing-mechanics.md` (`{BINARY}` = `code-health.js`, `{PREFIX}` = `code-health`); check that file when either changes to keep this skill's copy in sync with its three siblings:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" retry-queue drain --root . > /tmp/code-health-retry-payloads.json
+node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" retry-queue drain --root "${ROOT:-$PWD}" > /tmp/code-health-retry-payloads.json
 ```
 
 For each payload in `/tmp/code-health-retry-payloads.json`, attempt `gh issue create` exactly as below. Track the outcome of every attempt (this firing's retry-queue payloads AND any brand-new payload from Step 9's own filing loop that fails) as `[{ fingerprint, payload, ok: true }]` or `[{ fingerprint, payload, ok: false, error: "<gh's error output>" }]`, write to `/tmp/code-health-retry-results.json`, then:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" retry-queue update /tmp/code-health-retry-results.json --root . > /tmp/code-health-escalated.json
+node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" retry-queue update /tmp/code-health-retry-results.json --root "${ROOT:-$PWD}" > /tmp/code-health-escalated.json
 ```
 
 This records successes (removed from the queue) and failures (added/incremented) in one durable write. If `/tmp/code-health-escalated.json` is non-empty, file (or update) a `code-health:filing-failed` issue for each entry, naming the stuck fingerprint and its failure history — bootstrap that label the same way as the others below.

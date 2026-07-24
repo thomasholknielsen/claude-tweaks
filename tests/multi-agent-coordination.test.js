@@ -9,7 +9,13 @@ const PRIMITIVE_DOC = fs.readFileSync(
   path.join(__dirname, '..', 'skills', '_shared', 'multi-agent-coordination.md'),
   'utf8',
 );
-const REVIEW_SKILL = fs.readFileSync(path.join(__dirname, '..', 'skills', 'review', 'SKILL.md'), 'utf8');
+// Cross-Lens Debate and Per-Candidate Refutation's decision-log templates live in
+// step3-debate-and-refutation.md (lazy-loaded from SKILL.md, not inlined) — concatenate both so
+// this still asserts against the real documented format wherever it currently lives.
+const REVIEW_SKILL =
+  fs.readFileSync(path.join(__dirname, '..', 'skills', 'review', 'SKILL.md'), 'utf8') +
+  '\n' +
+  fs.readFileSync(path.join(__dirname, '..', 'skills', 'review', 'step3-debate-and-refutation.md'), 'utf8');
 const SPECIFY_RED_TEAM = fs.readFileSync(
   path.join(__dirname, '..', 'skills', 'specify', 'red-team.md'),
   'utf8',

@@ -1,7 +1,7 @@
 ---
 name: claude-tweaks:visualize
 description: Use when you want a themed, project-local visual diagram — architecture, flowchart, sequence, state, ER, timeline, swimlane, quadrant, nested, tree, org chart, layer stack, venn, or pyramid — generated as self-contained HTML+SVG and styled from the project's own DESIGN.md tokens. Works standalone or as a soft-hook suggestion from /journeys, /specify, and /review.
-argument-hint: "<architecture|flowchart|sequence|state|er|timeline|swimlane|quadrant|nested|tree|org-chart|layers|venn|pyramid> <topic>"
+argument-hint: "<architecture|flowchart|sequence|state|er|timeline|swimlane|quadrant|nested|tree|org-chart|layers|venn|pyramid> <topic> [--source <caller>] [--ephemeral]"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -48,8 +48,11 @@ Generates a self-contained HTML+SVG diagram, themed from the project's own desig
 
 Flags:
 - `--source <caller>` — set by soft-hook callers (`journeys`, `specify`, `review`) to select default placement (Step 3) without prompting.
+- `--ephemeral` — for direct/ad-hoc invocation only (no `--source`): skip Step 3's persist-vs-ephemeral `AskUserQuestion` and go straight to the scratch-path-only "Just show me now" behavior. For a quick mid-conversation sketch where the user already knows they don't want it saved as a project doc.
 
 ## Workflow
+
+Routing shape: Steps 2-3 run for both the enhanced and baseline paths (resolved in Step 1) before branching — enhanced continues to `d2-enhanced-path.md` then Step 5; baseline continues to Step 4 then Step 5.
 
 ### Step 1: Resolve type, topic, and generation path
 
@@ -63,11 +66,9 @@ Resolve `<type>` from Input. Look up the generation path — **enhanced** when t
 | `quadrant` | Enhanced (tentative — confirm against current D2 docs; fall back to baseline if unsupported) | Grid layout |
 | `timeline`, `swimlane`, `venn`, `pyramid` | Baseline only | No native fit |
 
-Both paths continue to Step 2 (token extraction) next — the enhanced path needs tokens too, for re-theming the D2 render.
-
 ### Step 2: Token extraction and theming (both paths)
 
-Read `skills/_shared/visual-html-output.md` Steps 1-2. Extract tokens from `DESIGN.md`/`DESIGN.json` when present; otherwise run the fallback `AskUserQuestion` (once per session — see the dedupe rule in that file). Then continue to Step 3 (resolve placement) — both paths need this before proceeding, since the enhanced path needs a known destination path before it writes its versioned `.d2`/`.svg` source files.
+Read `skills/_shared/visual-html-output.md` Steps 1-2. Extract tokens from `DESIGN.md`/`DESIGN.json` when present; otherwise run the fallback `AskUserQuestion` (once per session — see the dedupe rule in that file). Continue to Step 3.
 
 ### Step 3: Resolve placement
 
@@ -76,9 +77,10 @@ Read `skills/_shared/visual-html-output.md` Steps 1-2. Extract tokens from `DESI
 | `journeys` | `docs/journeys/{journey-name}-{type}.html` |
 | `specify` | `docs/plans/{spec-slug}-{type}.html` |
 | `review` | Ephemeral by default; ask before persisting near `docs/architecture.md` |
-| *(none — direct invocation)* | Run `visual-html-output.md` Step 6's `AskUserQuestion`; "Save as a project doc" resolves to `docs/diagrams/{slug}.html` |
+| *(none — direct invocation)*, `--ephemeral` not passed | Run `visual-html-output.md` Step 6's `AskUserQuestion`; "Save as a project doc" resolves to `docs/diagrams/{slug}.html` |
+| *(none — direct invocation)*, `--ephemeral` passed | Skip the `AskUserQuestion` — go straight to `visual-html-output.md` Step 6's "Just show me now" behavior (scratch-path-only, no `docs/` placement, no Step 6 registry update, no MDX-embed snippet) |
 
-Now branch: for the enhanced path (resolved in Step 1), read `d2-enhanced-path.md` in this skill's directory — it now has a resolved destination path to write to — then continue to Step 5. For the baseline path, continue to Step 4 below.
+Branch per the routing shape above: enhanced → read `d2-enhanced-path.md` in this skill's directory (it now has a resolved destination path to write to) → Step 5. Baseline → Step 4 → Step 5.
 
 ### Step 4: Generate the core fragment (baseline path)
 
@@ -99,7 +101,9 @@ This skill doesn't own the doc that embeds the diagram, so it doesn't write this
 
 ### Step 6: Registry update (persisted diagrams only)
 
-If Step 3 resolved to `docs/diagrams/{slug}.html` (the context-free fallback path) and no `REGISTRY.md` row for `docs/diagrams/` exists yet, add one: `| docs/diagrams/ | Generated visual diagrams | — |` (no Auto-detect — matches `architecture.md`/`decisions/*.md` treatment). Diagrams placed under `docs/journeys/` or `docs/plans/` need no new row — they ride along with that doc's existing registry entry.
+Skip this step entirely if the project has no `docs/REGISTRY.md` at all — the registry is itself an opt-in convention (see `build/docs-sync.md`), not something this skill creates from scratch.
+
+If `docs/REGISTRY.md` exists, Step 3 resolved to `docs/diagrams/{slug}.html` (the context-free fallback path), and no `REGISTRY.md` row for `docs/diagrams/` exists yet, add one: `| docs/diagrams/ | Generated visual diagrams | — |` (no Auto-detect — matches `architecture.md`/`decisions/*.md` treatment). Diagrams placed under `docs/journeys/` or `docs/plans/` need no new row — they ride along with that doc's existing registry entry.
 
 ## Next Actions
 
@@ -134,4 +138,5 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `/claude-tweaks:design-wrapper` | Not invoked directly — this skill reads `DESIGN.md`/`DESIGN.json` (written by `/impeccable:impeccable document`, the same files `/design-wrapper pre-build` mode lazy-loads) but does not go through `/design-wrapper`, since it needs the raw token data, not a critique/audit/polish action. |
 | `/claude-tweaks:init` | Step 11 offers to enable diagram suggestions (writes `diagram-suggestions: enabled/disabled` to CLAUDE.md — no install step, this skill is native). |
 | `/claude-tweaks:help` | /help references /visualize in the workflow diagram and reference card. |
+| `/claude-tweaks:docs-health` | Step 5's suggested `files:` frontmatter line (naming a diagram's depicted source dependencies) gives docs-health's freshness-dependency check (`_shared/criteria-docs-diataxis.md` Dimension 2) something to track once the user applies it to the embedding doc's frontmatter. |
 | `skills/_shared/visual-html-output.md` | Shared core this skill consumes for token extraction, wrapper adapters, MDX/Nextra compatibility, and the persist-vs-ephemeral decision. |

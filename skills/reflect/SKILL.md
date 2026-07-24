@@ -1,7 +1,7 @@
 ---
 name: claude-tweaks:reflect
 description: Use when you want to step back and evaluate recent work through structured lenses — approach correctness, structural debt, surprises, near-misses. Works standalone or as a step within /claude-tweaks:review and /claude-tweaks:wrap-up.
-argument-hint: "[hindsight|full] [<spec-number>|<file-path>...]"
+argument-hint: "[hindsight|full|light] [<spec-number>|<file-path>...]"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -23,6 +23,7 @@ Step back from implementation and evaluate what was built through structured len
 - After any implementation work — you want a second look before moving on
 - During `/claude-tweaks:review` Step 4 — invoked in **hindsight** mode
 - During `/claude-tweaks:wrap-up` Step 3 — invoked in **full** mode, or **light** mode when the run's `ceremony-profile` is `fast-lane`
+- After a small fix, when a full four-lens pass is more ceremony than the change warrants — invoke standalone in **light** mode for a cheap two-lens pass
 - After a debugging session or refactor — capture what you learned
 - After conversation-based work that had no formal review
 
@@ -32,7 +33,7 @@ Step back from implementation and evaluate what was built through structured len
 |------|--------|------------|----------|
 | **hindsight** | Approach, Structure, Consolidation, Convention, Skills | `/claude-tweaks:review` Step 4 | Pre-ship "should we change something?" gate |
 | **full** | All four lenses (Surprises, Approach, Near-misses, Fresh start) + Tradeoff review | `/claude-tweaks:wrap-up` Step 3 | Post-review knowledge capture |
-| **light** | Near-misses, Fresh start (no tradeoff review) | `/claude-tweaks:wrap-up` Step 3, when `ceremony-profile: fast-lane` | Cheap post-review capture for a fast-lane record |
+| **light** | Near-misses, Fresh start (no tradeoff review) | `/claude-tweaks:wrap-up` Step 3, when `ceremony-profile: fast-lane`; or direct invocation with the `light` keyword | Cheap post-review capture for a fast-lane record, or a quick standalone pass after a small fix |
 | *(default)* | **full** when standalone | Direct invocation | General-purpose reflection |
 
 ## Input
@@ -41,7 +42,7 @@ Step back from implementation and evaluate what was built through structured len
 
 ### Standalone (invoked directly):
 
-1. **Mode keyword** — `hindsight` or `full` (default: `full`)
+1. **Mode keyword** — `hindsight`, `full`, or `light` (default: `full`)
 2. **Scope** — spec number, file paths, or omitted:
    - Spec number (e.g., `42`) → scope to files changed for that spec
    - File paths → scope to those files
@@ -52,8 +53,11 @@ Step back from implementation and evaluate what was built through structured len
 /claude-tweaks:reflect 42                  → full mode, scope from spec 42
 /claude-tweaks:reflect hindsight           → hindsight mode, scope from git diff
 /claude-tweaks:reflect hindsight 42        → hindsight mode, scope from spec 42
+/claude-tweaks:reflect light               → light mode, scope from git diff
 /claude-tweaks:reflect src/api/ src/db/    → full mode, scope to those directories
 ```
+
+Standalone `light` mode runs the same two lenses as pipeline-invoked light mode (see `light-mode.md`), with no ceremony-profile to seed from or downgrade — there is no `config.yml` in a standalone invocation, so the escape-hatch/ceremony-downgrade behavior described in `light-mode.md` is simply a no-op here.
 
 ### Pipeline context (invoked by parent skill):
 
@@ -81,7 +85,7 @@ Mode-specific lens procedures live in sub-files (a given invocation only uses on
 
 - **Hindsight mode** → see `hindsight-mode.md` in this skill's directory (5 evaluations, action gate)
 - **Full mode** → see `full-mode.md` in this skill's directory (4 lenses + tradeoff review; superset of hindsight)
-- **Light mode** → see `light-mode.md` in this skill's directory (2 lenses, no tradeoff review; narrowed subset of full, for `ceremony-profile: fast-lane` wrap-ups)
+- **Light mode** → see `light-mode.md` in this skill's directory (2 lenses, no tradeoff review; narrowed subset of full, for `ceremony-profile: fast-lane` wrap-ups or standalone with the `light` keyword)
 
 ## Step 3: Route Findings
 
@@ -127,8 +131,9 @@ Default behavior: **defer everything** to the Review Console. The exception is s
 For a **tangential** finding specifically — the one category that becomes a Queue-writes record
 proposal (see `review-console.md`'s "On approval" step 5 and `flow/multispec-review-console.md`,
 both of which read a `Title:`/`Type:`/`Labels:` header off the staged file to create the record) —
-prepend that header above the `# Reflect —` line, the same shape `wrap-up/leftover-routing.md`
-step 3 writes for `leftover-{slug}.md`:
+prepend a 3-line header above the `# Reflect —` line, the same shape `wrap-up/leftover-routing.md`
+step 3 writes for `leftover-{slug}.md`. The body below the header is identical to the format above
+(with `**Category:** tangential`):
 
 ```markdown
 Title: {short work-record title}
@@ -136,24 +141,7 @@ Type: {bug | feature | task}
 Labels: {comma-separated labels or "none"}
 
 # Reflect — staged finding {n}
-
-**Category:** tangential
-**Severity:** {low | med | high}
-**Reversibility:** {high | med | low}
-**Source:** {full | hindsight | light} mode, lens "{lens name}"
-**Files:** {comma-separated paths or "general"}
-
-## Finding
-
-{1-3 sentences. What was observed; why it might matter.}
-
-## Suggested resolution
-
-{Optional. Concrete change or routing recommendation.}
-
-## Decision-log reference
-
-{Copy the matching `STAGED …` line from `decisions.md` so the Console can cross-link.}
+{...same body as the format above...}
 ```
 
 Without this header the Console's record-creation step has nothing to read a title, type, or
@@ -174,9 +162,9 @@ Number `{n}` is a per-run sequence counter — increment as each staged file is 
 
 | Context | Phase | Behavior |
 |---------|-------|----------|
-| Invoked by `/review` | `review/hindsight` | Write findings. Status: `open` for "Change now"; update to `fixed` after changes. |
-| Invoked by `/wrap-up` | `wrap-up` | Write insights. "Implement now" items get `open` until implemented (then `fixed`); "Defer" items get `deferred`. |
-| Standalone, ledger exists | `reflect` | Write findings/insights to existing ledger. |
+| Invoked by `/review` | `review/hindsight` | Write findings. Status: `open` for "Change now" (then `fixed` after changes); `deferred` for "Defer" and "Capture" (both result in a new backlog record — directly for Defer, via `/claude-tweaks:capture` for Capture); `accepted` for "Accept as-is" (state the reason in the entry body). |
+| Invoked by `/wrap-up` | `wrap-up` | Write insights. Status: `open` for "Implement now" (then `fixed` once implemented); `deferred` for "Defer" and "Capture" (both result in a new backlog record — directly for Defer, via `/claude-tweaks:capture` for Capture); `accepted` for "Don't capture" (state the reason in the entry body, per the Anti-Patterns table). |
+| Standalone, ledger exists | `reflect` | Write findings/insights to existing ledger, using the same status mapping as above. |
 | Standalone, no ledger | *(skip)* | Present findings without ledger tracking. |
 
 ## Step 5: Report
@@ -194,7 +182,7 @@ When invoked directly (not by a parent skill), call `AskUserQuestion`:
 
 ## Component-Skill Contract
 
-This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step 4, `hindsight` mode) and `/claude-tweaks:wrap-up` (Step 3, `full` or `light` mode). Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (set by `/review`, `/wrap-up`, or other pipeline orchestrators) — or, when standalone `/wrap-up` has no run directory of its own to set, by an explicit `--source wrap-up` flag it passes instead. When invoked by a parent (via either signal), omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user (neither signal present), render Next Actions as shown above.
+This skill is a **component skill** — invoked by `/claude-tweaks:review` (Step 4, `hindsight` mode) and `/claude-tweaks:wrap-up` (Step 3, `full` or `light` mode). Parent invocation is signaled by `$PIPELINE_RUN_DIR` being set (set by `/review`, `/wrap-up`, or other pipeline orchestrators) — or, when standalone `/review` or standalone `/wrap-up` has no run directory of its own to set, by an explicit `--source review` or `--source wrap-up` flag it passes instead (standalone `/review` per its own SKILL.md "always runs every step" including Step 4, with no `$PIPELINE_RUN_DIR` to set). When invoked by a parent (via either signal), omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user (neither signal present), render Next Actions as shown above.
 
 ## Anti-Patterns
 

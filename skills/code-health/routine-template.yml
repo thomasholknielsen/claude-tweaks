@@ -24,6 +24,8 @@ notes: >
   --area flag is passed, so next-slice always picks the highest-priority slice
   automatically. See skills/code-health/SKILL.md's "Routine Configuration" section for
   the --budget / token-cap tuning guidance this template doesn't need to restate. Filed
-  issues carry no tier label and won't progress toward autonomous building on their
-  own — a human needs to periodically run bare `/claude-tweaks:triage` (or schedule a
-  triage-adjacent routine) to tier them.
+  issues are born-ready — each carries risk:<tier>/effort:<tier> labels and the ready
+  label already applied at filing time, so they land directly in the authorization
+  gate's worklist with no manual tiering step; a human still needs to periodically run
+  bare `/claude-tweaks:triage` to actually authorize (grant auto:build/auto:merge)
+  those ready findings for autonomous building.

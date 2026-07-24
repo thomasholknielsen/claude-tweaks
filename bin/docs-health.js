@@ -6,10 +6,10 @@ const { computeWordCount } = require('./lib/docs-health/depth');
 const { readCache, writeCache, readDurableState, writeDurableState, buildValidateFindingsUpdate } = require('./lib/docs-health/cache');
 const { computeChurn } = require('./lib/health-core/runs');
 const { makeRetryQueueCommands } = require('./lib/health-core/retry-cli');
-const { dedupAndDispatch } = require('./lib/health-core/validate-findings-dispatch');
+const { loadIssueIndex } = require('./lib/health-core/issue-index');
 const { selectBudget } = require('./lib/health-core/budget');
 const { makeCmdChurnReport } = require('./lib/health-core/churn-report');
-const { makeCmdMark } = require('./lib/health-core/mark');
+const { makeCmdMark, mergeDeclinedIntoCache } = require('./lib/health-core/mark');
 const { decide } = require('./lib/docs-health/dedup');
 const { validateFinding } = require('./lib/docs-health/validate-finding');
 const { toIssuePayload } = require('./lib/docs-health/issue-payload');
@@ -21,7 +21,38 @@ const { checkTrackedFreshness } = require('./lib/docs-health/freshness');
 const TOOL_NAME = 'docs-health';
 const retryQueueCommands = makeRetryQueueCommands({ readDurableState, writeDurableState });
 const cmdChurnReport = makeCmdChurnReport({ readDurableState, computeChurn });
-const cmdMark = makeCmdMark({ readCache, writeCache, toolName: TOOL_NAME });
+// readDurableState/writeDurableState wired through so a "declined" mark also
+// persists to the health-state git branch, not just the local gitignored
+// cache — see bin/lib/health-core/mark.js's own header comment. Without
+// this, a declined finding (by definition never filed as a GitHub issue, so
+// there is nothing for dedup to reconstruct from) would silently reappear
+// on a scheduled Routine's next fresh, stateless container.
+const cmdMark = makeCmdMark({
+  readCache, writeCache, readDurableState, writeDurableState, toolName: TOOL_NAME,
+});
+
+// Confidence rank: lower number = more urgent (highest priority to file).
+// Mirrors bin/lib/code-health/dedup.js's RISK_RANK shape/direction exactly —
+// --min-confidence's "file when at or above the floor" semantics. Kept local
+// to this CLI (rather than in bin/lib/docs-health/dedup.js, which is a thin
+// re-export of the shared bin/lib/health-core/dedup.js used by three of the
+// four health skills) since the threshold/remember behavior below has no
+// equivalent in that shared module — same reason code-health forked its own
+// dedup.js instead of extending the shared one.
+const CONFIDENCE_RANK = { high: 0, med: 1, low: 2 };
+
+// Rejects a --min-confidence value that isn't a CONFIDENCE_RANK key, prints
+// an error, and exit(2) — mirrors bin/code-health.js's validateRiskArg.
+function validateConfidenceArg(value) {
+  if (value == null) return;
+  if (Object.prototype.hasOwnProperty.call(CONFIDENCE_RANK, value)) return;
+  process.stderr.write(
+    `validate-findings: --min-confidence "${value}" is not a recognized confidence tier ` +
+    `(must be one of ${Object.keys(CONFIDENCE_RANK).join('|')}) — an unrecognized value would silently ` +
+    'file every finding regardless of confidence, defeating the floor.\n',
+  );
+  process.exit(2);
+}
 
 function parseArgs(argv) {
   const args = { _: [], root: process.cwd(), dryRun: false, runId: new Date().toISOString() };
@@ -30,10 +61,12 @@ function parseArgs(argv) {
     if (a === '--dry-run') args.dryRun = true;
     else if (a === '--root') args.root = argv[++i];
     else if (a === '--target') args.target = argv[++i];
+    else if (a === '--dir') args.dir = argv[++i];
     else if (a === '--issues') args.issues = argv[++i];
     else if (a === '--run-id') args.runId = argv[++i];
     else if (a === '--fail-on-high-churn') args['fail-on-high-churn'] = argv[++i];
     else if (a === '--budget') args.budget = Number(argv[++i]);
+    else if (a === '--min-confidence') args['min-confidence'] = argv[++i];
     else args._.push(a);
   }
   return args;
@@ -54,14 +87,14 @@ function cmdNextTarget(args) {
   const cursors = readDurableState(root).cursors;
 
   if (budget === 1) {
-    const target = selectTarget(root, cursors, { now });
+    const target = selectTarget(root, cursors, { now, dir: args.dir });
     process.stdout.write(JSON.stringify({ target }, null, 2) + '\n');
     return;
   }
 
   // Budget > 1: pick up to `budget` distinct docs, simulating post-audit
   // cursor state in-memory between picks (see bin/lib/health-core/budget.js).
-  const targets = selectBudget(budget, cursors, (c) => selectTarget(root, c, { now }), {
+  const targets = selectBudget(budget, cursors, (c) => selectTarget(root, c, { now, dir: args.dir }), {
     getCursorKey: (t) => `doc:${t.id}`,
     buildCursorPatch: (existing) => ({ ...(existing || {}), lastAuditedMs: now }),
   });
@@ -73,10 +106,13 @@ function cmdValidateFindings(args) {
   const findingsPath = args._[1];
   if (!findingsPath) {
     process.stderr.write(
-      'usage: docs-health.js validate-findings <findings.json> [--root <dir>] [--issues <file>] [--target <id>] [--run-id <id>] [--dry-run]\n',
+      'usage: docs-health.js validate-findings <findings.json> [--root <dir>] [--issues <file>] ' +
+      '[--target <id>] [--run-id <id>] [--min-confidence <level>] [--dry-run]\n',
     );
     process.exit(2);
   }
+
+  validateConfidenceArg(args['min-confidence']);
 
   // buildValidateFindingsUpdate only patches a cursor when target is present
   // (see lib/docs-health/cache.js) — docs-health has no gap-scan-equivalent
@@ -125,14 +161,58 @@ function cmdValidateFindings(args) {
     survivors.push({ ...v.value, id });
   }
 
-  const { cache, payloads, seen } = dedupAndDispatch({
-    root, issuesPath: args.issues, toolName: TOOL_NAME, survivors, readCache, decide, toIssuePayload,
-  });
+  // Inlined dedup/dispatch loop (rather than the shared
+  // health-core/validate-findings-dispatch.js helper harness-health/
+  // journey-health use) so the --min-confidence floor can intercept a
+  // 'file' decision BEFORE the cache is marked 'staged' for it — diverting
+  // a below-floor finding into the durable 'remembered' cache instead.
+  // Mirrors bin/code-health.js's own inline validate-findings loop (which
+  // forks away from the shared helper for the identical reason: its
+  // --min-risk floor needs the same interception point).
+  // Merge durable `declined` marks into the local cache this loop sees, so a
+  // finding declined via `mark ... declined` on a prior firing (possibly a
+  // different, since-recycled Routine container) is suppressed here too —
+  // not just on the same-container run `mark` itself was tested against.
+  const cache = mergeDeclinedIntoCache(readCache(root), readDurableState(root).declined || {});
+  const issueIndex = loadIssueIndex(args.issues, TOOL_NAME);
+  const payloads = [];
+  const rememberCandidates = [];
+  const seen = new Set();
+  const threshold = args['min-confidence'];
+  for (const finding of survivors) {
+    if (seen.has(finding.id)) continue; // intra-run dedup
+    seen.add(finding.id);
+
+    const decision = decide(finding, issueIndex, cache);
+    if (decision.action === 'skip' || decision.action === 'suppress') continue;
+
+    if (decision.action === 'file' && threshold) {
+      const rank = CONFIDENCE_RANK[finding.confidence];
+      const thresholdRank = CONFIDENCE_RANK[threshold];
+      if (rank !== undefined && thresholdRank !== undefined && rank > thresholdRank) {
+        // Below the floor: remember instead of filing — not dropped, not
+        // staged, so it never re-proposes as brand-new on a future run
+        // (see cache.js's buildValidateFindingsUpdate merge).
+        cache[finding.id] = { status: 'remembered', issue: null, confidence: finding.confidence };
+        rememberCandidates.push({ id: finding.id, confidence: finding.confidence });
+        continue;
+      }
+    }
+
+    if (decision.action === 'file' || decision.action === 'reopen') {
+      cache[finding.id] = decision.action === 'reopen'
+        ? { status: 'regressed', issue: decision.issue || null, lastSeenMs: Date.now() }
+        : { status: 'staged', lastSeenMs: Date.now() };
+      payloads.push(toIssuePayload(finding));
+    }
+  }
 
   if (!args.dryRun) {
     writeCache(root, cache);
     const runRecord = { runId: args.runId, runAt: new Date().toISOString(), fingerprints: [...seen] };
-    const result = writeDurableState(root, (current) => buildValidateFindingsUpdate(current, { target: args.target, runRecord }));
+    const result = writeDurableState(root, (current) => buildValidateFindingsUpdate(
+      current, { target: args.target, runRecord, rememberCandidates },
+    ));
     if (!result.ok) {
       process.stderr.write(`[docs-health] validate-findings: health-state persistence failed after retries: ${result.error}\n`);
     }
@@ -233,8 +313,8 @@ function main(argv) {
   if (cmd === 'retry-queue' && args._[1] === 'update') return retryQueueCommands.update({ ...args, _: args._.slice(1) });
   process.stderr.write(
     'usage: docs-health.js <command> [options]\n' +
-    'commands: next-target [--target <id>] [--budget <n>], ' +
-    'validate-findings <file> [--target <id>] [--issues <file>] [--dry-run], ' +
+    'commands: next-target [--target <id>] [--dir <path>] [--budget <n>], ' +
+    'validate-findings <file> [--target <id>] [--issues <file>] [--min-confidence <level>] [--dry-run], ' +
     'churn-report [--fail-on-high-churn <r>], mark <fingerprint> <declined>, ' +
     'word-count <path>, find-refs <path> [--root <dir>], check-freshness <path> [--root <dir>], ' +
     'retry-queue drain, retry-queue update <results.json>\n',

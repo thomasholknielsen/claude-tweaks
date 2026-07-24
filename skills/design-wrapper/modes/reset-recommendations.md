@@ -14,7 +14,9 @@ None — `reset-recommendations` runs no preconditions. It is a cache-management
 
 ### Step 1: Resolve the cache path
 
-Resolve `docs/plans/YYYY-MM-DD-{feature}-declined.json` from the spec input (same resolution rules as the audit cache — see Step 3 of polish mode).
+`<spec>` is required — unlike `test`/`review`/`polish`/`survey`, this mode has no `git diff`-based default target to fall back to (there is no changed-file set that maps unambiguously to one spec's cache). If `<spec>` is omitted, return `{skipped: "reset-recommendations requires <spec> — no default target resolution"}` immediately; do not guess at the most-recently-modified cache across all specs.
+
+Otherwise, resolve `docs/plans/YYYY-MM-DD-{feature}-declined.json` from the spec input (same resolution rules as the audit cache — see Step 3 of polish mode).
 
 ### Step 2: Delete or noop
 

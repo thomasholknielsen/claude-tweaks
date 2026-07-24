@@ -46,6 +46,8 @@ Steps must follow lifecycle order. Invalid orderings are rejected.
 - `review,polish,wrap-up` — valid (assumes build and test are done)
 - `polish,wrap-up` — valid (assumes build, test, and review are done — useful when iterating on polish manually)
 - `wrap-up` — valid (assumes build, test, review, and polish are done)
+- `stories` (standalone) — valid; assumes build already ran (resume mode reads its output the same as any other single-step resume). Explicit like `build,stories,...`, this skips the UI-change-detection gate — stories runs unconditionally, the same "always runs regardless of UI changes" rule that applies when `stories` is explicit anywhere in the list.
+- `stories,test,review,polish,wrap-up` — valid (resume from stories onward; equivalent in effect to leading with `stories` above, then continuing the rest of the pipeline)
 - `review,build` — **invalid** (out of order)
 - `wrap-up,review` — **invalid** (out of order)
 

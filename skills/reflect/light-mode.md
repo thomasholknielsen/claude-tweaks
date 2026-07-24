@@ -1,6 +1,6 @@
 # Light Mode
 
-Cheap knowledge-capture procedure for `light` mode (invoked by `/claude-tweaks:wrap-up` Step 3 when `config.yml`'s `ceremony-profile` is `fast-lane`).
+Cheap knowledge-capture procedure for `light` mode (invoked by `/claude-tweaks:wrap-up` Step 3 when `config.yml`'s `ceremony-profile` is `fast-lane`, or standalone with the `light` keyword).
 
 Light mode is a narrowed subset of full mode — see `full-mode.md` for the Near-misses/Fresh-start lens definitions this mode reuses verbatim; Surprises, Approach, and Tradeoff Review are dropped. See `docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md` for the rationale.
 
@@ -15,7 +15,7 @@ Surprises and Approach are skipped — light mode exists specifically to trim ce
 
 ### Seed from Review Learnings (pipeline context)
 
-Same as full mode: check the `/claude-tweaks:review` summary's **Key Learnings** section and use it as a starting point for the two lenses rather than re-deriving from scratch.
+Same as full mode: check the `/claude-tweaks:review` summary's **Key Learnings** section and use it as a starting point for the two lenses rather than re-deriving from scratch. If the review summary has no Key Learnings section (it may not always be rendered), say so explicitly and fall back to deriving the two lenses from scratch — don't silently skip the seed step with no signal that it was unavailable.
 
 ### No Tradeoff Review
 

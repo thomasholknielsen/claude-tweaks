@@ -60,3 +60,24 @@ test('next-target without --budget still returns a single target object (default
   assert.ok(!Array.isArray(result.target));
   assert.strictEqual(result.target.id, 'a');
 });
+
+test('next-target --dir <path> restricts selection to docs under that subdirectory', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'docs', 'decisions'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'docs', 'guides'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'docs', 'decisions', '0007-foo.md'), '# foo');
+  fs.writeFileSync(path.join(root, 'docs', 'guides', 'setup.md'), '# setup');
+
+  const result = runNextTarget(['--dir', 'guides'], root);
+  assert.ok(result.target !== null);
+  assert.strictEqual(result.target.id, 'guides/setup');
+});
+
+test('next-target --dir <path> with no matching docs returns { target: null }', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'docs', 'decisions'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'docs', 'decisions', '0007-foo.md'), '# foo');
+
+  const result = runNextTarget(['--dir', 'guides'], root);
+  assert.strictEqual(result.target, null);
+});
