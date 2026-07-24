@@ -24,22 +24,29 @@ skill_invocation:
   prompt: "/claude-tweaks:review"
 assertions:
   # Severities and `contains` values below reflect real end-to-end runs'
-  # actual output, not the pre-run guesses in the original brief (matched on
-  # file path). The review classified the SQL-injection-shaped bug Critical
-  # (Security lens) and the off-by-one High (Error handling lens) across
-  # every real run, at both "medium" and "high" tiers. `contains` was
-  # originally matched on the file path (e.g. "src/auth.js"), but the live
-  # skill's findings table has no single, stable file/line column across
-  # observed shapes — matched instead on content that appeared in every real
-  # run regardless of table shape: "SQL injection" (the vulnerability class)
-  # and "lastNItems" (the affected function's own name, a hard identifier
-  # less prone to LLM paraphrase than a descriptive term).
+  # actual output. The review classified the SQL-injection-shaped bug
+  # Critical (Security lens) and the off-by-one High (Error handling lens)
+  # across every real run, at both "medium" and "high" tiers.
+  #
+  # "SQL injection" (the vulnerability class, not a file path) has appeared
+  # verbatim in every real run so far — kept as-is.
+  #
+  # The off-by-one finding was originally matched on "lastNItems" (the
+  # affected function's own name), but one real run described the bug
+  # generically ("Off-by-one: `items.length - n - 1`...") without ever
+  # naming the function. parse-findings-table.js's finding field is now the
+  # concatenation of every non-Severity column, and a file reference
+  # (`src/utils.js` in some form) has appeared in that concatenation in every
+  # real run regardless of which column carried it or how the bug itself was
+  # worded — matched on the file path instead, which the severity filter
+  # already disambiguates from the file's own separate "no test coverage"
+  # finding row (that row is Medium, not High).
   - type: findings-include
     severity: critical
     contains: "SQL injection"
   - type: findings-include
     severity: high
-    contains: "lastNItems"
+    contains: "src/utils.js"
   - type: findings-exclude-false-positive
     files: ["src/clean-module.js"]
   # max: 60 was a pre-flight guess written before any real run existed. The

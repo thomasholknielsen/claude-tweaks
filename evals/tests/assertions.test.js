@@ -163,6 +163,40 @@ test('parseFindingsTable: parses the "File:Line/Issue/Resolution" shape via the 
   assert.strictEqual(highResult.pass, true, highResult.message);
 });
 
+// Real captured output (2026-07-24 run, cost $4.14) where the off-by-one
+// finding never used the literal string "lastNItems" — validates the
+// file-path-based fallback assertion against real data before spending on
+// another live run.
+const REAL_SHAPE_NO_FUNCTION_NAME = `
+### Code Review Findings
+
+| # | Finding | Severity | Location | Lenses | Resolution |
+|---|---|---|---|---|---|
+| 1 | Sanitization was removed — raw \`username\` is now interpolated directly into the SQL string, reintroducing SQL injection | Critical | \`src/auth.js:4\` | Security + Error-handling (both confirmed) | Fix now — restore sanitization |
+| 2 | Off-by-one: \`items.length - n - 1\` silently returns the wrong element count for every normal call | High | \`src/utils.js:4\` | Error-handling (confirmed) | Fix now — restore \`items.length - n\` |
+| 3 | No test covers \`buildUserLookupQuery\`; a test would have caught the SQL-injection regression | Medium | \`src/auth.js\` | Test Quality (confirmed) | Add regression test |
+| 4 | No test covers \`lastNItems\`; a test would have caught the off-by-one regression | Medium | \`src/utils.js\` | Test Quality (confirmed) | Add regression test |
+`;
+
+test('findings-include: matches the off-by-one finding by file path when the function name is never literally mentioned', () => {
+  const result = runAssertion(
+    { resultText: REAL_SHAPE_NO_FUNCTION_NAME },
+    { type: 'findings-include', severity: 'high', contains: 'src/utils.js' },
+  );
+  assert.strictEqual(result.pass, true, result.message);
+});
+
+test('findings-include: the file-path match is disambiguated by severity, not accidentally matching the Medium test-coverage row for the same file', () => {
+  // Row 4 (Medium) also mentions src/utils.js — confirm severity:high only
+  // matches row 2, not row 4, by checking the matched row's own content.
+  const result = runAssertion(
+    { resultText: REAL_SHAPE_NO_FUNCTION_NAME },
+    { type: 'findings-include', severity: 'high', contains: 'src/utils.js' },
+  );
+  assert.ok(result.message.includes('Off-by-one'), result.message);
+  assert.ok(!result.message.includes('No test covers'), result.message);
+});
+
 test('parseFindingsTable: a gate table with no Severity column (e.g. Spec Compliance) is skipped, not parsed as findings', () => {
   const textWithGateTableFirst = `
 ### Spec Compliance
