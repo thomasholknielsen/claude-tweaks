@@ -60,10 +60,36 @@ function isInsideRepoDir(candidatePath, resolvedRepoDir) {
   return resolvedCandidate === resolvedRepoDir || resolvedCandidate.startsWith(resolvedRepoDir + path.sep);
 }
 
+// Async cross-session coordination tools assume a live, persistent,
+// multi-turn Claude Code harness that can actually deliver a scheduled
+// wakeup or a background task's completion notification later. The eval
+// harness invokes skills via the SDK's single embedded query() call, which
+// has no such host process — a model that schedules a wakeup or waits on a
+// background task via these tools blocks until the connection is silently
+// aborted (confirmed via real session transcripts: this exact
+// ScheduleWakeup/SendMessage signature appears both in the run that
+// preceded the Task 7 GitHub-issue escape and, separately, in a later real
+// run that never completed). Denying these tools up front pushes the model
+// to finish its work synchronously within the one query() turn instead of
+// hanging.
+const ASYNC_COORDINATION_TOOLS = ['ScheduleWakeup', 'SendMessage', 'Monitor', 'TaskOutput', 'TaskStop'];
+
 export function createActor({ answerOverrides = [], repoDir } = {}) {
   const resolvedRepoDir = repoDir ? path.resolve(repoDir) : null;
 
   return async function canUseTool(toolName, input, _options) {
+    if (ASYNC_COORDINATION_TOOLS.includes(toolName)) {
+      return {
+        behavior: 'deny',
+        message: `${toolName} is not supported when running under the eval harness — there is no live multi-turn harness process to deliver a scheduled wakeup or background task notification here. Complete this step synchronously, inline, in this same turn instead of waiting on a background task.`,
+      };
+    }
+    if (toolName === 'Agent' && input && input.run_in_background === true) {
+      return {
+        behavior: 'deny',
+        message: 'Agent dispatch with run_in_background:true is not supported when running under the eval harness — the background task\'s completion cannot be delivered back to this session. Dispatch synchronously (run_in_background:false or omitted) instead.',
+      };
+    }
     if (toolName !== 'AskUserQuestion') {
       if (resolvedRepoDir) {
         const pathInput = findPathInput(input);

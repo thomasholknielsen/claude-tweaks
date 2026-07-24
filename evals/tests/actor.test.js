@@ -111,3 +111,42 @@ test('scope guard: AskUserQuestion is never subject to the scope guard, even wit
   assert.strictEqual(result.behavior, 'allow');
   assert.strictEqual(result.updatedInput.answers['Which effort tier?'], 'Medium (Recommended)');
 });
+
+// --- Async coordination tools (hang/abort mitigation) ---
+
+test('async coordination guard: ScheduleWakeup is denied with a clear message', async () => {
+  const actor = createActor();
+  const result = await actor('ScheduleWakeup', { delaySeconds: 90, reason: 'wait for subagent', prompt: 'resume' }, {});
+  assert.strictEqual(result.behavior, 'deny');
+  assert.ok(result.message.length > 0);
+});
+
+test('async coordination guard: SendMessage, Monitor, TaskOutput, and TaskStop are each denied', async () => {
+  const actor = createActor();
+  for (const toolName of ['SendMessage', 'Monitor', 'TaskOutput', 'TaskStop']) {
+    const result = await actor(toolName, {}, {});
+    assert.strictEqual(result.behavior, 'deny', `${toolName} should be denied`);
+    assert.ok(result.message.length > 0);
+  }
+});
+
+test('async coordination guard: Agent dispatch with run_in_background:true is denied', async () => {
+  const actor = createActor();
+  const result = await actor('Agent', { description: 'simplify', prompt: 'do it', run_in_background: true }, {});
+  assert.strictEqual(result.behavior, 'deny');
+  assert.ok(result.message.length > 0);
+});
+
+test('async coordination guard: Agent dispatch with run_in_background:false (or omitted) is allowed', async () => {
+  const actor = createActor();
+  const explicitFalse = await actor('Agent', { description: 'simplify', prompt: 'do it', run_in_background: false }, {});
+  assert.strictEqual(explicitFalse.behavior, 'allow');
+  const omitted = await actor('Agent', { description: 'simplify', prompt: 'do it' }, {});
+  assert.strictEqual(omitted.behavior, 'allow');
+});
+
+test('async coordination guard: applies even when repoDir is set, ahead of the scope guard', async () => {
+  const actor = createActor({ repoDir: REPO_DIR });
+  const result = await actor('ScheduleWakeup', { delaySeconds: 60, reason: 'x', prompt: 'y' }, {});
+  assert.strictEqual(result.behavior, 'deny');
+});
