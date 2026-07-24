@@ -1,26 +1,75 @@
 // Shared by findings-include.js and findings-exclude-false-positive.js.
-// Parses the real "### Code Review Findings (confirmed)" table shape from
-// skills/review/review-summary-template.md:
-//   | Category | Finding | Severity | Action |
-// There is no file/line column — a file/line reference, when present, is
-// embedded as text inside the Finding cell.
-const TABLE_HEADING = '### Code Review Findings (confirmed)';
+//
+// Parses ANY markdown table in resultText whose header row includes a
+// "Severity" column — the one signal that's stayed stable across every
+// live /claude-tweaks:review output shape observed so far, despite
+// significant drift elsewhere. Three real runs produced three different
+// heading/column shapes: `### Code Review Findings (confirmed)` with
+// `Category | Finding | Severity | Action` (4 columns); a later run's
+// `## Step 3 — Code Review Findings` with `# | Finding | Severity |
+// Category | Location | Recommended` (6 columns); another's `### Code
+// Review Findings` (no "(confirmed)" suffix) with `# | File:Line |
+// Severity | Category | Issue | Resolution` (6 columns, different names
+// and order again). The live skill composes this summary as free-form
+// markdown for a bare invocation, not a byte-stable template — anchoring
+// on heading text or a fixed column position broke three scenario
+// recalibrations in a row. Anchoring on the "Severity" header instead of
+// position means `finding` can be the concatenation of every OTHER column,
+// so a `contains` check matches regardless of which column carries the
+// matching text on a given run.
+//
+// Known, accepted limitation: this also parses any other table that
+// happens to have a Severity column (e.g. a Design Quality findings
+// table) — not observed to produce a false result in practice, since the
+// content these assertions check (a specific vulnerability class, or a
+// clean file's name) is specific enough that cross-table collision is a
+// low-probability edge case, not worth scoping further right now.
+
+function splitRow(line) {
+  return line
+    .trim()
+    .split('|')
+    .map((c) => c.trim())
+    .filter((c) => c !== '');
+}
+
+function isSeparatorRow(cells) {
+  return cells.length > 0 && cells.every((c) => /^:?-+:?$/.test(c));
+}
+
+// Strips markdown emphasis/code markers (**bold**, _italic_, `code`) that
+// the model sometimes wraps a severity cell in (e.g. "**Critical**") —
+// without this, an exact severity match would silently fail.
+function cleanSeverity(cell) {
+  return cell.replace(/[*_`]/g, '').trim();
+}
 
 export function parseFindingsTable(resultText) {
-  const headingIdx = (resultText || '').indexOf(TABLE_HEADING);
-  if (headingIdx === -1) return [];
-  const lines = resultText.slice(headingIdx + TABLE_HEADING.length).split('\n');
+  const lines = (resultText || '').split('\n');
   const rows = [];
-  let inTable = false;
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (/^\|-+\|/.test(trimmed)) { inTable = true; continue; }
-    if (inTable) {
-      if (!trimmed.startsWith('|')) break;
-      const cells = trimmed.split('|').map((c) => c.trim()).filter((c) => c !== '');
-      if (cells.length < 4) continue;
-      const [category, finding, severity, action] = cells;
-      rows.push({ category, finding, severity, action });
+  let i = 0;
+  while (i < lines.length) {
+    if (!lines[i].trim().startsWith('|')) {
+      i++;
+      continue;
+    }
+    const header = splitRow(lines[i]);
+    const separatorLine = lines[i + 1];
+    if (!separatorLine || !separatorLine.trim().startsWith('|') || !isSeparatorRow(splitRow(separatorLine))) {
+      i++;
+      continue;
+    }
+    const severityIdx = header.findIndex((h) => h.toLowerCase() === 'severity');
+    i += 2;
+    if (severityIdx === -1) continue;
+    while (i < lines.length && lines[i].trim().startsWith('|')) {
+      const cells = splitRow(lines[i]);
+      if (cells.length > severityIdx) {
+        const severity = cleanSeverity(cells[severityIdx]);
+        const finding = cells.filter((_, idx) => idx !== severityIdx).join(' ');
+        rows.push({ severity, finding });
+      }
+      i++;
     }
   }
   return rows;

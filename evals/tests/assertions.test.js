@@ -110,3 +110,76 @@ test('findings-exclude-false-positive: fails when the file IS mentioned', () => 
   );
   assert.strictEqual(result.pass, false);
 });
+
+// --- parse-findings-table.js: real observed output shapes ---
+// Three real /claude-tweaks:review runs each produced a differently-shaped
+// summary (different heading, different column count/order/names) — these
+// fixtures are the actual text observed (reformatted to single-line rows,
+// since a real markdown table row is one line; only report-doc rendering
+// wrapped it across lines). The parser must handle all three via the one
+// stable signal: a "Severity" column header.
+
+const REAL_SHAPE_STEP3_LOCATION = `
+## Step 3 — Code Review Findings
+
+| # | Finding | Severity | Category | Location | Recommended |
+|---|---|---|---|---|---|
+| 1 | \`buildUserLookupQuery\` interpolates raw \`username\` into a SQL string with no sanitization — classic auth-bypass injection (SQL injection). | **Critical** | security | \`src/auth.js:4\` | Fix now — restore input sanitization |
+| 2 | \`lastNItems\` now slices at \`items.length - n - 1\` instead of \`items.length - n\`. Confirmed: returns n+1 items. | **High** | correctness | \`src/utils.js:4\` | Fix now — restore \`items.length - n\` |
+`;
+
+const REAL_SHAPE_FILE_LINE_RESOLUTION = `
+### Code Review Findings
+
+| # | File:Line | Severity | Category | Issue | Resolution |
+|---|---|---|---|---|---|
+| 1 | \`src/auth.js:4\` | Critical | Security | Sanitization removed before interpolating \`username\` into a raw SQL string — SQL injection | **Fixed** |
+| 2 | \`src/utils.js:4\` | High | Correctness | \`lastNItems\` off-by-one (\`length - n - 1\`) returned n+1 items instead of n | **Fixed** |
+`;
+
+test('parseFindingsTable: parses the "Finding/Location/Recommended" shape via the Severity header, stripping markdown emphasis', () => {
+  const result = runAssertion(
+    { resultText: REAL_SHAPE_STEP3_LOCATION },
+    { type: 'findings-include', severity: 'critical', contains: 'SQL injection' },
+  );
+  assert.strictEqual(result.pass, true, result.message);
+  const highResult = runAssertion(
+    { resultText: REAL_SHAPE_STEP3_LOCATION },
+    { type: 'findings-include', severity: 'high', contains: 'lastNItems' },
+  );
+  assert.strictEqual(highResult.pass, true, highResult.message);
+});
+
+test('parseFindingsTable: parses the "File:Line/Issue/Resolution" shape via the Severity header', () => {
+  const result = runAssertion(
+    { resultText: REAL_SHAPE_FILE_LINE_RESOLUTION },
+    { type: 'findings-include', severity: 'critical', contains: 'SQL injection' },
+  );
+  assert.strictEqual(result.pass, true, result.message);
+  const highResult = runAssertion(
+    { resultText: REAL_SHAPE_FILE_LINE_RESOLUTION },
+    { type: 'findings-include', severity: 'high', contains: 'lastNItems' },
+  );
+  assert.strictEqual(highResult.pass, true, highResult.message);
+});
+
+test('parseFindingsTable: a gate table with no Severity column (e.g. Spec Compliance) is skipped, not parsed as findings', () => {
+  const textWithGateTableFirst = `
+### Spec Compliance
+| Deliverable | Status |
+|-------------|--------|
+| Auth fix | done |
+
+${REAL_SHAPE_FILE_LINE_RESOLUTION}
+`;
+  const result = runAssertion(
+    { resultText: textWithGateTableFirst },
+    { type: 'findings-exclude-false-positive', files: ['clean-module.js'] },
+  );
+  assert.strictEqual(result.pass, true, result.message);
+  const stillFinds = runAssertion(
+    { resultText: textWithGateTableFirst },
+    { type: 'findings-include', severity: 'critical', contains: 'SQL injection' },
+  );
+  assert.strictEqual(stillFinds.pass, true, stillFinds.message);
+});
