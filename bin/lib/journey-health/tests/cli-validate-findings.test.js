@@ -5,6 +5,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+const { seedDurableState } = require('../../health-core/tests/seed-durable-state');
+
 const CLI = path.resolve(__dirname, '..', '..', '..', 'journey-health.js');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'journey-health-cli-validate-')); }
@@ -219,6 +221,53 @@ test('validate-findings: a real run still succeeds and emits its payload when du
   );
 });
 
+// ── --min-confidence floor ──
+//
+// Opt-in only: omitting the flag keeps today's unconditional-filing
+// behavior (see the fixture-default test at the top of this file). Passing
+// it holds back any finding whose confidence ranks below the threshold,
+// for this run only (journey-health has no `remembered` cache tier).
+
+test('validate-findings --min-confidence high: a med-confidence finding is held back, not filed', () => {
+  const root = tmp();
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([finding({ confidence: 'med' })]));
+  const result = spawnSync(
+    'node',
+    [CLI, 'validate-findings', findingsFile, '--target', 'checkout-flow', '--root', root, '--min-confidence', 'high'],
+    { encoding: 'utf8' },
+  );
+  assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+  assert.deepStrictEqual(JSON.parse(result.stdout), []);
+  assert.ok(result.stderr.includes('held back'), `expected a held-back notice in stderr: ${result.stderr}`);
+});
+
+test('validate-findings --min-confidence med: a high-confidence finding still files', () => {
+  const root = tmp();
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([finding({ confidence: 'high' })]));
+  const result = spawnSync(
+    'node',
+    [CLI, 'validate-findings', findingsFile, '--target', 'checkout-flow', '--root', root, '--min-confidence', 'med'],
+    { encoding: 'utf8' },
+  );
+  assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+  assert.strictEqual(JSON.parse(result.stdout).length, 1);
+});
+
+test('validate-findings: an unrecognized --min-confidence value exits 2', () => {
+  const root = tmp();
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([finding()]));
+  const result = spawnSync(
+    'node',
+    [CLI, 'validate-findings', findingsFile, '--target', 'checkout-flow', '--root', root, '--min-confidence', 'bogus'],
+    { encoding: 'utf8' },
+  );
+  assert.strictEqual(result.status, 2, `expected exit 2, got ${result.status}. stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes('--min-confidence'), `expected the flag named in stderr: ${result.stderr}`);
+});
+
 test('churn-report: prints "no run logs found" when no runs exist', () => {
   const root = tmp();
   const result = spawnSync('node', [CLI, 'churn-report', '--root', root], { encoding: 'utf8' });
@@ -239,4 +288,46 @@ test('churn-report: a seeded durable run history prints a table row', () => {
   const result = spawnSync('node', [CLI, 'churn-report', '--root', root], { encoding: 'utf8' });
   assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
   assert.ok(result.stdout.includes('run-1'));
+});
+
+// ── declined marks must survive a fresh (different) container ──
+//
+// bin/lib/health-core/mark.js's readDurableState/writeDurableState wiring
+// (now enabled for journey-health.js's cmdMark, mirroring harness-health.js)
+// persists a "declined" mark to the health-state branch, not just the local
+// gitignored cache.json — but that's only half the fix: cmdValidateFindings
+// also has to read it back. This test proves the read/merge side
+// (mergeDeclinedIntoCache, wired into cmdValidateFindings's readCache)
+// genuinely works end-to-end by seeding the health-state branch directly
+// (bypassing `mark`'s own `gh api` write path, which needs real GitHub
+// credentials this sandboxed test doesn't have) and confirming a *fresh*
+// root — no local cache.json for this fingerprint at all, simulating a
+// different, since-recycled scheduled-Routine container — still suppresses it.
+test('validate-findings: a fingerprint declined only on the durable health-state branch (simulating a different, since-recycled Routine container) is still suppressed', () => {
+  const root = tmp();
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([finding()]));
+
+  // Compute the real fingerprint the same way a first run would, without
+  // touching git at all yet (bare tmp root => no remote, dry-run writes nothing).
+  const first = spawnSync(
+    'node',
+    [CLI, 'validate-findings', findingsFile, '--dry-run', '--target', 'checkout-flow', '--tier', 'light', '--root', root],
+    { encoding: 'utf8' },
+  );
+  const fp = JSON.parse(first.stdout)[0].body.match(/<!--\s*work-fingerprint:\s*(journeyhealth-[0-9a-f]{8})\s*-->/)[1];
+
+  seedDurableState(root, 'journey-health', 'declined.json', { [fp]: { lastSeenMs: Date.now() } }, 'journey-health-vf-declined');
+
+  const second = spawnSync(
+    'node',
+    [CLI, 'validate-findings', findingsFile, '--target', 'checkout-flow', '--tier', 'light', '--root', root],
+    { encoding: 'utf8' },
+  );
+  assert.strictEqual(second.status, 0, `stderr: ${second.stderr}`);
+  assert.strictEqual(
+    JSON.parse(second.stdout).length,
+    0,
+    'a durably-declined finding must be suppressed even though this root has no local cache.json for it',
+  );
 });

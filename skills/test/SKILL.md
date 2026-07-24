@@ -1,6 +1,7 @@
 ---
 name: claude-tweaks:test
 description: Use when you need to run verification checks (types, lint, tests) or validate QA stories — the mechanical "does it work?" gate.
+argument-hint: "[types|lint|unit|integration|e2e|affected|qa|all|skip-qa|<path>] [tag=<tag>] [story=<name>] [retry=<path>] [journey=<name>] [dir=<path>] [priority=<level>] [max_parallel=N] [timeout=<ms>] [headless]"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -47,6 +48,11 @@ Mechanical pass/fail gate — types, lint, tests, QA story validation. Answers "
 | `qa retry={path}` | QA — re-run only failed stories from a previous run |
 | `qa affected` | QA — run only stories whose `source_files` overlap with uncommitted changes |
 | `qa journey={name}` | QA — run only stories with `journey: {name}` (kebab-case, case-insensitive match against the story's `journey:` field; e.g., `qa journey=profile-settings`) |
+| `qa dir={path}` | QA — override the stories directory (default `stories/`) |
+| `qa priority={level}` | QA — only run stories at or above the priority threshold (`high` > `medium` > `low`; stories without `priority` are treated as `medium`) |
+| `qa max_parallel={N}` | QA — max concurrent agents per dependency tier (default `4`) |
+| `qa headless` | QA — run the browser invisibly (default is headed/visible) |
+| `qa timeout={ms}` | QA — override the per-agent timeout in milliseconds (default `300000`, i.e. 5 minutes); e.g. `qa timeout=600000` for a slow staging environment, or `qa timeout=60000` for fast-fail local iteration |
 | `all` | Full suite (types + lint + tests) AND QA story validation |
 | `skip-qa` | Run types/lint/tests only. Skip QA story validation **even when stories exist**. (Step 1.5 Design CLI gate still runs — see that step for details.) |
 
@@ -146,41 +152,7 @@ After types/lint/tests pass (or if they were skipped via `VERIFICATION_PASSED`),
 - The mode is `qa` (QA-only run; design gate has no opinion on QA stories)
 - The user-supplied scope was a single check type (`types`, `lint`, `unit`, `integration`, `e2e`) — these targeted runs do not include the design gate
 
-**Invocation:**
-
-Invoke `/claude-tweaks:design-wrapper test <changed-files>`. Resolve `<changed-files>` from `git diff --name-only` (the wrapper handles its own filtering and detection).
-
-**Result handling:**
-
-| Wrapper return | Test gate behavior |
-|----------------|-------------------|
-| `{result: "pass", findings: [...]}` (zero findings, or advisory only) | Proceed. Surface advisory findings in the test output as informational. |
-| `{result: "fail", findings: [...]}` (any `severity: warning`) | **Fail the test gate.** Surface the findings table in the test report. Do NOT auto-fix — design findings require human judgment. |
-| `{skipped: ...}` | Note the skip in test output and proceed. |
-| `{deferred: ...}` (should not happen for `test` mode) | Treat as skip and proceed. |
-
-See `_shared/design-wrapper-handling.md` for the canonical return-shape contract and the "why skips don't fail" rationale.
-
-**Reporting:** How the Design CLI result surfaces depends on which Step 2 template is active:
-
-- **Standard mode / All mode** (renders the `verification.md` Step 3 table) — add a "Design CLI" row to that table:
-
-  ```markdown
-  | Design CLI | {pass/fail/skipped} | {Xs} | {N findings: Y warning, Z advisory} or {skip reason} |
-  ```
-
-- **Pipeline mode** (`## Pipeline result (VERIFICATION_PASSED + no stories)` / `... + stories` in `report-templates.md` — bare status lines, no table) — append a `Design CLI: {pass/fail/skipped} ({N findings: Y warning, Z advisory} or {skip reason})` line to the pipeline result output.
-- **Skip-QA mode** (bare status lines per Skip-QA mode's own report format above, not a `report-templates.md` template) — append the same `Design CLI: {pass/fail/skipped} ({N findings: Y warning, Z advisory} or {skip reason})` line to that report.
-
-If `severity: warning` findings are present, append a Design Findings section before the standard test-failure section:
-
-```markdown
-### Design Findings (Impeccable CLI)
-
-| File | Line | Antipattern | Severity | Description |
-|------|------|-------------|----------|-------------|
-| {file} | {line} | {antipattern} | warning | {description} |
-```
+Otherwise, read `design-gate.md` in this skill's directory for the full invocation, result-handling table, per-mode reporting variants, and the Design Findings template.
 
 ## Step 2: Report
 
@@ -291,7 +263,7 @@ Whichever matches the current run's actual signal gets `(Recommended)` on its la
 | `/claude-tweaks:design-wrapper` | /test invokes `/claude-tweaks:design-wrapper test <files>` as Step 1.5 after the standard suite. Findings with `severity: warning` fail the gate; `advisory` findings and skips do not. The wrapper handles its own detection and availability checks. |
 | `/claude-tweaks:browse` | /test's QA mode dispatches `qa-agent`, which speaks /browse's operation vocabulary (session naming, trace-on-failure, semantic locators) for browser-driven story validation — /test invokes qa-agent, not /browse directly; /browse never invokes /test. |
 | `/claude-tweaks:journeys` | /journeys feeds journey files into /stories which /test qa consumes; `journey={name}` filter lets /test run only the QA stories tied to a single journey. |
-| `/claude-tweaks:journey-health` | The deep tier drives `/test journey={name}` when auditing a journey that has story coverage — this is the "agent e2e testing" journey-health exists to protect. |
+| `/claude-tweaks:journey-health` | The deep tier drives `/test qa journey={name}` when auditing a journey that has story coverage — this is the "agent e2e testing" journey-health exists to protect. |
 | `/claude-tweaks:reflect` | /reflect may surface implementation findings that reference /test verification gaps; /test does not invoke /reflect, but reflection insights can call for new test coverage. |
 | `/claude-tweaks:simplify` | /simplify runs before /test in /build's Common Step 3; /test verifies that simplification did not break behavior. |
 | `/claude-tweaks:deepen` | /deepen uses the shared verification procedure from /test's `verification.md` to confirm a depth refactor preserved behavior. |

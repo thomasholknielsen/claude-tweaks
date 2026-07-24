@@ -6,6 +6,8 @@ Used by `/claude-tweaks:visualize` — the enhanced/baseline decision is made in
 
 Write a `.d2` file at the same base path as the eventual HTML output (e.g. `docs/journeys/{journey-name}-{type}.d2` alongside `docs/journeys/{journey-name}-{type}.html`) — this is the versioned source of truth, not scratch. Use the type-appropriate D2 construct: `shape: sequence_diagram` for sequence, `shape: sql_table` per entity for ER, plain nodes/edges with containers for architecture/flowchart/tree/layers/state/org-chart/nested.
 
+**Quadrant (tentative construct):** D2 has no dedicated quadrant-chart shape. Approximate a 2x2 quadrant with a container carrying `grid-columns: 2` and `grid-rows: 2` attributes, one child node/container per cell (top-left, top-right, bottom-left, bottom-right), and two free-standing text labels positioned outside the grid container for the axis names (D2 has no native axis-label primitive). Before committing to this construct, verify current support with `d2 --version` and a throwaway smoke render of a minimal `grid-columns`/`grid-rows` snippet (`d2 --layout=elk /tmp/smoke.d2 /tmp/smoke.svg`); if that smoke render errors or the installed `d2` version predates grid-layout support, treat it as the same skip condition Step 2 below describes and fall back to `SKILL.md`'s baseline path instead.
+
 ## Step 2: Render to SVG
 
 ```bash

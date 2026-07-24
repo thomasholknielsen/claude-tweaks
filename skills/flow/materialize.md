@@ -6,12 +6,18 @@ One shared procedure, referenced by both `/claude-tweaks:flow` and `/claude-twea
 
 Input is one or more record references: `#N` (single) or `#A,#B,...` (comma-joined, no spaces — mirrors the existing multi-spec-number convention). Resolve each record independently, the same way regardless of how many are in the batch.
 
+> **Parallel execution:** Use parallel tool calls aggressively — resolving N record references (the `gh issue view` / local-store reads below) are independent per-record fetches and should run concurrently, the same way `multi-spec.md`'s "Frontmatter pre-flight" batches its own reads.
+
 Read the project's `work-backend` config key (`_shared/work-record.md`'s Config keys table):
 
 - **`work-backend: github-issues`** — `gh issue view {n} --json number,title,body,labels,url`. Derive `facets` from the returned `labels` via `parseRecordFacets` (`bin/lib/issues/record.js`).
 - **`work-backend: local-files`** — glob `specs/{n}-*.md` for the matching filename, then `readRecord(path)` (`bin/lib/issues/local-store.js`). `facets` is already on the returned record (`.facets`).
 
 This is the same fetch `/specify`'s Resolve-the-input case 1 uses for a record reference — deliberately identical, so a record looks the same to both skills.
+
+### Record not found
+
+A record reference that fails to resolve — `gh issue view {n}` errors (deleted issue, wrong repo, transposed digit) or no `specs/{n}-*.md` file matches under `work-backend: local-files` — is a hard stop, the same class of failure as the Materialization hard gate below: **STOP** before any worktree or run-dir work happens. Surface: `"Record #{n} could not be resolved (\`gh issue view {n}\` failed — check the issue exists in this repo)."` (or, under `local-files`, `"Record {n} could not be resolved — no specs/{n}-*.md file found."`). For a multi-record run, resolve every target before failing on any of them — report every unresolvable record in one message, not just the first one encountered, the same all-at-once reporting the Materialization hard gate already does for shape failures. This is a reachable path for direct human invocation (the Component-Skill Contract's "a human can also run it directly" case bypasses dispatch's own upstream existence check), not a theoretical one.
 
 `fingerprint` — `extractFingerprint(body)` (`record.js`), run against the raw fetched body on either driver.
 

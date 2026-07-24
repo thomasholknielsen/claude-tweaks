@@ -1,6 +1,7 @@
 ---
 name: claude-tweaks:stories
 description: Use when generating or updating user story YAML files for UI testing — browses a site with agent-browser, discovers flows, creates structured stories using semantic locators (schema v2) with diff-aware updates, negative testing, source-aware contracts, journey awareness, and self-validation. Keywords - stories, generate, create, user journey, persona, QA, testing, semantic-locators.
+argument-hint: "[<url>] [persona=<name>] [dir=<path>] [focus=<area>] [pages=<n>] [refine=false] [negative=false] [journey=<name>] [migrate]"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -29,10 +30,12 @@ Parse `$ARGUMENTS` to extract:
 - **URL:** (required, auto-detected if omitted) the site to browse and generate stories for. When no URL is provided, auto-detect using `dev-url-detection.md` in `skills/_shared/`.
 - **PERSONA:** (optional) `persona=<name>` — the type of user to generate stories for (e.g. "customer", "admin", "developer"). If not specified, infer appropriate personas from the site's structure.
 - **OUTPUT_DIR:** (optional) `dir=<path>` — directory to write stories to. Default: `stories/`
-- **FOCUS:** (optional) `focus=<area>` — specific area or flow to focus on (e.g. "checkout", "settings", "onboarding")
+- **FOCUS:** (optional) `focus=<area>` — specific area or flow to focus on (e.g. "checkout", "settings", "onboarding"). Narrows Step 2 discovery (prioritizes pages/sections matching the area within the page-discovery budget) and Step 3 story design (scopes full story generation to matching pages/flows).
+- **PAGES:** (optional) `pages=<n>` — override the default page-discovery cap (5-8) used in Step 2. Raise for a large app that needs broader first-pass coverage (e.g. `pages=15`); lower for a fast, narrowly-scoped regeneration run (e.g. `pages=3`).
 - **REFINE:** (optional) `refine=true|false` — validate sample stories and self-correct. Default: `true`.
 - **NEGATIVE:** (optional) `negative=true|false` — generate failure-path negative stories. Default: `true`.
 - **JOURNEY_FILTER:** (optional) `journey=<name>` — scope generation to pages covered by the named journey. When set, only generates stories for pages documented in that journey file (`docs/journeys/{name}.md`).
+- **MIGRATE_MODE:** (optional) `migrate` — bare keyword, no value. Explicit re-entry point for resolving a staged v1→v2 migration (this is the exact command the Review Console, wrap-up, and staged migration items recommend running). Not required for normal migration — Step 1's v1 detection auto-triggers whenever legacy YAML is found regardless of this flag. Passing `migrate` alone (typically with no URL) marks the invocation as migration-focused, forces the interactive migration flow in `migration.md` even inside an otherwise-auto pipeline context, and — critically — prevents the bare `migrate` token from being misparsed as URL.
 
 **Keyword detection rules (applied to $ARGUMENTS):**
 - `refine=false` → REFINE = `false` (default is `true`)
@@ -40,7 +43,9 @@ Parse `$ARGUMENTS` to extract:
 - `dir=<path>` → OUTPUT_DIR = `<path>`
 - `persona=<name>` → PERSONA = `<name>`
 - `focus=<area>` → FOCUS = `<area>`
+- `pages=<n>` → PAGES = `<n>`
 - `journey=<name>` → JOURNEY_FILTER = `<name>`
+- `migrate` (bare token, no `=`) → MIGRATE_MODE = `true`; do NOT treat as URL
 - Remaining non-keyword argument → URL
 
 ### URL Resolution
@@ -98,6 +103,8 @@ This replaces the cookie-injection path used in earlier versions and removes the
 
 Gather pre-existing information before browsing.
 
+> **Parallel execution:** Use parallel tool calls aggressively — all Glob and Read operations across existing YAML files in Step 1 are independent and should run concurrently.
+
 ### Diff-Aware Ingestion (auto-detected)
 
 1. Use the Glob tool to check for existing YAML files in OUTPUT_DIR matching `{OUTPUT_DIR}/*.yaml` AND `{OUTPUT_DIR}/*.yml` (both extensions — projects may use either).
@@ -126,11 +133,17 @@ For the full procedure (component-file identification, journey-seeded source fil
 
 > **Parallel execution:** Use parallel tool calls aggressively — all independent agent-browser session operations in Step 2's exploration are independent and should run concurrently, one session per page (`agent-browser --session <name> batch ...`), each in its own process (not a Task agent). Use a single batch per session to bundle `open + snapshot + screenshot`. Pages that share state (login → dashboard → settings) must run sequentially within a single session instead.
 
+### Availability Check
+
+Before browsing, check `agent-browser` availability per `_shared/browser-detection.md`'s Detect procedure. If available, proceed with the numbered steps below.
+
+If unavailable, follow `_shared/browser-detection.md`'s Install branch (interactive mode: offer install; auto mode: stage the recommendation to the auto-decision log and continue without installing). If the user skips install (or auto mode stages it), degrade gracefully: skip browse-exploration (the rest of this Step) and Step 5 Refine entirely, generate stories from JOURNEY_MAP (Step 1.1) and SourceContract (Step 1.5) data only, and note "agent-browser unavailable — generated from journey/source data only" in the Step 6 report.
+
 1. Create the output directory if it doesn't exist (use `mkdir -p` via the Bash tool — `-p` creates parent directories and silently no-ops if the directory already exists; plain `mkdir` does NOT create parents on macOS/Linux).
 2. Use the `/claude-tweaks:browse` skill to open the site. The concrete command is `agent-browser --session <session-name> open <url>`. Choose `<session-name>` per the kebab-case convention (e.g., `stories-explore`, `stories-checkout`). Use `agent-browser batch --session <name>` to bundle open + initial snapshot + reconnaissance screenshot in one process invocation.
 3. Capture an accessibility-tree snapshot via `agent-browser --session <name> snapshot -i -c` to understand the page structure. The snapshot returns elements with role, accessible name, text, label, placeholder, and `data-testid` — these are the only attributes used to build v2 locators.
 4. Identify the main navigation, key pages, and interactive elements from the snapshot.
-5. Follow links to discover major sections (limit to 5-8 pages to stay efficient).
+5. Follow links to discover major sections (limit to PAGES pages if `pages=<n>` was set, otherwise 5-8, to stay efficient). When FOCUS is set, prioritize discovery toward pages/sections whose URL path, nav label, or page content matches the focus area — pages outside that area are still noted for navigation context but are not prioritized within the discovery budget.
 
 ### Per-Page Data Capture
 
@@ -157,7 +170,7 @@ For each page visited during exploration, check JOURNEY_URL_INDEX:
 
 - **Page does NOT match any journey step URL:** Full discovery (existing behavior). This page has no journey context and gets standard exploration.
 
-**Journey-guided navigation:** When a journey has step URLs that the standard exploration (items 4-5) would not naturally visit, add those URLs to the exploration queue. This ensures all journey-documented pages get enrichment passes. Journey enrichment pages are counted separately from the 5-8 page discovery cap — they are verification, not discovery.
+**Journey-guided navigation:** When a journey has step URLs that the standard exploration (items 4-5) would not naturally visit, add those URLs to the exploration queue. This ensures all journey-documented pages get enrichment passes. Journey enrichment pages are counted separately from the PAGES discovery cap (5-8 by default, or the `pages=<n>` override) — they are verification, not discovery.
 
 ### Auth Resolution (conditional)
 
@@ -257,7 +270,7 @@ For the full staleness procedure (locator-resolution checks via `agent-browser f
     - Extract these into a file-level `setup` block
     - Use `requires` labels to indicate prerequisites (e.g. `requires: [auth]`)
 
-    **Auth Vault references (v2):** When the story requires authentication, set the story-level `auth: { vault: "<vault-name>" }` field. This causes the runtime to invoke `agent-browser --session <story-id> auth use <vault-name>` after `open` and before the first action. The vault must already be set via `agent-browser auth set <vault-name> <username> <password>` (one-time, by user). Do NOT inline credentials in story YAML — the LLM never sees passwords.
+    **Auth Vault references (v2):** When the story requires authentication, set the story-level `auth: { vault: "<vault-name>" }` field — see the top-level Auth Vault section for the setup command, runtime invocation, and the "LLM never sees passwords" guarantee.
 
     When the project's auth came from a legacy `auth.yml` and the user opted not to migrate (Step 2 Auth Resolution), continue to use the legacy `setup.auth: <profile>` reference. Do not invent vault names that do not exist.
 
@@ -273,6 +286,7 @@ For the full staleness procedure (locator-resolution checks via `agent-browser f
     - **Error handling** — what happens with bad input, missing pages, unauthorized access
 
 9. If PERSONA was specified, focus stories on that persona. If not, generate stories for the most obvious personas the site serves.
+10. If FOCUS was specified, scope full story generation to pages/flows matching that area. Pages discovered outside FOCUS during navigation get, at most, a single `smoke`-tagged story verifying the page loads — they do not get the full core/form/error-handling story set that in-focus pages get. If FOCUS was not specified, generate stories across all discovered pages/flows as normal.
 
 ## Step 4: Write
 

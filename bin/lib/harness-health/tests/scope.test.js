@@ -55,6 +55,41 @@ test('listSkills ignores non-.md files', (t) => {
   assert.deepStrictEqual(listSkills(root).map((s) => s.id), ['auth']);
 });
 
+test('listSkills recognizes a directory-per-skill layout (.claude/skills/<name>/SKILL.md)', (t) => {
+  const root = tmp(t);
+  fs.mkdirSync(path.join(root, '.claude', 'skills', 'trpc'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude', 'skills', 'trpc', 'SKILL.md'), '# trpc');
+  const skills = listSkills(root);
+  assert.deepStrictEqual(skills.map((s) => s.id), ['trpc']);
+  assert.strictEqual(skills[0].path, path.join(root, '.claude', 'skills', 'trpc', 'SKILL.md'));
+  assert.strictEqual(skills[0].kind, 'skill');
+});
+
+test('listSkills ignores a skill directory with no SKILL.md inside', (t) => {
+  const root = tmp(t);
+  fs.mkdirSync(path.join(root, '.claude', 'skills', 'empty-dir'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude', 'skills', 'empty-dir', 'reference.md'), 'not a skill entrypoint');
+  assert.deepStrictEqual(listSkills(root), []);
+});
+
+test('listSkills excludes the catalog README.md from the flat-file branch', (t) => {
+  const root = tmp(t);
+  fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude', 'skills', 'README.md'), '# Skills catalog');
+  fs.mkdirSync(path.join(root, '.claude', 'skills', 'trpc'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude', 'skills', 'trpc', 'SKILL.md'), '# trpc');
+  assert.deepStrictEqual(listSkills(root).map((s) => s.id), ['trpc']);
+});
+
+test('listSkills merges flat-file and directory-per-skill conventions, sorted together by id', (t) => {
+  const root = tmp(t);
+  fs.mkdirSync(path.join(root, '.claude', 'skills', 'zebra'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude', 'skills', 'zebra', 'SKILL.md'), '# zebra');
+  fs.writeFileSync(path.join(root, '.claude', 'skills', 'auth.md'), '# auth');
+  const skills = listSkills(root);
+  assert.deepStrictEqual(skills.map((s) => s.id), ['auth', 'zebra']);
+});
+
 // ─── extractDomainPaths ────────────────────────────────────────────────────
 
 test('extractDomainPaths finds backtick-quoted file paths', () => {

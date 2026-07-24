@@ -1,6 +1,7 @@
 ---
 name: claude-tweaks:browse
 description: Use when you need browser automation via agent-browser — defines session naming, screenshot/trace paths, and operation vocabulary used by /stories, /visual-review, /review, and /demo. Keywords - browse, browser, agent-browser, screenshot, scrape, automation.
+argument-hint: "[<url>|<task description>] [--session <name> ...] [set viewport <wxh>|set device \"<name>\"] [backend=chrome ...] [--quick]"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -36,7 +37,7 @@ Conventions skill for browser automation. Defines session naming, screenshot/tra
 
 | Pattern | Example | Behavior |
 |---------|---------|----------|
-| *(none)* | — | Show session conventions and exit, or list active sessions |
+| *(none)* | — | List active sessions (`agent-browser session list`) if any are open; otherwise show session conventions and exit |
 | `<URL>` | `https://example.com` | Open a default session at the URL and snapshot |
 | `<task description>` | `walk the checkout flow on https://example.com` | Plan and execute multi-step ops to satisfy the task |
 | `--session <name> open <URL>` | `--session checkout-flow open https://example.com` | Open a named session |
@@ -44,10 +45,22 @@ Conventions skill for browser automation. Defines session naming, screenshot/tra
 | `set viewport <wxh>` | `set viewport 1280x800` | Adjust viewport for the active session |
 | `set device "<name>"` | `set device "iPhone 14"` | Emulate a device profile |
 | `backend=chrome <URL or task>` | `backend=chrome https://app.example.com/settings` | Routes through the native `mcp__claude-in-chrome__*` tools (user's live authenticated Chrome session) instead of `agent-browser`. Human-invoked only. |
+| `--quick` | `https://example.com --quick` | Human-invoked ad-hoc mode: relaxes the minimum-two-screenshot and mandatory-trace-on-failure conventions for this invocation only (see Conventions Defined Here). Never used by `/stories`, `/visual-review`, `/review`, `qa-agent`, `/flow`, or a Routine. |
 
 See `agent-browser-reference.md` in this skill's directory for the full operation vocabulary (snapshot, find, fill, type, vitals, trace, batch, react, auth vault, viewport/device flags).
 
 `backend=chrome` is a narrow escape hatch, not a second backend: it covers navigate, read page, click, type/fill, and screenshot only — no vitals, trace, react introspection, or auth vault (the session is already authenticated, so the vault has no job). It is never auto-selected and must never be used by `/stories`, `/visual-review`, `/review`, `qa-agent`, `/flow`, or a Routine — those stay `agent-browser`-only, per `CLAUDE.md`'s `Don'ts`.
+
+## Workflow
+
+For direct invocation (bare URL or task description, not a knowledge-dependency read by a parent skill):
+
+1. Confirm `agent-browser` is installed (see Requirements) — run the detect/verify step from `_shared/browser-detection.md` if not already confirmed this session.
+2. Resolve a session name — reuse `--session <name>` if given, otherwise derive a kebab-case name from the task (see Session naming below).
+3. Translate the request into ops: `open` the URL, `snapshot`, then `find`/`click`/`fill`/`type` as needed to satisfy a task description. For a bare URL, `open` + `snapshot` is sufficient.
+4. Screenshot per the Screenshot path convention (minimum two: initial load, final state) — unless `--quick` is set, see Conventions Defined Here.
+5. On any step failure: capture a trace, include its path in the failure report, then close the session.
+6. Close the session when the task is done.
 
 ## Conventions Defined Here
 
@@ -67,7 +80,7 @@ screenshots/browse/<session>/<NN>_<description>.png
 
 `<NN>` is a zero-padded sequence number; `<description>` is a short kebab-case label. Example: `screenshots/browse/checkout-flow/02_payment-error.png`.
 
-Minimum two screenshots per task: one after initial load, one at the final state. Annotated screenshots (numbered overlays matching snapshot refs) follow the same path convention.
+Minimum two screenshots per task: one after initial load, one at the final state. Annotated screenshots (numbered overlays matching snapshot refs) follow the same path convention. `--quick` (human-invoked, direct ad-hoc use only) relaxes this minimum — see Input.
 
 ### Trace path
 
@@ -75,7 +88,7 @@ Minimum two screenshots per task: one after initial load, one at the final state
 traces/<session>/<timestamp>.zip
 ```
 
-Capture a trace before closing a session whenever a step fails. Failure reports must include the trace path. There is no automatic retention policy — users manage cleanup.
+Capture a trace before closing a session whenever a step fails. Failure reports must include the trace path. There is no automatic retention policy — users manage cleanup. `--quick` (human-invoked, direct ad-hoc use only) waives mandatory trace-on-failure for the current invocation — see Input. `/stories`, `/visual-review`, `/review`, `qa-agent`, `/flow`, and Routines never set `--quick`; the full evidentiary discipline stays mandatory for those consumers regardless of how they invoke browser ops.
 
 ### Lifecycle
 
@@ -87,11 +100,7 @@ Daemon is implicit. Always close the session when the task is done — leaked se
 
 ### Operation vocabulary
 
-Consumer skills speak abstract operation names (open, snapshot, find, click, fill, type, screenshot, vitals, trace, close, …). The translation to concrete `agent-browser` commands lives in `agent-browser-reference.md` in this skill's directory. Read that file before invoking commands you do not have memorized.
-
-## Operation Mapping
-
-No local copy here — `agent-browser-reference.md` in this skill's directory is the single source of truth for every operation-to-command mapping (open, snapshot, find variants, click, fill, type, screenshot, vitals, trace, close, batch, react, auth vault, viewport/device flags). Read that file directly rather than relying on a second, independently-maintained table in this SKILL.md — a copy here would drift the moment the reference file's CLI syntax changes.
+Consumer skills speak abstract operation names (open, snapshot, find, click, fill, type, screenshot, vitals, trace, close, batch, react, auth vault, viewport/device flags, …). No local copy of the concrete mappings lives here — `agent-browser-reference.md` in this skill's directory is the single source of truth for every operation-to-command translation. Read that file directly before invoking commands you do not have memorized; a copy here would drift the moment the reference file's CLI syntax changes.
 
 ## Parallel Sessions
 
@@ -99,9 +108,7 @@ Each parallel agent gets its own `--session <unique-name>`. One browser instance
 
 > **Parallel execution:** Dispatch independent browser walks as parallel Task agents — each opens its own session, runs its ops, and returns a per-session result. Assemble results after all agents complete.
 >
-> **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input, status line first, output template inlined verbatim. Model tier: Standard.
->
-> **Model tier:** Standard (Sonnet) — browser-walk agents do multi-step navigation and structured observation, which exceeds Fast-tier mechanical extraction. Upgrade to Capable (Opus) only if the walk requires synthesis of subjective UX judgment.
+> **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input, status line first, output template inlined verbatim. Model tier: Standard (Sonnet) — browser-walk agents do multi-step navigation and structured observation, which exceeds Fast-tier mechanical extraction. Upgrade to Capable (Opus) only if the walk requires synthesis of subjective UX judgment.
 >
 > **Output template (each agent must follow exactly):**
 >
@@ -161,6 +168,7 @@ Call `AskUserQuestion`:
 | Forgetting to close sessions | Leaked sessions consume memory — always `close` at the end of a run |
 | Skipping the trace on failure | Failure reports without a trace path are not actionable — capture before closing |
 | A consumer skill routes through `backend=chrome` | Breaks portability to hosted Routines — `agent-browser` is the only backend that works headless; this flag is human-invoked only |
+| A consumer skill (`/stories`, `/visual-review`, `/review`, `qa-agent`, `/flow`, a Routine) sets `--quick` | Weakens the evidentiary discipline those flows depend on — `--quick` is for direct, human-invoked ad-hoc checks only |
 | Skipping `set viewport`/`set device` and relying on env vars | Use the first-class `set viewport`/`set device` commands — env-var workarounds are not supported |
 
 ## Relationship to Other Skills

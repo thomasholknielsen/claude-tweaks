@@ -7,17 +7,28 @@ const { parseFrontmatterListField } = require('../health-core/frontmatter-list')
 const { domainChurn } = require('../health-core/churn');
 
 // ─── listSkills ──────────────────────────────────────────────────────────────
-// Returns [{ kind: 'skill', id, path }] for each .claude/skills/*.md file,
-// sorted by id. Empty array if the directory doesn't exist — a project with
-// no generated skills yet is a valid state, not an error.
+// Returns [{ kind: 'skill', id, path }], sorted by id, for both skill shapes
+// this project's own /init scaffolds: a flat .claude/skills/<name>.md file,
+// or a directory-per-skill .claude/skills/<name>/SKILL.md (the current
+// canonical convention — see skills/init/SKILL.md's own bootstrap scan).
+// Empty array if the directory doesn't exist — a project with no generated
+// skills yet is a valid state, not an error. README.md is excluded from the
+// flat-file branch: a catalog index at the skills-directory root isn't a
+// skill, regardless of which convention the real skills use.
 function listSkills(root) {
   const dir = path.join(root, '.claude', 'skills');
   let entries;
   try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return []; }
-  return entries
-    .filter((e) => e.isFile() && e.name.endsWith('.md'))
-    .map((e) => ({ kind: 'skill', id: e.name.slice(0, -3), path: path.join(dir, e.name) }))
-    .sort((a, b) => (a.id < b.id ? -1 : 1));
+  const results = [];
+  for (const e of entries) {
+    if (e.isDirectory()) {
+      const skillPath = path.join(dir, e.name, 'SKILL.md');
+      if (fs.existsSync(skillPath)) results.push({ kind: 'skill', id: e.name, path: skillPath });
+    } else if (e.isFile() && e.name.endsWith('.md') && e.name !== 'README.md') {
+      results.push({ kind: 'skill', id: e.name.slice(0, -3), path: path.join(dir, e.name) });
+    }
+  }
+  return results.sort((a, b) => (a.id < b.id ? -1 : 1));
 }
 
 // ─── parseRulePaths ────────────────────────────────────────────────────────────

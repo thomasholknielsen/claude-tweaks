@@ -1,6 +1,7 @@
 ---
 name: claude-tweaks:review-backlog
 description: Use when you want to understand what's in the open work-record backlog and get a sense of priority across it — synthesizes unscored records into thematic clusters, suggests priority:* and **Related:** values via human batch-confirm, and renders critical/risk-value/cleanup filtered views plus parallel hand-off blocks for a chosen batch. Keywords - backlog review, prioritization, content synthesis, priority label, related records, hand-off, critical, risk-value, cleanup.
+argument-hint: "[critical|risk-value|cleanup] [--budget <n>]"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -35,13 +36,13 @@ Not for: shaping record bodies, stamping `risk:*`/`effort:*`, granting `auto:bui
 
 ## Input
 
-`$ARGUMENTS` = `[mode] [--budget N]`
+`$ARGUMENTS` = `[mode] [--budget <n>]`
 
 - No mode (bare) — full survey: all three mechanical views plus a bounded LLM synthesis pass over unscored records.
 - `critical` — mechanical only, `risk:high` records.
 - `risk-value` — mechanical only, full ranked view.
 - `cleanup` — mechanical only, `effort:low` records.
-- `--budget N` — caps how many unscored records the bare-mode synthesis pass reads (default 40). Ignored on the three named modes, which never read unscored bodies.
+- `--budget <n>` — caps how many unscored records the bare-mode synthesis pass reads (default 40). Ignored on the three named modes, which never read unscored bodies.
 
 ## Preflight
 
@@ -54,6 +55,8 @@ Read the `work-backend` field from the project's CLAUDE.md (`_shared/work-record
 ## Workflow
 
 ### Step 1: Fetch (mechanical, unbounded scale)
+
+> **Parallel execution:** Under `work-backend: github-issues`, the `gh issue list` fetch below and the `queryRecords('specs', { unsynced: true })` local fetch that follows it read from unrelated sources (GitHub API vs. local filesystem) with no data dependency between them — run both Bash calls concurrently. Only `deriveCreatedAtFromGit`/`mergeUnsyncedRecords` afterward need both outputs and must wait for both fetches to complete.
 
 ```bash
 # work-backend: github-issues
@@ -234,9 +237,18 @@ fi
 
 A record can already carry a different-tier `priority:*` label from an earlier run or a human edit — swap it out rather than adding the new tier alongside it, the same way every other label-state transition in this skill family pairs `--remove-label` with `--add-label` (demo's `demo:pending`→`demo:approved`, triage's `bot:blocked`→`auto:build`, dispatch's `auto:build`→`bot:blocked`). Two contradictory `priority:*` labels on one record would corrupt `/claude-tweaks:dispatch`'s `next` tie-break ordering, which reads `facets.priority` as a single value via `parseRecordFacets`.
 
-Local-files driver: recompose the record's full facets (`priority: $TIER`, replacing any prior value) and call `writeRecord` (`bin/lib/issues/local-store.js`) — same compose-then-write-once pattern `/specify`'s local-driver path already uses.
+Local-files driver: recompose the record's full facets (`priority: $TIER`, replacing any prior value) and call `writeRecord` (`bin/lib/issues/local-store.js`) — same compose-then-write-once pattern `/specify`'s local-driver path already uses. `writeRecord` writes a tracked file, not a GitHub issue edit, so immediately follow it with:
 
-For every record the `**Related:**` decision resolved to apply, replace the existing `**Related:** {...}` line in the body (github: `gh issue edit "$ISSUE" --body-file`, rewriting the fetched body with the line replaced; local-files: `writeRecord` with the updated body).
+```bash
+git add "$RECORD_PATH"
+git commit -m "Review Backlog: set priority:$TIER on {id}"
+```
+
+— the same commit-after-write step `/specify`'s local-driver path takes for the identical reason (an uncommitted `specs/*.md` edit has no audit trail and risks being lost or swept into an unrelated later commit).
+
+A record carrying `facets.unsynced === true` (Step 1's local fallback fold-in) has no `$ISSUE` GitHub number to edit even under `work-backend: github-issues` — it exists only as a local `specs/{id}-{slug}.md` file (its `.path`, from `queryRecords`). For these records, regardless of the project-wide driver, take the local-files branch above instead: `writeRecord` against the record's own `.path`, then `git add`/`git commit` the same way.
+
+For every record the `**Related:**` decision resolved to apply, replace the existing `**Related:** {...}` line in the body (github: `gh issue edit "$ISSUE" --body-file`, rewriting the fetched body with the line replaced; local-files, and any `facets.unsynced === true` record regardless of driver: `writeRecord` with the updated body against the record's `.path`, followed by the same `git add`/`git commit` step).
 
 Log every application to this run's `decisions.md` (standalone-auto run dir per `_shared/pipeline-run-dir.md` — `/claude-tweaks:review-backlog` is on the allowlist):
 
@@ -265,11 +277,11 @@ When a mode's output has a natural actionable batch (a `cleanup` run, a chosen s
 - Option 1 — `label`: `"Shape the top priority record (Recommended)"`, `description`: `"/claude-tweaks:specify #{n} — shape the single highest-priority backlog record this run surfaced"`
 - Option 2 — `label`: `"Generate a hand-off block"`, `description`: `"Parallelize shaping or dispatching across terminals for the batch this run surfaced"` — omit when no natural batch was produced this run
 - Option 3 — `label`: `"Review the ready queue"`, `description`: `"/claude-tweaks:triage — authorize anything now scored and shaped"` — omit when nothing in the ready queue changed this run
-- Option 4 (only after a named-mode run) — `label`: `"Try the {other-lens} lens"`, `description`: `"/claude-tweaks:review-backlog {other-mode} — {one-line description of that mode}"`, naming exactly one of the two modes not just run. Omit entirely after a bare run, which already rendered all three mechanical views.
+- Option 4 (only after a named-mode run) — `label`: `"Try the {other-lens} lens"`, `description`: `"/claude-tweaks:review-backlog {other-mode} — {one-line description of that mode}"`, naming exactly one of the two named modes not yet run this session. Omit entirely after a bare run, which already rendered all three mechanical views.
 
 ## Component-Skill Contract
 
-`/claude-tweaks:review-backlog` is human-only — no pipeline orchestrator ever invokes it as a component step; a human runs it directly, every time. It always renders `## Next Actions` (mirrors `/claude-tweaks:triage`'s stance, which is user-facing for the same reason). `$PIPELINE_RUN_DIR` may be set during a run, but only because this skill resolves its own standalone run dir per `_shared/pipeline-run-dir.md`'s allowlist (item 3) to write `decisions.md` — that resolution is for logging only and never suppresses interactivity or the Next Actions block.
+`/claude-tweaks:review-backlog` is human-only — no pipeline orchestrator ever invokes it as a component step; a human runs it directly, every time. It always renders `## Next Actions` (mirrors `/claude-tweaks:triage`'s stance, which is user-facing for the same reason). `$PIPELINE_RUN_DIR` may be set during a run, but only because this skill resolves its own standalone run dir per `_shared/pipeline-run-dir.md`'s allowlist (item 4) to write `decisions.md` — that resolution is for logging only and never suppresses interactivity or the Next Actions block.
 
 ## Anti-Patterns
 
@@ -295,6 +307,6 @@ When a mode's output has a natural actionable batch (a `cleanup` run, a chosen s
 | `_shared/work-record.md` | Taxonomy home — the permission-matrix row this skill implements (adds `priority:*` and updates `**Related:**`, both human-confirmed; never touches `auto:*`, `bot:*`, `ready`, or `risk:*`/`effort:*`). |
 | `_shared/github-pr-scan.md` | Detection Ladder — this skill's preflight hard gate under `work-backend: github-issues`. |
 | `_shared/label-bootstrap.md` | Canonical check-then-create snippet for the `priority:*` labels this skill applies. |
-| `_shared/pipeline-run-dir.md` | Review-backlog resolves a standalone-auto run dir (allowlist item 3) for its own `decisions.md`. |
+| `_shared/pipeline-run-dir.md` | Review-backlog resolves a standalone-auto run dir (allowlist item 4) for its own `decisions.md`. |
 | `bin/lib/issues/review-backlog.js` | The filter/sort/split/merge helpers behind every mode — `splitScoredUnscored`, `filterCritical`, `rankRiskValue`, `filterCleanup`, `selectBudgetSlice`, `mergeUnsyncedRecords` (pure), plus `deriveCreatedAtFromGit` (the one git-shelling exception — shared by Step 1's unsynced fold-in and local-files fetch). |
 | `bin/lib/issues/{record,local-store}.js` | `record.js`'s `parseRecordFacets` facet-parses every fetched GitHub issue in Step 1; `local-store.js`'s `queryRecords`/`writeRecord` back the entire `local-files` driver path. |

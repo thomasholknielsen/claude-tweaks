@@ -4,6 +4,8 @@ Loaded by /flow Step 2 when performing pre-flight checks. Each substep returns O
 
 Run substeps 2.4, 2.5, 2.6, and 2.7 in order. Any hard fail or rejection stops the pipeline before the Config Manifesto runs.
 
+> **Parallel execution (conditional):** 2.4's git tracked/clean check, 2.5's fetch + ahead-count, and 2.6/2.7's content scans of the plan file have no cross-dependency in the common all-pass path — none of 2.5-2.7 reads 2.4's outcome. When git strategy resolves to `worktree` (so 2.4 and 2.5 both apply), dispatch the four substeps' underlying reads as parallel tool calls, then evaluate pass/fail in the documented 2.4→2.7 priority order once all reads return. When git strategy resolves to `current-branch` (2.4 and 2.5 are skipped), run 2.6 and 2.7 sequentially — two reads are not worth parallelizing.
+
 **Bookend note (hybrid mode):** Pre-flight stops at 2.4, 2.5 and 2.6 may surface in hybrid mode because their decisions have `reversibility: low` (worktree divergence persists, tangled-task risk persists) which fails the hybrid floor. These pre-flight stops are exempt from the "two stops" bookend count — they fire before the Manifesto and protect against starting a pipeline that would otherwise corrupt downstream state. See `_shared/auto-mode-contract.md` for the HARD-GATE exemption list.
 
 ## 2.4 — Spec-committed check

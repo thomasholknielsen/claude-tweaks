@@ -9,13 +9,13 @@ This is the responsible way `/flow` captures the value of low-reversibility work
 
 ## Pipeline Creative Opportunities Survey
 
-Enabled by default in `auto` and `interactive` (the wrapper handles `{skipped}` returns silently).
+Enabled by default in `auto` and `interactive` (the wrapper handles `{skipped}` returns silently). Opt out with the `no-creative` flag (or `creative-survey: off` in CLAUDE.md under `## Auto-mode policy`), mirroring the Depth Opportunities survey's `no-deepen` / `depth-survey: off` mechanics below.
 
 The survey produces the **Creative Opportunities** block rendered before Next Actions — ranked recommendations for creative Impeccable commands the user might want to run manually. Flow never invokes these commands automatically.
 
 ## When to run
 
-Run the survey before rendering the Pipeline Summary, after the resolve gate completes (nothing-left-behind). Decline detection runs **before** the survey call so the wrapper can suppress repeatedly-declined recommendations.
+Run the survey before rendering the Pipeline Summary, after the resolve gate completes (nothing-left-behind), and only when `no-creative` was not set (nor `creative-survey: off` in CLAUDE.md) — when skipped, omit decline detection, the wrapper call, and the block entirely. Decline detection runs **before** the survey call so the wrapper can suppress repeatedly-declined recommendations.
 
 ## Survey procedure
 

@@ -9,7 +9,13 @@ const PRIMITIVE_DOC = fs.readFileSync(
   path.join(__dirname, '..', 'skills', '_shared', 'multi-agent-coordination.md'),
   'utf8',
 );
-const REVIEW_SKILL = fs.readFileSync(path.join(__dirname, '..', 'skills', 'review', 'SKILL.md'), 'utf8');
+// Cross-Lens Debate and Per-Candidate Refutation's decision-log templates live in
+// step3-debate-and-refutation.md (lazy-loaded from SKILL.md, not inlined) — concatenate both so
+// this still asserts against the real documented format wherever it currently lives.
+const REVIEW_SKILL =
+  fs.readFileSync(path.join(__dirname, '..', 'skills', 'review', 'SKILL.md'), 'utf8') +
+  '\n' +
+  fs.readFileSync(path.join(__dirname, '..', 'skills', 'review', 'step3-debate-and-refutation.md'), 'utf8');
 const SPECIFY_RED_TEAM = fs.readFileSync(
   path.join(__dirname, '..', 'skills', 'specify', 'red-team.md'),
   'utf8',
@@ -376,6 +382,78 @@ test('debate: mixed/partial verdicts → contested with STAGED entry matching th
   assert.strictEqual(c.resolveDebate('partial', 'partial'), 'contested');
   const entry = `- STAGED 14:41:08 — /review debate: src/auth.ts:42 contested (mixed verdicts). Stage path: staged/review-debate-1.md.`;
   assert.match(entry, decisionLogPattern(PRIMITIVE_DOC, ['contested (mixed verdicts)']));
+});
+
+// ============================================================
+// Refutation (Per-Candidate Refutation Pass, /review Step 3.5)
+// ============================================================
+
+test('refutation: refuted verdict downgrades to unconfirmed', () => {
+  assert.strictEqual(c.resolveRefutation('refuted'), 'unconfirmed');
+  const entry =
+    `- AUTO 14:52:10 — Refutation: src/auth.ts:42 refuted — cited evidence no longer matches current file. Downgraded to unconfirmed. Reversibility: high.`;
+  assert.match(entry, decisionLogPattern(REVIEW_SKILL, ['refuted —', 'Downgraded to unconfirmed']));
+});
+
+test('refutation: not-refuted verdict leaves the finding confirmed', () => {
+  assert.strictEqual(c.resolveRefutation('not-refuted'), 'confirmed');
+  const entry = `- AUTO 14:52:15 — Refutation: src/auth.ts:42 not refuted — stands as confirmed. Reversibility: high.`;
+  assert.match(entry, decisionLogPattern(REVIEW_SKILL, ['not refuted — stands as confirmed']));
+});
+
+test('refutation: is a sibling of resolveDebate, not an overload — single verdict in, two buckets out, no "contested" outcome', () => {
+  // resolveDebate takes two verdicts and can produce 'contested'; resolveRefutation
+  // takes exactly one and never does — every non-'not-refuted' string (including a
+  // stray 'partial'-style value, which is meaningful for debate but not here)
+  // falls through to 'unconfirmed', not a third bucket.
+  assert.strictEqual(c.resolveRefutation('not-refuted'), 'confirmed');
+  assert.strictEqual(c.resolveRefutation('partial'), 'unconfirmed');
+  assert.notStrictEqual(c.resolveRefutation, c.resolveDebate);
+});
+
+test('refutation: fails toward scrutiny, not away from it — a missing, empty, or malformed verdict (e.g. from a BLOCKED or unparseable dispatch) downgrades to unconfirmed rather than silently standing as confirmed', () => {
+  // This is the opposite fail-safety direction from a naive "anything but the
+  // negative case defaults to the positive case" implementation. A failed
+  // refutation attempt must never be indistinguishable from a genuine
+  // "not-refuted" verdict — see resolveDebate's own conservative default,
+  // which this mirrors.
+  assert.strictEqual(c.resolveRefutation(undefined), 'unconfirmed');
+  assert.strictEqual(c.resolveRefutation(''), 'unconfirmed');
+  assert.strictEqual(c.resolveRefutation('refuted'), 'unconfirmed');
+  assert.strictEqual(c.resolveRefutation('REFUTED'), 'unconfirmed'); // exact-match only, no case-folding
+});
+
+test('/review refutation integration: confirmed findings surviving reproduction each get exactly one refutation dispatch; refuted ones join the unconfirmed bucket', () => {
+  // Two lenses' findings survive Step 3 reproduction as confirmed.
+  const confirmedBucket = [
+    { path: 'src/auth.ts', line: 42, severity: 'high', text: 'stale evidence' },
+    { path: 'src/api.ts', line: 100, severity: 'medium', text: 'real issue' },
+  ];
+
+  // Simulate one refutation agent per candidate: the first is refuted (its
+  // cited evidence no longer matches current file content, e.g. already
+  // fixed by a later commit); the second is not.
+  const verdicts = ['refuted', 'not-refuted'];
+  const results = confirmedBucket.map((finding, i) => ({
+    finding,
+    bucket: c.resolveRefutation(verdicts[i]),
+  }));
+
+  const stillConfirmed = results.filter((r) => r.bucket === 'confirmed').map((r) => r.finding);
+  const downgraded = results.filter((r) => r.bucket === 'unconfirmed').map((r) => r.finding);
+
+  assert.strictEqual(stillConfirmed.length, 1);
+  assert.strictEqual(stillConfirmed[0].path, 'src/api.ts');
+  assert.strictEqual(downgraded.length, 1);
+  assert.strictEqual(downgraded[0].path, 'src/auth.ts');
+
+  // No silent drops — every candidate lands in exactly one bucket.
+  assert.strictEqual(stillConfirmed.length + downgraded.length, confirmedBucket.length);
+
+  // Both the Cross-Lens Debate and Per-Candidate Refutation Pass sections
+  // must exist as documented, sibling subsections of the same Step 3.5.
+  assert.ok(REVIEW_SKILL.includes('Per-Candidate Refutation Pass'), 'SKILL.md must document the refutation pass');
+  assert.ok(REVIEW_SKILL.includes('Cross-Lens Debate'), 'SKILL.md must still document cross-lens debate');
 });
 
 // ============================================================

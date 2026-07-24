@@ -1,6 +1,7 @@
 ---
 name: claude-tweaks:tidy
 description: Use when the backlog needs hygiene — review stale backlog records, parked-trigger wakes, unsynced local records, and orphaned plans/worktrees
+argument-hint: "[--scope=<name>[,<name>...]] [--dry-run]"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -27,7 +28,7 @@ Periodic backlog hygiene to keep the spec system healthy. Run when the backlog f
 
 ## Input
 
-`$ARGUMENTS` is parsed as `[--scope=<name>[,<name>...]]`. With no `--scope` argument, /tidy scans everything — the open work-record queue (per `work-backend` — see `scan-procedures.md` Step 1), design docs, plans, worktrees, and the doc registry from their canonical locations — exactly as before `--scope` existed. `--scope` narrows the run to a subset of that sweep; see "Scope Selection" below for the full taxonomy and rules. An aggressiveness override (when needed) is read from the active pipeline run's `config.yml` (Manifesto `tidy-aggressiveness` lever), not from arguments — unaffected by `--scope`.
+`$ARGUMENTS` is parsed as `[--scope=<name>[,<name>...]] [--dry-run]`. With no `--scope` argument, /tidy scans everything — the open work-record queue (per `work-backend` — see `scan-procedures.md` Step 1), design docs, plans, worktrees, and the doc registry from their canonical locations — exactly as before `--scope` existed. `--scope` narrows the run to a subset of that sweep; see "Scope Selection" below for the full taxonomy and rules. `--dry-run` forces every finding to Stage regardless of mode, aggressiveness tier, or evidence-tier match, and skips Step 7 execution entirely — see Step 6's `--dry-run` override for the full behavior. The two flags compose freely (e.g. `--scope=github --dry-run` previews just the GitHub-triage scope's would-be mutations, the same subset a scheduled `tidy-github-triage` routine firing would touch). An aggressiveness override (when needed) is read from the active pipeline run's `config.yml` (Manifesto `tidy-aggressiveness` lever), not from arguments — unaffected by `--scope` or `--dry-run`.
 
 ## Scope Selection
 
@@ -131,6 +132,8 @@ When absorbing a backlog record (backlog- or parked-stage) into an existing reco
 
 ## Step 6: Present Tidy Report and Approve
 
+**`--dry-run`:** when passed, every finding routes to Stage regardless of mode, aggressiveness tier, or evidence-tier match — Step 7 never executes, whether the run is Auto mode (embedded-pipeline or Standalone) or Interactive. The Auto-mode routing table below and the Evidence tier subsection are both bypassed entirely. Interactive mode still renders the full report and its `AskUserQuestion` approval, but choosing "Apply all" writes would-be log entries instead of executing Step 7. Write each finding's would-be action as `DRY-RUN {time} — {finding} — would: {action}. Reversibility: {tier}.` to `{run-dir}/decisions.md` — same file and format the Auto-mode Log entries use below, prefixed `DRY-RUN` instead of `AUTO`/`STAGED`. If no pipeline run dir exists yet (an interactive or ad hoc `--dry-run` invocation), create a Standalone-auto run dir per `_shared/pipeline-run-dir.md`'s fallback first, so the preview has somewhere durable to land. This mirrors `/routine create --dry-run`'s "inspect before anything is created" pattern one level up (see "Routine Configuration" below), but for a live tidy firing's actual mutations instead of the routine's own setup.
+
 ### Auto mode (aggressiveness-based routing)
 
 When a pipeline run directory exists (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet), read `tidy-aggressiveness` from `config.yml` (default `conservative`).
@@ -169,130 +172,23 @@ Auto-applied items are committed. Staged items surface at the Wrap-Up Review Con
 
 **Standalone auto:** When `/tidy` runs standalone in `auto` mode (no parent pipeline run dir), follow the Standalone auto fallback in `_shared/pipeline-run-dir.md` — create `.claude-tweaks/pipelines/{ISO-timestamp}-tidy-standalone/` with `decisions.md` and `staged/`. The audit log stays on. Apply `tidy-aggressiveness` from CLAUDE.md as the routing key. Present staged items in a Pending Review section at the end of the report (this is the bookend-end for the standalone run; no separate Review Console).
 
+The four subsections below apply only to `--scope=github` routine firings (Archival compaction excepted — it runs on every Standalone-auto firing regardless of scope). Read `github-routine-procedures.md` in this skill's directory for the full procedures — the summaries here exist for orientation only; the sub-file is authoritative.
+
 #### Evidence tier (`--scope=github` routine firings only)
 
-This subsection applies only inside the Standalone-auto path above — an interactive invocation or a `/tidy` run embedded in a larger pipeline never reads `tidy-routine-autonomy` and never auto-mutates on evidence; those runs always route through the aggressiveness table exactly as documented there, unaffected by this flag's value.
-
-When this Standalone-auto firing was invoked with `--scope=github` exactly (Step 4.8 ran and no other step did — not a full/unscoped sweep or a multi-scope combination that happens to include `github`), read `tidy-routine-autonomy` from CLAUDE.md (default `conservative`). Under `conservative`, nothing in this subsection applies — every GitHub-mutation finding routes through the table above exactly as always (all four "Stage — never auto-applied" rows stay staged).
-
-Under `evidence-based`, before staging any of the following four finding shapes, check whether it carries the specific cite-able evidence listed. If it does, auto-apply the mutation instead of staging it, and log the evidence literally:
-
-| Finding shape | Evidence required | Auto-applied action | Step that produces it |
-|---|---|---|---|
-| Unresolved review thread whose flagged file:line a later commit touches | The commit SHA that touches those lines | Resolve thread (GraphQL `resolveReviewThread`) | Step 4.8 |
-| Parked record, `milestoneDueOn` is in the past | The due date itself | `gh issue edit {n} --remove-label parked`, then comment citing the due date | Step 1 — **currently unreachable on the shipped `tidy-github-triage` routine** (see Reachability note below) |
-| Parked record, a `watchedPaths` entry has a matching commit in `git log` since the record was parked | The commit SHA `git log` returns | `gh issue edit {n} --remove-label parked`, then comment citing the commit SHA and touched path | Step 1 — **currently unreachable on the shipped `tidy-github-triage` routine** (see Reachability note below) |
-| Code-health/harness-health/journey-health/docs-health issue whose flagged code is demonstrably removed or rewritten since filing (a diff shows the flagged lines gone or materially changed) | The diff reference (commit range or PR number) | `gh issue close {n} --reason "not planned"` after a comment citing the diff reference | Step 4.8 |
-
-**Reachability of the Parked-record rows:** per the Scope Selection table, `github` maps to Step 4.8 only — a `--scope=github` firing never runs Step 1, the sole producer of parked-record findings (scan-procedures.md Shape 2; `_shared/github-pr-scan.md`'s own `repo-wide` section disclaims backlog/parked findings as "Step 1's job now, not this scope's"). The shipped `tidy-github-triage` routine (`routine-template-github-triage.yml`) fires `--scope=github` exclusively, so in that firing context the two Parked-record rows above never match in practice — only the other two rows (thread-resolution, issue-supersession, both Step 4.8) ever auto-apply on that routine. Broadening this tier's scope beyond `--scope=github` (e.g. a routine that also covers `backlog`) is required before the Parked-record rows can ever fire; that is not implemented today — they remain documented here as this tier's intended-but-currently-unreachable design, not as a working path.
-
-These four are the only shapes this tier ever touches. Every other GitHub-mutation finding — stale-PR close-or-resume, PR-superseded-by-equivalent-work, a stale backlog record past 4 weeks (delete-or-promote), and any "still valid" code-health/harness-health/journey-health/docs-health assessment — is a judgment call per `_shared/github-pr-scan.md`'s own findings table and stays staged regardless of `tidy-routine-autonomy`. Note that removing the `parked` label is the entire mutation for the two Promote-evidence rows above — this tier never auto-runs `/claude-tweaks:specify`; the record simply becomes visible as a plain backlog record again, same as if a human had removed `parked` by hand.
-
-Log entries follow the same format as the table above, e.g.:
-```
-AUTO 03:14:02 — Step 6 (evidence tier): resolved thread on PR #88 — commit a1b2c3d touches src/auth.ts:42-48 (the flagged lines). Reversibility: low (GitHub state; thread can be manually re-opened).
-AUTO 03:14:09 — Step 6 (evidence tier): removed `parked` label from issue #142 — milestone "Q3 launch" due date 2026-08-01 has passed. Reversibility: med (label re-addable; commented with cited evidence).
-```
+Under `tidy-routine-autonomy: evidence-based` (default `conservative`, in which nothing here applies), before staging one of four specific finding shapes with cite-able evidence, auto-apply the mutation instead and log the evidence literally. Two of the four rows (parked-record milestone/watched-path evidence) require Step 1, which the shipped `tidy-github-triage` routine never runs and so stay documented-but-unreachable today; the other two (thread-resolution, issue-supersession) are live on that routine. Read `github-routine-procedures.md` for the full evidence table, reachability note, and log-entry format.
 
 #### Rolling digest (`--scope=github` routine firings only)
 
-Every Standalone-auto `--scope=github` firing updates one rolling digest artifact in place — never creates a new one per firing.
-
-**Identity:**
-- `work-backend: github-issues` (or any project with a reachable GitHub remote, regardless of which record-storage backend is active — this is about where the digest lives, not the record-storage choice): find the digest issue via `gh issue list --search "Tidy GitHub-Triage Digest in:title" --state open --json number,title,body`, then confirm the match by checking its body contains the exact marker `<!-- tidy-digest-marker -->` (title alone is not sufficient — do not match on title only). If found, `gh issue edit {n} --body-file <file>`. If not found (first-ever firing, or the issue was manually closed), `gh issue create --title "Tidy GitHub-Triage Digest" --body-file <file>` once.
-- `work-backend: local-files` with no reachable GitHub remote: rewrite `.claude-tweaks/tidy-digest.md` in place and commit it.
-
-**Structure**, exactly four sections in this order:
-
-```markdown
-<!-- tidy-digest-marker -->
-# Tidy GitHub-Triage Digest
-
-Last updated: {ISO timestamp}
-
-## Auto-applied
-
-- {finding} — {action} — {timestamp}
-
-## Auto-mutated with evidence
-
-- {finding} — {action} — evidence: {literal evidence cited} — {timestamp}
-
-## Still needs your review
-
-- {finding} — {recommendation} — (still open as of {timestamp})
-
-**Pending authorization:** {N} records awaiting a grant
-- #{number}: {title}
-
-**Blocked:** {N} records hit their retry ceiling
-- #{number}: {title}
-
-**Backlog:** {N} records with no stage label
-- #{number}: {title}
-
-## Pipeline Funnel
-
-| Transition | Median | Sample size |
-|---|---|---|
-| Shaping latency (filed → ready) | {duration} | {N} |
-| Grant latency (ready → authorized) | {duration} | {N} |
-| Build latency (authorized → closed) | {duration} | {N} |
-
-Retry rate: {rate}% ({failedAttempts}/{totalAttempts} across sampled records)
-
-Wontfix rate by origin:
-| Origin | Rate |
-|---|---|
-| {by:code-health, etc.} | {rate}% ({wontfix}/{total}) |
-```
-
-Each bucket's bullet list is one `- #{number}: {title}` line per entry in that bucket's list (`pendingList`/`blockedList`/`backlogList` from `github-pr-scan.md` item 8) — omit both the summary line and the bullet list together when a bucket's count is 0. No cap on list length: if a bucket holds 40 records, all 40 render.
-
-Because Step 4.8 runs as a dispatched Task agent bound to the Output Contract's `[queue]` row (bare counts only, per `github-pr-scan.md`'s Output Contract section) — not the underlying `pendingList`/`blockedList`/`backlogList` arrays item 8's script computes internally — the digest-writing step sources these bullets by re-running item 8's query itself, directly, after Steps 1-4.8 complete (the orchestrator has its own `gh`/`node` access; this is not something any Step 4.8 subagent does). This is a second, cheap invocation of the same single `gh issue list --state open` query item 8 already runs once for the `[queue]` row's counts — not a change to the Output Contract shared by every other tidy scan step.
-
-**Dedup (applies to the "Still needs your review" finding rows only — the other two sections are a fresh append per firing since they're already-resolved actions, and the three enumerated buckets below "Still needs your review" — Pending authorization/Blocked/Backlog — are regenerated fresh from a live query each firing, not appended-and-deduped, so a record dropping out between firings needs no removal step):** before adding a row, compute its key as `{PR or issue number}:{finding-type}` (e.g. `142:stale-pr`, `88:unresolved-thread`). Read the digest's current "Still needs your review" section and check for a row with a matching key (match on the PR/issue number and finding-type substring in the existing row text — both are always present in the rendered row). If found, update only that row's `(still open as of {timestamp})` suffix to the current firing's timestamp — do not add a second row, and do not mark this finding as new-this-firing (see the Notification subsection below, which fires only on new-this-firing findings). If not found, append a new row and mark it new-this-firing — this is either a genuinely new finding or one whose finding-type changed materially for the same number (e.g. a PR that was `Review` last firing is now `CI-red` — a different finding-type key, so a new row).
-
-**Pipeline Funnel (regenerated fresh each firing, not appended-and-deduped — same treatment as the three enumerated buckets above, not the finding rows):** sample closed records from the last 90 days (bounds the `gh api` cost on a digest rewritten every firing) via `gh issue list --state closed --json number,labels,stateReason,createdAt,closedAt --search "closed:>{90-days-ago}"`. For each sampled record, fetch its labeled/unlabeled timeline events (`gh api repos/{owner}/{repo}/issues/{n}/timeline --jq '.[] | select(.event == "labeled" or .event == "unlabeled")'`) and its comments (for retry-rate input), then compute:
-
-```bash
-node -e "
-  const { computeStageDurations, computeWontfixRate, summarizeFunnel } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/metrics.js');
-  const { countFailedAttempts } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/retry.js');
-  const sampled = require('/tmp/tidy-funnel-sample.json'); // [{createdAt, closedAt, events, labels, stateReason, comments}]
-  const perIssueDurations = sampled.map((r) => computeStageDurations(r));
-  const wontfixByOrigin = computeWontfixRate(sampled.map((r) => ({ labels: r.labels, stateReason: r.stateReason })));
-  const failedAttempts = sampled.reduce((sum, r) => sum + countFailedAttempts(r.comments), 0);
-  const totalAttempts = sampled.length;
-  console.log(JSON.stringify(summarizeFunnel(perIssueDurations, wontfixByOrigin, { failedAttempts, totalAttempts })));
-"
-```
-
-Render the `## Pipeline Funnel` section from the result — `medianMs`/`sampleSize` per transition into the table, `retryRate` into the retry-rate line, `wontfixByOrigin` into the wontfix table. **Omit the entire section** (not a table of zeroes or dashes) when the 90-day sample is empty — a new or low-volume project has nothing meaningful to report yet.
+Every Standalone-auto `--scope=github` firing updates one rolling digest issue (or `tidy-digest.md` under `local-files` with no GitHub remote) in place — never creates a new one per firing. It sections auto-applied actions, evidence-tier mutations, and still-open findings (deduped by a `{number}:{finding-type}` key), plus a regenerated Pipeline Funnel of shaping/grant/build latency and wontfix rate. Read `github-routine-procedures.md` for the exact structure, identity-resolution, dedup, and funnel-computation procedure.
 
 #### Notification (`--scope=github` routine firings only)
 
-After the digest is written, call `PushNotification` at most once per firing, and only when at least one row in "Still needs your review" was marked new-this-firing by the dedup step above (a genuinely new finding, or an existing finding whose finding-type materially changed) — not merely because the section is non-empty. A lingering, unresolved-but-unchanged finding that only got its `(still open as of {timestamp})` suffix bumped does NOT by itself trigger a fresh notification; per the design's own stated goal, dedup exists specifically to stop the same open finding from re-notifying every cycle, not just to stop it from appearing twice in one render. Compose the notification body from the new-this-firing findings specifically, e.g. `"{N} new items need your review — {top new finding title}. See the Tidy GitHub-Triage Digest."` (`{N}` here is the count of new-this-firing rows, not the section's total row count). Never fire when no row was marked new-this-firing (including an all-clear firing, or a firing where everything in the section is a carried-over timestamp bump) — this keeps the signal high-value; a routine firing every 3 hours that notified on every unresolved item would train the user to ignore it.
-
-Note: the finding-type vocabulary this section keys on changed with this rename (`inbox`/`deferred`-era names → the new Shape names) — one firing right after migration re-notifies every still-open finding under its new key, since the old key no longer matches. Accepted as a one-time cost, not a bug.
+After the digest is written, `PushNotification` fires at most once per firing, only when the dedup step above marked at least one "Still needs your review" row as new-this-firing — never merely because the section is non-empty, and never on a lingering-but-unchanged finding. Read `github-routine-procedures.md` for the exact trigger condition and message format.
 
 #### Archival compaction (every Standalone-auto firing, any scope)
 
-Unlike the evidence tier, digest, and notification subsections above (which are `--scope=github`-specific), this compaction sweep runs on every Standalone-auto `/tidy` firing regardless of scope — it's about aging out prior standalone runs, not about this run's own findings.
-
-Before writing this run's own report, scan `.claude-tweaks/pipelines/` for two kinds of aged-out run directories:
-
-- **Standalone runs** (name matches `*-standalone`) whose ISO-timestamp prefix is more than 30 days old — compacted on age alone, same as always.
-- **Abandoned non-standalone runs** — a `/flow`-orchestrated run directory (no `-standalone` suffix) whose ISO-timestamp prefix is more than 30 days old AND whose `run-state.json` status is not `active` (`interrupted`, or the file is missing/unreadable). This covers a run that stopped at an interactive HARD-GATE and was never resumed or wrapped up — it never reaches `/wrap-up`'s successful-closure archival, so without this rule it would sit on disk indefinitely with no cleanup path. The `status` check (absent from the standalone rule, which compacts on age alone) exists so a genuinely long-running, still-`active` pipeline is never swept purely for being old.
-
-For each matched directory:
-
-1. Read its `decisions.md`.
-2. Append its content to `.claude-tweaks/pipelines/archive/index-{YYYY-MM}.md` (the month derived from the run's own timestamp, not today's date — a run compacted late still files under the month it actually ran), creating the file if absent. Prefix the appended block with the run's own directory name as a header so entries stay attributable.
-3. Move the run directory to `.claude-tweaks/pipelines/archive/{run-id}/` (same target `/wrap-up` uses for completed pipeline runs — see `wrap-up/cleanup-procedures.md` Section B).
-4. Log one `AUTO` line to *this* firing's own `decisions.md`: `AUTO {time} — Archival: compacted {run-id} (age: {N} days) into index-{YYYY-MM}.md. Reversibility: high (archive is additive, nothing deleted).`
-
-Skipped staged items inside a compacted run are preserved verbatim in the archive (not silently dropped) — same rule `/wrap-up`'s own archival already follows.
+Unlike the three subsections above, this runs on every Standalone-auto firing regardless of scope. Before writing this run's own report, `/tidy` compacts standalone run directories older than 30 days (and abandoned non-standalone runs past the same age with a non-`active` status) into `.claude-tweaks/pipelines/archive/index-{YYYY-MM}.md`, then moves each into `.claude-tweaks/pipelines/archive/{run-id}/`. Read `github-routine-procedures.md` for the exact matching rules and per-directory steps.
 
 ### Interactive mode (batch approval)
 
@@ -354,6 +250,8 @@ Items recommended as "Keep", flagged for scoring/re-triage, or flagged as legacy
 
 ## Step 7: Execute Approved Actions
 
+Skipped entirely when `--dry-run` was passed (see Step 6's `--dry-run` override above) — no mutation happens, and Step 7.5's verification checklist and commit are skipped too, since there is nothing to verify or commit.
+
 Execute each approved action per the Action Vocabulary table — that table is the canonical reference for per-action execution rules (delete the record / set `stage: parked` in place or add the `parked` label / integrate into the target record / recommend `/claude-tweaks:specify`). Every action must be atomic: complete all its execution steps or none.
 
 Cross-action housekeeping (apply once per run after all actions execute):
@@ -381,6 +279,8 @@ After all actions are applied, verify every decision was fully executed. Present
 
 If any verification fails, fix it before committing. Do not commit partial state.
 
+**Under `worktree.always: true`:** `/tidy` is standalone-only and never creates or enters a worktree via its own steps (see Component-Skill Contract below). If the target project has `worktree.always: true` set (`.claude-tweaks/policy.yml`), every mutation in Step 7 (record file deletes/edits, `docs/REGISTRY.md` Fix-now edits, the local-files Rolling digest rewrite) and this commit are `Edit`/`Write`/`git commit` calls the PreToolUse gate denies outside a linked worktree — there is no standalone-auto exemption for these (`_shared/auto-decision-log.md`'s Bash-append workaround covers only the `decisions.md` audit-log write, not Step 7's substantive edits or this commit). Before executing Step 7, check `.claude-tweaks/policy.yml` for `worktree.always: true`; if set, set up a scratch worktree first via `/superpowers:using-git-worktrees` (per `_shared/git-discipline.md`), run Steps 7 and 7.5 inside it, then `git merge --ff-only` the resulting commit back into the main checkout (per CLAUDE.md's Don'ts on checkout-free merges) and remove the scratch worktree — mirroring Step 4.5's own worktree cleanup — before presenting the final report. Skip this entirely when `worktree.always` isn't set, or when `--dry-run` was passed (Step 7 never mutates or commits in that case).
+
 Commit with a message summarizing the tidy-up. For a scoped run (`--scope` was passed), prefix the message with the scope, e.g. `Tidy (scope: github): closed 2 stale issues, promoted #142` — see "Scope Selection" above. An unscoped full run's commit message is unchanged (no scope prefix).
 
 ## Routine Configuration
@@ -397,7 +297,7 @@ A second variant, `skills/tidy/routine-template-github-triage.yml`, runs only Gi
 /claude-tweaks:routine create tidy --variant=github-triage
 ```
 
-Both resolve the account- and project-specific values a portable template can't hardcode (which environment, which repo) and create a live cloud Routine via `RemoteTrigger` directly — see `skills/routine/SKILL.md` for the full mechanism, including how `--variant` selects between them. Add `--dry-run` to inspect the assembled configuration before anything is created.
+Both resolve the account- and project-specific values a portable template can't hardcode (which environment, which repo) and create a live cloud Routine via `RemoteTrigger` directly — see `skills/routine/SKILL.md` for the full mechanism, including how `--variant` selects between them. Add `--dry-run` to `/claude-tweaks:routine create` to inspect the assembled routine configuration before anything is created — distinct from `/claude-tweaks:tidy --dry-run` (Step 6 above), which previews what a specific tidy firing would mutate, not how the routine itself is configured. Before trusting a newly-changed `tidy-aggressiveness` or `tidy-routine-autonomy` policy value to an unattended scheduled firing, invoke `/claude-tweaks:tidy --dry-run` manually first (optionally with the same `--scope` the routine uses, e.g. `--scope=github --dry-run` to preview exactly what `tidy-github-triage` would do) and review the `DRY-RUN` log entries before letting the routine run for real.
 
 **Unattended execution:** a scheduled firing runs Steps 1-7.5 exactly as an interactive invocation would, except Step 6's Standalone auto fallback takes over in place of the interactive batch-approval prompt — but only when the target project's own CLAUDE.md already sets `auto-mode: default-on` (project policy, not a routine-specific mechanism — see `_shared/auto-mode-contract.md`). A bare scheduled firing (`/claude-tweaks:tidy`, no arguments, no conversation history) has no other way to supply an `auto` mode signal; if the project hasn't configured `auto-mode: default-on`, the routine falls back to interactive and blocks on a batch-approval prompt that will never be answered. When auto-mode is enabled project-wide, safe, atomic actions (stale deletes and cleanly-merged worktree/branch removals) auto-apply per the `conservative` aggressiveness default, and everything requiring judgment is staged to that run's `decisions.md` rather than blocking on input. Nothing is invented here for routines specifically — this is the same Standalone auto path `/tidy` already uses whenever it runs outside a parent pipeline. If Task-based subagent dispatch isn't available in a given cloud routine session, Steps 1, 3, 4, 4.5, 4.6, 4.7, 4.8, and 5.5 degrade to running sequentially in the main thread instead of in parallel — same steps, same output, just not parallelized.
 
@@ -416,6 +316,8 @@ Call `AskUserQuestion`:
 ## Component-Skill Contract
 
 `/claude-tweaks:tidy` is a **standalone-only** maintenance skill — it is not invoked by any parent skill in the workflow. There is no `PIPELINE_RUN_DIR` signal expected as a caller-side argument (the run dir is only resolved internally for the auto-mode aggressiveness routing in Step 6). The `## Next Actions` block always renders. If a future parent skill ever wraps `/tidy` (e.g., a scheduled hygiene pass inside `/flow`), the parent must update this contract; until then, treat parent invocation as not applicable.
+
+One exception to "never creates or enters a worktree": under `worktree.always: true`, Step 7.5 sets up a scratch worktree solely to satisfy the PreToolUse gate for Step 7's mutations and the tidy-up commit, then merges back and tears it down before this skill's own Next Actions render — see Step 7.5's `worktree.always` handling above. This is bookkeeping internal to Steps 7-7.5, not a parent-skill relationship, and doesn't change anything about this contract's `PIPELINE_RUN_DIR`/Next Actions guidance.
 
 ## Anti-Patterns
 

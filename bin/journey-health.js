@@ -10,7 +10,7 @@ const { makeRetryQueueCommands } = require('./lib/health-core/retry-cli');
 const { dedupAndDispatch } = require('./lib/health-core/validate-findings-dispatch');
 const { selectBudget } = require('./lib/health-core/budget');
 const { makeCmdChurnReport } = require('./lib/health-core/churn-report');
-const { makeCmdMark } = require('./lib/health-core/mark');
+const { makeCmdMark, mergeDeclinedIntoCache } = require('./lib/health-core/mark');
 const { decide } = require('./lib/journey-health/dedup');
 const { validateFinding } = require('./lib/journey-health/validate-finding');
 const { toIssuePayload } = require('./lib/journey-health/issue-payload');
@@ -21,7 +21,34 @@ const { evaluateQaEvidence } = require('./lib/journey-health/qa-evidence');
 const TOOL_NAME = 'journey-health';
 const retryQueueCommands = makeRetryQueueCommands({ readDurableState, writeDurableState });
 const cmdChurnReport = makeCmdChurnReport({ readDurableState, computeChurn });
-const cmdMark = makeCmdMark({ readCache, writeCache, toolName: TOOL_NAME });
+// readDurableState/writeDurableState wired through so a "declined" mark also
+// persists to the health-state git branch, not just the local gitignored
+// cache — see bin/lib/health-core/mark.js's own header comment. Without
+// this, a declined finding (by definition never filed as a GitHub issue, so
+// there is nothing for dedup to reconstruct from) would silently reappear
+// on a scheduled Routine's next fresh, stateless container.
+const cmdMark = makeCmdMark({
+  readCache, writeCache, readDurableState, writeDurableState, toolName: TOOL_NAME,
+});
+
+// Mirrors code-health's RISK_RANK/validateRiskArg shape (bin/code-health.js)
+// for the analogous --min-confidence floor, scoped to journey-health's own
+// three-tier confidence vocabulary (validate-finding.js's CONFIDENCE_VALUES).
+// Unlike code-health's --min-risk, this floor is opt-in only (no internal
+// default) and drops a sub-threshold finding for this run only, rather than
+// diverting it into a `remembered` cache tier — journey-health's cache.js
+// explicitly documents having no `remembered` tier.
+const CONFIDENCE_RANK = { low: 0, med: 1, high: 2 };
+
+function validateConfidenceArg(value) {
+  if (value == null) return;
+  if (Object.prototype.hasOwnProperty.call(CONFIDENCE_RANK, value)) return;
+  process.stderr.write(
+    `validate-findings: --min-confidence "${value}" is not a recognized confidence tier ` +
+    `(must be one of ${Object.keys(CONFIDENCE_RANK).join('|')}) — an unrecognized value silently files every finding instead of applying the floor.\n`,
+  );
+  process.exit(2);
+}
 
 function parseArgs(argv) {
   const args = { _: [], root: process.cwd(), dryRun: false, runId: new Date().toISOString(), tier: 'light' };
@@ -38,6 +65,7 @@ function parseArgs(argv) {
     else if (a === '--budget') args.budget = Number(argv[++i]);
     else if (a === '--story-ids') args.storyIds = argv[++i];
     else if (a === '--now') args.now = Number(argv[++i]);
+    else if (a === '--min-confidence') args['min-confidence'] = argv[++i];
     else args._.push(a);
   }
   return args;
@@ -92,10 +120,12 @@ function cmdValidateFindings(args) {
   const findingsPath = args._[1];
   if (!findingsPath) {
     process.stderr.write(
-      'usage: journey-health.js validate-findings <findings.json> [--root <dir>] [--issues <file>] [--target <id>] [--tier light|deep] [--coverage-scan] [--run-id <id>] [--dry-run]\n',
+      'usage: journey-health.js validate-findings <findings.json> [--root <dir>] [--issues <file>] [--target <id>] [--tier light|deep] [--coverage-scan] [--run-id <id>] [--min-confidence <level>] [--dry-run]\n',
     );
     process.exit(2);
   }
+
+  validateConfidenceArg(args['min-confidence']);
 
   // buildValidateFindingsUpdate only patches a cursor when target is present,
   // or sets __coverageScan when coverageScan is set (see
@@ -144,8 +174,32 @@ function cmdValidateFindings(args) {
     survivors.push({ ...v.value, id });
   }
 
+  // Confidence floor: applied here, before dedup/fingerprinting, so a
+  // held-back finding never reaches the cache or emits a payload for this
+  // run. Opt-in only (see validateConfidenceArg's comment above) — omitting
+  // --min-confidence keeps today's unconditional-filing behavior unchanged.
+  let filtered = survivors;
+  if (args['min-confidence']) {
+    const threshold = CONFIDENCE_RANK[args['min-confidence']];
+    filtered = survivors.filter((f) => {
+      const keep = CONFIDENCE_RANK[f.confidence] >= threshold;
+      if (!keep) {
+        process.stderr.write(
+          `[journey-health] validate-findings: held back "${f.description}" (confidence: ${f.confidence}) below --min-confidence ${args['min-confidence']}\n`,
+        );
+      }
+      return keep;
+    });
+  }
+
+  // Merge durable `declined` marks into the local cache readCache sees, so a
+  // finding declined via `mark ... declined` on a prior firing (possibly a
+  // different, since-recycled Routine container) is suppressed here too —
+  // not just on the same-container run `mark` itself was tested against.
+  const readCacheWithDeclined = (r) => mergeDeclinedIntoCache(readCache(r), readDurableState(r).declined || {});
+
   const { cache, payloads, seen } = dedupAndDispatch({
-    root, issuesPath: args.issues, toolName: TOOL_NAME, survivors, readCache, decide, toIssuePayload,
+    root, issuesPath: args.issues, toolName: TOOL_NAME, survivors: filtered, readCache: readCacheWithDeclined, decide, toIssuePayload,
   });
 
   if (!args.dryRun) {
@@ -206,7 +260,7 @@ function main(argv) {
   process.stderr.write(
     'usage: journey-health.js <command> [options]\n' +
     'commands: next-target [--target <id>] [--tier light|deep] [--budget <n>], ' +
-    'validate-findings <file> [--target <id>] [--tier light|deep] [--coverage-scan], ' +
+    'validate-findings <file> [--target <id>] [--tier light|deep] [--coverage-scan] [--min-confidence low|med|high], ' +
     'qa-evidence <report.json> --story-ids <id1,id2,...> [--now <ms>], ' +
     'churn-report [--fail-on-high-churn <r>], mark <fingerprint> <declined>, ' +
     'retry-queue drain, retry-queue update <results.json>\n',

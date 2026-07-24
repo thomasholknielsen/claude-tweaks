@@ -1,6 +1,7 @@
 ---
 name: claude-tweaks:init
 description: Use when initializing the workflow system for a project — bootstraps structure, analyzes the codebase, generates CLAUDE.md with adaptive philosophy, skills, and rules. Re-run to find drift, gaps, and stale configuration.
+argument-hint: "[<path>|<github-url>|<description>|--update|update|--full|--core-only|bootstrap|config|skills|journeys|docs]"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -37,6 +38,8 @@ If `$ARGUMENTS` is provided, treat it as:
 - A GitHub URL — clone it first, then analyze
 - A description of the project context (e.g., "Ruby on Rails monolith, team of 5")
 - `--update` or `update` — force Update mode even if the config looks minimal
+- `--full` — force the complete reconnaissance pass (Phases 2-8.5) even when Update Mode's Phase 1u.6 early-exit gate would otherwise skip straight to Phase 9; composes with `--update`/`update` (e.g. `update --full`)
+- `--core-only` — within Phase 0, skip the Optional Enhancements (Steps 9-15) entirely, equivalent to auto-declining every optional-enhancement offer, then continue into whatever scope this invocation would otherwise run; composes with any goal-based scope below (e.g. `bootstrap --core-only` for a fully non-interactive, structure-only bootstrap)
 - `bootstrap` — run Phase 0 only (structure + deps), then stop
 - `config` — run Phases 0 + 2 + 3 + 5 (bootstrap + recon + CLAUDE.md)
 - `skills` — run Phases 0 + 2 + 3 + 4 + 6 (bootstrap + recon + skills)
@@ -103,7 +106,7 @@ Detect `agent-browser`; surface the install command if missing. Never block init
 
 Detect Node (and optionally git), install the statusline wrapper at `~/.claude-tweaks/bin/statusline.js`, and prompt before wiring `statusLine.command` in `~/.claude/settings.json` — never overwrite a non-claude-tweaks command. Read `bootstrap-steps.md` (Step 8) for the full procedure (detection, package-manager prompts, settings.json migration matrix, NO_COLOR opt-out).
 
-**Optional Enhancements (Steps 9–15):**
+**Optional Enhancements (Steps 9–15):** Skipped entirely when `$ARGUMENTS` contains `--core-only` — treat every offer below as declined with no prompt shown, and proceed straight to whatever this invocation runs after Phase 0 (the Scope Selection Gate, or a composed goal-based scope).
 
 ### Step 9: GitHub Issue Form Template (Optional)
 
@@ -168,7 +171,7 @@ Call `AskUserQuestion` (see "Phases at a Glance" above for the full table):
 
 If the user selects this template's "Done" and Step 6 queued a `worktree.always` decision, write it now — see "Finalizing the worktree.always Decision" above.
 
-**Option 3 (Essentials):** Runs phases 2, 3, 5 only. Produces CLAUDE.md with proper philosophy and Don'ts. Defers skills, rules, journeys, and doc registry for later (suggest re-running `/init` or using goal-based arguments).
+**Option 3 (Essentials):** Runs phases 2, 3, 5 only — the same phase set as the `config` goal-based scope (see "Input" above; Phase 0 always runs first regardless of scope, so the two are equivalent). Produces CLAUDE.md with proper philosophy and Don'ts. Defers skills, rules, journeys, and doc registry for later (suggest running `/init config` directly next time to skip this gate).
 
 **Option 4 (Done):** Stop after Phase 0. The user has the directory structure, starter files, and dependencies — they'll configure manually or run `/init` again later. If Step 6 queued a `worktree.always` decision, write it now — see "Finalizing the worktree.always Decision" above.
 
@@ -278,6 +281,8 @@ Carry the confirmed maturity and doc tier forward to Phase 5 (CLAUDE.md Philosop
 > **Parallel execution:** Use parallel tool calls aggressively — scoring of independent skill candidates is read-only (re-checking grep/glob signals from Phase 2) and should run concurrently.
 >
 > **Parallel execution (conditional):** When the candidate list has ≥ 8 skills, dispatch scoring as parallel Task agents per the Subagent Contract (`_shared/subagent-output-contract.md`). Otherwise, run the scoring inline in the main thread.
+>
+> **Model tier:** Standard — applying the Frequency + Complexity + Danger rubric against Phase 2 evidence requires judgment across three dimensions per candidate, not mechanical enough for Fast and not synthesis-heavy enough to need Capable.
 
 Apply the **Frequency + Complexity + Danger** rubric (max 9). Generate skills scoring 6+ first. Skills not selected (Priority 2-3 or aspirational) become backlog work records with their scoring rationale and Phase 2 evidence — no reconnaissance is wasted.
 
@@ -300,6 +305,8 @@ Phase 2f findings split into CLAUDE.md Don'ts (convention conflicts and anti-pat
 ---
 
 ## Phase 6: Generate / Update Skills
+
+> **Parallel execution (conditional):** Under Update Mode, when the drift-patch audit's read set (`_shared/harness-health-analysis.md`) covers ≥ 8 existing skills, dispatch the per-skill audit as parallel Task agents per the Subagent Contract (`_shared/subagent-output-contract.md`) — the same threshold and pattern Phase 4 already uses for scoring. Otherwise, run the audit inline in the main thread.
 
 **Initial Mode** generates full SKILL.md files for each approved skill. **Update Mode** produces targeted patches for drifted skills and full SKILL.md for gap skills. Each generated skill must pass quality gates (codebase-grounded examples, working commands, project-specific anti-patterns). Skill depth scales with complexity score.
 
@@ -399,7 +406,17 @@ Write this AFTER every write in the Actions Performed table above has completed 
 
 Create `.claude-tweaks/` if it doesn't exist. Read `.claude-tweaks/policy.yml` if present; if it has an existing `worktree.always:` line, replace that line, otherwise append a new `worktree.always: {true|false}` line (create the file with just that line if it didn't exist). Preserve every other line in the file untouched.
 
-If the decision was "Yes," tell the user: "`worktree.always` is now enforced — your next edit requires an isolated worktree; run `/superpowers:using-git-worktrees` first."
+If the decision was "Yes," tell the user the same confirmation message quoted in "Finalizing the worktree.always Decision" above.
+
+---
+
+## Important Notes
+
+- **This skill is idempotent** — safe to re-run. Phase 0 only creates what's missing. Phases 1-8 detect whether to generate fresh or patch existing config.
+- **One session is not enough** — the initial skill set will be ~70% right. Expect to refine skills after the first week of actual use. Tell the user this explicitly.
+- **Re-run periodically** — run in Update Mode after major refactors, stack upgrades, or when skills start feeling stale. A quarterly cadence works for active projects.
+- **Update Mode should be fast** — Phase 1u.6's early-exit gate skips Phases 2-8.5 when drift is zero and preliminary gaps are < 3. Re-run with `--full` to force the complete pass.
+- **Don't over-generate** — 5 excellent skills beat 15 mediocre ones. The Anti-Patterns section below covers the specific failure modes (aspirational Don'ts, generic skills, improvements-in-CLAUDE.md). Read those before adding to either output.
 
 ---
 
@@ -445,14 +462,6 @@ If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it
 | Creating doc files with only TODO placeholders | Phase 2 reconnaissance has the data — generate real content grounded in actual findings. If a doc would be < 20 lines of real content, it belongs in README instead of its own file. |
 | Skipping journey discovery for projects with user-facing features | Journeys are what `/review` tests against — without them, visual QA has no experiential anchor |
 | Writing journey "should feel" without actually using the app | Codebase-only skeletons are a starting point but the "should feel" is weaker — mark them as skeletons |
-
-## Important Notes
-
-- **This skill is idempotent** — safe to re-run. Phase 0 only creates what's missing. Phases 1-8 detect whether to generate fresh or patch existing config.
-- **One session is not enough** — the initial skill set will be ~70% right. Expect to refine skills after the first week of actual use. Tell the user this explicitly.
-- **Re-run periodically** — run in Update Mode after major refactors, stack upgrades, or when skills start feeling stale. A quarterly cadence works for active projects.
-- **Update Mode should be fast** — Phase 1u.6's early-exit gate skips Phases 2-8.5 when drift is zero and preliminary gaps are < 3. Re-run with `--full` to force the complete pass.
-- **Don't over-generate** — 5 excellent skills beat 15 mediocre ones. The Anti-Patterns section above covers the specific failure modes (aspirational Don'ts, generic skills, improvements-in-CLAUDE.md). Read those before adding to either output.
 
 ## Relationship to Other Skills
 

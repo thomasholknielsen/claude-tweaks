@@ -17,7 +17,7 @@ Runs all four reflection lenses plus a tradeoff review.
 
 ### Seed from Review Learnings (pipeline context)
 
-When invoked by `/wrap-up`, check the `/claude-tweaks:review` summary for the **Key Learnings** section. Use these as starting points for the four lenses rather than re-deriving from scratch.
+When invoked by `/wrap-up`, check the `/claude-tweaks:review` summary for the **Key Learnings** section. Use these as starting points for the four lenses rather than re-deriving from scratch. If the review summary has no Key Learnings section (it may not always be rendered), say so explicitly and fall back to deriving the four lenses from scratch — don't silently skip the seed step with no signal that it was unavailable.
 
 ### Tradeoff Review
 

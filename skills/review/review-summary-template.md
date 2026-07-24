@@ -112,12 +112,10 @@ The signal-to-option lookup tables below stay as-is — the assistant's own reso
 | Always | `/claude-tweaks:wrap-up {N}` — capture learnings and clean up |
 | Visual not done + journeys affected + browser | `/claude-tweaks:visual-review journey:{name}` — walk affected journey before wrapping up |
 | Visual not done + UI changed + browser | `/claude-tweaks:visual-review {url}` — visual pass before wrapping up |
-| Always | `/code-review {tier}` (or `/code-review ultra` when the resolved `review-effort` is `max`) — Claude Code's own native review, as an independent cross-check before wrapping up, at the same effort tier this review resolved |
 
 Once resolved, call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"`, `multiSelect`: `false`:
 - Option 1 (always) — `label`: `"Wrap up (Recommended)"`, `description`: `"/claude-tweaks:wrap-up {N} — capture learnings and clean up"`
 - Option 2 (when visual not done + journeys affected/UI changed + browser available) — `label`: `"Visual review"`, `description`: `"/claude-tweaks:visual-review journey:{name} — walk affected journey before wrapping up"` (or the `{url}` variant when journeys aren't affected but UI changed)
-- Option 3 (always) — `label`: `"Independent second opinion"`, `description`: `"/code-review {tier} — Claude Code's native review as a cross-check, matching this review's resolved effort tier"` (or, when the resolved `review-effort` is `max`: `"/code-review ultra — the highest-risk changes get the deeper multi-agent cloud pass, billed separately"`)
 
 **When BLOCKED:**
 

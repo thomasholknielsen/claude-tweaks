@@ -20,7 +20,7 @@ Contextual pre-analysis for the visual review. Runs as Step 0 (before Step 1 Hea
 
 ## Phase 1: Browse and Capture
 
-> **Parallel execution:** Use parallel tool calls aggressively — the snapshot and screenshot operations at each scroll position are independent and should run concurrently.
+Snapshot and screenshot at each scroll position act on the same live `agent-browser` session — they are not independent in the Form-A sense and must not run as concurrent tool calls (see SKILL.md's Anti-Patterns table: "Per-step agent-browser invocations during journey walks"). Bundle the scroll + snapshot + screenshot sequence for all three positions into a single `agent-browser batch` invocation instead — one process, one session lifecycle, fewer tokens and less latency, and no risk of racing the daemon's session state.
 
 Capture the full page state before classifying. Three scroll positions maximum — this must be fast.
 

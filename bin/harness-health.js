@@ -10,7 +10,7 @@ const { makeRetryQueueCommands } = require('./lib/health-core/retry-cli');
 const { dedupAndDispatch } = require('./lib/health-core/validate-findings-dispatch');
 const { selectBudget } = require('./lib/health-core/budget');
 const { makeCmdChurnReport } = require('./lib/health-core/churn-report');
-const { makeCmdMark } = require('./lib/health-core/mark');
+const { makeCmdMark, mergeDeclinedIntoCache } = require('./lib/health-core/mark');
 const { decide } = require('./lib/harness-health/dedup');
 const { validateFinding } = require('./lib/harness-health/validate-finding');
 const { toIssuePayload } = require('./lib/harness-health/issue-payload');
@@ -22,7 +22,31 @@ const { STALE_DAYS } = require('./lib/harness-health/score');
 const TOOL_NAME = 'harness-health';
 const retryQueueCommands = makeRetryQueueCommands({ readDurableState, writeDurableState });
 const cmdChurnReport = makeCmdChurnReport({ readDurableState, computeChurn });
-const cmdMark = makeCmdMark({ readCache, writeCache, toolName: TOOL_NAME });
+// readDurableState/writeDurableState wired through so a "declined" mark also
+// persists to the health-state git branch, not just the local gitignored
+// cache — see bin/lib/health-core/mark.js's own header comment. Without
+// this, a declined finding (by definition never filed as a GitHub issue, so
+// there is nothing for dedup to reconstruct from) would silently reappear
+// on a scheduled Routine's next fresh, stateless container despite this
+// skill's own Anti-Patterns table promising it won't.
+const cmdMark = makeCmdMark({
+  readCache, writeCache, readDurableState, writeDurableState, toolName: TOOL_NAME,
+});
+
+// Confidence rank: lower number = more urgent (highest priority to file).
+// Mirrors bin/lib/code-health/dedup.js's RISK_RANK convention/shape.
+const CONFIDENCE_RANK = { high: 0, med: 1, low: 2 };
+
+function validateConfidenceArg(value) {
+  if (value === undefined) return;
+  if (Object.prototype.hasOwnProperty.call(CONFIDENCE_RANK, value)) return;
+  process.stderr.write(
+    `harness-health.js: validate-findings --min-confidence "${value}" is not a recognized value ` +
+    `(must be one of ${Object.keys(CONFIDENCE_RANK).join('|')}) — an unrecognized value silently ` +
+    'files every finding regardless of confidence, same as omitting the flag.\n',
+  );
+  process.exit(2);
+}
 
 function parseArgs(argv) {
   const args = { _: [], root: process.cwd(), dryRun: false, runId: new Date().toISOString() };
@@ -35,9 +59,11 @@ function parseArgs(argv) {
     else if (a === '--memory-dir') args.memoryDir = argv[++i];
     else if (a === '--issues') args.issues = argv[++i];
     else if (a === '--gap-scan') args.gapScan = true;
+    else if (a === '--force-gap-scan') args.forceGapScan = true;
     else if (a === '--run-id') args.runId = argv[++i];
     else if (a === '--fail-on-high-churn') args['fail-on-high-churn'] = argv[++i];
     else if (a === '--budget') args.budget = Number(argv[++i]);
+    else if (a === '--min-confidence') args.minConfidence = argv[++i];
     else args._.push(a);
   }
   return args;
@@ -53,7 +79,12 @@ function cmdNextTarget(args) {
   // cmdNextSlice, which also reads durable state exactly once).
   const durableCursors = readDurableState(root).cursors;
   const gapScan = durableCursors.__gapScan || { lastScannedSha: null, lastScannedMs: null };
-  const gapScanDue = gapScan.lastScannedMs == null || (now - gapScan.lastScannedMs) / 86400000 > STALE_DAYS;
+  // --force-gap-scan bypasses the 90-day cursor entirely, mirroring the
+  // existing --target manual override for the deep-audit side of next-target
+  // — a human escape hatch for testing gap-detection heuristics or checking
+  // a suspected fresh pattern without waiting out the cursor.
+  const gapScanDue = args.forceGapScan
+    || gapScan.lastScannedMs == null || (now - gapScan.lastScannedMs) / 86400000 > STALE_DAYS;
 
   if (args.kind === 'memory') {
     if (!args.memoryDir) {
@@ -120,10 +151,12 @@ function cmdValidateFindings(args) {
   const findingsPath = args._[1];
   if (!findingsPath) {
     process.stderr.write(
-      'usage: harness-health.js validate-findings <findings.json> [--root <dir>] [--issues <file>] [--target <id>] [--kind <skill|rule|claude-md|design-artifact|memory>] [--gap-scan] [--run-id <id>] [--dry-run]\n',
+      'usage: harness-health.js validate-findings <findings.json> [--root <dir>] [--issues <file>] [--target <id>] [--kind <skill|rule|claude-md|design-artifact|memory>] [--gap-scan] [--min-confidence <low|med|high>] [--run-id <id>] [--dry-run]\n',
     );
     process.exit(2);
   }
+
+  validateConfidenceArg(args.minConfidence);
 
   // buildValidateFindingsUpdate only patches a cursor when both target AND
   // kind are present (see lib/harness-health/cache.js), or when gapScan is
@@ -154,6 +187,10 @@ function cmdValidateFindings(args) {
   }
 
   const survivors = [];
+  // Findings below the --min-confidence floor (when passed) are held here
+  // instead of entering `survivors` at all — never dropped, never filed.
+  // Mirrors code-health's own rememberCandidates split in bin/code-health.js.
+  const remembered = [];
   for (const f of raw) {
     const v = validateFinding(f);
     if (!v.ok) {
@@ -168,11 +205,26 @@ function cmdValidateFindings(args) {
       section: v.value.section || v.value.kind,
       description: v.value.description,
     });
-    survivors.push({ ...v.value, id });
+    const value = { ...v.value, id };
+    if (args.minConfidence) {
+      const rank = CONFIDENCE_RANK[value.confidence];
+      const floorRank = CONFIDENCE_RANK[args.minConfidence];
+      if (rank !== undefined && floorRank !== undefined && rank > floorRank) {
+        remembered.push(value);
+        continue;
+      }
+    }
+    survivors.push(value);
   }
 
+  // Merge durable `declined` marks into the local cache readCache sees, so a
+  // finding declined via `mark ... declined` on a prior firing (possibly a
+  // different, since-recycled Routine container) is suppressed here too —
+  // not just on the same-container run `mark` itself was tested against.
+  const readCacheWithDeclined = (r) => mergeDeclinedIntoCache(readCache(r), readDurableState(r).declined || {});
+
   const { cache, payloads, seen } = dedupAndDispatch({
-    root, issuesPath: args.issues, toolName: TOOL_NAME, survivors, readCache, decide, toIssuePayload,
+    root, issuesPath: args.issues, toolName: TOOL_NAME, survivors, readCache: readCacheWithDeclined, decide, toIssuePayload,
   });
 
   if (!args.dryRun) {
@@ -182,7 +234,13 @@ function cmdValidateFindings(args) {
     // mirrors the pattern already hardened in bin/code-health.js's own writeDurableState call.
     const runRecord = { runId: args.runId, runAt: new Date().toISOString(), fingerprints: [...seen] };
     const result = writeDurableState(root, (current) => buildValidateFindingsUpdate(
-      current, { target: args.target, kind: args.kind, gapScan: args.gapScan, runRecord },
+      current, {
+        target: args.target,
+        kind: args.kind,
+        gapScan: args.gapScan,
+        runRecord,
+        rememberCandidates: remembered.map((f) => ({ id: f.id, confidence: f.confidence })),
+      },
     ));
     if (!result.ok) {
       process.stderr.write(`[harness-health] validate-findings: health-state persistence failed after retries: ${result.error}\n`);
@@ -191,7 +249,8 @@ function cmdValidateFindings(args) {
 
   process.stdout.write(JSON.stringify(payloads, null, 2) + '\n');
   process.stderr.write(
-    `[harness-health] validate-findings: ${survivors.length} valid finding(s), ${payloads.length} payload(s) after dedup\n`,
+    `[harness-health] validate-findings: ${survivors.length} valid finding(s), ${payloads.length} payload(s) after dedup` +
+    (remembered.length ? `, ${remembered.length} remembered (below --min-confidence floor)` : '') + '\n',
   );
 }
 
@@ -212,8 +271,8 @@ function main(argv) {
   if (cmd === 'retry-queue' && args._[1] === 'update') return retryQueueCommands.update({ ...args, _: args._.slice(1) });
   process.stderr.write(
     'usage: harness-health.js <command> [options]\n' +
-    'commands: next-target [--target <id>] [--kind <skill|rule|claude-md|design-artifact|memory>] [--memory-dir <path>] [--budget <n>], ' +
-    'validate-findings <file> [--target <id>] [--kind <skill|rule|claude-md|design-artifact|memory>] [--gap-scan], ' +
+    'commands: next-target [--target <id>] [--kind <skill|rule|claude-md|design-artifact|memory>] [--memory-dir <path>] [--budget <n>] [--force-gap-scan], ' +
+    'validate-findings <file> [--target <id>] [--kind <skill|rule|claude-md|design-artifact|memory>] [--gap-scan] [--min-confidence <low|med|high>], ' +
     'churn-report [--fail-on-high-churn <r>], mark <fingerprint> <declined>, ' +
     'retry-queue drain, retry-queue update <results.json>\n',
   );
@@ -222,4 +281,6 @@ function main(argv) {
 
 if (require.main === module) main(process.argv.slice(2));
 
-module.exports = { parseArgs, cmdNextTarget, cmdValidateFindings, cmdChurnReport, cmdMark, main };
+module.exports = {
+  parseArgs, cmdNextTarget, cmdValidateFindings, cmdChurnReport, cmdMark, CONFIDENCE_RANK, main,
+};

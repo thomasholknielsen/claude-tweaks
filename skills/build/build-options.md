@@ -41,7 +41,7 @@ When `.claude-tweaks/policy.yml` sets `execution.always: subagent`, the Executio
 
 ## Input
 
-`$ARGUMENTS` = record reference (`#N`), spec number (legacy alias), design doc path, or topic name — optionally followed by execution strategy (`batched`), git strategy (`worktree`), and/or `auto`.
+`$ARGUMENTS` = record reference (`#N`), spec number (legacy alias), design doc path, or topic name — optionally followed by execution strategy (`batched`), git strategy (`worktree`), `auto`, and/or the standalone tokens `tier=<fast|standard|capable>` (Common Step 2 model-tier override) and `ops=confirm` (Step 2.5 auto-executable-command confirmation). All optional tokens are matched by keyword, not position — any order works (e.g. `/claude-tweaks:build 42 auto current-branch` and `/claude-tweaks:build 42 current-branch auto` are equivalent).
 
 ### Resolve the input
 

@@ -5,26 +5,49 @@ const { createDurableState } = require('../health-core/durable-state');
 // Local, gitignored: cache.json only (rebuildable-from-issues dedup state).
 // Canonical path: <root>/.claude-tweaks/docs-health/cache.json
 //
-// Cursors and run history are durable instead — they live on the
-// health-state branch (see _shared/health-state.md), not local disk, since
-// local disk doesn't survive a scheduled cloud-routine firing's container
-// recycling.
+// Cursors, the sub-threshold "remembered" cache, and run history are durable
+// instead — they live on the health-state branch (see _shared/health-state.md),
+// not local disk, since local disk doesn't survive a scheduled cloud-routine
+// firing's container recycling.
 
 const core = createCache('docs-health');
-const durable = createDurableState('docs-health');
+// includeRemembered: true — backs the --min-confidence floor (mirrors
+// code-health's --min-risk / bin/lib/code-health/cache.js): a finding below
+// the floor is held in this durable slice instead of being filed, until it
+// escalates or a deeper sweep lowers the bar. See createDurableState's own
+// header comment for why this must be an explicit opt-in flag rather than
+// inferred from runtime truthiness of `current.remembered`.
+// includeDeclined: true — a `mark ... declined` disposition also persists
+// here (not just the local gitignored cache), so it survives a scheduled
+// Routine's fresh, stateless container. See bin/lib/health-core/mark.js's
+// own header comment and bin/docs-health.js's cmdMark wiring.
+const durable = createDurableState('docs-health', { includeRemembered: true, includeDeclined: true });
 
 // Pure: computes the next durable-state object for a validate-findings run.
-// current: { cursors, retryQueue, runs } — the current durable health-state
-// shape (as returned by readDurableState). docs-health has a single kind
-// ('doc') and no gap-scan concept, so this is simpler than harness-health's
-// equivalent — no `kind` param, no `__gapScan` cursor.
-// opts: { target, runRecord, now? }
-function buildValidateFindingsUpdate(current, { target, runRecord, now = Date.now() }) {
+// current: { cursors, remembered, retryQueue, runs } — the current durable
+// health-state shape (as returned by readDurableState). docs-health has a
+// single kind ('doc') and no gap-scan concept, so this is simpler than
+// harness-health's equivalent — no `kind` param, no `__gapScan` cursor.
+// opts: { target, runRecord, rememberCandidates?: [{ id, confidence }], now? }
+//
+// rememberCandidates (not a pre-computed delta object), and the "already
+// remembered, don't touch it" merge below, mirror
+// bin/lib/code-health/cache.js's own buildValidateFindingsUpdate exactly —
+// see that file's header comment for the full rationale (the check must be
+// evaluated against `current.remembered`, the freshest state
+// writeDurableState's CAS loop just fetched, not a caller-side snapshot).
+function buildValidateFindingsUpdate(current, { target, runRecord, rememberCandidates, now = Date.now() }) {
   const cursors = { ...current.cursors };
   if (target) {
     cursors[`doc:${target}`] = { lastAuditedMs: now };
   }
-  return { ...current, cursors, runs: [...current.runs, runRecord] };
+  const remembered = { ...current.remembered };
+  for (const { id, confidence } of rememberCandidates || []) {
+    if (!remembered[id]) {
+      remembered[id] = { status: 'remembered', issue: null, confidence };
+    }
+  }
+  return { ...current, cursors, remembered, runs: [...current.runs, runRecord] };
 }
 
 module.exports = {

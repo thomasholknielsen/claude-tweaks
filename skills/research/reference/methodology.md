@@ -19,7 +19,7 @@ Break the topic into independent search angles, scaled to the depth tier:
 | quick | 5 | inline self-check |
 | standard | 7 | 1 verifier per core claim |
 | deep | 10 | 1 verifier per claim |
-| ultradeep | 10 | multi-persona (≤3) red-team per core claim |
+| ultradeep | 10 | up to 3 parallel refutation verifiers per core claim |
 
 Angles should span: core concept, technical specifics, recent developments (date-filtered),
 opposing/critical views, quantitative/benchmark data, and known limitations.
@@ -41,7 +41,11 @@ diversity (recent + foundational).
 ## Step 4: Adversarially verify (parallel subagents)
 
 For each major claim destined for the report, dispatch a verification subagent that tries to
-REFUTE it. Scale the fan-out to the tier (table above).
+REFUTE it. Scale the fan-out to the tier (table above). This is generic per-claim refutation
+voting, gated by research depth tier — not the plugin's canonical "multi-persona red-team"
+primitive (`_shared/multi-agent-coordination.md` Mode 3), which is a fixed Implementer /
+Maintainer / Skeptical Reviewer persona roster scoped to surfacing spec ambiguity for
+`/claude-tweaks:specify` and gated by a leaf's `ceremony:*` label. Don't conflate the two.
 
 > **Parallel execution:** Dispatch claim verification as parallel Task agents — each runs
 > independently and returns a verdict. Assemble results after all agents complete.

@@ -57,4 +57,22 @@ function makeCmdMark({ readCache, writeCache, updateCache, readDurableState, wri
   };
 }
 
-module.exports = { makeCmdMark, MARK_STATUSES };
+// Pure: merges durable `declined` marks (from the health-state branch) into
+// a local cache object as status:'declined' entries, so a declined mark
+// survives a scheduled Routine's fresh container even though the local
+// cache does not. Durable declined entries take precedence over whatever
+// (if anything) is already in the local cache for that fingerprint,
+// matching each skill's own dedup.js decide()'s precedence (its optional
+// durableDeclined-equivalent argument is checked before the local-cache
+// status branch). Shared by every skill wired with includeDeclined: true —
+// only meaningful when readDurableState/writeDurableState are also passed
+// to makeCmdMark above for the same skill.
+function mergeDeclinedIntoCache(cache, declined) {
+  const merged = { ...cache };
+  for (const fp of Object.keys(declined || {})) {
+    merged[fp] = { status: 'declined', lastSeenMs: declined[fp].lastSeenMs };
+  }
+  return merged;
+}
+
+module.exports = { makeCmdMark, MARK_STATUSES, mergeDeclinedIntoCache };

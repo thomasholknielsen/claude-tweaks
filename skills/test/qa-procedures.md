@@ -41,12 +41,14 @@ Parse from `$ARGUMENTS` after the `qa` keyword (keyword detection, case-insensit
 | RETRY_RUN_DIR | — | `retry=<path>` | Re-run only failed stories from a previous run |
 | JOURNEY_FILTER | — | `journey=<name>` | Only run stories with `journey: <name>` |
 | MAX_PARALLEL | `4` | `max_parallel=N` | Max concurrent agents per tier |
-| AGENT_TIMEOUT | `300000` | — | Agent timeout in milliseconds |
+| AGENT_TIMEOUT | `300000` | `timeout=<ms>` | Agent timeout in milliseconds. Raise it for a slow-loading app or CI cold-start; lower it for fast-fail local iteration on a hung session. |
 | SCREENSHOTS_BASE | `screenshots/qa` | — | Base directory for screenshots |
 | TRACES_BASE | `traces` | — | Base directory for failure traces |
 | RUN_DIR | `{SCREENSHOTS_BASE}/{timestamp}_{uuid}` | — | Generated once at start of run |
 
 ## Phase 1: Discover
+
+> **Parallel execution:** Use parallel tool calls aggressively — reading each discovered story YAML file (step 4) is an independent, read-only operation and should run concurrently.
 
 1. **Retry mode check:** If RETRY_RUN_DIR is set:
    a. Read `{RETRY_RUN_DIR}/report.json`

@@ -84,16 +84,28 @@ function extractDomainPaths(content) {
 // journey-health/scope.js — see the require at the top of this file.
 
 // ─── selectTarget ────────────────────────────────────────────────────────────
-// opts: { now?: number, signals?: { [id]: number } }
+// opts: { now?: number, signals?: { [id]: number }, dir?: string }
 // Returns { kind: 'doc', id, path, why: 'stale' | 'hotspot' } or null.
 // Cursor key is namespaced "doc:<id>" throughout, matching harness-health's
 // "${kind}:${id}" convention (docs-health has a single kind, so the prefix
 // is a fixed literal rather than a variable).
+//
+// opts.dir (optional): restrict the candidate pool to docs whose id is, or
+// starts with, this path relative to docs/ (e.g. "decisions" matches
+// "decisions/0007-foo" but not "decisions-archive/0001-bar") — the normal
+// stale/hotspot rotation logic below still applies within that subset. A
+// dir with no matching docs behaves exactly like an empty candidate pool
+// (selectByStaleThenChurn returns null), same as a project with no docs/
+// tree at all.
 function selectTarget(root, cursors, opts = {}) {
   const now = opts.now != null ? opts.now : Date.now();
   const signals = opts.signals || null; // test injection hook — churn override by "doc:<id>" key
 
-  const candidates = listDocs(root);
+  let candidates = listDocs(root);
+  if (opts.dir) {
+    const dirPrefix = opts.dir.replace(/\/+$/, '');
+    candidates = candidates.filter((c) => c.id === dirPrefix || c.id.startsWith(`${dirPrefix}/`));
+  }
 
   return selectByStaleThenChurn(candidates, cursors, {
     now,

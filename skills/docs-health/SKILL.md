@@ -1,6 +1,7 @@
 ---
 name: claude-tweaks:docs-health
 description: Use when you want a proactive, report-only sweep of docs/** that surfaces Diátaxis genre-drift (implied doc type vs. actual content shape, and directory placement vs. content genre), depth-mismatch (implied reading investment vs. actual word count), findability (can a reader or agent actually discover this doc), and factual staleness (including author-declared freshness dependencies), deduplicated and filed as GitHub issues. An LLM judges the docs; deterministic helpers handle scope rotation, fingerprinting, dedup, issue filing, word-count computation, inbound-reference counting, and tracked-dependency freshness checks. Never edits docs. Keywords - docs-health, documentation drift, Diátaxis, genre drift, depth mismatch, findability, orphan docs, staleness, proactive, github issues, scheduled, routine.
+argument-hint: "[--target <id>] [--dir <path>] [--budget <n>] [--min-confidence low|med|high] [--dry-run] [--root <dir>]"
 allowed-tools: Read, Grep, Glob, Bash, AskUserQuestion
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
@@ -29,8 +30,10 @@ Not for: mechanical/unambiguous checks (broken links, malformed frontmatter, mis
 `$ARGUMENTS` may contain:
 
 - `--target <id>` — manual override: audit one specific doc directly, bypassing `next-target` selection. `<id>` is the doc's path relative to `docs/`, without the `.md` extension (e.g. `decisions/0007-foo`).
+- `--dir <path>` — restrict `next-target`'s candidate pool to docs under one subdirectory of `docs/` (e.g. `decisions`, `guides/setup`); the normal stale/hotspot rotation logic still applies within that subset. Combine with `--budget <n>` for a focused multi-doc sweep over just one area. Ignored when `--target` is also passed.
 - `--dry-run` — emit findings; never write cursor/cache state; never call `gh`.
 - `--budget <n>` — audit up to `n` docs in one firing (default 1).
+- `--min-confidence <low|med|high>` — minimum `confidence` tier that gets filed as a GitHub issue (default: no floor — every surviving finding files, matching today's behavior). Findings below this are held in the durable `remembered` cache instead of being dropped or filed, mirroring `/code-health`'s `--min-risk` mechanism. Pass `--min-confidence med` (or `high`) for a quieter run, e.g. a scheduled headless Routine firing.
 - `--root <dir>` — audit a project elsewhere (default: current working directory).
 
 ## Workflow
@@ -38,10 +41,32 @@ Not for: mechanical/unambiguous checks (broken links, malformed frontmatter, mis
 **Step 1 — SELECT: pick the next target(s).**
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" next-target --root . ${TARGET:+--target "$TARGET"} ${BUDGET:+--budget "$BUDGET"}
+node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" next-target --root "${ROOT:-$PWD}" ${TARGET:+--target "$TARGET"} ${DIR:+--dir "$DIR"} ${BUDGET:+--budget "$BUDGET"}
 ```
 
-Without `--budget` (or `--budget 1`), prints `{ target: { kind, id, path, why } | null }` — a single target. With `--budget <n>` where `n > 1`, prints `{ targets: [{ kind, id, path, why }, ...] }` instead — up to `n` targets, each a different id. When `targets` is present, run Steps 2-3 once per entry before moving on to Step 4.
+Without `--budget` (or `--budget 1`), prints `{ target: { kind, id, path, why } | null }` — a single target. With `--budget <n>` where `n > 1`, prints `{ targets: [{ kind, id, path, why }, ...] }` instead — up to `n` targets, each a different id.
+
+> **Parallel execution (conditional):** When `--budget n` (n > 1) is in effect, dispatch each target's Step 2 (READ) + Step 3 (JUDGE) as a parallel Task agent — each independently reads its own doc and returns that target's findings array (see the dispatch template below). Otherwise (the `--budget 1` default), run Steps 2-3 sequentially in the main thread.
+
+**Multi-target runs (`--budget > 1`):** treat each array entry as its own full sweep: run Steps 2-6 in their entirety for target 1 (including its own `validate-findings --target <id>` call in Step 5 and its own Step 6 filing), then repeat the full Steps 2-6 for target 2, and so on. Never collect findings from multiple targets into one shared `validate-findings` call — each target needs its own `--target` value so its audit cursor persists independently (`bin/docs-health.js`'s `validate-findings` hard-gates on `--target` being present for any non-dry-run call, since docs-health has no gap-scan-equivalent fallback for cursor advancement). A run that audits 3 targets makes 3 separate `validate-findings` invocations, not 1. Once every target has been swept, move on to Step 7 to summarize all of them together.
+
+When dispatching Steps 2-3 in parallel, use this prompt shape per target (inline literally — agents only see what's in their own prompt):
+
+```
+Task scope: Read and judge one doc for docs-health findings.
+Read: {target.path} in full.
+Apply the full procedure in Step 3 (JUDGE) of skills/docs-health/SKILL.md's own numbered list — genre-drift/placement (points 1-3), depth-mismatch (point 4, via `node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" word-count "{target.path}"`), findability (point 5, via `node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" find-refs "{target.path}" --root "${ROOT:-$PWD}"`), staleness (point 6, via `node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" check-freshness "{target.path}" --root "${ROOT:-$PWD}"`), misleads (point 7), classification (point 8), confidence/reversibility (points 9-10).
+Do not modify any file. Read-only.
+
+OUTPUT FORMAT (required):
+First line: one of DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED.
+Then a JSON array of findings in the exact "Emit each finding in this shape" block from Step 3 above (empty array `[]` if none).
+Do not add narration before or after the status line and JSON array.
+
+[Use: Standard model — multi-file judgment, format-sensitive output]
+```
+
+Assemble each target's returned findings before continuing that target's own Step 3.5 VERIFY GATE onward — Steps 3.5-6 still run per-target, sequentially, in the main thread, since they touch shared state (the issue index, dedup cache, filing) that cannot safely run in parallel Task agents.
 
 Read the `why` field on whichever target(s) came back:
 - If `target`/`targets` is empty: nothing is due this firing. Report this to the user and stop.
@@ -70,19 +95,21 @@ Apply the full procedure in `_shared/criteria-docs-diataxis.md` (genre-drift, de
 5. Compute the doc's inbound-reference count:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" find-refs "${TARGET_PATH}"
+   node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" find-refs "${TARGET_PATH}" --root "${ROOT:-$PWD}"
    ```
 
    Judge whether a near-zero count means a genuine orphan (blocks discovery) or an intentionally standalone doc (see the criteria fragment's Dimension 5). A genuine orphan is a `category: "findability"` finding.
 6. Check every stated fact (counts, dates, paths, versions, availability claims) against live repository state (grep, `find`, `git log`). Additionally, check any declared freshness-dependencies:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" check-freshness "${TARGET_PATH}"
+   node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" check-freshness "${TARGET_PATH}" --root "${ROOT:-$PWD}"
    ```
 
    For each path in the result's `missing` array, that's a broken dependency — a staleness finding on its own. For each entry in `stale`, judge whether the tracked file's change is substantive enough to actually invalidate what the doc claims (see the criteria fragment's Dimension 2). A mismatch (stated fact, broken dependency, or substantive tracked-file drift) is a `category: "staleness"` finding.
 7. For every finding, judge `misleads`: `"human"` (a skim-and-notice-caveat reader partially self-corrects), `"agent"` (retrieval-style consumption has no such safety net — weight this higher), or `"both"`.
 8. Judge `classification`: `"additive"` (a one-line fact correction, an added disclaimer) or `"restructural"` (reorganizing a doc that mixes genres, splitting a doc).
+9. Judge `confidence`: `"high"` when the evidence is mechanical and directly checkable — a stated count/date/path/version contradicted by live `grep`/`find`/`git log` output, a `check-freshness` `missing` entry, or a genre that is self-evidently native (step 1); `"med"` when it rests on a judgment call a reasonable second reviewer could see differently — a depth-mismatch or genre-drift call resting on heading language, or an inbound-reference count judged as a genuine orphan vs. intentionally standalone; `"low"` when the evidence is circumstantial or the doc's own intent is ambiguous — a `check-freshness` `stale` entry whose substantiveness is itself a judgment call, or a placement-fit divergence in a doc that could plausibly belong to either genre. This drives Step 6's interactive-gate Recommended-column pre-fill (`high`/`med` → File issue; `low` → Capture) — calibrate honestly, not optimistically.
+10. Judge `reversibility`: `"high"` for a pure addition or a swap of one stated fact for another (`oldString` empty, or a narrow factual substitution); `"med"` for a multi-sentence rewrite that changes structure within one section; `"low"` for a `restructural` classification that reorganizes or splits the doc — the harder a finding's fix would be to cleanly undo, the lower this value.
 
 Emit each finding in this shape:
 
@@ -129,11 +156,12 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" validate-findings /tmp/docs-heal
   --root "${ROOT:-$PWD}" \
   ${ISSUES_FILE:+--issues "$ISSUES_FILE"} \
   ${TARGET_ID:+--target "$TARGET_ID"} \
+  ${MIN_CONFIDENCE:+--min-confidence "$MIN_CONFIDENCE"} \
   ${DRY_RUN:+--dry-run} \
   > /tmp/docs-health-payloads.json
 ```
 
-`TARGET_ID` is `target.id` from Step 1 (omit if only auto-selection ran and no single target is being tracked for cursor purposes — pass it whenever a single target drove this firing). The command validates each finding, fingerprints via `assetType + target + section + normalizedDescription`, dedups against open `by:docs-health` issues and the local cache, records the audit cursor for `doc:${TARGET_ID}` unless `--dry-run`, and emits gh-ready payloads on stdout.
+`TARGET_ID` is that target's `.id` from Step 1 — always pass it for a real (non-dry-run) run: the CLI hard-gates on `--target` being present whenever `--dry-run` is not passed (docs-health has no gap-scan-equivalent fallback for cursor advancement, unlike harness-health/journey-health), and exits 2 if it's omitted. Omit only in `--dry-run` mode when previewing without a specific target. The command validates each finding, fingerprints via `assetType + target + section + normalizedDescription`, dedups against open `by:docs-health` issues and the local cache, records the audit cursor for `doc:${TARGET_ID}` unless `--dry-run`, holds any finding below `--min-confidence` in the durable `remembered` cache instead of filing it, and emits gh-ready payloads on stdout.
 
 **Step 6 — FILE.**
 
@@ -160,12 +188,14 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" retry-queue update /tmp/docs-hea
 
 If `/tmp/docs-health-escalated.json` is non-empty, file (or update) a `docs-health:filing-failed` issue for each entry, naming the stuck fingerprint and its failure history — bootstrap that label the same way as the others below.
 
-For a payload whose fingerprint marker matches a `status: "regressed"` entry in `.claude-tweaks/docs-health/cache.json` after this run, the finding was previously closed and has reappeared — reopen the existing issue instead of filing a new one:
+For a payload whose fingerprint marker (embedded in `payload.body`, read via `extractFingerprint`) matches a `status: "regressed"` entry in `.claude-tweaks/docs-health/cache.json` after this run, the finding was previously closed and has reappeared — reopen the existing issue instead of filing a new one:
 
 ```bash
 gh issue reopen <issue_number>
 gh issue comment <issue_number> --body "Regressed: this finding reappeared. Run: ${RUN_ID}"
 ```
+
+`<issue_number>` is that cache entry's `issue` field.
 
 Before filing, bootstrap only the label families this run applies, with real descriptions — using the shared helper so a too-long description fails loudly here rather than as a 422 on `gh issue create`. Canonical pairs copied verbatim from `_shared/label-bootstrap.md`'s `LABELS_JSON`, plus docs-health's own diagnostic labels:
 
@@ -194,7 +224,7 @@ Per `_shared/health-filing-gate.md`'s applicability/scope/placement rule: in int
    | 1 | {title} | {category} | {misleads} | {classification} | {confidence} | {File issue|Capture} |
    ```
 
-   Pre-fill the Recommended column: `confidence: high` or `confidence: med` → `"File issue"`; `confidence: low` → `"Capture"`.
+   Pre-fill the Recommended column: `confidence: high` or `confidence: med` → `"File issue"`; `confidence: low` → `"Capture"`. (When `--min-confidence` is passed, a below-floor finding never reaches this table at all — Step 5's `validate-findings` already diverted it into the `remembered` cache before this step runs.)
 
 2. Call `AskUserQuestion` with `question`: `"How do you want to handle these findings?"`, `header`: `"Findings"`, `multiSelect`: `false`, and:
    - Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"File / Capture each finding per the Recommended column above"`
@@ -238,7 +268,7 @@ Report: which target(s) were audited, how many findings were emitted, how many f
 
 Report-only, matching `/code-health`/`/harness-health` — every finding files as a `by:docs-health`-labelled, born-`ready` GitHub issue, with no `Edit` call anywhere in its documented workflow. Rotation cursors and the filing retry queue live on the durable `health-state` branch (`_shared/health-state.md`), surviving container recycling across scheduled firings — a skipped or failed firing does not lose progress.
 
-**No confidence floor on headless firings** (canonical text in `_shared/health-routine-notes.md` — check that file when either changes to keep this skill's copy in sync with `harness-health`/`journey-health`'s own inline copies). Unlike `/code-health`'s `--min-risk` flag (which holds below-threshold findings in a `remembered` cache instead of filing them), this skill's `validate-findings` call carries no equivalent threshold — a headless Routine firing files every surviving finding regardless of `confidence`, including a `confidence: low` one that the interactive gate's own Recommended-column rule would otherwise route to Capture. Known asymmetry with `/code-health`, not yet closed: a scheduled firing is noisier than an interactive one on low-confidence findings until this skill gains an equivalent holdback mechanism.
+**`--min-confidence` closes the confidence-floor asymmetry for headless firings.** `/harness-health` and `/journey-health` closed the same gap in the same pass (see `_shared/health-routine-notes.md`). This skill's `--min-confidence <low|med|high>` flag mirrors `/code-health`'s `--min-risk` mechanism: pass it in the routine template's arguments (e.g. `--min-confidence med`) to hold a below-threshold finding in the durable `remembered` cache instead of filing it, for a quieter headless firing. Omitting the flag preserves today's file-everything default — including a `confidence: low` finding that the interactive gate's own Recommended-column rule would otherwise route to Capture.
 
 > **Billing note:** Routines run inside the subscription; verify automation-credit specifics against the live account. (Canonical text in `_shared/health-routine-notes.md` — shared with `/code-health`, `/harness-health`, and `/journey-health`.)
 
@@ -291,4 +321,4 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 | `_shared/health-filing-mechanics.md` | The canonical retry-queue-drain and regressed-reopen shape this skill's Step 6 inlines (as `{BINARY}` = `docs-health.js`, `{PREFIX}` = `docs-health`) — shared with `/code-health`, `/harness-health`, and `/journey-health`. |
 | `_shared/health-verify-gate.md` | The canonical adversarial-verify-gate question shape this skill's Step 3.5 inlines — shared with `/code-health` and `/journey-health` (both inline their own copy the same way); `/harness-health` applies the identical discipline via its embedded copy in `_shared/harness-health-analysis.md`. |
 | `_shared/health-finding-shapes.md` | The canonical type-expression-branch and bundling-rule shape this skill's Step 3/Step 6 inline — shared with `/code-health`, `/harness-health`, and `/journey-health`. |
-| `_shared/health-routine-notes.md` | The canonical text of this skill's confidence-floor-asymmetry paragraph and billing note — shared with `/harness-health` and `/journey-health` (both carry the same asymmetry paragraph); `/code-health` shares only the billing note, since `--min-risk` closes the asymmetry gap for that skill. |
+| `_shared/health-routine-notes.md` | The canonical billing note, shared with `/code-health`, `/harness-health`, and `/journey-health` — and of the confidence-floor paragraph, shared with `/harness-health` and `/journey-health` now that all three (plus `/code-health`'s own `--min-risk`) have closed the gap it used to describe as open; this skill and `/harness-health` hold sub-threshold findings in a durable `remembered` cache, `/journey-health` drops them for that run instead. |

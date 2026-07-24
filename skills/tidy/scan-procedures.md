@@ -165,6 +165,8 @@ Scan `docs/REGISTRY.md` for health issues. Skip if the file doesn't exist.
 
 ## Step 4.7: Audit Issue Claims
 
+**Working-directory discipline:** every command in this step (and in any dispatched parallel agent) — the claim-ref listing below and both backstops that use `find .claude-tweaks/pipelines` — MUST be anchored to `{REPO_ROOT}` (resolved via `git rev-parse --show-toplevel` in the dispatcher before any agent fires, the same resolution Step 4.5 already documents). Anchor with `cd "{REPO_ROOT}" &&` at the start of each command. CWD does not propagate reliably to dispatched Task agents (see `_shared/subagent-output-contract.md`'s Working Directory Discipline section) — an un-anchored `find .claude-tweaks/pipelines/...` doesn't error from the wrong cwd, it silently returns zero matches, which reads identically to "no missed restorations found," the opposite of the loud failure this anchor is meant to guarantee. `gh` commands need the same anchor: `gh` infers the target repo from the cwd's git remote, so a wrong cwd can point `gh issue list`/`gh api` at an unrelated repo entirely, not just fail to find files.
+
 Skip silently when `gh` is unavailable or the repo has no GitHub remote (pre-check, before
 any listing attempt). If the ref-listing call itself fails mid-scan (rate limit, transient
 API error) after passing that pre-check, skip the rest of this step and note it in the
@@ -213,7 +215,7 @@ audit trail" section), so they survive on disk at `.claude-tweaks/pipelines/**/w
 runs) — in both live and archived (`.claude-tweaks/pipelines/archive/`) run directories:
 
 ```bash
-find .claude-tweaks/pipelines -path "*/work/*-spec.md" 2>/dev/null | while read -r header; do
+cd "{REPO_ROOT}" && find .claude-tweaks/pipelines -path "*/work/*-spec.md" 2>/dev/null | while read -r header; do
   grep -q "^parked-at-shaping: true$" "$header" || continue
   n=$(grep -m1 "^record:" "$header" | sed 's/^record: *//')
   [ -z "$n" ] && continue
@@ -238,7 +240,7 @@ would run.
 ### Backstop: missed `bot:in-progress` removal
 
 ```bash
-gh issue list --label bot:in-progress --state open --json number,title -q '.[] | "\(.number) \(.title)"'
+cd "{REPO_ROOT}" && gh issue list --label bot:in-progress --state open --json number,title -q '.[] | "\(.number) \(.title)"'
 ```
 
 For each result, cross-reference against this step's own claim listing above: flag as a likely
@@ -250,13 +252,17 @@ command the release step itself would run.
 
 ### Backstop: empty decisions.md on a completed standalone run
 
-Same audit-trail-integrity concern as the two backstops above, applied to the standalone-auto
-run directories the human-gate skills (`/claude-tweaks:triage`, `/claude-tweaks:dispatch`,
-`/claude-tweaks:review-backlog`) write against — a `worktree.always`-blocked or otherwise
+Same audit-trail-integrity concern as the two backstops above, applied to every standalone-auto
+run directory on disk — this includes the human-gate skills' runs (`/claude-tweaks:triage`,
+`/claude-tweaks:dispatch`, `/claude-tweaks:review-backlog`), but also `/tidy`'s own past
+standalone-auto firings, `/claude-tweaks:init`, and `/claude-tweaks:capture` (the full
+standalone-auto allowlist per `_shared/pipeline-run-dir.md`'s step 4 — all six skills use the
+identical `{ISO-timestamp}-{skill-name}-standalone` naming, and the glob below has no
+skill-name filter, so it matches all of them equally). A `worktree.always`-blocked or otherwise
 silently-skipped log write leaves no trace anywhere except an empty file:
 
 ```bash
-find .claude-tweaks/pipelines -maxdepth 1 -type d -name "*-standalone" 2>/dev/null | while read -r RUN_DIR; do
+cd "{REPO_ROOT}" && find .claude-tweaks/pipelines -maxdepth 1 -type d -name "*-standalone" 2>/dev/null | while read -r RUN_DIR; do
   STATUS=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync(process.argv[1]+'/run-state.json','utf8')).status)}catch(e){console.log('unknown')}" "$RUN_DIR")
   [ "$STATUS" = "clean" ] || continue
   SIZE=$(wc -c < "$RUN_DIR/decisions.md" 2>/dev/null || echo 0)

@@ -1,6 +1,7 @@
 ---
 name: claude-tweaks:help
 description: Use when you need a quick reference for available commands, want to see workflow status, or need a recommendation for what to do next.
+argument-hint: "[status|commands|<topic>] [--budget <n>]"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -34,6 +35,7 @@ One-stop reference and status dashboard for the workflow system. Combines comman
 | `status` | Pipeline status scan + recommendation (skips Section 1's cheat sheet) |
 | `commands` | Quick reference cheat sheet only — read `reference-card.md` in this skill's directory and present its contents |
 | *spec number or topic* | Same as *(none)* — full cheat sheet + status scan + recommendation. No per-spec/topic filtering is implemented; none of the three sections' skip conditions below match a bare spec number or topic string. |
+| `--budget <n>` | Caps rows rendered in the Ready-to-Build and Needs-Attention dashboard tables (default: 10). Combine with any other argument, e.g. `status --budget 5`. See `status-scan.md`'s Present Dashboard section for truncation and overflow-note behavior. |
 
 > Default (no arg) is the cheat-sheet-first dashboard. The status scan (Section 2) is moderately expensive — when the user just wants command syntax, the `commands` arg avoids it.
 
@@ -51,7 +53,9 @@ For the canonical cheat sheet — lifecycle, component, and utility commands; co
 
 *(Skip if `$ARGUMENTS` = `commands`)*
 
-Read `status-scan.md` in this skill's directory for the full parallel-dispatch procedure (Stages 1-7 including sub-stages 4.5, 4.6, and 4.7; dispatch contract, agent template, and dashboard rendering). The orchestrator dispatches all eight stages (1, 2, 4.5, 4.6, 4.7, 5, 6, 7) in parallel and assembles the dashboard after all agents complete.
+> **Parallel execution:** When both Section 1 and Section 2 run (default, no-argument invocation), issue Section 1's `reference-card.md` Read alongside dispatching Section 2's Stage Task agents below — a static Read and a live Task-agent dispatch are fully independent and should run concurrently rather than sequentially.
+
+Read `status-scan.md` in this skill's directory for the full parallel-dispatch procedure (Stages 1-7 including sub-stages 4.5, 4.6, and 4.7; dispatch contract, agent template, and dashboard rendering). The orchestrator dispatches all of the stages listed above (1, 2, 4.5, 4.6, 4.7, 5, 6, 7) in parallel and assembles the dashboard after all agents complete.
 
 ---
 
@@ -132,7 +136,7 @@ For a detailed explanation of how context flows between skills via artifacts, re
 | `/claude-tweaks:wrap-up` | /claude-tweaks:help flags specs awaiting wrap-up |
 | `/claude-tweaks:tidy` | /claude-tweaks:help suggests /claude-tweaks:tidy when maintenance is needed |
 | `/claude-tweaks:triage` | Surfaces pending-authorization count, `bot:blocked` count, and rolling auto-merge count on the dashboard (Stage 4.6, `triage-queue` scope) — the reciprocal of `triage/SKILL.md`'s own `/claude-tweaks:help` row. |
-| `/claude-tweaks:review-backlog` | Reciprocal: could surface an "N unscored records" nudge on the dashboard — the reciprocal of this skill already surfacing `/claude-tweaks:triage`'s pending-authorization count. |
+| `/claude-tweaks:review-backlog` | No dashboard integration — /help's Stage 1 already surfaces backlog/parked/ready counts; unscored-record synthesis and prioritization stay `/claude-tweaks:review-backlog`'s own job, not duplicated here. |
 | `/claude-tweaks:demo` | Surfaces the `demo:pending` count on the dashboard (Stage 4.7, `acceptance-queue` scope) — the reciprocal of `demo/SKILL.md`'s own `/claude-tweaks:help` row. |
 | `/claude-tweaks:dispatch` | /claude-tweaks:help surfaces the `authorized` and `building` counts dispatch acts on (Stage 1) — the reciprocal of `dispatch/SKILL.md`'s own `/claude-tweaks:help` row. |
 | `/claude-tweaks:flow` | /claude-tweaks:help lists /claude-tweaks:flow as an automation option for ready specs |

@@ -1,6 +1,7 @@
 ---
 name: claude-tweaks:journeys
 description: Use when you want to create or update user journey documentation for recently built features. Works standalone or as a step within /claude-tweaks:build.
+argument-hint: "[<spec-number>|<file-path>...|--journey <name>]"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -32,12 +33,14 @@ Create or update journey files for features that have been built. Journeys docum
 
 1. **Spec number** (e.g., `42`) — analyze files changed for that spec
 2. **File paths** — analyze those specific files for journey impact
-3. **No arguments** — use `git diff --name-only` against the base branch or recent commits
+3. **`--journey <name>`** — target one existing (or new) journey directly by name, bypassing Step 1's scope resolution entirely — routes straight to Step 3 (Update Existing Journey Files) against `docs/journeys/{name}.md` if it exists, or Step 2 (Create New Journey Files) using `{name}` if it doesn't. This is the form `/claude-tweaks:journey-health` uses when recommending a re-run against a specific journey slug.
+4. **No arguments** — use `git diff --name-only` against the base branch or recent commits
 
 ```
 /claude-tweaks:journeys                       → analyze recent changes for journey impact
 /claude-tweaks:journeys 42                    → journeys for spec 42's changes
 /claude-tweaks:journeys src/app/checkout/     → journeys for checkout-related files
+/claude-tweaks:journeys --journey checkout-flow → update the checkout-flow journey directly
 ```
 
 ### Pipeline context (invoked by parent skill):
@@ -50,7 +53,9 @@ The parent skill passes:
 
 > **Parallel execution:** Use parallel tool calls aggressively — all Read operations on journey files and changed source files are independent and should run concurrently.
 
-Analyze what was built and identify journeys it enables or modifies — for any persona (end users, admins, developers, internal tooling users):
+**`--journey <name>` exception:** skip this step entirely. Check whether `docs/journeys/{name}.md` exists — if it does, go straight to Step 3 (Update Existing Journey Files); if it doesn't, go straight to Step 2 (Create New Journey Files) using `{name}` as the journey-name. No scope resolution, existing-journey scan, or "no interaction surface" check applies — the caller already named the target.
+
+Otherwise, analyze what was built and identify journeys it enables or modifies — for any persona (end users, admins, developers, internal tooling users):
 
 1. **Resolve scope** — from arguments, parent context, or git diff
 2. **Scan existing journeys** — read `docs/journeys/*.md` to see if any existing journey includes pages, flows, features, CLI commands, or APIs that were just built or changed
@@ -129,7 +134,7 @@ The user decides whether to act — this is advisory, not automatic.
 
 ## Step 4: Commit
 
-Commit journey files separately from implementation code.
+Commit journey files separately from implementation code. When a single invocation touches multiple journeys (see Step 5's Report table), commit each journey file separately — one commit per journey, using that journey's own name in the message — rather than one combined commit; this keeps `git log` traceable to a single journey per entry and matches the "separately from implementation code" rule at the file-granularity level, not just the code/docs boundary.
 
 ### Working Directory Discipline
 
@@ -202,3 +207,4 @@ This skill is a **component skill** — invoked by `/claude-tweaks:build` (Commo
 | `/claude-tweaks:journey-health` | Applies the same `_shared/journey-self-review.md` checks at audit time, on journeys nobody has touched recently. Never edits — files a GitHub issue instead of the fix-inline/stage/BLOCK routing this skill uses. |
 | `_shared/journey-self-review.md` | Canonical four-check + structural-validity criteria Step 3.5 applies — shared with `/claude-tweaks:journey-health`'s audit-time check. |
 | `/claude-tweaks:visualize` | Step 3.6 suggests invoking this skill when journey signals match (multi-persona → swimlane, decision branches → flowchart, multi-actor → sequence). Gated by `diagram-suggestions: enabled` in CLAUDE.md (written by `/init` Step 11). |
+| `_shared/subagent-output-contract.md` | The Working-Directory Discipline rule referenced by Step 4 commit lives here (CWD anchoring before `git`). |

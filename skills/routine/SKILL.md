@@ -1,6 +1,7 @@
 ---
 name: claude-tweaks:routine
 description: Use when you want to create, update, or check the status of a Claude Code cloud Routine for a claude-tweaks skill — instantiates a versioned, project-agnostic routine template (e.g. code-health's) into a live, account-and-project-specific scheduled routine via the RemoteTrigger API. Keywords - routine, schedule, cron, cloud agent, recurring, automation.
+argument-hint: "<create|update|status> <skill> [--variant <name>] [--dry-run] [--defaults] [--environment <id>] [--refresh-environment]"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -36,11 +37,14 @@ Not for: one-off or exploratory routines you don't want templated (use `/schedul
 | `--dry-run` (combine with `create`/`update`) | Assemble and display the `RemoteTrigger` body; never make a `create`/`update` call (read-only `list`/`get` calls to resolve values are still permitted), never write or rewrite the instantiated record. |
 | `--defaults` (combine with `create`) | Skip Step 5's interactive cadence picker (use the template's own `default_schedule.cron_expression` verbatim) and Step 7's interactive confirm (proceed straight to creation once the body is assembled) — for non-interactive/batch creation. Environment still resolves via Step 4 (cache, `list`, or `--environment`); if none of those yields a value, `--defaults` does not suppress that one unavoidable prompt. |
 | `--environment <id>` (combine with `--defaults`, or standalone) | Use this environment ID directly in Step 4, skipping cache/list lookup. |
+| `--refresh-environment` (combine with `create`/`update`) | Bypass both the environment cache and the `RemoteTrigger list` heuristic in Step 4 — go straight to asking the user directly which environment to use, then overwrite `.claude-tweaks/routine-environment-cache.yml` with the freshly chosen value. Use this to correct a stale or wrongly-inferred cached/inferred environment without already knowing its raw ID. Mutually exclusive in effect with `--environment <id>` — if both are passed, `--environment` wins (it already skips every other source, including this one) and no prompt occurs. |
 | `--source <parent-skill>` | Used by a parent skill (e.g. `/claude-tweaks:init`) to identify itself as the caller; see Component-Skill Contract below. |
 
 ## Workflow
 
 ### CREATE `<skill>`
+
+**Step 0 — Worktree check (only when `.claude-tweaks/policy.yml` sets `worktree.always: true`).** This skill writes twice — Step 4's environment cache and Step 9's instantiated record — and this project's PreToolUse hook denies any `Write` issued from a non-isolated checkout under that policy, with no bookkeeping exemption; `/claude-tweaks:routine` has no pipeline orchestrator upstream to have already set one up, so nothing protects this invocation by default. Before proceeding: if the current session is not already inside a linked git worktree (check via `git rev-parse --show-toplevel` against the main checkout root, or via `EnterWorktree`/`isolation: "worktree"` already being active), set one up first — `/superpowers:using-git-worktrees` or `EnterWorktree`, branched from current HEAD — and run the rest of this workflow, including Steps 4 and 9's writes, from inside it. `.claude-tweaks/routines/{PREFIXED_NAME}.yml` is meant to be committed (it's a versioned project artifact), so commit it inside the worktree as usual, then merge the branch back into the main checkout (`git merge --ff-only`) before reporting the console URL to the user — the record isn't durably part of the project until that merge lands. `.claude-tweaks/routine-environment-cache.yml` is gitignored and project-local; writing it inside the worktree is fine — it exists only to spare a second skill invocation in the same checkout from re-deriving the value. If `worktree.always` isn't set, skip this step and proceed directly to Step 1.
 
 **Step 1 — Load the template.** When `--variant=<name>` was passed, read `${CLAUDE_PLUGIN_ROOT}/skills/{skill}/routine-template-<name>.yml`; if it doesn't exist, stop: "`{skill}` has no routine-template-{name}.yml — check the variant name." Otherwise (no `--variant`), read `${CLAUDE_PLUGIN_ROOT}/skills/{skill}/routine-template.yml` exactly as before; if it doesn't exist, stop: "`{skill}` has no routine-template.yml — it doesn't support routines yet." The field schema — identical for the default template and every named variant — is documented once in `skills/_shared/routine-template-schema.md` — read it if any field's meaning is unclear.
 
@@ -56,7 +60,7 @@ Derive `REPO_SLUG` from the resolved URL's `{repo}` segment: lowercase it, repla
 
 **Step 3 — Idempotency check.** Check whether `.claude-tweaks/routines/{PREFIXED_NAME}.yml` already exists in the current project. If it does, stop this workflow and continue at UPDATE below instead — never create a second routine for the same project+skill+variant combination. (`PREFIXED_NAME` already encodes the loaded template's `routine_name`, which differs per variant by construction — creating `tidy` with `--variant=github-triage` while `tidy-weekly`'s record already exists is a legitimate second instance, not a duplicate; see the Anti-Patterns table below.)
 
-**Step 4 — Resolve `environment_id`.** If `--environment <id>` was passed, use it directly — skip every other source below. Otherwise: check `.claude-tweaks/routine-environment-cache.yml` in the current project first. If it exists and contains an `environment_id` value, use it silently — no confirmation prompt. Otherwise, load the tool with `ToolSearch select:RemoteTrigger`, then call `{action: "list"}`. If existing routines are returned, read `job_config.ccr.environment_id` off the most recently created one and use it silently. If none of these three sources yields a value, ask the user directly which environment to use — present whatever environment names/IDs are available in context; if none are, ask the user to name one (they can check via `/schedule` once if unsure). Do not cache this value anywhere under `~/.claude-tweaks/` — that path is harness-owned, not skill-owned.
+**Step 4 — Resolve `environment_id`.** If `--environment <id>` was passed, use it directly — skip every other source below. Otherwise, if `--refresh-environment` was passed, skip the cache and `list` sources too — go straight to asking the user directly which environment to use (the same prompt used below when no source yields a value), then continue to the cache-write step below with the freshly chosen value, overwriting whatever the cache file already held. Otherwise: check `.claude-tweaks/routine-environment-cache.yml` in the current project first. If it exists and contains an `environment_id` value, use it silently — no confirmation prompt. Otherwise, load the tool with `ToolSearch select:RemoteTrigger`, then call `{action: "list"}`. If existing routines are returned, read `job_config.ccr.environment_id` off the most recently created one and use it silently. If none of these three sources yields a value, ask the user directly which environment to use — present whatever environment names/IDs are available in context; if none are, ask the user to name one (they can check via `/schedule` once if unsure). Do not cache this value anywhere under `~/.claude-tweaks/` — that path is harness-owned, not skill-owned.
 
 After an environment is resolved (from `--environment`, the cache, `list`, or direct user input), write it to `.claude-tweaks/routine-environment-cache.yml` (skip this write if `--dry-run` was passed):
 
@@ -74,12 +78,14 @@ On the default forward path — reached before any Customize selection, whether 
 
 | # | Pattern (MON/DOM/DOW fixed values, H/M shape) | Cadence | Parsed value |
 |---|---|---|---|
-| 1 | `MON=*`, `DOM=*`, `DOW=*`, `H` matches `*/N` | Every N hours | N |
+| 1 | `MON=*`, `DOM=*`, `DOW=*`, `M=0`, `H` matches `*/N` | Every N hours | N |
 | 2 | `MON=*`, `DOM=*`, `DOW=*`, `H`/`M` plain integers | Daily | time `H:M` UTC |
 | 3 | `MON=*`, `DOM=*`, `DOW=1-5`, `H`/`M` plain integers | Weekdays only | time `H:M` UTC |
 | 4 | `MON=*`, `DOM=*`, `DOW` a single digit 0-6, `H`/`M` plain integers | Weekly | day = DOW (0=Sun..6=Sat), time `H:M` UTC |
 | 5 | `MON=*`, `DOW=*`, `DOM` a plain integer 1-31, `H`/`M` plain integers | Monthly | day-of-month = DOM, time `H:M` UTC |
 | 6 | Anything else | (no match) | none — no cadence pre-selected |
+
+Row 1 requires `M=0` because every cron this workflow itself generates for "Every N hours" is `0 */N * * *` (see 5c below) — a custom-typed cron with an `H` shaped like `*/N` but a non-zero minute (e.g. `15 */6 * * *`, entered via 5b's `Other` field on an earlier run) is *not* safely re-classifiable as "Every N hours," since accepting the N-only picker on a later re-parse would silently reset that minute offset to 0. Such a cron falls through to row 6 instead (no cadence pre-selected) — it still parses fine as a raw string everywhere else, it just isn't offered as a pre-filled recommendation.
 
 **5b. Present the cadence picker.** (On the CREATE flow, reached only via Step 7's Customize branch — never on CREATE's default forward path, regardless of `--defaults`; see above. UPDATE Step 3 invokes 5a-5d directly, with no Customize branch of its own.) Call `AskUserQuestion` with `question`: `"How often should this routine run?"`, `header`: `"Cadence"`, `multiSelect`: `false`, and exactly these 4 options — a typed cron expression is still available via the tool's built-in `Other` field, so there is no separate "Custom cron expression" option consuming one of the 4 slots:
 
@@ -144,7 +150,7 @@ Marking "Yes, create with defaults" as `(Recommended)` is a deliberate change fr
 
 Selecting **Customize** re-asks environment (present the value resolved in Step 4 as the recommended option, still overridable) and runs the cadence picker (5b-5d, reached for the first and only time here), producing a customized cron. Then re-render this same preview and confirm with the customized schedule/environment — but relabel Option 1 to `"Yes, create (Recommended)"` (dropping "with defaults," since the settings shown are no longer the template's defaults); Option 2 ("Customize...") and Option 3 ("Cancel") stay as before, so further adjustment remains possible. Selecting **Yes** (either the first "with defaults" render or a later customized re-render) or **Cancel** proceeds exactly as before — Step 8 (create) or stop.
 
-**Step 8 — Create.** Call `RemoteTrigger {action: "create", body: <assembled body>}`. Read the routine/trigger ID and the claude.ai routine URL from the response (the tool appends a summary line with both).
+**Step 8 — Create.** Call `RemoteTrigger {action: "create", body: <assembled body>}`. Read the routine/trigger ID and the claude.ai routine URL from the response (the tool appends a summary line with both). If the call fails (e.g. an invalid or stale `environment_id` silently reused from `.claude-tweaks/routine-environment-cache.yml`), report the error to the user, suggest re-running with `--refresh-environment` (or deleting `.claude-tweaks/routine-environment-cache.yml` directly) to force re-resolution, and stop — do not proceed to Step 9 or write an instantiated record for a failed create.
 
 **Step 9 — Write the instantiated record.** Write `.claude-tweaks/routines/{PREFIXED_NAME}.yml`:
 
@@ -160,6 +166,8 @@ console_url: "<url from the create response>"
 Report the console URL to the user.
 
 ### UPDATE `<skill>`
+
+**Step 0 — Worktree check.** Same as CREATE Step 0 — run it here too, since `update` is often invoked directly rather than routed from CREATE's idempotency check, and Step 7 below writes the instantiated record just as CREATE Step 9 does.
 
 **Step 1.** Load the template the same way as CREATE Step 1 (respecting `--variant` if passed; if missing, stop with the same message). Resolve the repo URL and derive `PREFIXED_NAME` the same way as CREATE Step 2. Require an existing `.claude-tweaks/routines/{PREFIXED_NAME}.yml` for the current project (routed here automatically from CREATE's idempotency check, or invoked directly). If none exists, tell the user to run `create <skill> [--variant=<name>]` first and stop.
 
@@ -177,7 +185,7 @@ Marking "Yes, update" as `(Recommended)` follows the same reasoning as CREATE St
 
 If `--dry-run` was passed: show the diff and stop. Do not call `RemoteTrigger`. Do not rewrite the instantiated record.
 
-**Step 6.** Call `RemoteTrigger {action: "update", trigger_id: <record.routine_id>, body: <assembled body>}`.
+**Step 6.** Call `RemoteTrigger {action: "update", trigger_id: <record.routine_id>, body: <assembled body>}`. If this call fails because `record.routine_id` no longer refers to an existing routine (e.g. deleted out-of-band at claude.ai/code/routines), report the record as stale and offer the same recourse as STATUS Step 2: delete `.claude-tweaks/routines/{PREFIXED_NAME}.yml` and re-run `create <skill>` instead — do not proceed to Step 7 or rewrite the instantiated record for a failed update.
 
 **Step 7.** Rewrite the instantiated record with the resolved schedule, the new `template_version`, and a fresh `created_at` timestamp (this field doubles as "last written at") — preserving `routine_id`, `template`, and `console_url` from the existing record.
 
@@ -186,6 +194,8 @@ If `--dry-run` was passed: show the diff and stop. Do not call `RemoteTrigger`. 
 **Step 1.** When `--variant=<name>` was passed, load the template and resolve `PREFIXED_NAME`/record path exactly as CREATE Steps 1-2, then read that single `.claude-tweaks/routines/{PREFIXED_NAME}.yml`; if missing, report no routine for `<skill> --variant=<name>` and suggest `create <skill> --variant=<name>`. Stop.
 
 When `--variant` is omitted: glob `${CLAUDE_PLUGIN_ROOT}/skills/{skill}/routine-template.yml` and `${CLAUDE_PLUGIN_ROOT}/skills/{skill}/routine-template-*.yml` to enumerate every template `<skill>` ships, read each one's `routine_name`, and derive `REPO_SLUG` (same recipe as CREATE Step 2) to check which of `.claude-tweaks/routines/{REPO_SLUG}-{routine_name}.yml` exist. If none exist, report that no routine has been created for `<skill>` in this project and suggest `create <skill>`. Stop. If exactly one exists, proceed with that single instance for the rest of this workflow, exactly as before. If more than one exists, run Steps 2-3.5 below once per existing instance and present all of them together, each labeled by its variant name (or "default" for the base template).
+
+> **Parallel execution:** Use parallel tool calls aggressively — when more than one instantiated record exists, each instance's Step 2 `RemoteTrigger get` call targets a different `trigger_id` and is independent of every other instance's call, so issue them concurrently rather than iterating sequentially. Run each instance's Step 3/3.5 analysis and assemble the combined presentation after all `get` calls complete.
 
 **Step 2.** Call `RemoteTrigger {action: "get", trigger_id: <record.routine_id>}` for live state — enabled/disabled, schedule, and any last/next run fields the response carries. If the `get` call fails because the routine no longer exists, report the record as stale and offer to delete `.claude-tweaks/routines/{PREFIXED_NAME}.yml` and re-run `create <skill>`.
 

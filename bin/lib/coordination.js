@@ -188,6 +188,23 @@ function resolveDebate(verdictA, verdictB) {
   return 'contested';
 }
 
+// Sibling to resolveDebate, not an overload of it — the input/output shape
+// differs on purpose. resolveDebate reconciles two judges into one of three
+// buckets (confirmed/unconfirmed/contested); resolveRefutation takes a
+// single verdict from one falsification agent and only ever moves a finding
+// one direction: a `confirmed` finding that survives refutation stays
+// `confirmed`, one that gets refuted downgrades to `unconfirmed`. There is
+// no "contested" outcome here — a single agent's verdict has no second
+// judge to disagree with. Ambiguity fails toward more scrutiny, not less —
+// matching resolveDebate's own conservative default: only the exact literal
+// 'not-refuted' keeps a finding confirmed. 'refuted', a missing/empty
+// verdict, or any other malformed string (e.g. from a failed or BLOCKED
+// dispatch) all downgrade to 'unconfirmed' — a failed refutation attempt
+// must never be indistinguishable from a genuine "stands as confirmed."
+function resolveRefutation(verdict) {
+  return verdict === 'not-refuted' ? 'confirmed' : 'unconfirmed';
+}
+
 function buildReproductionDispatch(taskScope, tier = 'Standard') {
   const prompt = `${taskScope}\n\n[Use: ${tier} model — reproduction agent. Independent run.]`;
   return {
@@ -264,6 +281,7 @@ module.exports = {
   categoriseReproduction,
   detectCrossLensOverlap,
   resolveDebate,
+  resolveRefutation,
   // Dispatch shape builders (pure data — no actual Task() calls)
   buildReproductionDispatch,
   buildDebateDispatch,

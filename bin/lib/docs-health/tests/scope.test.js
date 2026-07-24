@@ -230,3 +230,43 @@ test('selectTarget scores churn on declared files: paths, ignoring incidental ba
   assert.strictEqual(result.id, 'tracked');
   assert.ok(result.churnCount >= 1);
 });
+
+// ── selectTarget: opts.dir (directory-scoped rotation) ──────────────────
+
+test('selectTarget with opts.dir only considers docs under that subdirectory of docs/', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'docs', 'decisions'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'docs', 'guides'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'docs', 'decisions', '0007-foo.md'), '# foo');
+  fs.writeFileSync(path.join(root, 'docs', 'guides', 'setup.md'), '# setup');
+
+  const result = selectTarget(root, {}, { now: 1000000, dir: 'guides' });
+  assert.strictEqual(result.id, 'guides/setup');
+});
+
+test('selectTarget with opts.dir matching no docs returns null, same as an empty candidate pool', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'docs', 'decisions'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'docs', 'decisions', '0007-foo.md'), '# foo');
+
+  const result = selectTarget(root, {}, { now: 1000000, dir: 'guides' });
+  assert.strictEqual(result, null);
+});
+
+test('selectTarget with opts.dir does not match a sibling directory sharing the same prefix (e.g. "decisions" vs "decisions-archive")', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'docs', 'decisions'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'docs', 'decisions-archive'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'docs', 'decisions-archive', '0001-old.md'), '# old');
+
+  const result = selectTarget(root, {}, { now: 1000000, dir: 'decisions' });
+  assert.strictEqual(result, null, 'a prefix match on directory name alone must not count as "under decisions/"');
+});
+
+test('selectTarget without opts.dir considers every doc under docs/ (no scoping regression)', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'docs', 'guides'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'docs', 'guides', 'setup.md'), '# setup');
+  const result = selectTarget(root, {}, { now: 1000000 });
+  assert.strictEqual(result.id, 'guides/setup');
+});

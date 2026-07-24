@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { makeCmdMark, MARK_STATUSES } = require('../mark');
+const { makeCmdMark, MARK_STATUSES, mergeDeclinedIntoCache } = require('../mark');
 
 // Regression: cmdMark used to be duplicated near-verbatim across
 // harness-health.js, journey-health.js, and docs-health.js (code-health.js
@@ -165,4 +165,48 @@ test('a failed durable write does not lose the local mark, and reports the failu
   }
   assert.strictEqual(store.get()['fp-4'].status, 'declined', 'the local mark must still be saved even when the durable write fails');
   assert.match(stderrOut, /durable health-state persistence failed/);
+});
+
+// mergeDeclinedIntoCache: pure unit coverage for the durable-declined merge every
+// cmdValidateFindings wired with includeDeclined applies before handing readCache off to
+// dedupAndDispatch — mark.js's optional readDurableState/writeDurableState wiring above
+// persists a "declined" mark to the health-state branch, but nothing reads that branch back
+// into the dedup decision unless something merges it into the local cache shape decide()
+// already understands. A scheduled Routine's fresh container never shares the local
+// gitignored cache.json a prior firing wrote, so without this merge a declined finding would
+// resurface there even though the mark itself was durably persisted. Shared by harness-health,
+// docs-health, and journey-health — previously duplicated per skill before this extraction.
+
+test('mergeDeclinedIntoCache: an empty declined map leaves the cache untouched', () => {
+  const cache = { 'skill-aaaa0001': { status: 'staged', lastSeenMs: 1 } };
+  const merged = mergeDeclinedIntoCache(cache, {});
+  assert.deepStrictEqual(merged, cache);
+});
+
+test('mergeDeclinedIntoCache: a declined fingerprint absent from the local cache is added as status: declined', () => {
+  const merged = mergeDeclinedIntoCache({}, { 'skill-bbbb0002': { lastSeenMs: 42 } });
+  assert.deepStrictEqual(merged['skill-bbbb0002'], { status: 'declined', lastSeenMs: 42 });
+});
+
+test('mergeDeclinedIntoCache: a durable-declined fingerprint overrides a conflicting local cache entry', () => {
+  const cache = { 'skill-cccc0003': { status: 'staged', lastSeenMs: 1 } };
+  const merged = mergeDeclinedIntoCache(cache, { 'skill-cccc0003': { lastSeenMs: 99 } });
+  assert.deepStrictEqual(
+    merged['skill-cccc0003'],
+    { status: 'declined', lastSeenMs: 99 },
+    'durable declined must win — matches each skill\'s own dedup.js decide() precedence',
+  );
+});
+
+test('mergeDeclinedIntoCache: an unrelated local cache entry survives untouched', () => {
+  const cache = { 'skill-dddd0004': { status: 'regressed', issue: 5, lastSeenMs: 1 } };
+  const merged = mergeDeclinedIntoCache(cache, { 'skill-eeee0005': { lastSeenMs: 2 } });
+  assert.deepStrictEqual(merged['skill-dddd0004'], { status: 'regressed', issue: 5, lastSeenMs: 1 });
+  assert.deepStrictEqual(merged['skill-eeee0005'], { status: 'declined', lastSeenMs: 2 });
+});
+
+test('mergeDeclinedIntoCache: does not mutate the original cache object', () => {
+  const cache = {};
+  mergeDeclinedIntoCache(cache, { 'skill-ffff0006': { lastSeenMs: 3 } });
+  assert.deepStrictEqual(cache, {}, 'the input cache object must not be mutated in place');
 });

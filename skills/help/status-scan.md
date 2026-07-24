@@ -31,6 +31,8 @@ Replaces the former INBOX scan, Deferred-Work scan, Specs-Ready-to-Build scan, a
 
 Fetch and facet-parse the queue per `_shared/record-queue-fetch.md` — the dispatcher inlines that file's `work-backend` resolution and both drivers' fetch commands into this agent's prompt (the same pattern already used for `_shared/github-pr-scan.md`), with `{tmp-records-file}` = `/tmp/help-records.json`, `{tmp-faceted-file}` = `/tmp/help-records-faceted.json`, and `{EXTRA_FIELDS}` = `,body` on the `github-issues` driver — `body` rides along on this one `gh issue list --state open` round-trip because this same fetch also feeds Conflict detection below, instead of opening a second round-trip just for that.
 
+**Fail-open behavior** (`work-backend: github-issues` only): if the `gh issue list` fetch fails — `gh` unavailable, unauthenticated, or the repo has no GitHub remote — Stage 1 fails open, the same posture as Stages 4.5/4.6/4.7 below: emit a single info row (`Work-record scan skipped — {reason}`) instead of BLOCKED. All six counts and the Conflict-detection sub-section are treated as unavailable for this run, and the dashboard's Work Records and Ready-to-Build sections are omitted (same omission convention already used for an empty pipeline) rather than rendering zeros. `work-backend: local-files` has no equivalent failure mode — its fetch reads the local record store directly, not `gh`.
+
 Both drivers land in the same faceted-record shape (`{ ..., facets }`) at `/tmp/help-records-faceted.json`. The six-bucket classification below is `/help`'s own consumer-specific logic, described once here and run identically against either driver's output:
 
 ```bash
@@ -165,7 +167,7 @@ agent's prompt — subagents cannot read sibling files.
 
 ### Work Records (backlog / parked / ready / authorized / building / blocked)
 
-*(Omit this section entirely when all six counts are 0 — an empty pipeline, matching the Triage Queue section's own omission convention.)*
+*(Omit this section entirely when the work-record scan was skipped (Stage 1's fail-open case), or when all six counts are 0 — an empty pipeline, matching the Triage Queue section's own omission convention.)*
 
 - Backlog: **{N}** ({M} stale, 4+ weeks untouched) — `/claude-tweaks:capture` to add, `/claude-tweaks:tidy` to review stale ones
 - Parked: **{N}** ({M} wake-ready — milestone due) — `/claude-tweaks:tidy` to re-evaluate triggers
@@ -200,14 +202,19 @@ agent's prompt — subagents cannot read sibling files.
 - Awaiting sign-off: **{N} records built and ready for your review** — run `/claude-tweaks:demo`
 
 ### Ready to Build (priority order)
+
+*(Omit this section entirely when the work-record scan was skipped (Stage 1's fail-open case), or when both buckets are 0.)*
+
 | Record | Title | Risk / Effort | Status | Has Plan? |
 |--------|-------|----------------|--------|-----------|
 | {ref} | {title} | {risk}/{effort} | ready / authorized | {yes/no} |
 
-`{ref}` is `#{n}` under `work-backend: github-issues`, the bare record id under `local-files`. Rows come from Stage 1's `ready` and `authorized` buckets, ordered per `SKILL.md` Section 3's Tie-Breaking rules.
+`{ref}` is `#{n}` under `work-backend: github-issues`, the bare record id under `local-files`. Rows come from Stage 1's `ready` and `authorized` buckets, ordered per `SKILL.md` Section 3's Tie-Breaking rules, capped at `--budget` rows (default 10 — see `SKILL.md`'s `## Input` section). If more rows exist than the budget allows, append one line below the table: "`{remaining}` more ready/authorized records exist beyond this run's `--budget {N}` — re-run `/claude-tweaks:help --budget {N}` to see more."
 
 ### Needs Attention
 | Item | Issue | Suggested Action |
 |------|-------|-----------------|
 | {item} | {issue} | {action} |
+
+Capped at `--budget` rows (default 10), same overflow-note convention as Ready to Build above. Order flagged items by severity (high → low, using the same scale from the dispatch contract above) before truncating, so the most actionable items survive the cap.
 ```

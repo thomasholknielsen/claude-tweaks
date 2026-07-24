@@ -1,6 +1,7 @@
 ---
 name: claude-tweaks:deepen
 description: Use when you want an architectural-depth pass on recently changed code — finds shallow modules (interface nearly as complex as implementation) and proposes deepening or collapsing them, ranked by leverage. Catches architecture entropy that line-level simplification misses. Works standalone or surfaced as a Next Action by /claude-tweaks:review and /claude-tweaks:reflect.
+argument-hint: "[<file-or-dir>...|<spec-number>] [--kind deepen|collapse]"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -41,7 +42,10 @@ This is **not** a code-quality or bug pass — use `/claude-tweaks:review` for c
 /claude-tweaks:deepen                       → analyze recently changed modules
 /claude-tweaks:deepen src/payments/         → analyze modules under that directory
 /claude-tweaks:deepen 42                     → analyze modules changed for spec 42
+/claude-tweaks:deepen --kind collapse       → analyze recently changed modules, but Step 3 presents only collapse candidates
 ```
+
+4. **`--kind deepen|collapse`** (optional, combinable with any of the above) — scope Step 3's presented candidates to one kind. See Step 3's "Filtering by kind" note for exactly what this includes and excludes.
 
 ### Pipeline / parent context:
 
@@ -55,9 +59,9 @@ This skill uses a controlled vocabulary so proposals stay precise and comparable
 
 > **Parallel execution:** Use parallel tool calls aggressively — read all in-scope files and their call sites (Grep for importers) concurrently. Depth is judged from call sites, so gather them before analyzing.
 
-1. Resolve the file scope (see Input). Filter to source files — skip generated files, lock files, tests, and config.
+1. Resolve the file scope (see Input). Filter to source files — skip generated files, lock files, tests, and config. Also skip any resolved path that no longer exists on disk (a deleted file) — there is no interface left to judge depth on; a module's removal is not a depth question.
 2. For each in-scope module, read its interface (exports) and locate its call sites (`grep` for imports of its exports).
-3. If no source files are in scope, state: "No changed modules to analyze." and stop.
+3. If no source files are in scope (including when every resolved path was a deletion), state: "No changed modules to analyze." and stop.
 
 ## Step 2: Find Shallow Modules
 
@@ -78,11 +82,20 @@ Found {N} depth opportunities in {scope}, ranked by leverage:
 |---|--------|------|------------------|----------|--------------|
 | 1 | {path} | deepen | {one line — what leaks / what callers must know} | {callers affected, interface shrink} | {files touched} |
 | 2 | {path} | collapse | {one line — what it only moves} | {…} | {…} |
-
-Which would you like to explore? (number, several numbers, or "none")
 ```
 
+Immediately below the table, call `AskUserQuestion` with one `multiSelect` question per group of up to 4 candidates (mirrors `/claude-tweaks:init`'s routine-picklist grouping — the tool caps `options` at 4 per question but allows up to 4 questions per call, so up to 16 candidates fit in a single call; beyond 16, present the first 16, act on that selection, then offer the remainder in a follow-up call):
+
+- `question`: `"Which candidates would you like to explore?"` (or, when there is more than one group, `"Which candidates would you like to explore? (1/{G})"`), `header`: `"Depth candidates"`, `multiSelect`: `true`, one option per candidate in this group — `label`: `"#{n} {path}"`, `description`: kind + the one-line why-it's-shallow summary
+- Repeat for each subsequent group, `question`: `"Which candidates would you like to explore? ({i}/{G})"`
+
+Selecting none across every group is the "none" path: skip Step 4 and Step 5 and go straight to Report. Any candidate shown but not selected is recorded there as declined (see Report).
+
 If zero candidates, state: "No shallow modules found in scope — the abstractions in this change are earning their keep." and stop (skip to Report).
+
+**Filtering by kind:** `/claude-tweaks:deepen --kind deepen|collapse` scopes this table (and the `AskUserQuestion` options built from it) to only that kind before presenting — use it for a pass focused solely on the cheap, low-ceremony collapse cleanups (or, conversely, only the real-abstraction deepen candidates). Candidates of the excluded kind still count toward "Found {N}" in the summary line but are not shown as selectable options, and are folded into the Report's "Candidates not actioned" total. Omit the flag to see the full mixed list, as today.
+
+Note: neither the ledger nor any other durable store remembers a declined or filtered-out candidate across runs (see the `/claude-tweaks:ledger` row in Relationship to Other Skills) — a later `/deepen` run over overlapping scope will re-rank and re-present it as if seen for the first time.
 
 ### Auto mode
 
@@ -101,7 +114,9 @@ For each candidate the user picked, hold a focused interface conversation — do
 1. **Propose the deepened (or collapsed) interface** — the smallest surface that hides the most behavior. Show the before/after signature, not the implementation.
 2. **Classify dependencies** for testability (pure computation / local stand-in / network boundary → port + adapter) per `_shared/criteria-architecture-depth.md`. State how the deepened module will be tested.
 3. **Name the trade-off** — what the new shape makes easy, what it makes harder, and what would force revisiting it. If the trade-off is genuinely hard-to-reverse, surprising, and a real choice, flag it as an `[ADR-candidate]` so wrap-up can record it (see `_shared/decision-records.md`).
-4. Confirm before implementing.
+4. Confirm before implementing — call `AskUserQuestion`: `question`: `"Apply this interface change to {module}?"` (when batched per the adaptive convention, `"Apply these {N} interface changes?"`, listing each module), `header`: `"Confirm"`, `multiSelect`: `false`
+   - Option 1 — `label`: `"Apply (Recommended)"`, `description`: `"Implement the proposed interface now"`
+   - Option 2 — `label`: `"Skip this candidate"`, `description`: `"Leave it as-is; record it as declined in the Report"`
 
 ## Step 5: Apply and Verify
 
@@ -128,6 +143,12 @@ A depth refactor that breaks tests is suspect — it likely changed behavior, no
 
 ## Report
 
+There are three paths into this section, and all three render it:
+
+1. **Zero candidates found (Step 3)** — the table has no rows; "No depth changes — abstractions reviewed are earning their keep."
+2. **User selected "none" at Step 3** — the table has no rows; every presented candidate is counted in "Candidates not actioned" as declined.
+3. **A Step 5 BLOCKED gate fired mid-batch** — render the BLOCKED template first (Step 5, item 3) to surface the failing check and return control, **then** still render this table below it: rows for every module already committed in the batch (per "Already-committed modules from this batch"), the in-progress module counted under "Candidates not actioned" (reason: blocked, not declined), and any remaining unapplied candidates from the batch also counted there. The BLOCKED template and this table are complementary, not exclusive — BLOCKED explains *why* the batch stopped; this table is the consolidated record of what happened across the whole run.
+
 ```
 ### Architectural Depth Pass
 
@@ -136,10 +157,10 @@ A depth refactor that breaks tests is suspect — it likely changed behavior, no
 | 1 | {path} | deepen | {interface before → after} | {-N/+M} | {pure / stand-in / port+adapter} |
 
 Verification: {pass/fail}
-Candidates not actioned: {N} (staged / declined — listed for follow-up)
+Candidates not actioned: {N} (staged / declined / blocked — listed for follow-up)
 ```
 
-If no changes were made: "No depth changes — abstractions reviewed are earning their keep." List any candidates the user declined so they aren't silently dropped.
+If no changes were made: "No depth changes — abstractions reviewed are earning their keep." List any candidates the user declined so they aren't silently dropped. This list is scoped to the current run only — nothing here persists to the ledger or any other durable store (see the `/claude-tweaks:ledger` row in Relationship to Other Skills); a future `/deepen` run has no memory of what was declined here.
 
 ## Next Actions
 
@@ -157,8 +178,8 @@ When invoked by a parent, omit Next Actions — the parent handles flow control.
 When `$PIPELINE_RUN_DIR` is set, `/claude-tweaks:deepen` is running inside a pipeline (invoked by `/claude-tweaks:flow` at its Pipeline Summary, or surfaced by `/claude-tweaks:review` / `/claude-tweaks:reflect`). In that case:
 
 - Omit the `## Next Actions` block — the parent owns the handoff.
-- Run **analysis-only**: Steps 1-3 (map modules → deletion test → leverage ranking). **Do not run Step 4 (interface design) or Step 5 (apply)** — those are interactive and low-reversibility, and a hands-off pipeline must never refactor module interfaces unattended.
-- **Return the ranked candidate list to the caller** so it can render a recommendation block (e.g., `/flow`'s Depth Opportunities block). Log a `STAGED` entry per Step 3's auto path; never an `AUTO`-applied entry.
+- Run **analysis-only**: Steps 1-3 (map modules → deletion test → leverage ranking). **Do not run Step 4 (interface design) or Step 5 (apply)** — those are interactive and low-reversibility, and a hands-off pipeline must never refactor module interfaces unattended. Staging/logging mechanics are identical to Step 3's own Auto mode subsection — this section doesn't restate them.
+- **Return the ranked candidate list to the caller** so it can render a recommendation block (e.g., `/flow`'s Depth Opportunities block) — the one behavior unique to this contract, beyond what Step 3's Auto mode subsection already covers.
 
 Direct invocation may pass `--source <parent-skill>` as an explicit fallback when ambiguity exists (rare; `$PIPELINE_RUN_DIR` is the primary signal).
 

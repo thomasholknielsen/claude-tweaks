@@ -20,9 +20,11 @@ On any skip, return the skip object.
 
 If `<spec>` was passed and the spec lists scoped files, intersect with `git diff --name-only`. Otherwise use the full diff filtered to frontend extensions/paths (Layer 3 rules).
 
-If zero files remain after filtering, return `{skipped: "no UI files changed"}`.
+If zero files remain after filtering, return `{skipped: "no UI files changed"}`. If `git diff --name-only` itself fails (non-git directory, git error, mid-rebase state), return `{skipped: "unable to resolve target files (git diff failed)"}` immediately — see `../SKILL.md`'s Input section for this shared fallback-failure rule.
 
 ### Step 3: Invoke Impeccable LLM commands
+
+> **Parallel execution:** Use parallel tool calls aggressively — `critique` and `audit` run on the identical file list with no data dependency between them (Step 4 merges both outputs afterward), so dispatch both Skill-tool calls concurrently rather than sequentially.
 
 Invoke via the Skill tool:
 

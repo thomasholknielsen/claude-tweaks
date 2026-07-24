@@ -1,6 +1,7 @@
 ---
 name: claude-tweaks:review
 description: Use when a build is complete and you need analytical judgment on code quality, correctness, and simplicity before wrapping up. Gates on /claude-tweaks:test passing. The quality gate between implementation and lifecycle cleanup.
+argument-hint: "[<spec-number>|<file-path>...|visual <url-or-description>|journey:<name>|discover] [full] [low|medium|high|xhigh|max]"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -49,8 +50,8 @@ the run) — unchanged. See
 
 | Mode | Syntax | What runs |
 |------|--------|-----------|
-| **code** (default) | `/claude-tweaks:review 42` | Steps 1-7: spec compliance, test gate, change analysis, code review, hindsight, simplification, summary |
-| **full** | `/claude-tweaks:review 42 full` | Code review (Steps 1-5) + visual browser review via `/claude-tweaks:visual-review` (Step 6) + summary (Step 7) |
+| **code** (default) | `/claude-tweaks:review 42` | Steps 1-7, including Step 6 (visual-review recommendation only, non-blocking) and Step 6.5 (Design Quality Pass via Impeccable): spec compliance, test gate, change analysis, code review, hindsight, simplification, visual-review recommendation, design quality pass, summary |
+| **full** | `/claude-tweaks:review 42 full` | Code review (Steps 1-5) + visual browser review via `/claude-tweaks:visual-review` (Step 6) + Design Quality Pass via Impeccable (Step 6.5) + summary (Step 7) |
 | **visual** | `/claude-tweaks:review visual {url}` | Delegates entirely to `/claude-tweaks:visual-review` — page mode |
 | **journey** | `/claude-tweaks:review journey:{name}` | Delegates entirely to `/claude-tweaks:visual-review` — journey mode |
 | **discover** | `/claude-tweaks:review discover` | Delegates entirely to `/claude-tweaks:visual-review` — discover mode |
@@ -69,11 +70,11 @@ When invoked by `/claude-tweaks:flow`, review runs in **full** mode by default (
 
 1. **Spec number** (e.g., "42") — find all files changed for that spec via git history. Mode: code.
 2. **Spec number + `full`** (e.g., "42 full") — code review + visual browser review
-3. **File paths** — review those specific files. Mode: code.
+3. **File paths** — review those specific files. Mode: code. Append `full` (e.g. `/claude-tweaks:review src/foo.ts full`) to run full mode instead — code review scoped to those files, followed by a visual browser review pass (Step 6). With no spec to resolve an explicit journey/URL target, Step 6 falls back to `/claude-tweaks:visual-review discover`'s own UI-file/affected-journey detection, same as code mode's Step 6 behavior.
 4. **`visual` + URL or description** (e.g., "visual http://localhost:3000") — browser review only (page mode)
 5. **`journey:{name}`** (e.g., "journey:checkout") — browser review only (journey mode)
 6. **`discover`** — browser review only (discover mode)
-7. **No arguments** — use `git diff` against the base branch or recent commits to identify changed files. Mode: code.
+7. **No arguments** — use `git diff` against the base branch or recent commits to identify changed files. Mode: code. Append `full` (e.g. `/claude-tweaks:review full`) to run full mode on this same git-diff-derived scope — code review followed by a visual browser review pass (Step 6), resolved via `/claude-tweaks:visual-review discover`'s UI-file/affected-journey detection since no spec exists to look up an explicit target.
 8. **Effort token** — the literal `low`, `medium`, `high`, `xhigh`, or `max`, appearing anywhere among the other tokens above (e.g. `/claude-tweaks:review 42 high` or `/claude-tweaks:review 42 full xhigh`). Sets the `review-effort` tier explicitly (see Step 2.5), overriding derivation. Order-independent relative to the other tokens. Unambiguous against the rest of this grammar — spec numbers are numeric, `full`/`visual`/`journey:`/`discover` are fixed keywords that never collide with the five effort words. A standalone effort token with no other tokens (e.g. `/claude-tweaks:review high`) sets the tier and otherwise falls back to rule 7 — no spec number, so mode resolves via `git diff` against the base branch, same as no arguments at all.
 
 In visual, journey, and discover modes, delegate entirely to `/claude-tweaks:visual-review` — skip Steps 1-7 (an effort token passed alongside one of these mode keywords is silently ignored, since Steps 1-7 are exactly where the lens system it gates lives).
@@ -84,6 +85,8 @@ Skip this step entirely under `ceremony-profile: fast-lane` (see "Ceremony-Aware
 above) — proceed directly to Step 1.5.
 
 If a spec number was provided, read the spec file and verify the implementation meets it:
+
+> **Parallel execution:** Use parallel tool calls aggressively — all Grep/Glob/Read operations searching the codebase for each deliverable's implementation and each criterion's verifiability are independent and should run concurrently.
 
 1. **Deliverables** — for each deliverable checkbox in the spec, search the codebase for the implementation. Mark each as `done`, `partial`, or `missing`.
 2. **Acceptance Criteria** — for each criterion, determine whether it's verifiable from the code and tests. Mark as `met`, `partially met`, or `not met`.
@@ -177,7 +180,25 @@ gate anywhere).
 
 ## Step 2: Identify What Changed
 
-Analyze `git diff` (or `git diff` against the base branch) to understand the scope:
+### Merge-Provenance Check
+
+Before analyzing the diff, check whether the base branch was merged into this branch mid-history — content that arrived via such a merge should not be misattributed as work this branch introduced. This was caught concretely during the #45 native-review prototype: a CHANGELOG entry that actually rode into the branch via a merge from `main` was flagged as if it were part of this branch's own work, and was only correctly attributed by manually tracing merge-commit parentage.
+
+```bash
+git log --merges {base}..{branch} --oneline                                      # detect
+git log --first-parent --no-merges {base}..{branch} --name-only --pretty=format:  # own-work files
+git diff {base}...{branch} --name-only                                           # full diff files
+```
+
+`{base}`/`{branch}` reuse whatever base-branch resolution the rest of this step already uses (the base branch, or the recent-commits fallback from Input resolution rule 7) — no new base-resolution logic needed.
+
+- **No merge commits detected** (the common case) — this check is a no-op: no further computation, no new output section. The rest of Step 2 proceeds exactly as before, against the full diff.
+- **Merge commits detected** — diff the "own-work files" list above against the full diff's file list. `--first-parent --no-merges` walks only the branch's own sequential commit chain, skipping content that entered solely through a merge commit's second parent — so files present in the full diff but absent from this list arrived via merge from `{base}`, not this branch's own work. Report them separately ("arrived via merge from {base}, not this branch's own work"), stating the count of files/lines excluded and why, feeding Step 7's summary. Do not fold them silently into "what changed."
+- The **own-work scope** (not the raw `git diff` scope) is what feeds the change analysis below, and what Step 3's lens dispatch and Step 3.5's debate dispatch review — merged-in-only content is excluded from review scope by default.
+
+Not to be confused with "Reusing a Prior Whole-Branch Review" below — that handles a *later spec's* review citing an *earlier spec's already-completed* whole-branch review in a multi-spec batch; this check handles what's *in the diff at all* for a single review, independent of whether any prior review exists.
+
+Analyze `git diff` (or `git diff` against the base branch) — scoped to the own-work file set above when merge commits were detected — to understand the scope:
 
 - Which files changed and in which packages/apps
 - Lines added/removed
@@ -198,7 +219,7 @@ When it's unclear which case applies, default to overlapping superset (the conse
 
 ## Step 2.5: Derive Review Effort
 
-Resolve a `review-effort` tier — one of `low` / `medium` / `high` / `xhigh` / `max`, the same vocabulary Claude Code's native `/code-review` command uses for its own effort argument — before dispatching Step 3's lenses. This tier gates which lenses run (Step 3), whether cross-lens debate runs (Step 3.5), and how findings surface (`step3-routing.md`). It is never persisted back to the work record — it's derived fresh on every review run, unlike `risk:*`/`effort:*`/`ceremony:*`.
+Resolve a `review-effort` tier — one of `low` / `medium` / `high` / `xhigh` / `max` — before dispatching Step 3's lenses. This tier gates which lenses run (Step 3), whether cross-lens debate and the per-candidate refutation pass run (Step 3.5), whether the gap-sweep pass runs (Step 3.6), and how findings surface (`step3-routing.md`). It is never persisted back to the work record — it's derived fresh on every review run, unlike `risk:*`/`effort:*`/`ceremony:*`.
 
 Resolution order — stop at the first that applies:
 
@@ -234,12 +255,14 @@ Resolution order — stop at the first that applies:
 
 3. **Diff heuristic (fallback).** No record, the record carries no `risk:*`/`effort:*` labels, or the label read failed. Derive proxies from Step 2's change analysis and feed the same table above:
    - Risk proxy = **high** if the diff touches a path matching the `merge-sensitive-paths` config key (the same key `assess-agent-autonomy`'s `merge-check` mode already reads for the identical "elevated risk from touched paths" purpose), a schema/migration file, infra/CI-CD config, or introduces a new dependency (Step 2 already flags all of these for its ops-ledger check); **medium** if it touches public API surface or a cross-package interface; **low** otherwise.
-   - Record-effort proxy (size — not the `review-effort` tier being derived here) = **high** at 10+ files or 300+ lines changed; **medium** at 3-9 files or 50-299 lines; **low** otherwise. These thresholds are fixed defaults — no config layer exists for this derivation.
+   - Record-effort proxy (size — not the `review-effort` tier being derived here): read `review-diff-heuristic-thresholds` from `.claude-tweaks/policy.yml` — shape `{high: {files, lines}, medium: {files, lines}}`, default `{high: {files: 10, lines: 300}, medium: {files: 3, lines: 50}}` (matches this skill's pre-existing hardcoded behavior when the key is unset). **high** at `high.files`+ files or `high.lines`+ lines changed; **medium** at `medium.files`-`(high.files - 1)` files or `medium.lines`-`(high.lines - 1)` lines; **low** otherwise.
    - If `git diff` produces no output to classify, default to `high` directly (skip the table) — see the ambiguity rule below.
+
+4. **Project-level floor (non-explicit resolutions only).** After step 2 or 3 above resolves a tier, read `review-effort-floor` from `.claude-tweaks/policy.yml`, mirroring `review-severity-floor`'s existing lookup precedent (`step3-routing.md`). If set, raise the resolved tier to at least the floor — never lower it (e.g. `review-effort-floor: high` turns a diff-heuristic `low` into `high`, but leaves an already-`xhigh` record-label resolution untouched). This step never applies when step 1 (explicit argument) already set the tier — an explicit token always wins, per step 1's rule above. Unset by default — no floor, current behavior unchanged.
 
 **Ambiguity never resolves toward less scrutiny.** If reading record labels fails, fall through to the diff heuristic rather than defaulting to `low`. If the diff heuristic itself can't render a clear signal, default to `high` — the tier that reproduces this skill's pre-existing default behavior — never `low`.
 
-Record the resolved tier and which resolution step produced it, for Step 7's summary: `{explicit argument | record labels: risk:{x} × effort:{y} | diff heuristic: {reasoning}}`.
+Record the resolved tier and which resolution step produced it, for Step 7's summary: `{explicit argument | record labels: risk:{x} × effort:{y} | diff heuristic: {reasoning}}`, plus `floor applied: {value}` when step 4's `review-effort-floor` raised the tier.
 
 ## Step 3: Code Review
 
@@ -261,7 +284,7 @@ The severity scale, category enum, per-lens floors, and the CALIBRATION filter a
 | 3h UX (when QA data) | high | Capable model — judgment-heavy synthesis. |
 | 3i Doc freshness | low / informational | Never blocks the review. |
 
-**Lens scope by `review-effort` tier** (resolved in Step 2.5): lower tiers dispatch fewer agent-based lenses, trading breadth for speed and higher-confidence-only output — mirroring native `/code-review`'s own effort semantics (fewer, higher-confidence findings at the low end; broader coverage at the high end).
+**Lens scope by `review-effort` tier** (resolved in Step 2.5): lower tiers dispatch fewer agent-based lenses, trading breadth for speed and higher-confidence-only output; higher tiers trade speed for broader coverage.
 
 | Tier | Agent-dispatched lenses in scope |
 |------|------|
@@ -277,7 +300,7 @@ Reproduction pairs (the 2-agent verification dispatch below) always run for ever
 
 At `xhigh` and `max`, append this sentence to each dispatched lens's prompt, after the Output Format block (do not modify the CALIBRATION block itself — it stays byte-identical across all tiers, per `step3-routing.md`'s dispatch contract): "Apply careful, thorough reasoning to this pass — consider subtle edge cases and second-order effects a faster read might miss." This is a best-effort prompt-level nudge, not a verified change to the dispatched agent's actual reasoning depth — the lens-scope table above is the load-bearing mechanism.
 
-> **Working Directory Discipline:** Applies to every `Task()` dispatch in Step 3 and Step 3.5 (reproductions and debate agents). Apply the Working Directory Discipline rule from `_shared/subagent-output-contract.md` before any git or path-sensitive command in the agent prompt. See also `_shared/git-discipline.md`.
+> **Working Directory Discipline:** Applies to every `Task()` dispatch in Step 3, Step 3.5, and Step 3.6 (reproduction, debate, refutation, and gap-sweep agents). Apply the Working Directory Discipline rule from `_shared/subagent-output-contract.md` before any git or path-sensitive command in the agent prompt. See also `_shared/git-discipline.md`.
 
 > **Parallel execution:** Before running any lens, gather all context upfront — read all changed files and their surrounding context (imports, tests, schemas) as parallel Read/Grep calls. Each lens needs the same files, so front-loading reads avoids redundant I/O.
 
@@ -412,47 +435,13 @@ Like other Lens 3i findings, these are informational and don't block review — 
 - Signal detection produced no matches → emit nothing (most reviews trigger zero diagram findings; this is correct)
 - A matching diagram already exists → emit nothing (we're not gating on freshness for diagrams since they're hand-drawn)
 
-### Step 3.5: Cross-Lens Debate
+### Step 3.5 & 3.6: Cross-Lens Debate, Per-Candidate Refutation, and Gap-Sweep
 
-**Skip this entire step when the resolved `review-effort` tier (Step 2.5) is `low` or `medium`** — contested findings remain `unconfirmed`/staged without a debate round, trading resolution depth for speed at the lower tiers, matching Step 3's own narrower lens scope there. At `high` and above, run as follows:
+Three effort-gated findings-quality mechanisms run after Step 3's per-lens reproduction completes: Cross-Lens Debate (resolves contradictions between different lenses reviewing the same region), the Per-Candidate Refutation Pass (re-examines every `confirmed` finding for correlated error reproduction-pair agreement alone can't catch), and Gap-Sweep / Completeness Critic (a single fresh-eyes agent asking what every angle-scoped lens, collectively, missed).
 
-After per-lens reproduction completes, scan for contradictions across lenses before routing. Two lenses that both flagged the same region with mismatched severity get exactly one debate round to converge or escalate to `contested`. A silent lens — one that reviewed the region but produced no finding there at all — cannot enter this mechanism: `detectCrossLensOverlap` below only pairs findings that exist in *both* lenses' arrays, so the asymmetric "one flagged, the other did not" case has no data to pair against and is never dispatched (see step 5's skip condition).
+**Skip all three entirely when the resolved `review-effort` tier (Step 2.5) is `low` or `medium`** — proceed directly to Step 3 Routing below, matching Step 3's own narrower lens scope at those tiers.
 
-1. **Detect overlap.** Collect each lens's `confirmed` and `unconfirmed` findings into one `{lensName: [findings...]}` object, write it to a temp file, and call `detectCrossLensOverlap`:
-   ```bash
-   node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/coordination.js');
-     console.log(JSON.stringify(c.detectCrossLensOverlap(require(process.argv[1]))))" \
-     /tmp/findings-by-lens.json
-   ```
-   It returns pairs `{lensA, lensB, findingA, findingB}` for findings on the same `path` within ±5 lines from *different* lenses.
-
-2. **Filter to contradictions.** Each overlap pair already has a finding from both lenses (by construction of step 1) — keep only those where the two findings' severities don't match. Pairs where the severities match (both lenses agree) produce no debate.
-
-3. **Dispatch debate (Mode 2 — 2 agents, 1 round, parallel).** For each contradiction, dispatch 2 agents using the original lens-agents' identity (re-dispatch the affected lens's reviewer with the *stripped opposing finding* as input — no model identity, no reasoning chain, just finding text + evidence). Both judges return `agree | disagree | partial` plus one paragraph of reasoning. Inline this template literally in each `Task()` prompt:
->
->    ```
->    Two lenses disagreed on this region. Review the conflicting findings below and return:
->    First line: one of DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED. Then:
->    1. Verdict: agree / disagree / partial
->    2. One paragraph of reasoning.
->
->    Contested region: {path}:{line}
->    Finding A (lens: {lensA}): {finding text}
->    Finding B (lens: {lensB}): {finding text}
->
->    [Use: Capable model — debate agent. Independent run; do not see the other judge's reasoning.]
->    ```
-
-4. **Resolve.** Apply `resolveDebate`:
-   ```bash
-   node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/coordination.js');
-     console.log(c.resolveDebate(process.argv[1], process.argv[2]))" "$VERDICT_A" "$VERDICT_B"
-   ```
-   - Both `agree` → finding upgraded to `confirmed`. Write `AUTO {HH:MM:SS} — Debate: cross-lens disagreement on {path}:{line} converged positive after 1 round. Reversibility: high.`
-   - Both `disagree` → finding downgraded to `unconfirmed` (lands in Low-confidence subsection). Write `AUTO {HH:MM:SS} — Debate: cross-lens disagreement on {path}:{line} converged negative after 1 round. Reversibility: high.`
-   - Mixed / partial → finding becomes `contested`. Write `STAGED {HH:MM:SS} — Debate: cross-lens disagreement on {path}:{line} inconclusive ({verdicts}). Both verdicts staged. Reversibility: high.` Stage the side-by-side verdicts to `staged/review-contested-{N}.md`.
-
-5. **Skip debate** when no overlap is detected, or when only one lens covered a region. Avoid running debate on every `Path:Line` where any two lenses touched — that explodes the token budget for no value.
+**At `high` and above**, Cross-Lens Debate runs. **At `xhigh` and `max` only**, the Per-Candidate Refutation Pass and Gap-Sweep additionally run (one tier stricter, so `high`-tier reviews aren't paying for all three mechanisms at once). Read `step3-debate-and-refutation.md` in this skill's directory for the full procedure — dispatch templates, `detectCrossLensOverlap`/`resolveDebate`/`resolveRefutation` invocations, and decision-log formats — lazy-loaded only when the resolved tier is `high` or above, following the same lazy-load pattern as `step3-routing.md`.
 
 After Step 3.5, every finding has a final bucket — `confirmed`, `unconfirmed`, or `contested`. Only `confirmed` findings flow into Step 3 Routing. `unconfirmed` and `contested` are already staged to the Wrap-Up Console.
 
@@ -479,7 +468,7 @@ If the reflect skill produces "Change now" fixes, re-run `/claude-tweaks:test` b
 
 ## Step 5: Simplify Changed Code
 
-Run `/claude-tweaks:simplify` on files modified during this work (use `git diff --name-only`).
+Run `/claude-tweaks:simplify` on the same own-work file scope Steps 2-4 use — the Merge-Provenance Check's own-work file list (Step 2) when merge commits were detected, otherwise the full `git diff --name-only` file set. Do not hand `/claude-tweaks:simplify` the raw diff unfiltered when merge commits were found: `/claude-tweaks:simplify` has no merge-provenance handling of its own, so it fully trusts whatever scope this step passes it — passing the raw diff would let it edit code this branch never actually introduced, the exact outcome the Merge-Provenance Check exists to prevent.
 
 The simplify skill handles scope resolution, running the code-simplifier subagent, and re-verification after changes. See `/claude-tweaks:simplify` for details.
 
@@ -488,7 +477,7 @@ The simplify skill handles scope resolution, running the code-simplifier subagen
 ## Step 6: Visual Review
 
 **When this step runs:**
-- **Code mode:** Delegate to `/claude-tweaks:visual-review discover` — it detects UI changes + affected journeys and surfaces a recommendation. Do not stop to ask; note any recommendation in the summary (Step 7).
+- **Code mode:** Delegate to `/claude-tweaks:visual-review --mode=recommendation` — it detects UI changes via `git diff` and identifies affected journeys, returning a structured recommendation without opening a browser (no `agent-browser` dependency). Do not stop to ask; note any recommendation in the summary (Step 7). This is `recommendation` mode, not `discover` mode — `discover` actually opens a browser and walks the app, which would contradict this step's "recommendation only, non-blocking" design.
 - **Full mode:** Invoke `/claude-tweaks:visual-review` with the target URL/journey and QA data (if available). The visual review owns UI/journey detection and the procedure. Findings feed into the summary (Step 7) as the "UI / Visual" lens with their own severity classifications.
 - **Visual/journey/discover mode:** Delegate entirely to `/claude-tweaks:visual-review` — skip Steps 1-5 and 7.
 

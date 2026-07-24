@@ -1,6 +1,7 @@
 ---
 name: claude-tweaks:capture
 description: Use when capturing ideas that need specification later — brain dumps, half-formed features, things to not forget
+argument-hint: '<idea text> [--route=challenge|brainstorm|keep|absorb:N] [--title="..."] [--type=bug|feature|task]'
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -25,13 +26,14 @@ Quick capture for ideas that aren't ready for full specification. Part of the wo
 
 ## Input
 
-`$ARGUMENTS` is parsed as `<idea text> [--route=<value>]`:
+`$ARGUMENTS` is parsed as `<idea text> [--route=<value>] [--title="..."] [--type=<value>]`:
 
 | Argument | Behavior |
 |----------|----------|
 | Free-text idea | The body of the new backlog record (title is derived from the first phrase or supplied via `--title=`). |
 | `--route=challenge` / `--route=brainstorm` / `--route=keep` / `--route=absorb:N` | Skip the post-capture routing prompt; apply the route directly. Legacy `--route` values are still accepted as aliases — see Immediate Routing. |
 | `--title="..."` | Override the auto-derived title. |
+| `--type=bug` / `--type=feature` / `--type=task` | Override the keyword-guessed Type outright — skips Guessing the Type below. Useful for auto-mode/headless capture calls (a Routine, or a scripted call from another skill's Next Action) where there is no next message to send a free-text correction in, and for any calling skill that already knows the correct type. |
 
 When `$ARGUMENTS` is empty, prompt the user for the idea body.
 
@@ -88,30 +90,13 @@ Read the `work-backend` field from the project's CLAUDE.md (under a `## Work rec
      --label "type:$TYPE"
    ```
 
-3. **On failure** (GitHub unreachable, `gh` broken, transient API error): fall back to the local driver — write the record via `local-store.js`'s `createRecord` (atomic id allocation; see the local-files branch below for why `allocateId`+`writeRecord` is unsafe for creating a brand-new record), using the same `deriveSlug` call as the local-files branch below:
+3. **On failure** (GitHub unreachable, `gh` broken, transient API error): fall back to the local driver — write the record via `local-store.js`'s `createRecord` (atomic id allocation; see the local-files branch below for why `allocateId`+`writeRecord` is unsafe for creating a brand-new record). Same script as the local-files branch below, with one difference: `facets` also includes `unsynced: true`.
 
-   ```bash
-   node -e "const fs=require('fs');
-     const {createRecord, deriveSlug}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/local-store.js');
-     const dir='specs';
-     const existingSlugs=fs.existsSync(dir)
-       ? fs.readdirSync(dir).map((n)=>/^\d+-(.+)\.md$/.exec(n)).filter(Boolean).map((m)=>m[1])
-       : [];
-     const slug=deriveSlug(process.argv[1], existingSlugs);
-     const record = createRecord(dir, {
-       slug,
-       title: process.argv[1],
-       body: process.argv[2],
-       facets: { type: process.argv[3], origin: 'capture', unsynced: true }
-     });
-     console.log(record.path)" "$TITLE" "$BODY" "$TYPE"
-   ```
-
-   Tell the user issue creation failed and the record landed locally instead (path printed above), `unsynced: true`. No further marker is needed beyond that facet — `/claude-tweaks:tidy`'s record scan surfaces `unsynced` local records as Sync findings, reconciling them onto GitHub on a later pass.
+   Tell the user issue creation failed and the record landed locally instead (path printed by the script), `unsynced: true`. No further marker is needed beyond that facet — `/claude-tweaks:tidy`'s record scan surfaces `unsynced` local records as Sync findings, reconciling them onto GitHub on a later pass.
 
 **When `work-backend: local-files` (or the flag is missing):**
 
-Write the record via `local-store.js`'s `createRecord` — no `unsynced` facet (there is no GitHub side to reconcile against). Use `createRecord`, not `allocateId`+`writeRecord`: two near-simultaneous `/capture` (or `/specify` decomposition) invocations calling `allocateId`+`writeRecord` separately can both read the same directory listing, both compute the same next id, and both succeed under different slugs — two records silently sharing one numeric id, corrupting any later `facets.parent`/`facets.blockedBy` reference that assumes id uniqueness. `createRecord` closes that race by allocating the id and writing the file as one atomic step (see `bin/lib/issues/local-store.js`'s header comments on `allocateId` and `createRecord`):
+Write the record via `local-store.js`'s `createRecord` — no `unsynced` facet (there is no GitHub side to reconcile against). This is the same script the `github-issues` branch's On-failure fallback above reuses, with `unsynced: true` added to `facets`. Use `createRecord`, not `allocateId`+`writeRecord`: two near-simultaneous `/capture` (or `/specify` decomposition) invocations calling `allocateId`+`writeRecord` separately can both read the same directory listing, both compute the same next id, and both succeed under different slugs — two records silently sharing one numeric id, corrupting any later `facets.parent`/`facets.blockedBy` reference that assumes id uniqueness. `createRecord` closes that race by allocating the id and writing the file as one atomic step (see `bin/lib/issues/local-store.js`'s header comments on `allocateId` and `createRecord`):
 
 ```bash
 node -e "const fs=require('fs');
@@ -158,7 +143,7 @@ Both drivers run Backend Selection above; don't overthink — capture the essenc
 
 ### Guessing the Type
 
-Type is guessed from the idea's title/body text — advisory only:
+When `--type=<value>` is supplied, skip this entirely and use it as `$TYPE` — no guessing. Otherwise, Type is guessed from the idea's title/body text — advisory only:
 
 | Title/body contains | Guessed Type |
 |---|---|
@@ -166,7 +151,7 @@ Type is guessed from the idea's title/body text — advisory only:
 | `add`, `support`, `enable`, `new`, `allow`, `feature` | `feature` |
 | none of the above | `task` |
 
-The guess rides in the existing "Added: '{title}' (Type: {t})" presentation (see Immediate Routing below) — no new question is added. The user overrides via free text in the next message.
+The guess rides in the existing "Added: '{title}' (Type: {t})" presentation (see Immediate Routing below) — no new question is added. In interactive mode, the user can still override via free text in the next message even after a guess; `--type=` is the deterministic override for auto/headless invocation, where there is no next message.
 
 ## Immediate Routing
 
@@ -216,7 +201,9 @@ The call has 4 options only when Option 4 is visible; otherwise build it with th
 |---|---|---|
 | `challenge` / `brainstorm` | Opens the child skill with the record's text as input | Opens the child skill with the issue title + body as input (reference `#{issue-number}`) |
 | `keep` | No further action — the record stays as-is at `specs/{id}-{slug}.md`, no `stage:` frontmatter | No further action — the issue is already open, `by:capture`-labeled, with no stage label. That **is** the backlog state; there is nothing to add. |
-| `absorb:N` | Integrate into record N's body (its Deliverables/AC/Technical Approach sections when shaped, otherwise its raw body), delete the absorbed record's file | Integrate into record `#N`'s body the same way, then comment `Absorbed into #N.`, then `gh issue close {n} --reason "not planned"` — mirrors `/claude-tweaks:tidy`'s Merge action |
+| `absorb:N` | Integrate into record N's body (its Deliverables/AC/Technical Approach sections when shaped, otherwise its raw body), delete the absorbed record's file | Integrate into record `#N`'s body the same way, then comment `Absorbed into #N.`, then `gh issue close {n} --reason "not planned"` — mirrors `/claude-tweaks:tidy`'s Absorb action |
+
+**Unknown or invalid `N`** — when `--route=absorb:N` names a record that doesn't resolve (nonexistent, already closed/absorbed, or a number that doesn't exist under the active backend's numbering), stop before writing or closing anything and report the invalid `N` to the user instead of guessing a fallback route — the same rule `/claude-tweaks:tidy` applies to an unknown scope name. Do not silently fall back to `keep`.
 
 This ensures every captured idea has an explicit next step — either immediate action or a conscious decision to keep it in backlog state.
 
@@ -247,11 +234,11 @@ When invoked by a parent skill, omit this block — the parent owns the handoff.
 
 ## Component-Skill Contract
 
-This skill is a **component skill** — directly invoked by `/claude-tweaks:build` (Common Step 4, design-mode follow-up capture). `/claude-tweaks:visual-review`, `/claude-tweaks:reflect`, `/claude-tweaks:wrap-up`, and `/claude-tweaks:demo` file a new backlog record directly without going through this skill, so they are NOT capture parents — they only recommend `/capture` in Next Actions for the user's next session.
+This skill is a **component skill** — directly invoked by `/claude-tweaks:build` (Common Step 4, design-mode follow-up capture) and by `/claude-tweaks:reflect` (both `full` and `hindsight` modes' Capture disposition, routing an insight/finding that's too complex or uncertain to act on without brainstorming — a distinct path from reflect's Defer disposition, which files directly and is not a capture parent). `/claude-tweaks:visual-review`, `/claude-tweaks:wrap-up`, and `/claude-tweaks:demo` file a new backlog record directly without going through this skill, so they are NOT capture parents — they only recommend `/capture` in Next Actions for the user's next session.
 
 Capture is also a parent of `/challenge` when `--route=challenge` is set — when invoking `/challenge`, capture sets `$PIPELINE_RUN_DIR` to a standalone run dir (per `_shared/pipeline-run-dir.md` step 4) if not already set, so the child's auto-mode and audit-log behavior resolves correctly.
 
-Parent invocation of `/capture` is signaled by `$PIPELINE_RUN_DIR` being set in the environment (`/build` running inside `/flow`). When invoked from within a parent's workflow, omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user (no `PIPELINE_RUN_DIR`), render Next Actions as shown above.
+Parent invocation of `/capture` is signaled by `$PIPELINE_RUN_DIR` being set in the environment. Direct invocation may pass `--source <parent-skill>` (e.g. `--source build`, `--source reflect`) as an explicit fallback when ambiguity exists (rare; `$PIPELINE_RUN_DIR` is the primary signal). This fallback matters here specifically: a standalone (non-`/flow`) design-mode `/build` invocation never resolves a run dir of its own (per `_shared/pipeline-run-dir.md`'s resolution order, the record-mode materialization exception and the standalone-auto allowlist both exclude design-mode `/build` — confirmed by `build/SKILL.md`'s own "Auto mode (including a standalone `auto` invocation with no pipeline run dir)" language). Standalone `/reflect` likewise has no run dir of its own to forward. When invoked from within a parent's workflow (via either signal), omit the `## Next Actions` block — the parent owns the handoff. When invoked directly by a user (neither signal present), render Next Actions as shown above.
 
 **Side effect of `$PIPELINE_RUN_DIR`-based detection:** if a user invokes `/capture` directly while an active `/flow` pipeline is running, Next Actions are suppressed because the env var is set. This is intentional — pipeline-mid-flow handoff suggestions would conflict with the orchestrator's flow.
 
@@ -281,8 +268,8 @@ Parent invocation of `/capture` is signaled by `$PIPELINE_RUN_DIR` being set in 
 | `/claude-tweaks:demo` | May file a linked follow-up backlog record when a human requests changes during acceptance review — references the original via an `Origin: demo changes-requested from #N` body line instead of a `by:*` label |
 | `/claude-tweaks:build` | Calls /capture during Common Step 4 (design mode) to file blocked items and follow-up ideas before they slip |
 | `/claude-tweaks:init` | After bootstrap, /init suggests /capture as the entry point for capturing ideas that surface during setup but aren't ready to specify |
-| `/claude-tweaks:reflect` | Surfaces tangential ideas at the Wrap-Up Review Console (files new backlog records directly, not via /capture) |
-| `/claude-tweaks:visual-review` | Files UI ideas (creative improvements, follow-ups) as new backlog records directly, not via /capture — only recommends /capture to the user afterward, the same pattern as /claude-tweaks:reflect above |
+| `/claude-tweaks:reflect` | Its Capture disposition (`full` and `hindsight` modes) routes a complex/uncertain insight or finding through `/claude-tweaks:capture` to file it as a fresh backlog work record — distinct from reflect's Defer disposition, which files new backlog records directly at the Wrap-Up Review Console without going through this skill |
+| `/claude-tweaks:visual-review` | Files UI ideas (creative improvements, follow-ups) as new backlog records directly, not via /capture — only recommends /capture to the user afterward, the same pattern as /claude-tweaks:reflect's Defer disposition above |
 | `/claude-tweaks:help` | Feeds items that /claude-tweaks:help surfaces in the status dashboard/queue counts. |
 | `_shared/work-record.md` | Taxonomy home — stage vocabulary (backlog / parked / ready), the permission-matrix row for `/capture` (`by:capture` + Type only), and the seven-axis label contract this skill files against |
 | `/claude-tweaks:research` | Research findings can be captured as backlog records; invoke `/research` when a backlog record needs evidence before specifying. |

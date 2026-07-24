@@ -68,11 +68,23 @@ Proceeding to walk all {N} journeys in the browser. Say "skip {numbers}" to excl
 
 Include developer journeys when the project has CLI tools, APIs, or developer-facing setup.
 
+### Budget cap (`--budget <n>`)
+
+When `--budget <n>` is passed, cap this phase (and the Phase 3 browser walkthrough) to the top `n` candidates instead of walking every candidate found. Order candidates before capping: primary user-facing flows (signup, core CRUD, checkout-equivalent) first, then supporting/admin flows, then developer-facing entry points last — the same rough precedence already implied by the candidate ordering in the example above. Still present all `{N}` discovered candidates in the numbered list (so the user can see what was found and what got excluded by the cap), but change the auto-proceed line to state the cap:
+
+```
+Proceeding to walk the top {n} of {N} journeys in the browser (--budget {n}). Say "skip {numbers}" to exclude any of the {n}, or "include {numbers}" to walk a specific excluded candidate anyway.
+```
+
+Without `--budget`, behavior is unchanged — proceed to walk all `{N}` candidates as documented above. In a large brownfield app, `--budget` bounds the number of full page walks (codebase scan is unaffected — it always runs against the whole app; only the Phase 3 browser session cost scales with the cap).
+
 ## Phase 3: Browser Walkthrough
 
 **Dispatcher column mapping (discover-mode use):** When assembling agent output for Phase 4 (journey file creation) and Phase 5 (coverage report), map the agent's `| Severity | Path:Line | Finding | Evidence |` columns as follows: Severity = recommendation urgency (`info` for documented page, `low` for nice-to-have journey, `medium` for canonical journey worth writing, `high` for broken/missing critical flow), Path:Line = the discovered route/page (`/checkout/payment`, `/admin/users/{id}`), Finding = the candidate journey + persona (`Returning user creates a new project`), Evidence = the screenshot path + key observations (`screenshots/browse/discover-public-pages/03_payment.png; LCP 1.8s; primary CTA at [3]`). The dispatcher merges all agents' tables into Phase 4 (journey file creation) and Phase 5 (coverage report).
 
 > **Parallel execution (conditional):** When multiple candidate journeys share no pages, dispatch each as a parallel Task agent — each agent runs its own session and `batch` invocation independently. Journeys that share state (login, form data) must remain sequential to avoid interference. A single journey's steps are always sequential within its batch.
+>
+> **Contract:** Each agent follows `_shared/subagent-output-contract.md` — minimal input, status line first, output template inlined verbatim below.
 >
 > **Model tier:** Standard (Sonnet) — discover-mode journey walkers do multi-step navigation, snapshot interpretation, and "should feel" inference from live experience. Upgrade to Capable (Opus) only when the candidate journey hinges on subjective UX synthesis that Standard would flatten.
 >

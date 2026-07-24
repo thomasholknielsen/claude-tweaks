@@ -1,6 +1,7 @@
 ---
 name: claude-tweaks:ledger
 description: Use when you need to create, update, query, or resolve open items in a pipeline ledger file. Called by /claude-tweaks:build, /claude-tweaks:test, /claude-tweaks:review, /claude-tweaks:wrap-up, and /claude-tweaks:flow — or standalone for ledger inspection.
+argument-hint: "[resolve [<feature-name>]|<feature-name>]"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -32,7 +33,8 @@ Manage the open items ledger that tracks findings, operational tasks, and observ
 | Argument | Behavior |
 |----------|----------|
 | *(none)* | Show current ledger status — counts by phase and status |
-| `resolve` | Run the nothing-left-behind gate on the active ledger |
+| `resolve` | Run the nothing-left-behind gate on the most recent ledger |
+| `resolve {feature-name}` | Run the nothing-left-behind gate on the ledger matching `{feature-name}`, instead of defaulting to the most recent one |
 | `{feature-name}` | Show ledger for a specific feature |
 
 ## Ledger File
@@ -189,6 +191,8 @@ Only delete when the resolve gate has passed — all items must have terminal st
 
 ### `/claude-tweaks:ledger` (no arguments)
 
+> **Parallel execution:** Use parallel tool calls aggressively — all `Glob`/`Read` operations across the matched ledger files are independent and should run concurrently.
+
 1. Find active ledger files: glob `docs/plans/*-ledger.md`
 2. For each ledger, show:
    ```
@@ -197,9 +201,16 @@ Only delete when the resolve gate has passed — all items must have terminal st
    ```
 3. If open items exist, highlight them
 
+### `/claude-tweaks:ledger {feature-name}`
+
+1. Glob `docs/plans/*-ledger.md` and match `{feature-name}` against each file's `{feature}` slug (case-insensitive substring match — e.g. `auth` matches `2026-01-15-auth-refactor-ledger.md`)
+2. If exactly one file matches, show its full item table
+3. If multiple files match, list all matches (with their dates) and ask the user which one they mean
+4. If no file matches, report `No ledger found for "{feature-name}"` and list the currently active ledgers (same glob as the no-arguments form) so the user can retry with a correct name
+
 ### `/claude-tweaks:ledger resolve`
 
-1. Find the active ledger (most recent `docs/plans/*-ledger.md`)
+1. Find the active ledger: if a `{feature-name}` is given (`resolve {feature-name}`), match it against `docs/plans/*-ledger.md` the same way the `{feature-name}` form does above — if no match, report `No ledger found for "{feature-name}"` and list the currently active ledgers instead of guessing. Otherwise, default to the most recent `docs/plans/*-ledger.md`.
 2. Run the resolve gate procedure
 3. Present results
 
@@ -211,11 +222,9 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 - Option 2 — `label`: `"Re-run resolve gate"`, `description`: `"/claude-tweaks:ledger resolve — re-run the nothing-left-behind gate if items remain open"`
 - Option 3 — `label`: `"Pipeline status"`, `description`: `"/claude-tweaks:help — check overall pipeline status"`
 
-## Component-Skill Contract
+## Invocation Model
 
-`/ledger` is consumed as a **knowledge dependency** by `/build`, `/test`, `/review`, `/wrap-up`, `/flow`, and `/tidy` — they read this skill to learn the ledger file format and resolve-gate procedure, then write to `docs/plans/YYYY-MM-DD-{feature}-ledger.md` directly using file operations. There is no programmatic invocation API.
-
-When `$PIPELINE_RUN_DIR` is set, `/ledger` is running inside a pipeline (typically standalone via /ledger resolve at wrap-up time). In that case omit the `## Next Actions` block — the parent owns the handoff.
+`/ledger` is consumed as a **knowledge dependency** by `/build`, `/test`, `/review`, `/wrap-up`, `/flow`, and `/tidy` — they read this skill to learn the ledger file format and resolve-gate procedure, then write to `docs/plans/YYYY-MM-DD-{feature}-ledger.md` directly using file operations. There is no programmatic invocation API, so the standard Component-Skill Contract (which suppresses `## Next Actions` when a parent skill is driving the interaction via `$PIPELINE_RUN_DIR`) does not apply here: no parent skill ever invokes `/claude-tweaks:ledger` through the Skill tool, so every actual run of this skill's own procedure is a direct, standalone invocation — `## Next Actions` always renders.
 
 ## Anti-Patterns
 

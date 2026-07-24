@@ -46,7 +46,14 @@ Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_
 - `review-severity-floor` value from `config.yml` (default `low`).
 - The resolved `review-effort` tier from `/claude-tweaks:review`'s Step 2.5.
 
-**Effort-tier surfacing.** By default (`review-effort` at `low`/`medium`/`high`), this table includes only `confirmed` findings — `unconfirmed` (single-source, or debate converged negative) and `contested` (debate inconclusive) findings bypass this table entirely and route straight to the Wrap-Up Review Console's Low-confidence and Contested subsections, unchanged from this skill's pre-existing behavior.
+**`unconfirmed` findings can originate from several sources**, and all render identically in this table with `(low-confidence)` appended — the caller does not distinguish them:
+
+- No reproduction agreement (Step 3) — a lens's finding surfaced by only one of its two reproduction agents.
+- Cross-lens debate converged negative (Step 3.5) — both judges disagreed.
+- A `confirmed` finding downgraded by the Per-Candidate Refutation Pass (Step 3.5, `xhigh`/`max` only) — the finding survived reproduction (and possibly debate) but a later falsification agent refuted it.
+- Gap-sweep, single-source by design (Step 3.6, `xhigh`/`max` only) — a fresh-eyes finding with no reproduction partner, by design (pairing it against a second identical fresh-eyes agent would defeat its purpose).
+
+**Effort-tier surfacing.** By default (`review-effort` at `low`/`medium`/`high`), this table includes only `confirmed` findings — `unconfirmed` (any of the sources above) and `contested` (debate inconclusive) findings bypass this table entirely and route straight to the Wrap-Up Review Console's Low-confidence and Contested subsections, unchanged from this skill's pre-existing behavior.
 
 At **`xhigh` and above**, `unconfirmed` findings additionally appear inline in this table too — add them as ordinary rows with `(low-confidence)` appended to the Finding column, alongside the `confirmed` rows. They still also get staged to the Wrap-Up Console as before (surfacing inline doesn't remove the staging).
 

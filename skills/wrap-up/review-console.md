@@ -8,6 +8,16 @@ The Review Console is the **second bookend** of the pipeline (see `_shared/auto-
 - **`auto` or `hybrid` mode with `MULTISPEC_REVIEW_DEFER=1`** — **skip**. The consolidated multi-spec Review Console at `/flow` end-of-run will read this spec's `decisions.md` + `staged/` and surface everything in one place. See `flow/multispec-review-console.md` in the `/claude-tweaks:flow` skill's directory.
 - **`interactive` mode** — skip; decisions were resolved in-flow
 
+## Dry-run mode (`--dry-run`)
+
+When `--dry-run` was passed to this wrap-up invocation (see `SKILL.md` Step 1's Flags subsection), run every analysis step normally — Steps 3-8, and the Auto-merge short-circuit's content-judgment verdict below — but treat everything from this point forward as preview-only:
+
+- Skip the Auto-merge short-circuit's actual `git merge --no-ff` / `git push` even when both layers pass — log the verdict and what would have merged, then fall through to rendering the console below as a normal (non-merging) run.
+- Present the console tables exactly as usual, but every action under "On approval" and "On override" becomes a printed preview line instead of an executed one — no `git apply`, no `git revert`, no `git commit`, no `gh issue create` / `local-store.js` write, no cleanup deletion, no skill-file write.
+- Queue writes (`Q#` items) still render for visibility, but the per-item `AskUserQuestion` drill is skipped — each renders as "would create: {content}" instead.
+- Log to `decisions.md`: `AUTO {time} — Dry-run: {N} items would have been applied; 0 applied (--dry-run).`
+- After presenting, stop — do not proceed to Step 9/10's real execution; report the preview as the run's final output.
+
 ## Auto-merge short-circuit
 
 When this run's spec has a materialized header (`record:` field present in
