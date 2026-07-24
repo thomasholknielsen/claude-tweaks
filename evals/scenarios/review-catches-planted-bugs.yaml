@@ -9,8 +9,18 @@ fixture:
 skill_invocation:
   prompt: "/claude-tweaks:review"
 answer_overrides:
+  # Forced to "high", not "medium": the review-effort-tiering feature (added
+  # to the live skill since this scenario was first calibrated in Task 6)
+  # means "medium" now deliberately dispatches fewer lenses and skips the
+  # cross-lens debate round (skills/review/SKILL.md Step 2.5's lens-scope
+  # table + Step 3.5's tier gate) — a real Task 7.6 confirming run at
+  # "medium" completed in ~5.7min/13 tool calls and never even rendered the
+  # structured Review Summary Template, just a short prose recap. "high"
+  # dispatches every applicable lens and "reproduces this skill's
+  # pre-existing default behavior" (SKILL.md's own words) — the tier Task 6's
+  # original 245-259-tool-call calibration runs actually exercised.
   - match: "review-effort"
-    answer: "medium"
+    answer: "high"
 assertions:
   # Severities and `contains` values below reflect real Task 6 end-to-end
   # runs' actual output, not the pre-run guesses in the original brief
