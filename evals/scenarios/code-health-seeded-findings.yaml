@@ -26,8 +26,10 @@ description: >
   Tasks 7.5-7.8 (evals/runner.js's managedSettings.sandbox + PLUGIN_ROOT
   snapshot, evals/actor.js's async-coordination guard) against this
   scenario's sibling (review-catches-planted-bugs), which now passes
-  cleanly and reproducibly. This scenario itself still has not had its own
-  clean real confirming run since those fixes landed — that's the next step.
+  cleanly and reproducibly. This scenario itself has since had its own clean
+  real confirming run: PASS, $2.42, 5 tool calls, ~9.7min — the local dedup
+  cache was correctly created inside the fixture, and the real repo checkout
+  was confirmed untouched afterward.
 fixture:
   base: code-health-repo
   seed: []

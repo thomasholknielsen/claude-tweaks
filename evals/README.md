@@ -73,6 +73,13 @@ real tool access, and unknown failure modes are always possible. Run new or
 changed scenarios once, watch the result, and check `git status` in the real
 repo afterward before trusting a scenario as safe to run unattended.
 
+**Known limitation — tool-count undercount:** `managedSettings.sandbox`'s own
+`autoAllowBashIfSandboxed` default lets many sandboxed Bash calls bypass
+`canUseTool` entirely once the sandbox is active, so `runner.js`'s
+`toolCalls` count (and any `tool-count` assertion built on it) only reflects
+calls that actually reached `canUseTool`, not the run's true total tool use.
+Treat `tool-count` as a rough ceiling, not an exact count.
+
 ## Comparing before/after a skill change
 
     node runner.js run --all               # on main

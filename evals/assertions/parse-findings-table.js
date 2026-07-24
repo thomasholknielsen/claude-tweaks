@@ -25,6 +25,12 @@
 // clean file's name) is specific enough that cross-table collision is a
 // low-probability edge case, not worth scoping further right now.
 
+// Known, accepted limitation: the leading/trailing empty cells produced by a
+// well-formed `| a | b |`-style row are intentionally filtered out here, but
+// so is any GENUINELY empty cell mid-row (e.g. `| a | | c |`) — this would
+// silently shift every cell after it left by one index, including against
+// severityIdx below. Not observed in practice across any real captured
+// output; would need a positional (not content) filter to handle correctly.
 function splitRow(line) {
   return line
     .trim()

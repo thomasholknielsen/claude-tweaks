@@ -18,10 +18,13 @@ description: >
   writes application code" / "point the user at /flow, don't do it yourself"
   contract (see .superpowers/sdd/task-9-report.md for the full evidence:
   actual git commits found inside the fixture's own tmpdir). That product-level
-  finding is not fixed on this branch — flagged separately for whoever owns
-  skills/triage/SKILL.md. This scenario now serves as a regression check for
-  it: if a future run of triage builds anything under local-files, this
-  scenario should fail loudly.
+  finding was fixed on this branch (skills/triage/SKILL.md's Preflight gate
+  now explicitly enumerates what to never do and states the boundary holds
+  even with no interactive human present), verified via a real confirming
+  run (PASS, $0.44, 1 tool call — a qualitative behavioral shift, not just a
+  coin-flip). This scenario now serves as the permanent regression check: if
+  a future change to triage causes it to build anything under local-files
+  again, this scenario should fail loudly.
 fixture:
   base: none
   seed:

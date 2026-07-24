@@ -94,6 +94,11 @@ export async function runScenarioWith(scenarioPath, opts = {}) {
           filesystem: { allowRead: [path.join(repoDir, '.git')] },
         },
       },
+      // Known undercount: managedSettings.sandbox's own `autoAllowBashIfSandboxed`
+      // default lets many sandboxed Bash calls bypass canUseTool entirely, so
+      // toolCalls (and the tool-count assertion it feeds) only counts calls that
+      // actually reached this callback, not every tool call the run made. See
+      // README.md's Safety model section.
       canUseTool: async (toolName, input, options) => {
         toolCalls.push(toolName);
         return actor(toolName, input, options);
