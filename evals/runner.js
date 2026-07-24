@@ -5,6 +5,7 @@
 // own orchestration logic is testable without a live API call — see
 // evals/tests/runner.test.js.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { load as loadYaml } from 'js-yaml';
@@ -18,6 +19,29 @@ const PLUGIN_ROOT = path.resolve(EVALS_ROOT, '..');
 const SCENARIOS_DIR = path.join(EVALS_ROOT, 'scenarios');
 const FIXTURES_DIR = path.join(EVALS_ROOT, 'fixtures');
 const RESULTS_DIR = path.join(EVALS_ROOT, 'results');
+
+// Task 7.6 (incident-driven, see task-7.6-brief.md): PLUGIN_ROOT is this
+// actual live worktree, since evals/ lives inside the very plugin under
+// test. Passing it directly as plugins[0].path let the SDK's own auto-
+// injected "Base directory for this skill: <PLUGIN_ROOT>/skills/<name>" line
+// entice a confused/exploring model into cd-ing into the real repo instead
+// of staying inside the fixture. buildPluginSnapshot() copies only the
+// directories a skill invocation actually needs to resolve plugin/skill
+// content into a fresh tmpdir, excluding .git, evals/, docs/,
+// .claude-tweaks/, and .superpowers/ — so plugins[0].path never names a real,
+// nameable path into this worktree.
+const PLUGIN_SNAPSHOT_DIRS = ['.claude-plugin', 'skills', 'agents', 'hooks', 'bin', 'commands'];
+
+export function buildPluginSnapshot() {
+  const snapshotDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-plugin-snapshot-'));
+  for (const name of PLUGIN_SNAPSHOT_DIRS) {
+    const src = path.join(PLUGIN_ROOT, name);
+    if (fs.existsSync(src)) {
+      fs.cpSync(src, path.join(snapshotDir, name), { recursive: true });
+    }
+  }
+  return snapshotDir;
+}
 
 function buildFixture(scenario, fixturesDir) {
   const dir = freshRepo();
@@ -47,6 +71,7 @@ export async function runScenarioWith(scenarioPath, opts = {}) {
   const { queryFn = realQuery, resultsDir = RESULTS_DIR, fixturesDir = FIXTURES_DIR } = opts;
   const scenario = loadYaml(fs.readFileSync(scenarioPath, 'utf8'));
   const repoDir = buildFixture(scenario, fixturesDir);
+  const pluginSnapshotDir = buildPluginSnapshot();
   const actor = createActor({ answerOverrides: scenario.answer_overrides, repoDir });
 
   const toolCalls = [];
@@ -59,13 +84,14 @@ export async function runScenarioWith(scenarioPath, opts = {}) {
     prompt: scenario.skill_invocation.prompt,
     options: {
       cwd: repoDir,
-      plugins: [{ type: 'local', path: PLUGIN_ROOT }],
+      plugins: [{ type: 'local', path: pluginSnapshotDir }],
       managedSettings: {
         sandbox: {
           enabled: true,
           failIfUnavailable: true,
           allowUnsandboxedCommands: false,
           network: { allowedDomains: [] },
+          filesystem: { allowRead: [path.join(repoDir, '.git')] },
         },
       },
       canUseTool: async (toolName, input, options) => {

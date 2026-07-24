@@ -3,7 +3,8 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { runScenarioWith } from '../runner.js';
+import { fileURLToPath } from 'node:url';
+import { runScenarioWith, buildPluginSnapshot } from '../runner.js';
 
 // A fake queryFn matching the shape runner.js expects: given a single
 // { prompt, options } argument (matching the real SDK's query() signature),
@@ -135,5 +136,50 @@ test('runScenarioWith: wires managedSettings.sandbox into the SDK options to con
     failIfUnavailable: true,
     allowUnsandboxedCommands: false,
     network: { allowedDomains: [] },
+    // Task 7.6 (incident-driven, see task-7.6-brief.md): confirmed via a
+    // controller A/B test that managedSettings.sandbox denies reading
+    // .git/config even inside the fixture's own working directory, breaking
+    // git status/log/diff there. filesystem.allowRead restores that access.
+    // Asserted structurally below (derived from this test run's own repoDir
+    // via capturedOptions.cwd, which runner.js sets to the same repoDir
+    // value) rather than as a hardcoded string, since freshRepo() uses
+    // mkdtempSync and the actual path differs per run.
+    filesystem: { allowRead: [path.join(capturedOptions.cwd, '.git')] },
   });
+});
+
+test('runScenarioWith: does not pass the real repo root as plugins[0].path (Task 7.6 — PLUGIN_ROOT snapshot)', async () => {
+  const scenariosDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-scen-'));
+  const scenarioPath = path.join(scenariosDir, 'sample.yaml');
+  fs.writeFileSync(scenarioPath, [
+    'name: sample-plugin-snapshot',
+    'fixture:',
+    '  base: none',
+    '  seed: []',
+    'skill_invocation:',
+    '  prompt: "hello"',
+    'assertions:',
+    '  - type: tool-called',
+    '    name: Read',
+    '    atLeast: 1',
+  ].join('\n'));
+
+  const resultsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-results-'));
+
+  capturedOptions = null;
+  await runScenarioWith(scenarioPath, { queryFn: fakeQueryCapturingOptions, resultsDir, fixturesDir: scenariosDir });
+
+  assert.ok(capturedOptions, 'queryFn should have been invoked with an options object');
+  const realRepoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+  assert.notStrictEqual(capturedOptions.plugins[0].path, realRepoRoot);
+  assert.ok(fs.existsSync(capturedOptions.plugins[0].path), 'the snapshot path passed to plugins[0].path should actually exist');
+});
+
+test('buildPluginSnapshot: copies plugin content into a fresh tmpdir, excluding evals/.git/docs (Task 7.6)', () => {
+  const snapshotDir = buildPluginSnapshot();
+
+  assert.ok(fs.existsSync(path.join(snapshotDir, 'skills')), 'snapshot should contain a skills subdirectory');
+  assert.ok(!fs.existsSync(path.join(snapshotDir, 'evals')), 'snapshot must not contain evals/');
+  assert.ok(!fs.existsSync(path.join(snapshotDir, '.git')), 'snapshot must not contain .git');
+  assert.ok(!fs.existsSync(path.join(snapshotDir, 'docs')), 'snapshot must not contain docs/');
 });
