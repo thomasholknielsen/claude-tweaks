@@ -17,19 +17,17 @@ description: >
   (a second invocation reusing the same fixture instance) is NOT covered here:
   runner.js's buildFixture always creates a fresh temp repo per run, and adding a
   --repo-dir override to test that is out of this task's scope (see task-7-report.md).
-  KNOWN OPEN ISSUE (see task-7-report.md's Real run section for the full incident
-  writeup): the one real run made against this scenario during authoring did NOT
-  validate against this fixture at all — the model, cued by the harness's own
-  auto-injected "Base directory for this skill: <real-worktree-absolute-path>"
-  line, `cd`-ed via Bash into the actual live claude-tweaks checkout instead of
-  staying in the fixture repoDir the SDK's `options.cwd` set, bypassing
-  evals/actor.js's path-based scope guard entirely (Bash command text isn't
-  inspected — a known, documented, accepted residual gap). As a real
-  consequence it filed a real GitHub issue on the live repo, which this task
-  then had to close. This scenario's fixture/assertions are believed structurally sound
-  (see the reasoning above) but are UNCONFIRMED by any clean real pass — treat a
-  future real run of this scenario as carrying the same live-repo-escape risk
-  until that harness-level gap is addressed (out of this task's scope to fix).
+  RESOLVED (see task-7-report.md for the original incident writeup): the one
+  real run made against this scenario during authoring escaped via Bash `cd`
+  into the real repo and filed a real GitHub issue there — closed and
+  remediated. Root cause (no OS-level containment, a real-repo `.git` read
+  regression, PLUGIN_ROOT naming the real live checkout, and an async
+  subagent-coordination hang) has since been fixed and validated across
+  Tasks 7.5-7.8 (evals/runner.js's managedSettings.sandbox + PLUGIN_ROOT
+  snapshot, evals/actor.js's async-coordination guard) against this
+  scenario's sibling (review-catches-planted-bugs), which now passes
+  cleanly and reproducibly. This scenario itself still has not had its own
+  clean real confirming run since those fixes landed — that's the next step.
 fixture:
   base: code-health-repo
   seed: []
