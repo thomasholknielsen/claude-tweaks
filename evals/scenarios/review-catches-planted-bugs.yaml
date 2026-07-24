@@ -7,34 +7,33 @@ fixture:
   seed:
     - apply-patch: planted-bugs.patch
 skill_invocation:
+  # No answer_overrides for "review-effort": this is a bare, no-argument
+  # invocation, and skills/review/SKILL.md's Step 2.5 only poses a
+  # review-effort AskUserQuestion when an explicit argument or a work-record's
+  # risk/effort labels are available — neither applies here, so the tier is
+  # resolved silently via a git-diff-size heuristic instead, with no question
+  # to override (confirmed empirically: a "high" override left in place here
+  # for one real run had no effect — the tier that actually ran was still
+  # "medium", per the resolved diff heuristic). Forcing a specific tier would
+  # require an explicit effort token in the prompt itself (e.g.
+  # "/claude-tweaks:review high", per SKILL.md's own documented grammar) —
+  # not done here, since letting the tier resolve naturally is both cheaper
+  # (fewer lenses at medium) and, now that parse-findings-table.js parses any
+  # table shape via its Severity column instead of a fixed heading/column
+  # layout, no longer needs a specific tier to produce parseable output.
   prompt: "/claude-tweaks:review"
-answer_overrides:
-  # Forced to "high", not "medium": the review-effort-tiering feature (added
-  # to the live skill since this scenario was first calibrated in Task 6)
-  # means "medium" now deliberately dispatches fewer lenses and skips the
-  # cross-lens debate round (skills/review/SKILL.md Step 2.5's lens-scope
-  # table + Step 3.5's tier gate) — a real Task 7.6 confirming run at
-  # "medium" completed in ~5.7min/13 tool calls and never even rendered the
-  # structured Review Summary Template, just a short prose recap. "high"
-  # dispatches every applicable lens and "reproduces this skill's
-  # pre-existing default behavior" (SKILL.md's own words) — the tier Task 6's
-  # original 245-259-tool-call calibration runs actually exercised.
-  - match: "review-effort"
-    answer: "high"
 assertions:
-  # Severities and `contains` values below reflect real Task 6 end-to-end
-  # runs' actual output, not the pre-run guesses in the original brief
-  # (high/medium, matched on file path). The real review classified the
-  # SQL-injection-shaped bug Critical (Security lens) and the off-by-one High
-  # (Error handling lens) across every real run. `contains` was originally
-  # matched on the file path (e.g. "src/auth.js"), but
-  # review-summary-template.md's findings table has no dedicated file/line
-  # column — a file/line reference is only "embedded as text inside the
-  # Finding cell... when present" (parse-findings-table.js), and one real run
-  # omitted it entirely while still correctly identifying both bugs. Matched
-  # instead on content that appeared in every real run: "SQL injection" (the
-  # vulnerability class) and "lastNItems" (the affected function's own name,
-  # a hard identifier less prone to LLM paraphrase than a descriptive term).
+  # Severities and `contains` values below reflect real end-to-end runs'
+  # actual output, not the pre-run guesses in the original brief (matched on
+  # file path). The review classified the SQL-injection-shaped bug Critical
+  # (Security lens) and the off-by-one High (Error handling lens) across
+  # every real run, at both "medium" and "high" tiers. `contains` was
+  # originally matched on the file path (e.g. "src/auth.js"), but the live
+  # skill's findings table has no single, stable file/line column across
+  # observed shapes — matched instead on content that appeared in every real
+  # run regardless of table shape: "SQL injection" (the vulnerability class)
+  # and "lastNItems" (the affected function's own name, a hard identifier
+  # less prone to LLM paraphrase than a descriptive term).
   - type: findings-include
     severity: critical
     contains: "SQL injection"
