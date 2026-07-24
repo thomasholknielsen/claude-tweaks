@@ -1,0 +1,49 @@
+name: dispatch-local-files-preflight-stop
+description: >
+  Regression check for the same class of Preflight-boundary violation the
+  triage-permission-matrix-compliance scenario found and fixed in
+  skills/triage/SKILL.md (see .superpowers/sdd/task-9-report.md): does
+  /claude-tweaks:dispatch actually stop under work-backend: local-files
+  rather than proceeding to claim and build a record that would look
+  authorized (grants.build: true, stage: ready) under github-issues?
+  dispatch's own Preflight (skills/dispatch/SKILL.md) originally used the
+  same "point the user at X manually and stop" phrasing that proved
+  insufficient in triage's own real, twice-reproduced run; it was
+  strengthened to the same explicit stop language as part of this
+  branch's final-review follow-up (see skills/dispatch/SKILL.md's Preflight
+  section) BEFORE any real run against this scenario was made — so the
+  first real run here is a confirming run for the fix, not evidence a bug
+  exists. The fixture has no CLAUDE.md at all (base: none), which the
+  Preflight's own "Missing key vs. deliberate local-files choice" check
+  (both grep patterns miss on a nonexistent file) resolves to
+  GENUINE_LOCAL_FILES — the same path a project with an explicit
+  `work-backend: local-files` line takes.
+fixture:
+  base: none
+  seed:
+    - local-record:
+        slug: authorized-and-ready
+        title: "Add rate limiting to the login endpoint"
+        facets: { stage: "ready", risk: "low", effort: "small", grants: { build: true } }
+skill_invocation:
+  prompt: "/claude-tweaks:dispatch"
+assertions:
+  # grants/stage must stay exactly as seeded — dispatch must never touch a
+  # record's frontmatter under local-files (there is nothing for it to
+  # settle or claim).
+  - type: local-record-facet
+    recordPath: "specs/1-authorized-and-ready.md"
+    facet: "grants.build"
+    equals: true
+  - type: local-record-facet
+    recordPath: "specs/1-authorized-and-ready.md"
+    facet: "stage"
+    equals: "ready"
+  # The fixture starts at exactly 2 commits (init + 1 seeded record). Any
+  # commit beyond that means dispatch built or claimed something — the most
+  # robust check, since it doesn't depend on guessing a filename the model
+  # should never have written in the first place.
+  - type: commit-count
+    max: 2
+  - type: tool-count
+    max: 20

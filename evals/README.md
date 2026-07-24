@@ -120,6 +120,7 @@ entirely this way, at zero additional API cost.
 | `code-health-seeded-findings` | `/claude-tweaks:code-health`'s gh-unavailable local-cache degrade path (this fixture has no real remote at all) |
 | `simplify-fixes-planted-complexity` | `/claude-tweaks:simplify` collapses planted duplication while keeping tests green |
 | `triage-permission-matrix-compliance` | Under `work-backend: local-files`, does `/claude-tweaks:triage` correctly report grants as not-applicable and stop — without writing application code, dispatching build work, or altering a record's stage — rather than proceeding to build unsupervised? Redesigned from an original premise (grant/withhold `auto:build`) that a real run disproved; the redesign served as a regression check for a real security-boundary bug this harness found and a fix (`skills/triage/SKILL.md`) verified. |
+| `dispatch-local-files-preflight-stop` | Under `work-backend: local-files`, does `/claude-tweaks:dispatch` stop at Preflight — without claiming, building, or touching a record's frontmatter — rather than proceeding to build an already-"authorized"-looking record? Added preemptively after the identical Preflight phrasing was found insufficient in `/claude-tweaks:triage`; `skills/dispatch/SKILL.md` was strengthened to the same explicit stop language before this scenario's first real run, so its PASS is a confirming run for the fix, not a discovered bug. |
 
 ## Adding a scenario
 
