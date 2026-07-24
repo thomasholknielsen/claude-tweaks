@@ -137,12 +137,22 @@ test('async coordination guard: Agent dispatch with run_in_background:true is de
   assert.ok(result.message.length > 0);
 });
 
-test('async coordination guard: Agent dispatch with run_in_background:false (or omitted) is allowed', async () => {
+test('async coordination guard: Agent dispatch with run_in_background:false is allowed', async () => {
   const actor = createActor();
-  const explicitFalse = await actor('Agent', { description: 'simplify', prompt: 'do it', run_in_background: false }, {});
-  assert.strictEqual(explicitFalse.behavior, 'allow');
-  const omitted = await actor('Agent', { description: 'simplify', prompt: 'do it' }, {});
-  assert.strictEqual(omitted.behavior, 'allow');
+  const result = await actor('Agent', { description: 'simplify', prompt: 'do it', run_in_background: false }, {});
+  assert.strictEqual(result.behavior, 'allow');
+});
+
+// AgentInput.run_in_background defaults to true (background) when omitted,
+// per the SDK's own sdk-tools.d.ts doc comment — an omitted field is NOT
+// safe to allow, unlike every other tool's path-based checks. This was a
+// real gap in an earlier version of the guard (caught by whole-branch
+// review): a check for `=== true` alone missed the omitted case entirely.
+test('async coordination guard: Agent dispatch with run_in_background omitted is denied (defaults to background per the SDK)', async () => {
+  const actor = createActor();
+  const result = await actor('Agent', { description: 'simplify', prompt: 'do it' }, {});
+  assert.strictEqual(result.behavior, 'deny');
+  assert.ok(result.message.length > 0);
 });
 
 test('async coordination guard: applies even when repoDir is set, ahead of the scope guard', async () => {

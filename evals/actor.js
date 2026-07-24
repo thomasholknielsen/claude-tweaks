@@ -84,10 +84,15 @@ export function createActor({ answerOverrides = [], repoDir } = {}) {
         message: `${toolName} is not supported when running under the eval harness — there is no live multi-turn harness process to deliver a scheduled wakeup or background task notification here. Complete this step synchronously, inline, in this same turn instead of waiting on a background task.`,
       };
     }
-    if (toolName === 'Agent' && input && input.run_in_background === true) {
+    // AgentInput.run_in_background defaults to true when omitted — the SDK's
+    // own sdk-tools.d.ts doc comment: "Agents run in the background by
+    // default... Set to false to run this agent synchronously." A check for
+    // `=== true` alone misses the (more common) omitted case, which
+    // backgrounds just the same. Deny unless explicitly false.
+    if (toolName === 'Agent' && (!input || input.run_in_background !== false)) {
       return {
         behavior: 'deny',
-        message: 'Agent dispatch with run_in_background:true is not supported when running under the eval harness — the background task\'s completion cannot be delivered back to this session. Dispatch synchronously (run_in_background:false or omitted) instead.',
+        message: 'Agent dispatch is not supported when running under the eval harness unless explicitly synchronous (run_in_background:false) — it defaults to running in the background, and the background task\'s completion cannot be delivered back to this session. Dispatch with run_in_background:false instead.',
       };
     }
     if (toolName !== 'AskUserQuestion') {
