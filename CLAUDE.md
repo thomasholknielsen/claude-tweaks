@@ -27,6 +27,7 @@ bin/hooks.js                      → Hook dispatcher (one entry point for all h
 bin/                              → Node executables (statusline, deps check)
 bin/lib/                          → Shared Node helpers (color, deps, coordination, issue claims + ingestion, policy). Multi-file modules live directly at bin/lib/{name}/ (e.g. bin/lib/issues/, bin/lib/hooks/, bin/lib/health-core/) — flat sibling directories, NOT a nested _shared/ wrapper. That convention is specific to skills/_shared/; don't assume it applies here.
 tests/                            → Node test files (node --test runner)
+evals/                            → Reproducible eval/benchmark harness ("drills") — a separate Node project (own package.json/npm install/tests) that runs real claude-tweaks skills against isolated fixture repos via the Claude Agent SDK and grades cost + quality. Not part of the plugin runtime; see `evals/README.md` for setup, usage, and its safety model
 README.md                         → User-facing documentation
 LICENSE                           → MIT
 ```
@@ -182,6 +183,8 @@ node --test bin/lib/journey-health/tests/*.test.js   # Journey-health unit suite
 node bin/journey-health.js <cmd>     # Journey-health CLI: next-target, validate-findings, mark, churn-report, qa-evidence
 node --test bin/lib/docs-health/tests/*.test.js   # Docs-health unit suite only
 node bin/docs-health.js <cmd>        # Docs-health CLI: next-target, validate-findings, mark, churn-report, word-count, find-refs, check-freshness
+cd evals && npm install && node --test tests/   # Eval harness's own free unit suite — NOT included in root `npm test` (separate package.json/node_modules)
+cd evals && node runner.js run <scenario>       # Runs a real scenario against the live Claude Agent SDK — costs real tokens/dollars, see evals/README.md
 ```
 
 ### Subagent Contract (v4.2+)
