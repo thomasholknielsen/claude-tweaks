@@ -1,0 +1,36 @@
+name: triage-permission-matrix-compliance
+description: >
+  Does /claude-tweaks:triage correctly grant auto:build on a ready, scored
+  record, and correctly withhold it (flagging back to unscored) on a record
+  that was never shaped?
+fixture:
+  base: none
+  seed:
+    - local-record:
+        slug: ready-and-scored
+        title: "Add input validation to the signup form"
+        facets: { stage: "ready", risk: "low", effort: "small" }
+    - local-record:
+        slug: never-shaped
+        title: "Investigate flaky CI"
+        facets: {}
+skill_invocation:
+  prompt: "/claude-tweaks:triage"
+assertions:
+  # recordPath values confirmed directly (not just assumed) by running
+  # createRecord/seedLocalWorkRecord against an empty specs/ dir in this
+  # exact seed order before the first live run: allocateId scans the (empty)
+  # dir fresh per call, so the first local-record step gets id 1
+  # (specs/1-ready-and-scored.md) and the second gets id 2
+  # (specs/2-never-shaped.md) — matches bin/lib/issues/local-store.js's
+  # allocateId/createRecord exactly, no adjustment needed.
+  - type: local-record-facet
+    recordPath: "specs/1-ready-and-scored.md"
+    facet: "grants.build"
+    equals: true
+  - type: local-record-facet
+    recordPath: "specs/2-never-shaped.md"
+    facet: "grants.build"
+    equals: false
+  - type: tool-count
+    max: 40

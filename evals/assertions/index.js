@@ -6,6 +6,7 @@ import { toolCount } from './tool-count.js';
 import { commitCount } from './commit-count.js';
 import { findingsInclude } from './findings-include.js';
 import { findingsExcludeFalsePositive } from './findings-exclude-false-positive.js';
+import { localRecordFacet } from './local-record-facet.js';
 
 // Registry mapping a scenario assertion's `type` field to its implementation.
 // Each fn takes (context, params) -> {pass, message}. context is built once
@@ -19,6 +20,7 @@ const ASSERTIONS = {
   'commit-count': (ctx, params) => commitCount(ctx.repoDir, params),
   'findings-include': (ctx, params) => findingsInclude(ctx.resultText, params),
   'findings-exclude-false-positive': (ctx, params) => findingsExcludeFalsePositive(ctx.resultText, params),
+  'local-record-facet': (ctx, params) => localRecordFacet(ctx.repoDir, params),
 };
 
 export function runAssertion(context, assertion) {

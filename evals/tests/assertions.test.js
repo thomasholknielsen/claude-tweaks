@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import path from 'node:path';
 import { runAssertion } from '../assertions/index.js';
-import { freshRepo, seedFiles } from '../fixtures/git-fixtures.js';
+import { freshRepo, seedFiles, seedLocalWorkRecord } from '../fixtures/git-fixtures.js';
 
 const SAMPLE_FINDINGS_TEXT = `
 ## Review: test
@@ -69,6 +69,14 @@ test('tool-called: passes when the tool was called at least N times', () => {
 test('tool-count: fails when over max', () => {
   const result = runAssertion({ toolCalls: new Array(50).fill('Read') }, { type: 'tool-count', max: 40 });
   assert.strictEqual(result.pass, false);
+});
+
+test('local-record-facet: reads a facet from a seeded local-files record', () => {
+  const dir = freshRepo();
+  const record = seedLocalWorkRecord(dir, { slug: 'triage-me', title: 'Triage Me', facets: { stage: 'ready', risk: 'low' } });
+  const relPath = record.path.replace(dir + path.sep, '');
+  const result = runAssertion({ repoDir: dir }, { type: 'local-record-facet', recordPath: relPath, facet: 'stage', equals: 'ready' });
+  assert.strictEqual(result.pass, true);
 });
 
 test('commit-count: counts commits since a ref', () => {
