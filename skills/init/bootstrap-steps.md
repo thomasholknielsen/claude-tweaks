@@ -231,7 +231,7 @@ When migrating from a versioned path, announce: "Migrating to wrapper at `<wrapp
 
 ## Optional Enhancement Steps
 
-Order-agnostic and append-only — each step below is an independent "detect condition → offer → write artifact → idempotent" companion integration. New enhancements are added at the end of this group; no renumbering is needed for future additions. One narrow exception: Step 9's native-Type mention reads a config key (`work-types`) that only Step 15 writes — see Step 9's own note for how it handles running before Step 15 on a fresh bootstrap.
+Order-agnostic and append-only by default — most steps in this group are independent "detect condition → offer → write artifact → idempotent" companion integrations with no dependency on each other's order, so a new one is normally added at the end with no renumbering. Step 13 (Cloud/Routine Parity Setup) is the one deliberate exception: it must run before Step 14 (Routine Installation) — a Routine created before cloud/plugin parity is set up would silently fail its first cloud firing — so it was inserted with a full renumbering of Steps 13-15 → 14-16 rather than appended. Future additions default back to append-only unless they have the same kind of genuine ordering dependency on an earlier step. One further narrow exception: Step 9's native-Type mention reads a config key (`work-types`) that only Step 16 writes — see Step 9's own note for how it handles running before Step 16 on a fresh bootstrap.
 
 ### Step 9 — GitHub issue form template (agent-task)
 
@@ -255,10 +255,10 @@ When this project's `work-types` config key reads `native`, mention to the user 
 filed issue can also carry a native Type — GitHub's own Type picker in the create-issue UI
 sits alongside this form (it is not a templated YAML field below), so a filer sets Type
 there directly instead of a filing skill inferring it from prose afterward. `work-types`
-is only ever written by Step 15's capability probe, so on a fresh bootstrap run (where
-this step executes before Step 15 in the file's presented order) it is still unset when
+is only ever written by Step 16's capability probe, so on a fresh bootstrap run (where
+this step executes before Step 16 in the file's presented order) it is still unset when
 Step 9 runs — the template-install offer itself proceeds regardless (it doesn't depend on
-Type), but defer this specific mention: re-check `work-types` once Step 15 completes and
+Type), but defer this specific mention: re-check `work-types` once Step 16 completes and
 surface the native-Type note then as a short addendum, not a repeat of the whole offer. On
 an `/init update` re-run, `work-types` is already set from a prior run, so this step can
 check and mention it inline as written, with no deferral needed.
@@ -561,7 +561,7 @@ the honestly-reached partial state) rather than aborting the rest of bootstrap.
 
 ---
 
-### Step 13 — Routine Installation (detailed procedure)
+### Step 14 — Routine Installation (detailed procedure)
 
 claude-tweaks skills can ship one or more routine templates (schema: `skills/_shared/routine-template-schema.md`) — a skill's default template at `skills/{skill}/routine-template.yml`, plus optional named variants at `skills/{skill}/routine-template-<variant>.yml` — each enabling `/claude-tweaks:routine create <skill> [--variant=<name>]` to instantiate a scheduled cloud Routine for this project. Examples: code-health's nightly LLM-as-judge sweep, tidy's periodic backlog hygiene pass, or tidy's frequent GitHub-issue-triage variant. This step surfaces that option right after bootstrap instead of leaving it to be discovered later.
 
@@ -605,7 +605,7 @@ A user who wants a non-default schedule or environment for a specific routine de
 
 ---
 
-### Step 14 — Non-default-branch issue tracking (companion workflow)
+### Step 15 — Non-default-branch issue tracking (companion workflow)
 
 Offer only when the project has a GitHub-flavored remote — same two-tier, GHE-safe gate
 Step 9 uses (`gh repo view` when available, remote-exists fallback otherwise). Check
@@ -658,7 +658,7 @@ the next `/init` run.
 
 ---
 
-### Step 15 — Work-Record Backend (detailed procedure)
+### Step 16 — Work-Record Backend (detailed procedure)
 
 `/claude-tweaks:capture`, `/claude-tweaks:specify`, `/claude-tweaks:triage`,
 `/claude-tweaks:dispatch`, `/claude-tweaks:tidy`, and the health skills
@@ -729,7 +729,7 @@ not rewrite it here — see "Re-run behavior" below for why that rename belongs 
 Update-Mode, offered as a staged change, never applied silently by a Phase 0 pass
 landing on an existing config.
 
-**Sub-step 15b — Capability probe.** Runs immediately after Step 15 writes
+**Sub-step 16b — Capability probe.** Runs immediately after Step 16 writes
 `work-backend` fresh (either branch above) — not on a re-run where the flag was
 already set; see "Re-run behavior" below.
 
@@ -755,7 +755,7 @@ Under `work-backend: local-files`, skip the probe entirely and write
 `work-types: labels` plus `work-links: body-text` directly — those are the only
 expressions a plain file store supports, so there is nothing to detect.
 
-**Sub-step 15c — Label provisioning offer** (`work-backend: github-issues` only).
+**Sub-step 16c — Label provisioning offer** (`work-backend: github-issues` only).
 Call `AskUserQuestion`:
 
 - `question`: `"Provision all core work-record labels now?"`, `header`:
@@ -777,7 +777,7 @@ Call `AskUserQuestion`:
   first appear on GitHub, not whether the system works."`
 
 On option 1, run the check-then-create loop from `_shared/label-bootstrap.md` with
-its canonical `LABELS_JSON`. When `work-types: labels` (per Sub-step 15b's probe
+its canonical `LABELS_JSON`. When `work-types: labels` (per Sub-step 16b's probe
 result), also run the same loop with `record.js`'s `TYPE_LABELS` — the canonical
 `LABELS_JSON` structurally excludes `type:*`, so without this second pass the
 option's "never pays the lazy-create path" promise would be false for Type labels
@@ -798,19 +798,19 @@ re-triage.
 
 **Re-run behavior (keyed to `work-backend`).** When `/init` is re-run on a project
 where `work-backend: github-issues` is already set, this step — including
-sub-steps 15b and 15c — is a no-op; ongoing capability re-probing on an
+sub-steps 16b and 16c — is a no-op; ongoing capability re-probing on an
 already-provisioned project is Update-Mode's job (see `update-mode.md`'s
 Work-Record Backend Drift), not a repeat of this bootstrap step. When
 `work-backend: local-files` is set, re-run the Gate check — if a GitHub remote has
 since become available (the project was local-only at the last `/init` and has
-since been pushed), offer the upgrade path back to `github-issues`, running 15b/15c
+since been pushed), offer the upgrade path back to `github-issues`, running 16b/16c
 as part of that upgrade. When `work-backend` is **missing**, check for the legacy
 `backlog-backend` key first: if present, this is not a fresh-init project — leave
 it untouched and defer to Update-Mode's rename offer (see the Legacy alias note
 above), rather than silently provisioning a second, differently-named section
 beside it. Only when neither key is present does this count as a true fresh init:
 apply the same Gate-based handling described above — silently set `github-issues`
-(running 15b/15c) when the gate succeeds, present the gate-fails prompt otherwise.
+(running 16b/16c) when the gate succeeds, present the gate-fails prompt otherwise.
 
 See `_shared/work-record.md` for the full record taxonomy and config-key table that
 this flag, and the two keys it provisions alongside it, govern.
