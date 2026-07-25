@@ -14,7 +14,7 @@ For each journey in scope:
 
 Route surviving findings by severity, mirroring the shape `_shared/journey-self-review.md`'s own consumers use:
 
-- **Structural-validity failure, or any content-check failure** → collect as `[journey] {file} — {description}` rows, surfaced in the Wrap-Up Review Console's own "Journey updates" section (Step 8.6). Applied inline in Step 10, dispatching the same fix-inline behavior `/claude-tweaks:journeys` Step 3.5 uses (one fix attempt per issue) rather than filing a GitHub issue — wrap-up has full session context on what was just built, unlike `/claude-tweaks:journey-health`'s audit-time pass on journeys nobody has touched recently.
+- **Structural-validity failure, or any content-check failure** → collect as `[journey] {file} — {description}` rows, surfaced in the Wrap-Up Review Console's own "Journey updates" section (Step 8.6). Applied inline in Step 10, following the same fix-inline behavior `/claude-tweaks:journeys` Step 3.5 uses (one fix attempt per issue) rather than filing a GitHub issue — wrap-up has full session context on what was just built, unlike `/claude-tweaks:journey-health`'s audit-time pass on journeys nobody has touched recently.
 
 ## J2: Missing-journey gap-detection
 
