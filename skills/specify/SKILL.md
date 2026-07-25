@@ -305,7 +305,7 @@ Defaults below apply under `--granularity standard` (the default when the flag i
 | `early-production` | Two leaves — implement the new path behind a flag, then a second leaf removing the old path once the flag is validated |
 | `established` | Three leaves — parallel implementation, cutover, decommission, sequenced so the old path keeps working until cutover is verified |
 
-An ambiguous match (rewrite language present, but Landscape scan can't confirm outside usage of the named target) falls through to the standard five heuristics below rather than forcing a strangler-fig shape onto something that may not need it. `--granularity` does not apply once this path is taken — the two/three-leaf counts above are fixed regardless of `fine`/`coarse`.
+An ambiguous match (rewrite language present, but neither Step 1's reads nor the targeted grep can confirm outside usage of the named target) falls through to the standard five heuristics below rather than forcing a strangler-fig shape onto something that may not need it. `--granularity` does not apply once this path is taken — the two/three-leaf counts above are fixed regardless of `fine`/`coarse`.
 
 Otherwise, split along these natural boundaries (in priority order):
 

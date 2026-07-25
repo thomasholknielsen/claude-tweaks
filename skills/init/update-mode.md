@@ -95,13 +95,17 @@ gets written (see `phase-3-classification.md`'s "Writing project.maturity to
 policy.yml"), whether or not that value has changed since the last run. What
 this check adds is *visibility*: when the value read into the Phase 1u
 inventory (`### policy.yml` above) differs from what Phase 3 goes on to
-confirm, surface that specific change as its own line in the Drift Report
-(e.g. "Maturity changed: `early-production` → `established`"), so the user
-sees it was a *change*, not just a routine confirmation of an unchanged value.
+confirm, note that specific change in Phase 9's Actions Performed
+Classification row (e.g. "Confirmed maturity `established` (changed from
+`early-production`), doc tier `{N}`") rather than the Drift Report — the
+Drift Report's own Contract-Drift and Stale/Drifted/Gaps batches are already
+presented and resolved earlier in this same phase, before Phase 3's
+classification gate produces the value this comparison needs, so it is no
+longer an open surface by the time this comparison is computable.
 
 | Signal | Detection | Surfacing |
 |---|---|---|
-| The `project.maturity` value read into the Phase 1u inventory differs from the classification Phase 3 goes on to confirm | Compare the Phase 1u inventory's stored value against Phase 3's freshly confirmed classification, once Phase 3 completes | Add one line to the Drift Report noting the change; the write itself happens via Phase 3's existing confirmation gate, not a separate approval here |
+| The `project.maturity` value read into the Phase 1u inventory differs from the classification Phase 3 goes on to confirm | Compare the Phase 1u inventory's stored value against Phase 3's freshly confirmed classification, once Phase 3 completes | Note the change in Phase 9's Actions Performed Classification row (see `SKILL.md`'s Phase 9 Actions Performed table); the write itself happens via Phase 3's existing confirmation gate, not a separate approval here |
 
 ## Phase 1u.6: Update Mode Early-Exit Gate
 
