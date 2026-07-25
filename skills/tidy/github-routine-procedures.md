@@ -36,7 +36,7 @@ Every Standalone-auto `--scope=github` firing updates one rolling digest artifac
 **Identity:**
 - `work-backend: github-issues` (or any project with a reachable GitHub remote, regardless of which record-storage backend is active — this is about where the digest lives, not the record-storage choice): find the digest issue via a plain, strongly-consistent list — never `gh issue list --search`, which rides GitHub's eventually-consistent search index (this produced three separate duplicate digest issues in production before this fix — #1016, #1079, #1089) and, without an explicit `--limit`, can also silently paginate past the target issue on a busy repo. `specify/record-creation.md`'s Idempotency section documents and avoids this identical anti-pattern; this step now follows the same idiom:
 
-  ````bash
+  ```bash
   gh issue list --state open --json number,title,body,createdAt --limit 500 > /tmp/tidy-digest-issues.json
 
   node -e "
@@ -45,7 +45,7 @@ Every Standalone-auto `--scope=github` firing updates one rolling digest artifac
     const result = findByMarker(issues, '<!-- tidy-digest-marker -->');
     require('fs').writeFileSync('/tmp/tidy-digest-lookup.json', JSON.stringify(result));
   "
-  ````
+  ```
 
   Read `/tmp/tidy-digest-lookup.json`:
   - `null` (first-ever firing, or the issue was manually closed): `gh issue create --title "Tidy GitHub-Triage Digest" --body-file <file>` once.
