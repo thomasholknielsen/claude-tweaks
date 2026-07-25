@@ -163,7 +163,7 @@ The pipeline auto-resolved {N} decisions and staged {M} items for your review. T
 | 3 | /build | Scope-creep: added src/utils/cache.ts to plan | commit `abc1234` | Applied |
 | 4 | /stories | Applied 2 journey link suggestions | stories/login.yml, stories/logout.yml | Applied |
 
-A `SCANNED` entry (skill-curation's null-result / scan-summary log line — see `_shared/auto-decision-log.md`) also renders in this section, but with `Status` = `Informational` and `Where` = the step/location it ran at (no commit ref, since nothing was applied) — there is nothing to revert for these rows.
+A `SCANNED` entry (skill-curation's scan-summary log line — see `_shared/auto-decision-log.md`) also renders in this section, but with `Status` = `Informational` and `Where` = the step/location it ran at (no commit ref, since nothing was applied) — there is nothing to revert for these rows.
 
 #### Pending review (staged — apply, skip, or modify per item)
 
