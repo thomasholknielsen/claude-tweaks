@@ -213,6 +213,12 @@ Evaluate each gap candidate (from Step 3, or seeded by a caller — e.g. wrap-up
 
 **Propose the candidate when at least 2 of the 3 criteria are clearly met.** A candidate meeting all three is a strong recommendation; one meeting exactly two is proposed for human review. A candidate meeting ≤1 criterion is dropped — note which criteria were missing so the decision is auditable.
 
+**Fold-into-existing-skill branch (ordering, explicit).** This gate runs first, unchanged, exactly as above — a candidate that fails it (≤1 criterion met) is dropped outright, full stop; the domain-fit check below never becomes a second path around the gate, and a signal-4-admitted candidate's reusability/complexity/project-specificity criteria must still be judged independently, never assumed satisfied by the fact that signal 4 (Step 3's single-module-reuse signal) admitted it. Only for a candidate that already clears the ≥2-of-3 gate: check whether an existing skill's domain — read that skill's **full body**, not just its frontmatter `description`; a superficial keyword match against a broad or catch-all description is not sufficient evidence of genuine fit — already reasonably covers this territory.
+- **If yes**, propose a `kind: "patch"` to that skill instead of a new file (Finding Shape's `patch` fields: `section`/`oldString`/`newString`).
+- **If no** existing skill's domain fits, propose `kind: "new-skill"` as before.
+
+**Per-consumer domain-fit scope.** The domain-fit check's comparison scope differs by which of the three consumers (see the table at the top of this file) is running it: `/claude-tweaks:wrap-up` Step 7 already has a bounded read set (7.2's top-cap ∪ seeds) to check the candidate against — reuse it, no extra reads needed. Standalone `/claude-tweaks:harness-health` and `/claude-tweaks:init` Phase 3/6 have no equivalent pre-bounded skill list for this check — for those two, scan the full skill library's frontmatter `description` fields (a cheap scan, not a full-body read for every skill), then read the full body only of any skill whose description plausibly matches before deciding fit.
+
 ## Step 5: Verify Gate (adversarial, before staging)
 
 Before a finding is emitted, re-examine it and answer three questions — same discipline `/code-health` already applies:
