@@ -48,13 +48,15 @@ Pipeline complete for specs 157, 159, 160. The pipeline auto-resolved {N} decisi
 
 #### Auto-applied (already in commits — override = revert)
 
-| # | Spec | Skill | What | Where |
-|---|---|---|---|---|
-| 1 | 157 | /review | Applied 3 severity:low formatting fixes | commit `def5678` |
-| 2 | 157 | /test | Auto-fixed 4 lint failures | commit `ghi9012` |
-| 3 | 159 | /build | Scope-creep: added src/utils/cache.ts to plan | commit `abc1234` |
-| 4 | 159 | /review | Applied 2 severity:low naming consistency fixes | commit `jkl4567` |
-| 5 | 160 | /stories | Applied 2 journey link suggestions | stories/login.yml, stories/logout.yml |
+| # | Spec | Skill | What | Where | Status |
+|---|---|---|---|---|---|
+| 1 | 157 | /review | Applied 3 severity:low formatting fixes | commit `def5678` | Applied |
+| 2 | 157 | /test | Auto-fixed 4 lint failures | commit `ghi9012` | Applied |
+| 3 | 159 | /build | Scope-creep: added src/utils/cache.ts to plan | commit `abc1234` | Applied |
+| 4 | 159 | /review | Applied 2 severity:low naming consistency fixes | commit `jkl4567` | Applied |
+| 5 | 160 | /stories | Applied 2 journey link suggestions | stories/login.yml, stories/logout.yml | Applied |
+
+A `SCANNED` entry (skill-curation's null-result / scan-summary log line — see `_shared/auto-decision-log.md`) also renders in this section, tagged with its originating spec, but with `Status` = `Informational` and `Where` = the step/location it ran at (no commit ref, since nothing was applied) — there is nothing to revert for these rows.
 
 #### Pending review (staged — apply, skip, or modify per item)
 
