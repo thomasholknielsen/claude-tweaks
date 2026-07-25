@@ -152,7 +152,7 @@ Queue writes below — do not drop it.
 ```markdown
 ### Wrap-Up Review Console
 
-The pipeline auto-resolved {N} decisions and staged {M} items for your review. The named batch sections below resolve via one batch choice; Queue writes (a separate, eighth section) require per-item approval because `_shared/auto-mode-contract.md` lists work-record creation as not-silenced by `auto`.
+The pipeline auto-resolved {N} decisions and staged {M} items for your review. The named batch sections below resolve via one batch choice; Queue writes (a separate, tenth section) require per-item approval because `_shared/auto-mode-contract.md` lists work-record creation as not-silenced by `auto`.
 
 #### Auto-applied (already in commits — override = revert)
 
