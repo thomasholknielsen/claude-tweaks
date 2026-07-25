@@ -14,7 +14,7 @@ For each journey in scope:
 
 Route surviving findings by severity, mirroring the shape `_shared/journey-self-review.md`'s own consumers use:
 
-- **Structural-validity failure, or any content-check failure** → collect as `[journey] {file} — {description}` rows, surfaced in the Wrap-Up Review Console's own "Journey updates" section (Step 8.6). Applied inline in Step 10, following the same fix-inline behavior `/claude-tweaks:journeys` Step 3.5 uses (one fix attempt per issue) rather than filing a GitHub issue — wrap-up has full session context on what was just built, unlike `/claude-tweaks:journey-health`'s audit-time pass on journeys nobody has touched recently.
+- **Structural-validity failure, or any content-check failure** → collect as `[journey] {file} — {description}` rows, surfaced in the Wrap-Up Review Console's own "Journey updates" section (Step 8.6) or, in interactive/standalone mode, folded into Step 9's generic Configuration Updates batch table (that lower-traffic template is intentionally not split further — see the Gotcha at the bottom of this file, same precedent `docs-health-integration.md` established for Step 7.7). Applied inline in Step 10 exactly like any other approved fix — never filed as a GitHub issue, unlike `/claude-tweaks:journey-health`'s audit-time pass on journeys nobody has touched recently; wrap-up has full session context on what was just built.
 
 ## J2: Missing-journey gap-detection
 
@@ -42,3 +42,7 @@ Reversibility: N/A.
 `{N}`/`{names}` are J1's in-scope journeys (files: frontmatter overlapping the diff — `0`/`none` when no journey overlaps). `{selfReview}` summarizes pass/fail per journey checked. `{gapResult}` names whether J2 found a hit (`found`/`not found`). Auto mode appends this line to `decisions.md` under the `SCANNED` tag (see `_shared/auto-decision-log.md`); interactive mode prints the equivalent line inline instead of `decisions.md`.
 
 Declare **"No journey updates needed"** only when J1 finds no journey in scope (or every in-scope journey passes every check) AND J2 finds no missing-journey gap — and even then, the mandatory summary line above is still emitted, naming the journeys checked and the gap-detection outcome. A "no updates needed" outcome that skips the summary line is a Step 7.8 defect, not a valid completion.
+
+## Gotcha: Step 9's standalone template is not split
+
+`wrap-up/SKILL.md`'s Step 9 "Present Consolidated Summary" standalone template (the non-Review-Console path, used in interactive mode or standalone wrap-up) folds journey findings into the same generic `### Configuration Updates (from Step 6)` table alongside CLAUDE.md/rule/ADR/documentation items. This is deliberate — Step 9 is a lower-traffic path (Step 8.6's Review Console already covers the console-driven flow with its own dedicated "Journey updates" section), and splitting Step 9's template is out of scope for this change, matching the identical precedent `docs-health-integration.md` already established for Step 7.7.

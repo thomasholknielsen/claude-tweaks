@@ -9,6 +9,6 @@ Shared checklist for judging whether a journey file (`docs/journeys/{name}.md`) 
 3. **Origin coverage** — every `files:` entry should be reachable through the documented steps. If a changed file isn't visited by any step, either add the missing step or drop the file from `files:`.
 4. **Outcome clarity** — what does success look like for this journey? If the journey ends in ambiguity ("user is logged in" without where they land), tighten it.
 
-## Structural validity (checked first, both consumers)
+## Structural validity (checked first, all three consumers)
 
 A journey file is structurally invalid when it's missing required frontmatter, missing the `## Steps` heading, or has no steps at all. All three consumers treat this as a harder failure than the four content checks above, escalating it more strongly than an ordinary check violation — see each consumer's own workflow for its exact response.
