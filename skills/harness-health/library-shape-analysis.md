@@ -6,19 +6,20 @@ A periodic pass in `/claude-tweaks:harness-health`'s existing SELECT → JUDGE �
 
 This pass is its own rotation slot with a fixed pseudo-target — `kind: library-shape`, `target: library-shape` — on a 90-day interval (the same "stale" window the standard per-target rotation already uses), not tied to any single skill's own staleness/churn cursor, since this dimension has no single natural target.
 
-Before Step 1's `next-target` call (which only knows about real skill/rule/claude-md/design-artifact/memory files and never returns this pseudo-target on its own), check whether this pass is due:
+Before Step 1's `next-target` call (which only knows about real skill/rule/claude-md/design-artifact/memory files and never returns this pseudo-target on its own), check whether this pass is due. Cursors live on the dedicated `health-state` git branch, not local `cache.json` — `readCache()` never has a `cursors` key under this project's durable-state architecture (see `_shared/health-state.md`). Read the cursor via `readDurableState`, which `bin/lib/harness-health/cache.js` re-exports from `bin/lib/health-core/durable-state.js`'s `readState`:
 
 ```bash
 node -e "
-  const {readCache} = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/harness-health/cache.js');
-  const c = readCache('.claude-tweaks/harness-health/cache.json');
-  const cur = c.cursors && c.cursors['library-shape:library-shape'];
+  const {readDurableState} = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/harness-health/cache.js');
+  const root = process.cwd();
+  const cursors = readDurableState(root).cursors;
+  const cur = cursors['library-shape:library-shape'];
   const days = cur ? (Date.now() - cur.lastAuditedMs) / 86400000 : Infinity;
   console.log(JSON.stringify({due: days >= 90, daysSinceLastAudit: cur ? Math.floor(days) : null}));
 "
 ```
 
-(If `readCache` isn't exported under that exact name, read `bin/lib/harness-health/cache.js` to confirm the actual export and adjust the one-liner — the cache file's own shape, `{cursors: {"${kind}:${target}": {lastAuditedMs, ...}}}`, is what matters, not the exact helper name.)
+Note this is a network call, not a pure local read — `readDurableState` does a `git fetch origin health-state` before returning, and degrades to an empty `{cursors: {}, retryQueue: [], runs: []}` shape (so `cur` comes back `undefined`, meaning "due") if the branch doesn't exist yet or the fetch fails. This exactly mirrors `bin/harness-health.js`'s own `cmdNextTarget` cursor-read pattern (`const durableCursors = readDurableState(root).cursors;` at line 80) — not a guess, the same call the standard rotation already makes.
 
 If due (or never audited — `cur` is absent), run this pass this firing, in addition to (not instead of) whatever `next-target` returned for the standard rotation. If not due, skip this pass entirely this firing.
 
