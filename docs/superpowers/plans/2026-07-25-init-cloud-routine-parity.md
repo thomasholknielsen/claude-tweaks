@@ -609,12 +609,14 @@
 
 - [ ] **Step 1: Confirm no orphaned old-numbering references remain anywhere live**
 
+  Note (found during Task 1's review): after renumbering, "Step 13", "Step 14", and "Step 15" are all now **legitimate, current** references (new Step 13 = Cloud/Routine Parity Setup, new Step 14 = Routine Installation, new Step 15 = Non-Default-Branch Issue Tracking) — a bare `grep -i "step 1[3-5]"` sweep cannot produce "no output" the way it could pre-renumbering, and treating non-empty output as failure would be wrong. The actual signal of staleness is a "Step 13/14/15" reference that still describes the *old* topic assignment (old 13 = Routine Installation, old 14 = Non-Default-Branch Issue Tracking, old 15 = Work-Record Backend) rather than the new one. Run the sweep, then manually classify every hit:
+
   ```bash
-  grep -rn -i "step 1[3-5]\b" --include="*.md" skills/ | grep -v "^skills/init/skill-template.md"
-  grep -rn -i "\b1[3-5][abc]\b" --include="*.md" skills/
+  grep -rn -i "step 1[3-6]\b" --include="*.md" skills/ | grep -v "^skills/init/skill-template.md"
+  grep -rn -i "\b1[3-6][abc]\b" --include="*.md" skills/
   ```
 
-  Expected: no output from either (the `skill-template.md` exclusion guards against a false-positive match inside that file's own generic "### Step N" placeholder prose, if any — confirm by inspection whether the exclusion was actually needed; drop it from the command if `skill-template.md` has no such match).
+  For each hit, confirm the surrounding text's *topic* (Cloud parity / Routine Installation / Non-Default-Branch Issue Tracking / Work-Record Backend / a `15b`/`15c`/`16b`/`16c` sub-step) matches the number used, per `skills/init/bootstrap-steps.md`'s own current step headers (`grep -n "^### Step " skills/init/bootstrap-steps.md` to get the authoritative current mapping). Expected: every hit is topic-consistent with its number; zero hits describe the old topic under the old number (e.g. no text says "Step 13" while describing Routine Installation, no text says "Step 15" while describing Work-Record Backend). The `skill-template.md` exclusion guards against a false-positive match inside that file's own generic "### Step N" placeholder prose, if any — confirm by inspection whether the exclusion was actually needed; drop it from the command if `skill-template.md` has no such match.
 
 - [ ] **Step 2: Confirm historical/frozen docs were NOT touched**
 
