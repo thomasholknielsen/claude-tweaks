@@ -187,6 +187,16 @@ For the full procedure — registry maintenance (new/deleted/moved docs, stale A
 
 Documentation curation declares "No documentation updates needed" only when the domain-overlap scan (D0), the touched-docs judgment (D1), and the missing-doc gap detection (D2) all come up empty — never merely because nothing was flagged elsewhere — and even then a mandatory `SCANNED` summary line (naming docs touched, domain-overlap docs read, and gap-detection outcome — see `docs-health-integration.md`) is logged so the null result is auditable. Staged updates and restructural filings surface at the Wrap-Up Review Console (Step 8.6) in the "Documentation updates" section, or Step 9's generic Configuration Updates batch table in interactive/standalone mode (Step 9's template is intentionally not split further — see `docs-health-integration.md`'s own Gotcha note).
 
+## Step 7.8: Journey Curation
+
+Analyze whether journeys the current diff touches have drifted out of sync, and detect a persona-facing flow this work introduced with zero journey coverage — based on what was actually built, always recomputed fresh (no reuse of `/review`'s 3g-cov lens, which computes journey-to-story coverage, not diff overlap, and is purely informational with no persisted artifact to reuse). This step runs standalone (not batched with Step 6) for the same reason Steps 7 and 7.7 do — full-file reads and shared-criteria judgment, not a lightweight registry/CLAUDE.md scan.
+
+Unlike Step 7's skill curation and Step 7.7's documentation curation, journey scope-selection is a direct computation — `docs/journeys/*.md` whose `files:` frontmatter overlaps `git diff --name-only` against this work's base ref — not a ranked domain-overlap scan over the whole library. There is no `--journey-budget` flag and no fast-lane-narrows-the-cap behavior to document; the computation itself is cheap and deterministic regardless of ceremony profile.
+
+For the full procedure — the fresh diff-vs-`files:`-frontmatter overlap computation, the inline application of `_shared/journey-self-review.md`'s four checks plus structural-validity check, missing-journey gap detection, and the mandatory null-result summary line — read `journey-curation.md` in this skill's directory.
+
+Journey curation declares "No journey updates needed" only when no journey's `files:` frontmatter overlaps the diff AND missing-journey gap detection finds no persona-facing flow with zero coverage — and even then a mandatory summary line (naming journeys checked, self-review outcome per journey, and gap-detection outcome — see `journey-curation.md`) is logged so the null result is auditable. Findings surface at the Wrap-Up Review Console (Step 8.6) in the "Journey updates" section.
+
 ## Step 8: Analyze Next Steps (record- or spec-based only)
 
 Determine:
@@ -248,13 +258,13 @@ After option 1, apply `ledger/resolve-gate.md` Phase 3's `Acknowledge` dispositi
 
 ## Step 8.6: Wrap-Up Review Console (back-loaded review)
 
-The Review Console is the **second bookend** of the pipeline (see `_shared/auto-mode-contract.md`). Runs in `auto` or `hybrid` mode when a pipeline run directory exists. Skipped in `interactive` mode and in standalone wrap-up. Reads `decisions.md`, `staged/`, and `config.yml` from the run directory, then presents one consolidated batch table with up to seven sections (Auto-applied / Pending review / Low-confidence findings / Contested findings / Skill updates / Configuration updates / Cleanup actions) and three actions (Approve all / Override / Stop). The two coordination-derived sections (Low-confidence findings, Contested findings) render only when non-empty.
+The Review Console is the **second bookend** of the pipeline (see `_shared/auto-mode-contract.md`). Runs in `auto` or `hybrid` mode when a pipeline run directory exists. Skipped in `interactive` mode and in standalone wrap-up. Reads `decisions.md`, `staged/`, and `config.yml` from the run directory, then presents one consolidated batch table with up to nine sections (Auto-applied / Pending review / Low-confidence findings / Contested findings / Skill updates / Documentation updates / Journey updates / Configuration updates / Cleanup actions) and three actions (Approve all / Override / Stop). The two coordination-derived sections (Low-confidence findings, Contested findings) render only when non-empty.
 
 **Multi-spec defer:** when `MULTISPEC_REVIEW_DEFER=1` is set by `/flow` multi-spec orchestration, skip the per-spec console — the consolidated end-of-run console at `/flow` handles all approvals across every spec in the run. Leave `staged/` and `decisions.md` untouched, append a "deferred" log entry, and proceed to Step 9.
 
 Empty-console fast path: skip the console entirely and proceed to Step 9 when all of `review-console.md`'s Empty-console fast path conditions hold (`decisions.md` has zero entries, `staged/` is empty, no skill/config updates exist, no cleanup actions apply, no queue writes are pending).
 
-For the run-directory resolution sequence, the multi-spec defer protocol, the full console template with all seven section tables (including the conditionally-rendered Low-confidence and Contested findings sections), approval/override/stop semantics, and the sort-order requirement, read `review-console.md` in this skill's directory.
+For the run-directory resolution sequence, the multi-spec defer protocol, the full console template with all nine section tables (including the conditionally-rendered Low-confidence and Contested findings sections), approval/override/stop semantics, and the sort-order requirement, read `review-console.md` in this skill's directory.
 
 ---
 
@@ -444,6 +454,7 @@ When `$PIPELINE_RUN_DIR` is unset, `/claude-tweaks:wrap-up` runs standalone — 
 | Declaring "no skill updates needed" with no logged scan scope | The null result is unfalsifiable without a record of what was scanned and how deep the ranking went — Step 7's mandatory `SCANNED` summary line (`skill-curation.md` 7.6) exists precisely so "nothing needed updating" is auditable, not just asserted |
 | Skipping documentation curation because nothing was directly touched | Step 7.7's domain-overlap scan (D0) reads relevant docs even when this work didn't edit them directly — declaring "no documentation updates needed" without running D0 skips exactly the check this step exists to add |
 | Declaring "no documentation updates needed" with no logged scan scope | The null result is unfalsifiable without a record of what was scanned — Step 7.7's mandatory `SCANNED` summary line (`docs-health-integration.md`) exists precisely so "nothing needed updating" is auditable, not just asserted |
+| Declaring "no journey updates needed" without checking `files:` frontmatter against the diff | Step 7.8's fresh diff-vs-frontmatter computation exists precisely because build-time `/journeys` and review's 3g-cov lens don't catch drift introduced after their own pass ran — skipping the recomputation reintroduces the exact silent-drift gap this step exists to close |
 | Proposing generic skill updates with no concrete anchor | Every skill update must trace to a ledger entry, a reflection insight, or a specific changed-file observation from the independent scan — updates with no anchor are indistinguishable from hallucinated ones |
 | Mixing skill updates into the doc/CLAUDE.md batch table | Skill updates require full file reads and Update Mode patches — they get their own decision table in Step 7 |
 | Writing an ADR for every decision | ADRs are valuable because they are rare — Step 6.2's 3-factor gate (hard-to-reverse AND surprising AND a real trade-off) keeps them so. Most wrap-ups produce zero ADRs, and that is correct |
@@ -473,6 +484,7 @@ When `$PIPELINE_RUN_DIR` is unset, `/claude-tweaks:wrap-up` runs standalone — 
 | `/claude-tweaks:deepen` | Interface trade-offs /deepen flags `[ADR-candidate]` are picked up by Step 6.2 and run through the 3-factor gate for possible ADR creation |
 | `_shared/decision-records.md` | Canonical 3-factor ADR gate, location convention, and template applied by Step 6.2 |
 | `/claude-tweaks:docs-health` and `_shared/criteria-docs-diataxis.md`, `docs-health-integration.md` | Step 7.7 applies this shared judgment inline to docs touched by the current work plus a domain-overlap top-N (same reuse pattern as `_shared/harness-health-analysis.md` in Step 7), and detects missing documentation from the diff. |
+| `/claude-tweaks:journeys` and `/claude-tweaks:journey-health` | Step 7.8 applies `_shared/journey-self-review.md`'s shared four-check + structural-validity criteria inline to journeys the diff touches (same reuse pattern as `_shared/criteria-docs-diataxis.md` in Step 7.7) — never a nested `Skill()` call to either. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
 | `_shared/issue-claims.md` | Cleanup item 7 (Section E of `cleanup-procedures.md`) releases claims for specs with a materialized header, with the branch outcome as the release reason. |
 | `/claude-tweaks:harness-health` and `_shared/harness-health-analysis.md` | Step 7's 7.3-7.5 apply this shared procedure instead of an inline copy — sharing its judgment logic and its `.claude-tweaks/harness-health/` cursor/cache state with `/claude-tweaks:init` and the standalone `/claude-tweaks:harness-health` routine. |
