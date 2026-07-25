@@ -12,6 +12,16 @@ Loaded by `/claude-tweaks:wrap-up` Step 7.7 to judge the health of docs this wor
 4. If more docs than the applicable cap have a nonzero overlap score, **note the overflow explicitly** in the mandatory summary below (name the cap and how many were left unread) — never silently truncate. `/claude-tweaks:tidy` and future wrap-ups pick up the remainder.
 5. Add the selected top-N docs to D1's scope below — they go through the identical JUDGE procedure (D1 Steps 1-3) as touched docs, with no special-casing.
 
+## Registry Maintenance
+
+Independent of D0/D1/D2 above — keeps `docs/REGISTRY.md` itself accurate, rather than judging the docs it points to. Check if:
+
+- New docs were created during this work (e.g., an ADR for a significant decision) → propose adding an entry to the registry.
+- Existing docs were deleted or moved → propose removing or updating the corresponding registry entry.
+- Auto-detect patterns need adjustment (directories renamed, new code areas the registry's patterns don't cover yet) → propose a pattern update.
+
+→ Collect each as: `[registry] {action} — {detail}`, folded into the same Documentation updates collection as D1's and D2's findings (see D1's routing below).
+
 ## D1: Inline JUDGE application
 
 **Scope:** every doc under `docs/**` that this work edited or newly created (`git diff --name-only` against the run's base, filtered to `docs/**/*.md`), **unioned with D0's domain-overlap top-N** above. Registry-matched-but-unedited docs outside D0's selected top-N are `/claude-tweaks:docs-health`'s own rotation's concern — don't re-scope this to include them.
