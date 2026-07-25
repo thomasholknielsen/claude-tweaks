@@ -65,6 +65,7 @@ For each proposed change:
    SCANNED {time} — Step 7 skill curation summary: {S} seeds, {R} skills read
    (top-{cap}: {names}), gap detection: {what was examined, found/not found}.
    Result: {N} applied, {M} staged, {K} new-skill candidates ({proposed}/{declined}).
+   Reversibility: N/A.
    ```
    `{S}` is 7.1's seed count. `{R}` counts the skills actually read in 7.2's independent scan — the union of the ranked top-`{cap}` set and any seeded skills from 7.1 (the same "read set" 7.2 step 5 defines). `{cap}` is 7.2's own existing default-5/fast-lane-2/`--skill-budget`-override value. When `{S}` is 0, render `{names}` as the literal text `none (no seeds)`. Auto mode appends this line to `decisions.md` under the `SCANNED` tag (see `_shared/auto-decision-log.md`); interactive mode prints the equivalent line inline instead of `decisions.md`.
 
