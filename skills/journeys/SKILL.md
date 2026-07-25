@@ -60,7 +60,14 @@ Otherwise, analyze what was built and identify journeys it enables or modifies �
 1. **Resolve scope** — from arguments, parent context, or git diff
 2. **Scan existing journeys** — read `docs/journeys/*.md` to see if any existing journey includes pages, flows, features, CLI commands, or APIs that were just built or changed
 3. **Identify new journeys** — if the work introduces a new flow for any persona that doesn't map to an existing journey, a new journey file is needed
-4. **No interaction surface** — if the work has no flow impact for any persona (pure internal refactor, library-only changes with no behavioral shift), report "No user-facing journeys affected" and stop
+4. **Evidence checklist before concluding "no interaction surface"** — before reporting "No user-facing journeys affected" and stopping, check the diff against these 3 signals. Any single hit (OR, not AND across all three) disqualifies that conclusion:
+   - **Signal 1 — Direct invocation surface:** does the diff touch a route/page/API endpoint/CLI command/exported function directly invoked by an end user, admin, or developer-user?
+   - **Signal 2 — Observable output:** does the diff change any user-observable output (new field, error message, flag, response shape)?
+   - **Signal 3 — Reachable capability:** does the diff add/remove/rename a capability reachable without reading source (a slash command, a CLI subcommand, a UI element)?
+
+   **No signal fires** → report "No user-facing journeys affected" and stop.
+
+   **Any signal fires** → the "no interaction surface" conclusion is disqualified. Run items 2-3 above (the existing-journey scan and new-journey-need assessment) against the change instead of stopping. If that assessment still concludes no journey update is warranted, log a one-line rationale citing which signal(s) fired and why the resulting change genuinely has no persona-visible effect worth documenting (e.g. "signal 1 fired — touches CLI command X, but X's behavior is unchanged, only an internal refactor of its implementation") before reporting "No user-facing journeys affected" — a disqualified case still needs its own evidence-anchored conclusion, not a silent return to the old unanchored judgment call.
 
 ## Step 2: Create New Journey Files
 
@@ -184,6 +191,7 @@ This skill is a **component skill** — invoked by `/claude-tweaks:build` (Commo
 | Pattern | Why It Fails |
 |---------|-------------|
 | Skipping journey capture for features with an interaction surface | Journeys are what visual review tests against — no journey means no QA anchor. This applies to all personas: end users, admins, developers, internal tooling users. |
+| Concluding "no interaction surface" without checking the 3-signal evidence checklist | An unanchored holistic judgment call produced zero true positives across this project's entire history (`docs/journeys/` never existed) despite the persona list explicitly including developers and internal tooling users — Step 1 item 4's checklist exists precisely so the conclusion is evidence-anchored, not a vibe call |
 | Writing journeys with vague "should feel" | "Good" and "intuitive" are not testable. "Low commitment" and "like an accomplishment" are. |
 | Writing a journey with no `## Steps` heading | Step 3.5 self-review BLOCKs on structurally-invalid journey files — missing `## Steps` is the most common cause. Always render the heading even if the step list is short. |
 | Asking the user whether to create a journey | Journey capture is automatic. The user didn't know they needed the spec either — that's why the workflow exists. |
