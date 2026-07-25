@@ -213,6 +213,6 @@ This skill is a **component skill** — invoked by `/claude-tweaks:build` (Commo
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
 | `_shared/auto-decision-log.md` | Canonical schema and path for the auto-decision log written in Step 3.5 (`{run-dir}/decisions.md` under `## /journeys`). |
 | `/claude-tweaks:journey-health` | Applies the same `_shared/journey-self-review.md` checks at audit time, on journeys nobody has touched recently. Never edits — files a GitHub issue instead of the fix-inline/stage/BLOCK routing this skill uses. |
-| `_shared/journey-self-review.md` | Canonical four-check + structural-validity criteria Step 3.5 applies — shared with `/claude-tweaks:journey-health`'s audit-time check. |
+| `_shared/journey-self-review.md` | Canonical four-check + structural-validity criteria Step 3.5 applies — shared with `/claude-tweaks:journey-health`'s audit-time check and `/claude-tweaks:wrap-up` Step 7.8's wrap-up-time check. |
 | `/claude-tweaks:visualize` | Step 3.6 suggests invoking this skill when journey signals match (multi-persona → swimlane, decision branches → flowchart, multi-actor → sequence). Gated by `diagram-suggestions: enabled` in CLAUDE.md (written by `/init` Step 11). |
 | `_shared/subagent-output-contract.md` | The Working-Directory Discipline rule referenced by Step 4 commit lives here (CWD anchoring before `git`). |
