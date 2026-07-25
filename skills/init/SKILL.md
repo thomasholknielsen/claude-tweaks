@@ -390,7 +390,7 @@ After writing files, surface what was created. Generate the table from the actua
 | Work records | Set work-backend / work-types / work-links in CLAUDE.md; offer core-label bootstrap (see `_shared/work-record.md`'s Label taxonomy table for current per-family and total counts) | Step 15 |
 | Routines | Instantiated {N} routine(s): `{list}` (or "Offered, none set up") | Step 13 |
 | Worktree policy | Set `worktree.always: {true/false}` in `.claude-tweaks/policy.yml` (only if Step 6 asked this run) — written last, after every other row above, to avoid mid-run self-lockout; see "Worktree Policy Finalization" below | Step 6 |
-| Classification | Confirmed maturity `{value}`, doc tier `{N}` | Phase 3 |
+| Classification | Confirmed maturity `{value}` (written to `.claude-tweaks/policy.yml` as `project.maturity`), doc tier `{N}` | Phase 3 |
 | CLAUDE.md | Wrote {N} lines (Initial) / Applied {N} patches (Update) | Phase 5 |
 | Skills | Generated {N} SKILL.md files: `{list}` | Phase 6 |
 | Rules | Created {N} path-scoped rules in `.claude/rules/` | Phase 7 |
@@ -471,7 +471,8 @@ If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it
 | `/claude-tweaks:help` | Shows workflow status — useful to verify /claude-tweaks:init worked. Surfaces doc staleness signals from the registry. |
 | `/claude-tweaks:review` | /review lens 3i uses the doc registry to check documentation freshness. |
 | `/claude-tweaks:visual-review` | Phase 8 (hybrid mode) delegates to `/visual-review discover` for browser-assisted journey discovery. |
-| `/claude-tweaks:build` | /init creates `docs/REGISTRY.md` (Phase 8.5) that /build consumes in Step 6.5 for documentation sync |
+| `/claude-tweaks:build` | /init creates `docs/REGISTRY.md` (Phase 8.5) that /build consumes in Step 6.5 for documentation sync. Phase 3 also writes `project.maturity` to `.claude-tweaks/policy.yml`, which Common Step 2 reads to scale its test-discipline instruction on early-production/established projects. |
+| `/claude-tweaks:specify` | Phase 3 writes `project.maturity` to `.claude-tweaks/policy.yml`; Step 2 reads it to bias decomposition toward strangler-fig-shaped leaves on early-production/established projects when a design doc proposes replacing an existing subsystem. |
 | `/claude-tweaks:wrap-up` | Captures learnings after features — keeps generated skills alive and accurate. Step 7 references `skill-template.md` from /claude-tweaks:init's directory. /wrap-up Step 6 maintains the doc registry created by /init. |
 | `/claude-tweaks:tidy` | /tidy Step 4.6 audits doc registry health — flags stale entries, gaps, pattern drift. Suggests `/init update` for tier drift. |
 | `/claude-tweaks:browse` | Depends on `agent-browser`, which /claude-tweaks:init detects (and surfaces install instructions for) in Phase 0 |
