@@ -69,7 +69,7 @@ Each entry follows this shape:
 | Step or location | yes | Skill step name OR file:line if relevant |
 | Short action | yes | One sentence: what was decided |
 | Detail line | optional | Wraps to second line if needed; explain rationale |
-| Reversibility | yes | `high` / `med` / `low` — drives Review Console sort order |
+| Reversibility | yes | `high` / `med` / `low` — drives Review Console sort order (SCANNED entries: N/A — nothing to revert) |
 | Commit ref / stage path | when reversible | `commit abc1234` or `stage path: staged/...` |
 
 ## Status semantics
@@ -79,7 +79,7 @@ Each entry follows this shape:
 | `AUTO` | Skill auto-applied the decision per policy. Action complete. | Shown in "Auto-applied" section. Override = revert commit or undo edit. |
 | `STAGED` | Skill detected a decision-worthy item but did not act. Patch / proposal is written to the run's `staged/` directory. | Shown in "Pending Review" section. User chooses Apply / Skip / Modify per item. |
 | `KEPT-PROMPT` | Skill could not auto-resolve (floor failed or item is in "not silenced" list). Asked user inline. | Already resolved — informational entry only. |
-| `SCANNED` | Skill ran its independent scan/gap-detection and found nothing actionable. Not a decision — a report that the scan ran and its scope. | Shown in "Auto-applied" section as an informational line (no action to override). |
+| `SCANNED` | Skill ran its independent scan/gap-detection and is reporting the scan's scope and outcome — emitted on every run of a scanning step, whether or not the scan found anything actionable. Not itself a decision (the decision, if any, is a separate AUTO/STAGED entry) — a report of what was scanned and how deep. | Shown in "Auto-applied" section as an informational line (no action to override). |
 
 ## Append protocol
 
@@ -111,7 +111,7 @@ The Review Console reads the log file for the current pipeline run:
 
 1. Resolve `PIPELINE_RUN_DIR` env var, or find the most recent run matching the current spec
 2. Read `{run-dir}/decisions.md`
-3. Group entries by status: AUTO / STAGED / KEPT-PROMPT
+3. Group entries by status: AUTO / STAGED / KEPT-PROMPT / SCANNED
 4. List staged artifacts from `{run-dir}/staged/`
 5. Present in the Review Console (see `/wrap-up` Step 8.6)
 

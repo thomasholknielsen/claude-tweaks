@@ -163,6 +163,8 @@ The pipeline auto-resolved {N} decisions and staged {M} items for your review. T
 | 3 | /build | Scope-creep: added src/utils/cache.ts to plan | commit `abc1234` | Applied |
 | 4 | /stories | Applied 2 journey link suggestions | stories/login.yml, stories/logout.yml | Applied |
 
+A `SCANNED` entry (skill-curation's null-result / scan-summary log line — see `_shared/auto-decision-log.md`) also renders in this section, but with `Status` = `Informational` and `Where` = the step/location it ran at (no commit ref, since nothing was applied) — there is nothing to revert for these rows.
+
 #### Pending review (staged — apply, skip, or modify per item)
 
 | # | Skill | What | Detail | Patch |
@@ -286,6 +288,6 @@ If `decisions.md` has zero entries AND `staged/` is empty AND there are no skill
 
 ## Hard requirements
 
-- The console MUST present every entry from `decisions.md` (auto-applied + staged + kept-prompt), every file in `staged/`, every cleanup action that would otherwise run in Step 10, and every queue-write proposal. Silently dropping any item is forbidden.
+- The console MUST present every entry from `decisions.md` (auto-applied + staged + kept-prompt + scanned), every file in `staged/`, every cleanup action that would otherwise run in Step 10, and every queue-write proposal. Silently dropping any item is forbidden.
 - **Sort order within each section:** reversibility:low first (highest-stakes revert), then reversibility:med, then reversibility:high. Within the same reversibility, severity:high first.
 - **Queue writes are per-item only.** Never group them under "Approve all" — this enforces the contract's not-silenced rule for work-record creation.
