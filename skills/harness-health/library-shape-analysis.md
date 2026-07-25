@@ -68,6 +68,8 @@ Every finding from this pass uses the EXISTING Finding Shape (`_shared/harness-h
 
 These validate against the existing `bin/lib/harness-health/validate-finding.js` enums with no code changes (`assetType: "skill"` and `kind: "patch"` are both already-valid values). Feed findings into `SKILL.md`'s existing Step 6 (`validate-findings --target library-shape --kind library-shape`, using the pseudo-target from "Due-ness and SELECT" above so this pass's own cursor gets recorded) and Step 7 (FILE) exactly as any other target's findings would — no new filing logic needed.
 
+**Run Step 6 even on a clean firing (zero findings).** If candidate narrowing and all three dimensions produce no findings this firing, still run `validate-findings --target library-shape --kind library-shape` against an empty findings array (`[]`) rather than skipping the call. `validate-findings` accepts an empty JSON array and still advances the `library-shape:library-shape` cursor as long as `--target`/`--kind` are both passed — this is what records `lastAuditedMs` for "Due-ness and SELECT" above to read on the next firing. This mirrors how the standard per-target rotation always runs Step 6 for its selected target regardless of outcome (see `SKILL.md`'s own anti-pattern note against skipping a target's `validate-findings` call). Skipping this call on a clean firing leaves the cursor exactly where it was — permanently "due" — so this pass would re-run its expensive 30+-skill description-similarity scan on every single firing forever, defeating the 90-day cost-control the cursor exists for.
+
 ## Anti-patterns
 
 | Pattern | Why it fails |

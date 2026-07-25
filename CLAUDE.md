@@ -62,6 +62,7 @@ LICENSE                           → MIT
 | help | reference-card.md, context-flow.md, status-scan.md | Quick reference card (single source of truth for the command catalog); artifact flow documentation; pipeline status scan parallel-dispatch procedure (Stages 1-7 — the former Stage 1.5/3/4 INBOX/Deferred-Work/spec-index scans merged into Stage 1's single work-record query — incl. sub-stages 4.5/4.6, current-PR scan, and triage-queue counts) |
 | research | reference/methodology.md | Delegates to Claude Code's built-in `/deep-research` Dynamic Workflow when available; otherwise runs the lean inline model-driven method in `reference/methodology.md` (decompose → parallel search → adversarial verify → synthesize). Citation-audited markdown reports under `.claude-tweaks/research/`. |
 | dispatch | settle-and-merge.md | Step 6's Settle procedure and the Auto-merge gate (both conditional branches off the common clean path) — includes the worktree-scoped `git push` fix for the Auto-merge gate's merge-then-push sequence under `worktree.always` |
+| harness-health | library-shape-analysis.md | Periodic cross-skill-comparison pass (too-shallow / overlapping / bloated) — loaded on its own 90-day due-ness cursor, independent of the standard per-target rotation |
 
 ## Conventions
 
