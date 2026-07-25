@@ -67,7 +67,7 @@ Otherwise, analyze what was built and identify journeys it enables or modifies �
 
    **No signal fires** → report "No user-facing journeys affected" and stop.
 
-   **Any signal fires** → the "no interaction surface" conclusion is disqualified. Run items 2-3 above (the existing-journey scan and new-journey-need assessment) against the change instead of stopping. If that assessment still concludes no journey update is warranted, log a one-line rationale citing which signal(s) fired and why the resulting change genuinely has no persona-visible effect worth documenting (e.g. "signal 1 fired — touches CLI command X, but X's behavior is unchanged, only an internal refactor of its implementation") before reporting "No user-facing journeys affected" — a disqualified case still needs its own evidence-anchored conclusion, not a silent return to the old unanchored judgment call.
+   **Any signal fires** → the "no interaction surface" conclusion is disqualified. Re-examine items 2-3 above (the existing-journey scan and new-journey-need assessment) specifically in light of the fired signal(s) — don't let their earlier pass stand unquestioned. If that re-examination still concludes no journey update is warranted, log a one-line rationale citing which signal(s) fired and why the resulting change genuinely has no persona-visible effect worth documenting (e.g. "signal 1 fired — touches CLI command X, but X's behavior is unchanged, only an internal refactor of its implementation") before reporting "No user-facing journeys affected" — a disqualified case still needs its own evidence-anchored conclusion, not a silent return to the old unanchored judgment call.
 
 ## Step 2: Create New Journey Files
 
