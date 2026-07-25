@@ -18,6 +18,9 @@ Build an inventory of what's currently configured before scanning the codebase:
 - Contract markers: {pipeline-section | auto-mode-flag | bookend | auto-mode-policy | run-dir} — {present/missing for each}
 - Last meaningful edit: {git log for CLAUDE.md — when, what changed}
 
+### policy.yml
+- `project.maturity`: {value, or "not set" if the key is absent}
+
 ### Skills ({count})
 | Skill | Description trigger | Key file paths referenced |
 |-------|-------------------|--------------------------|
@@ -73,6 +76,22 @@ autonomously.
 `work-backend: local-files` needs no probe on any of these rows — its
 `work-types: labels` / `work-links: body-text` fallback is unconditional, the same
 as bootstrap Step 15b.
+
+### Maturity Drift
+
+Like the Work-Record Backend Drift check above, maturity drift isn't a row in the
+Phase 1u.5 marker table — that table checks for presence/absence of contract
+markers, while this checks whether a *value* has changed. Unlike every other
+drift check in this file, it can only be detected as part of a full
+reconnaissance pass, never the early-exit fast path (Phase 1u.6): re-detecting
+maturity requires re-running Phase 2h, and Phase 1u.6's own early-exit decision
+is made *before* Phase 2 ever runs. This entry therefore never contributes to
+Phase 1u.6's preliminary drift count — it surfaces only in Phase 3's Drift
+Report, once a full pass is already underway.
+
+| Signal | Detection | Offer (staged) |
+|---|---|---|
+| A full pass's freshly re-confirmed maturity classification (Phase 3) differs from the `project.maturity` value already stored in `.claude-tweaks/policy.yml` | Compare Phase 3's newly confirmed classification against the stored `policy.yml` value read into the inventory at Phase 1u | Offer to update `policy.yml`'s `project.maturity` line to the newly confirmed value — routed through the same Drift Report batch-approval as every other Contract Drift entry, never a silent write |
 
 ## Phase 1u.6: Update Mode Early-Exit Gate
 
