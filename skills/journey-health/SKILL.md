@@ -311,7 +311,7 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 
 | Skill | Relationship |
 |-------|-------------|
-| `/claude-tweaks:journeys` | Produces and updates the journey files this skill audits. `/journey-health` never edits them — it files an issue recommending `/claude-tweaks:journeys {name}` be re-run. Shares `_shared/journey-self-review.md`'s four checks (write-time here, audit-time in `/journey-health`). |
+| `/claude-tweaks:journeys` | Produces and updates the journey files this skill audits. `/journey-health` never edits them — it files an issue recommending `/claude-tweaks:journeys {name}` be re-run. Shares `_shared/journey-self-review.md`'s four checks (write-time in `/journeys`, audit-time here, wrap-up-time in `/claude-tweaks:wrap-up` Step 7.8). |
 | `/claude-tweaks:stories` | Produces the QA story YAMLs this skill's coverage scan checks against. Coverage-gap findings recommend `/claude-tweaks:stories journey={name}`. |
 | `/claude-tweaks:test` | The deep tier drives `/test qa journey={name}` when stories exist for the selected journey — this is the "agent e2e testing" this skill exists to protect. |
 | `/claude-tweaks:visual-review` | The deep tier falls back to `/visual-review journey:{name}` when no stories exist yet for the selected journey. |

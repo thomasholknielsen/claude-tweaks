@@ -87,7 +87,7 @@ If the work modifies or extends an existing journey:
 
 Before committing, look at the journey file(s) with fresh eyes. Fix issues inline — no subagent.
 
-Apply the four checks and the structural-validity check in `_shared/journey-self-review.md` (shared with `/claude-tweaks:journey-health`'s audit-time check).
+Apply the four checks and the structural-validity check in `_shared/journey-self-review.md` (shared with `/claude-tweaks:journey-health`'s audit-time check and `/claude-tweaks:wrap-up` Step 7.8's wrap-up-time check).
 
 **Decision gate:** make one fix attempt per issue. Issues that remain after one fix attempt route by mode:
 
