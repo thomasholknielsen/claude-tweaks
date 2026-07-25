@@ -179,7 +179,7 @@ Skill curation declares "No skill updates needed" only when seeds, the independe
 
 ## Step 7.7: Documentation Curation
 
-Analyze whether project documentation needs updating, and detect documentation this work should have produced but didn't — based on what was actually built. This step runs standalone (not batched with Step 6) because it now includes a domain-overlap scan across existing docs (reading relevant docs even when this work didn't touch them directly) in addition to the docs this work directly edited or created — a heavier weight of analysis than Step 6's CLAUDE.md/rules/ADR scans.
+Analyze whether project documentation needs updating, and detect documentation this work should have produced but didn't — based on what was actually built. This step runs standalone (not batched with Step 6) because it includes a domain-overlap scan across existing docs (reading relevant docs even when this work didn't touch them directly) in addition to the docs this work edited or created — a heavier weight of analysis than Step 6's CLAUDE.md/rules/ADR scans.
 
 **Fast-lane narrows breadth, never gates existence.** Same principle as Step 7's skill curation (`skill-curation.md`'s opening paragraph) — under `ceremony-profile: fast-lane`, the domain-overlap scan's cap shrinks (top-1 instead of top-3) but the scan itself always runs.
 
