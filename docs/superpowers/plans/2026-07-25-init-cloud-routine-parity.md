@@ -596,7 +596,7 @@
   ```bash
   cd "$(git rev-parse --show-toplevel)" && pwd
   git add skills/routine/SKILL.md CLAUDE.md
-  git commit -m "routine, CLAUDE.md: cross-reference the new Step 13 (Cloud/Routine Parity Setup)"
+  git commit -m "Cross-reference the new Step 13 (Cloud/Routine Parity Setup) in routine and CLAUDE.md"
   ```
 
 ---
@@ -663,7 +663,7 @@
 
   ```bash
   git add -A
-  git commit -m "init-cloud-routine-parity: fix stragglers found by whole-repo sweep"
+  git commit -m "Fix stragglers found by the init-cloud-routine-parity whole-repo sweep"
   ```
 
   If nothing was found, skip this commit — Task 5 is verification-only beyond the version bump.
