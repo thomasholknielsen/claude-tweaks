@@ -297,7 +297,16 @@ Defaults below apply under `--granularity standard` (the default when the flag i
 
 ### Decomposition Heuristics
 
-Split along these natural boundaries (in priority order):
+**Check first — rewrite-signal against an existing subsystem.** Read `project.maturity` from `.claude-tweaks/policy.yml` (missing key → treat as `greenfield`, skip this check entirely). When `early-production` or `established`, scan the design doc's Deliverables/Overview for rewrite-shaped language ("replace," "rewrite," "rebuild," "migrate off," "delete and rebuild") naming a target that Step 1's Landscape scan confirms already exists in the codebase with at least one reference from outside the file itself — not something this same design doc introduces fresh. When matched, decompose along a strangler-fig boundary instead of the standard five below:
+
+| Maturity | Decomposition shape |
+|---|---|
+| `early-production` | Two leaves — implement the new path behind a flag, then a second leaf removing the old path once the flag is validated |
+| `established` | Three leaves — parallel implementation, cutover, decommission, sequenced so the old path keeps working until cutover is verified |
+
+An ambiguous match (rewrite language present, but Landscape scan can't confirm outside usage of the named target) falls through to the standard five heuristics below rather than forcing a strangler-fig shape onto something that may not need it.
+
+Otherwise, split along these natural boundaries (in priority order):
 
 1. **Data layer** — database schema, migrations, data access methods
 2. **API / business logic** — endpoints, services, validation
@@ -551,6 +560,7 @@ Always recommend `/claude-tweaks:flow` over `/claude-tweaks:build` — `/claude-
 | Skill | Relationship |
 |-------|-------------|
 | `/superpowers:brainstorming` | Bidirectional: when a design doc already exists, it runs BEFORE /specify and produces the input that /specify consumes and deletes. When the user passes a bare topic (polymorphic input), /specify invokes brainstorming internally to produce the design doc, then decomposes it. |
+| `/claude-tweaks:init` | Phase 3 writes `project.maturity` to `.claude-tweaks/policy.yml`; Step 2 reads it to bias decomposition toward strangler-fig-shaped leaves on early-production/established projects when a design doc proposes replacing an existing subsystem. |
 | `/superpowers:writing-plans` | Consumes leaf records AFTER /claude-tweaks:specify — the leaf's body must provide enough context for `/superpowers:writing-plans` to produce a TDD execution plan |
 | `/superpowers:subagent-driven-development` | Executes leaf records AFTER /claude-tweaks:specify — uses the plan from `/superpowers:writing-plans` (via `/claude-tweaks:build` subagent execution strategy) |
 | `/superpowers:executing-plans` | Executes leaf records AFTER /claude-tweaks:specify — uses the plan from `/superpowers:writing-plans` (via `/claude-tweaks:build` batched execution strategy) |
