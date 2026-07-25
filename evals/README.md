@@ -117,6 +117,14 @@ Pass `--no-record` on `run` to skip appending — useful while iterating on a
 scenario's own definition, where the run doesn't represent a real benchmark
 point. `--no-record` applies to every scenario in a `--all` batch.
 
+A `workflow_dispatch`-triggered GitHub Action (`.github/workflows/eval-benchmark.yml`)
+runs the same CLI against a chosen scenario (or all five) and commits
+`history.jsonl` back to the branch it ran against, so a manually-triggered
+CI run and a local run land in the same durable log. Requires an
+`ANTHROPIC_API_KEY` repository secret, configured once in the repo's
+Settings → Secrets and variables → Actions (a one-time manual step outside
+this repo's own tooling).
+
 ## Running the harness's own tests
 
     cd evals
