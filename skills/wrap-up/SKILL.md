@@ -126,13 +126,13 @@ See `cleanup-procedures.md` in this skill's directory for the canonical cleanup 
 
 ### Fast-lane pre-check (skip condition)
 
-When `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh — see Step 3.5), skip all three sub-scans below entirely — report "No configuration updates needed (fast-lane: diff touches no registry-matched path, no new dependency, no schema/config file)" and proceed to Step 7 — when ALL of the following hold:
+When `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh — see Step 3.5), skip both sub-scans below entirely — report "No configuration updates needed (fast-lane: diff touches no registry-matched path, no new dependency, no schema/config file)" and proceed to Step 7 — when ALL of the following hold:
 
 - `git diff --name-only` against this work's base ref matches none of `docs/REGISTRY.md`'s Auto-detect patterns. Reuse `bin/lib/issues/blast-radius.js`'s `classifyDiffFiles` — it reads `f.path` off each element of the `files` array, so map each bare filename from `git diff --name-only` to `{path: f}` before calling it (a bare string has no `.path` and would otherwise silently classify as `isSensitive: false` regardless of content). Pass the registry's patterns as the `sensitivePaths` argument — a result's `isSensitive: true` means a registry-pattern hit here, not a merge-sensitivity one; the function is generic path-glob matching regardless of which patterns list it's fed, and is already fully tested.
 - The diff shows no added dependency in the project's own dependency manifest(s) — `package.json` (and any workspace-level equivalent), or `pyproject.toml`, `Cargo.toml`, `go.mod`, or equivalent for the project's stack (same manifest set `verification.md` Step 1 scans).
 - No file in the diff matches a schema/env/IaC/CI/platform-config pattern — reuse Build Common Step 5.5's own Category A/B trigger list (`operational-checklist.md` in `skills/build/`).
 
-If `docs/REGISTRY.md` doesn't exist, this pre-check cannot resolve the first condition — treat it as unmet (run the sub-scans normally) rather than skipping on incomplete information. This pre-check only applies under `fast-lane`; a `standard`-profile run (or standalone wrap-up, where no `config.yml` exists) always runs all three sub-scans as before.
+If `docs/REGISTRY.md` doesn't exist, this pre-check cannot resolve the first condition — treat it as unmet (run the sub-scans normally) rather than skipping on incomplete information. This pre-check only applies under `fast-lane`; a `standard`-profile run (or standalone wrap-up, where no `config.yml` exists) always runs both sub-scans as before.
 
 ### 6.1: CLAUDE.md and Rules
 
