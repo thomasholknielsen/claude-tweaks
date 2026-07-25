@@ -75,6 +75,7 @@ grep -q '^work-backend:' CLAUDE.md && echo "OK" || { grep -qE '^backlog-backend:
 ```bash
 gh issue list --label by:dispatch --state open --json number,title,body,createdAt --limit 500 > /tmp/dispatch-selfreport-issues.json
 
+rm -f /tmp/dispatch-selfreport-lookup.json
 node -e "
   const { findByMarker } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/dedup-lookup.js');
   const issues = require('/tmp/dispatch-selfreport-issues.json');
@@ -85,8 +86,6 @@ node -e "
 ```
 
 Read `/tmp/dispatch-selfreport-lookup.json`:
-- `canonical` set: reference `#{canonical.number}` in the stop output and file nothing new.
-- `duplicates` non-empty (the hedge, not the expected path): close every entry before continuing — `gh issue close {n} --reason "not planned"` with a comment `"Duplicate of #{canonical.number} — same dispatch-preflight-marker match, closing to keep one open self-report per failing check."` — then log one line per closed duplicate to this firing's own audit trail the same way the digest's self-heal step does (`AUTO {time} — dispatch headless self-report: closed duplicate issue #{n} (marker match with canonical #{canonical.number}). Reversibility: low (GitHub state; issue can be manually re-opened).`).
 - `null`: read the project's `work-types` config key (per `_shared/work-record.md`'s Config keys table) and branch —
 same pattern `/capture`'s Backend Selection already uses, Type is always `bug` here (a Preflight
 failure is definitionally a defect). The body now carries the marker so future firings can find it reliably:
@@ -114,6 +113,7 @@ gh issue create \
   --label by:dispatch \
   --label type:bug
 ```
+- Otherwise (`canonical` is set — a match was found): if `duplicates` is non-empty (however that happened — this is the hedge, not the expected path; the same self-heal pattern `tidy/github-routine-procedures.md`'s Rolling digest section uses), resolve this firing's run dir first — via `_shared/pipeline-run-dir.md`'s standalone-auto fallback (dispatch is on the allowlist; this block runs in Preflight, before Workflow Step 1 would otherwise resolve `$RUN_ID`, so it cannot be assumed already resolved here) — then close every duplicate entry: `gh issue close {n} --reason "not planned"` with a comment `` "Duplicate of #{canonical.number} — same `dispatch-preflight-marker` match, closing to keep one open self-report per failing check." `` — then log one line per closed duplicate to that run dir's `decisions.md`: `AUTO {time} — dispatch headless self-report: closed duplicate issue #{n} (marker match with canonical #{canonical.number}). Reversibility: low (GitHub state; issue can be manually re-opened).` Then, whether or not any duplicates were found, reference `#{canonical.number}` in the stop output and file nothing new.
 
 No `ready`/`auto:build` on the filed issue — a human confirms and applies the fix, the same conservative default `/capture`'s `keep` route uses elsewhere in this codebase. The bare/`#N`/explicit-list forms always run with a human present (per the Input table framing above) — they still just report and stop; self-filing is `next`-only.
 

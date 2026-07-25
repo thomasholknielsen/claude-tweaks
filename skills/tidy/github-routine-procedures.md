@@ -38,7 +38,12 @@ Every Standalone-auto `--scope=github` firing updates one rolling digest artifac
 
   ```bash
   gh issue list --state open --json number,title,body,createdAt --limit 500 > /tmp/tidy-digest-issues.json
+  DIGEST_RAW_COUNT=$(node -e "console.log(require('/tmp/tidy-digest-issues.json').length)")
+  if [ "$DIGEST_RAW_COUNT" -ge 500 ]; then
+    echo "Warning: the digest lookup pull returned exactly the --limit cap (500) — this repo may have more than 500 open issues, and gh issue list returns newest-first, so the digest issue (old, edited in place rather than recreated) could fall outside this window and be missed. Consider narrowing this lookup (e.g. a dedicated label) if this warning appears." >&2
+  fi
 
+  rm -f /tmp/tidy-digest-lookup.json
   node -e "
     const { findByMarker } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/dedup-lookup.js');
     const issues = require('/tmp/tidy-digest-issues.json');
@@ -49,8 +54,7 @@ Every Standalone-auto `--scope=github` firing updates one rolling digest artifac
 
   Read `/tmp/tidy-digest-lookup.json`:
   - `null` (first-ever firing, or the issue was manually closed): `gh issue create --title "Tidy GitHub-Triage Digest" --body-file <file>` once.
-  - `canonical` set: `gh issue edit {canonical.number} --body-file <file>`.
-  - `duplicates` non-empty (however that happened — this is the hedge, not the expected path): before continuing, close every entry — `gh issue close {n} --reason "not planned"` with a comment `"Duplicate of #{canonical.number} — same <!-- tidy-digest-marker --> match, closing to restore the rolling-digest invariant of one issue per repo."` — then log one line per closed duplicate to this firing's `decisions.md`: `AUTO {time} — Step 6 (rolling digest): closed duplicate issue #{n} (marker match with canonical #{canonical.number}). Reversibility: low (GitHub state; issue can be manually re-opened).` This keeps the "one issue, always" invariant true even if a future firing's lookup ever fails in some way this fix didn't anticipate — the accumulation this bug originally caused stays bounded to one extra firing cycle instead of growing forever.
+  - Otherwise (`canonical` is set — a match was found): if `duplicates` is non-empty (however that happened — this is the hedge, not the expected path; the same self-heal pattern `dispatch/SKILL.md`'s headless self-report uses), close every entry *before* touching `canonical` — `gh issue close {n} --reason "not planned"` with a comment `` "Duplicate of #{canonical.number} — same `<!-- tidy-digest-marker -->` match, closing to restore the rolling-digest invariant of one issue per repo." `` (the marker is backtick-quoted inside the comment so it renders as visible text on GitHub instead of a hidden HTML comment) — then log one line per closed duplicate to this firing's `decisions.md`: `AUTO {time} — Step 6 (rolling digest): closed duplicate issue #{n} (marker match with canonical #{canonical.number}). Reversibility: low (GitHub state; issue can be manually re-opened).` This keeps the "one issue, always" invariant true even if a future firing's lookup ever fails in some way this fix didn't anticipate — the accumulation this bug originally caused stays bounded to one extra firing cycle instead of growing forever. Whether or not any duplicates were found, then `gh issue edit {canonical.number} --body-file <file>`.
 - `work-backend: local-files` with no reachable GitHub remote: rewrite `.claude-tweaks/tidy-digest.md` in place and commit it.
 
 **Structure**, exactly four sections in this order:

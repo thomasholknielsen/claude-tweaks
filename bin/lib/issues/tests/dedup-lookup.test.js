@@ -65,6 +65,16 @@ test('findByMarker accepts a RegExp pattern', () => {
   assert.deepStrictEqual(result.duplicates, []);
 });
 
+test('findByMarker discriminates a marker from another marker that is a prefix of it', () => {
+  const issues = [
+    { number: 5, title: 'a', body: '<!-- dispatch-preflight-marker: lint -->', createdAt: '2026-07-20T00:00:00Z' },
+    { number: 6, title: 'b', body: '<!-- dispatch-preflight-marker: lint-check -->', createdAt: '2026-07-21T00:00:00Z' },
+  ];
+  const result = findByMarker(issues, '<!-- dispatch-preflight-marker: lint -->');
+  assert.strictEqual(result.canonical.number, 5);
+  assert.deepStrictEqual(result.duplicates, []);
+});
+
 test('findByMarker treats a malformed createdAt as epoch 0, still resolves canonical deterministically', () => {
   const issues = [
     { number: 1, title: 'a', body: '<!-- marker -->', createdAt: 'not-a-date' },
