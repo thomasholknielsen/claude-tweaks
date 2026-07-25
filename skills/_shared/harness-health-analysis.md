@@ -201,6 +201,7 @@ Independent of any specific target's audit, look for a **cohesive** set of files
 - A new top-level directory with 3+ files sharing a naming convention (e.g. `*.queue.js`, `*Repository.ts`).
 - A recurring import combination (the same 2+ modules imported together) appearing in 3+ files with no matching skill.
 - A commit-message keyword or phrase recurring across 3+ commits, none of which are covered by an existing skill's domain.
+- A single new file/module reused (imported/called) from 2+ other files, where the reused interface is itself non-trivial (2+ exported functions/methods, or a documented options/config surface — not a one-line wrapper). Requires actual 2+ call sites with a non-trivial interface; a module with a single call site, however well-designed, does not qualify under this signal — there is no softer "clearly designed for reuse" alternate clause, to keep this signal as mechanically anchored as the other three.
 
 ## Step 4: New-Skill Qualification Gate
 
