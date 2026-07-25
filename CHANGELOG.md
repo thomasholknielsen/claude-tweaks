@@ -1,5 +1,18 @@
 # Changelog
 
+## v6.16.2 — Maturity-aware build & specify discipline
+
+Project maturity (greenfield / pre-launch / early-production / established) is now a durable
+`project.maturity` value in `.claude-tweaks/policy.yml`, instead of living only as CLAUDE.md
+Philosophy prose. `/claude-tweaks:init` writes it the moment Phase 3's Project Classification gate
+confirms a value, and re-detects it on every Update Mode pass to catch drift.
+
+`/claude-tweaks:build` folds a maturity-scaled characterization-test instruction into its task
+dispatch, and `/claude-tweaks:specify` biases decomposition toward strangler-fig-shaped leaves —
+implement-behind-a-flag then remove-the-old-path, or parallel-implementation/cutover/decommission —
+when a design doc proposes replacing an existing, in-use subsystem on early-production or
+established projects.
+
 ## v6.13.0 — Smoke-test follow-through: dispatch diagnostics, audit-log hardening, grant-time disclosure
 
 A live cross-terminal smoke test of `/capture` → `/specify` → `/triage` → `/dispatch` (real repo,

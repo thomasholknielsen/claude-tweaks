@@ -198,7 +198,7 @@ Execution depends on the chosen execution strategy (see Build Options).
 
 **batched**: Invoke `/superpowers:executing-plans`. After the last batch completes, **stop the skill and return here** — do not let it invoke `/superpowers:finishing-a-development-branch`. `/build` handles post-execution steps before any branch finishing.
 
-**Maturity-scaled test discipline (both strategies, all modes):** read `project.maturity` from `.claude-tweaks/policy.yml` once per build (missing key → treat as `greenfield`, add nothing). Fold one additional instruction into whichever execution skill was invoked above:
+**Maturity-scaled test discipline (both strategies, all modes):** read `project.maturity` from `.claude-tweaks/policy.yml` once per build (missing key, or a value outside the four-item enum, → treat as `greenfield`, add nothing). Fold one additional instruction into whichever execution skill was invoked above:
 
 | Maturity | Added instruction |
 |---|---|

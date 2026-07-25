@@ -86,12 +86,22 @@ drift check in this file, it can only be detected as part of a full
 reconnaissance pass, never the early-exit fast path (Phase 1u.6): re-detecting
 maturity requires re-running Phase 2h, and Phase 1u.6's own early-exit decision
 is made *before* Phase 2 ever runs. This entry therefore never contributes to
-Phase 1u.6's preliminary drift count — it surfaces only in Phase 3's Drift
-Report, once a full pass is already underway.
+Phase 1u.6's preliminary drift count.
 
-| Signal | Detection | Offer (staged) |
+Unlike Contract Drift and Work-Record Backend Drift, this is not a separate
+staged offer requiring its own approval — Phase 3's existing Project
+Classification gate already IS the approval step for whatever maturity value
+gets written (see `phase-3-classification.md`'s "Writing project.maturity to
+policy.yml"), whether or not that value has changed since the last run. What
+this check adds is *visibility*: when the value read into the Phase 1u
+inventory (`### policy.yml` above) differs from what Phase 3 goes on to
+confirm, surface that specific change as its own line in the Drift Report
+(e.g. "Maturity changed: `early-production` → `established`"), so the user
+sees it was a *change*, not just a routine confirmation of an unchanged value.
+
+| Signal | Detection | Surfacing |
 |---|---|---|
-| A full pass's freshly re-confirmed maturity classification (Phase 3) differs from the `project.maturity` value already stored in `.claude-tweaks/policy.yml` | Compare Phase 3's newly confirmed classification against the stored `policy.yml` value read into the inventory at Phase 1u | Offer to update `policy.yml`'s `project.maturity` line to the newly confirmed value — routed through the same Drift Report batch-approval as every other Contract Drift entry, never a silent write |
+| The `project.maturity` value read into the Phase 1u inventory differs from the classification Phase 3 goes on to confirm | Compare the Phase 1u inventory's stored value against Phase 3's freshly confirmed classification, once Phase 3 completes | Add one line to the Drift Report noting the change; the write itself happens via Phase 3's existing confirmation gate, not a separate approval here |
 
 ## Phase 1u.6: Update Mode Early-Exit Gate
 

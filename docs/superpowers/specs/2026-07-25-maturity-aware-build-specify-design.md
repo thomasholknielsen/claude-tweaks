@@ -82,6 +82,8 @@ CLAUDE.md already claims they should behave differently.
 maturity: established   # greenfield | pre-launch | early-production | established
 ```
 
+_(Note: the implementation plan (`docs/superpowers/plans/2026-07-25-maturity-aware-build-specify.md`) uses the dotted `project.maturity` key instead of the bare form above, to match `.claude-tweaks/policy.yml`'s established dotted-namespace convention — see that plan's Global Constraints.)_
+
 Written by `/init` immediately once Phase 3's Project Classification gate confirms the value
 (auto-confirmed at high confidence, or human-confirmed via the interactive gate) — no deferred
 "write as the very last action" handling, unlike `worktree.always`. That deferral exists

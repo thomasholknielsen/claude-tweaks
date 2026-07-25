@@ -297,14 +297,15 @@ Defaults below apply under `--granularity standard` (the default when the flag i
 
 ### Decomposition Heuristics
 
-**Check first — rewrite-signal against an existing subsystem.** Read `project.maturity` from `.claude-tweaks/policy.yml` (missing key → treat as `greenfield`, skip this check entirely). When `early-production` or `established`, scan the design doc's Deliverables/Overview for rewrite-shaped language ("replace," "rewrite," "rebuild," "migrate off," "delete and rebuild") naming a target that Step 1's Landscape scan confirms already exists in the codebase with at least one reference from outside the file itself — not something this same design doc introduces fresh. When matched, decompose along a strangler-fig boundary instead of the standard five below:
+**Check first — rewrite-signal against an existing subsystem.** Read `project.maturity` from `.claude-tweaks/policy.yml` (missing key, or a value outside the four-item enum, → treat as `greenfield`/`pre-launch`, skip this check entirely). When `early-production` or `established`, scan the design doc's Deliverables/Overview for rewrite-shaped language ("replace," "rewrite," "rebuild," "migrate off," "delete and rebuild") naming a target that appears to already exist in the codebase (per Step 1's file/git-log reads) — not something this same design doc introduces fresh. Step 1's Landscape scan does not itself compute an outside-reference count, so before deciding, run one targeted grep for the named target's identifier across the codebase (excluding its own file) to confirm at least one reference from outside the file itself. When matched, decompose along a strangler-fig boundary instead of the standard five below:
 
 | Maturity | Decomposition shape |
 |---|---|
+| `greenfield` / `pre-launch` (or missing) | Standard five heuristics, unchanged |
 | `early-production` | Two leaves — implement the new path behind a flag, then a second leaf removing the old path once the flag is validated |
 | `established` | Three leaves — parallel implementation, cutover, decommission, sequenced so the old path keeps working until cutover is verified |
 
-An ambiguous match (rewrite language present, but Landscape scan can't confirm outside usage of the named target) falls through to the standard five heuristics below rather than forcing a strangler-fig shape onto something that may not need it.
+An ambiguous match (rewrite language present, but Landscape scan can't confirm outside usage of the named target) falls through to the standard five heuristics below rather than forcing a strangler-fig shape onto something that may not need it. `--granularity` does not apply once this path is taken — the two/three-leaf counts above are fixed regardless of `fine`/`coarse`.
 
 Otherwise, split along these natural boundaries (in priority order):
 
