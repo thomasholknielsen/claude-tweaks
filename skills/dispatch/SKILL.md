@@ -70,16 +70,26 @@ grep -q '^work-backend:' CLAUDE.md && echo "OK" || { grep -qE '^backlog-backend:
 
 `GENUINE_LOCAL_FILES` (neither key present, or `work-backend` present) proceeds through the normal branch above unchanged.
 
-**Headless self-report (`next` form only).** The `next` form fires unattended — the unit a scheduled Routine fires with nobody present to read a stop message (see the Input table above). A Preflight failure here needs a durable trace instead of a message nobody sees. Before stopping on any Preflight failure (the `work-backend` checks above, or the Detection Ladder below), search for an existing open report first, to avoid re-filing on every firing:
+**Headless self-report (`next` form only).** The `next` form fires unattended — the unit a scheduled Routine fires with nobody present to read a stop message (see the Input table above). A Preflight failure here needs a durable trace instead of a message nobody sees. Before stopping on any Preflight failure (the `work-backend` checks above, or the Detection Ladder below), search for an existing open report first, to avoid re-filing on every firing — never via `gh issue list --search`, which rides GitHub's eventually-consistent search index (the same anti-pattern that caused `/tidy`'s rolling digest to file duplicate issues on repeat firings — see `tidy/github-routine-procedures.md`'s Rolling digest section); use the same plain-list + marker-match idiom instead:
 
 ```bash
-gh issue list --label by:dispatch --state open --search "{failing-check-name} in:title" --json number -q '.[].number'
+gh issue list --label by:dispatch --state open --json number,title,body,createdAt --limit 500 > /tmp/dispatch-selfreport-issues.json
+
+node -e "
+  const { findByMarker } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/dedup-lookup.js');
+  const issues = require('/tmp/dispatch-selfreport-issues.json');
+  const marker = '<!-- dispatch-preflight-marker: ' + process.argv[1] + ' -->';
+  const result = findByMarker(issues, marker);
+  require('fs').writeFileSync('/tmp/dispatch-selfreport-lookup.json', JSON.stringify(result));
+" "{failing-check-name}"
 ```
 
-If one already exists, reference it in the stop output and file nothing new. Otherwise, read the
-project's `work-types` config key (per `_shared/work-record.md`'s Config keys table) and branch —
+Read `/tmp/dispatch-selfreport-lookup.json`:
+- `canonical` set: reference `#{canonical.number}` in the stop output and file nothing new.
+- `duplicates` non-empty (the hedge, not the expected path): close every entry before continuing — `gh issue close {n} --reason "not planned"` with a comment `"Duplicate of #{canonical.number} — same dispatch-preflight-marker match, closing to keep one open self-report per failing check."` — then log one line per closed duplicate to this firing's own audit trail the same way the digest's self-heal step does (`AUTO {time} — dispatch headless self-report: closed duplicate issue #{n} (marker match with canonical #{canonical.number}). Reversibility: low (GitHub state; issue can be manually re-opened).`).
+- `null`: read the project's `work-types` config key (per `_shared/work-record.md`'s Config keys table) and branch —
 same pattern `/capture`'s Backend Selection already uses, Type is always `bug` here (a Preflight
-failure is definitionally a defect):
+failure is definitionally a defect). The body now carries the marker so future firings can find it reliably:
 
 ```bash
 # Bootstrap per _shared/label-bootstrap.md, LABELS_JSON =
@@ -89,14 +99,18 @@ failure is definitionally a defect):
 # work-types: native
 gh issue create \
   --title "Dispatch Preflight failure: {failing-check-name}" \
-  --body "{the exact diagnostic message this check would otherwise report to a human}" \
+  --body "{the exact diagnostic message this check would otherwise report to a human}
+
+<!-- dispatch-preflight-marker: {failing-check-name} -->" \
   --type bug \
   --label by:dispatch
 
 # work-types: labels
 gh issue create \
   --title "Dispatch Preflight failure: {failing-check-name}" \
-  --body "{the exact diagnostic message this check would otherwise report to a human}" \
+  --body "{the exact diagnostic message this check would otherwise report to a human}
+
+<!-- dispatch-preflight-marker: {failing-check-name} -->" \
   --label by:dispatch \
   --label type:bug
 ```
