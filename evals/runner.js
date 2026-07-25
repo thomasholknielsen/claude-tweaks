@@ -68,7 +68,7 @@ function buildFixture(scenario, fixturesDir) {
 }
 
 // scenarioPath -> result object, also written to <resultsDir>/<name>-<ts>.json.
-// opts: { queryFn = realQuery, resultsDir = RESULTS_DIR, fixturesDir = FIXTURES_DIR }
+// opts: { queryFn = realQuery, resultsDir = RESULTS_DIR, fixturesDir = FIXTURES_DIR, record = false, historyPath = HISTORY_PATH, resolveGitStateFn = resolveGitState }
 export async function runScenarioWith(scenarioPath, opts = {}) {
   const {
     queryFn = realQuery,

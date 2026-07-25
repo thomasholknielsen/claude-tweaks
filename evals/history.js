@@ -14,7 +14,17 @@ export function resolveGitState(pluginRoot) {
   try {
     const gitSha = execFileSync('git', ['-C', pluginRoot, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
     const status = execFileSync('git', ['-C', pluginRoot, 'status', '--porcelain'], { encoding: 'utf8' });
-    return { gitSha, gitDirty: status.trim().length > 0 };
+    // Exclude the harness's own history.jsonl append from the dirty check —
+    // it's a tracked file this same function's caller writes to immediately
+    // after resolving state, so without this exclusion every scenario after
+    // the first in a --all batch would see the prior scenario's own
+    // uncommitted append and wrongly report gitDirty:true, even on an
+    // otherwise-clean checkout (the GitHub Action's default `scenario` input
+    // is "all", so this is the default path, not an edge case).
+    const relevantLines = status.split('\n').filter(
+      (line) => line.trim() !== '' && !line.endsWith('evals/history.jsonl')
+    );
+    return { gitSha, gitDirty: relevantLines.length > 0 };
   } catch {
     return { gitSha: null, gitDirty: null };
   }
@@ -44,7 +54,7 @@ function shortSha(sha) {
 }
 
 function failedAssertionTypes(entry) {
-  return entry.assertions.filter((a) => !a.pass).map((a) => a.type).join(', ');
+  return (entry.assertions || []).filter((a) => !a.pass).map((a) => a.type).join(', ');
 }
 
 function formatDate(startedAt) {

@@ -5,6 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runScenarioWith, buildPluginSnapshot, parseRunArgs } from '../runner.js';
+import { resolveGitState } from '../history.js';
+import { freshRepo, seedFiles } from '../fixtures/git-fixtures.js';
 
 // A fake queryFn matching the shape runner.js expects: given a single
 // { prompt, options } argument (matching the real SDK's query() signature),
@@ -252,4 +254,42 @@ test('runScenarioWith: does not touch history when record is false (the default)
   await runScenarioWith(scenarioPath, { queryFn: fakeQuery, resultsDir, fixturesDir: scenariosDir, historyPath });
 
   assert.strictEqual(fs.existsSync(historyPath), false);
+});
+
+test('runScenarioWith: gitDirty stays false across a multi-scenario batch, even though history.jsonl itself is a tracked file the harness appends to', async () => {
+  const repoDir = freshRepo();
+  seedFiles(repoDir, { 'evals/history.jsonl': '' }, 'seed empty history.jsonl');
+
+  const scenariosDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-scen-'));
+  const scenarioPath = path.join(scenariosDir, 'sample.yaml');
+  fs.writeFileSync(scenarioPath, [
+    'name: sample-batch',
+    'fixture:',
+    '  base: none',
+    '  seed: []',
+    'skill_invocation:',
+    '  prompt: "hello"',
+    'assertions:',
+    '  - type: tool-called',
+    '    name: Read',
+    '    atLeast: 1',
+  ].join('\n'));
+
+  const resultsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-results-'));
+  const historyPath = path.join(repoDir, 'evals', 'history.jsonl');
+
+  await runScenarioWith(scenarioPath, {
+    queryFn: fakeQuery, resultsDir, fixturesDir: scenariosDir,
+    record: true, historyPath, resolveGitStateFn: () => resolveGitState(repoDir),
+  });
+  await runScenarioWith(scenarioPath, {
+    queryFn: fakeQuery, resultsDir, fixturesDir: scenariosDir,
+    record: true, historyPath, resolveGitStateFn: () => resolveGitState(repoDir),
+  });
+
+  const lines = fs.readFileSync(historyPath, 'utf8').trim().split('\n');
+  assert.strictEqual(lines.length, 2);
+  const entries = lines.map((l) => JSON.parse(l));
+  assert.strictEqual(entries[0].gitDirty, false);
+  assert.strictEqual(entries[1].gitDirty, false, "second scenario must not see the first scenario's own history.jsonl append as tree dirt");
 });

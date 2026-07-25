@@ -32,7 +32,7 @@ jobs:
           node-version: '20'
 
       - name: Install eval harness dependencies
-        run: npm install
+        run: npm ci
         working-directory: evals
 
       - name: Run scenario
