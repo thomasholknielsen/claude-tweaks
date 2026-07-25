@@ -34,11 +34,11 @@ On a hit:
 Emit exactly one summary line every Step 7.8 run, auto mode or interactive:
 
 ```
-SCANNED {time} — Step 7.8 journey curation summary: {N} journeys checked ({names}), self-review: {pass/fail per journey}, gap detection: {found/not found}.
+SCANNED {time} — Step 7.8 journey curation summary: {N} journeys checked ({names}), self-review: {selfReview}, gap detection: {gapResult}.
 Result: {A} fixed inline, {C} new journey(s) created, {G} gap(s) found.
 Reversibility: N/A.
 ```
 
-`{N}`/`{names}` are J1's in-scope journeys (files: frontmatter overlapping the diff — `0`/`none` when no journey overlaps). `{self-review}` summarizes pass/fail per journey checked. `{gap detection}` names whether J2 found a hit. Auto mode appends this line to `decisions.md` under the `SCANNED` tag (see `_shared/auto-decision-log.md`); interactive mode prints the equivalent line inline instead of `decisions.md`.
+`{N}`/`{names}` are J1's in-scope journeys (files: frontmatter overlapping the diff — `0`/`none` when no journey overlaps). `{selfReview}` summarizes pass/fail per journey checked. `{gapResult}` names whether J2 found a hit (`found`/`not found`). Auto mode appends this line to `decisions.md` under the `SCANNED` tag (see `_shared/auto-decision-log.md`); interactive mode prints the equivalent line inline instead of `decisions.md`.
 
 Declare **"No journey updates needed"** only when J1 finds no journey in scope (or every in-scope journey passes every check) AND J2 finds no missing-journey gap — and even then, the mandatory summary line above is still emitted, naming the journeys checked and the gap-detection outcome. A "no updates needed" outcome that skips the summary line is a Step 7.8 defect, not a valid completion.
