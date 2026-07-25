@@ -163,7 +163,7 @@ The pipeline auto-resolved {N} decisions and staged {M} items for your review. T
 | 3 | /build | Scope-creep: added src/utils/cache.ts to plan | commit `abc1234` | Applied |
 | 4 | /stories | Applied 2 journey link suggestions | stories/login.yml, stories/logout.yml | Applied |
 
-A `SCANNED` entry (skill-curation's scan-summary log line — see `_shared/auto-decision-log.md`) also renders in this section, but with `Status` = `Informational` and `Where` = the step/location it ran at (no commit ref, since nothing was applied) — there is nothing to revert for these rows.
+A `SCANNED` entry (skill curation's scan-summary log line from Step 7, or documentation curation's from Step 7.7 — see `_shared/auto-decision-log.md`) also renders in this section, but with `Status` = `Informational` and `Where` = the step/location it ran at (no commit ref, since nothing was applied) — there is nothing to revert for these rows.
 
 #### Pending review (staged — apply, skip, or modify per item)
 
@@ -201,11 +201,16 @@ Render this section only when `decisions.md` contains STAGED entries from cross-
 | 11 | auth | Anti-Patterns | Add: "Don't share session tokens via querystring" |
 | 12 | NEW | session-management | Create new skill for session lifecycle patterns |
 
-#### Configuration updates (from Step 6)
+#### Documentation updates (from Step 7.7)
 
 | # | Type | Target | Change |
 |---|---|---|---|
 | 13 | doc | docs/api.md | Document new /auth/refresh endpoint |
+
+#### Configuration updates (from Step 6)
+
+| # | Type | Target | Change |
+|---|---|---|---|
 | 14 | claude.md | Commands | Add `npm run lint:fix` to test workflow |
 
 #### Cleanup actions (executed in Step 10 after approval)
@@ -263,11 +268,12 @@ None of these three options carries `(Recommended)` — the source text requires
 
 1. Apply all staged patches in `staged/` for items 5–7 (run `git apply` or equivalent for each)
 2. Apply skill updates and create new skills (items 11–12, from Step 7)
-3. Apply config updates (items 13–14: docs, CLAUDE.md, rules)
-4. Execute cleanup actions (items 15–21) — Step 10 picks these up
-5. For each `Q#` queue write, prompt the user per item via its own `AskUserQuestion` call. On Apply (or Edit, after the modification): create the record — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`), reading `Title:`/`Type:`/`Labels:` and the body from the item's staged file (`staged/leftover-{slug}.md` for leftover-routed items; other sources use their own staged-file shape). Skip drops the proposal — log the decline to `decisions.md` with the user's stated reason, or "declined, no reason given" when none was offered.
-6. Commit with a wrap-up message
-7. Proceed to Step 9 (Present Consolidated Summary)
+3. Apply documentation updates (item 13, from Step 7.7) — including any approved missing-doc scaffolding (D2) and restructural docs-health filings (D1)
+4. Apply config updates (item 14: CLAUDE.md, rules, ADRs)
+5. Execute cleanup actions (items 15–21) — Step 10 picks these up
+6. For each `Q#` queue write, prompt the user per item via its own `AskUserQuestion` call. On Apply (or Edit, after the modification): create the record — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`), reading `Title:`/`Type:`/`Labels:` and the body from the item's staged file (`staged/leftover-{slug}.md` for leftover-routed items; other sources use their own staged-file shape). Skip drops the proposal — log the decline to `decisions.md` with the user's stated reason, or "declined, no reason given" when none was offered.
+7. Commit with a wrap-up message
+8. Proceed to Step 9 (Present Consolidated Summary)
 
 ## On override (option 2)
 
