@@ -13,12 +13,14 @@ import { query as realQuery } from '@anthropic-ai/claude-agent-sdk';
 import { createActor } from './actor.js';
 import { runAssertion } from './assertions/index.js';
 import { freshRepo, seedFiles, applyPatch, seedLocalWorkRecord, walkFiles } from './fixtures/git-fixtures.js';
+import { resolveGitState, appendHistoryEntry, readHistory, formatHistoryTable } from './history.js';
 
 const EVALS_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PLUGIN_ROOT = path.resolve(EVALS_ROOT, '..');
 const SCENARIOS_DIR = path.join(EVALS_ROOT, 'scenarios');
 const FIXTURES_DIR = path.join(EVALS_ROOT, 'fixtures');
 const RESULTS_DIR = path.join(EVALS_ROOT, 'results');
+const HISTORY_PATH = path.join(EVALS_ROOT, 'history.jsonl');
 
 // Task 7.6 (incident-driven, see task-7.6-brief.md): PLUGIN_ROOT is this
 // actual live worktree, since evals/ lives inside the very plugin under
@@ -68,7 +70,14 @@ function buildFixture(scenario, fixturesDir) {
 // scenarioPath -> result object, also written to <resultsDir>/<name>-<ts>.json.
 // opts: { queryFn = realQuery, resultsDir = RESULTS_DIR, fixturesDir = FIXTURES_DIR }
 export async function runScenarioWith(scenarioPath, opts = {}) {
-  const { queryFn = realQuery, resultsDir = RESULTS_DIR, fixturesDir = FIXTURES_DIR } = opts;
+  const {
+    queryFn = realQuery,
+    resultsDir = RESULTS_DIR,
+    fixturesDir = FIXTURES_DIR,
+    record = false,
+    historyPath = HISTORY_PATH,
+    resolveGitStateFn = resolveGitState,
+  } = opts;
   const scenario = loadYaml(fs.readFileSync(scenarioPath, 'utf8'));
   const repoDir = buildFixture(scenario, fixturesDir);
   const pluginSnapshotDir = buildPluginSnapshot();
@@ -143,13 +152,37 @@ export async function runScenarioWith(scenarioPath, opts = {}) {
 
   fs.mkdirSync(resultsDir, { recursive: true });
   fs.writeFileSync(path.join(resultsDir, `${scenario.name}-${startedAt}.json`), JSON.stringify(result, null, 2));
+
+  if (record) {
+    const { gitSha, gitDirty } = resolveGitStateFn(PLUGIN_ROOT);
+    appendHistoryEntry(historyPath, { ...result, gitSha, gitDirty });
+  }
+
   return result;
 }
 
+// Pure argv-parsing helper for the `run` subcommand, exported so it's unit
+// testable without spawning the CLI. `--all` is a positional value (the
+// scenario selector), not a boolean flag, so it must NOT be filtered out
+// the way `--no-record` is.
+export function parseRunArgs(rest) {
+  const record = !rest.includes('--no-record');
+  const positional = rest.filter((a) => a !== '--no-record');
+  return { record, arg: positional[0] };
+}
+
 async function main() {
-  const [, , cmd, arg] = process.argv;
+  const [, , cmd, ...rest] = process.argv;
+  if (cmd === 'history') {
+    const entries = readHistory(HISTORY_PATH);
+    console.log(formatHistoryTable(entries, rest[0]));
+    return;
+  }
+
+  const { record, arg } = parseRunArgs(rest);
   if (cmd !== 'run' || !arg) {
-    console.error('usage: node runner.js run <scenario-name>|--all');
+    console.error('usage: node runner.js run <scenario-name>|--all [--no-record]');
+    console.error('       node runner.js history [scenario-name]');
     process.exit(1);
   }
   const names = arg === '--all'
@@ -159,7 +192,7 @@ async function main() {
   let anyFailed = false;
   for (const name of names) {
     const scenarioPath = path.join(SCENARIOS_DIR, `${name}.yaml`);
-    const result = await runScenarioWith(scenarioPath, {});
+    const result = await runScenarioWith(scenarioPath, { record });
     console.log(`${name}: ${result.allPassed ? 'PASS' : 'FAIL'} (cost=$${result.costUsd}, tools=${result.toolCallCount}, ${result.durationMs}ms)`);
     if (!result.allPassed) anyFailed = true;
   }

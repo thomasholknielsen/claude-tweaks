@@ -20,6 +20,7 @@ depending on the scenario and how much work the invoked skill actually does.
 
     node runner.js run review-catches-planted-bugs
     node runner.js run --all
+    node runner.js run review-catches-planted-bugs --no-record
 
 Each run writes one JSON result file to `results/` (gitignored): cost,
 tokens, tool-call count, wall-clock duration, and a per-assertion pass/fail
@@ -82,21 +83,39 @@ Treat `tool-count` as a rough ceiling, not an exact count.
 
 ## Comparing before/after a skill change
 
-    node runner.js run --all               # on main
+    node runner.js run --all               # on main — appends to history.jsonl
     git checkout my-skill-change-branch
-    node runner.js run --all               # on the branch
-    # diff the two result sets under results/ by hand
+    node runner.js run --all               # on the branch — appends its own lines
+    node runner.js history <scenario>      # see both runs, newest first, correlated to gitSha
 
-No durable cross-run store exists yet — this is a deliberate v1 scope
-decision (see the design doc's Result Handling section). Non-determinism:
-a single run's numbers are noisy since this drives a real LLM agent, not
-deterministic code — read a small delta as indicative, not conclusive. The
-live skills this harness tests can themselves change behavior between runs
-independent of anything under `evals/` — several scenarios here needed
-recalibration mid-development when the underlying skill's real output
-shape or effort-tiering behavior turned out to differ from what an earlier
-run had captured. Treat a scenario's assertions as pinned to observed
-reality at calibration time, not as a permanent contract the skill owes it.
+`history.jsonl` (see "Tracking results over time" below) is the durable
+comparison mechanism — no more diffing two `results/` JSON files by hand.
+Non-determinism: a single run's numbers are noisy since this drives a real
+LLM agent, not deterministic code — read a small delta as indicative, not
+conclusive; multiple lines sharing one `gitSha` in history are repeat
+samples at the same commit, not an error. The live skills this harness
+tests can themselves change behavior between runs independent of anything
+under `evals/` — several scenarios here needed recalibration
+mid-development when the underlying skill's real output shape or
+effort-tiering behavior turned out to differ from what an earlier run had
+captured. Treat a scenario's assertions as pinned to observed reality at
+calibration time, not as a permanent contract the skill owes it.
+
+## Tracking results over time
+
+Every real run appends one line to `evals/history.jsonl` (git-tracked, not
+gitignored — unlike `results/`) by default: the same cost/tokens/tool-count/
+pass-fail data as a `results/*.json` file, plus the plugin repo's `gitSha`
+and whether the working tree was `gitDirty` at run time. This is what makes
+"did commit X regress this scenario" and "is this scenario's cost trending
+up" answerable without re-deriving anything.
+
+    node runner.js history review-catches-planted-bugs   # one scenario's history, newest first
+    node runner.js history                                # most recent run per scenario
+
+Pass `--no-record` on `run` to skip appending — useful while iterating on a
+scenario's own definition, where the run doesn't represent a real benchmark
+point. `--no-record` applies to every scenario in a `--all` batch.
 
 ## Running the harness's own tests
 
