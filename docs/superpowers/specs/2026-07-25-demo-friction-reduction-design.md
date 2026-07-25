@@ -277,11 +277,18 @@ Step 1's "Source A" stops being a sweep:
   format, rationale line (Section 6).
 - `skills/help/status-scan.md` — Stage 4.7 description updated to match.
 - `skills/help/SKILL.md` — `/demo` relationship row updated to match.
-- `CLAUDE.md` — the one-line `demo` skill summary in the skill-directories table refreshed;
-  `help` skill summary line, if it currently references the acceptance-queue count.
+- `skills/browse/SKILL.md` — a "When to Use" bullet and the Relationship-table `/demo` row both
+  name "Show me live" and `/demo`'s Step 3 by number; both need the rename ("See it yourself")
+  and renumbering (Step 2) applied from the other side. Verified via a repo-wide grep during
+  plan-writing — not originally listed here, corrected before implementation.
+- `skills/visual-review/SKILL.md` — same reciprocal fix: its Relationship-table `/demo` row names
+  both "Show me live" and Step 3.
 - `.claude-plugin/plugin.json` — version bump (minor — new option added to `/demo`, behavior
   change to `/help`; check `origin/main` for a concurrent bump first, per the Releasing section's
   discipline).
+- **No changes** to `CLAUDE.md` — verified during plan-writing that no one-line `demo`/`help`
+  skill summary table actually exists there (the "Skill directories" section only lists bare
+  skill names); the touch point originally noted here was inaccurate and has been removed.
 - **No changes** to `dev-url-detection.md`, `_shared/browse` conventions, `verification-brief.md`,
   `wrap-up/SKILL.md`, `work-record.md`'s label taxonomy/permission matrix, `triage/SKILL.md`,
   `review-backlog/SKILL.md`, or `bin/lib/issues/*`.
