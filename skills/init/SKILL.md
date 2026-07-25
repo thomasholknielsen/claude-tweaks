@@ -39,7 +39,7 @@ If `$ARGUMENTS` is provided, treat it as:
 - A description of the project context (e.g., "Ruby on Rails monolith, team of 5")
 - `--update` or `update` — force Update mode even if the config looks minimal
 - `--full` — force the complete reconnaissance pass (Phases 2-8.5) even when Update Mode's Phase 1u.6 early-exit gate would otherwise skip straight to Phase 9; composes with `--update`/`update` (e.g. `update --full`)
-- `--core-only` — within Phase 0, skip the Optional Enhancements (Steps 9-15) entirely, equivalent to auto-declining every optional-enhancement offer, then continue into whatever scope this invocation would otherwise run; composes with any goal-based scope below (e.g. `bootstrap --core-only` for a fully non-interactive, structure-only bootstrap)
+- `--core-only` — within Phase 0, skip the Optional Enhancements (Steps 9-16) entirely, equivalent to auto-declining every optional-enhancement offer, then continue into whatever scope this invocation would otherwise run; composes with any goal-based scope below (e.g. `bootstrap --core-only` for a fully non-interactive, structure-only bootstrap)
 - `bootstrap` — run Phase 0 only (structure + deps), then stop
 - `config` — run Phases 0 + 2 + 3 + 5 (bootstrap + recon + CLAUDE.md)
 - `skills` — run Phases 0 + 2 + 3 + 4 + 6 (bootstrap + recon + skills)
@@ -106,7 +106,7 @@ Detect `agent-browser`; surface the install command if missing. Never block init
 
 Detect Node (and optionally git), install the statusline wrapper at `~/.claude-tweaks/bin/statusline.js`, and prompt before wiring `statusLine.command` in `~/.claude/settings.json` — never overwrite a non-claude-tweaks command. Read `bootstrap-steps.md` (Step 8) for the full procedure (detection, package-manager prompts, settings.json migration matrix, NO_COLOR opt-out).
 
-**Optional Enhancements (Steps 9–15):** Skipped entirely when `$ARGUMENTS` contains `--core-only` — treat every offer below as declined with no prompt shown, and proceed straight to whatever this invocation runs after Phase 0 (the Scope Selection Gate, or a composed goal-based scope).
+**Optional Enhancements (Steps 9–16):** Skipped entirely when `$ARGUMENTS` contains `--core-only` — treat every offer below as declined with no prompt shown, and proceed straight to whatever this invocation runs after Phase 0 (the Scope Selection Gate, or a composed goal-based scope).
 
 ### Step 9: GitHub Issue Form Template (Optional)
 
