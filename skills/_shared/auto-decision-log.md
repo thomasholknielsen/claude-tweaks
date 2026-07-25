@@ -79,6 +79,7 @@ Each entry follows this shape:
 | `AUTO` | Skill auto-applied the decision per policy. Action complete. | Shown in "Auto-applied" section. Override = revert commit or undo edit. |
 | `STAGED` | Skill detected a decision-worthy item but did not act. Patch / proposal is written to the run's `staged/` directory. | Shown in "Pending Review" section. User chooses Apply / Skip / Modify per item. |
 | `KEPT-PROMPT` | Skill could not auto-resolve (floor failed or item is in "not silenced" list). Asked user inline. | Already resolved — informational entry only. |
+| `SCANNED` | Skill ran its independent scan/gap-detection and found nothing actionable. Not a decision — a report that the scan ran and its scope. | Shown in "Auto-applied" section as an informational line (no action to override). |
 
 ## Append protocol
 

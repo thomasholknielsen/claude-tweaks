@@ -60,9 +60,17 @@ For each proposed change:
    STAGED 14:52:38 — Step 7: new skill candidate "{name}". Reversibility: high (stage path: staged/wrap-up-skill-new-{name}.md).
    ```
 
+5. **Mandatory summary (always, regardless of outcome)** — emit exactly one summary line every Step 7 run, auto mode or interactive:
+   ```
+   SCANNED {time} — Step 7 skill curation summary: {S} seeds, {R} skills read
+   (top-{cap}: {names}), gap detection: {what was examined, found/not found}.
+   Result: {N} applied, {M} staged, {K} new-skill candidates ({proposed}/{declined}).
+   ```
+   `{S}` is 7.1's seed count. `{R}` counts the skills actually read in 7.2's independent scan — the union of the ranked top-`{cap}` set and any seeded skills from 7.1 (the same "read set" 7.2 step 5 defines). `{cap}` is 7.2's own existing default-5/fast-lane-2/`--skill-budget`-override value. When `{S}` is 0, render `{names}` as the literal text `none (no seeds)`. Auto mode appends this line to `decisions.md` under the `SCANNED` tag (see `_shared/auto-decision-log.md`); interactive mode prints the equivalent line inline instead of `decisions.md`.
+
 Staged items surface at the Wrap-Up Review Console (SKILL.md Step 8.6) as rows in the "Skill updates" section. New-skill candidates appear as ordinary rows covered by "Approve all." Do not present a separate batch decision here.
 
-Declare **"No skill updates needed"** only when 7.1 found no seeds, 7.2's scan found no relevant skills and no gap candidates, and 7.3-7.5 produced no candidates. Do not declare it merely because no ledger entries were tagged.
+Declare **"No skill updates needed"** only when 7.1 found no seeds, 7.2's scan found no relevant skills and no gap candidates, and 7.3-7.5 produced no candidates — and even then, the mandatory summary line above (item 5) is still emitted, naming the seed count, skills read, and gap-detection outcome. A "no updates needed" outcome that skips the summary line is a Step 7 defect, not a valid completion. Do not declare it merely because no ledger entries were tagged.
 
 **Interactive mode:** Present the dedicated batch decision table:
 
