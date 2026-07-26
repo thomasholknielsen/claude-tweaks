@@ -35,7 +35,7 @@ A compliant local-files Preflight paragraph contains all of the following, in th
 1. **The trigger** — read `work-backend` (per `_shared/work-record.md`'s Config keys table)
    and identify the `local-files` branch.
 2. **The reason**, stated in this skill's own terms — what mechanism or grant is actually
-   unavailable under `local-files` (e.g. triage: the grant conditions this skill exists to
+   unavailable under `local-files` (e.g. backlog refine: the grant conditions this skill exists to
    enforce; dispatch: the claim mechanism the protocol depends on).
 3. **"Stop this turn completely"**, followed by an explicit, enumerated list of forbidden
    actions — do not invoke {the specific skills this skill would otherwise hand off to}, or
@@ -50,7 +50,7 @@ A compliant local-files Preflight paragraph contains all of the following, in th
    to hand this off to is not license to do the work in their place — it means {the unmet
    condition from step 2}, so the correct behavior is to stop, not proceed."
 
-See `skills/triage/SKILL.md` and `skills/dispatch/SKILL.md`'s own Preflight sections for two
+See `skills/backlog/SKILL.md` and `skills/dispatch/SKILL.md`'s own Preflight sections for two
 worked instances of this pattern applied to genuinely different skill-specific reasons.
 
 ## Adding a third consumer
