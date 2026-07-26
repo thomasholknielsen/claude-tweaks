@@ -3,7 +3,7 @@ const assert = require('node:assert');
 const { fingerprint, normalizeSignature } = require('../fingerprint');
 const { fingerprintFromBasis } = require('../../health-core/fingerprint');
 
-test('fingerprint returns a recon-<8hex> id', () => {
+test('fingerprint returns a codehealth-<8hex> id', () => {
   const id = fingerprint({ lens: 'todo-comments', areaId: '.', signature: 'TODO x', file: 'a.js:12' });
   assert.match(id, /^codehealth-[0-9a-f]{8}$/);
 });
@@ -58,7 +58,7 @@ test('normalizeAnchor lowercases path, strips :line and :line:col on either side
   );
 });
 
-test('v2 fingerprint returns a recon-<8hex> id', () => {
+test('v2 fingerprint returns a codehealth-<8hex> id', () => {
   const id = fingerprint({ criterion: 'simplification', areaId: 'src/api', anchor: 'src/api/user.js#getUser' });
   assert.match(id, /^codehealth-[0-9a-f]{8}$/);
 });

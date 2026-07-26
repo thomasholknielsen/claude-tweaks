@@ -58,17 +58,17 @@ test('buildValidateFindingsUpdate: an un-swept area\'s existing cursor is preser
 
 test('buildValidateFindingsUpdate: a new rememberCandidate is merged into (not replacing) current.remembered', () => {
   const current = baseCurrent({
-    remembered: { 'recon-existing01': { status: 'remembered', issue: null, severity: 'medium', risk: 'medium' } },
+    remembered: { 'codehealth-existing01': { status: 'remembered', issue: null, severity: 'medium', risk: 'medium' } },
   });
   const next = buildValidateFindingsUpdate(current, {
     areasSwept: [],
     hashes: {},
-    rememberCandidates: [{ id: 'recon-newone02', severity: 'low', risk: 'low' }],
+    rememberCandidates: [{ id: 'codehealth-newone02', severity: 'low', risk: 'low' }],
     runRecord: { runId: 'r1', runAt: 'now', fingerprints: [] },
     now: 1,
   });
-  assert.ok(next.remembered['recon-existing01'], 'pre-existing remembered entry must survive the merge');
-  assert.ok(next.remembered['recon-newone02'], 'new rememberCandidate entry must be present');
+  assert.ok(next.remembered['codehealth-existing01'], 'pre-existing remembered entry must survive the merge');
+  assert.ok(next.remembered['codehealth-newone02'], 'new rememberCandidate entry must be present');
   assert.strictEqual(Object.keys(next.remembered).length, 2);
 });
 
@@ -81,27 +81,27 @@ test('buildValidateFindingsUpdate: a new rememberCandidate is merged into (not r
 // must be left untouched, not overwritten with this run's own values.
 test('buildValidateFindingsUpdate: a rememberCandidate already present in current.remembered is left untouched (its original entry wins)', () => {
   const current = baseCurrent({
-    remembered: { 'recon-existing01': { status: 'remembered', issue: null, severity: 'high', risk: 'high' } },
+    remembered: { 'codehealth-existing01': { status: 'remembered', issue: null, severity: 'high', risk: 'high' } },
   });
   const next = buildValidateFindingsUpdate(current, {
     areasSwept: [],
     hashes: {},
     // Same id, different severity/risk this run — must NOT overwrite.
-    rememberCandidates: [{ id: 'recon-existing01', severity: 'low', risk: 'low' }],
+    rememberCandidates: [{ id: 'codehealth-existing01', severity: 'low', risk: 'low' }],
     runRecord: { runId: 'r1', runAt: 'now', fingerprints: [] },
     now: 1,
   });
   assert.deepStrictEqual(
-    next.remembered['recon-existing01'],
+    next.remembered['codehealth-existing01'],
     { status: 'remembered', issue: null, severity: 'high', risk: 'high' },
     'an already-remembered entry (from current.remembered, the freshest available state) must not be overwritten',
   );
 });
 
 test('buildValidateFindingsUpdate: the new run record is appended to (not replacing) current.runs', () => {
-  const priorRun = { runId: 'r0', runAt: 'earlier', fingerprints: ['recon-aaaa0001'] };
+  const priorRun = { runId: 'r0', runAt: 'earlier', fingerprints: ['codehealth-aaaa0001'] };
   const current = baseCurrent({ runs: [priorRun] });
-  const newRun = { runId: 'r1', runAt: 'later', fingerprints: ['recon-bbbb0002'] };
+  const newRun = { runId: 'r1', runAt: 'later', fingerprints: ['codehealth-bbbb0002'] };
   const next = buildValidateFindingsUpdate(current, {
     areasSwept: [],
     hashes: {},
@@ -113,7 +113,7 @@ test('buildValidateFindingsUpdate: the new run record is appended to (not replac
 });
 
 test('buildValidateFindingsUpdate: passes through unrelated current fields (e.g. retryQueue) untouched', () => {
-  const current = baseCurrent({ retryQueue: [{ fingerprint: 'recon-xyz', attempts: 1 }] });
+  const current = baseCurrent({ retryQueue: [{ fingerprint: 'codehealth-xyz', attempts: 1 }] });
   const next = buildValidateFindingsUpdate(current, {
     areasSwept: [],
     hashes: {},

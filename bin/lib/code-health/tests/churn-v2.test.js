@@ -9,7 +9,7 @@ const path = require('path');
 const { computeChurn } = require('../cache');
 const CLI = path.resolve(__dirname, '..', '..', '..', 'code-health.js');
 
-function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-churn-v2-')); }
+function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-churn-v2-')); }
 
 // recordRun/readRuns (local-disk run-log persistence) were removed by the
 // health-state migration — run history now lives on the durable health-state
@@ -21,9 +21,9 @@ function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-churn-v2-')
 // with runs.json (no gh/network needed) — the same technique
 // bin/lib/code-health/tests/cli-nextslice.test.js uses for cursors.
 function seedDurableRuns(root, runs) {
-  const bareDir = fs.mkdtempSync(path.join(os.tmpdir(), 'recon-churn-bare-'));
+  const bareDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-churn-bare-'));
   execFileSync('git', ['init', '--bare', '-q', bareDir]);
-  const seedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'recon-churn-seed-'));
+  const seedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-churn-seed-'));
   execFileSync('git', ['init', '-q', seedDir]);
   execFileSync('git', ['-C', seedDir, 'checkout', '-q', '-b', 'health-state']);
   fs.mkdirSync(path.join(seedDir, 'code-health'), { recursive: true });
@@ -42,12 +42,12 @@ test('computeChurn works over consecutive v2 run-logs', () => {
   // Run records constructed directly (computeChurn is a pure function over
   // fingerprint arrays; it never needed recordRun/readRuns's disk round-trip).
   const runs = [
-    { runId: 'run-001', runAt: '2026-01-01T00:00:00.000Z', fingerprints: ['recon-aaaa0001', 'recon-bbbb0002'] },
-    { runId: 'run-002', runAt: '2026-01-02T00:00:00.000Z', fingerprints: ['recon-aaaa0001', 'recon-cccc0003'] },
+    { runId: 'run-001', runAt: '2026-01-01T00:00:00.000Z', fingerprints: ['codehealth-aaaa0001', 'codehealth-bbbb0002'] },
+    { runId: 'run-002', runAt: '2026-01-02T00:00:00.000Z', fingerprints: ['codehealth-aaaa0001', 'codehealth-cccc0003'] },
   ];
   const churn = computeChurn(runs[1].fingerprints, runs[0]);
-  assert.deepStrictEqual(churn.appeared, ['recon-cccc0003']);
-  assert.deepStrictEqual(churn.disappeared, ['recon-bbbb0002']);
+  assert.deepStrictEqual(churn.appeared, ['codehealth-cccc0003']);
+  assert.deepStrictEqual(churn.disappeared, ['codehealth-bbbb0002']);
   assert.strictEqual(churn.stayed.length, 1);
   // ratio = 2 appeared+disappeared / 3 union = 0.667
   assert.ok(churn.ratio > 0.5 && churn.ratio < 0.8, `ratio ${churn.ratio}`);
@@ -56,8 +56,8 @@ test('computeChurn works over consecutive v2 run-logs', () => {
 test('churn-report CLI exits 1 when ratio exceeds threshold', () => {
   const root = tmp();
   seedDurableRuns(root, [
-    { runId: 'run-001', runAt: '2026-01-01T00:00:00.000Z', fingerprints: ['recon-aaaa0001', 'recon-bbbb0002'] },
-    { runId: 'run-002', runAt: '2026-01-02T00:00:00.000Z', fingerprints: ['recon-cccc0003', 'recon-dddd0004'] },
+    { runId: 'run-001', runAt: '2026-01-01T00:00:00.000Z', fingerprints: ['codehealth-aaaa0001', 'codehealth-bbbb0002'] },
+    { runId: 'run-002', runAt: '2026-01-02T00:00:00.000Z', fingerprints: ['codehealth-cccc0003', 'codehealth-dddd0004'] },
   ]);
   const result = spawnSync('node', [CLI, 'churn-report', '--root', root, '--fail-on-high-churn', '0.5'], { encoding: 'utf8' });
   assert.strictEqual(result.status, 1, `stdout: ${result.stdout} stderr: ${result.stderr}`);
@@ -66,8 +66,8 @@ test('churn-report CLI exits 1 when ratio exceeds threshold', () => {
 test('churn-report CLI exits 0 when ratio is below threshold', () => {
   const root = tmp();
   seedDurableRuns(root, [
-    { runId: 'run-001', runAt: '2026-01-01T00:00:00.000Z', fingerprints: ['recon-aaaa0001', 'recon-bbbb0002'] },
-    { runId: 'run-002', runAt: '2026-01-02T00:00:00.000Z', fingerprints: ['recon-aaaa0001', 'recon-bbbb0002'] },
+    { runId: 'run-001', runAt: '2026-01-01T00:00:00.000Z', fingerprints: ['codehealth-aaaa0001', 'codehealth-bbbb0002'] },
+    { runId: 'run-002', runAt: '2026-01-02T00:00:00.000Z', fingerprints: ['codehealth-aaaa0001', 'codehealth-bbbb0002'] },
   ]);
   const result = spawnSync('node', [CLI, 'churn-report', '--root', root, '--fail-on-high-churn', '0.5'], { encoding: 'utf8' });
   assert.strictEqual(result.status, 0, `stdout: ${result.stdout} stderr: ${result.stderr}`);
@@ -80,8 +80,8 @@ test('churn-report CLI exits 0 when ratio is below threshold', () => {
 test('churn-report falls back to process.cwd() when --root is a trailing flag with no value', () => {
   const root = tmp();
   seedDurableRuns(root, [
-    { runId: 'run-001', runAt: '2026-01-01T00:00:00.000Z', fingerprints: ['recon-aaaa0001', 'recon-bbbb0002'] },
-    { runId: 'run-002', runAt: '2026-01-02T00:00:00.000Z', fingerprints: ['recon-cccc0003', 'recon-dddd0004'] },
+    { runId: 'run-001', runAt: '2026-01-01T00:00:00.000Z', fingerprints: ['codehealth-aaaa0001', 'codehealth-bbbb0002'] },
+    { runId: 'run-002', runAt: '2026-01-02T00:00:00.000Z', fingerprints: ['codehealth-cccc0003', 'codehealth-dddd0004'] },
   ]);
   const result = spawnSync('node', [CLI, 'churn-report', '--fail-on-high-churn', '0.5', '--root'], { cwd: root, encoding: 'utf8' });
   assert.strictEqual(result.status, 1, `expected the seeded high-churn run at cwd to be found: stdout: ${result.stdout} stderr: ${result.stderr}`);

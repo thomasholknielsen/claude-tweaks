@@ -3,7 +3,7 @@ const assert = require('node:assert');
 const { toIssuePayload } = require('../issue-payload');
 
 const FINDING = {
-  id: 'recon-abc12345',
+  id: 'codehealth-abc12345',
   title: 'Oversized file: big.js (700 lines)',
   lens: 'oversized-file',
   category: 'architecture',
@@ -26,7 +26,7 @@ test('title is the finding title', () => {
 
 test('body embeds the fingerprint marker so it can be re-extracted for dedup', () => {
   const { body } = toIssuePayload(FINDING);
-  assert.ok(body.includes('<!-- code-health-fingerprint: recon-abc12345 -->'));
+  assert.ok(body.includes('<!-- code-health-fingerprint: codehealth-abc12345 -->'));
 });
 
 test('body carries /specify-shaped sections sourced from the finding', () => {
@@ -43,8 +43,8 @@ test('body carries /specify-shaped sections sourced from the finding', () => {
 // The marker is the dedup contract: the skill reads issue bodies and matches this.
 test('the fingerprint can be re-extracted from the body with a stable regex', () => {
   const { body } = toIssuePayload(FINDING);
-  const m = body.match(/<!--\s*code-health-fingerprint:\s*(recon-[0-9a-f]{8})\s*-->/);
-  assert.strictEqual(m[1], 'recon-abc12345');
+  const m = body.match(/<!--\s*code-health-fingerprint:\s*(codehealth-[0-9a-f]{8})\s*-->/);
+  assert.strictEqual(m[1], 'codehealth-abc12345');
 });
 
 // ── v2 issue payload ───────────────────────────────────────────────────────
@@ -52,7 +52,7 @@ test('the fingerprint can be re-extracted from the body with a stable regex', ()
 const { toIssuePayloadV2 } = require('../issue-payload');
 
 const V2_FINDING = {
-  id: 'recon-ab12cd34',
+  id: 'codehealth-ab12cd34',
   criterion: 'simplification',
   areaId: 'src/api',
   anchor: 'src/api/user.js#getUser',
@@ -93,7 +93,7 @@ test('v2 title is the finding title', () => {
 
 test('v2 body embeds the work-fingerprint marker (not the legacy code-health-fingerprint marker)', () => {
   const { body } = toIssuePayloadV2(V2_FINDING);
-  assert.ok(body.includes('<!-- work-fingerprint: recon-ab12cd34 -->'), 'marker missing');
+  assert.ok(body.includes('<!-- work-fingerprint: codehealth-ab12cd34 -->'), 'marker missing');
   assert.ok(!body.includes('code-health-fingerprint'), 'legacy marker must not be emitted');
 });
 
@@ -124,19 +124,19 @@ test('v2 body has ## Acceptance Criteria containing acceptance', () => {
 test('v2 fingerprint marker is re-extractable with extractFingerprint', () => {
   const { extractFingerprint } = require('../../issues/record');
   const { body } = toIssuePayloadV2(V2_FINDING);
-  assert.strictEqual(extractFingerprint(body), 'recon-ab12cd34');
+  assert.strictEqual(extractFingerprint(body), 'codehealth-ab12cd34');
 });
 
 test('toIssuePayload (v1) still works after extending the module', () => {
   // Guard: existing v1 export must be unaffected.
   const { toIssuePayload: v1 } = require('../issue-payload');
   const FINDING = {
-    id: 'recon-abc12345', title: 'T', lens: 'oversized-file', category: 'architecture',
+    id: 'codehealth-abc12345', title: 'T', lens: 'oversized-file', category: 'architecture',
     severity: 'high', confidence: 'high', area: 'apps/web',
     files: ['apps/web/big.js'], evidence: 'E', suggestion: 'S', acceptance: 'A',
   };
   const p = v1(FINDING);
-  assert.ok(p.body.includes('<!-- code-health-fingerprint: recon-abc12345 -->'));
+  assert.ok(p.body.includes('<!-- code-health-fingerprint: codehealth-abc12345 -->'));
   assert.deepStrictEqual(p.labels, ['code-health', 'code-health:high']);
 });
 

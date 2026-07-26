@@ -9,7 +9,7 @@ const { seedDurableState } = require('./seed-durable-state');
 
 const CLI = path.resolve(__dirname, '..', '..', '..', 'code-health.js');
 
-function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-status-v2-')); }
+function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-status-v2-')); }
 
 function writeV2Cache(root, entries) {
   // entries: [{ fp, status, severity, risk }]
@@ -36,9 +36,9 @@ function seedDurableRemembered(root, remembered) {
 test('status prints open and regressed counts from v2 cache', () => {
   const root = tmp();
   writeV2Cache(root, [
-    { fp: 'recon-aaaabbbb', status: 'open', severity: 'medium' },
-    { fp: 'recon-ccccdddd', status: 'regressed', severity: 'high' },
-    { fp: 'recon-eeeeffff', status: 'closed', severity: 'low' },
+    { fp: 'codehealth-aaaabbbb', status: 'open', severity: 'medium' },
+    { fp: 'codehealth-ccccdddd', status: 'regressed', severity: 'high' },
+    { fp: 'codehealth-eeeeffff', status: 'closed', severity: 'low' },
   ]);
   const out = execFileSync('node', [CLI, 'status', '--root', root], { encoding: 'utf8' });
   assert.ok(out.includes('open:1'), `expected open:1 in: ${out}`);
@@ -49,11 +49,11 @@ test('status prints open and regressed counts from v2 cache', () => {
 test('status prints the remembered count from the durable remembered store', () => {
   const root = tmp();
   writeV2Cache(root, [
-    { fp: 'recon-aaaabbbb', status: 'open', severity: 'medium' },
+    { fp: 'codehealth-aaaabbbb', status: 'open', severity: 'medium' },
   ]);
   seedDurableRemembered(root, {
-    'recon-ccccdddd': { status: 'remembered', issue: null, severity: 'medium', risk: null },
-    'recon-eeeeffff': { status: 'remembered', issue: null, severity: 'low', risk: null },
+    'codehealth-ccccdddd': { status: 'remembered', issue: null, severity: 'medium', risk: null },
+    'codehealth-eeeeffff': { status: 'remembered', issue: null, severity: 'low', risk: null },
   });
   const out = execFileSync('node', [CLI, 'status', '--root', root], { encoding: 'utf8' });
   assert.ok(out.includes('open:1'), `expected open:1 in: ${out}`);
@@ -63,8 +63,8 @@ test('status prints the remembered count from the durable remembered store', () 
 test('status --fail-on regressed exits 1 when regressed entries exist in v2 cache', () => {
   const root = tmp();
   writeV2Cache(root, [
-    { fp: 'recon-aaaabbbb', status: 'open', severity: 'medium' },
-    { fp: 'recon-ccccdddd', status: 'regressed', severity: 'high' },
+    { fp: 'codehealth-aaaabbbb', status: 'open', severity: 'medium' },
+    { fp: 'codehealth-ccccdddd', status: 'regressed', severity: 'high' },
   ]);
   const result = spawnSync('node', [CLI, 'status', '--fail-on', 'regressed', '--root', root], { encoding: 'utf8' });
   assert.strictEqual(result.status, 1);
@@ -74,7 +74,7 @@ test('status --fail-on regressed exits 1 when regressed entries exist in v2 cach
 test('status --fail-on risk-high exits 1 when open risk-high entries exist in v2 cache', () => {
   const root = tmp();
   writeV2Cache(root, [
-    { fp: 'recon-aaaabbbb', status: 'open', severity: 'high', risk: 'high' },
+    { fp: 'codehealth-aaaabbbb', status: 'open', severity: 'high', risk: 'high' },
   ]);
   const result = spawnSync('node', [CLI, 'status', '--fail-on', 'risk-high', '--root', root], { encoding: 'utf8' });
   assert.strictEqual(result.status, 1);
@@ -88,7 +88,7 @@ test('status --fail-on risk-high exits 1 when open risk-high entries exist in v2
 test('status --fail-on risk-high exits 1 when a REGRESSED (not just open) risk-high entry exists', () => {
   const root = tmp();
   writeV2Cache(root, [
-    { fp: 'recon-aaaabbbb', status: 'regressed', severity: 'high', risk: 'high' },
+    { fp: 'codehealth-aaaabbbb', status: 'regressed', severity: 'high', risk: 'high' },
   ]);
   const result = spawnSync('node', [CLI, 'status', '--fail-on', 'risk-high', '--root', root], { encoding: 'utf8' });
   assert.strictEqual(result.status, 1, `expected FAIL for a regressed risk-high finding: ${result.stdout}`);
@@ -98,7 +98,7 @@ test('status --fail-on risk-high exits 1 when a REGRESSED (not just open) risk-h
 test('status --fail-on with an unrecognized value exits 2 (does not silently disable the gate)', () => {
   const root = tmp();
   writeV2Cache(root, [
-    { fp: 'recon-aaaabbbb', status: 'regressed', severity: 'high', risk: 'high' },
+    { fp: 'codehealth-aaaabbbb', status: 'regressed', severity: 'high', risk: 'high' },
   ]);
   const result = spawnSync('node', [CLI, 'status', '--fail-on', 'Regressed', '--root', root], { encoding: 'utf8' });
   assert.strictEqual(result.status, 2, `expected exit 2 for a typo'd --fail-on value, got ${result.status}: ${result.stdout}${result.stderr}`);
@@ -113,7 +113,7 @@ test('status --fail-on with an unrecognized value exits 2 (does not silently dis
 test('status --fail-on output omits the remembered count (the durable-state fetch is skipped in this mode)', () => {
   const root = tmp();
   writeV2Cache(root, [
-    { fp: 'recon-aaaabbbb', status: 'open', severity: 'medium' },
+    { fp: 'codehealth-aaaabbbb', status: 'open', severity: 'medium' },
   ]);
   const result = spawnSync('node', [CLI, 'status', '--fail-on', 'regressed', '--root', root], { encoding: 'utf8' });
   assert.strictEqual(result.status, 0);
@@ -123,7 +123,7 @@ test('status --fail-on output omits the remembered count (the durable-state fetc
 test('status --fail-on regressed exits 0 when no regressed entries', () => {
   const root = tmp();
   writeV2Cache(root, [
-    { fp: 'recon-aaaabbbb', status: 'open', severity: 'medium' },
+    { fp: 'codehealth-aaaabbbb', status: 'open', severity: 'medium' },
   ]);
   const result = spawnSync('node', [CLI, 'status', '--fail-on', 'regressed', '--root', root], { encoding: 'utf8' });
   assert.strictEqual(result.status, 0);
@@ -139,7 +139,7 @@ test('status --fail-on regressed exits 0 when no regressed entries', () => {
 test('status falls back to process.cwd() when --root is a trailing flag with no value', () => {
   const root = tmp();
   writeV2Cache(root, [
-    { fp: 'recon-aaaabbbb', status: 'regressed', severity: 'high' },
+    { fp: 'codehealth-aaaabbbb', status: 'regressed', severity: 'high' },
   ]);
   const result = spawnSync('node', [CLI, 'status', '--fail-on', 'regressed', '--root'], { cwd: root, encoding: 'utf8' });
   assert.strictEqual(result.status, 1, `expected the regressed finding at cwd to be found: ${result.stdout}`);

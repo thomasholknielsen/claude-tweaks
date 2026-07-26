@@ -23,7 +23,6 @@ node_modules/
 !.claude-tweaks/pipelines/archive/*/spec-*/work/
 !.claude-tweaks/pipelines/archive/*/spec-*/work/**
 .claude-tweaks/research/
-.claude-tweaks/recon/
 .claude-tweaks/code-health/
 .claude-tweaks/routine-environment-cache.yml
 **/__pycache__/

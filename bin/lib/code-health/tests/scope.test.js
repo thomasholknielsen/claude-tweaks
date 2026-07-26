@@ -7,7 +7,7 @@ const { execFileSync } = require('child_process');
 const { listSlices, contentHash, selectSlice, listWorkspaceSlices, gitChurn } = require('../scope');
 const { MAX_STALE_DAYS } = require('../score');
 
-function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-scope-')); }
+function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-scope-')); }
 
 function initGitRepo(root) {
   execFileSync('git', ['-C', root, 'init', '-q']);

@@ -9,7 +9,7 @@ const path = require('path');
 const CLI = path.resolve(__dirname, '..', '..', '..', 'code-health.js');
 
 function tmp() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-pi-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-pi-'));
 }
 
 function runPullIssues(issuesFile, extraArgs = []) {
@@ -82,8 +82,8 @@ test('pull-issues: filters a real currently-filed by:code-health/risk:<tier>/wor
   const root = tmp();
   const issuesFile = path.join(root, 'issues.json');
   fs.writeFileSync(issuesFile, JSON.stringify([
-    fixtureIssue({ number: 101, risk: 'high', fingerprint: 'recon-high0001' }),
-    fixtureIssue({ number: 102, risk: 'low', fingerprint: 'recon-low00002' }),
+    fixtureIssue({ number: 101, risk: 'high', fingerprint: 'codehealth-high0001' }),
+    fixtureIssue({ number: 102, risk: 'low', fingerprint: 'codehealth-low00002' }),
   ]));
   const result = runPullIssues(issuesFile, ['--min-severity', 'high']);
   assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
@@ -91,14 +91,14 @@ test('pull-issues: filters a real currently-filed by:code-health/risk:<tier>/wor
   assert.strictEqual(briefs.length, 1);
   assert.strictEqual(briefs[0].number, 101);
   assert.strictEqual(briefs[0].severity, 'high');
-  assert.strictEqual(briefs[0].fingerprint, 'recon-high0001');
+  assert.strictEqual(briefs[0].fingerprint, 'codehealth-high0001');
 });
 
 test('pull-issues: default --label selects only by:code-health issues, not an unrelated by:harness-health one', () => {
   const root = tmp();
   const issuesFile = path.join(root, 'issues.json');
   fs.writeFileSync(issuesFile, JSON.stringify([
-    fixtureIssue({ number: 201, risk: 'medium', fingerprint: 'recon-med00001' }),
+    fixtureIssue({ number: 201, risk: 'medium', fingerprint: 'codehealth-med00001' }),
     {
       number: 202,
       title: '[harness-health] drift finding',

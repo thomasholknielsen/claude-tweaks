@@ -5,7 +5,7 @@ const os = require('os');
 const path = require('path');
 const { readCache, writeCache, cachePath } = require('../cache');
 
-function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-cache-')); }
+function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-cache-')); }
 
 test('readCache returns {} when no cache file exists', () => {
   assert.deepStrictEqual(readCache(tmp()), {});
@@ -18,7 +18,7 @@ test('cachePath points at .claude-tweaks/code-health/cache.json', () => {
 
 test('writeCache then readCache round-trips and creates the dir', () => {
   const root = tmp();
-  const cache = { 'recon-abc12345': { status: 'open', issue: 42 }, 'recon-deadbeef': { status: 'remembered', issue: null } };
+  const cache = { 'codehealth-abc12345': { status: 'open', issue: 42 }, 'codehealth-deadbeef': { status: 'remembered', issue: null } };
   writeCache(root, cache);
   assert.ok(fs.existsSync(path.join(root, '.claude-tweaks', 'code-health', 'cache.json')));
   assert.deepStrictEqual(readCache(root), cache);
