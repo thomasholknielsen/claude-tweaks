@@ -201,7 +201,7 @@ agent's prompt — subagents cannot read sibling files.
 
 *(Omit this section entirely when the GitHub scan was skipped, or the count is 0.)*
 
-- Awaiting sign-off: **{N} records built and ready for your review** — run `/claude-tweaks:demo`
+- Awaiting sign-off: **{N} records** — #{n1} ({title1}), #{n2} ({title2}), ... — run `/claude-tweaks:demo #N` on any of these
 
 ### Ready to Build (priority order)
 

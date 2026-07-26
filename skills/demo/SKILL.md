@@ -24,9 +24,6 @@ the backlog; `/claude-tweaks:help`'s dashboard (Stage 4.7) is where that list li
                                               demo:approved                          demo:changes-requested → follow-up record (backlog)
 ```
 
-A second, independent path exists for conversation-based work with no record at all — see Step
-1's session-recall source below.
-
 ## When to Use
 
 - You just finished ad hoc work in this same conversation — no `/capture`, no work record — and want a clean recap plus an explicit sign-off gate before moving on; `/demo`'s session-recall source (Step 1) picks this up automatically, no filing required.
@@ -45,8 +42,7 @@ that `#N` when no `demo:pending` label exists on it (Step 1). Never sweeps the b
 
 ## Step 1: Resolve the one item
 
-`/demo` resolves exactly one unit of work per invocation — never a sweep. `$ARGUMENTS` selects
-which path runs.
+`/demo` resolves one item at a time — never a sweep. `$ARGUMENTS` selects which path runs.
 
 ### No arguments: session-recall
 
@@ -72,9 +68,8 @@ awaiting sign-off." and stop — do not call `AskUserQuestion` — when recall f
 
 Almost always this yields exactly one candidate — skip straight to Step 2 with it. On the rare
 occasion this session did 2+ genuinely distinct, uncorrelated units of work, walk each through
-Step 2 in sequence — no batch table, no bulk-decision question — session-recall entries never
-carried the `risk:*`/`effort:*` data such a pre-fill would have needed
-anyway.
+Step 2 in sequence — no batch table, no bulk-decision question, since session-recall entries
+never carry the `risk:*`/`effort:*` data a pre-fill would need.
 
 ### `#N` given: single-record lookup
 
@@ -111,7 +106,7 @@ identically here. Then call `AskUserQuestion` with `question`: `"Does {title} do
 for?"`, `header`: `"Verdict"`, `multiSelect`: `false`:
 
 - Option 1 — `label`: `"Approve"`, `description`: `"This does what was asked"`
-- Option 2 (only when the brief's "See it yourself" entry point resolved) — `label`: `"See it yourself"`, `description`: `"Check this before deciding"`
+- Option 2 (only when the brief's "See it yourself" entry point resolved and browser tools are available) — `label`: `"See it yourself"`, `description`: `"Check this before deciding"`
 - Option 3 — `label`: `"Request changes"`, `description`: `"There's a gap — I'll describe it"`
 - Option 4 — for a label-backed entry: `label`: `"Skip for now"`, `description`: `"Leave demo:pending — I'll come back to this"`. For a session-recall entry: `label`: `"Skip for now"`, `description`: `"Nothing is written — unlike a label-backed record, this won't resurface in a later session"`
 
@@ -174,22 +169,29 @@ Approve / Request changes / Skip for now only (no "See it yourself" option at al
 
 If, anywhere in this walkthrough, the human asks for something beyond confirming this record's
 existing behavior — a new feature, a change beyond what pre-flight needed to make the environment
-checkable — stop once (the first time this happens in this `/demo` session) before doing it:
+checkable — stop once (the first time this happens in this `/demo` session) before doing it. Call
+`AskUserQuestion` with `question`: `"That's new scope beyond what's being demoed here. Want me to
+capture it as a backlog item now and come back to your sign-off decision, or build it now as its
+own thing outside /demo?"`, `header`: `"Scope fork"`, `multiSelect`: `false`:
 
-> "That's new scope beyond what's being demoed here. Want me to capture it as a backlog item now
-> and come back to your sign-off decision, or build it now as its own thing outside `/demo`?"
+- Option 1 — `label`: `"Capture it"`, `description`: `"File it as a backlog item, then come back to your sign-off decision"`
+- Option 2 — `label`: `"Build it now"`, `description`: `"Build it now as its own thing, outside /demo"`
 
-Route "capture it" through the same follow-up-record mechanism Step 3's Request-changes branch
-already uses. If the human says "keep going," don't re-ask for further closely-related work in
-this same session.
+"Capture it" routes through the same follow-up-record mechanism Step 3's Request-changes branch
+already uses, with one difference: the body's `Origin:` line reads `Origin: demo scope-fork from
+#{n}` (or `from session recall` for a session-recall entry) instead of the changes-requested
+variant — a scope-fork capture isn't a changes-requested verdict, so it needs its own provenance
+marker. If the human picks "Build it now," don't re-ask for further closely-related work in this
+same session.
 
 ### Task-anchor discipline
 
 This record's verdict — not yet Approved/Request-changes/Skipped — must never be silently
-dropped because the conversation moves on, whether from a pre-flight failure that grows its own
-back-and-forth or a scope-fork detour above. Once any such detour concludes, before shifting to a
-new unrelated topic, restate that this record's decision is still outstanding and offer to
-resume. Never end a `/demo` run with a record left mid-decision and unmentioned.
+dropped because the conversation moves on, whether from a declined `AskUserQuestion`, a
+pre-flight failure that grows its own back-and-forth, a scope-fork detour above, or any other
+detour. Once any such detour concludes, before shifting to a new unrelated topic, restate that
+this record's decision is still outstanding and offer to resume. Never end a `/demo` run with a
+record left mid-decision and unmentioned.
 
 ## Step 3: Apply verdicts
 

@@ -1,6 +1,6 @@
 # Dev URL Detection
 
-Shared procedure for auto-detecting a running development server. Checks persisted config first, then probes ports. Persists detected URLs for future runs. Referenced by `/claude-tweaks:stories`, `/claude-tweaks:test`, `/claude-tweaks:flow`, and `/claude-tweaks:visual-review`. (`/claude-tweaks:review` invokes this transitively via `/visual-review` — it does not call this procedure directly.)
+Shared procedure for auto-detecting a running development server. Checks persisted config first, then probes ports. Persists detected URLs for future runs. Referenced by `/claude-tweaks:stories`, `/claude-tweaks:test`, `/claude-tweaks:flow`, `/claude-tweaks:visual-review`, and `/claude-tweaks:demo`. (`/claude-tweaks:review` invokes this transitively via `/visual-review` — it does not call this procedure directly.)
 
 > **Permissions required:** this procedure performs file **writes** in Step 4 (creates or updates `stories/servers.yml`). Any skill that invokes this procedure must run with Write and Edit tool access enabled. Read-only callers will fail at Step 4 — there is no read-only path; persistence is mandatory, not optional.
 
@@ -10,6 +10,7 @@ Shared procedure for auto-detecting a running development server. Checks persist
 - `/claude-tweaks:test` runs QA story validation and needs a dev server
 - `/claude-tweaks:flow` triggers automatic story generation after detecting UI changes
 - `/claude-tweaks:visual-review` needs a dev URL for page, journey, or discover modes (also called transitively from `/review` full mode)
+- `/claude-tweaks:demo`'s "See it yourself" pre-flight needs a verified dev URL before offering a live session or manual steps
 
 ## Procedure
 

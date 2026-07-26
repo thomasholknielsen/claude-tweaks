@@ -137,9 +137,10 @@ was asked — distinct from tests passing (`/claude-tweaks:test`) and code-quali
   changed, why, and how to verify it. This happens **regardless of merge timing** — an
   `auto:merge`'d record still gets `demo:pending` on its now-closed issue, enabling retrospective
   sign-off.
-- `/claude-tweaks:demo` is the sole consumer: it discovers every `demo:pending` record (open or
-  closed), walks the human through each brief, and resolves the label to `demo:approved` or
-  `demo:changes-requested`. On the latter, it files a linked follow-up backlog record.
+- `/claude-tweaks:demo` is the sole consumer: it walks the human through one `demo:pending`
+  record's brief per invocation (open or closed) and resolves the label to `demo:approved` or
+  `demo:changes-requested` — `/claude-tweaks:help` (Stage 4.7) is the sole discovery surface for
+  which records are outstanding. On the latter, it files a linked follow-up backlog record.
 - The three values are mutually exclusive by construction — `/claude-tweaks:demo` always removes
   `demo:pending` in the same operation it adds the resolution label.
 - `auto:merge` governs merge timing only; it has no bearing on whether `demo:pending` eventually

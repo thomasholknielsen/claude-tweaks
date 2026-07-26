@@ -73,7 +73,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
                             applies demo:pending + posts a Verification Brief on
                             the record — record mode only)
      │
-  ┈┈ /claude-tweaks:demo resolves demo:pending → approved/changes-requested (utility skill, no fixed position — run anytime, aggregates every in-flight thread, plus this session's own unrecorded work via session-recall) ┈┈
+  ┈┈ /claude-tweaks:demo resolves demo:pending → approved/changes-requested (utility skill, no fixed position — run anytime, resolves one item per invocation: a specific #N, or this session's own unrecorded work via session-recall) ┈┈
 ```
 
 > **Left column:** `/claude-tweaks:{name}` — **Right column:** `/superpowers:{name}` ([Superpowers plugin](https://github.com/obra/superpowers))
