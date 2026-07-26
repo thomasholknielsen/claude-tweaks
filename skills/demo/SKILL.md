@@ -1,19 +1,23 @@
 ---
 name: claude-tweaks:demo
-description: Use when you want to sweep every built-but-unsigned-off work record — or recap and sign off on ad hoc work from this same conversation that has no work record at all — and give each one a human verdict, approve or request changes. The durable acceptance gate distinct from tests passing (/test) and code-quality review (/review). Keywords - acceptance, sign-off, demo, verification brief, human verdict, demo:pending, session-recall.
+description: Use when you want a human verdict — approve or request changes — on one built thing: this same conversation's own unrecorded work, or a specific `#N` record already marked demo:pending. The durable acceptance gate distinct from tests passing (/test) and code-quality review (/review); discovery of what's outstanding across the backlog is /help's job (Stage 4.7), not this skill's. Keywords - acceptance, sign-off, demo, verification brief, human verdict, demo:pending, session-recall.
 argument-hint: "[#N]"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
 # Demo — Human Acceptance Sign-Off
 
-Aggregates every record `/claude-tweaks:wrap-up` has finished building (`demo:pending`) — whether merged already or still open, whether built autonomously or by hand — plus any work this same conversation did with no backing record at all, and gives each one a real human verdict. Sits after wrap-up when a record exists; independent of it entirely for conversation-based work with no record to wait on:
+Gives one built thing a real human verdict — approve or request changes: either this
+conversation's own unrecorded work, or a specific `#N` record. Sits after wrap-up when a record
+exists; independent of it entirely for conversation-based work with no record to wait on. This
+skill resolves one item per invocation — it never discovers or lists what's outstanding across
+the backlog; `/claude-tweaks:help`'s dashboard (Stage 4.7) is where that list lives:
 
 ```
 /claude-tweaks:build → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:wrap-up
                                                                               │
                                                                               v
-                                                              [ /claude-tweaks:demo ]   <- utility (no fixed lifecycle position — run anytime, across every in-flight thread)
+                                                              [ /claude-tweaks:demo ]   <- utility (no fixed lifecycle position — run anytime, on one item at a time)
                                                                               │
                                                        ┌──────────────────────┴──────────────────────┐
                                                        v                                              v
@@ -25,67 +29,33 @@ A second, independent path exists for conversation-based work with no record at 
 
 ## When to Use
 
-- You're running several parallel threads (`/dispatch`-driven or your own `/flow`/`/build` sessions) and want one place that shows everything built and waiting on your judgment.
-- An autonomously `auto:merge`'d record already closed — you want to look at it after the fact and mark it approved, or flag a gap.
+- You just finished ad hoc work in this same conversation — no `/capture`, no work record — and want a clean recap plus an explicit sign-off gate before moving on; `/demo`'s session-recall source (Step 1) picks this up automatically, no filing required.
+- `/claude-tweaks:help`'s dashboard told you a specific `#N` is awaiting sign-off (Stage 4.7) — including an autonomously `auto:merge`'d record already closed — and you want to walk through that one record now.
 - You keep having to ask "how do I test this" days after a build finished — this skill surfaces the brief `/wrap-up` already wrote at build time, so you never re-derive it.
 - Some of what you're reviewing has no interactive surface at all (docs, config, a backend refactor) — this skill still gives it a lightweight human look, just not a click-through.
-- You just finished ad hoc work in this same conversation — no `/capture`, no work record — and want a clean recap plus an explicit sign-off gate before moving on; `/demo`'s session-recall source (Step 1) picks this up automatically, no filing required.
 
-Not for: merging or opening PRs (`/superpowers:finishing-a-development-branch`'s job), re-running mechanical checks (`/test`'s job), or code-quality judgment (`/review`'s job). `/demo` only ever resolves the Acceptance axis.
+Not for: discovering what's outstanding across the backlog (`/claude-tweaks:help`'s job — Stage 4.7 lists every `#N`), merging or opening PRs (`/superpowers:finishing-a-development-branch`'s job), re-running mechanical checks (`/test`'s job), or code-quality judgment (`/review`'s job). `/demo` only ever resolves the Acceptance axis, one item at a time.
 
 ## Input
 
-`$ARGUMENTS` — *(none)* sweeps every `demo:pending` record plus this session's own unrecorded work (Step 1's two sources); `#N` scopes to a single label-backed record and skips the session-recall source entirely — a specific record number has nothing to do with recall.
+`$ARGUMENTS` — *(none)* resolves this session's own unrecorded work via session-recall (Step 1);
+`#N` resolves that single record's Verification Brief, falling back to session-recall scoped to
+that `#N` when no `demo:pending` label exists on it (Step 1). Never sweeps the backlog —
+`/claude-tweaks:help` (Stage 4.7) is where the full outstanding list lives.
 
-## Step 1: Discover pending work
+## Step 1: Resolve the one item
 
-Two independent sources feed the same worklist, every run — not a fallback chain. Gather both,
-then merge before Step 2.
+`/demo` resolves exactly one unit of work per invocation — never a sweep. `$ARGUMENTS` selects
+which path runs.
 
-### Source A: label-backed records
-
-**`work-backend: github-issues`:**
-
-```bash
-gh issue list --state all --label demo:pending --json number,title,labels,url --limit 500 > /tmp/demo-pending.json
-node -e "
-  const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
-  const issues = require('/tmp/demo-pending.json');
-  const rows = issues.map((i) => ({ ...i, facets: parseRecordFacets(i.labels) }));
-  console.log(JSON.stringify(rows));
-"
-```
-
-`--state all` is deliberate — `demo:pending` persists independent of open/closed state, which is
-what makes retrospective sign-off on already-merged `auto:merge` work possible. When `#N` is
-given, scope Source A to that single record instead of the full list, and skip Source B entirely
-— session-recall entries have no record number to match against an explicit `#N`.
-
-> **Parallel execution:** Use parallel tool calls aggressively — under `work-backend: github-issues`, each matching record's `gh issue view {n} --json comments` Verification Brief fetch is independent of every other record's and should run concurrently, not one at a time.
-
-For each matching record, fetch its Verification Brief: the last issue comment containing
-`## Verification Brief` (`gh issue view {n} --json comments -q '.comments[-1].body'` if only one
-build/demo cycle occurred; otherwise search all comments for the last one containing that
-heading).
-
-**`work-backend: local-files`:** `queryRecords` filters on `closed` only when the caller
-explicitly passes that key, so a bare `{ acceptance: 'pending' }` call silently drops every
-closed record — mirror the `--state all` behavior above with two calls, merged:
-`queryRecords(dir, { acceptance: 'pending' })` (open) plus
-`queryRecords(dir, { acceptance: 'pending', closed: true })` (closed)
-(`bin/lib/issues/local-store.js`) — the Verification Brief is the record's own
-`## Verification Brief` body section, not a separate fetch.
-
-### Source B: session-recall scan
-
-Only meaningful when `$ARGUMENTS` is empty (a full sweep) — skip entirely when `#N` was given.
+### No arguments: session-recall
 
 Recall this conversation's own history. For each distinct unit of implementation and/or
 verification work done in this session, check whether it already correlates to a `#N` mentioned
-anywhere in this conversation or present in Source A's results. Work with no correlating `#N` is
-a session-recall candidate — compose its Verification Brief content now, directly from recall,
-into the same shape `verification-brief.md` renders (`### The ask` / `### What shipped` /
-`### Confirmed` / `### See it yourself`):
+anywhere in this conversation. Work with no correlating `#N` is a session-recall candidate —
+compose its Verification Brief content now, directly from recall, into the same shape
+`verification-brief.md` renders (`### The ask` / `### What shipped` / `### Confirmed` / `### See
+it yourself`):
 
 - **The ask** — what was actually requested in this conversation, for this unit of work.
 - **What shipped** — what was actually implemented, from recall.
@@ -95,47 +65,40 @@ into the same shape `verification-brief.md` renders (`### The ask` / `### What s
 - **See it yourself** — an entry point, only if one was actually exercised/known; omit the
   section entirely otherwise.
 
-This source has no fetch step — there is no comment or record body to read from. A fresh `/demo`
-session with no memory of the work in question naturally finds nothing here; that's expected,
-not a bug (session-recall never discovers *other* sessions' unrecorded work).
+This path has no fetch step — there is no comment or record body to read from. A fresh `/demo`
+session with no memory of any unrecorded work naturally finds nothing here; that's expected, not
+a bug (session-recall never discovers *other* sessions' unrecorded work). Report "Nothing
+awaiting sign-off." and stop — do not call `AskUserQuestion` — when recall finds nothing.
 
-### Merge and stop condition
+Almost always this yields exactly one candidate — skip straight to Step 2 with it. On the rare
+occasion this session did 2+ genuinely distinct, uncorrelated units of work, walk each through
+Step 2 in sequence — no batch table, no bulk-decision question; session-recall entries never
+carry `risk:*`/`effort:*` data to pre-fill a bulk-approve option against.
 
-Combine Source A and Source B into one worklist. Report "Nothing awaiting sign-off." and stop —
-do not render an empty batch table or call `AskUserQuestion` — only when **both** sources are
-empty.
+### `#N` given: single-record lookup
 
-## Step 2: Present the batch
+**`work-backend: github-issues`:**
 
-Skip straight to Step 3 when the merged worklist (Step 1) has exactly one item and it is a
-session-recall entry — rendering a batch table for a single row is unnecessary ceremony.
-Otherwise, lead with a scope line: `**{N} records awaiting sign-off** ({M} low-risk, {K} need a
-closer look)`.
+```bash
+gh issue view {n} --json number,title,labels,url,state
+```
 
-Render a batch table:
+If the result carries the `demo:pending` label, fetch its Verification Brief: the last issue
+comment containing `## Verification Brief` (`gh issue view {n} --json comments -q
+'.comments[-1].body'` if only one build/demo cycle occurred; otherwise search all comments for
+the last one containing that heading). Go straight to Step 2 with it.
 
-| # | Title | Type | Risk/Effort | What shipped | Suggested verdict |
-|---|-------|------|--------------|---------------|--------------------|
-| {ref} | {title} | {type} | {risk}/{effort} | {one-liner from the brief's "What shipped"} | {Approve \| Needs a look} |
+If the result does **not** carry `demo:pending` (e.g. it was built via a path that skipped
+`/wrap-up`'s Step 10), fall back to session-recall for this specific `#N`: does this conversation
+have memory of building and/or verifying it? If yes, compose a Verification Brief exactly as the
+no-arguments path does above, scoped to this one record, and go straight to Step 2. If this
+session has no memory of it either, report plainly: "`#N` has no Verification Brief and this
+session has no memory of it — nothing to show." and stop.
 
-**Suggested verdict** is pre-filled **Approve** only when the record is both `risk:low` and
-`effort:low`. Every other record gets **Needs a look**, no pre-fill —
-this skill exists for real judgment, not rubber-stamping. (This rule does not check
-`merge-sensitive-paths` (`_shared/work-record.md`'s config key): Source A's fetch is labels +
-Verification Brief only, with no changed-file list, and most `demo:pending` records merged via
-`/dispatch`'s auto-merge gate — a direct `git merge`, never a GitHub PR — so there is no
-reliable `gh`-only source for a record's changed files here. `merge-sensitive-paths` is already
-enforced as a hard floor earlier, inside that auto-merge gate's `merge-check` call to
-`/claude-tweaks:assess-agent-autonomy`.) Session-recall entries never carry
-`risk:*`/`effort:*` labels (there's no record to hold them), so they always render `{ref}` as
-`(session)`, `{type}` as `ad hoc`, `{risk}/{effort}` as `—`, and always get **Needs a look**. When overriding specific items, refer to a session-recall row as "the session item" (not a `#`).
-
-Call `AskUserQuestion` with `question`: `"How do you want to work through these?"`,
-`header`: `"Sign-off"`, `multiSelect`: `false`:
-
-- Option 1 (when any row is pre-filled Approve) — `label`: `"Approve the low-risk batch, walk through the rest (Recommended)"`, `description`: `"Bulk-approve every row suggested Approve; walk through the remaining rows one at a time"`
-- Option 2 — `label`: `"Walk through every item individually"`, `description`: `"No bulk approval — review every record's full brief"`
-- Option 3 — `label`: `"Override specific items"`, `description`: `"Tell me which #s to change"`
+**`work-backend: local-files`:** `readRecord(filePath)` for the single record
+(`bin/lib/issues/local-store.js`); the Verification Brief is the record's own `## Verification
+Brief` body section. Same `demo:pending`-then-session-recall fallback order as above, keyed on
+`facets.acceptance === 'pending'` instead of the label.
 
 ## Step 3: Per-item walkthrough
 
@@ -220,7 +183,7 @@ Render via `AskUserQuestion`, `question`: `"What's next?"`, `header`: `"Next ste
 
 - Option 1 (when any `demo:changes-requested` follow-up was filed) — `label`: `"Triage the new follow-up (Recommended)"`, `description`: `"/claude-tweaks:triage — the new gap record needs shaping/authorization like any other backlog item"`
 - Option 2 — `label`: `"Pipeline status"`, `description`: `"/claude-tweaks:help — full pipeline status"`
-- Option 3 (when records remain `demo:pending` after Skip) — `label`: `"Run demo again later"`, `description`: `"{N} records still awaiting sign-off — /claude-tweaks:demo picks them back up next run"`
+- Option 3 (when this record remains `demo:pending` after Skip) — `label`: `"Check what else is outstanding"`, `description`: `"/claude-tweaks:help — lists every #N still awaiting sign-off (Stage 4.7)"`
 
 ## Component-Skill Contract
 
