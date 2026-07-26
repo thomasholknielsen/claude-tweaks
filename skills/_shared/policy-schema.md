@@ -1,8 +1,8 @@
 # Policy Schema — Canonical Config Lever Index
 
-Every project-config lever claude-tweaks skills read, in one place — the way `_shared/work-record.md`'s Config Keys table indexes the work-record system's keys. `bin/lib/policy-schema.js` owns the same 30 keys as data (name, type/enum, default) plus `auditPolicy(repoRoot)`, a deterministic validator. If this table and that file disagree, one of them has a bug — fix, don't fork.
+Every project-config lever claude-tweaks skills read, in one place — the way `_shared/work-record.md`'s Config Keys table indexes the work-record system's keys. `bin/lib/policy-schema.js` owns the same 33 keys as data (name, type/enum, default) plus `auditPolicy(repoRoot)`, a deterministic validator. If this table and that file disagree, one of them has a bug — fix, don't fork.
 
-`.claude-tweaks/policy.yml` is the canonical home for all 30 levers below. CLAUDE.md is a legacy fallback only, honored for projects that already wrote a value there before this schema existed — `/claude-tweaks:init` no longer generates new CLAUDE.md lever lines (see the "Auto-mode policy" block retirement in `claude-md-template.md`), and Update Mode offers a one-time migration for existing projects (`skills/init/update-mode.md`'s "Auto-Mode-Policy Migration" section). The one exception is `worktree.always`, which has never had a CLAUDE.md path at all — it's mechanically enforced by `bin/lib/hooks/pre-tool-use.js`, which only ever reads `policy.yml`.
+`.claude-tweaks/policy.yml` is the canonical home for all 33 levers below. CLAUDE.md is a legacy fallback only, honored for projects that already wrote a value there before this schema existed — `/claude-tweaks:init` no longer generates new CLAUDE.md lever lines (see the "Auto-mode policy" block retirement in `claude-md-template.md`), and Update Mode offers a one-time migration for existing projects (`skills/init/update-mode.md`'s "Auto-Mode-Policy Migration" section). The one exception is `worktree.always`, which has never had a CLAUDE.md path at all — it's mechanically enforced by `bin/lib/hooks/pre-tool-use.js`, which only ever reads `policy.yml`. The reverse exception also exists: the levers listed under "CLAUDE.md-only levers" below have no documented `policy.yml` path at all yet — CLAUDE.md is their only current home.
 
 ## Worktree & execution
 
@@ -20,7 +20,7 @@ Every project-config lever claude-tweaks skills read, in one place — the way `
 
 ## Dispatch & merge
 
-Canonical defaults for these four also live in `_shared/work-record.md`'s Config keys table — if the two disagree, that file wins for these specific keys (it's the older, most-cited source); update both together.
+Canonical defaults for the keys in this section also live in `_shared/work-record.md`'s Config keys table — if the two disagree, that file wins for these specific keys (it's the older, most-cited source); update both together.
 
 | Key | Canonical home | Owner skill(s) | Default | Meaning |
 |---|---|---|---|---|
@@ -30,7 +30,6 @@ Canonical defaults for these four also live in `_shared/work-record.md`'s Config
 | `automerge-max-files` | `policy.yml` (CLAUDE.md also honored) | `/claude-tweaks:dispatch`, `/claude-tweaks:assess-agent-autonomy` | `2` | Auto-merge blast-radius guideline (files) — same weighted treatment |
 | `merge-sensitive-paths` | `policy.yml` | `/claude-tweaks:assess-agent-autonomy`, `/claude-tweaks:review` | `[]` (empty) | Comma-separated path globs forcing a hard needs-human floor in `merge-check`, and feeding `/review`'s diff-heuristic risk proxy |
 | `work-links` | `policy.yml` (CLAUDE.md also honored) | Work-record system (`/claude-tweaks:dispatch`, `/claude-tweaks:wrap-up`, etc.) | `body-text` | Native sub-issue/blocked-by APIs vs. `Blocked by #N` body-text lines |
-| `backlog-fetch-limit` | `policy.yml` | `/claude-tweaks:help`, `/claude-tweaks:tidy` | `1000` | Cap on `gh issue list --limit` for every `_shared/record-queue-fetch.md` consumer — `gh` auto-paginates internally; this bounds how many rows before a truncation warning fires, not a hard cutoff on backlog size |
 
 ## Legacy dispatch aliases
 
@@ -72,10 +71,16 @@ These 8 were, until this spec, generated into every new CLAUDE.md's `## Auto-mod
 | `review-severity-floor` | `policy.yml` (via `/flow` Manifesto/`config.yml` only — no standalone direct-read site exists) | `/claude-tweaks:review` | `low` | `none`/`low`/`medium` auto-apply cutoff |
 | `tidy-aggressiveness` | `policy.yml` (CLAUDE.md legacy fallback; standalone direct-read fixed in `tidy/SKILL.md`) | `/claude-tweaks:tidy` | `conservative` | `conservative`/`moderate`/`aggressive` |
 
-## Flow surveys
+## CLAUDE.md-only levers
+
+These levers currently have no documented `policy.yml` path at all — CLAUDE.md is their only home today.
 
 | Key | Canonical home | Owner skill(s) | Default | Meaning |
 |---|---|---|---|---|
 | `depth-survey` | CLAUDE.md only — no `policy.yml` path documented today | `/claude-tweaks:flow` | unset (enabled) | `off` disables the end-of-run Depth Opportunities survey project-wide (mirrors the `no-deepen` per-run flag) |
 | `creative-survey` | CLAUDE.md only — no `policy.yml` path documented today | `/claude-tweaks:flow` | unset (enabled) | `off` disables the end-of-run Creative Opportunities survey project-wide (mirrors the `no-creative` per-run flag) |
 | `tidy-routine-autonomy` | CLAUDE.md only — no `policy.yml` path documented today | `/claude-tweaks:tidy` | `conservative` | `evidence-based` lets 2 of 4 specific cite-able finding shapes auto-apply under the `--scope=github` Standalone-auto routine path; `conservative` (default) stages everything |
+| `backlog-fetch-limit` | CLAUDE.md only — no `policy.yml` path documented today | `/claude-tweaks:help`, `/claude-tweaks:tidy`, `/claude-tweaks:backlog` | `1000` | Cap on `gh issue list --limit` for every `_shared/record-queue-fetch.md` consumer — `gh` auto-paginates internally; this bounds how many rows before a truncation warning fires, not a hard cutoff on backlog size |
+| `promise-register-min-leaves` | CLAUDE.md only — no `policy.yml` path documented today | `/claude-tweaks:specify` | `4` | Minimum leaf count in one `/specify` decomposition before a `## Cross-Spec Promises` section is seeded on the parent record |
+| `scope-keywords-required` | CLAUDE.md only — no `policy.yml` path documented today | `/claude-tweaks:build` | `false` | When `true`, `/build`'s plan-audit Check B refuses to start unless the plan/design has a `Scope keywords:` field, instead of just warning |
+| `section-confirmation` | CLAUDE.md only — no `policy.yml` path documented today | `/superpowers:brainstorming` | `adaptive` | Whether brainstorming's multi-section approval gate batches after 2 clean approvals (`adaptive`), always asks per-section, or always batches once |

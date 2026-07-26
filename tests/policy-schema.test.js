@@ -18,9 +18,9 @@ function writeClaudeMd(repo, content) {
   fs.writeFileSync(path.join(repo, 'CLAUDE.md'), content);
 }
 
-test('POLICY_KEYS has exactly 30 entries with unique keys', () => {
-  assert.strictEqual(POLICY_KEYS.length, 30);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 30);
+test('POLICY_KEYS has exactly 33 entries with unique keys', () => {
+  assert.strictEqual(POLICY_KEYS.length, 33);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 33);
 });
 
 test('missing policy.yml and missing CLAUDE.md -> all-empty result', () => {
