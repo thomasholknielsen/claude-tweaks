@@ -297,6 +297,7 @@ with:
 
 ```bash
 LIMIT="${BACKLOG_FETCH_LIMIT:-1000}"
+export FETCH_LIMIT="$LIMIT"
 gh issue list --state open --json number,title,labels,milestone,updatedAt{,EXTRA_FIELDS} --limit "$LIMIT" > {tmp-records-file}
 node -e "
   const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
@@ -318,19 +319,27 @@ Immediately after the code block from Step 2, add:
 `backlog-fetch-limit` (default `1000`) replaces the previous hardcoded 200/500 per-consumer limits — `gh issue list --limit N` auto-paginates internally regardless of how large `N` is, so raising the default doesn't change the fetch mechanism, only how much it's willing to pull before stopping. A consumer whose own population is naturally small (e.g. a `--label ready` filtered fetch) still uses this same limit and the same truncation check — the limit bounds "how many rows before we assume there might be more," not a per-consumer tuning knob.
 ```
 
-- [ ] **Step 4: Manually verify the edited bash block is syntactically valid**
+- [ ] **Step 4: Manually verify the edited bash block is syntactically valid, and that `FETCH_LIMIT` is actually exported**
 
-Reconstruct the full edited code block in a scratch file and run `bash -n` against it (syntax check only, no execution, since this needs a live `gh`/repo context to actually run):
+Reconstruct the FULL edited code block (the `LIMIT=`/`export FETCH_LIMIT=` lines, the `gh issue list` call, and the entire `node -e "..."` block — not a truncated fragment) in a scratch file and run `bash -n` against it (syntax check only, no execution, since this needs a live `gh`/repo context to actually run):
 
 ```bash
 cat > /tmp/record-queue-fetch-check.sh << 'SCRIPT'
 LIMIT="${BACKLOG_FETCH_LIMIT:-1000}"
-echo "$LIMIT"
+export FETCH_LIMIT="$LIMIT"
+gh issue list --state open --json number,title,labels,milestone,updatedAt --limit "$LIMIT" > /tmp/rqf-check-records.json
+node -e "
+  const issues = require('/tmp/rqf-check-records.json');
+  if (issues.length === Number(process.env.FETCH_LIMIT)) {
+    console.error('WARNING: fetched exactly ' + issues.length + ' open issues');
+  }
+  console.log(JSON.stringify(issues));
+" > /tmp/rqf-check-out.json
 SCRIPT
 bash -n /tmp/record-queue-fetch-check.sh
 ```
 
-Expected: no output (syntax OK), exit code 0.
+Expected: no output (syntax OK), exit code 0. Separately, confirm by inspection (not execution) that `export FETCH_LIMIT="$LIMIT"` is present in the actual edited file — the node script's truncation comparison silently does nothing if this line is missing (`process.env.FETCH_LIMIT` would be `undefined`, `Number(undefined)` is `NaN`, and `issues.length === NaN` is never true).
 
 - [ ] **Step 5: Commit**
 
@@ -586,6 +595,7 @@ The comprehensive "ensure every issue has the right labels" sweep: `priority:*`/
 
 ```bash
 LIMIT="${BACKLOG_FETCH_LIMIT:-1000}"
+export FETCH_LIMIT="$LIMIT"
 gh issue list --label ready --state open --json number,title,labels,updatedAt --limit "$LIMIT" > /tmp/backlog-refine-ready.json
 node -e "
   const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
