@@ -1,6 +1,6 @@
 # Changelog
 
-## v6.19.0 — Policy schema consolidation
+## v6.20.0 — Policy schema consolidation
 
 `.claude-tweaks/policy.yml` is now the canonical home for all of claude-tweaks' project-config
 levers, indexed in one place at `skills/_shared/policy-schema.md` (mirrored in code by
@@ -9,6 +9,21 @@ default-valued lever lines into every generated CLAUDE.md — omitting a lever a
 the default," so writing it explicitly was always redundant, and it silently bloated every
 project's CLAUDE.md. Existing projects get a one-time cleanup offer via Update Mode; a new
 `/claude-tweaks:harness-health` check flags malformed or unrecognized `policy.yml` keys.
+
+## v6.19.0 — Shared record-staleness threshold + bucket predicates
+
+The record-stage and bot-state predicates (`isBacklog`, `isParked`, `isBotBlocked`,
+`isBotInProgress`) and the staleness classifier that `/claude-tweaks:help`'s Stage 1 and
+`/claude-tweaks:tidy`'s Step 1 each reimplemented independently now live in one place,
+`bin/lib/issues/record-buckets.js`. Both scans read the same definitions, so a backlog record
+counted stale on the dashboard is the same record `/tidy` recommends acting on.
+
+How old a record must be to count as stale is now project-configurable via a new
+`record-staleness-weeks` key (default `4`, documented in `_shared/work-record.md`'s Config keys
+table and resolved by `_shared/record-queue-fetch.md`'s Threshold resolution section). The
+three-band scale scales with it — `fresh` below half the threshold, `review` up to and including
+it, `stale` beyond — so a project with a slower cadence can widen the window without every
+consumer drifting apart.
 
 ## v6.17.0 — /demo single-item scope + pre-flight self-verification
 
