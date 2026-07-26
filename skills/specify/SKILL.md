@@ -204,7 +204,7 @@ Nothing to commit on the `github-issues` driver — the edit above already lande
 
 Shaping mode ends here — proceed to `## Next Actions`.
 
-`/specify` adds `ready`, `risk:*`/`effort:*` (when unstamped), and Type (when absent), removes `parked` on promotion, and never touches `auto:*` or `bot:*` — those stay `/triage`'s (human-granted authorization) and `/dispatch`'s (bot-state mirror) territory.
+`/specify` adds `ready`, `risk:*`/`effort:*` (when unstamped), and Type (when absent), removes `parked` on promotion, and never touches `auto:*` or `bot:*` — those stay `/backlog refine`'s (human-granted authorization) and `/dispatch`'s (bot-state mirror) territory.
 
 ## Step 1: Understand the Landscape
 
@@ -369,7 +369,7 @@ Each returned group of size > 1 is a set of records/work-units sharing at least 
 
 Present any detected implicit dependencies as part of the Step 9 summary. These are flagged alongside the `Blocked by #N` relationships already noted from Overlap Analysis — both feed the same Step 4 linking pass, which is where the actual links get written, once every record's number exists.
 
-> **Algorithm shared with /claude-tweaks:help:** both /specify and /help call the same `groupByFileOverlap` (`bin/lib/issues/grouping.js`) — /specify runs it at creation time; /help re-runs it at dashboard time to catch new conflicts from records that started building after /specify ran. Also reused by `/claude-tweaks:triage dispatch` to group claimed issues before parallel execution (see `triage/SKILL.md`).
+> **Algorithm shared with /claude-tweaks:help:** both /specify and /help call the same `groupByFileOverlap` (`bin/lib/issues/grouping.js`) — /specify runs it at creation time; /help re-runs it at dashboard time to catch new conflicts from records that started building after /specify ran.
 
 > **Why this matters:** An explicit `Blocked by #N` link captures a logical dependency (leaf B needs leaf A's API). File-based overlap captures a physical dependency (both leaves modify the same file). Missing the physical dependency leads to merge conflicts and duplicated work during concurrent builds.
 
@@ -553,7 +553,7 @@ Always recommend `/claude-tweaks:flow` over `/claude-tweaks:build` — `/claude-
 | Treating "topic with slash" as a path | Ambiguous input must be disambiguated explicitly — present the numbered choice, do not assume one interpretation |
 | Producing a "phase plan" file alongside or instead of leaf records | Phase plans are dead artifacts. The granularity contract has 2 tiers: design doc (one file, multi-phase OK as `## Phase N` sections) → ready leaf records (one record each). Anything else is a contract violation. |
 | Bypassing `/specify` on the way to `/flow` | `/flow` accepts only leaf record references (`#N` / `#A,#B`) and hard-gates on record shape at materialization time — an unshaped record stops the run with a pointer back to `/specify` (spec 20's contract). Always route through `/specify` first to produce ready leaves; recommend `/flow` over `/build` when presenting Next Actions. |
-| Granting or touching `auto:*`/`bot:*` from `/specify` | Authorization is human-granted only (`/triage`'s territory) and bot-state is machinery's visibility layer — `/specify` adds `ready`, `risk:*`/`effort:*`, and Type (when absent), removes `parked` on promotion, and never touches either family (permission matrix in `_shared/work-record.md`). |
+| Granting or touching `auto:*`/`bot:*` from `/specify` | Authorization is human-granted only (`/backlog refine`'s territory) and bot-state is machinery's visibility layer — `/specify` adds `ready`, `risk:*`/`effort:*`, and Type (when absent), removes `parked` on promotion, and never touches either family (permission matrix in `_shared/work-record.md`). |
 | Marking a parent record `ready` | Parents are summary records, not agent-sized work — only leaves get `ready` (+ scoring). A `ready` parent would enter the authorization worklist as if it were buildable, but its body is a design summary, not a spec-shaped deliverable. |
 
 ## Relationship to Other Skills
@@ -568,9 +568,8 @@ Always recommend `/claude-tweaks:flow` over `/claude-tweaks:build` — `/claude-
 | `/claude-tweaks:build` | Runs AFTER /claude-tweaks:specify — takes a leaf record reference and materializes it into a build-time file (spec 20's contract) before implementing it; reads the `Surface:`/`Design-intent:` body-metadata lines `/specify` wrote, lifted into the materialized header |
 | `/claude-tweaks:review` | Reads the `risk:*`/`effort:*` labels this skill stamps (Shaping mode's "Stamp scoring and stage labels" step; decomposition mode's Step 3) to auto-derive its own `review-effort` tier (Step 2.5) — a read of the same labels via the same low-level helpers `assess-agent-autonomy`'s other modes already consume, not a skill-to-skill call. |
 | `/claude-tweaks:capture` | Files raw backlog records (`by:capture`, Type only, no scoring or stage) that `/specify`'s Resolve-the-input shapes into `ready` — case 1 for a direct record reference, case 5 for a title/keyword backlog reference |
-| `/claude-tweaks:review-backlog` | Upstream hand-off source — a backlog record review-backlog surfaced (priority suggested, possibly cross-referenced via `**Related:**`) still needs `/specify` to stamp `risk:*`/`effort:*` and reach `ready`. Review-backlog never shapes bodies or scores itself. |
+| `/claude-tweaks:backlog` | Upstream hand-off source (`overview` mode surfaces priority-suggested records) and downstream gate (`/specify` is "the shaper" `refine` mode names: stamping `ready` + scoring is what admits a record into its grant worklist, and a record `refine` flags back for missing/empty spec-shaped fields returns here via `/claude-tweaks:specify #{n}` for re-shaping). |
 | `/claude-tweaks:tidy` | Reviews backlog-stage records for staleness; its Promote action recommends `/claude-tweaks:specify #{n}` to shape a record into `ready` — Step 8's old backlog-entry deletion is retired, since a captured record has no separate file to delete (Shaping mode edits it in place) |
-| `/claude-tweaks:triage` | Downstream gate — `/specify` is "the shaper" triage names: stamping `ready` + scoring is what admits a record into triage's worklist, and a record triage flags back for missing/empty spec-shaped fields returns here (`/claude-tweaks:specify #{n}`) for re-shaping. |
 | `/claude-tweaks:help` | Shows which leaf records from /claude-tweaks:specify are `ready` for /claude-tweaks:build — also uses Key Files for implicit dependency detection |
 | `/claude-tweaks:design-wrapper` | /specify invokes `/claude-tweaks:design-wrapper shape <topic>` (Step 2.5b) on frontend design docs to enrich the design doc with UX/UI planning. /specify writes `Surface:` and `Design-intent:` as body-metadata lines (Step 2.5c + Step 3's per-leaf procedure, or Shaping mode's Metadata block for a single record) — never frontmatter, never labels; the design wrapper reads them from the materialized header spec 20 lifts them into (Layer 2 detection for `Surface:`, `polish` mode's intent-driven dispatch for `Design-intent:`, active in v4.5.0). |
 | `/claude-tweaks:visualize` | Step 2.5d suggests invoking this skill for every leaf record (not gated to frontend) when the design doc describes state machines, schemas, multi-actor flows, decision branches, hierarchies, or architectures. Gated by `diagram-suggestions: enabled` in CLAUDE.md (written by `/init` Step 11). |

@@ -16,7 +16,7 @@ capture / code-health / harness-health / journey-health / docs-health   (file re
                 /claude-tweaks:specify   (shapes to ready)
                               │
                               v
-                  /claude-tweaks:triage   (grants auto:build / auto:merge)
+                  /claude-tweaks:backlog refine   (grants auto:build / auto:merge)
                               │
                               v
               [ /claude-tweaks:dispatch ]   <- utility (no fixed lifecycle position)
@@ -34,7 +34,7 @@ capture / code-health / harness-health / journey-health / docs-health   (file re
 - A scheduled Routine needs a single, deterministic unit of headless work to fire on a cadence — that's `/dispatch next`.
 - A prior dispatched build failed and you want the retry/ceiling bookkeeping to run — this happens automatically inside the Settle step (Step 6), not as a separate invocation.
 
-Not for: granting authorization (`/claude-tweaks:triage`'s job), deriving a spec, or building anything yourself. Dispatch only ever claims, hands off to `/claude-tweaks:flow`, and settles the result.
+Not for: granting authorization (`/claude-tweaks:backlog refine`'s job), deriving a spec, or building anything yourself. Dispatch only ever claims, hands off to `/claude-tweaks:flow`, and settles the result.
 
 **Why no `drain` mode.** There is no mode that shepherds every authorized group to completion in one session. A session babysitting N pipeline runs accumulates context until it rots; throughput comes from routine cadence × single-group firings (a Routine firing `next` on a schedule), not session breadth. The old design's consolidated multi-group Review Console existed to aggregate a drain session's N outcomes into one table; a single-group firing has nothing to consolidate, so it dies with drain — see Reporting below.
 
@@ -311,7 +311,7 @@ Every Skip/Break/partial-claim outcome above is unaffected by this modifier — 
 
 ### Concurrency note (Preflight reads, not claim correctness)
 
-Two `/dispatch` firings running close together (e.g. two terminals, or a Routine firing overlapping a human-run session) each do their own single Preflight read of CLAUDE.md's `work-backend` key. That read is not synchronized against a concurrent CLAUDE.md edit by a third actor (a human hand-edit, or another firing's own out-of-band fix) — one firing's Preflight can see different content than another's, purely from wall-clock timing. This is accepted, not engineered around, for the same reason `/claude-tweaks:triage`'s own Concurrency section accepts its last-writer-wins label race: it's self-correcting (the next Preflight read picks up whatever state won) and never risks a double-build — Step 4's atomic claim ref, not the Preflight read, is the actual correctness boundary, and it's completely unaffected by what any concurrent Preflight check decided. Worst case is a firing bailing on a Preflight check that would have passed a few seconds later (or vice versa), not a corrupted claim or a double-build.
+Two `/dispatch` firings running close together (e.g. two terminals, or a Routine firing overlapping a human-run session) each do their own single Preflight read of CLAUDE.md's `work-backend` key. That read is not synchronized against a concurrent CLAUDE.md edit by a third actor (a human hand-edit, or another firing's own out-of-band fix) — one firing's Preflight can see different content than another's, purely from wall-clock timing. This is accepted, not engineered around, for the same reason `/claude-tweaks:backlog refine`'s own Concurrency section accepts its last-writer-wins label race: it's self-correcting (the next Preflight read picks up whatever state won) and never risks a double-build — Step 4's atomic claim ref, not the Preflight read, is the actual correctness boundary, and it's completely unaffected by what any concurrent Preflight check decided. Worst case is a firing bailing on a Preflight check that would have passed a few seconds later (or vice versa), not a corrupted claim or a double-build.
 
 ### Step 5: Dispatch — one Task agent per group
 
@@ -409,7 +409,7 @@ These four rows mirror `_shared/work-record.md`'s canonical Config keys table (w
 /claude-tweaks:routine create dispatch
 ```
 
-**Migration note.** A cloud Routine created from `/claude-tweaks:triage`'s old template still fires `triage dispatch` — that workflow no longer exists (`/claude-tweaks:triage` is now the pure interactive gate; see Relationship below). This cannot be detected or fixed from inside a `/dispatch` run — a live routine referencing a retired prompt isn't visible here. If you have a routine scheduled before this skill existed, re-create it now via the command above; the old one keeps firing a prompt that no longer does anything until you replace or delete it.
+**Migration note.** A cloud Routine created from `/claude-tweaks:triage`'s old template still fires `triage dispatch` — that skill no longer exists; grants now live at `/claude-tweaks:backlog refine` (see Relationship below). This cannot be detected or fixed from inside a `/dispatch` run — a live routine referencing a retired prompt isn't visible here. If you have a routine scheduled before this skill existed, re-create it now via the command above; the old one keeps firing a prompt that no longer does anything until you replace or delete it.
 
 ## Next Actions
 
@@ -436,15 +436,14 @@ Render only when a human is present to answer — the bare form is definitionall
 | Treating a clean review as sufficient for auto-merge on its own | `merge-check` weighs diff content, review findings, and blast radius together as one holistic judgment — a clean review alone doesn't guarantee `auto-merge`; a large or structurally sensitive diff can still verdict `needs-human` even with zero findings. |
 | Retrying a failed record indefinitely with no ceiling | Wastes routine cycles on something fundamentally stuck and never surfaces it to a human — the retry ceiling exists to force a checkpoint. |
 | Building a session that shepherds every authorized group to completion in one run | Context rot — a session babysitting N pipeline runs accumulates context until it degrades. Throughput comes from routine cadence × single-group firings, not session breadth. |
-| Filing, closing, or granting authorization on records from inside dispatch | Dispatch is a *consumer* of what `/claude-tweaks:triage` already granted — filing belongs to the health skills/`/claude-tweaks:capture`, granting belongs to `/claude-tweaks:triage`. |
+| Filing, closing, or granting authorization on records from inside dispatch | Dispatch is a *consumer* of what `/claude-tweaks:backlog refine` already granted — filing belongs to the health skills/`/claude-tweaks:capture`, granting belongs to `/claude-tweaks:backlog refine`. |
 | Deriving a spec per bundle member before invoking `/flow` | A granted record is already spec-shaped (`ready` + spec-shaped body) — `/flow #A,#B` materializes directly. The old per-member `/specify` pre-step is deleted; don't reintroduce it. |
 
 ## Relationship to Other Skills
 
 | Skill | Relationship |
 |-------|-------------|
-| `/claude-tweaks:triage` | The human gate upstream — grants `auto:build` (optionally `+ auto:merge`) that dispatch selects on. Dispatch never grants; it only strips or downgrades a grant on failure or at the retry ceiling. Triage never claims or dispatches. |
-| `/claude-tweaks:review-backlog` | The only skill that ever suggests a `priority:*` value (human-confirmed) — dispatch's `next` form consumes whatever value results for its tie-break ordering. Review-backlog never claims, dispatches, or grants. |
+| `/claude-tweaks:backlog` | `refine` mode is the human gate upstream — grants `auto:build` (optionally `+ auto:merge`) that dispatch selects on, and is the only mode that ever suggests a `priority:*` value (human-confirmed) dispatch's `next` form consumes for tie-break ordering. Dispatch never grants; it only strips or downgrades a grant on failure or at the retry ceiling. `refine` never claims or dispatches. |
 | `/claude-tweaks:flow` | The executor dispatch hands claimed groups to — `CLAIM_RUN_ID="{RUN_ID}" /claude-tweaks:flow #{n}[,#{m}...]`. `/flow` is opaque to dispatch: materialization (spec derivation, multi-issue bundling) is `/flow`'s own concern, not dispatch's. |
 | `_shared/issue-claims.md` | Defines the claim protocol (the lock, the mirror, the group-claim rule, release triggers, the ownership rule) that dispatch implements start to finish — claim in Step 4, release in Settle. |
 | `_shared/work-record.md` | Taxonomy home — the seven-axis label contract and the permission-matrix row dispatch implements (`bot:in-progress` / `bot:blocked` add; `auto:merge` / `auto:*` / `bot:in-progress` remove; never add `auto:*` or `ready`). Also the canonical home of this skill's own `## Configuration` table's four rows (`dispatch-retry-ceiling`, `automerge-max-lines`, `automerge-max-files`, `dispatch-pick-max-concurrent`) — see that section's own cross-reference. |
@@ -456,6 +455,6 @@ Render only when a human is present to answer — the bare form is definitionall
 | `_shared/label-bootstrap.md` | Canonical check-then-create snippet for `bot:in-progress` / `bot:blocked` — the only two labels dispatch itself ever adds. |
 | `_shared/pipeline-run-dir.md` | Dispatch resolves a standalone-auto run dir (allowlist) for its own `decisions.md`; distinct from the `PIPELINE_RUN_DIR` each dispatched `/flow` run creates for its own build — see Component-Skill Contract above. |
 | `_shared/github-pr-scan.md` | Preflight runs its Detection Ladder (checks 1-3) before any `gh` command — unlike `/tidy`/`/help`'s fail-open use of the same ladder, dispatch treats any failure as a hard gate (see Preflight above). Dispatch consumes only the ladder, not the scope sections those two skills use. |
-| `_shared/local-files-preflight-stop.md` | Canonical "stop this turn completely" boundary-language pattern this skill's Preflight local-files stop paragraph follows — added after the identical weaker phrasing was proven insufficient in `/claude-tweaks:triage`'s own Preflight. |
+| `_shared/local-files-preflight-stop.md` | Canonical "stop this turn completely" boundary-language pattern this skill's Preflight local-files stop paragraph follows — added after the identical weaker phrasing was proven insufficient in `/claude-tweaks:triage`'s own Preflight (now `/claude-tweaks:backlog refine`'s grant sub-stage). |
 | `bin/lib/issues/{claims,retry,grouping,record}.js` | The pure helpers behind claim/release payloads, retry-ceiling math, file-overlap grouping, and grant/bot-state facet parsing — dispatch calls all four, unchanged. Step 2 also calls record.js's `parseDependencies` to drop records with an open `Blocked by #N` line from the queue under `work-links: body-text`, and `buildNativeDependencyQuery`/`hasOpenNativeBlocker` to do the same against GitHub's native dependency relationship under `work-links: native`. |
 | `/claude-tweaks:assess-agent-autonomy` | Called inline (not a fresh Task dispatch) at two points: the Auto-merge gate (`merge-check` mode, replacing the old three-layer mechanical check) and the Settle step (`failure-check` mode, replacing unconditional `auto:merge` revocation). Dispatch still owns authorization, claim mechanics, and retry-ceiling counting directly — assess-agent-autonomy only ever returns a verdict, never writes a label itself. |

@@ -9,11 +9,11 @@ argument-hint: "<grant-check|merge-check|failure-check|ceremony-check> [#<n>] [-
 
 Four-mode inline helper that replaces mechanical label lookups with judgment read from actual
 record/diff/failure content. Never invoked directly by a human — always a component step inside
-`/claude-tweaks:triage`, `/claude-tweaks:dispatch`, `/claude-tweaks:specify`, or (fallback only)
+`/claude-tweaks:backlog refine`, `/claude-tweaks:dispatch`, `/claude-tweaks:specify`, or (fallback only)
 `/claude-tweaks:flow`:
 
 ```
-/claude-tweaks:triage Step 2          [ grant-check ]    -> RECOMMEND_BUILD / RECOMMEND_MERGE
+/claude-tweaks:backlog refine         [ grant-check ]    -> RECOMMEND_BUILD / RECOMMEND_MERGE
 /claude-tweaks:dispatch Auto-merge    [ merge-check ]    -> VERDICT: auto-merge | needs-human
 /claude-tweaks:dispatch Settle        [ failure-check ]  -> CLASSIFICATION + NOTIFY_NOW
 /claude-tweaks:specify Step 3         [ ceremony-check ] -> CEREMONY: fast-lane | standard
@@ -21,7 +21,7 @@ record/diff/failure content. Never invoked directly by a human — always a comp
 
 ## When to Use
 
-- `/claude-tweaks:triage`'s Step 2 needs a grant recommendation for a worklist record.
+- `/claude-tweaks:backlog refine`'s Step 2 needs a grant recommendation for a worklist record.
 - `/claude-tweaks:dispatch`'s Auto-merge gate needs a merge-or-human verdict for a clean, reviewed run.
 - `/claude-tweaks:dispatch`'s Settle step needs to classify why a run failed.
 - `/claude-tweaks:specify`'s Step 3 (Create the Records) needs a ceremony-depth verdict for a
@@ -29,7 +29,7 @@ record/diff/failure content. Never invoked directly by a human — always a comp
   much fixed-cost ceremony it deserves. `/claude-tweaks:flow`'s materialize.md calls this mode only
   as a fallback, for a record that reaches `/flow` with no `ceremony:*` label at all.
 
-Not for: granting `auto:build`/`auto:merge` (still `/claude-tweaks:triage`'s human-confirmed job),
+Not for: granting `auto:build`/`auto:merge` (still `/claude-tweaks:backlog refine`'s human-confirmed job),
 merging anything itself (`/claude-tweaks:dispatch` acts on the verdict), deciding auto-merge
 eligibility or blast-radius caps (that's still `merge-check` alone — `ceremony-profile` and
 `auto:merge` are independent axes), or any decision outside these four call sites — this is not a
@@ -59,13 +59,13 @@ worktree itself). When present, `merge-check`'s Step 1 uses it directly instead 
 `$MERGE_BASE` from `$DEFAULT_BRANCH`. Ignored by the other three modes.
 
 Invoked inline via the Skill tool — not as a fresh Task-agent dispatch. The calling agent (a
-human-driven `/claude-tweaks:triage` session, or dispatch's per-group Task agent running `/flow`)
+human-driven `/claude-tweaks:backlog refine` session, or dispatch's per-group Task agent running `/flow`)
 runs this skill's procedure in its own context and reads the produced report directly; there is no
 cross-process hand-off.
 
 ## Mode: grant-check
 
-**Called from:** `/claude-tweaks:triage`'s Step 2, once per worklist record, every triage session
+**Called from:** `/claude-tweaks:backlog refine`'s grant-check pass, once per worklist record, every refine run
 — never pre-filtered to "borderline" records.
 
 ### Step 1: Gather
@@ -106,7 +106,7 @@ Read the body content directly — don't just trust the risk/effort labels as gr
   not blanket caution — recommend generously when the content genuinely supports it.
 - A missing Current State/Deliverables/Acceptance Criteria section, or an unresolved
   `TBD`/`TODO`/`<!-- ambiguity:` marker, is not this mode's job to catch — that's
-  `/claude-tweaks:triage`'s own Step 3.5 body-shape re-verification, which runs after this mode
+  `/claude-tweaks:backlog refine`'s own Step 3.5 body-shape re-verification, which runs after this mode
   regardless of its output.
 
 ### Step 3: Render
@@ -132,7 +132,7 @@ detail to leave buried in ceremony-tiering machinery the batch table never surfa
 will route through self-review only (ceremony:fast-lane), not the full review lens matrix." A
 `ceremony:standard` record needs no such clause — it gets the full review path regardless of the
 merge recommendation, so there's no tradeoff to disclose. This clause rides on the existing
-plumbing (`/claude-tweaks:triage`'s Step 2 already carries `RATIONALE` verbatim into the batch
+plumbing (`/claude-tweaks:backlog refine`'s Step 2 already carries `RATIONALE` verbatim into the batch
 table's Rationale column and the `decisions.md` log line) — no new field, no separate mechanism.
 
 ## Mode: merge-check
@@ -391,7 +391,7 @@ bad or under-reflect on real complexity.
 
 `/claude-tweaks:assess-agent-autonomy` is **always** a component skill — it is never invoked
 directly by a human, and never renders a `## Next Actions` block. Its only callers are
-`/claude-tweaks:triage` (Step 2, `grant-check`), `/claude-tweaks:dispatch` (Auto-merge gate,
+`/claude-tweaks:backlog refine` (Step 2, `grant-check`), `/claude-tweaks:dispatch` (Auto-merge gate,
 `merge-check`; Settle step, `failure-check`), `/claude-tweaks:specify` (Step 3, `ceremony-check`),
 and `/claude-tweaks:flow` (materialization fallback, `ceremony-check` only when record carries no
 `ceremony:*` label).
@@ -407,13 +407,13 @@ and `/claude-tweaks:flow` (materialization fallback, `ceremony-check` only when 
 | Recommending `RECOMMEND_MERGE: true` for a new-or-changed `skills/**/*.md` or `agents/**/*.md` file | Skill and agent-definition files shape future agent behavior — this is a hard `needs-human`/`false` case regardless of how clean or small the change looks. |
 | Dispatching this as a fresh Task agent instead of an inline Skill invocation | The calling agent already has the diff/review-findings/failure-output in its own context — a subagent restart only pays to re-derive what's already known. |
 | Treating `ceremony-check`'s verdict as a merge-safety signal | `ceremony-profile` and `auto:merge` are independent axes — a `fast-lane` record can still fail `merge-check` and fall back to a human-reviewed PR (this is exactly what happened to #18 before `merge-check` existed, for an unrelated reason). Never let ceremony depth influence merge eligibility or vice versa. |
-| Writing to `decisions.md` from inside this skill | This skill doesn't know about run-dir resolution — logging is the caller's job (`/claude-tweaks:triage` or `/claude-tweaks:dispatch`), matching every other auto-decision log entry in this codebase. |
+| Writing to `decisions.md` from inside this skill | This skill doesn't know about run-dir resolution — logging is the caller's job (`/claude-tweaks:backlog refine` or `/claude-tweaks:dispatch`), matching every other auto-decision log entry in this codebase. |
 
 ## Relationship to Other Skills
 
 | Skill | Relationship |
 |-------|-------------|
-| `/claude-tweaks:triage` | Calls `grant-check` once per worklist record in Step 2 — the output becomes the batch table's Recommended column directly. Triage still renders the human batch-confirm exactly as before; only what generates the suggestion changed. |
+| `/claude-tweaks:backlog` | `refine` mode calls `grant-check` once per worklist record — the output becomes the unified table's Recommended column for grant rows directly. `refine` still renders the human batch-confirm exactly as before; only what generates the suggestion changed. |
 | `/claude-tweaks:dispatch` | Calls `merge-check` in the Auto-merge gate (replacing layers 2-4) and `failure-check` in the Settle step (replacing the old unconditional-revocation rule). Dispatch still owns layer 1 (authorization) and all label/claim mechanics directly. |
 | `bin/lib/issues/blast-radius.js` | Pure module supplying `merge-check`'s one genuinely mechanical input — test-exclusion-aware diff sizing. This skill never computes blast radius itself. |
 | `bin/lib/issues/record.js` | `parseRecordFacets`'s `risk`/`effort` fields supply `grant-check`'s and `ceremony-check`'s current-label input (the standalone `tier.js` extractor this used to read was retired as redundant with `parseRecordFacets`). `recommendGrants`/`recommendTier` are also retired — this skill replaces them as triage's recommendation signal. |
