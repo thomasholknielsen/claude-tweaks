@@ -15,7 +15,7 @@ Build an inventory of what's currently configured before scanning the codebase:
 - Commands: {lists these scripts}
 - Conventions: {count} bullets
 - Don'ts: {count} items
-- Contract markers: {pipeline-section | auto-mode-flag | bookend | auto-mode-policy | run-dir} — {present/missing for each}
+- Contract markers: {pipeline-section | auto-mode-flag | bookend | run-dir} — {present/missing for each}
 - Last meaningful edit: {git log for CLAUDE.md — when, what changed}
 
 ### policy.yml
@@ -50,7 +50,6 @@ Existing CLAUDE.md files may pre-date claude-tweaks contract changes (auto-mode,
 | `## claude-tweaks Pipeline` section | `^## claude-tweaks Pipeline` in CLAUDE.md | v4.0+ | `claude-md-template.md` Initial Mode template |
 | Auto-mode flag (`auto-mode: default-off` / `default-on`) | `auto-mode:` in CLAUDE.md | v4.5+ | `claude-md-template.md` Project Defaults block |
 | Bookend architecture paragraph | `Bookend architecture` in CLAUDE.md | v4.6+ | `claude-md-template.md` Pipeline section |
-| `## Auto-mode policy` block (lever count matches `claude-md-template.md`'s block — see there, not restated here) | `^## Auto-mode policy` in CLAUDE.md | v4.6+ | `claude-md-template.md` Auto-mode policy block |
 | Pipeline run directory reference | `pipelines/{run-id}` in CLAUDE.md | v4.6+ | `claude-md-template.md` Pipeline section |
 
 For each missing marker, record a **Contract Drift** entry with the suggested patch — the body comes verbatim from `claude-md-template.md`, so no creative writing required. Carry these forward into the Drift Report (Phase 3) under a dedicated "Contract Drift" section so the user can approve them as a batch alongside other CLAUDE.md patches.
@@ -107,6 +106,43 @@ longer an open surface by the time this comparison is computable.
 |---|---|---|
 | The `project.maturity` value read into the Phase 1u inventory differs from the classification Phase 3 goes on to confirm | Compare the Phase 1u inventory's stored value against Phase 3's freshly confirmed classification, once Phase 3 completes | Note the change in Phase 9's Actions Performed Classification row (see `SKILL.md`'s Phase 9 Actions Performed table); the write itself happens via Phase 3's existing confirmation gate, not a separate approval here |
 
+### Auto-Mode-Policy Migration
+
+Existing projects initialized before the policy-schema consolidation may have
+CLAUDE.md's retired `## Auto-mode policy` block still present (8 lever lines —
+see `_shared/policy-schema.md`'s "Auto-mode levers" section for the full list).
+`claude-tweaks:init` no longer generates this block for new projects; this
+check offers existing projects a one-time cleanup.
+
+Run:
+
+```bash
+node -e "const {auditPolicy}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/policy-schema.js'); console.log(JSON.stringify(auditPolicy(process.cwd())))"
+```
+
+If `legacyClaudeMdLevers` is empty, record "Auto-mode policy: already migrated or never present" in the inventory and skip the rest of this section — no prompt.
+
+Otherwise, for each entry, the recommendation is:
+- `isValid: false` → **flag, don't move**: report "`{key}: {value}` isn't a recognized value — fix or remove it" and leave the CLAUDE.md line untouched. Never silently relocate a broken value into `policy.yml`.
+- `isValid: true, matchesDefault: true` → **delete** the line from CLAUDE.md. Pure cleanup — dual-read already falls through to the same default either way, so this is a zero-behavior-change removal.
+- `isValid: true, matchesDefault: false` → **move to `policy.yml`**: append `{key}: {value}` to `.claude-tweaks/policy.yml` (creating the file/directory if absent), then delete the line from CLAUDE.md. Preserves the project's override.
+
+Present via the standard batch-table convention (`AskUserQuestion`, per the root CLAUDE.md's Multi-item Decisions rule):
+
+- `question`: `"{N} legacy Auto-mode policy line(s) found in CLAUDE.md. Clean these up? Levers at their default get deleted; overrides move to .claude-tweaks/policy.yml."`, `header`: `"Policy cleanup"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"Delete {D} default-valued line(s), move {M} override(s) to policy.yml{, flag {F} invalid value(s) if F > 0}."` (`D`/`M`/`F` are the counts of `isValid: true, matchesDefault: true` / `isValid: true, matchesDefault: false` / `isValid: false` entries — omit the flag clause entirely when `F` is 0)
+- Option 2 — `label`: `"Override specific items"`, `description`: `"Choose per-line what happens to each of the {N} entries."`
+- Option 3 — `label`: `"Skip entirely"`, `description`: `"Leave CLAUDE.md as-is — I'll clean it up myself later."`
+
+On "Override specific items," follow up with the per-line choices as ordinary free-text in the next message (per the root CLAUDE.md's batch-table convention — the tool's `Other` field is a single answer to the batch question, not a per-item list).
+
+On any outcome except "Skip entirely," apply the selected deletions/moves (invalid entries are only flagged, never touched), then log to `decisions.md` (or the inventory summary, if this project has no active pipeline run dir):
+```
+AUTO {time} — Update Mode: migrated {D + M} of {N} legacy Auto-mode policy line(s) off CLAUDE.md ({D} deleted at-default, {M} moved to policy.yml{, F flagged as invalid and left untouched if F > 0}).
+```
+
+This check runs once per Update Mode invocation and counts toward the Total drift count in Phase 1u.6 the same way Work-Record Backend Drift does — a non-empty `legacyClaudeMdLevers` result is one additional Contract Drift entry.
+
 ## Phase 1u.6: Update Mode Early-Exit Gate
 
 After Phase 1u (inventory) and Phase 1u.5 (contract drift) complete, evaluate the audit signal before committing to the full phase ceremony. Update Mode's value is in catching drift quickly — when there's almost nothing to catch, the ceremony costs more than it produces.
@@ -138,7 +174,7 @@ After Phase 1u (inventory) and Phase 1u.5 (contract drift) complete, evaluate th
    - Superpowers: present · Code simplifier: available · agent-browser: installed (v{X.Y.Z})
    - Git repo: yes · Node: v{X} · Statusline: wired · Workflow dirs: present
 
-   Contract markers (claude-tweaks v{X.Y}+): pipeline section, auto-mode flag, bookend paragraph, auto-mode policy block, run-dir reference — all present.
+   Contract markers (claude-tweaks v{X.Y}+): pipeline section, auto-mode flag, bookend paragraph, run-dir reference — all present.
 
    Inventory: {M} skills, {R} rules, CLAUDE.md ({L} lines) — all classified "covered" against the existing config.
 

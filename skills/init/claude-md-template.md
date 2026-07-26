@@ -78,7 +78,7 @@ How to execute any task here. These apply project-wide unless a more specific ru
 
 **Bookend architecture (v4.6+):** in default `auto` mode the pipeline has **one user-facing stop** — the Wrap-Up Review Console at the end (`/claude-tweaks:wrap-up` Step 8.6 — one consolidated batch). The Pipeline Config Manifesto (`/claude-tweaks:flow` Step 3) computes the policy levers, writes `config.yml`, and displays as a **read-only FYI** rather than stopping — pass `/claude-tweaks:flow … confirm` to turn it back into an "Approve all / Override / Cancel" gate. Mid-flow decisions are looked up from `.claude-tweaks/pipelines/{run-id}/config.yml` and logged to `decisions.md` in the same directory. Skills MUST NOT invent new mid-flow stops in auto. See `_shared/auto-mode-contract.md` and `_shared/auto-decision-log.md`.
 
-**Project policy defaults** in this CLAUDE.md (under `## Auto-mode policy`) pre-fill the Manifesto — shown in the FYI display (default `auto`) and used as the pre-filled recommendations when the gate runs (`confirm` / `hybrid`). See the section below.
+**Project policy defaults** (set in `.claude-tweaks/policy.yml`, not in this CLAUDE.md file) pre-fill the Manifesto — shown in the FYI display (default `auto`) and used as the pre-filled recommendations when the gate runs (`confirm` / `hybrid`).
 
 **Superpowers overrides:** `/superpowers:brainstorming` stops after the design doc — route to `/claude-tweaks:specify`, never `/superpowers:writing-plans`. `/superpowers:subagent-driven-development` and `/superpowers:executing-plans` don't auto-invoke `/superpowers:finishing-a-development-branch`.
 
@@ -119,19 +119,6 @@ scope-keywords-required: false
 # project-wide default: default-on also makes standalone /build run in auto;
 # default-off lowers /flow to interactive (per-skill prompts).
 # auto-mode: default-on            # default-on | default-off
-
-## Auto-mode policy (pre-fills Pipeline Config Manifesto — v4.6+)
-# Each lever has a sensible default. Override only what the project actually
-# wants different. The Manifesto reads these as recommendations; the user can
-# still override per-run.
-scope-creep: add-to-plan           # add-to-plan | stop-and-ask | drop
-overlap: companion                 # companion | extend | skip | replace
-design-intent: none                # none | bold | quiet | minimal | delightful | onboarding
-leftover-default: defer            # defer | backlog | drop
-auto-fix-threshold: lint+type      # lint-only | lint+type | lint+type+test
-review-severity-floor: low         # none | low | medium  (auto-apply cutoff)
-tidy-aggressiveness: conservative  # conservative | moderate | aggressive
-unattended-tier: off               # off | on
 ```
 
 ## Don'ts

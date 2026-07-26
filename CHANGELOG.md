@@ -1,5 +1,15 @@
 # Changelog
 
+## v6.20.0 — Policy schema consolidation
+
+`.claude-tweaks/policy.yml` is now the canonical home for all of claude-tweaks' project-config
+levers, indexed in one place at `skills/_shared/policy-schema.md` (mirrored in code by
+`bin/lib/policy-schema.js`'s `auditPolicy()`). `/claude-tweaks:init` no longer writes 8
+default-valued lever lines into every generated CLAUDE.md — omitting a lever already meant "use
+the default," so writing it explicitly was always redundant, and it silently bloated every
+project's CLAUDE.md. Existing projects get a one-time cleanup offer via Update Mode; a new
+`/claude-tweaks:harness-health` check flags malformed or unrecognized `policy.yml` keys.
+
 ## v6.19.0 — Shared record-staleness threshold + bucket predicates
 
 The record-stage and bot-state predicates (`isBacklog`, `isParked`, `isBotBlocked`,

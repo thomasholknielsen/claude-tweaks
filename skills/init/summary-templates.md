@@ -112,7 +112,6 @@ Everything below was checked against the current codebase and found accurate. Su
 | Pipeline section | present |
 | Auto-mode flag | present |
 | Bookend paragraph | present |
-| Auto-mode policy block | present |
 | Run-dir reference | present |
 
 **Config accuracy (verified against codebase)**

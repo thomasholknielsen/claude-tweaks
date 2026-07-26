@@ -160,7 +160,7 @@ Consumed artifacts are deleted — specs and code are the durable outputs.
 └── staged/           ← Patches awaiting Review Console
 ```
 
-**Project policy defaults** live in CLAUDE.md under `## Auto-mode policy` — the Manifesto pre-fills from there so the user can hit "Approve all" with zero overrides on a properly-configured project.
+**Project policy defaults** (set in `.claude-tweaks/policy.yml`, not CLAUDE.md) pre-fill the Manifesto so the user can hit "Approve all" with zero overrides on a properly-configured project.
 
 **Doctrine preserved (still per-item user input, even in auto):**
 - Ledger resolve gate Phase 2 (open items)
