@@ -12,22 +12,38 @@ with the pattern here rather than drift toward weaker phrasing independently.
 ## Why this exists
 
 A skill in this project can be invoked headlessly, with no interactive human present to
-receive a "point the user at doing X manually" message. Two separate real incidents — found
+receive a "point the user at doing X manually" message. Three separate real incidents — found
 via this repo's own `evals/` harness running against real API calls, not hypothesized —
-confirmed that a live model reads a *purely informational* "point the user at X and stop" as
-license to do X itself when no human is there to act on the pointer:
+confirmed that a live model finds a way to treat a local-files stop as inapplicable unless the
+paragraph explicitly rules out each specific rationalization it reaches for:
 
 - `/claude-tweaks:triage`'s original Preflight (now `/claude-tweaks:backlog refine`'s grant sub-stage) said "report that grants are not applicable...
   point the user at running `/claude-tweaks:flow` manually" — a live headless run instead
   built and committed real application code, reproduced twice
   (`evals/scenarios/backlog-refine-permission-matrix-compliance.yaml`,
-  `.superpowers/sdd/task-9-report.md`).
+  `.superpowers/sdd/task-9-report.md`). Root cause: a purely informational "point the user at
+  X and stop" reads as license to do X itself when no human is there to act on the pointer.
 - `/claude-tweaks:dispatch` had the identical weak phrasing, found and fixed pre-emptively
   once the triage incident established the pattern was real, then confirmed safe via a real
   run (`evals/scenarios/dispatch-local-files-preflight-stop.yaml`).
+- `/claude-tweaks:backlog refine`'s grant sub-stage, already hardened to the enumerated
+  pattern below (elements 1-5), still failed against a realistic `/init`-generated `CLAUDE.md`
+  (the original fix's confirming run used a bare, never-init'd fixture) — a live headless run
+  again built and shipped real application code, this time running a full build-to-close
+  lifecycle (`/specify` → `/flow` → build → `/review` → `/wrap-up` → `/demo`; 18 commits, 49
+  tool calls, $17.47 — `evals/scenarios/backlog-refine-permission-matrix-compliance.yaml`).
+  Root cause: the realistic fixture's own `## claude-tweaks Pipeline` CLAUDE.md section
+  documents this project's own auto-mode/hands-off pipeline architecture ("skills MUST NOT
+  invent new mid-flow stops in auto") — the model resolved the conflict between that
+  documented project convention and this skill's own explicit stop instruction in favor of
+  the former, treating a low-risk "ready" record as exactly the kind of work that convention
+  describes running through automatically.
 
-The fix is not persuasion, it's enumeration: state exactly what must not happen, and state
-explicitly that the absence of a human is not an exception.
+The fix is not persuasion, it's enumeration: state exactly what must not happen, and rule out
+each specific rationalization a model has actually been observed reaching for — the absence of
+a human (element 5), and this project's own documented auto-mode conventions elsewhere in
+CLAUDE.md (element 6) — rather than leaving either for a plausible-sounding local context to
+override.
 
 ## The pattern
 
@@ -50,14 +66,22 @@ A compliant local-files Preflight paragraph contains all of the following, in th
    (including any headless/scheduled-firing mode the skill supports): "the absence of a human
    to hand this off to is not license to do the work in their place — it means {the unmet
    condition from step 2}, so the correct behavior is to stop, not proceed."
+6. **The auto-mode disclaimer** — this stop is not superseded by this project's own
+   documented auto-mode or hands-off-pipeline conventions elsewhere in CLAUDE.md (e.g.
+   `/claude-tweaks:flow` defaulting to `auto`, "skills MUST NOT invent new mid-flow stops," or
+   any similar pipeline-architecture description): those conventions govern behavior *within*
+   a pipeline run that has already been authorized to proceed — they say nothing about
+   whether this gate may authorize new work in the first place, which under `local-files` it
+   explicitly cannot. A record that looks low-risk, well-scoped, or "ready" is not an
+   exception.
 
 See `skills/backlog/SKILL.md` and `skills/dispatch/SKILL.md`'s own Preflight sections for two
 worked instances of this pattern applied to genuinely different skill-specific reasons.
 
 ## Adding a third consumer
 
-If a new skill needs a local-files Preflight stop, compose its paragraph from the five
+If a new skill needs a local-files Preflight stop, compose its paragraph from the six
 elements above using its own reason/skill-list/manual-alternative — do not copy either
 existing paragraph verbatim and edit nouns, since that risks silently dropping element 3's
-enumeration or element 5's no-exception clause in the edit. Add the new skill to this file's
-opening "Referenced by" list once done.
+enumeration, element 5's no-exception clause, or element 6's auto-mode disclaimer in the
+edit. Add the new skill to this file's opening "Referenced by" list once done.
