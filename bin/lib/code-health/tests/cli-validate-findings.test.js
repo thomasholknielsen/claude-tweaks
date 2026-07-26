@@ -9,7 +9,7 @@ const path = require('path');
 const CLI = path.resolve(__dirname, '..', '..', '..', 'code-health.js');
 
 function tmp() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-vf-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-vf-'));
 }
 
 function runValidateFindings(root, findingsFile, extraArgs = []) {

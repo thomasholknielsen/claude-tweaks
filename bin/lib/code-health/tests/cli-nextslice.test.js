@@ -8,7 +8,7 @@ const { contentHash } = require('../scope');
 
 const CLI = path.resolve(__dirname, '..', '..', '..', 'code-health.js');
 
-function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-ns-')); }
+function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-ns-')); }
 function runNextSlice(args, root) {
   const raw = execFileSync('node', [CLI, 'next-slice', '--root', root, ...args], { encoding: 'utf8' });
   return JSON.parse(raw);
@@ -22,9 +22,9 @@ function runNextSlice(args, root) {
 // `origin` remote at it. Only the WRITE path (gh api blob/tree/commit/ref
 // calls) requires live GitHub credentials — this helper never touches it.
 function seedDurableCursors(root, cursors) {
-  const bareDir = fs.mkdtempSync(path.join(os.tmpdir(), 'recon-ns-bare-'));
+  const bareDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-ns-bare-'));
   execFileSync('git', ['init', '--bare', '-q', bareDir]);
-  const seedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'recon-ns-seed-'));
+  const seedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-ns-seed-'));
   execFileSync('git', ['init', '-q', seedDir]);
   execFileSync('git', ['-C', seedDir, 'checkout', '-q', '-b', 'health-state']);
   fs.mkdirSync(path.join(seedDir, 'code-health'), { recursive: true });

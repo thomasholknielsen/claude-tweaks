@@ -72,7 +72,7 @@ test('extracts the anchor file from a v2 code-health issue body', () => {
   const issue = {
     labels: ['code-health', 'code-health:risk-high'],
     body: [
-      '<!-- code-health-fingerprint: recon-ab12cd34 -->',
+      '<!-- code-health-fingerprint: codehealth-ab12cd34 -->',
       '',
       '**Criterion:** simplification | **Risk:** high',
       '',
@@ -90,7 +90,7 @@ test('extracts the Files line from a v1 code-health issue body', () => {
   const issue = {
     labels: ['code-health', 'code-health:high'],
     body: [
-      '<!-- code-health-fingerprint: recon-abc12345 -->',
+      '<!-- code-health-fingerprint: codehealth-abc12345 -->',
       '',
       '**Lens:** oversized-file | **Severity:** high',
       '',
@@ -116,7 +116,7 @@ test('extracts the anchor file from a by:code-health issue body (post-migration 
   const issue = {
     labels: ['by:code-health', 'code-health:risk-high', 'risk:high', 'effort:low'],
     body: [
-      '<!-- work-fingerprint: recon-ab12cd34 -->',
+      '<!-- work-fingerprint: codehealth-ab12cd34 -->',
       '',
       '**Criterion:** simplification | **Risk:** high',
       '',

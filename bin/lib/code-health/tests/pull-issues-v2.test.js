@@ -8,7 +8,7 @@ const { pullReconIssues } = require('../pull-issues');
 // bin/lib/issues/record.js's recordPayload/specShapedBody). NOT the legacy
 // code-health:<severity> label / code-health-fingerprint marker shape the old
 // bin/lib/issues/ingest.js path expected.
-function v2Issue({ number = 1, risk = 'high', criterion = 'security-logic', fingerprint = 'recon-abcd1234' } = {}) {
+function v2Issue({ number = 1, risk = 'high', criterion = 'security-logic', fingerprint = 'codehealth-abcd1234' } = {}) {
   return {
     number,
     title: `[code-health] ${criterion} finding`,
@@ -46,13 +46,13 @@ function v2Issue({ number = 1, risk = 'high', criterion = 'security-logic', fing
 test('pullReconIssues extracts fingerprint from the current work-fingerprint marker', () => {
   const briefs = pullReconIssues({ issuesJson: [v2Issue()] });
   assert.strictEqual(briefs.length, 1);
-  assert.strictEqual(briefs[0].fingerprint, 'recon-abcd1234');
+  assert.strictEqual(briefs[0].fingerprint, 'codehealth-abcd1234');
 });
 
 test('pullReconIssues still reads the legacy fingerprint marker (dual-write/migration period)', () => {
-  const legacy = { ...v2Issue(), body: '## Current State\nOld-format body.\n\n<!-- code-health-fingerprint: recon-legacy01 -->' };
+  const legacy = { ...v2Issue(), body: '## Current State\nOld-format body.\n\n<!-- code-health-fingerprint: codehealth-legacy01 -->' };
   const briefs = pullReconIssues({ issuesJson: [legacy] });
-  assert.strictEqual(briefs[0].fingerprint, 'recon-legacy01');
+  assert.strictEqual(briefs[0].fingerprint, 'codehealth-legacy01');
 });
 
 test('pullReconIssues extracts severity from the risk:<tier> label (3-tier, matches --min-risk)', () => {
@@ -81,13 +81,13 @@ test('pullReconIssues label option selects a different origin (e.g. harness-heal
 
 test('pullReconIssues minSeverity filters below-floor issues on the risk:<tier> scale', () => {
   const issues = [
-    v2Issue({ number: 1, risk: 'high', fingerprint: 'recon-high0001' }),
-    v2Issue({ number: 2, risk: 'medium', fingerprint: 'recon-med00002' }),
-    v2Issue({ number: 3, risk: 'low', fingerprint: 'recon-low00003' }),
+    v2Issue({ number: 1, risk: 'high', fingerprint: 'codehealth-high0001' }),
+    v2Issue({ number: 2, risk: 'medium', fingerprint: 'codehealth-med00002' }),
+    v2Issue({ number: 3, risk: 'low', fingerprint: 'codehealth-low00003' }),
   ];
   const briefs = pullReconIssues({ minSeverity: 'high', issuesJson: issues });
   assert.strictEqual(briefs.length, 1);
-  assert.strictEqual(briefs[0].fingerprint, 'recon-high0001');
+  assert.strictEqual(briefs[0].fingerprint, 'codehealth-high0001');
 });
 
 test('pullReconIssues treats an unscored issue (no risk:<tier> label) as the least-urgent tier', () => {

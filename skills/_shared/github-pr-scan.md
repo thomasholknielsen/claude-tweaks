@@ -118,7 +118,7 @@ Three cheap counts for the dashboard's Triage Queue section. This scope exists s
 
 2. **Blocked** — `gh issue list --label bot:blocked --state open --json number --limit 200 -q 'length'`
 
-3. **Auto-merged this week** — `[fast-lane]`-tagged (legacy human-facilitated merges, `wrap-up/review-console.md`) or `[auto-merge]`-tagged (headless autonomous merges, `dispatch/SKILL.md`) commits on the *default* branch (never the current worktree's own branch — see the note on `worktree.always` below), last 7 days:
+3. **Auto-merged this week** — `[fast-lane]`-tagged (wrap-up's single-record Auto-merge short-circuit, `wrap-up/review-console.md`) or `[auto-merge]`-tagged (dispatch's group-scoped bundle gate, `dispatch/SKILL.md`) — both headless autonomous merges, distinguished by scope, not by which is current — commits on the *default* branch (never the current worktree's own branch — see the note on `worktree.always` below), last 7 days:
 
    ```bash
    SINCE=$(node -e "console.log(new Date(Date.now() - 7*24*60*60*1000).toISOString())")

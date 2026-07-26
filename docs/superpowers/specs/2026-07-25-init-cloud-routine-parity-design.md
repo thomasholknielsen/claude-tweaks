@@ -29,7 +29,7 @@ step that closes that gap for every project using claude-tweaks, going forward.
 ## Platform facts (verified, not assumed)
 
 Confirmed via the Claude Code platform specialist against current official docs, not
-inferred from the memenu-app conversation alone:
+inferred from a prior sibling-project investigation alone:
 
 - Non-interactive plugin install: `claude plugin install <name>@<marketplace> --scope project`.
 - A marketplace not yet known to Claude Code needs an explicit
@@ -43,8 +43,8 @@ inferred from the memenu-app conversation alone:
   (Routine CRUD) only, confirmed by inspecting its own schema; it has no environment-config
   action.
 - The "materialized but not registered on first exposure, self-heals next session" behavior
-  is **not** documented by Anthropic — it is an empirical observation from the memenu-app
-  investigation's live testing, not a platform guarantee. This design documents it as an
+  is **not** documented by Anthropic — it is an empirical observation from a sibling
+  project's live testing, not a platform guarantee. This design documents it as an
   observed caveat, never as asserted platform behavior.
 
 ## Scope

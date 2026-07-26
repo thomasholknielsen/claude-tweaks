@@ -20,7 +20,7 @@ function findTemplates() {
 
 test('at least one routine-template.yml exists to validate', () => {
   const templates = findTemplates();
-  assert.ok(templates.length >= 1, 'expected at least skills/recon/routine-template.yml to exist');
+  assert.ok(templates.length >= 1, 'expected at least one skills/*/routine-template.yml to exist');
 });
 
 for (const templatePath of findTemplates()) {

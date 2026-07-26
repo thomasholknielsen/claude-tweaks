@@ -93,8 +93,8 @@ test('listSkills merges flat-file and directory-per-skill conventions, sorted to
 // ─── extractDomainPaths ────────────────────────────────────────────────────
 
 test('extractDomainPaths finds backtick-quoted file paths', () => {
-  const content = 'See `src/api/user.js` for the pattern, also `bin/recon.js`.';
-  assert.deepStrictEqual(extractDomainPaths(content).sort(), ['bin/recon.js', 'src/api/user.js']);
+  const content = 'See `src/api/user.js` for the pattern, also `bin/helper.js`.';
+  assert.deepStrictEqual(extractDomainPaths(content).sort(), ['bin/helper.js', 'src/api/user.js']);
 });
 
 test('extractDomainPaths ignores backtick-quoted strings with no slash', () => {

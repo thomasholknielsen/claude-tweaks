@@ -9,7 +9,7 @@ const { classifyArea } = require('../area-type');
 
 const CLI = path.resolve(__dirname, '..', '..', '..', 'code-health.js');
 
-function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'recon-at-')); }
+function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-at-')); }
 
 test('unknown dir with no signals returns empty types', () => {
   const d = tmp();
