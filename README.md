@@ -107,7 +107,7 @@ See `skills/_shared/work-record.md` for the full seven-axis contract (Type, Orig
 
 ## Skills
 
-claude-tweaks ships a full set of skills spanning the plan phase (capture, challenge, specify), the automated pipeline (build, test, review, wrap-up), standalone component skills (reflect, simplify, deepen, journeys, visual-review, visualize, assess-agent-autonomy), and utility skills (flow, help, tidy, demo, code-health, triage, dispatch, and more). Each is invoked as `/claude-tweaks:{name}` and most work both standalone and as part of the automated `/claude-tweaks:flow` pipeline.
+claude-tweaks ships a full set of skills spanning the plan phase (capture, challenge, specify), the automated pipeline (build, test, review, wrap-up), standalone component skills (reflect, simplify, deepen, journeys, visual-review, visualize, assess-agent-autonomy), and utility skills (flow, help, tidy, demo, code-health, backlog, dispatch, and more). Each is invoked as `/claude-tweaks:{name}` and most work both standalone and as part of the automated `/claude-tweaks:flow` pipeline.
 
 See [docs/getting-started.md](docs/getting-started.md) for the full skill reference.
 
