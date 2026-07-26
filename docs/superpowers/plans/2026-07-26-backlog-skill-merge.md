@@ -981,7 +981,7 @@ Line 280: replace `\`/claude-tweaks:assess-agent-autonomy\`'s \`grant-check\` mo
 
 - [ ] **Step 4: Edit `skills/harness-health/routine-template.yml`**
 
-Line 30: replace `\`/claude-tweaks:triage\` (or schedule a triage-adjacent routine) to tier them.` with `\`/claude-tweaks:backlog refine\` (or schedule a backlog-adjacent routine) to tier them.`
+Line 30: replace `run bare \`/claude-tweaks:triage\` (or schedule a triage-adjacent routine) to tier them.` with `run \`/claude-tweaks:backlog refine\` (or schedule a backlog-adjacent routine) to tier them.` — the quoted span must include the preceding "bare" (dropped in the replacement), matching the identical pattern already handled correctly in Steps 2 and 7's OLD text for the sibling `code-health`/`docs-health` templates; leaving "bare" in place would read as self-contradictory since `/claude-tweaks:backlog refine` takes a mode argument.
 
 - [ ] **Step 5: Edit `skills/journey-health/SKILL.md`**
 
