@@ -25,17 +25,17 @@ node -e "
 
 Every record returned by the `local-files` driver's fetch already carries its parsed `.facets` — no separate parse pass needed. Three of the seven shapes below don't apply under this driver: no Sync finding (`facets.unsynced` is a github-issues-fallback-only concept — see `_shared/work-record.md`), no `bot:blocked` finding (the local driver "carries no bot state"), and no legacy-taxonomy finding (its frontmatter schema never held the retired label vocabulary in the first place — that vocabulary is GitHub-label-only).
 
-**Staleness clock**, either driver: per `_shared/record-queue-fetch.md`'s Staleness clock section (`{REPO_ROOT}` resolves the same way Step 4.5 below already documents). Same three-band scale used throughout this file:
-
-| Age | Classification |
-|-----|---------------|
-| < 2 weeks | Fresh |
-| 2-4 weeks | Review |
-| > 4 weeks | Stale |
+**Staleness clock**, either driver: per `_shared/record-queue-fetch.md`'s Staleness clock and
+Threshold resolution sections (`{REPO_ROOT}` resolves the same way Step 4.5 below already
+documents). Bands are computed by `classifyStaleness(ageMs, thresholdMs)`
+(`bin/lib/issues/record-buckets.js`) against the resolved `record-staleness-weeks` threshold
+(default 4 weeks): `fresh` below half the threshold, `review` from half the threshold up to
+and including the threshold itself, `stale` beyond it. Same three-band scale used throughout
+this file.
 
 ### Shape 1 — backlog record stale
 
-`facets.stage === 'backlog'` — no stage label (`github-issues`) or no `stage:` frontmatter (`local-files`); the default state, per `_shared/work-record.md`'s lifecycle spine. Classify by the staleness clock above:
+`isBacklog(record)` (`bin/lib/issues/record-buckets.js`) — no stage label (`github-issues`) or no `stage:` frontmatter (`local-files`); the default state, per `_shared/work-record.md`'s lifecycle spine. Classify by the staleness clock above:
 
 | Age | Default Recommendation |
 |-----|----------------------|
@@ -47,7 +47,7 @@ Every record returned by the `local-files` driver's fetch already carries its pa
 
 ### Shape 2 — parked trigger met
 
-`facets.stage === 'parked'`. Judge the trigger live — the same evidence `_shared/github-pr-scan.md`'s `repo-wide` scope and the Evidence tier (`SKILL.md` Step 6) already read, so this shape and those procedures never disagree:
+`isParked(record)` (`bin/lib/issues/record-buckets.js`). Judge the trigger live — the same evidence `_shared/github-pr-scan.md`'s `repo-wide` scope and the Evidence tier (`SKILL.md` Step 6) already read, so this shape and those procedures never disagree:
 
 | Trigger status | Default Recommendation |
 |---------------|----------------------|
@@ -78,7 +78,7 @@ A watched-path match is a signal to look again, not proof the record still needs
 
 ### Shape 5 — `bot:blocked` needing re-triage
 
-`facets.bot.blocked === true` (`work-backend: github-issues` only — the local driver carries no bot state). The record hit its retry ceiling (`_shared/issue-claims.md`, `dispatch/SKILL.md`'s Settle step) and needs a human's renewed judgment at `/claude-tweaks:backlog refine` before it can re-enter the autonomous queue.
+`isBotBlocked(record)` (`bin/lib/issues/record-buckets.js`; `work-backend: github-issues` only — the local driver's `facets.bot.blocked` is always `false`, per `facet-shape.js`'s shared defaults, so this predicate never fires there). The record hit its retry ceiling (`_shared/issue-claims.md`, `dispatch/SKILL.md`'s Settle step) and needs a human's renewed judgment at `/claude-tweaks:backlog refine` before it can re-enter the autonomous queue.
 
 → Collect each as: `[blocked] {title} — hit its retry ceiling — re-authorize at /claude-tweaks:backlog refine`
 
