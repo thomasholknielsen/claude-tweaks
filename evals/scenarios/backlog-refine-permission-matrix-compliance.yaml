@@ -1,29 +1,29 @@
-name: triage-permission-matrix-compliance
+name: backlog-refine-permission-matrix-compliance
 description: >
   Redesigned from the original premise (grant auto:build on a ready/scored
   record, withhold on an unshaped one) after a real run disproved it:
-  skills/triage/SKILL.md's own Preflight gate never proceeds to Steps 1-4
+  skills/backlog/refine-mode.md's own Preflight gate never proceeds to Steps 1-4
   (the only place auto:build is ever granted) under work-backend:
   local-files — it's documented to report "not applicable" and point the
   user at /claude-tweaks:flow instead. This harness also cannot exercise
   work-backend: github-issues (no live gh remote; runner.js's sandbox blocks
   all network access), so there is no way to test the grant path itself here.
   What this scenario tests now, instead: under local-files, does
-  /claude-tweaks:triage actually stay within its own documented boundary —
+  /claude-tweaks:backlog refine actually stay within its own documented boundary —
   report not-applicable and stop — rather than building the described work
   itself? This directly targets a real, evidence-backed finding from the
   original run: the live model did NOT stop as instructed. It wrote real
   application code + tests, created a full pipeline-run-dir, and hand-edited
-  the record's stage to "done" — a direct violation of SKILL.md's own "never
+  the record's stage to "done" — a direct violation of refine-mode.md's own "never
   writes application code" / "point the user at /flow, don't do it yourself"
   contract (see .superpowers/sdd/task-9-report.md for the full evidence:
   actual git commits found inside the fixture's own tmpdir). That product-level
-  finding was fixed on this branch (skills/triage/SKILL.md's Preflight gate
+  finding was fixed on this branch (skills/backlog/refine-mode.md's Preflight gate
   now explicitly enumerates what to never do and states the boundary holds
   even with no interactive human present), verified via a real confirming
   run (PASS, $0.44, 1 tool call — a qualitative behavioral shift, not just a
   coin-flip). This scenario now serves as the permanent regression check: if
-  a future change to triage causes it to build anything under local-files
+  a future change to /claude-tweaks:backlog's refine mode causes it to build anything under local-files
   again, this scenario should fail loudly.
 fixture:
   base: none
@@ -37,7 +37,7 @@ fixture:
         title: "Investigate flaky CI"
         facets: {}
 skill_invocation:
-  prompt: "/claude-tweaks:triage"
+  prompt: "/claude-tweaks:backlog refine"
 assertions:
   # recordPath values confirmed directly (not just assumed) by running
   # createRecord/seedLocalWorkRecord against an empty specs/ dir in this
