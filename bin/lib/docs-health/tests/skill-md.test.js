@@ -38,11 +38,11 @@ test('documents the dry-run-first procedure and hands payloads to gh', () => {
 registerHouseSectionOrderTest(test, assert, read);
 registerPipelineRunDirTest(test, assert, read);
 
-test('Relationship table references harness-health, code-health, tidy, triage, routine', () => {
+test('Relationship table references harness-health, code-health, tidy, backlog, routine', () => {
   const body = read();
   for (const s of [
     '/claude-tweaks:harness-health', '/claude-tweaks:code-health', '/claude-tweaks:tidy',
-    '/claude-tweaks:triage', '/claude-tweaks:routine',
+    '/claude-tweaks:backlog', '/claude-tweaks:routine',
   ]) {
     assert.ok(body.includes(s), `missing relationship to ${s}`);
   }

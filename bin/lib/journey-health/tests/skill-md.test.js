@@ -48,11 +48,11 @@ test('Component-Skill Contract is keyed on $PIPELINE_RUN_DIR', () => {
   assert.ok(read().includes('$PIPELINE_RUN_DIR'));
 });
 
-test('Relationship table references journeys, stories, test, tidy, triage, routine', () => {
+test('Relationship table references journeys, stories, test, tidy, backlog, routine', () => {
   const body = read();
   for (const s of [
     '/claude-tweaks:journeys', '/claude-tweaks:stories', '/claude-tweaks:test',
-    '/claude-tweaks:tidy', '/claude-tweaks:triage', '/claude-tweaks:routine',
+    '/claude-tweaks:tidy', '/claude-tweaks:backlog', '/claude-tweaks:routine',
   ]) {
     assert.ok(body.includes(s), `missing relationship to ${s}`);
   }
