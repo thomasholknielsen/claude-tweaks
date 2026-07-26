@@ -145,7 +145,7 @@ For each finding, route by recommendation type:
 | **Keep** | Auto (no-op) | Auto (no-op) | Auto (no-op) |
 | **Legacy taxonomy present** (Shape 7 — read-only flag; `/tidy` never relabels it) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) |
 | **Needs scoring** (Shape 4 — `ready` record missing risk/effort; no mutation, recommends `/claude-tweaks:specify`) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) |
-| **Re-triage** (Shape 5 — `bot:blocked`; no mutation, recommends `/claude-tweaks:triage`) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) |
+| **Re-triage** (Shape 5 — `bot:blocked`; no mutation, recommends `/claude-tweaks:backlog refine`) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) |
 | **Awaiting review** (a fresh/clean, non-stale open PR surfaced by `github-pr-scan.md`'s `repo-wide` scope; no mutation, informational only) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) | Auto (no-op, always surfaced) |
 | **Delete** (stale temp files, broken symlinks, marked-as-specified design docs, merged worktrees/branches, orphaned plans whose related spec is complete) | Auto-apply | Auto-apply | Auto-apply |
 | **Delete** (any case requiring judgment, excluding backlog records — old plans whose spec status is unclear, design docs with no specs; see the dedicated backlog-record Delete rows below for `local-files`- and `github-issues`-backend findings) | Stage | Auto-apply | Auto-apply |
@@ -208,7 +208,7 @@ Present all collected findings as a single report. Every item has a pre-filled r
 | 5 | Parked | "{title}" (valid, not timely) | Defer — trigger: {condition} |
 | 6 | Parked | "{title}" (trigger met) | Promote — trigger fired |
 | 7 | Scoring | "{title}" (ready, unscored) | Flag for scoring — /claude-tweaks:specify #{n} |
-| 8 | Blocked | "{title}" (bot:blocked) | Re-triage — /claude-tweaks:triage |
+| 8 | Blocked | "{title}" (bot:blocked) | Re-triage — /claude-tweaks:backlog refine |
 | 9 | Legacy | "{title}" (carries tier:approved) | Retired vocabulary — needs migration/re-triage |
 | 10 | Sizing | "{title}" (ready, 12 tasks implied) | Split into two records |
 | 11 | Design doc | "{filename}" (specified) | Delete |
@@ -230,7 +230,7 @@ Present all collected findings as a single report. Every item has a pre-filled r
 - Backlog: {X} records ({Y} stale, {Z} ready to promote)
 - Parked: {X} records ({Y} trigger-met, {Z} still waiting)
 - Ready, unscored: {N} — needs `/claude-tweaks:specify`
-- `bot:blocked`: {N} — needs `/claude-tweaks:triage`
+- `bot:blocked`: {N} — needs `/claude-tweaks:backlog refine`
 - Legacy taxonomy: {N} records — needs migration
 - Plans to clean: {D} design docs, {E} execution plans
 - Git cleanup: {F} worktrees, {G} build branches
@@ -311,7 +311,7 @@ Call `AskUserQuestion`:
 - Option 1 — `label`: `"Help dashboard (Recommended)"`, `description`: `"/claude-tweaks:help — full pipeline status with refreshed counts after the cleanup"`
 - Option 2 — `label`: `"Build {N}"`, `description`: `"/claude-tweaks:build {N} — build the highest-priority ready spec surfaced by the tidy report"`
 - Option 3 — `label`: `"Specify {topic}"`, `description`: `"/claude-tweaks:specify {topic} — specify an unspecified design doc surfaced by the audit"`
-- Option 4 — `label`: `"Triage the queue"`, `description`: `"/claude-tweaks:triage — authorize any ready-but-unscored or bot:blocked records the audit surfaced"`
+- Option 4 — `label`: `"Refine the queue"`, `description`: `"/claude-tweaks:backlog refine — authorize any ready-but-unscored or bot:blocked records the audit surfaced"`
 
 ## Component-Skill Contract
 
@@ -337,7 +337,7 @@ One exception to "never creates or enters a worktree": under `worktree.always: t
 | Closing a PR/issue without a comment | Silent closes destroy the audit trail and confuse collaborators. Comment first, then close — the comment is the record of why. |
 | Resolving review threads without commit evidence | Resolving unaddressed feedback is worse than leaving it open — the concern disappears without being fixed. Evidence means a commit touching the flagged lines. |
 | Relabeling a legacy-taxonomy record instead of flagging it | Shape 7 is read-only by design — `/tidy` surfaces retired `tier:*`/`status:*`/`backlog` labels for a dedicated migration pass; it never relabels them itself. |
-| Treating an unscored `ready` record as automatically triage-eligible | Labels are projection, not truth — a `ready` label alone doesn't mean scoring happened. Shape 4 exists to catch this proactively, before `/claude-tweaks:triage` has to flag it back reactively. |
+| Treating an unscored `ready` record as automatically triage-eligible | Labels are projection, not truth — a `ready` label alone doesn't mean scoring happened. Shape 4 exists to catch this proactively, before `/claude-tweaks:backlog refine` has to flag it back reactively. |
 
 ## Relationship to Other Skills
 
@@ -353,13 +353,12 @@ One exception to "never creates or enters a worktree": under `worktree.always: t
 | `/claude-tweaks:build` | /claude-tweaks:tidy cleans up leftover worktrees and `build/*` branches from previous builds |
 | `/claude-tweaks:init` | /claude-tweaks:tidy Step 4.6 audits doc registry health — flags stale entries, gaps, pattern drift. Suggests `/init update` for tier drift. |
 | `/claude-tweaks:ledger` | /ledger creates the per-feature ledger files at `docs/plans/*-ledger.md`, consumed by `/build`, `/test`, `/review`, `/wrap-up`, and `/flow` during a pipeline run, and deleted by `/wrap-up` Step 10 on successful completion. /tidy does not currently scan ledger files — no step in `scan-procedures.md` reads `docs/plans/*-ledger.md`, so a stale or orphaned ledger left behind by a pipeline that never reached wrap-up is not surfaced by a `/tidy` sweep today. |
-| `/claude-tweaks:code-health` | `/code-health` files improvement findings as `code-health`-labelled records; `/tidy` Step 4.8 audits them — stale/superseded ones are closed (with comment) after batch approval, still-valid ones suggested for `/claude-tweaks:triage`. |
-| `/claude-tweaks:harness-health` | `/harness-health` files skill/rule/CLAUDE.md drift findings as `harness-health`-labelled records; `/tidy` Step 4.8 audits them alongside code-health and journey-health records — stale/superseded ones closed after batch approval, still-valid ones suggested for `/claude-tweaks:triage` or direct application. |
-| `/claude-tweaks:journey-health` | `/journey-health` files `docs/journeys/*.md` drift and coverage-gap findings as `by:journey-health`-labelled records; `/tidy` Step 4.8 audits them alongside code-health, harness-health, and docs-health records, using the same stale/superseded triage — stale/superseded ones closed after batch approval, still-valid ones suggested for `/claude-tweaks:triage`. |
-| `/claude-tweaks:docs-health` | `/docs-health` files `docs/**` genre-drift/depth-mismatch/findability/staleness findings as `by:docs-health`-labelled records; `/tidy` Step 4.8 audits them alongside code-health, harness-health, and journey-health records — stale/superseded ones closed after batch approval, still-valid ones suggested for `/claude-tweaks:triage`. |
+| `/claude-tweaks:code-health` | `/code-health` files improvement findings as `code-health`-labelled records; `/tidy` Step 4.8 audits them — stale/superseded ones are closed (with comment) after batch approval, still-valid ones suggested for `/claude-tweaks:backlog refine`. |
+| `/claude-tweaks:harness-health` | `/harness-health` files skill/rule/CLAUDE.md drift findings as `harness-health`-labelled records; `/tidy` Step 4.8 audits them alongside code-health and journey-health records — stale/superseded ones closed after batch approval, still-valid ones suggested for `/claude-tweaks:backlog refine` or direct application. |
+| `/claude-tweaks:journey-health` | `/journey-health` files `docs/journeys/*.md` drift and coverage-gap findings as `by:journey-health`-labelled records; `/tidy` Step 4.8 audits them alongside code-health, harness-health, and docs-health records, using the same stale/superseded triage — stale/superseded ones closed after batch approval, still-valid ones suggested for `/claude-tweaks:backlog refine`. |
+| `/claude-tweaks:docs-health` | `/docs-health` files `docs/**` genre-drift/depth-mismatch/findability/staleness findings as `by:docs-health`-labelled records; `/tidy` Step 4.8 audits them alongside code-health, harness-health, and journey-health records — stale/superseded ones closed after batch approval, still-valid ones suggested for `/claude-tweaks:backlog refine`. |
 | `/claude-tweaks:routine` | `/routine create tidy` instantiates tidy's `routine-template.yml` into a live, scheduled cloud Routine — the mechanism behind this skill's own "Routine Configuration" section. |
-| `/claude-tweaks:triage` | Reciprocal gate relationship: `/tidy`'s Step 1 record scan surfaces `bot:blocked` records (Shape 5) and `ready`-but-unscored records (Shape 4) as candidates for `/claude-tweaks:triage`'s worklist, and its Step 4.8 pending-authorization count (per `_shared/github-pr-scan.md`'s `repo-wide` scope) surfaces in the rolling digest. `/tidy` never grants authorization itself — that stays `/claude-tweaks:triage`'s job. Migration note: pre-6.0 records still carrying retired `tier:*`/`status:*`/`backlog` labels surface via `/tidy`'s legacy-taxonomy finding (Shape 7), not through the gate — see `triage/SKILL.md`'s own Relationship row for the reciprocal note. |
-| `/claude-tweaks:review-backlog` | Reciprocal: review-backlog folds `unsynced: true` local fallback records into its survey (surfacing, never fixing them) — `/tidy`'s existing Shape 3 (Step 1) owns the actual sync action. |
+| `/claude-tweaks:backlog` | Reciprocal gate relationship: `/tidy`'s Step 1 record scan surfaces `bot:blocked` records (Shape 5) and `ready`-but-unscored records (Shape 4) as candidates for `refine` mode's grant worklist, and its Step 4.8 pending-authorization count (per `_shared/github-pr-scan.md`'s `repo-wide` scope) surfaces in the rolling digest. `overview` mode folds `unsynced: true` local fallback records into its survey (surfacing only — for the priority axis specifically, the actual write happens via `refine` mode's apply path); neither mode fixes the sync state itself — `/tidy`'s existing Shape 3 (Step 1) owns the actual sync action. `/tidy` never grants authorization itself — that stays `refine` mode's job. Migration note: pre-6.0 records still carrying retired `tier:*`/`status:*`/`backlog` labels surface via `/tidy`'s legacy-taxonomy finding (Shape 7), not through the gate — see `backlog/SKILL.md`'s own Relationship row for the reciprocal note. |
 | `/claude-tweaks:dispatch` | `/tidy` Step 4.7 surfaces orphaned or stale claims dispatch left behind, and Step 1's Shape 5 surfaces `bot:blocked` records (dispatch's retry-ceiling mark) as re-authorization candidates. A headless dispatch firing's outcome ultimately surfaces on `/tidy`'s own rolling `--scope=github` digest rather than a console dispatch renders itself. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. The aggressiveness-routing table in Step 6 (conservative / moderate / aggressive) implements the contract's reversibility/confidence floors for tidy actions. |
 | `_shared/pipeline-run-dir.md` | Standalone-auto fallback (Step 6) creates `.claude-tweaks/pipelines/{ts}-tidy-standalone/` with `decisions.md` + `staged/` per this shared procedure. /tidy is on the standalone-auto allowlist. |

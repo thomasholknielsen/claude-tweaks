@@ -72,15 +72,15 @@ A watched-path match is a signal to look again, not proof the record still needs
 
 ### Shape 4 — ready record missing scoring
 
-`facets.stage === 'ready'` and (`facets.risk === null` or `facets.effort === null`). Labels are projection, not truth (`_shared/work-record.md`) — a `ready` record reaching this state without scoring usually means the label was hand-added on GitHub rather than stamped by `/claude-tweaks:specify`'s Shaping mode or a health skill's born-ready filing. `/claude-tweaks:triage`'s own Step 2 would flag the identical gap reactively when it next pulls the `ready` queue; this surfaces it proactively during hygiene instead of waiting for a triage run.
+`facets.stage === 'ready'` and (`facets.risk === null` or `facets.effort === null`). Labels are projection, not truth (`_shared/work-record.md`) — a `ready` record reaching this state without scoring usually means the label was hand-added on GitHub rather than stamped by `/claude-tweaks:specify`'s Shaping mode or a health skill's born-ready filing. `/claude-tweaks:backlog refine`'s own grant sub-stage would flag the identical gap reactively when it next pulls the `ready` queue; this surfaces it proactively during hygiene instead of waiting for a refine run.
 
 → Collect each as: `[scoring] {title} — missing {risk|effort|both} — flag for scoring (/claude-tweaks:specify re-stamps it)`
 
 ### Shape 5 — `bot:blocked` needing re-triage
 
-`facets.bot.blocked === true` (`work-backend: github-issues` only — the local driver carries no bot state). The record hit its retry ceiling (`_shared/issue-claims.md`, `dispatch/SKILL.md`'s Settle step) and needs a human's renewed judgment at `/claude-tweaks:triage` before it can re-enter the autonomous queue.
+`facets.bot.blocked === true` (`work-backend: github-issues` only — the local driver carries no bot state). The record hit its retry ceiling (`_shared/issue-claims.md`, `dispatch/SKILL.md`'s Settle step) and needs a human's renewed judgment at `/claude-tweaks:backlog refine` before it can re-enter the autonomous queue.
 
-→ Collect each as: `[blocked] {title} — hit its retry ceiling — re-authorize at /claude-tweaks:triage`
+→ Collect each as: `[blocked] {title} — hit its retry ceiling — re-authorize at /claude-tweaks:backlog refine`
 
 ### Shape 6 — flagged code demonstrably gone
 
@@ -88,7 +88,7 @@ Not scanned here. This is Step 4.8's code-health/harness-health/journey-health/d
 
 ### Shape 7 — legacy taxonomy present
 
-`work-backend: github-issues` only. Scan the RAW `labels` array (not the parsed facets, which silently drop anything they don't recognize) for any label matching the retired families: `tier:*` (the pre-grants three-tier vocabulary — needs-review, approved, fast-track), `status:*` (the pre-grants bot-state vocabulary — blocked, and the state now mirrored by the claim ref instead of a label), or `backlog`-era labels (the bare `backlog` label plus its `backlog:category-*`/`backlog:priority-*` sub-labels). A record carrying any of these is invisible to the current grants pipeline — `/claude-tweaks:triage` only ever reads/writes the current seven-axis vocabulary (see its own Relationship table), so a pre-6.0 record stuck on the old labels never surfaces at the gate on its own.
+`work-backend: github-issues` only. Scan the RAW `labels` array (not the parsed facets, which silently drop anything they don't recognize) for any label matching the retired families: `tier:*` (the pre-grants three-tier vocabulary — needs-review, approved, fast-track), `status:*` (the pre-grants bot-state vocabulary — blocked, and the state now mirrored by the claim ref instead of a label), or `backlog`-era labels (the bare `backlog` label plus its `backlog:category-*`/`backlog:priority-*` sub-labels). A record carrying any of these is invisible to the current grants pipeline — `/claude-tweaks:backlog` only ever reads/writes the current seven-axis vocabulary (see its own Relationship table), so a pre-6.0 record stuck on the old labels never surfaces at the gate on its own.
 
 This is a **read-only flag** — `/tidy` never relabels it. A dedicated migration plan does the relabeling; this finding exists so a pre-6.0 record can never be silently orphaned in the meantime.
 
@@ -253,10 +253,10 @@ command the release step itself would run.
 ### Backstop: empty decisions.md on a completed standalone run
 
 Same audit-trail-integrity concern as the two backstops above, applied to every standalone-auto
-run directory on disk — this includes the human-gate skills' runs (`/claude-tweaks:triage`,
-`/claude-tweaks:dispatch`, `/claude-tweaks:review-backlog`), but also `/tidy`'s own past
+run directory on disk — this includes the human-gate skills' runs (`/claude-tweaks:backlog`,
+`/claude-tweaks:dispatch`), but also `/tidy`'s own past
 standalone-auto firings, `/claude-tweaks:init`, and `/claude-tweaks:capture` (the full
-standalone-auto allowlist per `_shared/pipeline-run-dir.md`'s step 4 — all six skills use the
+standalone-auto allowlist per `_shared/pipeline-run-dir.md`'s step 4 — all five skills use the
 identical `{ISO-timestamp}-{skill-name}-standalone` naming, and the glob below has no
 skill-name filter, so it matches all of them equally). A `worktree.always`-blocked or otherwise
 silently-skipped log write leaves no trace anywhere except an empty file:
@@ -273,7 +273,7 @@ done
 A standalone-auto run whose `run-state.json` reports `clean` (completed) but whose `decisions.md`
 is empty means either the skill that ran there took auto-decisions with no audit trail (forbidden
 per `_shared/auto-decision-log.md`'s Anti-Patterns table) or the run genuinely made zero
-auto-decisions (legitimate — e.g. a `/triage` session where every row was flagged back). File
+auto-decisions (legitimate — e.g. a `/backlog refine` session where every row was flagged back). File
 state alone can't distinguish the two; flag for manual review rather than auto-resolving either
 way.
 
@@ -283,7 +283,7 @@ way.
 
 Scan per `_shared/github-pr-scan.md`, **`repo-wide`** scope. The dispatcher inlines that file's Detection Ladder, `repo-wide` scope section (including its findings table), and Output Contract into this agent's prompt. The detection ladder makes this fail-open — skip with a single info row when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
 
-The `repo-wide` findings table maps each finding to a recommendation from the Action Vocabulary: stale/superseded open PRs → Close (GitHub); threads addressed by later commits → Resolve thread; unaddressed threads → Capture or a suggested local command; still-valid vs. superseded code-health, harness-health, journey-health, and docs-health issues → Close (GitHub) when the flagged code is demonstrably gone (Shape 6 above / Evidence tier row 4, when evidence-qualified) or a suggested `/claude-tweaks:triage` run when still valid; merged PRs with surviving local branches → corroborates Step 4.5 `[git]` rows (the dispatcher merges overlapping recommendations at assembly). Backlog-record findings (stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) are Step 1's job now, not this step's — `repo-wide` no longer queries the `backlog` label (see `_shared/github-pr-scan.md`).
+The `repo-wide` findings table maps each finding to a recommendation from the Action Vocabulary: stale/superseded open PRs → Close (GitHub); threads addressed by later commits → Resolve thread; unaddressed threads → Capture or a suggested local command; still-valid vs. superseded code-health, harness-health, journey-health, and docs-health issues → Close (GitHub) when the flagged code is demonstrably gone (Shape 6 above / Evidence tier row 4, when evidence-qualified) or a suggested `/claude-tweaks:backlog refine` run when still valid; merged PRs with surviving local branches → corroborates Step 4.5 `[git]` rows (the dispatcher merges overlapping recommendations at assembly). Backlog-record findings (stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) are Step 1's job now, not this step's — `repo-wide` no longer queries the `backlog` label (see `_shared/github-pr-scan.md`).
 
 GitHub mutations recommended here (Close (GitHub), Resolve thread) execute only after Step 6 batch approval and are staged at every aggressiveness level in auto mode — outward-facing actions are never autonomous in /tidy.
 
