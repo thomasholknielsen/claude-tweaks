@@ -16,7 +16,7 @@ Stage-by-stage scan procedure run by `/claude-tweaks:help` (default invocation, 
 >
 > | Severity | Path:Line | Finding | Evidence |
 > |---|---|---|---|
-> | medium | (work records) | Backlog: 14, 3 stale | 3 records' `updatedAt` are 4+ weeks old |
+> | medium | (work records) | Backlog: 14, 3 stale | 3 records' `updatedAt` are older than the `record-staleness-weeks` threshold |
 >
 > Severity scale: critical / high / medium / low / info
 > If no findings: return literal text "No findings."
@@ -29,24 +29,27 @@ Stage-by-stage scan procedure run by `/claude-tweaks:help` (default invocation, 
 
 Replaces the former INBOX scan, Deferred-Work scan, Specs-Ready-to-Build scan, and Specs-In-Progress scan — all four read `specs/backlog/*.md` frontmatter or the old spec index and `specs/*.md` files directly. The record store is the current landscape now; there is no separate index file or backlog directory to read (`_shared/work-record.md`). One list call + one facet parse computes every count below.
 
-Fetch and facet-parse the queue per `_shared/record-queue-fetch.md` — the dispatcher inlines that file's `work-backend` resolution and both drivers' fetch commands into this agent's prompt (the same pattern already used for `_shared/github-pr-scan.md`), with `{tmp-records-file}` = `/tmp/help-records.json`, `{tmp-faceted-file}` = `/tmp/help-records-faceted.json`, and `{EXTRA_FIELDS}` = `,body` on the `github-issues` driver — `body` rides along on this one `gh issue list --state open` round-trip because this same fetch also feeds Conflict detection below, instead of opening a second round-trip just for that.
+Fetch and facet-parse the queue per `_shared/record-queue-fetch.md` — the dispatcher inlines that file's `work-backend` resolution, both drivers' fetch commands, and the Staleness clock and Threshold resolution sections into this agent's prompt (the same pattern already used for `_shared/github-pr-scan.md`), with `{tmp-records-file}` = `/tmp/help-records.json`, `{tmp-faceted-file}` = `/tmp/help-records-faceted.json`, and `{EXTRA_FIELDS}` = `,body` on the `github-issues` driver — `body` rides along on this one `gh issue list --state open` round-trip because this same fetch also feeds Conflict detection below, instead of opening a second round-trip just for that.
 
 **Fail-open behavior** (`work-backend: github-issues` only): if the `gh issue list` fetch fails — `gh` unavailable, unauthenticated, or the repo has no GitHub remote — Stage 1 fails open, the same posture as Stages 4.5/4.6/4.7 below: emit a single info row (`Work-record scan skipped — {reason}`) instead of BLOCKED. All six counts and the Conflict-detection sub-section are treated as unavailable for this run, and the dashboard's Work Records and Ready-to-Build sections are omitted (same omission convention already used for an empty pipeline) rather than rendering zeros. `work-backend: local-files` has no equivalent failure mode — its fetch reads the local record store directly, not `gh`.
 
 Both drivers land in the same faceted-record shape (`{ ..., facets }`) at `/tmp/help-records-faceted.json`. The six-bucket classification below is `/help`'s own consumer-specific logic, described once here and run identically against either driver's output:
 
 ```bash
+WEEKS="${RECORD_STALENESS_WEEKS:-4}"
+export STALENESS_WEEKS="$WEEKS"
 node -e "
+  const { isBacklog, isParked, isBotBlocked, isBotInProgress, classifyStaleness } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-buckets.js');
   const records = require('/tmp/help-records-faceted.json');
   const now = Date.now();
-  const FOUR_WEEKS_MS = 28 * 24 * 60 * 60 * 1000;
-  const blocked = records.filter((r) => r.facets.bot.blocked);
-  const building = records.filter((r) => !r.facets.bot.blocked && r.facets.bot.inProgress);
-  const authorized = records.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'ready' && (r.facets.grants.build || r.facets.grants.merge));
-  const ready = records.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'ready' && !r.facets.grants.build && !r.facets.grants.merge);
-  const parked = records.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'parked');
-  const backlog = records.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'backlog');
-  const stale = backlog.filter((r) => r.updatedAt && now - Date.parse(r.updatedAt) > FOUR_WEEKS_MS);
+  const thresholdMs = Number(process.env.STALENESS_WEEKS) * 7 * 24 * 60 * 60 * 1000;
+  const blocked = records.filter((r) => isBotBlocked(r));
+  const building = records.filter((r) => !isBotBlocked(r) && isBotInProgress(r));
+  const authorized = records.filter((r) => !isBotBlocked(r) && !isBotInProgress(r) && r.facets.stage === 'ready' && (r.facets.grants.build || r.facets.grants.merge));
+  const ready = records.filter((r) => !isBotBlocked(r) && !isBotInProgress(r) && r.facets.stage === 'ready' && !r.facets.grants.build && !r.facets.grants.merge);
+  const parked = records.filter((r) => !isBotBlocked(r) && !isBotInProgress(r) && isParked(r));
+  const backlog = records.filter((r) => !isBotBlocked(r) && !isBotInProgress(r) && isBacklog(r));
+  const stale = backlog.filter((r) => r.updatedAt && classifyStaleness(now - Date.parse(r.updatedAt), thresholdMs) === 'stale');
   const wakeReady = parked.filter((r) => r.milestone && r.milestone.dueOn && Date.parse(r.milestone.dueOn) < now);
   console.log(JSON.stringify({
     backlog: backlog.length, backlogStale: stale.length,
@@ -59,7 +62,7 @@ node -e "
 
 `building` and `blocked` are always 0 under `local-files` — the local driver carries no bot state (`_shared/work-record.md`). `authorized` still counts: grants are recorded as frontmatter for isomorphism even though no headless consumer acts on them under this driver (`backlog/SKILL.md`'s Preflight). `local-files` records carry no `updatedAt`/`milestone` field, so this script's `backlogStale`/`parkedWakeReady` naturally come back 0 for that driver — see "Staleness clock" and "Wake-ready sub-count" below for what this driver reports instead.
 
-**Staleness clock** (backlog sub-count): per `_shared/record-queue-fetch.md`'s Staleness clock section — `github-issues` uses the query's own `updatedAt`, as computed above; `local-files` uses the record file's own last-commit date, applied per backlog record here.
+**Staleness clock** (backlog sub-count): per `_shared/record-queue-fetch.md`'s Staleness clock and Threshold resolution sections — `github-issues` uses the query's own `updatedAt`, as computed above; `local-files` uses the record file's own last-commit date, applied per backlog record here.
 
 **Wake-ready sub-count** (parked, milestone due in the past) is a cheap heuristic, not full trigger evaluation — a `local-files` parked record's trigger lives as body prose (`**Trigger:**`/`**Watched paths:**` lines), too expensive to read per-record on a dashboard pass. Omit the sub-count under this driver and report the bare `parked` count only. Full trigger evaluation (including watched-path `git log` checks on both drivers) stays `/claude-tweaks:tidy`'s job — this is a maintenance signal, not a substitute.
 
@@ -183,7 +186,7 @@ agent's prompt — subagents cannot read sibling files.
 
 *(Omit this section entirely when the work-record scan was skipped (Stage 1's fail-open case), or when all six counts are 0 — an empty pipeline, matching the Triage Queue section's own omission convention.)*
 
-- Backlog: **{N}** ({M} stale, 4+ weeks untouched) — `/claude-tweaks:capture` to add, `/claude-tweaks:tidy` to review stale ones
+- Backlog: **{N}** ({M} stale, untouched longer than the configured `record-staleness-weeks` threshold) — `/claude-tweaks:capture` to add, `/claude-tweaks:tidy` to review stale ones
 - Parked: **{N}** ({M} wake-ready — milestone due) — `/claude-tweaks:tidy` to re-evaluate triggers
 - Ready (pending authorization): **{N}** — `/claude-tweaks:backlog refine` to review and grant
 - Authorized: **{N}** — `/claude-tweaks:dispatch` (headless) or `/claude-tweaks:build #{n}` (direct)

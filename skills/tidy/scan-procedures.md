@@ -12,7 +12,7 @@ Read the `work-backend` field from the project's CLAUDE.md (under a `## Work rec
 
 One query per driver feeds every finding shape below — the record store itself is the current landscape; there is no separate directory or index file to read (`_shared/work-record.md`). This single step replaces the old file-scan (former Step 1), spec-directory scan (former Step 2), and the backlog-issue portion of Step 4.8's `repo-wide` scan — all three read from the same record taxonomy now, so they collapse into one query + one facet parse.
 
-Fetch and facet-parse the queue per `_shared/record-queue-fetch.md` — the dispatcher inlines that file's `work-backend` resolution and both drivers' fetch commands into this agent's prompt (the same pattern already used for `_shared/github-pr-scan.md`), with `{tmp-records-file}` = `/tmp/tidy-records.json`, `{tmp-faceted-file}` = `/tmp/tidy-records-faceted.json`, and no `{EXTRA_FIELDS}` needed for this fetch — the legacy-taxonomy shape below needs the raw `labels` array, not just the parsed `facets`, and the shared fetch's script already preserves both (its spread keeps `labels` alongside the derived `facets`).
+Fetch and facet-parse the queue per `_shared/record-queue-fetch.md` — the dispatcher inlines that file's `work-backend` resolution, both drivers' fetch commands, and the Staleness clock and Threshold resolution sections into this agent's prompt (the same pattern already used for `_shared/github-pr-scan.md`), with `{tmp-records-file}` = `/tmp/tidy-records.json`, `{tmp-faceted-file}` = `/tmp/tidy-records-faceted.json`, and no `{EXTRA_FIELDS}` needed for this fetch — the legacy-taxonomy shape below needs the raw `labels` array, not just the parsed `facets`, and the shared fetch's script already preserves both (its spread keeps `labels` alongside the derived `facets`).
 
 Also pull any local fallback records left behind by a failed GitHub write — these feed the Sync shape below:
 
@@ -25,17 +25,22 @@ node -e "
 
 Every record returned by the `local-files` driver's fetch already carries its parsed `.facets` — no separate parse pass needed. Three of the seven shapes below don't apply under this driver: no Sync finding (`facets.unsynced` is a github-issues-fallback-only concept — see `_shared/work-record.md`), no `bot:blocked` finding (the local driver "carries no bot state"), and no legacy-taxonomy finding (its frontmatter schema never held the retired label vocabulary in the first place — that vocabulary is GitHub-label-only).
 
-**Staleness clock**, either driver: per `_shared/record-queue-fetch.md`'s Staleness clock section (`{REPO_ROOT}` resolves the same way Step 4.5 below already documents). Same three-band scale used throughout this file:
+**Staleness clock**, either driver: per `_shared/record-queue-fetch.md`'s Staleness clock and
+Threshold resolution sections (`{REPO_ROOT}` resolves the same way Step 4.5 below already
+documents). Bands are computed by `classifyStaleness(ageMs, thresholdMs)`
+(`bin/lib/issues/record-buckets.js`) against the resolved `record-staleness-weeks` threshold
+(default 4 weeks): `fresh` below half the threshold, `review` from half the threshold up to
+and including the threshold itself, `stale` beyond it. Shapes 1 and 2 below are the only
+consumers of this scale — Step 3's design-doc/brief age rows and Step 4.7's claim-staleness
+rows read different data sources and are not governed by `record-staleness-weeks`.
 
-| Age | Classification |
-|-----|---------------|
-| < 2 weeks | Fresh |
-| 2-4 weeks | Review |
-| > 4 weeks | Stale |
+The predicates referenced below (`isBacklog`, `isParked`, `isBotBlocked`) and `classifyStaleness`
+come from `require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-buckets.js')`
+(`bin/lib/issues/record-buckets.js`).
 
 ### Shape 1 — backlog record stale
 
-`facets.stage === 'backlog'` — no stage label (`github-issues`) or no `stage:` frontmatter (`local-files`); the default state, per `_shared/work-record.md`'s lifecycle spine. Classify by the staleness clock above:
+`isBacklog(record)` (`bin/lib/issues/record-buckets.js`) — no stage label (`github-issues`) or no `stage:` frontmatter (`local-files`); the default state, per `_shared/work-record.md`'s lifecycle spine. Classify by the staleness clock above:
 
 | Age | Default Recommendation |
 |-----|----------------------|
@@ -47,15 +52,15 @@ Every record returned by the `local-files` driver's fetch already carries its pa
 
 ### Shape 2 — parked trigger met
 
-`facets.stage === 'parked'`. Judge the trigger live — the same evidence `_shared/github-pr-scan.md`'s `repo-wide` scope and the Evidence tier (`SKILL.md` Step 6) already read, so this shape and those procedures never disagree:
+`isParked(record)` (`bin/lib/issues/record-buckets.js`). Judge the trigger live — the same evidence `_shared/github-pr-scan.md`'s `repo-wide` scope and the Evidence tier (`SKILL.md` Step 6) already read, so this shape and those procedures never disagree:
 
 | Trigger status | Default Recommendation |
 |---------------|----------------------|
 | Milestone attached, `milestoneDueOn` is in the past | Promote (re-run `/claude-tweaks:specify`) |
 | A `**Watched paths:**` line in the body names a path with a matching commit since the record was parked (per `git log`), and that commit's own diff/message does not already resolve the record's described problem | Promote |
 | A `**Watched paths:**` line in the body names a path with a matching commit since the record was parked (per `git log`), **and that commit's own diff/message already resolves the record's described problem** | Delete — already implemented (cite the resolving commit SHA in the closing comment) |
-| Neither trigger met, parked < 4 weeks | Keep |
-| Neither trigger met, parked > 4 weeks | Re-evaluate or delete |
+| Neither trigger met, not yet `Stale` (per the staleness clock above) | Keep |
+| Neither trigger met, `Stale` (per the staleness clock above) | Re-evaluate or delete |
 | Prose-only trigger, no clear date/path condition | Judge live each sweep — Keep, or move back to backlog state |
 
 A watched-path match is a signal to look again, not proof the record still needs work — read the matching commit's diff and message before recommending Promote. A commit that merely touches the watched path is not evidence the underlying problem is solved; only a commit whose content demonstrably addresses what the record describes counts as resolved. Conflating the two risks recommending `/claude-tweaks:specify` on a record whose work is already done, producing a redundant decomposition.
@@ -78,7 +83,7 @@ A watched-path match is a signal to look again, not proof the record still needs
 
 ### Shape 5 — `bot:blocked` needing re-triage
 
-`facets.bot.blocked === true` (`work-backend: github-issues` only — the local driver carries no bot state). The record hit its retry ceiling (`_shared/issue-claims.md`, `dispatch/SKILL.md`'s Settle step) and needs a human's renewed judgment at `/claude-tweaks:backlog refine` before it can re-enter the autonomous queue.
+`isBotBlocked(record)` (`bin/lib/issues/record-buckets.js`; `work-backend: github-issues` only — the local driver's `facets.bot.blocked` is always `false`, per `facet-shape.js`'s shared defaults, so this predicate never fires there). The record hit its retry ceiling (`_shared/issue-claims.md`, `dispatch/SKILL.md`'s Settle step) and needs a human's renewed judgment at `/claude-tweaks:backlog refine` before it can re-enter the autonomous queue.
 
 → Collect each as: `[blocked] {title} — hit its retry ceiling — re-authorize at /claude-tweaks:backlog refine`
 
