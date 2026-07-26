@@ -90,7 +90,7 @@ fires (see Working Directory Discipline in `_shared/subagent-output-contract.md`
 
 Before computing staleness, read `record-staleness-weeks` from the project's CLAUDE.md (per
 `_shared/work-record.md`'s Config keys table) and export it as `RECORD_STALENESS_WEEKS`; if
-the key is absent, leave the variable unset so each consumer's own `:-4` default applies —
+the key is absent, leave the variable unset so each consumer's own default (4) applies —
 the same read-with-shell-default pattern this file already uses for `backlog-fetch-limit`
 above. Each consumer's own classification script converts this to milliseconds
 (`weeks * 7 * 24 * 60 * 60 * 1000`) and passes the result as `thresholdMs` to
@@ -103,5 +103,6 @@ is per-consumer inline code, not part of the shared module itself.
 - `_shared/github-pr-scan.md` — the analogous shared fragment for PR/issue-state scanning
   (Stage/Step 4.5-4.8), the precedent this file follows
 - `bin/lib/issues/record-buckets.js` — the shared bucket predicates (`isBacklog`, `isParked`,
-  `isBotBlocked`, `isBotInProgress`) and `classifyStaleness`, consumed by every classification
-  step this fetch feeds
+  `isBotBlocked`, `isBotInProgress`) and `classifyStaleness`, consumed by `/claude-tweaks:help`'s
+  Stage 1 and `/claude-tweaks:tidy`'s Step 1 Shapes 1/2/5 (`/claude-tweaks:backlog` consumes this
+  fetch too, but does its own classification without this module)

@@ -12,7 +12,7 @@ Read the `work-backend` field from the project's CLAUDE.md (under a `## Work rec
 
 One query per driver feeds every finding shape below — the record store itself is the current landscape; there is no separate directory or index file to read (`_shared/work-record.md`). This single step replaces the old file-scan (former Step 1), spec-directory scan (former Step 2), and the backlog-issue portion of Step 4.8's `repo-wide` scan — all three read from the same record taxonomy now, so they collapse into one query + one facet parse.
 
-Fetch and facet-parse the queue per `_shared/record-queue-fetch.md` — the dispatcher inlines that file's `work-backend` resolution and both drivers' fetch commands into this agent's prompt (the same pattern already used for `_shared/github-pr-scan.md`), with `{tmp-records-file}` = `/tmp/tidy-records.json`, `{tmp-faceted-file}` = `/tmp/tidy-records-faceted.json`, and no `{EXTRA_FIELDS}` needed for this fetch — the legacy-taxonomy shape below needs the raw `labels` array, not just the parsed `facets`, and the shared fetch's script already preserves both (its spread keeps `labels` alongside the derived `facets`).
+Fetch and facet-parse the queue per `_shared/record-queue-fetch.md` — the dispatcher inlines that file's `work-backend` resolution, both drivers' fetch commands, and the Staleness clock and Threshold resolution sections into this agent's prompt (the same pattern already used for `_shared/github-pr-scan.md`), with `{tmp-records-file}` = `/tmp/tidy-records.json`, `{tmp-faceted-file}` = `/tmp/tidy-records-faceted.json`, and no `{EXTRA_FIELDS}` needed for this fetch — the legacy-taxonomy shape below needs the raw `labels` array, not just the parsed `facets`, and the shared fetch's script already preserves both (its spread keeps `labels` alongside the derived `facets`).
 
 Also pull any local fallback records left behind by a failed GitHub write — these feed the Sync shape below:
 
@@ -30,8 +30,13 @@ Threshold resolution sections (`{REPO_ROOT}` resolves the same way Step 4.5 belo
 documents). Bands are computed by `classifyStaleness(ageMs, thresholdMs)`
 (`bin/lib/issues/record-buckets.js`) against the resolved `record-staleness-weeks` threshold
 (default 4 weeks): `fresh` below half the threshold, `review` from half the threshold up to
-and including the threshold itself, `stale` beyond it. Same three-band scale used throughout
-this file.
+and including the threshold itself, `stale` beyond it. Shapes 1 and 2 below are the only
+consumers of this scale — Step 3's design-doc/brief age rows and Step 4.7's claim-staleness
+rows read different data sources and are not governed by `record-staleness-weeks`.
+
+The predicates referenced below (`isBacklog`, `isParked`, `isBotBlocked`) and `classifyStaleness`
+come from `require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-buckets.js')`
+(`bin/lib/issues/record-buckets.js`).
 
 ### Shape 1 — backlog record stale
 
@@ -54,8 +59,8 @@ this file.
 | Milestone attached, `milestoneDueOn` is in the past | Promote (re-run `/claude-tweaks:specify`) |
 | A `**Watched paths:**` line in the body names a path with a matching commit since the record was parked (per `git log`), and that commit's own diff/message does not already resolve the record's described problem | Promote |
 | A `**Watched paths:**` line in the body names a path with a matching commit since the record was parked (per `git log`), **and that commit's own diff/message already resolves the record's described problem** | Delete — already implemented (cite the resolving commit SHA in the closing comment) |
-| Neither trigger met, parked < 4 weeks | Keep |
-| Neither trigger met, parked > 4 weeks | Re-evaluate or delete |
+| Neither trigger met, not yet `Stale` (per the staleness clock above) | Keep |
+| Neither trigger met, `Stale` (per the staleness clock above) | Re-evaluate or delete |
 | Prose-only trigger, no clear date/path condition | Judge live each sweep — Keep, or move back to backlog state |
 
 A watched-path match is a signal to look again, not proof the record still needs work — read the matching commit's diff and message before recommending Promote. A commit that merely touches the watched path is not evidence the underlying problem is solved; only a commit whose content demonstrably addresses what the record describes counts as resolved. Conflating the two risks recommending `/claude-tweaks:specify` on a record whose work is already done, producing a redundant decomposition.

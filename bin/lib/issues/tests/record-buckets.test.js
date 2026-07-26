@@ -97,3 +97,24 @@ test('classifyStaleness scales correctly with a non-default threshold (record-st
   assert.strictEqual(classifyStaleness(fiveWeeksMs, eightWeeksMs), 'review');
   assert.strictEqual(classifyStaleness(threeWeeksMs, eightWeeksMs), 'fresh');
 });
+
+// ── classifyStaleness: malformed-threshold fallback ──────────────────────────
+// Without the guard, every comparison against NaN is false, so execution falls
+// straight through to 'stale' for every record — including future-dated ones.
+
+test('a NaN threshold (typo\'d config value) falls back to the 4-week default instead of classifying everything stale', () => {
+  assert.strictEqual(classifyStaleness(0, Number('four') * 7 * 24 * 60 * 60 * 1000), 'fresh');
+  assert.strictEqual(classifyStaleness(FOUR_WEEKS_MS / 2, NaN), 'review');
+  assert.strictEqual(classifyStaleness(FOUR_WEEKS_MS + 1, NaN), 'stale');
+});
+
+test('a future-dated record (negative age) is fresh, not stale, under a NaN threshold', () => {
+  assert.strictEqual(classifyStaleness(-FOUR_WEEKS_MS, NaN), 'fresh');
+});
+
+test('a negative, zero, non-finite, or missing threshold falls back to the 4-week default', () => {
+  assert.strictEqual(classifyStaleness(FOUR_WEEKS_MS / 2, -FOUR_WEEKS_MS), 'review');
+  assert.strictEqual(classifyStaleness(FOUR_WEEKS_MS / 2, 0), 'review');
+  assert.strictEqual(classifyStaleness(FOUR_WEEKS_MS / 2, Infinity), 'review');
+  assert.strictEqual(classifyStaleness(FOUR_WEEKS_MS / 2, undefined), 'review');
+});
