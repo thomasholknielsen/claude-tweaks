@@ -133,9 +133,9 @@ test('extracts the anchor file from a by:code-health issue body (post-migration 
 test('extracts the target from a harness-health issue body', () => {
   const issue = {
     labels: ['harness-health', 'harness-health:additive'],
-    body: '**Skill:** skills/triage/SKILL.md | **Section:** Step 4 | **Category:** rule-gap | **Classification:** additive | **Confidence:** high',
+    body: '**Skill:** skills/backlog/SKILL.md | **Section:** Step 4 | **Category:** rule-gap | **Classification:** additive | **Confidence:** high',
   };
-  assert.deepStrictEqual(extractKeyFiles(issue), ['skills/triage/SKILL.md']);
+  assert.deepStrictEqual(extractKeyFiles(issue), ['skills/backlog/SKILL.md']);
 });
 
 test('returns [] for a harness-health new-skill candidate, not a scraped path from its embedded proposedBody', () => {
@@ -170,9 +170,9 @@ test('returns [] for a harness-health new-skill candidate, not a scraped path fr
 test('extracts the target from a by:harness-health issue body (post-migration origin label)', () => {
   const issue = {
     labels: ['by:harness-health', 'harness-health:additive', 'risk:low', 'effort:low'],
-    body: '**Skill:** skills/triage/SKILL.md | **Section:** Step 4 | **Category:** rule-gap | **Classification:** additive | **Confidence:** high',
+    body: '**Skill:** skills/backlog/SKILL.md | **Section:** Step 4 | **Category:** rule-gap | **Classification:** additive | **Confidence:** high',
   };
-  assert.deepStrictEqual(extractKeyFiles(issue), ['skills/triage/SKILL.md']);
+  assert.deepStrictEqual(extractKeyFiles(issue), ['skills/backlog/SKILL.md']);
 });
 
 test('extracts the journey file from a by:journey-health issue body', () => {

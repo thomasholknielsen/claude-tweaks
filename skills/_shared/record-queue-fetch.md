@@ -2,9 +2,12 @@
 
 Single source of truth for the first read every open-work-record scan performs: resolve
 `work-backend`, fetch the queue, and facet-parse it. Consumed by `/claude-tweaks:help`
-(`status-scan.md` Stage 1) and `/claude-tweaks:tidy` (`scan-procedures.md` Step 1) — both
-scans start from the identical fetch below before branching into their own consumer-specific
-classification (dashboard bucket counts for `/help`; the seven finding shapes for `/tidy`).
+(`status-scan.md` Stage 1), `/claude-tweaks:tidy` (`scan-procedures.md` Step 1), and
+`/claude-tweaks:backlog` (both `refine-mode.md`'s and `overview-mode.md`'s Step 1) — every one
+of these scans starts from the identical fetch below before branching into its own
+consumer-specific classification (dashboard bucket counts for `/help`; the seven finding shapes
+for `/tidy`; priority/Related synthesis plus the grant worklist for `/backlog refine`, lens
+routing plus the build recommendation for `/backlog overview`).
 Subagents cannot read this file — the dispatcher inlines this section into the scan agent's
 prompt, the same pattern already used for `_shared/github-pr-scan.md`.
 
@@ -20,6 +23,10 @@ section, "Legacy alias exception," for the full current list). `/claude-tweaks:h
 read this alias — it reads `work-backend` directly with no fallback.
 
 ## `work-backend: github-issues` fetch
+
+Before running the fetch script below, read `backlog-fetch-limit` from the project's CLAUDE.md
+(per `_shared/work-record.md`'s Config keys table) and export it as `BACKLOG_FETCH_LIMIT`; if
+the key is absent, leave the variable unset so the script's own `:-1000` default applies.
 
 ```bash
 LIMIT="${BACKLOG_FETCH_LIMIT:-1000}"
@@ -39,7 +46,11 @@ node -e "
 
 `{EXTRA_FIELDS}` — a consumer appends its own extra `--json` fields to the base list above
 rather than opening a second round-trip. `/claude-tweaks:help` appends `body` (its own
-Conflict-detection sub-section reads the record body from this same fetch). `/claude-tweaks:tidy`
+Conflict-detection sub-section reads the record body from this same fetch).
+`/claude-tweaks:backlog` also appends `,body` in both modes — `refine` needs bodies for Step 2's
+priority/Related synthesis pass, `overview` needs them for `rankNextToBuild`'s internal
+`parseDependencies` call in its Step 3 recommendation (see `refine-mode.md` and
+`overview-mode.md`'s own Step 1 fetch lines). `/claude-tweaks:tidy`
 needs no extra field for this fetch — it pulls unsynced local-fallback records via a separate,
 already-documented `queryRecords('specs', { unsynced: true })` call in its own Step 1.
 

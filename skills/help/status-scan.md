@@ -96,7 +96,19 @@ A record appearing in any group of size > 1 shares files with another open in-fl
 
 > **Algorithm shared with `/claude-tweaks:specify`:** both skills call the same `groupByFileOverlap` (`bin/lib/issues/grouping.js`) — `/claude-tweaks:specify` runs it at creation time; `/claude-tweaks:help` re-runs it at dashboard time to catch new conflicts from records that started building since then.
 
-Emit one Template A row for the six counts (Finding: `backlog {N} ({M} stale) / parked {N} ({M} wake-ready) / ready {N} / authorized {N} / building {N} / blocked {N}`), plus one row per conflict group and one row per solution-baked-title backlog record.
+**Ranking `ready` + `authorized` records for the render below.** For each candidate — Stage 1's `ready` and `authorized` buckets combined — compute the two inputs `ranking.js`'s `rankNextToBuild` needs but doesn't compute itself: `keyFiles` (extract the `### Key Files` subsection from the body, the same extraction Conflict detection above performs) and `hasPlan` (`true` if `docs/superpowers/plans/` contains a file whose name references the record's id/slug — a filename-pattern check, not a content read). `body` is already present from Stage 1's fetch.
+
+```bash
+node -e "
+  const { rankNextToBuild } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/ranking.js');
+  const candidates = require('/tmp/help-ready-authorized-candidates.json'); // [{id, facets, body, keyFiles, hasPlan}]
+  console.log(JSON.stringify(rankNextToBuild(candidates)));
+"
+```
+
+The table below renders in this ranked order, not the fetch's own order.
+
+Emit one Template A row for the six counts (Finding: `backlog {N} ({M} stale) / parked {N} ({M} wake-ready) / ready {N} / authorized {N} / building {N} / blocked {N}`), plus one row per conflict group, one row per solution-baked-title backlog record, and one row carrying the ranked `ready`+`authorized` order computed above (Finding: the ordered `{ref}` list) so the Ready to Build table can render in that order.
 
 There is no Stage 1.5, Stage 3, or Stage 4 — they merged into Stage 1 above (their data sources — `specs/backlog/*.md`, the old spec index, and `specs/*.md` frontmatter — are retired). The rest of the numbering (Stage 2, 4.5, 4.6, 4.7, 5, 6, 7) is unchanged, so existing cross-references — including this file's own later stages and `SKILL.md`'s Priority Order — keep pointing at the right stage.
 

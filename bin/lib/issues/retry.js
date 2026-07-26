@@ -1,4 +1,6 @@
-// Pure: retry-ceiling tracking for /claude-tweaks:triage's dispatch mode.
+// Pure: retry-ceiling tracking for autonomous build attempts — written by
+// /claude-tweaks:dispatch's Settle step, read back by
+// /claude-tweaks:assess-agent-autonomy's failure-check and /claude-tweaks:tidy.
 // Each failed build attempt posts a human-readable comment (never a hidden
 // marker) so a maintainer can see exactly what happened on every attempt.
 // This module generates that comment body and counts prior attempts from

@@ -1,7 +1,7 @@
 // bin/lib/issues/record.js
 // Pure: the unified work-record taxonomy and payload assembly — the code twin of
 // skills/_shared/work-record.md. Every label-string literal used by the health
-// skills, /capture, /specify, /triage, and /dispatch lives here; other modules
+// skills, /capture, /specify, /backlog, and /dispatch lives here; other modules
 // import from this file rather than re-declaring their own copies. No network.
 'use strict';
 

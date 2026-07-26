@@ -19,8 +19,9 @@ license to do X itself when no human is there to act on the pointer:
 
 - `/claude-tweaks:triage`'s original Preflight (now `/claude-tweaks:backlog refine`'s grant sub-stage) said "report that grants are not applicable...
   point the user at running `/claude-tweaks:flow` manually" — a live headless run instead
-  built and committed real application code, reproduced twice (`evals/scenarios/
-  triage-permission-matrix-compliance.yaml`, `.superpowers/sdd/task-9-report.md`).
+  built and committed real application code, reproduced twice
+  (`evals/scenarios/backlog-refine-permission-matrix-compliance.yaml`,
+  `.superpowers/sdd/task-9-report.md`).
 - `/claude-tweaks:dispatch` had the identical weak phrasing, found and fixed pre-emptively
   once the triage incident established the pattern was real, then confirmed safe via a real
   run (`evals/scenarios/dispatch-local-files-preflight-stop.yaml`).

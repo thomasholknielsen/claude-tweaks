@@ -1,6 +1,6 @@
 // Reads a local-files work-record's frontmatter facets directly (via
 // bin/lib/issues/local-store.js's readRecord) and checks one facet's value.
-// Used for asserting /claude-tweaks:triage's grant/withhold decisions, which
+// Used for asserting /claude-tweaks:backlog refine's grant/withhold decisions, which
 // under work-backend: local-files are recorded as frontmatter but not acted
 // on by any headless consumer (see skills/_shared/work-record.md's
 // Permission matrix "Driver-conditional note") — so the only thing to check

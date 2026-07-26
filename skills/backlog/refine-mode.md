@@ -4,7 +4,7 @@ The comprehensive "ensure every issue has the right labels" sweep: `priority:*`/
 
 ## Step 1: Fetch
 
-**Priority/Related fetch (both drivers).** Fetch and facet-parse the full open-issue queue per `_shared/record-queue-fetch.md` (`{tmp-records-file}` = `/tmp/backlog-refine-open.json`, `{tmp-faceted-file}` = `/tmp/backlog-refine-faceted.json`, `{EXTRA_FIELDS}` = `,body` — this pass needs bodies for synthesis). Under `work-backend: github-issues`, also fold in `unsynced: true` local fallback records the same way `review-backlog/SKILL.md`'s old Step 1 did:
+**Priority/Related fetch (both drivers).** Fetch and facet-parse the full open-issue queue per `_shared/record-queue-fetch.md` (`{tmp-records-file}` = `/tmp/backlog-refine-open.json`, `{tmp-faceted-file}` = `/tmp/backlog-refine-faceted.json`, `{EXTRA_FIELDS}` = `,body` — this pass needs bodies for synthesis). Under `work-backend: github-issues`, also fold in `unsynced: true` local fallback records the same way the retired `/claude-tweaks:review-backlog` skill's old Step 1 did:
 
 ```bash
 node -e "
@@ -62,7 +62,7 @@ When `--origin <name>` was passed (see `SKILL.md`'s Input), export `BACKLOG_ORIG
 
 ## Step 2: Priority/Related synthesis (bounded)
 
-Over the priority/Related fetch's `unscored` split (`bin/lib/issues/backlog.js`'s `splitScoredUnscored`), bound the LLM read to `--budget` (default 40, independent of the grant pass's own budget in Step 3):
+Over the priority/Related fetch's `unscored` split (`bin/lib/issues/backlog.js`'s `splitScoredUnscored`), bound the LLM read to `--budget` (default 40, independent of the grant pass's own budget in Step 3). When `--budget <n>` was passed (see `SKILL.md`'s Input), export `PRIORITY_BUDGET=<n>` before running the script below; omitted, it's unset and the script's own `:-40` default applies:
 
 ```bash
 node -e "
@@ -85,7 +85,7 @@ If `remaining > 0`, state it plainly in the report: "`{remaining}` more unscored
 
 ## Step 3: Grant-check (bounded, `work-backend: github-issues` only)
 
-Bound the grant-check LLM pass independently of Step 2's budget:
+Bound the grant-check LLM pass independently of Step 2's budget. When `--budget <n>` was passed (see `SKILL.md`'s Input), export `GRANT_BUDGET=<n>` before running the script below; omitted, it's unset and the script's own `:-40` default applies:
 
 ```bash
 node -e "

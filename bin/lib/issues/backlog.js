@@ -116,7 +116,7 @@ const COMMIT_DATE_MARKER = '\x01';
 // path->date map answers every record's lookup. A record whose path never
 // appears in that map (git failure — no history, not a git repo — or a path
 // with no commits yet) falls back to the current time, matching the two
-// duplicated inline scripts this replaces (skills/review-backlog/SKILL.md's
+// duplicated inline scripts this replaces (skills/backlog/overview-mode.md's
 // Step 1). `execFn` defaults to `child_process.execSync` and is injectable so
 // tests never need a real git repo.
 function deriveCreatedAtFromGit(records, { execFn = execSync } = {}) {

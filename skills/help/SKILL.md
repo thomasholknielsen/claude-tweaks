@@ -79,11 +79,7 @@ Read `status-scan.md` in this skill's directory for the full parallel-dispatch p
 
 ### Tie-Breaking
 
-When multiple records are ready to build (no `priority:*` label to sort by, or several share the same priority):
-- Prefer records that unblock other records (check the dependency graph — `Blocked by #N` / `blockedBy`)
-- Prefer records with no file overlap with building work (avoids conflicts — see `status-scan.md` Stage 1's conflict detection)
-- Prefer smaller records (`effort:low`, faster feedback loop)
-- Prefer records with existing plans (less setup needed)
+Row order in the Ready-to-Build table comes from the shared `bin/lib/issues/ranking.js`'s `rankNextToBuild` — the same module `/claude-tweaks:backlog overview`'s bare-mode recommendation uses, so both consumers compute the identical order (see `status-scan.md` Stage 1 for the actual call). Its tie-break sequence: unblocks-count (most other candidates in the pool it unblocks, first) → file-overlap-free (no shared key files with another candidate, first) → effort (low first) → hasPlan (existing plan, first).
 
 ### Detecting Items That Need `/claude-tweaks:challenge`
 
