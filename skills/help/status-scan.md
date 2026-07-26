@@ -36,17 +36,20 @@ Fetch and facet-parse the queue per `_shared/record-queue-fetch.md` — the disp
 Both drivers land in the same faceted-record shape (`{ ..., facets }`) at `/tmp/help-records-faceted.json`. The six-bucket classification below is `/help`'s own consumer-specific logic, described once here and run identically against either driver's output:
 
 ```bash
+WEEKS="${RECORD_STALENESS_WEEKS:-4}"
+export STALENESS_WEEKS="$WEEKS"
 node -e "
+  const { isBacklog, isParked, isBotBlocked, isBotInProgress, classifyStaleness } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-buckets.js');
   const records = require('/tmp/help-records-faceted.json');
   const now = Date.now();
-  const FOUR_WEEKS_MS = 28 * 24 * 60 * 60 * 1000;
-  const blocked = records.filter((r) => r.facets.bot.blocked);
-  const building = records.filter((r) => !r.facets.bot.blocked && r.facets.bot.inProgress);
-  const authorized = records.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'ready' && (r.facets.grants.build || r.facets.grants.merge));
-  const ready = records.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'ready' && !r.facets.grants.build && !r.facets.grants.merge);
-  const parked = records.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'parked');
-  const backlog = records.filter((r) => !r.facets.bot.blocked && !r.facets.bot.inProgress && r.facets.stage === 'backlog');
-  const stale = backlog.filter((r) => r.updatedAt && now - Date.parse(r.updatedAt) > FOUR_WEEKS_MS);
+  const thresholdMs = Number(process.env.STALENESS_WEEKS) * 7 * 24 * 60 * 60 * 1000;
+  const blocked = records.filter((r) => isBotBlocked(r));
+  const building = records.filter((r) => !isBotBlocked(r) && isBotInProgress(r));
+  const authorized = records.filter((r) => !isBotBlocked(r) && !isBotInProgress(r) && r.facets.stage === 'ready' && (r.facets.grants.build || r.facets.grants.merge));
+  const ready = records.filter((r) => !isBotBlocked(r) && !isBotInProgress(r) && r.facets.stage === 'ready' && !r.facets.grants.build && !r.facets.grants.merge);
+  const parked = records.filter((r) => !isBotBlocked(r) && !isBotInProgress(r) && isParked(r));
+  const backlog = records.filter((r) => !isBotBlocked(r) && !isBotInProgress(r) && isBacklog(r));
+  const stale = backlog.filter((r) => r.updatedAt && classifyStaleness(now - Date.parse(r.updatedAt), thresholdMs) === 'stale');
   const wakeReady = parked.filter((r) => r.milestone && r.milestone.dueOn && Date.parse(r.milestone.dueOn) < now);
   console.log(JSON.stringify({
     backlog: backlog.length, backlogStale: stale.length,
