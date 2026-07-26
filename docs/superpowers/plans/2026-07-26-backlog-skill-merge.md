@@ -633,7 +633,7 @@ node -e "
 " > /tmp/backlog-refine-priority-budget.json
 ```
 
-Read every selected body in one pass and produce: a narrative summary + thematic clusters, a per-record `priority:*` suggestion with a one-line rationale, and detected `**Related:**` cross-references (pairs of selected records whose bodies reference each other's context in prose without a formal link). Never suggest `Blocked by #N` here — out of scope, the formally-parsed hard-dependency mechanism. If `remaining > 0`, state it plainly: "`{remaining}` more unscored records exist beyond this run's `--budget {N}` — re-run to continue." Never silently drop them. This step is identical in substance to `review-backlog/SKILL.md`'s old Step 3 (Lane B) — port its exact wording for the synthesis output shape.
+Read every selected body in one pass and produce: a narrative summary + thematic clusters, a per-record `priority:*` suggestion with a one-line rationale, a per-record **non-binding** tier guess (`quick`/`full`) — purely to help a human eyeball a batch before deciding what to send to `/specify` next; this is never written as a label, only `/specify`'s own `ceremony-check` (a separate, authoritative computation with deeper context) writes `ceremony:*` — and detected `**Related:**` cross-references (pairs of selected records whose bodies reference each other's context in prose without a formal link). Never suggest `Blocked by #N` here — out of scope, the formally-parsed hard-dependency mechanism. If `remaining > 0`, state it plainly: "`{remaining}` more unscored records exist beyond this run's `--budget {N}` — re-run to continue." Never silently drop them. This step is identical in substance to `review-backlog/SKILL.md`'s old Step 3 (Lane B) — port its exact wording for the synthesis output shape, INCLUDING the tier-guess bullet (present in the source at `review-backlog/SKILL.md:164`, omitted from an earlier draft of this plan step by oversight — restore it, don't drop it).
 
 ## Step 3: Grant-check (bounded, `work-backend: github-issues` only)
 
@@ -665,15 +665,15 @@ For every record the grant-check pass recommends **granting** (not flag-back/blo
 ```markdown
 ### Backlog Refine — {N} suggested label changes
 
-| # | Record | Type | Origin | Current | Recommended | Rationale |
-|---|---|---|---|---|---|---|
-| 1 | #123: {title} | priority | by:code-health | (none) | priority:high | {synthesis rationale} |
-| 2 | #16: {title} | related | by:capture | (none) | Add **Related:** #23 | {synthesis rationale} |
-| 3 | #124: {title} | grant | by:capture | — | auto:build + auto:merge | {grant-check RATIONALE} |
-| 4 | #118: {title} | grant | by:harness-health | bot:blocked | re-authorize (bot:blocked) | Prior failure — human judgment required, not a mechanical replay |
+| # | Record | Type | Origin | Current | Recommended | Suggested Tier | Rationale |
+|---|---|---|---|---|---|---|---|
+| 1 | #123: {title} | priority | by:code-health | (none) | priority:high | quick? (guess) | {synthesis rationale} |
+| 2 | #16: {title} | related | by:capture | (none) | Add **Related:** #23 | — | {synthesis rationale} |
+| 3 | #124: {title} | grant | by:capture | — | auto:build + auto:merge | — | {grant-check RATIONALE} |
+| 4 | #118: {title} | grant | by:harness-health | bot:blocked | re-authorize (bot:blocked) | — | Prior failure — human judgment required, not a mechanical replay |
 ```
 
-The `Type` column (`priority`/`related`/`grant`) is what keeps grant rows visually distinguishable within the single table — a human scanning it can still see at a glance which rows are security-relevant, even though there is only one confirm gate for the whole batch. For 10 or more rows, lead with a one-line count summary before the table (e.g. "18 suggestions: 6 priority, 3 related, 7 grants, 2 re-authorizations") so the human sees the batch's shape before the row detail.
+The `Type` column (`priority`/`related`/`grant`) is what keeps grant rows visually distinguishable within the single table — a human scanning it can still see at a glance which rows are security-relevant, even though there is only one confirm gate for the whole batch. The `Suggested Tier` column carries Step 2's non-binding tier guess (`quick?`/`full?` (guess)) — populated only for `priority`-type rows (the tier guess is a byproduct of Step 2's per-record LLM read, which only runs over unscored records); `related` and `grant` rows always render `—` here, since neither has a tier guess to show. A record already carrying a real `ceremony:*` label (scored before this run) would render it plainly (`fast-lane`/`standard`, no `?`/`(guess)` suffix) rather than the LLM's own guess — distinguishing an authoritative value from a rough one, per `review-backlog/SKILL.md`'s old Step 4. For 10 or more rows, lead with a one-line count summary before the table (e.g. "18 suggestions: 6 priority, 3 related, 7 grants, 2 re-authorizations") so the human sees the batch's shape before the row detail.
 
 Then one `AskUserQuestion`:
 
