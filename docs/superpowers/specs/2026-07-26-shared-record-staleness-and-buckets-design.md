@@ -48,12 +48,13 @@ classifyStaleness(ageMs, thresholdMs)
 ## Config: `record-staleness-weeks`
 
 - **Default:** `4` (weeks) — matches current hardcoded behavior; a project that never sets this sees no change.
-- **Location:** CLAUDE.md's `## Work records` section, or `.claude-tweaks/policy.yml` — the same dual location already used for `tidy-aggressiveness`.
+- **Location:** `_shared/work-record.md`'s canonical "Config keys" table — the literal home for every key `_shared/record-queue-fetch.md`'s consumers (`/help`, `/tidy`, `/backlog`) read, alongside its existing sibling `backlog-fetch-limit`. Not `tidy-aggressiveness`'s location (a per-run Pipeline Config Manifesto lever, documented in `_shared/auto-mode-contract.md`/`flow/manifesto.md` — a different mechanism; this key has no per-run override, so it doesn't belong there). Written by `/init`, read by literal name — no per-skill aliases, per that table's existing rule.
 - **Precedence:** project policy → skill default. No CLI-arg or per-run override tier (see Scope above) — staleness reflects a durable property of a project's backlog turnover rate, not a per-invocation choice.
 - **Resolution:** a new "Threshold resolution" subsection under `_shared/record-queue-fetch.md`'s existing "Staleness clock" section, written as dispatcher-inlined prose (the same pattern already used for `work-backend` resolution — a plain-language instruction the dispatched agent follows itself, not a call into `record-buckets.js`). It instructs the agent to read `record-staleness-weeks` (default `4`) and convert it to `thresholdMs` (`weeks * 7 * 24 * 60 * 60 * 1000`) *within its own inline script*, before calling `classifyStaleness(ageMs, thresholdMs)` — the conversion is per-consumer inline code, same as the rest of each consumer's classification script; only the predicate/classifier functions themselves live in the shared module. The review-band midpoint scales with the threshold (e.g. `record-staleness-weeks: 8` yields review at 4-8 weeks, stale beyond 8), preserving today's fixed 2:4 ratio.
 
 ## Integration changes
 
+- **`_shared/work-record.md`** — add `record-staleness-weeks` as a new row in the Config keys table (alongside `backlog-fetch-limit`).
 - **`_shared/record-queue-fetch.md`** — add the "Threshold resolution" subsection (above); note `record-buckets.js` in "See also".
 - **`skills/help/status-scan.md` (Stage 1)** — the inline Node script's manual filters (`r.facets.bot.blocked`, `r.facets.stage === 'backlog'`, etc.) and the hardcoded `FOUR_WEEKS_MS` are replaced with calls into `require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record-buckets.js')`. The grants-based "authorized" split and "building" bucket are untouched.
 - **`skills/tidy/scan-procedures.md` (Step 1)** — Shape 1 (backlog-stale), Shape 2 (parked), and Shape 5 (bot:blocked) switch to the same `require()` calls instead of restating the predicates and the 3-band table inline. Shapes 4 and 7 are untouched.
