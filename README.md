@@ -35,7 +35,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
      │  calls: visualize (diagram suggestion, all surfaces)
      │                     (deletes Brief + Design Doc)
      │
-  ┈┈ /claude-tweaks:triage grants, /claude-tweaks:dispatch claims (utility skills, no fixed position) ┈┈
+  ┈┈ /claude-tweaks:backlog refine grants, /claude-tweaks:dispatch claims (utility skills, no fixed position) ┈┈
      │
   ┈┈ /claude-tweaks:flow automates below (worktree mode default) ┈┈
      │
@@ -90,7 +90,7 @@ BACKLOG ──/specify shapes──► READY ──human grants──► AUTHORI
 
 - **backlog** — the default state: no stage label. `/claude-tweaks:capture` files here; health-skill records skip straight to `ready` instead (the born-ready rule — their output is spec-shaped by construction).
 - **ready** — spec-shaped and agent-sized. `/claude-tweaks:specify` gets a record here, either by shaping it in place or by decomposing a design doc into a parent record plus ready leaves.
-- **authorized** — carries a human-granted `auto:build` (optionally `+ auto:merge`). `/claude-tweaks:triage` is the interactive gate that grants this — machinery can only strip or downgrade a grant, never originate one.
+- **authorized** — carries a human-granted `auto:build` (optionally `+ auto:merge`). `/claude-tweaks:backlog refine` is the interactive gate that grants this — machinery can only strip or downgrade a grant, never originate one.
 - **building** — an agent holds the claim. `/claude-tweaks:dispatch` claims an authorized record's whole file-overlap group and hands it to `/claude-tweaks:flow`.
 - **closed** — completed via your own merge (close-via-merge — the pipeline never runs `gh issue close`), or not-planned (wontfix, duplicate, absorbed into another record).
 
@@ -101,7 +101,7 @@ Two storage drivers back the same taxonomy, set once by `/claude-tweaks:init` an
 | Driver | Where a record lives | Notes |
 |---|---|---|
 | `work-backend: github-issues` | A GitHub issue | Labels express stage/scoring/grants/bot-state; native GitHub Issue Types or `type:*` labels express Type. Headless dispatch (`/claude-tweaks:dispatch`) requires this driver — GitHub's RBAC is the mechanism the authorization model depends on. |
-| `work-backend: local-files` | `specs/{id}-{slug}.md`, one file per record | Frontmatter expresses the same facets for isomorphism. `/claude-tweaks:triage`'s grants are recorded but have no headless consumer — run `/claude-tweaks:flow`/`/claude-tweaks:build` manually against a chosen record instead. |
+| `work-backend: local-files` | `specs/{id}-{slug}.md`, one file per record | Frontmatter expresses the same facets for isomorphism. `/claude-tweaks:backlog refine`'s grants are recorded but have no headless consumer — run `/claude-tweaks:flow`/`/claude-tweaks:build` manually against a chosen record instead. |
 
 See `skills/_shared/work-record.md` for the full seven-axis contract (Type, Origin, Scoring, Stage, Authorization, Bot state, Acceptance), the complete label taxonomy, and the permission matrix governing which skill may add or remove which label.
 
