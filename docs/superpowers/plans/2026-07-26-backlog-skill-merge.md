@@ -1138,6 +1138,8 @@ Line 38: replace `/claude-tweaks:triage grants, /claude-tweaks:dispatch claims (
 Line 93: replace `` `/claude-tweaks:triage` is the interactive gate that grants this — machinery can only strip or downgrade a grant, never originate one.`` with `` `/claude-tweaks:backlog refine` is the interactive gate that grants this — machinery can only strip or downgrade a grant, never originate one.``
 Line 104: replace `` `/claude-tweaks:triage`'s grants are recorded but have no headless consumer`` with `` `/claude-tweaks:backlog refine`'s grants are recorded but have no headless consumer``
 
+Line 110 (`## Skills` section's bare example list, found by Task 14's own review — not caught by the original research pass): replace `and utility skills (flow, help, tidy, demo, code-health, triage, dispatch, and more).` with `and utility skills (flow, help, tidy, demo, code-health, backlog, dispatch, and more).` — a bare skill-name list (matching CLAUDE.md line 39's parallel Utility list, which already uses plain `backlog`, not `backlog refine`, in the same bare-list context).
+
 Additionally, in `README.md`'s skill-reference paragraphs (the `**\`/claude-tweaks:triage\`**` and `**\`/claude-tweaks:review-backlog\`**` paragraphs — check for these by searching `README.md` for `**\`/claude-tweaks:triage\`**`; if present, replace both paragraphs with one merged `**\`/claude-tweaks:backlog\`**` paragraph combining their content, mirroring `docs/getting-started.md`'s two paragraphs — see Task 15's equivalent edit to that file for the exact merged wording to reuse here).
 
 - [ ] **Step 2: Edit `CLAUDE.md`**
