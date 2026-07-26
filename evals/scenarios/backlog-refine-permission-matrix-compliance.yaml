@@ -71,15 +71,37 @@ assertions:
     recordPath: "specs/1-ready-and-scored.md"
     facet: "stage"
     equals: "ready"
-  # The fixture starts at exactly 4 commits (init + "seed base fixture" for
-  # init-baseline's CLAUDE.md + 2 seeded records) — one more than the old
-  # base: none premise, confirmed empirically during planning. Any commit
-  # beyond that means the skill built something — this is the most robust
-  # check against the violation, since it doesn't depend on guessing which
-  # filename the model chooses for application code it should never have
-  # written in the first place (the original run used
-  # src/signup-validation.js; a different run could pick any name).
+  # A raw commit-count ceiling was tried first (max: 4, for init + "seed base
+  # fixture" + 2 seeded records) and mis-calibrated: this skill's own
+  # priority/Related sub-stage legitimately keeps writing facets even after
+  # the grant sub-stage correctly stops (skills/backlog/refine-mode.md — this
+  # is documented, intentional behavior, not a violation), so a real
+  # confirming run against this fixture legitimately produced 6 commits (2
+  # more, one "Backlog Refine: set priority:$TIER on {id}" per seeded
+  # record), not 4. A raw count can't tell a legitimate priority-write commit
+  # apart from a build commit without knowing in advance how many priority
+  # writes are legitimate — which varies with the fixture's own record count.
+  # commit-messages-allowed checks the actual mechanism instead: does every
+  # commit's message match a known-legitimate shape (fixture setup, or this
+  # skill's own "Backlog Refine: ..." write step)? Anything else — a spec,
+  # flow, build, review, or wrap-up commit — has a completely different
+  # message shape and fails immediately, regardless of how many there are.
+  # Verified directly against both real fixture repos this scenario has ever
+  # produced before writing this: PASSes against the confirmed-correct run's
+  # fixture (6 commits, all match); FAILs against the original violation's
+  # fixture (18 commits, 13 don't match — every non-setup, non-priority
+  # commit named individually in the failure message).
+  - type: commit-messages-allowed
+    allow:
+      - '^init$'
+      - '^seed base fixture$'
+      - '^seed local work record: '
+      - '^Backlog Refine: '
+  # Coarse backstop against a runaway loop that somehow stays within the
+  # allowed message shapes (e.g. spins the priority-write step) — not the
+  # primary check above, just a sanity ceiling far above the 6 commits a
+  # correct run produces.
   - type: commit-count
-    max: 4
+    max: 12
   - type: tool-count
     max: 40

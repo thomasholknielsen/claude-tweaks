@@ -4,6 +4,7 @@ import { decisionsLogHas } from './decisions-log-has.js';
 import { toolCalled } from './tool-called.js';
 import { toolCount } from './tool-count.js';
 import { commitCount } from './commit-count.js';
+import { commitMessagesAllowed } from './commit-messages-allowed.js';
 import { findingsInclude } from './findings-include.js';
 import { findingsExcludeFalsePositive } from './findings-exclude-false-positive.js';
 import { localRecordFacet } from './local-record-facet.js';
@@ -18,6 +19,7 @@ const ASSERTIONS = {
   'tool-called': (ctx, params) => toolCalled(ctx.toolCalls, params),
   'tool-count': (ctx, params) => toolCount(ctx.toolCalls, params),
   'commit-count': (ctx, params) => commitCount(ctx.repoDir, params),
+  'commit-messages-allowed': (ctx, params) => commitMessagesAllowed(ctx.repoDir, params),
   'findings-include': (ctx, params) => findingsInclude(ctx.resultText, params),
   'findings-exclude-false-positive': (ctx, params) => findingsExcludeFalsePositive(ctx.resultText, params),
   'local-record-facet': (ctx, params) => localRecordFacet(ctx.repoDir, params),

@@ -87,6 +87,29 @@ test('commit-count: counts commits since a ref', () => {
   assert.strictEqual(result.pass, true);
 });
 
+test('commit-messages-allowed: passes when every commit matches an allowed pattern', () => {
+  const dir = freshRepo();
+  seedFiles(dir, { 'a.txt': '1' }, 'seed base fixture');
+  seedFiles(dir, { 'b.txt': '2' }, 'Backlog Refine: set priority:medium on 1');
+  const result = runAssertion(
+    { repoDir: dir },
+    { type: 'commit-messages-allowed', allow: ['^init$', '^seed base fixture$', '^Backlog Refine: '] },
+  );
+  assert.strictEqual(result.pass, true, result.message);
+});
+
+test('commit-messages-allowed: fails and names the offending commit when one matches nothing', () => {
+  const dir = freshRepo();
+  seedFiles(dir, { 'a.txt': '1' }, 'seed base fixture');
+  seedFiles(dir, { 'src/app.js': 'x' }, 'Implement signup validation');
+  const result = runAssertion(
+    { repoDir: dir },
+    { type: 'commit-messages-allowed', allow: ['^init$', '^seed base fixture$', '^Backlog Refine: '] },
+  );
+  assert.strictEqual(result.pass, false);
+  assert.ok(result.message.includes('Implement signup validation'), result.message);
+});
+
 test('findings-include: finds a matching row by severity and substring', () => {
   const result = runAssertion(
     { resultText: SAMPLE_FINDINGS_TEXT },
