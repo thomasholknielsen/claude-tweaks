@@ -39,6 +39,14 @@ export async function generateInitFixture(opts = {}) {
 
   const repoDir = freshRepo();
   const baseFiles = walkFiles(path.join(fixturesDir, 'minimal-node-repo'));
+  // minimal-node-repo now carries its own CLAUDE.md (copied from this
+  // script's own prior output, so other scenarios get a realistic fixture
+  // too) — strip it before seeding so /init runs against a genuinely
+  // CLAUDE.md-less repo. Without this, /init would run in Update-Mode
+  // against its own already-realistic prior output instead of a fresh
+  // bootstrap, and the "did /init actually produce a CLAUDE.md" guard below
+  // would never be able to fire, since one would already exist from the seed.
+  delete baseFiles['CLAUDE.md'];
   seedFiles(repoDir, baseFiles, 'seed minimal-node-repo');
 
   const pluginSnapshotDir = buildPluginSnapshot();
