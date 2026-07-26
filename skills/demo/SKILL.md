@@ -100,37 +100,103 @@ session has no memory of it — nothing to show." and stop.
 Brief` body section. Same `demo:pending`-then-session-recall fallback order as above, keyed on
 `facets.acceptance === 'pending'` instead of the label.
 
-## Step 3: Per-item walkthrough
+## Step 2: Per-item walkthrough
 
-For every record not bulk-approved in Step 2, render its full Verification Brief (The ask / What
-shipped / Confirmed / See it yourself — evidence the human can judge, not a checklist to
-complete). Label-backed entries were fetched per `verification-brief.md`'s digest template in
-Step 1's Source A; session-recall entries were composed directly from recall, also in Step 1
-(Source B), into the same four-heading shape — both render identically here. Then call
-`AskUserQuestion` with `question`: `"Does {title} do what you asked for?"`, `header`:
-`"Verdict"`, `multiSelect`: `false`:
+Render this record's full Verification Brief (The ask / What shipped / Confirmed / See it
+yourself — evidence the human can judge, not a checklist to complete). Label-backed entries were
+fetched per `verification-brief.md`'s digest template in Step 1's `#N` lookup; session-recall
+entries were composed directly from recall, also in Step 1's no-arguments path — both render
+identically here. Then call `AskUserQuestion` with `question`: `"Does {title} do what you asked
+for?"`, `header`: `"Verdict"`, `multiSelect`: `false`:
 
 - Option 1 — `label`: `"Approve"`, `description`: `"This does what was asked"`
-- Option 2 (only when the brief's "See it yourself" entry point resolved) — `label`: `"Show me live"`, `description`: `"Open {entry point} in a live browser session before deciding"`
+- Option 2 (only when the brief's "See it yourself" entry point resolved) — `label`: `"See it yourself"`, `description`: `"Check this before deciding"`
 - Option 3 — `label`: `"Request changes"`, `description`: `"There's a gap — I'll describe it"`
 - Option 4 — for a label-backed entry: `label`: `"Skip for now"`, `description`: `"Leave demo:pending — I'll come back to this"`. For a session-recall entry: `label`: `"Skip for now"`, `description`: `"Nothing is written — unlike a label-backed record, this won't resurface in a later session"`
 
-**"Show me live"**: open an `agent-browser` session at the brief's resolved entry point, following
-`/claude-tweaks:browse`'s conventions (session naming, lifecycle) directly — the same relationship
-`/claude-tweaks:visual-review` already has with `/claude-tweaks:browse`, not a workflow-step
-invocation of `/claude-tweaks:browse` itself. After the human finishes looking, close the session
-(leaked sessions consume resources — same discipline `/claude-tweaks:browse`'s own Anti-Patterns
-table requires), then re-render the same
-`AskUserQuestion` for this record with only Approve / Request changes / Skip for now (the live
-look already happened — don't offer it twice for the same record).
+### "See it yourself": pre-flight, then live or manual
 
-## Step 4: Apply verdicts
+Picking this option never hands over untested instructions. First, run a pre-flight check:
 
-**Label-backed entries** (Source A, Step 1): bootstrap `demo:approved` and
+1. Resolve a working dev server via `dev-url-detection.md`'s existing procedure — already
+   project-agnostic (port probing, `CLAUDE.md`/`package.json` command detection, worktree
+   awareness) and already auto-starts an ephemeral server on a free port when nothing is running.
+2. Open a quick `agent-browser` session at the resolved entry point (following
+   `/claude-tweaks:browse`'s conventions directly — the same relationship
+   `/claude-tweaks:visual-review` already has with `/claude-tweaks:browse`) and confirm the target
+   page actually renders, not just an HTTP 200. If the page requires auth and credentials are
+   already resolvable (Auth Vault / `stories/auth.yml`, the same source `/stories` uses), attempt
+   login too. No configured credentials → skip the login check; reachability/render alone is
+   still worth confirming.
+3. Close the session.
+
+Runs once per record per `/demo` session and is reused for the rest of that record's walkthrough.
+
+**Pre-flight succeeds:** ask one short follow-up — `question`: `"Open a live session and show
+you, or give you the steps to check it yourself?"`, `header`: `"How to check"`, `multiSelect`:
+`false`:
+
+- Option 1 — `label`: `"Show me live"`, `description`: `"Open a live browser session now"`
+- Option 2 — `label`: `"Give me the steps"`, `description`: `"I'll run it myself"`
+
+**"Show me live" (sub-choice):** open a fresh `agent-browser` session at the already-verified
+entry point (or reuse the pre-flight's own session if still open). After the human finishes
+looking, close the session (leaked sessions consume resources — same discipline
+`/claude-tweaks:browse`'s own Anti-Patterns table requires), then re-render this record's
+`AskUserQuestion` with only Approve / Request changes / Skip for now (the live look already
+happened — don't offer "See it yourself" twice for the same record).
+
+**"Give me the steps" (sub-choice):** compose manual instructions from the pre-flight's own
+verified URL/port/credentials — never a guessed default — following this checklist:
+
+- **Self-contained** — every command block includes its own `cd` to the right checkout/worktree;
+  never assume an inherited working directory.
+- **Copy-paste-clean** — no inline commentary inside a block meant to be pasted as-is;
+  explanation goes in prose before/after the block, never inside it.
+- **Proactively explain surprising-but-correct state** the pre-flight itself observed while
+  rendering (e.g. an empty dashboard on first load) — inline, before the human has to ask.
+
+After presenting the steps, re-render this record's `AskUserQuestion` with only Approve / Request
+changes / Skip for now, same as the live sub-choice above.
+
+**Pre-flight fails:** this is evidence, not a side quest to chase mid-conversation. Capture what
+broke (screenshot, console error) and fold it directly into this record's brief as grounds for
+**Request changes** — skip the live-vs-manual follow-up question entirely, a broken environment
+is broken either way. `/demo` never debugs or fixes the underlying application code itself — that
+stays out of scope the same way code-quality judgment already does (`/review`'s job).
+
+**Browser tools unavailable:** same fallback `verification-brief.md` already documents — skip
+without blocking, note visual verification wasn't available in this environment, proceed with
+Approve / Request changes / Skip for now only (no "See it yourself" option at all in this case).
+
+### Scope-fork checkpoint
+
+If, anywhere in this walkthrough, the human asks for something beyond confirming this record's
+existing behavior — a new feature, a change beyond what pre-flight needed to make the environment
+checkable — stop once (the first time this happens in this `/demo` session) before doing it:
+
+> "That's new scope beyond what's being demoed here. Want me to capture it as a backlog item now
+> and come back to your sign-off decision, or build it now as its own thing outside `/demo`?"
+
+Route "capture it" through the same follow-up-record mechanism Step 3's Request-changes branch
+already uses. If the human says "keep going," don't re-ask for further closely-related work in
+this same session.
+
+### Task-anchor discipline
+
+This record's verdict — not yet Approved/Request-changes/Skipped — must never be silently
+dropped because the conversation moves on, whether from a pre-flight failure that grows its own
+back-and-forth or a scope-fork detour above. Once any such detour concludes, before shifting to a
+new unrelated topic, restate that this record's decision is still outstanding and offer to
+resume. Never end a `/demo` run with a record left mid-decision and unmentioned.
+
+## Step 3: Apply verdicts
+
+**Label-backed entries** (Step 1's `#N` lookup): bootstrap `demo:approved` and
 `demo:changes-requested` via the check-then-create loop from `_shared/label-bootstrap.md` before
 the first swap this run.
 
-- **Approve** (bulk or individual) — `gh issue edit {n} --remove-label demo:pending --add-label demo:approved` (`local-files`: set `facets.acceptance = 'approved'` via `writeRecord`).
+- **Approve** — `gh issue edit {n} --remove-label demo:pending --add-label demo:approved` (`local-files`: set `facets.acceptance = 'approved'` via `writeRecord`).
 - **Request changes** — prompt for a short reason inline, then:
   1. **`work-backend: github-issues`:** `gh issue edit {n} --remove-label demo:pending --add-label demo:changes-requested`. **`work-backend: local-files`:** set `facets.acceptance = 'changes-requested'` via `writeRecord`.
   2. File a linked follow-up record: backlog stage (no `ready` — a one-line reason isn't
@@ -161,7 +227,7 @@ the first swap this run.
      the original record's body instead, via the same `readRecord`/`writeRecord` round trip.
 - **Skip for now** — no label change.
 
-**Session-recall entries** (Source B, Step 1) — no record exists, so nothing here ever
+**Session-recall entries** (Step 1's no-arguments path) — no record exists, so nothing here ever
 bootstraps a label or writes to GitHub/local-files for Approve or Skip:
 
 - **Approve** — nothing written anywhere. The verdict lives in this conversation.
@@ -195,21 +261,22 @@ always renders.
 
 | Pattern | Why It Fails |
 |---------|-------------|
-| Bulk-approving everything regardless of risk tier | This skill exists for real human judgment — only the `risk:low`+`effort:low` tier gets a pre-filled Approve suggestion, and it's still a choice, not a default |
+| Handing over "Give me the steps" instructions without running the pre-flight first | The human becomes the integration test, discovering port collisions and broken auth one round-trip at a time instead of Claude catching them in a 30-second automated check |
 | Re-deriving "how do I test this" from the diff | The Verification Brief already has it — `/wrap-up` wrote it at build time with full context; read the brief, don't reconstruct it |
 | Merging or opening a PR from within this skill | Merge/PR decisions belong to `/superpowers:finishing-a-development-branch` — `/demo` only ever resolves the Acceptance axis |
-| Silently dropping a `demo:pending` record with no verdict | Every record gets Approve / Request changes / Skip — Skip is explicit and leaves `demo:pending` for next run, it never disappears from the worklist unrecorded |
+| Silently dropping a record mid-decision because the conversation moved on | A pending verdict must be explicitly restated before shifting to a new topic — see the Task-anchor discipline in Step 2 |
 | Treating a record with no interactive surface as not needing sign-off | Non-testable work still gets a lightweight human look — the brief just reframes the ask as "review the diff/rationale" instead of "click through this" |
-| Scanning only open issues | `demo:pending` persists on closed issues too (auto-merged autonomous work) — always query `--state all` |
-| Leaving a "Show me live" session open after the verdict is captured | Leaked sessions consume resources — close it the same way `/browse`'s own Anti-Patterns table requires, immediately after the human finishes looking, before re-rendering the verdict question |
+| Debugging or fixing an application bug a pre-flight check uncovers | That's out of scope the same way code-quality judgment already is — capture it as a Request-changes candidate, don't chase it mid-conversation |
+| Leaving a "See it yourself" live session open after the verdict is captured | Leaked sessions consume resources — close it the same way `/browse`'s own Anti-Patterns table requires, immediately after the human finishes looking, before re-rendering the verdict question |
 | Writing `demo:approved`/`demo:pending` for a session-recall entry | There's no record to hold it — the verdict lives in the conversation, not a label. Only a Request-changes verdict ever produces a real record for one of these. |
+| Sweeping the `demo:pending` backlog from within this skill | Discovery is `/claude-tweaks:help`'s job (Stage 4.7, which lists every outstanding `#N`) — `/demo` resolves one item per invocation, never a sweep |
 
 ## Relationship to Other Skills
 
 | Skill | Relationship |
 |-------|-------------|
 | `/claude-tweaks:wrap-up` | Sole producer of *label-backed* `demo:pending` + the Verification Brief (Step 10, `verification-brief.md`), gated on a clean visual-review pass — `/demo` is the sole consumer/resolver for that path. `/demo`'s session-recall source (Step 1) surfaces conversation-based work independently of `/wrap-up` ever running. |
-| `/claude-tweaks:browse` | `/demo`'s "Show me live" option (Step 3) consumes /browse's conventions directly (session naming, lifecycle) for an on-demand live look — the same relationship /claude-tweaks:visual-review has with /browse, not a workflow-step invocation |
-| `/claude-tweaks:visual-review` | `/demo`'s Verification Brief digest (Step 3) is sourced from /visual-review's own report — headline result + 1-3 committed screenshots. |
-| `/claude-tweaks:help` | `/help`'s dashboard surfaces a `demo:pending` count as a lightweight signal; `/demo` is where the actual walkthrough happens |
+| `/claude-tweaks:browse` | `/demo`'s "See it yourself" option (Step 2) consumes /browse's conventions directly (session naming, lifecycle) for an on-demand live look — the same relationship /claude-tweaks:visual-review has with /browse, not a workflow-step invocation |
+| `/claude-tweaks:visual-review` | `/demo`'s Verification Brief digest (Step 2) is sourced from /visual-review's own report — headline result + 1-3 committed screenshots. |
+| `/claude-tweaks:help` | `/help` is the sole discovery surface for the acceptance queue — lists every outstanding `#N` (Stage 4.7, `acceptance-queue` scope), not just a count; `/demo #N` executes the walkthrough for one |
 | `/claude-tweaks:capture` | On "request changes," `/demo` files a follow-up backlog record using the same `recordPayload` composition `/capture` itself uses, without invoking `/capture` |
