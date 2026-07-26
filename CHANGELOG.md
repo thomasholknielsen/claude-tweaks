@@ -1,6 +1,6 @@
 # Changelog
 
-## v6.16.2 — Maturity-aware build & specify discipline
+## v6.16.3 — Maturity-aware build & specify discipline
 
 Project maturity (greenfield / pre-launch / early-production / established) is now a durable
 `project.maturity` value in `.claude-tweaks/policy.yml`, instead of living only as CLAUDE.md
