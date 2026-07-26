@@ -15,7 +15,7 @@ Build an inventory of what's currently configured before scanning the codebase:
 - Commands: {lists these scripts}
 - Conventions: {count} bullets
 - Don'ts: {count} items
-- Contract markers: {pipeline-section | auto-mode-flag | bookend | auto-mode-policy | run-dir} — {present/missing for each}
+- Contract markers: {pipeline-section | auto-mode-flag | bookend | run-dir} — {present/missing for each}
 - Last meaningful edit: {git log for CLAUDE.md — when, what changed}
 
 ### policy.yml
@@ -123,21 +123,22 @@ node -e "const {auditPolicy}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/po
 If `legacyClaudeMdLevers` is empty, record "Auto-mode policy: already migrated or never present" in the inventory and skip the rest of this section — no prompt.
 
 Otherwise, for each entry, the recommendation is:
-- `matchesDefault: true` → **delete** the line from CLAUDE.md. Pure cleanup — dual-read already falls through to the same default either way, so this is a zero-behavior-change removal.
-- `matchesDefault: false` → **move to `policy.yml`**: append `{key}: {value}` to `.claude-tweaks/policy.yml` (creating the file/directory if absent), then delete the line from CLAUDE.md. Preserves the project's override.
+- `isValid: false` → **flag, don't move**: report "`{key}: {value}` isn't a recognized value — fix or remove it" and leave the CLAUDE.md line untouched. Never silently relocate a broken value into `policy.yml`.
+- `isValid: true, matchesDefault: true` → **delete** the line from CLAUDE.md. Pure cleanup — dual-read already falls through to the same default either way, so this is a zero-behavior-change removal.
+- `isValid: true, matchesDefault: false` → **move to `policy.yml`**: append `{key}: {value}` to `.claude-tweaks/policy.yml` (creating the file/directory if absent), then delete the line from CLAUDE.md. Preserves the project's override.
 
 Present via the standard batch-table convention (`AskUserQuestion`, per the root CLAUDE.md's Multi-item Decisions rule):
 
 - `question`: `"{N} legacy Auto-mode policy line(s) found in CLAUDE.md. Clean these up? Levers at their default get deleted; overrides move to .claude-tweaks/policy.yml."`, `header`: `"Policy cleanup"`, `multiSelect`: `false`
-- Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"Delete {D} default-valued line(s), move {M} override(s) to policy.yml."` (`D`/`M` are the counts of `matchesDefault: true`/`false` entries)
+- Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"Delete {D} default-valued line(s), move {M} override(s) to policy.yml{, flag {F} invalid value(s) if F > 0}."` (`D`/`M`/`F` are the counts of `isValid: true, matchesDefault: true` / `isValid: true, matchesDefault: false` / `isValid: false` entries — omit the flag clause entirely when `F` is 0)
 - Option 2 — `label`: `"Override specific items"`, `description`: `"Choose per-line what happens to each of the {N} entries."`
 - Option 3 — `label`: `"Skip entirely"`, `description`: `"Leave CLAUDE.md as-is — I'll clean it up myself later."`
 
 On "Override specific items," follow up with the per-line choices as ordinary free-text in the next message (per the root CLAUDE.md's batch-table convention — the tool's `Other` field is a single answer to the batch question, not a per-item list).
 
-On any outcome except "Skip entirely," apply the selected deletions/moves, then log to `decisions.md` (or the inventory summary, if this project has no active pipeline run dir):
+On any outcome except "Skip entirely," apply the selected deletions/moves (invalid entries are only flagged, never touched), then log to `decisions.md` (or the inventory summary, if this project has no active pipeline run dir):
 ```
-AUTO {time} — Update Mode: migrated {N} legacy Auto-mode policy line(s) off CLAUDE.md ({D} deleted at-default, {M} moved to policy.yml).
+AUTO {time} — Update Mode: migrated {D + M} of {N} legacy Auto-mode policy line(s) off CLAUDE.md ({D} deleted at-default, {M} moved to policy.yml{, F flagged as invalid and left untouched if F > 0}).
 ```
 
 This check runs once per Update Mode invocation and counts toward the Total drift count in Phase 1u.6 the same way Work-Record Backend Drift does — a non-empty `legacyClaudeMdLevers` result is one additional Contract Drift entry.
@@ -173,7 +174,7 @@ After Phase 1u (inventory) and Phase 1u.5 (contract drift) complete, evaluate th
    - Superpowers: present · Code simplifier: available · agent-browser: installed (v{X.Y.Z})
    - Git repo: yes · Node: v{X} · Statusline: wired · Workflow dirs: present
 
-   Contract markers (claude-tweaks v{X.Y}+): pipeline section, auto-mode flag, bookend paragraph, auto-mode policy block, run-dir reference — all present.
+   Contract markers (claude-tweaks v{X.Y}+): pipeline section, auto-mode flag, bookend paragraph, run-dir reference — all present.
 
    Inventory: {M} skills, {R} rules, CLAUDE.md ({L} lines) — all classified "covered" against the existing config.
 

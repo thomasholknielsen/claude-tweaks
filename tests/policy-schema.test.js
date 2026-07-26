@@ -18,9 +18,9 @@ function writeClaudeMd(repo, content) {
   fs.writeFileSync(path.join(repo, 'CLAUDE.md'), content);
 }
 
-test('POLICY_KEYS has exactly 22 entries with unique keys', () => {
-  assert.strictEqual(POLICY_KEYS.length, 22);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 22);
+test('POLICY_KEYS has exactly 30 entries with unique keys', () => {
+  assert.strictEqual(POLICY_KEYS.length, 30);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 30);
 });
 
 test('missing policy.yml and missing CLAUDE.md -> all-empty result', () => {
@@ -73,6 +73,45 @@ test('unrecognized key -> flagged, does not also appear in invalidValues', () =>
   const result = auditPolicy(repo);
   assert.deepStrictEqual(result.unrecognizedKeys, ['made-up-lever']);
   assert.deepStrictEqual(result.invalidValues, []);
+});
+
+test('invalid value in policy.yml is flagged with source: policy.yml', () => {
+  const repo = tmpRepo();
+  writePolicy(repo, 'tidy-aggressiveness: extreme\n');
+  const result = auditPolicy(repo);
+  assert.strictEqual(result.invalidValues.length, 1);
+  assert.strictEqual(result.invalidValues[0].key, 'tidy-aggressiveness');
+  assert.strictEqual(result.invalidValues[0].value, 'extreme');
+  assert.strictEqual(result.invalidValues[0].source, 'policy.yml');
+});
+
+test('invalid value in CLAUDE.md is flagged in invalidValues with source: CLAUDE.md', () => {
+  const repo = tmpRepo();
+  writeClaudeMd(repo, '## Auto-mode policy\ntidy-aggressiveness: extreme\n');
+  const result = auditPolicy(repo);
+  assert.strictEqual(result.invalidValues.length, 1);
+  assert.strictEqual(result.invalidValues[0].key, 'tidy-aggressiveness');
+  assert.strictEqual(result.invalidValues[0].value, 'extreme');
+  assert.strictEqual(result.invalidValues[0].source, 'CLAUDE.md');
+});
+
+test('legacyClaudeMdLevers entry for an invalid legacy value has isValid: false', () => {
+  const repo = tmpRepo();
+  writeClaudeMd(repo, '## Auto-mode policy\ntidy-aggressiveness: extreme\n');
+  const result = auditPolicy(repo);
+  const entry = result.legacyClaudeMdLevers.find((e) => e.key === 'tidy-aggressiveness');
+  assert.ok(entry, 'expected a legacyClaudeMdLevers entry for tidy-aggressiveness');
+  assert.strictEqual(entry.isValid, false);
+});
+
+test('legacyClaudeMdLevers entry for a valid override has isValid: true', () => {
+  const repo = tmpRepo();
+  writeClaudeMd(repo, '## Auto-mode policy\ntidy-aggressiveness: aggressive\n');
+  const result = auditPolicy(repo);
+  const entry = result.legacyClaudeMdLevers.find((e) => e.key === 'tidy-aggressiveness');
+  assert.ok(entry, 'expected a legacyClaudeMdLevers entry for tidy-aggressiveness');
+  assert.strictEqual(entry.isValid, true);
+  assert.strictEqual(entry.matchesDefault, false);
 });
 
 test('malformed policy.yml (unparseable) is treated as absent, not thrown', () => {

@@ -57,6 +57,14 @@ Without `--budget` (or `--budget 1`), prints `{ target: { kind, id, path, why } 
 
 Unlike `/code-health`'s `next-slice`, this command is named `next-target` because harness-health, journey-health, and docs-health each rotate over one specific file at a time (a skill file, a journey file, a doc). `/code-health`'s `next-slice` rotates over an area/directory that gets fully swept per firing — a coarser unit than a single file — so it kept its own name rather than adopting this family's.
 
+**Policy schema check (separate from the target/gap-scan work above, runs every firing).** Placed here — immediately after `next-target` returns, before the nothing-due early-stop and the gap-scan-only skip below — so it executes on every firing regardless of which branch Step 1 takes. Call:
+
+```bash
+node -e "const {auditPolicy}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/policy-schema.js'); console.log(JSON.stringify(auditPolicy(process.cwd())))"
+```
+
+This is a deterministic validation check, not the 8-dimension judged analysis `_shared/harness-health-analysis.md` performs — a malformed key or value is a mechanical fact, not a semantic judgment, so it doesn't produce a `patch`/`new-skill` finding through that shared file. If both `unrecognizedKeys` and `invalidValues` are empty, do nothing further for this check this firing. Otherwise, file one work-record issue (origin `by:harness-health`, `risk:low` + `effort:low` — this is always a same-shape mechanical fix) titled `"policy.yml has {N} unrecognized key(s) / invalid value(s)"`, with a body listing each `unrecognizedKeys` entry (possible typo or a stale key removed from the schema — see `_shared/policy-schema.md`) and each `invalidValues` entry (`key`, the actual `value`, and the expected type/enum from `expected`). Dedup against open `by:harness-health` issues the same way Step 5/6 do for the main target (reuse the same `gh issue list` fetch this firing already performs — no separate fetch). Never file for `legacyClaudeMdLevers` alone — that's `/claude-tweaks:init` Update Mode's interactive migration to offer (see `skills/init/update-mode.md`'s "Auto-Mode-Policy Migration"), not something to push through an unattended Routine's issue queue.
+
 Read the `why` field on whichever target(s) came back:
 - If both `target`/`targets` are empty and `gapScanDue` is `false`: nothing is due this firing. Report this to the user and stop.
 - `why: "stale"` — this target has not been audited in over 90 days regardless of domain churn.
@@ -67,14 +75,6 @@ Read the `why` field on whichever target(s) came back:
 If there is no target to deep-audit this firing (`target` is `null`, or `targets` is empty) but `gapScanDue` is `true`, skip straight to Step 4 (gap detection) — the gap scan is still due even with nothing else to audit.
 
 **Skill-library shape pass (separate from the target/gap-scan due-ness above).** Read `library-shape-analysis.md` in this skill's directory for a periodic pass comparing skills *against each other* (too-shallow / overlapping / bloated) on its own 90-day cursor — check its own due-ness (per that file's "Due-ness and SELECT" section) independently of whatever `next-target` returned above, and run it in addition to the standard target/gap-scan work this firing when due.
-
-**Policy schema check (separate from the target/gap-scan work above, runs every firing).** Call:
-
-```bash
-node -e "const {auditPolicy}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/policy-schema.js'); console.log(JSON.stringify(auditPolicy(process.cwd())))"
-```
-
-This is a deterministic validation check, not the 8-dimension judged analysis `_shared/harness-health-analysis.md` performs — a malformed key or value is a mechanical fact, not a semantic judgment, so it doesn't produce a `patch`/`new-skill` finding through that shared file. If both `unrecognizedKeys` and `invalidValues` are empty, do nothing further for this check this firing. Otherwise, file one work-record issue (origin `by:harness-health`, `risk:low` + `effort:low` — this is always a same-shape mechanical fix) titled `"policy.yml has {N} unrecognized key(s) / invalid value(s)"`, with a body listing each `unrecognizedKeys` entry (possible typo or a stale key removed from the schema — see `_shared/policy-schema.md`) and each `invalidValues` entry (`key`, the actual `value`, and the expected type/enum from `expected`). Dedup against open `by:harness-health` issues the same way Step 5/6 do for the main target (reuse the same `gh issue list` fetch this firing already performs — no separate fetch). Never file for `legacyClaudeMdLevers` alone — that's `/claude-tweaks:init` Update Mode's interactive migration to offer (see `skills/init/update-mode.md`'s "Auto-Mode-Policy Migration"), not something to push through an unattended Routine's issue queue.
 
 **Step 2 — READ the target.**
 

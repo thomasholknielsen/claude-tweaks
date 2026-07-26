@@ -15,7 +15,7 @@ const POLICY_KEYS = [
   { key: 'automerge-max-files', type: 'integer', default: 2 },
   { key: 'merge-sensitive-paths', type: 'list', default: [] },
   { key: 'work-links', type: 'enum', values: ['native', 'body-text'], default: 'body-text' },
-  { key: 'review-effort-floor', type: 'enum', values: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] },
+  { key: 'review-effort-floor', type: 'enum', values: ['low', 'medium', 'high', 'xhigh', 'max'] },
   { key: 'review-diff-heuristic-thresholds', type: 'opaque' },
   { key: 'harness-health.scoped-rule-budget', type: 'integer', default: 30 },
   { key: 'harness-health.always-loaded-budget', type: 'integer', default: 150 },
@@ -28,6 +28,14 @@ const POLICY_KEYS = [
   { key: 'review-severity-floor', type: 'enum', values: ['none', 'low', 'medium'], default: 'low' },
   { key: 'tidy-aggressiveness', type: 'enum', values: ['conservative', 'moderate', 'aggressive'], default: 'conservative' },
   { key: 'auto-mode', type: 'enum', values: ['default-on', 'default-off'] },
+  { key: 'triage-retry-ceiling', type: 'integer', default: 3 },
+  { key: 'triage-fast-track-max-lines', type: 'integer', default: 40 },
+  { key: 'triage-fast-track-max-files', type: 'integer', default: 2 },
+  { key: 'triage-dispatch-max-concurrent', type: 'integer', default: 3 },
+  { key: 'backlog-fetch-limit', type: 'integer', default: 1000 },
+  { key: 'depth-survey', type: 'enum', values: ['off'] },
+  { key: 'creative-survey', type: 'enum', values: ['off'] },
+  { key: 'tidy-routine-autonomy', type: 'enum', values: ['conservative', 'evidence-based'], default: 'conservative' },
 ];
 
 // The 8 levers previously generated into CLAUDE.md's "## Auto-mode policy" block.
@@ -92,20 +100,27 @@ function auditPolicy(repoRoot) {
   const unrecognizedKeys = Object.keys(policyEntries).filter((key) => !schemaByKey.has(key));
 
   const invalidValues = [];
-  for (const [key, value] of Object.entries(policyEntries)) {
-    const schemaEntry = schemaByKey.get(key);
-    if (schemaEntry && !isValidValue(schemaEntry, value)) {
-      invalidValues.push({ key, value, expected: schemaEntry });
+  for (const [entries, source] of [[policyEntries, 'policy.yml'], [claudeMdEntries, 'CLAUDE.md']]) {
+    for (const [key, value] of Object.entries(entries)) {
+      const schemaEntry = schemaByKey.get(key);
+      if (schemaEntry && !isValidValue(schemaEntry, value)) {
+        invalidValues.push({ key, value, expected: schemaEntry, source });
+      }
     }
   }
 
   const legacyClaudeMdLevers = LEGACY_CLAUDE_MD_LEVER_KEYS
     .filter((key) => claudeMdEntries[key] !== undefined)
-    .map((key) => ({
-      key,
-      value: claudeMdEntries[key],
-      matchesDefault: claudeMdEntries[key] === String(schemaByKey.get(key).default),
-    }));
+    .map((key) => {
+      const schemaEntry = schemaByKey.get(key);
+      const value = claudeMdEntries[key];
+      return {
+        key,
+        value,
+        matchesDefault: value === String(schemaEntry.default),
+        isValid: isValidValue(schemaEntry, value),
+      };
+    });
 
   return { unrecognizedKeys, invalidValues, legacyClaudeMdLevers };
 }
