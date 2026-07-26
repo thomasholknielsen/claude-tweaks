@@ -127,9 +127,11 @@ Scan per `_shared/github-pr-scan.md`, **`triage-queue`** scope. The dispatcher i
 
 ## Stage 4.7: Acceptance Queue (GitHub)
 
-Cheap count only — the walkthrough stays `/claude-tweaks:demo`'s job, not `/help`'s. Skip
-silently (same fail-open detection ladder as Stage 4.5/4.6) when `gh` is unavailable,
-unauthenticated, or the repo has no GitHub remote.
+Cheap list only — the walkthrough stays `/claude-tweaks:demo`'s job, not `/help`'s. `/demo` no
+longer sweeps the `demo:pending` backlog itself (it resolves a single item per invocation — this
+session's own recall-detected work, or one explicit `#N`), so this stage is the sole discovery
+surface for which records are outstanding. Skip silently (same fail-open detection ladder as
+Stage 4.5/4.6) when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
 
 Scan per `_shared/github-pr-scan.md`, **`acceptance-queue`** scope. The dispatcher inlines that
 file's Detection Ladder, `acceptance-queue` scope section, and one-line render format into this

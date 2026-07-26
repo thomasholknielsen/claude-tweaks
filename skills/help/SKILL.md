@@ -137,7 +137,7 @@ For a detailed explanation of how context flows between skills via artifacts, re
 | `/claude-tweaks:tidy` | /claude-tweaks:help suggests /claude-tweaks:tidy when maintenance is needed |
 | `/claude-tweaks:triage` | Surfaces pending-authorization count, `bot:blocked` count, and rolling auto-merge count on the dashboard (Stage 4.6, `triage-queue` scope) — the reciprocal of `triage/SKILL.md`'s own `/claude-tweaks:help` row. |
 | `/claude-tweaks:review-backlog` | No dashboard integration — /help's Stage 1 already surfaces backlog/parked/ready counts; unscored-record synthesis and prioritization stay `/claude-tweaks:review-backlog`'s own job, not duplicated here. |
-| `/claude-tweaks:demo` | Surfaces the `demo:pending` count on the dashboard (Stage 4.7, `acceptance-queue` scope) — the reciprocal of `demo/SKILL.md`'s own `/claude-tweaks:help` row. |
+| `/claude-tweaks:demo` | `/help` is the sole discovery surface for the acceptance queue — lists every outstanding `#N` (Stage 4.7, `acceptance-queue` scope), not just a count; `/demo #N` executes the walkthrough for one — the reciprocal of `demo/SKILL.md`'s own `/claude-tweaks:help` row. |
 | `/claude-tweaks:dispatch` | /claude-tweaks:help surfaces the `authorized` and `building` counts dispatch acts on (Stage 1) — the reciprocal of `dispatch/SKILL.md`'s own `/claude-tweaks:help` row. |
 | `/claude-tweaks:flow` | /claude-tweaks:help lists /claude-tweaks:flow as an automation option for ready specs |
 | `/claude-tweaks:browse` | Utility skill — /claude-tweaks:help lists it in the utility skills table |

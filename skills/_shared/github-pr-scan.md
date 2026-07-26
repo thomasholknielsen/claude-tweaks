@@ -131,16 +131,19 @@ Render as three lines: `Pending authorization: **{N}** records awaiting your dec
 
 ## Scope: `acceptance-queue` (consumed by /help Stage 4.7)
 
-One cheap count for the dashboard's Acceptance Queue section — deliberately `--state all`,
-unlike every other count in this file, since `demo:pending` persists independent of open/closed
-state (an `auto:merge`'d record's issue can already be closed while still awaiting sign-off).
+One cheap list for the dashboard's Acceptance Queue section — deliberately `--state all`, unlike
+every other count in this file, since `demo:pending` persists independent of open/closed state
+(an `auto:merge`'d record's issue can already be closed while still awaiting sign-off). `/demo`
+no longer sweeps this backlog itself (it resolves one item per invocation), so this is the sole
+place the outstanding set is enumerated.
 
 ```bash
-gh issue list --label demo:pending --state all --json number --limit 200 -q 'length'
+gh issue list --label demo:pending --state all --json number,title --limit 200
 ```
 
-Render as one line: `Awaiting sign-off: **{N} records built and ready for your review**` —
-omit entirely when the count is 0.
+Render as one line listing every matching record: `Awaiting sign-off: **{N} records** — #{n1}
+({title1}), #{n2} ({title2}), ... — run /demo #N on any of these` — omit entirely when the count
+is 0.
 
 ## Output Contract
 
