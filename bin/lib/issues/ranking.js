@@ -15,8 +15,9 @@ const { PRIORITIES, TIERS, parseDependencies } = require('./record');
 const { groupByFileOverlap } = require('./grouping');
 
 const RANK = { high: 0, medium: 1, low: 2 };
+const EFFORT_ORDER = { low: 0, medium: 1, high: 2 };
 const priorityBandOf = (c) => (c.facets.priority && PRIORITIES.includes(c.facets.priority) ? RANK[c.facets.priority] : 3);
-const effortBandOf = (c) => (c.facets.effort && TIERS.includes(c.facets.effort) ? RANK[c.facets.effort] : 3);
+const effortBandOf = (c) => (c.facets.effort && TIERS.includes(c.facets.effort) ? EFFORT_ORDER[c.facets.effort] : 3);
 
 // candidates[] -> Map<id, count>. For each candidate, how many OTHER candidates
 // in the SAME input array declare `Blocked by #{candidate.id}` in their body
@@ -53,7 +54,7 @@ function rankNextToBuild(candidates) {
     priorityBandOf(a) - priorityBandOf(b) ||
     unblocksCountOf.get(b.id) - unblocksCountOf.get(a.id) ||
     Number(overlapping.has(a.id)) - Number(overlapping.has(b.id)) ||
-    effortBandOf(b) - effortBandOf(a) ||
+    effortBandOf(a) - effortBandOf(b) ||
     Number(b.hasPlan) - Number(a.hasPlan)
   );
 }

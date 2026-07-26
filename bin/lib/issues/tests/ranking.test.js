@@ -69,3 +69,10 @@ test('unblocks-count only counts candidates within the same input array, and onl
   const result = rankNextToBuild([target, otherTarget, blocksTarget, blocksSomethingElse]);
   assert.strictEqual(result[0].id, 5, 'id 5 is unblocked by one in-array candidate; id 6 by zero, so 5 ranks first among the priority:high tier');
 });
+
+test('a candidate with a real effort value ranks before a candidate with unset (null) effort', () => {
+  const effortUnset = candidate({ id: 1, facets: { priority: 'high', effort: null } });
+  const effortLow = candidate({ id: 2, facets: { priority: 'high', effort: 'low' } });
+  const result = rankNextToBuild([effortUnset, effortLow]);
+  assert.deepStrictEqual(result.map((c) => c.id), [2, 1], 'a candidate with effort: "low" (band 0) must rank BEFORE one with effort: null (band 3), not after');
+});
