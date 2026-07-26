@@ -872,11 +872,13 @@ Line 207: replace `by \`/claude-tweaks:triage\`'s interactive invocation` with `
 
 Line 6: replace `Referenced by \`/claude-tweaks:triage\` and \`/claude-tweaks:dispatch\`'s own` with `Referenced by \`/claude-tweaks:backlog\` (refine mode's grant sub-stage) and \`/claude-tweaks:dispatch\`'s own`.
 Line 20: replace `\`/claude-tweaks:triage\`'s original Preflight said "report that grants are not applicable...` with `\`/claude-tweaks:triage\`'s original Preflight (now \`/claude-tweaks:backlog refine\`'s grant sub-stage) said "report that grants are not applicable...` — this line is narrating a past incident (why the canonical pattern was extracted), so keep the historical `/claude-tweaks:triage` name intact and only add the parenthetical pointing at its current location, rather than replacing it outright.
+Line 38 (bare-form, not caught by the command-form grep below — a review of this task found it independently): replace `(e.g. triage: the grant conditions this skill exists to enforce; dispatch: the claim mechanism the protocol depends on)` with `(e.g. backlog refine: the grant conditions this skill exists to enforce; dispatch: the claim mechanism the protocol depends on)`.
+Line 53 (a literal dead path — `skills/triage/SKILL.md` no longer exists after Task 8's deletion, not caught by the command-form grep below either): replace `See \`skills/triage/SKILL.md\` and \`skills/dispatch/SKILL.md\`'s own Preflight sections for two worked instances of this pattern applied to genuinely different skill-specific reasons.` with `See \`skills/backlog/SKILL.md\` and \`skills/dispatch/SKILL.md\`'s own Preflight sections for two worked instances of this pattern applied to genuinely different skill-specific reasons.`
 
 - [ ] **Step 8: Verify**
 
 Run: `grep -rn "claude-tweaks:triage\|claude-tweaks:review-backlog" skills/_shared/github-pr-scan.md skills/_shared/pipeline-run-dir.md skills/_shared/auto-mode-contract.md skills/_shared/auto-decision-log.md skills/_shared/label-bootstrap.md skills/_shared/issue-claims.md skills/_shared/local-files-preflight-stop.md`
-Expected: no matches, except the deliberately-preserved historical mention in `local-files-preflight-stop.md` line 20 (confirm that one line is the only surviving hit, if any).
+Expected: no matches, except the deliberately-preserved historical mention in `local-files-preflight-stop.md` line 20 (confirm that one line is the only surviving hit, if any). This command-form grep does NOT catch bare-form (`triage:`) or dead-path (`skills/triage/SKILL.md`) references like the ones fixed on lines 38 and 53 above — those were caught by manual inspection during this task's own review, not by this grep. Run a second check specifically for path-form staleness: `grep -n "skills/triage/\|skills/review-backlog/" skills/_shared/local-files-preflight-stop.md` — expected: no matches.
 
 - [ ] **Step 9: Commit**
 
@@ -1312,6 +1314,17 @@ grep -rln "\`/triage\`\|\`/review-backlog\`" --include="*.md" --include="*.yml" 
 ```
 
 Expected: no matches. If any surface, apply the same rename pattern established in Tasks 9-15 (map to `/claude-tweaks:backlog refine` or `/claude-tweaks:backlog overview` per the specific behavior being described, following this plan's Global Constraints correction note for anything touching the `unsynced` fold-in).
+
+- [ ] **Step 4.5: Dead-path sweep (added after Task 9's review caught one this pattern would have missed)**
+
+Neither Step 1's command-form grep nor Step 4's backtick-bare-form grep catches a literal file-path reference like `skills/triage/SKILL.md` or `skills/review-backlog/SKILL.md` — both now dead paths after Task 8's deletion. Task 9's own review found exactly this shape in `skills/_shared/local-files-preflight-stop.md` (already fixed there), but no task in this plan was specifically tasked with a repo-wide sweep for this pattern — run one now:
+
+```bash
+grep -rln "skills/triage/\|skills/review-backlog/" --include="*.md" --include="*.yml" --include="*.yaml" --include="*.json" . \
+  | grep -vE '^(docs/superpowers/plans|docs/superpowers/specs|specs|\.claude-tweaks/pipelines/archive|docs/decisions|docs/github-issues-integration-review\.md|CHANGELOG\.md)'
+```
+
+Expected: no matches. If any surface, replace the dead path with the equivalent `skills/backlog/` file (`SKILL.md` for preflight/frontmatter/relationship content, `refine-mode.md` for grant/priority/related workflow content, `overview-mode.md` for distribution/recommendation content — judge which by what the surrounding sentence is actually pointing a reader at, the same judgment call already made for `local-files-preflight-stop.md`'s line 53).
 
 - [ ] **Step 5: No commit needed — this task is pure verification**
 
