@@ -119,8 +119,8 @@ See `_shared/pipeline-run-dir.md` for the resolution order and bash snippet. If 
 
 ## Numbering rules
 
-- The console has **up to seven named batch sections** — Auto-applied, Pending review, Low-confidence findings, Contested findings, Skill updates, Configuration updates, Cleanup actions (the two coordination-derived sections render only when non-empty — see `wrap-up/SKILL.md`'s own "up to seven sections" summary of this same console). Together they use a **single global sequence** starting at #1: every row across every present section has a unique number, with no restart between sections.
-- Queue writes is an eighth, separate section. It uses its own **`Q`-prefixed sequence** (`Q1`, `Q2`, …) because those items require per-item approval and are NOT part of the global "Approve all" choice — it is never counted into the seven batch sections above.
+- The console has **up to nine named batch sections** — Auto-applied, Pending review, Low-confidence findings, Contested findings, Skill updates, Documentation updates, Journey updates, Configuration updates, Cleanup actions (the two coordination-derived sections — Low-confidence findings, Contested findings — render only when non-empty — see `wrap-up/SKILL.md`'s own "up to nine sections" summary of this same console). Together they use a **single global sequence** starting at #1: every row across every present section has a unique number, with no restart between sections.
+- Queue writes is a tenth, separate section. It uses its own **`Q`-prefixed sequence** (`Q1`, `Q2`, …) because those items require per-item approval and are NOT part of the global "Approve all" choice — it is never counted into the nine batch sections above.
 - This applies to both the example below and any real Console output. Do not restart numbering within the global sequence.
 
 ## Unattended-tier auto-file (runs before rendering)
@@ -152,7 +152,7 @@ Queue writes below — do not drop it.
 ```markdown
 ### Wrap-Up Review Console
 
-The pipeline auto-resolved {N} decisions and staged {M} items for your review. The named batch sections below resolve via one batch choice; Queue writes (a separate, eighth section) require per-item approval because `_shared/auto-mode-contract.md` lists work-record creation as not-silenced by `auto`.
+The pipeline auto-resolved {N} decisions and staged {M} items for your review. The named batch sections below resolve via one batch choice; Queue writes (a separate, tenth section) require per-item approval because `_shared/auto-mode-contract.md` lists work-record creation as not-silenced by `auto`.
 
 #### Auto-applied (already in commits — override = revert)
 
@@ -162,6 +162,8 @@ The pipeline auto-resolved {N} decisions and staged {M} items for your review. T
 | 2 | /test | Auto-fixed 4 lint failures | commit `ghi9012` | Applied |
 | 3 | /build | Scope-creep: added src/utils/cache.ts to plan | commit `abc1234` | Applied |
 | 4 | /stories | Applied 2 journey link suggestions | stories/login.yml, stories/logout.yml | Applied |
+
+A `SCANNED` entry (skill curation's scan-summary log line from Step 7, documentation curation's from Step 7.7, or journey curation's from Step 7.8 — see `_shared/auto-decision-log.md`) also renders in this section, but with `Status` = `Informational` and `Where` = the step/location it ran at (no commit ref, since nothing was applied) — there is nothing to revert for these rows.
 
 #### Pending review (staged — apply, skip, or modify per item)
 
@@ -199,12 +201,23 @@ Render this section only when `decisions.md` contains STAGED entries from cross-
 | 11 | auth | Anti-Patterns | Add: "Don't share session tokens via querystring" |
 | 12 | NEW | session-management | Create new skill for session lifecycle patterns |
 
-#### Configuration updates (from Step 6)
+#### Documentation updates (from Step 7.7)
 
 | # | Type | Target | Change |
 |---|---|---|---|
 | 13 | doc | docs/api.md | Document new /auth/refresh endpoint |
-| 14 | claude.md | Commands | Add `npm run lint:fix` to test workflow |
+
+#### Journey updates (from Step 7.8)
+
+| # | Type | Target | Change |
+|---|---|---|---|
+| 14 | journey | docs/journeys/login-flow.md | Origin-coverage check failed: `src/auth/session.ts` in `files:` but not visited by any step |
+
+#### Configuration updates (from Step 6)
+
+| # | Type | Target | Change |
+|---|---|---|---|
+| 15 | claude.md | Commands | Add `npm run lint:fix` to test workflow |
 
 #### Cleanup actions (executed in Step 10 after approval)
 
@@ -212,7 +225,7 @@ Render the cleanup rows from the canonical list in `cleanup-procedures.md`, filt
 
 | # | Type | Action | Details |
 |---|---|---|---|
-| 15 | cleanup | {row from cleanup-procedures.md canonical list} | {details} |
+| 16 | cleanup | {row from cleanup-procedures.md canonical list} | {details} |
 | ... | cleanup | ... | ... |
 
 #### Queue writes — REQUIRES PER-ITEM APPROVAL (not covered by "Approve all")
@@ -261,15 +274,17 @@ None of these three options carries `(Recommended)` — the source text requires
 
 1. Apply all staged patches in `staged/` for items 5–7 (run `git apply` or equivalent for each)
 2. Apply skill updates and create new skills (items 11–12, from Step 7)
-3. Apply config updates (items 13–14: docs, CLAUDE.md, rules)
-4. Execute cleanup actions (items 15–21) — Step 10 picks these up
-5. For each `Q#` queue write, prompt the user per item via its own `AskUserQuestion` call. On Apply (or Edit, after the modification): create the record — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`), reading `Title:`/`Type:`/`Labels:` and the body from the item's staged file (`staged/leftover-{slug}.md` for leftover-routed items; other sources use their own staged-file shape). Skip drops the proposal — log the decline to `decisions.md` with the user's stated reason, or "declined, no reason given" when none was offered.
-6. Commit with a wrap-up message
-7. Proceed to Step 9 (Present Consolidated Summary)
+3. Apply documentation updates (item 13, from Step 7.7) — including any approved missing-doc scaffolding (D2) and restructural docs-health filings (D1)
+4. Apply journey updates (item 14, from Step 7.8) — including any approved missing-journey scaffolding (J2) and self-review fixes (J1)
+5. Apply config updates (item 15: CLAUDE.md, rules, ADRs)
+6. Execute cleanup actions (items 16–22) — Step 10 picks these up
+7. For each `Q#` queue write, prompt the user per item via its own `AskUserQuestion` call. On Apply (or Edit, after the modification): create the record — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`), reading `Title:`/`Type:`/`Labels:` and the body from the item's staged file (`staged/leftover-{slug}.md` for leftover-routed items; other sources use their own staged-file shape). Skip drops the proposal — log the decline to `decisions.md` with the user's stated reason, or "declined, no reason given" when none was offered.
+8. Commit with a wrap-up message
+9. Proceed to Step 9 (Present Consolidated Summary)
 
 ## On override (option 2)
 
-1. Parse the user's overrides for items 1–21
+1. Parse the user's overrides for items 1–22
 2. For each item: apply, skip (delete from staged/), or modify (re-edit the staged patch then apply)
 3. Auto-applied items the user wants reverted: `git revert {commit}` (one revert commit per item, to keep history clean)
 4. Cleanup items the user skipped: leave the target intact (spec/plan/worktree stays)
@@ -286,6 +301,6 @@ If `decisions.md` has zero entries AND `staged/` is empty AND there are no skill
 
 ## Hard requirements
 
-- The console MUST present every entry from `decisions.md` (auto-applied + staged + kept-prompt), every file in `staged/`, every cleanup action that would otherwise run in Step 10, and every queue-write proposal. Silently dropping any item is forbidden.
+- The console MUST present every entry from `decisions.md` (auto-applied + staged + kept-prompt + scanned), every file in `staged/`, every cleanup action that would otherwise run in Step 10, and every queue-write proposal. Silently dropping any item is forbidden.
 - **Sort order within each section:** reversibility:low first (highest-stakes revert), then reversibility:med, then reversibility:high. Within the same reversibility, severity:high first.
 - **Queue writes are per-item only.** Never group them under "Approve all" — this enforces the contract's not-silenced rule for work-record creation.

@@ -147,7 +147,7 @@ For the target (or, for wrap-up/init, each skill in their own read set), apply t
 | **5. Anti-pattern gaps** | Has the codebase revealed new anti-patterns worth documenting? | ✓ | — | ✓ (Don'ts) |
 | **6. Decision framework completeness** | Does the Decision Framework cover the choices the codebase actually makes? | ✓ | — | rarely (only if the project's CLAUDE.md happens to have one) |
 | **7. Template/structural conformance** (new) | Does this artifact still match the structure its own generator established? | ✓ (CLAUDE.md's own "SKILL.md structure" convention + `skills/init/skill-template.md`) | ✓ (`skills/init/rules-template.md`'s frontmatter shape) | ✓ (`skills/init/claude-md-template.md`'s "Principles" — 150-line budget, observed-not-aspirational, required sections, Working Approach present verbatim) |
-| **8. Best-practice/harness-performance fit** (new) | Does it follow known practices for getting an LLM harness to perform well (clear triggers, no cross-skill overlap, right-sized scope, concision)? | ✓ (`superpowers:writing-skills`) | ✓ (`skills/init/rules-template.md`'s own "path-specific only; project-wide belongs in CLAUDE.md" guidance — a suspiciously broad glob should be a CLAUDE.md convention instead) | ✓ (`skills/init/claude-md-template.md`'s Principles, same source as dimension 7 for this kind) |
+| **8. Best-practice/harness-performance fit** (new) | Does it follow known practices for getting an LLM harness to perform well (clear triggers, no cross-skill overlap, right-sized scope, concision)? | ✓ (`superpowers:writing-skills`; the mechanical cross-skill-overlap/right-sized-scope check now lives in `skills/harness-health/library-shape-analysis.md`'s periodic pass, not this dimension directly) | ✓ (`skills/init/rules-template.md`'s own "path-specific only; project-wide belongs in CLAUDE.md" guidance — a suspiciously broad glob should be a CLAUDE.md convention instead) | ✓ (`skills/init/claude-md-template.md`'s Principles, same source as dimension 7 for this kind) |
 
 For rules and CLAUDE.md, dimensions 7 and 8 read from the *same* origin-template file — for those two kinds the structural template and the best-practice guidance are the same document, since the project's own author already encoded best-practice judgment into the template. Read these templates **live** each time, not from a frozen copy of their content — a future tightening of `skill-template.md`/`rules-template.md`/`claude-md-template.md` is picked up automatically by every subsequent audit.
 
@@ -201,6 +201,7 @@ Independent of any specific target's audit, look for a **cohesive** set of files
 - A new top-level directory with 3+ files sharing a naming convention (e.g. `*.queue.js`, `*Repository.ts`).
 - A recurring import combination (the same 2+ modules imported together) appearing in 3+ files with no matching skill.
 - A commit-message keyword or phrase recurring across 3+ commits, none of which are covered by an existing skill's domain.
+- A single new file/module reused (imported/called) from 2+ other files, where the reused interface is itself non-trivial (2+ exported functions/methods, or a documented options/config surface — not a one-line wrapper). A module with a single call site, however well-designed, does not qualify under this signal — there is no softer "clearly designed for reuse" alternate clause, to keep this signal as mechanically anchored as the other three.
 
 ## Step 4: New-Skill Qualification Gate
 
@@ -211,6 +212,12 @@ Evaluate each gap candidate (from Step 3, or seeded by a caller — e.g. wrap-up
 3. **Project-specific** — the pattern is specific to this project, not generic best practice.
 
 **Propose the candidate when at least 2 of the 3 criteria are clearly met.** A candidate meeting all three is a strong recommendation; one meeting exactly two is proposed for human review. A candidate meeting ≤1 criterion is dropped — note which criteria were missing so the decision is auditable.
+
+**Fold-into-existing-skill branch (ordering, explicit).** This gate runs first, unchanged, exactly as above — a candidate that fails it (≤1 criterion met) is dropped outright, full stop; the domain-fit check below never becomes a second path around the gate, and a signal-4-admitted candidate's reusability/complexity/project-specificity criteria must still be judged independently, never assumed satisfied by the fact that signal 4 (Step 3's single-module-reuse signal) admitted it. Only for a candidate that already clears the ≥2-of-3 gate: check whether an existing skill's domain — read that skill's **full body**, not just its frontmatter `description`; a superficial keyword match against a broad or catch-all description is not sufficient evidence of genuine fit — already reasonably covers this territory.
+- **If yes**, propose a `kind: "patch"` to that skill instead of a new file (Finding Shape's `patch` fields: `section`/`oldString`/`newString`).
+- **If no** existing skill's domain fits, propose `kind: "new-skill"` as before.
+
+**Per-consumer domain-fit scope.** The domain-fit check's comparison scope differs by which of the three consumers (see the table at the top of this file) is running it: `/claude-tweaks:wrap-up` Step 7 already has a bounded read set (7.2's top-cap ∪ seeds) to check the candidate against — reuse it, no extra reads needed. Standalone `/claude-tweaks:harness-health` and `/claude-tweaks:init` Phase 3/6 have no equivalent pre-bounded skill list for this check — for those two, scan the full skill library's frontmatter `description` fields (a cheap scan, not a full-body read for every skill), then read the full body only of any skill whose description plausibly matches before deciding fit.
 
 ## Step 5: Verify Gate (adversarial, before staging)
 

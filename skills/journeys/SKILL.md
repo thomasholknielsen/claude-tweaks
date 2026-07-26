@@ -60,7 +60,14 @@ Otherwise, analyze what was built and identify journeys it enables or modifies �
 1. **Resolve scope** — from arguments, parent context, or git diff
 2. **Scan existing journeys** — read `docs/journeys/*.md` to see if any existing journey includes pages, flows, features, CLI commands, or APIs that were just built or changed
 3. **Identify new journeys** — if the work introduces a new flow for any persona that doesn't map to an existing journey, a new journey file is needed
-4. **No interaction surface** — if the work has no flow impact for any persona (pure internal refactor, library-only changes with no behavioral shift), report "No user-facing journeys affected" and stop
+4. **Evidence checklist before concluding "no interaction surface"** — before reporting "No user-facing journeys affected" and stopping, check the diff against these 3 signals. Any single hit (OR, not AND across all three) disqualifies that conclusion:
+   - **Signal 1 — Direct invocation surface:** does the diff touch a route/page/API endpoint/CLI command/exported function directly invoked by an end user, admin, or developer-user?
+   - **Signal 2 — Observable output:** does the diff change any user-observable output (new field, error message, flag, response shape)?
+   - **Signal 3 — Reachable capability:** does the diff add/remove/rename a capability reachable without reading source (a slash command, a CLI subcommand, a UI element)?
+
+   **No signal fires** → report "No user-facing journeys affected" and stop.
+
+   **Any signal fires** → the "no interaction surface" conclusion is disqualified. Re-examine items 2-3 above (the existing-journey scan and new-journey-need assessment) specifically in light of the fired signal(s) — don't let their earlier pass stand unquestioned. If that re-examination still concludes no journey update is warranted, log a one-line rationale citing which signal(s) fired and why the resulting change genuinely has no persona-visible effect worth documenting (e.g. "signal 1 fired — touches CLI command X, but X's behavior is unchanged, only an internal refactor of its implementation") before reporting "No user-facing journeys affected" — a disqualified case still needs its own evidence-anchored conclusion, not a silent return to the old unanchored judgment call.
 
 ## Step 2: Create New Journey Files
 
@@ -80,7 +87,7 @@ If the work modifies or extends an existing journey:
 
 Before committing, look at the journey file(s) with fresh eyes. Fix issues inline — no subagent.
 
-Apply the four checks and the structural-validity check in `_shared/journey-self-review.md` (shared with `/claude-tweaks:journey-health`'s audit-time check).
+Apply the four checks and the structural-validity check in `_shared/journey-self-review.md` (shared with `/claude-tweaks:journey-health`'s audit-time check and `/claude-tweaks:wrap-up` Step 7.8's wrap-up-time check).
 
 **Decision gate:** make one fix attempt per issue. Issues that remain after one fix attempt route by mode:
 
@@ -184,6 +191,7 @@ This skill is a **component skill** — invoked by `/claude-tweaks:build` (Commo
 | Pattern | Why It Fails |
 |---------|-------------|
 | Skipping journey capture for features with an interaction surface | Journeys are what visual review tests against — no journey means no QA anchor. This applies to all personas: end users, admins, developers, internal tooling users. |
+| Concluding "no interaction surface" without checking the 3-signal evidence checklist | An unanchored holistic judgment call produced zero true positives across this project's entire history (`docs/journeys/` never existed) despite the persona list explicitly including developers and internal tooling users — Step 1 item 4's checklist exists precisely so the conclusion is evidence-anchored, not a vibe call |
 | Writing journeys with vague "should feel" | "Good" and "intuitive" are not testable. "Low commitment" and "like an accomplishment" are. |
 | Writing a journey with no `## Steps` heading | Step 3.5 self-review BLOCKs on structurally-invalid journey files — missing `## Steps` is the most common cause. Always render the heading even if the step list is short. |
 | Asking the user whether to create a journey | Journey capture is automatic. The user didn't know they needed the spec either — that's why the workflow exists. |
@@ -205,6 +213,7 @@ This skill is a **component skill** — invoked by `/claude-tweaks:build` (Commo
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |
 | `_shared/auto-decision-log.md` | Canonical schema and path for the auto-decision log written in Step 3.5 (`{run-dir}/decisions.md` under `## /journeys`). |
 | `/claude-tweaks:journey-health` | Applies the same `_shared/journey-self-review.md` checks at audit time, on journeys nobody has touched recently. Never edits — files a GitHub issue instead of the fix-inline/stage/BLOCK routing this skill uses. |
-| `_shared/journey-self-review.md` | Canonical four-check + structural-validity criteria Step 3.5 applies — shared with `/claude-tweaks:journey-health`'s audit-time check. |
+| `/claude-tweaks:wrap-up` | Step 7.8 applies the same `_shared/journey-self-review.md` checks inline to journeys whose `files:` frontmatter overlaps the just-completed work's diff (see `journey-curation.md` in that skill's directory), and separately detects a persona-facing flow with zero journey coverage — the same reuse pattern `/wrap-up` Step 7 applies to `_shared/harness-health-analysis.md` and Step 7.7 applies to `_shared/criteria-docs-diataxis.md`. |
+| `_shared/journey-self-review.md` | Canonical four-check + structural-validity criteria Step 3.5 applies — shared with `/claude-tweaks:journey-health`'s audit-time check and `/claude-tweaks:wrap-up` Step 7.8's wrap-up-time check. |
 | `/claude-tweaks:visualize` | Step 3.6 suggests invoking this skill when journey signals match (multi-persona → swimlane, decision branches → flowchart, multi-actor → sequence). Gated by `diagram-suggestions: enabled` in CLAUDE.md (written by `/init` Step 11). |
 | `_shared/subagent-output-contract.md` | The Working-Directory Discipline rule referenced by Step 4 commit lives here (CWD anchoring before `git`). |

@@ -37,7 +37,7 @@ If the multi-spec run aborted early (one spec hit a HARD-GATE), still render the
 
 ## Numbering rules
 
-Rows across Auto-applied through Translated briefs use a single global sequence starting at #1 (mirrors `wrap-up/review-console.md`). Queue writes use a separate `Q`-prefixed sequence (`Q1`, `Q2`, …) — aggregated across every spec's staged record-proposal files (`staged/leftover-*.md`, `staged/ledger-record-*.md`, or any staged file carrying a `Title:`/`Type:`/`Labels:` header) plus the parent run dir's own — because those items require per-item approval and are not part of the global "Approve all" choice, exactly as `wrap-up/review-console.md`'s Queue writes section (an eighth, separate section there, never counted into its seven named batch sections). Do not restart either sequence per spec or per section.
+Rows across Auto-applied through Translated briefs use a single global sequence starting at #1 (mirrors `wrap-up/review-console.md`). Queue writes use a separate `Q`-prefixed sequence (`Q1`, `Q2`, …) — aggregated across every spec's staged record-proposal files (`staged/leftover-*.md`, `staged/ledger-record-*.md`, or any staged file carrying a `Title:`/`Type:`/`Labels:` header) plus the parent run dir's own — because those items require per-item approval and are not part of the global "Approve all" choice, exactly as `wrap-up/review-console.md`'s Queue writes section (a tenth, separate section there, never counted into its nine named batch sections). Do not restart either sequence per spec or per section.
 
 ## Present the consolidated console
 
@@ -48,13 +48,15 @@ Pipeline complete for specs 157, 159, 160. The pipeline auto-resolved {N} decisi
 
 #### Auto-applied (already in commits — override = revert)
 
-| # | Spec | Skill | What | Where |
-|---|---|---|---|---|
-| 1 | 157 | /review | Applied 3 severity:low formatting fixes | commit `def5678` |
-| 2 | 157 | /test | Auto-fixed 4 lint failures | commit `ghi9012` |
-| 3 | 159 | /build | Scope-creep: added src/utils/cache.ts to plan | commit `abc1234` |
-| 4 | 159 | /review | Applied 2 severity:low naming consistency fixes | commit `jkl4567` |
-| 5 | 160 | /stories | Applied 2 journey link suggestions | stories/login.yml, stories/logout.yml |
+| # | Spec | Skill | What | Where | Status |
+|---|---|---|---|---|---|
+| 1 | 157 | /review | Applied 3 severity:low formatting fixes | commit `def5678` | Applied |
+| 2 | 157 | /test | Auto-fixed 4 lint failures | commit `ghi9012` | Applied |
+| 3 | 159 | /build | Scope-creep: added src/utils/cache.ts to plan | commit `abc1234` | Applied |
+| 4 | 159 | /review | Applied 2 severity:low naming consistency fixes | commit `jkl4567` | Applied |
+| 5 | 160 | /stories | Applied 2 journey link suggestions | stories/login.yml, stories/logout.yml | Applied |
+
+A `SCANNED` entry (skill-curation's scan-summary log line — see `_shared/auto-decision-log.md`) also renders in this section, tagged with its originating spec, but with `Status` = `Informational` and `Where` = the step/location it ran at (no commit ref, since nothing was applied) — there is nothing to revert for these rows.
 
 #### Pending review (staged — apply, skip, or modify per item)
 
@@ -198,10 +200,10 @@ Within each section: reversibility:low first (highest-stakes revert), then rever
 
 ## Hard requirements
 
-- The console MUST present every entry from every per-spec `decisions.md` AND the parent run dir's `decisions.md` (auto-applied + staged + kept-prompt), and every file in every per-spec `staged/` directory and every file in the parent run dir's `staged/`. Silently dropping any item is forbidden.
+- The console MUST present every entry from every per-spec `decisions.md` AND the parent run dir's `decisions.md` (auto-applied + staged + kept-prompt + scanned), and every file in every per-spec `staged/` directory and every file in the parent run dir's `staged/`. Silently dropping any item is forbidden.
 - The `Spec` column is mandatory in every table — the user must be able to trace any row to its originating spec for context.
 - The `Not run` footer is mandatory when any spec was skipped due to a HARD-GATE earlier in the pipeline — those specs' contexts are explicit, not buried.
-- **Queue writes are per-item only.** Never group them under "Approve all," and never batch two `Q#` items (even from different specs) into one `AskUserQuestion` call — this enforces `_shared/auto-mode-contract.md`'s not-silenced rule for work-record creation, the same as `wrap-up/review-console.md`'s Queue writes section (its eighth, separate section).
+- **Queue writes are per-item only.** Never group them under "Approve all," and never batch two `Q#` items (even from different specs) into one `AskUserQuestion` call — this enforces `_shared/auto-mode-contract.md`'s not-silenced rule for work-record creation, the same as `wrap-up/review-console.md`'s Queue writes section (its tenth, separate section).
 
 ## Anti-Patterns
 
@@ -211,4 +213,4 @@ Within each section: reversibility:low first (highest-stakes revert), then rever
 | Aggregating across runs (e.g., yesterday's spec + today's spec in one console) | Each `/flow` invocation has its own parent run dir. The consolidated console is scoped to one `/flow` invocation only. |
 | Omitting the `Spec` column to keep the table narrow | Spec attribution is the whole point of the consolidated view. Wide tables wrap; the column stays. |
 | Replacing per-spec audit trails with a merged `decisions.md` | The per-spec subdirectories are the audit trail. Merging discards the spec attribution and makes archive review harder. The consolidated console *reads* multiple per-spec files; it does not *replace* them. |
-| Bulk-approving queue writes under "Approve all" or "Override" | Work-record creation is never silenced by `auto` (`_shared/auto-mode-contract.md`). Each `Q#` item requires its own `AskUserQuestion` call, aggregated across specs but never grouped — the same contract `wrap-up/review-console.md`'s Queue writes section (its eighth, separate section) enforces for a single-spec run. |
+| Bulk-approving queue writes under "Approve all" or "Override" | Work-record creation is never silenced by `auto` (`_shared/auto-mode-contract.md`). Each `Q#` item requires its own `AskUserQuestion` call, aggregated across specs but never grouped — the same contract `wrap-up/review-console.md`'s Queue writes section (its tenth, separate section) enforces for a single-spec run. |

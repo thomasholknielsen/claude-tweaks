@@ -14,6 +14,14 @@ node_modules/
 .claude-tweaks/pipelines/*/spec-*/*
 !.claude-tweaks/pipelines/*/spec-*/work/
 !.claude-tweaks/pipelines/*/spec-*/work/**
+!.claude-tweaks/pipelines/archive/*/
+.claude-tweaks/pipelines/archive/*/*
+!.claude-tweaks/pipelines/archive/*/work/
+!.claude-tweaks/pipelines/archive/*/work/**
+!.claude-tweaks/pipelines/archive/*/spec-*/
+.claude-tweaks/pipelines/archive/*/spec-*/*
+!.claude-tweaks/pipelines/archive/*/spec-*/work/
+!.claude-tweaks/pipelines/archive/*/spec-*/work/**
 .claude-tweaks/research/
 .claude-tweaks/recon/
 .claude-tweaks/code-health/

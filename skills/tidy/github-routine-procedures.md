@@ -34,7 +34,27 @@ AUTO 03:14:09 — Step 6 (evidence tier): removed `parked` label from issue #142
 Every Standalone-auto `--scope=github` firing updates one rolling digest artifact in place — never creates a new one per firing.
 
 **Identity:**
-- `work-backend: github-issues` (or any project with a reachable GitHub remote, regardless of which record-storage backend is active — this is about where the digest lives, not the record-storage choice): find the digest issue via `gh issue list --search "Tidy GitHub-Triage Digest in:title" --state open --json number,title,body`, then confirm the match by checking its body contains the exact marker `<!-- tidy-digest-marker -->` (title alone is not sufficient — do not match on title only). If found, `gh issue edit {n} --body-file <file>`. If not found (first-ever firing, or the issue was manually closed), `gh issue create --title "Tidy GitHub-Triage Digest" --body-file <file>` once.
+- `work-backend: github-issues` (or any project with a reachable GitHub remote, regardless of which record-storage backend is active — this is about where the digest lives, not the record-storage choice): find the digest issue via a plain, strongly-consistent list — never `gh issue list --search`, which rides GitHub's eventually-consistent search index (this produced three separate duplicate digest issues in production before this fix — #1016, #1079, #1089) and, without an explicit `--limit`, can also silently paginate past the target issue on a busy repo. `specify/record-creation.md`'s Idempotency section documents and avoids this identical anti-pattern; this step now follows the same idiom:
+
+  ```bash
+  gh issue list --state open --json number,title,body,createdAt --limit 500 > /tmp/tidy-digest-issues.json
+  DIGEST_RAW_COUNT=$(node -e "console.log(require('/tmp/tidy-digest-issues.json').length)")
+  if [ "$DIGEST_RAW_COUNT" -ge 500 ]; then
+    echo "Warning: the digest lookup pull returned exactly the --limit cap (500) — this repo may have more than 500 open issues, and gh issue list returns newest-first, so the digest issue (old, edited in place rather than recreated) could fall outside this window and be missed. Consider narrowing this lookup (e.g. a dedicated label) if this warning appears." >&2
+  fi
+
+  rm -f /tmp/tidy-digest-lookup.json
+  node -e "
+    const { findByMarker } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/dedup-lookup.js');
+    const issues = require('/tmp/tidy-digest-issues.json');
+    const result = findByMarker(issues, '<!-- tidy-digest-marker -->');
+    require('fs').writeFileSync('/tmp/tidy-digest-lookup.json', JSON.stringify(result));
+  "
+  ```
+
+  Read `/tmp/tidy-digest-lookup.json`:
+  - `null` (first-ever firing, or the issue was manually closed): `gh issue create --title "Tidy GitHub-Triage Digest" --body-file <file>` once.
+  - Otherwise (`canonical` is set — a match was found): if `duplicates` is non-empty (however that happened — this is the hedge, not the expected path; the same self-heal pattern `dispatch/SKILL.md`'s headless self-report uses), close every entry *before* touching `canonical` — `gh issue close {n} --reason "not planned"` with a comment `` "Duplicate of #{canonical.number} — same `<!-- tidy-digest-marker -->` match, closing to restore the rolling-digest invariant of one issue per repo." `` (the marker is backtick-quoted inside the comment so it renders as visible text on GitHub instead of a hidden HTML comment) — then log one line per closed duplicate to this firing's `decisions.md`: `AUTO {time} — Step 6 (rolling digest): closed duplicate issue #{n} (marker match with canonical #{canonical.number}). Reversibility: low (GitHub state; issue can be manually re-opened).` This keeps the "one issue, always" invariant true even if a future firing's lookup ever fails in some way this fix didn't anticipate — the accumulation this bug originally caused stays bounded to one extra firing cycle instead of growing forever. Whether or not any duplicates were found, then `gh issue edit {canonical.number} --body-file <file>`.
 - `work-backend: local-files` with no reachable GitHub remote: rewrite `.claude-tweaks/tidy-digest.md` in place and commit it.
 
 **Structure**, exactly four sections in this order:

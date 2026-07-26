@@ -75,7 +75,7 @@ autonomously.
 
 `work-backend: local-files` needs no probe on any of these rows — its
 `work-types: labels` / `work-links: body-text` fallback is unconditional, the same
-as bootstrap Step 15b.
+as bootstrap Step 16b.
 
 ### Maturity Drift
 

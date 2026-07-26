@@ -231,7 +231,7 @@ When migrating from a versioned path, announce: "Migrating to wrapper at `<wrapp
 
 ## Optional Enhancement Steps
 
-Order-agnostic and append-only — each step below is an independent "detect condition → offer → write artifact → idempotent" companion integration. New enhancements are added at the end of this group; no renumbering is needed for future additions. One narrow exception: Step 9's native-Type mention reads a config key (`work-types`) that only Step 15 writes — see Step 9's own note for how it handles running before Step 15 on a fresh bootstrap.
+Order-agnostic and append-only by default — most steps in this group are independent "detect condition → offer → write artifact → idempotent" companion integrations with no dependency on each other's order, so a new one is normally added at the end with no renumbering. Step 13 (Cloud/Routine Parity Setup) is the one deliberate exception: it must run before Step 14 (Routine Installation) — a Routine created before cloud/plugin parity is set up would silently fail its first cloud firing — so it was inserted with a full renumbering of Steps 13-15 → 14-16 rather than appended. Future additions default back to append-only unless they have the same kind of genuine ordering dependency on an earlier step. One further narrow exception: Step 9's native-Type mention reads a config key (`work-types`) that only Step 16 writes — see Step 9's own note for how it handles running before Step 16 on a fresh bootstrap.
 
 ### Step 9 — GitHub issue form template (agent-task)
 
@@ -255,10 +255,10 @@ When this project's `work-types` config key reads `native`, mention to the user 
 filed issue can also carry a native Type — GitHub's own Type picker in the create-issue UI
 sits alongside this form (it is not a templated YAML field below), so a filer sets Type
 there directly instead of a filing skill inferring it from prose afterward. `work-types`
-is only ever written by Step 15's capability probe, so on a fresh bootstrap run (where
-this step executes before Step 15 in the file's presented order) it is still unset when
+is only ever written by Step 16's capability probe, so on a fresh bootstrap run (where
+this step executes before Step 16 in the file's presented order) it is still unset when
 Step 9 runs — the template-install offer itself proceeds regardless (it doesn't depend on
-Type), but defer this specific mention: re-check `work-types` once Step 15 completes and
+Type), but defer this specific mention: re-check `work-types` once Step 16 completes and
 surface the native-Type note then as a short addendum, not a repeat of the whole offer. On
 an `/init update` re-run, `work-types` is already set from a prior run, so this step can
 check and mention it inline as written, with no deferral needed.
@@ -561,7 +561,106 @@ the honestly-reached partial state) rather than aborting the rest of bootstrap.
 
 ---
 
-### Step 13 — Routine Installation (detailed procedure)
+### Step 13 — Cloud/Routine Parity Setup (detailed procedure)
+
+Cloud sessions (claude.ai/code) and scheduled Routines run in fresh sandboxes with no access to this machine's local `~/.claude` config — they only see plugins declared in the **project-level** `.claude/settings.json#enabledPlugins` (paired with any custom marketplace under `extraKnownMarketplaces`). A project that never declares this has full local capability but silently loses claude-tweaks (and everything it depends on) the moment someone opens a cloud session or fires a scheduled Routine against it.
+
+**Gate:** run the same GHE-safe two-tier check Step 9 uses (`gh repo view --json owner,name` when `gh` is available and authenticated, else `git remote get-url origin` exits 0). No remote → skip this step silently.
+
+**Branch check.** Resolve the repo's actual GitHub default branch: when `gh` is available and authenticated, `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`; otherwise fall back to `git remote show origin` and read its `HEAD branch:` line (the same technique `_shared/routine-template-schema.md`'s standard prompt preamble already uses to resolve a target branch). Compare it against the current branch (`git branch --show-current`). If neither source resolves a default branch, skip this check silently rather than guessing — everything below still runs. If they differ, this doesn't block the step, but print an explicit warning before continuing to Detect: `"This project's default branch is '{default}', but you're currently on '{current}'. Cloud sessions and scheduled Routines check out '{default}' — the plugin declarations and script this step is about to write won't take effect for cloud/Routines until this branch merges into '{default}'."` This check runs on every invocation of this step, including a re-run where the Idempotency behavior below skips the settings.json portion — the branch can change between runs even when the declared plugins haven't.
+
+**Detect.** Read the current project's `.claude/settings.json` (treat as `{}` if the file doesn't exist yet) — get `enabledPlugins` and `extraKnownMarketplaces`, each defaulting to `{}` if absent. Read `~/.claude/settings.json` (user-level) the same way. `claude-tweaks@claude-tweaks-marketplace` and `superpowers@claude-plugins-official` are this step's two hard requirements — always candidates for declaration, regardless of whether they appear in the user-level file (this session is running *as* claude-tweaks, so its own identity and its hard dependency are always known). Any other key present in the user-level `enabledPlugins` that is **not** already a key in the project-level `enabledPlugins` is a mirror candidate — read straight from the JSON keys (already fully-qualified `name@marketplace` strings), no CLI-output parsing needed.
+
+**Present.** Call `AskUserQuestion` with a batch table, per this repo's Multi-item Decisions convention:
+
+- `question`: `"Declare these plugins for cloud sessions and Routines? Cloud sandboxes only see what's declared in this project's own .claude/settings.json — not your local machine's config."`, `header`: `"Cloud parity"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"Declare claude-tweaks + superpowers, plus mirror {N} other locally-enabled plugin(s): {list}."` (omit the "plus mirror..." clause entirely when there are no mirror candidates — just "Declare claude-tweaks + superpowers.")
+- Option 2 — `label`: `"Override specific items"`, `description`: `"Choose which of the {N} candidates above to declare — claude-tweaks and superpowers are always included."`
+- Option 3 — `label`: `"Skip entirely"`, `description`: `"Don't touch .claude/settings.json — I'll configure cloud parity myself later."`
+
+When there are zero mirror candidates, this still renders (never silently auto-applied — matches Step 8's "always prompt before wiring a settings file" precedent), with Option 1's description reduced to the two hard deps only. On "Override specific items," follow up with the two candidates that are always-included stated plainly, then a `multiSelect: true` `AskUserQuestion` listing only the mirror candidates for the user to pick from.
+
+**Apply.** On any outcome except "Skip entirely": merge the project's `.claude/settings.json` — preserve every existing key untouched (same non-destructive merge Step 8 uses for `~/.claude/settings.json`'s `statusLine` key), add `claude-tweaks@claude-tweaks-marketplace: true` and `superpowers@claude-plugins-official: true` under `enabledPlugins`, plus one `true` entry per selected mirror candidate. For `extraKnownMarketplaces`: always ensure a `claude-tweaks-marketplace` entry —
+
+```json
+"claude-tweaks-marketplace": {
+  "source": {
+    "source": "github",
+    "repo": "thomasholknielsen/claude-tweaks-marketplace"
+  }
+}
+```
+
+— and for each mirrored plugin whose marketplace isn't `claude-plugins-official` (Anthropic's own official marketplace needs no explicit registration), copy that marketplace's source definition from the user-level `~/.claude/settings.json#extraKnownMarketplaces` into the project-level file, keyed the same way.
+
+**Generate `scripts/claude-cloud-setup.sh`** — always regenerated in full (never appended to or hand-merged):
+
+```bash
+#!/usr/bin/env bash
+# Generated by claude-tweaks /init (Step 13 — Cloud/Routine Parity Setup).
+# Regenerated in full on every /init run from .claude/settings.json — do not hand-edit;
+# customize by changing enabledPlugins/extraKnownMarketplaces instead, then re-run /init.
+#
+# Paste `bash scripts/claude-cloud-setup.sh` into this project's claude.ai/code environment
+# Setup script field (environment settings, web UI only — no API sets this remotely) so
+# cloud sessions and scheduled Routines get the same plugins available locally.
+# See CLAUDE.md's "Cloud parity" section for why this exists and what it doesn't cover.
+set -euo pipefail
+
+# Marketplaces referenced below that Claude Code doesn't already know by name.
+claude plugin marketplace add thomasholknielsen/claude-tweaks-marketplace 2>/dev/null || true
+# (one additional `claude plugin marketplace add <org>/<repo> 2>/dev/null || true` line
+# per mirrored plugin's marketplace, sourced from that marketplace's `source.repo` field
+# in extraKnownMarketplaces — omit for `claude-plugins-official`, which needs no add call)
+
+# Plugins declared in .claude/settings.json#enabledPlugins.
+claude plugin install claude-tweaks@claude-tweaks-marketplace --scope project
+claude plugin install superpowers@claude-plugins-official --scope project
+# (one additional `claude plugin install <name>@<marketplace> --scope project` line per
+# mirrored plugin, in the same order enabledPlugins lists them)
+
+# agent-browser — required in the cloud sandbox for /browse-dependent skills
+# (/stories, /visual-review, /review, qa-agent, /flow) to work in cloud sessions.
+npm install -g agent-browser
+```
+
+Write this to `scripts/claude-cloud-setup.sh` in the project root, creating the `scripts/` directory if it doesn't exist. `2>/dev/null || true` on the marketplace-add lines only — a duplicate-add is the expected no-op case on a re-run; the `plugin install`/`npm install` lines are left unguarded so a real failure surfaces loudly within the Setup script's own ~5-minute budget, rather than being silently swallowed.
+
+**Write/update the `## Cloud parity` CLAUDE.md section** — add near the other project-level config sections (same "add or update a section" idiom Step 10 uses for `## Design integration`):
+
+```markdown
+## Cloud parity
+
+Cloud sessions (claude.ai/code) and scheduled Routines run in fresh sandboxes with no
+access to this machine's local ~/.claude config — they only see plugins declared in this
+project's own .claude/settings.json#enabledPlugins (paired with any custom marketplace
+under extraKnownMarketplaces).
+
+- **Setup script:** paste `bash scripts/claude-cloud-setup.sh` into this project's cloud
+  environment's Setup script field (claude.ai/code environment settings, web UI only — no
+  API/CLI can set this remotely). Installs every declared plugin/marketplace plus
+  `agent-browser`. Regenerated by `/claude-tweaks:init`; don't hand-edit it.
+- **Branch:** cloud sessions check out the environment's configured branch (typically this
+  repo's actual GitHub default branch) — confirm it's the branch these plugin declarations
+  actually landed on, especially if your team develops primarily on a non-default branch.
+- **First exposure:** a plugin newly declared for cloud can show as installed
+  (`claude plugin list --json`) while its skills/MCP tools are still uninvocable in that
+  very first cloud session — observed to self-heal one session later, no config fix needed.
+- **MCP servers:** this project's committed .mcp.json is what cloud sessions see. Any MCP
+  server configured only in your local ~/.claude.json won't reach cloud — review those
+  individually if cloud parity matters for them (server configs can carry credentials, so
+  this is never auto-copied).
+```
+
+**MCP-parity note (report-only, no write).** Read the current project's `.mcp.json` if it exists (top-level `mcpServers` object — the same key Claude Code's own project-MCP convention uses; verify this against the actual file content before relying on it, since it may vary). Read `~/.claude.json`'s own `mcpServers` object the same way, verifying its actual shape directly rather than assuming — this file's structure hasn't been previously confirmed by this plugin. For every server name present in the local file but absent from the project's `.mcp.json`, print one line: `"{N} MCP server(s) configured locally aren't available to cloud sessions: {names}. If any should be, add them to .mcp.json yourself — server configs can contain credentials, so this is never done automatically."` Print nothing when there's no local-only server, or when `~/.claude.json` has no `mcpServers` key at all.
+
+**Idempotency / re-run behavior.** On a re-run where the project's `.claude/settings.json` already declares both hard deps and there are no new local-only mirror candidates: skip the `AskUserQuestion` prompt, report "Cloud parity: already configured" under Phase 9's Verified & Consistent section, and still regenerate `scripts/claude-cloud-setup.sh` silently (its content is fully derived, so silent regeneration can't lose anything) — but only re-render the CLAUDE.md section if it's missing or doesn't already contain the four bullet labels above (Setup script / Branch / First exposure / MCP servers), to avoid a spurious rewrite on every run.
+
+**Failure handling.** Malformed `.claude/settings.json` (fails to parse as JSON) → report it and skip this step entirely rather than risk corrupting it with a merge. A write failure on either generated file → surface the failure and continue the rest of `/init` (same "don't abort on this step's failure" precedent as Step 10's plugin-install failure handling).
+
+---
+
+### Step 14 — Routine Installation (detailed procedure)
 
 claude-tweaks skills can ship one or more routine templates (schema: `skills/_shared/routine-template-schema.md`) — a skill's default template at `skills/{skill}/routine-template.yml`, plus optional named variants at `skills/{skill}/routine-template-<variant>.yml` — each enabling `/claude-tweaks:routine create <skill> [--variant=<name>]` to instantiate a scheduled cloud Routine for this project. Examples: code-health's nightly LLM-as-judge sweep, tidy's periodic backlog hygiene pass, or tidy's frequent GitHub-issue-triage variant. This step surfaces that option right after bootstrap instead of leaving it to be discovered later.
 
@@ -605,7 +704,7 @@ A user who wants a non-default schedule or environment for a specific routine de
 
 ---
 
-### Step 14 — Non-default-branch issue tracking (companion workflow)
+### Step 15 — Non-default-branch issue tracking (companion workflow)
 
 Offer only when the project has a GitHub-flavored remote — same two-tier, GHE-safe gate
 Step 9 uses (`gh repo view` when available, remote-exists fallback otherwise). Check
@@ -658,7 +757,7 @@ the next `/init` run.
 
 ---
 
-### Step 15 — Work-Record Backend (detailed procedure)
+### Step 16 — Work-Record Backend (detailed procedure)
 
 `/claude-tweaks:capture`, `/claude-tweaks:specify`, `/claude-tweaks:triage`,
 `/claude-tweaks:dispatch`, `/claude-tweaks:tidy`, and the health skills
@@ -729,7 +828,7 @@ not rewrite it here — see "Re-run behavior" below for why that rename belongs 
 Update-Mode, offered as a staged change, never applied silently by a Phase 0 pass
 landing on an existing config.
 
-**Sub-step 15b — Capability probe.** Runs immediately after Step 15 writes
+**Sub-step 16b — Capability probe.** Runs immediately after Step 16 writes
 `work-backend` fresh (either branch above) — not on a re-run where the flag was
 already set; see "Re-run behavior" below.
 
@@ -755,7 +854,7 @@ Under `work-backend: local-files`, skip the probe entirely and write
 `work-types: labels` plus `work-links: body-text` directly — those are the only
 expressions a plain file store supports, so there is nothing to detect.
 
-**Sub-step 15c — Label provisioning offer** (`work-backend: github-issues` only).
+**Sub-step 16c — Label provisioning offer** (`work-backend: github-issues` only).
 Call `AskUserQuestion`:
 
 - `question`: `"Provision all core work-record labels now?"`, `header`:
@@ -777,7 +876,7 @@ Call `AskUserQuestion`:
   first appear on GitHub, not whether the system works."`
 
 On option 1, run the check-then-create loop from `_shared/label-bootstrap.md` with
-its canonical `LABELS_JSON`. When `work-types: labels` (per Sub-step 15b's probe
+its canonical `LABELS_JSON`. When `work-types: labels` (per Sub-step 16b's probe
 result), also run the same loop with `record.js`'s `TYPE_LABELS` — the canonical
 `LABELS_JSON` structurally excludes `type:*`, so without this second pass the
 option's "never pays the lazy-create path" promise would be false for Type labels
@@ -798,19 +897,19 @@ re-triage.
 
 **Re-run behavior (keyed to `work-backend`).** When `/init` is re-run on a project
 where `work-backend: github-issues` is already set, this step — including
-sub-steps 15b and 15c — is a no-op; ongoing capability re-probing on an
+sub-steps 16b and 16c — is a no-op; ongoing capability re-probing on an
 already-provisioned project is Update-Mode's job (see `update-mode.md`'s
 Work-Record Backend Drift), not a repeat of this bootstrap step. When
 `work-backend: local-files` is set, re-run the Gate check — if a GitHub remote has
 since become available (the project was local-only at the last `/init` and has
-since been pushed), offer the upgrade path back to `github-issues`, running 15b/15c
+since been pushed), offer the upgrade path back to `github-issues`, running 16b/16c
 as part of that upgrade. When `work-backend` is **missing**, check for the legacy
 `backlog-backend` key first: if present, this is not a fresh-init project — leave
 it untouched and defer to Update-Mode's rename offer (see the Legacy alias note
 above), rather than silently provisioning a second, differently-named section
 beside it. Only when neither key is present does this count as a true fresh init:
 apply the same Gate-based handling described above — silently set `github-issues`
-(running 15b/15c) when the gate succeeds, present the gate-fails prompt otherwise.
+(running 16b/16c) when the gate succeeds, present the gate-fails prompt otherwise.
 
 See `_shared/work-record.md` for the full record taxonomy and config-key table that
 this flag, and the two keys it provisions alongside it, govern.
