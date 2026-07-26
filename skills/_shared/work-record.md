@@ -154,7 +154,7 @@ truth lives elsewhere (the body, the claim ref, the human's judgment). Any consu
 
 Two worked examples:
 
-1. **The gate re-verifies body shape despite `ready`.** `/triage` lists by `ready`, but
+1. **The gate re-verifies body shape despite `ready`.** `/backlog refine` lists by `ready`, but
    before granting it fetches the body and re-checks the spec-shaped definition (below). A
    `ready` label on an unshaped body gets flagged back (remove `ready`, comment why) — the
    label got the record *into the queue*; it never authorizes the grant by itself.
