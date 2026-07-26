@@ -27,5 +27,5 @@ notes: >
   issues are born-ready — each carries risk:<tier>/effort:<tier> labels and the ready
   label already applied at filing time, so they land directly in the authorization
   gate's worklist with no manual tiering step; a human still needs to periodically run
-  bare `/claude-tweaks:triage` to actually authorize (grant auto:build/auto:merge)
+  `/claude-tweaks:backlog refine` to actually authorize (grant auto:build/auto:merge)
   those ready findings for autonomous building.

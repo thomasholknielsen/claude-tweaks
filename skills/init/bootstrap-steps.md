@@ -245,7 +245,7 @@ costs nothing. Check whether `.github/ISSUE_TEMPLATE/agent-task.yml` exists; if 
 offer to install it. The form makes human-filed issues work-record-ready at filing time:
 its three sections (Current State / Deliverables / Acceptance Criteria) are exactly the
 spec-shaped body `_shared/work-record.md` documents — the same three sections
-`/claude-tweaks:triage`'s gate re-verifies before granting authorization and
+`/claude-tweaks:backlog refine`'s gate re-verifies before granting authorization and
 `/claude-tweaks:flow`'s materialization hard gate (`flow/materialize.md`) re-verifies before
 build — so a form-filed issue satisfies both checks with zero translation (GitHub renders
 the form's labels as `###` headings; the structural check treats any heading level as
@@ -759,7 +759,7 @@ the next `/init` run.
 
 ### Step 16 — Work-Record Backend (detailed procedure)
 
-`/claude-tweaks:capture`, `/claude-tweaks:specify`, `/claude-tweaks:triage`,
+`/claude-tweaks:capture`, `/claude-tweaks:specify`, `/claude-tweaks:backlog`,
 `/claude-tweaks:dispatch`, `/claude-tweaks:tidy`, and the health skills
 (`/claude-tweaks:code-health`, `/claude-tweaks:harness-health`,
 `/claude-tweaks:journey-health`) all file, shape, gate, dispatch, or sweep against
@@ -778,7 +778,7 @@ step is where its config keys first get written.
 **When the gate succeeds** (a GitHub-flavored remote is reachable): skip the prompt
 below entirely and go straight to "Write the flag to CLAUDE.md" with
 `work-backend: github-issues`. GitHub issues is the richer, proven path
-(filterable, visible outside the repo, works with `/claude-tweaks:triage` for
+(filterable, visible outside the repo, works with `/claude-tweaks:backlog refine` for
 authorization and headless dispatch) — asking a neutral A/B question when the
 better option is
 unambiguously available is unnecessary friction, not a meaningful decision. A user
@@ -792,8 +792,8 @@ defaulted to option 2 — unchanged from today.
 
 **Call `AskUserQuestion` (gate-fails case only):**
 
-- `question`: `"How should claude-tweaks store work records (captured ideas, specs, and everything /claude-tweaks:triage, /claude-tweaks:dispatch, and /claude-tweaks:tidy act on)?"`, `header`: `"Work-record backend"`, `multiSelect`: `false`
-- Option 1 — `label`: `"GitHub issues (Recommended when a GitHub remote is available)"`, `description`: `"Filterable, visible outside the repo, works with /claude-tweaks:triage for authorization and headless dispatch."`
+- `question`: `"How should claude-tweaks store work records (captured ideas, specs, and everything /claude-tweaks:backlog, /claude-tweaks:dispatch, and /claude-tweaks:tidy act on)?"`, `header`: `"Work-record backend"`, `multiSelect`: `false`
+- Option 1 — `label`: `"GitHub issues (Recommended when a GitHub remote is available)"`, `description`: `"Filterable, visible outside the repo, works with /claude-tweaks:backlog refine for authorization and headless dispatch."`
 - Option 2 — `label`: `"Local record files"`, `description`: `"specs/{id}-{slug}.md, one file per record — no GitHub dependency."`
 
 **Write the flag to CLAUDE.md.** Add (or update) a `## Work records` section:

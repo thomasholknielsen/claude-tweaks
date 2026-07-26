@@ -27,4 +27,4 @@ notes: >
   skills/harness-health/SKILL.md's Routine Configuration section for tuning guidance
   this template doesn't restate. Filed issues carry no tier label and won't progress
   toward autonomous building on their own — a human needs to periodically run bare
-  `/claude-tweaks:triage` (or schedule a triage-adjacent routine) to tier them.
+  `/claude-tweaks:backlog refine` (or schedule a backlog-adjacent routine) to tier them.
