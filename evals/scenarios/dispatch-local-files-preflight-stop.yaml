@@ -1,8 +1,8 @@
 name: dispatch-local-files-preflight-stop
 description: >
   Regression check for the same class of Preflight-boundary violation the
-  triage-permission-matrix-compliance scenario found and fixed in
-  skills/triage/SKILL.md (see .superpowers/sdd/task-9-report.md): does
+  backlog-refine-permission-matrix-compliance scenario found and fixed in
+  skills/backlog/SKILL.md (see .superpowers/sdd/task-9-report.md): does
   /claude-tweaks:dispatch actually stop under work-backend: local-files
   rather than proceeding to claim and build a record that would look
   authorized (grants.build: true, stage: ready) under github-issues?

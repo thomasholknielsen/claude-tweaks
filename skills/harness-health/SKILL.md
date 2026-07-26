@@ -131,7 +131,7 @@ Every harness-health record files onto the unified work record (`skills/_shared/
 
 `new-skill` candidates file with no scoring labels by design — there is no classification-driven
 tier to guess from a kind that carries no scoring evidence. `/claude-tweaks:assess-agent-autonomy`'s
-`grant-check` mode (triage's Step 2) recognizes a `new-skill` finding from its body content
+`grant-check` mode (`backlog refine`'s grant sub-stage) recognizes a `new-skill` finding from its body content
 directly (it reads "**New skill candidate**" with a "Proposed new skill" deliverable) rather than
 depending on a scoring label being present, and can still recommend `auto:build` for a
 well-specified proposal — building the draft autonomously is reasonable, since a human confirms the

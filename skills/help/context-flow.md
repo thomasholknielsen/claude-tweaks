@@ -14,7 +14,7 @@ This design means:
 ## Artifact Flow
 
 ```
-Codebase                     ──→ Findings cache               ──→ Work record (durable)             ──→ Triage grants        ──→ Dispatch claims + builds
+Codebase                     ──→ Findings cache               ──→ Work record (durable)             ──→ Backlog grants       ──→ Dispatch claims + builds
 .claude-tweaks/code-health/      .claude-tweaks/code-health/      Confident: GitHub issue/local record   /claude-tweaks:backlog   /claude-tweaks:dispatch
   /code-health                   cache.json (local) +               (label: by:code-health, born ready)  (auto:build/            → /claude-tweaks:flow #{n}
                                   health-state branch              Low-confidence: backlog record          auto:merge)
