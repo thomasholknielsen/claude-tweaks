@@ -86,8 +86,22 @@ An empty result — an uncommitted/brand-new record — is treated as fresh, not
 `{REPO_ROOT}` resolves via `git rev-parse --show-toplevel` in the dispatcher before the agent
 fires (see Working Directory Discipline in `_shared/subagent-output-contract.md`).
 
+### Threshold resolution
+
+Before computing staleness, read `record-staleness-weeks` from the project's CLAUDE.md (per
+`_shared/work-record.md`'s Config keys table) and export it as `RECORD_STALENESS_WEEKS`; if
+the key is absent, leave the variable unset so each consumer's own `:-4` default applies —
+the same read-with-shell-default pattern this file already uses for `backlog-fetch-limit`
+above. Each consumer's own classification script converts this to milliseconds
+(`weeks * 7 * 24 * 60 * 60 * 1000`) and passes the result as `thresholdMs` to
+`classifyStaleness(ageMs, thresholdMs)` (`bin/lib/issues/record-buckets.js`) — the conversion
+is per-consumer inline code, not part of the shared module itself.
+
 ## See also
 
 - `_shared/work-record.md` — the record taxonomy this fetch's `facets` are parsed against
 - `_shared/github-pr-scan.md` — the analogous shared fragment for PR/issue-state scanning
   (Stage/Step 4.5-4.8), the precedent this file follows
+- `bin/lib/issues/record-buckets.js` — the shared bucket predicates (`isBacklog`, `isParked`,
+  `isBotBlocked`, `isBotInProgress`) and `classifyStaleness`, consumed by every classification
+  step this fetch feeds
