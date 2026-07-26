@@ -39,6 +39,7 @@ const POLICY_KEYS = [
   { key: 'promise-register-min-leaves', type: 'integer', default: 4 },
   { key: 'scope-keywords-required', type: 'boolean', default: false },
   { key: 'section-confirmation', type: 'enum', values: ['adaptive', 'per-section', 'batch'], default: 'adaptive' },
+  { key: 'merge-check', type: 'boolean', default: true },
 ];
 
 // The 8 levers previously generated into CLAUDE.md's "## Auto-mode policy" block.
