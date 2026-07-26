@@ -23,7 +23,7 @@ Conventions skill for browser automation. Defines session naming, screenshot/tra
 - `/claude-tweaks:stories` is exploring a site or validating generated stories against the live DOM
 - `/claude-tweaks:visual-review` is walking pages or journeys for UI quality findings
 - `/claude-tweaks:review` is running its visual or QA modes
-- `/claude-tweaks:demo` opens an on-demand live look at a record's resolved entry point ("Show me live")
+- `/claude-tweaks:demo` opens an on-demand live look at a record's resolved entry point ("See it yourself")
 - A consumer skill needs to dispatch parallel agents that each drive a browser
 - Ad-hoc browser ops — navigate, screenshot, scrape, fill a form, check a deployment
 
@@ -184,4 +184,4 @@ Call `AskUserQuestion`:
 | `/claude-tweaks:research` | Both utility skills (no fixed lifecycle position). `/browse` is interactive browser automation; `/research` is autonomous multi-source web research. |
 | `/claude-tweaks:flow` | `/flow` invokes `/review` in full mode by default, which transitively drives `/visual-review` and `/browse` for the browser portion. Browser availability detected at `/flow` startup determines whether visual review runs. |
 | `/claude-tweaks:help` | `/help` lists `/browse` in the utility skills table and surfaces availability when scanning for browser-dependent recommendations. |
-| `/claude-tweaks:demo` | `/demo`'s "Show me live" option (Step 3) opens an on-demand `agent-browser` session at a record's resolved entry point, following /browse's session-naming and lifecycle conventions directly — not a workflow-step invocation, the same relationship `/visual-review` has with `/browse`. |
+| `/claude-tweaks:demo` | `/demo`'s "See it yourself" option (Step 2) opens an on-demand `agent-browser` session at a record's resolved entry point, following /browse's session-naming and lifecycle conventions directly — not a workflow-step invocation, the same relationship `/visual-review` has with `/browse`. |
