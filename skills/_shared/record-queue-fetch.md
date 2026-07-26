@@ -23,6 +23,7 @@ read this alias — it reads `work-backend` directly with no fallback.
 
 ```bash
 LIMIT="${BACKLOG_FETCH_LIMIT:-1000}"
+export FETCH_LIMIT="$LIMIT"
 gh issue list --state open --json number,title,labels,milestone,updatedAt{,EXTRA_FIELDS} --limit "$LIMIT" > {tmp-records-file}
 node -e "
   const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
