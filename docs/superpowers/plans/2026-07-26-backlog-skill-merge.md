@@ -939,9 +939,9 @@ Line 62: replace `until a human re-grants it at \`/claude-tweaks:triage\`` with 
 
 Line 217: replace `The sole exception is \`/claude-tweaks:review-backlog\`, which may write \`priority:*\`` with `The sole exception is \`/claude-tweaks:backlog\`'s \`refine\` mode, which may write \`priority:*\``.
 
-- [ ] **Step 7: Edit `skills/assess-agent-autonomy/SKILL.md`** (10 occurrences)
+- [ ] **Step 7: Edit `skills/assess-agent-autonomy/SKILL.md`** (11 occurrences)
 
-Every occurrence of `/claude-tweaks:triage` in this file describes the `grant-check` caller relationship — replace all 10 with `/claude-tweaks:backlog refine` (lines 12, 16, 24, 32, 62, 68, 109, 135, 394, 416). Two need slightly more than a bare swap:
+Every occurrence of `/claude-tweaks:triage` in this file describes the `grant-check` caller relationship — replace all 11 with `/claude-tweaks:backlog refine` (lines 12, 16, 24, 32, 62, 68, 109, 135, 394, 410, 416 — line 410 is an Anti-Patterns table row, same relationship, missed in an earlier count). Two need slightly more than a bare swap:
 - Line 16 (`/claude-tweaks:triage Step 2          [ grant-check ]    -> RECOMMEND_BUILD / RECOMMEND_MERGE`, an ASCII-diagram line): becomes `/claude-tweaks:backlog refine        [ grant-check ]    -> RECOMMEND_BUILD / RECOMMEND_MERGE` (re-pad the spacing so the diagram's `->` column still aligns with its neighbors — check the surrounding lines in the same diagram block for the correct column position).
 - Line 68 (`**Called from:** \`/claude-tweaks:triage\`'s Step 2, once per worklist record, every triage session`): becomes `**Called from:** \`/claude-tweaks:backlog refine\`'s grant-check pass, once per worklist record, every refine run`.
 - Line 109 (`\`/claude-tweaks:triage\`'s own Step 3.5 body-shape re-verification, which runs after this mode`): becomes `\`/claude-tweaks:backlog refine\`'s own Step 3.5 body-shape re-verification, which runs after this mode`.
@@ -950,7 +950,7 @@ Every occurrence of `/claude-tweaks:triage` in this file describes the `grant-ch
 - [ ] **Step 8: Verify**
 
 Run: `grep -rln "claude-tweaks:triage\|claude-tweaks:review-backlog" skills/dispatch/ skills/capture/SKILL.md skills/specify/ skills/assess-agent-autonomy/`
-Expected: no matches, except `skills/dispatch/SKILL.md` line 412 and `skills/dispatch/routine-template.yml` lines 1-2 (the two deliberately-preserved historical/migration-note mentions from Steps 1 and 2 above — confirm exactly those survive and nothing else does).
+Expected: no matches, except `skills/dispatch/SKILL.md` lines 412 and 459 and `skills/dispatch/routine-template.yml` line 1 (the three deliberately-preserved historical/migration-note mentions from Steps 1 and 2 above — Step 1's own line-459 replacement text itself retains a `/claude-tweaks:triage` mention, so this exception list must include it too; confirm exactly those three survive and nothing else does).
 
 - [ ] **Step 9: Commit**
 
