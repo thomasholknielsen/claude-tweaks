@@ -1326,6 +1326,27 @@ grep -rln "skills/triage/\|skills/review-backlog/" --include="*.md" --include="*
 
 Expected: no matches. If any surface, replace the dead path with the equivalent `skills/backlog/` file (`SKILL.md` for preflight/frontmatter/relationship content, `refine-mode.md` for grant/priority/related workflow content, `overview-mode.md` for distribution/recommendation content — judge which by what the surrounding sentence is actually pointing a reader at, the same judgment call already made for `local-files-preflight-stop.md`'s line 53).
 
+- [ ] **Step 4.6: Bare-possessive sweep (added after Task 13's review caught 3 instances neither Step 4 nor Step 4.5 would have matched)**
+
+Neither Step 4's backtick-bare-form grep (`` `/triage` ``) nor Step 4.5's dead-path grep catches a bare possessive reference with no backticks and no leading slash — e.g. "triage's Step 2", "informs triage's recommendation", "when triage or dispatch need." Task 13's own review found exactly this shape, pre-existing and untouched by any task's brief, in `skills/assess-agent-autonomy/SKILL.md` (a file Task 10 already edited for its 11 `` `/claude-tweaks:triage` `` occurrences, but none of those line numbers covered these three bare mentions). Apply these three known fixes, then run the broader judgment sweep below for anything else this plan's per-task briefs missed.
+
+Known fixes in `skills/assess-agent-autonomy/SKILL.md`:
+
+| Line | Old text | New text |
+|---|---|---|
+| 3 | `description: Use when triage or dispatch need a content-aware trust verdict instead of a mechanical label lookup, or when specify's record-creation step needs a content-aware ceremony-depth verdict — grant-check informs triage's recommendation, merge-check replaces dispatch's blast-radius gate,` | `description: Use when backlog refine or dispatch need a content-aware trust verdict instead of a mechanical label lookup, or when specify's record-creation step needs a content-aware ceremony-depth verdict — grant-check informs backlog refine's recommendation, merge-check replaces dispatch's blast-radius gate,` (rest of the line unchanged) |
+| 123 | `` `RECOMMEND_BUILD: false` / `RECOMMEND_MERGE: false` — triage's Step 2 already treats this the same `` | `` `RECOMMEND_BUILD: false` / `RECOMMEND_MERGE: false` — backlog refine's grant sub-stage already treats this the same `` (matching Task 10's established "Step 2" → "grant sub-stage" substitution pattern used elsewhere in this same file) |
+| 419 | `this skill replaces them as triage's recommendation signal. \|` | `this skill replaces them as backlog refine's recommendation signal. \|` |
+
+Broader sweep for anything else missed:
+
+```bash
+grep -rniE "\btriage('s)?\b" --include="*.md" --include="*.yml" skills/ 2>/dev/null \
+  | grep -vE '^(docs/superpowers/plans|docs/superpowers/specs)'
+```
+
+This will surface both remaining stale skill-references AND legitimate generic-English uses (e.g. `skills/tidy/SKILL.md`'s "stale/superseded triage", `skills/demo/SKILL.md`'s "Triage the new follow-up" label) — the two established, already-confirmed-correct patterns from Tasks 11-12. Judge each hit: rename only the ones referring to the retired skill by name or its former step structure (as the three known fixes above do); leave the generic-verb uses alone.
+
 - [ ] **Step 5: No commit needed — this task is pure verification**
 
 If Steps 1-4 all pass as expected, the branch is ready for `/claude-tweaks:review` and `/claude-tweaks:wrap-up`. If any step surfaces a gap, fix it as an addition to the relevant task above and re-run this task's verification from Step 1.
