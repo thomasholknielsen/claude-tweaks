@@ -1,5 +1,34 @@
 # Changelog
 
+## v6.17.0 — /demo single-item scope + pre-flight self-verification
+
+`/claude-tweaks:demo` no longer sweeps the `demo:pending` backlog or renders a batch table — it
+resolves exactly one item per invocation (this session's own recall-detected work, or one
+explicit `#N`, with a session-recall fallback when a record was never labeled). Discovery of
+what's outstanding moves to `/claude-tweaks:help`'s dashboard (Stage 4.7), which now lists every
+outstanding `#N` instead of a bare count.
+
+`/demo`'s per-item walkthrough gained a pre-flight self-verification step — resolve a dev server,
+confirm the target page actually renders, attempt login if credentials are resolvable — before
+ever handing a human a live browser session or manual instructions. The former "Show me live"
+option is renamed "See it yourself" and, once pre-flight passes, offers a follow-up choice between
+a live session and copy-paste-ready manual steps (self-contained, no inline comments, proactive
+about surprising-but-correct states). A once-per-session scope-fork checkpoint and task-anchor
+discipline keep a pending verdict from getting silently lost mid-tangent.
+
+## v6.16.3 — Maturity-aware build & specify discipline
+
+Project maturity (greenfield / pre-launch / early-production / established) is now a durable
+`project.maturity` value in `.claude-tweaks/policy.yml`, instead of living only as CLAUDE.md
+Philosophy prose. `/claude-tweaks:init` writes it the moment Phase 3's Project Classification gate
+confirms a value, and re-detects it on every Update Mode pass to catch drift.
+
+`/claude-tweaks:build` folds a maturity-scaled characterization-test instruction into its task
+dispatch, and `/claude-tweaks:specify` biases decomposition toward strangler-fig-shaped leaves —
+implement-behind-a-flag then remove-the-old-path, or parallel-implementation/cutover/decommission —
+when a design doc proposes replacing an existing, in-use subsystem on early-production or
+established projects.
+
 ## v6.13.0 — Smoke-test follow-through: dispatch diagnostics, audit-log hardening, grant-time disclosure
 
 A live cross-terminal smoke test of `/capture` → `/specify` → `/triage` → `/dispatch` (real repo,

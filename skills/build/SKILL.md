@@ -198,6 +198,16 @@ Execution depends on the chosen execution strategy (see Build Options).
 
 **batched**: Invoke `/superpowers:executing-plans`. After the last batch completes, **stop the skill and return here** — do not let it invoke `/superpowers:finishing-a-development-branch`. `/build` handles post-execution steps before any branch finishing.
 
+**Maturity-scaled test discipline (both strategies, all modes):** read `project.maturity` from `.claude-tweaks/policy.yml` once per build (missing key, or a value outside the four-item enum, → treat as `greenfield`, add nothing). Fold one additional instruction into whichever execution skill was invoked above:
+
+| Maturity | Added instruction |
+|---|---|
+| `greenfield` / `pre-launch` (or missing) | None |
+| `early-production` | "For any task modifying pre-existing behavior, write a quick smoke test capturing current behavior before changing it." |
+| `established` | "For any task modifying pre-existing behavior, write a full characterization test covering edge cases before changing it — published or external consumers may depend on them." |
+
+"Pre-existing behavior" is judged by the implementer subagent itself, per task, using the same judgment it already applies deciding what to test under normal TDD — this does not introduce new mechanical file-existence or lexical-verb detection to make that call for it.
+
 #### Superpowers Failure Handling
 
 If the execution skill (or `/superpowers:writing-plans` in Step 3) fails, read `failure-recovery.md` in this skill's directory for the full recovery table (not-installed, timeout/partial output, malformed plan, subagent failures, batch rejection) and the project-specific context CLAUDE.md should document for implementer subagents.
@@ -346,7 +356,7 @@ Once the signals are resolved, call `AskUserQuestion` with `question`: `"What's 
 | `/claude-tweaks:wrap-up` | Runs AFTER /claude-tweaks:review — cleans up and captures learnings. `build/skill` ledger entries from Step 4.5 feed into wrap-up's skill update analysis (Step 7). |
 | `/claude-tweaks:capture` | Design mode may file backlog work records for blocked work (Step 4); after build, /build calls /capture to file follow-up ideas ("while I'm here" observations) before they're lost — fresh backlog records instead of inflating the current spec |
 | `/claude-tweaks:tidy` | Reviews specs from /claude-tweaks:build for staleness — periodic cleanup complement |
-| `/claude-tweaks:init` | /init creates `docs/REGISTRY.md` (Phase 8.5) that /build consumes in Step 6.5 for documentation sync |
+| `/claude-tweaks:init` | /init creates `docs/REGISTRY.md` (Phase 8.5) that /build consumes in Step 6.5 for documentation sync. Phase 3 also writes `project.maturity` to `.claude-tweaks/policy.yml`, which Common Step 2 reads to scale its test-discipline instruction on early-production/established projects. |
 | `/claude-tweaks:ledger` | Manages the open items ledger file. /build creates and appends items during Steps 2.5, 4, 4.5, 5.5, and 6.5. |
 | `/claude-tweaks:design-wrapper` | /build invokes `/claude-tweaks:design-wrapper pre-build <spec>` as Common Step 1.7 to lazy-load Impeccable reference files and project design context (root `PRODUCT.md`, root `DESIGN.md`) into the implementer subagent. Skips cleanly on non-frontend specs or when Impeccable is not installed. |
 | `/claude-tweaks:flow` | Invoked BY /flow as the implementation step — flow constrains /build to `subagent` execution (batched pauses contradict flow's hands-off contract) and passes the pipeline run directory via `PIPELINE_RUN_DIR` so /build's auto-mode decisions land in the shared decision log. In record mode, /flow materializes the record into `{run-dir}/work/{n}-spec.md` via `skills/flow/materialize.md` before invoking `/claude-tweaks:build #{n}`, which reads that file in place; a standalone `/build #{n}` (no `/flow` parent, e.g. dispatched or run directly by a human) performs the same materialize step itself. |

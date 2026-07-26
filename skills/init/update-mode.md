@@ -18,6 +18,9 @@ Build an inventory of what's currently configured before scanning the codebase:
 - Contract markers: {pipeline-section | auto-mode-flag | bookend | auto-mode-policy | run-dir} — {present/missing for each}
 - Last meaningful edit: {git log for CLAUDE.md — when, what changed}
 
+### policy.yml
+- `project.maturity`: {value, or "not set" if the key is absent}
+
 ### Skills ({count})
 | Skill | Description trigger | Key file paths referenced |
 |-------|-------------------|--------------------------|
@@ -73,6 +76,36 @@ autonomously.
 `work-backend: local-files` needs no probe on any of these rows — its
 `work-types: labels` / `work-links: body-text` fallback is unconditional, the same
 as bootstrap Step 16b.
+
+### Maturity Drift
+
+Like the Work-Record Backend Drift check above, maturity drift isn't a row in the
+Phase 1u.5 marker table — that table checks for presence/absence of contract
+markers, while this checks whether a *value* has changed. Unlike every other
+drift check in this file, it can only be detected as part of a full
+reconnaissance pass, never the early-exit fast path (Phase 1u.6): re-detecting
+maturity requires re-running Phase 2h, and Phase 1u.6's own early-exit decision
+is made *before* Phase 2 ever runs. This entry therefore never contributes to
+Phase 1u.6's preliminary drift count.
+
+Unlike Contract Drift and Work-Record Backend Drift, this is not a separate
+staged offer requiring its own approval — Phase 3's existing Project
+Classification gate already IS the approval step for whatever maturity value
+gets written (see `phase-3-classification.md`'s "Writing project.maturity to
+policy.yml"), whether or not that value has changed since the last run. What
+this check adds is *visibility*: when the value read into the Phase 1u
+inventory (`### policy.yml` above) differs from what Phase 3 goes on to
+confirm, note that specific change in Phase 9's Actions Performed
+Classification row (e.g. "Confirmed maturity `established` (changed from
+`early-production`), doc tier `{N}`") rather than the Drift Report — the
+Drift Report's own Contract-Drift and Stale/Drifted/Gaps batches are already
+presented and resolved earlier in this same phase, before Phase 3's
+classification gate produces the value this comparison needs, so it is no
+longer an open surface by the time this comparison is computable.
+
+| Signal | Detection | Surfacing |
+|---|---|---|
+| The `project.maturity` value read into the Phase 1u inventory differs from the classification Phase 3 goes on to confirm | Compare the Phase 1u inventory's stored value against Phase 3's freshly confirmed classification, once Phase 3 completes | Note the change in Phase 9's Actions Performed Classification row (see `SKILL.md`'s Phase 9 Actions Performed table); the write itself happens via Phase 3's existing confirmation gate, not a separate approval here |
 
 ## Phase 1u.6: Update Mode Early-Exit Gate
 
