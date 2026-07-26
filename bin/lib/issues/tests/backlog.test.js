@@ -9,7 +9,7 @@ const {
   selectBudgetSlice,
   mergeUnsyncedRecords,
   deriveCreatedAtFromGit,
-} = require('../review-backlog');
+} = require('../backlog');
 
 function record(overrides) {
   return {

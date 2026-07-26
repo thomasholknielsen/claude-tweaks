@@ -1,7 +1,10 @@
-// bin/lib/issues/review-backlog.js
-// Mechanical filter/sort/split/merge logic for /claude-tweaks:review-backlog's
-// Lane A (scored records, unlimited scale) and the scored/unscored split feeding
-// Lane B's bounded LLM synthesis pass. Records are expected to already carry
+// bin/lib/issues/backlog.js
+// Mechanical filter/sort/split/merge logic for /claude-tweaks:backlog's
+// overview mode (scored records, unlimited scale — critical/risk-value/cleanup
+// lenses) and refine mode's bounded LLM synthesis pass over unscored records.
+// `selectBudgetSlice` also bounds refine mode's grant-check pass over
+// ready+ungranted records — it's population-agnostic, just an oldest-first
+// slice with a `remaining` count. Records are expected to already carry
 // `.facets` (via record.js's parseRecordFacets or local-store.js's
 // readRecord/queryRecords) and, where sorting depends on it, a `.createdAt` ISO
 // string. Every function except `deriveCreatedAtFromGit` is pure — no network, no
