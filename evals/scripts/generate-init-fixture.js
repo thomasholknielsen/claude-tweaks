@@ -55,11 +55,26 @@ export async function generateInitFixture(opts = {}) {
   let toolCallCount = 0;
   let costUsd = null;
   let resultText = '';
+  let resultSubtype = null;
 
   const stream = queryFn({
     prompt: '/claude-tweaks:init',
     options: {
       cwd: repoDir,
+      // A prior real run of this script left /init's own terminal "## Next
+      // Actions" question unanswered by WORK_BACKEND_ANSWER_OVERRIDE — the
+      // actor's default pickRecommended auto-accepted /init's recommended
+      // follow-up skill, which itself recommended another, cascading for
+      // real through /tidy -> /specify -> /build -> /review -> /reflect ->
+      // /wrap-up -> a second /specify inside the disposable sandboxed
+      // fixture (>=$25, one crashed attempt's cost unknown on top of that).
+      // maxBudgetUsd hard-stops the query regardless of what the model
+      // tries next, rather than trying to out-guess every possible
+      // cascading Next-Actions answer (a chosen "safe" answer can itself
+      // lead into another skill's own under-specified routing prompt). Set
+      // comfortably above a real single /init run's observed cost ($4.27)
+      // but well below what an unbounded cascade reaches.
+      maxBudgetUsd: 10,
       plugins: [{ type: 'local', path: pluginSnapshotDir }],
       managedSettings: {
         sandbox: {
@@ -84,6 +99,7 @@ export async function generateInitFixture(opts = {}) {
     }
     if (message.type === 'result') {
       costUsd = message.total_cost_usd != null ? message.total_cost_usd : null;
+      resultSubtype = message.subtype != null ? message.subtype : null;
     }
   }
 
@@ -106,13 +122,20 @@ export async function generateInitFixture(opts = {}) {
     }
   }
 
-  return { repoDir, outputDir, rulesCopied, costUsd, toolCallCount, resultText };
+  return { repoDir, outputDir, rulesCopied, costUsd, toolCallCount, resultText, resultSubtype };
 }
 
 async function main() {
   const result = await generateInitFixture();
   console.log(`Wrote ${result.outputDir}/CLAUDE.md (+ ${result.rulesCopied} rules file(s))`);
   console.log(`cost=$${result.costUsd}, tools=${result.toolCallCount}`);
+  if (result.resultSubtype && result.resultSubtype !== 'success') {
+    console.error(`WARNING: query ended with subtype "${result.resultSubtype}", not "success" — ` +
+      `if this is "error_max_budget_usd", the maxBudgetUsd cap stopped a cascade past /init's own ` +
+      `terminal Next Actions question (this is expected protective behavior, not a bug). The ` +
+      `CLAUDE.md check below still runs — if /init's own bootstrap already completed before the ` +
+      `cascade began, the fixture is still correct.`);
+  }
 
   const claudeMd = fs.readFileSync(path.join(result.outputDir, 'CLAUDE.md'), 'utf8');
   if (!/^work-backend:\s*local-files/m.test(claudeMd)) {

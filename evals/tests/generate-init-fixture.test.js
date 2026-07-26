@@ -72,6 +72,42 @@ test('generateInitFixture: throws a clear error when /init does not produce a CL
   );
 });
 
+test('generateInitFixture: passes maxBudgetUsd to the query options, capping a would-be Next-Actions cascade', async () => {
+  let capturedMaxBudgetUsd = null;
+  async function* fakeQueryCapturingOptions({ options }) {
+    capturedMaxBudgetUsd = options.maxBudgetUsd;
+    fs.writeFileSync(path.join(options.cwd, 'CLAUDE.md'), '# Fake CLAUDE.md\n\nwork-backend: local-files\n');
+    yield { type: 'assistant', message: { content: [{ type: 'text', text: 'Bootstrapped CLAUDE.md.' }] } };
+    yield { type: 'result', subtype: 'success', total_cost_usd: 0.01, usage: { input_tokens: 10, output_tokens: 20 } };
+  }
+  const outputDir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-init-fixture-')), 'init-baseline');
+
+  const result = await generateInitFixture({ queryFn: fakeQueryCapturingOptions, outputDir });
+
+  assert.strictEqual(capturedMaxBudgetUsd, 10, 'a real regeneration must cap the query budget, not run open-ended');
+  assert.strictEqual(result.resultSubtype, 'success');
+});
+
+test('generateInitFixture: surfaces a non-success result subtype (e.g. a budget-cap trip) on the returned result', async () => {
+  async function* fakeQueryBudgetExceeded({ options }) {
+    // Simulates /init completing its own bootstrap before the cascade that
+    // trips the cap — CLAUDE.md exists, but the result still reports the
+    // non-success subtype the cap produced.
+    fs.writeFileSync(path.join(options.cwd, 'CLAUDE.md'), '# Fake CLAUDE.md\n\nwork-backend: local-files\n');
+    yield { type: 'assistant', message: { content: [{ type: 'text', text: 'Bootstrapped CLAUDE.md, then kept going.' }] } };
+    yield { type: 'result', subtype: 'error_max_budget_usd', total_cost_usd: 10.02, usage: { input_tokens: 10, output_tokens: 20 } };
+  }
+  const outputDir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-init-fixture-')), 'init-baseline');
+
+  const result = await generateInitFixture({ queryFn: fakeQueryBudgetExceeded, outputDir });
+
+  assert.strictEqual(result.resultSubtype, 'error_max_budget_usd');
+  // The fixture is still correctly produced — the cap stopping a cascade
+  // after /init's own legitimate work already completed is not a failure.
+  const claudeMd = fs.readFileSync(path.join(outputDir, 'CLAUDE.md'), 'utf8');
+  assert.match(claudeMd, /work-backend: local-files/);
+});
+
 test('generateInitFixture: does not copy a rules directory when /init created none', async () => {
   async function* fakeQueryNoRules({ options }) {
     fs.writeFileSync(path.join(options.cwd, 'CLAUDE.md'), '# Fake CLAUDE.md\n\nwork-backend: local-files\n');

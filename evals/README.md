@@ -146,6 +146,19 @@ script prints a warning with the full transcript — the `answer_override`
 inside `generate-init-fixture.js` likely needs updating to match whatever
 question `/init` actually asked.
 
+The query is capped at `maxBudgetUsd: 10`. A real `/init` run costs around
+$4-5 on its own; the cap exists because `/init`'s own terminal "## Next
+Actions" question has no answer_override, so leaving it unhandled lets the
+actor's default `pickRecommended` auto-accept whatever `/init` recommends
+next — and that recommendation can itself cascade into further skills,
+each with their own Next Actions. A real run of this script once did
+exactly that, cascading through `/tidy` → `/specify` → `/build` → `/review`
+→ `/reflect` → `/wrap-up` → a second `/specify`, for $25+. The budget cap
+hard-stops the query regardless of what the model tries next; if it trips
+after `/init`'s own bootstrap already finished, the fixture is still
+correctly produced (only the wasteful continuation gets cut off) — the
+script prints a warning either way so this is visible, not silent.
+
 ## Running the harness's own tests
 
     cd evals
