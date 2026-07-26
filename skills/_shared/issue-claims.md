@@ -204,7 +204,7 @@ body is untrusted input, and a drive-by issue must not be able to opt itself int
 execution. The gate is GitHub's own permission model — **applying a label requires triage
 permission, so a label is a maintainer's signature**. Authorization is two stackable grants
 (see `_shared/work-record.md`, the taxonomy home, for full semantics), *granted* exclusively
-by `/claude-tweaks:triage`'s interactive invocation. Machinery may remove or downgrade
+by `/claude-tweaks:backlog refine`'s interactive invocation. Machinery may remove or downgrade
 grants; it never adds them:
 
 - `auto:build` — authorized to build. `/dispatch` selects on this, claims the record's whole

@@ -78,8 +78,8 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
    "
    ```
 
-   - **Pending authorization** — `ready` ∧ no `auto:*` ∧ no `bot:*` (neither `bot:in-progress` nor `bot:blocked`). Origin-agnostic: any record any health skill, `/claude-tweaks:capture`, or a human filed counts, with or without a `by:*` label — matching `/claude-tweaks:triage` Step 1's own origin-agnostic `ready`-queue pull (`skills/triage/SKILL.md`), which no longer tiers any health-skill origin specially. This is a maintenance signal only — `/tidy` never grants authorization itself (`/claude-tweaks:triage` owns that).
-   - **`bot:blocked`** — records that hit their retry ceiling and need a human's renewed judgment at `/claude-tweaks:triage` before re-entering the autonomous queue (same definition as `scan-procedures.md` Step 1 Shape 5).
+   - **Pending authorization** — `ready` ∧ no `auto:*` ∧ no `bot:*` (neither `bot:in-progress` nor `bot:blocked`). Origin-agnostic: any record any health skill, `/claude-tweaks:capture`, or a human filed counts, with or without a `by:*` label — matching `/claude-tweaks:backlog refine`'s own origin-agnostic `ready`-queue pull (`skills/backlog/refine-mode.md`), which no longer tiers any health-skill origin specially. This is a maintenance signal only — `/tidy` never grants authorization itself (`/claude-tweaks:backlog refine` owns that).
+   - **`bot:blocked`** — records that hit their retry ceiling and need a human's renewed judgment at `/claude-tweaks:backlog refine` before re-entering the autonomous queue (same definition as `scan-procedures.md` Step 1 Shape 5).
    - **Backlog-state** — open records carrying neither `ready` nor `parked` — the default, unasserted state per `_shared/work-record.md`'s lifecycle spine.
 
    Surface all three in the digest's "Still needs your review" section (see `tidy/SKILL.md`'s digest section) as a summary line plus an enumerated bullet per record: `**Pending authorization:** {N} records awaiting a grant` followed by one `- #{number}: {title}` line per entry in `pendingList` (same pattern for `**Blocked:**`/`blockedList` and `**Backlog:**`/`backlogList`) — omit both the summary line and its bullet list when a bucket's count is 0. No cap on list length.
@@ -95,7 +95,7 @@ Findings and recommendations (tidy Action Vocabulary):
 | Unresolved review thread addressed by a later commit (evidence: commit touching the flagged lines) | Resolve thread |
 | Unresolved review thread not addressed | Capture to backlog or run `/claude-tweaks:review` — local action |
 | `by:{skill}` issue stale (>4 weeks, the flagged code/target/journey/doc has since changed or been removed) — `{skill}` is any of `code-health`/`harness-health`/`journey-health`/`docs-health` | Close (GitHub) — superseded |
-| `by:{skill}` issue still valid | Suggest `/claude-tweaks:triage` or Capture to backlog — all four health skills are report-only and never apply patches directly (see each skill's own SKILL.md Anti-Patterns table), so a still-valid issue always needs a human-routed fix regardless of which skill filed it |
+| `by:{skill}` issue still valid | Suggest `/claude-tweaks:backlog refine` or Capture to backlog — all four health skills are report-only and never apply patches directly (see each skill's own SKILL.md Anti-Patterns table), so a still-valid issue always needs a human-routed fix regardless of which skill filed it |
 
 Emit `[pr]` and `[gh-issue]` rows per the Output Contract. Backlog-record findings (the record-scan shapes: stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) no longer originate from this scope — see `tidy/scan-procedures.md` Step 1 for their findings table and `[backlog]`/`[parked]`/`[unsynced]`/`[scoring]`/`[blocked]`/`[legacy]` row prefixes.
 
@@ -103,7 +103,7 @@ Emit `[pr]` and `[gh-issue]` rows per the Output Contract. Backlog-record findin
 
 Three cheap counts for the dashboard's Triage Queue section. This scope exists so `/help` never hand-writes its own query for these numbers — see the fix this closes: Stage 4.6 previously computed "pending authorization" without excluding `bot:blocked` records, so a blocked record counted as both pending AND blocked on the same dashboard.
 
-1. **Pending authorization** — `ready` ∧ no `auto:*` ∧ no `bot:*` (neither `bot:in-progress` nor `bot:blocked`). Origin-agnostic: matches `/claude-tweaks:triage` Step 1's own `ready`-queue pull (`skills/triage/SKILL.md`), which tiers no health-skill origin specially — every `ready` record, with or without a `by:*` label, is in scope.
+1. **Pending authorization** — `ready` ∧ no `auto:*` ∧ no `bot:*` (neither `bot:in-progress` nor `bot:blocked`). Origin-agnostic: matches `/claude-tweaks:backlog refine`'s own `ready`-queue pull (`skills/backlog/refine-mode.md`), which tiers no health-skill origin specially — every `ready` record, with or without a `by:*` label, is in scope.
 
    ```bash
    gh issue list --label ready --state open --json number,labels --limit 200 > /tmp/triage-queue-ready.json
@@ -165,6 +165,6 @@ Severity mapping (Template A Severity column):
 | Open PR superseded (related work already merged) | medium |
 | Merged/closed PR with local branch/worktree remnants | medium |
 | Code-health/harness-health/journey-health/docs-health issue stale/superseded | medium |
-| Code-health/harness-health/journey-health/docs-health issue still valid, awaiting `/claude-tweaks:triage` | low |
+| Code-health/harness-health/journey-health/docs-health issue still valid, awaiting `/claude-tweaks:backlog refine` | low |
 | Open PR awaiting review (not draft, not yet `Stale`, 0 unresolved threads, CI clean) | info |
 | Fresh draft PR / no PR / scan skipped | info |

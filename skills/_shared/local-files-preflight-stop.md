@@ -3,7 +3,7 @@
 Every skill whose workflow, under `work-backend: local-files`, would otherwise proceed to
 build, claim, or authorize application work that only `work-backend: github-issues`'s RBAC +
 atomic claim mechanism actually supports MUST phrase its local-files Preflight stop using the
-pattern below. Referenced by `/claude-tweaks:triage` and `/claude-tweaks:dispatch`'s own
+pattern below. Referenced by `/claude-tweaks:backlog` (refine mode's grant sub-stage) and `/claude-tweaks:dispatch`'s own
 Preflight sections — each keeps its own full paragraph (the specific unmet condition, the
 list of skills it would otherwise invoke, and its own forbidden-action list are genuinely
 skill-specific and don't compress into one shared template), but both must stay consistent
@@ -17,7 +17,7 @@ via this repo's own `evals/` harness running against real API calls, not hypothe
 confirmed that a live model reads a *purely informational* "point the user at X and stop" as
 license to do X itself when no human is there to act on the pointer:
 
-- `/claude-tweaks:triage`'s original Preflight said "report that grants are not applicable...
+- `/claude-tweaks:triage`'s original Preflight (now `/claude-tweaks:backlog refine`'s grant sub-stage) said "report that grants are not applicable...
   point the user at running `/claude-tweaks:flow` manually" — a live headless run instead
   built and committed real application code, reproduced twice (`evals/scenarios/
   triage-permission-matrix-compliance.yaml`, `.superpowers/sdd/task-9-report.md`).
