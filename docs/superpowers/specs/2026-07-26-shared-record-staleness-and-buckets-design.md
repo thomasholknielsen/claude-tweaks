@@ -31,8 +31,8 @@ New file alongside `record.js`, `grouping.js`, `claims.js`, `local-store.js` —
 ```js
 isBacklog(record)        // record.facets.stage === 'backlog'
 isParked(record)         // record.facets.stage === 'parked'
-isBotBlocked(record)     // record.facets.bot?.blocked === true
-isBotInProgress(record)  // record.facets.bot?.inProgress === true
+isBotBlocked(record)     // record.facets.bot.blocked === true
+isBotInProgress(record)  // record.facets.bot.inProgress === true
 
 classifyStaleness(ageMs, thresholdMs)
   // returns 'fresh' | 'review' | 'stale'
@@ -41,7 +41,7 @@ classifyStaleness(ageMs, thresholdMs)
   // stale:  ageMs > thresholdMs
 ```
 
-`record` is the already-faceted shape both skills already produce (`{ ...rawFields, facets }`, per `_shared/record-queue-fetch.md`'s fetch step). `isBacklog`/`isParked` read `facets.stage` directly, with no optional chaining — `facets.stage` is always present on both drivers (`backlog` is the documented default when no stage label/frontmatter exists, per `_shared/work-record.md`'s lifecycle spine). The bot-state predicates use optional chaining because `local-files` records carry no `facets.bot` sub-object at all ("the local driver carries no bot state") — they must return `false`, not throw; under `github-issues`, `facets.bot` is always populated.
+`record` is the already-faceted shape both skills already produce (`{ ...rawFields, facets }`, per `_shared/record-queue-fetch.md`'s fetch step). Every predicate reads its field directly, with no optional chaining anywhere — `facet-shape.js`'s `sharedFacetDefaults()` (used by both `record.js`'s `parseRecordFacets` and `local-store.js`'s `defaultFacets`) guarantees `facets.stage` and `facets.bot: { inProgress, blocked }` are always present on both drivers. "The local driver carries no bot state" (per `local-store.js`'s own comment) means `facets.bot` is always the default `{ inProgress: false, blocked: false }` under `local-files` — the field itself is never absent or `undefined`.
 
 `classifyStaleness` takes an already-computed age in ms and a threshold in ms; it does not read timestamps or compute "now" itself, since per-driver timestamp sourcing already lives in `record-queue-fetch.md`'s Staleness clock section and shouldn't move. This keeps the function trivial to unit test with no clock mocking.
 
@@ -61,7 +61,7 @@ classifyStaleness(ageMs, thresholdMs)
 ## Testing
 
 New `bin/lib/issues/tests/record-buckets.test.js` — already picked up by root `npm test` (which globs `bin/lib/issues/tests/*.test.js`, per CLAUDE.md's Commands table). Covers:
-- Each predicate: true case, false case, and (for the two bot-state predicates) the `local-files` case where `facets.bot` is `undefined` entirely — must return `false`, not throw.
+- Each predicate: true case, false case, and the always-false-default case (`facets.bot: { inProgress: false, blocked: false }`, `facets.stage: 'backlog'`) that every fresh `local-files` record and every unlabeled `github-issues` record produces via `sharedFacetDefaults()`.
 - `classifyStaleness`: exactly at the threshold boundary, just under, just over, the derived review-band midpoint, and age `0` (fresh).
 
 No fs/policy-reading tests are needed — threshold resolution is dispatcher-inlined prose consumed by an LLM agent at scan time, not unit-testable code, the same as `work-backend` resolution today.
