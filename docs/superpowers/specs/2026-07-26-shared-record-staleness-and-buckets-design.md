@@ -41,7 +41,7 @@ classifyStaleness(ageMs, thresholdMs)
   // stale:  ageMs > thresholdMs
 ```
 
-`record` is the already-faceted shape both skills already produce (`{ ...rawFields, facets }`, per `_shared/record-queue-fetch.md`'s fetch step). The bot-state predicates use optional chaining because `local-files` records carry no `facets.bot` at all ("the local driver carries no bot state") — they must return `false`, not throw.
+`record` is the already-faceted shape both skills already produce (`{ ...rawFields, facets }`, per `_shared/record-queue-fetch.md`'s fetch step). `isBacklog`/`isParked` read `facets.stage` directly, with no optional chaining — `facets.stage` is always present on both drivers (`backlog` is the documented default when no stage label/frontmatter exists, per `_shared/work-record.md`'s lifecycle spine). The bot-state predicates use optional chaining because `local-files` records carry no `facets.bot` sub-object at all ("the local driver carries no bot state") — they must return `false`, not throw; under `github-issues`, `facets.bot` is always populated.
 
 `classifyStaleness` takes an already-computed age in ms and a threshold in ms; it does not read timestamps or compute "now" itself, since per-driver timestamp sourcing already lives in `record-queue-fetch.md`'s Staleness clock section and shouldn't move. This keeps the function trivial to unit test with no clock mocking.
 
@@ -50,7 +50,7 @@ classifyStaleness(ageMs, thresholdMs)
 - **Default:** `4` (weeks) — matches current hardcoded behavior; a project that never sets this sees no change.
 - **Location:** CLAUDE.md's `## Work records` section, or `.claude-tweaks/policy.yml` — the same dual location already used for `tidy-aggressiveness`.
 - **Precedence:** project policy → skill default. No CLI-arg or per-run override tier (see Scope above) — staleness reflects a durable property of a project's backlog turnover rate, not a per-invocation choice.
-- **Resolution:** a new "Threshold resolution" subsection under `_shared/record-queue-fetch.md`'s existing "Staleness clock" section, written as dispatcher-inlined prose (the same pattern already used for `work-backend` resolution, not new executable code). It converts weeks to ms and hands the result to `classifyStaleness`. The review-band midpoint scales with the threshold (e.g. `record-staleness-weeks: 8` yields review at 4-8 weeks, stale beyond 8), preserving today's fixed 2:4 ratio.
+- **Resolution:** a new "Threshold resolution" subsection under `_shared/record-queue-fetch.md`'s existing "Staleness clock" section, written as dispatcher-inlined prose (the same pattern already used for `work-backend` resolution — a plain-language instruction the dispatched agent follows itself, not a call into `record-buckets.js`). It instructs the agent to read `record-staleness-weeks` (default `4`) and convert it to `thresholdMs` (`weeks * 7 * 24 * 60 * 60 * 1000`) *within its own inline script*, before calling `classifyStaleness(ageMs, thresholdMs)` — the conversion is per-consumer inline code, same as the rest of each consumer's classification script; only the predicate/classifier functions themselves live in the shared module. The review-band midpoint scales with the threshold (e.g. `record-staleness-weeks: 8` yields review at 4-8 weeks, stale beyond 8), preserving today's fixed 2:4 ratio.
 
 ## Integration changes
 
