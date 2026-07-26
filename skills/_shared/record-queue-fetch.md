@@ -22,13 +22,19 @@ read this alias — it reads `work-backend` directly with no fallback.
 ## `work-backend: github-issues` fetch
 
 ```bash
-gh issue list --state open --json number,title,labels,milestone,updatedAt{,EXTRA_FIELDS} --limit 200 > {tmp-records-file}
+LIMIT="${BACKLOG_FETCH_LIMIT:-1000}"
+gh issue list --state open --json number,title,labels,milestone,updatedAt{,EXTRA_FIELDS} --limit "$LIMIT" > {tmp-records-file}
 node -e "
   const { parseRecordFacets } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/issues/record.js');
   const issues = require('{tmp-records-file}');
+  if (issues.length === Number(process.env.FETCH_LIMIT)) {
+    console.error('WARNING: fetched exactly ' + issues.length + ' open issues (the configured backlog-fetch-limit) — there may be more beyond this cap. Consider raising backlog-fetch-limit in CLAUDE.md, or running /claude-tweaks:tidy to reduce backlog volume.');
+  }
   console.log(JSON.stringify(issues.map((i) => ({ ...i, facets: parseRecordFacets(i.labels) }))));
 " > {tmp-faceted-file}
 ```
+
+`backlog-fetch-limit` (default `1000`) replaces the previous hardcoded 200/500 per-consumer limits — `gh issue list --limit N` auto-paginates internally regardless of how large `N` is, so raising the default doesn't change the fetch mechanism, only how much it's willing to pull before stopping. A consumer whose own population is naturally small (e.g. a `--label ready` filtered fetch) still uses this same limit and the same truncation check — the limit bounds "how many rows before we assume there might be more," not a per-consumer tuning knob.
 
 `{EXTRA_FIELDS}` — a consumer appends its own extra `--json` fields to the base list above
 rather than opening a second round-trip. `/claude-tweaks:help` appends `body` (its own
