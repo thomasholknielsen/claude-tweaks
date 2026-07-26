@@ -1300,6 +1300,18 @@ ls skills/backlog/
 
 Expected: "OK: old directories removed", then `SKILL.md`, `refine-mode.md`, `overview-mode.md` listed.
 
+- [ ] **Step 2.5: Fix stale hardcoded skill-name test fixtures (found by running Step 3 during this task's own execution — no prior task's file scope ever included `bin/lib/*/tests/*.test.js`, since every other task's scope was `.md`/`.yml` doc files only)**
+
+Three test files hardcode `/claude-tweaks:triage` as an expected substring in a health skill's own Relationship-to-Other-Skills table — these tables were correctly renamed to `/claude-tweaks:backlog` in Task 11, but nothing updated the corresponding test fixtures, since `bin/lib/*/tests/` was never in any task's file list. Fix each:
+
+| File | Old text | New text |
+|---|---|---|
+| `bin/lib/docs-health/tests/skill-md.test.js` (test name + array, lines 41/45) | `'/claude-tweaks:harness-health', '/claude-tweaks:code-health', '/claude-tweaks:tidy',\n    '/claude-tweaks:triage', '/claude-tweaks:routine',` (test title: `'Relationship table references harness-health, code-health, tidy, triage, routine'`) | `'/claude-tweaks:harness-health', '/claude-tweaks:code-health', '/claude-tweaks:tidy',\n    '/claude-tweaks:backlog', '/claude-tweaks:routine',` (test title: `'Relationship table references harness-health, code-health, tidy, backlog, routine'`) |
+| `bin/lib/harness-health/tests/skill-md.test.js` (test at/around line 51) | same shape, `'/claude-tweaks:triage'` in its array + `triage` in the test title (`wrap-up, init, tidy, triage, routine`) | replace `/claude-tweaks:triage` with `/claude-tweaks:backlog` in the array, and `triage` with `backlog` in the test title |
+| `bin/lib/journey-health/tests/skill-md.test.js` (test at/around line 51) | same shape, `'/claude-tweaks:triage'` in its array + `triage` in the test title (`journeys, stories, test, tidy, triage, routine`) | replace `/claude-tweaks:triage` with `/claude-tweaks:backlog` in the array, and `triage` with `backlog` in the test title |
+
+Verify each target file's actual Relationship table row text before editing (confirmed already, by direct inspection during this task: all three use the bare form `` `/claude-tweaks:backlog` ``, not `` `/claude-tweaks:backlog refine` ``) — read the test file first, don't pattern-match blindly on the table above since the exact array formatting may differ slightly between the three files.
+
 - [ ] **Step 3: Run the full test suite**
 
 ```bash
