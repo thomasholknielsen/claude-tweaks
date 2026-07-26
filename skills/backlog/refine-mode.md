@@ -78,6 +78,7 @@ Read every selected body in one pass and produce:
 
 - A narrative summary + thematic clusters (group by shared theme/origin/root cause, not just by label — the same read a human gets from reading a handful of related issues side by side).
 - A per-record `priority:*` suggestion with a one-line rationale.
+- A per-record, **non-binding** tier guess (`quick`/`full`) — purely to help a human eyeball a batch before deciding what to send to `/specify` next. This is never written as a label; only `/specify`'s own `ceremony-check` (a separate, authoritative computation with deeper context — the record's fully shaped Deliverables/Acceptance Criteria, not this pass's rougher read) writes `ceremony:*`. See `docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md`.
 - Detected `**Related:**` cross-references — pairs of selected records whose bodies reference each other's context in prose without a formal link (`**Related:**` is `/capture`'s own body-template line; nothing else reads or maintains it — `_shared/work-record.md`). Never suggest `Blocked by #N` here — that's the formally-parsed hard-dependency mechanism, out of scope for this skill (`_shared/work-record.md`'s permission matrix).
 
 If `remaining > 0`, state it plainly in the report: "`{remaining}` more unscored records exist beyond this run's `--budget {N}` — re-run to continue." Never silently drop them.
@@ -161,15 +162,17 @@ Report every downgrade to the user before proceeding — a silent downgrade woul
 ```markdown
 ### Backlog Refine — {N} suggested label changes
 
-| # | Record | Type | Origin | Current | Recommended | Rationale |
-|---|---|---|---|---|---|---|
-| 1 | #123: {title} | priority | by:code-health | (none) | priority:high | {synthesis rationale} |
-| 2 | #16: {title} | related | by:capture | (none) | Add **Related:** #23 | {synthesis rationale} |
-| 3 | #124: {title} | grant | by:capture | — | auto:build + auto:merge | {grant-check RATIONALE} |
-| 4 | #118: {title} | grant | by:harness-health | bot:blocked | re-authorize (bot:blocked) | Prior failure — human judgment required, not a mechanical replay |
+| # | Record | Type | Origin | Current | Recommended | Suggested Tier | Rationale |
+|---|---|---|---|---|---|---|---|
+| 1 | #123: {title} | priority | by:code-health | (none) | priority:high | quick? (guess) | {synthesis rationale} |
+| 2 | #16: {title} | related | by:capture | (none) | Add **Related:** #23 | — | {synthesis rationale} |
+| 3 | #124: {title} | grant | by:capture | — | auto:build + auto:merge | — | {grant-check RATIONALE} |
+| 4 | #118: {title} | grant | by:harness-health | bot:blocked | re-authorize (bot:blocked) | — | Prior failure — human judgment required, not a mechanical replay |
 ```
 
 The `Type` column (`priority`/`related`/`grant`) is what keeps grant rows visually distinguishable within the single table — a human scanning it can still see at a glance which rows are security-relevant, even though there is only one confirm gate for the whole batch. For 10 or more rows, lead with a one-line count summary before the table (e.g. "18 suggestions: 6 priority, 3 related, 7 grants, 2 re-authorizations") so the human sees the batch's shape before the row detail.
+
+The `Suggested Tier` column is populated only for `priority`-type rows — a byproduct of Step 2's per-record LLM read, which runs only over unscored records; `related` and `grant` rows always render `—`. Render the two sources distinguishably — a real `ceremony:*` label (already-scored records, per Step 1's mechanical display) plainly (`fast-lane`/`standard`); this step's own LLM guess suffixed (`quick? (guess)`/`full? (guess)`) — so a human scanning the batch never mistakes an unscored guess for `/specify`'s authoritative verdict. The `Suggested Tier` column is informational only — it rides along with the unified table, never gated behind its own `AskUserQuestion`, and is never itself written anywhere.
 
 Then one `AskUserQuestion`:
 
