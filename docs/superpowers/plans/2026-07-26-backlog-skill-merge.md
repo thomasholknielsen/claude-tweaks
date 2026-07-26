@@ -740,7 +740,7 @@ Entirely mechanical — no per-record LLM reads, so it scales to the full fetche
 
 ## Step 1: Fetch
 
-Fetch and facet-parse the full open-issue queue per `_shared/record-queue-fetch.md`, same as `refine-mode.md`'s priority/Related fetch (`{tmp-records-file}` = `/tmp/backlog-overview-open.json`, `{tmp-faceted-file}` = `/tmp/backlog-overview-faceted.json`). Fold in `unsynced: true` local fallback records the same way (port `review-backlog/SKILL.md`'s old Step 1 unsynced fold-in verbatim). Tag every fetched record with a **not yet synced** marker wherever `facets.unsynced === true` — this is a display-only tag in `overview` mode; the apply path for unsynced records' priority lives in `refine` mode (see this plan's correction note above).
+Fetch and facet-parse the full open-issue queue per `_shared/record-queue-fetch.md`, same as `refine-mode.md`'s priority/Related fetch (`{tmp-records-file}` = `/tmp/backlog-overview-open.json`, `{tmp-faceted-file}` = `/tmp/backlog-overview-faceted.json`, `{EXTRA_FIELDS}` = `,body` — explicitly restated here, not just inherited by implication: Step 3 below needs every candidate's `body` for `rankNextToBuild`'s internal `parseDependencies` call, and without this field the fetch would silently omit bodies, making every candidate's unblocks-count silently compute as 0 rather than erroring). Fold in `unsynced: true` local fallback records the same way (port `review-backlog/SKILL.md`'s old Step 1 unsynced fold-in verbatim). Tag every fetched record with a **not yet synced** marker wherever `facets.unsynced === true` — this is a display-only tag in `overview` mode; the apply path for unsynced records' priority lives in `refine` mode (see this plan's correction note above).
 
 ## Step 2: Route by lens
 
@@ -752,11 +752,12 @@ node -e "
     critical: bl.filterCritical(all),
     riskValue: bl.rankRiskValue(all),
     cleanup: bl.filterCleanup(all),
+    split: bl.splitScoredUnscored(all),
   }));
 " > /tmp/backlog-overview-views.json
 ```
 
-**`critical`** — render `.critical` as a table (`| # | Record | Priority | Age |`), capped at `--budget` rows (default 20) with an overflow note. Skip to Step 4.
+**`critical`** — render `.critical` as a table (`| # | Record | Priority | Age |`), capped at `--budget` rows (default 20) with an overflow note. Note the excluded unscored count from `.split.unscored.length` ("N unscored records not risk-assessed yet — run bare mode for a judgment pass") — this signal existed in `review-backlog/SKILL.md`'s original `critical` rendering (its own Step 2) and was dropped from an earlier draft of this plan step by oversight; restore it, don't drop it. Skip to Step 4.
 
 **`risk-value`** — render `.riskValue.ranked` as the primary ranked table, then `.riskValue.unscored` as a trailing "not yet scored" group, same capping. Add a `Tier` column reading `facets.ceremony` directly (`fast-lane`/`standard`), `—` for records scored before ceremony-tiering shipped. Skip to Step 4.
 
