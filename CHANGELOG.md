@@ -1,5 +1,20 @@
 # Changelog
 
+## v6.20.1 — Harden local-files Preflight-stop against auto-mode rationalization
+
+`/claude-tweaks:backlog refine`'s grant sub-stage and `/claude-tweaks:dispatch`'s Preflight
+already stopped explicitly under `work-backend: local-files`, but a live run against a
+realistic, `/claude-tweaks:init`-generated `CLAUDE.md` (one that documents this project's own
+auto-mode/hands-off pipeline conventions) found the stop didn't hold — the model ran a full
+build-to-close lifecycle on a low-risk-looking record instead. Both Preflight paragraphs
+(`skills/_shared/local-files-preflight-stop.md`'s canonical pattern, applied to
+`skills/backlog/SKILL.md` and `skills/dispatch/SKILL.md`) now explicitly state the stop is not
+superseded by the project's own documented auto-mode conventions elsewhere in CLAUDE.md — those
+conventions govern behavior *within* an already-authorized pipeline run, not whether this gate
+may authorize new work in the first place. Confirmed via a real re-run: cost dropped from
+$17.47/49 tool calls (violation) to $0.37-0.59/0-8 tool calls (compliant, verified with a new
+`evals/` scenario fixture that models a realistic onboarded project instead of a bare repo).
+
 ## v6.20.0 — Policy schema consolidation
 
 `.claude-tweaks/policy.yml` is now the canonical home for all of claude-tweaks' project-config
