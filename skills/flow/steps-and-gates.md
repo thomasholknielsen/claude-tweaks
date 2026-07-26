@@ -73,7 +73,7 @@ legacy spec file — the step pipeline and gates below are unchanged. Multiple
 records (`#A,#B`) run Multi-spec mode instead (see `multi-spec.md`), each
 materializing to its own file. `/flow` performs no selection, filtering, or
 claiming of its own; see `/claude-tweaks:dispatch` (selection + claiming) and
-`/claude-tweaks:triage` (authorization) for that logic.
+`/claude-tweaks:backlog refine` (authorization) for that logic.
 
 ## Gate Behavior
 

@@ -71,7 +71,7 @@ Read `status-scan.md` in this skill's directory for the full parallel-dispatch p
 4. **Records building** (`bot:in-progress`, Stage 1) — finish what's started before starting new work
 5. **Design docs unspecified** — specify before building (don't let designs go stale)
 6. **Parked records with met triggers** — promote via `/claude-tweaks:specify` before starting new work
-7. **Records pending authorization** (`ready`, not yet granted, Stage 1) — recommend `/claude-tweaks:triage` to review and grant `auto:build`
+7. **Records pending authorization** (`ready`, not yet granted, Stage 1) — recommend `/claude-tweaks:backlog refine` to review and grant `auto:build`
 8. **Authorized records** (Stage 1) — recommend `/claude-tweaks:dispatch` (headless) or `/claude-tweaks:build #{n}` (direct) for the highest-priority one with met prerequisites
 9. **Backlog review** — if the backlog is stale or has 10+ records, suggest `/claude-tweaks:tidy` before new brainstorming
 10. **Challenge + Brainstorming** — if the pipeline is empty, suggest brainstorming from a backlog record; if its title has baked-in assumptions, run `/claude-tweaks:challenge` first, then `/superpowers:brainstorming`
@@ -135,8 +135,7 @@ For a detailed explanation of how context flows between skills via artifacts, re
 | `/claude-tweaks:review` | /claude-tweaks:help flags specs awaiting review |
 | `/claude-tweaks:wrap-up` | /claude-tweaks:help flags specs awaiting wrap-up |
 | `/claude-tweaks:tidy` | /claude-tweaks:help suggests /claude-tweaks:tidy when maintenance is needed |
-| `/claude-tweaks:triage` | Surfaces pending-authorization count, `bot:blocked` count, and rolling auto-merge count on the dashboard (Stage 4.6, `triage-queue` scope) — the reciprocal of `triage/SKILL.md`'s own `/claude-tweaks:help` row. |
-| `/claude-tweaks:review-backlog` | No dashboard integration — /help's Stage 1 already surfaces backlog/parked/ready counts; unscored-record synthesis and prioritization stay `/claude-tweaks:review-backlog`'s own job, not duplicated here. |
+| `/claude-tweaks:backlog` | Surfaces pending-authorization count, `bot:blocked` count, and rolling auto-merge count on the dashboard (Stage 4.6, `triage-queue` scope) — the reciprocal of `backlog/SKILL.md`'s own `/claude-tweaks:help` row. Shares `bin/lib/issues/ranking.js`'s `rankNextToBuild` with `overview` mode's recommendation section. |
 | `/claude-tweaks:demo` | `/help` is the sole discovery surface for the acceptance queue — lists every outstanding `#N` (Stage 4.7, `acceptance-queue` scope), not just a count; `/demo #N` executes the walkthrough for one — the reciprocal of `demo/SKILL.md`'s own `/claude-tweaks:help` row. |
 | `/claude-tweaks:dispatch` | /claude-tweaks:help surfaces the `authorized` and `building` counts dispatch acts on (Stage 1) — the reciprocal of `dispatch/SKILL.md`'s own `/claude-tweaks:help` row. |
 | `/claude-tweaks:flow` | /claude-tweaks:help lists /claude-tweaks:flow as an automation option for ready specs |

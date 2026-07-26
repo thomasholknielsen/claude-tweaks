@@ -57,7 +57,7 @@ node -e "
 "
 ```
 
-`building` and `blocked` are always 0 under `local-files` — the local driver carries no bot state (`_shared/work-record.md`). `authorized` still counts: grants are recorded as frontmatter for isomorphism even though no headless consumer acts on them under this driver (`triage/SKILL.md`'s Preflight). `local-files` records carry no `updatedAt`/`milestone` field, so this script's `backlogStale`/`parkedWakeReady` naturally come back 0 for that driver — see "Staleness clock" and "Wake-ready sub-count" below for what this driver reports instead.
+`building` and `blocked` are always 0 under `local-files` — the local driver carries no bot state (`_shared/work-record.md`). `authorized` still counts: grants are recorded as frontmatter for isomorphism even though no headless consumer acts on them under this driver (`backlog/SKILL.md`'s Preflight). `local-files` records carry no `updatedAt`/`milestone` field, so this script's `backlogStale`/`parkedWakeReady` naturally come back 0 for that driver — see "Staleness clock" and "Wake-ready sub-count" below for what this driver reports instead.
 
 **Staleness clock** (backlog sub-count): per `_shared/record-queue-fetch.md`'s Staleness clock section — `github-issues` uses the query's own `updatedAt`, as computed above; `local-files` uses the record file's own last-commit date, applied per backlog record here.
 
@@ -119,11 +119,11 @@ Scan per `_shared/github-pr-scan.md`, **`current-pr`** scope. The dispatcher inl
 
 ## Stage 4.6: Triage Queue (GitHub)
 
-Cheap counts only — detail stays `/claude-tweaks:triage`'s and `/tidy`'s job,
+Cheap counts only — detail stays `/claude-tweaks:backlog`'s and `/tidy`'s job,
 not `/help`'s. Skip silently (same fail-open detection ladder as Stage 4.5)
 when `gh` is unavailable, unauthenticated, or the repo has no GitHub remote.
 
-Scan per `_shared/github-pr-scan.md`, **`triage-queue`** scope. The dispatcher inlines that file's Detection Ladder, `triage-queue` scope section, and the three-line render format into this agent's prompt — subagents cannot read sibling files. This is the single source for these three counts; this stage does not compute them independently (previously it did, and its own version double-counted `status:blocked` issues inside "pending authorization" — the shared scope excludes them). Origin-agnostic: every `ready` record counts toward pending authorization regardless of origin (health-filed, captured, or human-filed, with or without a `by:*` label) — matching `/claude-tweaks:triage` Step 1's own origin-agnostic `ready`-queue pull, which tiers no health-skill origin specially.
+Scan per `_shared/github-pr-scan.md`, **`triage-queue`** scope. The dispatcher inlines that file's Detection Ladder, `triage-queue` scope section, and the three-line render format into this agent's prompt — subagents cannot read sibling files. This is the single source for these three counts; this stage does not compute them independently (previously it did, and its own version double-counted `status:blocked` issues inside "pending authorization" — the shared scope excludes them). Origin-agnostic: every `ready` record counts toward pending authorization regardless of origin (health-filed, captured, or human-filed, with or without a `by:*` label) — matching `/claude-tweaks:backlog refine`'s own origin-agnostic `ready`-queue pull, which tiers no health-skill origin specially.
 
 ## Stage 4.7: Acceptance Queue (GitHub)
 
@@ -173,10 +173,10 @@ agent's prompt — subagents cannot read sibling files.
 
 - Backlog: **{N}** ({M} stale, 4+ weeks untouched) — `/claude-tweaks:capture` to add, `/claude-tweaks:tidy` to review stale ones
 - Parked: **{N}** ({M} wake-ready — milestone due) — `/claude-tweaks:tidy` to re-evaluate triggers
-- Ready (pending authorization): **{N}** — `/claude-tweaks:triage` to review and grant
+- Ready (pending authorization): **{N}** — `/claude-tweaks:backlog refine` to review and grant
 - Authorized: **{N}** — `/claude-tweaks:dispatch` (headless) or `/claude-tweaks:build #{n}` (direct)
 - Building: **{N}** — resume `/claude-tweaks:build`/`/claude-tweaks:flow`, or check status
-- Blocked (`bot:blocked`): **{N}** — `/claude-tweaks:triage` to re-authorize
+- Blocked (`bot:blocked`): **{N}** — `/claude-tweaks:backlog refine` to re-authorize
 
 ### Current PR — #{N} {title}
 
@@ -193,8 +193,8 @@ agent's prompt — subagents cannot read sibling files.
 
 *(Omit this section entirely when the GitHub scan was skipped, or when all three counts are 0.)*
 
-- Pending authorization: **{N} records awaiting your decision** — run `/claude-tweaks:triage` (omit this line when N is 0)
-- Blocked: **{N} records hit their retry ceiling** — run `/claude-tweaks:triage` to review (omit this line when N is 0)
+- Pending authorization: **{N} records awaiting your decision** — run `/claude-tweaks:backlog refine` (omit this line when N is 0)
+- Blocked: **{N} records hit their retry ceiling** — run `/claude-tweaks:backlog refine` to review (omit this line when N is 0)
 - Auto-merged this week: **{N} auto-merges** on the default branch in the last 7 days (omit this line when N is 0)
 
 ### Acceptance Queue

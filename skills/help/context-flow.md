@@ -15,7 +15,7 @@ This design means:
 
 ```
 Codebase                     ──→ Findings cache               ──→ Work record (durable)             ──→ Triage grants        ──→ Dispatch claims + builds
-.claude-tweaks/code-health/      .claude-tweaks/code-health/      Confident: GitHub issue/local record   /claude-tweaks:triage    /claude-tweaks:dispatch
+.claude-tweaks/code-health/      .claude-tweaks/code-health/      Confident: GitHub issue/local record   /claude-tweaks:backlog   /claude-tweaks:dispatch
   /code-health                   cache.json (local) +               (label: by:code-health, born ready)  (auto:build/            → /claude-tweaks:flow #{n}
                                   health-state branch              Low-confidence: backlog record          auto:merge)
                                   cursors/runs.json (durable)        via /capture instead
@@ -30,7 +30,7 @@ GitHub issue/local file    docs/plans/*-brief.md   docs/superpowers/specs/*-desi
                                                                     + design doc)           backlog record (/capture)
 ```
 
-Between shaping and build, two utility skills act on the record with no fixed lifecycle position of their own — `/claude-tweaks:triage` (grants `auto:build`/`auto:merge`) and `/claude-tweaks:dispatch` (claims the authorized record's file-overlap group and hands it to `/claude-tweaks:flow`). See the Work Records section of `README.md` and `_shared/work-record.md` for the full grant/claim contract.
+Between shaping and build, two utility skills act on the record with no fixed lifecycle position of their own — `/claude-tweaks:backlog` (`refine` mode grants `auto:build`/`auto:merge`) and `/claude-tweaks:dispatch` (claims the authorized record's file-overlap group and hands it to `/claude-tweaks:flow`). See the Work Records section of `README.md` and `_shared/work-record.md` for the full grant/claim contract.
 
 ```
 Code + Journey ──→ Story YAML     ──→ Test (mechanical gate)  ──→ Review (analytical)       ──→ Learnings Routed    ──→ Clean Slate
@@ -54,7 +54,7 @@ Where a row below reads or writes `specs/NN-*.md`, that covers both the legacy n
 | `/challenge` | A backlog work record (GitHub issue or local file, per `work-backend`) | `docs/plans/*-brief.md` | — |
 | `/superpowers:brainstorming` | `docs/plans/*-brief.md` | `docs/superpowers/specs/*-design.md` | — |
 | `/specify` | Shaping mode: a work record reference. Decomposition mode: `*-design.md`, `*-brief.md`, plus every open record (queried live — there is no separate index to read) | Shaping mode: shapes the record in place (`ready` + scoring). Decomposition mode: a parent record plus `ready` leaf records — GitHub issues or local `specs/{id}-{slug}.md` files, per `work-backend` | `*-design.md`, `*-brief.md` (decomposition mode, once every phase is fully decomposed) |
-| `/claude-tweaks:triage` | Open work records carrying `ready` with no `auto:*` grant yet (the authorization worklist) | `auto:build`/`auto:merge` labels (human-granted only); strips `bot:blocked` on re-authorization; removes `ready` and comments when flagging an unshaped record back | — |
+| `/claude-tweaks:backlog refine` | Open work records carrying `ready` with no `auto:*` grant yet (the authorization worklist) | `auto:build`/`auto:merge` labels (human-granted only); strips `bot:blocked` on re-authorization; removes `ready` and comments when flagging an unshaped record back | — |
 | `/claude-tweaks:dispatch` | Open work records carrying `auto:build`, unclaimed and no `bot:*` label | `bot:in-progress` claim mirror + the atomic `refs/claims/issue-{N}` ref; this firing's `decisions.md`; invokes `/claude-tweaks:flow #{n}[,#{m}...]` | Releases its own claim (`bot:in-progress`) on completion or failure; strips `auto:*` grants and adds `bot:blocked` at the retry ceiling |
 | `/build` | `specs/NN-*.md`, `docs/plans/*.md` | Code, plan files, ledger items. Invokes `/journeys` for journey files and `/simplify` for code cleanup. Worktree mode also produces transient worktree directories and feature branches. | — |
 | `/journeys` | Changed files (from parent or git diff), `docs/journeys/*.md` | `docs/journeys/*.md` | — |
