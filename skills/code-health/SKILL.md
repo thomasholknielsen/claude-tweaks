@@ -207,6 +207,10 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" validate-findings /tmp/code-heal
   > /tmp/code-health-payloads.json
 ```
 
+If the command's output is `{"needsMcpWrite": true, ...}` instead of the normal output, follow
+`_shared/health-state.md`'s "MCP write path" procedure before continuing — do not treat this as
+an ordinary failure.
+
 `SLICE_ID` is the `id` field from the `next-slice` output in Step 1 (or the `--area` value when using manual override). `RUN_ID` is the run identifier for this sweep (ISO timestamp or any stable string unique per run).
 
 Read `/tmp/code-health-payloads.json`. The command:
@@ -231,6 +235,10 @@ For each payload in `/tmp/code-health-retry-payloads.json`, attempt `gh issue cr
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" retry-queue update /tmp/code-health-retry-results.json --root "${ROOT:-$PWD}" > /tmp/code-health-escalated.json
 ```
+
+If the command's output is `{"needsMcpWrite": true, ...}` instead of the normal output, follow
+`_shared/health-state.md`'s "MCP write path" procedure before continuing — do not treat this as
+an ordinary failure.
 
 This records successes (removed from the queue) and failures (added/incremented) in one durable write. If `/tmp/code-health-escalated.json` is non-empty, file (or update) a `code-health:filing-failed` issue for each entry, naming the stuck fingerprint and its failure history — bootstrap that label the same way as the others below.
 

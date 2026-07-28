@@ -161,6 +161,10 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" validate-findings /tmp/docs-heal
   > /tmp/docs-health-payloads.json
 ```
 
+If the command's output is `{"needsMcpWrite": true, ...}` instead of the normal output, follow
+`_shared/health-state.md`'s "MCP write path" procedure before continuing — do not treat this as
+an ordinary failure.
+
 `TARGET_ID` is that target's `.id` from Step 1 — always pass it for a real (non-dry-run) run: the CLI hard-gates on `--target` being present whenever `--dry-run` is not passed (docs-health has no gap-scan-equivalent fallback for cursor advancement, unlike harness-health/journey-health), and exits 2 if it's omitted. Omit only in `--dry-run` mode when previewing without a specific target. The command validates each finding, fingerprints via `assetType + target + section + normalizedDescription`, dedups against open `by:docs-health` issues and the local cache, records the audit cursor for `doc:${TARGET_ID}` unless `--dry-run`, holds any finding below `--min-confidence` in the durable `remembered` cache instead of filing it, and emits gh-ready payloads on stdout.
 
 **Step 6 — FILE.**
@@ -185,6 +189,10 @@ For each payload in `/tmp/docs-health-retry-payloads.json`, attempt `gh issue cr
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" retry-queue update /tmp/docs-health-retry-results.json --root . > /tmp/docs-health-escalated.json
 ```
+
+If the command's output is `{"needsMcpWrite": true, ...}` instead of the normal output, follow
+`_shared/health-state.md`'s "MCP write path" procedure before continuing — do not treat this as
+an ordinary failure.
 
 If `/tmp/docs-health-escalated.json` is non-empty, file (or update) a `docs-health:filing-failed` issue for each entry, naming the stuck fingerprint and its failure history — bootstrap that label the same way as the others below.
 

@@ -73,6 +73,54 @@ meant to be legible in the skill's own bash trail; reading/writing this branch i
 plumbing nobody inspects mid-flight, closer to `bin/lib/code-health/scope.js`'s existing
 impure-but-isolated git calls.
 
+## MCP write path (no `gh` CLI available)
+
+When `writeState`'s internal `hasGh()` probe finds no `gh` on PATH (a Claude Code cloud Routine
+sandbox — see the companion `_shared/github-write-transport.md`), it does not attempt any
+network call itself — MCP tools can only be invoked from the calling agent's own turn, never
+from the spawned Node subprocess `writeState` runs in. Instead it returns
+`{ ok: false, needsMcpWrite: true, branch: 'health-state', files: [{ path, content }] }`, and
+each CLI command that calls it (`validate-findings`, `retry-queue update`) prints that shape
+as JSON to stdout instead of its normal output.
+
+The calling skill drives the retry loop itself, up to `MAX_CAS_ATTEMPTS` attempts
+(`node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/health-core/durable-state.js').MAX_CAS_ATTEMPTS)"`):
+
+1. Run the CLI command that produced the `needsMcpWrite` output (this attempt's fresh read
+   already happened inside it).
+2. Parse the JSON. If it doesn't have `needsMcpWrite: true`, the write either already
+   succeeded via the gh path or failed for an unrelated reason — stop, nothing more to do
+   here.
+3. For each entry in `files`, resolve its current blob sha (empty/error means the file
+   doesn't exist yet — omit `sha` on the write below):
+
+   ```bash
+   git -C "$ROOT" rev-parse "origin/health-state:${FILE_PATH}" 2>/dev/null
+   ```
+
+4. Call `create_or_update_file` for each file (owner/repo from the current GitHub remote,
+   `branch` = the `branch` field from the JSON, `path`/`content` from that file's entry,
+   `sha` = the value resolved in step 3 if the file already existed, omitted otherwise).
+   `create_or_update_file` auto-creates the target branch on first write if it doesn't exist
+   yet — no separate bootstrap step is needed on this path (unlike the gh path's
+   `ensureBranch`).
+5. If every file's write succeeds, done — report success, same as a normal `{ ok: true }`.
+6. If any file's write is rejected for a sha-mismatch/already-exists reason, sleep
+   `casBackoffMs(attempt)` (`node -e "console.log(require(...).casBackoffMs(${ATTEMPT}))"`,
+   then actually wait that many milliseconds) and go back to step 1 — state may have changed,
+   so the CLI command must be re-run from scratch, not retried with stale data.
+7. If any file's write fails for a reason that is clearly not a conflict (a hard tool error —
+   malformed request, an outage), stop immediately and report the failure. Do not spend
+   retry attempts on a broken transport.
+8. If `MAX_CAS_ATTEMPTS` is exhausted without success, report the same non-fatal outcome the
+   gh path's own exhaustion already produces (see each CLI's existing "non-fatal" stderr
+   message) — a lost write here just means the next firing might redo some rotation work,
+   safe per the same reasoning documented in "Mechanism" above.
+
+The exact `create_or_update_file` parameter names should be confirmed against the live tool
+schema at the point this procedure is actually exercised — see `_shared/github-write-transport.md`
+for the shared detection check and CRUD mapping this procedure builds on.
+
 ## Retry / dead-letter queue
 
 Each skill's `retry-queue.json` is an array of
