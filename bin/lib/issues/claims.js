@@ -6,6 +6,7 @@
 'use strict';
 
 const DEFAULT_TTL_HOURS = 72;
+const CLAIMS_BRANCH = 'claims-registry';
 const RELEASE_RE = /<!--\s*agent-claim-release:\s*(\{[\s\S]*?\})\s*-->/;
 const CLAIM_RE = /<!--\s*agent-claim:\s*(\{[\s\S]*?\})\s*-->/;
 
@@ -13,9 +14,18 @@ function claimRef(issueNumber) {
   return `refs/claims/issue-${issueNumber}`;
 }
 
+function claimFilePath(issueNumber) {
+  return `claims/issue-${issueNumber}.json`;
+}
+
 // opts: { issueNumber, sha, runId, sessionId, ttlHours?, host?, owner?, repo?, note?, now }
 // owner/repo default to gh's {owner}/{repo} placeholders (auto-filled from the current repo).
-// Returns { ref, refArgs, commentBody }. refArgs feed `gh api` (201 = claimed, 422 = contested).
+// Returns { ref, sha, owner, repo, claimPath, fileContent, commentBody }.
+// gh-CLI path: `gh api "repos/${owner}/${repo}/git/refs" -f "ref=${ref}" -f "sha=${sha}"`
+//   (201 = claimed, 422 = contested).
+// MCP path: create_or_update_file(owner, repo, claimPath, fileContent, branch: CLAIMS_BRANCH)
+//   with no `sha` argument (create-only) — a file-already-exists rejection = contested,
+//   the same 201/422 shape one level down. CLAIMS_BRANCH auto-creates on first write.
 function claimPayload({ issueNumber, sha, runId, sessionId, ttlHours = DEFAULT_TTL_HOURS, host = '', owner = '{owner}', repo = '{repo}', note, now }) {
   const claimedAt = new Date(now).toISOString();
   const ref = claimRef(issueNumber);
@@ -24,14 +34,24 @@ function claimPayload({ issueNumber, sha, runId, sessionId, ttlHours = DEFAULT_T
   if (note) humanLines.push(note);
   return {
     ref,
-    refArgs: [`repos/${owner}/${repo}/git/refs`, '-f', `ref=${ref}`, '-f', `sha=${sha}`],
+    sha,
+    owner,
+    repo,
+    claimPath: claimFilePath(issueNumber),
+    fileContent: JSON.stringify(marker, null, 2),
     commentBody: `<!-- agent-claim: ${JSON.stringify(marker)} -->\n${humanLines.join('\n')}`,
   };
 }
 
 // opts: { issueNumber, runId, reason, link?, owner?, repo?, now }
-// Returns { ref, refDeleteArgs, commentBody }. DELETE path is /git/refs/claims/issue-<n>
-// (the API drops the leading "refs/" segment in the delete path).
+// Returns { ref, owner, repo, claimPath, tombstoneContent, commentBody }.
+// gh-CLI path: `gh api -X DELETE "repos/${owner}/${repo}/git/${ref}"`.
+// MCP path: create_or_update_file(owner, repo, claimPath, tombstoneContent, branch:
+//   CLAIMS_BRANCH, sha: <current file's sha, fetched first>) — overwrites with a tombstone
+//   rather than deleting, since a delete-file MCP tool isn't confirmed to exist. A sha
+//   mismatch here means someone else already broke/re-claimed — treat as a release race,
+//   not this run's problem (mirrors the gh-path's own "release fails -> log, TTL is the
+//   backstop" posture).
 function releasePayload({ issueNumber, runId, reason, link, owner = '{owner}', repo = '{repo}', now }) {
   const releasedAt = new Date(now).toISOString();
   const ref = claimRef(issueNumber);
@@ -39,7 +59,10 @@ function releasePayload({ issueNumber, runId, reason, link, owner = '{owner}', r
   const human = `Released by run ${runId}: ${reason}.` + (link ? ` See ${link}.` : '');
   return {
     ref,
-    refDeleteArgs: ['-X', 'DELETE', `repos/${owner}/${repo}/git/${ref}`],
+    owner,
+    repo,
+    claimPath: claimFilePath(issueNumber),
+    tombstoneContent: JSON.stringify({ released: true, ...marker }, null, 2),
     commentBody: `<!-- agent-claim-release: ${JSON.stringify(marker)} -->\n${human}`,
   };
 }
@@ -100,4 +123,7 @@ function claimStatus(comments, now) {
   return { claimed: true, claim: active, stale: isStale(active, now) };
 }
 
-module.exports = { DEFAULT_TTL_HOURS, claimRef, claimPayload, releasePayload, parseClaimMarker, isStale, claimStatus };
+module.exports = {
+  DEFAULT_TTL_HOURS, CLAIMS_BRANCH, claimRef, claimFilePath, claimPayload, releasePayload,
+  parseClaimMarker, isStale, claimStatus,
+};

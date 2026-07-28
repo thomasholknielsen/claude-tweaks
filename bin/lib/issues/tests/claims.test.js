@@ -3,7 +3,9 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const {
   DEFAULT_TTL_HOURS,
+  CLAIMS_BRANCH,
   claimRef,
+  claimFilePath,
   claimPayload,
   releasePayload,
   parseClaimMarker,
@@ -15,14 +17,24 @@ test('claimRef formats the claims-namespace ref', () => {
   assert.strictEqual(claimRef(123), 'refs/claims/issue-123');
 });
 
-test('claimPayload builds gh api args for atomic ref creation', () => {
+test('claimPayload builds ref, gh-path fields, and MCP-path fields', () => {
   const p = claimPayload({ issueNumber: 123, sha: 'abc123', runId: 'run-1', sessionId: 'sess-1', now: T0 });
   assert.strictEqual(p.ref, 'refs/claims/issue-123');
-  assert.deepStrictEqual(p.refArgs, [
-    'repos/{owner}/{repo}/git/refs',
-    '-f', 'ref=refs/claims/issue-123',
-    '-f', 'sha=abc123',
-  ]);
+  assert.strictEqual(p.sha, 'abc123');
+  assert.strictEqual(p.owner, '{owner}');
+  assert.strictEqual(p.repo, '{repo}');
+  assert.strictEqual(p.claimPath, 'claims/issue-123.json');
+  assert.deepStrictEqual(JSON.parse(p.fileContent), {
+    runId: 'run-1', sessionId: 'sess-1', claimedAt: new Date(T0).toISOString(), ttlHours: DEFAULT_TTL_HOURS, host: '',
+  });
+});
+
+test('claimFilePath formats the claims-registry-branch file path', () => {
+  assert.strictEqual(claimFilePath(123), 'claims/issue-123.json');
+});
+
+test('CLAIMS_BRANCH is a dedicated branch, distinct from the health-state branch', () => {
+  assert.strictEqual(CLAIMS_BRANCH, 'claims-registry');
 });
 
 test('claim marker round-trips through parseClaimMarker', () => {
@@ -44,13 +56,16 @@ test('claimPayload commentBody has a human-readable line after the marker', () =
   assert.ok(lines[1].includes('72h'));
 });
 
-test('releasePayload builds DELETE args and a release marker', () => {
+test('releasePayload builds ref, gh-path fields, and MCP-path tombstone fields', () => {
   const p = releasePayload({ issueNumber: 123, runId: 'run-1', reason: 'merged: spec 12', now: T0 });
   assert.strictEqual(p.ref, 'refs/claims/issue-123');
-  assert.deepStrictEqual(p.refDeleteArgs, [
-    '-X', 'DELETE',
-    'repos/{owner}/{repo}/git/refs/claims/issue-123',
-  ]);
+  assert.strictEqual(p.owner, '{owner}');
+  assert.strictEqual(p.repo, '{repo}');
+  assert.strictEqual(p.claimPath, 'claims/issue-123.json');
+  const tombstone = JSON.parse(p.tombstoneContent);
+  assert.strictEqual(tombstone.released, true);
+  assert.strictEqual(tombstone.runId, 'run-1');
+  assert.strictEqual(tombstone.reason, 'merged: spec 12');
   const m = parseClaimMarker(p.commentBody);
   assert.strictEqual(m.kind, 'release');
   assert.strictEqual(m.reason, 'merged: spec 12');
