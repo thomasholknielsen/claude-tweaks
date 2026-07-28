@@ -52,9 +52,18 @@ Every Standalone-auto `--scope=github` firing updates one rolling digest artifac
   "
   ```
 
+  (gh path shown above; the MCP-path equivalent per `_shared/github-write-transport.md`'s CRUD
+  mapping is `list_issues` for the fetch — never `search_issues`, for the same eventually-consistent-index
+  reason this section already avoids `gh issue list --search` — feeding the same `findByMarker`
+  call unchanged.)
+
   Read `/tmp/tidy-digest-lookup.json`:
   - `null` (first-ever firing, or the issue was manually closed): `gh issue create --title "Tidy GitHub-Triage Digest" --body-file <file>` once.
   - Otherwise (`canonical` is set — a match was found): if `duplicates` is non-empty (however that happened — this is the hedge, not the expected path; the same self-heal pattern `dispatch/SKILL.md`'s headless self-report uses), close every entry *before* touching `canonical` — `gh issue close {n} --reason "not planned"` with a comment `` "Duplicate of #{canonical.number} — same `<!-- tidy-digest-marker -->` match, closing to restore the rolling-digest invariant of one issue per repo." `` (the marker is backtick-quoted inside the comment so it renders as visible text on GitHub instead of a hidden HTML comment) — then log one line per closed duplicate to this firing's `decisions.md`: `AUTO {time} — Step 6 (rolling digest): closed duplicate issue #{n} (marker match with canonical #{canonical.number}). Reversibility: low (GitHub state; issue can be manually re-opened).` This keeps the "one issue, always" invariant true even if a future firing's lookup ever fails in some way this fix didn't anticipate — the accumulation this bug originally caused stays bounded to one extra firing cycle instead of growing forever. Whether or not any duplicates were found, then `gh issue edit {canonical.number} --body-file <file>`.
+  - MCP path (gh unavailable): `issue_write` (create mode) in place of `gh issue create`;
+    `issue_write` (update mode, state change) in place of `gh issue close`; `issue_write`
+    (update mode) in place of `gh issue edit --body-file` — same create-once/close-duplicates/
+    edit-canonical logic either way, per `_shared/github-write-transport.md`'s CRUD mapping.
 - `work-backend: local-files` with no reachable GitHub remote: rewrite `.claude-tweaks/tidy-digest.md` in place and commit it.
 
 **Structure**, exactly four sections in this order:

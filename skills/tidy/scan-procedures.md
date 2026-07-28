@@ -172,8 +172,9 @@ Scan `docs/REGISTRY.md` for health issues. Skip if the file doesn't exist.
 
 **Working-directory discipline:** every command in this step (and in any dispatched parallel agent) — the claim-ref listing below and both backstops that use `find .claude-tweaks/pipelines` — MUST be anchored to `{REPO_ROOT}` (resolved via `git rev-parse --show-toplevel` in the dispatcher before any agent fires, the same resolution Step 4.5 already documents). Anchor with `cd "{REPO_ROOT}" &&` at the start of each command. CWD does not propagate reliably to dispatched Task agents (see `_shared/subagent-output-contract.md`'s Working Directory Discipline section) — an un-anchored `find .claude-tweaks/pipelines/...` doesn't error from the wrong cwd, it silently returns zero matches, which reads identically to "no missed restorations found," the opposite of the loud failure this anchor is meant to guarantee. `gh` commands need the same anchor: `gh` infers the target repo from the cwd's git remote, so a wrong cwd can point `gh issue list`/`gh api` at an unrelated repo entirely, not just fail to find files.
 
-Skip silently when `gh` is unavailable or the repo has no GitHub remote (pre-check, before
-any listing attempt). If the ref-listing call itself fails mid-scan (rate limit, transient
+Skip silently when the repo has no GitHub remote (pre-check, before any listing attempt) —
+`gh` being unavailable alone no longer skips this step, per `_shared/github-write-transport.md`;
+use the MCP path instead. If the ref-listing call itself fails mid-scan (rate limit, transient
 API error) after passing that pre-check, skip the rest of this step and note it in the
 report — per `_shared/issue-claims.md`'s Failure posture table ("Ref listing fails in /tidy
 → skip the sweep step, note it in the report"), not silently. See `_shared/issue-claims.md`
@@ -190,6 +191,10 @@ gh api "repos/{owner}/{repo}/issues/<n>/comments?per_page=100" > /tmp/tidy-claim
 node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
   console.log(JSON.stringify(c.claimStatus(require(process.argv[1]),Date.now())))" /tmp/tidy-claims-<n>.json
 ```
+
+(gh path shown above; use `_shared/issue-claims.md`'s MCP-path "List all claims" when `gh` is
+unavailable — a directory listing of `claims/` on the `claims-registry` branch instead of
+`git/matching-refs`.)
 
 | Status | Recommendation |
 |--------|---------------|
