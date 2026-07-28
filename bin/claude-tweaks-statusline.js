@@ -63,11 +63,39 @@ function renderModel(input) {
   return m.display_name || m.id || null;
 }
 
+// EnterWorktree pivots a session's workspace.project_dir to the worktree's
+// own path once inside it, so the naive basename shows the worktree folder
+// instead of the real project. A linked worktree's `.git` is a plain text
+// file (`gitdir: ...`), not a directory — that's how git itself tells a
+// worktree checkout apart from the main one, with no `git` invocation
+// needed for the common (non-worktree) case.
+function resolveMainProjectDir(dir) {
+  let stat;
+  try {
+    stat = fs.statSync(path.join(dir, '.git'));
+  } catch {
+    return dir;
+  }
+  if (stat.isDirectory()) return dir;
+  try {
+    const commonDir = execSync('git rev-parse --git-common-dir', {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      encoding: 'utf8',
+      cwd: dir,
+    }).trim();
+    if (!commonDir) return dir;
+    const absCommonDir = path.isAbsolute(commonDir) ? commonDir : path.resolve(dir, commonDir);
+    return path.dirname(absCommonDir);
+  } catch {
+    return dir;
+  }
+}
+
 function renderProject(input, fallbackCwd) {
   const ws = input.workspace || {};
   const dir = ws.project_dir || ws.current_dir || input.cwd || fallbackCwd;
   if (!dir || typeof dir !== 'string') return null;
-  const name = path.basename(dir);
+  const name = path.basename(resolveMainProjectDir(dir));
   return name || null;
 }
 

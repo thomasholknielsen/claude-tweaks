@@ -172,6 +172,33 @@ test('renderProject: falls back to explicit fallbackCwd when nothing else availa
   assert.strictEqual(sl.renderProject({}, '/Users/x/Code/fallback-cwd'), 'fallback-cwd');
 });
 
+test('renderProject: resolves a linked worktree to the main project name', () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-sl-wt-'));
+  const mainDir = path.join(base, 'real-project-name');
+  fs.mkdirSync(mainDir);
+  const git = (args, cwd) => execFileSync('git', args, { cwd, encoding: 'utf8' });
+  git(['init', '-q', '-b', 'main'], mainDir);
+  git(['config', 'user.email', 'test@example.com'], mainDir);
+  git(['config', 'user.name', 'Test'], mainDir);
+  fs.writeFileSync(path.join(mainDir, 'README.md'), 'hi');
+  git(['add', '.'], mainDir);
+  git(['commit', '-q', '-m', 'init'], mainDir);
+  const worktreeDir = path.join(base, 'worktree-branch-name');
+  git(['worktree', 'add', '-q', worktreeDir, '-b', 'feature'], mainDir);
+  try {
+    // EnterWorktree pivots workspace.project_dir to the worktree path — the
+    // statusline must still surface the real project's name, not the
+    // worktree folder's.
+    assert.strictEqual(
+      sl.renderProject({ workspace: { project_dir: worktreeDir } }),
+      'real-project-name',
+    );
+  } finally {
+    git(['worktree', 'remove', '--force', worktreeDir], mainDir);
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+});
+
 test('renderContext: uses used_percentage when provided', () => {
   const r = sl.renderContext({ context_window: { used_percentage: 18 } });
   assert.ok(r.includes('ctx: 18%'));
@@ -522,7 +549,17 @@ test('end-to-end: empty input does not crash', () => {
 
 test('end-to-end: project segment is always present, even with empty input', () => {
   const out = runStatusline({}, { NO_COLOR: '1' });
-  assert.ok(out.startsWith(path.basename(process.cwd())), `expected project segment: ${out}`);
+  // Derived independently of the implementation (not via resolveMainProjectDir)
+  // so this stays a real regression check: when the test itself runs from
+  // inside a linked worktree, the expected name is the main checkout's, not
+  // the worktree folder's.
+  const commonDir = execFileSync('git', ['rev-parse', '--git-common-dir'], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+  }).trim();
+  const absCommonDir = path.isAbsolute(commonDir) ? commonDir : path.resolve(process.cwd(), commonDir);
+  const expectedName = path.basename(path.dirname(absCommonDir));
+  assert.ok(out.startsWith(expectedName), `expected project segment: ${out}`);
 });
 
 test('end-to-end: NO_COLOR strips ANSI codes even at high context', () => {
