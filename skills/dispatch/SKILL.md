@@ -117,7 +117,14 @@ gh issue create \
 
 No `ready`/`auto:build` on the filed issue — a human confirms and applies the fix, the same conservative default `/capture`'s `keep` route uses elsewhere in this codebase. The bare/`#N`/explicit-list forms always run with a human present (per the Input table framing above) — they still just report and stop; self-filing is `next`-only.
 
-Before any `gh` command, run the Detection Ladder from `_shared/github-pr-scan.md` (checks 1-3: GitHub remote exists, `gh` CLI installed, `gh` authenticated + repo reachable). Unlike `/tidy`/`/help`'s use of this ladder, which fails open into a skipped scan, `/claude-tweaks:dispatch` treats any ladder failure as a hard gate — this skill's entire purpose is writing GitHub state (claims, labels, merges), so there is no meaningful degraded mode to fall back into. Report the specific failing check and stop (headless self-report above still applies for the `next` form).
+Before any `gh` command, run checks 1 and 3 of the Detection Ladder from
+`_shared/github-pr-scan.md` (GitHub remote exists; `gh`, if present, is authenticated and the
+repo is reachable) — these two failures still have no degraded mode (an unreachable/unauthenticated
+repo means nothing here can work, on either transport) and remain a hard gate. Check 2 (`gh`
+CLI installed) is no longer a hard gate on its own: per `_shared/github-write-transport.md`,
+`gh` absent means every write in this skill (claim, label, comment, merge) uses the MCP path
+instead — proceed normally rather than stopping. Report the specific failing check and stop
+only for checks 1 or 3 (headless self-report above still applies for the `next` form).
 
 ## Workflow
 
@@ -262,7 +269,13 @@ A `null` result here (no eligible groups, or none matching `--priority`) is the 
 
 ### Step 4: Claim the selected group (whole group, or none)
 
-Per `_shared/issue-claims.md`'s group-claim rule: claim **all members of the group before starting any**. Resolve the sha once per run, then for each member of the selected group attempt the atomic ref creation exactly as `_shared/issue-claims.md`'s "The lock" section describes:
+Per `_shared/issue-claims.md`'s group-claim rule: claim **all members of the group before
+starting any**. Resolve the detection check once per run, not per issue (per
+`_shared/github-write-transport.md`).
+
+**gh CLI path** (`gh` on PATH): resolve the sha once per run, then for each member of the
+selected group attempt the atomic ref creation exactly as `_shared/issue-claims.md`'s "The
+lock" section describes:
 
 ```bash
 DEFAULT_BRANCH=$(gh api "repos/{owner}/{repo}" -q .default_branch)
@@ -273,17 +286,36 @@ for ISSUE in "${GROUP_MEMBERS[@]}"; do
 done
 ```
 
-**On success (201):** bootstrap-then-add `bot:in-progress`, then post the claim comment (`claimPayload`):
+**MCP path** (`gh` unavailable): for each member of the selected group, generate the claim
+payload and attempt the conditional-create write exactly as `_shared/issue-claims.md`'s "The
+lock" section describes:
+
+```bash
+for ISSUE in "${GROUP_MEMBERS[@]}"; do
+  node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
+    console.log(JSON.stringify(c.claimPayload({issueNumber:Number(process.argv[1]),
+    sha:process.argv[2],runId:process.argv[3],sessionId:process.env.CLAUDE_CODE_SESSION_ID||'',
+    host:require('os').hostname(),now:Date.now()})))" "$ISSUE" "$SHA" "$RUN_ID" > "/tmp/claim-payload-${ISSUE}.json"
+  # Call create_or_update_file with path=claimPath, content=fileContent, branch=CLAIMS_BRANCH
+  # from the payload above, omitting sha (create-only). A file-exists rejection means
+  # already-claimed — branch on the result below, per member, same as the gh path.
+done
+```
+
+**On success (claimed, either path):** bootstrap-then-add `bot:in-progress` (still a plain
+label edit — `gh issue edit` or `issue_write` per the CRUD mapping in
+`_shared/github-write-transport.md`), then post the claim comment (`claimPayload`'s
+`commentBody`, unchanged regardless of which path claimed it):
 
 ```bash
 # Bootstrap per _shared/label-bootstrap.md, LABELS_JSON =
 # [['bot:in-progress', 'Bot state: an agent currently holds the claim on this record']]
-gh issue edit "$ISSUE" --add-label bot:in-progress
 node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
   console.log(c.claimPayload({issueNumber:Number(process.argv[1]),sha:process.argv[2],
   runId:process.argv[3],sessionId:process.env.CLAUDE_CODE_SESSION_ID||'',
   host:require('os').hostname(),now:Date.now()}).commentBody)" "$ISSUE" "$SHA" "$RUN_ID" > /tmp/claim-${ISSUE}.md
-gh issue comment "$ISSUE" --body-file /tmp/claim-${ISSUE}.md
+# gh issue edit "$ISSUE" --add-label bot:in-progress ; gh issue comment "$ISSUE" --body-file /tmp/claim-${ISSUE}.md
+# — or the MCP-tool equivalents from _shared/github-write-transport.md's CRUD mapping.
 ```
 
 **On 422 (contested):** fetch comments and fold through `claimStatus` exactly as `_shared/issue-claims.md`'s "Reading claim state" section describes, then branch on the full returned shape — do not collapse to a two-way live/stale fold:
@@ -301,6 +333,9 @@ Any other `gh` failure during claim: skip, log, continue.
 **Partial claim.** If any member of the group resolves to Skip (a live claim held elsewhere) or hits an unresolvable `gh` failure, the group cannot be fully claimed: release every member this firing already claimed this round (`releasePayload`, reason `never-started: file-overlap group partial claim`), log, and move to the next candidate group (bare, and `#N,#M,...` — per Step 3, an explicit-list group proceeds "exactly as a bare-mode pick would," so a partial-claim failure on one named group moves to the next named group rather than aborting the rest of the list) or report nothing eligible this firing (`next` / `#N`, which each name only one group to begin with). A Break outcome (stale-claim takeover) is not a partial-claim failure — it succeeds in claiming that member, so it never triggers the abort path on its own.
 
 **`--claim-only` stop point.** When this modifier is present (Input table above), stop here for every successfully claimed group — do not proceed to Step 5. Report each claimed group's members, confirm `bot:in-progress` and the claim comment landed, and print the manual-release commands for each member (mirrors `_shared/issue-claims.md`'s "The lock" → Release):
+
+(gh path shown below; use the MCP-path release from `_shared/issue-claims.md`'s "The lock"
+section when `gh` is unavailable):
 
 ```bash
 gh api -X DELETE "repos/{owner}/{repo}/git/refs/claims/issue-{n}"
@@ -454,7 +489,7 @@ Render only when a human is present to answer — the bare form is definitionall
 | `_shared/subagent-output-contract.md` | Each group's `Task()` prompt follows the contract's Input Discipline and status-line protocol; the GROUP/OUTCOME/MANIFEST template is this skill's own minimal shape (none of Templates A/B/C fit a full-pipeline-execution agent). |
 | `_shared/label-bootstrap.md` | Canonical check-then-create snippet for `bot:in-progress` / `bot:blocked` — the only two labels dispatch itself ever adds. |
 | `_shared/pipeline-run-dir.md` | Dispatch resolves a standalone-auto run dir (allowlist) for its own `decisions.md`; distinct from the `PIPELINE_RUN_DIR` each dispatched `/flow` run creates for its own build — see Component-Skill Contract above. |
-| `_shared/github-pr-scan.md` | Preflight runs its Detection Ladder (checks 1-3) before any `gh` command — unlike `/tidy`/`/help`'s fail-open use of the same ladder, dispatch treats any failure as a hard gate (see Preflight above). Dispatch consumes only the ladder, not the scope sections those two skills use. |
+| `_shared/github-pr-scan.md` | Preflight runs checks 1 and 3 of the Detection Ladder before any `gh` command — unlike `/tidy`/`/help`'s fail-open use of the same ladder, dispatch treats a check 1 or 3 failure as a hard gate (see Preflight above); check 2 (`gh` installed) alone is not, since `_shared/github-write-transport.md`'s MCP path covers its absence. Dispatch consumes only the ladder, not the scope sections those two skills use. |
 | `_shared/local-files-preflight-stop.md` | Canonical "stop this turn completely" boundary-language pattern this skill's Preflight local-files stop paragraph follows — added after the identical weaker phrasing was proven insufficient in `/claude-tweaks:triage`'s own Preflight (now `/claude-tweaks:backlog refine`'s grant sub-stage). |
 | `bin/lib/issues/{claims,retry,grouping,record}.js` | The pure helpers behind claim/release payloads, retry-ceiling math, file-overlap grouping, and grant/bot-state facet parsing — dispatch calls all four, unchanged. Step 2 also calls record.js's `parseDependencies` to drop records with an open `Blocked by #N` line from the queue under `work-links: body-text`, and `buildNativeDependencyQuery`/`hasOpenNativeBlocker` to do the same against GitHub's native dependency relationship under `work-links: native`. |
 | `/claude-tweaks:assess-agent-autonomy` | Called inline (not a fresh Task dispatch) at two points: the Auto-merge gate (`merge-check` mode, replacing the old three-layer mechanical check) and the Settle step (`failure-check` mode, replacing unconditional `auto:merge` revocation). Dispatch still owns authorization, claim mechanics, and retry-ceiling counting directly — assess-agent-autonomy only ever returns a verdict, never writes a label itself. |
