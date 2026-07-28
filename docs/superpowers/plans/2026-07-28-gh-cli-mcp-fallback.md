@@ -697,14 +697,35 @@ Replace the fenced bash block under `### Step 4: Claim the selected group (whole
 
 ```markdown
 Per `_shared/issue-claims.md`'s group-claim rule: claim **all members of the group before
-starting any**. For each member, follow `_shared/issue-claims.md`'s "The lock" section — gh
-CLI path or MCP path, per the detection check in `_shared/github-write-transport.md`:
+starting any**. Resolve the detection check once per run, not per issue (per
+`_shared/github-write-transport.md`).
+
+**gh CLI path** (`gh` on PATH): resolve the sha once per run, then for each member of the
+selected group attempt the atomic ref creation exactly as `_shared/issue-claims.md`'s "The
+lock" section describes:
+
+```bash
+DEFAULT_BRANCH=$(gh api "repos/{owner}/{repo}" -q .default_branch)
+SHA=$(gh api "repos/{owner}/{repo}/commits/${DEFAULT_BRANCH}" -q .sha)
+for ISSUE in "${GROUP_MEMBERS[@]}"; do
+  gh api "repos/{owner}/{repo}/git/refs" -f "ref=refs/claims/issue-${ISSUE}" -f "sha=${SHA}"
+  # ... branch on the result below, per member
+done
+```
+
+**MCP path** (`gh` unavailable): for each member of the selected group, generate the claim
+payload and attempt the conditional-create write exactly as `_shared/issue-claims.md`'s "The
+lock" section describes:
 
 ```bash
 for ISSUE in "${GROUP_MEMBERS[@]}"; do
-  # gh path or MCP path per _shared/issue-claims.md's "The lock" — branch on the
-  # detection check once per run, not per issue.
-  # ... claim attempt for $ISSUE, per member ...
+  node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
+    console.log(JSON.stringify(c.claimPayload({issueNumber:Number(process.argv[1]),
+    sha:process.argv[2],runId:process.argv[3],sessionId:process.env.CLAUDE_CODE_SESSION_ID||'',
+    host:require('os').hostname(),now:Date.now()})))" "$ISSUE" "$SHA" "$RUN_ID" > "/tmp/claim-payload-${ISSUE}.json"
+  # Call create_or_update_file with path=claimPath, content=fileContent, branch=CLAIMS_BRANCH
+  # from the payload above, omitting sha (create-only). A file-exists rejection means
+  # already-claimed — branch on the result below, per member, same as the gh path.
 done
 ```
 
