@@ -242,7 +242,9 @@ function cmdValidateFindings(args) {
         rememberCandidates: remembered.map((f) => ({ id: f.id, confidence: f.confidence })),
       },
     ));
-    if (!result.ok) {
+    if (result.needsMcpWrite) {
+      process.stdout.write(JSON.stringify({ needsMcpWrite: true, branch: result.branch, files: result.files }) + '\n');
+    } else if (!result.ok) {
       process.stderr.write(`[harness-health] validate-findings: health-state persistence failed after retries: ${result.error}\n`);
     }
   }

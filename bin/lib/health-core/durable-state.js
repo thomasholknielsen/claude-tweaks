@@ -92,8 +92,23 @@ function defaultRun(cmd, args, opts = {}) {
   return execFileSync(cmd, args, { encoding: 'utf8', timeout: DEFAULT_RUN_TIMEOUT_MS, ...opts });
 }
 
+// Capability probe, not environment-classification — a future environment where gh
+// happens to be installed (even a cloud sandbox with a custom setup script) must
+// transparently keep using it. Injectable so tests never actually shell out.
+function defaultHasGh(run) {
+  return () => {
+    try {
+      run('gh', ['--version']);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+}
+
 function createDurableState(skillName, {
   run = defaultRun, sleep = defaultSleep, includeRemembered = false, includeDeclined = false,
+  hasGh = defaultHasGh(run),
 } = {}) {
   function showFile(root, relPath, fallback) {
     try {
@@ -266,7 +281,29 @@ function createDurableState(skillName, {
     return files;
   }
 
+  function needsMcpWrite(root, mutatorFn) {
+    // No gh calls at all — not even ensureBranch's bootstrap, since
+    // create_or_update_file auto-creates the target branch on first write (verified
+    // live in Task 8; see _shared/health-state.md's MCP write path section). Read
+    // is unaffected — git fetch/show are gh-free already.
+    //
+    // The fetch must not throw uncaught on a first-ever run (branch doesn't exist on
+    // the remote yet) — writeState's "never throws" contract holds on this path too
+    // (see the durable-state.test.js tests for the gh path's own equivalent case).
+    // A failed fetch here just means readFilesAtFetchedTip's own per-file showFile
+    // calls degrade to their fallback defaults below, same as readState's behavior.
+    try {
+      run('git', ['-C', root, 'fetch', 'origin', HEALTH_STATE_BRANCH]);
+    } catch {
+      // Swallowed deliberately — see comment above.
+    }
+    const current = readFilesAtFetchedTip(root);
+    const next = mutatorFn(current);
+    return { ok: false, needsMcpWrite: true, branch: HEALTH_STATE_BRANCH, files: buildFiles(next) };
+  }
+
   function writeState(root, mutatorFn) {
+    if (!hasGh()) return needsMcpWrite(root, mutatorFn);
     ensureBranch(root);
     let lastError = null;
     for (let attempt = 1; attempt <= MAX_CAS_ATTEMPTS; attempt++) {

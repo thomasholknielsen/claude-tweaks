@@ -69,6 +69,10 @@ function makeRetryQueueCommands({ readDurableState, writeDurableState }) {
       }
       return { ...current, retryQueue: queue };
     });
+    if (result.needsMcpWrite) {
+      process.stdout.write(JSON.stringify({ needsMcpWrite: true, branch: result.branch, files: result.files }) + '\n');
+      return;
+    }
     if (!result.ok) {
       process.stderr.write(`retry-queue update: health-state persistence failed after retries: ${result.error}\n`);
       // The escalated list above was computed against the final (rejected)

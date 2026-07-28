@@ -133,6 +133,9 @@ function matchArgs(args, needle) {
 // six near-identical copies.
 function baseWriteStateRules() {
   return [
+    // defaultHasGh's probe — every writeState test exercises the gh path, so
+    // the probe must report gh as present.
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, '--version'), returns: '' },
     // writeState's own combined commit+tree rev-parse (one process, both
     // refs in a single call — see durable-state.js's currentRefShas).
     { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && matchArgs(args, '^{tree}'), returns: 'commit-sha-1\ntree-sha-1\n' },
@@ -286,6 +289,7 @@ test('writeState waits an increasing, jittered interval between CAS retry attemp
 test('writeState bootstraps the branch when it does not exist yet, then completes the write on the bootstrapped branch', () => {
   let branchCreated = false;
   const { run, calls } = fakeRunner([
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, '--version'), returns: '' },
     {
       match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'),
       returns: () => {
@@ -338,6 +342,7 @@ test('writeState never includes a remembered.json blob for a skill that does not
 
 test('ensureBranch never throws: writeState returns { ok: false, error } (not an uncaught throw) when every bootstrap attempt fails', () => {
   const { run } = fakeRunner([
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, '--version'), returns: '' },
     // The branch does not exist yet on every fetch/rev-parse call throughout
     // the whole writeState call (ensureBranch's own check AND every attempt
     // of the CAS loop).
@@ -364,6 +369,7 @@ test('ensureBranch never throws: writeState returns { ok: false, error } (not an
 test('writeState fetches at most once per CAS-loop attempt: a redundant internal readState fetch (now removed) would fail, but the write still succeeds using the already-fetched branch state', () => {
   let fetchCount = 0;
   const { run } = fakeRunner([
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, '--version'), returns: '' },
     { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && matchArgs(args, '^{tree}'), returns: 'commit-sha-1\ntree-sha-1\n' },
     { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && !matchArgs(args, '^{tree}'), returns: 'commit-sha-1\n' },
     {
@@ -404,6 +410,7 @@ test('writeState fetches at most once per CAS-loop attempt: a redundant internal
 test('writeState resolves the parent commit sha and base tree sha from a SINGLE combined rev-parse call, not two separate subprocess spawns', () => {
   let revParseCallCount = 0;
   const { run } = fakeRunner([
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, '--version'), returns: '' },
     {
       match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && matchArgs(args, '^{tree}'),
       returns: () => { revParseCallCount += 1; return 'commit-sha-1\ntree-sha-1\n'; },
@@ -426,6 +433,7 @@ test('writeState treats a rejected-looking ref update as success (and does not r
   let mutatorCalls = 0;
   let updateAttempted = false;
   const { run } = fakeRunner([
+    { match: (cmd, args) => cmd === 'gh' && matchArgs(args, '--version'), returns: '' },
     { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && matchArgs(args, '^{tree}'), returns: 'commit-sha-1\ntree-sha-1\n' },
     {
       // ensureBranch's existence check, AND writeState's own post-failure
@@ -499,6 +507,70 @@ test('writeState includes a remembered.json blob only for a skill that opts in',
     'code-health/retry-queue.json',
     'code-health/runs.json',
   ]);
+});
+
+// --- hasGh / needsMcpWrite: writeState signals a pending write instead of
+// shelling out to gh when gh is unavailable (a cloud sandbox with only
+// GitHub MCP tools) ---
+
+test('writeState signals needsMcpWrite instead of calling gh when gh is unavailable, without ever calling gh', () => {
+  const { run, calls } = fakeRunner([
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && matchArgs(args, '^{tree}'), returns: 'commit-sha-1\ntree-sha-1\n' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), returns: '' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show'), throws: 'fatal: path does not exist' },
+  ]);
+  const ds = createDurableState('code-health', { run, sleep: () => {}, includeRemembered: true, hasGh: () => false });
+  const result = ds.writeState('/repo', (current) => ({ ...current, cursors: { '.': { lastSweptMs: 2 } } }));
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.needsMcpWrite, true);
+  assert.strictEqual(result.branch, HEALTH_STATE_BRANCH);
+  const paths = result.files.map((f) => f.path).sort();
+  assert.deepStrictEqual(paths, ['code-health/cursors.json', 'code-health/remembered.json', 'code-health/retry-queue.json', 'code-health/runs.json']);
+  const cursorsFile = result.files.find((f) => f.path === 'code-health/cursors.json');
+  assert.deepStrictEqual(JSON.parse(cursorsFile.content), { '.': { lastSweptMs: 2 } });
+  assert.ok(!calls.some((c) => c.cmd === 'gh'), 'must never shell out to gh when gh is unavailable');
+});
+
+test('writeState still calls gh normally (unchanged) when hasGh returns true (the default)', () => {
+  const { run, calls } = fakeRunner([
+    ...baseWriteStateRules(),
+    refUpdateRule({ returns: '' }),
+  ]);
+  const ds = createDurableState('code-health', { run, sleep: () => {}, includeRemembered: true, hasGh: () => true });
+  const result = ds.writeState('/repo', (current) => current);
+  assert.deepStrictEqual(result, { ok: true });
+  assert.ok(calls.some((c) => c.cmd === 'gh'), 'sanity check: the gh path was actually exercised');
+});
+
+test('writeState signals needsMcpWrite (not a throw) on a genuine first-ever run when gh is unavailable — the branch does not exist on the remote yet, so the fetch itself fails', () => {
+  const { run } = fakeRunner([
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), throws: "couldn't find remote ref health-state" },
+  ]);
+  const ds = createDurableState('code-health', { run, sleep: () => {}, includeRemembered: true, hasGh: () => false });
+  let result;
+  assert.doesNotThrow(() => {
+    result = ds.writeState('/repo', (current) => ({ ...current, cursors: { '.': { lastSweptMs: 1 } } }));
+  }, 'a first-ever-run fetch failure must not throw out of writeState, same as the gh path\'s own contract');
+  assert.strictEqual(result.needsMcpWrite, true);
+  const cursorsFile = result.files.find((f) => f.path === 'code-health/cursors.json');
+  assert.deepStrictEqual(JSON.parse(cursorsFile.content), { '.': { lastSweptMs: 1 } }, 'mutator must still run against the degraded-empty defaults, same as readState would produce');
+});
+
+test('default hasGh probes `gh --version` via the injected run function', () => {
+  const seenProbe = [];
+  const { run } = fakeRunner([
+    {
+      match: (cmd, args) => cmd === 'gh' && matchArgs(args, '--version'),
+      returns: () => { seenProbe.push(true); throw new Error('gh: command not found'); },
+    },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && matchArgs(args, '^{tree}'), returns: 'commit-sha-1\ntree-sha-1\n' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), returns: '' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show'), throws: 'fatal: path does not exist' },
+  ]);
+  const ds = createDurableState('code-health', { run, sleep: () => {}, includeRemembered: true });
+  const result = ds.writeState('/repo', (current) => current);
+  assert.strictEqual(result.needsMcpWrite, true);
+  assert.strictEqual(seenProbe.length > 0, true, 'default hasGh must have actually probed gh via run()');
 });
 
 // --- includeDeclined: durable persistence for the 'declined' dismissal mark

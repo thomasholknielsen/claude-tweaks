@@ -271,7 +271,9 @@ function cmdValidateFindings(args) {
       const result = writeDurableState(root, (current) => buildValidateFindingsUpdate(
         current, { areasSwept, hashes, rememberCandidates, runRecord },
       ));
-      if (!result.ok) {
+      if (result.needsMcpWrite) {
+        process.stdout.write(JSON.stringify({ needsMcpWrite: true, branch: result.branch, files: result.files }) + '\n');
+      } else if (!result.ok) {
         process.stderr.write(
           `[code-health] validate-findings: health-state persistence failed after retries (non-fatal, payloads still emitted): ${result.error}\n`,
         );
