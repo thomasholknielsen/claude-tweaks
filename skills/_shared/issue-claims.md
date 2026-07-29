@@ -44,10 +44,21 @@ node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.
   host:require('os').hostname(),now:Date.now()})))" "$ISSUE" "$SHA" "$RUN_ID" > /tmp/claim-payload-${ISSUE}.json
 ```
 
+- **Bootstrap the branch** (once per run, before the first `create_or_update_file` call —
+  claim or release). Branch creation on this transport is a distinct MCP tool
+  (`create_branch`), never an implicit side effect of a content write, so `CLAIMS_BRANCH`
+  must be created explicitly the first time it's needed: check whether it already exists (a
+  cheap read attempt against a known path on it, or whatever branch-existence check the
+  available MCP tools support); if not, call `create_branch` with name = `CLAIMS_BRANCH`
+  (`claims-registry`, `node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js').CLAIMS_BRANCH)"`)
+  and source = the repository's default branch, tolerating an "already exists" rejection (a
+  concurrent agent may have created it first — the same 422-tolerance the gh path's own ref
+  creation has). An MCP-bootstrapped `claims-registry` therefore carries the default branch's
+  history underneath it; harmless, since the branch is a registry nobody merges, but not
+  equivalent to an orphan branch.
 - **Claim:** call `create_or_update_file` with `path` = the payload's `claimPath`, `content` =
-  `fileContent`, `branch` = `CLAIMS_BRANCH` (`claims-registry`, `node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js').CLAIMS_BRANCH)"`),
-  omitting `sha` (create-only). A file-already-exists rejection = already claimed, the same
-  201/422 shape one level down. The branch auto-creates on first write.
+  `fileContent`, `branch` = `CLAIMS_BRANCH`, omitting `sha` (create-only). A
+  file-already-exists rejection = already claimed, the same 201/422 shape one level down.
 - **Release:** first resolve the claim file's current sha, then call `create_or_update_file`
   again with `content` = the payload's `tombstoneContent` and that `sha` — a sha mismatch
   means someone else already broke/re-claimed it; treat as a release race (log, TTL is the

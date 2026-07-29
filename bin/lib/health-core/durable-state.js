@@ -282,10 +282,16 @@ function createDurableState(skillName, {
   }
 
   function needsMcpWrite(root, mutatorFn) {
-    // No gh calls at all — not even ensureBranch's bootstrap, since
-    // create_or_update_file auto-creates the target branch on first write (verified
-    // live in Task 8; see _shared/health-state.md's MCP write path section). Read
-    // is unaffected — git fetch/show are gh-free already.
+    // No gh calls at all — not even ensureBranch's bootstrap. This function
+    // does not attempt to create the health-state branch itself: branch
+    // creation on this transport is a distinct MCP tool (create_branch), not
+    // an implicit side effect of a create_or_update_file content write, and
+    // MCP tools can only be invoked from the calling agent's own turn, never
+    // from this Node subprocess. Ensuring the branch exists before any
+    // create_or_update_file call is therefore the calling skill's own MCP
+    // procedure's job (see _shared/health-state.md's MCP write path section,
+    // whose bootstrap step is this path's counterpart to the gh path's
+    // ensureBranch). Read is unaffected — git fetch/show are gh-free already.
     //
     // The fetch must not throw uncaught on a first-ever run (branch doesn't exist on
     // the remote yet) — writeState's "never throws" contract holds on this path too

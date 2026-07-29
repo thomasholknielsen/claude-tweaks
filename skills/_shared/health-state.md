@@ -98,28 +98,43 @@ The calling skill drives the retry loop itself, up to `MAX_CAS_ATTEMPTS` attempt
    git -C "$ROOT" rev-parse "origin/health-state:${FILE_PATH}" 2>/dev/null
    ```
 
-4. Call `create_or_update_file` for each file (owner/repo from the current GitHub remote,
+4. Ensure the `health-state` branch itself exists, before the first `create_or_update_file`
+   call. Branch creation on this transport is a distinct MCP tool (`create_branch`), never an
+   implicit side effect of a content write, so this path needs its own explicit bootstrap step
+   exactly as the gh path needs `ensureBranch`:
+
+   - Check whether the branch already exists — a cheap read attempt against a known path on
+     that branch (the read counterpart to `create_or_update_file`), or whatever
+     branch-existence check the calling agent's available MCP tools support.
+   - If it does not exist, call `create_branch` with name = `health-state` and source = the
+     repository's default branch. Tolerate an "already exists" rejection — a concurrent
+     firing, or the gh path, may have created it first; this mirrors the gh path's own
+     `createRef` 422-tolerance.
+   - This means an MCP-bootstrapped `health-state` branch carries the default branch's
+     history and tree underneath it, unlike the gh path's genuinely orphan, empty-tree
+     branch. There is no MCP-exposed way to create a truly orphan branch, and the divergence
+     is harmless — the branch is scratch, never merged into anything (see this file's opening
+     paragraph) — but it is a real difference between the two paths, not an equivalence.
+5. Call `create_or_update_file` for each file (owner/repo from the current GitHub remote,
    `branch` = the `branch` field from the JSON, `path`/`content` from that file's entry,
    `sha` = the value resolved in step 3 if the file already existed, omitted otherwise).
-   `create_or_update_file` auto-creates the target branch on first write if it doesn't exist
-   yet — no separate bootstrap step is needed on this path (unlike the gh path's
-   `ensureBranch`).
-5. If every file's write succeeds, done — report success, same as a normal `{ ok: true }`.
-6. If any file's write is rejected for a sha-mismatch/already-exists reason, sleep
+6. If every file's write succeeds, done — report success, same as a normal `{ ok: true }`.
+7. If any file's write is rejected for a sha-mismatch/already-exists reason, sleep
    `casBackoffMs(attempt)` (`node -e "console.log(require(...).casBackoffMs(${ATTEMPT}))"`,
    then actually wait that many milliseconds) and go back to step 1 — state may have changed,
    so the CLI command must be re-run from scratch, not retried with stale data.
-7. If any file's write fails for a reason that is clearly not a conflict (a hard tool error —
+8. If any file's write fails for a reason that is clearly not a conflict (a hard tool error —
    malformed request, an outage), stop immediately and report the failure. Do not spend
    retry attempts on a broken transport.
-8. If `MAX_CAS_ATTEMPTS` is exhausted without success, report the same non-fatal outcome the
+9. If `MAX_CAS_ATTEMPTS` is exhausted without success, report the same non-fatal outcome the
    gh path's own exhaustion already produces (see each CLI's existing "non-fatal" stderr
    message) — a lost write here just means the next firing might redo some rotation work,
    safe per the same reasoning documented in "Mechanism" above.
 
-The exact `create_or_update_file` parameter names should be confirmed against the live tool
-schema at the point this procedure is actually exercised — see `_shared/github-write-transport.md`
-for the shared detection check and CRUD mapping this procedure builds on.
+The exact `create_or_update_file` and `create_branch` parameter names should be confirmed
+against the live tool schema at the point this procedure is actually exercised — see
+`_shared/github-write-transport.md` for the shared detection check and CRUD mapping this
+procedure builds on.
 
 ## Retry / dead-letter queue
 

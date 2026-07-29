@@ -23,9 +23,13 @@ function claimFilePath(issueNumber) {
 // Returns { ref, sha, owner, repo, claimPath, fileContent, commentBody }.
 // gh-CLI path: `gh api "repos/${owner}/${repo}/git/refs" -f "ref=${ref}" -f "sha=${sha}"`
 //   (201 = claimed, 422 = contested).
-// MCP path: create_or_update_file(owner, repo, claimPath, fileContent, branch: CLAIMS_BRANCH)
-//   with no `sha` argument (create-only) — a file-already-exists rejection = contested,
-//   the same 201/422 shape one level down. CLAIMS_BRANCH auto-creates on first write.
+// MCP path: create_or_update_file(owner, repo, claimPath, fileContent, branch: CLAIMS_BRANCH).
+//   CLAIMS_BRANCH does NOT auto-create on first write — branch creation there is a separate
+//   `create_branch` tool call, and an existing claim file may be a release tombstone rather
+//   than a live claim, so that path is a read-then-branch procedure rather than a bare
+//   create-only write. See `_shared/issue-claims.md`'s "The lock" section for the full
+//   procedure; never pass this payload's own `sha` field (a commit sha, for the gh path's
+//   ref creation) to `create_or_update_file`, whose `sha` means the target file's blob sha.
 function claimPayload({ issueNumber, sha, runId, sessionId, ttlHours = DEFAULT_TTL_HOURS, host = '', owner = '{owner}', repo = '{repo}', note, now }) {
   const claimedAt = new Date(now).toISOString();
   const ref = claimRef(issueNumber);
