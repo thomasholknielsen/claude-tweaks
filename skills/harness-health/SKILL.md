@@ -125,9 +125,10 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" validate-findings "${FINDINGS
   > /tmp/harness-health-payloads.json
 ```
 
-If the command's output is `{"needsMcpWrite": true, ...}` instead of the normal output, follow
-`_shared/health-state.md`'s "MCP write path" procedure before continuing — do not treat this as
-an ordinary failure.
+If the command writes a `HEALTH_STATE_MCP_PENDING_WRITE: {...}` line to **stderr**, the durable
+health-state write is still pending — follow `_shared/health-state.md`'s "MCP write path"
+procedure before continuing, and do not treat it as an ordinary failure. The redirected stdout
+above is unaffected either way: it always carries this command's normal output.
 
 `TARGET_ID`/`TARGET_KIND` are `target.id`/`target.kind` from Step 1 (omit both if Step 1 returned `target: null` and only the gap scan ran — pass both together or neither, since cursor recording needs the namespaced `kind:id` key). `GAP_SCAN_RAN` is passed whenever Step 4 actually ran this firing. `FINDINGS_FILE` is the target-scoped path from Step 3 (`/tmp/harness-health-findings.json` for a single-target run; `/tmp/harness-health-findings-{target.id}.json` per target, or `/tmp/harness-health-findings-gapscan.json`, for a multi-target run) — run this whole command once per target for a `--budget > 1` firing, per Step 1's multi-target instructions, never once for a shared file covering multiple targets. `MIN_CONFIDENCE` is only ever set from an explicit human `--min-confidence` request; a Routine's default headless firing omits it (see Routine Configuration below). The command validates each finding, fingerprints via `assetType + target + section + normalizedDescription`, dedups against open `by:harness-health` issues and the local cache, drops any finding below `--min-confidence` into the durable `remembered` cache instead of filing it, records the audit cursor for `${TARGET_KIND}:${TARGET_ID}` (and the gap-scan cursor when `--gap-scan` was passed) unless `--dry-run`, and emits gh-ready payloads on stdout.
 
@@ -165,9 +166,10 @@ For each payload in `/tmp/harness-health-retry-payloads.json`, attempt `gh issue
 node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" retry-queue update /tmp/harness-health-retry-results.json --root . > /tmp/harness-health-escalated.json
 ```
 
-If the command's output is `{"needsMcpWrite": true, ...}` instead of the normal output, follow
-`_shared/health-state.md`'s "MCP write path" procedure before continuing — do not treat this as
-an ordinary failure.
+If the command writes a `HEALTH_STATE_MCP_PENDING_WRITE: {...}` line to **stderr**, the durable
+health-state write is still pending — follow `_shared/health-state.md`'s "MCP write path"
+procedure before continuing, and do not treat it as an ordinary failure. The redirected stdout
+above is unaffected either way: it always carries this command's normal output.
 
 If `/tmp/harness-health-escalated.json` is non-empty, file (or update) a `harness-health:filing-failed` issue for each entry, naming the stuck fingerprint and its failure history — bootstrap that label the same way as the others below.
 

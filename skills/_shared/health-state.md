@@ -79,9 +79,22 @@ When `writeState`'s internal `hasGh()` probe finds no `gh` on PATH (a Claude Cod
 sandbox — see the companion `_shared/github-write-transport.md`), it does not attempt any
 network call itself — MCP tools can only be invoked from the calling agent's own turn, never
 from the spawned Node subprocess `writeState` runs in. Instead it returns
-`{ ok: false, needsMcpWrite: true, branch: 'health-state', files: [{ path, content }] }`, and
-each CLI command that calls it (`validate-findings`, `retry-queue update`) prints that shape
-as JSON to stdout instead of its normal output.
+`{ ok: false, needsMcpWrite: true, branch: 'health-state', files: [{ path, content }] }`.
+
+Each CLI command that calls it (`validate-findings`, `retry-queue update`) signals that on
+**stderr**, and still writes its own normal output to stdout unconditionally:
+
+- **stdout, always** — the payloads array for `validate-findings`; the escalated array for
+  `retry-queue update`, which prints `[]` when a write is pending, since the escalation it
+  computed was never actually persisted. Nothing else is ever written to this stream: the
+  calling skills redirect it straight into a file they then parse as JSON, and a second JSON
+  document on the same stream corrupts that file.
+- **stderr, when a durable write is still pending** — one line,
+  `HEALTH_STATE_MCP_PENDING_WRITE: {"branch":...,"files":[...]}`, greppable by prefix.
+  `validate-findings` additionally emits a second line,
+  `HEALTH_STATE_MCP_RETRY_INPUT: {...}` — the already-computed mutator input the retry
+  procedure below feeds to `retry-durable-write`. `retry-queue update` has no such sibling
+  line and needs none (it does no finding discovery to preserve).
 
 The calling skill drives the retry loop itself, up to `MAX_CAS_ATTEMPTS` attempts
 (`node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/health-core/durable-state.js').MAX_CAS_ATTEMPTS)"`):

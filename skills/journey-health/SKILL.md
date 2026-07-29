@@ -149,9 +149,10 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" validate-findings /tmp/journe
   > /tmp/journey-health-payloads-light.json
 ```
 
-If the command's output is `{"needsMcpWrite": true, ...}` instead of the normal output, follow
-`_shared/health-state.md`'s "MCP write path" procedure before continuing — do not treat this as
-an ordinary failure.
+If the command writes a `HEALTH_STATE_MCP_PENDING_WRITE: {...}` line to **stderr**, the durable
+health-state write is still pending — follow `_shared/health-state.md`'s "MCP write path"
+procedure before continuing, and do not treat it as an ordinary failure. The redirected stdout
+above is unaffected either way: it always carries this command's normal output.
 
 Run the deep-tier call whenever `/tmp/journey-health-findings-deep.json` exists (i.e., whenever Step 3.5 reached the **Otherwise:** block, even if the file is `[]`) — this is required for `recordAudit` to fire and the deep cursor to advance on every path through that block (QA-evidence-satisfied, QA-evidence-regression, or live-verification):
 
@@ -166,9 +167,10 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" validate-findings /tmp/journe
   > /tmp/journey-health-payloads-deep.json
 ```
 
-If the command's output is `{"needsMcpWrite": true, ...}` instead of the normal output, follow
-`_shared/health-state.md`'s "MCP write path" procedure before continuing — do not treat this as
-an ordinary failure.
+If the command writes a `HEALTH_STATE_MCP_PENDING_WRITE: {...}` line to **stderr**, the durable
+health-state write is still pending — follow `_shared/health-state.md`'s "MCP write path"
+procedure before continuing, and do not treat it as an ordinary failure. The redirected stdout
+above is unaffected either way: it always carries this command's normal output.
 
 `LIGHT_TARGET_ID`/`DEEP_TARGET_ID` are the respective `target.id` values from Step 1 and Step 3.5 (omit `LIGHT_TARGET_ID` if Step 1 returned `target: null` and only the coverage scan ran; `DEEP_TARGET_ID` is required whenever the deep-tier call runs at all, since Step 3.5 always resolves a concrete journey before producing findings). Both commands validate, fingerprint, dedup, and record their own tier's cursor unless `--dry-run`, and both emit gh-ready payloads on stdout.
 
@@ -196,9 +198,10 @@ For each payload in `/tmp/journey-health-retry-payloads.json`, attempt `gh issue
 node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" retry-queue update /tmp/journey-health-retry-results.json --root "${ROOT:-$PWD}" > /tmp/journey-health-escalated.json
 ```
 
-If the command's output is `{"needsMcpWrite": true, ...}` instead of the normal output, follow
-`_shared/health-state.md`'s "MCP write path" procedure before continuing — do not treat this as
-an ordinary failure.
+If the command writes a `HEALTH_STATE_MCP_PENDING_WRITE: {...}` line to **stderr**, the durable
+health-state write is still pending — follow `_shared/health-state.md`'s "MCP write path"
+procedure before continuing, and do not treat it as an ordinary failure. The redirected stdout
+above is unaffected either way: it always carries this command's normal output.
 
 If `/tmp/journey-health-escalated.json` is non-empty, file (or update) a `journey-health:filing-failed` issue for each entry, naming the stuck fingerprint and its failure history — bootstrap that label the same way as the others below.
 

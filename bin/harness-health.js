@@ -10,6 +10,7 @@ const { makeRetryQueueCommands } = require('./lib/health-core/retry-cli');
 const { dedupAndDispatch } = require('./lib/health-core/validate-findings-dispatch');
 const { selectBudget } = require('./lib/health-core/budget');
 const { makeCmdChurnReport } = require('./lib/health-core/churn-report');
+const { emitPendingWrite } = require('./lib/health-core/mcp-pending');
 const { makeCmdMark, mergeDeclinedIntoCache } = require('./lib/health-core/mark');
 const { decide } = require('./lib/harness-health/dedup');
 const { validateFinding } = require('./lib/harness-health/validate-finding');
@@ -243,7 +244,7 @@ function cmdValidateFindings(args) {
       },
     ));
     if (result.needsMcpWrite) {
-      process.stdout.write(JSON.stringify({ needsMcpWrite: true, branch: result.branch, files: result.files }) + '\n');
+      emitPendingWrite(result);
     } else if (!result.ok) {
       process.stderr.write(`[harness-health] validate-findings: health-state persistence failed after retries: ${result.error}\n`);
     }

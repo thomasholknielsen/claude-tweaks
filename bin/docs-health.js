@@ -9,6 +9,7 @@ const { makeRetryQueueCommands } = require('./lib/health-core/retry-cli');
 const { loadIssueIndex } = require('./lib/health-core/issue-index');
 const { selectBudget } = require('./lib/health-core/budget');
 const { makeCmdChurnReport } = require('./lib/health-core/churn-report');
+const { emitPendingWrite } = require('./lib/health-core/mcp-pending');
 const { makeCmdMark, mergeDeclinedIntoCache } = require('./lib/health-core/mark');
 const { decide } = require('./lib/docs-health/dedup');
 const { validateFinding } = require('./lib/docs-health/validate-finding');
@@ -214,7 +215,7 @@ function cmdValidateFindings(args) {
       current, { target: args.target, runRecord, rememberCandidates },
     ));
     if (result.needsMcpWrite) {
-      process.stdout.write(JSON.stringify({ needsMcpWrite: true, branch: result.branch, files: result.files }) + '\n');
+      emitPendingWrite(result);
     } else if (!result.ok) {
       process.stderr.write(`[docs-health] validate-findings: health-state persistence failed after retries: ${result.error}\n`);
     }
