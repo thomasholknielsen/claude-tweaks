@@ -49,7 +49,7 @@ Otherwise, `$ARGUMENTS` splits on whitespace into tokens. Each token classifies 
 - `journeys` — run Phases 0 + 8 (bootstrap + journey discovery)
 - `docs` — run Phases 0 + 2 + 3 + 8.5 (bootstrap + doc registry)
 
-**Enhancement filter tokens** — narrow which of Phase 0's Optional Enhancements (Steps 9-16) get offered. With none present, Phase 0 offers all 8 (or none, under `--core-only`). With one or more present, Phase 0 offers *only* the named step(s), regardless of which (if any) Phase scope is also present:
+**Enhancement filter tokens** — narrow which of Phase 0's Optional Enhancements (Steps 9-16) get offered. With none present, Phase 0 offers every step in the table below (or none, under `--core-only`). With one or more present, Phase 0 offers *only* the named step(s), regardless of which (if any) Phase scope is also present:
 
 | Token | Runs |
 |---|---|
@@ -72,7 +72,7 @@ If no arguments, analyze the current working directory. Phase 0 runs first, then
 
 ### Unrecognized and conflicting tokens
 
-If every token classifies into one of the three categories above (or the whole string is a path/URL), proceed as described. If a token matches none of them:
+If every token classifies into one of the categories above (or the whole string is a path/URL), proceed as described. If a token matches none of them:
 
 - If the overall string reads as prose (contains a comma, or multiple natural-language words forming a sentence, e.g. "Ruby on Rails monolith, team of 5") — treat the whole string as a project-context description, no interruption. Unchanged from before.
 - Otherwise (a single unmatched token, or a short sequence of tokens that looks like an attempted scope rather than prose) — stop before running anything. Call `AskUserQuestion`: name the unrecognized token(s), list the valid tokens grouped by category (modifier flags / Phase scopes / Enhancement filter tokens), and include an explicit "No — treat this literally as a project-context description" option, so a genuine single-word description (e.g. "monorepo") still works, at the cost of one confirmation. Do not silently guess either interpretation — this matches `/claude-tweaks:tidy`'s "Unknown scope name" handling, `/claude-tweaks:capture`'s "Unknown or invalid `N`" handling, and `/claude-tweaks:version`'s "not silently treated as any of the documented modes" rule.
