@@ -128,11 +128,15 @@ The calling skill drives the retry loop itself, up to `MAX_CAS_ATTEMPTS` attempt
      `validate-findings`' finding discovery. It writes no payloads to stdout and never touches
      `cache.json`. Parse **its** stderr for `HEALTH_STATE_MCP_PENDING_WRITE` from step 2 on.
 
-     > **Never re-run `validate-findings` as a retry.** It discovers findings and marks the
-     > survivors in `cache.json` on its first invocation, so a second run dedups them away and
-     > emits `[]` — verified in practice. A retry loop redirecting each attempt into the same
-     > `/tmp/{skill}-payloads.json` therefore destroys this firing's real findings before they
-     > are ever filed.
+     > **Never re-run `validate-findings` as a retry.** It marks its survivors in `cache.json`
+     > on the first invocation, so for `harness-health`, `journey-health`, and `docs-health` a
+     > second run dedups them away and emits `[]` — verified in practice. A retry loop
+     > redirecting each attempt into the same `/tmp/{skill}-payloads.json` therefore destroys
+     > this firing's real findings before they are ever filed. `code-health` forks the shared
+     > dedup module and consults its cache only for `wontfix`, so it re-emits rather than
+     > losing them — but re-running it is still wrong: it appends a second run record for one
+     > firing and re-emits payloads the caller may already have filed. `retry-durable-write`
+     > is the retry on all four.
 
    - **`retry-queue update`** — re-run the command itself, from scratch, exactly as before.
      This is still correct here and the warning above does not apply: it does no finding
