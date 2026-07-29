@@ -56,13 +56,53 @@ node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.
   creation has). An MCP-bootstrapped `claims-registry` therefore carries the default branch's
   history underneath it; harmless, since the branch is a registry nobody merges, but not
   equivalent to an orphan branch.
-- **Claim:** call `create_or_update_file` with `path` = the payload's `claimPath`, `content` =
-  `fileContent`, `branch` = `CLAIMS_BRANCH`, omitting `sha` (create-only). A
-  file-already-exists rejection = already claimed, the same 201/422 shape one level down.
+- **Claim:** read first, then branch — a create-only write cannot tell a live claim apart from
+  a release tombstone, and a tombstone is never deleted, only overwritten, so treating
+  file-exists as "contested" would reject every re-claim of that issue forever after its first
+  release.
+
+  1. Read the claim file at the payload's `claimPath` on `CLAIMS_BRANCH`, capturing both its
+     content and its current **blob sha** (the read counterpart to `create_or_update_file` —
+     confirm the concrete tool name against the live tool schema, as with the other MCP tool
+     names in this file). File-not-found is a normal outcome, not an error.
+  2. **File does not exist** — call `create_or_update_file` with `path` = `claimPath`,
+     `content` = the payload's `fileContent`, `branch` = `CLAIMS_BRANCH`, omitting `sha`
+     (create-only). Success = claimed; a file-already-exists rejection means someone created it
+     between the read and the write — contested, same as case 4.
+  3. **File exists** — classify its content:
+
+     ```bash
+     node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
+       let f=null; try { f=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')); } catch {}
+       if (f===null||typeof f!=='object'||Array.isArray(f)) f=null;
+       const state = !f ? 'unreadable' : f.released===true ? 'tombstone'
+         : c.isStale(f, Date.now()) ? 'stale' : 'live';
+       console.log(JSON.stringify({state, reclaimable: state==='tombstone'||state==='stale'}))" \
+       /tmp/claim-current-${ISSUE}.json
+     ```
+
+     A `tombstone` (a past claim already released) or a `stale` live claim (past its TTL, by
+     `claims.js`'s own `isStale` — the same rule "Breaking a stale claim" below uses on the gh
+     path) is a legitimate re-claim, not a contest: call `create_or_update_file` again, this
+     time **with** `sha` = the current file's blob sha from step 1 (the conditional-update
+     form, not create-only) and `content` = the fresh `claimPayload`'s `fileContent`. A
+     rejection here means someone else re-claimed or broke it first — contested, same as case
+     4. `unreadable` fails closed to *live*, never to reclaimable, matching this file's
+     standing "a claim you cannot read is not yours to break" posture.
+  4. **File exists and is a live, non-stale claim** — contested. Do not attempt any write;
+     same outcome as the gh path's 422.
+
+  **Never pass `claimPayload`'s own `sha` field to `create_or_update_file`.** They are
+  different shas that happen to share a name: the payload's is a *commit* sha, the ref target
+  the gh path's `git/refs` creation needs, and it means nothing to `create_or_update_file`,
+  whose `sha` is the target **file's** current blob sha. That value only ever comes from step
+  1's fresh read.
 - **Release:** first resolve the claim file's current sha, then call `create_or_update_file`
   again with `content` = the payload's `tombstoneContent` and that `sha` — a sha mismatch
   means someone else already broke/re-claimed it; treat as a release race (log, TTL is the
-  backstop, per the Failure posture table below).
+  backstop, per the Failure posture table below). Structurally this is the same operation as a
+  stale-claim re-claim (Claim step 3): one conditional overwrite keyed on the current blob
+  sha, differing only in what content it writes — not two unrelated mechanisms.
 - **List all claims:** list the contents of the `claims/` directory on the `CLAIMS_BRANCH`
   branch via the equivalent read-tree MCP tool, rather than `git/matching-refs`.
 
