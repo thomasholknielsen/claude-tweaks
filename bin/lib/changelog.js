@@ -17,6 +17,8 @@ function compareVersions(a, b) {
   return 0;
 }
 
+// Declared once and reused via matchAll (not exec/test in a loop) — matchAll operates on an
+// internal clone and never mutates this regex's lastIndex, so reuse across calls is safe.
 const HEADER_RE = /^## v(\d+\.\d+\.\d+) — (.+)$/gm;
 
 function parseChangelogVersions(changelogText) {

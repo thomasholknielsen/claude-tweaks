@@ -79,3 +79,7 @@ test('extractChangelogRange works by pure semver comparison even when the old ve
     ['3.0.0'],
   );
 });
+
+test('extractChangelogRange throws when the old version is malformed (e.g. an empty string from an unreadable marker)', () => {
+  assert.throws(() => extractChangelogRange(SAMPLE_CHANGELOG, '', '3.2.0'), /Invalid semver version/);
+});

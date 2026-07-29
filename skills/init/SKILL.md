@@ -40,9 +40,9 @@ Otherwise, `$ARGUMENTS` splits on whitespace into tokens. Each token classifies 
 **Modifier flags** — compose with anything else present:
 - `--update` or `update` — force Update mode even if the config looks minimal
 - `--full` — force the complete reconnaissance pass (Phases 2-8.5) even when Update Mode's Phase 1u.6 early-exit gate would otherwise skip straight to Phase 9; composes with `--update`/`update` (e.g. `update --full`)
-- `--core-only` — within Phase 0, skip the Optional Enhancements (Steps 9-16) entirely, equivalent to auto-declining every optional-enhancement offer. Contradicts any Enhancement filter token below present in the same invocation — see "Unrecognized and conflicting tokens."
+- `--core-only` — within Phase 0, skip the Optional Enhancements (Steps 9-16) entirely, equivalent to auto-declining every optional-enhancement offer, then continue into whatever scope this invocation would otherwise run. Contradicts any Enhancement filter token below present in the same invocation — see "Unrecognized and conflicting tokens."
 
-**Phase scopes** — determine which of Phases 2-8.5 run after Phase 0. The union of every Phase scope present runs (e.g. `skills journeys` runs the phases for both). No Phase scope present means: stop after Phase 0, same as `bootstrap` alone.
+**Phase scopes** — determine which of Phases 2-8.5 run after Phase 0. The union of every Phase scope present runs (e.g. `skills journeys` runs the phases for both).
 - `bootstrap` — run Phase 0 only (structure + deps), then stop
 - `config` — run Phases 0 + 2 + 3 + 5 (bootstrap + recon + CLAUDE.md)
 - `skills` — run Phases 0 + 2 + 3 + 4 + 6 (bootstrap + recon + skills)
@@ -62,7 +62,7 @@ Otherwise, `$ARGUMENTS` splits on whitespace into tokens. Each token classifies 
 | `branch-tracking` | Step 15 — Non-default-branch issue tracking |
 | `work-backend` | Step 16 — Work-record backend |
 
-Examples: `routines` alone runs Steps 1-8, then only Steps 13+14, then stops (same "stop after Phase 0" behavior as `bootstrap`). `config routines` runs Steps 1-8, then only Steps 13+14, then Phases 2, 3, 5. `shadcn-integration branch-tracking` runs Steps 1-8, then only Steps 12 and 15, then stops.
+Examples (assuming Steps 1-8 actually run this time — see "Core Bootstrap Version Check" below for when they're skipped instead): `routines` alone runs Steps 1-8, then only Steps 13+14, then stops (same "stop after Phase 0" behavior as `bootstrap`). `config routines` runs Steps 1-8, then only Steps 13+14, then Phases 2, 3, 5. `shadcn-integration branch-tracking` runs Steps 1-8, then only Steps 12 and 15, then stops.
 
 A description of the project context (e.g., "Ruby on Rails monolith, team of 5") is still accepted as free text — see "Unrecognized and conflicting tokens" for how this is distinguished from an attempted-but-unmatched keyword.
 
@@ -108,12 +108,14 @@ Before running Steps 1-8, read `.claude-tweaks/init-state.yml` (treat as absent 
 | Marker state | Action |
 |---|---|
 | Missing | Run Steps 1-8 fully. No changelog notice — nothing to diff against yet. |
-| Present, versions match (or marker is somehow newer — treat identically) | Skip Steps 1-8 entirely; print a one-line confirmation instead. |
+| Present, versions match, or marker newer than installed (shouldn't happen in practice, treat identically) | Skip Steps 1-8 entirely; print a one-line confirmation naming the marker's own recorded version and date, and mentioning that deleting `.claude-tweaks/init-state.yml` forces a full re-check. |
 | Present, marker version older than installed | Run Steps 1-8 fully, then surface the changelog notice below. |
 
-**Changelog notice (version-mismatch case only).** Read the project's `CHANGELOG.md` and call `bin/lib/changelog.js`'s `extractChangelogRange` for the range between the marker's old version (exclusive) and the installed version (inclusive). Synthesize a short summary limited to entries that change what `/init` offers, writes to CLAUDE.md, or exposes as a scope/config key — omit internal-only entries (bug fixes, refactors with no `/init`-visible behavior change). Present as an informational note, not a gate, ending with a pointer to `/init update --full` (or a narrower scope) if the user wants to act on anything it surfaces. No cap on how large the range is — if it spans an unusually large number of releases, say so explicitly.
+**Exception:** an explicitly-named `bootstrap` Phase scope (see `## Input`) always runs Steps 1-8 fully, regardless of the marker — `bootstrap` documents itself as "run Phase 0 only (structure + deps)," and a version-match skip would silently turn an explicit request for exactly that into a near no-op.
 
-**Write the marker** immediately after this check concludes, regardless of which branch ran — unlike the `worktree.always` decision (see "Finalizing the worktree.always Decision" below), this write creates no new gate that could deny this same invocation's own remaining steps, so there is no need to defer it. Create `.claude-tweaks/` if it doesn't exist yet.
+**Changelog notice (version-mismatch case only).** Read the plugin's own `${CLAUDE_PLUGIN_ROOT}/CHANGELOG.md` (not the target project's — the marker records a *plugin* version, so only the plugin's own changelog is meaningful to diff against) and call `bin/lib/changelog.js`'s `extractChangelogRange` for the range between the marker's old version (exclusive) and the installed version (inclusive). Synthesize a short summary limited to entries that change what `/init` offers, writes to CLAUDE.md, or exposes as a scope/config key — omit internal-only entries (bug fixes, refactors with no `/init`-visible behavior change). Present as an informational note, not a gate, ending with a pointer to `/init update --full` (or a narrower scope) if the user wants to act on anything it surfaces. No cap on how large the range is — if it spans an unusually large number of releases, say so explicitly.
+
+**Write the marker** after Steps 1-8 have run (or been skipped) — i.e. as the last step of this whole Core Bootstrap Version Check, not before Steps 1-8 execute — regardless of which branch ran. Unlike the `worktree.always` decision (see "Finalizing the worktree.always Decision" below), this write creates no new gate that could deny this same invocation's own remaining steps, so there is no need to defer it further than that. Create `.claude-tweaks/` if it doesn't exist yet.
 
 **Core Bootstrap (Steps 1–8):**
 
@@ -195,7 +197,7 @@ If this invocation instead reaches Phase 9, the decision is finalized there — 
 
 ## Scope Selection Gate
 
-After Phase 0 completes, present the scope selection — unless `$ARGUMENTS` already specified a goal-based scope (e.g., `bootstrap`, `config`, `skills`, `journeys`, `docs`), in which case skip this gate and run the corresponding phases.
+After Phase 0 completes, present the scope selection — unless `$ARGUMENTS` already specified a goal-based Phase scope (e.g., `bootstrap`, `config`, `skills`, `journeys`, `docs`), in which case skip this gate and run the corresponding phases; or one or more Enhancement filter tokens with no Phase scope, in which case skip this gate and stop after Phase 0 (same as `bootstrap` alone) — see the `## Input` section.
 
 **Not silenced by `auto`.** The scope-selection gate is on the "What `auto` does NOT silence" list in `_shared/auto-mode-contract.md` — it is a project-shape governance decision that requires explicit user input regardless of `auto` state. The prompt below always renders unless `$ARGUMENTS` already specified a scope.
 

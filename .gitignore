@@ -25,4 +25,5 @@ node_modules/
 .claude-tweaks/research/
 .claude-tweaks/code-health/
 .claude-tweaks/routine-environment-cache.yml
+.claude-tweaks/init-state.yml
 **/__pycache__/
