@@ -6,7 +6,7 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 
 | Command | What it does | Takes |
 |---------|-------------|-------|
-| `/claude-tweaks:init` | Bootstrap structure, generate CLAUDE.md, skills, rules | `[<path>\|<github-url>\|<description>\|--update\|update\|--full\|--core-only\|bootstrap\|config\|skills\|journeys\|docs]` |
+| `/claude-tweaks:init` | Bootstrap structure, generate CLAUDE.md, skills, rules | `[<path>\|<github-url>\|<description>\|--update\|update\|--full\|--core-only\|bootstrap\|config\|skills\|journeys\|docs\|issue-form\|design-integration\|diagram-suggestions\|shadcn-integration\|cloud-parity\|routines\|branch-tracking\|work-backend]` |
 | `/claude-tweaks:capture` | Brain-dump idea into the backlog | `<idea text> [--route=challenge\|brainstorm\|keep\|absorb:N] [--title="..."] [--type=bug\|feature\|task]` |
 | `/claude-tweaks:challenge` | Debias assumptions before brainstorming | `[quick\|--lens=<n[,n...]>] <#n\|topic\|problem statement>` |
 | `/superpowers:brainstorming` | Brainstorm solutions (Superpowers plugin) | topic |

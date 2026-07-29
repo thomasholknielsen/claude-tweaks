@@ -1,7 +1,7 @@
 ---
 name: claude-tweaks:init
 description: Use when initializing the workflow system for a project — bootstraps structure, analyzes the codebase, generates CLAUDE.md with adaptive philosophy, skills, and rules. Re-run to find drift, gaps, and stale configuration.
-argument-hint: "[<path>|<github-url>|<description>|--update|update|--full|--core-only|bootstrap|config|skills|journeys|docs]"
+argument-hint: "[<path>|<github-url>|<description>|--update|update|--full|--core-only|bootstrap|config|skills|journeys|docs|issue-form|design-integration|diagram-suggestions|shadcn-integration|cloud-parity|routines|branch-tracking|work-backend]"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -33,22 +33,51 @@ This skill works for both greenfield and brownfield projects, operating in two m
 
 ## Input
 
-If `$ARGUMENTS` is provided, treat it as:
-- A path to a repository (e.g., `~/projects/their-app`) — `cd` there first
-- A GitHub URL — clone it first, then analyze
-- A description of the project context (e.g., "Ruby on Rails monolith, team of 5")
+If `$ARGUMENTS` resolves to a path to a repository (e.g., `~/projects/their-app`) or a GitHub URL, `cd`/clone there first, then analyze — evaluated before any token classification below.
+
+Otherwise, `$ARGUMENTS` splits on whitespace into tokens. Each token classifies as one of:
+
+**Modifier flags** — compose with anything else present:
 - `--update` or `update` — force Update mode even if the config looks minimal
 - `--full` — force the complete reconnaissance pass (Phases 2-8.5) even when Update Mode's Phase 1u.6 early-exit gate would otherwise skip straight to Phase 9; composes with `--update`/`update` (e.g. `update --full`)
-- `--core-only` — within Phase 0, skip the Optional Enhancements (Steps 9-16) entirely, equivalent to auto-declining every optional-enhancement offer, then continue into whatever scope this invocation would otherwise run; composes with any goal-based scope below (e.g. `bootstrap --core-only` for a fully non-interactive, structure-only bootstrap)
+- `--core-only` — within Phase 0, skip the Optional Enhancements (Steps 9-16) entirely, equivalent to auto-declining every optional-enhancement offer. Contradicts any Enhancement filter token below present in the same invocation — see "Unrecognized and conflicting tokens."
+
+**Phase scopes** — determine which of Phases 2-8.5 run after Phase 0. The union of every Phase scope present runs (e.g. `skills journeys` runs the phases for both). No Phase scope present means: stop after Phase 0, same as `bootstrap` alone.
 - `bootstrap` — run Phase 0 only (structure + deps), then stop
 - `config` — run Phases 0 + 2 + 3 + 5 (bootstrap + recon + CLAUDE.md)
 - `skills` — run Phases 0 + 2 + 3 + 4 + 6 (bootstrap + recon + skills)
 - `journeys` — run Phases 0 + 8 (bootstrap + journey discovery)
 - `docs` — run Phases 0 + 2 + 3 + 8.5 (bootstrap + doc registry)
 
-Every scope above still runs Phase 9 as its terminal summary/confirm/write step, except `bootstrap` (which stops the invocation after Phase 0) — this includes the goal-based scopes (`config`, `skills`, `journeys`, `docs`) even though none of them list Phase 9 explicitly in their phase subset above. The interactive Scope Selection Gate's own early-stop choices (Option 4 "Done," and Option 2 Interactive's per-phase "Done") are the other paths that stop before Phase 9; see "Finalizing the worktree.always Decision" for why this distinction matters.
+**Enhancement filter tokens** — narrow which of Phase 0's Optional Enhancements (Steps 9-16) get offered. With none present, Phase 0 offers all 8 (or none, under `--core-only`). With one or more present, Phase 0 offers *only* the named step(s), regardless of which (if any) Phase scope is also present:
+
+| Token | Runs |
+|---|---|
+| `issue-form` | Step 9 — GitHub issue form template |
+| `design-integration` | Step 10 — Impeccable design integration |
+| `diagram-suggestions` | Step 11 — Diagram suggestions |
+| `shadcn-integration` | Step 12 — shadcn bootstrap |
+| `cloud-parity` | Step 13 — Cloud/Routine parity setup, alone |
+| `routines` | Step 14 — Routine installation. Hard-depends on Step 13 having run — if `cloud-parity` wasn't also given (or already configured from an earlier run), `routines` silently runs Step 13 first anyway, matching the unfiltered flow's existing 13-before-14 ordering |
+| `branch-tracking` | Step 15 — Non-default-branch issue tracking |
+| `work-backend` | Step 16 — Work-record backend |
+
+Examples: `routines` alone runs Steps 1-8, then only Steps 13+14, then stops (same "stop after Phase 0" behavior as `bootstrap`). `config routines` runs Steps 1-8, then only Steps 13+14, then Phases 2, 3, 5. `shadcn-integration branch-tracking` runs Steps 1-8, then only Steps 12 and 15, then stops.
+
+A description of the project context (e.g., "Ruby on Rails monolith, team of 5") is still accepted as free text — see "Unrecognized and conflicting tokens" for how this is distinguished from an attempted-but-unmatched keyword.
+
+Every Phase scope above still runs Phase 9 as its terminal summary/confirm/write step, except `bootstrap` (which stops the invocation after Phase 0) — this includes the goal-based scopes (`config`, `skills`, `journeys`, `docs`) even though none of them list Phase 9 explicitly in their phase subset above. An invocation with one or more Enhancement filter tokens and no Phase scope also stops after Phase 0, same as `bootstrap` — Enhancement filter tokens narrow *what Phase 0 does*, they don't add phases after it. The interactive Scope Selection Gate's own early-stop choices (Option 4 "Done," and Option 2 Interactive's per-phase "Done") are the other paths that stop before Phase 9; see "Finalizing the worktree.always Decision" for why this distinction matters.
 
 If no arguments, analyze the current working directory. Phase 0 runs first, then a scope selection gate determines which remaining phases to run (see "Scope Selection Gate" below).
+
+### Unrecognized and conflicting tokens
+
+If every token classifies into one of the three categories above (or the whole string is a path/URL), proceed as described. If a token matches none of them:
+
+- If the overall string reads as prose (contains a comma, or multiple natural-language words forming a sentence, e.g. "Ruby on Rails monolith, team of 5") — treat the whole string as a project-context description, no interruption. Unchanged from before.
+- Otherwise (a single unmatched token, or a short sequence of tokens that looks like an attempted scope rather than prose) — stop before running anything. Call `AskUserQuestion`: name the unrecognized token(s), list the valid tokens grouped by category (modifier flags / Phase scopes / Enhancement filter tokens), and include an explicit "No — treat this literally as a project-context description" option, so a genuine single-word description (e.g. "monorepo") still works, at the cost of one confirmation. Do not silently guess either interpretation — this matches `/claude-tweaks:tidy`'s "Unknown scope name" handling, `/claude-tweaks:capture`'s "Unknown or invalid `N`" handling, and `/claude-tweaks:version`'s "not silently treated as any of the documented modes" rule.
+
+An explicit Enhancement filter token given together with `--core-only` is a contradiction (one asks for exactly that step, the other asks for none) — report it the same way: state plainly that the two conflict and ask which was meant, rather than silently letting one win.
 
 ## Phases at a Glance
 
@@ -106,7 +135,7 @@ Detect `agent-browser`; surface the install command if missing. Never block init
 
 Detect Node (and optionally git), install the statusline wrapper at `~/.claude-tweaks/bin/statusline.js`, and prompt before wiring `statusLine.command` in `~/.claude/settings.json` — never overwrite a non-claude-tweaks command. Read `bootstrap-steps.md` (Step 8) for the full procedure (detection, package-manager prompts, settings.json migration matrix, NO_COLOR opt-out).
 
-**Optional Enhancements (Steps 9–16):** Skipped entirely when `$ARGUMENTS` contains `--core-only` — treat every offer below as declined with no prompt shown, and proceed straight to whatever this invocation runs after Phase 0 (the Scope Selection Gate, or a composed goal-based scope).
+**Optional Enhancements (Steps 9–16):** Skipped entirely when `$ARGUMENTS` contains `--core-only` — treat every offer below as declined with no prompt shown, and proceed straight to whatever this invocation runs after Phase 0 (the Scope Selection Gate, or a composed goal-based scope). Narrowed to a subset when `$ARGUMENTS` contains one or more Enhancement filter tokens — see the `## Input` section's Enhancement filter tokens table for the full list and the `routines`/`cloud-parity` ordering note.
 
 ### Step 9: GitHub Issue Form Template (Optional)
 
