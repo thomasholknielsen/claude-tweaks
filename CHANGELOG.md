@@ -1,5 +1,23 @@
 # Changelog
 
+## v6.21.0 — GitHub-MCP fallback for gh-CLI-only write paths
+
+`bin/lib/health-core/durable-state.js` (the code-health/harness-health/journey-health/docs-health
+cursor and retry-queue writer) and `bin/lib/issues/claims.js`'s issue-claim lock both shelled out
+to `gh` unconditionally, which fails outright in a Claude Code cloud Routine sandbox — no `gh`
+CLI there, only GitHub MCP tools. Since MCP tools can only be invoked from the calling agent's own
+turn, never from `durable-state.js`'s spawned Node subprocess, the durable-state writer now
+signals a pending write (`needsMcpWrite`) on stderr instead of attempting one, and the calling
+skill's own documented procedure (`skills/_shared/health-state.md`) drives the MCP write and CAS
+retry loop externally; the issue-claim lock (`skills/_shared/issue-claims.md`) gained an
+equivalent MCP claim/release path, including a read-then-branch reclaim so a released claim
+doesn't wedge permanently. `/claude-tweaks:dispatch`'s Preflight still hard-gates on `gh` being
+installed — its read path (queue pull, dependency checks, contested-claim resolution) isn't
+bridged yet, so cloud-Routine dispatch remains future scope. **Known open risk:** the MCP
+procedures' branch-bootstrap step (via `create_branch`) has not been verified against a live
+GitHub MCP connection — no such connection was available during development — verify before
+relying on this in an actual cloud deployment.
+
 ## v6.20.1 — Harden local-files Preflight-stop against auto-mode rationalization
 
 `/claude-tweaks:backlog refine`'s grant sub-stage and `/claude-tweaks:dispatch`'s Preflight
