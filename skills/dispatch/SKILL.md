@@ -117,14 +117,21 @@ gh issue create \
 
 No `ready`/`auto:build` on the filed issue — a human confirms and applies the fix, the same conservative default `/capture`'s `keep` route uses elsewhere in this codebase. The bare/`#N`/explicit-list forms always run with a human present (per the Input table framing above) — they still just report and stop; self-filing is `next`-only.
 
-Before any `gh` command, run checks 1 and 3 of the Detection Ladder from
-`_shared/github-pr-scan.md` (GitHub remote exists; `gh`, if present, is authenticated and the
-repo is reachable) — these two failures still have no degraded mode (an unreachable/unauthenticated
-repo means nothing here can work, on either transport) and remain a hard gate. Check 2 (`gh`
-CLI installed) is no longer a hard gate on its own: per `_shared/github-write-transport.md`,
-`gh` absent means every write in this skill (claim, label, comment, merge) uses the MCP path
-instead — proceed normally rather than stopping. Report the specific failing check and stop
-only for checks 1 or 3 (headless self-report above still applies for the `next` form).
+Before any `gh` command, run the Detection Ladder from `_shared/github-pr-scan.md` (checks 1-3:
+GitHub remote exists, `gh` CLI installed, `gh` authenticated + repo reachable). Unlike
+`/tidy`/`/help`'s use of this ladder, which fails open into a skipped scan,
+`/claude-tweaks:dispatch` treats any ladder failure as a hard gate — this skill's entire purpose
+is writing GitHub state (claims, labels, merges), so there is no meaningful degraded mode to
+fall back into. Report the specific failing check and stop (headless self-report above still
+applies for the `next` form).
+
+Check 2 (`gh` CLI installed) stays a hard gate even though `_shared/github-write-transport.md`
+now defines an MCP path for this skill's *writes*: dispatch's read path is still `gh`-only
+end to end (Step 2's `gh issue list` queue pull, the dependency-check `gh issue view` /
+`gh api graphql` calls, the contested-claim `gh api .../comments` fetch, and all of
+`settle-and-merge.md`), so proceeding without `gh` would only trade a clean Preflight stop for
+an unstructured `gh: command not found` deep inside Step 2. Bridging that read path is real
+future work; until it lands, `gh` absent stops here.
 
 ## Workflow
 
@@ -286,9 +293,17 @@ for ISSUE in "${GROUP_MEMBERS[@]}"; do
 done
 ```
 
-**MCP path** (`gh` unavailable): for each member of the selected group, generate the claim
-payload and attempt the conditional-create write exactly as `_shared/issue-claims.md`'s "The
-lock" section describes:
+**MCP path** (`gh` unavailable): **not reachable in practice today** — Preflight hard-gates on
+`gh` being installed (check 2), so dispatch never reaches this step without it. It is
+documented here as groundwork for the follow-up that bridges the rest of dispatch's read path
+(Step 2's queue pull, the dependency checks, the contested-claim comment fetch,
+`settle-and-merge.md`), after which the gate can drop. Read it as future scope, not live
+behavior.
+
+For each member of the selected group, generate the claim payload and follow
+`_shared/issue-claims.md`'s "The lock" section's MCP claim procedure — read the claim file
+first, then branch on missing / tombstone-or-stale / live, rather than a bare create-only
+write:
 
 ```bash
 for ISSUE in "${GROUP_MEMBERS[@]}"; do
@@ -296,9 +311,11 @@ for ISSUE in "${GROUP_MEMBERS[@]}"; do
     console.log(JSON.stringify(c.claimPayload({issueNumber:Number(process.argv[1]),
     sha:process.argv[2],runId:process.argv[3],sessionId:process.env.CLAUDE_CODE_SESSION_ID||'',
     host:require('os').hostname(),now:Date.now()})))" "$ISSUE" "$SHA" "$RUN_ID" > "/tmp/claim-payload-${ISSUE}.json"
-  # Call create_or_update_file with path=claimPath, content=fileContent, branch=CLAIMS_BRANCH
-  # from the payload above, omitting sha (create-only). A file-exists rejection means
-  # already-claimed — branch on the result below, per member, same as the gh path.
+  # Then run _shared/issue-claims.md's "The lock" MCP claim procedure against this payload's
+  # claimPath on CLAIMS_BRANCH: read the file first; missing -> create_or_update_file omitting
+  # sha; tombstone or TTL-stale -> the same call WITH sha = the file's current blob sha;
+  # live and non-stale -> contested. Branch on that outcome below, per member, exactly as the
+  # gh path branches on 201 vs 422.
 done
 ```
 
@@ -489,7 +506,7 @@ Render only when a human is present to answer — the bare form is definitionall
 | `_shared/subagent-output-contract.md` | Each group's `Task()` prompt follows the contract's Input Discipline and status-line protocol; the GROUP/OUTCOME/MANIFEST template is this skill's own minimal shape (none of Templates A/B/C fit a full-pipeline-execution agent). |
 | `_shared/label-bootstrap.md` | Canonical check-then-create snippet for `bot:in-progress` / `bot:blocked` — the only two labels dispatch itself ever adds. |
 | `_shared/pipeline-run-dir.md` | Dispatch resolves a standalone-auto run dir (allowlist) for its own `decisions.md`; distinct from the `PIPELINE_RUN_DIR` each dispatched `/flow` run creates for its own build — see Component-Skill Contract above. |
-| `_shared/github-pr-scan.md` | Preflight runs checks 1 and 3 of the Detection Ladder before any `gh` command — unlike `/tidy`/`/help`'s fail-open use of the same ladder, dispatch treats a check 1 or 3 failure as a hard gate (see Preflight above); check 2 (`gh` installed) alone is not, since `_shared/github-write-transport.md`'s MCP path covers its absence. Dispatch consumes only the ladder, not the scope sections those two skills use. |
+| `_shared/github-pr-scan.md` | Preflight runs its Detection Ladder (checks 1-3) before any `gh` command — unlike `/tidy`/`/help`'s fail-open use of the same ladder, dispatch treats any failure as a hard gate, check 2 (`gh` installed) included, since its read path has no MCP equivalent yet (see Preflight above). Dispatch consumes only the ladder, not the scope sections those two skills use. |
 | `_shared/local-files-preflight-stop.md` | Canonical "stop this turn completely" boundary-language pattern this skill's Preflight local-files stop paragraph follows — added after the identical weaker phrasing was proven insufficient in `/claude-tweaks:triage`'s own Preflight (now `/claude-tweaks:backlog refine`'s grant sub-stage). |
 | `bin/lib/issues/{claims,retry,grouping,record}.js` | The pure helpers behind claim/release payloads, retry-ceiling math, file-overlap grouping, and grant/bot-state facet parsing — dispatch calls all four, unchanged. Step 2 also calls record.js's `parseDependencies` to drop records with an open `Blocked by #N` line from the queue under `work-links: body-text`, and `buildNativeDependencyQuery`/`hasOpenNativeBlocker` to do the same against GitHub's native dependency relationship under `work-links: native`. |
 | `/claude-tweaks:assess-agent-autonomy` | Called inline (not a fresh Task dispatch) at two points: the Auto-merge gate (`merge-check` mode, replacing the old three-layer mechanical check) and the Settle step (`failure-check` mode, replacing unconditional `auto:merge` revocation). Dispatch still owns authorization, claim mechanics, and retry-ceiling counting directly — assess-agent-autonomy only ever returns a verdict, never writes a label itself. |

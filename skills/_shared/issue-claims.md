@@ -37,6 +37,11 @@ gh api "repos/{owner}/{repo}/git/matching-refs/claims/" -q '.[].ref'
 `claimPayload`/`releasePayload` calls as always (see "The mirror" below) — the `claimPath`,
 `fileContent`, and `tombstoneContent` fields they now also return are what this path uses.
 
+*Reachability, per consumer:* `/claude-tweaks:dispatch` itself cannot currently reach this path
+— its Preflight hard-gates on `gh` being installed, because its read path (queue pull,
+dependency checks, settle/merge) is still `gh`-only. `/tidy`'s Step 4.7 claims-audit sweep is a
+separate consumer of this same protocol and is not affected by that gate.
+
 ```bash
 node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
   console.log(JSON.stringify(c.claimPayload({issueNumber:Number(process.argv[1]),sha:process.argv[2],
@@ -316,7 +321,7 @@ Fail-closed on claiming; never block the session.
 
 | Failure | Behavior |
 |---|---|
-| `gh` missing | Use the MCP path (see "The lock" above) — no longer a hard gate |
+| `gh` missing | Use the MCP path (see "The lock" above) — not a hard gate at the protocol level. An individual consumer may still gate on `gh` for reasons of its own; `/dispatch` does, per the Reachability note above |
 | `gh` present but unauthenticated | Consumer's existing hard gate (auto never silences a missing dependency) |
 | Claim ref 422, live claim (`claimed:true, stale:false`) | Skip the issue, log `AUTO`, continue |
 | Claim ref 422, stale claim (`claimed:true, stale:true`) | Break: delete ref → recreate → takeover comment |
