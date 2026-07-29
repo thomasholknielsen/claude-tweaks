@@ -46,7 +46,7 @@ extracted to something that still isn't valid semver), treat it the same as mark
 run Steps 1-8 fully, skip the changelog notice.
 
 - `$MARKER_VERSION` empty (missing or malformed) → run Steps 1-8 fully, skip the changelog notice.
-- Result `0` or `1` → skip Steps 1-8; print `"Core bootstrap already verified at v$MARKER_VERSION on {verified date from the marker} — skipping Steps 1-8. Delete .claude-tweaks/init-state.yml to force a full re-check."`
+- Result `0` or `1` → skip Steps 1-8 (except under the `bootstrap`-scope Exception above, which always runs them); print `"Core bootstrap already verified at v$MARKER_VERSION on {verified date from the marker} — skipping Steps 1-8. Delete .claude-tweaks/init-state.yml to force a full re-check."`
 - Result `-1` → run Steps 1-8 fully, then run the changelog notice below.
 
 **Changelog notice:**
