@@ -1,5 +1,23 @@
 # Changelog
 
+## v6.22.0 — /init argument-handling: enhancement filter tokens + bootstrap-state versioning
+
+`/claude-tweaks:init --routines` previously fell silently through to the free-text
+"project description" branch, since `--routines` wasn't a recognized scope keyword — Phase 0's
+Optional Enhancements (Steps 9-16) were all-or-nothing (`--core-only` or everything), so there
+was no way to ask for just one. `/init`'s `## Input` section now recognizes eight Enhancement
+filter tokens (one per Optional Enhancement step; `cloud-parity`/`routines` split Steps 13/14
+since wanting cloud parity without ever scheduling a Routine is a real, separate case), narrows
+Phase 0 to only the named step(s) when present, and composes freely with goal-based Phase
+scopes and modifier flags. An unrecognized token now stops and asks instead of silently
+guessing (matching the existing `/tidy`/`/capture`/`/version` precedent) rather than being
+misread as descriptive text. Separately, a new local `.claude-tweaks/init-state.yml` marker
+records the plugin version that last verified Steps 1-8 (Core Bootstrap), letting an
+unchanged-version re-run skip that re-verification entirely; a version mismatch instead
+re-runs Steps 1-8 and surfaces a filtered summary of `CHANGELOG.md` entries relevant to
+`/init`'s own behavior since the recorded version. New `bin/lib/changelog.js` provides the
+semver comparison and range-extraction the version check needs.
+
 ## v6.21.0 — GitHub-MCP fallback for gh-CLI-only write paths
 
 `bin/lib/health-core/durable-state.js` (the code-health/harness-health/journey-health/docs-health
