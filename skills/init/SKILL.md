@@ -101,6 +101,20 @@ An explicit Enhancement filter token given together with `--core-only` is a cont
 
 Fast, idempotent structural setup. Creates directories, starter files, and verifies dependencies. Skips anything that already exists.
 
+### Core Bootstrap Version Check (runs before Step 1)
+
+Before running Steps 1-8, read `.claude-tweaks/init-state.yml` (treat as absent if missing or malformed) and compare its `core-bootstrap.plugin-version` against `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`'s `version` field (the same field `/claude-tweaks:version` treats as the sole source of truth) via `bin/lib/changelog.js`'s `compareVersions`. Read `bootstrap-steps.md` ("Core Bootstrap Version Check") for the exact commands.
+
+| Marker state | Action |
+|---|---|
+| Missing | Run Steps 1-8 fully. No changelog notice — nothing to diff against yet. |
+| Present, versions match (or marker is somehow newer — treat identically) | Skip Steps 1-8 entirely; print a one-line confirmation instead. |
+| Present, marker version older than installed | Run Steps 1-8 fully, then surface the changelog notice below. |
+
+**Changelog notice (version-mismatch case only).** Read the project's `CHANGELOG.md` and call `bin/lib/changelog.js`'s `extractChangelogRange` for the range between the marker's old version (exclusive) and the installed version (inclusive). Synthesize a short summary limited to entries that change what `/init` offers, writes to CLAUDE.md, or exposes as a scope/config key — omit internal-only entries (bug fixes, refactors with no `/init`-visible behavior change). Present as an informational note, not a gate, ending with a pointer to `/init update --full` (or a narrower scope) if the user wants to act on anything it surfaces. No cap on how large the range is — if it spans an unusually large number of releases, say so explicitly.
+
+**Write the marker** immediately after this check concludes, regardless of which branch ran — unlike the `worktree.always` decision (see "Finalizing the worktree.always Decision" below), this write creates no new gate that could deny this same invocation's own remaining steps, so there is no need to defer it. Create `.claude-tweaks/` if it doesn't exist yet.
+
 **Core Bootstrap (Steps 1–8):**
 
 ### Step 1: Check Plugin Dependencies

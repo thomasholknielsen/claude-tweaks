@@ -2,6 +2,71 @@
 
 Loaded by `/init` Phase 0 when the corresponding tool/feature is being set up. Each step is independent — read only the section(s) needed for the step currently executing. In Update Mode most of these are no-ops (already configured); the SKILL.md decides whether to load this file at all.
 
+## Core Bootstrap Version Check (detailed procedure)
+
+Runs before Step 1, on every `/init` invocation regardless of scope.
+
+**Read the marker:**
+
+```bash
+cat .claude-tweaks/init-state.yml 2>/dev/null || echo "MISSING"
+```
+
+`init-state.yml` only ever has one top-level key (`core-bootstrap`) with two flat children
+(`plugin-version`, `verified`) — read `plugin-version` directly, no general YAML parser needed.
+
+**Read the installed version:**
+
+```bash
+node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT + '/.claude-plugin/plugin.json').version)"
+```
+
+**Compare (only when the marker is present):**
+
+```bash
+node -e "
+  const { compareVersions } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/changelog.js');
+  console.log(compareVersions(process.argv[1], process.argv[2]));
+" "$MARKER_VERSION" "$INSTALLED_VERSION"
+```
+
+Prints `-1` (marker older than installed), `0` (match), or `1` (marker newer — shouldn't happen
+in practice, treat identically to a match).
+
+- Marker missing → run Steps 1-8 fully, skip the changelog notice.
+- Result `0` or `1` → skip Steps 1-8; print `"Core bootstrap already verified at v{installed} on {verified date} — skipping Steps 1-8."`
+- Result `-1` → run Steps 1-8 fully, then run the changelog notice below.
+
+**Changelog notice:**
+
+```bash
+node -e "
+  const fs = require('fs');
+  const { extractChangelogRange } = require(process.env.CLAUDE_PLUGIN_ROOT + '/bin/lib/changelog.js');
+  const changelog = fs.readFileSync(process.env.CLAUDE_PLUGIN_ROOT + '/CHANGELOG.md', 'utf8');
+  console.log(JSON.stringify(extractChangelogRange(changelog, process.argv[1], process.argv[2])));
+" "$MARKER_VERSION" "$INSTALLED_VERSION"
+```
+
+Read the returned `{version, title, body}` entries and synthesize the filtered summary
+described in `SKILL.md`'s "Core Bootstrap Version Check" section.
+
+**Write the marker:**
+
+```bash
+mkdir -p .claude-tweaks
+cat > .claude-tweaks/init-state.yml <<EOF
+core-bootstrap:
+  plugin-version: "$INSTALLED_VERSION"
+  verified: "$(date -u +%Y-%m-%d)"
+EOF
+```
+
+`init-state.yml` only ever has this one key today — a full overwrite is safe. If a future
+change adds other top-level keys to this file, switch to a merge instead of an overwrite.
+
+---
+
 ## Core Bootstrap Steps
 
 Order-dependent — later steps may assume earlier ones completed. Steps 1-8 run unconditionally and idempotently (only act on missing state).
@@ -93,6 +158,7 @@ stories/auth.yml
 .claude-tweaks/journey-health/
 .claude-tweaks/docs-health/
 .claude-tweaks/routine-environment-cache.yml
+.claude-tweaks/init-state.yml
 .impeccable/config.local.json
 .impeccable/hook.cache.json
 .impeccable/hook.pending.json
