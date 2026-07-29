@@ -66,6 +66,12 @@ returns `{ readState(root), writeState(root, mutatorFn) }`:
   skill's own `readDurableState`/`writeDurableState` — `code-health`, `harness-health`,
   `journey-health`, and `docs-health`'s CLIs each call this instead of restating the same logic
   four times.
+- **`bin/lib/health-core/retry-durable-write.js`**'s `makeCmdRetryDurableWrite({ writeDurableState, buildValidateFindingsUpdate, toolName })`
+  gives the same four CLIs a `retry-durable-write <retry-input.json>` subcommand: a fresh
+  read-modify-write of the durable branch from an already-computed mutator input, with no
+  finding discovery, no `cache.json` write, and no payload output. It exists for the MCP write
+  path's retry loop below — see that section for why re-running `validate-findings` cannot
+  serve as its own retry.
 
 This is impure (real `git`/`gh` calls via an injectable runner), unlike `bin/lib/issues/claims.js`'s
 deliberately emit-only design — issue claim/release is a decision-laden, audit-visible action
@@ -81,8 +87,9 @@ network call itself — MCP tools can only be invoked from the calling agent's o
 from the spawned Node subprocess `writeState` runs in. Instead it returns
 `{ ok: false, needsMcpWrite: true, branch: 'health-state', files: [{ path, content }] }`.
 
-Each CLI command that calls it (`validate-findings`, `retry-queue update`) signals that on
-**stderr**, and still writes its own normal output to stdout unconditionally:
+Each CLI command that calls it (`validate-findings`, `retry-queue update`, and the
+`retry-durable-write` retry command below) signals that on **stderr**, and still writes its
+own normal output to stdout unconditionally:
 
 - **stdout, always** — the payloads array for `validate-findings`; the escalated array for
   `retry-queue update`, which prints `[]` when a write is pending, since the escalation it
@@ -99,11 +106,42 @@ Each CLI command that calls it (`validate-findings`, `retry-queue update`) signa
 The calling skill drives the retry loop itself, up to `MAX_CAS_ATTEMPTS` attempts
 (`node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/health-core/durable-state.js').MAX_CAS_ATTEMPTS)"`):
 
-1. Run the CLI command that produced the `needsMcpWrite` output (this attempt's fresh read
-   already happened inside it).
-2. Parse the JSON. If it doesn't have `needsMcpWrite: true`, the write either already
-   succeeded via the gh path or failed for an unrelated reason — stop, nothing more to do
-   here.
+0. **Once, on the first pending-write signal** (not per attempt): capture that command's
+   stdout output (the payloads/escalated array — it is this firing's only copy) and both of
+   its stderr signal lines. When the originating command was `validate-findings`, write the
+   `HEALTH_STATE_MCP_RETRY_INPUT` line's JSON to a file — e.g.
+   `/tmp/{skill}-retry-input.json` — which every attempt below reuses unchanged.
+1. Produce this attempt's signal. **On the first attempt you already have it** — it is the
+   signal the originating command just emitted in step 0; go straight to step 2 without
+   re-running anything. **On every later attempt** (reached only by looping back from step 7),
+   run the command below, which re-reads current state fresh inside itself:
+
+   - **`validate-findings`** — run `retry-durable-write` instead, never `validate-findings`
+     again:
+
+     ```bash
+     node "${CLAUDE_PLUGIN_ROOT}/bin/{skill}.js" retry-durable-write /tmp/{skill}-retry-input.json --root "${ROOT:-$PWD}"
+     ```
+
+     It re-applies the captured mutator input against a freshly re-fetched branch state — a
+     real concurrent update by another firing still resolves correctly — while doing none of
+     `validate-findings`' finding discovery. It writes no payloads to stdout and never touches
+     `cache.json`. Parse **its** stderr for `HEALTH_STATE_MCP_PENDING_WRITE` from step 2 on.
+
+     > **Never re-run `validate-findings` as a retry.** It discovers findings and marks the
+     > survivors in `cache.json` on its first invocation, so a second run dedups them away and
+     > emits `[]` — verified in practice. A retry loop redirecting each attempt into the same
+     > `/tmp/{skill}-payloads.json` therefore destroys this firing's real findings before they
+     > are ever filed.
+
+   - **`retry-queue update`** — re-run the command itself, from scratch, exactly as before.
+     This is still correct here and the warning above does not apply: it does no finding
+     discovery, so a fresh invocation recomputes the same queue mutation against whatever
+     state it now reads.
+2. Read this attempt's stderr. If it carries no `HEALTH_STATE_MCP_PENDING_WRITE` line, the
+   write either already succeeded via the gh path or failed for an unrelated reason — stop,
+   nothing more to do here. Otherwise parse the JSON after the prefix; its `branch`/`files`
+   drive the steps below.
 3. For each entry in `files`, resolve its current blob sha (empty/error means the file
    doesn't exist yet — omit `sha` on the write below):
 
@@ -135,7 +173,10 @@ The calling skill drives the retry loop itself, up to `MAX_CAS_ATTEMPTS` attempt
 7. If any file's write is rejected for a sha-mismatch/already-exists reason, sleep
    `casBackoffMs(attempt)` (`node -e "console.log(require(...).casBackoffMs(${ATTEMPT}))"`,
    then actually wait that many milliseconds) and go back to step 1 — state may have changed,
-   so the CLI command must be re-run from scratch, not retried with stale data.
+   so this attempt's command must run again and re-read it, never be retried with the `files`
+   array a previous attempt computed. Step 0 does not repeat: the captured retry input is this
+   firing's own already-computed update, and reusing it is exactly what lets the command
+   re-read the *other* firing's state without re-running finding discovery.
 8. If any file's write fails for a reason that is clearly not a conflict (a hard tool error —
    malformed request, an outage), stop immediately and report the failure. Do not spend
    retry attempts on a broken transport.

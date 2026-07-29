@@ -10,7 +10,8 @@ const { makeRetryQueueCommands } = require('./lib/health-core/retry-cli');
 const { dedupAndDispatch } = require('./lib/health-core/validate-findings-dispatch');
 const { selectBudget } = require('./lib/health-core/budget');
 const { makeCmdChurnReport } = require('./lib/health-core/churn-report');
-const { emitPendingWrite } = require('./lib/health-core/mcp-pending');
+const { emitPendingWrite, emitRetryInput } = require('./lib/health-core/mcp-pending');
+const { makeCmdRetryDurableWrite } = require('./lib/health-core/retry-durable-write');
 const { makeCmdMark, mergeDeclinedIntoCache } = require('./lib/health-core/mark');
 const { decide } = require('./lib/journey-health/dedup');
 const { validateFinding } = require('./lib/journey-health/validate-finding');
@@ -22,6 +23,9 @@ const { evaluateQaEvidence } = require('./lib/journey-health/qa-evidence');
 const TOOL_NAME = 'journey-health';
 const retryQueueCommands = makeRetryQueueCommands({ readDurableState, writeDurableState });
 const cmdChurnReport = makeCmdChurnReport({ readDurableState, computeChurn });
+const cmdRetryDurableWrite = makeCmdRetryDurableWrite({
+  writeDurableState, buildValidateFindingsUpdate, toolName: TOOL_NAME,
+});
 // readDurableState/writeDurableState wired through so a "declined" mark also
 // persists to the health-state git branch, not just the local gitignored
 // cache — see bin/lib/health-core/mark.js's own header comment. Without
@@ -209,11 +213,16 @@ function cmdValidateFindings(args) {
     // source of truth), so a persistence failure must never block emitting the payloads —
     // mirrors the pattern already hardened in bin/harness-health.js's own writeDurableState call.
     const runRecord = { runId: args.runId, runAt: new Date().toISOString(), fingerprints: [...seen] };
-    const result = writeDurableState(root, (current) => buildValidateFindingsUpdate(
-      current, { target: args.target, tier: args.tier, coverageScan: args.coverageScan, runRecord },
-    ));
+    // Named rather than inlined into the mutator so the exact same input can be
+    // handed to `retry-durable-write` below — a CAS retry must re-apply this
+    // firing's already-computed update, never re-run finding discovery.
+    const mutatorInput = {
+      target: args.target, tier: args.tier, coverageScan: args.coverageScan, runRecord,
+    };
+    const result = writeDurableState(root, (current) => buildValidateFindingsUpdate(current, mutatorInput));
     if (result.needsMcpWrite) {
       emitPendingWrite(result);
+      emitRetryInput(mutatorInput);
     } else if (!result.ok) {
       process.stderr.write(`[journey-health] validate-findings: health-state persistence failed after retries: ${result.error}\n`);
     }
@@ -249,6 +258,7 @@ function main(argv) {
   const cmd = args._[0];
   if (cmd === 'next-target') return cmdNextTarget(args);
   if (cmd === 'validate-findings') return cmdValidateFindings(args);
+  if (cmd === 'retry-durable-write') return cmdRetryDurableWrite(args);
   if (cmd === 'churn-report') return cmdChurnReport(args);
   if (cmd === 'mark') return cmdMark(args);
   if (cmd === 'qa-evidence') return cmdQaEvidence(args);
@@ -266,7 +276,7 @@ function main(argv) {
     'validate-findings <file> [--target <id>] [--tier light|deep] [--coverage-scan] [--min-confidence low|med|high], ' +
     'qa-evidence <report.json> --story-ids <id1,id2,...> [--now <ms>], ' +
     'churn-report [--fail-on-high-churn <r>], mark <fingerprint> <declined>, ' +
-    'retry-queue drain, retry-queue update <results.json>\n',
+    'retry-queue drain, retry-queue update <results.json>, retry-durable-write <retry-input.json>\n',
   );
   process.exit(2);
 }
