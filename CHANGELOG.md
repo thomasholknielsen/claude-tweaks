@@ -19,7 +19,6 @@ workspace slice, and, since it always sorted first, always force-picked as the v
 on any never-before-swept repo (returning ~4,200 files as "one slice" in the reported case). `.`
 now scans direct root-level files only.
 
-
 ## v6.22.1 — Tidy two doc nits from the /init argument-handling final review
 
 Standardized on "goal-based Phase scope" throughout `skills/init/SKILL.md` (five pre-existing
