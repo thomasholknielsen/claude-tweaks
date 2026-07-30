@@ -124,8 +124,10 @@ existing behavior unchanged.
 
 **3. Choose owner:** Enumerate the personal account (`gh api user --jq .login`) plus the
 user's orgs (`gh api user/orgs --jq '.[].login'`). Present as `AskUserQuestion` — personal
-account marked `(Recommended)`, up to 3 orgs listed individually (an `AskUserQuestion` caps at
-4 options); the built-in `Other` free-text field covers typing any org beyond that.
+account marked `(Recommended)`, plus however many orgs exist up to 3 listed individually (an
+`AskUserQuestion` caps at 4 options total; zero orgs means the personal account is the only
+option shown). The built-in `Other` free-text field covers typing any org beyond the first 3,
+or any org name at all when the user belongs to none of the listed ones.
 
 **4. Confirm name:** Default = sanitized basename of the git top-level directory (lowercased,
 spaces/invalid characters replaced with hyphens per GitHub repo naming rules). Presented with
