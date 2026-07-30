@@ -232,7 +232,7 @@ The workflow system relies on git for change tracking (`/claude-tweaks:review` u
    - Option 1 — `label`: `"Yes — enforce worktree.always (Recommended)"`, `description`: `"Mechanically denies Edit/Write/NotebookEdit/git commit outside a linked worktree from the first prompt of every future session. Prevents concurrent sessions from colliding on the main checkout."`
    - Option 2 — `label`: `"No — allow direct edits in the main checkout"`, `description`: `"Leaves the main checkout open for direct edits. You can enable this later by re-running /init."`
 
-   **Do not write `.claude-tweaks/policy.yml` here.** Record the answer (`true` for Option 1, `false` for Option 2 — write `false` explicitly rather than leaving the key absent, so the idempotency check above can detect "already asked, declined" on a future run) and carry it forward to the end of this `/init` invocation. Writing it immediately would deny this same run's own remaining `Edit`/`Write` calls (Steps 7-14 below, and Phases 1-9 for any fuller scope) via the very policy this step turns on. See `SKILL.md`'s "Finalizing the worktree.always Decision" for the general rule governing where the write actually happens — normally at Phase 9 ("Worktree Policy Finalization"), but at whatever point this invocation actually ends if that happens first (examples: the `bootstrap`-only scope, or the Scope Selection Gate's "Done" choices).
+   **Do not write `.claude-tweaks/policy.yml` here.** Record the answer (`true` for Option 1, `false` for Option 2 — write `false` explicitly rather than leaving the key absent, so the idempotency check above can detect "already asked, declined" on a future run) and carry it forward to the end of this `/init` invocation. Writing it immediately would deny this same run's own remaining `Edit`/`Write` calls (Steps 7-17 below, and Phases 1-9 for any fuller scope) via the very policy this step turns on. See `SKILL.md`'s "Finalizing the worktree.always Decision" for the general rule governing where the write actually happens — normally at Phase 9 ("Worktree Policy Finalization"), but at whatever point this invocation actually ends if that happens first (examples: the `bootstrap`-only scope, or the Scope Selection Gate's "Done" choices).
 
 ---
 
@@ -355,7 +355,7 @@ Declining falls through to existing behavior unchanged — Steps 10/14/16/17 bel
 - Option 1 — `label`: `"{personal account} (Recommended)"`, `description`: `"Create under your personal account."`
 - Option 2..4 — one per org, up to 3, `label`: `"{org login}"`, `description`: `"Create under this organization."`
 
-With zero orgs, only Option 1 renders — an `AskUserQuestion` still needs at least 2 options, so in that case fold in a second option: `label`: `"Other"`, wait — `Other` is a built-in field on every `AskUserQuestion` call regardless of how many explicit options are listed, so a single explicit option (personal account) plus the built-in `Other` field satisfies the tool's requirements without a synthetic second option. The built-in `Other` free-text field covers typing any org beyond the first 3, or any org name at all when the user belongs to none of the listed ones.
+With zero orgs, Option 1 (the personal account) is the only explicit option — that's fine. `Other` is a built-in free-text field on every `AskUserQuestion` call regardless of how many explicit options are listed, so it satisfies the tool's requirements without a synthetic second option, and it doubles as the escape hatch for any org beyond the first 3 or any org not listed.
 
 **4. Confirm name.** Default = the git top-level directory's basename (`git rev-parse --show-toplevel`), lowercased, with any run of characters outside `[a-z0-9-]` replaced by a single `-`, trimmed of leading/trailing `-` (GitHub repo naming rules). Present the default and let the user override it in the same exchange rather than a separate round-trip.
 
@@ -365,9 +365,9 @@ With zero orgs, only Option 1 renders — an `AskUserQuestion` still needs at le
 - Option 1 — `label`: `"Private (Recommended)"`, `description`: `"Only you (and anyone you invite) can see it."`
 - Option 2 — `label`: `"Public"`, `description`: `"Anyone can see it."`
 
-**6. Final confirmation.** One explicit summary confirm before executing — covers the whole create+link+push action, not a re-ask of Steps 3-5:
+**6. Final confirmation.** One explicit summary confirm before executing — covers the whole create+link+push action, not a re-ask of sub-steps 3-5:
 
-- `question`: `"Create github.com/{owner}/{name} ({visibility}) and set it as origin, pushing the current branch?"`, `header`: `"Confirm"`, `multiSelect`: `false`
+- `question`: `"Create github.com/{owner}/{name} ({visibility}) and set it as origin{push_clause}?"`, `header`: `"Confirm"`, `multiSelect`: `false` (`{push_clause}` = `", pushing the current branch"` when `git rev-parse HEAD` succeeds, else empty string — matching the same commit-existence check the Execute step below uses for `$PUSH_FLAG`)
 - Option 1 — `label`: `"Yes — create it (Recommended)"`, `description`: `"Runs gh repo create with --source=. --remote=origin."`
 - Option 2 — `label`: `"Cancel"`, `description`: `"Don't create anything."`
 
@@ -378,7 +378,7 @@ git rev-parse HEAD >/dev/null 2>&1 && PUSH_FLAG="--push" || PUSH_FLAG=""
 gh repo create "{owner}/{name}" --{private|public} --source=. --remote=origin $PUSH_FLAG
 ```
 
-`--push` is included only when the current branch already has at least one commit — an empty repo has nothing to push yet. On a name collision or permission error, report it and return to Step 4 (pick a different name) rather than aborting the whole step.
+`--push` is included only when the current branch already has at least one commit — an empty repo has nothing to push yet. On a name collision, report it and return to sub-step 4 (pick a different name); on a permission error (the chosen owner rejects the create), report it and return to sub-step 3 (pick a different owner) — neither aborts the whole step.
 
 **8. Downstream effect.** Once the remote exists, Steps 10/14/16/17 below see it via their own existing two-tier check (documented above) and take their already-documented enriched paths — no further action needed here.
 
@@ -391,7 +391,8 @@ gh repo create "{owner}/{name}" --{private|public} --source=. --remote=origin $P
 | User declines install / auth / create | Clean fallback to existing behavior, nothing partially applied |
 | `gh` install fails / no package manager detected (non-Linux) | Abort gracefully, same fallback |
 | `gh auth login` doesn't complete | Abort gracefully, same fallback |
-| Repo name collision or permission error | Re-prompt for a different name (Step 4), not a hard failure |
+| Repo name collision | Re-prompt for a different name (sub-step 4), not a hard failure |
+| Permission error on creation | Re-prompt for a different owner (sub-step 3), not a hard failure |
 
 ---
 

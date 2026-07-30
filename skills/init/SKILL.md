@@ -54,14 +54,14 @@ Otherwise, `$ARGUMENTS` splits on whitespace into tokens. Each token classifies 
 | Token | Runs |
 |---|---|
 | `github-remote` | Step 9 — Establish GitHub remote, alone |
-| `issue-form` | Step 10 — GitHub issue form template. Hard-depends on Step 9 having run — if `github-remote` wasn't also given (and no remote exists yet), `issue-form` silently runs Step 9 first anyway |
+| `issue-form` | Step 10 — GitHub issue form template. Hard-depends on Step 9 having run — if `github-remote` wasn't also given (and no remote exists yet), `issue-form` runs Step 9 first anyway (interactive mode only — Step 9 never runs under `auto`, and it prompts before doing anything) |
 | `design-integration` | Step 11 — Impeccable design integration |
 | `diagram-suggestions` | Step 12 — Diagram suggestions |
 | `shadcn-integration` | Step 13 — shadcn bootstrap |
-| `cloud-parity` | Step 14 — Cloud/Routine parity setup, alone. Hard-depends on Step 9 the same way `issue-form` does |
+| `cloud-parity` | Step 14 — Cloud/Routine parity setup, alone. Hard-depends on Step 9 having run — if `github-remote` wasn't also given (and no remote exists yet), `cloud-parity` runs Step 9 first anyway (interactive mode only — Step 9 never runs under `auto`, and it prompts before doing anything) |
 | `routines` | Step 15 — Routine installation. Hard-depends on Step 14 having run — if `cloud-parity` wasn't also given (or already configured from an earlier run), `routines` silently runs Step 14 first anyway, matching the unfiltered flow's existing 14-before-15 ordering |
-| `branch-tracking` | Step 16 — Non-default-branch issue tracking. Hard-depends on Step 9 the same way `issue-form` does |
-| `work-backend` | Step 17 — Work-record backend. Hard-depends on Step 9 the same way `issue-form` does |
+| `branch-tracking` | Step 16 — Non-default-branch issue tracking. Hard-depends on Step 9 having run — if `github-remote` wasn't also given (and no remote exists yet), `branch-tracking` runs Step 9 first anyway (interactive mode only — Step 9 never runs under `auto`, and it prompts before doing anything) |
+| `work-backend` | Step 17 — Work-record backend. Hard-depends on Step 9 having run — if `github-remote` wasn't also given (and no remote exists yet), `work-backend` runs Step 9 first anyway (interactive mode only — Step 9 never runs under `auto`, and it prompts before doing anything) |
 
 Examples (assuming Steps 1-8 actually run this time — see "Core Bootstrap Version Check" below for when they're skipped instead): `routines` alone runs Steps 1-8, then only Steps 14+15, then stops (same "stop after Phase 0" behavior as `bootstrap`). `config routines` runs Steps 1-8, then only Steps 14+15, then Phases 2, 3, 5. `shadcn-integration branch-tracking` runs Steps 1-8, then only Steps 13 and 16, then stops.
 
@@ -152,7 +152,7 @@ Detect `agent-browser`; surface the install command if missing. Never block init
 
 Detect Node (and optionally git), install the statusline wrapper at `~/.claude-tweaks/bin/statusline.js`, and prompt before wiring `statusLine.command` in `~/.claude/settings.json` — never overwrite a non-claude-tweaks command. Read `bootstrap-steps.md` (Step 8) for the full procedure (detection, package-manager prompts, settings.json migration matrix, NO_COLOR opt-out).
 
-**Optional Enhancements (Steps 9–17):** Skipped entirely when `$ARGUMENTS` contains `--core-only` — treat every offer below as declined with no prompt shown, and proceed straight to whatever this invocation runs after Phase 0 (the Scope Selection Gate, or a composed goal-based Phase scope). Narrowed to a subset when `$ARGUMENTS` contains one or more Enhancement filter tokens — see the `## Input` section's Enhancement filter tokens table for the full list and the `routines`/`cloud-parity` ordering note.
+**Optional Enhancements (Steps 9–17):** Skipped entirely when `$ARGUMENTS` contains `--core-only` — treat every offer below as declined with no prompt shown, and proceed straight to whatever this invocation runs after Phase 0 (the Scope Selection Gate, or a composed goal-based Phase scope). Narrowed to a subset when `$ARGUMENTS` contains one or more Enhancement filter tokens — see the `## Input` section's Enhancement filter tokens table for the full list and each token's own ordering/hard-depends notes.
 
 ### Step 9: Establish GitHub Remote (Optional)
 
@@ -176,7 +176,7 @@ When frontend signals are detected and `components.json` doesn't exist (or exist
 
 ### Step 14: Cloud/Routine Parity Setup (Optional)
 
-Always offered when a GitHub-flavored remote is reachable (same GHE-safe two-tier check as Step 10) — warns live if the current branch differs from the repo's actual GitHub default branch (cloud sessions/Routines check out the default branch, so declarations made elsewhere don't take effect until merged there), declares `claude-tweaks` + `superpowers` in the project's `.claude/settings.json#enabledPlugins` (so cloud sessions and scheduled Routines get the same skills available locally, not just this machine's user-level config), batch-offers mirroring any other plugin the user has enabled locally, generates a committed `scripts/claude-cloud-setup.sh` that materializes them in a fresh cloud sandbox, and writes a `## Cloud parity` CLAUDE.md section documenting the manual Setup-script paste this doesn't automate plus two operational caveats (branch-checkout mismatch, first-exposure registration lag) and a report-only MCP-parity note. Runs before Step 15 (Routine Installation) deliberately — a Routine created before this step would silently fail its first cloud firing. Idempotent: re-running with nothing new to declare or mirror reports "already configured" instead of re-prompting — the branch check itself still runs every time. Read `bootstrap-steps.md` (Step 14) for the full procedure.
+Always offered when a GitHub-flavored remote is reachable (same GHE-safe two-tier check as Step 9) — warns live if the current branch differs from the repo's actual GitHub default branch (cloud sessions/Routines check out the default branch, so declarations made elsewhere don't take effect until merged there), declares `claude-tweaks` + `superpowers` in the project's `.claude/settings.json#enabledPlugins` (so cloud sessions and scheduled Routines get the same skills available locally, not just this machine's user-level config), batch-offers mirroring any other plugin the user has enabled locally, generates a committed `scripts/claude-cloud-setup.sh` that materializes them in a fresh cloud sandbox, and writes a `## Cloud parity` CLAUDE.md section documenting the manual Setup-script paste this doesn't automate plus two operational caveats (branch-checkout mismatch, first-exposure registration lag) and a report-only MCP-parity note. Runs before Step 15 (Routine Installation) deliberately — a Routine created before this step would silently fail its first cloud firing. Idempotent: re-running with nothing new to declare or mirror reports "already configured" instead of re-prompting — the branch check itself still runs every time. Read `bootstrap-steps.md` (Step 14) for the full procedure.
 
 ### Step 15: Routine Installation (Optional Companion)
 
@@ -188,7 +188,7 @@ Offer only on projects with a GitHub remote — writes `.github/workflows/track-
 
 ### Step 17: Work-Record Backend (Optional)
 
-Decide whether the unified work record — used by `/claude-tweaks:capture`, `/claude-tweaks:specify`, `/claude-tweaks:backlog`, `/claude-tweaks:dispatch`, `/claude-tweaks:tidy`, and the health skills — is backed by GitHub issues or local record files, and write `work-backend` to CLAUDE.md under a `## Work records` section (gated on the same GHE-safe two-tier remote check Step 10 uses). Then probe GitHub-native capabilities once (`work-types`, `work-links`) and offer to provision the full core label set now — see `_shared/work-record.md`'s Label taxonomy table for the current per-family and total counts, rather than a count restated here. See `_shared/work-record.md` for the taxonomy these config keys govern. Read `bootstrap-steps.md` (Step 17) for the full procedure.
+Decide whether the unified work record — used by `/claude-tweaks:capture`, `/claude-tweaks:specify`, `/claude-tweaks:backlog`, `/claude-tweaks:dispatch`, `/claude-tweaks:tidy`, and the health skills — is backed by GitHub issues or local record files, and write `work-backend` to CLAUDE.md under a `## Work records` section (gated on the same GHE-safe two-tier remote check Step 9 uses). Then probe GitHub-native capabilities once (`work-types`, `work-links`) and offer to provision the full core label set now — see `_shared/work-record.md`'s Label taxonomy table for the current per-family and total counts, rather than a count restated here. See `_shared/work-record.md` for the taxonomy these config keys govern. Read `bootstrap-steps.md` (Step 17) for the full procedure.
 
 ---
 
