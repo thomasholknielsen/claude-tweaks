@@ -1,5 +1,14 @@
 # Changelog
 
+## v6.22.1 — Tidy two doc nits from the /init argument-handling final review
+
+Standardized on "goal-based Phase scope" throughout `skills/init/SKILL.md` (five pre-existing
+spots still said "goal-based scope" after v6.22.0 introduced the more precise term in one
+place), and made `bootstrap-steps.md`'s Core Bootstrap Version Check decision bullets re-cite
+the `bootstrap`-scope Exception inline instead of relying on the reader to hold it from a few
+lines above. Both were left as non-blocking Minor findings by v6.22.0's final whole-branch
+review; no behavior change.
+
 ## v6.22.0 — /init argument-handling: enhancement filter tokens + bootstrap-state versioning
 
 `/claude-tweaks:init --routines` previously fell silently through to the free-text
