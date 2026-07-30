@@ -9,8 +9,6 @@ const { makeRetryQueueCommands } = require('./lib/health-core/retry-cli');
 const { loadIssueIndex } = require('./lib/health-core/issue-index');
 const { selectBudget } = require('./lib/health-core/budget');
 const { makeCmdChurnReport } = require('./lib/health-core/churn-report');
-const { emitPendingWrite, emitRetryInput } = require('./lib/health-core/mcp-pending');
-const { makeCmdRetryDurableWrite } = require('./lib/health-core/retry-durable-write');
 const { makeCmdMark, mergeDeclinedIntoCache } = require('./lib/health-core/mark');
 const { decide } = require('./lib/docs-health/dedup');
 const { validateFinding } = require('./lib/docs-health/validate-finding');
@@ -23,9 +21,6 @@ const { checkTrackedFreshness } = require('./lib/docs-health/freshness');
 const TOOL_NAME = 'docs-health';
 const retryQueueCommands = makeRetryQueueCommands({ readDurableState, writeDurableState });
 const cmdChurnReport = makeCmdChurnReport({ readDurableState, computeChurn });
-const cmdRetryDurableWrite = makeCmdRetryDurableWrite({
-  writeDurableState, buildValidateFindingsUpdate, toolName: TOOL_NAME,
-});
 // readDurableState/writeDurableState wired through so a "declined" mark also
 // persists to the health-state git branch, not just the local gitignored
 // cache — see bin/lib/health-core/mark.js's own header comment. Without
@@ -215,15 +210,10 @@ function cmdValidateFindings(args) {
   if (!args.dryRun) {
     writeCache(root, cache);
     const runRecord = { runId: args.runId, runAt: new Date().toISOString(), fingerprints: [...seen] };
-    // Named rather than inlined into the mutator so the exact same input can be
-    // handed to `retry-durable-write` below — a CAS retry must re-apply this
-    // firing's already-computed update, never re-run finding discovery.
+    // Named rather than inlined into the mutator call below, for readability.
     const mutatorInput = { target: args.target, runRecord, rememberCandidates };
     const result = writeDurableState(root, (current) => buildValidateFindingsUpdate(current, mutatorInput));
-    if (result.needsMcpWrite) {
-      emitPendingWrite(result);
-      emitRetryInput(mutatorInput);
-    } else if (!result.ok) {
+    if (!result.ok) {
       process.stderr.write(`[docs-health] validate-findings: health-state persistence failed after retries: ${result.error}\n`);
     }
   }
@@ -314,7 +304,6 @@ function main(argv) {
   const cmd = args._[0];
   if (cmd === 'next-target') return cmdNextTarget(args);
   if (cmd === 'validate-findings') return cmdValidateFindings(args);
-  if (cmd === 'retry-durable-write') return cmdRetryDurableWrite(args);
   if (cmd === 'churn-report') return cmdChurnReport(args);
   if (cmd === 'mark') return cmdMark(args);
   if (cmd === 'word-count') return cmdWordCount(args);
@@ -328,7 +317,7 @@ function main(argv) {
     'validate-findings <file> [--target <id>] [--issues <file>] [--min-confidence <level>] [--dry-run], ' +
     'churn-report [--fail-on-high-churn <r>], mark <fingerprint> <declined>, ' +
     'word-count <path>, find-refs <path> [--root <dir>], check-freshness <path> [--root <dir>], ' +
-    'retry-queue drain, retry-queue update <results.json>, retry-durable-write <retry-input.json>\n',
+    'retry-queue drain, retry-queue update <results.json>\n',
   );
   process.exit(2);
 }
