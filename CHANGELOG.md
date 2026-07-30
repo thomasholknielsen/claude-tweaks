@@ -1,6 +1,6 @@
 # Changelog
 
-## v6.22.2 — durable-state writes are git-native; code-health's `.` slice no longer sweeps the whole repo
+## v6.23.1 — durable-state writes are git-native; code-health's `.` slice no longer sweeps the whole repo
 
 `bin/lib/health-core/durable-state.js`'s `writeState()` shelled out to `gh api` for every
 `health-state` branch write; v6.21.0's documented GitHub-MCP fallback for cloud Routine
@@ -18,6 +18,19 @@ representing the *entire* repo root scanned recursively — overlapping every su
 workspace slice, and, since it always sorted first, always force-picked as the very first slice
 on any never-before-swept repo (returning ~4,200 files as "one slice" in the reported case). `.`
 now scans direct root-level files only.
+
+## v6.23.0 — /init: new Step 9 (Establish GitHub Remote)
+
+Projects with no git remote configured at all previously had no way for `/init` to help set
+one up — every GitHub-gated Optional Enhancement step (issue-form template, cloud/Routine
+parity, non-default-branch issue tracking, work-record backend) silently fell back to
+degraded or local-only behavior. `/init` now offers a new, interactive-only Step 9
+("Establish GitHub Remote"): when no remote exists at all, it can get the `gh` CLI installed
+and authenticated, then offer to create a GitHub repository (personal account or an org,
+confirmed name, private/public visibility) and link it as `origin` — so the rest of the same
+bootstrap run gets the enriched GitHub-backed path instead of falling back. Never runs under
+`auto` mode. Required renumbering the existing Optional Enhancement Steps 9-16 to 10-17 across
+every skill file that cross-references them.
 
 ## v6.22.1 — Tidy two doc nits from the /init argument-handling final review
 

@@ -411,7 +411,7 @@ These findings are informational — they don't block the review. They ensure wr
 
 #### 3i-diagram: Visual documentation gap (informational)
 
-Read the `diagram-suggestions` flag from CLAUDE.md (written by `/init` Step 11). **Skip silently when** `diagram-suggestions` is `disabled` or missing.
+Read the `diagram-suggestions` flag from CLAUDE.md (written by `/init` Step 12). **Skip silently when** `diagram-suggestions` is `disabled` or missing.
 
 When `enabled`, scan the diff for **structural complexity** signals:
 
@@ -622,5 +622,5 @@ See `review-summary-template.md` in this skill's directory for the full Next Act
 | `_shared/criteria-review-quality.md` | The shared review-quality criteria (severity scale, category enum, per-lens floors, CALIBRATION filter) — single source of truth read by both /review's Step 3 lenses and /code-health's review-quality lens. The CALIBRATION block in step3-routing.md is the byte-identical inlined-for-dispatch copy. |
 | `_shared/multi-agent-coordination.md` | Canonical primitive for Reproduction (Mode 1, Step 3 per-lens dispatch) and Debate (Mode 2, Step 3.5 cross-lens contradiction resolution). The deterministic comparison + resolve helpers live in `bin/lib/coordination.js`. |
 | `_shared/subagent-output-contract.md` | Per-lens reviewer agents emit Template A; debate agents inline a custom verdict template. The status line and model-tier conventions follow this contract. |
-| `/claude-tweaks:visualize` | Lens 3i-diagram emits "Visual documentation gap" informational findings when the diff added structural complexity (state machine, data model, multi-actor flow, architecture) but no matching diagram file exists. Gated by `diagram-suggestions: enabled` in CLAUDE.md (written by `/init` Step 11). |
+| `/claude-tweaks:visualize` | Lens 3i-diagram emits "Visual documentation gap" informational findings when the diff added structural complexity (state machine, data model, multi-actor flow, architecture) but no matching diagram file exists. Gated by `diagram-suggestions: enabled` in CLAUDE.md (written by `/init` Step 12). |
 | `docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md` | Design rationale for which steps are fixed-cost wrapper (Steps 1, 1.6, 4 — skipped under `fast-lane`) vs. safety-relevant judgment (Step 3, never skipped). |

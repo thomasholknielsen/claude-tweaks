@@ -52,12 +52,12 @@ Quick reference for all claude-tweaks skills. For full details, run `/claude-twe
 
 ## Recommended Companion Tools
 
-External tools claude-tweaks integrates with — Claude Code plugins and standalone CLIs alike. `/claude-tweaks:init`'s Optional Enhancement steps (9-14) offer to install these and write a flag to CLAUDE.md.
+External tools claude-tweaks integrates with — Claude Code plugins and standalone CLIs alike. `/claude-tweaks:init`'s Optional Enhancement steps (9-17) offer to install these, most of them also writing a flag to CLAUDE.md (Step 9's `gh` CLI install is the one exception — no flag, since a git remote's existence is already observable at runtime).
 
 | Tool | What it adds | Set up by |
 |--------|-------------|-----------|
-| [`pbakaus/impeccable`](https://github.com/pbakaus/impeccable) | Frontend design-quality LLM commands + deterministic CLI. Wired into `/test`, `/review`, `/build`, `/specify`, `/flow`, `/visual-review` via `/claude-tweaks:design-wrapper`. Frontend projects only. | `/init` Step 10 (writes `design-integration:` flag, read downstream) |
-| [`shadcn/ui`](https://ui.shadcn.com/) | CLI-driven component system + its own official MCP server and Skill for AI-agent context. Frontend projects only. | `/init` Step 12 (writes `shadcn-integration:` flag — currently write-only, not yet read downstream) |
+| [`pbakaus/impeccable`](https://github.com/pbakaus/impeccable) | Frontend design-quality LLM commands + deterministic CLI. Wired into `/test`, `/review`, `/build`, `/specify`, `/flow`, `/visual-review` via `/claude-tweaks:design-wrapper`. Frontend projects only. | `/init` Step 11 (writes `design-integration:` flag, read downstream) |
+| [`shadcn/ui`](https://ui.shadcn.com/) | CLI-driven component system + its own official MCP server and Skill for AI-agent context. Frontend projects only. | `/init` Step 13 (writes `shadcn-integration:` flag — currently write-only, not yet read downstream) |
 
 ## Common Workflows
 

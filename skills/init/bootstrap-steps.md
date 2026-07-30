@@ -225,14 +225,14 @@ The workflow system relies on git for change tracking (`/claude-tweaks:review` u
    |---|---|
    | No `worktree.always:` line at all (no file, or file present without the key) | Ask the question below |
    | `worktree.always: true` | No-op — already enabled, skip silently |
-   | `worktree.always: false` | Ask the question below (re-offer — matches Step 10/11/12's re-offer-on-decline convention) |
+   | `worktree.always: false` | Ask the question below (re-offer — matches Step 11/12/13's re-offer-on-decline convention) |
 
    When asking, call `AskUserQuestion`:
    - `question`: `"Require an isolated git worktree for every file edit in this project?"`, `header`: `"Worktree policy"`, `multiSelect`: `false`
    - Option 1 — `label`: `"Yes — enforce worktree.always (Recommended)"`, `description`: `"Mechanically denies Edit/Write/NotebookEdit/git commit outside a linked worktree from the first prompt of every future session. Prevents concurrent sessions from colliding on the main checkout."`
    - Option 2 — `label`: `"No — allow direct edits in the main checkout"`, `description`: `"Leaves the main checkout open for direct edits. You can enable this later by re-running /init."`
 
-   **Do not write `.claude-tweaks/policy.yml` here.** Record the answer (`true` for Option 1, `false` for Option 2 — write `false` explicitly rather than leaving the key absent, so the idempotency check above can detect "already asked, declined" on a future run) and carry it forward to the end of this `/init` invocation. Writing it immediately would deny this same run's own remaining `Edit`/`Write` calls (Steps 7-14 below, and Phases 1-9 for any fuller scope) via the very policy this step turns on. See `SKILL.md`'s "Finalizing the worktree.always Decision" for the general rule governing where the write actually happens — normally at Phase 9 ("Worktree Policy Finalization"), but at whatever point this invocation actually ends if that happens first (examples: the `bootstrap`-only scope, or the Scope Selection Gate's "Done" choices).
+   **Do not write `.claude-tweaks/policy.yml` here.** Record the answer (`true` for Option 1, `false` for Option 2 — write `false` explicitly rather than leaving the key absent, so the idempotency check above can detect "already asked, declined" on a future run) and carry it forward to the end of this `/init` invocation. Writing it immediately would deny this same run's own remaining `Edit`/`Write` calls (Steps 7-17 below, and Phases 1-9 for any fuller scope) via the very policy this step turns on. See `SKILL.md`'s "Finalizing the worktree.always Decision" for the general rule governing where the write actually happens — normally at Phase 9 ("Worktree Policy Finalization"), but at whatever point this invocation actually ends if that happens first (examples: the `bootstrap`-only scope, or the Scope Selection Gate's "Done" choices).
 
 ---
 
@@ -311,17 +311,95 @@ When migrating from a versioned path, announce: "Migrating to wrapper at `<wrapp
 
 ## Optional Enhancement Steps
 
-Order-agnostic and append-only by default — most steps in this group are independent "detect condition → offer → write artifact → idempotent" companion integrations with no dependency on each other's order, so a new one is normally added at the end with no renumbering. Step 13 (Cloud/Routine Parity Setup) is the one deliberate exception: it must run before Step 14 (Routine Installation) — a Routine created before cloud/plugin parity is set up would silently fail its first cloud firing — so it was inserted with a full renumbering of Steps 13-15 → 14-16 rather than appended. Future additions default back to append-only unless they have the same kind of genuine ordering dependency on an earlier step. One further narrow exception: Step 9's native-Type mention reads a config key (`work-types`) that only Step 16 writes — see Step 9's own note for how it handles running before Step 16 on a fresh bootstrap.
+Order-agnostic and append-only by default — most steps in this group are independent "detect condition → offer → write artifact → idempotent" companion integrations with no dependency on each other's order, so a new one is normally added at the end with no renumbering. Two steps are deliberate exceptions to that default, both inserted via a full renumbering rather than appended: Step 9 (Establish GitHub Remote) must run before Steps 10/14/16/17 — it establishes the remote those steps each independently check for, so appending it at the end would run too late to help them within the same bootstrap pass — and was inserted with a full renumbering of the then-Steps 9-16 → 10-17. Step 14 (Cloud/Routine Parity Setup, itself renumbered from 13 by this same pass) must run before Step 15 (Routine Installation) — a Routine created before cloud/plugin parity is set up would silently fail its first cloud firing — originally inserted with a renumbering of Steps 13-15 → 14-16. Future additions default back to append-only unless they have the same kind of genuine ordering dependency on an earlier step. One further narrow exception: Step 10's native-Type mention reads a config key (`work-types`) that only Step 17 writes — see Step 10's own note for how it handles running before Step 17 on a fresh bootstrap.
 
-### Step 9 — GitHub issue form template (agent-task)
+### Step 9 — Establish GitHub Remote (detailed procedure)
 
-Offer only when the project has a GitHub-flavored remote — a two-tier check that stays
-GHE-safe without requiring `gh` as a hard new dependency for what is otherwise a pure
-file-write step: when `gh` is installed and authenticated, confirm via `gh repo view
---json owner,name` succeeding (works for GitHub Enterprise, not just github.com); when
-`gh` isn't available, fall back to just checking a remote exists (`git remote get-url
-origin` exits 0) — a non-GitHub git host would simply see the offer and decline it, which
-costs nothing. Check whether `.github/ISSUE_TEMPLATE/agent-task.yml` exists; if absent,
+Interactive-only. This step never runs under `auto`/non-interactive mode — creating a GitHub repository is a consequential, externally-visible, hard-to-reverse action, the same class of action `_shared/browser-detection.md` already bars from unattended auto-install. In `auto` mode, skip this step entirely; every downstream step below falls through to its own existing gate-fails behavior unchanged.
+
+**Gate:** `git rev-parse --is-inside-work-tree` fails → this step doesn't run at all (nothing to attach a remote to; Step 5 above already handles warning about a non-git directory). Otherwise, `git remote get-url origin` fails (no remote configured at all) → proceed with this step. Any existing remote — GitHub or not — skips this step silently; the user has already chosen a host.
+
+Steps 10/14/16/17 below independently check for a *reachable GitHub-flavored remote* specifically (not just any remote) via a related, richer two-tier check: `gh repo view --json owner,name` succeeding when `gh` is available and authenticated (works for GitHub Enterprise, not just github.com), else `git remote get-url origin` exits 0 as a fallback heuristic — a non-GitHub git host would simply see those steps' offers and decline them, which costs nothing. This step's own gate above is intentionally simpler and broader: it doesn't try to distinguish GitHub from other hosts, since creating a repo is only relevant when there is truly no remote configured yet.
+
+**1. Ensure `gh` is ready.**
+
+Check `gh --version`. If missing, detect the platform's package manager the same way Step 8 above does:
+
+| Platform | Detect | Install command |
+|---|---|---|
+| macOS | `brew --version` | `brew install gh` |
+| Windows | `winget --version` or `scoop --version` | `winget install --id GitHub.cli` or `scoop install gh` |
+| Linux | `apt --version` / `dnf --version` / `pacman --version` | Print GitHub's own official Linux install instructions (https://github.com/cli/cli/blob/trunk/docs/install_linux.md) rather than a single `apt install gh` line — most distros don't ship `gh` in default repos and require adding GitHub's own package repository first; `pacman -S github-cli` is the one exception that installs directly |
+
+Call `AskUserQuestion`:
+
+- `question`: `"gh CLI not found — needed to create a GitHub repository. Install it now?"`, `header`: `"Install gh CLI"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Install gh CLI (Recommended)"`, `description`: `"Runs {the detected install command} via Bash."`
+- Option 2 — `label`: `"Skip"`, `description`: `"Don't set up a GitHub remote this run."`
+
+On macOS/Windows (no `sudo` needed), run the install command directly via Bash on accept, then re-verify with `gh --version`. On Linux, print the official install instructions instead of running anything — matching Step 8's existing "we don't run sudo from init" rule — and wait for the user to confirm they've run it, then re-verify. If installation fails, or no package manager is detected on a platform other than Linux, abort this step gracefully: proceed to whatever this invocation runs next (Steps 10/14/16/17 below take their existing gate-fails paths).
+
+Check `gh auth status`. If not authenticated, explain that this requires a one-time browser step, then run `gh auth login --web` and wait for the user to complete the device-flow authorization in their browser. Re-verify with `gh auth status` afterward. A user who declines, or an auth flow that doesn't complete, aborts this step gracefully the same way.
+
+**2. Offer to create the repo.** Call `AskUserQuestion`:
+
+- `question`: `"No GitHub remote found for this project. Create one now?"`, `header`: `"Create GitHub repo"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Create a GitHub repo (Recommended)"`, `description`: `"Set up a new GitHub repository and link it as origin."`
+- Option 2 — `label`: `"Skip"`, `description`: `"Don't set up a GitHub remote this run."`
+
+Declining falls through to existing behavior unchanged — Steps 10/14/16/17 below each take their own gate-fails path.
+
+**3. Choose owner.** Resolve the personal account (`gh api user --jq .login`) and the user's orgs (`gh api user/orgs --jq '.[].login'`). Call `AskUserQuestion`:
+
+- `question`: `"Create the repo under your personal account or an organization?"`, `header`: `"Repo owner"`, `multiSelect`: `false`
+- Option 1 — `label`: `"{personal account} (Recommended)"`, `description`: `"Create under your personal account."`
+- Option 2..4 — one per org, up to 3, `label`: `"{org login}"`, `description`: `"Create under this organization."`
+
+With zero orgs, Option 1 (the personal account) is the only explicit option — that's fine. `Other` is a built-in free-text field on every `AskUserQuestion` call regardless of how many explicit options are listed, so it satisfies the tool's requirements without a synthetic second option, and it doubles as the escape hatch for any org beyond the first 3 or any org not listed.
+
+**4. Confirm name.** Default = the git top-level directory's basename (`git rev-parse --show-toplevel`), lowercased, with any run of characters outside `[a-z0-9-]` replaced by a single `-`, trimmed of leading/trailing `-` (GitHub repo naming rules). Present the default and let the user override it in the same exchange rather than a separate round-trip.
+
+**5. Choose visibility.** Call `AskUserQuestion`:
+
+- `question`: `"Repository visibility?"`, `header`: `"Visibility"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Private (Recommended)"`, `description`: `"Only you (and anyone you invite) can see it."`
+- Option 2 — `label`: `"Public"`, `description`: `"Anyone can see it."`
+
+**6. Final confirmation.** One explicit summary confirm before executing — covers the whole create+link+push action, not a re-ask of sub-steps 3-5:
+
+- `question`: `"Create github.com/{owner}/{name} ({visibility}) and set it as origin{push_clause}?"`, `header`: `"Confirm"`, `multiSelect`: `false` (`{push_clause}` = `", pushing the current branch"` when `git rev-parse HEAD` succeeds, else empty string — matching the same commit-existence check the Execute step below uses for `$PUSH_FLAG`)
+- Option 1 — `label`: `"Yes — create it (Recommended)"`, `description`: `"Runs gh repo create with --source=. --remote=origin."`
+- Option 2 — `label`: `"Cancel"`, `description`: `"Don't create anything."`
+
+**7. Execute.**
+
+```bash
+git rev-parse HEAD >/dev/null 2>&1 && PUSH_FLAG="--push" || PUSH_FLAG=""
+gh repo create "{owner}/{name}" --{private|public} --source=. --remote=origin $PUSH_FLAG
+```
+
+`--push` is included only when the current branch already has at least one commit — an empty repo has nothing to push yet. On a name collision, report it and return to sub-step 4 (pick a different name); on a permission error (the chosen owner rejects the create), report it and return to sub-step 3 (pick a different owner) — neither aborts the whole step.
+
+**8. Downstream effect.** Once the remote exists, Steps 10/14/16/17 below see it via their own existing two-tier check (documented above) and take their already-documented enriched paths — no further action needed here.
+
+**Failure handling summary:**
+
+| Condition | Behavior |
+|---|---|
+| Not a git repo at all | This step doesn't run (nothing to attach a remote to) |
+| A remote already exists (any host) | This step doesn't run |
+| User declines install / auth / create | Clean fallback to existing behavior, nothing partially applied |
+| `gh` install fails / no package manager detected (non-Linux) | Abort gracefully, same fallback |
+| `gh auth login` doesn't complete | Abort gracefully, same fallback |
+| Repo name collision | Re-prompt for a different name (sub-step 4), not a hard failure |
+| Permission error on creation | Re-prompt for a different owner (sub-step 3), not a hard failure |
+
+---
+
+### Step 10 — GitHub issue form template (agent-task)
+
+Offer only when the project has a GitHub-flavored remote — same two-tier check Step 9
+documents. Check whether `.github/ISSUE_TEMPLATE/agent-task.yml` exists; if absent,
 offer to install it. The form makes human-filed issues work-record-ready at filing time:
 its three sections (Current State / Deliverables / Acceptance Criteria) are exactly the
 spec-shaped body `_shared/work-record.md` documents — the same three sections
@@ -335,10 +413,10 @@ When this project's `work-types` config key reads `native`, mention to the user 
 filed issue can also carry a native Type — GitHub's own Type picker in the create-issue UI
 sits alongside this form (it is not a templated YAML field below), so a filer sets Type
 there directly instead of a filing skill inferring it from prose afterward. `work-types`
-is only ever written by Step 16's capability probe, so on a fresh bootstrap run (where
-this step executes before Step 16 in the file's presented order) it is still unset when
-Step 9 runs — the template-install offer itself proceeds regardless (it doesn't depend on
-Type), but defer this specific mention: re-check `work-types` once Step 16 completes and
+is only ever written by Step 17's capability probe, so on a fresh bootstrap run (where
+this step executes before Step 17 in the file's presented order) it is still unset when
+Step 10 runs — the template-install offer itself proceeds regardless (it doesn't depend on
+Type), but defer this specific mention: re-check `work-types` once Step 17 completes and
 surface the native-Type note then as a short addendum, not a repeat of the whole offer. On
 an `/init update` re-run, `work-types` is already set from a prior run, so this step can
 check and mention it inline as written, with no deferral needed.
@@ -385,7 +463,7 @@ that section); the form just removes the translation judgment.
 
 ---
 
-### Step 10 — Impeccable Design Integration (detailed procedure)
+### Step 11 — Impeccable Design Integration (detailed procedure)
 
 claude-tweaks v4.5+ integrates [Impeccable](https://impeccable.style/) — a frontend-design plugin that ships LLM commands (`critique`, `audit`, `polish`, `bolder`, `delight`, etc.) and a deterministic Node CLI (`impeccable detect`) for catching design anti-patterns. The integration is opt-in and only runs on frontend projects.
 
@@ -466,7 +544,7 @@ Skip this offer entirely when Impeccable was not installed (option 3 was chosen 
 
 ---
 
-### Step 11 — Diagram Suggestions
+### Step 12 — Diagram Suggestions
 
 claude-tweaks ships a native diagram-generation skill, `/claude-tweaks:visualize` — no install step, nothing external to set up. Soft-hook nudges in `/journeys`, `/specify`, and `/review` surface "consider a diagram here" recommendations when a journey, spec, or review finding describes flows or structures that benefit from a visual.
 
@@ -500,19 +578,19 @@ The soft-hook nudges in `/journeys`, `/specify`, and `/review` read this flag an
 
 ---
 
-### Step 12 — shadcn Bootstrap (detailed procedure)
+### Step 13 — shadcn Bootstrap (detailed procedure)
 
 claude-tweaks integrates [shadcn/ui](https://ui.shadcn.com/) — a CLI-driven component
 system distributed as copy-paste source files rather than an npm package. As of CLI v4
 (~March 2026), shadcn ships three AI-agent-facing layers: the CLI itself (`init`/`add`),
 a first-party MCP server (search/browse/view/install/audit registry items), and an
 installable Skill (`skills add shadcn/ui`) that injects live project context into Claude Code
-so it stops guessing at component APIs. This step wires all three, mirroring Step 10's
+so it stops guessing at component APIs. This step wires all three, mirroring Step 11's
 (Impeccable) install-and-flag pattern.
 
 **Detect frontend signals from Phase 2 reconnaissance** (or run a quick sniff of the
 project root if Phase 0 is being run before Phase 2) — the same canonical sniff rules
-Step 10 above uses (`/claude-tweaks:design-wrapper`'s Layer 3 file-extension/path sniff;
+Step 11 above uses (`/claude-tweaks:design-wrapper`'s Layer 3 file-extension/path sniff;
 read `frontend-detection.md` in that skill's directory for the current list). If none
 are detected, skip this step entirely.
 
@@ -610,7 +688,7 @@ Skill is installed. Silent no-op — no prompt, matching every other Optional En
 step's idempotency contract.
 
 **Write the CLAUDE.md flag.** Add (or update) the `## Design integration` section — the
-same section Steps 10 and 11 write to:
+same section Steps 11 and 12 write to:
 
 ```markdown
 ## Design integration
@@ -633,7 +711,7 @@ shadcn-integration: enabled
 it yet. Re-run idempotency for this step comes entirely from the filesystem checks above
 (Case A/B/C), not from this flag. The flag is reserved for a future consumer (e.g. `/design-wrapper`
 preferring shadcn components when it reads `enabled`), the same role `design-integration`
-plays for Step 10.
+plays for Step 11.
 
 **Failure handling:** If any install command fails (network error, package-manager
 error), surface the failure and continue Phase 0 with `shadcn-integration: disabled` (or
@@ -641,11 +719,11 @@ the honestly-reached partial state) rather than aborting the rest of bootstrap.
 
 ---
 
-### Step 13 — Cloud/Routine Parity Setup (detailed procedure)
+### Step 14 — Cloud/Routine Parity Setup (detailed procedure)
 
 Cloud sessions (claude.ai/code) and scheduled Routines run in fresh sandboxes with no access to this machine's local `~/.claude` config — they only see plugins declared in the **project-level** `.claude/settings.json#enabledPlugins` (paired with any custom marketplace under `extraKnownMarketplaces`). A project that never declares this has full local capability but silently loses claude-tweaks (and everything it depends on) the moment someone opens a cloud session or fires a scheduled Routine against it.
 
-**Gate:** run the same GHE-safe two-tier check Step 9 uses (`gh repo view --json owner,name` when `gh` is available and authenticated, else `git remote get-url origin` exits 0). No remote → skip this step silently.
+**Gate:** same two-tier check Step 9 documents. No remote → skip this step silently.
 
 **Branch check.** Resolve the repo's actual GitHub default branch: when `gh` is available and authenticated, `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`; otherwise fall back to `git remote show origin` and read its `HEAD branch:` line (the same technique `_shared/routine-template-schema.md`'s standard prompt preamble already uses to resolve a target branch). Compare it against the current branch (`git branch --show-current`). If neither source resolves a default branch, skip this check silently rather than guessing — everything below still runs. If they differ, this doesn't block the step, but print an explicit warning before continuing to Detect: `"This project's default branch is '{default}', but you're currently on '{current}'. Cloud sessions and scheduled Routines check out '{default}' — the plugin declarations and script this step is about to write won't take effect for cloud/Routines until this branch merges into '{default}'."` This check runs on every invocation of this step, including a re-run where the Idempotency behavior below skips the settings.json portion — the branch can change between runs even when the declared plugins haven't.
 
@@ -677,7 +755,7 @@ When there are zero mirror candidates, this still renders (never silently auto-a
 
 ```bash
 #!/usr/bin/env bash
-# Generated by claude-tweaks /init (Step 13 — Cloud/Routine Parity Setup).
+# Generated by claude-tweaks /init (Step 14 — Cloud/Routine Parity Setup).
 # Regenerated in full on every /init run from .claude/settings.json — do not hand-edit;
 # customize by changing enabledPlugins/extraKnownMarketplaces instead, then re-run /init.
 #
@@ -706,7 +784,7 @@ npm install -g agent-browser
 
 Write this to `scripts/claude-cloud-setup.sh` in the project root, creating the `scripts/` directory if it doesn't exist. `2>/dev/null || true` on the marketplace-add lines only — a duplicate-add is the expected no-op case on a re-run; the `plugin install`/`npm install` lines are left unguarded so a real failure surfaces loudly within the Setup script's own ~5-minute budget, rather than being silently swallowed.
 
-**Write/update the `## Cloud parity` CLAUDE.md section** — add near the other project-level config sections (same "add or update a section" idiom Step 10 uses for `## Design integration`):
+**Write/update the `## Cloud parity` CLAUDE.md section** — add near the other project-level config sections (same "add or update a section" idiom Step 11 uses for `## Design integration`):
 
 ```markdown
 ## Cloud parity
@@ -736,11 +814,11 @@ under extraKnownMarketplaces).
 
 **Idempotency / re-run behavior.** On a re-run where the project's `.claude/settings.json` already declares both hard deps and there are no new local-only mirror candidates: skip the `AskUserQuestion` prompt, report "Cloud parity: already configured" under Phase 9's Verified & Consistent section, and still regenerate `scripts/claude-cloud-setup.sh` silently (its content is fully derived, so silent regeneration can't lose anything) — but only re-render the CLAUDE.md section if it's missing or doesn't already contain the four bullet labels above (Setup script / Branch / First exposure / MCP servers), to avoid a spurious rewrite on every run.
 
-**Failure handling.** Malformed `.claude/settings.json` (fails to parse as JSON) → report it and skip this step entirely rather than risk corrupting it with a merge. A write failure on either generated file → surface the failure and continue the rest of `/init` (same "don't abort on this step's failure" precedent as Step 10's plugin-install failure handling).
+**Failure handling.** Malformed `.claude/settings.json` (fails to parse as JSON) → report it and skip this step entirely rather than risk corrupting it with a merge. A write failure on either generated file → surface the failure and continue the rest of `/init` (same "don't abort on this step's failure" precedent as Step 11's plugin-install failure handling).
 
 ---
 
-### Step 14 — Routine Installation (detailed procedure)
+### Step 15 — Routine Installation (detailed procedure)
 
 claude-tweaks skills can ship one or more routine templates (schema: `skills/_shared/routine-template-schema.md`) — a skill's default template at `skills/{skill}/routine-template.yml`, plus optional named variants at `skills/{skill}/routine-template-<variant>.yml` — each enabling `/claude-tweaks:routine create <skill> [--variant=<name>]` to instantiate a scheduled cloud Routine for this project. Examples: code-health's nightly LLM-as-judge sweep, tidy's periodic backlog hygiene pass, or tidy's frequent GitHub-issue-triage variant. This step surfaces that option right after bootstrap instead of leaving it to be discovered later.
 
@@ -784,11 +862,10 @@ A user who wants a non-default schedule or environment for a specific routine de
 
 ---
 
-### Step 15 — Non-default-branch issue tracking (companion workflow)
+### Step 16 — Non-default-branch issue tracking (companion workflow)
 
-Offer only when the project has a GitHub-flavored remote — same two-tier, GHE-safe gate
-Step 9 uses (`gh repo view` when available, remote-exists fallback otherwise). Check
-whether
+Offer only when the project has a GitHub-flavored remote — same two-tier check Step 9
+documents. Check whether
 `.github/workflows/track-issue-fixes.yml` already exists; if present, skip this step
 silently (idempotent — no re-prompt on `/init` re-run).
 
@@ -837,7 +914,7 @@ the next `/init` run.
 
 ---
 
-### Step 16 — Work-Record Backend (detailed procedure)
+### Step 17 — Work-Record Backend (detailed procedure)
 
 `/claude-tweaks:capture`, `/claude-tweaks:specify`, `/claude-tweaks:backlog`,
 `/claude-tweaks:dispatch`, `/claude-tweaks:tidy`, and the health skills
@@ -853,7 +930,7 @@ home of the full record taxonomy (the seven axes, the label families, and the
 config-key table) — every consumer skill cites it rather than restating it, and this
 step is where its config keys first get written.
 
-**Gate:** run the same GHE-safe two-tier check Step 9 uses.
+**Gate:** same two-tier check Step 9 documents.
 
 **When the gate succeeds** (a GitHub-flavored remote is reachable): skip the prompt
 below entirely and go straight to "Write the flag to CLAUDE.md" with
@@ -908,7 +985,7 @@ not rewrite it here — see "Re-run behavior" below for why that rename belongs 
 Update-Mode, offered as a staged change, never applied silently by a Phase 0 pass
 landing on an existing config.
 
-**Sub-step 16b — Capability probe.** Runs immediately after Step 16 writes
+**Sub-step 17b — Capability probe.** Runs immediately after Step 17 writes
 `work-backend` fresh (either branch above) — not on a re-run where the flag was
 already set; see "Re-run behavior" below.
 
@@ -934,7 +1011,7 @@ Under `work-backend: local-files`, skip the probe entirely and write
 `work-types: labels` plus `work-links: body-text` directly — those are the only
 expressions a plain file store supports, so there is nothing to detect.
 
-**Sub-step 16c — Label provisioning offer** (`work-backend: github-issues` only).
+**Sub-step 17c — Label provisioning offer** (`work-backend: github-issues` only).
 Call `AskUserQuestion`:
 
 - `question`: `"Provision all core work-record labels now?"`, `header`:
@@ -956,7 +1033,7 @@ Call `AskUserQuestion`:
   first appear on GitHub, not whether the system works."`
 
 On option 1, run the check-then-create loop from `_shared/label-bootstrap.md` with
-its canonical `LABELS_JSON`. When `work-types: labels` (per Sub-step 16b's probe
+its canonical `LABELS_JSON`. When `work-types: labels` (per Sub-step 17b's probe
 result), also run the same loop with `record.js`'s `TYPE_LABELS` — the canonical
 `LABELS_JSON` structurally excludes `type:*`, so without this second pass the
 option's "never pays the lazy-create path" promise would be false for Type labels
@@ -977,19 +1054,19 @@ re-triage.
 
 **Re-run behavior (keyed to `work-backend`).** When `/init` is re-run on a project
 where `work-backend: github-issues` is already set, this step — including
-sub-steps 16b and 16c — is a no-op; ongoing capability re-probing on an
+sub-steps 17b and 17c — is a no-op; ongoing capability re-probing on an
 already-provisioned project is Update-Mode's job (see `update-mode.md`'s
 Work-Record Backend Drift), not a repeat of this bootstrap step. When
 `work-backend: local-files` is set, re-run the Gate check — if a GitHub remote has
 since become available (the project was local-only at the last `/init` and has
-since been pushed), offer the upgrade path back to `github-issues`, running 16b/16c
+since been pushed), offer the upgrade path back to `github-issues`, running 17b/17c
 as part of that upgrade. When `work-backend` is **missing**, check for the legacy
 `backlog-backend` key first: if present, this is not a fresh-init project — leave
 it untouched and defer to Update-Mode's rename offer (see the Legacy alias note
 above), rather than silently provisioning a second, differently-named section
 beside it. Only when neither key is present does this count as a true fresh init:
 apply the same Gate-based handling described above — silently set `github-issues`
-(running 16b/16c) when the gate succeeds, present the gate-fails prompt otherwise.
+(running 17b/17c) when the gate succeeds, present the gate-fails prompt otherwise.
 
 See `_shared/work-record.md` for the full record taxonomy and config-key table that
 this flag, and the two keys it provisions alongside it, govern.

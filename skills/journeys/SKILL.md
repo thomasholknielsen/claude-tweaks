@@ -116,7 +116,7 @@ Do NOT loop on fix attempts or silently ship a journey with known self-review is
 
 ## Step 3.6: Diagram Suggestion
 
-Read the `diagram-suggestions` flag from CLAUDE.md (written by `/init` Step 11). When the flag is `disabled` or missing, skip this step silently.
+Read the `diagram-suggestions` flag from CLAUDE.md (written by `/init` Step 12). When the flag is `disabled` or missing, skip this step silently.
 
 When the flag is `enabled`, scan the journey file(s) just written/updated and detect the strongest signal:
 
@@ -215,5 +215,5 @@ This skill is a **component skill** — invoked by `/claude-tweaks:build` (Commo
 | `/claude-tweaks:journey-health` | Applies the same `_shared/journey-self-review.md` checks at audit time, on journeys nobody has touched recently. Never edits — files a GitHub issue instead of the fix-inline/stage/BLOCK routing this skill uses. |
 | `/claude-tweaks:wrap-up` | Step 7.8 applies the same `_shared/journey-self-review.md` checks inline to journeys whose `files:` frontmatter overlaps the just-completed work's diff (see `journey-curation.md` in that skill's directory), and separately detects a persona-facing flow with zero journey coverage — the same reuse pattern `/wrap-up` Step 7 applies to `_shared/harness-health-analysis.md` and Step 7.7 applies to `_shared/criteria-docs-diataxis.md`. |
 | `_shared/journey-self-review.md` | Canonical four-check + structural-validity criteria Step 3.5 applies — shared with `/claude-tweaks:journey-health`'s audit-time check and `/claude-tweaks:wrap-up` Step 7.8's wrap-up-time check. |
-| `/claude-tweaks:visualize` | Step 3.6 suggests invoking this skill when journey signals match (multi-persona → swimlane, decision branches → flowchart, multi-actor → sequence). Gated by `diagram-suggestions: enabled` in CLAUDE.md (written by `/init` Step 11). |
+| `/claude-tweaks:visualize` | Step 3.6 suggests invoking this skill when journey signals match (multi-persona → swimlane, decision branches → flowchart, multi-actor → sequence). Gated by `diagram-suggestions: enabled` in CLAUDE.md (written by `/init` Step 12). |
 | `_shared/subagent-output-contract.md` | The Working-Directory Discipline rule referenced by Step 4 commit lives here (CWD anchoring before `git`). |
