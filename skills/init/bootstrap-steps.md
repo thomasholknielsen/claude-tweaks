@@ -313,15 +313,92 @@ When migrating from a versioned path, announce: "Migrating to wrapper at `<wrapp
 
 Order-agnostic and append-only by default — most steps in this group are independent "detect condition → offer → write artifact → idempotent" companion integrations with no dependency on each other's order, so a new one is normally added at the end with no renumbering. Two steps are deliberate exceptions to that default, both inserted via a full renumbering rather than appended: Step 9 (Establish GitHub Remote) must run before Steps 10/14/16/17 — it establishes the remote those steps each independently check for, so appending it at the end would run too late to help them within the same bootstrap pass — and was inserted with a full renumbering of the then-Steps 9-16 → 10-17. Step 14 (Cloud/Routine Parity Setup, itself renumbered from 13 by this same pass) must run before Step 15 (Routine Installation) — a Routine created before cloud/plugin parity is set up would silently fail its first cloud firing — originally inserted with a renumbering of Steps 13-15 → 14-16. Future additions default back to append-only unless they have the same kind of genuine ordering dependency on an earlier step. One further narrow exception: Step 10's native-Type mention reads a config key (`work-types`) that only Step 17 writes — see Step 10's own note for how it handles running before Step 17 on a fresh bootstrap.
 
+### Step 9 — Establish GitHub Remote (detailed procedure)
+
+Interactive-only. This step never runs under `auto`/non-interactive mode — creating a GitHub repository is a consequential, externally-visible, hard-to-reverse action, the same class of action `_shared/browser-detection.md` already bars from unattended auto-install. In `auto` mode, skip this step entirely; every downstream step below falls through to its own existing gate-fails behavior unchanged.
+
+**Gate:** `git remote get-url origin` fails (no remote configured at all). Any existing remote — GitHub or not — skips this step silently; the user has already chosen a host.
+
+Steps 10/14/16/17 below independently check for a *reachable GitHub-flavored remote* specifically (not just any remote) via a related, richer two-tier check: `gh repo view --json owner,name` succeeding when `gh` is available and authenticated (works for GitHub Enterprise, not just github.com), else `git remote get-url origin` exits 0 as a fallback heuristic — a non-GitHub git host would simply see those steps' offers and decline them, which costs nothing. This step's own gate above is intentionally simpler and broader: it doesn't try to distinguish GitHub from other hosts, since creating a repo is only relevant when there is truly no remote configured yet.
+
+**1. Ensure `gh` is ready.**
+
+Check `gh --version`. If missing, detect the platform's package manager the same way Step 8 above does:
+
+| Platform | Detect | Install command |
+|---|---|---|
+| macOS | `brew --version` | `brew install gh` |
+| Windows | `winget --version` or `scoop --version` | `winget install --id GitHub.cli` or `scoop install gh` |
+| Linux | `apt --version` / `dnf --version` / `pacman --version` | Print GitHub's own official Linux install instructions (https://github.com/cli/cli/blob/trunk/docs/install_linux.md) rather than a single `apt install gh` line — most distros don't ship `gh` in default repos and require adding GitHub's own package repository first; `pacman -S github-cli` is the one exception that installs directly |
+
+Call `AskUserQuestion`:
+
+- `question`: `"gh CLI not found — needed to create a GitHub repository. Install it now?"`, `header`: `"Install gh CLI"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Install gh CLI (Recommended)"`, `description`: `"Runs {the detected install command} via Bash."`
+- Option 2 — `label`: `"Skip"`, `description`: `"Don't set up a GitHub remote this run."`
+
+On macOS/Windows (no `sudo` needed), run the install command directly via Bash on accept, then re-verify with `gh --version`. On Linux, print the official install instructions instead of running anything — matching Step 8's existing "we don't run sudo from init" rule — and wait for the user to confirm they've run it, then re-verify. If installation fails, or no package manager is detected on a platform other than Linux, abort this step gracefully: proceed to whatever this invocation runs next (Steps 10/14/16/17 below take their existing gate-fails paths).
+
+Check `gh auth status`. If not authenticated, explain that this requires a one-time browser step, then run `gh auth login --web` and wait for the user to complete the device-flow authorization in their browser. Re-verify with `gh auth status` afterward. A user who declines, or an auth flow that doesn't complete, aborts this step gracefully the same way.
+
+**2. Offer to create the repo.** Call `AskUserQuestion`:
+
+- `question`: `"No GitHub remote found for this project. Create one now?"`, `header`: `"Create GitHub repo"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Create a GitHub repo (Recommended)"`, `description`: `"Set up a new GitHub repository and link it as origin."`
+- Option 2 — `label`: `"Skip"`, `description`: `"Don't set up a GitHub remote this run."`
+
+Declining falls through to existing behavior unchanged — Steps 10/14/16/17 below each take their own gate-fails path.
+
+**3. Choose owner.** Resolve the personal account (`gh api user --jq .login`) and the user's orgs (`gh api user/orgs --jq '.[].login'`). Call `AskUserQuestion`:
+
+- `question`: `"Create the repo under your personal account or an organization?"`, `header`: `"Repo owner"`, `multiSelect`: `false`
+- Option 1 — `label`: `"{personal account} (Recommended)"`, `description`: `"Create under your personal account."`
+- Option 2..4 — one per org, up to 3, `label`: `"{org login}"`, `description`: `"Create under this organization."`
+
+With zero orgs, only Option 1 renders — an `AskUserQuestion` still needs at least 2 options, so in that case fold in a second option: `label`: `"Other"`, wait — `Other` is a built-in field on every `AskUserQuestion` call regardless of how many explicit options are listed, so a single explicit option (personal account) plus the built-in `Other` field satisfies the tool's requirements without a synthetic second option. The built-in `Other` free-text field covers typing any org beyond the first 3, or any org name at all when the user belongs to none of the listed ones.
+
+**4. Confirm name.** Default = the git top-level directory's basename (`git rev-parse --show-toplevel`), lowercased, with any run of characters outside `[a-z0-9-]` replaced by a single `-`, trimmed of leading/trailing `-` (GitHub repo naming rules). Present the default and let the user override it in the same exchange rather than a separate round-trip.
+
+**5. Choose visibility.** Call `AskUserQuestion`:
+
+- `question`: `"Repository visibility?"`, `header`: `"Visibility"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Private (Recommended)"`, `description`: `"Only you (and anyone you invite) can see it."`
+- Option 2 — `label`: `"Public"`, `description`: `"Anyone can see it."`
+
+**6. Final confirmation.** One explicit summary confirm before executing — covers the whole create+link+push action, not a re-ask of Steps 3-5:
+
+- `question`: `"Create github.com/{owner}/{name} ({visibility}) and set it as origin, pushing the current branch?"`, `header`: `"Confirm"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Yes — create it (Recommended)"`, `description`: `"Runs gh repo create with --source=. --remote=origin."`
+- Option 2 — `label`: `"Cancel"`, `description`: `"Don't create anything."`
+
+**7. Execute.**
+
+```bash
+git rev-parse HEAD >/dev/null 2>&1 && PUSH_FLAG="--push" || PUSH_FLAG=""
+gh repo create "{owner}/{name}" --{private|public} --source=. --remote=origin $PUSH_FLAG
+```
+
+`--push` is included only when the current branch already has at least one commit — an empty repo has nothing to push yet. On a name collision or permission error, report it and return to Step 4 (pick a different name) rather than aborting the whole step.
+
+**8. Downstream effect.** Once the remote exists, Steps 10/14/16/17 below see it via their own existing two-tier check (documented above) and take their already-documented enriched paths — no further action needed here.
+
+**Failure handling summary:**
+
+| Condition | Behavior |
+|---|---|
+| Not a git repo at all | This step doesn't run (nothing to attach a remote to) |
+| A remote already exists (any host) | This step doesn't run |
+| User declines install / auth / create | Clean fallback to existing behavior, nothing partially applied |
+| `gh` install fails / no package manager detected (non-Linux) | Abort gracefully, same fallback |
+| `gh auth login` doesn't complete | Abort gracefully, same fallback |
+| Repo name collision or permission error | Re-prompt for a different name (Step 4), not a hard failure |
+
+---
+
 ### Step 10 — GitHub issue form template (agent-task)
 
-Offer only when the project has a GitHub-flavored remote — a two-tier check that stays
-GHE-safe without requiring `gh` as a hard new dependency for what is otherwise a pure
-file-write step: when `gh` is installed and authenticated, confirm via `gh repo view
---json owner,name` succeeding (works for GitHub Enterprise, not just github.com); when
-`gh` isn't available, fall back to just checking a remote exists (`git remote get-url
-origin` exits 0) — a non-GitHub git host would simply see the offer and decline it, which
-costs nothing. Check whether `.github/ISSUE_TEMPLATE/agent-task.yml` exists; if absent,
+Offer only when the project has a GitHub-flavored remote — same two-tier check Step 9
+documents. Check whether `.github/ISSUE_TEMPLATE/agent-task.yml` exists; if absent,
 offer to install it. The form makes human-filed issues work-record-ready at filing time:
 its three sections (Current State / Deliverables / Acceptance Criteria) are exactly the
 spec-shaped body `_shared/work-record.md` documents — the same three sections
@@ -645,7 +722,7 @@ the honestly-reached partial state) rather than aborting the rest of bootstrap.
 
 Cloud sessions (claude.ai/code) and scheduled Routines run in fresh sandboxes with no access to this machine's local `~/.claude` config — they only see plugins declared in the **project-level** `.claude/settings.json#enabledPlugins` (paired with any custom marketplace under `extraKnownMarketplaces`). A project that never declares this has full local capability but silently loses claude-tweaks (and everything it depends on) the moment someone opens a cloud session or fires a scheduled Routine against it.
 
-**Gate:** run the same GHE-safe two-tier check Step 10 uses (`gh repo view --json owner,name` when `gh` is available and authenticated, else `git remote get-url origin` exits 0). No remote → skip this step silently.
+**Gate:** same two-tier check Step 9 documents. No remote → skip this step silently.
 
 **Branch check.** Resolve the repo's actual GitHub default branch: when `gh` is available and authenticated, `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`; otherwise fall back to `git remote show origin` and read its `HEAD branch:` line (the same technique `_shared/routine-template-schema.md`'s standard prompt preamble already uses to resolve a target branch). Compare it against the current branch (`git branch --show-current`). If neither source resolves a default branch, skip this check silently rather than guessing — everything below still runs. If they differ, this doesn't block the step, but print an explicit warning before continuing to Detect: `"This project's default branch is '{default}', but you're currently on '{current}'. Cloud sessions and scheduled Routines check out '{default}' — the plugin declarations and script this step is about to write won't take effect for cloud/Routines until this branch merges into '{default}'."` This check runs on every invocation of this step, including a re-run where the Idempotency behavior below skips the settings.json portion — the branch can change between runs even when the declared plugins haven't.
 
@@ -786,9 +863,8 @@ A user who wants a non-default schedule or environment for a specific routine de
 
 ### Step 16 — Non-default-branch issue tracking (companion workflow)
 
-Offer only when the project has a GitHub-flavored remote — same two-tier, GHE-safe gate
-Step 10 uses (`gh repo view` when available, remote-exists fallback otherwise). Check
-whether
+Offer only when the project has a GitHub-flavored remote — same two-tier check Step 9
+documents. Check whether
 `.github/workflows/track-issue-fixes.yml` already exists; if present, skip this step
 silently (idempotent — no re-prompt on `/init` re-run).
 
@@ -853,7 +929,7 @@ home of the full record taxonomy (the seven axes, the label families, and the
 config-key table) — every consumer skill cites it rather than restating it, and this
 step is where its config keys first get written.
 
-**Gate:** run the same GHE-safe two-tier check Step 10 uses.
+**Gate:** same two-tier check Step 9 documents.
 
 **When the gate succeeds** (a GitHub-flavored remote is reachable): skip the prompt
 below entirely and go straight to "Write the flag to CLAUDE.md" with
