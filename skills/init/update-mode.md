@@ -150,14 +150,10 @@ instantiated cloud Routines (`.claude-tweaks/routines/*.yml`) against the templa
 created from. Skip this entire check if `.claude-tweaks/routines/` doesn't exist — nothing is
 instantiated yet, most commonly a project that has never run `/claude-tweaks:routine create`.
 
-Run:
+Run `/claude-tweaks:routine status --all --source init`.
 
-```bash
-/claude-tweaks:routine status --all --source init
-```
-
-Each returned record resolves to one of four verdicts (see `skills/routine/SKILL.md`'s STATUS
-`--all` mode for the full detection logic): In sync, Drifted, Orphaned, or Stale.
+Each returned record resolves to one of five verdicts (see `skills/routine/SKILL.md`'s STATUS
+`--all` mode for the full detection logic): In sync, Drifted, Orphaned, Stale, or Malformed.
 
 - **In sync** records need no action — omit them from the presented table entirely.
 - **Drifted** records are staged the standard way: present a batch table (Routine | Current →
@@ -176,30 +172,36 @@ Each returned record resolves to one of four verdicts (see `skills/routine/SKILL
   --defaults --source init` once per Drifted record. On "Override specific items," follow up
   with the per-item choices as ordinary free-text in the next message, per CLAUDE.md's
   Multi-item Decisions convention (not the tool's `Other` field). On any outcome except "Skip
-  entirely," log to `decisions.md`:
+  entirely," log to `decisions.md` (or the inventory summary, if this project has no active
+  pipeline run dir):
   ```
   AUTO {time} — Update Mode: re-synced {M} of {N} drifted routine(s) to their current templates.
   ```
-- **Orphaned** and **Stale** records are presented as flagged advisories only — no bulk
-  auto-fix offered, since neither has a safe default action (Orphaned suggests manual
-  investigation — was the skill renamed, delete and recreate under the new name; Stale
-  suggests the same delete-and-recreate recourse STATUS Step 2 already documents for a
-  routine deleted out-of-band).
+- **Orphaned**, **Stale**, and **Malformed** records are presented as flagged advisories
+  only — no bulk auto-fix offered, since none has a safe default action (Orphaned suggests
+  manual investigation — was the skill renamed, delete and recreate under the new name;
+  Stale suggests the same delete-and-recreate recourse STATUS Step 2 already documents for a
+  routine deleted out-of-band; Malformed requires a human to inspect and fix or delete the
+  broken record file directly — there is no template or live routine to resync against).
 
-This check's Drifted count (not Orphaned/Stale, which have no auto-fix and so aren't "drift
-a re-run of /init would resolve" in the same sense) counts toward Phase 1u.6's Total drift
-count, the same way Work-Record Backend Drift does above.
+This check's Drifted count (not Orphaned/Stale/Malformed, which have no auto-fix and so aren't
+"drift a re-run of /init would resolve" in the same sense) counts toward Phase 1u.6's Total
+drift count — treat each Drifted record as an additional Contract Drift entry for that count,
+the same self-classifying convention Work-Record Backend Drift and Auto-Mode-Policy Migration
+both already use, so Phase 1u.6's own "Contract Drift entries from 1u.5" formula picks it up
+without that table needing its own edit.
 
 ### Routine Relevance
 
 Skip entirely if `.claude-tweaks/routines/` doesn't exist (same gate as Routine Drift above).
-Otherwise, read `skills/harness-health/routine-relevance-analysis.md` and apply its procedure
-directly against this project's instantiated records — this is the one place `/init` reaches
-into a harness-health-owned file outside that skill's own SELECT/JUDGE/FILE pipeline (see
-that file's own header for why).
+Otherwise, read `${CLAUDE_PLUGIN_ROOT}/skills/harness-health/routine-relevance-analysis.md`
+and apply its procedure directly against this project's instantiated records — this is the
+one place `/init` reaches into a harness-health-owned file outside that skill's own
+SELECT/JUDGE/FILE pipeline (see that file's own header for why).
 
-Fold any resulting rows into the same Drift Report this phase already produces, as their own
-"Routine Relevance" subsection:
+Present any resulting rows directly, right here in Phase 1u.5 — matching the Auto-Mode-Policy
+Migration subsection's own precedent above, this resolves immediately with no Phase 3
+hand-off:
 
 ```
 | Routine | Churn since created_at | Relevance note |
@@ -217,6 +219,11 @@ with no single mechanical fix, unlike Routine Drift's clean version-diff apply p
   <skill> to adjust cadence/tools)"`
 - Option 2 — `label`: `"Skip — not relevant"`, `description`: `"Dismiss this run's relevance
   notes entirely"`
+
+Log this pass's outcome to `decisions.md` (or the inventory summary, if this project has no
+active pipeline run dir) regardless of outcome: `SCANNED {time} — Routine Relevance: audited
+{N} record(s), {M} surfaced for review.` (M may be 0 — log the scan even when nothing was
+found, so there's a record the pass ran.)
 
 This check does not count toward Phase 1u.6's Total drift count — like Maturity Drift above,
 it isn't a presence/absence signal Phase 1u.6 can cheaply precompute before Phase 3 runs (it

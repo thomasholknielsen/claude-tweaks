@@ -204,17 +204,27 @@ Marking "Yes, update" as `(Recommended)` follows the same reasoning as CREATE St
 
 When `--variant` is omitted (and `--all` wasn't passed): glob `${CLAUDE_PLUGIN_ROOT}/skills/{skill}/routine-template.yml` and `${CLAUDE_PLUGIN_ROOT}/skills/{skill}/routine-template-*.yml` to enumerate every template `<skill>` ships, read each one's `routine_name`, and derive `REPO_SLUG` (same recipe as CREATE Step 2) to check which of `.claude-tweaks/routines/{REPO_SLUG}-{routine_name}.yml` exist. If none exist, report that no routine has been created for `<skill>` in this project and suggest `create <skill>`. Stop. If exactly one exists, proceed with that single instance for the rest of this workflow, exactly as before. If more than one exists, run Steps 2-3.5 below once per existing instance and present all of them together, each labeled by its variant name (or "default" for the base template).
 
-**Step 1, `--all` branch.** Call `listRoutineRecords('.claude-tweaks/routines')` (`bin/lib/routine-template-parser.js`) to enumerate every instantiated record directly, regardless of which skill each names. If it returns `[]`, report "no routines instantiated in this project yet" and stop. This branch never derives `REPO_SLUG` or calls `git remote get-url origin` for the purpose of resolving which template matches each record — every other STATUS path starts from a skill name and works forward to a record; this one starts from the records that already exist. (Step 3.5's existing field-level drift check may still call `git remote get-url origin` separately, to compare a record's live repo-url field against the project's current origin — an unrelated, pre-existing check this branch doesn't change.)
+**Step 1, `--all` branch.** Enumerate every instantiated record directly, regardless of which skill each names:
+
+```bash
+node -e "const {listRoutineRecords}=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/routine-template-parser.js'); console.log(JSON.stringify(listRoutineRecords('.claude-tweaks/routines')))"
+```
+
+If it returns `[]`, report "no routines instantiated in this project yet" and stop. This branch never derives `REPO_SLUG` or calls `git remote get-url origin` for the purpose of resolving which template matches each record — every other STATUS path starts from a skill name and works forward to a record; this one starts from the records that already exist. (Step 3.5's existing field-level drift check may still call `git remote get-url origin` separately, to compare a record's live repo-url field against the project's current origin — an unrelated, pre-existing check this branch doesn't change.)
 
 For each returned record, resolve its matching template:
+
+First, check the record has both `template` and `routine_id` fields present (both are required per `skills/_shared/routine-template-schema.md`). If either is missing, report this record as **Malformed** (filename + which required field is absent) and move to the next record — never attempt to resolve a template or call `RemoteTrigger` for an incomplete record.
 
 1. Glob `${CLAUDE_PLUGIN_ROOT}/skills/{record.template}/routine-template*.yml`. If the glob is empty (the skill directory doesn't exist, or exists with no routine templates at all), this record is **Orphaned** — record that verdict and move to the next record without calling `RemoteTrigger` for this one (there is no live template to compare against, so a `get` call adds nothing actionable).
 2. If the glob returned exactly one file, that is the matching template — the common case (every shipped skill today except `tidy`).
 3. If the glob returned more than one file (only `tidy` ships a named variant today), read each candidate's `routine_name` field and find the one where `record.filename` (minus its `.yml` suffix) ends with `-{that candidate's routine_name}`. This disambiguates without ever deriving `REPO_SLUG` — a record's filename already encodes its `routine_name` as a suffix, by construction (see CREATE Step 2's `PREFIXED_NAME` recipe). If no candidate's `routine_name` matches as a suffix (shouldn't happen in practice), fall back to the skill's default `routine-template.yml` and note "variant ambiguous — compared against the default template" alongside this record's row.
 
-For every record that resolved a template (i.e. not Orphaned), continue to Steps 2-3.5 below to compute In sync / Drifted / Stale.
+Read and parse the resolved template file's content (`template_version`, `model`, `allowed_tools`) now — Steps 3 and 3.5 below assume this has already happened, exactly as the per-skill path's own Step 1 already does.
 
-> **Parallel execution:** Use parallel tool calls aggressively — each non-Orphaned record's Step 2 `RemoteTrigger get` call targets a different `trigger_id` and is independent of every other record's call, so issue them concurrently. Orphaned records need no `RemoteTrigger` call at all and are already fully resolved after step 1 above.
+For every record that resolved a template (i.e. not Orphaned or Malformed), continue to Steps 2-3.5 below to compute In sync / Drifted / Stale.
+
+> **Parallel execution:** Use parallel tool calls aggressively — each non-Orphaned, non-Malformed record's Step 2 `RemoteTrigger get` call targets a different `trigger_id` and is independent of every other record's call, so issue them concurrently. Orphaned and Malformed records need no `RemoteTrigger` call at all and are already fully resolved after step 1 above.
 
 Present one combined table across every record, regardless of skill (this is the one STATUS mode with no per-skill grouping, since `--all` never had a skill name to group by):
 
@@ -225,13 +235,16 @@ Present one combined table across every record, regardless of skill (this is the
 | tidy (github-triage) | Drifted | template v1 → v2; schedule unchanged |
 | skill-health (default) | Orphaned | no skills/skill-health/routine-template*.yml found — was this skill renamed? |
 | journey-health (default) | Stale | routine_id no longer resolves via RemoteTrigger get |
+| claude-tweaks-broken (unresolved) | Malformed | claude-tweaks-broken.yml is missing required field `template` |
 ```
 
-"Verdict" is one of: **In sync** (template_version matches, no field drift — Steps 3/3.5's existing checks), **Drifted** (version mismatch and/or schedule/model/tools/repo-url diff), **Orphaned** (per step 1 above — no live template resolved), **Stale** (Step 2's `RemoteTrigger get` call fails because the routine no longer exists — same condition Step 2 already documents for the per-skill path). "Detail" carries whichever of Step 3/3.5's messages applies, or the Orphaned/Stale explanation.
+"Verdict" is one of: **In sync** (template_version matches, no field drift — Steps 3/3.5's existing checks), **Drifted** (version mismatch and/or schedule/model/tools/repo-url diff), **Orphaned** (per step 1 above — no live template resolved), **Stale** (Step 2's `RemoteTrigger get` call fails because the routine no longer exists — same condition Step 2 already documents for the per-skill path), **Malformed** (the record is missing a required field — see above). "Detail" carries whichever of Step 3/3.5's messages applies, or the Orphaned/Stale/Malformed explanation.
 
 > **Parallel execution:** Use parallel tool calls aggressively — when more than one instantiated record exists, each instance's Step 2 `RemoteTrigger get` call targets a different `trigger_id` and is independent of every other instance's call, so issue them concurrently rather than iterating sequentially. Run each instance's Step 3/3.5 analysis and assemble the combined presentation after all `get` calls complete.
 
 **Step 2.** Call `RemoteTrigger {action: "get", trigger_id: <record.routine_id>}` for live state — enabled/disabled, schedule, and any last/next run fields the response carries. If the `get` call fails because the routine no longer exists, report the record as stale and offer to delete `.claude-tweaks/routines/{PREFIXED_NAME}.yml` and re-run `create <skill>`.
+
+In `--all` mode, use `record.filename` in place of `{PREFIXED_NAME}` (never derived in this branch), and record this as the **Stale** verdict in that record's row rather than presenting an interactive per-record offer — the combined table already surfaces it, and any recourse (delete + recreate) is the caller's decision, not something to prompt for mid-enumeration.
 
 **Step 3.** Compare the record's `template_version` against the current template file's (already read in Step 1) `template_version`. If they differ, flag it: "this routine was created from template v{N}; the template is now at v{M} — run `update {skill}` to re-sync."
 
@@ -249,7 +262,7 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 
 ## Component-Skill Contract
 
-When invoked with `--source init` (used by `/claude-tweaks:init`'s Step 15), `/claude-tweaks:routine` is running as a component of `/init`'s bootstrap flow — omit the `## Next Actions` block, since `/init` owns the overall handoff. `/init` does not set `$PIPELINE_RUN_DIR` (it is not a `/flow`-style pipeline orchestrator), so `--source init` is the sole signal for this caller, not merely a fallback for a rare ambiguity — unlike most component-skill contracts in this plugin, `$PIPELINE_RUN_DIR` is not the primary signal here.
+When invoked with `--source init` (used by `/claude-tweaks:init`'s Step 15, and by Update Mode's Routine Drift check for `status --all` and `update --defaults`), `/claude-tweaks:routine` is running as a component of `/init`'s bootstrap flow — omit the `## Next Actions` block, since `/init` owns the overall handoff. `/init` does not set `$PIPELINE_RUN_DIR` (it is not a `/flow`-style pipeline orchestrator), so `--source init` is the sole signal for this caller, not merely a fallback for a rare ambiguity — unlike most component-skill contracts in this plugin, `$PIPELINE_RUN_DIR` is not the primary signal here.
 
 Standalone invocation (no `--source` flag) is the common case and renders Next Actions as usual.
 

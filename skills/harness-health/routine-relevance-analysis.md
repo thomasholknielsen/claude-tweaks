@@ -17,15 +17,24 @@ routine was instantiated.
 
 ## Procedure
 
+If `${CLAUDE_PLUGIN_ROOT}` isn't itself a git repository (`git -C "${CLAUDE_PLUGIN_ROOT}"
+rev-parse --is-inside-work-tree` fails), this entire pass has no git history to read — report
+that plainly and skip the whole Routine Relevance check for this firing, rather than silently
+treating every record as having zero churn. (A plugin marketplace install IS a git clone in
+practice, but this shouldn't be assumed silently.)
+
 For each instantiated record whose `template` skill still resolves to a real
-`skills/{template}/routine-template*.yml` (records `/claude-tweaks:routine status --all`
-flagged Orphaned are skipped here entirely — Routine Drift already surfaces those, and there
-is no live skill left to judge relevance against):
+`${CLAUDE_PLUGIN_ROOT}/skills/{template}/routine-template*.yml` (records
+`/claude-tweaks:routine status --all` flagged Orphaned are skipped here entirely — Routine
+Drift already surfaces those, and there is no live skill left to judge relevance against):
 
 1. Read the record's `created_at` field (ISO 8601 — set at creation or the routine's last
-   `update`).
-2. Run `git log --since="<created_at>" --oneline -- skills/{template}/`. Zero or trivial
-   commits (a handful of typo/formatting fixes) → skip this record silently, no finding.
+   `update`). If `created_at` is missing or unparseable, skip the `git log --since=` gate
+   entirely and treat this record as always worth a look — proceed directly to step 3's
+   diff-reading judgment, grounded in the skill's full history rather than a since-boundary.
+2. Run `git -C "${CLAUDE_PLUGIN_ROOT}" log --since="<created_at>" --oneline -- skills/{template}/`.
+   Zero or trivial commits (a handful of typo/formatting fixes) → skip this record silently, no
+   finding.
 3. For non-trivial churn, read the actual commit messages and diffs in that range — not just
    the count. Judge, grounded in what actually changed: has the skill's scope shifted enough
    that this routine's cadence, model, or tool access (as recorded, not as currently
@@ -33,18 +42,19 @@ is no live skill left to judge relevance against):
    miscalibrated? Has a newer sibling routine-template (one that didn't exist as of
    `created_at`) started covering ground this routine also covers?
 4. If the judgment surfaces something worth a look, emit one row: `{routine identity, e.g.
-   "tidy --variant=github-triage"} | {N} commits touching skills/{template}/ since
-   {created_at date} | {one or two sentence relevance note grounded in what the diffs
+   "tidy --variant=github-triage"} | {N} commits touching ${CLAUDE_PLUGIN_ROOT}/skills/{template}/
+   since {created_at date} | {one or two sentence relevance note grounded in what the diffs
    actually showed}`. If nothing from steps 2-3 surfaces a concern, this record produces no
    row — most records in most audits should produce nothing.
 
 ## Output
 
-Hand the resulting rows (zero or more) back to `/init`'s Update Mode, which folds them into
-the same Drift Report the other Phase 1u.5 checks populate — see `update-mode.md`'s "Routine
-Relevance" entry for the exact presentation and resolution. This pass never calls `gh issue
-create` and never writes to this skill's own cursor/cache state — it is pure analysis, with
-`/init` owning both the presentation and the resolution.
+Hand the resulting rows (zero or more) back to `/init`'s Update Mode, which presents them
+directly within Phase 1u.5 and resolves them immediately — no Phase 3 Drift Report hand-off
+is involved (see `update-mode.md`'s "Routine Relevance" entry for the exact presentation and
+resolution). This pass never calls `gh issue create` and never writes to this skill's own
+cursor/cache state — it is pure analysis, with `/init` owning both the presentation and the
+resolution.
 
 ## Anti-patterns
 

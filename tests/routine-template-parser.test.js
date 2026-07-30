@@ -137,3 +137,21 @@ test('listRoutineRecords ignores non-.yml files in the same directory', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('listRoutineRecords returns a partial object (no crash) for a record missing a required field', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'routine-records-'));
+  try {
+    fs.writeFileSync(
+      path.join(dir, 'claude-tweaks-broken.yml'),
+      'template_version: 2\ncreated_at: "2026-06-01T00:00:00Z"\nschedule: "0 3 * * *"\n',
+    );
+    const records = listRoutineRecords(dir);
+    assert.strictEqual(records.length, 1);
+    assert.strictEqual(records[0].filename, 'claude-tweaks-broken.yml');
+    assert.strictEqual(records[0].template, undefined);
+    assert.strictEqual(records[0].routine_id, undefined);
+    assert.strictEqual(records[0].template_version, 2);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
