@@ -1,4 +1,5 @@
 # Changelog
+
 ## v6.22.2 — durable-state writes are git-native; code-health's `.` slice no longer sweeps the whole repo
 
 `bin/lib/health-core/durable-state.js`'s `writeState()` shelled out to `gh api` for every
