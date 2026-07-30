@@ -2,7 +2,10 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseRoutineTemplate } = require('../bin/lib/routine-template-parser.js');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { parseRoutineTemplate, listRoutineRecords } = require('../bin/lib/routine-template-parser.js');
 
 test('parseRoutineTemplate parses a one-level nested map (key: value children)', () => {
   const result = parseRoutineTemplate('default_schedule:\n  cron_expression: "0 3 * * *"\n  description: "off-peak"\n');
@@ -86,4 +89,51 @@ test('parseRoutineTemplate strips a trailing inline "# comment" from a nested-ma
 test('parseRoutineTemplate does not strip a "#" that is part of a quoted value', () => {
   const result = parseRoutineTemplate('routing: "fast #1 priority"\n');
   assert.strictEqual(result.routing, 'fast #1 priority');
+});
+
+test('listRoutineRecords returns [] for a directory that does not exist', () => {
+  const missing = path.join(os.tmpdir(), 'routine-records-does-not-exist-' + process.pid);
+  assert.deepStrictEqual(listRoutineRecords(missing), []);
+});
+
+test('listRoutineRecords parses every .yml file in the directory, attaching filename', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'routine-records-'));
+  try {
+    fs.writeFileSync(
+      path.join(dir, 'claude-tweaks-code-health-daily.yml'),
+      'routine_id: "trig_abc123"\ntemplate: code-health\ntemplate_version: 2\ncreated_at: "2026-06-01T00:00:00Z"\nschedule: "0 3 * * *"\nconsole_url: "https://claude.ai/code/routines/trig_abc123"\n',
+    );
+    fs.writeFileSync(
+      path.join(dir, 'claude-tweaks-tidy-weekly.yml'),
+      'routine_id: "trig_def456"\ntemplate: tidy\ntemplate_version: 3\ncreated_at: "2026-05-15T00:00:00Z"\nschedule: "0 4 * * 0"\nconsole_url: "https://claude.ai/code/routines/trig_def456"\n',
+    );
+    const records = listRoutineRecords(dir);
+    assert.strictEqual(records.length, 2);
+    assert.deepStrictEqual(records[0], {
+      filename: 'claude-tweaks-code-health-daily.yml',
+      routine_id: 'trig_abc123',
+      template: 'code-health',
+      template_version: 2,
+      created_at: '2026-06-01T00:00:00Z',
+      schedule: '0 3 * * *',
+      console_url: 'https://claude.ai/code/routines/trig_abc123',
+    });
+    assert.strictEqual(records[1].filename, 'claude-tweaks-tidy-weekly.yml');
+    assert.strictEqual(records[1].template, 'tidy');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('listRoutineRecords ignores non-.yml files in the same directory', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'routine-records-'));
+  try {
+    fs.writeFileSync(path.join(dir, 'claude-tweaks-code-health-daily.yml'), 'template: code-health\n');
+    fs.writeFileSync(path.join(dir, 'notes.txt'), 'not a routine record\n');
+    const records = listRoutineRecords(dir);
+    assert.strictEqual(records.length, 1);
+    assert.strictEqual(records[0].filename, 'claude-tweaks-code-health-daily.yml');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

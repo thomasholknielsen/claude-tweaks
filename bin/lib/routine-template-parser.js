@@ -1,5 +1,8 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
+
 function stripQuotes(s) {
   const t = s.trim();
   if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) {
@@ -150,4 +153,21 @@ function parseRoutineTemplate(text) {
   return result;
 }
 
-module.exports = { parseRoutineTemplate };
+function listRoutineRecords(dir) {
+  let entries;
+  try {
+    entries = fs.readdirSync(dir);
+  } catch (err) {
+    if (err.code === 'ENOENT') return [];
+    throw err;
+  }
+  return entries
+    .filter((name) => name.endsWith('.yml'))
+    .sort()
+    .map((filename) => {
+      const text = fs.readFileSync(path.join(dir, filename), 'utf8');
+      return { filename, ...parseRoutineTemplate(text) };
+    });
+}
+
+module.exports = { parseRoutineTemplate, listRoutineRecords };
