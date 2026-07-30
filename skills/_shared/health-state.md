@@ -32,7 +32,7 @@ docs-health/runs.json
 
 ## Mechanism
 
-`bin/lib/health-core/durable-state.js`'s `createDurableState(skillName, { includeRemembered } = {})`
+`bin/lib/health-core/durable-state.js`'s `createDurableState(skillName, { includeRemembered, includeDeclined } = {})`
 returns `{ readState(root), writeState(root, mutatorFn) }`:
 
 - **`readState`** — `git fetch origin health-state`, then `git show origin/health-state:<path>`
@@ -70,14 +70,8 @@ returns `{ readState(root), writeState(root, mutatorFn) }`:
   skill's own `readDurableState`/`writeDurableState` — `code-health`, `harness-health`,
   `journey-health`, and `docs-health`'s CLIs each call this instead of restating the same logic
   four times.
-- **`bin/lib/health-core/retry-durable-write.js`**'s `makeCmdRetryDurableWrite({ writeDurableState, buildValidateFindingsUpdate, toolName })`
-  gives the same four CLIs a `retry-durable-write <retry-input.json>` subcommand: a fresh
-  read-modify-write of the durable branch from an already-computed mutator input, with no
-  finding discovery, no `cache.json` write, and no payload output. It exists for the MCP write
-  path's retry loop below — see that section for why re-running `validate-findings` cannot
-  serve as its own retry.
 
-This is impure (real `git`/`gh` calls via an injectable runner), unlike `bin/lib/issues/claims.js`'s
+This is impure (real `git` calls via an injectable runner), unlike `bin/lib/issues/claims.js`'s
 deliberately emit-only design — issue claim/release is a decision-laden, audit-visible action
 meant to be legible in the skill's own bash trail; reading/writing this branch is mechanical
 plumbing nobody inspects mid-flight, closer to `bin/lib/code-health/scope.js`'s existing

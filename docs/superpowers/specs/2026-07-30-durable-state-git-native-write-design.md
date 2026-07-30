@@ -90,8 +90,8 @@ CAS guarantee needed, uniformly, for both bootstrap and steady-state. The very f
 commit (parent `null`, containing that firing's real content) *is* the bootstrap; no placeholder
 empty-tree commit is needed first.
 
-**CAS / retry loop keeps its existing shape:** fetch → resolve parent commit + base tree (`null`/
-`EMPTY_TREE_SHA` if the branch doesn't exist yet) → merge new blobs into the skill's existing
+**CAS / retry loop keeps its existing shape:** fetch → resolve parent commit + base tree (`null`
+if the branch doesn't exist yet) → merge new blobs into the skill's existing
 subtree, preserving any file this write doesn't touch (e.g. a stale `remembered.json` surviving an
 `includeRemembered` toggle) → rebuild both tree levels → commit → `git push` → on failure, re-fetch
 and check whether the commit landed anyway (same ambiguous-failure disambiguation `writeState`
@@ -134,7 +134,7 @@ Steady-state write:
 ```
 git fetch origin health-state
 git rev-parse origin/health-state origin/health-state^{tree}   # parent + base tree
-                                                                  # (null / EMPTY_TREE_SHA if branch absent)
+                                                                  # (null if branch absent)
 git ls-tree <baseTreeSha>                                       # root entries (skip if bootstrap)
 git ls-tree <skillSubtreeSha>                                    # this skill's existing files (skip if absent)
 git hash-object -w --stdin   × N files                           # new blobs

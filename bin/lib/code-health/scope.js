@@ -20,7 +20,7 @@ const SOURCE_EXTS = new Set(['.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs']);
 // also appearing as its own mega-slice. Repos with no workspace manifest keep
 // today's exact one-level-deep behavior.
 function listSlices(root) {
-  const slices = [{ id: '.', path: root }];
+  const slices = sourceFiles(root, { recursive: false }).length ? [{ id: '.', path: root }] : [];
   // Read the workspace manifest exactly once and hand the parsed patterns to
   // both consumers below — listWorkspaceSlices and fullyCoveredTopLevelDirs
   // each independently called readWorkspacePatterns(root) before, doubling
@@ -152,6 +152,10 @@ function gitChurn(root, relDir, now, { recursive = true } = {}) {
     // docs-health/scope.js.
     const since = new Date(now - 30 * 86400000).toISOString();
     let pathArgs;
+    // recursive:false is only ever passed for the '.' slice (see sliceRecursive) —
+    // this branch always scopes to root-level files regardless of relDir, so passing
+    // recursive:false with a non-'.' relDir would silently mislabel root-level churn
+    // under the wrong id.
     if (recursive) {
       pathArgs = [relDir === '.' ? '.' : relDir];
     } else {
