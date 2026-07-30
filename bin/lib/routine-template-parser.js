@@ -166,7 +166,7 @@ function listRoutineRecords(dir) {
     .sort()
     .map((filename) => {
       const text = fs.readFileSync(path.join(dir, filename), 'utf8');
-      return { filename, ...parseRoutineTemplate(text) };
+      return { ...parseRoutineTemplate(text), filename };
     });
 }
 
