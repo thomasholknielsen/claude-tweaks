@@ -74,7 +74,11 @@ where a fake runner matches on `(cmd, args)` and returns canned output, with zer
 filesystem/env side effects. (b) would need a real temp file and env var per call, which doesn't
 fit that pattern. The branch's layout is flat (`{skillName}/{file}.json`, no nested
 subdirectories), so (a) is exactly two `mktree` calls — the skill's own subtree, then the root
-tree — not a general recursive tree walker.
+tree — not a general recursive tree walker. `mktree`'s input needs sorted entries, but the real
+data shape makes this trivial: every root-level entry is a `tree` (one per skill directory, no
+loose root-level blobs), and every subtree-level entry is a `blob` (json files, no nested
+directories) — types are never mixed at either level, so plain lexicographic sort by name is
+sufficient; git's own trailing-slash-for-directories tree-sort nuance never comes into play here.
 
 **`ensureBranch` is deleted, not just changed.** The old design needed a separate bootstrap step
 only because GitHub's Data API genuinely splits ref creation (`POST .../git/refs`, new refs only)
@@ -135,7 +139,7 @@ git ls-tree <baseTreeSha>                                       # root entries (
 git ls-tree <skillSubtreeSha>                                    # this skill's existing files (skip if absent)
 git hash-object -w --stdin   × N files                           # new blobs
 git mktree                                                       # rebuilt skill subtree
-git mktree                                                       # rebuilt root tree (skill's entry replaced)
+git mktree                                                       # rebuilt root tree (skill's entry added or replaced)
 git commit-tree <rootTree> [-p <parent>] -m "health-state: {skill} update"
 git push origin <commitSha>:refs/heads/health-state              # the CAS
 ```
