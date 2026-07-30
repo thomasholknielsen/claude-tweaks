@@ -40,7 +40,7 @@ Otherwise, `$ARGUMENTS` splits on whitespace into tokens. Each token classifies 
 **Modifier flags** — compose with anything else present:
 - `--update` or `update` — force Update mode even if the config looks minimal
 - `--full` — force the complete reconnaissance pass (Phases 2-8.5) even when Update Mode's Phase 1u.6 early-exit gate would otherwise skip straight to Phase 9; composes with `--update`/`update` (e.g. `update --full`)
-- `--core-only` — within Phase 0, skip the Optional Enhancements (Steps 9-16) entirely, equivalent to auto-declining every optional-enhancement offer, then continue into whatever scope this invocation would otherwise run. Contradicts any Enhancement filter token below present in the same invocation — see "Unrecognized and conflicting tokens."
+- `--core-only` — within Phase 0, skip the Optional Enhancements (Steps 9-17) entirely, equivalent to auto-declining every optional-enhancement offer, then continue into whatever scope this invocation would otherwise run. Contradicts any Enhancement filter token below present in the same invocation — see "Unrecognized and conflicting tokens."
 
 **Phase scopes** — determine which of Phases 2-8.5 run after Phase 0. The union of every Phase scope present runs (e.g. `skills journeys` runs the phases for both).
 - `bootstrap` — run Phase 0 only (structure + deps), then stop
@@ -49,20 +49,20 @@ Otherwise, `$ARGUMENTS` splits on whitespace into tokens. Each token classifies 
 - `journeys` — run Phases 0 + 8 (bootstrap + journey discovery)
 - `docs` — run Phases 0 + 2 + 3 + 8.5 (bootstrap + doc registry)
 
-**Enhancement filter tokens** — narrow which of Phase 0's Optional Enhancements (Steps 9-16) get offered. With none present, Phase 0 offers every step in the table below (or none, under `--core-only`). With one or more present, Phase 0 offers *only* the named step(s), regardless of which (if any) Phase scope is also present:
+**Enhancement filter tokens** — narrow which of Phase 0's Optional Enhancements (Steps 9-17) get offered. With none present, Phase 0 offers every step in the table below (or none, under `--core-only`). With one or more present, Phase 0 offers *only* the named step(s), regardless of which (if any) Phase scope is also present:
 
 | Token | Runs |
 |---|---|
-| `issue-form` | Step 9 — GitHub issue form template |
-| `design-integration` | Step 10 — Impeccable design integration |
-| `diagram-suggestions` | Step 11 — Diagram suggestions |
-| `shadcn-integration` | Step 12 — shadcn bootstrap |
-| `cloud-parity` | Step 13 — Cloud/Routine parity setup, alone |
-| `routines` | Step 14 — Routine installation. Hard-depends on Step 13 having run — if `cloud-parity` wasn't also given (or already configured from an earlier run), `routines` silently runs Step 13 first anyway, matching the unfiltered flow's existing 13-before-14 ordering |
-| `branch-tracking` | Step 15 — Non-default-branch issue tracking |
-| `work-backend` | Step 16 — Work-record backend |
+| `issue-form` | Step 10 — GitHub issue form template |
+| `design-integration` | Step 11 — Impeccable design integration |
+| `diagram-suggestions` | Step 12 — Diagram suggestions |
+| `shadcn-integration` | Step 13 — shadcn bootstrap |
+| `cloud-parity` | Step 14 — Cloud/Routine parity setup, alone |
+| `routines` | Step 15 — Routine installation. Hard-depends on Step 14 having run — if `cloud-parity` wasn't also given (or already configured from an earlier run), `routines` silently runs Step 14 first anyway, matching the unfiltered flow's existing 14-before-15 ordering |
+| `branch-tracking` | Step 16 — Non-default-branch issue tracking |
+| `work-backend` | Step 17 — Work-record backend |
 
-Examples (assuming Steps 1-8 actually run this time — see "Core Bootstrap Version Check" below for when they're skipped instead): `routines` alone runs Steps 1-8, then only Steps 13+14, then stops (same "stop after Phase 0" behavior as `bootstrap`). `config routines` runs Steps 1-8, then only Steps 13+14, then Phases 2, 3, 5. `shadcn-integration branch-tracking` runs Steps 1-8, then only Steps 12 and 15, then stops.
+Examples (assuming Steps 1-8 actually run this time — see "Core Bootstrap Version Check" below for when they're skipped instead): `routines` alone runs Steps 1-8, then only Steps 14+15, then stops (same "stop after Phase 0" behavior as `bootstrap`). `config routines` runs Steps 1-8, then only Steps 14+15, then Phases 2, 3, 5. `shadcn-integration branch-tracking` runs Steps 1-8, then only Steps 13 and 16, then stops.
 
 A description of the project context (e.g., "Ruby on Rails monolith, team of 5") is still accepted as free text — see "Unrecognized and conflicting tokens" for how this is distinguished from an attempted-but-unmatched keyword.
 
@@ -151,39 +151,39 @@ Detect `agent-browser`; surface the install command if missing. Never block init
 
 Detect Node (and optionally git), install the statusline wrapper at `~/.claude-tweaks/bin/statusline.js`, and prompt before wiring `statusLine.command` in `~/.claude/settings.json` — never overwrite a non-claude-tweaks command. Read `bootstrap-steps.md` (Step 8) for the full procedure (detection, package-manager prompts, settings.json migration matrix, NO_COLOR opt-out).
 
-**Optional Enhancements (Steps 9–16):** Skipped entirely when `$ARGUMENTS` contains `--core-only` — treat every offer below as declined with no prompt shown, and proceed straight to whatever this invocation runs after Phase 0 (the Scope Selection Gate, or a composed goal-based Phase scope). Narrowed to a subset when `$ARGUMENTS` contains one or more Enhancement filter tokens — see the `## Input` section's Enhancement filter tokens table for the full list and the `routines`/`cloud-parity` ordering note.
+**Optional Enhancements (Steps 9–17):** Skipped entirely when `$ARGUMENTS` contains `--core-only` — treat every offer below as declined with no prompt shown, and proceed straight to whatever this invocation runs after Phase 0 (the Scope Selection Gate, or a composed goal-based Phase scope). Narrowed to a subset when `$ARGUMENTS` contains one or more Enhancement filter tokens — see the `## Input` section's Enhancement filter tokens table for the full list and the `routines`/`cloud-parity` ordering note.
 
-### Step 9: GitHub Issue Form Template (Optional)
+### Step 10: GitHub Issue Form Template (Optional)
 
-GitHub issue form template offer (agent-task.yml). Read `bootstrap-steps.md` (Step 9) for the full procedure.
+GitHub issue form template offer (agent-task.yml). Read `bootstrap-steps.md` (Step 10) for the full procedure.
 
-### Step 10: Impeccable Design Integration (Optional)
+### Step 11: Impeccable Design Integration (Optional)
 
-When Phase 2 detects frontend signals, present the three-option Impeccable setup prompt (Full / Plugin-only / Skip) and write the `design-integration` flag to CLAUDE.md — the `/claude-tweaks:design-wrapper` wrapper reads this as Layer 1 of its detection logic. Read `bootstrap-steps.md` (Step 10) for the full procedure (frontend-detection list, install sequence, flag-value table, re-run behavior, failure handling).
+When Phase 2 detects frontend signals, present the three-option Impeccable setup prompt (Full / Plugin-only / Skip) and write the `design-integration` flag to CLAUDE.md — the `/claude-tweaks:design-wrapper` wrapper reads this as Layer 1 of its detection logic. Read `bootstrap-steps.md` (Step 11) for the full procedure (frontend-detection list, install sequence, flag-value table, re-run behavior, failure handling).
 
-### Step 11: Diagram Suggestions
+### Step 12: Diagram Suggestions
 
-Always offered (not frontend-gated). Present the two-option diagram-suggestions prompt (Enable / Skip) and write the `diagram-suggestions` flag to CLAUDE.md under the existing `## Design integration` section. Soft-hook nudges in `/journeys`, `/specify`, and `/review` read this flag to decide whether to suggest invoking `/claude-tweaks:visualize`. No install step — `/claude-tweaks:visualize` is a native skill. Read `bootstrap-steps.md` (Step 11) for the full procedure.
+Always offered (not frontend-gated). Present the two-option diagram-suggestions prompt (Enable / Skip) and write the `diagram-suggestions` flag to CLAUDE.md under the existing `## Design integration` section. Soft-hook nudges in `/journeys`, `/specify`, and `/review` read this flag to decide whether to suggest invoking `/claude-tweaks:visualize`. No install step — `/claude-tweaks:visualize` is a native skill. Read `bootstrap-steps.md` (Step 12) for the full procedure.
 
-### Step 12: shadcn Bootstrap (Optional)
+### Step 13: shadcn Bootstrap (Optional)
 
-When frontend signals are detected and `components.json` doesn't exist (or exists without full AI-agent wiring), present the shadcn/ui setup prompt (Full / CLI-only / Skip, or the narrower "wire remaining layers" offer when the CLI is already initialized) and write the `shadcn-integration` flag to CLAUDE.md. Currently write-only — no other skill reads the flag yet. Read `bootstrap-steps.md` (Step 12) for the full procedure (framework/package-manager detection, install sequence, MCP/skills wiring, flag-value table, re-run behavior, failure handling).
+When frontend signals are detected and `components.json` doesn't exist (or exists without full AI-agent wiring), present the shadcn/ui setup prompt (Full / CLI-only / Skip, or the narrower "wire remaining layers" offer when the CLI is already initialized) and write the `shadcn-integration` flag to CLAUDE.md. Currently write-only — no other skill reads the flag yet. Read `bootstrap-steps.md` (Step 13) for the full procedure (framework/package-manager detection, install sequence, MCP/skills wiring, flag-value table, re-run behavior, failure handling).
 
-### Step 13: Cloud/Routine Parity Setup (Optional)
+### Step 14: Cloud/Routine Parity Setup (Optional)
 
-Always offered when a GitHub-flavored remote is reachable (same GHE-safe two-tier check as Step 9) — warns live if the current branch differs from the repo's actual GitHub default branch (cloud sessions/Routines check out the default branch, so declarations made elsewhere don't take effect until merged there), declares `claude-tweaks` + `superpowers` in the project's `.claude/settings.json#enabledPlugins` (so cloud sessions and scheduled Routines get the same skills available locally, not just this machine's user-level config), batch-offers mirroring any other plugin the user has enabled locally, generates a committed `scripts/claude-cloud-setup.sh` that materializes them in a fresh cloud sandbox, and writes a `## Cloud parity` CLAUDE.md section documenting the manual Setup-script paste this doesn't automate plus two operational caveats (branch-checkout mismatch, first-exposure registration lag) and a report-only MCP-parity note. Runs before Step 14 (Routine Installation) deliberately — a Routine created before this step would silently fail its first cloud firing. Idempotent: re-running with nothing new to declare or mirror reports "already configured" instead of re-prompting — the branch check itself still runs every time. Read `bootstrap-steps.md` (Step 13) for the full procedure.
+Always offered when a GitHub-flavored remote is reachable (same GHE-safe two-tier check as Step 10) — warns live if the current branch differs from the repo's actual GitHub default branch (cloud sessions/Routines check out the default branch, so declarations made elsewhere don't take effect until merged there), declares `claude-tweaks` + `superpowers` in the project's `.claude/settings.json#enabledPlugins` (so cloud sessions and scheduled Routines get the same skills available locally, not just this machine's user-level config), batch-offers mirroring any other plugin the user has enabled locally, generates a committed `scripts/claude-cloud-setup.sh` that materializes them in a fresh cloud sandbox, and writes a `## Cloud parity` CLAUDE.md section documenting the manual Setup-script paste this doesn't automate plus two operational caveats (branch-checkout mismatch, first-exposure registration lag) and a report-only MCP-parity note. Runs before Step 15 (Routine Installation) deliberately — a Routine created before this step would silently fail its first cloud firing. Idempotent: re-running with nothing new to declare or mirror reports "already configured" instead of re-prompting — the branch check itself still runs every time. Read `bootstrap-steps.md` (Step 14) for the full procedure.
 
-### Step 14: Routine Installation (Optional Companion)
+### Step 15: Routine Installation (Optional Companion)
 
-Always offered (not gated) — detect which claude-tweaks skills ship a `routine-template.yml` (plus any named `routine-template-<variant>.yml` siblings) without an existing instantiated record for this project, present them via one multiSelect `AskUserQuestion` call (grouped into ≤4-option questions when there are more than 4 candidates) with their default schedules, and invoke `/claude-tweaks:routine create <skill> [--variant=<name>] --defaults --environment=<id> --source init` for each selected candidate — no per-candidate interactive walkthrough. Idempotent: candidates with an existing record are never re-offered. Read `bootstrap-steps.md` (Step 14) for the full procedure.
+Always offered (not gated) — detect which claude-tweaks skills ship a `routine-template.yml` (plus any named `routine-template-<variant>.yml` siblings) without an existing instantiated record for this project, present them via one multiSelect `AskUserQuestion` call (grouped into ≤4-option questions when there are more than 4 candidates) with their default schedules, and invoke `/claude-tweaks:routine create <skill> [--variant=<name>] --defaults --environment=<id> --source init` for each selected candidate — no per-candidate interactive walkthrough. Idempotent: candidates with an existing record are never re-offered. Read `bootstrap-steps.md` (Step 15) for the full procedure.
 
-### Step 15: Non-Default-Branch Issue Tracking (Optional Companion)
+### Step 16: Non-Default-Branch Issue Tracking (Optional Companion)
 
-Offer only on projects with a GitHub remote — writes `.github/workflows/track-issue-fixes.yml`, which labels (`fix-on-<branch>`) and comments on issues fixed on non-default branches, then strips those labels once the fix reaches the default branch and GitHub closes the issue natively. Idempotent: skipped silently once the workflow file exists. Read `bootstrap-steps.md` (Step 15) for the full procedure.
+Offer only on projects with a GitHub remote — writes `.github/workflows/track-issue-fixes.yml`, which labels (`fix-on-<branch>`) and comments on issues fixed on non-default branches, then strips those labels once the fix reaches the default branch and GitHub closes the issue natively. Idempotent: skipped silently once the workflow file exists. Read `bootstrap-steps.md` (Step 16) for the full procedure.
 
-### Step 16: Work-Record Backend (Optional)
+### Step 17: Work-Record Backend (Optional)
 
-Decide whether the unified work record — used by `/claude-tweaks:capture`, `/claude-tweaks:specify`, `/claude-tweaks:backlog`, `/claude-tweaks:dispatch`, `/claude-tweaks:tidy`, and the health skills — is backed by GitHub issues or local record files, and write `work-backend` to CLAUDE.md under a `## Work records` section (gated on the same GHE-safe two-tier remote check Step 9 uses). Then probe GitHub-native capabilities once (`work-types`, `work-links`) and offer to provision the full core label set now — see `_shared/work-record.md`'s Label taxonomy table for the current per-family and total counts, rather than a count restated here. See `_shared/work-record.md` for the taxonomy these config keys govern. Read `bootstrap-steps.md` (Step 16) for the full procedure.
+Decide whether the unified work record — used by `/claude-tweaks:capture`, `/claude-tweaks:specify`, `/claude-tweaks:backlog`, `/claude-tweaks:dispatch`, `/claude-tweaks:tidy`, and the health skills — is backed by GitHub issues or local record files, and write `work-backend` to CLAUDE.md under a `## Work records` section (gated on the same GHE-safe two-tier remote check Step 10 uses). Then probe GitHub-native capabilities once (`work-types`, `work-links`) and offer to provision the full core label set now — see `_shared/work-record.md`'s Label taxonomy table for the current per-family and total counts, rather than a count restated here. See `_shared/work-record.md` for the taxonomy these config keys govern. Read `bootstrap-steps.md` (Step 17) for the full procedure.
 
 ---
 
@@ -434,11 +434,11 @@ After writing files, surface what was created. Generate the table from the actua
 | Bootstrap | Created `specs/`, `docs/`, `docs/journeys/`, `.worktrees/`, etc. (only missing dirs) | Step 2 |
 | Starter files | Wrote `specs/INDEX.md` (only if missing) | Step 3 |
 | Statusline | Installed wrapper at `~/.claude-tweaks/bin/statusline.js`; wired `~/.claude/settings.json` | Step 8 |
-| Design integration | Set `design-integration: {enabled/plugin-only/disabled}` in CLAUDE.md | Step 10 |
-| shadcn integration | Set `shadcn-integration: {enabled/cli-only/disabled}` in CLAUDE.md | Step 12 |
-| Work records | Set work-backend / work-types / work-links in CLAUDE.md; offer core-label bootstrap (see `_shared/work-record.md`'s Label taxonomy table for current per-family and total counts) | Step 16 |
-| Cloud parity | Declared {N} plugin(s) in .claude/settings.json#enabledPlugins; wrote scripts/claude-cloud-setup.sh; wrote CLAUDE.md's Cloud parity section | Step 13 |
-| Routines | Instantiated {N} routine(s): `{list}` (or "Offered, none set up") | Step 14 |
+| Design integration | Set `design-integration: {enabled/plugin-only/disabled}` in CLAUDE.md | Step 11 |
+| shadcn integration | Set `shadcn-integration: {enabled/cli-only/disabled}` in CLAUDE.md | Step 13 |
+| Work records | Set work-backend / work-types / work-links in CLAUDE.md; offer core-label bootstrap (see `_shared/work-record.md`'s Label taxonomy table for current per-family and total counts) | Step 17 |
+| Cloud parity | Declared {N} plugin(s) in .claude/settings.json#enabledPlugins; wrote scripts/claude-cloud-setup.sh; wrote CLAUDE.md's Cloud parity section | Step 14 |
+| Routines | Instantiated {N} routine(s): `{list}` (or "Offered, none set up") | Step 15 |
 | Worktree policy | Set `worktree.always: {true/false}` in `.claude-tweaks/policy.yml` (only if Step 6 asked this run) — written last, after every other row above, to avoid mid-run self-lockout; see "Worktree Policy Finalization" below | Step 6 |
 | Classification | Confirmed maturity `{value}` (written to `.claude-tweaks/policy.yml` as `project.maturity`), doc tier `{N}` | Phase 3 |
 | CLAUDE.md | Wrote {N} lines (Initial) / Applied {N} patches (Update) | Phase 5 |
@@ -452,7 +452,7 @@ Execute only after user confirmation.
 
 ### Worktree Policy Finalization
 
-Write this AFTER every write in the Actions Performed table above has completed — it must be the very last filesystem action of the entire `/init` invocation. If Step 6 (`bootstrap-steps.md`) queued a `worktree.always` decision, write it now: this is the deferred write described in Step 6, deferred specifically so this run's own Steps 7-16, Phases 1-8.5, and this same Phase 9's own confirmed generated-file writes (the Actions Performed table above) were never blocked by a policy that turned on mid-run. (The `bootstrap`-only scope already wrote its queued decision immediately after Step 16 — the last Optional Companion step Phase 0 runs through — see "Finalizing the worktree.always Decision" after Phase 0 — so there is nothing to do here for that scope.)
+Write this AFTER every write in the Actions Performed table above has completed — it must be the very last filesystem action of the entire `/init` invocation. If Step 6 (`bootstrap-steps.md`) queued a `worktree.always` decision, write it now: this is the deferred write described in Step 6, deferred specifically so this run's own Steps 7-17, Phases 1-8.5, and this same Phase 9's own confirmed generated-file writes (the Actions Performed table above) were never blocked by a policy that turned on mid-run. (The `bootstrap`-only scope already wrote its queued decision immediately after Step 17 — the last Optional Companion step Phase 0 runs through — see "Finalizing the worktree.always Decision" after Phase 0 — so there is nothing to do here for that scope.)
 
 Create `.claude-tweaks/` if it doesn't exist. Read `.claude-tweaks/policy.yml` if present; if it has an existing `worktree.always:` line, replace that line, otherwise append a new `worktree.always: {true|false}` line (create the file with just that line if it didn't exist). Preserve every other line in the file untouched.
 
@@ -512,7 +512,7 @@ If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it
 | Creating doc files with only TODO placeholders | Phase 2 reconnaissance has the data — generate real content grounded in actual findings. If a doc would be < 20 lines of real content, it belongs in README instead of its own file. |
 | Skipping journey discovery for projects with user-facing features | Journeys are what `/review` tests against — without them, visual QA has no experiential anchor |
 | Writing journey "should feel" without actually using the app | Codebase-only skeletons are a starting point but the "should feel" is weaker — mark them as skeletons |
-| Auto-copying local MCP server configs (`~/.claude.json`) into the project's committed `.mcp.json` | MCP server configs can carry embedded credentials (API keys, tokens) — copying them into a committed file leaks secrets. Step 13's MCP-parity check is report-only by design; the user reviews and adds any that matter, manually. |
+| Auto-copying local MCP server configs (`~/.claude.json`) into the project's committed `.mcp.json` | MCP server configs can carry embedded credentials (API keys, tokens) — copying them into a committed file leaks secrets. Step 14's MCP-parity check is report-only by design; the user reviews and adds any that matter, manually. |
 | Hand-editing `scripts/claude-cloud-setup.sh` | Regenerated in full on every `/init` run from `.claude/settings.json` state — manual edits are silently overwritten. Customize by changing `enabledPlugins`/`extraKnownMarketplaces` instead, then re-run `/init`. |
 | Assuming `/init` can set the cloud environment's Setup-script field itself | No API or CLI sets it remotely — confirmed by inspecting `RemoteTrigger`'s own schema (scoped to `/v1/code/triggers` only). It's always a manual, one-time paste per environment, done in the claude.ai/code environment settings UI. |
 
@@ -529,14 +529,14 @@ If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it
 | `/claude-tweaks:wrap-up` | Captures learnings after features — keeps generated skills alive and accurate. Step 7 references `skill-template.md` from /claude-tweaks:init's directory. /wrap-up Step 7.7 maintains the doc registry created by /init. |
 | `/claude-tweaks:tidy` | /tidy Step 4.6 audits doc registry health — flags stale entries, gaps, pattern drift. Suggests `/init update` for tier drift. |
 | `/claude-tweaks:browse` | Depends on `agent-browser`, which /claude-tweaks:init detects (and surfaces install instructions for) in Phase 0 |
-| `/claude-tweaks:design-wrapper` | Step 10 sets up Impeccable design integration (install plugin + CLI, optionally run `init`) and writes the `design-integration` kill-switch flag to CLAUDE.md that the wrapper reads as Layer 1 of its detection logic. |
-| `/claude-tweaks:visualize` | Step 11 offers to enable diagram suggestions and writes the `diagram-suggestions` flag to CLAUDE.md — no install step, this skill is native. Soft-hook nudges in `/journeys`, `/specify`, and `/review` read the flag to decide whether to suggest invoking it. |
-| `shadcn/ui` (companion) | Step 12 offers to bootstrap the shadcn CLI, wire its official MCP server into `.mcp.json`, and install shadcn's official Skill (`skills add shadcn/ui`) for live Claude Code project context. Writes the `shadcn-integration` flag to CLAUDE.md — currently write-only, no other skill reads it yet. |
+| `/claude-tweaks:design-wrapper` | Step 11 sets up Impeccable design integration (install plugin + CLI, optionally run `init`) and writes the `design-integration` kill-switch flag to CLAUDE.md that the wrapper reads as Layer 1 of its detection logic. |
+| `/claude-tweaks:visualize` | Step 12 offers to enable diagram suggestions and writes the `diagram-suggestions` flag to CLAUDE.md — no install step, this skill is native. Soft-hook nudges in `/journeys`, `/specify`, and `/review` read the flag to decide whether to suggest invoking it. |
+| `shadcn/ui` (companion) | Step 13 offers to bootstrap the shadcn CLI, wire its official MCP server into `.mcp.json`, and install shadcn's official Skill (`skills add shadcn/ui`) for live Claude Code project context. Writes the `shadcn-integration` flag to CLAUDE.md — currently write-only, no other skill reads it yet. |
 | `/superpowers:using-git-worktrees` | /claude-tweaks:init optionally configures the worktree directory that `using-git-worktrees` needs |
 | `/claude-tweaks:stories` | /init Phase 8 (journey discovery) feeds /stories — discovered journeys become input for story generation |
 | `/claude-tweaks:version` | /version reads the same `plugin.json` that /init may print during bootstrap |
-| `/claude-tweaks:routine` | Step 14 discovers claude-tweaks skills shipping a `routine-template.yml` (plus any named `routine-template-<variant>.yml` siblings) with no existing instantiated record, presents them via one multiSelect `AskUserQuestion` call (grouped into ≤4-option questions when there are more than 4 candidates) with their default schedules, resolves environment once, then invokes `/claude-tweaks:routine create <skill> [--variant=<name>] --defaults --environment=<id> --source init` for each selected candidate — pure discovery + handoff, no logic duplicated. |
+| `/claude-tweaks:routine` | Step 15 discovers claude-tweaks skills shipping a `routine-template.yml` (plus any named `routine-template-<variant>.yml` siblings) with no existing instantiated record, presents them via one multiSelect `AskUserQuestion` call (grouped into ≤4-option questions when there are more than 4 candidates) with their default schedules, resolves environment once, then invokes `/claude-tweaks:routine create <skill> [--variant=<name>] --defaults --environment=<id> --source init` for each selected candidate — pure discovery + handoff, no logic duplicated. |
 | `/claude-tweaks:harness-health` and `_shared/harness-health-analysis.md` | Phase 6's drift-patch procedure and Phase 3/1u's skill classification apply this shared procedure instead of an inline copy, sharing its judgment logic with `/claude-tweaks:wrap-up` Step 7 and the standalone routine. Cursor state lives on the durable `health-state` git branch, not local disk (see `skill-template.md`'s Cursor Participation section); only `.claude-tweaks/harness-health/cache.json` is still local (see `bootstrap-steps.md` Step 4). |
-| `_shared/work-record.md` | Step 16 provisions the `work-backend` / `work-types` / `work-links` config keys this file documents as the record taxonomy's driver and capability contract. The label-provisioning offer (Step 16c) runs `_shared/label-bootstrap.md`'s canonical label list, which this file names as the taxonomy home. |
+| `_shared/work-record.md` | Step 17 provisions the `work-backend` / `work-types` / `work-links` config keys this file documents as the record taxonomy's driver and capability contract. The label-provisioning offer (Step 17c) runs `_shared/label-bootstrap.md`'s canonical label list, which this file names as the taxonomy home. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling. Phase 3 classification auto-confirm follows the contract's confidence-gated pattern. |
 | All workflow skills | Depend on the structure /claude-tweaks:init creates |
