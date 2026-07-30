@@ -1,4 +1,23 @@
 # Changelog
+## v6.22.2 — durable-state writes are git-native; code-health's `.` slice no longer sweeps the whole repo
+
+`bin/lib/health-core/durable-state.js`'s `writeState()` shelled out to `gh api` for every
+`health-state` branch write; v6.21.0's documented GitHub-MCP fallback for cloud Routine
+sandboxes (no `gh` CLI there) was never actually exercised across 12 live firings — one skill
+instead improvised an undocumented `git push` workaround that worked cleanly, proving plain git
+push credentials are available in that exact sandbox. `writeState` now builds every commit from
+plain git plumbing (`hash-object`/`ls-tree`/`mktree`/`commit-tree`) and publishes with a single
+`git push`, which both creates and fast-forward-updates the branch — no `gh` CLI, no MCP
+dependency, no separate bootstrap step, working identically local or in a cloud sandbox. The
+entire now-unexercised MCP-fallback layer (`mcp-pending.js`, `retry-durable-write.js`, and every
+`needsMcpWrite` branch across the 4 health CLIs) is deleted.
+
+Separately, `code-health`'s `next-slice` rotation always included `.` as a candidate
+representing the *entire* repo root scanned recursively — overlapping every subdirectory and
+workspace slice, and, since it always sorted first, always force-picked as the very first slice
+on any never-before-swept repo (returning ~4,200 files as "one slice" in the reported case). `.`
+now scans direct root-level files only.
+
 
 ## v6.22.1 — Tidy two doc nits from the /init argument-handling final review
 
