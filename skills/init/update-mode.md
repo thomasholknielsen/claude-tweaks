@@ -143,6 +143,53 @@ AUTO {time} — Update Mode: migrated {D + M} of {N} legacy Auto-mode policy lin
 
 This check runs once per Update Mode invocation and counts toward the Total drift count in Phase 1u.6 the same way Work-Record Backend Drift does — a non-empty `legacyClaudeMdLevers` result is one additional Contract Drift entry.
 
+### Routine Drift
+
+Unlike the checks above, this isn't a CLAUDE.md/policy.yml marker — it audits the project's
+instantiated cloud Routines (`.claude-tweaks/routines/*.yml`) against the templates they were
+created from. Skip this entire check if `.claude-tweaks/routines/` doesn't exist — nothing is
+instantiated yet, most commonly a project that has never run `/claude-tweaks:routine create`.
+
+Run:
+
+```bash
+/claude-tweaks:routine status --all --source init
+```
+
+Each returned record resolves to one of four verdicts (see `skills/routine/SKILL.md`'s STATUS
+`--all` mode for the full detection logic): In sync, Drifted, Orphaned, or Stale.
+
+- **In sync** records need no action — omit them from the presented table entirely.
+- **Drifted** records are staged the standard way: present a batch table (Routine | Current →
+  live template_version | Field drift | Recommended action: "Re-sync"), then call
+  `AskUserQuestion`:
+  - `question`: `"{N} routine(s) have drifted from their templates. Re-sync now?"`, `header`:
+    `"Routine drift"`, `multiSelect`: `false`
+  - Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"Re-sync all
+    {N} drifted routine(s) to their current templates, keeping each one's existing schedule"`
+  - Option 2 — `label`: `"Override specific items"`, `description`: `"Choose per-routine what
+    happens to each of the {N} entries"`
+  - Option 3 — `label`: `"Skip entirely"`, `description`: `"Leave routines as-is — I'll re-sync
+    manually later"`
+
+  On "Apply all recommended," invoke `/claude-tweaks:routine update <skill> [--variant=<name>]
+  --defaults --source init` once per Drifted record. On "Override specific items," follow up
+  with the per-item choices as ordinary free-text in the next message, per CLAUDE.md's
+  Multi-item Decisions convention (not the tool's `Other` field). On any outcome except "Skip
+  entirely," log to `decisions.md`:
+  ```
+  AUTO {time} — Update Mode: re-synced {M} of {N} drifted routine(s) to their current templates.
+  ```
+- **Orphaned** and **Stale** records are presented as flagged advisories only — no bulk
+  auto-fix offered, since neither has a safe default action (Orphaned suggests manual
+  investigation — was the skill renamed, delete and recreate under the new name; Stale
+  suggests the same delete-and-recreate recourse STATUS Step 2 already documents for a
+  routine deleted out-of-band).
+
+This check's Drifted count (not Orphaned/Stale, which have no auto-fix and so aren't "drift
+a re-run of /init would resolve" in the same sense) counts toward Phase 1u.6's Total drift
+count, the same way Work-Record Backend Drift does above.
+
 ## Phase 1u.6: Update Mode Early-Exit Gate
 
 After Phase 1u (inventory) and Phase 1u.5 (contract drift) complete, evaluate the audit signal before committing to the full phase ceremony. Update Mode's value is in catching drift quickly — when there's almost nothing to catch, the ceremony costs more than it produces.
