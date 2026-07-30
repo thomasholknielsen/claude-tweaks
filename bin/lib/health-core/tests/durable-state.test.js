@@ -507,6 +507,48 @@ test('writeState preserves an existing file in the skill subtree that this write
   assert.deepStrictEqual(entries.map((e) => e.name).sort(), ['cursors.json', 'remembered.json', 'retry-queue.json', 'runs.json']);
 });
 
+test('writeState preserves existing root-tree entries for other skills when one skill writes (multi-skill shared root tree)', () => {
+  const { run, calls } = fakeRunner([
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'rev-parse') && matchArgs(args, '^{tree}'), returns: 'commit-sha-1\ntree-sha-1\n' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'fetch'), returns: '' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'show'), throws: 'fatal: path does not exist' },
+    // Root tree already contains entries for both code-health and harness-health;
+    // this write is via harness-health, so harness-health's subtree will be rebuilt,
+    // but code-health's root entry must survive untouched.
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'ls-tree') && matchArgs(args, 'tree-sha-1'), returns: '040000 tree code-health-original-tree-sha\tcode-health\n040000 tree hh-original-tree-sha\tharness-health\n' },
+    // harness-health's existing subtree (can be empty for this test)
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'ls-tree') && matchArgs(args, 'hh-original-tree-sha'), returns: '' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'hash-object'), returns: 'blob-sha\n' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'mktree'), returns: 'new-tree-sha\n' },
+    { match: (cmd, args) => cmd === 'git' && matchArgs(args, 'commit-tree'), returns: 'commit-sha-2\n' },
+    pushRule({ returns: '' }),
+  ]);
+  const ds = createDurableState('harness-health', { run, sleep: () => {} });
+  const result = ds.writeState('/repo', (current) => current);
+  assert.deepStrictEqual(result, { ok: true });
+
+  // Extract the root-tree-level mktree call (the SECOND one, after the skill-subtree one)
+  const mktreeCalls = calls.filter((c) => c.cmd === 'git' && c.args.includes('mktree'));
+  assert.strictEqual(mktreeCalls.length, 2, 'two mktree calls: skill subtree, then root tree');
+
+  const rootTreeCall = mktreeCalls[1]; // Second mktree call is the root tree
+  const rootEntries = rootTreeCall.opts.input.split('\n').filter(Boolean).map((line) => {
+    const [meta, name] = line.split('\t');
+    const [mode, type, sha] = meta.split(' ');
+    return { name, mode, type, sha };
+  });
+
+  // Verify code-health (untouched), harness-health (updated)
+  const codeHealthEntry = rootEntries.find((e) => e.name === 'code-health');
+  const hhEntry = rootEntries.find((e) => e.name === 'harness-health');
+
+  assert.ok(codeHealthEntry, 'root tree must preserve code-health entry');
+  assert.strictEqual(codeHealthEntry.sha, 'code-health-original-tree-sha', 'code-health sha must be unchanged (harness-health write does not touch it)');
+
+  assert.ok(hhEntry, 'root tree must contain harness-health entry');
+  assert.strictEqual(hhEntry.sha, 'new-tree-sha', 'harness-health sha is the newly-built skill-subtree sha');
+});
+
 // --- includeDeclined: durable persistence for the 'declined' dismissal mark
 // (mirrors includeRemembered's opt-in-flag pattern above) ---
 
