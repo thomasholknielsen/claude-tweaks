@@ -6,14 +6,21 @@ const { execFileSync } = require('child_process');
 // local disk doesn't survive a scheduled cloud-routine (CCR) container
 // recycling between firings. Contract: skills/_shared/health-state.md.
 //
-// Impure (execFileSync git/gh calls), matching bin/lib/code-health/scope.js's
+// Impure (execFileSync git calls), matching bin/lib/code-health/scope.js's
 // existing precedent — not bin/lib/issues/claims.js's emit-only pattern,
 // since reading/writing this branch is mechanical plumbing nobody inspects
 // mid-flight, unlike issue claim/release which is a decision-laden,
 // audit-visible action meant to be legible in the skill's own bash trail.
 // The command runner is injectable so tests substitute a fake one instead
-// of touching real network (git fetch/gh api can't run for real in a
+// of touching real network (git fetch/push can't run for real in a
 // sandboxed unit test the way scope.js's local git log calls can).
+//
+// Writes are plain git plumbing (hash-object/mktree/commit-tree/push), not
+// the GitHub Data API — proven to work identically local or in a Claude Code
+// cloud Routine sandbox (no gh CLI, no MCP dependency either). See
+// docs/superpowers/specs/2026-07-30-durable-state-git-native-write-design.md
+// for why: these are plain Git Data API primitives with no GitHub-specific
+// semantics, unlike an actual GitHub write (issue create/comment/etc).
 
 const HEALTH_STATE_BRANCH = 'health-state';
 const MAX_RUN_HISTORY = 90;
@@ -82,33 +89,17 @@ function shouldEscalate(entry) {
   return !!entry && entry.attempts >= ESCALATE_AFTER_ATTEMPTS;
 }
 
-// 30s — a hung git fetch or gh api call fails fast instead of blocking the
-// CLI invocation (and, transitively, the calling skill's Bash tool call)
-// indefinitely. Callers can still override via opts, spread after this
-// default.
+// 30s — a hung git call fails fast instead of blocking the CLI invocation
+// (and, transitively, the calling skill's Bash tool call) indefinitely.
+// Callers can still override via opts, spread after this default.
 const DEFAULT_RUN_TIMEOUT_MS = 30000;
 
 function defaultRun(cmd, args, opts = {}) {
   return execFileSync(cmd, args, { encoding: 'utf8', timeout: DEFAULT_RUN_TIMEOUT_MS, ...opts });
 }
 
-// Capability probe, not environment-classification — a future environment where gh
-// happens to be installed (even a cloud sandbox with a custom setup script) must
-// transparently keep using it. Injectable so tests never actually shell out.
-function defaultHasGh(run) {
-  return () => {
-    try {
-      run('gh', ['--version']);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-}
-
 function createDurableState(skillName, {
   run = defaultRun, sleep = defaultSleep, includeRemembered = false, includeDeclined = false,
-  hasGh = defaultHasGh(run),
 } = {}) {
   function showFile(root, relPath, fallback) {
     try {
@@ -148,7 +139,7 @@ function createDurableState(skillName, {
   // fetch transiently failing would make that path silently degrade to empty
   // defaults and hand the mutator bogus near-empty state, durably
   // overwriting the branch's real cursors/retry-queue/run-history even
-  // though GitHub's fast-forward check has no way to catch a bad-but-valid
+  // though the push's fast-forward check has no way to catch a bad-but-valid
   // write like that.
   function readFilesAtFetchedTip(root) {
     const state = {
@@ -190,71 +181,77 @@ function createDurableState(skillName, {
     return readFilesAtFetchedTip(root);
   }
 
-  function createBlob(root, content) {
-    return run('gh', ['api', 'repos/{owner}/{repo}/git/blobs', '--input', '-', '-q', '.sha'], {
-      cwd: root,
-      input: JSON.stringify({ content, encoding: 'utf-8' }),
-    }).trim();
-  }
+  // ─── git-native tree/commit primitives ───────────────────────────────────
+  // Replace the old GitHub Data API calls (gh api .../git/blobs|trees|
+  // commits|refs) one-for-one with plain git plumbing that writes to the
+  // LOCAL object database and publishes with a single `git push` at the end
+  // — no `gh` CLI, no MCP dependency, works identically local or in a cloud
+  // Routine sandbox (see this file's header comment).
 
-  function createTree(root, baseTreeSha, entries) {
-    return run('gh', ['api', 'repos/{owner}/{repo}/git/trees', '--input', '-', '-q', '.sha'], {
-      cwd: root,
-      input: JSON.stringify({ base_tree: baseTreeSha, tree: entries }),
-    }).trim();
-  }
-
-  function createCommit(root, treeSha, parentSha, message) {
-    return run('gh', ['api', 'repos/{owner}/{repo}/git/commits', '--input', '-', '-q', '.sha'], {
-      cwd: root,
-      input: JSON.stringify({ message, tree: treeSha, parents: parentSha ? [parentSha] : [] }),
-    }).trim();
-  }
-
-  // Non-force PATCH — GitHub enforces fast-forward-only, which IS the
-  // compare-and-swap: rejected (throws) if the branch moved since parentSha
-  // was read.
-  function updateRef(root, commitSha) {
-    run('gh', ['api', '-X', 'PATCH', `repos/{owner}/{repo}/git/refs/heads/${HEALTH_STATE_BRANCH}`, '--input', '-'], {
-      cwd: root,
-      input: JSON.stringify({ sha: commitSha, force: false }),
-    });
-  }
-
-  function createRef(root, commitSha) {
+  // Parses `git ls-tree <treeSha>` output (one entry per line: "<mode> SP
+  // <type> SP <sha> TAB <name>") into a Map keyed by name, so callers can
+  // splice in new entries without disturbing ones they don't touch. Returns
+  // an empty Map for a falsy/EMPTY_TREE_SHA treeSha or any sha git can't
+  // resolve (a not-yet-existing subtree on this skill's very first write).
+  function readTreeEntries(root, treeSha) {
+    const entries = new Map();
+    if (!treeSha || treeSha === EMPTY_TREE_SHA) return entries;
+    let out;
     try {
-      run('gh', ['api', 'repos/{owner}/{repo}/git/refs', '--input', '-'], {
-        cwd: root,
-        input: JSON.stringify({ ref: `refs/heads/${HEALTH_STATE_BRANCH}`, sha: commitSha }),
-      });
-    } catch (err) {
-      if (!/422/.test(String(err.message))) throw err; // 422 = a concurrent firing already created it
-    }
-  }
-
-  function ensureBranch(root) {
-    try {
-      run('git', ['-C', root, 'fetch', 'origin', HEALTH_STATE_BRANCH]);
-      if (currentCommitSha(root)) return; // already exists
+      out = run('git', ['-C', root, 'ls-tree', treeSha]);
     } catch {
-      // fetch failing at all (not just "ref not found") also means: try to bootstrap
+      return entries;
     }
-    // Bootstrap is best-effort and must never throw out of ensureBranch: a
-    // transient gh/network/auth failure here (plausible on the very first
-    // firing in a fresh CCR container — exactly the scenario this whole
-    // design targets) would otherwise propagate straight out of writeState
-    // uncaught, with zero CAS retries attempted, violating this module's
-    // "writeState never throws" contract. Swallow it instead: the branch
-    // still won't exist, so writeState's own per-attempt try/catch keeps
-    // failing its fetch/rev-parse calls against a still-missing branch and
-    // correctly falls through to { ok: false, error } once MAX_CAS_ATTEMPTS
-    // is exhausted.
-    try {
-      const commitSha = createCommit(root, EMPTY_TREE_SHA, null, 'health-state: bootstrap');
-      createRef(root, commitSha);
-    } catch (err) {
-      process.stderr.write(`health-state: branch bootstrap attempt failed: ${err.message}\n`);
+    for (const line of out.split('\n')) {
+      if (!line) continue;
+      const tabIdx = line.indexOf('\t');
+      const [mode, type, sha] = line.slice(0, tabIdx).split(' ');
+      const name = line.slice(tabIdx + 1);
+      entries.set(name, { mode, type, sha });
     }
+    return entries;
+  }
+
+  // Writes `content` as a git blob object and returns its sha. Never touches
+  // the network — `hash-object -w` writes to the LOCAL object database only;
+  // publishing happens later, in one shot, via pushRef.
+  function writeBlob(root, content) {
+    return run('git', ['-C', root, 'hash-object', '-w', '--stdin'], { input: content }).trim();
+  }
+
+  // entries: Map<name, {mode, type, sha}> (see readTreeEntries). Serializes
+  // to `git mktree`'s expected stdin format and returns the new tree sha.
+  // Sort order: plain lexicographic-by-name is sufficient here because this
+  // branch's actual layout never mixes blob and tree entries at the same
+  // tree level (root = one tree entry per skill directory; each skill's own
+  // subtree = only blob entries, no nesting) — git's tree-sort
+  // trailing-slash-for-directories nuance never applies to this data shape.
+  function writeTree(root, entries) {
+    const names = [...entries.keys()].sort();
+    const input = names
+      .map((name) => {
+        const { mode, type, sha } = entries.get(name);
+        return `${mode} ${type} ${sha}\t${name}`;
+      })
+      .join('\n') + (names.length ? '\n' : '');
+    return run('git', ['-C', root, 'mktree'], { input }).trim();
+  }
+
+  // parentSha: null for the very first commit on this branch (omits -p).
+  function writeCommit(root, treeSha, parentSha, message) {
+    const args = ['-C', root, 'commit-tree', treeSha];
+    if (parentSha) args.push('-p', parentSha);
+    args.push('-m', message);
+    return run('git', args).trim();
+  }
+
+  // The compare-and-swap: a plain (non-force) push creates the ref if it
+  // doesn't exist yet, fast-forward-updates it if it does, and is rejected
+  // (throws) if commitSha is not a fast-forward of whatever the remote
+  // actually has right now — no separate create-vs-update distinction
+  // needed, unlike the GitHub Data API's POST-vs-PATCH split this replaces.
+  function pushRef(root, commitSha) {
+    run('git', ['-C', root, 'push', 'origin', `${commitSha}:refs/heads/${HEALTH_STATE_BRANCH}`]);
   }
 
   function buildFiles(next) {
@@ -281,73 +278,70 @@ function createDurableState(skillName, {
     return files;
   }
 
-  function needsMcpWrite(root, mutatorFn) {
-    // No gh calls at all — not even ensureBranch's bootstrap. This function
-    // does not attempt to create the health-state branch itself: branch
-    // creation on this transport is a distinct MCP tool (create_branch), not
-    // an implicit side effect of a create_or_update_file content write, and
-    // MCP tools can only be invoked from the calling agent's own turn, never
-    // from this Node subprocess. Ensuring the branch exists before any
-    // create_or_update_file call is therefore the calling skill's own MCP
-    // procedure's job (see _shared/health-state.md's MCP write path section,
-    // whose bootstrap step is this path's counterpart to the gh path's
-    // ensureBranch). Read is unaffected — git fetch/show are gh-free already.
-    //
-    // The fetch must not throw uncaught on a first-ever run (branch doesn't exist on
-    // the remote yet) — writeState's "never throws" contract holds on this path too
-    // (see the durable-state.test.js tests for the gh path's own equivalent case).
-    // A failed fetch here just means readFilesAtFetchedTip's own per-file showFile
-    // calls degrade to their fallback defaults below, same as readState's behavior.
-    try {
-      run('git', ['-C', root, 'fetch', 'origin', HEALTH_STATE_BRANCH]);
-    } catch {
-      // Swallowed deliberately — see comment above.
+  // Merges buildFiles' output into the skill's existing subtree (preserving
+  // any file this write doesn't touch — e.g. a stale remembered.json left
+  // over from a prior includeRemembered period), then splices the result
+  // into the branch's root tree (adding this skill's entry if it's the
+  // skill's first-ever write, replacing it otherwise). Returns the new root
+  // tree sha.
+  function buildRootTree(root, baseTreeSha, files) {
+    const rootEntries = readTreeEntries(root, baseTreeSha);
+    const existingSkillEntry = rootEntries.get(skillName);
+    const skillEntries = readTreeEntries(root, existingSkillEntry ? existingSkillEntry.sha : null);
+    for (const file of files) {
+      // file.path is "{skillName}/{name}" (see statePath) — strip the
+      // skill-name prefix to get the bare filename this subtree uses as its
+      // own entry key.
+      const name = file.path.slice(skillName.length + 1);
+      skillEntries.set(name, { mode: '100644', type: 'blob', sha: writeBlob(root, file.content) });
     }
-    const current = readFilesAtFetchedTip(root);
-    const next = mutatorFn(current);
-    return { ok: false, needsMcpWrite: true, branch: HEALTH_STATE_BRANCH, files: buildFiles(next) };
+    const newSkillTreeSha = writeTree(root, skillEntries);
+    rootEntries.set(skillName, { mode: '040000', type: 'tree', sha: newSkillTreeSha });
+    return writeTree(root, rootEntries);
   }
 
   function writeState(root, mutatorFn) {
-    if (!hasGh()) return needsMcpWrite(root, mutatorFn);
-    ensureBranch(root);
     let lastError = null;
     for (let attempt = 1; attempt <= MAX_CAS_ATTEMPTS; attempt++) {
       let commitSha = null;
       try {
-        run('git', ['-C', root, 'fetch', 'origin', HEALTH_STATE_BRANCH]);
+        try {
+          run('git', ['-C', root, 'fetch', 'origin', HEALTH_STATE_BRANCH]);
+        } catch {
+          // Branch doesn't exist yet (this skill's first-ever write) or a
+          // transient fetch failure — either way, fall through and attempt
+          // the write below. A genuinely first-ever branch legitimately has
+          // nothing to fetch; a transient failure self-corrects on retry (a
+          // push against stale/absent tracking data is rejected as
+          // non-fast-forward if the branch actually has unrelated remote
+          // history, and the next attempt re-fetches from scratch).
+        }
         const { commitSha: parentSha, treeSha: baseTreeSha } = currentRefShas(root);
         const current = readFilesAtFetchedTip(root);
         const next = mutatorFn(current);
         const files = buildFiles(next);
-        const entries = files.map((f) => ({
-          path: f.path,
-          mode: '100644',
-          type: 'blob',
-          sha: createBlob(root, f.content),
-        }));
-        const treeSha = createTree(root, baseTreeSha, entries);
-        commitSha = createCommit(root, treeSha, parentSha, `health-state: ${skillName} update`);
-        updateRef(root, commitSha);
+        const rootTreeSha = buildRootTree(root, baseTreeSha, files);
+        commitSha = writeCommit(root, rootTreeSha, parentSha, `health-state: ${skillName} update`);
+        pushRef(root, commitSha);
         return { ok: true };
       } catch (err) {
         lastError = err;
         // The commit we attempted to point the ref at was successfully built
-        // (createCommit succeeded) and updateRef's own PATCH then failed —
-        // but "failed" here is ambiguous: it could be a genuine rejection
-        // (branch moved to a DIFFERENT commit, fast-forward check failed —
-        // safe to retry) or GitHub actually applied the ref update
-        // server-side and only the HTTP response never reached us (a
-        // network drop or upstream 5xx after origin processed it). Blindly
-        // retrying in the ambiguous case would re-run mutatorFn a SECOND
-        // time against its own already-applied result — silently
-        // double-counting a non-idempotent mutator like enqueueRetry's
-        // attempts++ for a single real failure. Re-checking the ref here
-        // tells the two apart: if it now points at the commit we just tried
-        // to set, our update DID land and this attempt must be treated as a
-        // success, not retried.
-        if (commitSha && currentCommitSha(root) === commitSha) {
-          return { ok: true };
+        // (writeCommit succeeded) and pushRef then failed — but "failed" here
+        // is ambiguous: it could be a genuine rejection (branch moved to a
+        // DIFFERENT commit, fast-forward check failed — safe to retry) or the
+        // push actually landed server-side and only the local process saw an
+        // error (a network drop after the remote processed it). Blindly
+        // retrying in the ambiguous case would re-run mutatorFn a SECOND time
+        // against its own already-applied result — silently double-counting
+        // a non-idempotent mutator like enqueueRetry's attempts++ for a
+        // single real failure. Re-fetching and re-checking the ref here tells
+        // the two apart: if it now points at the commit we just tried to set,
+        // our push DID land and this attempt must be treated as a success,
+        // not retried.
+        if (commitSha) {
+          try { run('git', ['-C', root, 'fetch', 'origin', HEALTH_STATE_BRANCH]); } catch { /* see tolerant-fetch comment above */ }
+          if (currentCommitSha(root) === commitSha) return { ok: true };
         }
         if (attempt < MAX_CAS_ATTEMPTS) sleep(casBackoffMs(attempt));
       }
