@@ -213,7 +213,7 @@ When invoked directly by a user (not from a lifecycle skill), look up the return
 | `survey` ok + `recommendations: []` | No follow-up — caller omits the Creative Opportunities block |
 | `reset-recommendations` ok | Re-run `/claude-tweaks:flow {spec}` or `/claude-tweaks:visual-review` — survey will re-surface |
 | `live` ok (`session: "completed"`) | If a variant was accepted, `/claude-tweaks:test` — re-verify the change |
-| `{skipped: "Impeccable not installed"}` | `/claude-tweaks:init` to set up integration (Step 10) |
+| `{skipped: "Impeccable not installed"}` | `/claude-tweaks:init` to set up integration (Step 11) |
 | `{skipped: "design integration disabled"}` | Re-run `/claude-tweaks:init` to re-enable |
 | `{skipped: "non-frontend"}` | No action — the wrapper correctly skipped |
 
@@ -252,7 +252,7 @@ This skill is a **component skill** (utility wrapper) — invoked by `/claude-tw
 
 | Skill | Relationship |
 |-------|-------------|
-| `/claude-tweaks:init` | Adds Impeccable setup phase (Step 10 — install + init + `design-integration` flag). Writes the kill-switch flag this wrapper reads in Layer 1. |
+| `/claude-tweaks:init` | Adds Impeccable setup phase (Step 11 — install + init + `design-integration` flag). Writes the kill-switch flag this wrapper reads in Layer 1. |
 | `/claude-tweaks:test` | Invokes `test` mode after the standard verification suite. Findings with `severity: warning` fail the gate; `advisory` findings and skips do not. |
 | `/claude-tweaks:review` | Invokes `review` mode during code review. Findings appear as a "Design Quality" section in the review summary — advisory, not blocking. The `review` mode also writes an audit cache (`docs/plans/...-audit.json`) consumed by `polish`. |
 | `/claude-tweaks:build` | Invokes `pre-build` mode before implementation to lazy-load Impeccable references and project design context into the build subagent's context. |

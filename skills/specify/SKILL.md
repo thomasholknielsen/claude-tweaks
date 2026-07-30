@@ -383,7 +383,7 @@ For non-frontend design docs (no frontend signals detected), skip this step enti
 
 **Unlike Step 2.5, this runs for every surface** — architecture, ER, sequence, and state diagrams help backend and infra specs equally.
 
-Read the `diagram-suggestions` flag from CLAUDE.md (written by `/init` Step 11). When the flag is `disabled` or missing, skip this step silently.
+Read the `diagram-suggestions` flag from CLAUDE.md (written by `/init` Step 12). When the flag is `disabled` or missing, skip this step silently.
 
 When `enabled`, scan the design doc text + decomposed record titles for structural signals. Use this detection table:
 
@@ -572,7 +572,7 @@ Always recommend `/claude-tweaks:flow` over `/claude-tweaks:build` — `/claude-
 | `/claude-tweaks:tidy` | Reviews backlog-stage records for staleness; its Promote action recommends `/claude-tweaks:specify #{n}` to shape a record into `ready` — Step 8's old backlog-entry deletion is retired, since a captured record has no separate file to delete (Shaping mode edits it in place) |
 | `/claude-tweaks:help` | Shows which leaf records from /claude-tweaks:specify are `ready` for /claude-tweaks:build — also uses Key Files for implicit dependency detection |
 | `/claude-tweaks:design-wrapper` | /specify invokes `/claude-tweaks:design-wrapper shape <topic>` (Step 2.5b) on frontend design docs to enrich the design doc with UX/UI planning. /specify writes `Surface:` and `Design-intent:` as body-metadata lines (Step 2.5c + Step 3's per-leaf procedure, or Shaping mode's Metadata block for a single record) — never frontmatter, never labels; the design wrapper reads them from the materialized header spec 20 lifts them into (Layer 2 detection for `Surface:`, `polish` mode's intent-driven dispatch for `Design-intent:`, active in v4.5.0). |
-| `/claude-tweaks:visualize` | Step 2.5d suggests invoking this skill for every leaf record (not gated to frontend) when the design doc describes state machines, schemas, multi-actor flows, decision branches, hierarchies, or architectures. Gated by `diagram-suggestions: enabled` in CLAUDE.md (written by `/init` Step 11). |
+| `/claude-tweaks:visualize` | Step 2.5d suggests invoking this skill for every leaf record (not gated to frontend) when the design doc describes state machines, schemas, multi-actor flows, decision branches, hierarchies, or architectures. Gated by `diagram-suggestions: enabled` in CLAUDE.md (written by `/init` Step 12). |
 | `/claude-tweaks:research` | Prior-art lookup before authoring a record — `/research` reports can be cited directly in a leaf's `Technical Approach` or `Gotchas` section. |
 | `/claude-tweaks:code-health` | `/code-health` files improvement findings as `by:code-health`-labelled records, born-`ready` and spec-shaped by construction (Current State / Deliverables / Acceptance Criteria) — per `_shared/work-record.md`'s born-ready rule, these skip Shaping mode's translation work entirely. `/specify` shapes captured and human-filed records (no `by:*` label, still in `backlog`); Resolve-the-input case 1 fetches either kind the same way, stamping `ready` + scoring only on the ones that don't already have them. |
 | `/claude-tweaks:harness-health` | Same pattern as `/code-health`/`/journey-health`/`/docs-health` — `/harness-health` files `by:harness-health` findings born-`ready` and spec-shaped by construction (Current State / Deliverables / Acceptance Criteria), so Resolve-the-input case 1 consumes them with near-zero translation, stamping nothing already present. |
