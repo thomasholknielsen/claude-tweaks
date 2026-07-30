@@ -12,7 +12,7 @@ const { validateFindingV2, applyConfidenceFloor } = require('./lib/code-health/v
 const { toIssuePayloadV2 } = require('./lib/code-health/issue-payload');
 const { getCriterion } = require('./lib/code-health/criteria');
 const { classifyArea } = require('./lib/code-health/area-type');
-const { listSlices, contentHash, selectSlice } = require('./lib/code-health/scope');
+const { listSlices, contentHash, selectSlice, sliceRecursive } = require('./lib/code-health/scope');
 const { makeRetryQueueCommands } = require('./lib/health-core/retry-cli');
 const { loadIssueIndex } = require('./lib/health-core/issue-index');
 const { selectBudget } = require('./lib/health-core/budget');
@@ -266,7 +266,7 @@ function cmdValidateFindings(args) {
     try {
       const sliceId = args.slice;
       const areasSwept = sliceId ? [sliceId] : [];
-      const hashes = sliceId ? { [sliceId]: contentHash(path.resolve(root, sliceId)) } : {};
+      const hashes = sliceId ? { [sliceId]: contentHash(path.resolve(root, sliceId), null, { recursive: sliceRecursive(sliceId) }) } : {};
       const runRecord = { runId: args.runId, runAt: new Date().toISOString(), fingerprints: [...seen] };
       // Named rather than inlined into the mutator call below, for readability.
       const mutatorInput = { areasSwept, hashes, rememberCandidates, runRecord };
@@ -314,7 +314,7 @@ function cmdNextSlice(args) {
   // cursor state in-memory between picks (see bin/lib/health-core/budget.js).
   const chosen = selectBudget(budget, cursors, (c) => selectSlice(root, c, { now, fileDataCache }), {
     getCursorKey: (slice) => slice.id,
-    buildCursorPatch: (_, slice) => ({ lastSweptMs: now, lastHash: contentHash(slice.path, fileDataCache) }),
+    buildCursorPatch: (_, slice) => ({ lastSweptMs: now, lastHash: contentHash(slice.path, fileDataCache, { recursive: sliceRecursive(slice.id) }) }),
   });
   process.stdout.write(JSON.stringify(chosen, null, 2) + '\n');
 }

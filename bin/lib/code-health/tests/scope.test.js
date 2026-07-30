@@ -4,7 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { listSlices, contentHash, selectSlice, listWorkspaceSlices, gitChurn } = require('../scope');
+const { listSlices, contentHash, selectSlice, listWorkspaceSlices, gitChurn, sliceRecursive } = require('../scope');
 const { MAX_STALE_DAYS } = require('../score');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-scope-')); }
@@ -14,6 +14,14 @@ function initGitRepo(root) {
   execFileSync('git', ['-C', root, 'config', 'user.email', 'test@test.com']);
   execFileSync('git', ['-C', root, 'config', 'user.name', 'Test']);
 }
+
+// ─── sliceRecursive ────────────────────────────────────────────────────────
+
+test('sliceRecursive is false only for the "." slice id', () => {
+  assert.strictEqual(sliceRecursive('.'), false);
+  assert.strictEqual(sliceRecursive('src'), true);
+  assert.strictEqual(sliceRecursive('packages/a'), true);
+});
 
 // ─── listSlices ────────────────────────────────────────────────────────────
 
@@ -224,6 +232,32 @@ test('contentHash returns a stable hash for a dir with no source files', () => {
   // No source files — should return a non-empty string without throwing
   const h = contentHash(root);
   assert.ok(typeof h === 'string' && h.length > 0);
+});
+
+test('contentHash with { recursive: false } is unaffected by a change inside a subdirectory', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'src', 'a.js'), 'const x = 1;\n');
+  const before = contentHash(root, null, { recursive: false });
+  fs.writeFileSync(path.join(root, 'src', 'a.js'), 'const x = 2;\n');
+  const after = contentHash(root, null, { recursive: false });
+  assert.strictEqual(before, after, 'a change inside a subdirectory must not affect the non-recursive "." hash');
+});
+
+test('contentHash with { recursive: false } DOES change when a direct root-level file changes', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'root.js'), 'const x = 1;\n');
+  const before = contentHash(root, null, { recursive: false });
+  fs.writeFileSync(path.join(root, 'root.js'), 'const x = 2;\n');
+  const after = contentHash(root, null, { recursive: false });
+  assert.notStrictEqual(before, after, 'a change to a direct root-level file must affect the non-recursive "." hash');
+});
+
+test('contentHash: a flat repo with no subdirectories hashes identically whether recursive or not', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'a.js'), 'const x = 1;\n');
+  fs.writeFileSync(path.join(root, 'b.js'), 'const y = 2;\n');
+  assert.strictEqual(contentHash(root), contentHash(root, null, { recursive: false }));
 });
 
 // ─── selectSlice ───────────────────────────────────────────────────────────
@@ -491,3 +525,24 @@ test(
     }
   },
 );
+
+test('gitChurn with { recursive: false } does not count a commit that only touches a nested file', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'src', 'a.js'), 'const x = 1;\n');
+  initGitRepo(root);
+  execFileSync('git', ['-C', root, 'add', '.']);
+  execFileSync('git', ['-C', root, 'commit', '-q', '-m', 'nested file only']);
+  const churn = gitChurn(root, '.', Date.now(), { recursive: false });
+  assert.strictEqual(churn, 0, 'a commit touching only a nested file must not count toward the non-recursive "." churn');
+});
+
+test('gitChurn with { recursive: false } counts a commit that touches a direct root-level file', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'root.js'), 'const x = 1;\n');
+  initGitRepo(root);
+  execFileSync('git', ['-C', root, 'add', '.']);
+  execFileSync('git', ['-C', root, 'commit', '-q', '-m', 'root-level file']);
+  const churn = gitChurn(root, '.', Date.now(), { recursive: false });
+  assert.ok(churn >= 1, `expected the root-level commit to be counted, got churn=${churn}`);
+});
