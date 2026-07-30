@@ -317,7 +317,7 @@ Order-agnostic and append-only by default — most steps in this group are indep
 
 Interactive-only. This step never runs under `auto`/non-interactive mode — creating a GitHub repository is a consequential, externally-visible, hard-to-reverse action, the same class of action `_shared/browser-detection.md` already bars from unattended auto-install. In `auto` mode, skip this step entirely; every downstream step below falls through to its own existing gate-fails behavior unchanged.
 
-**Gate:** `git remote get-url origin` fails (no remote configured at all). Any existing remote — GitHub or not — skips this step silently; the user has already chosen a host.
+**Gate:** `git rev-parse --is-inside-work-tree` fails → this step doesn't run at all (nothing to attach a remote to; Step 5 above already handles warning about a non-git directory). Otherwise, `git remote get-url origin` fails (no remote configured at all) → proceed with this step. Any existing remote — GitHub or not — skips this step silently; the user has already chosen a host.
 
 Steps 10/14/16/17 below independently check for a *reachable GitHub-flavored remote* specifically (not just any remote) via a related, richer two-tier check: `gh repo view --json owner,name` succeeding when `gh` is available and authenticated (works for GitHub Enterprise, not just github.com), else `git remote get-url origin` exits 0 as a fallback heuristic — a non-GitHub git host would simply see those steps' offers and decline them, which costs nothing. This step's own gate above is intentionally simpler and broader: it doesn't try to distinguish GitHub from other hosts, since creating a repo is only relevant when there is truly no remote configured yet.
 
