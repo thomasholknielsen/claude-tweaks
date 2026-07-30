@@ -190,6 +190,38 @@ This check's Drifted count (not Orphaned/Stale, which have no auto-fix and so ar
 a re-run of /init would resolve" in the same sense) counts toward Phase 1u.6's Total drift
 count, the same way Work-Record Backend Drift does above.
 
+### Routine Relevance
+
+Skip entirely if `.claude-tweaks/routines/` doesn't exist (same gate as Routine Drift above).
+Otherwise, read `skills/harness-health/routine-relevance-analysis.md` and apply its procedure
+directly against this project's instantiated records — this is the one place `/init` reaches
+into a harness-health-owned file outside that skill's own SELECT/JUDGE/FILE pipeline (see
+that file's own header for why).
+
+Fold any resulting rows into the same Drift Report this phase already produces, as their own
+"Routine Relevance" subsection:
+
+```
+| Routine | Churn since created_at | Relevance note |
+|---|---|---|
+| {routine identity} | {N} commits, {date range} | {note} |
+```
+
+Resolve with a single acknowledge/defer choice, not a per-row apply (these are judgment calls
+with no single mechanical fix, unlike Routine Drift's clean version-diff apply path):
+
+- `question`: `"{N} routine(s) may be worth reconsidering given recent changes to their
+  skills. Anything to act on now?"`, `header`: `"Routine relevance"`, `multiSelect`: `false`
+- Option 1 — `label`: `"Acknowledged — I'll look into these myself (Recommended)"`,
+  `description`: `"No changes made now; revisit manually (e.g. /claude-tweaks:routine update
+  <skill> to adjust cadence/tools)"`
+- Option 2 — `label`: `"Skip — not relevant"`, `description`: `"Dismiss this run's relevance
+  notes entirely"`
+
+This check does not count toward Phase 1u.6's Total drift count — like Maturity Drift above,
+it isn't a presence/absence signal Phase 1u.6 can cheaply precompute before Phase 3 runs (it
+requires reading git history and judging diffs, not checking a marker's existence).
+
 ## Phase 1u.6: Update Mode Early-Exit Gate
 
 After Phase 1u (inventory) and Phase 1u.5 (contract drift) complete, evaluate the audit signal before committing to the full phase ceremony. Update Mode's value is in catching drift quickly — when there's almost nothing to catch, the ceremony costs more than it produces.
