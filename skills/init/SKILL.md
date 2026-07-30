@@ -1,7 +1,7 @@
 ---
 name: claude-tweaks:init
 description: Use when initializing the workflow system for a project — bootstraps structure, analyzes the codebase, generates CLAUDE.md with adaptive philosophy, skills, and rules. Re-run to find drift, gaps, and stale configuration.
-argument-hint: "[<path>|<github-url>|<description>|--update|update|--full|--core-only|bootstrap|config|skills|journeys|docs|issue-form|design-integration|diagram-suggestions|shadcn-integration|cloud-parity|routines|branch-tracking|work-backend]"
+argument-hint: "[<path>|<github-url>|<description>|--update|update|--full|--core-only|bootstrap|config|skills|journeys|docs|github-remote|issue-form|design-integration|diagram-suggestions|shadcn-integration|cloud-parity|routines|branch-tracking|work-backend]"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -53,14 +53,15 @@ Otherwise, `$ARGUMENTS` splits on whitespace into tokens. Each token classifies 
 
 | Token | Runs |
 |---|---|
-| `issue-form` | Step 10 — GitHub issue form template |
+| `github-remote` | Step 9 — Establish GitHub remote, alone |
+| `issue-form` | Step 10 — GitHub issue form template. Hard-depends on Step 9 having run — if `github-remote` wasn't also given (and no remote exists yet), `issue-form` silently runs Step 9 first anyway |
 | `design-integration` | Step 11 — Impeccable design integration |
 | `diagram-suggestions` | Step 12 — Diagram suggestions |
 | `shadcn-integration` | Step 13 — shadcn bootstrap |
-| `cloud-parity` | Step 14 — Cloud/Routine parity setup, alone |
+| `cloud-parity` | Step 14 — Cloud/Routine parity setup, alone. Hard-depends on Step 9 the same way `issue-form` does |
 | `routines` | Step 15 — Routine installation. Hard-depends on Step 14 having run — if `cloud-parity` wasn't also given (or already configured from an earlier run), `routines` silently runs Step 14 first anyway, matching the unfiltered flow's existing 14-before-15 ordering |
-| `branch-tracking` | Step 16 — Non-default-branch issue tracking |
-| `work-backend` | Step 17 — Work-record backend |
+| `branch-tracking` | Step 16 — Non-default-branch issue tracking. Hard-depends on Step 9 the same way `issue-form` does |
+| `work-backend` | Step 17 — Work-record backend. Hard-depends on Step 9 the same way `issue-form` does |
 
 Examples (assuming Steps 1-8 actually run this time — see "Core Bootstrap Version Check" below for when they're skipped instead): `routines` alone runs Steps 1-8, then only Steps 14+15, then stops (same "stop after Phase 0" behavior as `bootstrap`). `config routines` runs Steps 1-8, then only Steps 14+15, then Phases 2, 3, 5. `shadcn-integration branch-tracking` runs Steps 1-8, then only Steps 13 and 16, then stops.
 
@@ -152,6 +153,10 @@ Detect `agent-browser`; surface the install command if missing. Never block init
 Detect Node (and optionally git), install the statusline wrapper at `~/.claude-tweaks/bin/statusline.js`, and prompt before wiring `statusLine.command` in `~/.claude/settings.json` — never overwrite a non-claude-tweaks command. Read `bootstrap-steps.md` (Step 8) for the full procedure (detection, package-manager prompts, settings.json migration matrix, NO_COLOR opt-out).
 
 **Optional Enhancements (Steps 9–17):** Skipped entirely when `$ARGUMENTS` contains `--core-only` — treat every offer below as declined with no prompt shown, and proceed straight to whatever this invocation runs after Phase 0 (the Scope Selection Gate, or a composed goal-based Phase scope). Narrowed to a subset when `$ARGUMENTS` contains one or more Enhancement filter tokens — see the `## Input` section's Enhancement filter tokens table for the full list and the `routines`/`cloud-parity` ordering note.
+
+### Step 9: Establish GitHub Remote (Optional)
+
+Interactive-only — never runs in `auto`/non-interactive mode. When no git remote is configured at all (any existing remote, GitHub or not, skips this step), offers to get the `gh` CLI installed and authenticated, then offers to create a GitHub repository (personal account or an org, confirmed name defaulting to the project folder, private/public) and link it as `origin`. Establishes the remote that Steps 10/14/16/17 below each independently check for — declining any offer here falls through to their existing behavior unchanged. Read `bootstrap-steps.md` (Step 9) for the full procedure.
 
 ### Step 10: GitHub Issue Form Template (Optional)
 
@@ -437,6 +442,7 @@ After writing files, surface what was created. Generate the table from the actua
 | Design integration | Set `design-integration: {enabled/plugin-only/disabled}` in CLAUDE.md | Step 11 |
 | shadcn integration | Set `shadcn-integration: {enabled/cli-only/disabled}` in CLAUDE.md | Step 13 |
 | Work records | Set work-backend / work-types / work-links in CLAUDE.md; offer core-label bootstrap (see `_shared/work-record.md`'s Label taxonomy table for current per-family and total counts) | Step 17 |
+| GitHub remote | Created `{owner}/{name}` ({visibility}) and set as `origin` (only if Step 9 ran and the user confirmed creation) | Step 9 |
 | Cloud parity | Declared {N} plugin(s) in .claude/settings.json#enabledPlugins; wrote scripts/claude-cloud-setup.sh; wrote CLAUDE.md's Cloud parity section | Step 14 |
 | Routines | Instantiated {N} routine(s): `{list}` (or "Offered, none set up") | Step 15 |
 | Worktree policy | Set `worktree.always: {true/false}` in `.claude-tweaks/policy.yml` (only if Step 6 asked this run) — written last, after every other row above, to avoid mid-run self-lockout; see "Worktree Policy Finalization" below | Step 6 |
@@ -515,6 +521,7 @@ If the resolved recommendation is itself `/claude-tweaks:tidy` (rows 1 or 2), it
 | Auto-copying local MCP server configs (`~/.claude.json`) into the project's committed `.mcp.json` | MCP server configs can carry embedded credentials (API keys, tokens) — copying them into a committed file leaks secrets. Step 14's MCP-parity check is report-only by design; the user reviews and adds any that matter, manually. |
 | Hand-editing `scripts/claude-cloud-setup.sh` | Regenerated in full on every `/init` run from `.claude/settings.json` state — manual edits are silently overwritten. Customize by changing `enabledPlugins`/`extraKnownMarketplaces` instead, then re-run `/init`. |
 | Assuming `/init` can set the cloud environment's Setup-script field itself | No API or CLI sets it remotely — confirmed by inspecting `RemoteTrigger`'s own schema (scoped to `/v1/code/triggers` only). It's always a manual, one-time paste per environment, done in the claude.ai/code environment settings UI. |
+| Assuming Step 9 can authenticate `gh` non-interactively | `gh auth login --web` is a device-flow browser authorization — it always requires the user to complete a step in their own browser. There is no headless/token-based path this step uses instead. |
 
 ## Relationship to Other Skills
 
