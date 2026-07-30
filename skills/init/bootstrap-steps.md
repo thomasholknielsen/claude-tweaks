@@ -225,7 +225,7 @@ The workflow system relies on git for change tracking (`/claude-tweaks:review` u
    |---|---|
    | No `worktree.always:` line at all (no file, or file present without the key) | Ask the question below |
    | `worktree.always: true` | No-op — already enabled, skip silently |
-   | `worktree.always: false` | Ask the question below (re-offer — matches Step 10/11/12's re-offer-on-decline convention) |
+   | `worktree.always: false` | Ask the question below (re-offer — matches Step 11/12/13's re-offer-on-decline convention) |
 
    When asking, call `AskUserQuestion`:
    - `question`: `"Require an isolated git worktree for every file edit in this project?"`, `header`: `"Worktree policy"`, `multiSelect`: `false`
@@ -706,7 +706,7 @@ npm install -g agent-browser
 
 Write this to `scripts/claude-cloud-setup.sh` in the project root, creating the `scripts/` directory if it doesn't exist. `2>/dev/null || true` on the marketplace-add lines only — a duplicate-add is the expected no-op case on a re-run; the `plugin install`/`npm install` lines are left unguarded so a real failure surfaces loudly within the Setup script's own ~5-minute budget, rather than being silently swallowed.
 
-**Write/update the `## Cloud parity` CLAUDE.md section** — add near the other project-level config sections (same "add or update a section" idiom Step 10 uses for `## Design integration`):
+**Write/update the `## Cloud parity` CLAUDE.md section** — add near the other project-level config sections (same "add or update a section" idiom Step 11 uses for `## Design integration`):
 
 ```markdown
 ## Cloud parity
@@ -736,7 +736,7 @@ under extraKnownMarketplaces).
 
 **Idempotency / re-run behavior.** On a re-run where the project's `.claude/settings.json` already declares both hard deps and there are no new local-only mirror candidates: skip the `AskUserQuestion` prompt, report "Cloud parity: already configured" under Phase 9's Verified & Consistent section, and still regenerate `scripts/claude-cloud-setup.sh` silently (its content is fully derived, so silent regeneration can't lose anything) — but only re-render the CLAUDE.md section if it's missing or doesn't already contain the four bullet labels above (Setup script / Branch / First exposure / MCP servers), to avoid a spurious rewrite on every run.
 
-**Failure handling.** Malformed `.claude/settings.json` (fails to parse as JSON) → report it and skip this step entirely rather than risk corrupting it with a merge. A write failure on either generated file → surface the failure and continue the rest of `/init` (same "don't abort on this step's failure" precedent as Step 10's plugin-install failure handling).
+**Failure handling.** Malformed `.claude/settings.json` (fails to parse as JSON) → report it and skip this step entirely rather than risk corrupting it with a merge. A write failure on either generated file → surface the failure and continue the rest of `/init` (same "don't abort on this step's failure" precedent as Step 11's plugin-install failure handling).
 
 ---
 
