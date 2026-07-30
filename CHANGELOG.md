@@ -1,5 +1,15 @@
 # Changelog
 
+## v6.24.0 — /init Update Mode: Routine Drift & Relevance Audit
+
+- `/claude-tweaks:routine` gains `status --all` (bulk drift check across every instantiated
+  routine in the project, including ones whose skill was renamed or retired) and
+  `update --defaults` (non-interactive re-sync, for batch-confirmed use).
+- `/claude-tweaks:init`'s Update Mode gains two new Phase 1u.5 checks: Routine Drift (stages
+  a batch re-sync offer for drifted routines) and Routine Relevance (a new harness-health-
+  owned judgment pass, invoked only by `/init`, surfacing routines whose underlying skill has
+  changed enough to warrant a second look).
+
 ## v6.23.0 — /init: new Step 9 (Establish GitHub Remote)
 
 Projects with no git remote configured at all previously had no way for `/init` to help set
