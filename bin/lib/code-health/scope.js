@@ -20,7 +20,7 @@ const SOURCE_EXTS = new Set(['.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs']);
 // also appearing as its own mega-slice. Repos with no workspace manifest keep
 // today's exact one-level-deep behavior.
 function listSlices(root) {
-  const slices = [{ id: '.', path: root }];
+  const slices = sourceFiles(root, { recursive: false }).length ? [{ id: '.', path: root }] : [];
   // Read the workspace manifest exactly once and hand the parsed patterns to
   // both consumers below — listWorkspaceSlices and fullyCoveredTopLevelDirs
   // each independently called readWorkspacePatterns(root) before, doubling
@@ -50,7 +50,11 @@ function listSlices(root) {
 // ─── contentHash ─────────────────────────────────────────────────────────────
 // Deterministic SHA-1 of all source-file contents under absDir, skipping SKIP_DIRS.
 // Falls back to hashing the directory listing string if find/read fails.
-function sourceFiles(absDir) {
+// recursive:false scans only direct file children of absDir (maxdepth 1) —
+// used for the '.' slice, which must NOT overlap every subdirectory/
+// workspace slice that already covers everything beneath root. See
+// docs/superpowers/specs/2026-07-30-durable-state-git-native-write-design.md.
+function sourceFiles(absDir, { recursive = true } = {}) {
   try {
     const excludeArgs = [];
     for (const dir of SKIP_DIRS) {
@@ -60,9 +64,10 @@ function sourceFiles(absDir) {
       // spans '/' and matches nested occurrences too (e.g. pkg/nested/dir/*).
       excludeArgs.push('-not', '-path', `*/${dir}/*`);
     }
+    const depthArgs = recursive ? [] : ['-maxdepth', '1'];
     const raw = execFileSync(
       'find',
-      [absDir, '-type', 'f', ...excludeArgs],
+      [absDir, ...depthArgs, '-type', 'f', ...excludeArgs],
       { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 },
     );
     return raw
@@ -81,8 +86,8 @@ function sourceFiles(absDir) {
 // below and selectSlice's computeScore, which calls this once per slice
 // instead of independently re-spawning `find` and re-reading every file for
 // hash and LOC separately).
-function readSourceFileData(absDir) {
-  const files = sourceFiles(absDir);
+function readSourceFileData(absDir, opts) {
+  const files = sourceFiles(absDir, opts);
   return files.map((file) => {
     try {
       return { file, buffer: fs.readFileSync(file) };
@@ -98,10 +103,10 @@ function readSourceFileData(absDir) {
 // selectSlice's computeScore AND the final cursor-patch hash lookup in a
 // --budget > 1 next-slice invocation — cache is null/undefined for a normal
 // single-pick call, which falls straight through to the uncached read.
-function readSourceFileDataCached(absDir, cache) {
-  if (!cache) return readSourceFileData(absDir);
+function readSourceFileDataCached(absDir, cache, opts) {
+  if (!cache) return readSourceFileData(absDir, opts);
   if (cache.has(absDir)) return cache.get(absDir);
-  const data = readSourceFileData(absDir);
+  const data = readSourceFileData(absDir, opts);
   cache.set(absDir, data);
   return data;
 }
@@ -131,12 +136,12 @@ function locFromFileData(fileData) {
 // cache: optional Map (see readSourceFileDataCached) — pass the same Map
 // across repeated calls for the same absDir within one CLI invocation to
 // avoid re-spawning `find` and re-reading every file.
-function contentHash(absDir, cache) {
-  return hashFromFileData(absDir, readSourceFileDataCached(absDir, cache));
+function contentHash(absDir, cache, opts) {
+  return hashFromFileData(absDir, readSourceFileDataCached(absDir, cache, opts));
 }
 
 // ─── Hotspot signals (impure; degrade gracefully) ────────────────────────────
-function gitChurn(root, relDir, now) {
+function gitChurn(root, relDir, now, { recursive = true } = {}) {
   try {
     // Full ISO 8601 datetime (with time-of-day and Z/UTC suffix), not a bare
     // YYYY-MM-DD date string — a bare date string is parsed by git as local
@@ -146,15 +151,41 @@ function gitChurn(root, relDir, now) {
     // harness-health/scope.js's domainChurn, journey-health/scope.js, and
     // docs-health/scope.js.
     const since = new Date(now - 30 * 86400000).toISOString();
+    let pathArgs;
+    // recursive:false is only ever passed for the '.' slice (see sliceRecursive) —
+    // this branch always scopes to root-level files regardless of relDir, so passing
+    // recursive:false with a non-'.' relDir would silently mislabel root-level churn
+    // under the wrong id.
+    if (recursive) {
+      pathArgs = [relDir === '.' ? '.' : relDir];
+    } else {
+      // Non-recursive '.': `git log -- .` always means the whole tree
+      // regardless of depth, so instead pass each direct root-level source
+      // file as its own pathspec, scoping churn to exactly what the
+      // non-recursive content-hash also covers.
+      const files = sourceFiles(root, { recursive: false }).map((f) => path.relative(root, f));
+      if (files.length === 0) return 0;
+      pathArgs = files;
+    }
     const out = execFileSync(
       'git',
-      ['-C', root, 'log', '--oneline', `--since=${since}`, '--', relDir === '.' ? '.' : relDir],
+      ['-C', root, 'log', '--oneline', `--since=${since}`, '--', ...pathArgs],
       { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 },
     );
     return out.split('\n').filter(Boolean).length;
   } catch {
     return 0;
   }
+}
+
+// Single source of truth for "is this slice's file/churn scan recursive?" —
+// used by selectSlice's computeScore below AND by bin/code-health.js's own
+// contentHash call sites (cmdNextSlice's budget>1 in-memory cursor-patch
+// hash, cmdValidateFindings' durable-persist hash), so all three agree on
+// exactly the same predicate instead of each re-deriving `id !== '.'` (and
+// risking drift between them).
+function sliceRecursive(id) {
+  return id !== '.';
 }
 
 // Hotspot score = churn × complexity (higher = more important to judge next).
@@ -299,11 +330,12 @@ function selectSlice(root, cursors, opts = {}) {
     // LOC count from that single pass, instead of independently
     // re-spawning `find` and re-reading every file for each.
     computeScore: (slice, cursor) => {
-      const fileData = readSourceFileDataCached(slice.path, fileDataCache);
+      const recursive = sliceRecursive(slice.id);
+      const fileData = readSourceFileDataCached(slice.path, fileDataCache, { recursive });
       const currentHash = hashFromFileData(slice.path, fileData);
       if (cursor.lastHash && cursor.lastHash === currentHash) return null;
       const sig = signals ? signals[slice.id] || { churn: 0, loc: 0 } : null;
-      const churn = sig ? sig.churn : gitChurn(root, slice.id, now);
+      const churn = sig ? sig.churn : gitChurn(root, slice.id, now, { recursive });
       const loc = sig ? sig.loc : locFromFileData(fileData);
       return hotspotScore(churn, loc);
     },
@@ -312,4 +344,4 @@ function selectSlice(root, cursors, opts = {}) {
   });
 }
 
-module.exports = { listSlices, contentHash, selectSlice, listWorkspaceSlices, gitChurn };
+module.exports = { listSlices, contentHash, selectSlice, listWorkspaceSlices, gitChurn, sliceRecursive };

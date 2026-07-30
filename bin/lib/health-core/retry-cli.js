@@ -1,7 +1,6 @@
 'use strict';
 const fs = require('fs');
 const { enqueueRetry, dequeueRetry, shouldEscalate, ESCALATE_AFTER_ATTEMPTS } = require('./durable-state');
-const { emitPendingWrite } = require('./mcp-pending');
 
 // Shared retry-queue CLI command bodies for code-health, harness-health,
 // journey-health, and docs-health — each CLI calls makeRetryQueueCommands
@@ -70,19 +69,6 @@ function makeRetryQueueCommands({ readDurableState, writeDurableState }) {
       }
       return { ...current, retryQueue: queue };
     });
-    if (result.needsMcpWrite) {
-      emitPendingWrite(result);
-      // Same reasoning as the !result.ok branch below: `escalated` was computed
-      // against a mutator attempt that has not persisted anywhere yet, so
-      // reporting it as a real durable 3rd-strike crossing would be a lie.
-      // Print the empty result rather than nothing at all — stdout is this
-      // command's normal channel and the caller redirects it into a file it
-      // then parses as JSON, so an empty stdout is a parse error, not a
-      // no-escalations signal. (Carrying `escalated` through a pending write
-      // correctly is a known, separate gap, not closed here.)
-      process.stdout.write('[]\n');
-      return;
-    }
     if (!result.ok) {
       process.stderr.write(`retry-queue update: health-state persistence failed after retries: ${result.error}\n`);
       // The escalated list above was computed against the final (rejected)

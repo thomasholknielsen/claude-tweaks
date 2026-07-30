@@ -5,7 +5,6 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { makeRetryQueueCommands } = require('../retry-cli');
-const { PENDING_WRITE_PREFIX } = require('../mcp-pending');
 
 function fakeDurableState(initial) {
   let state = { retryQueue: [], ...initial };
@@ -48,25 +47,6 @@ function fakeDurableStateThatFailsToPersist(initial) {
     writeDurableState: (root, mutatorFn) => {
       mutatorFn(state); // runs (and would compute `escalated`), but result is discarded
       return { ok: false, error: 'exhausted 3 CAS attempts' };
-    },
-  };
-}
-
-// Simulates writeDurableState finding no `gh` on PATH and handing the write
-// back for the calling skill to finish through GitHub MCP tools — the mutator
-// still runs (so `escalated` is computed), but nothing is persisted.
-function fakeDurableStateNeedingMcpWrite(initial) {
-  let state = { retryQueue: [], ...initial };
-  return {
-    readDurableState: () => state,
-    writeDurableState: (root, mutatorFn) => {
-      mutatorFn(state); // runs, result discarded — same shape as an exhausted write
-      return {
-        ok: false,
-        needsMcpWrite: true,
-        branch: 'health-state',
-        files: [{ path: 'code-health/retry-queue.json', content: '[]' }],
-      };
     },
   };
 }
@@ -240,49 +220,6 @@ test('update reports an escalated fingerprint only on the firing it first crosse
     4,
     'attempts must still increment even though it is not re-escalated',
   );
-});
-
-// REGRESSION: the pending-MCP-write signal used to be printed to stdout and
-// then returned early, so the calling skill's redirected stdout file held the
-// signal JSON instead of the escalated array it parses — and every other
-// command in the family had the same bug on the same stream. stdout now
-// always carries this command's normal output; the signal moved to a prefixed
-// stderr line.
-test('update prints [] to stdout and signals the pending write on stderr when gh is unavailable', () => {
-  const ds = fakeDurableStateNeedingMcpWrite({
-    retryQueue: [
-      { fingerprint: 'stuck', payload: { title: 'Stuck' }, firstFailedAt: 'x', attempts: 2, lastError: 'timeout' },
-    ],
-  });
-  const { update } = makeRetryQueueCommands(ds);
-  const resultsPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'retry-cli-')), 'results.json');
-  fs.writeFileSync(resultsPath, JSON.stringify([
-    { fingerprint: 'stuck', payload: { title: 'Stuck' }, ok: false, error: 'still failing' },
-  ]));
-
-  let stderrOut = '';
-  const originalStderrWrite = process.stderr.write.bind(process.stderr);
-  process.stderr.write = (chunk) => { stderrOut += chunk; return true; };
-  let out;
-  try {
-    out = captureStdout(() => update({ root: '/repo', _: ['update', resultsPath] }));
-  } finally {
-    process.stderr.write = originalStderrWrite;
-  }
-
-  assert.deepStrictEqual(
-    JSON.parse(out), [],
-    'stdout must stay a parseable escalated array — [] here, since the escalation was never persisted',
-  );
-  assert.ok(
-    !out.includes('needsMcpWrite') && !out.includes(PENDING_WRITE_PREFIX),
-    `the pending-write signal must never reach stdout; got: ${out}`,
-  );
-  const line = stderrOut.split('\n').find((l) => l.startsWith(`${PENDING_WRITE_PREFIX}: `));
-  assert.ok(line, `expected a ${PENDING_WRITE_PREFIX} line on stderr; got: ${stderrOut}`);
-  const signal = JSON.parse(line.slice(PENDING_WRITE_PREFIX.length + 2));
-  assert.strictEqual(signal.branch, 'health-state');
-  assert.ok(Array.isArray(signal.files) && signal.files.length > 0);
 });
 
 test('update prints [] when nothing crosses the escalation threshold', () => {

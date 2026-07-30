@@ -32,27 +32,31 @@ docs-health/runs.json
 
 ## Mechanism
 
-`bin/lib/health-core/durable-state.js`'s `createDurableState(skillName, { includeRemembered } = {})`
+`bin/lib/health-core/durable-state.js`'s `createDurableState(skillName, { includeRemembered, includeDeclined } = {})`
 returns `{ readState(root), writeState(root, mutatorFn) }`:
 
 - **`readState`** — `git fetch origin health-state`, then `git show origin/health-state:<path>`
   per file. Degrades to `{}`/`[]` defaults if the branch or a file doesn't exist yet — never
   throws.
-- **`writeState`** — builds a new commit (blob → tree → commit via the Git Data API,
-  `gh api repos/{owner}/{repo}/git/blobs|trees|commits`) on top of the branch's current tip,
-  then updates the ref with `force: false`. GitHub's fast-forward-only ref update is the
-  compare-and-swap: if another firing moved the branch first, the update is rejected and
-  `writeState` retries the whole read-modify-write cycle (bounded at 3 attempts). On
-  exhaustion, it returns `{ ok: false, error }` rather than throwing — for cursor/run-history
-  bookkeeping, a lost write just means the next firing might redo some rotation work, which is
-  safe (GitHub-issue fingerprint dedup during `validate-findings` means a redundant scan
-  resolves to `skip`, never a duplicate issue). The retry queue is the one exception:
-  `retry-cli.js`'s `drain()` returns the queued payloads as-is, with no existence/fingerprint
-  check against GitHub before the calling skill re-attempts `gh issue create` — so if a
-  payload's `gh issue create` succeeds but the same firing's end-of-run `writeState` (which
-  bundles that dequeue with the cursor/run-history update) then exhausts its retries, the
-  un-dequeued entry survives in `retry-queue.json` and the next firing's drain re-files it,
-  creating a real duplicate issue rather than a safely-redone no-op.
+- **`writeState`** — builds a new commit entirely from plain git plumbing (`git hash-object`
+  for each changed file's blob, `git ls-tree`/`git mktree` to splice those blobs into the
+  skill's own subtree and then the branch's root tree, `git commit-tree` on top of the
+  branch's current tip), then publishes with a single `git push origin <sha>:refs/heads/
+  health-state`. A non-force push is the compare-and-swap: it creates the ref if absent,
+  fast-forward-updates it if present, and is rejected if another firing moved the branch
+  first — `writeState` retries the whole read-modify-write cycle on rejection (bounded at 3
+  attempts). No `gh` CLI, no GitHub MCP tools, no separate bootstrap step — the very first
+  write's own commit (no parent) creates the branch. On exhaustion, it returns
+  `{ ok: false, error }` rather than throwing — for cursor/run-history bookkeeping, a lost
+  write just means the next firing might redo some rotation work, which is safe (GitHub-issue
+  fingerprint dedup during `validate-findings` means a redundant scan resolves to `skip`,
+  never a duplicate issue). The retry queue is the one exception: `retry-cli.js`'s `drain()`
+  returns the queued payloads as-is, with no existence/fingerprint check against GitHub before
+  the calling skill re-attempts `gh issue create` — so if a payload's `gh issue create`
+  succeeds but the same firing's end-of-run `writeState` (which bundles that dequeue with the
+  cursor/run-history update) then exhausts its retries, the un-dequeued entry survives in
+  `retry-queue.json` and the next firing's drain re-files it, creating a real duplicate issue
+  rather than a safely-redone no-op.
 - `includeRemembered` (default `false`) gates whether `remembered.json` is ever read or written
   at all for this skill — a property decided once, at `createDurableState` call time, not
   inferred per-write from whether the in-memory state object happens to carry a `remembered`
@@ -66,133 +70,12 @@ returns `{ readState(root), writeState(root, mutatorFn) }`:
   skill's own `readDurableState`/`writeDurableState` — `code-health`, `harness-health`,
   `journey-health`, and `docs-health`'s CLIs each call this instead of restating the same logic
   four times.
-- **`bin/lib/health-core/retry-durable-write.js`**'s `makeCmdRetryDurableWrite({ writeDurableState, buildValidateFindingsUpdate, toolName })`
-  gives the same four CLIs a `retry-durable-write <retry-input.json>` subcommand: a fresh
-  read-modify-write of the durable branch from an already-computed mutator input, with no
-  finding discovery, no `cache.json` write, and no payload output. It exists for the MCP write
-  path's retry loop below — see that section for why re-running `validate-findings` cannot
-  serve as its own retry.
 
-This is impure (real `git`/`gh` calls via an injectable runner), unlike `bin/lib/issues/claims.js`'s
+This is impure (real `git` calls via an injectable runner), unlike `bin/lib/issues/claims.js`'s
 deliberately emit-only design — issue claim/release is a decision-laden, audit-visible action
 meant to be legible in the skill's own bash trail; reading/writing this branch is mechanical
 plumbing nobody inspects mid-flight, closer to `bin/lib/code-health/scope.js`'s existing
 impure-but-isolated git calls.
-
-## MCP write path (no `gh` CLI available)
-
-When `writeState`'s internal `hasGh()` probe finds no `gh` on PATH (a Claude Code cloud Routine
-sandbox — see the companion `_shared/github-write-transport.md`), it does not attempt any
-network call itself — MCP tools can only be invoked from the calling agent's own turn, never
-from the spawned Node subprocess `writeState` runs in. Instead it returns
-`{ ok: false, needsMcpWrite: true, branch: 'health-state', files: [{ path, content }] }`.
-
-Each CLI command that calls it (`validate-findings`, `retry-queue update`, and the
-`retry-durable-write` retry command below) signals that on **stderr**, and still writes its
-own normal output to stdout unconditionally:
-
-- **stdout, always** — the payloads array for `validate-findings`; the escalated array for
-  `retry-queue update`, which prints `[]` when a write is pending, since the escalation it
-  computed was never actually persisted. Nothing else is ever written to this stream: the
-  calling skills redirect it straight into a file they then parse as JSON, and a second JSON
-  document on the same stream corrupts that file.
-- **stderr, when a durable write is still pending** — one line,
-  `HEALTH_STATE_MCP_PENDING_WRITE: {"branch":...,"files":[...]}`, greppable by prefix.
-  `validate-findings` additionally emits a second line,
-  `HEALTH_STATE_MCP_RETRY_INPUT: {...}` — the already-computed mutator input the retry
-  procedure below feeds to `retry-durable-write`. `retry-queue update` has no such sibling
-  line and needs none (it does no finding discovery to preserve).
-
-The calling skill drives the retry loop itself, up to `MAX_CAS_ATTEMPTS` attempts
-(`node -e "console.log(require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/health-core/durable-state.js').MAX_CAS_ATTEMPTS)"`):
-
-0. **Once, on the first pending-write signal** (not per attempt): capture that command's
-   stdout output (the payloads/escalated array — it is this firing's only copy) and both of
-   its stderr signal lines. When the originating command was `validate-findings`, write the
-   `HEALTH_STATE_MCP_RETRY_INPUT` line's JSON to a file — e.g.
-   `/tmp/{skill}-retry-input.json` — which every attempt below reuses unchanged.
-1. Produce this attempt's signal. **On the first attempt you already have it** — it is the
-   signal the originating command just emitted in step 0; go straight to step 2 without
-   re-running anything. **On every later attempt** (reached only by looping back from step 7),
-   run the command below, which re-reads current state fresh inside itself:
-
-   - **`validate-findings`** — run `retry-durable-write` instead, never `validate-findings`
-     again:
-
-     ```bash
-     node "${CLAUDE_PLUGIN_ROOT}/bin/{skill}.js" retry-durable-write /tmp/{skill}-retry-input.json --root "${ROOT:-$PWD}"
-     ```
-
-     It re-applies the captured mutator input against a freshly re-fetched branch state — a
-     real concurrent update by another firing still resolves correctly — while doing none of
-     `validate-findings`' finding discovery. It writes no payloads to stdout and never touches
-     `cache.json`. Parse **its** stderr for `HEALTH_STATE_MCP_PENDING_WRITE` from step 2 on.
-
-     > **Never re-run `validate-findings` as a retry.** It marks its survivors in `cache.json`
-     > on the first invocation, so for `harness-health`, `journey-health`, and `docs-health` a
-     > second run dedups them away and emits `[]` — verified in practice. A retry loop
-     > redirecting each attempt into the same `/tmp/{skill}-payloads.json` therefore destroys
-     > this firing's real findings before they are ever filed. `code-health` forks the shared
-     > dedup module and consults its cache only for `wontfix`, so it re-emits rather than
-     > losing them — but re-running it is still wrong: it appends a second run record for one
-     > firing and re-emits payloads the caller may already have filed. `retry-durable-write`
-     > is the retry on all four.
-
-   - **`retry-queue update`** — re-run the command itself, from scratch, exactly as before.
-     This is still correct here and the warning above does not apply: it does no finding
-     discovery, so a fresh invocation recomputes the same queue mutation against whatever
-     state it now reads.
-2. Read this attempt's stderr. If it carries no `HEALTH_STATE_MCP_PENDING_WRITE` line, the
-   write either already succeeded via the gh path or failed for an unrelated reason — stop,
-   nothing more to do here. Otherwise parse the JSON after the prefix; its `branch`/`files`
-   drive the steps below.
-3. For each entry in `files`, resolve its current blob sha (empty/error means the file
-   doesn't exist yet — omit `sha` on the write below):
-
-   ```bash
-   git -C "$ROOT" rev-parse "origin/health-state:${FILE_PATH}" 2>/dev/null
-   ```
-
-4. Ensure the `health-state` branch itself exists, before the first `create_or_update_file`
-   call. Branch creation on this transport is a distinct MCP tool (`create_branch`), never an
-   implicit side effect of a content write, so this path needs its own explicit bootstrap step
-   exactly as the gh path needs `ensureBranch`:
-
-   - Check whether the branch already exists — a cheap read attempt against a known path on
-     that branch (the read counterpart to `create_or_update_file`), or whatever
-     branch-existence check the calling agent's available MCP tools support.
-   - If it does not exist, call `create_branch` with name = `health-state` and source = the
-     repository's default branch. Tolerate an "already exists" rejection — a concurrent
-     firing, or the gh path, may have created it first; this mirrors the gh path's own
-     `createRef` 422-tolerance.
-   - This means an MCP-bootstrapped `health-state` branch carries the default branch's
-     history and tree underneath it, unlike the gh path's genuinely orphan, empty-tree
-     branch. There is no MCP-exposed way to create a truly orphan branch, and the divergence
-     is harmless — the branch is scratch, never merged into anything (see this file's opening
-     paragraph) — but it is a real difference between the two paths, not an equivalence.
-5. Call `create_or_update_file` for each file (owner/repo from the current GitHub remote,
-   `branch` = the `branch` field from the JSON, `path`/`content` from that file's entry,
-   `sha` = the value resolved in step 3 if the file already existed, omitted otherwise).
-6. If every file's write succeeds, done — report success, same as a normal `{ ok: true }`.
-7. If any file's write is rejected for a sha-mismatch/already-exists reason, sleep
-   `casBackoffMs(attempt)` (`node -e "console.log(require(...).casBackoffMs(${ATTEMPT}))"`,
-   then actually wait that many milliseconds) and go back to step 1 — state may have changed,
-   so this attempt's command must run again and re-read it, never be retried with the `files`
-   array a previous attempt computed. Step 0 does not repeat: the captured retry input is this
-   firing's own already-computed update, and reusing it is exactly what lets the command
-   re-read the *other* firing's state without re-running finding discovery.
-8. If any file's write fails for a reason that is clearly not a conflict (a hard tool error —
-   malformed request, an outage), stop immediately and report the failure. Do not spend
-   retry attempts on a broken transport.
-9. If `MAX_CAS_ATTEMPTS` is exhausted without success, report the same non-fatal outcome the
-   gh path's own exhaustion already produces (see each CLI's existing "non-fatal" stderr
-   message) — a lost write here just means the next firing might redo some rotation work,
-   safe per the same reasoning documented in "Mechanism" above.
-
-The exact `create_or_update_file` and `create_branch` parameter names should be confirmed
-against the live tool schema at the point this procedure is actually exercised — see
-`_shared/github-write-transport.md` for the shared detection check and CRUD mapping this
-procedure builds on.
 
 ## Retry / dead-letter queue
 

@@ -4,7 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { listSlices, contentHash, selectSlice, listWorkspaceSlices, gitChurn } = require('../scope');
+const { listSlices, contentHash, selectSlice, listWorkspaceSlices, gitChurn, sliceRecursive } = require('../scope');
 const { MAX_STALE_DAYS } = require('../score');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'codehealth-scope-')); }
@@ -15,16 +15,45 @@ function initGitRepo(root) {
   execFileSync('git', ['-C', root, 'config', 'user.name', 'Test']);
 }
 
+// ─── sliceRecursive ────────────────────────────────────────────────────────
+
+test('sliceRecursive is false only for the "." slice id', () => {
+  assert.strictEqual(sliceRecursive('.'), false);
+  assert.strictEqual(sliceRecursive('src'), true);
+  assert.strictEqual(sliceRecursive('packages/a'), true);
+});
+
 // ─── listSlices ────────────────────────────────────────────────────────────
 
 test('listSlices returns "." for a flat dir with no subdirs', () => {
   const root = tmp();
+  fs.writeFileSync(path.join(root, 'index.js'), 'module.exports = {};\n');
   const slices = listSlices(root);
   assert.deepStrictEqual(slices.map((s) => s.id), ['.']);
 });
 
+test('listSlices omits "." entirely when the root has no direct root-level source files', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'src'));
+  fs.writeFileSync(path.join(root, 'src', 'a.js'), 'const x = 1;\n');
+  fs.writeFileSync(path.join(root, 'README.md'), '# hi\n'); // not a SOURCE_EXTS match
+  const ids = listSlices(root).map((s) => s.id);
+  assert.ok(!ids.includes('.'), '"." must be omitted when root has zero direct source files (README.md does not count)');
+  assert.ok(ids.includes('src'), 'src must still be included');
+});
+
+test('listSlices still includes "." when the root has at least one direct root-level source file', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'src'));
+  fs.writeFileSync(path.join(root, 'src', 'a.js'), 'const x = 1;\n');
+  fs.writeFileSync(path.join(root, 'webpack.config.js'), 'module.exports = {};\n');
+  const ids = listSlices(root).map((s) => s.id);
+  assert.ok(ids.includes('.'), '"." must still be included when root has a direct source file');
+});
+
 test('listSlices includes immediate subdirs, excludes SKIP_DIRS', () => {
   const root = tmp();
+  fs.writeFileSync(path.join(root, 'index.js'), 'module.exports = {};\n');
   fs.mkdirSync(path.join(root, 'src'));
   fs.mkdirSync(path.join(root, 'lib'));
   fs.mkdirSync(path.join(root, 'node_modules'));
@@ -50,6 +79,7 @@ test('listSlices excludes .claude and .worktrees (other sessions\' live worktree
 
 test('listSlices slice.path is the absolute path', () => {
   const root = tmp();
+  fs.writeFileSync(path.join(root, 'index.js'), 'module.exports = {};\n');
   fs.mkdirSync(path.join(root, 'pkg'));
   const slices = listSlices(root);
   const pkg = slices.find((s) => s.id === 'pkg');
@@ -61,6 +91,7 @@ test('listSlices slice.path is the absolute path', () => {
 
 test('listSlices: a workspace-covered top-level dir is replaced by its expanded children', () => {
   const root = tmp();
+  fs.writeFileSync(path.join(root, 'index.js'), 'module.exports = {};\n');
   fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ workspaces: ['packages/*'] }));
   fs.mkdirSync(path.join(root, 'packages', 'a'), { recursive: true });
   fs.mkdirSync(path.join(root, 'packages', 'b'), { recursive: true });
@@ -72,6 +103,7 @@ test('listSlices: a workspace-covered top-level dir is replaced by its expanded 
 
 test('listSlices: falls back to one-level behavior when no workspace manifest exists', () => {
   const root = tmp();
+  fs.writeFileSync(path.join(root, 'index.js'), 'module.exports = {};\n');
   fs.mkdirSync(path.join(root, 'src'));
   fs.mkdirSync(path.join(root, 'lib'));
   const ids = listSlices(root).map((s) => s.id).sort();
@@ -224,6 +256,32 @@ test('contentHash returns a stable hash for a dir with no source files', () => {
   // No source files — should return a non-empty string without throwing
   const h = contentHash(root);
   assert.ok(typeof h === 'string' && h.length > 0);
+});
+
+test('contentHash with { recursive: false } is unaffected by a change inside a subdirectory', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'src', 'a.js'), 'const x = 1;\n');
+  const before = contentHash(root, null, { recursive: false });
+  fs.writeFileSync(path.join(root, 'src', 'a.js'), 'const x = 2;\n');
+  const after = contentHash(root, null, { recursive: false });
+  assert.strictEqual(before, after, 'a change inside a subdirectory must not affect the non-recursive "." hash');
+});
+
+test('contentHash with { recursive: false } DOES change when a direct root-level file changes', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'root.js'), 'const x = 1;\n');
+  const before = contentHash(root, null, { recursive: false });
+  fs.writeFileSync(path.join(root, 'root.js'), 'const x = 2;\n');
+  const after = contentHash(root, null, { recursive: false });
+  assert.notStrictEqual(before, after, 'a change to a direct root-level file must affect the non-recursive "." hash');
+});
+
+test('contentHash: a flat repo with no subdirectories hashes identically whether recursive or not', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'a.js'), 'const x = 1;\n');
+  fs.writeFileSync(path.join(root, 'b.js'), 'const y = 2;\n');
+  assert.strictEqual(contentHash(root), contentHash(root, null, { recursive: false }));
 });
 
 // ─── selectSlice ───────────────────────────────────────────────────────────
@@ -411,6 +469,7 @@ test('listWorkspaceSlices: strips a leading "./" from a workspace pattern', () =
 
 test('listSlices: a leading "./" workspace pattern still replaces the mega-slice (no duplicate coverage)', () => {
   const root = tmp();
+  fs.writeFileSync(path.join(root, 'index.js'), 'module.exports = {};\n');
   fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ workspaces: ['./packages/*'] }));
   fs.mkdirSync(path.join(root, 'packages', 'a'), { recursive: true });
   const ids = listSlices(root).map((s) => s.id).sort();
@@ -436,6 +495,7 @@ test('listSlices: a literal workspace entry that exactly names a top-level dir d
 
 test('listSlices returns slices sorted by id, not raw readdir order', () => {
   const root = tmp();
+  fs.writeFileSync(path.join(root, 'index.js'), 'module.exports = {};\n');
   // Create in an order that is very unlikely to already be alphabetical.
   for (const name of ['zeta', 'alpha', 'mu', 'beta']) {
     fs.mkdirSync(path.join(root, name));
@@ -491,3 +551,24 @@ test(
     }
   },
 );
+
+test('gitChurn with { recursive: false } does not count a commit that only touches a nested file', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'src', 'a.js'), 'const x = 1;\n');
+  initGitRepo(root);
+  execFileSync('git', ['-C', root, 'add', '.']);
+  execFileSync('git', ['-C', root, 'commit', '-q', '-m', 'nested file only']);
+  const churn = gitChurn(root, '.', Date.now(), { recursive: false });
+  assert.strictEqual(churn, 0, 'a commit touching only a nested file must not count toward the non-recursive "." churn');
+});
+
+test('gitChurn with { recursive: false } counts a commit that touches a direct root-level file', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'root.js'), 'const x = 1;\n');
+  initGitRepo(root);
+  execFileSync('git', ['-C', root, 'add', '.']);
+  execFileSync('git', ['-C', root, 'commit', '-q', '-m', 'root-level file']);
+  const churn = gitChurn(root, '.', Date.now(), { recursive: false });
+  assert.ok(churn >= 1, `expected the root-level commit to be counted, got churn=${churn}`);
+});

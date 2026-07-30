@@ -12,20 +12,15 @@ const { validateFindingV2, applyConfidenceFloor } = require('./lib/code-health/v
 const { toIssuePayloadV2 } = require('./lib/code-health/issue-payload');
 const { getCriterion } = require('./lib/code-health/criteria');
 const { classifyArea } = require('./lib/code-health/area-type');
-const { listSlices, contentHash, selectSlice } = require('./lib/code-health/scope');
+const { listSlices, contentHash, selectSlice, sliceRecursive } = require('./lib/code-health/scope');
 const { makeRetryQueueCommands } = require('./lib/health-core/retry-cli');
 const { loadIssueIndex } = require('./lib/health-core/issue-index');
 const { selectBudget } = require('./lib/health-core/budget');
 const { makeCmdChurnReport } = require('./lib/health-core/churn-report');
-const { emitPendingWrite, emitRetryInput } = require('./lib/health-core/mcp-pending');
-const { makeCmdRetryDurableWrite } = require('./lib/health-core/retry-durable-write');
 
 const retryQueueCommands = makeRetryQueueCommands({ readDurableState, writeDurableState });
 const cmdChurnReport = makeCmdChurnReport({ readDurableState, computeChurn });
 const TOOL_NAME = 'code-health';
-const cmdRetryDurableWrite = makeCmdRetryDurableWrite({
-  writeDurableState, buildValidateFindingsUpdate, toolName: TOOL_NAME,
-});
 const FAIL_ON_VALUES = new Set(['regressed', 'risk-high']);
 
 // Shared by cmdPullIssues' --min-severity and cmdValidateFindings' --min-risk —
@@ -271,17 +266,12 @@ function cmdValidateFindings(args) {
     try {
       const sliceId = args.slice;
       const areasSwept = sliceId ? [sliceId] : [];
-      const hashes = sliceId ? { [sliceId]: contentHash(path.resolve(root, sliceId)) } : {};
+      const hashes = sliceId ? { [sliceId]: contentHash(path.resolve(root, sliceId), null, { recursive: sliceRecursive(sliceId) }) } : {};
       const runRecord = { runId: args.runId, runAt: new Date().toISOString(), fingerprints: [...seen] };
-      // Named rather than inlined into the mutator so the exact same input can
-      // be handed to `retry-durable-write` below — a CAS retry must re-apply
-      // this firing's already-computed update, never re-run finding discovery.
+      // Named rather than inlined into the mutator call below, for readability.
       const mutatorInput = { areasSwept, hashes, rememberCandidates, runRecord };
       const result = writeDurableState(root, (current) => buildValidateFindingsUpdate(current, mutatorInput));
-      if (result.needsMcpWrite) {
-        emitPendingWrite(result);
-        emitRetryInput(mutatorInput);
-      } else if (!result.ok) {
+      if (!result.ok) {
         process.stderr.write(
           `[code-health] validate-findings: health-state persistence failed after retries (non-fatal, payloads still emitted): ${result.error}\n`,
         );
@@ -324,7 +314,7 @@ function cmdNextSlice(args) {
   // cursor state in-memory between picks (see bin/lib/health-core/budget.js).
   const chosen = selectBudget(budget, cursors, (c) => selectSlice(root, c, { now, fileDataCache }), {
     getCursorKey: (slice) => slice.id,
-    buildCursorPatch: (_, slice) => ({ lastSweptMs: now, lastHash: contentHash(slice.path, fileDataCache) }),
+    buildCursorPatch: (_, slice) => ({ lastSweptMs: now, lastHash: contentHash(slice.path, fileDataCache, { recursive: sliceRecursive(slice.id) }) }),
   });
   process.stdout.write(JSON.stringify(chosen, null, 2) + '\n');
 }
@@ -344,7 +334,6 @@ function main(argv) {
   if (cmd === 'churn-report') return cmdChurnReport(args);
   if (cmd === 'pull-issues') return cmdPullIssues(args);
   if (cmd === 'validate-findings') return cmdValidateFindings(args);
-  if (cmd === 'retry-durable-write') return cmdRetryDurableWrite(args);
   if (cmd === 'classify') return cmdClassify(args);
   if (cmd === 'next-slice') return cmdNextSlice(args);
   // args._[0] is always 'retry-queue' itself (parseArgs pushes every positional,
@@ -359,7 +348,7 @@ function main(argv) {
   process.stderr.write(
     'usage: code-health.js <command> [options]\n' +
     'commands: validate-findings [--slice <id>], classify, next-slice, status, churn-report, pull-issues, ' +
-    'retry-queue drain, retry-queue update <results.json>, retry-durable-write <retry-input.json>\n',
+    'retry-queue drain, retry-queue update <results.json>\n',
   );
   process.exit(2);
 }
