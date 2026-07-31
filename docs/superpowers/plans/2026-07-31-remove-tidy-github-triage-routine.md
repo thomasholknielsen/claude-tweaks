@@ -995,6 +995,206 @@ files.
 
 ---
 
+### Task 9: Fix stale Rolling-digest references discovered by Task 8's sweep, delete orphaned metrics module
+
+**Added after Task 8's own review** — Task 8's verification sweep used literal greps
+(`github-triage`, `--variant`, `tidy-routine-autonomy`) scoped to what Tasks 1-7 were known to
+touch. Those greps passed, but an independent broader check (case-insensitive, repo-wide, for
+the deleted "Rolling digest" concept specifically) found 6 more files still describing it as
+current, plus one now-fully-orphaned code module. None of this was in the original design doc's
+Files-touched list — it's new scope, confirmed with the user before starting this task.
+
+**Files:**
+- Modify: `skills/tidy/SKILL.md`
+- Modify: `skills/dispatch/SKILL.md`
+- Modify: `skills/dispatch/routine-template.yml`
+- Modify: `CLAUDE.md`
+- Modify: `README.md`
+- Delete: `bin/lib/issues/metrics.js`
+- Delete: `bin/lib/issues/tests/metrics.test.js`
+
+**Interfaces:**
+- Consumes: nothing from other tasks.
+- Produces: nothing other tasks consume. `npm test`'s total drops from 1687 to 1671 (16 tests
+  removed with `metrics.test.js`) — this is the correct, expected new baseline, not a
+  regression.
+
+- [ ] **Step 1: Confirm `metrics.js` is genuinely orphaned before deleting**
+
+  Run:
+
+  ```bash
+  grep -rn "computeStageDurations\|computeWontfixRate\|summarizeFunnel" --include="*.js" --include="*.md" . | grep -v "bin/lib/issues/metrics.js\|bin/lib/issues/tests/metrics.test.js\|.claude-tweaks/pipelines/archive/"
+  ```
+
+  Expected: no output (the only other hits are inside an archived historical pipeline run under
+  `.claude-tweaks/pipelines/archive/`, which is excluded above and must stay untouched — it's a
+  closed pipeline's own historical record, not live code or a consumer).
+
+- [ ] **Step 2: Delete the orphaned module and its test**
+
+  ```bash
+  git rm bin/lib/issues/metrics.js bin/lib/issues/tests/metrics.test.js
+  ```
+
+- [ ] **Step 3: Fix `skills/tidy/SKILL.md`'s own Relationship table (2 rows)**
+
+  Change:
+
+  ```
+  | `/claude-tweaks:backlog` | Reciprocal gate relationship: `/tidy`'s Step 1 record scan surfaces `bot:blocked` records (Shape 5) and `ready`-but-unscored records (Shape 4) as candidates for `refine` mode's grant worklist, and its Step 4.8 pending-authorization count (per `_shared/github-pr-scan.md`'s `repo-wide` scope) surfaces in the rolling digest. `overview` mode folds `unsynced: true` local fallback records into its survey (surfacing only — for the priority axis specifically, the actual write happens via `refine` mode's apply path); neither mode fixes the sync state itself — `/tidy`'s existing Shape 3 (Step 1) owns the actual sync action. `/tidy` never grants authorization itself — that stays `refine` mode's job. Migration note: pre-6.0 records still carrying retired `tier:*`/`status:*`/`backlog` labels surface via `/tidy`'s legacy-taxonomy finding (Shape 7), not through the gate — see `backlog/SKILL.md`'s own Relationship row for the reciprocal note. |
+  ```
+
+  to:
+
+  ```
+  | `/claude-tweaks:backlog` | Reciprocal gate relationship: `/tidy`'s Step 1 record scan surfaces `bot:blocked` records (Shape 5) and `ready`-but-unscored records (Shape 4) as candidates for `refine` mode's grant worklist, and its Step 4.8 pending-authorization count (per `_shared/github-pr-scan.md`'s `repo-wide` scope) surfaces in the Step 6 report. `overview` mode folds `unsynced: true` local fallback records into its survey (surfacing only — for the priority axis specifically, the actual write happens via `refine` mode's apply path); neither mode fixes the sync state itself — `/tidy`'s existing Shape 3 (Step 1) owns the actual sync action. `/tidy` never grants authorization itself — that stays `refine` mode's job. Migration note: pre-6.0 records still carrying retired `tier:*`/`status:*`/`backlog` labels surface via `/tidy`'s legacy-taxonomy finding (Shape 7), not through the gate — see `backlog/SKILL.md`'s own Relationship row for the reciprocal note. |
+  ```
+
+  Change:
+
+  ```
+  | `/claude-tweaks:dispatch` | `/tidy` Step 4.7 surfaces orphaned or stale claims dispatch left behind, and Step 1's Shape 5 surfaces `bot:blocked` records (dispatch's retry-ceiling mark) as re-authorization candidates. A headless dispatch firing's outcome ultimately surfaces on `/tidy`'s own rolling `--scope=github` digest rather than a console dispatch renders itself. |
+  ```
+
+  to:
+
+  ```
+  | `/claude-tweaks:dispatch` | `/tidy` Step 4.7 surfaces orphaned or stale claims dispatch left behind, and Step 1's Shape 5 surfaces `bot:blocked` records (dispatch's retry-ceiling mark) as re-authorization candidates. A headless dispatch firing's outcome ultimately surfaces on `/tidy`'s own periodic sweep rather than a console dispatch renders itself. |
+  ```
+
+- [ ] **Step 4: Fix `skills/dispatch/SKILL.md` (4 locations)**
+
+  Change:
+
+  ```
+  **Headless self-report (`next` form only).** The `next` form fires unattended — the unit a scheduled Routine fires with nobody present to read a stop message (see the Input table above). A Preflight failure here needs a durable trace instead of a message nobody sees. Before stopping on any Preflight failure (the `work-backend` checks above, or the Detection Ladder below), search for an existing open report first, to avoid re-filing on every firing — never via `gh issue list --search`, which rides GitHub's eventually-consistent search index (the same anti-pattern that caused `/tidy`'s rolling digest to file duplicate issues on repeat firings — see `tidy/github-routine-procedures.md`'s Rolling digest section); use the same plain-list + marker-match idiom instead:
+  ```
+
+  to:
+
+  ```
+  **Headless self-report (`next` form only).** The `next` form fires unattended — the unit a scheduled Routine fires with nobody present to read a stop message (see the Input table above). A Preflight failure here needs a durable trace instead of a message nobody sees. Before stopping on any Preflight failure (the `work-backend` checks above, or the Detection Ladder below), search for an existing open report first, to avoid re-filing on every firing — never via `gh issue list --search`, which rides GitHub's eventually-consistent search index (the same anti-pattern documented in `_shared/github-write-transport.md`); use the same plain-list + marker-match idiom instead:
+  ```
+
+  Change:
+
+  ```
+  - Otherwise (`canonical` is set — a match was found): if `duplicates` is non-empty (however that happened — this is the hedge, not the expected path; the same self-heal pattern `tidy/github-routine-procedures.md`'s Rolling digest section uses), resolve this firing's run dir first — via `_shared/pipeline-run-dir.md`'s standalone-auto fallback (dispatch is on the allowlist; this block runs in Preflight, before Workflow Step 1 would otherwise resolve `$RUN_ID`, so it cannot be assumed already resolved here) — then close every duplicate entry: `gh issue close {n} --reason "not planned"` with a comment `` "Duplicate of #{canonical.number} — same `dispatch-preflight-marker` match, closing to keep one open self-report per failing check." `` — then log one line per closed duplicate to that run dir's `decisions.md`: `AUTO {time} — dispatch headless self-report: closed duplicate issue #{n} (marker match with canonical #{canonical.number}). Reversibility: low (GitHub state; issue can be manually re-opened).` Then, whether or not any duplicates were found, reference `#{canonical.number}` in the stop output and file nothing new.
+  ```
+
+  to:
+
+  ```
+  - Otherwise (`canonical` is set — a match was found): if `duplicates` is non-empty (however that happened — this is the hedge, not the expected path), resolve this firing's run dir first — via `_shared/pipeline-run-dir.md`'s standalone-auto fallback (dispatch is on the allowlist; this block runs in Preflight, before Workflow Step 1 would otherwise resolve `$RUN_ID`, so it cannot be assumed already resolved here) — then close every duplicate entry: `gh issue close {n} --reason "not planned"` with a comment `` "Duplicate of #{canonical.number} — same `dispatch-preflight-marker` match, closing to keep one open self-report per failing check." `` — then log one line per closed duplicate to that run dir's `decisions.md`: `AUTO {time} — dispatch headless self-report: closed duplicate issue #{n} (marker match with canonical #{canonical.number}). Reversibility: low (GitHub state; issue can be manually re-opened).` Then, whether or not any duplicates were found, reference `#{canonical.number}` in the stop output and file nothing new.
+  ```
+
+  Change:
+
+  ```
+  A headless (Routine-fired) firing's report has nobody live to read it — the durable trace is the label state change, the claim-comment trail, and `decisions.md`, not a rendered console. Over time, a human sees the aggregate picture via `/claude-tweaks:tidy`'s own `--scope=github` rolling digest (the "Tidy GitHub-Triage Digest" issue, `tidy/SKILL.md`) — it scans GitHub state independently on its own cadence and surfaces `bot:blocked` records and stale claims without dispatch having to push anything to it directly.
+  ```
+
+  to:
+
+  ```
+  A headless (Routine-fired) firing's report has nobody live to read it — the durable trace is the label state change, the claim-comment trail, and `decisions.md`, not a rendered console. Over time, a human sees the aggregate picture via `/claude-tweaks:tidy`'s own periodic sweep (`tidy/SKILL.md`) — it scans GitHub state independently on its own cadence and surfaces `bot:blocked` records and stale claims without dispatch having to push anything to it directly.
+  ```
+
+  Change:
+
+  ```
+  | `/claude-tweaks:tidy` | Surfaces orphaned or stale claims dispatch left behind (Step 4.7) and `bot:blocked` records as re-authorization candidates; a headless firing's outcome ultimately surfaces on `/tidy`'s own rolling GitHub-triage digest rather than a console dispatch renders itself — see Reporting above. |
+  ```
+
+  to:
+
+  ```
+  | `/claude-tweaks:tidy` | Surfaces orphaned or stale claims dispatch left behind (Step 4.7) and `bot:blocked` records as re-authorization candidates; a headless firing's outcome ultimately surfaces on `/tidy`'s own periodic sweep rather than a console dispatch renders itself — see Reporting above. |
+  ```
+
+- [ ] **Step 5: Fix `skills/dispatch/routine-template.yml` (text + required version bump)**
+
+  Change:
+
+  ```
+  There is no consolidated multi-group console — each firing reports only its own group's
+  outcome; the aggregate picture surfaces over time via /claude-tweaks:tidy's own rolling
+  GitHub-triage digest. A pending-review outcome parks (branch and run dir wait for a
+  ```
+
+  to:
+
+  ```
+  There is no consolidated multi-group console — each firing reports only its own group's
+  outcome; the aggregate picture surfaces over time via /claude-tweaks:tidy's own periodic
+  GitHub/PR sweep. A pending-review outcome parks (branch and run dir wait for a
+  ```
+
+  Also bump `template_version: 1` to `template_version: 2` — per
+  `skills/_shared/routine-template-schema.md`'s own Anti-Patterns table, any edit to a
+  template's content requires a version bump so `/claude-tweaks:routine status` can detect
+  drift on already-instantiated routines; skipping it would violate that documented rule.
+
+- [ ] **Step 6: Fix `CLAUDE.md`'s Skills-with-sub-files table row for tidy**
+
+  Change:
+
+  ```
+  | tidy | scan-procedures.md, github-routine-procedures.md | Per-step scan rules for Steps 1-5.5 (one merged work-record scan covering backlog/parked/unsynced/unscored-ready/bot:blocked/legacy-taxonomy shapes, design-docs+briefs, plans, git worktrees, doc registry, sizing, cross-spec patterns, issue claims (Step 4.7), GitHub PRs + code-health/harness-health/journey-health/docs-health issues (Step 4.8 via _shared/github-pr-scan.md)) — inlined into each parallel agent's prompt at dispatch time; standalone-auto GitHub-routine procedures (Evidence tier, Rolling digest, Notification, Archival compaction) — `--scope=github` only |
+  ```
+
+  to:
+
+  ```
+  | tidy | scan-procedures.md | Per-step scan rules for Steps 1-5.5 (one merged work-record scan covering backlog/parked/unsynced/unscored-ready/bot:blocked/legacy-taxonomy shapes, design-docs+briefs, plans, git worktrees, doc registry, sizing, cross-spec patterns, issue claims (Step 4.7), GitHub PRs + code-health/harness-health/journey-health/docs-health issues (Step 4.8 via _shared/github-pr-scan.md)) — inlined into each parallel agent's prompt at dispatch time |
+  ```
+
+- [ ] **Step 7: Fix `README.md`'s `gh` CLI requirements row**
+
+  Change:
+
+  ```
+  | `gh` CLI | `brew/winget/apt install gh`, then `gh auth login` | Yes, for most `work-backend: github-issues` write paths — required, unauthenticated is a hard gate. Three write paths (the health skills' durable-state cursor writer, `/dispatch`'s issue-claim lock, `/tidy`'s GitHub digest) fall back to GitHub MCP tools automatically when `gh` isn't on PATH — see `_shared/github-write-transport.md` — but `gh` is still required for every other GitHub-write path in the plugin. |
+  ```
+
+  to:
+
+  ```
+  | `gh` CLI | `brew/winget/apt install gh`, then `gh auth login` | Yes, for most `work-backend: github-issues` write paths — required, unauthenticated is a hard gate. Two write paths (the health skills' durable-state cursor writer, `/dispatch`'s issue-claim lock) fall back to GitHub MCP tools automatically when `gh` isn't on PATH — see `_shared/github-write-transport.md` — but `gh` is still required for every other GitHub-write path in the plugin. |
+  ```
+
+- [ ] **Step 8: Verify**
+
+  Run:
+
+  ```bash
+  grep -rn -i "rolling digest\|github-routine-procedures\|github-triage digest" . --include="*.md" --include="*.yml" --include="*.js" | grep -v "docs/superpowers/specs/\|docs/superpowers/plans/\|_shared/github-write-transport.md"
+  ```
+
+  Expected: no output. (`_shared/github-write-transport.md`'s own past-tense historical-incident
+  mention of "tidy's Rolling digest" — citing issues #1016/#1079/#1089 as a completed production
+  incident — is excluded above; it's legitimate historical narrative, not a claim of current
+  behavior, and is out of scope for this task.)
+
+- [ ] **Step 9: Run the full suite**
+
+  Run: `npm test`
+  Expected: 1671/1671 passing, 0 failures (1687 minus the 16 tests removed with
+  `metrics.test.js` — this is the correct new baseline, not a regression).
+
+- [ ] **Step 10: Commit**
+
+  ```bash
+  git add skills/tidy/SKILL.md skills/dispatch/SKILL.md skills/dispatch/routine-template.yml CLAUDE.md README.md
+  git add -u bin/lib/issues/metrics.js bin/lib/issues/tests/metrics.test.js
+  git commit -m "Fix stale Rolling-digest references, delete orphaned metrics module
+
+  refs #remove-tidy-github-triage-routine"
+  ```
+
+---
+
 ## Self-Review Notes
 
 - **Spec coverage:** every "Files touched" row in the design doc maps to exactly one step above
@@ -1010,3 +1210,11 @@ files.
   `bin/lib/policy-schema.js` and is used consistently in Task 1; the design doc's looser
   "POLICY_SCHEMA" phrasing was a conceptual label only, not a task-facing type name — Task 1
   uses the real one throughout.
+- **Task 9 addendum:** added after Task 8's own review surfaced a gap the original design doc
+  didn't cover — Tasks 1-7's verification greps were scoped to what each task's own brief
+  named, and Task 8's 3 greps were scoped to what Tasks 1-7 were known to touch, so none of
+  them could catch a broader, differently-worded staleness (lowercase "rolling digest," a live
+  routine template's prompt text, canonical CLAUDE.md/README.md prose, or a fully orphaned code
+  module) in files outside the original plan's scope entirely. Confirmed with the user before
+  adding this task, per the same principle as every other scope-expanding decision in this
+  plan.
