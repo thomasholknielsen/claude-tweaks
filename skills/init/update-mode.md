@@ -234,20 +234,37 @@ requires reading git history and judging diffs, not checking a marker's existenc
 Skip entirely if `.claude-tweaks/routines/` doesn't exist (same gate as Routine Drift and Routine
 Relevance above).
 
-Call `RemoteTrigger {action: "list"}`, filter to triggers whose
-`job_config.ccr.session_context.sources[].git_repository.url` matches this project's own resolved
-repo URL (`git remote get-url origin`, normalized the same way `/claude-tweaks:routine`'s CREATE
-Step 2 normalizes it) — this is the project's own routine set, regardless of which skill each was
-created from. If none, skip. **Known limitation, confirmed live** (same one `/claude-tweaks:routine`
-CREATE Step 4 documents for this identical call): `{action: "list"}` returns only its first page,
-with no cursor/pagination parameter exposed — on an account with enough triggers to paginate, some
-of this project's own routines could sit on a later page and go undetected by this filter, causing
-this check to under-count candidates or wrongly report "already dedicated."
+Build "this project's own routine set" from two complementary sources, unioned and deduplicated by
+`trigger_id` (a routine found by both counts once):
+
+(a) **Project-local records** (already known to exist, from the gate above): for each
+`.claude-tweaks/routines/*.yml`, its `routine_id` field is a `trigger_id`. For any such `trigger_id`
+not already present among source (b)'s `list` results below, call `RemoteTrigger {action: "get",
+trigger_id: record.routine_id}` to learn its `job_config.ccr.environment_id` (skip a record whose
+`get` call fails — that routine was deleted out-of-band; read-only here, no cleanup offered). This
+source finds every routine created via `skills/routine/guided-environment-creation.md`'s Create
+procedure, which never populates `session_context.sources[].git_repository.url` at all (confirmed
+live — see that file's own Create procedure step 7) — those routines are otherwise entirely
+invisible to source (b) below, regardless of pagination.
+
+(b) **Account-wide `list` + repo-URL filter**: call `RemoteTrigger {action: "list"}`, filter to
+triggers whose `job_config.ccr.session_context.sources[].git_repository.url` matches this project's
+own resolved repo URL (`git remote get-url origin`, normalized the same way
+`/claude-tweaks:routine`'s CREATE Step 2 normalizes it) — this catches a routine created outside
+`/claude-tweaks:routine` entirely (so it has no local record) but does still populate `sources[]`.
+**Known limitation, confirmed live** (same one `/claude-tweaks:routine` CREATE Step 4 documents for
+this identical call): `{action: "list"}` returns only its first page, with no cursor/pagination
+parameter exposed — on an account with enough triggers to paginate, a non-locally-recorded routine
+could sit on a later page and go undetected by this source. Source (a) already covers every
+locally-recorded routine regardless of pagination; this residual gap only affects a routine neither
+recorded locally nor caught by this filter.
+
+If the union is empty, skip.
 
 No API exposes a cloud environment's human-readable name — only its opaque `environment_id`. Check
 `.claude-tweaks/routine-environment-cache.yml` first: if it holds both `environment_id` and
 `environment_name`, and every one of this project's routines' `environment_id` values (from the
-`list` call above) already equals the cached one, report "Routine Environment Dedication: already
+union above) already equals the cached one, report "Routine Environment Dedication: already
 on a dedicated environment" and skip further action — no browser pass needed on this run.
 
 Otherwise, at least one routine's `environment_id` is unknown-by-name or doesn't match the cache.
@@ -282,7 +299,7 @@ action: "Move to claude-tweaks: <project-slug>"), then call `AskUserQuestion`:
   environment(s) — I'll move them manually later"`
 
 On "Apply all recommended" or a partial "Override specific items" selection: invoke the Re-point
-procedure once per selected routine (its `trigger_id` from the `list` call above,
+procedure once per selected routine (its `trigger_id` from the union above,
 `target_environment_name` = `claude-tweaks: <project-slug>`) — on the *first* invocation only,
 pass `create_if_missing: true` if no environment already named `claude-tweaks: <project-slug>`
 was found among the names resolved above (this bootstraps the dedicated environment by

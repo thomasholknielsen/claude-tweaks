@@ -19,8 +19,9 @@ automation. All three procedures below are interactive-only: if claude-in-chrome
 extension connected, or the user declines when `/browse` offers it), fall back immediately to
 printing the exact values below for the user to enter manually, and return a failure to the caller
 in that procedure's own return shape (Create: `{trigger_id: null, console_url: null, environment_id:
-null, environment_name: null}`; Audit: `{environment_name: null}`; Re-point: report failure per its
-own step 4) — never block the calling step's own flow waiting on a browser that isn't there.
+null, environment_name: null, connectors_pending: []}`; Audit: `{environment_name: null}`; Re-point:
+report failure per its own step 4) — never block the calling step's own flow waiting on a browser
+that isn't there.
 
 ## Naming convention
 
@@ -43,8 +44,8 @@ schedule-bearing routine with no automated way to remove it. Instead, the same b
 creates the environment also submits the caller's real routine directly through the web UI — one
 continuous session, no throwaway, no cleanup step needed. This means the caller must have every
 field the routine itself needs already resolved *before* invoking this procedure (in particular,
-`/claude-tweaks:routine`'s CREATE flow must resolve its schedule (Step 5) before falling through to
-this file at Step 4, not after).
+`/claude-tweaks:routine`'s CREATE flow must resolve its schedule (Step 5) before Step 8 invokes this
+file — Step 4 only sets the deferred-invocation flag, it does not call this procedure directly).
 
 Takes: `project_slug`, `repo_url`, `routine_name` (the caller's already-derived `PREFIXED_NAME`),
 `cron_expression` (the caller's already-resolved schedule, e.g. from CREATE Step 5's cadence
@@ -56,11 +57,15 @@ names, if any; see the connectors caveat in step 6 below).
    `claude.ai/code`, open the Routines sidebar entry, then click the "+ New routine" button —
    confirmed live as the correct entry point (not a generic "New" sidebar affordance) — leading to
    a new-routine form that exposes the same Environment combobox the edit-routine dialog does.
-2. In that form, select any repository first (the "Select a repository" control near the bottom of
-   the form) — confirmed live that the Environment combobox does not open at all until a repository
-   is selected. With a repository selected, locate the "Environment" combobox (a `find` query for
-   "Environment selector combobox" locates it reliably — confirmed live against both the new-routine
-   form and the edit-routine dialog's identical component) and click it.
+2. In that form, select the repository matching `repo_url` first (the "Select a repository" control
+   near the bottom of the form) — confirmed live that the Environment combobox does not open at all
+   until a repository is selected. **This selection is not incidental**: step 6 below submits the
+   caller's real routine on this same form, so whichever repository is selected here is the one that
+   real, live, billed routine will run against — verify the picked repository matches `repo_url`
+   before continuing, never "any" repository. With the correct repository selected, locate the
+   "Environment" combobox (a `find` query for "Environment selector combobox" locates it reliably —
+   confirmed live against both the new-routine form and the edit-routine dialog's identical
+   component) and click it.
 3. **Timing note, confirmed empirically during design:** the dropdown's contents do not reliably
    appear in the very next screenshot or accessibility-tree read after the click — insert an
    explicit 1-2 second `wait` action between the click and whatever comes next, every time this
@@ -89,8 +94,9 @@ names, if any; see the connectors caveat in step 6 below).
      selecting a *specific* named connector was not exercised during this task's live verification
      (only the default-preselected connector chip was observed). Do not guess at its mechanism —
      leave `connectors` unset on the form for now, complete routine creation without them, and
-     report back to the caller that the named connectors still need adding via a manual follow-up
-     (the same Edit-routine → Connectors tab, reachable any time after creation). This is a known,
+     include the skipped names in the return value's `connectors_pending` field (step 7 below) so
+     the caller can tell the user which connectors still need adding via a manual follow-up (the
+     same Edit-routine → Connectors tab, reachable any time after creation). This is a known,
      narrower gap than the throwaway-routine problem this procedure exists to close, and templates
      with empty `mcp_connections` (the common case) are unaffected.
    - Click "Create" to submit the routine.
@@ -101,9 +107,11 @@ names, if any; see the connectors caveat in step 6 below).
    `RemoteTrigger {action: "get", trigger_id: <that id>}` and read `job_config.ccr.environment_id`
    off it — this is the new environment's ID. Report `{trigger_id: <that id>, console_url:
    "claude.ai/code/routines/<trigger_id>", environment_id: <that id>, environment_name:
-   "claude-tweaks: <project_slug>"}` back to the caller (the environment name is already known — it
-   was just typed in step 5). The caller uses `trigger_id`/`console_url` in place of its own Step 8
-   `RemoteTrigger create` call and Step 9's instantiated-record write — this procedure's own routine
+   "claude-tweaks: <project_slug>", connectors_pending: <array of connector names skipped per step
+   6's connectors caveat, or an empty array when none were skipped>}` back to the caller (the
+   environment name is already known — it was just typed in step 5). The caller uses
+   `trigger_id`/`console_url` in place of its own Step 8 `RemoteTrigger create` call and Step 9's
+   instantiated-record write — this procedure's own routine
    creation *is* that caller's Step 8 for this one invocation, not a separate or duplicate routine.
 
 ## Audit procedure
