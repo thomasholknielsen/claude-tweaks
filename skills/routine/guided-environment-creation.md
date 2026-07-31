@@ -6,8 +6,9 @@ Environment Dedication check (`skills/init/update-mode.md` — the Audit and Re-
 below). Not invoked directly by a human — always reached from one of those two call sites. Each
 procedure's own "Takes:" line documents its exact inputs; they are not identical across the three
 (Create needs the project-slug and resolved repo URL plus the routine's own fields; Audit needs only
-a `trigger_id`; Re-point needs a `trigger_id` plus a `target_environment_name` — both Audit and
-Re-point act on an existing routine, but only Audit's action is fully determined by the ID alone).
+a `trigger_id`; Re-point needs a `trigger_id` plus a `target_environment_name`, and optionally a
+`create_if_missing` flag — both Audit and Re-point act on an existing routine, but only Audit's
+action is fully determined by the ID alone).
 
 No tool available to this plugin can create, list, or configure a cloud environment object
 directly (`RemoteTrigger` is scoped to `/v1/code/triggers` only) — this is always a human-browser,
@@ -127,17 +128,40 @@ Used only to *read* a routine's currently-configured environment name — never 
 
 ## Re-point procedure
 
-Takes: `trigger_id`, `target_environment_name`.
+Takes: `trigger_id`, `target_environment_name`, `create_if_missing` (optional boolean, default
+`false`).
 
 1. Dispatch `/claude-tweaks:browse backend=chrome`: navigate to
    `claude.ai/code/routines/<trigger_id>`, click Edit, open the Environment combobox (steps 2-3 of
    Create, same 1-2 second wait requirement; the repository is already selected for an existing
    routine, so Create step 2's repository-selection sub-step does not apply here — same caveat as
    the Audit procedure above).
-2. Click the option matching `target_environment_name` in the now-open dropdown.
+2. Look for the option matching `target_environment_name` in the now-open dropdown.
+   - If found: click it, then continue to step 3.
+   - If not found and `create_if_missing` is `false` (the default): report failure — see step 4.
+   - If not found and `create_if_missing` is `true`: click "+ Add environment" instead (the same
+     option Create step 4 uses) and, in the resulting "New cloud environment" dialog, set Name to
+     `target_environment_name`, leave Network access at its default (`Trusted`), leave Environment
+     variables empty, and set Setup script to exactly `bash scripts/claude-cloud-setup.sh
+     2>/dev/null || true` (identical to Create step 5). Click "Create environment" — this returns
+     to the routine-edit dialog with the new environment now selected. Continue to step 3.
+     **This is the only environment-creation path that does not also create a new routine** — it
+     exists specifically for a caller (e.g. `/claude-tweaks:init`'s Update Mode migration check)
+     that needs to bootstrap a dedicated environment for routines that already exist, where
+     Create's own "always attach the real routine being created" design (see Create's own header
+     paragraph on why it dropped the throwaway-routine approach) has nothing to attach to — this
+     routine already existed before this call.
 3. Click "Save" on the routine-edit dialog (not the environment sub-dialog — this step only
    changes which environment the routine references, it never edits the environment's own Setup
-   script or other fields).
-4. Report success/failure back to the caller. On failure (option not found, save rejected), leave
-   the routine untouched and report the failure — never leave a routine in a partially-edited
-   state.
+   script or other fields, and — when a new environment was just created via `create_if_missing` —
+   this Save is also what actually attaches it to a real, already-existing routine, exactly the
+   property Create's own design relies on).
+4. Report back to the caller. On success: report `{success: true}` — plus, if a new environment
+   was just created via `create_if_missing`, also call `RemoteTrigger {action: "get", trigger_id}`
+   and read `job_config.ccr.environment_id` off it (the same discovery mechanism Create step 7
+   uses, against this same already-known `trigger_id` instead of a newly-created one), and report
+   `{environment_id: <that id>, environment_name: target_environment_name}` alongside `{success:
+   true}` — the caller needs this to write its own environment cache, mirroring what Create
+   returns. On failure (option not found and `create_if_missing` was `false`, or Save rejected, or
+   the `create_if_missing` sub-flow itself fails partway), report `{success: false}` and leave the
+   routine untouched — never leave a routine in a partially-edited state.
