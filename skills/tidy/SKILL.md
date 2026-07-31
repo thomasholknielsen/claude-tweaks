@@ -28,7 +28,7 @@ Periodic backlog hygiene to keep the spec system healthy. Run when the backlog f
 
 ## Input
 
-`$ARGUMENTS` is parsed as `[--scope=<name>[,<name>...]] [--dry-run]`. With no `--scope` argument, /tidy scans everything — the open work-record queue (per `work-backend` — see `scan-procedures.md` Step 1), design docs, plans, worktrees, and the doc registry from their canonical locations — exactly as before `--scope` existed. `--scope` narrows the run to a subset of that sweep; see "Scope Selection" below for the full taxonomy and rules. `--dry-run` forces every finding to Stage regardless of mode, aggressiveness tier, or evidence-tier match, and skips Step 7 execution entirely — see Step 6's `--dry-run` override for the full behavior. The two flags compose freely (e.g. `--scope=github --dry-run` previews just the GitHub-triage scope's would-be mutations, the same subset a scheduled `tidy-github-triage` routine firing would touch). An aggressiveness override (when needed) is read from the active pipeline run's `config.yml` (Manifesto `tidy-aggressiveness` lever), not from arguments — unaffected by `--scope` or `--dry-run`.
+`$ARGUMENTS` is parsed as `[--scope=<name>[,<name>...]] [--dry-run]`. With no `--scope` argument, /tidy scans everything — the open work-record queue (per `work-backend` — see `scan-procedures.md` Step 1), design docs, plans, worktrees, and the doc registry from their canonical locations — exactly as before `--scope` existed. `--scope` narrows the run to a subset of that sweep; see "Scope Selection" below for the full taxonomy and rules. `--dry-run` forces every finding to Stage regardless of mode or aggressiveness tier, and skips Step 7 execution entirely — see Step 6's `--dry-run` override for the full behavior. The two flags compose freely (e.g. `--scope=github --dry-run` previews just the GitHub-triage scope's would-be mutations). An aggressiveness override (when needed) is read from the active pipeline run's `config.yml` (Manifesto `tidy-aggressiveness` lever), not from arguments — unaffected by `--scope` or `--dry-run`.
 
 ## Scope Selection
 
@@ -132,7 +132,7 @@ When absorbing a backlog record (backlog- or parked-stage) into an existing reco
 
 ## Step 6: Present Tidy Report and Approve
 
-**`--dry-run`:** when passed, every finding routes to Stage regardless of mode, aggressiveness tier, or evidence-tier match — Step 7 never executes, whether the run is Auto mode (embedded-pipeline or Standalone) or Interactive. The Auto-mode routing table below and the Evidence tier subsection are both bypassed entirely. Interactive mode still renders the full report and its `AskUserQuestion` approval, but choosing "Apply all" writes would-be log entries instead of executing Step 7. Write each finding's would-be action as `DRY-RUN {time} — {finding} — would: {action}. Reversibility: {tier}.` to `{run-dir}/decisions.md` — same file and format the Auto-mode Log entries use below, prefixed `DRY-RUN` instead of `AUTO`/`STAGED`. If no pipeline run dir exists yet (an interactive or ad hoc `--dry-run` invocation), create a Standalone-auto run dir per `_shared/pipeline-run-dir.md`'s fallback first, so the preview has somewhere durable to land. This mirrors `/routine create --dry-run`'s "inspect before anything is created" pattern one level up (see "Routine Configuration" below), but for a live tidy firing's actual mutations instead of the routine's own setup.
+**`--dry-run`:** when passed, every finding routes to Stage regardless of mode or aggressiveness tier — Step 7 never executes, whether the run is Auto mode (embedded-pipeline or Standalone) or Interactive. The Auto-mode routing table below is bypassed entirely. Interactive mode still renders the full report and its `AskUserQuestion` approval, but choosing "Apply all" writes would-be log entries instead of executing Step 7. Write each finding's would-be action as `DRY-RUN {time} — {finding} — would: {action}. Reversibility: {tier}.` to `{run-dir}/decisions.md` — same file and format the Auto-mode Log entries use below, prefixed `DRY-RUN` instead of `AUTO`/`STAGED`. If no pipeline run dir exists yet (an interactive or ad hoc `--dry-run` invocation), create a Standalone-auto run dir per `_shared/pipeline-run-dir.md`'s fallback first, so the preview has somewhere durable to land. This mirrors `/routine create --dry-run`'s "inspect before anything is created" pattern one level up (see "Routine Configuration" below), but for a live tidy firing's actual mutations instead of the routine's own setup.
 
 ### Auto mode (aggressiveness-based routing)
 
@@ -172,23 +172,23 @@ Auto-applied items are committed. Staged items surface at the Wrap-Up Review Con
 
 **Standalone auto:** When `/tidy` runs standalone in `auto` mode (no parent pipeline run dir), follow the Standalone auto fallback in `_shared/pipeline-run-dir.md` — create `.claude-tweaks/pipelines/{ISO-timestamp}-tidy-standalone/` with `decisions.md` and `staged/`. The audit log stays on. Apply `tidy-aggressiveness` from `.claude-tweaks/policy.yml` (see `_shared/policy-schema.md`) as the routing key, falling back to CLAUDE.md's `## Auto-mode policy` block only if `policy.yml` has no such line (legacy fallback for projects that set it there before the policy-schema consolidation). Present staged items in a Pending Review section at the end of the report (this is the bookend-end for the standalone run; no separate Review Console).
 
-The four subsections below apply only to `--scope=github` routine firings (Archival compaction excepted — it runs on every Standalone-auto firing regardless of scope). Read `github-routine-procedures.md` in this skill's directory for the full procedures — the summaries here exist for orientation only; the sub-file is authoritative.
-
-#### Evidence tier (`--scope=github` routine firings only)
-
-Under `tidy-routine-autonomy: evidence-based` (default `conservative`, in which nothing here applies), before staging one of four specific finding shapes with cite-able evidence, auto-apply the mutation instead and log the evidence literally. Two of the four rows (parked-record milestone/watched-path evidence) require Step 1, which the shipped `tidy-github-triage` routine never runs and so stay documented-but-unreachable today; the other two (thread-resolution, issue-supersession) are live on that routine. Read `github-routine-procedures.md` for the full evidence table, reachability note, and log-entry format.
-
-#### Rolling digest (`--scope=github` routine firings only)
-
-Every Standalone-auto `--scope=github` firing updates one rolling digest issue (or `tidy-digest.md` under `local-files` with no GitHub remote) in place — never creates a new one per firing. It sections auto-applied actions, evidence-tier mutations, and still-open findings (deduped by a `{number}:{finding-type}` key), plus a regenerated Pipeline Funnel of shaping/grant/build latency and wontfix rate. Read `github-routine-procedures.md` for the exact structure, identity-resolution, dedup, and funnel-computation procedure.
-
-#### Notification (`--scope=github` routine firings only)
-
-After the digest is written, `PushNotification` fires at most once per firing, only when the dedup step above marked at least one "Still needs your review" row as new-this-firing — never merely because the section is non-empty, and never on a lingering-but-unchanged finding. Read `github-routine-procedures.md` for the exact trigger condition and message format.
-
 #### Archival compaction (every Standalone-auto firing, any scope)
 
-Unlike the three subsections above, this runs on every Standalone-auto firing regardless of scope. Before writing this run's own report, `/tidy` compacts standalone run directories older than 30 days (and abandoned non-standalone runs past the same age with a non-`active` status) into `.claude-tweaks/pipelines/archive/index-{YYYY-MM}.md`, then moves each into `.claude-tweaks/pipelines/archive/{run-id}/`. Read `github-routine-procedures.md` for the exact matching rules and per-directory steps.
+This runs on every Standalone-auto firing regardless of scope — it's about aging out prior standalone runs, not about this run's own findings.
+
+Before writing this run's own report, scan `.claude-tweaks/pipelines/` for two kinds of aged-out run directories:
+
+- **Standalone runs** (name matches `*-standalone`) whose ISO-timestamp prefix is more than 30 days old — compacted on age alone, same as always.
+- **Abandoned non-standalone runs** — a `/flow`-orchestrated run directory (no `-standalone` suffix) whose ISO-timestamp prefix is more than 30 days old AND whose `run-state.json` status is not `active` (`interrupted`, or the file is missing/unreadable). This covers a run that stopped at an interactive HARD-GATE and was never resumed or wrapped up — it never reaches `/wrap-up`'s successful-closure archival, so without this rule it would sit on disk indefinitely with no cleanup path. The `status` check (absent from the standalone rule, which compacts on age alone) exists so a genuinely long-running, still-`active` pipeline is never swept purely for being old.
+
+For each matched directory:
+
+1. Read its `decisions.md`.
+2. Append its content to `.claude-tweaks/pipelines/archive/index-{YYYY-MM}.md` (the month derived from the run's own timestamp, not today's date — a run compacted late still files under the month it actually ran), creating the file if absent. Prefix the appended block with the run's own directory name as a header so entries stay attributable.
+3. Move the run directory to `.claude-tweaks/pipelines/archive/{run-id}/` (same target `/wrap-up` uses for completed pipeline runs — see `wrap-up/cleanup-procedures.md` Section B).
+4. Log one `AUTO` line to *this* firing's own `decisions.md`: `AUTO {time} — Archival: compacted {run-id} (age: {N} days) into index-{YYYY-MM}.md. Reversibility: high (archive is additive, nothing deleted).`
+
+Skipped staged items inside a compacted run are preserved verbatim in the archive (not silently dropped) — same rule `/wrap-up`'s own archival already follows.
 
 ### Interactive mode (batch approval)
 
@@ -279,25 +279,19 @@ After all actions are applied, verify every decision was fully executed. Present
 
 If any verification fails, fix it before committing. Do not commit partial state.
 
-**Under `worktree.always: true`:** `/tidy` is standalone-only and never creates or enters a worktree via its own steps (see Component-Skill Contract below). If the target project has `worktree.always: true` set (`.claude-tweaks/policy.yml`), every mutation in Step 7 (record file deletes/edits, `docs/REGISTRY.md` Fix-now edits, the local-files Rolling digest rewrite) and this commit are `Edit`/`Write`/`git commit` calls the PreToolUse gate denies outside a linked worktree — there is no standalone-auto exemption for these (`_shared/auto-decision-log.md`'s Bash-append workaround covers only the `decisions.md` audit-log write, not Step 7's substantive edits or this commit). Before executing Step 7, check `.claude-tweaks/policy.yml` for `worktree.always: true`; if set, set up a scratch worktree first via `/superpowers:using-git-worktrees` (per `_shared/git-discipline.md`), run Steps 7 and 7.5 inside it, then `git merge --ff-only` the resulting commit back into the main checkout (per CLAUDE.md's Don'ts on checkout-free merges) and remove the scratch worktree — mirroring Step 4.5's own worktree cleanup — before presenting the final report. Skip this entirely when `worktree.always` isn't set, or when `--dry-run` was passed (Step 7 never mutates or commits in that case).
+**Under `worktree.always: true`:** `/tidy` is standalone-only and never creates or enters a worktree via its own steps (see Component-Skill Contract below). If the target project has `worktree.always: true` set (`.claude-tweaks/policy.yml`), every mutation in Step 7 (record file deletes/edits, `docs/REGISTRY.md` Fix-now edits) and this commit are `Edit`/`Write`/`git commit` calls the PreToolUse gate denies outside a linked worktree — there is no standalone-auto exemption for these (`_shared/auto-decision-log.md`'s Bash-append workaround covers only the `decisions.md` audit-log write, not Step 7's substantive edits or this commit). Before executing Step 7, check `.claude-tweaks/policy.yml` for `worktree.always: true`; if set, set up a scratch worktree first via `/superpowers:using-git-worktrees` (per `_shared/git-discipline.md`), run Steps 7 and 7.5 inside it, then `git merge --ff-only` the resulting commit back into the main checkout (per CLAUDE.md's Don'ts on checkout-free merges) and remove the scratch worktree — mirroring Step 4.5's own worktree cleanup — before presenting the final report. Skip this entirely when `worktree.always` isn't set, or when `--dry-run` was passed (Step 7 never mutates or commits in that case).
 
 Commit with a message summarizing the tidy-up. For a scoped run (`--scope` was passed), prefix the message with the scope, e.g. `Tidy (scope: github): closed 2 stale issues, promoted #142` — see "Scope Selection" above. An unscoped full run's commit message is unchanged (no scope prefix).
 
 ## Routine Configuration
 
-`/tidy` ships two routine templates. The default, `skills/tidy/routine-template.yml`, is a weekly full-backlog hygiene sweep — instantiate it with:
+`/tidy` ships one routine template, `skills/tidy/routine-template.yml` — a weekly full-backlog hygiene sweep (including GitHub issue/PR triage as Step 4.8) — instantiate it with:
 
 ```
 /claude-tweaks:routine create tidy
 ```
 
-A second variant, `skills/tidy/routine-template-github-triage.yml`, runs only GitHub issue/PR triage (`--scope=github`) on a much tighter cadence, and can be instantiated alongside the default in the same project:
-
-```
-/claude-tweaks:routine create tidy --variant=github-triage
-```
-
-Both resolve the account- and project-specific values a portable template can't hardcode (which environment, which repo) and create a live cloud Routine via `RemoteTrigger` directly — see `skills/routine/SKILL.md` for the full mechanism, including how `--variant` selects between them. Add `--dry-run` to `/claude-tweaks:routine create` to inspect the assembled routine configuration before anything is created — distinct from `/claude-tweaks:tidy --dry-run` (Step 6 above), which previews what a specific tidy firing would mutate, not how the routine itself is configured. Before trusting a newly-changed `tidy-aggressiveness` or `tidy-routine-autonomy` policy value to an unattended scheduled firing, invoke `/claude-tweaks:tidy --dry-run` manually first (optionally with the same `--scope` the routine uses, e.g. `--scope=github --dry-run` to preview exactly what `tidy-github-triage` would do) and review the `DRY-RUN` log entries before letting the routine run for real.
+This resolves the account- and project-specific values a portable template can't hardcode (which environment, which repo) and creates a live cloud Routine via `RemoteTrigger` directly — see `skills/routine/SKILL.md` for the full mechanism. Add `--dry-run` to `/claude-tweaks:routine create` to inspect the assembled routine configuration before anything is created — distinct from `/claude-tweaks:tidy --dry-run` (Step 6 above), which previews what a specific tidy firing would mutate, not how the routine itself is configured. Before trusting a newly-changed `tidy-aggressiveness` policy value to an unattended scheduled firing, invoke `/claude-tweaks:tidy --dry-run` manually first (optionally with the same `--scope` the routine uses, e.g. `--scope=github --dry-run`) and review the `DRY-RUN` log entries before letting the routine run for real.
 
 **Unattended execution:** a scheduled firing runs Steps 1-7.5 exactly as an interactive invocation would, except Step 6's Standalone auto fallback takes over in place of the interactive batch-approval prompt — but only when the target project's own CLAUDE.md already sets `auto-mode: default-on` (project policy, not a routine-specific mechanism — see `_shared/auto-mode-contract.md`). A bare scheduled firing (`/claude-tweaks:tidy`, no arguments, no conversation history) has no other way to supply an `auto` mode signal; if the project hasn't configured `auto-mode: default-on`, the routine falls back to interactive and blocks on a batch-approval prompt that will never be answered. When auto-mode is enabled project-wide, safe, atomic actions (stale deletes and cleanly-merged worktree/branch removals) auto-apply per the `conservative` aggressiveness default, and everything requiring judgment is staged to that run's `decisions.md` rather than blocking on input. Nothing is invented here for routines specifically — this is the same Standalone auto path `/tidy` already uses whenever it runs outside a parent pipeline. If Task-based subagent dispatch isn't available in a given cloud routine session, Steps 1, 3, 4, 4.5, 4.6, 4.7, 4.8, and 5.5 degrade to running sequentially in the main thread instead of in parallel — same steps, same output, just not parallelized.
 
