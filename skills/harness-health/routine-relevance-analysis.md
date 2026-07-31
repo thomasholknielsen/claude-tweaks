@@ -42,7 +42,7 @@ Drift already surfaces those, and there is no live skill left to judge relevance
    miscalibrated? Has a newer sibling routine-template (one that didn't exist as of
    `created_at`) started covering ground this routine also covers?
 4. If the judgment surfaces something worth a look, emit one row: `{routine identity, e.g.
-   "tidy --variant=github-triage"} | {N} commits touching ${CLAUDE_PLUGIN_ROOT}/skills/{template}/
+   "code-health"} | {N} commits touching ${CLAUDE_PLUGIN_ROOT}/skills/{template}/
    since {created_at date} | {one or two sentence relevance note grounded in what the diffs
    actually showed}`. If nothing from steps 2-3 surfaces a concern, this record produces no
    row — most records in most audits should produce nothing.
