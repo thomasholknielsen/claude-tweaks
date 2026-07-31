@@ -35,7 +35,6 @@ const POLICY_KEYS = [
   { key: 'backlog-fetch-limit', type: 'integer', default: 1000 },
   { key: 'depth-survey', type: 'enum', values: ['off'] },
   { key: 'creative-survey', type: 'enum', values: ['off'] },
-  { key: 'tidy-routine-autonomy', type: 'enum', values: ['conservative', 'evidence-based'], default: 'conservative' },
   { key: 'promise-register-min-leaves', type: 'integer', default: 4 },
   { key: 'scope-keywords-required', type: 'boolean', default: false },
   { key: 'section-confirmation', type: 'enum', values: ['adaptive', 'per-section', 'batch'], default: 'adaptive' },
