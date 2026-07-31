@@ -777,23 +777,13 @@ claude plugin marketplace update claude-tweaks-marketplace >/dev/null 2>&1 || tr
 # call of its own)
 
 # Plugins declared in .claude/settings.json#enabledPlugins. `claude plugin install` is NOT
-# idempotent (errors if the plugin is already present), so every session after this
-# environment's first ever run must take the `update` branch instead, or this script hard-fails
-# under `set -euo pipefail` and never reaches the agent-browser install below it.
-_ct_installed_ids="$(claude plugin list --json 2>/dev/null | node -e '
-  let i="";process.stdin.on("data",d=>i+=d).on("end",()=>{try{
-    JSON.parse(i).forEach(p=>console.log(p.id))
-  }catch{}})
-' 2>/dev/null)"
+# idempotent (errors if the plugin is already present), so try update first and fall back to
+# install if update fails. This avoids fragile JSON parsing and works reliably across all runs.
 for spec in claude-tweaks@claude-tweaks-marketplace superpowers@claude-plugins-official; do
-  if printf '%s\n' "$_ct_installed_ids" | grep -Fqx "$spec"; then
-    claude plugin update "$spec" --scope project
-  else
-    claude plugin install "$spec" --scope project
-  fi
+  claude plugin update "$spec" --scope project 2>/dev/null || claude plugin install "$spec" --scope project
 done
 # (one additional spec added to the `for spec in ...` list per mirrored plugin, in the same
-# order enabledPlugins lists them — same install-vs-update branch handles it automatically)
+# order enabledPlugins lists them — same update-then-install pattern handles it automatically)
 
 # agent-browser — required in the cloud sandbox for /browse-dependent skills
 # (/stories, /visual-review, /review, qa-agent, /flow) to work in cloud sessions.
