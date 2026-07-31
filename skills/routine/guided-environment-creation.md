@@ -149,10 +149,10 @@ Takes: `trigger_id`, `target_environment_name`, `create_if_missing` (optional bo
    - If not found and `create_if_missing` is `false` (the default): report failure — see step 4.
    - If not found and `create_if_missing` is `true`: click "+ Add environment" instead (the same
      option Create step 4 uses) and, in the resulting "New cloud environment" dialog, set Name to
-     `target_environment_name`, leave Network access at its default (`Trusted`), leave Environment
-     variables empty, and set Setup script to exactly `bash scripts/claude-cloud-setup.sh
-     2>/dev/null || true` (identical to Create step 5). Click "Create environment" — this returns
-     to the routine-edit dialog with the new environment now selected. Continue to step 3.
+     `target_environment_name` and every other field exactly as Create step 5 sets them (Network
+     access, Environment variables, Setup script — same values, not restated here to avoid the two
+     copies drifting). Click "Create environment" — this returns to the routine-edit dialog with the
+     new environment now selected. Continue to step 3.
      **This is the only environment-creation path that does not also create a new routine** — it
      exists specifically for a caller (e.g. `/claude-tweaks:init`'s Update Mode migration check)
      that needs to bootstrap a dedicated environment for routines that already exist, where
