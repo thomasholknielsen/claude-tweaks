@@ -5,8 +5,9 @@ current project — the Create procedure below) and by `/claude-tweaks:init`'s U
 Environment Dedication check (`skills/init/update-mode.md` — the Audit and Re-point procedures
 below). Not invoked directly by a human — always reached from one of those two call sites. Each
 procedure's own "Takes:" line documents its exact inputs; they are not identical across the three
-(Create needs the project-slug and resolved repo URL plus the routine's own fields, Audit and
-Re-point need only a `trigger_id` since they act on an existing routine).
+(Create needs the project-slug and resolved repo URL plus the routine's own fields; Audit needs only
+a `trigger_id`; Re-point needs a `trigger_id` plus a `target_environment_name` — both Audit and
+Re-point act on an existing routine, but only Audit's action is fully determined by the ID alone).
 
 No tool available to this plugin can create, list, or configure a cloud environment object
 directly (`RemoteTrigger` is scoped to `/v1/code/triggers` only) — this is always a human-browser,
