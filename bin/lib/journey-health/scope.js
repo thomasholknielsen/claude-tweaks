@@ -79,6 +79,32 @@ function listJourneys(root) {
   return journeys;
 }
 
+// ─── glob-aware file existence check ────────────────────────────────────────
+// Phase 0's "deleted file" signal (below) needs real existence for both
+// literal `files:` entries (a plain relative path) and glob entries (e.g.
+// "docs/research/competitors/*.md") — a naive fs.existsSync on the raw glob
+// string always reports "missing" (no file is literally named "*.md"),
+// permanently force-picking any journey that declares one (#73). Minimal
+// glob support by design, matching this codebase's existing narrow
+// conventions (bin/lib/issues/blast-radius.js, bin/lib/code-health/scope.js):
+// only `*` is a wildcard, confined to the final path segment (no `**`, no
+// wildcard in a directory segment). A pattern outside that shape is treated
+// as always-present — skipping the heuristic for that entry rather than
+// risking a false "missing", per #73's own suggested fallback.
+function journeyFileExists(root, relPath) {
+  if (!relPath.includes('*')) return fs.existsSync(path.join(root, relPath));
+
+  const dir = path.dirname(relPath);
+  const base = path.basename(relPath);
+  if (dir.includes('*')) return true; // wildcard outside the final segment: unsupported, don't false-flag
+
+  let entries;
+  try { entries = fs.readdirSync(path.join(root, dir)); } catch { return false; }
+  const pattern = base.replace(/[.+^${}()|[\]\\?]/g, '\\$&').replace(/\*/g, '[^/]*');
+  const re = new RegExp(`^${pattern}$`);
+  return entries.some((name) => re.test(name));
+}
+
 // ─── selectTarget ────────────────────────────────────────────────────────────
 // opts: { now?: number, tier?: 'light'|'deep', signals?: { [id]: number } }
 // Returns { kind: 'journey', id, path, filesFrontmatter, why: 'stale'|'hotspot', ... } or null.
@@ -115,7 +141,7 @@ function selectTarget(root, cursors, opts = {}) {
     for (const candidate of candidates) {
       if (alreadyPicked && alreadyPicked.has(candidate.id)) continue;
       const missing = candidate.filesFrontmatter.filter(
-        (relPath) => !fs.existsSync(path.join(root, relPath)),
+        (relPath) => !journeyFileExists(root, relPath),
       );
       if (missing.length > 0) {
         return { ...candidate, why: 'deleted-file', missingFiles: missing };
@@ -147,4 +173,4 @@ function selectTarget(root, cursors, opts = {}) {
   });
 }
 
-module.exports = { parseJourneyFiles, listJourneys, domainChurn, selectTarget };
+module.exports = { parseJourneyFiles, listJourneys, domainChurn, selectTarget, journeyFileExists };
