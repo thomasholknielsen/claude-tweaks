@@ -852,7 +852,7 @@ Derive `REPO_SLUG` once, the same way `/claude-tweaks:routine`'s own CREATE Step
 | ... | ... | ... |
 ```
 
-**Resolve environment once**, shared across every candidate the user may select: check `.claude-tweaks/routine-environment-cache.yml` first, then `RemoteTrigger {action: "list"}` (read `job_config.ccr.environment_id` off the most recent routine) — identical sources and order to `/claude-tweaks:routine`'s own CREATE Step 4. Use it silently if either source yields a value. Only ask the user directly when neither source has anything.
+**Resolve environment once**, shared across every candidate the user may select: follow `/claude-tweaks:routine`'s own CREATE Step 4 procedure exactly — cache, then repo-matched `RemoteTrigger list`, then guided creation if this project has no environment of its own yet. Use it silently once resolved. This step never restates Step 4's own source list — see that step for the authoritative order, so the two can't drift out of sync with each other again.
 
 **Present the picklist.** Call `AskUserQuestion` with one multiSelect question per group of up to 4 candidates (all groups issued together, in the same call — the tool caps `options` at 4 per question but allows up to 4 questions per call, so up to 16 candidates fit in a single call; today's 6 candidates need exactly 2 groups). For a single group of 4 or fewer candidates, one question is enough — omit the group-numbering suffix. Not reachable with today's 6 shipped templates, but if candidates ever exceed 16, split into multiple sequential `AskUserQuestion` calls (present the first 16, act on that selection, then offer the remainder in a follow-up call) rather than silently truncating the list.
 
