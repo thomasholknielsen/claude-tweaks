@@ -3,7 +3,7 @@
 # /claude-tweaks:backlog refine). Re-create it via
 # `/claude-tweaks:routine create dispatch` (this template) — the old routine keeps
 # firing a dead prompt until you replace or delete it at claude.ai/code/routines.
-template_version: 1
+template_version: 2
 routine_name: dispatch-weekdays
 prompt: >
   Before anything else, fetch origin and confirm this checkout is at the tip of the
@@ -44,8 +44,8 @@ notes: >
   merges without waiting, when every member carries
   auto:merge; anything less than clean falls back to a normal pending-review wait. There
   is no consolidated multi-group console — each firing reports only its own group's
-  outcome; the aggregate picture surfaces over time via /claude-tweaks:tidy's own rolling
-  GitHub-triage digest. A pending-review outcome parks (branch and run dir wait for a
+  outcome; the aggregate picture surfaces over time via /claude-tweaks:tidy's own periodic
+  GitHub/PR sweep. A pending-review outcome parks (branch and run dir wait for a
   human, or the claim's TTL expires and a later firing supersedes it); a firing with no
   eligible groups is a cheap no-op. Subagent execution requires the Task tool (in
   allowed_tools) and the superpowers plugin in the cloud environment.
