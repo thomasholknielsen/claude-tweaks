@@ -33,36 +33,40 @@ trailing `-` trimmed) — reuse the caller's already-resolved value; never re-de
 Takes: `project_slug`, `repo_url` (already resolved by the caller).
 
 1. Dispatch `/claude-tweaks:browse backend=chrome` with the instruction: navigate to
-   `claude.ai/code`, open the routine-creation flow (the "New" affordance in the left sidebar,
-   leading to a new-routine form — confirm this entry point still exposes the same Environment
-   combobox the edit-routine dialog does; if the new-routine flow's layout differs, fall back to
-   creating a throwaway routine via the edit-dialog-verified path below and note the discrepancy
-   for a follow-up fix rather than guessing at an unverified flow).
-2. In that form, locate the "Environment" combobox (a `find` query for "Environment selector
-   combobox" locates it reliably — confirmed live against the edit-routine dialog's identical
-   component) and click it.
+   `claude.ai/code`, open the Routines sidebar entry, then click the "+ New routine" button —
+   confirmed live as the correct entry point (not a generic "New" sidebar affordance) — leading to
+   a new-routine form that exposes the same Environment combobox the edit-routine dialog does.
+2. In that form, select any repository first (the "Select a repository" control near the bottom of
+   the form) — confirmed live that the Environment combobox does not open at all until a repository
+   is selected. With a repository selected, locate the "Environment" combobox (a `find` query for
+   "Environment selector combobox" locates it reliably — confirmed live against both the new-routine
+   form and the edit-routine dialog's identical component) and click it.
 3. **Timing note, confirmed empirically during design:** the dropdown's contents do not reliably
    appear in the very next screenshot or accessibility-tree read after the click — insert an
-   explicit 1-second `wait` action between the click and whatever comes next, every time this
+   explicit 1-2 second `wait` action between the click and whatever comes next, every time this
    combobox is opened. Reading or clicking immediately after the open-click, with no wait, was
    observed to silently miss the open state during design verification.
 4. Click "+ Add environment" (the last item in the dropdown, below any existing environments).
-5. In the resulting "Update cloud environment" dialog: set Name to `claude-tweaks: <project_slug>`,
+5. In the resulting "New cloud environment" dialog: set Name to `claude-tweaks: <project_slug>`,
    leave Network access at its default (`Trusted`), leave Environment variables empty, and set
    Setup script to exactly:
    ```
    bash scripts/claude-cloud-setup.sh 2>/dev/null || true
    ```
    (repo-agnostic by construction — a safe no-op on any repo that hasn't run `/claude-tweaks:init`
-   yet). Click "Save changes".
+   yet). Click "Create environment".
 6. Continue the same browser flow to actually create a routine using this environment (any minimal
    routine is fine — the caller supplies the real one it wants via its own subsequent
    `/claude-tweaks:routine create` call; this step's only job is to get the environment's ID
    discoverable). Complete the routine creation.
-7. Call `RemoteTrigger {action: "list"}`, filter to the just-created trigger (matches `repo_url`
-   and was created most recently), and read `job_config.ccr.environment_id` off it — this is the
-   new environment's ID. Report `{environment_id: <that id>, environment_name: "claude-tweaks:
-   <project_slug>"}` back to the caller (the name is already known — it was just typed in step 5).
+7. Read the newly-created trigger's ID directly from the post-creation page URL
+   (`claude.ai/code/routines/<trigger_id>`) — confirmed live that web-UI-created routines do not
+   populate `session_context.sources[].git_repository.url`, so filtering `RemoteTrigger {action:
+   "list"}` by `repo_url` does not work for this case. With the trigger ID in hand, call
+   `RemoteTrigger {action: "get", trigger_id: <that id>}` and read `job_config.ccr.environment_id`
+   off it — this is the new environment's ID. Report `{environment_id: <that id>, environment_name:
+   "claude-tweaks: <project_slug>"}` back to the caller (the name is already known — it was just
+   typed in step 5).
 
 ## Audit procedure
 
@@ -73,7 +77,9 @@ Used only to *read* a routine's currently-configured environment name — never 
 1. Dispatch `/claude-tweaks:browse backend=chrome`: navigate to
    `claude.ai/code/routines/<trigger_id>`, click the routine's Edit (pencil) affordance (a `find`
    query for "Edit button" locates it reliably), then locate and click the "Environment" combobox
-   exactly as in Create steps 2-3 above (same 1-second wait requirement applies).
+   exactly as in Create steps 2-3 above (same 1-2 second wait requirement applies; the repository is
+   already selected for an existing routine, so Create step 2's repository-selection sub-step does
+   not apply here).
 2. Read the combobox's currently-selected value (its displayed text, e.g. `"Default"` or
    `"claude-tweaks: memenu-app"`) — do not open the dropdown itself for a read-only audit, the
    collapsed combobox already shows the current selection.
