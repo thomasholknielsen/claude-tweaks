@@ -4,7 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { parseJourneyFiles, listJourneys, domainChurn, selectTarget } = require('../scope');
+const { parseJourneyFiles, listJourneys, domainChurn, selectTarget, journeyFileExists } = require('../scope');
 
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'journey-health-scope-')); }
 
@@ -140,6 +140,75 @@ test('selectTarget respects alreadyPicked so Phase 0 does not repeat the same de
   const alreadyPicked = new Set(['checkout-flow']);
   const result = selectTarget(root, cursors, { now, tier: 'light', signals: {}, alreadyPicked });
   assert.strictEqual(result, null);
+});
+
+// ─── glob-pattern files: entries (#73) ──────────────────────────────────────
+
+test('journeyFileExists treats a literal path as before (existence-checked directly)', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'src/checkout'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'src/checkout/Cart.tsx'), '', 'utf8');
+  assert.strictEqual(journeyFileExists(root, 'src/checkout/Cart.tsx'), true);
+  assert.strictEqual(journeyFileExists(root, 'src/checkout/Missing.tsx'), false);
+});
+
+test('journeyFileExists resolves a final-segment glob against real files', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'docs/research/competitors'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'docs/research/competitors/company-a.md'), '', 'utf8');
+  assert.strictEqual(journeyFileExists(root, 'docs/research/competitors/*.md'), true);
+});
+
+test('journeyFileExists reports missing when a glob resolves to zero real files', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'docs/research/competitors'), { recursive: true });
+  assert.strictEqual(journeyFileExists(root, 'docs/research/competitors/*.md'), false);
+});
+
+test('journeyFileExists reports missing when a glob\'s directory does not exist at all', () => {
+  const root = tmp();
+  assert.strictEqual(journeyFileExists(root, 'docs/research/competitors/*.md'), false);
+});
+
+test('journeyFileExists treats a directory-segment wildcard as unsupported (always present, never false-flags)', () => {
+  const root = tmp();
+  assert.strictEqual(journeyFileExists(root, 'docs/*/index.md'), true);
+});
+
+test('selectTarget does not force-pick a journey whose glob files: entry resolves to real files (#73)', () => {
+  const root = tmp();
+  const journeysDir = path.join(root, 'docs', 'journeys');
+  fs.mkdirSync(journeysDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(journeysDir, 'competitor-dashboard-research.md'),
+    '---\nfiles:\n  - docs/research/competitors/*.md\n---\n\n# Competitor dashboard research\n',
+    'utf8',
+  );
+  fs.mkdirSync(path.join(root, 'docs/research/competitors'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'docs/research/competitors/company-a.md'), '', 'utf8');
+  const now = Date.now();
+  // Not stale (audited "now"), no churn signal — would otherwise return null;
+  // the pre-fix literal existsSync check on the raw glob string would have
+  // force-picked this journey as 'deleted-file' every time regardless.
+  const cursors = { 'competitor-dashboard-research': { lastLightAuditMs: now } };
+  const result = selectTarget(root, cursors, { now, tier: 'light', signals: {} });
+  assert.strictEqual(result, null);
+});
+
+test('selectTarget still force-picks a journey whose glob files: entry resolves to zero real files', () => {
+  const root = tmp();
+  const journeysDir = path.join(root, 'docs', 'journeys');
+  fs.mkdirSync(journeysDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(journeysDir, 'competitor-dashboard-research.md'),
+    '---\nfiles:\n  - docs/research/competitors/*.md\n---\n\n# Competitor dashboard research\n',
+    'utf8',
+  );
+  const now = Date.now();
+  const cursors = { 'competitor-dashboard-research': { lastLightAuditMs: now } };
+  const result = selectTarget(root, cursors, { now, tier: 'light', signals: {} });
+  assert.strictEqual(result.id, 'competitor-dashboard-research');
+  assert.strictEqual(result.why, 'deleted-file');
 });
 
 // ─── caching regression tests ───────────────────────────────────────────────
