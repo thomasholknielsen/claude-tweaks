@@ -33,7 +33,7 @@ Not for: one-off or exploratory routines you don't want templated (use `/schedul
 | `create <skill>` | Instantiate `<skill>`'s routine template into a live routine for the current project. Routes to the UPDATE workflow automatically if an instantiated record already exists for this project+skill combination. |
 | `update <skill>` | Re-sync an existing routine against its (possibly changed) template. |
 | `status <skill>` | Show the instantiated record for `<skill>` alongside live routine state. |
-| `status --all` | Bulk drift check across every instantiated record in the project (`.claude-tweaks/routines/*.yml`), regardless of skill — no `<skill>` argument. The only entry point that can discover a record whose named skill no longer exists at all (renamed/retired), since every other path here starts from a skill name and globs that skill's own template file forward. See STATUS Step 1's `--all` branch for the full verdict table. |
+| `status --all` | Bulk drift check across every instantiated record in the project (`.claude-tweaks/routines/*.yml`), regardless of skill — no `<skill>` argument. The only entry point that can discover a record whose named skill no longer exists at all (renamed/retired), since every other path here starts from a skill name and checks that skill's own template file forward. See STATUS Step 1's `--all` branch for the full verdict table. |
 | `--dry-run` (combine with `create`/`update`) | Assemble and display the `RemoteTrigger` body; never make a `create`/`update` call (read-only `list`/`get` calls to resolve values are still permitted), never write or rewrite the instantiated record. |
 | `--defaults` (combine with `create` or `update`) | On `create`: skip Step 5's interactive cadence picker (use the template's own `default_schedule.cron_expression` verbatim) and Step 7's interactive confirm (proceed straight to creation once the body is assembled). On `update`: skip Step 3's schedule re-resolution entirely (keep the record's existing `schedule` field untouched — no cadence picker at all) and Step 5's interactive confirm (proceed straight to Step 6 once the body is assembled). Either way, for non-interactive/batch use. Environment still resolves via the normal cache/`list`/`--environment` sources; if none yields a value, `--defaults` does not suppress that one unavoidable prompt. |
 | `--environment <id>` (combine with `--defaults`, or standalone) | Use this environment ID directly in Step 4, skipping cache/list lookup. |
@@ -227,10 +227,10 @@ Present one combined table across every record, regardless of skill (this is the
 ```
 | Routine | Verdict | Detail |
 |---|---|---|
-| code-health (default) | In sync | template v2, no field drift |
+| code-health | In sync | template v2, no field drift |
 | tidy | Drifted | template v1 → v2; schedule unchanged |
-| skill-health (default) | Orphaned | no skills/skill-health/routine-template.yml found — was this skill renamed? |
-| journey-health (default) | Stale | routine_id no longer resolves via RemoteTrigger get |
+| skill-health | Orphaned | no skills/skill-health/routine-template.yml found — was this skill renamed? |
+| journey-health | Stale | routine_id no longer resolves via RemoteTrigger get |
 | claude-tweaks-broken (unresolved) | Malformed | claude-tweaks-broken.yml is missing required field `template` |
 ```
 

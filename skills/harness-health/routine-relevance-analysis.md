@@ -24,7 +24,7 @@ treating every record as having zero churn. (A plugin marketplace install IS a g
 practice, but this shouldn't be assumed silently.)
 
 For each instantiated record whose `template` skill still resolves to a real
-`${CLAUDE_PLUGIN_ROOT}/skills/{template}/routine-template*.yml` (records
+`${CLAUDE_PLUGIN_ROOT}/skills/{template}/routine-template.yml` (records
 `/claude-tweaks:routine status --all` flagged Orphaned are skipped here entirely — Routine
 Drift already surfaces those, and there is no live skill left to judge relevance against):
 

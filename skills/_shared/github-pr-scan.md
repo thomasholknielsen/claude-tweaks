@@ -57,7 +57,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
 5. **Harness-health issues** — `gh issue list --label by:harness-health --state open --json number,title,labels,updatedAt,url`.
 6. **Journey-health issues** — `gh issue list --label by:journey-health --state open --json number,title,updatedAt,url`.
 7. **Docs-health issues** — `gh issue list --label by:docs-health --state open --json number,title,labels,updatedAt,url`.
-8. **Grant-queue counts** — one self-contained query feeds three digest metrics, per `_shared/work-record.md`'s record taxonomy. Not gated on `work-backend` — this scope only runs once the Detection Ladder already confirmed a reachable GitHub remote, regardless of which driver stores records:
+8. **Grant-queue counts** — one self-contained query feeds three maintenance-signal counts, per `_shared/work-record.md`'s record taxonomy. Not gated on `work-backend` — this scope only runs once the Detection Ladder already confirmed a reachable GitHub remote, regardless of which driver stores records:
 
    ```bash
    gh issue list --state open --json number,title,labels --limit 200 > /tmp/pr-scan-records.json
@@ -67,14 +67,10 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
      const issues = require('/tmp/pr-scan-records.json');
      const faceted = issues.map((i) => parseRecordFacets(i.labels));
      const withFacets = issues.map((i, idx) => ({ number: i.number, title: i.title, facets: faceted[idx] }));
-     const pendingList = withFacets.filter((i) => i.facets.stage === 'ready' && isPendingAuthorization(i.facets));
-     const blockedList = withFacets.filter((i) => i.facets.bot.blocked);
-     const backlogList = withFacets.filter((i) => i.facets.stage === 'backlog');
-     const strip = (list) => list.map(({ number, title }) => ({ number, title }));
-     console.log(JSON.stringify({
-       pending: pendingList.length, blocked: blockedList.length, backlog: backlogList.length,
-       pendingList: strip(pendingList), blockedList: strip(blockedList), backlogList: strip(backlogList),
-     }));
+     const pending = withFacets.filter((i) => i.facets.stage === 'ready' && isPendingAuthorization(i.facets)).length;
+     const blocked = withFacets.filter((i) => i.facets.bot.blocked).length;
+     const backlog = withFacets.filter((i) => i.facets.stage === 'backlog').length;
+     console.log(JSON.stringify({ pending, blocked, backlog }));
    "
    ```
 
@@ -82,7 +78,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
    - **`bot:blocked`** — records that hit their retry ceiling and need a human's renewed judgment at `/claude-tweaks:backlog refine` before re-entering the autonomous queue (same definition as `scan-procedures.md` Step 1 Shape 5).
    - **Backlog-state** — open records carrying neither `ready` nor `parked` — the default, unasserted state per `_shared/work-record.md`'s lifecycle spine.
 
-   Surface all three in the digest's "Still needs your review" section (see `tidy/SKILL.md`'s digest section) as a summary line plus an enumerated bullet per record: `**Pending authorization:** {N} records awaiting a grant` followed by one `- #{number}: {title}` line per entry in `pendingList` (same pattern for `**Blocked:**`/`blockedList` and `**Backlog:**`/`backlogList`) — omit both the summary line and its bullet list when a bucket's count is 0. No cap on list length.
+   Surface all three as the `[queue]` Output Contract row below — bare counts only, per the Output Contract's own documented shape. No per-record enumeration is produced or needed here.
 
 Findings and recommendations (tidy Action Vocabulary):
 
