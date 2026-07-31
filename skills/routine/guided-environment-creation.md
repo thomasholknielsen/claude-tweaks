@@ -116,7 +116,7 @@ names, if any; see the connectors caveat in step 6 below).
 
 ## Audit procedure
 
-Takes: `trigger_id` (an existing routine's own ID, from a prior `RemoteTrigger list` call).
+Takes: `trigger_id` (an existing routine's own ID — from a prior `RemoteTrigger list` call, or from a project-local `.claude-tweaks/routines/*.yml` record's `routine_id` field; the caller resolves this however its own detection logic works, this procedure doesn't care which source it came from).
 
 Used only to *read* a routine's currently-configured environment name — never writes anything.
 
