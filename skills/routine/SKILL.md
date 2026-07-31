@@ -229,7 +229,7 @@ Present one combined table across every record, regardless of skill (this is the
 |---|---|---|
 | code-health (default) | In sync | template v2, no field drift |
 | tidy | Drifted | template v1 → v2; schedule unchanged |
-| skill-health (default) | Orphaned | no skills/skill-health/routine-template*.yml found — was this skill renamed? |
+| skill-health (default) | Orphaned | no skills/skill-health/routine-template.yml found — was this skill renamed? |
 | journey-health (default) | Stale | routine_id no longer resolves via RemoteTrigger get |
 | claude-tweaks-broken (unresolved) | Malformed | claude-tweaks-broken.yml is missing required field `template` |
 ```
