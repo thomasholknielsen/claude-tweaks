@@ -168,7 +168,7 @@ Each returned record resolves to one of five verdicts (see `skills/routine/SKILL
   - Option 3 — `label`: `"Skip entirely"`, `description`: `"Leave routines as-is — I'll re-sync
     manually later"`
 
-  On "Apply all recommended," invoke `/claude-tweaks:routine update <skill> [--variant=<name>]
+  On "Apply all recommended," invoke `/claude-tweaks:routine update <skill>
   --defaults --source init` once per Drifted record. On "Override specific items," follow up
   with the per-item choices as ordinary free-text in the next message, per CLAUDE.md's
   Multi-item Decisions convention (not the tool's `Other` field). On any outcome except "Skip

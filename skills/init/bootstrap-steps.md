@@ -820,17 +820,17 @@ under extraKnownMarketplaces).
 
 ### Step 15 — Routine Installation (detailed procedure)
 
-claude-tweaks skills can ship one or more routine templates (schema: `skills/_shared/routine-template-schema.md`) — a skill's default template at `skills/{skill}/routine-template.yml`, plus optional named variants at `skills/{skill}/routine-template-<variant>.yml` — each enabling `/claude-tweaks:routine create <skill> [--variant=<name>]` to instantiate a scheduled cloud Routine for this project. Examples: code-health's nightly LLM-as-judge sweep, tidy's periodic backlog hygiene pass, or tidy's frequent GitHub-issue-triage variant. This step surfaces that option right after bootstrap instead of leaving it to be discovered later.
+claude-tweaks skills can ship a routine template (schema: `skills/_shared/routine-template-schema.md`) at `skills/{skill}/routine-template.yml`, enabling `/claude-tweaks:routine create <skill>` to instantiate a scheduled cloud Routine for this project. Examples: code-health's nightly LLM-as-judge sweep, or tidy's periodic backlog hygiene pass. This step surfaces that option right after bootstrap instead of leaving it to be discovered later.
 
 **Detect candidates:**
 
 ```bash
-ls "${CLAUDE_PLUGIN_ROOT}"/skills/*/routine-template.yml "${CLAUDE_PLUGIN_ROOT}"/skills/*/routine-template-*.yml 2>/dev/null
+ls "${CLAUDE_PLUGIN_ROOT}"/skills/*/routine-template.yml 2>/dev/null
 ```
 
-For each match, note the candidate skill name (the directory under `skills/`) and, for a `routine-template-<variant>.yml` match, the variant name (everything between `routine-template-` and `.yml`). Read each candidate's `routine_name` field and its `default_schedule.cron_expression`, and derive its human-readable form via the same 5a classification table `/claude-tweaks:routine`'s CREATE Step 5 uses (e.g. `"0 3 * * *"` → "Daily, 03:00 UTC").
+For each match, note the candidate skill name (the directory under `skills/`). Read each candidate's `routine_name` field and its `default_schedule.cron_expression`, and derive its human-readable form via the same 5a classification table `/claude-tweaks:routine`'s CREATE Step 5 uses (e.g. `"0 3 * * *"` → "Daily, 03:00 UTC").
 
-Derive `REPO_SLUG` once, the same way `/claude-tweaks:routine`'s own CREATE Step 2 does: resolve `git remote get-url origin`, take the resolved URL's `{repo}` segment, lowercase it, replace any run of characters outside `[a-z0-9]` with a single `-`, trim leading/trailing `-`. For each candidate, a record already exists iff `.claude-tweaks/routines/{REPO_SLUG}-{routine_name}.yml` exists in the current project — check per candidate, not per skill, since a skill with a default template plus a variant can have zero, one, or both already instantiated; the instantiated record's own `template:` field only names the skill, not which variant, so filename existence (not field content) is the correct check here. If `git remote get-url origin` fails (no remote configured), treat every candidate as un-instantiated and offer them all — `/claude-tweaks:routine`'s own CREATE workflow (Step 2) handles the actual missing-remote stop later, at the point a candidate is actually created. Only offer candidates without a matching record. If no candidates remain, skip this step silently.
+Derive `REPO_SLUG` once, the same way `/claude-tweaks:routine`'s own CREATE Step 2 does: resolve `git remote get-url origin`, take the resolved URL's `{repo}` segment, lowercase it, replace any run of characters outside `[a-z0-9]` with a single `-`, trim leading/trailing `-`. For each candidate, a record already exists iff `.claude-tweaks/routines/{REPO_SLUG}-{routine_name}.yml` exists in the current project. If `git remote get-url origin` fails (no remote configured), treat every candidate as un-instantiated and offer them all — `/claude-tweaks:routine`'s own CREATE workflow (Step 2) handles the actual missing-remote stop later, at the point a candidate is actually created. Only offer candidates without a matching record. If no candidates remain, skip this step silently.
 
 **Present the candidate table** (plain text, not a tool call) — one row per candidate:
 
@@ -841,22 +841,21 @@ Derive `REPO_SLUG` once, the same way `/claude-tweaks:routine`'s own CREATE Step
 |---|---|---|
 | code-health | Daily, 03:00 UTC | {template's notes field, if present} |
 | tidy | Weekly, Sunday 04:00 UTC | ... |
-| tidy --variant=github-triage | Every 3 hours | ... |
 | ... | ... | ... |
 ```
 
 **Resolve environment once**, shared across every candidate the user may select: check `.claude-tweaks/routine-environment-cache.yml` first, then `RemoteTrigger {action: "list"}` (read `job_config.ccr.environment_id` off the most recent routine) — identical sources and order to `/claude-tweaks:routine`'s own CREATE Step 4. Use it silently if either source yields a value. Only ask the user directly when neither source has anything.
 
-**Present the picklist.** Call `AskUserQuestion` with one multiSelect question per group of up to 4 candidates (all groups issued together, in the same call — the tool caps `options` at 4 per question but allows up to 4 questions per call, so up to 16 candidates fit in a single call; today's 7 candidates need exactly 2 groups). For a single group of 4 or fewer candidates, one question is enough — omit the group-numbering suffix. Not reachable with today's 7 shipped templates, but if candidates ever exceed 16, split into multiple sequential `AskUserQuestion` calls (present the first 16, act on that selection, then offer the remainder in a follow-up call) rather than silently truncating the list.
+**Present the picklist.** Call `AskUserQuestion` with one multiSelect question per group of up to 4 candidates (all groups issued together, in the same call — the tool caps `options` at 4 per question but allows up to 4 questions per call, so up to 16 candidates fit in a single call; today's 6 candidates need exactly 2 groups). For a single group of 4 or fewer candidates, one question is enough — omit the group-numbering suffix. Not reachable with today's 6 shipped templates, but if candidates ever exceed 16, split into multiple sequential `AskUserQuestion` calls (present the first 16, act on that selection, then offer the remainder in a follow-up call) rather than silently truncating the list.
 
-- `question` (group 1): `"Which routines do you want to set up?"` (or, when there is more than one group, `"Which routines do you want to set up? (1/{G})"`), `header`: `"Routines"`, `multiSelect`: `true`, one option per candidate in this group: `label` = the candidate's routine identity (e.g. `"code-health"`, `"tidy"`, `"tidy --variant=github-triage"`), `description` = its human-readable default schedule (e.g. `"Daily, 03:00 UTC"`)
+- `question` (group 1): `"Which routines do you want to set up?"` (or, when there is more than one group, `"Which routines do you want to set up? (1/{G})"`), `header`: `"Routines"`, `multiSelect`: `true`, one option per candidate in this group: `label` = the candidate's skill name (e.g. `"code-health"`, `"tidy"`), `description` = its human-readable default schedule (e.g. `"Daily, 03:00 UTC"`)
 - Repeat for each subsequent group, `question`: `"Which routines do you want to set up? ({i}/{G})"`
 
 Selecting a candidate in this call **is** the confirmation to create it — there is no separate follow-up confirm. Selecting none (in every group) means "not now" for every candidate; the same offer reappears on the next `/init` run for any candidate still missing a record.
 
-**For each selected candidate:** invoke `/claude-tweaks:routine create <skill> [--variant=<name>] --defaults --environment=<resolved id> --source init` directly (omit `--variant` for a default-template candidate). This flag combination skips `/routine`'s own interactive cadence picker and confirm — it uses the template's own default schedule and creates immediately, since the multiSelect selection above already served as the confirmation. `/init` still does not reimplement or duplicate any of `/routine`'s body-assembly, `RemoteTrigger`, or record-writing logic — `--defaults --environment=<id>` is `/routine`'s own sanctioned non-interactive entry point, not a shortcut `/init` invented around it.
+**For each selected candidate:** invoke `/claude-tweaks:routine create <skill> --defaults --environment=<resolved id> --source init` directly. This flag combination skips `/routine`'s own interactive cadence picker and confirm — it uses the template's own default schedule and creates immediately, since the multiSelect selection above already served as the confirmation. `/init` still does not reimplement or duplicate any of `/routine`'s body-assembly, `RemoteTrigger`, or record-writing logic — `--defaults --environment=<id>` is `/routine`'s own sanctioned non-interactive entry point, not a shortcut `/init` invented around it.
 
-A user who wants a non-default schedule or environment for a specific routine declines it here and runs `/claude-tweaks:routine create <skill> [--variant=<name>]` (without `--defaults`) afterward, where the full interactive Customize path is available.
+A user who wants a non-default schedule or environment for a specific routine declines it here and runs `/claude-tweaks:routine create <skill>` (without `--defaults`) afterward, where the full interactive Customize path is available.
 
 **Failure handling:** If a `create` invocation fails for one selected candidate, continue with the remaining selected candidates rather than aborting the rest of `/init`. Report which candidates succeeded (with their console URLs) and which failed, in a single summary after all selected candidates have been attempted.
 
