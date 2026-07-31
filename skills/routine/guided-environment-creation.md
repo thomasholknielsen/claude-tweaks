@@ -1,20 +1,24 @@
 # Guided Environment Creation
 
 Referenced by `/claude-tweaks:routine`'s CREATE Step 4 (when no environment exists yet for the
-current project) and by `/claude-tweaks:init`'s Update Mode Routine Environment Dedication check
-(`skills/init/update-mode.md`). Not invoked directly by a human — always reached from one of those
-two call sites, which supply the project-slug and the resolved repo URL this file needs.
+current project — the Create procedure below) and by `/claude-tweaks:init`'s Update Mode Routine
+Environment Dedication check (`skills/init/update-mode.md` — the Audit and Re-point procedures
+below). Not invoked directly by a human — always reached from one of those two call sites. Each
+procedure's own "Takes:" line documents its exact inputs; they are not identical across the three
+(Create needs the project-slug and resolved repo URL plus the routine's own fields, Audit and
+Re-point need only a `trigger_id` since they act on an existing routine).
 
 No tool available to this plugin can create, list, or configure a cloud environment object
 directly (`RemoteTrigger` is scoped to `/v1/code/triggers` only) — this is always a human-browser,
 web-UI action. `agent-browser` (this plugin's default `/browse` backend) has no authenticated
 claude.ai session, so every procedure below drives `/claude-tweaks:browse backend=chrome`
 specifically — this repo's existing documented exception for human-invoked, non-Routine browser
-automation. Both procedures below are interactive-only: if claude-in-chrome is unavailable (no
+automation. All three procedures below are interactive-only: if claude-in-chrome is unavailable (no
 extension connected, or the user declines when `/browse` offers it), fall back immediately to
-printing the exact values below for the user to enter manually, and return `{environment_id: null,
-environment_name: null}` to the caller — never block the calling step's own flow waiting on a
-browser that isn't there.
+printing the exact values below for the user to enter manually, and return a failure to the caller
+in that procedure's own return shape (Create: `{trigger_id: null, console_url: null, environment_id:
+null, environment_name: null}`; Audit: `{environment_name: null}`; Re-point: report failure per its
+own step 4) — never block the calling step's own flow waiting on a browser that isn't there.
 
 ## Naming convention
 
@@ -30,7 +34,21 @@ trailing `-` trimmed) — reuse the caller's already-resolved value; never re-de
 
 ## Create procedure
 
-Takes: `project_slug`, `repo_url` (already resolved by the caller).
+**This procedure creates the caller's actual routine, not a placeholder.** There is no delete API
+for a `RemoteTrigger` (confirmed: `skills/routine/SKILL.md`'s own Anti-Patterns table documents
+this), so a throwaway routine created purely to surface a new environment's ID would be an orphaned,
+schedule-bearing routine with no automated way to remove it. Instead, the same browser flow that
+creates the environment also submits the caller's real routine directly through the web UI — one
+continuous session, no throwaway, no cleanup step needed. This means the caller must have every
+field the routine itself needs already resolved *before* invoking this procedure (in particular,
+`/claude-tweaks:routine`'s CREATE flow must resolve its schedule (Step 5) before falling through to
+this file at Step 4, not after).
+
+Takes: `project_slug`, `repo_url`, `routine_name` (the caller's already-derived `PREFIXED_NAME`),
+`cron_expression` (the caller's already-resolved schedule, e.g. from CREATE Step 5's cadence
+picker — always a raw 5-field UTC cron string, never a natural-language description), `instructions`
+(the routine's prompt text, `template.prompt`), and `connectors` (optional — `template.mcp_connections`
+names, if any; see the connectors caveat in step 6 below).
 
 1. Dispatch `/claude-tweaks:browse backend=chrome` with the instruction: navigate to
    `claude.ai/code`, open the Routines sidebar entry, then click the "+ New routine" button —
@@ -54,19 +72,37 @@ Takes: `project_slug`, `repo_url` (already resolved by the caller).
    bash scripts/claude-cloud-setup.sh 2>/dev/null || true
    ```
    (repo-agnostic by construction — a safe no-op on any repo that hasn't run `/claude-tweaks:init`
-   yet). Click "Create environment".
-6. Continue the same browser flow to actually create a routine using this environment (any minimal
-   routine is fine — the caller supplies the real one it wants via its own subsequent
-   `/claude-tweaks:routine create` call; this step's only job is to get the environment's ID
-   discoverable). Complete the routine creation.
+   yet). Click "Create environment". This returns to the new-routine form with the new environment
+   now selected in the Environment combobox.
+6. Fill in the routine's own real fields on that same form — confirmed live against the actual
+   new-routine form layout:
+   - Type `routine_name` into the "Name" field.
+   - Type `instructions` into the "Instructions" textarea.
+   - Click the "Schedule" trigger tile, then click its "Custom" sub-tab (alongside Once / Hourly /
+     Daily / Weekdays / Weekly) — confirmed live that this reveals a raw "Cron expression" text
+     field, pre-filled with a default derived from whatever cadence tab was last active. Clear it
+     and type `cron_expression` verbatim.
+   - **Connectors caveat, not live-verified this pass:** if `connectors` is non-empty, the form's
+     Connectors section has a "+ Add connector" control, but the exact picker/search mechanism for
+     selecting a *specific* named connector was not exercised during this task's live verification
+     (only the default-preselected connector chip was observed). Do not guess at its mechanism —
+     leave `connectors` unset on the form for now, complete routine creation without them, and
+     report back to the caller that the named connectors still need adding via a manual follow-up
+     (the same Edit-routine → Connectors tab, reachable any time after creation). This is a known,
+     narrower gap than the throwaway-routine problem this procedure exists to close, and templates
+     with empty `mcp_connections` (the common case) are unaffected.
+   - Click "Create" to submit the routine.
 7. Read the newly-created trigger's ID directly from the post-creation page URL
    (`claude.ai/code/routines/<trigger_id>`) — confirmed live that web-UI-created routines do not
    populate `session_context.sources[].git_repository.url`, so filtering `RemoteTrigger {action:
    "list"}` by `repo_url` does not work for this case. With the trigger ID in hand, call
    `RemoteTrigger {action: "get", trigger_id: <that id>}` and read `job_config.ccr.environment_id`
-   off it — this is the new environment's ID. Report `{environment_id: <that id>, environment_name:
-   "claude-tweaks: <project_slug>"}` back to the caller (the name is already known — it was just
-   typed in step 5).
+   off it — this is the new environment's ID. Report `{trigger_id: <that id>, console_url:
+   "claude.ai/code/routines/<trigger_id>", environment_id: <that id>, environment_name:
+   "claude-tweaks: <project_slug>"}` back to the caller (the environment name is already known — it
+   was just typed in step 5). The caller uses `trigger_id`/`console_url` in place of its own Step 8
+   `RemoteTrigger create` call and Step 9's instantiated-record write — this procedure's own routine
+   creation *is* that caller's Step 8 for this one invocation, not a separate or duplicate routine.
 
 ## Audit procedure
 
@@ -94,7 +130,9 @@ Takes: `trigger_id`, `target_environment_name`.
 
 1. Dispatch `/claude-tweaks:browse backend=chrome`: navigate to
    `claude.ai/code/routines/<trigger_id>`, click Edit, open the Environment combobox (steps 2-3 of
-   Create, same wait requirement).
+   Create, same 1-2 second wait requirement; the repository is already selected for an existing
+   routine, so Create step 2's repository-selection sub-step does not apply here — same caveat as
+   the Audit procedure above).
 2. Click the option matching `target_environment_name` in the now-open dropdown.
 3. Click "Save" on the routine-edit dialog (not the environment sub-dialog — this step only
    changes which environment the routine references, it never edits the environment's own Setup
