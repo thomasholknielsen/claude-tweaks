@@ -229,6 +229,81 @@ This check does not count toward Phase 1u.6's Total drift count — like Maturit
 it isn't a presence/absence signal Phase 1u.6 can cheaply precompute before Phase 3 runs (it
 requires reading git history and judging diffs, not checking a marker's existence).
 
+### Routine Environment Dedication
+
+Skip entirely if `.claude-tweaks/routines/` doesn't exist (same gate as Routine Drift and Routine
+Relevance above).
+
+Call `RemoteTrigger {action: "list"}`, filter to triggers whose
+`job_config.ccr.session_context.sources[].git_repository.url` matches this project's own resolved
+repo URL (`git remote get-url origin`, normalized the same way `/claude-tweaks:routine`'s CREATE
+Step 2 normalizes it) — this is the project's own routine set, regardless of which skill each was
+created from. If none, skip.
+
+No API exposes a cloud environment's human-readable name — only its opaque `environment_id`. Check
+`.claude-tweaks/routine-environment-cache.yml` first: if it holds both `environment_id` and
+`environment_name`, and every one of this project's routines' `environment_id` values (from the
+`list` call above) already equals the cached one, report "Routine Environment Dedication: already
+on a dedicated environment" and skip further action — no browser pass needed on this run.
+
+Otherwise, at least one routine's `environment_id` is unknown-by-name or doesn't match the cache.
+Resolve names for the *distinct* `environment_id` values found among this project's routines by
+invoking `skills/routine/guided-environment-creation.md`'s Audit procedure once per distinct ID
+(not once per routine — routines sharing the same `environment_id` share the same name, no need to
+re-read it). If claude-in-chrome isn't available (Audit's own fallback), skip this entire check for
+this run and note in the inventory summary: "Routine Environment Dedication: skipped — browser
+automation unavailable to read environment names this run."
+
+For each of this project's routines, its environment now has a known name. Group them: routines
+already on an environment whose name matches `claude-tweaks: <project-slug>` (this project's own
+`REPO_SLUG`, per `/claude-tweaks:routine`'s CREATE Step 2) need no action. Routines on anything
+else (an environment named `Default`, or any other non-matching name — most commonly a shared
+environment also used by unrelated ad hoc sessions or other projects) are migration candidates.
+
+If zero candidates, update the cache file's `environment_name` to the now-confirmed matching name
+(if it wasn't already cached) and report "already dedicated" as above.
+
+If one or more candidates: present a batch table (Routine | Current environment | Recommended
+action: "Move to claude-tweaks: <project-slug>"), then call `AskUserQuestion`:
+
+- `question`: `"{N} routine(s) aren't on a dedicated claude-tweaks environment for this project
+  (currently on: {list of distinct current names}). Move them?"`, `header`: `"Env dedication"`,
+  `multiSelect`: `false`
+- Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"Move all {N}
+  routine(s) to a dedicated 'claude-tweaks: {project-slug}' environment, creating it first if it
+  doesn't already exist"`
+- Option 2 — `label`: `"Override specific items"`, `description`: `"Choose per-routine whether to
+  move it"`
+- Option 3 — `label`: `"Skip entirely"`, `description`: `"Leave routines on their current
+  environment(s) — I'll move them manually later"`
+
+On "Apply all recommended" or a partial "Override specific items" selection: invoke the Re-point
+procedure once per selected routine (its `trigger_id` from the `list` call above,
+`target_environment_name` = `claude-tweaks: <project-slug>`) — on the *first* invocation only,
+pass `create_if_missing: true` if no environment already named `claude-tweaks: <project-slug>`
+was found among the names resolved above (this bootstraps the dedicated environment by
+re-pointing that first routine to it, with no throwaway routine ever created — see Re-point's
+own header in `guided-environment-creation.md` for why this is the environment-creation path
+for a caller with an existing routine to attach to, unlike `/claude-tweaks:routine`'s CREATE
+Step 8, which always has a brand-new routine to attach to and so uses Create instead). If that
+first call returns `{environment_id, environment_name}` (it does exactly when
+`create_if_missing` actually created something), write them into
+`.claude-tweaks/routine-environment-cache.yml`. Every subsequent selected routine's Re-point
+call passes `create_if_missing: false` (or omits it — that's the default) since the
+environment now definitely exists. Report per-routine success/failure; a failed re-point
+leaves that routine on its prior environment, unchanged.
+
+On any outcome except "Skip entirely," log to `decisions.md` (or the inventory summary, if this
+project has no active pipeline run dir):
+```
+AUTO {time} — Update Mode: moved {M} of {N} routine(s) to a dedicated claude-tweaks environment.
+```
+
+This check's candidate count counts toward Phase 1u.6's Total drift count, the same
+self-classifying convention Routine Drift above already uses — treat each migration candidate as
+an additional Contract Drift entry, so Phase 1u.6's own "Contract Drift entries from 1u.5" formula
+picks it up without that table needing its own edit.
+
 ## Phase 1u.6: Update Mode Early-Exit Gate
 
 After Phase 1u (inventory) and Phase 1u.5 (contract drift) complete, evaluate the audit signal before committing to the full phase ceremony. Update Mode's value is in catching drift quickly — when there's almost nothing to catch, the ceremony costs more than it produces.
