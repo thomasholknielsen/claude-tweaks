@@ -238,7 +238,11 @@ Call `RemoteTrigger {action: "list"}`, filter to triggers whose
 `job_config.ccr.session_context.sources[].git_repository.url` matches this project's own resolved
 repo URL (`git remote get-url origin`, normalized the same way `/claude-tweaks:routine`'s CREATE
 Step 2 normalizes it) — this is the project's own routine set, regardless of which skill each was
-created from. If none, skip.
+created from. If none, skip. **Known limitation, confirmed live** (same one `/claude-tweaks:routine`
+CREATE Step 4 documents for this identical call): `{action: "list"}` returns only its first page,
+with no cursor/pagination parameter exposed — on an account with enough triggers to paginate, some
+of this project's own routines could sit on a later page and go undetected by this filter, causing
+this check to under-count candidates or wrongly report "already dedicated."
 
 No API exposes a cloud environment's human-readable name — only its opaque `environment_id`. Check
 `.claude-tweaks/routine-environment-cache.yml` first: if it holds both `environment_id` and
