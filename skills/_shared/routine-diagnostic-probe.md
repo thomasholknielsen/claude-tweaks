@@ -90,4 +90,4 @@ Two callers firing different diagnostics against the same project's slot concurr
 
 | Consumer | Use |
 |---|---|
-| Dispatch/tidy gh-CLI/MCP bridge (planned, not yet written as a plan in this branch — drafted separately on a sibling, not-yet-merged branch as `docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`) | Verifying the gh-CLI/MCP bridge's confirmed tool primitives, once that plan lands and is revised to use this procedure |
+| Dispatch's gh-CLI/MCP bridge (`docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`) | Used this procedure's reusable `memenu-app-diagnostic-probe` slot to verify the gh-CLI/MCP bridge's confirmed tool primitives (Tasks 1-2) before writing any bridge documentation |

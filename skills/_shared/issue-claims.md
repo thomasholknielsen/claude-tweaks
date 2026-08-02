@@ -63,7 +63,9 @@ node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.
   concurrent agent may have created it first — the same 422-tolerance the gh path's own ref
   creation has). An MCP-bootstrapped `claims-registry` therefore carries the default branch's
   history underneath it; harmless, since the branch is a registry nobody merges, but not
-  equivalent to an orphan branch.
+  equivalent to an orphan branch. (`create_branch` confirmed live:
+  `docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`'s Task 2 diagnostic exercised branch
+  creation directly and it succeeded.)
 - **Claim:** read first, then branch — a create-only write cannot tell a live claim apart from
   a release tombstone, and a tombstone is never deleted, only overwritten, so treating
   file-exists as "contested" would reject every re-claim of that issue forever after its first

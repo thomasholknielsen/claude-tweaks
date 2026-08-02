@@ -2,6 +2,8 @@
 
 Loaded by `/claude-tweaks:dispatch` Step 6 (a `/flow` HARD-GATE failure) and the Auto-merge gate (an `auto:merge`-granted group reaching `/wrap-up`'s Review Console) — both are conditional branches that don't run on the common clean-pending-review path, so they're kept out of `SKILL.md`'s always-loaded body.
 
+**MCP path, file-wide.** Every label read/edit and comment operation in this file that isn't called out individually below (e.g. the `gh issue view --json labels` / `gh issue edit --remove-label` pair in Settle step 3, and the failure-comment post in step 5) uses the standard CRUD mapping from `_shared/github-write-transport.md`: `issue_write` (update mode) for label edits, `add_issue_comment` for comments, `issue_read` for reads. The one call site with special MCP-path handling — the retry-ceiling comment fetch (step 4 below) — already has its own dedicated note.
+
 ## Step 6: Settle — on pipeline failure
 
 This procedure runs inside each group's own Task agent (Step 5), against that agent's own record(s) — not in dispatch's main thread.
@@ -84,9 +86,9 @@ so the merge itself, landing in the main checkout, isn't denied as a wrong-check
 GROUP_WORKTREE=$(git rev-parse --show-toplevel)
 ```
 
-Resolved via plain `git`, not `gh`/MCP — this is local repository metadata (the remote's `HEAD` pointer), not GitHub-hosted state, so it works identically regardless of transport with no branching needed at all.
-
 Then, from the main checkout:
+
+Resolved via plain `git`, not `gh`/MCP — this is local repository metadata (the remote's `HEAD` pointer), not GitHub-hosted state, so it works identically regardless of transport with no branching needed at all.
 
 ```bash
 DEFAULT_BRANCH=$(git remote show origin | sed -n '/HEAD branch/s/.*: //p')

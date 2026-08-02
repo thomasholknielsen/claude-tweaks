@@ -117,6 +117,8 @@ gh issue create \
 
 No `ready`/`auto:build` on the filed issue — a human confirms and applies the fix, the same conservative default `/capture`'s `keep` route uses elsewhere in this codebase. The bare/`#N`/explicit-list forms always run with a human present (per the Input table framing above) — they still just report and stop; self-filing is `next`-only.
 
+**MCP path** (`gh` unavailable; CRUD mapping per `_shared/github-write-transport.md`): this block's `gh` calls also have a documented MCP path — the list-then-filter lookup (`gh issue list --label by:dispatch ...`) uses the confirmed "list issues by label" mapping (`list_issues`, filtered by label/state — never `search_issues`, same eventually-consistent-index caveat as elsewhere in this file), issue creation (`gh issue create`, both the `work-types: native` and `work-types: labels` variants) uses `issue_write` (create mode), and the duplicate-closing `gh issue close` uses `issue_write` (update mode, state change) — same as every other create/close call site in this file.
+
 Before any `gh`/MCP command, run the Detection Ladder from `_shared/github-pr-scan.md` (checks 1-3:
 GitHub remote exists, `gh` CLI installed, `gh` authenticated + repo reachable). Check 1 (GitHub
 remote exists) and check 3 (authenticated + reachable, evaluated against whichever transport
@@ -127,6 +129,15 @@ every call site in this file and in `settle-and-merge.md` (verified end-to-end a
 cloud Routine run, see `docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`). Report the
 specific failing check and stop for any real failure (headless self-report above still applies
 for the `next` form).
+
+**Check 3 on the MCP transport.** When `gh` is absent, check 3 (authenticated + repo reachable) is
+satisfied via a bounded `list_issues` call (e.g. `list_issues {owner, repo, state: "open", perPage:
+1}`) — a lightweight, confirmed-working read (per `docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`'s
+Task 2 live verification) that fails identically to `gh repo view --json owner,name` when auth or
+repo access is broken. This is dispatch-specific documentation: only dispatch treats check 3 as a
+hard gate that needs an MCP equivalent — `_shared/github-pr-scan.md` itself defines check 3 purely
+as `gh repo view`, unchanged, since its other consumers (`/help`, `/tidy`) fail-open on this ladder
+and don't need one.
 
 Check 2 no longer gates on its own as of this plan's Task 10 — every call site that used to be
 `gh`-only end to end (Step 2's queue pull and dependency checks, the contested-claim comment
@@ -360,8 +371,10 @@ Any other `gh` failure during claim: skip, log, continue.
 **`--claim-only` stop point.** When this modifier is present (Input table above), stop here for every successfully claimed group — do not proceed to Step 5. Report each claimed group's members, confirm `bot:in-progress` and the claim comment landed, and print the manual-release commands for each member (mirrors `_shared/issue-claims.md`'s "The lock" → Release):
 
 (shown here as the `gh` form only — see Step 4's MCP path above for the gh-absent claim
-equivalent; the MCP-path release commands for this specific stop point are not yet documented,
-tracked as follow-up):
+equivalent; the MCP-path release follows `_shared/issue-claims.md`'s Release procedure directly —
+resolve the claim file's current sha, then `create_or_update_file` with the payload's
+`tombstoneContent` and that sha; this is tool calls, not shell commands, so no bash block is shown
+here):
 
 ```bash
 gh api -X DELETE "repos/{owner}/{repo}/git/refs/claims/issue-{n}"
