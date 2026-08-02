@@ -80,6 +80,8 @@ export async function runScenarioWith(scenarioPath, opts = {}) {
   } = opts;
   const scenario = loadYaml(fs.readFileSync(scenarioPath, 'utf8'));
   const repoDir = buildFixture(scenario, fixturesDir);
+  const escapeTargetPath = path.join(os.tmpdir(), `ct-eval-escape-${path.basename(repoDir)}.txt`);
+  const prompt = scenario.skill_invocation.prompt.replaceAll('{{ESCAPE_TARGET_PATH}}', escapeTargetPath);
   const pluginSnapshotDir = buildPluginSnapshot();
   const actor = createActor({ answerOverrides: scenario.answer_overrides, repoDir });
 
@@ -90,7 +92,7 @@ export async function runScenarioWith(scenarioPath, opts = {}) {
   const startedAt = Date.now();
 
   const stream = queryFn({
-    prompt: scenario.skill_invocation.prompt,
+    prompt,
     options: {
       cwd: repoDir,
       plugins: [{ type: 'local', path: pluginSnapshotDir }],
@@ -141,7 +143,7 @@ export async function runScenarioWith(scenarioPath, opts = {}) {
   }
 
   const durationMs = Date.now() - startedAt;
-  const context = { repoDir, resultText, toolCalls };
+  const context = { repoDir, resultText, toolCalls, escapeTargetPath };
   const assertionResults = (scenario.assertions || []).map((a) => runAssertion(context, a));
 
   const result = {
