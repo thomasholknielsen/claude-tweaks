@@ -1,7 +1,7 @@
 # Worktree Base Ref — Why `worktree.baseRef: head` Matters
 
 Canonical explanation of the harness `worktree.baseRef` setting, referenced by
-`init/bootstrap-steps.md` Step 6 (provisioning-time offer) and
+`init/bootstrap/step-06-worktree-configuration.md` (provisioning-time offer) and
 `build/worktree-setup.md` (runtime post-creation verification). Both call sites
 cite this same generic infrastructure fact from their own different moments in a
 project's lifecycle — this file is the single place it's stated, so a future
@@ -26,7 +26,7 @@ only `name`/`path`). The base is governed entirely by the harness setting
 Because the plugin cannot pass the base ref through `EnterWorktree`, this has
 two consumers:
 
-- **Provisioning time** (`init/bootstrap-steps.md` Step 6 item 4) — offer to
+- **Provisioning time** (`init/bootstrap/step-06-worktree-configuration.md` item 4) — offer to
   write `worktree.baseRef: "head"` into `settings.json` up front, so the
   mismatch never occurs.
 - **Runtime verification** (`build/worktree-setup.md` Common Step 1) — even
