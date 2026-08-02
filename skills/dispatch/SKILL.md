@@ -117,21 +117,25 @@ gh issue create \
 
 No `ready`/`auto:build` on the filed issue — a human confirms and applies the fix, the same conservative default `/capture`'s `keep` route uses elsewhere in this codebase. The bare/`#N`/explicit-list forms always run with a human present (per the Input table framing above) — they still just report and stop; self-filing is `next`-only.
 
-Before any `gh` command, run the Detection Ladder from `_shared/github-pr-scan.md` (checks 1-3:
-GitHub remote exists, `gh` CLI installed, `gh` authenticated + repo reachable). Unlike
-`/tidy`/`/help`'s use of this ladder, which fails open into a skipped scan,
-`/claude-tweaks:dispatch` treats any ladder failure as a hard gate — this skill's entire purpose
-is writing GitHub state (claims, labels, merges), so there is no meaningful degraded mode to
-fall back into. Report the specific failing check and stop (headless self-report above still
-applies for the `next` form).
+Before any `gh`/MCP command, run the Detection Ladder from `_shared/github-pr-scan.md` (checks 1-3:
+GitHub remote exists, `gh` CLI installed, `gh` authenticated + repo reachable). Check 1 (GitHub
+remote exists) and check 3 (authenticated + reachable, evaluated against whichever transport
+check 2 selects) stay hard gates — there is no meaningful degraded mode for a skill whose entire
+purpose is writing GitHub state. Check 2 (`gh` CLI installed) no longer gates on its own: `gh`
+present → proceed exactly as always; `gh` absent → proceed via the GitHub MCP path documented at
+every call site in this file and in `settle-and-merge.md` (verified end-to-end against a live
+cloud Routine run, see `docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`). Report the
+specific failing check and stop for any real failure (headless self-report above still applies
+for the `next` form).
 
-Check 2 (`gh` CLI installed) stays a hard gate even though `_shared/github-write-transport.md`
-now defines an MCP path for this skill's *writes*: dispatch's read path is still `gh`-only
-end to end (Step 2's `gh issue list` queue pull, the dependency-check `gh issue view` /
-`gh api graphql` calls, the contested-claim `gh api .../comments` fetch, and all of
-`settle-and-merge.md`), so proceeding without `gh` would only trade a clean Preflight stop for
-an unstructured `gh: command not found` deep inside Step 2. Bridging that read path is real
-future work; until it lands, `gh` absent stops here.
+Check 2 no longer gates on its own as of this plan's Task 10 — every call site that used to be
+`gh`-only end to end (Step 2's queue pull and dependency checks, the contested-claim comment
+fetch, all of `settle-and-merge.md`) now has a confirmed, live-verified MCP path
+(`docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`, Tasks 1-2's diagnostic Routine). A
+prior attempt at this same bridge (`274e30e`, reverted the next day as `d4bdfb9`) shipped this
+exact gate change without finishing the read-path bridge first, producing an unstructured
+`gh: command not found` crash instead of a clean stop — this version does not repeat that
+mistake, since every call site was bridged and verified before this line changed.
 
 ## Workflow
 
@@ -218,7 +222,7 @@ node -e "
 " > /tmp/dispatch-groups.json
 ```
 
-**MCP path** (`gh` unavailable — not reachable in practice today, Preflight hard-gates before this point; documented as groundwork per `_shared/github-write-transport.md`'s CRUD mapping): the queue pull uses the confirmed "list issues by label" mapping; the per-dependency open-state check (the `gh issue view "$DEP" --json state` loop) uses the confirmed "get single issue by number" mapping, checking the returned state field for `OPEN`. Both replace their `gh`-CLI equivalent one-for-one — no change to the surrounding `node -e` eligibility/dependency logic, which only consumes the fetched JSON shape, not how it was fetched.
+**MCP path** (`gh` unavailable — live as of Task 10 of `docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`; CRUD mapping per `_shared/github-write-transport.md`): the queue pull uses the confirmed "list issues by label" mapping; the per-dependency open-state check (the `gh issue view "$DEP" --json state` loop) uses the confirmed "get single issue by number" mapping, checking the returned state field for `OPEN`. Both replace their `gh`-CLI equivalent one-for-one — no change to the surrounding `node -e` eligibility/dependency logic, which only consumes the fetched JSON shape, not how it was fetched.
 
 Two bulk calls plus a small, bounded fallback — the second pull is a cheap existence check for `parseDependencies`' targets (an open blocker under `work-links: body-text`; a record isn't eligible while any `Blocked by #N` line still names an open issue), but `--limit 200` can silently truncate that pull on a repo with more open issues than that. Rather than raise the cap and still have the same failure mode at a higher threshold, any referenced dependency number the capped pull didn't confirm as open gets one targeted `gh issue view --json state` check of its own — bounded by how many distinct blockers this firing's `auto:build`-eligible records actually reference (typically a handful), not by the repo's total open-issue count. Grouping still runs before claiming, unlike the pre-grants design, so the full issue body/labels/createdAt needed for eligibility, dependency-checking, and `extractKeyFiles` is already in hand from the first pull.
 
@@ -298,7 +302,7 @@ done
 ```
 
 **MCP path** (`gh` unavailable): fully documented below and wired into every other read-path
-call site in this file (Step 2, Settle, the Auto-merge gate) as of this plan — still Preflight-gated (check 2 stays a hard gate) until Task 10 of `docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md` verifies the whole chain against a live cloud run and flips it.
+call site in this file (Step 2, Settle, the Auto-merge gate) — live as of Task 10 of `docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`, which verified the whole chain against a live cloud run and flipped Preflight's check 2 from a hard gate to a branch.
 
 For each member of the selected group, generate the claim payload and follow
 `_shared/issue-claims.md`'s "The lock" section's MCP claim procedure — read the claim file
@@ -333,8 +337,8 @@ node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.
   host:require('os').hostname(),now:Date.now()}).commentBody)" "$ISSUE" "$SHA" "$RUN_ID" > /tmp/claim-${ISSUE}.md
 gh issue edit "$ISSUE" --add-label bot:in-progress
 gh issue comment "$ISSUE" --body-file /tmp/claim-${ISSUE}.md
-# The MCP-path claim block above (Step 4) is documented and wired but still Preflight-gated
-# on gh being installed until Task 10 — so these are the only live commands for this step today.
+# The MCP-path claim block above (Step 4) is documented, wired, and live as of Task 10 — this
+# gh-CLI block runs only when gh is present; see Step 4's MCP path above for the gh-absent case.
 ```
 
 **On 422 (contested):** fetch comments and fold through `claimStatus` exactly as `_shared/issue-claims.md`'s "Reading claim state" section describes, then branch on the full returned shape — do not collapse to a two-way live/stale fold:
@@ -345,7 +349,7 @@ node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.
   console.log(JSON.stringify(c.claimStatus(require(process.argv[1]),Date.now())))" "/tmp/dispatch-claim-${ISSUE}.json"
 ```
 
-**MCP path** (`gh` unavailable, same dormant status as above): use the confirmed "list issue comments" mapping from `_shared/github-write-transport.md`, then fold the result through `claimStatus` exactly as the `gh` path does — `claimStatus` accepts either raw `gh` comment objects or the MCP tool's comment objects, since it only reads a `.body` string field off each.
+**MCP path** (`gh` unavailable, same live-as-of-Task-10 status as above): use the confirmed "list issue comments" mapping from `_shared/github-write-transport.md`, then fold the result through `claimStatus` exactly as the `gh` path does — `claimStatus` accepts either raw `gh` comment objects or the MCP tool's comment objects, since it only reads a `.body` string field off each.
 
 Resolve the returned `{claimed, stale, everReleased}` shape per `_shared/issue-claims.md`'s own "Failure posture" table (not restated here — that file's header explicitly asks consumers not to duplicate it inline) — its four rows cover live claim (skip), stale claim (break: delete ref, recreate, takeover comment), unreadable/never-claimed (treat as live), and released-but-undeleted (treat as stale).
 
@@ -355,8 +359,9 @@ Any other `gh` failure during claim: skip, log, continue.
 
 **`--claim-only` stop point.** When this modifier is present (Input table above), stop here for every successfully claimed group — do not proceed to Step 5. Report each claimed group's members, confirm `bot:in-progress` and the claim comment landed, and print the manual-release commands for each member (mirrors `_shared/issue-claims.md`'s "The lock" → Release):
 
-(Preflight requires `gh`, so this is the only reachable release path today — see Step 4's note
-above: the MCP path is documented and wired but stays gated until Task 10):
+(shown here as the `gh` form only — see Step 4's MCP path above for the gh-absent claim
+equivalent; the MCP-path release commands for this specific stop point are not yet documented,
+tracked as follow-up):
 
 ```bash
 gh api -X DELETE "repos/{owner}/{repo}/git/refs/claims/issue-{n}"
@@ -510,7 +515,7 @@ Render only when a human is present to answer — the bare form is definitionall
 | `_shared/subagent-output-contract.md` | Each group's `Task()` prompt follows the contract's Input Discipline and status-line protocol; the GROUP/OUTCOME/MANIFEST template is this skill's own minimal shape (none of Templates A/B/C fit a full-pipeline-execution agent). |
 | `_shared/label-bootstrap.md` | Canonical check-then-create snippet for `bot:in-progress` / `bot:blocked` — the only two labels dispatch itself ever adds. |
 | `_shared/pipeline-run-dir.md` | Dispatch resolves a standalone-auto run dir (allowlist) for its own `decisions.md`; distinct from the `PIPELINE_RUN_DIR` each dispatched `/flow` run creates for its own build — see Component-Skill Contract above. |
-| `_shared/github-pr-scan.md` | Preflight runs its Detection Ladder (checks 1-3) before any `gh` command — unlike `/tidy`/`/help`'s fail-open use of the same ladder, dispatch treats any failure as a hard gate, check 2 (`gh` installed) included, since its read path has no MCP equivalent yet (see Preflight above). Dispatch consumes only the ladder, not the scope sections those two skills use. |
+| `_shared/github-pr-scan.md` | Preflight runs its Detection Ladder (checks 1-3) before any `gh`/MCP command — unlike `/tidy`/`/help`'s fail-open use of the same ladder, dispatch treats checks 1 and 3 as hard gates unconditionally; check 2 (`gh` installed) now branches instead of gating on its own, since its read path has a confirmed, live-verified MCP equivalent (see Preflight above). Dispatch consumes only the ladder, not the scope sections those two skills use. |
 | `_shared/local-files-preflight-stop.md` | Canonical "stop this turn completely" boundary-language pattern this skill's Preflight local-files stop paragraph follows — added after the identical weaker phrasing was proven insufficient in `/claude-tweaks:triage`'s own Preflight (now `/claude-tweaks:backlog refine`'s grant sub-stage). |
 | `bin/lib/issues/{claims,retry,grouping,record}.js` | The pure helpers behind claim/release payloads, retry-ceiling math, file-overlap grouping, and grant/bot-state facet parsing — dispatch calls all four, unchanged. Step 2 also calls record.js's `parseDependencies` to drop records with an open `Blocked by #N` line from the queue under `work-links: body-text`, and `buildNativeDependencyQuery`/`hasOpenNativeBlocker` to do the same against GitHub's native dependency relationship under `work-links: native`. |
 | `/claude-tweaks:assess-agent-autonomy` | Called inline (not a fresh Task dispatch) at two points: the Auto-merge gate (`merge-check` mode, replacing the old three-layer mechanical check) and the Settle step (`failure-check` mode, replacing unconditional `auto:merge` revocation). Dispatch still owns authorization, claim mechanics, and retry-ceiling counting directly — assess-agent-autonomy only ever returns a verdict, never writes a label itself. |
