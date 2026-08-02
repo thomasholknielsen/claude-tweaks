@@ -23,8 +23,10 @@ Two independently-shippable slices, same principle applied to each:
 1. For every `gh`-only call site in scope, first check whether it's genuinely GitHub-hosted state or just data derivable from the local git checkout. If the latter, replace it with plain `git` — removing the dependency entirely, per the health-state precedent — rather than writing an MCP mapping for something that doesn't need one.
 2. For what's genuinely GitHub-hosted (issue/PR/comment state), fill the missing row in `_shared/github-write-transport.md`'s CRUD mapping table.
 3. Wire the consuming skill's Preflight/Detection Ladder to branch on the same capability probe the claim mechanism already uses (`gh` present → `gh`, unchanged; absent → MCP).
-4. Build a small, throwaway diagnostic Routine that exercises every MCP primitive the slice now depends on, against disposable test data, in a real cloud sandbox.
-5. Only once that Routine reports a clean pass, in the same change, flip the gate from hard-fail to conditional, and delete the diagnostic Routine.
+4. Build a small diagnostic Routine that exercises every MCP primitive the slice now depends on, against disposable test data, in a real cloud sandbox.
+5. Only once that Routine reports a clean pass, in the same change, flip the gate from hard-fail to conditional.
+
+**Update (post-Slice-1):** steps 4-5 originally assumed a throwaway Routine, deleted after use. Slice 1's own implementation discovered `RemoteTrigger` has no delete action at all, and built `skills/_shared/routine-diagnostic-probe.md` instead — a reusable, one-per-project diagnostic slot that stays in the account (disabled, at rest) and is updated/re-fired for each new diagnostic rather than created-then-deleted. Slice 2 should use that same shared procedure rather than re-deriving a throwaway-Routine mechanism from this section.
 
 **The `gh`-CLI path is unchanged everywhere, byte-for-byte, for every call site.** This is additive, per ADR 0008's standing decision (MCP calls cost meaningfully more context/tokens than the equivalent `gh api` call, so the cheaper path stays the default whenever it's available).
 
@@ -51,7 +53,7 @@ Two independently-shippable slices, same principle applied to each:
 
 ### Slice 1 diagnostic Routine
 
-Throwaway, created via `/claude-tweaks:routine` against `memenu-app`, deleted after use. Runs in a real cloud sandbox (no `gh`) and, using data it creates and destroys itself:
+Originally planned as throwaway, created via `/claude-tweaks:routine` against `memenu-app`, deleted after use — actually built and fired via `skills/_shared/routine-diagnostic-probe.md`'s reusable slot instead (see the Decision section's post-Slice-1 update above). Runs in a real cloud sandbox (no `gh`) and, using data it creates and destroys itself:
 
 1. Create a test issue (clearly marked as a diagnostic probe).
 2. Get single issue by number — re-fetch the one just created.

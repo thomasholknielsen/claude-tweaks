@@ -60,8 +60,11 @@ now has to design around everywhere a `gh`-CLI-only write path gets an MCP fallb
 
 This branch shipped a narrower slice than the full surface implied by this decision: dispatch's
 fuller read path (queue pull, dependency checks, contested-claim resolution) and `/tidy`'s Step
-4.8 repo-wide sweep remain `gh`-only, parked as explicit follow-up scope rather than bridged here.
-The MCP branch-bootstrap step (via `create_branch`, since no MCP tool creates a true orphan
-branch) has not been verified against a live GitHub MCP connection — logged as a known open risk
-in `CHANGELOG.md`'s v6.21.0 entry, to confirm before this is relied on in an actual cloud
-deployment.
+4.8 repo-wide sweep remained `gh`-only, parked as explicit follow-up scope rather than bridged
+here. Dispatch's read path was bridged in v6.24.0 (closes #61) — a live diagnostic Routine fired
+against a real cloud sandbox confirmed every needed MCP primitive, including the
+`create_branch` bootstrap step this section originally logged as an unverified open risk, before
+any bridge documentation was written and before Preflight's `gh`-CLI hard gate was flipped. See
+`docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md` and `CHANGELOG.md`'s v6.24.0 entry.
+`/tidy`'s Step 4.8 sweep remains unbridged, still parked as follow-up (Slice 2 of the same
+design doc, `docs/superpowers/specs/2026-08-02-dispatch-tidy-mcp-bridge-design.md`).

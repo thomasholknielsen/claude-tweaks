@@ -1,5 +1,25 @@
 # Changelog
 
+## v6.24.0 — /dispatch's gh-CLI/MCP bridge (closes #61)
+
+`/claude-tweaks:dispatch`'s Preflight previously hard-gated on `gh` CLI presence
+unconditionally — its entire queue/claim/settle/merge read path was `gh`-only end to end, so
+running headless in a Claude Code cloud Routine sandbox (no `gh` CLI, GitHub MCP tools only)
+was never possible. A prior attempt at this bridge (`274e30e`, reverted the next day as
+`d4bdfb9`) shipped the gate flip before finishing the read-path bridge, producing an
+unstructured `gh: command not found` crash instead of a clean stop.
+
+This time: a real diagnostic Routine fired against a live cloud sandbox first confirmed every
+needed GitHub MCP tool name and semantics (including the create-only/conditional-write
+sha-gated CAS primitive a claim lock's correctness depends on, and branch creation via
+`create_branch`) — via a new reusable shared procedure,
+`skills/_shared/routine-diagnostic-probe.md`, for firing ad hoc diagnostics against any
+project's cloud Routine environment without hand-building a one-off `RemoteTrigger` call each
+time. Only once every primitive was confirmed did the plan write MCP-path documentation into
+every read-path call site (`dispatch/SKILL.md`, `settle-and-merge.md`, `issue-claims.md`), and
+only then flip the Preflight gate: `gh` present → proceed exactly as always; `gh` absent →
+proceed via the now-documented, verified MCP path. The `gh`-CLI path is unchanged everywhere.
+
 ## v6.23.2 — /init Update Mode: Routine Drift & Relevance Audit
 
 - `/claude-tweaks:routine` gains `status --all` (bulk drift check across every instantiated
