@@ -122,6 +122,32 @@ test('runScenarioWith: resultText accumulates across assistant messages so an ea
   assert.strictEqual(result.assertions[0].pass, true);
 });
 
+test('runScenarioWith: a throwing assertion (e.g. absolute-path-exists.js\'s missing-target guard) fails closed as a recorded result, not an uncaught crash', async () => {
+  const scenariosDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-scen-'));
+  const scenarioPath = path.join(scenariosDir, 'sample.yaml');
+  fs.writeFileSync(scenarioPath, [
+    'name: sample-throwing-assertion',
+    'fixture:',
+    '  base: none',
+    '  seed: []',
+    'skill_invocation:',
+    '  prompt: "hello"',
+    'assertions:',
+    '  - type: absolute-path-exists',
+    '    target: nonexistentContextField',
+  ].join('\n'));
+
+  const resultsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-results-'));
+
+  const result = await runScenarioWith(scenarioPath, { queryFn: fakeQuery, resultsDir, fixturesDir: scenariosDir });
+
+  assert.strictEqual(result.allPassed, false);
+  assert.strictEqual(result.assertions[0].pass, false);
+  assert.match(result.assertions[0].message, /assertion threw/);
+  const written = JSON.parse(fs.readFileSync(path.join(resultsDir, `${result.scenario}-${Date.parse(result.startedAt)}.json`), 'utf8'));
+  assert.strictEqual(written.allPassed, false, 'result must still be written to disk, not lost to an uncaught exception');
+});
+
 test('runScenarioWith: substitutes {{ESCAPE_TARGET_PATH}} in the prompt with a real absolute path outside repoDir, and exposes it via context.escapeTargetPath', async () => {
   const scenariosDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-scen-'));
   const scenarioPath = path.join(scenariosDir, 'sample.yaml');

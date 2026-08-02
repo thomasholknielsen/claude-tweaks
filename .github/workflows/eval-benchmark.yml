@@ -15,6 +15,7 @@ on:
           - simplify-fixes-planted-complexity
           - backlog-refine-permission-matrix-compliance
           - dispatch-local-files-preflight-stop
+          - actor-escape-attempt
 
 permissions:
   contents: write

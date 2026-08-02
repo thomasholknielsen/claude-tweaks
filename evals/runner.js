@@ -145,7 +145,17 @@ export async function runScenarioWith(scenarioPath, opts = {}) {
 
   const durationMs = Date.now() - startedAt;
   const context = { repoDir, resultText, toolCalls, escapeTargetPath };
-  const assertionResults = (scenario.assertions || []).map((a) => runAssertion(context, a));
+  // A thrown assertion (unknown type, or a fail-closed check like
+  // absolute-path-exists.js's missing-target guard) must not crash the whole
+  // run after a real, already-paid-for API call completed — that would lose
+  // the run's result entirely instead of recording an inspectable FAIL.
+  const assertionResults = (scenario.assertions || []).map((a) => {
+    try {
+      return runAssertion(context, a);
+    } catch (err) {
+      return { type: a.type, pass: false, message: `assertion threw: ${err.message}` };
+    }
+  });
 
   const result = {
     scenario: scenario.name,
