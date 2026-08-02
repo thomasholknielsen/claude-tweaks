@@ -766,15 +766,28 @@ When there are zero mirror candidates, this still renders (never silently auto-a
 # See CLAUDE.md's "Cloud parity" section for why this exists and what it doesn't cover.
 set -euo pipefail
 
+# The Setup script field's cwd is a workspace root containing the cloned repo as a single
+# subdirectory, not the repo root itself ($HOME is not a reliable substitute either) —
+# locate the repo by its .git marker (directory or file, to also cover gitdir-file clone
+# forms) and cd into it before anything below runs.
+SEARCH_ROOT="$(pwd)"
+REPO_DIR=$(find "$SEARCH_ROOT" -maxdepth 2 \( -type d -o -type f \) -name .git 2>/dev/null | head -1 | xargs -I{} dirname {})
+[ -n "$REPO_DIR" ] && cd "$REPO_DIR"
+
 # Marketplaces referenced below that Claude Code doesn't already know by name — refreshed
 # every run so a later `update` pulls from a current catalog pointer, not a stale local clone.
 claude plugin marketplace add thomasholknielsen/claude-tweaks-marketplace 2>/dev/null || true
 claude plugin marketplace update claude-tweaks-marketplace >/dev/null 2>&1 || true
+# `claude-plugins-official` (Anthropic's own marketplace) still needs an explicit `add` here:
+# on a fresh cloud sandbox it is not pre-registered at the CLI/runtime level (only this
+# project's own .claude/settings.json schema recognizes it by name with no settings entry),
+# so `update` alone is a silent no-op until `add` has run at least once in this sandbox.
+claude plugin marketplace add anthropics/claude-plugins-official 2>/dev/null || true
+claude plugin marketplace update claude-plugins-official >/dev/null 2>&1 || true
 # (one additional `claude plugin marketplace add <org>/<repo> 2>/dev/null || true` line plus
 # a matching `claude plugin marketplace update <name> >/dev/null 2>&1 || true` line per
 # mirrored plugin's marketplace, sourced from that marketplace's `source.repo` field in
-# extraKnownMarketplaces — omit both for `claude-plugins-official`, which needs no add/update
-# call of its own)
+# extraKnownMarketplaces — omit both only for a marketplace already added above)
 
 # Plugins declared in .claude/settings.json#enabledPlugins. `claude plugin install` is NOT
 # idempotent (errors if the plugin is already present), so try update first and fall back to
@@ -791,9 +804,65 @@ done
 # agent-browser — required in the cloud sandbox for /browse-dependent skills
 # (/stories, /visual-review, /review, qa-agent, /flow) to work in cloud sessions.
 npm install -g agent-browser
+
+# Chrome, so agent-browser can actually launch a browser (the CLI alone can't render a
+# page). Unmodified `agent-browser install --with-deps` doesn't work in a cloud sandbox:
+#  - it shells out to `sudo apt-get ...` for Chrome's runtime libraries; cloud sandboxes
+#    commonly run this whole script as root with no `sudo` binary at all, so that call
+#    fails silently and Chrome downloads but can't launch (missing shared libs) — install
+#    the libraries directly instead, with no `sudo` prefix.
+#  - its own Chrome download can fail `invalid peer certificate: UnknownIssuer` behind a
+#    TLS-inspecting sandbox proxy (its bundled HTTP client doesn't trust the sandbox's CA
+#    store) — fetch Chrome for Testing directly via `curl` instead, which honors the
+#    system CA store, and place it where agent-browser's own cache expects it.
+CHROME_LIBS="libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+  libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2 \
+  libpango-1.0-0 libcairo2 libatspi2.0-0 libxshmfence1"
+# Populate the local apt cache BEFORE resolving package names against it — a fresh
+# sandbox's cache is empty until `update` runs, which would otherwise make every
+# `apt-cache policy` lookup below (including the t64 fallback) report no candidate.
+apt-get update -qq
+RESOLVED_LIBS=""
+for pkg in $CHROME_LIBS; do
+  # Capture apt-cache policy's own output into a variable first, rather than piping it
+  # straight into `grep -q` — under this script's `set -o pipefail`, `grep -q` closing its
+  # stdin the instant it finds a match can SIGPIPE the still-writing producer, and
+  # pipefail then reports that SIGPIPE (141) as the pipeline's exit status instead of
+  # grep's real success: a false negative on a genuine match.
+  POLICY_OUT="$(apt-cache policy "$pkg" 2>/dev/null || true)"
+  if echo "$POLICY_OUT" | grep -qE "Candidate: [^(]"; then
+    RESOLVED_LIBS="$RESOLVED_LIBS $pkg"
+  else
+    # The sandbox's Debian base may have undergone the 64-bit time_t transition, which
+    # renamed some packages with a `t64` suffix (e.g. libasound2 -> libasound2t64).
+    POLICY_OUT_T64="$(apt-cache policy "${pkg}t64" 2>/dev/null || true)"
+    if echo "$POLICY_OUT_T64" | grep -qE "Candidate: [^(]"; then
+      RESOLVED_LIBS="$RESOLVED_LIBS ${pkg}t64"
+    fi
+  fi
+done
+# $RESOLVED_LIBS is an intentionally unquoted, space-separated word list. `unzip` isn't
+# subject to the t64 rename dance (its package name doesn't vary) but a minimal sandbox
+# image may not ship it, and the Chrome-for-Testing zip below needs it.
+apt-get install -y -qq unzip $RESOLVED_LIBS
+
+AB_BROWSERS_DIR="${HOME}/.agent-browser/browsers"
+mkdir -p "$AB_BROWSERS_DIR"
+CFT_JSON="$(curl -fsSL https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json)"
+read -r CHROME_VERSION CHROME_URL <<<"$(echo "$CFT_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);const s=j.channels.Stable;console.log(s.version, s.downloads.chrome.find(x=>x.platform==='linux64').url)})")"
+CHROME_DIR="${AB_BROWSERS_DIR}/chrome-${CHROME_VERSION}"
+if [ ! -d "$CHROME_DIR" ]; then
+  mkdir -p "$CHROME_DIR"
+  curl -fsSL "$CHROME_URL" -o /tmp/chrome-for-testing.zip
+  unzip -q -o /tmp/chrome-for-testing.zip -d "$CHROME_DIR"
+  rm -f /tmp/chrome-for-testing.zip
+fi
+chmod +x "${CHROME_DIR}/chrome-linux64/chrome"
 ```
 
-Write this to `scripts/claude-cloud-setup.sh` in the project root, creating the `scripts/` directory if it doesn't exist. `2>/dev/null || true` on the marketplace-add and marketplace-update lines — a duplicate-add or a transient catalog-refresh failure are both expected no-op cases on a re-run. The plugin install-or-update branch and the final `npm install -g agent-browser` line are left unguarded so a real failure surfaces loudly within the Setup script's own ~5-minute budget, rather than being silently swallowed.
+Write this to `scripts/claude-cloud-setup.sh` in the project root, creating the `scripts/` directory if it doesn't exist. `2>/dev/null || true` on every marketplace-add and marketplace-update line — a duplicate-add or a transient catalog-refresh failure are both expected no-op cases on a re-run. The plugin install-or-update branch and the `npm install -g agent-browser`/Chrome-install lines are left unguarded so a real failure surfaces loudly within the Setup script's own ~5-minute budget, rather than being silently swallowed.
+
+**Residual verification note (#75):** the Chrome-for-Testing download path (`~/.agent-browser/browsers/chrome-{version}/chrome-linux64/chrome`) was derived from `agent-browser doctor`'s confirmed macOS cache layout (`~/.agent-browser/browsers/chrome-{version}/Google Chrome for Testing.app/...`) plus Chrome for Testing's own zip-internal folder naming convention — it has not been exercised against a real Linux cloud sandbox. Verify this path on an actual claude.ai/code sandbox (same repro steps as issue #75) before treating this as fully confirmed; adjust the path if agent-browser's Linux cache layout differs.
 
 **Write/update the `## Cloud parity` CLAUDE.md section** — add near the other project-level config sections (same "add or update a section" idiom Step 11 uses for `## Design integration`):
 
