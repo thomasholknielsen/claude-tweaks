@@ -333,8 +333,8 @@ node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.
   host:require('os').hostname(),now:Date.now()}).commentBody)" "$ISSUE" "$SHA" "$RUN_ID" > /tmp/claim-${ISSUE}.md
 gh issue edit "$ISSUE" --add-label bot:in-progress
 gh issue comment "$ISSUE" --body-file /tmp/claim-${ISSUE}.md
-# The MCP-path claim block above (Step 4) is not reachable in practice today — Preflight
-# hard-gates on gh being installed — so these are the only live commands for this step.
+# The MCP-path claim block above (Step 4) is documented and wired but still Preflight-gated
+# on gh being installed until Task 10 — so these are the only live commands for this step today.
 ```
 
 **On 422 (contested):** fetch comments and fold through `claimStatus` exactly as `_shared/issue-claims.md`'s "Reading claim state" section describes, then branch on the full returned shape — do not collapse to a two-way live/stale fold:
@@ -356,7 +356,7 @@ Any other `gh` failure during claim: skip, log, continue.
 **`--claim-only` stop point.** When this modifier is present (Input table above), stop here for every successfully claimed group — do not proceed to Step 5. Report each claimed group's members, confirm `bot:in-progress` and the claim comment landed, and print the manual-release commands for each member (mirrors `_shared/issue-claims.md`'s "The lock" → Release):
 
 (Preflight requires `gh`, so this is the only reachable release path today — see Step 4's note
-above on the MCP-path claim block's current unreachability):
+above: the MCP path is documented and wired but stays gated until Task 10):
 
 ```bash
 gh api -X DELETE "repos/{owner}/{repo}/git/refs/claims/issue-{n}"
