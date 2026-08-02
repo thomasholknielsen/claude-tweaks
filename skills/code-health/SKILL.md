@@ -84,6 +84,12 @@ A matched issue carrying the `wontfix` label is a standing suppression decision,
 
 **Step 3 — READ THE SLICE.**
 
+Stamp a freshness marker before reading anything, so Step 7.5 can later detect whether the slice changed underneath this run — a concurrent fix pass, another parallel code-health sweep, or an ordinary human edit landing between this read and eventual filing:
+
+```bash
+touch /tmp/code-health-read-marker
+```
+
 Read every source file in `${ROOT}/${AREA}`. Use Read and Glob:
 
 ```bash
@@ -194,6 +200,27 @@ Drop any finding that fails any of the five questions. Log the drop reason. A sm
 
 The verify gate is a judgment step, not a mechanical check. It cannot be automated. Do not skip it even under time pressure.
 
+**Step 7.5 — FRESHNESS RE-CHECK: catch findings whose anchor changed since Step 3 read it.**
+
+The verify gate above judges whether a finding is *correct*. This step is a separate, purely mechanical check for whether it is *still current*: a judge agent reads a file once, at Step 3, but filing (Step 9) can land much later — long enough for a concurrent fix pass, another parallel code-health sweep, or an ordinary human edit to change the very file a finding is anchored to. Filing on stale content produces duplicate or already-resolved issues (the incident that motivated this step: a 6-agent parallel sweep ran alongside an unrelated large fix pass touching the same files, and by review time most surviving findings had already been resolved by that fix pass).
+
+For every finding still in the candidate set after Step 7, check its anchor file — and every entry in `relatedAnchors`, when present, since a changed sibling occurrence stales the whole bundled finding — against the Step 3 marker:
+
+```bash
+ANCHOR_FILE="${ROOT}/${anchor%%#*}"
+if [ ! -e "$ANCHOR_FILE" ]; then
+  echo "possibly-stale: anchor file deleted since read"
+elif [ -n "$(find "$ANCHOR_FILE" -newer /tmp/code-health-read-marker 2>/dev/null)" ]; then
+  echo "possibly-stale: anchor file modified since read"
+fi
+```
+
+(`${anchor%%#*}` strips the `#NearestNamedSymbol` suffix, leaving the relative file path — the same parsing as the Step 6 anchor format.)
+
+Tag any finding that trips either condition with `"possiblyStale": true` in its JSON and rewrite `/tmp/code-health-findings.json` with the tag applied — do not drop the finding outright, since the underlying change might be unrelated to what the finding actually describes (a docstring edit two lines from the flagged block). Findings whose anchor (and every related anchor) is unchanged proceed as-is, with no tag.
+
+This check is cheap and mechanical — one `find -newer` per anchor — so run it every time, even under time pressure. Step 9 reads `possiblyStale` to route the finding to a human for re-confirmation (interactive mode) or to hold it back entirely (headless/Routine mode) rather than filing it against content the judge never actually saw.
+
 **Step 8 — VALIDATE, FINGERPRINT, DEDUP.**
 
 ```bash
@@ -265,18 +292,20 @@ Per `_shared/health-filing-gate.md`'s applicability/scope/placement rule: in int
 1. Render all findings as a markdown batch table:
 
    ```
-   | # | Title | Criterion | Severity | Confidence | Recommended |
-   |---|-------|-----------|----------|------------|-------------|
-   | 1 | {title} | {criterion} | {severity} | {confidence} | {File issue|Capture} |
+   | # | Title | Criterion | Severity | Confidence | Stale? | Recommended |
+   |---|-------|-----------|----------|------------|--------|-------------|
+   | 1 | {title} | {criterion} | {severity} | {confidence} | {Yes — anchor changed since read|—} | {File issue|Capture} |
    ```
 
-   Pre-fill the Recommended column: high severity + high confidence → `"File issue"`; low confidence → `"Capture"`; everything else (e.g. medium severity + high confidence) → `"File issue"` — file issue is the safe default whenever a finding clears the confidence bar. (Below-`--min-risk` findings never reach this table at all: Step 8's `validate-findings` already diverts them into the `remembered` cache before Step 9 runs.)
+   Pre-fill the Recommended column: high severity + high confidence → `"File issue"`; low confidence → `"Capture"`; everything else (e.g. medium severity + high confidence) → `"File issue"` — file issue is the safe default whenever a finding clears the confidence bar. (Below-`--min-risk` findings never reach this table at all: Step 8's `validate-findings` already diverts them into the `remembered` cache before Step 9 runs.) **Exception:** a finding flagged `possiblyStale` at Step 7.5 always pre-fills `"Capture"`, overriding the severity/confidence rule above — its anchor changed after the judge read it, so it needs a human to re-confirm it against current content before it becomes a filed issue, not a fresh issue filed sight-unseen.
 
 2. Call `AskUserQuestion` with `question`: `"How do you want to handle these findings?"`, `header`: `"Findings"`, `multiSelect`: `false`, and:
    - Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"File / Capture each finding per the Recommended column above"`
    - Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which #s to change"`
 
 3. If "Override specific items" was chosen, the follow-up is ordinary free-text chat in the next message, per CLAUDE.md's Multi-item decisions convention — not the tool's `Other` field. The user names findings by number and states each one's disposition — `File issue` (file as a GitHub code-health issue), `Capture` (via `/claude-tweaks:capture` for later triage), `/claude-tweaks:specify directly` (promote straight to a spec, skipping the issue), or `Dismiss` (drop this finding) — e.g. "file 2, capture 5, dismiss 7." Apply the stated disposition to those specific findings; every finding not named keeps its Recommended-column value.
+
+**Headless (Routine) runs skip this gate entirely**, per `_shared/health-filing-gate.md`'s applicability rule — every surviving finding files automatically, with no human to route it through the table above. The one exception is a finding still flagged `possiblyStale` after Step 7.5: hold it back rather than filing it blind. Drop it from the filing set (log the drop reason) instead of calling `gh issue create` for it — the slice's next scheduled sweep will re-judge the same content and, if the finding still holds against then-current evidence, file it then.
 
 For each survivor disposed as "File issue" (every payload if "Apply all recommended" was chosen and its Recommended value was `"File issue"`; only the individually-overridden ones otherwise), call `gh issue create`. The engine is emit-only; filing is always done by the skill.
 
@@ -334,7 +363,7 @@ Report: how many findings were emitted, how many survived dedup, how many issues
 
 This resolves the account- and project-specific values a portable template can't hardcode (which environment, which repo) and creates a live cloud Routine via `RemoteTrigger` directly — see `skills/routine/SKILL.md` for the full mechanism. Add `--dry-run` to inspect the assembled configuration before anything is created.
 
-**Headless run flow:** SCOPE(`next-slice`) → CLASSIFY → JUDGE → `validate-findings` → file issues. Triage happens later in GitHub — the Routine does not wait for interactive input. The template's prompt omits `--area` so `next-slice` always picks the highest-priority slice automatically. Code-health's own `--budget` flag (default 1 slice per run) governs how deep each firing goes — raise it via a manual `/claude-tweaks:code-health --budget <n>` run if you want a one-off deeper sweep; the routine itself always uses the template's single-slice default, and token cost scales with whatever budget is in effect for that invocation.
+**Headless run flow:** SCOPE(`next-slice`) → CLASSIFY → JUDGE → VERIFY GATE → FRESHNESS RE-CHECK → `validate-findings` → file issues (dropping any finding still flagged `possiblyStale`). Triage happens later in GitHub — the Routine does not wait for interactive input. The template's prompt omits `--area` so `next-slice` always picks the highest-priority slice automatically. Code-health's own `--budget` flag (default 1 slice per run) governs how deep each firing goes — raise it via a manual `/claude-tweaks:code-health --budget <n>` run if you want a one-off deeper sweep; the routine itself always uses the template's single-slice default, and token cost scales with whatever budget is in effect for that invocation.
 
 A skipped run (e.g., `next-slice` returns `null` because all slices are fresh) is harmless — rotation resumes from the same position on the next window. This is now actually true across a scheduled cloud-routine's container recycling too: rotation cursors, the sub-threshold remembered cache, and the filing retry queue all live on the durable `health-state` branch (`_shared/health-state.md`), not local disk that a fresh container wouldn't have.
 
@@ -403,6 +432,7 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 | Treating the cache as durable state | The cache is a rebuildable optimization. GitHub issue state is the source of truth for cross-run memory. |
 | Filing a finding with `confidence: 'low'` for a noisy criterion | Noisy criteria (`scalability`, `security-logic`, `resilience`, `config-secrets`, `input-validation`) require `confidence: 'high'` to file. The confidence floor is enforced mechanically by the engine — `validate-findings`' `applyConfidenceFloor` drops any finding below its criterion's `confidenceFloor` before dedup runs, not merely discouraged by skill judgment. |
 | Skipping the verify gate before filing | Files plausible-but-wrong findings. Every surviving finding must pass all five verify questions — real, actionable, reproducible, likelihood justified, effort consistent — before reaching dedup. |
+| Filing a finding still flagged `possiblyStale` | Its anchor file changed after the judge read it — the finding may already be fixed or moot by a concurrent fix pass or another parallel sweep. Route it to human re-confirmation (interactive mode) or hold it for the next sweep (headless mode) instead of filing sight-unseen. |
 | Filing `gh issue create` directly off a `--dry-run` payload without a matching non-`--dry-run` `validate-findings` call | Breaks rotation state silently — cursors and the run-log never persist, so `next-slice` re-selects the same slice next time. Always follow a `--dry-run` preview with the real call before filing. |
 | Splitting one recurring root cause into N near-duplicate issues instead of bundling | Floods the tracker with issues that are really one fix applied at N call sites. Use `relatedAnchors` to cover every occurrence in a single finding instead. |
 | Filing before presenting the interactive gate | The two-tier decision must run before any `gh issue create` call for new findings — see `_shared/health-filing-gate.md`'s placement rule. |
