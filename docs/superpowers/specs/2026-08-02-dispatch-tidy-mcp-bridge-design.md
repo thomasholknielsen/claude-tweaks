@@ -28,7 +28,9 @@ Two independently-shippable slices, same principle applied to each:
 
 **The `gh`-CLI path is unchanged everywhere, byte-for-byte, for every call site.** This is additive, per ADR 0008's standing decision (MCP calls cost meaningfully more context/tokens than the equivalent `gh api` call, so the cheaper path stays the default whenever it's available).
 
-**Verification is a one-time, development-time gate, not a runtime feature.** The plan bridges every call site with the hard gate left exactly as it is today (mirroring how Step 4's claim block already exists, documented but dormant). The diagnostic Routine gets built and fired for real, against `memenu-app`'s existing cloud environment, as the plan's second-to-last task. Only if every primitive passes does the plan's final task flip the gate and delete the Routine. If anything fails, the plan stops there: the gate stays exactly as today, the specific failure gets filed, and dropping the gate becomes separately-scoped future work informed by what broke — deliberately mirroring how `d4bdfb9` handled its own failure, except this time the failure surfaces before merging, not after.
+**Verification is a one-time, development-time gate, not a runtime feature.** Each slice's own plan bridges every call site with that slice's hard gate left exactly as it is today (mirroring how Step 4's claim block already exists, documented but dormant). That slice's diagnostic Routine gets built and fired for real, against `memenu-app`'s existing cloud environment, as the plan's second-to-last task. Only if every primitive passes does the plan's final task flip that slice's gate and delete the Routine. If anything fails, the plan stops there: the gate stays exactly as today, the specific failure gets filed, and dropping the gate becomes separately-scoped future work informed by what broke — deliberately mirroring how `d4bdfb9` handled its own failure, except this time the failure surfaces before merging, not after.
+
+**This design produces two separate implementation plans, not one.** Slice 1 gets written, executed, and verified (including its own live Routine firing) as a complete, independently-mergeable unit before Slice 2's plan is even written — not just implemented-then-merged-together. This is the direct consequence of rejecting the "one combined slice" alternative below: if Slice 2's plan existed already, a delay or failure in its own diagnostic Routine would create pressure to hold Slice 1's already-verified, already-working fix hostage to it. Writing Slice 2's plan is out of scope for the immediate next step (`writing-plans`, below) — it starts only after Slice 1 has shipped and its own gate has actually dropped.
 
 ## Slice 1: Dispatch's queue/claim/settle/merge path (#61)
 
@@ -38,14 +40,14 @@ Two independently-shippable slices, same principle applied to each:
 |---|---|---|
 | Step 2: queue pull (`gh issue list --label auto:build`) | `gh`-only | Already mapped (`list_issues`) — wire the branch |
 | Step 2: open-numbers pull + per-dependency state check (`gh issue view --json state`) | `gh`-only | **New CRUD row**: get single issue by number |
-| Step 2: native `work-links` GraphQL dependency query | `gh`-only, no passthrough | No new mapping — extend the existing on-error fallback (skip native filtering, warn) to also trigger on `gh` absent |
+| Step 2: native `work-links` GraphQL dependency query | `gh`-only, no passthrough | No new mapping — when `gh` is absent, skip attempting the call at all and go straight to the same outcome the existing on-error fallback already produces (no native filtering this run, warn). Same outcome, reached via a capability check instead of a failed call. |
 | Step 4: claim/release (`create_or_update_file` CAS) | Fully documented, dormant | Wire only — no redesign |
 | Step 4 / Settle: contested-claim & retry-ceiling comment fetch (`gh api .../comments`) | `gh`-only | **New CRUD row**: list issue comments |
 | Settle: label edits | `gh`-only | Already mapped (`issue_write`) |
 | Auto-merge gate: default-branch lookup (`gh api repos/{owner}/{repo}`) | `gh`-only | **Removed, not mapped** — `git remote show origin` / `git symbolic-ref refs/remotes/origin/HEAD`, needs neither `gh` nor MCP |
 | Auto-merge gate: merge + push | Already plain `git` | Unchanged |
 
-**Preflight change:** Detection Ladder check 2 (`gh` installed) stops being an unconditional hard gate. `gh` present → today's behavior, unchanged. `gh` absent → proceed via MCP only after this slice's diagnostic Routine has verified clean (development-time fact, not a runtime check); otherwise the hard gate stays, with a message distinguishing "no `gh`, no verified MCP bridge yet" from today's flat "no `gh`."
+**Preflight change:** Detection Ladder check 2 (`gh` installed) stops being an unconditional hard gate — but only in the version of `dispatch/SKILL.md` that ships *after* the diagnostic Routine (below) has verified clean. There is no runtime "has this been verified" check anywhere in the shipped prose; verification gates *whether this edit gets written and merged at all*, not something Preflight evaluates at firing time. Once shipped, the rule is unconditional: `gh` present → today's behavior, unchanged; `gh` absent → proceed via the now-verified MCP path. If the diagnostic Routine fails, this edit is simply never made — the plan stops with the hard gate exactly as it is today.
 
 ### Slice 1 diagnostic Routine
 
