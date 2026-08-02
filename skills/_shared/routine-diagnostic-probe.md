@@ -21,7 +21,7 @@ Filter the returned triggers to `name === "{REPO_SLUG}-diagnostic-probe"`.
 
 **Found** — reuse it: skip straight to Body construction below with this `trigger_id`, using the **Update** branch.
 
-**Not found** — create it: resolve `environment_id` exactly as `skills/routine/SKILL.md`'s CREATE Step 4 non-guided procedure does (cache → project-local records → account-wide list-and-filter → direct user input if none resolve) — follow that file's own steps rather than re-deriving the logic here. If Step 4's own guided-creation fallback would trigger (no environment resolves from any source), stop and tell the user directly: there is no existing environment for this project to run a diagnostic against, and creating one is `skills/routine/guided-environment-creation.md`'s job, not this procedure's — a diagnostic probe should never be the reason a brand-new billed environment gets created.
+**Not found** — create it: resolve `environment_id` exactly as `skills/routine/SKILL.md`'s CREATE Step 4 non-guided procedure does (cache → project-local records → account-wide list-and-filter → guided-creation fallback if none resolve) — follow that file's own steps rather than re-deriving the logic here. If Step 4's own guided-creation fallback would trigger (no environment resolves from any source), stop and tell the user directly: there is no existing environment for this project to run a diagnostic against, and creating one is `skills/routine/guided-environment-creation.md`'s job, not this procedure's — a diagnostic probe should never be the reason a brand-new billed environment gets created.
 
 ## Body construction
 
