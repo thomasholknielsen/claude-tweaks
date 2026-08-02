@@ -74,7 +74,7 @@ The caller supplies the full diagnostic prompt — checks vary too much (GitHub 
 
 `RemoteTrigger {action: "run", trigger_id: <trigger_id>}` fires immediately regardless of `enabled`/schedule state — confirmed live against `memenu-app`'s own `memenu-app-env-smoke-test` trigger.
 
-No polling mechanism exists for this. The caller waits a real interval (minutes, not seconds) before reading the result — via the console URL the `create`/`run` response includes, or `RemoteTrigger {action: "get", trigger_id}`. This is a genuine async wait; do not fabricate or assume a result before reading the real transcript.
+No polling mechanism exists for this. The caller waits a real interval (minutes, not seconds) before reading the result via the console URL that the `create`/`run` response includes — `RemoteTrigger {action: "get"}` and `{action: "list"}` return only trigger configuration, not run output, for this trigger shape. This is a genuine async wait; do not fabricate or assume a result before reading the real transcript.
 
 ## Cleanup
 
