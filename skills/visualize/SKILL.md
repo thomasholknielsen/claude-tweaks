@@ -90,6 +90,8 @@ Author the `<svg>` content directly for the diagram type and topic, binding ever
 
 Apply `visual-html-output.md` Step 4's adapters. Always write the standalone-file wrapper to the path from Step 3. Write the markdown-embed wrapper's content inline in this skill's own response (for the user to copy into a doc) rather than as a separate file — it's a snippet, not a standalone artifact.
 
+Once the standalone file is written, run `visual-html-output.md` Step 7 to deliver it — a clickable `file://` link plus a `SendUserFile` handoff when that tool is available — rather than leaving the diagram's preview path to be improvised later.
+
 Alongside the embed snippet, also surface a suggested `files:` frontmatter line naming the diagram's depicted source dependencies (the files under discussion when the diagram's topic was resolved in Step 1) — e.g.:
 
 ```yaml
@@ -139,4 +141,4 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `/claude-tweaks:init` | Step 12 offers to enable diagram suggestions (writes `diagram-suggestions: enabled/disabled` to CLAUDE.md — no install step, this skill is native). |
 | `/claude-tweaks:help` | /help references /visualize in the workflow diagram and reference card. |
 | `/claude-tweaks:docs-health` | Step 5's suggested `files:` frontmatter line (naming a diagram's depicted source dependencies) gives docs-health's freshness-dependency check (`_shared/criteria-docs-diataxis.md` Dimension 2) something to track once the user applies it to the embedding doc's frontmatter. |
-| `skills/_shared/visual-html-output.md` | Shared core this skill consumes for token extraction, wrapper adapters, MDX/Nextra compatibility, and the persist-vs-ephemeral decision. |
+| `skills/_shared/visual-html-output.md` | Shared core this skill consumes for token extraction, wrapper adapters, MDX/Nextra compatibility, the persist-vs-ephemeral decision, and delivery (Step 7's `file://` link + `SendUserFile` handoff). |

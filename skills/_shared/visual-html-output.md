@@ -1,6 +1,6 @@
 # Visual HTML Output — Shared Core Procedure
 
-Reusable procedure for producing themed, self-contained HTML+SVG visual output: token extraction from Impeccable's `DESIGN.md`, the core-fragment/wrapper-adapter pattern, MDX/Nextra docs-server compatibility, and the persist-vs-ephemeral decision. Referenced by `/claude-tweaks:visualize` (diagrams). Any future skill producing themed HTML report output (e.g. a `/code-health`, `/harness-health`, `/journey-health`, or `/review` report mode) can invoke this file directly — it has no callable surface of its own, every step below is executed by the calling skill.
+Reusable procedure for producing themed, self-contained HTML+SVG visual output: token extraction from Impeccable's `DESIGN.md`, the core-fragment/wrapper-adapter pattern, MDX/Nextra docs-server compatibility, the persist-vs-ephemeral decision, and delivery (clickable file link + `SendUserFile` handoff). Referenced by `/claude-tweaks:visualize` (diagrams). Any future skill producing themed HTML report output (e.g. a `/code-health`, `/harness-health`, `/journey-health`, or `/review` report mode) can invoke this file directly — it has no callable surface of its own, every step below is executed by the calling skill.
 
 ## Step 1: Token extraction
 
@@ -135,3 +135,23 @@ Copy the generated file into your docs app's static-asset directory
 | Invoked directly, ad-hoc, no calling context | — | Yes — `AskUserQuestion`: `"Save as a project doc"` / `"Just show me now (not saved)"` / `"Both"` |
 
 "Just show me now" still writes the core fragment + standalone wrapper to a scratch path first, so there's something the user can open locally regardless of whether the output is meant to be a durable project doc. It just never lands under a project's `docs/` tree, is never registered in `REGISTRY.md`, and the MDX-embed reference snippet from Step 5 is not offered (there's nothing to embed if it isn't staying in the project).
+
+## Step 7: Deliver the output
+
+Once Step 4's standalone wrapper file exists on disk — whichever of Step 6's branches produced it (persisted under `docs/`, scratch-path-only, or both) — always end the wrapper-output procedure by handing it back to the user directly. Don't leave the calling skill to improvise a preview path (browser automation against a `file://` URL and a throwaway local HTTP server have both been tried in real sessions and both blocked — neither is the answer; this step is).
+
+1. Emit the file's absolute path as a `file://` URI on its own line, as the final line of output. Most terminals (iTerm2, VS Code's integrated terminal, Ghostty, etc.) auto-hyperlink a bare `file://` URI, so this alone gives a clickable open action with no extra tooling:
+
+   ```
+   file:///absolute/path/to/the-diagram.html
+   ```
+
+2. If the `SendUserFile` tool is present in the current tool set (check the available tools directly — a hosted or headless invocation may not have it; don't assume), call it as the default way to hand the diagram to the user, not as a fallback to reach for only when asked:
+
+   ```
+   SendUserFile({ files: ["/absolute/path/to/the-diagram.html"], status: "normal", display: "render" })
+   ```
+
+   `display: "render"` opens the diagram inline immediately — the natural way to show visual output. Call it whenever the tool is available; it's complementary to the `file://` link above (one gives an immediate inline preview, the other a durable clickable path for later), not an alternative to it.
+
+If `SendUserFile` isn't available, the `file://` link from step 1 is still the required minimum — this step never ends with only a bare path pasted into prose.
