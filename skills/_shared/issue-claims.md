@@ -37,12 +37,13 @@ gh api "repos/{owner}/{repo}/git/matching-refs/claims/" -q '.[].ref'
 `claimPayload`/`releasePayload` calls as always (see "The mirror" below) — the `claimPath`,
 `fileContent`, and `tombstoneContent` fields they now also return are what this path uses.
 
-*Reachability, per consumer:* `/claude-tweaks:dispatch`'s Preflight still hard-gates on `gh`
-being installed today — its full read path (queue pull, dependency checks, settle/merge) is
-fully documented on both transports as of `docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`,
-but the gate itself only drops once that plan's live diagnostic verification passes (its Task 10).
-`/tidy`'s Step 4.7 claims-audit sweep is a separate consumer of this same protocol and is not
-affected by that gate.
+*Reachability, per consumer:* `/claude-tweaks:dispatch`'s Preflight check 2 (`gh` installed) no
+longer gates on its own as of `docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`'s
+Task 10 — its full read path (queue pull, dependency checks, settle/merge) is fully documented
+and live on both transports: `gh` present → proceed exactly as always; `gh` absent → proceed via
+the MCP path above, verified end-to-end against a live cloud Routine run. `/tidy`'s Step 4.7
+claims-audit sweep is a separate consumer of this same protocol and was never affected by that
+gate either way.
 
 ```bash
 node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
@@ -323,7 +324,7 @@ Fail-closed on claiming; never block the session.
 
 | Failure | Behavior |
 |---|---|
-| `gh` missing | Use the MCP path (see "The lock" above) — not a hard gate at the protocol level. An individual consumer may still gate on `gh` for reasons of its own; `/dispatch` does, per the Reachability note above |
+| `gh` missing | Use the MCP path (see "The lock" above) — not a hard gate at the protocol level. `/dispatch` no longer gates on `gh` missing alone either, per the Reachability note above; an individual consumer could still choose to gate on its own for reasons unrelated to this protocol, but none currently does |
 | `gh` present but unauthenticated | Consumer's existing hard gate (auto never silences a missing dependency) |
 | Claim ref 422, live claim (`claimed:true, stale:false`) | Skip the issue, log `AUTO`, continue |
 | Claim ref 422, stale claim (`claimed:true, stale:true`) | Break: delete ref → recreate → takeover comment |
