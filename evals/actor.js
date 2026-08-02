@@ -38,8 +38,13 @@ function findOverride(question, answerOverrides) {
 // Known, accepted limitation: this does NOT inspect or restrict Bash command
 // text — there is no reliable way to parse an arbitrary shell command string
 // into a target path, so a Bash call is always allowed unmodified by this
-// guard. This narrows the fix to what's mechanically checkable; it is not a
-// full sandbox.
+// guard. This is deliberately narrow, defense-in-depth on top of the primary
+// containment layer: runner.js's managedSettings.sandbox, which enforces
+// filesystem/network restrictions on every Bash-tool subprocess at the OS
+// level regardless of what this guard does or doesn't inspect. The
+// evals/scenarios/actor-escape-attempt.yaml scenario is live, executable
+// proof that the OS sandbox denies a Bash-executed escape from the fixture
+// repoDir — see README.md's Safety model section.
 const PATH_INPUT_KEYS = ['file_path', 'path', 'notebook_path'];
 
 function findPathInput(input) {
