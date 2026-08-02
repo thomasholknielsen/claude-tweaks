@@ -270,7 +270,7 @@ Parent invocation of `/capture` is signaled by `$PIPELINE_RUN_DIR` being set in 
 | `/claude-tweaks:reflect` | Its Capture disposition (`full` and `hindsight` modes) routes a complex/uncertain insight or finding through `/claude-tweaks:capture` to file it as a fresh backlog work record — distinct from reflect's Defer disposition, which files new backlog records directly at the Wrap-Up Review Console without going through this skill |
 | `/claude-tweaks:visual-review` | Files UI ideas (creative improvements, follow-ups) as new backlog records directly, not via /capture — only recommends /capture to the user afterward, the same pattern as /claude-tweaks:reflect's Defer disposition above |
 | `/claude-tweaks:help` | Feeds items that /claude-tweaks:help surfaces in the status dashboard/queue counts. |
-| `_shared/work-record.md` | Taxonomy home — stage vocabulary (backlog / parked / ready), the permission-matrix row for `/capture` (`by:capture` + Type only), and the seven-axis label contract this skill files against |
+| `_shared/work-record.md` | Taxonomy home — stage vocabulary (backlog / parked / ready), the permission-matrix row for `/capture` (`by:capture` + Type only), and the label contract this skill files against |
 | `/claude-tweaks:research` | Research findings can be captured as backlog records; invoke `/research` when a backlog record needs evidence before specifying. |
 | `/claude-tweaks:code-health` | `/code-health` routes fuzzy or below-threshold findings to the backlog via `/capture` instead of filing a GitHub issue, so they get human triage before promotion. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |

@@ -38,7 +38,7 @@ BACKLOG ──/specify shapes──► READY ──human grants──► AUTHORI
 Stage vocabulary is exactly these three words — **backlog** (absence of stage labels),
 **parked**, **ready**. Legacy stage names from the spec-file era never name concepts here.
 
-## The seven axes
+## The axes
 
 | Axis | Values | Expressed as |
 |---|---|---|
@@ -69,7 +69,7 @@ are about to apply.
 | Origin (6) | `by:code-health`, `by:harness-health`, `by:journey-health`, `by:docs-health`, `by:capture`, `by:dispatch` | Origin |
 | Risk (3) | `risk:low`, `risk:medium`, `risk:high` | Scoring |
 | Effort (3) | `effort:low`, `effort:medium`, `effort:high` | Scoring |
-| Ceremony (2) | `ceremony:fast-lane`, `ceremony:standard` | Ceremony depth — cross-cutting, not one of the seven axes; stamped by `/specify` alongside Scoring, always explicit (no unscored state) |
+| Ceremony (2) | `ceremony:fast-lane`, `ceremony:standard` | Ceremony depth — cross-cutting, not one of the axes; stamped by `/specify` alongside Scoring, always explicit (no unscored state) |
 | Stage (2) | `parked`, `ready` | Stage |
 | Grants (2) | `auto:build`, `auto:merge` | Authorization |
 | Bot state (2) | `bot:in-progress`, `bot:blocked` | Bot state |

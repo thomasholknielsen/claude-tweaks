@@ -158,14 +158,14 @@ Before adding to CLAUDE.md, check the size budget — keep it concise. Move deta
 
 ### 6.2: Decision Records (ADRs)
 
-Capture the *why* behind significant decisions made during this work — distinct from `decisions.md` (the per-run auto-decision audit log) and the spec (which records *what*). Apply the **3-factor gate** from `_shared/decision-records.md` (read it for the gate, the location convention, and the template).
+Capture the *why* behind significant decisions made during this work — distinct from `decisions.md` (the per-run auto-decision audit log) and the spec (which records *what*). Apply the **ADR gate** from `_shared/decision-records.md` (read it for the gate, the location convention, and the template).
 
 1. **Gather decision candidates** from this work's surfaces:
    - `[ADR-candidate]`-tagged constraints in the brainstorming brief (flagged by `/claude-tweaks:challenge`)
    - Architectural deviations classified in `/build` Common Step 4.5
    - Interface trade-offs flagged `[ADR-candidate]` by `/claude-tweaks:deepen`
    - Tradeoffs accepted during `/review` and reflection insights about approach
-2. **Run the 3-factor gate** on each candidate — write an ADR only when ALL THREE hold: **hard to reverse** AND **surprising without context** AND **the result of a real trade-off**. If any factor is missing, do not propose an ADR (the decision belongs in the spec, a code comment, or nowhere).
+2. **Run the ADR gate** on each candidate — write an ADR only when ALL THREE hold: **hard to reverse** AND **surprising without context** AND **the result of a real trade-off**. If any factor is missing, do not propose an ADR (the decision belongs in the spec, a code comment, or nowhere).
 3. For each decision that passes, propose creating `docs/decisions/NNNN-{slug}.md` using the template in `_shared/decision-records.md` (find the highest existing `NNNN` and increment).
 
 → Collect each as: `[adr] docs/decisions/NNNN-{slug}.md — {decision title}`
@@ -180,7 +180,7 @@ Analyze whether project skills need updating, and whether the work warrants a **
 
 Unlike a pure consumer, Step 7 **generates** candidates from the work itself. Ledger entries (`build/skill`, `review/skill`, `[skill: …]`-tagged) and reflection insights are **seeds** that focus the analysis — but an independent, domain-scoped scan inspects the skills whose domain overlaps the changed files **even when nothing was tagged**, and gap detection looks for reusable patterns no skill covers. New-skill candidates are proposed when **≥2 of 3** criteria (reusability, complexity, project-specificity) are met — not all three.
 
-**Gate the read.** Read `skill-curation.md` in this skill's directory — the full procedure: seed gathering (7.1), the independent scan + gap detection (7.2), the 8-dimension analysis (7.3), the ≥2-of-3 new-skill gate (7.4), quality gates (7.5), and auto/interactive stage-or-present (7.6) — when **either** holds:
+**Gate the read.** Read `skill-curation.md` in this skill's directory — the full procedure: seed gathering (7.1), the independent scan + gap detection (7.2), the dimension analysis (7.3), the ≥2-of-3 new-skill gate (7.4), quality gates (7.5), and auto/interactive stage-or-present (7.6) — when **either** holds:
 
 - `.claude/skills/*.md` exists (there is a skill library to scan or patch), **or**
 - `git diff --name-only` against this work's base ref contains a *cohesive* set of files implementing one reusable pattern — 7.2's gap-detection precondition (multiple files implementing a single pattern, not scattered one-off edits).
@@ -514,7 +514,7 @@ When `$PIPELINE_RUN_DIR` is unset, `/claude-tweaks:wrap-up` runs standalone — 
 | Gating `skill-curation.md`'s read on `.claude/skills/*.md` alone | `skill-curation.md` 7.2 step 2 requires gap detection to run even when the directory is absent — "a project with no skills is the strongest case for a first one." Step 7's gate therefore also opens on a cohesive multi-file diff; existence of the skill library is not a sufficient gate on its own |
 | Proposing generic skill updates with no concrete anchor | Every skill update must trace to a ledger entry, a reflection insight, or a specific changed-file observation from the independent scan — updates with no anchor are indistinguishable from hallucinated ones |
 | Mixing skill updates into the doc/CLAUDE.md batch table | Skill updates require full file reads and Update Mode patches — they get their own decision table in Step 7 |
-| Writing an ADR for every decision | ADRs are valuable because they are rare — Step 6.2's 3-factor gate (hard-to-reverse AND surprising AND a real trade-off) keeps them so. Most wrap-ups produce zero ADRs, and that is correct |
+| Writing an ADR for every decision | ADRs are valuable because they are rare — Step 6.2's ADR gate (hard-to-reverse AND surprising AND a real trade-off) keeps them so. Most wrap-ups produce zero ADRs, and that is correct |
 | Treating `demo:pending` as optional for "trivial" record-mode work | The Acceptance axis applies uniformly — triviality gets a fast path at `/demo`'s own verdict step, not wrap-up's labeling step |
 
 ## Relationship to Other Skills
@@ -538,8 +538,8 @@ When `$PIPELINE_RUN_DIR` is unset, `/claude-tweaks:wrap-up` runs standalone — 
 | `/claude-tweaks:design-wrapper` | /wrap-up plans cleanup of the design wrapper's per-spec caches (`*-audit.json`, `*-recommendations.json`, `*-declined.json` in `docs/plans/`) in Step 5 and executes the deletion in Step 10 alongside the ledger. |
 | `/claude-tweaks:flow` | Invoked BY /flow as the pipeline's final step; flow waits for /wrap-up's Review Console (Step 8.6) before archiving the run directory. Multi-spec runs set `MULTISPEC_REVIEW_DEFER=1` so per-spec wrap-ups defer to flow's consolidated console. |
 | `/claude-tweaks:dispatch` | Cleanup Section E releases the claim on success using the `CLAIM_RUN_ID` dispatch threads through `/flow` (not /wrap-up's own `PIPELINE_RUN_DIR`) — see the ownership-check procedure in `cleanup-procedures.md`. Dispatch's own group-scoped Auto-merge gate then runs its checks against this skill's Review Console output before it would otherwise render. |
-| `/claude-tweaks:deepen` | Interface trade-offs /deepen flags `[ADR-candidate]` are picked up by Step 6.2 and run through the 3-factor gate for possible ADR creation |
-| `_shared/decision-records.md` | Canonical 3-factor ADR gate, location convention, and template applied by Step 6.2 |
+| `/claude-tweaks:deepen` | Interface trade-offs /deepen flags `[ADR-candidate]` are picked up by Step 6.2 and run through the ADR gate for possible ADR creation |
+| `_shared/decision-records.md` | Canonical ADR gate, location convention, and template applied by Step 6.2 |
 | `/claude-tweaks:docs-health` and `_shared/criteria-docs-diataxis.md`, `docs-health-integration.md` | Step 7.7 applies this shared judgment inline to docs touched by the current work plus a domain-overlap top-N (same reuse pattern as `_shared/harness-health-analysis.md` in Step 7), and detects missing documentation from the diff. |
 | `/claude-tweaks:journeys` and `/claude-tweaks:journey-health`, `_shared/journey-self-review.md`, `journey-curation.md` | Step 7.8 applies `_shared/journey-self-review.md`'s shared four-check + structural-validity criteria inline to journeys the diff touches (see `journey-curation.md` in this skill's directory; same reuse pattern as `_shared/criteria-docs-diataxis.md` in Step 7.7) — never a nested `Skill()` call to either. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |

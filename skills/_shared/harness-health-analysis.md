@@ -140,7 +140,7 @@ Before forming any finding, run these mechanical checks and treat their output a
 
 Checks 1-2 are optional assists — skip gracefully if a referenced path/command genuinely can't be checked mechanically (e.g., a described convention with no clean grep signature). A finding grounded in one of these checks is higher-confidence than one based on reading alone.
 
-## Step 2: The 8-Dimension Check
+## Step 2: The Dimension Check
 
 For the target (or, for wrap-up/init, each skill in their own read set), apply the dimensions that meaningfully apply to its kind:
 
@@ -174,7 +174,7 @@ Always reason about *why* the ratio is low before emitting a finding — never r
 
 ## Memory-Specific Checks (`assetType: memory` targets)
 
-A `memory` target skips the 8-dimension check above entirely — its checks are narrower and more mechanical, closer in spirit to the `design-artifact` branch than to a full skill/rule/CLAUDE.md audit. `assetType` is `"memory"`; `target` is the memory file's id (its filename stem, from `MEMORY.md`'s link).
+A `memory` target skips the dimension check above entirely — its checks are narrower and more mechanical, closer in spirit to the `design-artifact` branch than to a full skill/rule/CLAUDE.md audit. `assetType` is `"memory"`; `target` is the memory file's id (its filename stem, from `MEMORY.md`'s link).
 
 1. **Index line-length check.** Each `MEMORY.md` bullet line has a fixed 150-character budget — not project-configurable like the checks above, since this is a cross-project harness convention rather than a per-project stylistic choice:
    ```bash
