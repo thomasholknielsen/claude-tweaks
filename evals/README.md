@@ -84,8 +84,8 @@ repo afterward before trusting a scenario as safe to run unattended.
 `canUseTool` and is counted in `toolCalls` — `tool-count`/`tool-called`
 assertions reflect the run's real total tool use, not an undercount. (The
 SDK's own default for this setting is `true`, which would silently let many
-sandboxed Bash calls skip `canUseTool` entirely — confirmed against
-Anthropic's published sandboxing documentation.)
+sandboxed Bash calls skip `canUseTool` entirely — confirmed directly against
+the installed SDK's `sdk.d.ts` type definitions; see `evals/NOTES.md`.)
 
 ## Comparing before/after a skill change
 

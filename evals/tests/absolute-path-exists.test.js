@@ -5,9 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { absolutePathExists } from '../assertions/absolute-path-exists.js';
 
-test('absolutePathExists: passes when shouldExist:false and the target field is absent from context', () => {
-  const result = absolutePathExists({}, { target: 'escapeTargetPath', shouldExist: false });
-  assert.strictEqual(result.pass, true);
+test('absolutePathExists: throws when the target field is absent from context (fails closed, not open)', () => {
+  assert.throws(() => absolutePathExists({}, { target: 'escapeTargetPath', shouldExist: false }));
 });
 
 test('absolutePathExists: fails when shouldExist:false but the file actually exists', () => {

@@ -101,15 +101,16 @@ export async function runScenarioWith(scenarioPath, opts = {}) {
           enabled: true,
           failIfUnavailable: true,
           allowUnsandboxedCommands: false,
-          // Explicitly disabled (docs.claude.com/en/sandboxing confirms this
-          // otherwise defaults to true): with it on, many sandboxed Bash
-          // calls bypass canUseTool entirely, so toolCalls (and any
-          // tool-count/tool-called assertion built on it) silently
-          // undercounts real tool use. Routing every Bash call through
-          // canUseTool costs one extra async JS round-trip per call — noise
-          // next to the seconds-scale latency of the real model turn each
-          // scenario already pays for, so accurate counting wins the
-          // tradeoff for a harness whose whole purpose is measurement.
+          // The SDK's own default for this setting is true (confirmed
+          // against the installed SDK's sdk.d.ts — see evals/NOTES.md);
+          // left on, many sandboxed Bash calls bypass canUseTool entirely,
+          // so toolCalls (and any tool-count/tool-called assertion built on
+          // it) silently undercounts real tool use. Explicitly disabling it
+          // routes every Bash call through canUseTool, costing one extra
+          // async JS round-trip per call — noise next to the seconds-scale
+          // latency of the real model turn each scenario already pays for,
+          // so accurate counting wins the tradeoff for a harness whose
+          // whole purpose is measurement.
           autoAllowBashIfSandboxed: false,
           network: { allowedDomains: [] },
           filesystem: { allowRead: [path.join(repoDir, '.git')] },

@@ -6,7 +6,8 @@ import fs from 'node:fs';
 // escape attempt did not actually write anywhere.
 export function absolutePathExists(context, { target, shouldExist = true } = {}) {
   const targetPath = context ? context[target] : undefined;
-  const exists = targetPath ? fs.existsSync(targetPath) : false;
+  if (!targetPath) throw new Error(`absolute-path-exists: context field "${target}" is not set`);
+  const exists = fs.existsSync(targetPath);
   if (exists === shouldExist) return { pass: true, message: `${targetPath}: exists=${exists} as expected` };
   return { pass: false, message: `${targetPath}: exists=${exists}, expected ${shouldExist}` };
 }
