@@ -297,12 +297,8 @@ for ISSUE in "${GROUP_MEMBERS[@]}"; do
 done
 ```
 
-**MCP path** (`gh` unavailable): **not reachable in practice today** — Preflight hard-gates on
-`gh` being installed (check 2), so dispatch never reaches this step without it. It is
-documented here as groundwork for the follow-up that bridges the rest of dispatch's read path
-(Step 2's queue pull, the dependency checks, the contested-claim comment fetch,
-`settle-and-merge.md`), after which the gate can drop. Read it as future scope, not live
-behavior.
+**MCP path** (`gh` unavailable): fully documented below and wired into every other read-path
+call site in this file (Step 2, Settle, the Auto-merge gate) as of this plan — still Preflight-gated (check 2 stays a hard gate) until Task 10 of `docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md` verifies the whole chain against a live cloud run and flips it.
 
 For each member of the selected group, generate the claim payload and follow
 `_shared/issue-claims.md`'s "The lock" section's MCP claim procedure — read the claim file
@@ -348,6 +344,8 @@ gh api "repos/{owner}/{repo}/issues/${ISSUE}/comments?per_page=100" > "/tmp/disp
 node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
   console.log(JSON.stringify(c.claimStatus(require(process.argv[1]),Date.now())))" "/tmp/dispatch-claim-${ISSUE}.json"
 ```
+
+**MCP path** (`gh` unavailable, same dormant status as above): use the confirmed "list issue comments" mapping from `_shared/github-write-transport.md`, then fold the result through `claimStatus` exactly as the `gh` path does — `claimStatus` accepts either raw `gh` comment objects or the MCP tool's comment objects, since it only reads a `.body` string field off each.
 
 Resolve the returned `{claimed, stale, everReleased}` shape per `_shared/issue-claims.md`'s own "Failure posture" table (not restated here — that file's header explicitly asks consumers not to duplicate it inline) — its four rows cover live claim (skip), stale claim (break: delete ref, recreate, takeover comment), unreadable/never-claimed (treat as live), and released-but-undeleted (treat as stale).
 

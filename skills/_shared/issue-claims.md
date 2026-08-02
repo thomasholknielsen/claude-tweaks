@@ -37,10 +37,12 @@ gh api "repos/{owner}/{repo}/git/matching-refs/claims/" -q '.[].ref'
 `claimPayload`/`releasePayload` calls as always (see "The mirror" below) — the `claimPath`,
 `fileContent`, and `tombstoneContent` fields they now also return are what this path uses.
 
-*Reachability, per consumer:* `/claude-tweaks:dispatch` itself cannot currently reach this path
-— its Preflight hard-gates on `gh` being installed, because its read path (queue pull,
-dependency checks, settle/merge) is still `gh`-only. `/tidy`'s Step 4.7 claims-audit sweep is a
-separate consumer of this same protocol and is not affected by that gate.
+*Reachability, per consumer:* `/claude-tweaks:dispatch`'s Preflight still hard-gates on `gh`
+being installed today — its full read path (queue pull, dependency checks, settle/merge) is
+fully documented on both transports as of `docs/superpowers/plans/2026-08-02-dispatch-mcp-bridge.md`,
+but the gate itself only drops once that plan's live diagnostic verification passes (its Task 10).
+`/tidy`'s Step 4.7 claims-audit sweep is a separate consumer of this same protocol and is not
+affected by that gate.
 
 ```bash
 node -e "const c=require(process.env.CLAUDE_PLUGIN_ROOT+'/bin/lib/issues/claims.js');
