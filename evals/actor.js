@@ -65,6 +65,19 @@ function isInsideRepoDir(candidatePath, resolvedRepoDir) {
   return resolvedCandidate === resolvedRepoDir || resolvedCandidate.startsWith(resolvedRepoDir + path.sep);
 }
 
+// Returns a deny PermissionResult when toolName's path-like input resolves
+// outside resolvedRepoDir, or null when the call should proceed (no repoDir
+// configured, no path-like input present, or the path is inside repoDir).
+function checkScopeGuard(toolName, input, resolvedRepoDir) {
+  if (!resolvedRepoDir) return null;
+  const pathInput = findPathInput(input);
+  if (!pathInput || isInsideRepoDir(pathInput.value, resolvedRepoDir)) return null;
+  return {
+    behavior: 'deny',
+    message: `Scope guard: ${toolName}'s "${pathInput.key}" (${pathInput.value}) resolves outside the fixture repoDir (${resolvedRepoDir}) and was denied.`,
+  };
+}
+
 // Async cross-session coordination tools assume a live, persistent,
 // multi-turn Claude Code harness that can actually deliver a scheduled
 // wakeup or a background task's completion notification later. The eval
@@ -101,16 +114,8 @@ export function createActor({ answerOverrides = [], repoDir } = {}) {
       };
     }
     if (toolName !== 'AskUserQuestion') {
-      if (resolvedRepoDir) {
-        const pathInput = findPathInput(input);
-        if (pathInput && !isInsideRepoDir(pathInput.value, resolvedRepoDir)) {
-          return {
-            behavior: 'deny',
-            message: `Scope guard: ${toolName}'s "${pathInput.key}" (${pathInput.value}) resolves outside the fixture repoDir (${resolvedRepoDir}) and was denied.`,
-          };
-        }
-      }
-      return { behavior: 'allow', updatedInput: input };
+      const denial = checkScopeGuard(toolName, input, resolvedRepoDir);
+      return denial || { behavior: 'allow', updatedInput: input };
     }
     const answers = {};
     for (const q of input.questions) {
