@@ -6,9 +6,9 @@
 
 **Goal:** Bridge every `gh`-CLI-only call site in `/claude-tweaks:dispatch`'s queue/claim/settle/merge path so it works in a Claude Code cloud Routine sandbox (no `gh` CLI, GitHub MCP tools only), without changing any existing `gh`-CLI-path behavior.
 
-**Architecture:** Discover and confirm real GitHub MCP tool names/schemas first, via a live throwaway diagnostic Routine fired against `memenu-app` (Tasks 1-2) — never guess a tool name into shipped documentation. Only once every primitive is confirmed working does the plan write the actual bridge prose into `dispatch/SKILL.md`, `settle-and-merge.md`, `issue-claims.md`, and `_shared/github-write-transport.md` (Tasks 3-9), using the confirmed names. The `gh`-CLI path stays byte-for-byte unchanged everywhere. Preflight's hard gate on `gh` stays exactly as it is today throughout Tasks 3-9 — only the final task (Task 10) flips it, and only because Tasks 1-2 already proved the MCP path works for real.
+**Architecture:** Discover and confirm real GitHub MCP tool names/schemas first, via `skills/_shared/routine-diagnostic-probe.md`'s reusable diagnostic-probe procedure fired against `memenu-app` (Tasks 1-2) — never guess a tool name into shipped documentation. Only once every primitive is confirmed working does the plan write the actual bridge prose into `dispatch/SKILL.md`, `settle-and-merge.md`, `issue-claims.md`, and `_shared/github-write-transport.md` (Tasks 3-9), using the confirmed names. The `gh`-CLI path stays byte-for-byte unchanged everywhere. Preflight's hard gate on `gh` stays exactly as it is today throughout Tasks 3-9 — only the final task (Task 10) flips it, and only because Tasks 1-2 already proved the MCP path works for real.
 
-**Tech Stack:** Markdown skill-file prose (this plugin has no runtime code for this slice — every call site here is skill-prose-driven `gh`/MCP-tool invocation, not a JS module). The `/schedule` built-in skill (one-time cloud-agent runs) for Tasks 1-2. `git` (worktree already created).
+**Tech Stack:** Markdown skill-file prose (this plugin has no runtime code for this slice — every call site here is skill-prose-driven `gh`/MCP-tool invocation, not a JS module). `skills/_shared/routine-diagnostic-probe.md`'s shared procedure (`RemoteTrigger` list/update/create/run against `memenu-app`'s existing, reusable `memenu-app-diagnostic-probe` slot) for Tasks 1-2 — not `/schedule` directly, superseded by that procedure since it shipped in `docs/superpowers/plans/2026-08-02-routine-diagnostic-probe.md`. `git` (worktree already created).
 
 ## Global Constraints
 
@@ -20,17 +20,28 @@
 
 ---
 
-### Task 1: Build and fire the throwaway diagnostic Routine
+### Task 1: Fire the diagnostic against `memenu-app`'s reusable probe slot
 
-**Files:** None in this repo — this task operates entirely against `memenu-app`'s existing Claude Code Remote project via the `/schedule` built-in skill (not `/claude-tweaks:routine`, which is for versioned, plugin-shipped, project-agnostic templates — this is a one-off, exploratory run; `/schedule`'s own description names this exact use case: "one-time scheduled run").
+**Files:** None in this repo — this task operates entirely against `memenu-app`'s existing Claude Code Remote project via `skills/_shared/routine-diagnostic-probe.md`'s shared procedure (not `/claude-tweaks:routine`, which is for versioned, plugin-shipped, project-agnostic templates; not `/schedule` directly — the shared procedure supersedes hand-building a one-off `RemoteTrigger` call, and this project already has a live, reusable slot for exactly this purpose).
 
 **Interfaces:**
-- Consumes: nothing from this plan.
+- Consumes: `skills/_shared/routine-diagnostic-probe.md`'s Slot resolution, Body construction, and Firing and waiting sections, executed literally.
 - Produces: a fired cloud Routine run whose transcript Task 2 reads. No file, no code.
 
-- [ ] **Step 1: Invoke `/schedule` targeting `memenu-app`, one-time, near-immediate**
+- [ ] **Step 1: Follow Slot resolution against `memenu-io/memenu-app`**
 
-Use the `/schedule` skill (already available in this session) to create and immediately run a one-time cloud agent against the `memenu-app` project's existing environment (it already runs `dispatch-weekdays`/`tidy-weekly`, so a dedicated environment already exists for this project — do not create a new one). Give it this exact prompt:
+```
+ToolSearch select:RemoteTrigger
+RemoteTrigger {action: "list"}
+```
+
+Filter for `name === "memenu-app-diagnostic-probe"`. Expected: **Found** — this exact slot already exists (created and live-verified by `docs/superpowers/plans/2026-08-02-routine-diagnostic-probe.md`'s own Task 3, trigger `trig_018k7aQXr6Bwk4t4VqT8F7dH`). If it unexpectedly does not exist (e.g. deleted via the claude.ai web UI since), follow the shared procedure's **Not found** branch instead: resolve `environment_id` per `skills/routine/SKILL.md`'s CREATE Step 4 non-guided procedure (memenu-app already has multiple live routines, so source (a)/(b) resolves `env_01JUAbDzSvXMmhNuB9aERiVi` without guided creation) and create the slot fresh.
+
+If **Found** (expected): read `environment_id` directly off the found trigger's `job_config.ccr.environment_id` — no fresh resolution needed, per the shared procedure's Found-branch instruction.
+
+- [ ] **Step 2: Construct the body with this plan's diagnostic prompt**
+
+Per the shared procedure's Body construction section, build the `job_config` with a fresh lowercase v4 UUID and this exact prompt as `message.content` (this is this plan's own diagnostic content — the shared procedure only standardizes the trigger mechanics, not the prompt):
 
 ```
 You are running in a Claude Code Remote (cloud) sandbox with no `gh` CLI on PATH — only GitHub MCP tools. This is a diagnostic probe for a claude-tweaks plugin design (closing GitHub issue #61 in thomasholknielsen/claude-tweaks) — it touches no real backlog state and cleans up everything it creates.
@@ -54,9 +65,23 @@ Then run these 9 steps in order, using whichever of your available MCP tools doe
 Report back a clear PASS/FAIL line for each of the 9 steps above, and for each step that used an MCP tool, name the exact tool and parameters you used. If any step fails, report the exact error message verbatim — do not paraphrase it.
 ```
 
-Confirm the routine was actually created and a run was initiated — the `/schedule` skill's own output will confirm this (trigger ID, claude.ai URL). Relay that URL; do not proceed to Task 2 until you have it.
+The prompt must also end with the shared procedure's mandatory reporting-convention paragraph, verbatim — it already does (the paragraph above matches it): "Report one PASS/FAIL line per check..." is folded into the prompt's own closing instruction.
 
-- [ ] **Step 2: Wait for the run to complete**
+- [ ] **Step 3: Update (or, on the fallback path, create) the trigger**
+
+**Update** (expected path — slot was Found): `RemoteTrigger {action: "update", trigger_id: "trig_018k7aQXr6Bwk4t4VqT8F7dH", body: {"job_config": <constructed in Step 2>}}` — a partial update; `name`/`enabled`/`cron_expression`/`mcp_connections` all stay as they already are, confirmed live by `docs/superpowers/plans/2026-08-02-routine-diagnostic-probe.md`'s own final-review fix round.
+
+**Create** (fallback path only — slot was Not found): `RemoteTrigger {action: "create", body: <full body per Body construction, including name/enabled/cron_expression/mcp_connections>}`.
+
+Confirm the call succeeded (HTTP 200) and note the `trigger_id` used — relay it; do not proceed to Task 2 until you have it.
+
+- [ ] **Step 4: Fire it**
+
+```
+RemoteTrigger {action: "run", trigger_id: <trigger_id from Step 3>}
+```
+
+- [ ] **Step 5: Wait for the run to complete**
 
 This is a real cloud agent run — it will take real minutes, not seconds. Do not poll aggressively. Check back after a reasonable interval, or ask the user to notify you when it completes.
 
@@ -67,10 +92,12 @@ This is a real cloud agent run — it will take real minutes, not seconds. Do no
 **Files:** None yet — this task only reads the Task 1 run's transcript/output and decides whether to proceed.
 
 **Interfaces:**
-- Consumes: the fired run's transcript (via the claude.ai URL from Task 1, or the `/schedule`/`RemoteTrigger` `get` mechanism for that trigger).
+- Consumes: the fired run's transcript, read via the console URL per this task's own Step 1 below (`RemoteTrigger {action: "get"}`/`{action: "list"}` do not surface run output for this trigger shape — console URL only).
 - Produces: a confirmed list of exact MCP tool names + parameter shapes for: create issue, get single issue, list issues by label, list issue comments, add issue comment, add/remove label, and the file-write CAS primitive (create-only + conditional-update). Tasks 3-9 consume this list directly — do not let them proceed with a guessed name.
 
 - [ ] **Step 1: Open and read the actual run transcript**
+
+Per `skills/_shared/routine-diagnostic-probe.md`'s "Firing and waiting" section: `RemoteTrigger {action: "get"}`/`{action: "list"}` return only trigger configuration, not run output, for this trigger shape — read the transcript via the console URL instead. The `run` response's `session_id` starts with a `cse_` prefix, but the working console URL needs a `session_` prefix instead: `https://claude.ai/code/session_<id-without-cse_-prefix>?pane=runs&trigger=<trigger_id>`.
 
 Read the real output — do not trust a summary that doesn't include the verbatim per-step PASS/FAIL lines and tool names the prompt explicitly asked for. If the transcript is ambiguous about which tool was used for a given step, that step counts as FAIL for this plan's purposes (an unconfirmed tool name is not usable in Task 3+).
 
@@ -313,7 +340,7 @@ Expected: all tests pass (this slice touches only markdown skill files, so no te
 - [ ] **Step 2: Diff-review every file this plan touched**
 
 ```bash
-git diff 6dda8b8 --stat
+git diff a8ad19b --stat
 ```
 
 Expected: exactly `skills/dispatch/SKILL.md`, `skills/dispatch/settle-and-merge.md`, `skills/_shared/issue-claims.md`, `skills/_shared/github-write-transport.md` — no other file. If anything else appears, investigate before proceeding to Task 10.
@@ -360,9 +387,9 @@ git add skills/dispatch/SKILL.md
 git commit -m "Drop dispatch's hard gh-CLI gate — verified against a live cloud Routine run (closes #61)"
 ```
 
-- [ ] **Step 6: Clean up the diagnostic Routine**
+- [ ] **Step 6: Leave the diagnostic slot in its resting state**
 
-`/schedule`/`RemoteTrigger` has no delete action (confirmed: `skills/routine/SKILL.md`'s own Anti-Patterns table: *"`RemoteTrigger create` has no delete counterpart — a mistaken routine runs on a live schedule until manually removed at claude.ai/code/routines."*). Tell the user directly: the diagnostic Routine created in Task 1 needs manual deletion at claude.ai/code/routines (relay the trigger ID/URL from Task 1) — do not attempt to automate this away, and do not leave it silently running.
+No cleanup needed. Per `skills/_shared/routine-diagnostic-probe.md`'s "Cleanup" section, the `memenu-app-diagnostic-probe` slot used in Task 1 is a persistent, reusable resource — not a one-off — and stays in the account at `enabled: false` (its resting state, unchanged by this plan) to be reused by the next diagnostic against this same project. `RemoteTrigger` has no delete action, which is exactly why this plan reused the existing slot instead of creating a fresh one-off trigger.
 
 - [ ] **Step 7: Merge and report**
 
