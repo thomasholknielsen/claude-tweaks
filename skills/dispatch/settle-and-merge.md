@@ -84,10 +84,12 @@ so the merge itself, landing in the main checkout, isn't denied as a wrong-check
 GROUP_WORKTREE=$(git rev-parse --show-toplevel)
 ```
 
+Resolved via plain `git`, not `gh`/MCP — this is local repository metadata (the remote's `HEAD` pointer), not GitHub-hosted state, so it works identically regardless of transport with no branching needed at all.
+
 Then, from the main checkout:
 
 ```bash
-DEFAULT_BRANCH=$(gh api "repos/{owner}/{repo}" -q .default_branch)
+DEFAULT_BRANCH=$(git remote show origin | sed -n '/HEAD branch/s/.*: //p')
 CURRENT=$(git branch --show-current)
 if [ "$CURRENT" != "$DEFAULT_BRANCH" ]; then
   echo "Main checkout is on '$CURRENT', not '$DEFAULT_BRANCH' — a concurrent session switched it. Abort, do not merge." >&2
