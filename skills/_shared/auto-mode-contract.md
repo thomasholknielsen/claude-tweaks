@@ -80,12 +80,11 @@ Where `ISO-timestamp` is `YYYY-MM-DDTHHMMSS` (no colons; portable across filesys
 
 **Why unique:** multiple parallel agents (different worktrees, different terminals, even just same-second invocations on the same checkout) never collide. Each run's artifacts live together and clean up atomically.
 
-**How downstream skills find the active run:** the entrypoint skill (`/flow`, or first standalone skill in a chain) creates the directory and a marker file. Downstream skills look up the active run by:
+**How downstream skills find the active run:** the entrypoint skill (`/flow`, or first standalone skill in a chain) creates the directory and a marker file. The ordered resolution algorithm itself is **owned by `_shared/pipeline-run-dir.md`'s "Resolution order" section** — read it there.
 
-1. Reading the `PIPELINE_RUN_DIR` env var if set by an explicit caller (preferred path used by `/flow`)
-2. Else picking the most recent directory in `.claude-tweaks/pipelines/` whose `spec-slug` matches the current spec or topic
-3. Else, if running in `auto` mode and the skill is on the standalone-auto allowlist (`/tidy`, `/init`, `/capture`, `/claude-tweaks:dispatch`, `/claude-tweaks:backlog`), creating a standalone run dir at `.claude-tweaks/pipelines/{ISO-timestamp}-{skill-name}-standalone/` — see `_shared/pipeline-run-dir.md`'s Resolution order step 4 for the full allowlist rationale and exceptions
-4. Else falling back to `interactive` mode (no policy available — no auto-decisions allowed)
+It is deliberately not restated here. That file's list is the complete one: it includes the record-mode materialization exception for standalone `/claude-tweaks:build #{n}`, which a summary in this section previously omitted, so a skill following the summary got the wrong answer for that invocation. Every consumer that cites a resolution step by number — `/capture`, `/tidy`'s `scan-procedures.md`, `flow/materialize.md`, `_shared/auto-decision-log.md` — cites that file's numbering.
+
+This section stays canonical for everything *around* the ordering: the directory layout above, the collision-safety rationale, and the cleanup and gitignore rules below.
 
 **Cleanup:** the Wrap-Up Review Console moves completed runs to `.claude-tweaks/pipelines/archive/{run-id}/` on successful pipeline closure (preserving the audit trail). `/tidy`'s Standalone-auto path additionally compacts standalone run directories older than 30 days into a monthly rollup, and — since a `/flow`-orchestrated run that stops at an interactive HARD-GATE and is never resumed reaches neither path above — abandoned non-standalone run directories older than 30 days with a non-`active` `run-state.json` status too. See `_shared/auto-decision-log.md`'s Archival section for the exact behavior.
 
