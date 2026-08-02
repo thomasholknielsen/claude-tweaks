@@ -38,6 +38,8 @@ When a handed-off `/flow` run fails a HARD-GATE (never reaches `/wrap-up`):
    " "/tmp/dispatch-comments-${ISSUE}.json" "$DISPATCH_RETRY_CEILING" > "/tmp/attempt-info-${ISSUE}.json"
    ```
 
+**MCP path** (`gh` unavailable, same dormant status as `dispatch/SKILL.md`'s Step 4): use the confirmed "list issue comments" mapping from `_shared/github-write-transport.md` in place of the `gh api` call above — `countFailedAttempts` and the rest of this step's logic consume the same comment-body-string shape regardless of transport.
+
 5. Post the failure comment, using the `attemptNumber` and `ceilingHit` just computed:
 
    ```bash
