@@ -137,6 +137,7 @@ test('runScenarioWith: wires managedSettings.sandbox into the SDK options to con
     enabled: true,
     failIfUnavailable: true,
     allowUnsandboxedCommands: false,
+    autoAllowBashIfSandboxed: false,
     network: { allowedDomains: [] },
     // Task 7.6 (incident-driven, see task-7.6-brief.md): confirmed via a
     // controller A/B test that managedSettings.sandbox denies reading
