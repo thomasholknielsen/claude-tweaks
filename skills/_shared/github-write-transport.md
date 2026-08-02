@@ -24,6 +24,8 @@ probe, not an environment classification — it holds regardless of *why* `gh` i
 | Edit labels / body | `gh issue edit {n} --add-label/--remove-label/--body-file` | `issue_write` (update mode) |
 | Comment | `gh issue comment {n} --body-file` | `add_issue_comment` |
 | Close | `gh issue close {n} --reason ...` | `issue_write` (update mode, state change) |
+| Get a single issue by number | `gh issue view {n} --json state,...` | `issue_read` (get mode) |
+| List an issue's comments | `gh api repos/{owner}/{repo}/issues/{n}/comments?per_page=100` | `issue_read` (get_comments mode) |
 
 **Never use `search_issues` (or `gh issue list --search`) for a find-by-marker/dedup lookup.**
 Both ride an eventually-consistent search index — this caused three real duplicate-digest
