@@ -1,5 +1,32 @@
 # Changelog
 
+## v6.26.0 — CLAUDE.md context budget: rules and evidence split (closes #95, #102)
+
+`CLAUDE.md` was 94 KB, and its `## Don'ts` section alone was 53,939 B — 57% of the file. That cost
+is paid per *agent*, not per session: every Task-dispatched subagent inherits the whole file, so a
+13-agent `/review` fan-out carried it thirteen times, at measured ratios of 13:1 to 38:1 against the
+prompts those agents were actually given.
+
+CLAUDE.md is now 44 KB (-53%). The Don'ts are 20 KB (-63%), compressed to rule-plus-one-clause with
+every rule kept and three bundled bullets split rather than shrunk. The 69 post-mortem narratives
+behind them moved **verbatim** to `docs/incident-log.md`, tagged `[IL-nn]` — a move, not a delete, so
+the evidence survives where its length costs nothing. The directory tree, per-skill sub-file table,
+and command reference moved to `docs/plugin-structure.md`.
+
+Ten wrong facts were corrected first (#95) — a stale version literal, a `_shared` inventory naming
+~22 of 49 files, four health-CLI subcommand lists that had all drifted, and a retired `/reflect`
+claim. Four of them were retired by deferral rather than correction, since a corrected count drifts
+again. The same idiom was applied to the three highest-multiplicity restated counts across 23 files
+(#102), following `/visualize`'s numeral-free precedent.
+
+Rules can now also *leave*. `/claude-tweaks:harness-health` gains a rule-expiry check — the
+complement of its "guardrails, not wishes" check — that proposes removing a rule whose hazard can no
+longer occur, guarded by an explicit rule that absence of recurrence is not evidence of death. This
+needed a new `intent: "remove"` finding shape, scoped to `assetType: claude-md`; deletion had been
+unmodelled across every health validator. `/reflect` and `/wrap-up` now direct that the incident
+account be written before the rule, and `/init`'s CLAUDE.md template teaches the same shape to newly
+initialized projects. See ADR-0010.
+
 ## v6.25.0 — Live proof the eval harness's OS sandbox denies a Bash escape (closes #46)
 
 `evals/actor.js`'s scope guard denies path-bearing tool inputs outside a scenario's fixture

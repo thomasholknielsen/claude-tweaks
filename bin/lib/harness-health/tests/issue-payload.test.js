@@ -109,8 +109,25 @@ test('toIssuePayload for a patch finding carries structured decision fields matc
   assert.strictEqual(payload.classification, finding.classification);
   assert.strictEqual(payload.confidence, finding.confidence);
   assert.strictEqual(payload.reversibility, finding.reversibility);
-  assert.strictEqual(payload.oldString, finding.oldString);
-  assert.strictEqual(payload.newString, finding.newString);
+});
+
+// The patch text has exactly one carrier: payload.body's fenced Current/Proposed
+// blocks (the markdown that actually ships to GitHub). Duplicating it as
+// top-level fields made a payload with ~2.6 KB of patch text 38% duplicate
+// bytes, uncapped across the findings array. Keep this in step with the
+// identical test in bin/lib/docs-health/tests/issue-payload.test.js.
+test('toIssuePayload does not duplicate the patch text as top-level fields', () => {
+  const f = patchFinding();
+  const payload = toIssuePayload(f);
+  assert.ok(!('oldString' in payload), 'oldString must not be a top-level payload field — body already carries it');
+  assert.ok(!('newString' in payload), 'newString must not be a top-level payload field — body already carries it');
+  // body remains the carrier, so the patch text is never actually lost.
+  assert.ok(payload.body.includes(f.oldString), 'body must still carry oldString verbatim');
+  assert.ok(payload.body.includes(f.newString), 'body must still carry newString verbatim');
+  assert.strictEqual(
+    JSON.stringify(payload).split(f.newString).length - 1, 1,
+    'newString must appear exactly once in the serialized payload',
+  );
 });
 
 test('toIssuePayload for a new-skill finding carries structured decision fields matching the input finding', () => {

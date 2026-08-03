@@ -151,6 +151,8 @@ The Don'ts section prevents more mistakes than any amount of positive guidance. 
 
 **The filter:** A Don't must describe a pattern that exists in the codebase and should not be violated. If something doesn't exist yet (no CI, no tests, no linting, stale dependencies), that's a backlog item for improvement work — not a Don't.
 
+**The shape:** one sentence of rule, one clause of why — around 150 bytes. CLAUDE.md is inherited by every dispatched subagent, not just loaded once per session, so a padded Don'ts section is billed per agent across every fan-out. When a Don't comes from a real incident, write the account of it somewhere it is allowed to be long — an incident log, the work record, the commit message — and only then compress it to the rule. Do it in that order: write the rule first and you pad it, because the incident is vivid and every detail feels load-bearing. A Don't needing three sentences of background to be believed is a compressed rule plus an account that belongs elsewhere, not a long rule.
+
 Source Don'ts from:
 
 1. **Inconsistencies found in 2f** — if the codebase uses both patterns, codify which is correct

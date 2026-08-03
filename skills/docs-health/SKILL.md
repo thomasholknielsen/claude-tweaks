@@ -23,7 +23,7 @@ finding -> validate-findings -> file GitHub issue (by:docs-health, ready)
 - You want a scheduled Routine that periodically rotates through `docs/**` and flags genre-drift, depth-mismatch, findability, or staleness as it's found.
 - You want to check one specific doc right now (`--target <id>`).
 
-Not for: mechanical/unambiguous checks (broken links, malformed frontmatter, missing structural metadata) — those belong in the consuming project's own build/CI pipeline, the same "CI stays reactive" boundary `/code-health` already draws for code. Not for `.claude/skills/*.md`/`.claude/rules/*.md`/CLAUDE.md — that is `/claude-tweaks:harness-health`'s exclusive territory; docs-health's rotation pool only ever walks `docs/`, so it structurally never touches those files. Not for `docs/superpowers/**` — ephemeral `/claude-tweaks:specify` + `/superpowers:writing-plans` build history, not Diátaxis-portal content; excluded from the rotation pool entirely. Not for `docs/journeys/**` — that is `/claude-tweaks:journey-health`'s exclusive territory (journey accuracy and agent-e2e coverage instead of Diátaxis genre-drift); excluded from the rotation pool entirely, mirroring the harness-health exclusion above.
+Not for: mechanical/unambiguous checks (broken links, malformed frontmatter, missing structural metadata) — those belong in the consuming project's own build/CI pipeline, the same "CI stays reactive" boundary `/code-health` already draws for code. Not for `.claude/skills/*.md`/`.claude/rules/*.md`/CLAUDE.md — that is `/claude-tweaks:harness-health`'s exclusive territory; docs-health's rotation pool only ever walks `docs/`, so it structurally never touches those files. Not for `docs/superpowers/**` — the historical design-doc archive (`docs/superpowers/specs/` and `docs/superpowers/plans/`, the output of `/claude-tweaks:specify` + `/superpowers:writing-plans`), kept as a permanent record of shipped work and pruned in bulk as a separate deliberate maintenance action (`docs/decisions/0007-*`), never as a drift finding. These documents describe work that already shipped, so they are *supposed* to read as stale — auditing them for drift would spend the rotation's largest reads on findings that are correct by design. Excluded from the rotation pool entirely, matched on the full path `docs/superpowers` and not on a name substring: `docs/plans/` (live ephemeral pipeline state) is near-identically named and deliberately stays **in** scope. Not for `docs/journeys/**` — that is `/claude-tweaks:journey-health`'s exclusive territory (journey accuracy and agent-e2e coverage instead of Diátaxis genre-drift); excluded from the rotation pool entirely, mirroring the harness-health exclusion above.
 
 ## Input
 
@@ -50,17 +50,22 @@ Without `--budget` (or `--budget 1`), prints `{ target: { kind, id, path, why } 
 
 **Multi-target runs (`--budget > 1`):** treat each array entry as its own full sweep: run Steps 2-6 in their entirety for target 1 (including its own `validate-findings --target <id>` call in Step 5 and its own Step 6 filing), then repeat the full Steps 2-6 for target 2, and so on. Never collect findings from multiple targets into one shared `validate-findings` call — each target needs its own `--target` value so its audit cursor persists independently (`bin/docs-health.js`'s `validate-findings` hard-gates on `--target` being present for any non-dry-run call, since docs-health has no gap-scan-equivalent fallback for cursor advancement). A run that audits 3 targets makes 3 separate `validate-findings` invocations, not 1. Once every target has been swept, move on to Step 7 to summarize all of them together.
 
-When dispatching Steps 2-3 in parallel, use this prompt shape per target (inline literally — agents only see what's in their own prompt):
+When dispatching Steps 2-3 in parallel, build each target's prompt by inlining the body of `judge-procedure.md` (below its horizontal rule) from this skill's directory **verbatim**, wrapped in the frame below. Substitute `{target.path}`, `{target.id}`, `{plugin-root}` (the resolved `$CLAUDE_PLUGIN_ROOT`), and `{root}` (the resolved `${ROOT:-$PWD}`) throughout before dispatch.
+
+Inline it literally — do not pass a path to it. Agents only see what's in their own prompt, so a pointer to `judge-procedure.md`, to this SKILL.md, or to any `_shared/` fragment does not reach them, and an agent that cannot resolve a reference emits malformed output rather than merely expensive output.
 
 ```
-Task scope: Read and judge one doc for docs-health findings.
-Read: {target.path} in full.
-Apply the full procedure in Step 3 (JUDGE) of skills/docs-health/SKILL.md's own numbered list — genre-drift/placement (points 1-3), depth-mismatch (point 4, via `node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" word-count "{target.path}"`), findability (point 5, via `node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" find-refs "{target.path}" --root "${ROOT:-$PWD}"`), staleness (point 6, via `node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" check-freshness "{target.path}" --root "${ROOT:-$PWD}"`), misleads (point 7), classification (point 8), confidence/reversibility (points 9-10).
-Do not modify any file. Read-only.
+Task scope: Read and judge one doc for docs-health findings. Read-only — do not modify any file.
+
+Read `{target.path}` in full.
+
+If the file is larger than 40,000 bytes, do not read it whole. Instead: read its frontmatter and complete heading outline (`grep -n '^#\{1,6\} ' "{target.path}"`); read the first and last top-level sections in full; read any further section on demand as a specific signal points at it. Regardless of size, enumerate every fenced shell command block in the whole file — grep it for lines whose first non-whitespace characters are three backticks — and execute each one per point 6. A partial read never shrinks that sweep. Cap `confidence` at `med` for any finding resting on content you did not read in full, and say so in that finding's `reason`.
+
+<<< the body of judge-procedure.md, inlined verbatim and placeholder-substituted >>>
 
 OUTPUT FORMAT (required):
 First line: one of DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED.
-Then a JSON array of findings in the exact "Emit each finding in this shape" block from Step 3 above (empty array `[]` if none).
+Then a JSON array of findings in exactly the shape shown in this prompt (empty array `[]` if none).
 Do not add narration before or after the status line and JSON array.
 
 [Use: Standard model — multi-file judgment, format-sensitive output]
@@ -76,68 +81,30 @@ Read the `why` field on whichever target(s) came back:
 
 **Step 2 — READ the target.**
 
-Read the file at `target.path` in full. If `docs/` doesn't exist yet, report "no docs/ tree to audit yet" and stop (a real state, not an error).
+Check the file's size first, then read `target.path` in full unless it exceeds the byte cap defined immediately below. If `docs/` doesn't exist yet, report "no docs/ tree to audit yet" and stop (a real state, not an error).
+
+**Byte cap — partial read above 40,000 bytes.** The rotation pool is Diátaxis-portal content only (`docs/superpowers/**` and `docs/journeys/**` are excluded from it by construction — see Step 1), so a target this large is rare and is itself a signal worth judging rather than a routine cost. Above the cap, do not read the whole file. Instead:
+
+1. Read the frontmatter and the complete heading outline (`grep -n '^#\{1,6\} ' "${TARGET_PATH}"`).
+2. Read the first and last top-level sections in full — the first carries the doc's implied type and depth promise, the last carries whatever it trailed off into.
+3. Read any additional section on demand, as a specific signal points at it (a heading whose language contradicts the outline's shape, a section named in a `check-freshness` result).
+4. **Regardless of the cap, enumerate every fenced shell command block in the whole file** — grep `${TARGET_PATH}` for lines whose first non-whitespace characters are three backticks — and execute each one per point 6 of `judge-procedure.md`. A partial read never shrinks that sweep: Step 3.5's gate hard-checks it before any `no findings` conclusion, and a command block skipped because it sat in an unread section is exactly the failure that gate exists to catch.
+
+Cap `confidence` at `med` for any finding whose evidence rests on content not read in full — a found-type or depth judgment over a partial read is inherently weaker than one over the whole doc — and say so in that finding's `reason`. A staleness finding anchored to a specific line you did read keeps its normal confidence.
 
 **Step 3 — JUDGE the target.**
 
-Apply the full procedure in `_shared/criteria-docs-diataxis.md` (genre-drift, depth-mismatch, findability, staleness, dual-persona misleading-risk) to the target's content:
+Read `judge-procedure.md` in this skill's directory and apply its body (everything below the horizontal rule) to the target's content, substituting `{target.path}`/`{target.id}` from Step 1, `{plugin-root}` (`$CLAUDE_PLUGIN_ROOT`), and `{root}` (`${ROOT:-$PWD}`). It covers, in order: non-Diátaxis-native genre detection, genre-drift and placement-fit (`word-count`), depth-mismatch, findability (`find-refs`), staleness including declared freshness-dependencies (`check-freshness`) and the mandatory execute-every-command-block sweep, then the `misleads`/`classification`/`confidence`/`reversibility` judgments, the bundling rule, and the finding schema to emit.
 
-1. First, determine whether the doc has a self-evident non-Diátaxis-native genre (ADR/decision-record, structured spec/journey, dated retrospective/log — see the criteria fragment's Dimension 1). If so, skip type classification: spot-check it still reads as its own native genre, and flag only if it has drifted out of that genre into something else.
-2. Otherwise, determine the doc's **implied type** from its location/heading language, and its **found type** from what the content actually does (tutorial / how-to / reference / explanation — see the criteria fragment's Dimension 1 table). Flag a mismatch only when it would actually mislead a reader or leave the doc's purpose unserved — a `category: "genre-drift"` finding.
-3. Separately, determine an implied type from the doc's **directory alone** (ignoring heading language) and compare it against found type independently of step 2. A divergence here is also `category: "genre-drift"` (placement-fit — see the criteria fragment's Dimension 1), typically `classification: "restructural"`.
-4. Compute the doc's word count:
+That file is the single source of truth for this procedure — the parallel dispatch prompt in Step 1 inlines the same body verbatim rather than restating it. Its deeper rationale (the Diátaxis dimensions, dual-persona misleading-risk, and the constraints on what not to flag) lives in `_shared/criteria-docs-diataxis.md`; `judge-procedure.md` is self-contained and does not require reading it.
 
-   ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" word-count "${TARGET_PATH}"
-   ```
-
-   `TARGET_PATH` is `target.path` from Step 1. The result is either an integer word count, or (if the doc's frontmatter declares `depth-hint:`) that value's literal string, returned as-is — ground truth, skip the judgment below entirely in that case. Otherwise, judge whether the computed word count is surprising given what the doc's location, heading, and native genre (from step 1) lead a reader to expect walking in — same "would this actually mislead" bar as step 2, never length by itself. A surprising mismatch is a `category: "depth-mismatch"` finding.
-5. Compute the doc's inbound-reference count:
-
-   ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" find-refs "${TARGET_PATH}" --root "${ROOT:-$PWD}"
-   ```
-
-   Judge whether a near-zero count means a genuine orphan (blocks discovery) or an intentionally standalone doc (see the criteria fragment's Dimension 5). A genuine orphan is a `category: "findability"` finding.
-6. Check every stated fact (counts, dates, paths, versions, availability claims) against live repository state (grep, `find`, `git log`). **Mandatory, not opportunistic:** for every literal shell command block the doc instructs the reader to run (a fenced example command, an install/setup snippet, a CLI invocation shown as copy-pasteable), actually execute it verbatim and observe its real output or exit status — do this for every such block regardless of whether the surrounding text already looks correct. Grep/find/git-log cross-referencing alone cannot catch a command that now errors or produces output contradicting what the doc claims; a failing or contradicting command is a `category: "staleness"` finding on its own. Additionally, check any declared freshness-dependencies:
-
-   ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js" check-freshness "${TARGET_PATH}" --root "${ROOT:-$PWD}"
-   ```
-
-   For each path in the result's `missing` array, that's a broken dependency — a staleness finding on its own. For each entry in `stale`, judge whether the tracked file's change is substantive enough to actually invalidate what the doc claims (see the criteria fragment's Dimension 2). A mismatch (stated fact, broken dependency, substantive tracked-file drift, or a failing/contradicting executed command) is a `category: "staleness"` finding.
-7. For every finding, judge `misleads`: `"human"` (a skim-and-notice-caveat reader partially self-corrects), `"agent"` (retrieval-style consumption has no such safety net — weight this higher), or `"both"`.
-8. Judge `classification`: `"additive"` (a one-line fact correction, an added disclaimer) or `"restructural"` (reorganizing a doc that mixes genres, splitting a doc).
-9. Judge `confidence`: `"high"` when the evidence is mechanical and directly checkable — a stated count/date/path/version contradicted by live `grep`/`find`/`git log` output, a `check-freshness` `missing` entry, or a genre that is self-evidently native (step 1); `"med"` when it rests on a judgment call a reasonable second reviewer could see differently — a depth-mismatch or genre-drift call resting on heading language, or an inbound-reference count judged as a genuine orphan vs. intentionally standalone; `"low"` when the evidence is circumstantial or the doc's own intent is ambiguous — a `check-freshness` `stale` entry whose substantiveness is itself a judgment call, or a placement-fit divergence in a doc that could plausibly belong to either genre. This drives Step 6's interactive-gate Recommended-column pre-fill (`high`/`med` → File issue; `low` → Capture) — calibrate honestly, not optimistically.
-10. Judge `reversibility`: `"high"` for a pure addition or a swap of one stated fact for another (`oldString` empty, or a narrow factual substitution); `"med"` for a multi-sentence rewrite that changes structure within one section; `"low"` for a `restructural` classification that reorganizes or splits the doc — the harder a finding's fix would be to cleanly undo, the lower this value.
-
-Emit each finding in this shape:
-
-```json
-{
-  "target": "<doc id relative to docs/, no .md>",
-  "assetType": "doc",
-  "section": "<heading within the doc, or 'Freshness' for a whole-doc staleness finding>",
-  "relatedSections": "<optional array of sibling section names sharing this finding's root cause; omit if there's only one occurrence>",
-  "category": "genre-drift | depth-mismatch | findability | staleness",
-  "misleads": "human | agent | both",
-  "classification": "additive | restructural",
-  "confidence": "high | med | low",
-  "reversibility": "high | med | low",
-  "description": "<acceptance criteria text>",
-  "reason": "<evidence — why this was flagged>",
-  "oldString": "<current text, or empty string for a pure addition>",
-  "newString": "<proposed text>"
-}
-```
-
-**Bundling rule (recurring root causes)** (canonical shape in `_shared/health-finding-shapes.md` — check that file when either changes to keep this skill's copy in sync with its three siblings): when two or more findings within this doc audit share both the same `category` and the same root-cause explanation, file **one** finding, not one per section. Pick the clearest/most representative occurrence as the primary `section`; list every other occurrence in `relatedSections`; make `reason` state the shared root cause explaining all of them; make `description` (the acceptance criteria) require every listed section fixed, not just the primary one. Only bundle occurrences that share both `category` AND the root cause — never bundle unrelated findings just because they're in the same doc.
+`confidence` drives Step 6's interactive-gate Recommended-column pre-fill (`high`/`med` → File issue; `low` → Capture).
 
 Write the array to `/tmp/docs-health-findings.json`.
 
 **Step 3.5 — VERIFY GATE: sanity-check surviving findings before dedup.**
 
-Before fingerprinting and dedup, re-examine each finding and ask: is it real (does the doc actually say this, or was it misread)? Is it actionable (a concrete `oldString`/`newString`, not vague)? Would a human editor be able to apply the fix without further investigation? Is `misleads` justified by which reader would actually encounter this doc's failure mode? Drop any finding that fails. This gate also doubles as the last checkpoint before declaring a `no findings` result for this doc: if the doc contains any literal shell command block the reader is instructed to run, confirm it was actually executed per Step 3 item 6 — not just cross-referenced via grep/find/git log, and not just recalled from a prior pass — before finalizing `no findings`; a `no findings` conclusion reached without running an example command the doc contains does not pass this gate. This is the canonical shape in `_shared/health-verify-gate.md` (the same adversarial-verify discipline `/code-health` and `/journey-health` apply inline, and `/harness-health` applies via its embedded copy) — check that file when either changes to keep this skill's copy in sync with its siblings; do not skip it under time pressure.
+Before fingerprinting and dedup, re-examine each finding and ask: is it real (does the doc actually say this, or was it misread)? Is it actionable (a concrete `oldString`/`newString`, not vague)? Would a human editor be able to apply the fix without further investigation? Is `misleads` justified by which reader would actually encounter this doc's failure mode? Drop any finding that fails. This gate also doubles as the last checkpoint before declaring a `no findings` result for this doc: if the doc contains any literal shell command block the reader is instructed to run, confirm it was actually executed per point 6 of `judge-procedure.md` — not just cross-referenced via grep/find/git log, and not just recalled from a prior pass — before finalizing `no findings`; a `no findings` conclusion reached without running an example command the doc contains does not pass this gate. This is the canonical shape in `_shared/health-verify-gate.md` (the same adversarial-verify discipline `/code-health` and `/journey-health` apply inline, and `/harness-health` applies via its embedded copy) — check that file when either changes to keep this skill's copy in sync with its siblings; do not skip it under time pressure.
 
 **Step 4 — GATHER OPEN ISSUES for dedup.**
 
@@ -212,7 +179,7 @@ Before filing, bootstrap only the label families this run applies, with real des
 #  ["docs-health:filing-failed", "Escalation: gh issue create failed repeatedly for this fingerprint — needs human attention"]]
 ```
 
-Each payload in `/tmp/docs-health-payloads.json` carries structured fields directly (`target`, `assetType`, `category`, `misleads`, `section`, `classification`, `confidence`, `reversibility`, `oldString`, `newString`), alongside `title`, `body`, `labels`, and `type`.
+Each payload in `/tmp/docs-health-payloads.json` carries structured fields directly (`id`, `target`, `assetType`, `category`, `misleads`, `section`, `classification`, `confidence`, `reversibility`), alongside `title`, `body`, `labels`, and `type`. These stay on the payload as triage metadata — the batch table below reads `category`/`misleads`/`classification`/`confidence`, and the dismiss path reads `id`. The finding's `oldString`/`newString` patch text is deliberately **not** duplicated as top-level fields: `payload.body` already carries both verbatim in its fenced Current/Proposed blocks, and that markdown is what ships to GitHub. Read the patch out of `body` if you need it.
 
 Per `_shared/health-filing-gate.md`'s applicability/scope/placement rule: in interactive mode, before filing this firing's own new findings (not the retry-queue drains or regressed reopens above, which already executed unconditionally), route survivors through a two-tier decision:
 
@@ -293,7 +260,9 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 | Flagging a doc's length by itself, without a mismatched expectation | Depth-mismatch only fires when a doc's actual word count would surprise a reader given what its location/heading/native genre imply — a correctly-signaled long or short doc is never a finding regardless of absolute length. See `_shared/criteria-docs-diataxis.md`'s Dimension 3. |
 | Flagging a doc's low inbound-reference count without judging whether it's intentionally standalone | Findability only fires on a genuine, blocking orphan — a doc explicitly marked draft/archived/template, or one meant to be reached only via an out-of-scope external link, is not a finding regardless of its reference count. See `_shared/criteria-docs-diataxis.md`'s Dimension 5. |
 | Flagging mechanical issues (broken links, malformed frontmatter) | Those belong in CI, not an LLM-judged health sweep — the same "CI stays reactive" boundary `/code-health` draws for code. |
-| Including `docs/superpowers/**` in the rotation pool | Ephemeral `/specify` + `/superpowers:writing-plans` build artifacts, not Diátaxis-portal content — excluded from `bin/lib/docs-health/scope.js`'s `listDocs` by construction. |
+| Including `docs/superpowers/**` in the rotation pool | The historical design-doc archive — deliberately retained records of shipped work, so staleness there is by design, not drift. Excluded from `bin/lib/docs-health/scope.js`'s `listDocs` by construction (`EXCLUDE_TOP_LEVEL_DIRS`). |
+| Excluding the archive by matching the name `plans` or `specs` anywhere in the path | `docs/plans/` (live ephemeral pipeline state) and `docs/superpowers/plans/` (the historical archive) are near-identically named and have been confused before in this repo. The exclusion matches the full path `docs/superpowers` at the top level only, so `docs/plans/` correctly stays in scope. |
+| Reading a target in full when it exceeds the Step 2 byte cap | A 40,000+ byte doc costs more than the finding is worth to read whole. Read the outline plus the first/last sections, then read further sections on demand — but still execute every fenced command block in the file, and cap the resulting findings' `confidence` at `med`. |
 | Auditing `.claude/skills/*.md`, `.claude/rules/*.md`, or CLAUDE.md | That is `/claude-tweaks:harness-health`'s exclusive territory — docs-health's rotation pool only ever walks `docs/`. |
 | Re-proposing a patch already marked `declined` in the cache | The decline-memory cache exists specifically so a rejected proposal doesn't reappear every firing forever. |
 | Skipping the verify gate under time pressure | Unattended firings compound false positives into staged noise if a misread isn't caught before staging. |
@@ -314,7 +283,8 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 | `/claude-tweaks:tidy` | `/tidy` Step 4.8 audits open `by:code-health`/`by:harness-health`/`by:journey-health` issues in its hygiene pass; docs-health follows the same pattern for `by:docs-health` issues. |
 | `/claude-tweaks:backlog` | `refine` mode is the human gate over the `ready` queue — records docs-health files feed into its grant worklist the same way code-health/harness-health findings do. |
 | `/claude-tweaks:routine` | `/routine create docs-health` instantiates docs-health's `routine-template.yml` into a live, scheduled cloud Routine. |
-| `_shared/criteria-docs-diataxis.md` | The canonical judge this skill reads — the genre-drift/depth-mismatch/findability/staleness dimensions, dual-persona misleading-risk tagging, and Finding Shape live there, not here. |
+| `judge-procedure.md` (this skill's directory) | The single source of truth for the JUDGE procedure and finding schema — Step 3 reads it, and Step 1's parallel dispatch inlines its body verbatim into each agent's prompt. Self-contained by contract: an agent receiving that inlined body never needs to open this SKILL.md or any `_shared/` fragment. |
+| `_shared/criteria-docs-diataxis.md` | The canonical judge this skill reads — the genre-drift/depth-mismatch/findability/staleness dimensions, dual-persona misleading-risk tagging, and Finding Shape live there, not here. `judge-procedure.md` is the operational distillation of it; this fragment holds the deeper rationale. |
 | `_shared/health-state.md` | Durable cross-firing storage contract — docs-health's cursors, retry queue, and run history live on the `health-state` branch, reusing the exact same `bin/lib/health-core/*` primitives harness-health and code-health already use. No new persistence mechanism. |
 | `_shared/work-record.md` | Canonical taxonomy docs-health files against — origin `by:docs-health`, scoring, `ready` stage, born-ready rule. |
 | `_shared/health-filing-gate.md` | The canonical interactive file-all/route-individually gate this skill's Step 6 applies before calling `gh issue create` on new findings — shared with `/code-health`, `/harness-health`, and `/journey-health`. |

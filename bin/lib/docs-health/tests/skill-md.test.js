@@ -54,8 +54,62 @@ registerRequiredTokenTests(test, assert, read, [
   'validate-findings', '$PIPELINE_RUN_DIR', '--dry-run', '_shared/health-state.md',
   'work-record.md', 'work-fingerprint', 'by:docs-health', 'criteria-docs-diataxis.md',
   'docs-health:additive', 'docs-health:restructural', 'docs/superpowers',
-  'relatedSections', 'Bundling rule',
+  'relatedSections', 'judge-procedure.md',
 ]);
+
+// ── judge-procedure.md ───────────────────────────────────────────────────────
+// The JUDGE procedure and finding schema live in this sub-file, not inline in
+// SKILL.md: Step 3 reads it, and Step 1's parallel dispatch inlines its body
+// verbatim into each agent's prompt. One source, two callers — keeping it
+// inline in both places is the "contract restated twice, only one copy
+// updated" failure CLAUDE.md's 40 KB SKILL.md ceiling exists to prevent.
+
+const JUDGE = path.join(path.dirname(SKILL), 'judge-procedure.md');
+const readJudge = () => fs.readFileSync(JUDGE, 'utf8');
+// The inlinable body is everything below the first horizontal rule; the lead
+// above it is meta ("how this file is used") and is NOT sent to agents.
+const readJudgeBody = () => readJudge().split(/^---$/m).slice(1).join('---');
+
+test('judge-procedure.md exists and separates its meta lead from the inlinable body', () => {
+  assert.ok(fs.existsSync(JUDGE), `judge-procedure.md not found at ${JUDGE}`);
+  const body = readJudgeBody();
+  assert.ok(body.trim().length > 0, 'no inlinable body found below the horizontal rule');
+  assert.ok(body.length < readJudge().length, 'body must be a strict subset of the file');
+});
+
+registerRequiredTokenTests(test, assert, readJudge, [
+  'Bundling rule', 'relatedSections', 'genre-drift', 'depth-mismatch',
+  'findability', 'staleness', 'word-count', 'find-refs', 'check-freshness',
+  '{target.path}', '{target.id}', '{plugin-root}', '{root}',
+]);
+
+test('judge-procedure.md carries all ten numbered judgment points', () => {
+  const body = readJudgeBody();
+  for (let n = 1; n <= 10; n += 1) {
+    assert.ok(new RegExp(`^${n}\\. `, 'm').test(body), `missing numbered point ${n}`);
+  }
+});
+
+// This is the invariant the whole extraction rests on: the body is inlined
+// verbatim into clean-room Task agents, which see ONLY their own prompt. Any
+// reference to a sibling file or to SKILL.md's own numbering is unresolvable
+// there, and an agent that cannot resolve it emits malformed output.
+test('judge-procedure.md body is self-contained — no references a clean-room agent cannot resolve', () => {
+  const body = readJudgeBody();
+  const forbidden = [
+    /\bSKILL\.md\b/, /_shared\//, /\bStep \d/, /criteria fragment/,
+    /\babove\b/, /\bbelow\b/, /judge-procedure\.md/,
+  ];
+  for (const re of forbidden) {
+    const hit = body.match(re);
+    assert.ok(!hit, `unresolvable reference in the inlinable body: ${hit && hit[0]}`);
+  }
+});
+
+test('judge-procedure.md fenced blocks balance, so inlining cannot break the prompt', () => {
+  const fences = readJudge().split('\n').filter((l) => /^\s*```/.test(l));
+  assert.strictEqual(fences.length % 2, 0, `unbalanced code fences: ${fences.length}`);
+});
 
 test('states the classification -> scoring fold table literally', () => {
   const body = read();

@@ -90,10 +90,20 @@ function toIssuePayload(finding) {
     classification: finding.classification,
     confidence: finding.confidence,
     reversibility: finding.reversibility,
-    oldString: finding.oldString,
-    newString: finding.newString,
-    // Carried through so a consumer can tell a deletion from a replacement
-    // without re-deriving it from an empty newString.
+    // oldString/newString are deliberately NOT surfaced as top-level payload
+    // fields: for kind "patch", `body` already carries both verbatim via the
+    // fenced Current/Proposed (or Remove-this-content) blocks composed above,
+    // and that markdown is what actually ships to GitHub. Carrying them twice
+    // made a payload with ~2.6 KB of patch text 38% duplicate bytes, uncapped
+    // across the findings array. Matches docs-health/journey-health/code-health.
+    // Anything needing the patch text reads it out of `body`. (kind "new-skill"
+    // never had them — it carries proposedBody in the body instead.)
+    //
+    // intent stays: it is a 1-word classification, not duplicated content, and
+    // it is the ONLY top-level signal distinguishing a deletion from a
+    // replacement now that newString is gone — a consumer can no longer infer
+    // "removal" from an empty newString, so dropping this too would lose
+    // information rather than just de-duplicate it.
     intent: finding.intent,
     relatedSections: finding.relatedSections,
     title: payload.title,
