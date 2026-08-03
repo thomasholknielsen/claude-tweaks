@@ -9,6 +9,16 @@ Step 1 hands to the `d2` binary for the enhanced path. It does **not** replace
 this type; skip Input's "if `$ARGUMENTS` is empty, ask the user for both" entirely —
 `record-graph` alone is a complete invocation.
 
+**Execution order** (this is the one authoritative sequence — nothing else in this
+file or `SKILL.md` overrides it): `SKILL.md` Step 1 resolves the type here → `SKILL.md`
+Step 2 (theming) runs next, unmodified → this file's Step C runs in place of `SKILL.md`
+Step 3 (placement) → this file's Step A (fetch) → this file's Step B (render). On the
+enhanced path, Step B's `--out` file becomes `d2-enhanced-path.md`'s own Step 1 input,
+so continue through that file's Steps 2-3 (`d2 --layout=elk`, then re-theme — re-theme
+is what actually consumes Step 2's extracted tokens, which is why Step 2 has to run
+before Step B, not after it) before returning here. Either path then finishes at
+`SKILL.md` Step 5 (wrapper outputs) → Step 6 (registry update).
+
 ## What the diagram encodes
 
 Every rule below is computed deterministically by `bin/record-graph.js render`
@@ -74,11 +84,12 @@ run the fetch, do not run the render, do not write or overwrite any file (includ
 and do not substitute a different diagram type. Report to the user:
 
 > `/claude-tweaks:visualize record-graph` currently requires
-> `work-backend: github-issues`. This project resolves to `local-files` (a missing
-> `work-backend` flag defaults to it), whose records carry `id`/`slug`/`path` and no
-> `.number` — the field every node and edge in this diagram is keyed on. Rendering
-> anyway would collapse the whole queue onto one node rather than fail cleanly; see
-> the Error handling section of `skills/visualize/record-graph.md` for the details.
+> `work-backend: github-issues`. This project resolves to `{resolved work-backend
+> value}` instead (a missing `work-backend` flag defaults to `local-files`, whose
+> records carry `id`/`slug`/`path` and no `.number` — the field every node and edge in
+> this diagram is keyed on). Rendering anyway would collapse the whole queue onto one
+> node rather than fail cleanly; see the Error handling section of
+> `skills/visualize/record-graph.md` for the details.
 
 Then end. This is an unsupported-backend stop, not a permission stop — it is
 deliberately *not* an instance of `_shared/local-files-preflight-stop.md`'s six-element
@@ -93,17 +104,20 @@ same faceted-record JSON `/help`, `/tidy`, and `/backlog` already consume — no
 fetch logic, this type is one more consumer of that shared procedure.
 
 Also read `work-links` from the project's CLAUDE.md (`_shared/work-record.md`'s Config
-keys table) and **export the resolved value as `WORK_LINKS`** before Step B's render
-call — the same read-then-export pattern `record-queue-fetch.md` documents for
-`backlog-fetch-limit`/`BACKLOG_FETCH_LIMIT`:
+keys table); a missing key resolves to `body-text`, matching that table's own default.
 
-```bash
-export WORK_LINKS="{resolved value: native | body-text}"
-```
-
-A missing key resolves to `body-text`, matching that table's own default; leaving
-`WORK_LINKS` unset entirely is equivalent, since Step B's snippet carries the same
-`body-text` shell default.
+**Do not rely on a shell variable to carry this value into Step B.** If Step A and
+Step B run as genuinely separate shell invocations, an `export` in one has nothing to
+guarantee it survives into the other — the same latent property
+`record-queue-fetch.md`'s `BACKLOG_FETCH_LIMIT` pattern has, just easier to trip over
+here since a bad guess (an unset `native` project silently falling back to
+`body-text`) changes what the diagram draws rather than merely capping a fetch. When
+running Step B, **substitute the actual resolved value directly** — write the literal
+`native` or `body-text` string in place of `--work-links "$WORK_LINKS"`, the way you
+would resolve any other piece of already-known information into a command you're
+about to run. Step B's snippet still keeps `${WORK_LINKS:-body-text}` as a shell
+fallback for the case where a variable *does* happen to be in scope, but the literal
+substitution is the reliable path, not the fallback.
 
 ## Step B: Render
 
