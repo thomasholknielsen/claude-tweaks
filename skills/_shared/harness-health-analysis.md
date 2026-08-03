@@ -62,6 +62,8 @@ Required fields for every finding: `kind` (`patch` | `new-skill`), `target` (the
 
 **`oldString`/`newString` must be exact, unique, verbatim quotes from the target file** — not paraphrased "Current/Proposed" prose. A consuming skill that still applies patches directly (e.g. `/init` Phase 6, `/wrap-up` Step 7) does so via the `Edit` tool, which requires `oldString` to match uniquely; a paraphrased or non-unique quote will fail to apply or apply to the wrong location. **Exception: CLAUDE.md findings never auto-apply regardless of classification/confidence/reversibility.** CLAUDE.md governs every future session's behavior; an unattended routine editing it carries outsized blast radius compared to a single skill's documentation. (`/claude-tweaks:harness-health` itself no longer applies anything, to CLAUDE.md or anything else — it always files, per its own `SKILL.md` Step 7.)
 
+**Memory findings.** An `assetType: "memory"` finding carries these same required fields, restated in memory-scoped form in `_shared/harness-health-memory-checks.md` so that branch is self-sufficient without loading this file. This section stays canonical — keep the two in sync when either changes.
+
 ## Step 1: Evidence Pre-Checks (deterministic, before judging)
 
 Before forming any finding, run these mechanical checks and treat their output as evidence the judgment step weighs — not findings themselves:
@@ -133,12 +135,12 @@ Before forming any finding, run these mechanical checks and treat their output a
    **Cap interpretation.** The `head -40` bound exists so one target can never dominate the caller's context — this check runs against up to five skills per `/wrap-up` Step 7 invocation and is multiplied by `--budget` under `/harness-health`. Hitting the cap does *not* by itself mean the regex matched noise: a hub skill that legitimately names many siblings in descriptive prose can exceed 40 tokens with zero findings. Treat a capped result as a sample — triage the first 40, and re-run without `| head -40` only if that triage surfaces real findings.
 
    A bare reference sitting inside imperative instruction text ("Run `/X`", "`/X` handles it") — as opposed to a Relationship-to-Other-Skills table row or other descriptive prose, where a bare short name is never passed to a tool call — is evidence for a `best-practice` finding: the `Skill` tool requires the fully-qualified name, and a bare short form fails at invocation time. Distinguishing actionable text from descriptive prose requires reading the surrounding section, not just the grep hit — treat this as a candidate list to triage, not a verdict. Feed confirmed hits into dimension 8's best-practice judgment.
-9. **Legacy-alias-without-replacement check** (CLAUDE.md only, new). For any config key documented with a grandfathered legacy-alias exception (today: `work-backend`'s `backlog-backend` alias, per `_shared/work-record.md`'s "Legacy alias exception" paragraph), grep whether the legacy key is present without its replacement:
+9. **Legacy-alias-without-replacement check** (CLAUDE.md only, new). For any config key documented with a grandfathered legacy-alias exception (today: `work-backend`'s `backlog-backend` alias, per `_shared/work-record-config.md`'s "Legacy alias exception" paragraph), grep whether the legacy key is present without its replacement:
    ```bash
    grep -q '^work-backend:' CLAUDE.md || echo "MISSING: work-backend"
    grep -q '^backlog-backend:' CLAUDE.md && echo "PRESENT: backlog-backend"
    ```
-   The legacy key present AND the replacement key missing is mechanical, unambiguous evidence for a `template-conformance` finding — every consumer skill *except* the small alias-fallback list (`_shared/work-record.md`'s Consumers table: `/capture`, `/challenge`, `/tidy`) silently defaults to `local-files` in this state, a correctness-affecting drift, not just a doc-staleness one. This bit the claude-tweaks repo itself: `/claude-tweaks:dispatch` was non-functional against a real `github-issues` project until a session's own preflight check surfaced the gap by accident (2026-07-22, fixed in commit `03fb4dd`) — nothing had checked for it proactively before that.
+   The legacy key present AND the replacement key missing is mechanical, unambiguous evidence for a `template-conformance` finding — every consumer skill *except* the small alias-fallback list (`_shared/work-record-config.md`'s "Legacy alias exception": `/capture`, `/challenge`, `/tidy`) silently defaults to `local-files` in this state, a correctness-affecting drift, not just a doc-staleness one. This bit the claude-tweaks repo itself: `/claude-tweaks:dispatch` was non-functional against a real `github-issues` project until a session's own preflight check surfaced the gap by accident (2026-07-22, fixed in commit `03fb4dd`) — nothing had checked for it proactively before that.
 
 Checks 1-2 are optional assists — skip gracefully if a referenced path/command genuinely can't be checked mechanically (e.g., a described convention with no clean grep signature). A finding grounded in one of these checks is higher-confidence than one based on reading alone.
 
@@ -183,33 +185,16 @@ Always reason about *why* the ratio is low before emitting a finding — never r
 - **Project Defaults / claude-tweaks Pipeline sections in sync with the installed plugin version** — does the documented auto-mode-policy lever list match what the currently installed claude-tweaks plugin version actually supports? This one is checked against the plugin's own evolving contract (its bundled `_shared/auto-mode-contract.md`), not the target project's own source — a genuinely different kind of drift from every other check in this file.
 - **Legacy-alias config completeness** — Step 1's check 9: does a grandfathered legacy-alias key (e.g. `backlog-backend`) appear without its replacement (`work-backend`)? A silent behavioral default to `local-files` for most consumers, not just a doc-staleness issue.
 
+**Bounded sub-file reads.** If the target references sub-files (lazy-loaded content, e.g. `init`'s 11 sub-files or `build`'s 6), do not read all of them by default — read only the sub-files whose content plausibly relates to what changed (matched by filename/section keyword against the change source: churned domain paths for the routine, the spec's changed files for wrap-up, Phase 2 findings for init). Note explicitly which sub-files were skipped and why, so a human reviewing the finding can request a deeper read if needed.
+
 ## Memory-Specific Checks (`assetType: memory` targets)
 
-A `memory` target skips the dimension check above entirely — its checks are narrower and more mechanical, closer in spirit to the `design-artifact` branch than to a full skill/rule/CLAUDE.md audit. `assetType` is `"memory"`; `target` is the memory file's id (its filename stem, from `MEMORY.md`'s link).
-
-1. **Index line-length check.** Each `MEMORY.md` bullet line has a fixed 150-character budget — not project-configurable like the checks above, since this is a cross-project harness convention rather than a per-project stylistic choice:
-   ```bash
-   awk '{ if (length($0) > 150) print NR": "length($0)" chars" }' MEMORY.md
-   ```
-   A flagged line is mechanical evidence for a `template-conformance` finding — tighten the index entry to a true one-line hook.
-2. **Fact-currency check.** Read the memory file's full body and extract concrete, checkable claims: referenced file/skill paths, specific IDs, status words (`pending`, `shipped`, `scheduled`, `in progress`), dated claims. Verify each against current reality:
-   - A referenced path/command is exactly Step 1's stale-example check, applied to this file's body instead of a skill's.
-   - A status word (`pending`, `shipped`) is checked against `git log --oneline --grep` for the described change, or against whether the file/skill it predicts now actually exists.
-   Where a claim genuinely cannot be checked mechanically, skip it — the same opportunistic-assist caveat Step 1 already states for checks 1-2. A contradicted claim is high-confidence evidence for a `drift` finding.
-3. **Duplication-with-checked-in-content check.** Grep the memory file's distinctive phrases (named files, function names, specific facts) against skill/rule content:
-   ```bash
-   grep -rl "<distinctive phrase from the memory file>" skills/ .claude/rules/ 2>/dev/null
-   ```
-   A hit is evidence for a `drift` finding recommending the memory entry shrink to a pointer/reference rather than a restated copy.
-4. **Runbook-shape heuristic** (informational only — this phase detects and flags, it does not promote). Count fenced code blocks:
-   ```bash
-   grep -c '^```' "<memory-file-path>"
-   ```
-   Two or more fenced blocks, or several lines that look like shell commands, is evidence worth noting in the finding's `reason` field: "reads like an operational runbook, consider promoting to `docs/`" — no automated doc creation this phase.
-
-**Filing posture for memory findings.** Memory is audited exclusively by `/claude-tweaks:harness-health` (never by `/init` or `/wrap-up`, both skill-only), and `/claude-tweaks:harness-health` is report-only — additive and restructural memory findings alike always file as a `harness-health`-labelled issue for human review, the same posture CLAUDE.md findings get, per `skills/harness-health/SKILL.md` Step 7.
-
-**Bounded sub-file reads.** If the target references sub-files (lazy-loaded content, e.g. `init`'s 11 sub-files or `build`'s 6), do not read all of them by default — read only the sub-files whose content plausibly relates to what changed (matched by filename/section keyword against the change source: churned domain paths for the routine, the spec's changed files for wrap-up, Phase 2 findings for init). Note explicitly which sub-files were skipped and why, so a human reviewing the finding can request a deeper read if needed.
+Canonical home: `_shared/harness-health-memory-checks.md`. A `memory` target skips the
+dimension check above entirely, so its mechanical checks, its finding fields, and its
+filing posture live in that fragment as a self-sufficient lazy-load unit — nothing about them
+is restated here. `/claude-tweaks:harness-health`'s Step 3 `target.kind === 'memory'` branch is
+its only consumer; `/claude-tweaks:wrap-up` Step 7 and `/claude-tweaks:init` Phase 3/6 are
+skill-only and never reach it.
 
 ## Step 3: New-Skill Gap Detection
 

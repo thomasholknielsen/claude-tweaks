@@ -43,7 +43,7 @@ Stage vocabulary is exactly these three words — **backlog** (absence of stage 
 | Axis | Values | Expressed as |
 |---|---|---|
 | **Type** | `bug` \| `feature` \| `task` | Native GitHub Issue Type when `work-types: native`; `type:*` label when `work-types: labels` |
-| **Origin** | `by:code-health`, `by:harness-health`, `by:journey-health`, `by:docs-health`, `by:capture`, `by:dispatch` — or no label | Label. Absence = human-filed directly, or a side-effect record (see below) |
+| **Origin** | one `by:*` label — members listed once, in the Label taxonomy table's Origin row below — or no label | Label. Absence = human-filed directly, or a side-effect record (see below) |
 | **Scoring** | `risk:low\|medium\|high` × `effort:low\|medium\|high` | Labels — at most one of each family |
 | **Stage** | backlog (no label) \| `parked` \| `ready` | Labels — backlog is the absence of stage labels |
 | **Authorization** | `auto:build`, `auto:merge` | Labels — human-granted only, absence is the default not-authorized state |
@@ -53,9 +53,9 @@ Stage vocabulary is exactly these three words — **backlog** (absence of stage 
 **Origin axis, the two no-label cases:** a human filing directly on GitHub carries no `by:*`
 label (absence = human-filed). Records created as side effects of other skills (e.g.
 `/wrap-up` leftovers) also carry no `by:*` — they record provenance as an `Origin: {context}`
-body line instead (e.g. `Origin: wrap-up leftover from #42`). The `by:*` family has exactly
-five members — one per filing skill: `by:code-health`, `by:harness-health`,
-`by:journey-health`, `by:docs-health`, `by:capture`.
+body line instead (e.g. `Origin: wrap-up leftover from #42`). The `by:*` family's membership
+is stated once — the Label taxonomy table's Origin row below — and never restated in prose
+here or in a consuming skill; read that row rather than re-deriving the list.
 
 ## Label taxonomy
 
@@ -259,24 +259,15 @@ Filing skills read the key and branch; they never re-probe mid-flow.
 
 ## Config keys
 
-Written by `/init` (probe + policy), read by every filing/shaping/dispatching skill **by
-these literal names** — per-skill aliases and env-var renames are forbidden:
+Canonical home: `_shared/work-record-config.md` — the key table (names, values, defaults) and
+the `backlog-backend` legacy-alias exception live there, not here, so a consumer that needs one
+key doesn't load this whole contract. Read that file whenever a key's name, accepted values, or
+default matters; nothing about them is restated here.
 
-| Key | Values / default | Meaning |
-|---|---|---|
-| `work-backend` | `github-issues` \| `local-files` | Which driver stores work records |
-| `work-types` | `native` \| `labels` | How Type is expressed (native Issue Types vs `type:*` labels) |
-| `work-links` | `native` \| `body-text` | How parent/dependency links are expressed (sub-issue + blocked-by APIs vs `Blocked by #N` body lines) |
-| `dispatch-retry-ceiling` | `3` | Failed autonomous attempts before `auto:*` removal + `bot:blocked` |
-| `automerge-max-lines` | `40` | Auto-merge blast-radius guideline: implementation diff lines `/claude-tweaks:assess-agent-autonomy`'s `merge-check` mode weighs, not a hard cutoff |
-| `automerge-max-files` | `2` | Auto-merge blast-radius guideline: implementation files touched, same weighted-not-cutoff treatment |
-| `dispatch-pick-max-concurrent` | `3` | Max concurrent groups a bare `/dispatch` multi-pick may run |
-| `merge-sensitive-paths` | `[]` | Path globs `/claude-tweaks:assess-agent-autonomy`'s `merge-check` mode treats as a hard `needs-human` floor, regardless of diff size or content judgment. Empty by default — project-agnostic, each project populates its own list. |
-| `backlog-fetch-limit` | `1000` | Cap on `gh issue list --limit` for every `_shared/record-queue-fetch.md` consumer (`/help`, `/tidy`, `/backlog`) — `gh` auto-paginates internally regardless of size; this bounds how many rows before a truncation warning fires, not a hard cutoff on backlog size |
-| `record-staleness-weeks` | `4` | Staleness threshold (in weeks) `_shared/record-queue-fetch.md`'s Threshold resolution section reads for `/help`'s backlog-stale sub-count and `/tidy`'s Shape 1/Shape 2 backlog/parked staleness classification — converted to ms and passed to `bin/lib/issues/record-buckets.js`'s `classifyStaleness` |
-| `promise-register-min-leaves` | `4` | Minimum leaf count in one `/specify` decomposition before a `## Cross-Spec Promises` section is seeded on the parent record |
-
-**Legacy alias exception.** The "no aliases" rule above governs new keys going forward. `work-backend` carries exactly one grandfathered exception: `backlog-backend`, the pre-6.0 flag name under a `## Backlog integration` CLAUDE.md section (see CLAUDE.md's own "Backlog integration" note). Today only `/capture`, `/challenge`, and `/tidy` read `backlog-backend` as a read-only *fallback value* when `work-backend` is absent — every other skill in the Consumers table below (`/dispatch`, `/backlog`, `/demo`, `/specify`, `/flow`, `/build`, `/wrap-up`, `/review`, `/ledger`, code-health/harness-health/journey-health/docs-health) reads `work-backend` directly and treats a missing flag as the `local-files` default, with no `backlog-backend` fallback *value*. `/dispatch`'s Preflight is a partial exception to this: it does read `backlog-backend` too, but only to distinguish a genuine `local-files` project from a `work-backend:` line simply never having been added after a pre-6.0 migration — never to use `backlog-backend`'s value as the effective backend. See `skills/dispatch/SKILL.md`'s Preflight, "Missing key vs. deliberate `local-files` choice." A project whose CLAUDE.md still has only `backlog-backend:` (no `work-backend:` line) will see those skills silently default to `local-files` instead of the intended backend. Extending the alias to every consumer, or renaming the flag project-wide, is separate, unscoped migration work (see README.md's "Migrating from 5.x").
+The keys it defines govern this contract's drivers and capabilities: `work-backend` (which
+driver stores records), `work-types` (how Type is expressed — see Type, above), `work-links`
+(how parent/dependency links are expressed — see Decomposition rules, above), and the
+dispatch/auto-merge/fetch/staleness/promise-register thresholds the Consumers below read.
 
 ## Consumers
 

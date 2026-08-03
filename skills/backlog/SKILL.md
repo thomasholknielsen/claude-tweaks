@@ -47,7 +47,7 @@ Not for: shaping record bodies or stamping `risk:*`/`effort:*` (`/claude-tweaks:
 
 ## Preflight
 
-Read the project's `work-backend` config key (per `_shared/work-record.md`'s Config keys table, written by `/claude-tweaks:init`). Preflight is **mode-conditional**, not skill-wide:
+Read the project's `work-backend` config key (per `_shared/work-record-config.md`, the key table's canonical home, written by `/claude-tweaks:init`). Preflight is **mode-conditional**, not skill-wide:
 
 **`overview` mode (either driver):** under `work-backend: github-issues`, run the Detection Ladder from `_shared/github-pr-scan.md` (checks 1-3) before any `gh` command — treat any ladder failure as a hard gate (there is no meaningful degraded mode when the whole fetch depends on `gh`). Report the specific failing check and stop. Under `work-backend: local-files`, skip the Detection Ladder entirely.
 
@@ -115,6 +115,7 @@ If situational filtering leaves only one option (a bare run that surfaced nothin
 | `/claude-tweaks:tidy` | Reciprocal: folds `unsynced: true` local fallback records into its survey (surfacing, and — for the priority axis specifically — the apply path via the local-files fallback branch); `/tidy`'s existing Shape 3 owns the actual sync-to-GitHub action. `/tidy`'s Shape 4/5 findings (unscored `ready`, `bot:blocked`) surface the same facts `refine`'s own grant sweep would encounter — proactive hygiene, not a new redundancy. |
 | `/claude-tweaks:help` | Surfaces `refine`'s pending-authorization count on its dashboard (the reciprocal of this row); shares `bin/lib/issues/ranking.js`'s `rankNextToBuild` with `overview`'s recommendation section. |
 | `_shared/work-record.md` | Taxonomy home — the label contract, grant semantics, spec-shaped body definition, and the permission-matrix row this skill implements. |
+| `_shared/work-record-config.md` | Config-key home split out of the taxonomy — where Preflight reads `work-backend` without loading the whole contract. |
 | `_shared/issue-claims.md` | Defines the claim protocol `/claude-tweaks:dispatch` uses after `refine` grants — this skill itself never claims. |
 | `_shared/github-pr-scan.md` | Detection Ladder — this skill's preflight hard gate — plus the `repo-wide`/`triage-queue` scopes that surface `refine`'s pending-authorization count elsewhere. |
 | `_shared/label-bootstrap.md` | Canonical check-then-create snippet for the `auto:build`/`auto:merge`/`priority:*`/`risk:*`/`effort:*` pairs this skill applies. |
