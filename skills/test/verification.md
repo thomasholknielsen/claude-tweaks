@@ -23,6 +23,39 @@ Run all checks. Order matters — fail fast:
 2. Linting
 3. Tests (unit + integration)
 
+### Capture, never stream
+
+**Never let a check's raw output land in context** — this applies to every check, not just tests. Redirect each command to a log file, then report its exit code plus a bounded summary read back from that file. Measured in this repo, one `npm test` run is ~386 KB / ~8,950 lines (~96,000 tokens); what this step actually needs from it — did it pass, and if not what failed — fits in well under 1 KB.
+
+Write logs to `/tmp` (the same convention the rest of this plugin's skills use for scratch files). Run every check in this exact shape:
+
+```bash
+LOG=/tmp/verify-test.log
+npm test > "$LOG" 2>&1; echo "exit=$?"; tail -30 "$LOG"; grep -E '^not ok|^# (tests|pass|fail)' "$LOG"
+```
+
+Three rules make this shape correct:
+
+- `echo "exit=$?"` must be the **next** command after the check — any command in between clobbers `$?`. The `exit=` line is the only authoritative pass/fail signal.
+- The trailing `grep` exiting 1 because it matched nothing is **expected, and is not a check failure** — a clean `node --test` run has zero `not ok` lines. Judge the check by `exit=`, never by the grep's own status.
+- Use a distinct `$LOG` path per check (`/tmp/verify-typecheck.log`, `/tmp/verify-lint.log`, `/tmp/verify-test.log`). The type check and lint run concurrently per the parallel-execution directive above, and would otherwise overwrite each other's output.
+
+Substitute the project's own commands from Step 1. Type check and lint are adequately summarized by `tail -20 "$LOG"` alone. Test runners need a count line as well:
+
+- `node --test` — add `grep -E '^not ok|^# (tests|pass|fail)' "$LOG"` after the `tail`, as above.
+- jest / vitest / pytest — `tail -30 "$LOG"` alone already captures their trailing summary block.
+
+### On a non-zero exit: read only the failing region
+
+Only when `exit=` is non-zero, go back to the log — and read the **failing region**, never the whole file. Cap every recovery read:
+
+```bash
+grep -n -A 20 '^not ok' "$LOG" | head -100                 # node --test
+grep -n -B 2 -A 20 -E 'FAIL|Error:' "$LOG" | head -100     # other runners
+```
+
+`node --test` emits its TAP diagnostic block *after* the `not ok` line, so a bare `grep '^not ok'` returns each failure's title with none of its cause — always pair it with trailing context (`-A`), as above. If 100 capped lines still don't explain the failure, widen once with a narrower pattern (`head -200`); never `cat` the log.
+
 ### Skip-if-recent (for /flow pipelines)
 
 When running inside a `/claude-tweaks:flow` pipeline and the previous step already ran verification successfully (indicated by `VERIFICATION_PASSED=true` in the pipeline context), **skip this procedure entirely** and note: "Verification skipped — passed in previous pipeline step." This prevents redundant type check + lint + test runs when `/flow` chains build → test.
@@ -53,8 +86,10 @@ Present results in a consistent format:
 ### Failures
 
 #### {Check name}
-{error output — truncated to relevant lines}
+{error output — the capped recovery read from Step 2's "On a non-zero exit" procedure, not the raw log}
 ```
+
+The failure detail here comes from Step 2's bounded recovery read. Do not re-run the check without redirection to produce it, and do not paste the raw log — Step 2's capture rule governs what enters context; this section only governs how it is presented.
 
 ### Gate behavior
 
