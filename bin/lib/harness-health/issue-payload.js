@@ -76,8 +76,14 @@ function toIssuePayload(finding) {
     classification: finding.classification,
     confidence: finding.confidence,
     reversibility: finding.reversibility,
-    oldString: finding.oldString,
-    newString: finding.newString,
+    // oldString/newString are deliberately NOT surfaced as top-level payload
+    // fields: for kind "patch", `body` already carries both verbatim via the
+    // fenced Current/Proposed blocks composed above, and that markdown is what
+    // actually ships to GitHub. Carrying them twice made a payload with
+    // ~2.6 KB of patch text 38% duplicate bytes, uncapped across the findings
+    // array. Matches docs-health/journey-health/code-health. Anything needing
+    // the patch text reads it out of `body`. (kind "new-skill" never had them
+    // — it carries proposedBody in the body instead.)
     relatedSections: finding.relatedSections,
     title: payload.title,
     body: payload.body,
