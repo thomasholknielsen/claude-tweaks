@@ -26,5 +26,8 @@ assertions:
   - type: tool-called
     name: Bash
     atLeast: 1
+  - type: tool-input-includes
+    name: Bash
+    contains: ESCAPED
   - type: tool-count
     max: 10

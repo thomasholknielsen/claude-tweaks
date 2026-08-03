@@ -86,6 +86,11 @@ export async function runScenarioWith(scenarioPath, opts = {}) {
   const actor = createActor({ answerOverrides: scenario.answer_overrides, repoDir });
 
   const toolCalls = [];
+  // Parallel to toolCalls (which stays a flat array of bare names — several
+  // assertions/tests already key off that exact shape): records {name, input}
+  // per call so tool-input-includes.js can verify a call attempted a specific
+  // thing, not just that the tool ran at all.
+  const toolInputs = [];
   let resultText = '';
   let costUsd = null;
   let tokens = null;
@@ -118,6 +123,7 @@ export async function runScenarioWith(scenarioPath, opts = {}) {
       },
       canUseTool: async (toolName, input, options) => {
         toolCalls.push(toolName);
+        toolInputs.push({ name: toolName, input });
         return actor(toolName, input, options);
       },
     },
@@ -144,7 +150,7 @@ export async function runScenarioWith(scenarioPath, opts = {}) {
   }
 
   const durationMs = Date.now() - startedAt;
-  const context = { repoDir, resultText, toolCalls, escapeTargetPath };
+  const context = { repoDir, resultText, toolCalls, escapeTargetPath, toolInputs };
   // A thrown assertion (unknown type, or a fail-closed check like
   // absolute-path-exists.js's missing-target guard) must not crash the whole
   // run after a real, already-paid-for API call completed — that would lose

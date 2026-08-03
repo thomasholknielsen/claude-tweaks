@@ -122,6 +122,42 @@ test('runScenarioWith: resultText accumulates across assistant messages so an ea
   assert.strictEqual(result.assertions[0].pass, true);
 });
 
+// A Bash call with a distinctive command, for tool-input-includes.js
+// end-to-end coverage (context.toolInputs populated by canUseTool and
+// consumed by the assertion, not just unit-tested in isolation).
+async function* fakeQueryBashCommand({ prompt, options }) {
+  await options.canUseTool('Bash', { command: 'echo ESCAPED > /tmp/marker.txt' }, {});
+  yield { type: 'assistant', message: { content: [{ type: 'text', text: 'done' }] } };
+  yield { type: 'result', total_cost_usd: 0.01, usage: { input_tokens: 10, output_tokens: 5 } };
+}
+
+test('runScenarioWith: tool-input-includes verifies the specific command ran, not just that Bash ran at all', async () => {
+  const scenariosDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-scen-'));
+  const scenarioPath = path.join(scenariosDir, 'sample.yaml');
+  fs.writeFileSync(scenarioPath, [
+    'name: sample-tool-input-includes',
+    'fixture:',
+    '  base: none',
+    '  seed: []',
+    'skill_invocation:',
+    '  prompt: "hello"',
+    'assertions:',
+    '  - type: tool-input-includes',
+    '    name: Bash',
+    '    contains: ESCAPED',
+    '  - type: tool-input-includes',
+    '    name: Bash',
+    '    contains: NEVER_HAPPENED',
+  ].join('\n'));
+
+  const resultsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-results-'));
+
+  const result = await runScenarioWith(scenarioPath, { queryFn: fakeQueryBashCommand, resultsDir, fixturesDir: scenariosDir });
+
+  assert.strictEqual(result.assertions[0].pass, true, JSON.stringify(result.assertions[0]));
+  assert.strictEqual(result.assertions[1].pass, false, JSON.stringify(result.assertions[1]));
+});
+
 test('runScenarioWith: a throwing assertion (e.g. absolute-path-exists.js\'s missing-target guard) fails closed as a recorded result, not an uncaught crash', async () => {
   const scenariosDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-scen-'));
   const scenarioPath = path.join(scenariosDir, 'sample.yaml');
