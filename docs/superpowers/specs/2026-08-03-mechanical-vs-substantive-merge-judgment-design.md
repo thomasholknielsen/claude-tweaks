@@ -96,9 +96,11 @@ resolves to `needs-human`. This mirrors `/challenge`'s lenses and the adversaria
 already used in this codebase, and stays a paragraph of prose with nothing to maintain per change
 type.
 
-**3. The blast-radius bullet weighs the behavior-carrying portion of the diff**, not its total.
-`implLines`/`implFiles` stay inputs; they bind when the diff carries behavior change and not
-otherwise. `testLines`/`testFiles` remain informational, unchanged.
+**3. The blast-radius bullet binds only once the diff is judged, as a whole, to carry behavior
+change.** `blastRadiusSummary` reports whole-diff totals with no per-hunk breakdown, so that
+judgment is deliberately a binary on the whole diff rather than an attempt to size some
+behavior-carrying fraction of it. `implLines`/`implFiles` stay inputs; they bind when the diff
+carries behavior change and not otherwise. `testLines`/`testFiles` remain informational, unchanged.
 
 ### `grant-check`
 

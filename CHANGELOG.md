@@ -17,10 +17,13 @@ carrying information. The escape is a refutation attempt rather than a
 mechanical-or-substantive classification: name a behavior an agent could take
 differently after the edit, and pass only when the attempt comes up empty.
 
-Blast radius stopped being a proxy for risk. `automerge-max-lines`/
-`automerge-max-files` now weigh only the behavior-carrying portion of a diff, so a
-large uniform rename with a clean review is no longer leaned against while a small
-change to a branch condition sails through.
+Blast radius stopped being a proxy for risk on its own. `automerge-max-lines`/
+`automerge-max-files` now bind only once a diff is judged to carry behavior change
+at all. `blastRadiusSummary` reports whole-diff totals with no per-hunk breakdown,
+so that judgment is deliberately a binary on the whole diff rather than an attempt
+to size some fraction of it. A large diff in which every hunk is the same
+behavior-preserving transformation, with a clean review, is no longer leaned
+against for its size alone.
 
 `grant-check` recommends on content and states plainly that `merge-check` re-judges
 the real diff, so a grant authorizes an attempt rather than promising a merge. Its
