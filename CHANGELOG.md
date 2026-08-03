@@ -6,7 +6,11 @@
 this project's own live open work-record queue — stage columns (backlog/parked/
 ready), `Blocked by #N` dependency edges, and a six-axis color/badge encoding
 (Origin, Bot state, Type, Scoring, Authorization, Acceptance). No topic argument;
-always persisted to `docs/diagrams/record-graph.html`, regenerated on demand.
+always persisted to `docs/diagrams/record-graph.html`, regenerated on demand. The type
+currently requires `work-backend: github-issues` — `local-files` records carry no
+`.number` field to key nodes and edges on, so `record-graph.md` Step A gates on the
+backend and stops rather than rendering a collapsed diagram; `local-files` support is
+follow-up work.
 
 A new `bin/record-graph.js` CLI (backed by pure, unit-tested `bin/lib/record-graph/`
 modules) does all data-shape work deterministically — stage bucketing, six-axis

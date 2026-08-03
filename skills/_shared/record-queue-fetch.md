@@ -52,7 +52,9 @@ Conflict-detection sub-section reads the record body from this same fetch).
 `/claude-tweaks:backlog` also appends `,body` in both modes — `refine` needs bodies for Step 2's
 priority/Related synthesis pass, `overview` needs them for `rankNextToBuild`'s internal
 `parseDependencies` call in its Step 3 recommendation (see `refine-mode.md` and
-`overview-mode.md`'s own Step 1 fetch lines). `/claude-tweaks:tidy`
+`overview-mode.md`'s own Step 1 fetch lines). `/claude-tweaks:visualize` also appends
+`body` — `record-graph.md` Step A needs it for the `Blocked by #N` parsing that becomes the
+diagram's dependency edges. `/claude-tweaks:tidy`
 needs no extra field for this fetch — it pulls unsynced local-fallback records via a separate,
 already-documented `queryRecords('specs', { unsynced: true })` call in its own Step 1.
 

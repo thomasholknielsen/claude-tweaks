@@ -141,7 +141,7 @@ npm test                            # Full suite — tests/ plus every bin/lib/*
 claude --plugin-dir ./              # Local development — load plugin from current directory
 ```
 
-Per-suite test invocations, the four health CLIs, and the evals harness commands are in `docs/plugin-structure.md`.
+Per-suite test invocations, the `bin/*.js` CLIs (the four health sweeps plus `record-graph`), and the evals harness commands are in `docs/plugin-structure.md`.
 
 ### Subagent Contract (v4.2+)
 

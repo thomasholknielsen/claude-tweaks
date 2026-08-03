@@ -92,6 +92,13 @@ contract, referenced from `SKILL.md`'s type table (one new row) rather than inli
   normalizes both drivers to the same faceted-record shape; not separately tested against real
   local-files data as part of this scope.
 
+  > **Superseded:** this claim was found false during implementation — normalizing to the same
+  > *shape* does not mean the same *fields*: `local-store.js`'s records carry `id`/`slug`/`path`
+  > and no `.number`, the field every node and edge is keyed on, so the whole queue would
+  > collapse onto one node. `local-files` is now an explicit, gated-on scope boundary. See
+  > `skills/visualize/record-graph.md`'s Error handling section for the corrected, accurate
+  > statement and Step A for the gate that enforces it.
+
 **Testing:** `bin/lib/record-graph/` gets `node --test` coverage (mirroring
 `bin/lib/code-health/tests/`) — pure functions, no `gh`/`d2` I/O, fed fixture JSON. Covers
 stage-bucketing, badge/color assignment per axis-combination (including unset-Origin/Acceptance

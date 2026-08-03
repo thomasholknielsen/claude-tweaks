@@ -59,7 +59,7 @@ LICENSE                           → MIT
 
 ```bash
 claude --plugin-dir ./              # Local development — load plugin from current directory
-npm test                            # Runs node --test over tests/ AND bin/lib/code-health/tests/ AND bin/lib/issues/tests/ AND bin/lib/harness-health/tests/ AND bin/lib/journey-health/tests/ AND bin/lib/health-core/tests/ AND bin/lib/docs-health/tests/
+npm test                            # Runs node --test over tests/ AND bin/lib/code-health/tests/ AND bin/lib/issues/tests/ AND bin/lib/harness-health/tests/ AND bin/lib/journey-health/tests/ AND bin/lib/health-core/tests/ AND bin/lib/docs-health/tests/ AND bin/lib/record-graph/tests/
 node --test bin/lib/code-health/tests/*.test.js   # Code-health unit suite only
 node bin/code-health.js <cmd>             # Code-health CLI — run with no args for its subcommand list
 node --test bin/lib/harness-health/tests/*.test.js   # Harness-health unit suite only
@@ -68,6 +68,8 @@ node --test bin/lib/journey-health/tests/*.test.js   # Journey-health unit suite
 node bin/journey-health.js <cmd>     # Journey-health CLI — run with no args for its subcommand list
 node --test bin/lib/docs-health/tests/*.test.js   # Docs-health unit suite only
 node bin/docs-health.js <cmd>        # Docs-health CLI — run with no args for its subcommand list
+node --test bin/lib/record-graph/tests/*.test.js   # Record-graph unit suite only
+node bin/record-graph.js render <faceted-json-path> --format <d2|svg> --work-links <native|body-text> [--fetch-limit N] [--generated-at ISO8601] [--out path]   # Record-graph CLI — render is its only command
 cd evals && npm install && node --test tests/   # Eval harness's own free unit suite — NOT included in root `npm test` (separate package.json/node_modules)
 cd evals && node runner.js run <scenario>       # Runs a real scenario against the live Claude Agent SDK — costs real tokens/dollars, see evals/README.md
 ```
