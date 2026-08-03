@@ -1,6 +1,6 @@
 # Step 13 — shadcn Bootstrap (detailed procedure)
 
-*Optional Enhancement step (Steps 9-17). Skipped entirely under `--core-only`, and narrowable via Enhancement filter tokens (see `SKILL.md`'s `## Input`). For this group's ordering and renumbering conventions, see `../bootstrap-steps.md`.*
+*Optional Enhancement step — see `SKILL.md`'s `## Input` for when this group is offered or filtered, and `../bootstrap-steps.md` for its ordering and renumbering conventions.*
 
 claude-tweaks integrates [shadcn/ui](https://ui.shadcn.com/) — a CLI-driven component
 system distributed as copy-paste source files rather than an npm package. As of CLI v4

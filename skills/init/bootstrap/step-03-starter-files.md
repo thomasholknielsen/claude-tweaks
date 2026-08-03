@@ -1,6 +1,6 @@
 # Step 3 — Starter files (detailed content)
 
-*Core Bootstrap step (Steps 1-8). Order-dependent — later steps may assume earlier ones completed. Runs unconditionally and idempotently: only acts on missing state. Gated by the Core Bootstrap Version Check (`version-check.md` in this directory).*
+*Core Bootstrap step — order-dependent, so later steps may assume earlier ones completed; runs unconditionally and idempotently, acting only on missing state. Gated by `version-check.md` in this directory.*
 
 Create these **only if missing** — never overwrite existing content. Idempotent and safe to skip on Update Mode runs.
 

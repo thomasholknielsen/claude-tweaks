@@ -38,8 +38,13 @@ function findOverride(question, answerOverrides) {
 // Known, accepted limitation: this does NOT inspect or restrict Bash command
 // text — there is no reliable way to parse an arbitrary shell command string
 // into a target path, so a Bash call is always allowed unmodified by this
-// guard. This narrows the fix to what's mechanically checkable; it is not a
-// full sandbox.
+// guard. This is deliberately narrow, defense-in-depth on top of the primary
+// containment layer: runner.js's managedSettings.sandbox, which enforces
+// filesystem/network restrictions on every Bash-tool subprocess at the OS
+// level regardless of what this guard does or doesn't inspect. The
+// evals/scenarios/actor-escape-attempt.yaml scenario is live, executable
+// proof that the OS sandbox denies a Bash-executed escape from the fixture
+// repoDir — see README.md's Safety model section.
 const PATH_INPUT_KEYS = ['file_path', 'path', 'notebook_path'];
 
 function findPathInput(input) {
@@ -58,6 +63,19 @@ function findPathInput(input) {
 function isInsideRepoDir(candidatePath, resolvedRepoDir) {
   const resolvedCandidate = path.resolve(candidatePath);
   return resolvedCandidate === resolvedRepoDir || resolvedCandidate.startsWith(resolvedRepoDir + path.sep);
+}
+
+// Returns a deny PermissionResult when toolName's path-like input resolves
+// outside resolvedRepoDir, or null when the call should proceed (no repoDir
+// configured, no path-like input present, or the path is inside repoDir).
+function checkScopeGuard(toolName, input, resolvedRepoDir) {
+  if (!resolvedRepoDir) return null;
+  const pathInput = findPathInput(input);
+  if (!pathInput || isInsideRepoDir(pathInput.value, resolvedRepoDir)) return null;
+  return {
+    behavior: 'deny',
+    message: `Scope guard: ${toolName}'s "${pathInput.key}" (${pathInput.value}) resolves outside the fixture repoDir (${resolvedRepoDir}) and was denied.`,
+  };
 }
 
 // Async cross-session coordination tools assume a live, persistent,
@@ -96,16 +114,8 @@ export function createActor({ answerOverrides = [], repoDir } = {}) {
       };
     }
     if (toolName !== 'AskUserQuestion') {
-      if (resolvedRepoDir) {
-        const pathInput = findPathInput(input);
-        if (pathInput && !isInsideRepoDir(pathInput.value, resolvedRepoDir)) {
-          return {
-            behavior: 'deny',
-            message: `Scope guard: ${toolName}'s "${pathInput.key}" (${pathInput.value}) resolves outside the fixture repoDir (${resolvedRepoDir}) and was denied.`,
-          };
-        }
-      }
-      return { behavior: 'allow', updatedInput: input };
+      const denial = checkScopeGuard(toolName, input, resolvedRepoDir);
+      return denial || { behavior: 'allow', updatedInput: input };
     }
     const answers = {};
     for (const q of input.questions) {

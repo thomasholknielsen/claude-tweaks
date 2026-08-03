@@ -1,6 +1,6 @@
 # Changelog
 
-## v6.25.0 — CLAUDE.md context budget: rules and evidence split (closes #95, #102)
+## v6.26.0 — CLAUDE.md context budget: rules and evidence split (closes #95, #102)
 
 `CLAUDE.md` was 94 KB, and its `## Don'ts` section alone was 53,939 B — 57% of the file. That cost
 is paid per *agent*, not per session: every Task-dispatched subagent inherits the whole file, so a
@@ -26,6 +26,31 @@ needed a new `intent: "remove"` finding shape, scoped to `assetType: claude-md`;
 unmodelled across every health validator. `/reflect` and `/wrap-up` now direct that the incident
 account be written before the rule, and `/init`'s CLAUDE.md template teaches the same shape to newly
 initialized projects. See ADR-0010.
+
+## v6.25.0 — Live proof the eval harness's OS sandbox denies a Bash escape (closes #46)
+
+`evals/actor.js`'s scope guard denies path-bearing tool inputs outside a scenario's fixture
+`repoDir`, but by design never inspects `Bash` command text — the real containment for Bash
+escapes has always been `runner.js`'s `managedSettings.sandbox`, documented as a belief, not
+verified by an executable test. This closes that gap: a new `actor-escape-attempt` scenario
+prompts a real model to attempt a Bash-executed write outside the fixture repo and asserts the
+OS sandbox denies it — run for real (not just fake-queryFn unit coverage, which structurally
+cannot exercise real OS-level sandboxing), confirmed `allPassed: true`.
+
+Fixing this also surfaced a tool-count accuracy gap: `managedSettings.sandbox`'s own
+`autoAllowBashIfSandboxed` defaults to `true` (confirmed against Anthropic's public sandboxing
+docs — an installed-SDK `node_modules` read was denied by this project's own permission
+settings), letting many sandboxed Bash calls bypass `canUseTool` entirely and silently
+undercount `toolCalls`. `runner.js` now explicitly sets it `false`.
+
+A follow-up code review found the new scenario's assertions only confirmed *some* Bash call
+happened, not the specific escape command — fixed with a new `tool-input-includes` assertion
+(backed by a `toolInputs` context field capturing `{name, input}` per call, parallel to the
+existing bare-name `toolCalls` array so `tool-called`/`tool-count` are unaffected), validated
+with a second live run. Also fixed in the same pass: a fail-open `absolute-path-exists`
+assertion that silently passed on a missing/typo'd context field (now fails closed and cannot
+crash a live run uncaught), and a stale wrap-up cleanup instruction that would have deleted
+`docs/superpowers/plans/*.md` files this project actually keeps as a permanent archive.
 
 ## v6.24.0 — /dispatch's gh-CLI/MCP bridge (closes #61)
 

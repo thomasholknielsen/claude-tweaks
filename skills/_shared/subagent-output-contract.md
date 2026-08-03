@@ -36,6 +36,8 @@ Agents do not inherit the dispatcher's CWD reliably. When a dispatch will run `g
 - **Explicit cd**: every shell step begins with `cd "/absolute/path/to/worktree" && ...`
 - **`git -C` form**: every git command is `git -C "/absolute/path/to/worktree" <subcommand>`
 
+**Substitute the path before dispatching.** The prompt must carry the resolved absolute path, never an unexpanded placeholder like `$WORKTREE` — the agent's shell does not share the dispatcher's variables. A brief that says "verify `cd "$WORKTREE"`" while also forbidding the agent from creating worktrees leaves it no legal move when the substitution didn't happen: `BLOCKED` is then the correct response, and the round-trip is pure waste. If the dispatch template interpolates a path, check one rendered prompt before sending the batch.
+
 Before any commit step, the implementer must echo `pwd` and `git rev-parse --show-toplevel` and verify both match the expected worktree. A mismatch means the commit is about to land on the wrong branch — `BLOCKED` is the correct response.
 
 **Why this matters:** When the dispatcher is itself inside a worktree (e.g., running from `.claude/worktrees/<name>/`), a dispatched agent can resolve a different CWD and commit to the parent repo's checked-out branch instead of the worktree branch. The branches diverge silently — the dispatcher's `git status` looks fine, but the commit went to `main`. The same risk applies to reviewer agents that run `node --test` from the parent repo where the new test files don't exist and report false failures.
@@ -54,6 +56,8 @@ Every dispatched agent reports one of four statuses as the first line of its rep
 | `DONE_WITH_CONCERNS` | Task complete, but the agent flagged doubts | Read the concerns. If correctness/scope → address before proceeding. If observational ("this file is getting large") → note and proceed. |
 | `NEEDS_CONTEXT` | Information was missing from the dispatch | Provide what was missing; re-dispatch. |
 | `BLOCKED` | Cannot complete the task | Diagnose: more context (re-dispatch), more capable model (upgrade), smaller scope (split), or wrong plan (escalate). Never force-retry with no changes. |
+
+**Finish everything the blocker doesn't gate before reporting `BLOCKED`.** A failed precondition — a worktree path that doesn't resolve, a missing fixture, an unavailable service — usually gates only *some* of the task. Analysis, measurement, verification, and drafting the exact edits are typically all still possible, and a `BLOCKED` report carrying that finished work costs the dispatcher one cheap re-dispatch instead of a full redo. This applies to the wrong-worktree case in Working Directory Discipline above: report `BLOCKED` rather than editing the wrong checkout, but do the read-only work first and hand back verified, ready-to-apply results. Do not silently downgrade to `DONE_WITH_CONCERNS` because you got most of it done — the blocker still stands, and the status line is what the dispatcher routes on.
 
 For review-style agents (Template A) the status line is followed by the findings table. For search-style (B) and scout-style (C), the status replaces any "no findings" sentinel.
 
