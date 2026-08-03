@@ -30,7 +30,7 @@ bundle; this is the single-record version wrap-up itself runs, whether or not
 `/claude-tweaks:dispatch` was involved:
 
 1. **Authorization** — `auto:merge` is present on the live-fetched labels (true by construction once this branch is reached)
-2. **Content judgment** — invoke `/claude-tweaks:assess-agent-autonomy` in `merge-check` mode (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "merge-check #{n}")`), which weighs the diff's content, `/review`'s findings, and a test-exclusion-aware blast-radius summary holistically, replacing the old three independent mechanical checks (scoring eligibility, runtime cleanliness, blast radius) that stood in for one real question — see `docs/superpowers/specs/2026-07-15-assess-agent-autonomy-design.md`. The verdict must be `auto-merge` to proceed.
+2. **Content judgment** — invoke `/claude-tweaks:assess-agent-autonomy` in `merge-check` mode (`Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "merge-check #{n}")`), which weighs the diff's content, `/review`'s findings, and a test-exclusion-aware blast-radius summary holistically, replacing the old three independent mechanical checks (scoring eligibility, runtime cleanliness, blast radius) that stood in for one real question — see `docs/superpowers/specs/2026-08-03-mechanical-vs-substantive-merge-judgment-design.md`. The verdict must be `auto-merge` to proceed.
 
 **Both layers pass:** skip the blocking wait and merge directly — bypass the
 interactive `/superpowers:finishing-a-development-branch` handoff entirely,
