@@ -1,5 +1,42 @@
 # Changelog
 
+## v6.28.0 — Dispatched agents get their procedure inlined, not a pointer (closes #94, #101, #110)
+
+Both `/claude-tweaks:docs-health` and `/claude-tweaks:harness-health` told parallel
+Task agents to apply a procedure they were handed only a *path* to. Agents see
+nothing but their own prompt, so a path reaches nothing — docs-health's references
+(`"Step 3 above"`, its SKILL.md by path) were unresolvable outright, making agents
+emit malformed output rather than merely expensive output; harness-health's
+resolved, but made every agent in a `--budget` batch independently read a 34,314 B
+fragment.
+
+Each skill now owns a self-contained `judge-procedure.md` that its dispatch inlines
+verbatim, with a meta lead above a horizontal rule and the agent-facing body below.
+Neither shared criteria fragment changed — `_shared/criteria-docs-diataxis.md` keeps
+all 7 of its consumers and `_shared/harness-health-analysis.md` all 13, none touched.
+A test in each skill enforces the self-containment invariant the extraction rests on,
+and both were verified to discriminate by injecting the exact regression.
+
+Also in this release:
+
+- **Payload de-duplication (#101).** `harness-health` and `docs-health` returned
+  `oldString`/`newString` as top-level fields *and* embedded both in the composed
+  `body`. A finding carrying ~2.6 KB of patch text serialized 38-43% duplicate. `body`
+  is now the sole carrier (it is what ships to GitHub); all four health skills' payload
+  shapes agree. `harness-health` keeps `intent`, the only remaining signal
+  distinguishing a removal from a replacement once `newString` is gone.
+- **docs-health read cap (#92).** A 40,000-byte cap with a stated partial-read strategy,
+  and a carve-out so every fenced command block is still executed regardless. The
+  archive-exclusion half of that issue had already shipped in `8d7d3419`, two weeks
+  before it was filed; a new test pins the full-path match so the near-identically-named
+  `docs/plans/` correctly stays in scope.
+- **`harness-health/SKILL.md` back under the 40 KB ceiling.** Step 7's filing procedure
+  moved verbatim into `filing.md` (46,813 → 36,880 B), with a test now guarding the
+  ceiling directly so it cannot silently regress.
+- **Two new CLAUDE.md Don'ts** (`[IL-71]` extended, `[IL-72]` added): verify a filed
+  issue's premise and not just its acceptance criteria, and extract-then-inline rather
+  than inlining into a size-capped file and extracting afterwards.
+
 ## v6.27.0 — Live record-graph visualization (closes #28)
 
 `/claude-tweaks:visualize` gains a `record-graph` type: a deterministic diagram of
