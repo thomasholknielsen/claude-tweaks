@@ -1,6 +1,6 @@
 # Step 11 — Impeccable Design Integration (detailed procedure)
 
-*Optional Enhancement step (Steps 9-17). Skipped entirely under `--core-only`, and narrowable via Enhancement filter tokens (see `SKILL.md`'s `## Input`). For this group's ordering and renumbering conventions, see `../bootstrap-steps.md`.*
+*Optional Enhancement step — see `SKILL.md`'s `## Input` for when this group is offered or filtered, and `../bootstrap-steps.md` for its ordering and renumbering conventions.*
 
 claude-tweaks v4.5+ integrates [Impeccable](https://impeccable.style/) — a frontend-design plugin that ships LLM commands (`critique`, `audit`, `polish`, `bolder`, `delight`, etc.) and a deterministic Node CLI (`impeccable detect`) for catching design anti-patterns. The integration is opt-in and only runs on frontend projects.
 

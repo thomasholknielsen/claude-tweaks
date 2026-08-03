@@ -1,6 +1,6 @@
 # Step 2 — Create Directory Structure (detailed procedure)
 
-*Core Bootstrap step (Steps 1-8). Order-dependent — later steps may assume earlier ones completed. Runs unconditionally and idempotently: only acts on missing state. Gated by the Core Bootstrap Version Check (`version-check.md` in this directory).*
+*Core Bootstrap step — order-dependent, so later steps may assume earlier ones completed; runs unconditionally and idempotently, acting only on missing state. Gated by `version-check.md` in this directory.*
 
 Check and create the required directories (only create what's missing):
 
