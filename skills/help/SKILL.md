@@ -55,7 +55,7 @@ For the canonical cheat sheet — lifecycle, component, and utility commands; co
 
 > **Parallel execution:** When both Section 1 and Section 2 run (default, no-argument invocation), issue Section 1's `reference-card.md` Read alongside dispatching Section 2's Stage Task agents below — a static Read and a live Task-agent dispatch are fully independent and should run concurrently rather than sequentially.
 
-Read `status-scan.md` in this skill's directory for the full parallel-dispatch procedure (Stages 1-7 including sub-stages 4.5, 4.6, and 4.7; dispatch contract, agent template, and dashboard rendering). The orchestrator dispatches all of the stages listed above (1, 2, 4.5, 4.6, 4.7, 5, 6, 7) in parallel and assembles the dashboard after all agents complete.
+Read `status-scan.md` in this skill's directory for the full parallel-dispatch procedure (Stages 1-7 including sub-stages 4.5, 4.6, and 4.7; execution model, dispatch contract, agent template, and dashboard rendering). Stages 1, 4.5, 4.6, and 4.7 dispatch as Task agents; Stages 2, 5, and 6 run as parallel tool calls in the main thread alongside them; Stage 7 runs last, after the others, because it reads their output. The orchestrator assembles the dashboard once everything has returned.
 
 ---
 
@@ -150,4 +150,4 @@ For a detailed explanation of how context flows between skills via artifacts, re
 | `/claude-tweaks:research` | Utility skill — /help lists it in the utility skills table. /research has no fixed lifecycle position; /help may surface it as an option when a backlog record or pending spec would benefit from prior-art research. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling to /help (e.g., if a future status scan ever auto-resolves recommendations) |
 | `_shared/github-pr-scan.md` | Stage 4.5 scans the current branch's PR per this shared procedure (`current-pr` scope); Stage 4.6 scans the triage queue (`triage-queue` scope); Stage 4.7 scans the acceptance queue (`acceptance-queue` scope) — detection ladder, exact gh/GraphQL commands, output contract, severity mapping |
-| `_shared/work-record.md` | Taxonomy home — the record label contract Stage 1's record scan reads (see that file's "The seven axes" table for the canonical list; not restated here). /help has no row in the permission matrix — it never adds or removes a label, only queries the taxonomy every other row writes to. |
+| `_shared/work-record.md` | Taxonomy home — the record label contract Stage 1's record scan reads (see that file's "The axes" table for the canonical list; not restated here). /help has no row in the permission matrix — it never adds or removes a label, only queries the taxonomy every other row writes to. |

@@ -8,7 +8,7 @@ Runs only when the user specified `worktree` (or it's the default). Skipped enti
 
 For why `worktree.baseRef` matters and what `fresh` vs `head` do, see
 `_shared/worktree-base-ref.md` — the canonical explanation, shared with
-`init/bootstrap-steps.md` Step 6's provisioning-time offer. Set
+`init/bootstrap/step-06-worktree-configuration.md`'s provisioning-time offer. Set
 `worktree.baseRef: "head"` in `settings.json`. Because the plugin cannot pass
 the base ref through the tool, Step 0 below **verifies** the resulting base and
 surfaces a mismatch loudly rather than letting it pass silently.
@@ -80,6 +80,6 @@ In interactive mode, surface the consent prompt as the skill normally would.
 
 ## Impeccable hook consent (per-worktree)
 
-If Impeccable's automatic design hook is enabled (`/impeccable:impeccable hooks on` — see `skills/init/bootstrap-steps.md` Step 11), its consent lives in `.impeccable/config.local.json` in the **working tree**, not `.git/`. A freshly created worktree starts with the hook off even when the main checkout has it enabled — re-run `/impeccable:impeccable hooks on` inside the new worktree if you want it active there too.
+If Impeccable's automatic design hook is enabled (`/impeccable:impeccable hooks on` — see `skills/init/bootstrap/step-11-impeccable-design-integration.md`), its consent lives in `.impeccable/config.local.json` in the **working tree**, not `.git/`. A freshly created worktree starts with the hook off even when the main checkout has it enabled — re-run `/impeccable:impeccable hooks on` inside the new worktree if you want it active there too.
 
 This is informational only. claude-tweaks does not auto-propagate Impeccable's hook consent into new worktrees — doing so would create an ongoing dependency on Impeccable's internal config file shape for a one-time, low-cost manual step.

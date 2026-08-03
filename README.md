@@ -103,7 +103,7 @@ Two storage drivers back the same taxonomy, set once by `/claude-tweaks:init` an
 | `work-backend: github-issues` | A GitHub issue | Labels express stage/scoring/grants/bot-state; native GitHub Issue Types or `type:*` labels express Type. Headless dispatch (`/claude-tweaks:dispatch`) requires this driver — GitHub's RBAC is the mechanism the authorization model depends on. |
 | `work-backend: local-files` | `specs/{id}-{slug}.md`, one file per record | Frontmatter expresses the same facets for isomorphism. `/claude-tweaks:backlog refine`'s grants are recorded but have no headless consumer — run `/claude-tweaks:flow`/`/claude-tweaks:build` manually against a chosen record instead. |
 
-See `skills/_shared/work-record.md` for the full seven-axis contract (Type, Origin, Scoring, Stage, Authorization, Bot state, Acceptance), the complete label taxonomy, and the permission matrix governing which skill may add or remove which label.
+See `skills/_shared/work-record.md` for the full axis contract (Type, Origin, Scoring, Stage, Authorization, Bot state, Acceptance), the complete label taxonomy, and the permission matrix governing which skill may add or remove which label.
 
 ## Skills
 

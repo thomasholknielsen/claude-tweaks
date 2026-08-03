@@ -27,12 +27,16 @@ Do NOT pass: prior messages, the user's original phrasing, your own findings so 
 
 When in doubt, give less context. If the agent comes back with `NEEDS_CONTEXT`, give it more on the re-dispatch.
 
+**Inherited project context is the dominant per-agent cost.** Every dispatched agent also inherits the project's `CLAUDE.md` in its system prompt — you do not pass it, and you cannot opt out of it. That inherited payload is typically an order of magnitude larger than a well-disciplined prompt, and it multiplies by N across a fan-out, so a wide dispatch of cheap, mechanical agents costs far more than its prompts suggest. Size a fan-out against the inherited total, not the prompt you wrote — and measure the current file rather than trusting a remembered figure, since it changes. Note the division of labour: input discipline governs only your share of the cost; the lever for the inherited term is keeping `CLAUDE.md` itself lean.
+
 ## Working Directory Discipline
 
 Agents do not inherit the dispatcher's CWD reliably. When a dispatch will run `git`, `node --test`, or any path-sensitive command, **anchor the working directory explicitly** in the prompt. Both forms work; pick one and use it consistently:
 
 - **Explicit cd**: every shell step begins with `cd "/absolute/path/to/worktree" && ...`
 - **`git -C` form**: every git command is `git -C "/absolute/path/to/worktree" <subcommand>`
+
+**Substitute the path before dispatching.** The prompt must carry the resolved absolute path, never an unexpanded placeholder like `$WORKTREE` — the agent's shell does not share the dispatcher's variables. A brief that says "verify `cd "$WORKTREE"`" while also forbidding the agent from creating worktrees leaves it no legal move when the substitution didn't happen: `BLOCKED` is then the correct response, and the round-trip is pure waste. If the dispatch template interpolates a path, check one rendered prompt before sending the batch.
 
 Before any commit step, the implementer must echo `pwd` and `git rev-parse --show-toplevel` and verify both match the expected worktree. A mismatch means the commit is about to land on the wrong branch — `BLOCKED` is the correct response.
 

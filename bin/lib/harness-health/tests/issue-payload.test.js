@@ -204,3 +204,58 @@ test('toIssuePayload uses the minimal 3-backtick fence when oldString/newString 
   assert.ok(payload.body.includes('**Current:**\n```\nplain old text\n```'));
   assert.ok(payload.body.includes('**Proposed:**\n```\nplain new text\n```'));
 });
+
+// --- removal findings (rule expiry) ------------------------------------------
+
+function removalFinding(overrides = {}) {
+  return {
+    id: 'skillhealth-rm000001',
+    kind: 'patch',
+    target: 'CLAUDE',
+    assetType: 'claude-md',
+    category: 'drift',
+    section: "Don'ts",
+    intent: 'remove',
+    classification: 'restructural',
+    confidence: 'high',
+    reversibility: 'high',
+    description: 'Rule guards a hazard that can no longer occur',
+    oldString: "- Don't call the legacy exporter directly `[IL-23]`",
+    newString: '',
+    reason: 'bin/lib/legacy-exporter.js was deleted in a1b2c3d.',
+    ...overrides,
+  };
+}
+
+test('a removal renders as a deletion, not an empty Proposed block', () => {
+  const payload = toIssuePayload(removalFinding());
+  assert.match(payload.body, /\*\*Remove this content:\*\*/);
+  assert.match(payload.body, /delete it — nothing replaces it/);
+  assert.ok(
+    payload.body.includes("- Don't call the legacy exporter directly `[IL-23]`"),
+    'the content being removed must appear verbatim so a reviewer can locate it',
+  );
+  // The bug this guards: the default branch would emit "**Proposed:**" followed
+  // by an empty fence, which reads as a malformed finding rather than a delete.
+  assert.ok(!/\*\*Proposed:\*\*\n```\n\n```/.test(payload.body), 'must not render an empty Proposed fence');
+});
+
+test('a removal title says it retires content', () => {
+  const payload = toIssuePayload(removalFinding());
+  assert.match(payload.title, /retire dead content in CLAUDE — Don't/);
+});
+
+test('intent survives into the payload for downstream consumers', () => {
+  // Regression guard for the producer/consumer field-drop shape: a consumer
+  // must be able to tell a deletion from a replacement without inferring it
+  // from an empty newString.
+  assert.strictEqual(toIssuePayload(removalFinding()).intent, 'remove');
+  assert.strictEqual(toIssuePayload(patchFinding()).intent, undefined);
+});
+
+test('an ordinary patch still renders Current/Proposed', () => {
+  const payload = toIssuePayload(patchFinding());
+  assert.match(payload.body, /\*\*Current:\*\*/);
+  assert.match(payload.body, /\*\*Proposed:\*\*/);
+  assert.ok(!payload.body.includes('Remove this content'));
+});
