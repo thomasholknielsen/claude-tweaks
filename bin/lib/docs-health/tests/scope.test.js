@@ -58,6 +58,28 @@ test('listDocs excludes docs/superpowers/** entirely', () => {
   assert.deepStrictEqual(listDocs(root).map((d) => d.id), ['decisions/0001-bar']);
 });
 
+// The archive exclusion must match the FULL path docs/superpowers, never a
+// name substring: docs/plans/ (live ephemeral pipeline state) and
+// docs/superpowers/plans/ (the historical archive, docs/decisions/0007-*) are
+// near-identically named and have been confused before in this repo.
+test('listDocs excludes both archive subdirs but keeps the near-identically-named docs/plans/', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'docs', 'superpowers', 'plans'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'docs', 'superpowers', 'specs'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'docs', 'plans'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'docs', 'specs'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'docs', 'superpowers', 'plans', '2026-07-20-fix-review-findings.md'), '# archived plan');
+  fs.writeFileSync(path.join(root, 'docs', 'superpowers', 'specs', '2026-01-01-foo-design.md'), '# archived design doc');
+  fs.writeFileSync(path.join(root, 'docs', 'plans', '2026-07-08-worktree-brief.md'), '# live pipeline state');
+  fs.writeFileSync(path.join(root, 'docs', 'specs', 'api.md'), '# live spec');
+
+  assert.deepStrictEqual(
+    listDocs(root).map((d) => d.id),
+    ['plans/2026-07-08-worktree-brief', 'specs/api'],
+    'only docs/superpowers/** is excluded — top-level docs/plans/ and docs/specs/ stay in scope',
+  );
+});
+
 test('listDocs never overlaps with harness-health\'s own target list', () => {
   const root = tmp();
   fs.mkdirSync(path.join(root, '.claude', 'skills'), { recursive: true });
