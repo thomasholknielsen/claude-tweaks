@@ -68,7 +68,7 @@ Resolve `<type>` from Input. Look up the generation path — **enhanced** when t
 | `timeline`, `swimlane`, `venn`, `pyramid` | Baseline only | No native fit |
 | `record-graph` | Enhanced when `d2` is installed, baseline otherwise (same rule as every other type) | Container-based directed graph (stage-column containers, record nodes, dependency edges) |
 
-For `record-graph`, skip topic resolution entirely and read `record-graph.md` in this skill's directory now — it owns the fetch (Step A), render (Step B), and placement (Step C, which overrides Step 3 below for this type only) for the whole type. Return here only if `record-graph.md` hands control back for a step it doesn't override (there are none as of this writing — Steps 2, 4, and 5's generic instructions are fully superseded by `record-graph.md` for this type).
+For `record-graph`, skip topic resolution entirely and read `record-graph.md` in this skill's directory now — it owns the fetch (Step A), render (Step B), and placement (Step C, which overrides Step 3 below for this type only). **Step 4 is the only step it supersedes**: `bin/record-graph.js`'s `svg` output *is* the core fragment Step 4 would otherwise hand-author, so skip Step 4's own instructions for this type. Steps 2 (token extraction — the enhanced path's re-theming step in `d2-enhanced-path.md` consumes its palette), 5 (wrapper outputs — this is what actually writes the standalone `docs/diagrams/record-graph.html` file), and 6 (registry update) all still run normally; `record-graph.md` hands control back here for each of them.
 
 ### Step 2: Token extraction and theming (both paths)
 
@@ -133,7 +133,7 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | Regenerating the core fragment separately per wrapper | The standalone file and markdown embed drift apart. Generate once (Step 4), wrap two ways (Step 5). |
 | Re-asking the DESIGN.md fallback question every invocation | Annoys a user who's already decided not to use Impeccable. Dedupe per session (`visual-html-output.md` Step 2). |
 | Forcing a baseline-only type through the D2 enhanced path | Timeline/swimlane/venn/pyramid have no graph-shaped representation — this fights the tool the same way theming fights Mermaid/D2's own engines. |
-| Writing every diagram to a single central `docs/diagrams/` folder regardless of caller | Co-locate with what the diagram illustrates (Step 3) — `docs/diagrams/` is the fallback for context-free invocations only. |
+| Writing every diagram to a single central `docs/diagrams/` folder regardless of caller | Co-locate with what the diagram illustrates (Step 3) — `docs/diagrams/` is the fallback for context-free invocations only. `record-graph` is the one by-rule exception (Step 3's own table row): it always writes there, for every invocation. |
 | Model hand-authoring `record-graph`'s D2/SVG source from the fetched JSON | Defeats the type's whole purpose — it exists specifically to avoid LLM transcription of structured queue data (wrong issue numbers, dropped labels). Always route through `bin/record-graph.js render`. |
 
 ## Relationship to Other Skills
