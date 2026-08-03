@@ -230,16 +230,35 @@ caller, since this skill reads its own config rather than depending on one.)
 
 - **Sensitive-path hit is a hard floor.** If `sensitiveFilesTouched` is non-empty, render
   `needs-human` immediately — do not weigh anything else. No content judgment overrides this.
-- **A new or substantially-edited `skills/**/*.md` or `agents/**/*.md` file is `needs-human`,
-  regardless of size.** Generalizes the old `harness-health:new-skill` exclusion — both directories
-  hold files that shape future agent behavior (skill procedures, subagent definitions like
-  `agents/qa-agent.md`), which is high-leverage independent of how small the diff looks.
+- **An agent-instruction file is `needs-human` unless a refutation attempt clears it.** An
+  agent-instruction file is any file this project's harness loads as *instruction* rather than as
+  *subject matter*: `CLAUDE.md`/`AGENTS.md`, `.claude/rules/*`, `.claude/skills/**`,
+  `.claude/agents/**`, and — in a repository that *is* a plugin — its own `skills/**`/`agents/**`
+  sources. Resolve the class by that role for the project at hand; do not match a fixed path list,
+  which is wrong in every repository whose layout differs from the one it was written against.
+  `_shared/harness-health-analysis.md` resolves the same set the same way. These files encode
+  instructions future agents follow, which is high-leverage independent of how small the diff looks.
+
+  **The escape is a refutation, not a classification.** Do not ask "is this change mechanical?" —
+  that phrasing invites agreement. Instead, try to name a concrete behavior an agent could take
+  differently after the edit: an instruction it would now follow, skip, or apply at a different
+  threshold; a claim it would now reason from. Render `auto-merge` only when a genuine attempt to
+  name one comes up empty. If you can name any candidate — including one you are unsure about —
+  render `needs-human`. A correction can be factually true and independently verifiable and still
+  change what agents infer; truth is not the test, behavior delta is.
 - **Weigh `blastRadiusSummary.implLines`/`implFiles` against the project's configured
-  `automerge-max-lines`/`automerge-max-files`** as one input, not a cutoff — a diff comfortably
-  under the configured guideline (e.g. #18's 33 impl lines under a 40-line guideline) supports
-  `auto-merge` when review is clean; a diff well past it is a reason to lean `needs-human` even
-  with a clean review, but is not an automatic disqualifier the way the old mechanical gate was.
-  `testLines`/`testFiles` are informational only — never weigh test-file bulk toward risk.
+  `automerge-max-lines`/`automerge-max-files` — but only over the diff's behavior-carrying
+  portion.** Size proxies review burden, not risk: a large diff in which every hunk is the same
+  behavior-preserving transformation (a rename, a corrected constant, a call site updated
+  uniformly, dead code removed) is safer than a small one that changes a branch condition. So ask
+  first whether the diff is behavior-preserving as a whole — a single hunk that is not an instance
+  of the same transformation makes the whole diff behavior-carrying. When it is behavior-preserving
+  and review is clean, exceeding the configured guideline is not by itself a reason to lean
+  `needs-human`. When it carries behavior change, weigh the guideline as one input, not a cutoff —
+  a diff comfortably under it (e.g. #18's 33 impl lines under a 40-line guideline) supports
+  `auto-merge` when review is clean; well past it is a reason to lean `needs-human`, but not an
+  automatic disqualifier the way the old mechanical gate was. `testLines`/`testFiles` are
+  informational only — never weigh test-file bulk toward risk.
 - **Weigh the diff's actual content**, not just its size or file list: does it touch concurrency,
   locking, auth, or external API calls in a way that looks structurally sensitive even outside the
   configured `merge-sensitive-paths` list? Treat that as elevated risk from content, the same way a
