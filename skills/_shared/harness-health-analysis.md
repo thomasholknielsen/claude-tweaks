@@ -68,7 +68,7 @@ Required fields for every finding: `kind` (`patch` | `new-skill`), `target` (the
 
 Before forming any finding, run these mechanical checks and treat their output as evidence the judgment step weighs — not findings themselves:
 
-> **Parallel execution:** Use parallel tool calls aggressively — checks 1-8 below are independent read-only ls/grep/find/wc/sed calls against the same target with no dependency on one another and should run concurrently.
+> **Parallel execution:** Use parallel tool calls aggressively — all the checks below are independent read-only ls/grep/find/wc/sed calls against the same target with no dependency on one another and should run concurrently.
 
 1. **Stale-example check.** For every backtick-quoted file path or command referenced in the target (e.g. `` `src/auth/login.js` ``, `` `npm run build` ``), verify it still exists / still works:
    ```bash
@@ -185,7 +185,7 @@ Always reason about *why* the ratio is low before emitting a finding — never r
 - **Project Defaults / claude-tweaks Pipeline sections in sync with the installed plugin version** — does the documented auto-mode-policy lever list match what the currently installed claude-tweaks plugin version actually supports? This one is checked against the plugin's own evolving contract (its bundled `_shared/auto-mode-contract.md`), not the target project's own source — a genuinely different kind of drift from every other check in this file.
 - **Legacy-alias config completeness** — Step 1's check 9: does a grandfathered legacy-alias key (e.g. `backlog-backend`) appear without its replacement (`work-backend`)? A silent behavioral default to `local-files` for most consumers, not just a doc-staleness issue.
 
-**Bounded sub-file reads.** If the target references sub-files (lazy-loaded content, e.g. `init`'s 11 sub-files or `build`'s 6), do not read all of them by default — read only the sub-files whose content plausibly relates to what changed (matched by filename/section keyword against the change source: churned domain paths for the routine, the spec's changed files for wrap-up, Phase 2 findings for init). Note explicitly which sub-files were skipped and why, so a human reviewing the finding can request a deeper read if needed.
+**Bounded sub-file reads.** If the target references sub-files (lazy-loaded content — e.g. the sub-files sitting alongside `init`'s or `build`'s own SKILL.md), do not read all of them by default — read only the sub-files whose content plausibly relates to what changed (matched by filename/section keyword against the change source: churned domain paths for the routine, the spec's changed files for wrap-up, Phase 2 findings for init). Note explicitly which sub-files were skipped and why, so a human reviewing the finding can request a deeper read if needed.
 
 ## Memory-Specific Checks (`assetType: memory` targets)
 

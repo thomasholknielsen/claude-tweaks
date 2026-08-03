@@ -272,10 +272,10 @@ branch, regardless of *how* that happens:
   skill's own "Merge locally" option runs a bare `git merge` with no `--no-ff`, which
   fast-forwards and creates no merge commit to carry a message into; its "Push and Create PR"
   option only runs `git push` and never calls `gh pr create`, so there is no PR body either. A
-  carrier commit on the branch itself works uniformly across all four of that skill's options
-  (fast-forward merge, `--no-ff` merge, push+PR — even a PR the user creates manually
-  afterward — or keep-as-is) because GitHub scans every commit reaching the default branch,
-  not just a merge commit or PR body.
+  carrier commit on the branch itself works uniformly across every option that skill offers —
+  merge locally (whether that merge fast-forwards or creates a `--no-ff` merge commit),
+  push+PR (even a PR the user creates manually afterward), or keep-as-is — because GitHub
+  scans every commit reaching the default branch, not just a merge commit or PR body.
 - **Worktree path (multi-terminal parallel):** `flow/worktree-merge.md` performs the merge
   directly rather than delegating — `git merge --no-ff {branch} -m "... Fixes #{issue} ..."`.
   The explicit `--no-ff` guarantees a real merge commit exists to carry the keyword, so no

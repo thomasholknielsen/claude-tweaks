@@ -7,7 +7,7 @@ Single source of truth for what `auto` means across the claude-tweaks pipeline. 
 Without a contract, "auto" was whatever each skill author thought it meant. Some skills checked it, some ignored it, some let the model insert its own caution prompts ("this plan is large, should I split it?"). Users invoking `auto` precisely to avoid those interruptions still got friction.
 
 This contract defines:
-1. **Mode states** — what `auto` / `interactive` / `hybrid` actually mean
+1. **Mode states** — what each mode in the "Mode states" table below actually means
 2. **Bookend architecture** — where stops are allowed to live (begin + end, never middle)
 3. **Decision precedence** — which override wins when sources disagree
 4. **Auto-decision log** — the audit trail that makes silent automation safe
@@ -149,7 +149,7 @@ The hook surface (`bin/hooks.js`, see CLAUDE.md Conventions → Hooks) mechanize
 | Code review findings (`/review` Step 3 Routing) | Apply all / override | Severity:low → `AUTO`; severity:medium → `STAGED`; severity:high → `STAGED`; severity:critical → `KEPT-PROMPT` (rare — security/correctness hard-fails the bookend) |
 | Tidy cleanup (`/tidy`) | Per-item decision | Auto-apply Keep and unambiguous Delete; stage Merge/Promote/ambiguous |
 | Test fix mode (`/test` Step 3) | Auto-fix / show / skip | `lint` tier: lint-only. `lint+type` tier (default): lint + type-only. `lint+type+test` tier (opt-in via Manifesto): also auto-fix straightforward test failures. Anything beyond the tier ceiling is staged. |
-| Architecture alignment (`/build` Common Step 4.5) | Per-deviation decision | Deviations classified `Beneficial` → `AUTO` (apply silently to plan/spec, log entry includes commit ref of spec edit). `Neutral` → `STAGED`. `Concerning` → `KEPT-PROMPT`. |
+| Architecture alignment (`/build` Common Step 4.5) | Per-deviation decision | Deviations classified `Beneficial` → `AUTO` (apply silently to plan/spec, log entry includes commit ref of spec edit). `Update the spec` → `STAGED`. `Fix now` → `KEPT-PROMPT`. |
 | Visual-review prereqs (`/visual-review` Step 1) | Install / skip | Auto-skip if not installed; surface in report |
 | Visual-review dev URL (`/visual-review` Step 2) | Try other / wait | First **attempt to start an ephemeral worktree server** on a free port (reversible, tracked, torn down at wrap-up — see `dev-url-detection.md` Step 3 + "Always-reversible" above). Auto-skip to code-only mode with a "dev URL unreachable — no dev command / start failed" log entry **only if** no server can be started. Never reuse a foreign (main-checkout) server in a worktree run. |
 | Stories v1 detection (`/stories` Step 1) | Regenerate all / diff / cancel | Auto-skip migration; stage as "legacy stories detected" |
