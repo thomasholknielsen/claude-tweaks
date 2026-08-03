@@ -449,7 +449,7 @@ git commit -m "Repoint merge-check's design-doc citations at the live design —
 
 Three live skill files cited a design doc deleted by 652a97c4. That commit
 described itself as fixing stale references and missed these. The fast-lane
-doc's five dangling citations are a separate concern and are left consistent.
+doc's own dangling citations are a separate concern and are left consistent.
 
 Claude-Session: https://claude.ai/code/session_012Dk6PyURMvjazHQ8fZ5VN9"
 ```
