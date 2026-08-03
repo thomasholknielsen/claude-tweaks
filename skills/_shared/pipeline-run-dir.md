@@ -1,6 +1,6 @@
 # Pipeline Run Directory Resolution — Shared
 
-Operational TLDR for skills that need to locate the active pipeline run directory. The canonical contract (directory structure, collision-safety rationale, lifecycle, multi-spec defer protocol) lives in `auto-mode-contract.md` — section "Pipeline run directory: location and collision-safety". This file is the lookup-and-bash quick reference; consult the contract for anything not covered here.
+Operational reference for skills that need to locate the active pipeline run directory. Ownership is split. **This file owns the Resolution order below** — the canonical, complete ordered algorithm for finding the active run, cited by step number from `/capture`, `/tidy`'s `scan-procedures.md`, `flow/materialize.md`, and `_shared/auto-decision-log.md`. `auto-mode-contract.md`'s "Pipeline run directory: location and collision-safety" section owns everything around it — directory structure, collision-safety rationale, cleanup/archival lifecycle, and gitignore treatment — and does not restate the ordering. Consult that section for anything not covered here.
 
 ## Resolution order
 
