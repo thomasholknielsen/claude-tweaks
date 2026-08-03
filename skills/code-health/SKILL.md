@@ -135,13 +135,13 @@ Before or during judging, the judge MAY call the following deterministic tools t
 
 | Tool | Command | Evidence it provides |
 |------|---------|----------------------|
-| Project lint/typecheck | `npm run lint --if-present` or `npx tsc --noEmit` | Concrete type errors and lint violations in the slice |
-| Dead code / unused deps | `npx knip --reporter json` or `npx depcheck` | Unused exports, unreferenced packages |
-| Dependency vulnerabilities | `npm audit --json` or `npx osv-scanner --format json .` | Known CVEs in installed packages |
-| Dependency cycles | `npx madge --circular --json <slice-path>` | Import cycles in the slice |
+| Project lint/typecheck | `npm run lint --if-present 2>&1 \| tail -40` or `npx tsc --noEmit 2>&1 \| head -40` | Concrete type errors and lint violations in the slice |
+| Dead code / unused deps | `npx knip --reporter json \| head -c 4000` or `npx depcheck --json \| jq '{dependencies, devDependencies}'` | Unused exports, unreferenced packages |
+| Dependency vulnerabilities | `npm audit --json \| jq '{critical:.metadata.vulnerabilities.critical, high:.metadata.vulnerabilities.high}'` or `npx osv-scanner --format json . \| jq '[.results[].packages[].vulnerabilities[]] \| length'` | Known CVEs in installed packages |
+| Dependency cycles | `npx madge --circular --json <slice-path> \| jq 'length'` | Import cycles in the slice |
 | Grep / git log | Standard Bash + git CLI | Code patterns, recent churn, authorship |
 
-A finding confirmed by a tool output is higher-confidence than one based on code reading alone. Include the relevant tool output line as part of the finding's `evidence` field (not as a separate finding).
+Every command above is already projected or capped — the raw JSON/text a tool prints can run past 200 KB, and none of it is worth reading in full for evidence purposes. A finding confirmed by a tool output is higher-confidence than one based on code reading alone. Include the relevant bounded excerpt (the jq projection's result, or the `head`/`tail` slice) as part of the finding's `evidence` field (not as a separate finding). If a bounded run signals something worth deeper diagnosis (e.g. `critical` or `high` counts are non-zero), it's fine to re-run that one tool without the cap to pull the specific detail into evidence — never file a finding wider than what the judge actually read.
 
 When a tool is absent or errors, log a single line to stderr and continue — do not abort the judge run.
 

@@ -2,6 +2,8 @@
 
 Single source of truth for scanning GitHub pull-request and issue state. Consumed by `/claude-tweaks:help` (Stage 4.5, **`current-pr`** scope; Stage 4.6, **`triage-queue`** scope; Stage 4.7, **`acceptance-queue`** scope) and `/claude-tweaks:tidy` (Step 4.8, **`repo-wide`** scope). Subagents cannot read this file — the dispatcher inlines the relevant scope section, plus the Detection Ladder and Output Contract, into the scan agent's prompt (the same pattern as `tidy/scan-procedures.md`).
 
+Every `gh issue list`/`gh pr list` call below carries an explicit `--limit` — `gh`'s implicit default is 30, which silently truncates instead of erroring. A result count landing exactly at the stated limit means the scan may be incomplete; treat that as a signal to narrow the query (a tighter label/state filter) or re-run with a higher `--limit`, not as a final count.
+
 ## Detection Ladder (fail-open)
 
 Run these checks in order before any scan. On the first failure, emit the single info row shown and stop — a skipped GitHub scan is normal, never a `BLOCKED` status, never a hard gate.
@@ -40,7 +42,7 @@ Deep scan of the current branch's PR only, plus one cheap repo-wide count.
    ```
 
 3. **CI checks** — `gh pr checks {number}` → count failing / pending / passing. Exit code 8 means checks are still pending; a non-zero exit that still lists checks is valid output, not a scan failure.
-4. **Repo-wide stale count (maintenance signal only)** — `gh pr list --state open --json number,updatedAt` → total open PRs + count stale per the thresholds above. This row is routed to the caller's maintenance-signals rendering, not the Current PR dashboard section.
+4. **Repo-wide stale count (maintenance signal only)** — `gh pr list --state open --json number,updatedAt --limit 100` → total open PRs + count stale per the thresholds above. This row is routed to the caller's maintenance-signals rendering, not the Current PR dashboard section.
 
 Emit `[pr]` rows per the Output Contract.
 
@@ -50,13 +52,13 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
 
 > **Parallel execution:** Use parallel tool calls aggressively — items 1, 3, 4, 5, 6, 7, and 8 below, plus each open PR's own review-thread query in item 2, are independent gh/bash calls with no dependency on one another and should run concurrently.
 
-1. **Open PRs** — `gh pr list --state open --json number,title,updatedAt,isDraft,reviewDecision,headRefName,url` → classify each per the Staleness Thresholds. A PR that is simultaneously not draft, not yet `Stale` (< 4 weeks since `updatedAt` — spans both the `Fresh` and `Review` bands, since neither currently has its own finding for a PR with nothing wrong), has zero unresolved review threads (item 2 below), and has no failing/pending CI (`gh pr checks`) gets its own finding: `[pr] PR #{n}: {title} — awaiting review — last updated {age} ago, CI {status}, 0 unresolved threads`. This is informational only — see the Severity mapping and `tidy/SKILL.md`'s Step 6 routing below. A PR with failing/pending CI (`gh pr checks`) or `reviewDecision: CHANGES_REQUESTED` instead gets its own finding, regardless of staleness: `[pr] PR #{n}: {title} — CI failing/pending or changes requested — CI {status}, review {reviewDecision}`. This is `high` severity per the Severity mapping below, not informational — see the Findings and recommendations table below.
+1. **Open PRs** — `gh pr list --state open --json number,title,updatedAt,isDraft,reviewDecision,headRefName,url --limit 100` → classify each per the Staleness Thresholds. A PR that is simultaneously not draft, not yet `Stale` (< 4 weeks since `updatedAt` — spans both the `Fresh` and `Review` bands, since neither currently has its own finding for a PR with nothing wrong), has zero unresolved review threads (item 2 below), and has no failing/pending CI (`gh pr checks`) gets its own finding: `[pr] PR #{n}: {title} — awaiting review — last updated {age} ago, CI {status}, 0 unresolved threads`. This is informational only — see the Severity mapping and `tidy/SKILL.md`'s Step 6 routing below. A PR with failing/pending CI (`gh pr checks`) or `reviewDecision: CHANGES_REQUESTED` instead gets its own finding, regardless of staleness: `[pr] PR #{n}: {title} — CI failing/pending or changes requested — CI {status}, review {reviewDecision}`. This is `high` severity per the Severity mapping below, not informational — see the Findings and recommendations table below.
 2. **Unresolved threads per open PR** — the same GraphQL query as `current-pr` item 2, once per open PR.
-3. **Code-health issues** — `gh issue list --label by:code-health --state open --json number,title,labels,updatedAt,url`.
+3. **Code-health issues** — `gh issue list --label by:code-health --state open --json number,title,labels,updatedAt,url --limit 100`.
 4. **Merged/closed PRs with local remnants** — `gh pr list --state merged --limit 50 --json number,headRefName` AND `gh pr list --state closed --limit 50 --json number,headRefName` (GitHub's PR `state` is `OPEN`/`CLOSED`/`MERGED` — mutually exclusive — so `--state closed` never overlaps `--state merged`; both queries are needed to cover "merged or closed without merging"); cross-check each `headRefName` from either result against `git -C "{REPO_ROOT}" branch --list` output.
-5. **Harness-health issues** — `gh issue list --label by:harness-health --state open --json number,title,labels,updatedAt,url`.
-6. **Journey-health issues** — `gh issue list --label by:journey-health --state open --json number,title,updatedAt,url`.
-7. **Docs-health issues** — `gh issue list --label by:docs-health --state open --json number,title,labels,updatedAt,url`.
+5. **Harness-health issues** — `gh issue list --label by:harness-health --state open --json number,title,labels,updatedAt,url --limit 100`.
+6. **Journey-health issues** — `gh issue list --label by:journey-health --state open --json number,title,updatedAt,url --limit 100`.
+7. **Docs-health issues** — `gh issue list --label by:docs-health --state open --json number,title,labels,updatedAt,url --limit 100`.
 8. **Grant-queue counts** — one self-contained query feeds three maintenance-signal counts, per `_shared/work-record.md`'s record taxonomy. Not gated on `work-backend` — this scope only runs once the Detection Ladder already confirmed a reachable GitHub remote, regardless of which driver stores records:
 
    ```bash
