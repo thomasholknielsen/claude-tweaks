@@ -590,11 +590,11 @@ If a count *is* still stated, leave the record open and say so in the handoff.
 ```bash
 gh issue create --title "Live skill files across seven paths cite the pruned fast-lane design doc" --label "type:task,priority:low,risk:low,effort:low" --body "**Current State:** \`docs/superpowers/specs/2026-07-15-fast-lane-pipeline-profile-design.md\` was deleted by commit 652a97c4 under ADR-0007, but is still cited as live rationale from \`skills/assess-agent-autonomy/SKILL.md\`, \`skills/build/architecture-alignment.md\`, \`skills/flow/manifesto.md\`, \`skills/flow/materialize.md\`, \`skills/reflect/light-mode.md\` (twice), \`skills/wrap-up/SKILL.md\`, and \`skills/wrap-up/skill-curation.md\`. Agents reading those skills are pointed at a file that does not exist. References in CHANGELOG.md and docs/superpowers/plans/ are historical record and are fine.
 
-**Deliverables:** Decide per site whether the rationale should be restated inline, repointed at \`docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md\` (which amends it and does exist), or dropped. Apply consistently across all five.
+**Deliverables:** Decide per site whether the rationale should be restated inline, repointed at \`docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md\` (which amends it and does exist), or dropped. Apply consistently across every site listed above.
 
 **Acceptance Criteria:** \`grep -rn '2026-07-15-fast-lane-pipeline-profile-design' --include='*.md' skills/\` returns nothing.
 
-Found while implementing #78, which fixed the sibling dangling reference to the assess-agent-autonomy design doc and deliberately left this set consistent rather than fixing one of five."
+Found while implementing #78, which fixed the sibling dangling reference to the assess-agent-autonomy design doc and deliberately left this set consistent rather than fixing one site of the set."
 ```
 
 - [ ] **Step 3: File the evals-coverage record**
