@@ -39,6 +39,8 @@ Do not add narration, headers, or summaries before or after the table.
 
 Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the table. The dispatcher merges findings into the Step 3 Routing table below — Severity maps directly, Path:Line maps to the Affected column, Finding maps to the Finding column, and the dispatcher fills the Category column from the lens that produced it. Re-prompt once on format violation.
 
+**Pass diff scope, not diff text.** When composing each prompt, give the agent the base/branch refs (or the own-work file set when `/claude-tweaks:review` Step 2's Merge-Provenance Check found merge commits) and let it run its own `git diff`. Do not paste diff content into the prompt: `/claude-tweaks:review` Step 2 deliberately keeps only `--stat`/`--name-only` in the main thread, and inlining the diff into N lens prompts would pull the full diff back into main-thread context to compose them.
+
 ## Inputs
 
 - Findings table merged from lenses 3a-3i, plus open QA ledger entries with phase `test/qa`.
@@ -58,6 +60,8 @@ Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_
 At **`xhigh` and above**, `unconfirmed` findings additionally appear inline in this table too — add them as ordinary rows with `(low-confidence)` appended to the Finding column, alongside the `confirmed` rows. They still also get staged to the Wrap-Up Console as before (surfacing inline doesn't remove the staging).
 
 At **`max`**, `contested` findings additionally appear inline as well, on top of the `unconfirmed` rows `xhigh` already added — so at `max` this table shows `confirmed` + `unconfirmed` + `contested` findings together, all three buckets at once. Add `contested` rows with `(contested — {debate verdicts})` appended to the Finding column, summarizing the side-by-side verdicts from Step 3.5's debate. They still also get staged to `staged/review-contested-{N}.md` as before.
+
+**Refutation overflow note (required when present).** At `xhigh`/`max`, the Per-Candidate Refutation Pass (`step3-debate-and-refutation.md`, step 3) caps its fan-out at 10 candidates. When it capped, it emits a `+{N} more confirmed findings were not refuted …` line — render that line immediately above the findings table, verbatim. Those `+{N}` findings are ordinary `confirmed` rows in the table; the note exists so the reader knows they reached routing without a falsification attempt, rather than having silently passed one. Omit the note only when the pass did not cap (or did not run at all).
 
 **Every finding from lenses 3a-3i must be explicitly resolved.** When lenses were dispatched as parallel Task agents, merge their results into a single table here: combine all findings, preserve their category labels, and de-duplicate — if two lenses flag the same issue, keep the entry with the higher severity. UX findings from lens 3h, coverage findings from lens 3g-cov, and documentation findings from lens 3i are merged into the batch table alongside code review findings with their respective categories ("UX", "Coverage", "Docs").
 
