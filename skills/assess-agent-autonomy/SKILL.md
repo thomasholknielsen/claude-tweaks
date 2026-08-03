@@ -279,6 +279,21 @@ caller, since this skill reads its own config rather than depending on one.)
   produced anything at Medium severity or above, render `needs-human` — this mode never overrides a
   real review finding.
 
+#### Calibration
+
+Boundary cases are stated as shapes, not as issue references — an issue closes and its defect gets
+fixed, and calibration anchored to one then describes a state that no longer exists.
+
+| Change | Verdict | Why |
+|--------|---------|-----|
+| A skill's factual claim corrected — e.g. state described as independent, corrected to a shared singleton | `needs-human` | True, verifiable, and still changes how agents reason about concurrency. The case that kills "verifiable therefore safe". |
+| A threshold, budget, or cap literal changed | `needs-human` | Reads as a number correction; directly changes what agents do at the limit. "Small and numeric" is not a safety signal. |
+| A section reworded so an existing instruction reads more strongly or more weakly | `needs-human` | No instruction added or removed, yet the threshold for following it moved. |
+| A stale cross-reference repaired after a file split — `above`/`below` pointers, a moved path, a renamed anchor | `auto-merge` eligible | Pointer repair. The refutation attempt comes up empty: no agent acts differently, it just finds the target. |
+| A dead pointer deleted, nothing replacing it | `auto-merge` eligible | Removes an instruction that could not be followed. Confirm nothing else cited the removed target. |
+| A behavior-preserving rename spanning many files, review clean | `auto-merge` eligible | Uniformly one transformation. Exceeding `automerge-max-lines` is review burden, not risk. |
+| A rename spanning many files where one hunk also changes a default | `needs-human` | One non-conforming hunk makes the whole diff behavior-carrying — the guideline binds again. |
+
 ### Step 3: Render
 
 ```
