@@ -111,7 +111,7 @@ For each approved candidate, open a session and walk the candidate journey via a
 
 For each step in the candidate journey (review the batched output):
 
-1. **Apply the First Impressions test** (Step 2 in `browser-review.md`) — capture the raw "should feel" for this step from the annotated screenshot
+1. **Apply the First Impressions test** (`browser-review.md`'s Shared review contract, "First Impressions (Step 2)") — capture the raw "should feel" for this step from the annotated screenshot
 2. **Note interaction needs as the persona** — when the candidate requires actual interaction (form fill, click flow), perform those ops in the live session outside the batch; restart the batch for subsequent pages
 3. **Discover adjacent steps** — the codebase scan may have missed steps. If a page leads naturally to another page not in the candidate, add it to the next batch slice.
 4. **Write the "should feel" and "red flags"** — these come from actually experiencing the page (snapshot + annotated screenshot + vitals), not guessing from code

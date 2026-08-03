@@ -12,7 +12,7 @@ so it stops guessing at component APIs. This step wires all three, mirroring Ste
 
 **Detect frontend signals from Phase 2 reconnaissance** (or run a quick sniff of the
 project root if Phase 0 is being run before Phase 2) — the same canonical sniff rules
-Step 11 above uses (`/claude-tweaks:design-wrapper`'s Layer 3 file-extension/path sniff;
+`step-11-impeccable-design-integration.md` uses (`/claude-tweaks:design-wrapper`'s Layer 3 file-extension/path sniff;
 read `frontend-detection.md` in that skill's directory for the current list). If none
 are detected, skip this step entirely.
 

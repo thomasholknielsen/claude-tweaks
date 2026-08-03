@@ -2,15 +2,15 @@
 
 *Optional Enhancement step — see `SKILL.md`'s `## Input` for when this group is offered or filtered, and `../bootstrap-steps.md` for its ordering and renumbering conventions.*
 
-Interactive-only. This step never runs under `auto`/non-interactive mode — creating a GitHub repository is a consequential, externally-visible, hard-to-reverse action, the same class of action `_shared/browser-detection.md` already bars from unattended auto-install. In `auto` mode, skip this step entirely; every downstream step below falls through to its own existing gate-fails behavior unchanged.
+Interactive-only. This step never runs under `auto`/non-interactive mode — creating a GitHub repository is a consequential, externally-visible, hard-to-reverse action, the same class of action `_shared/browser-detection.md` already bars from unattended auto-install. In `auto` mode, skip this step entirely; every downstream step falls through to its own existing gate-fails behavior unchanged.
 
-**Gate:** `git rev-parse --is-inside-work-tree` fails → this step doesn't run at all (nothing to attach a remote to; Step 5 above already handles warning about a non-git directory). Otherwise, `git remote get-url origin` fails (no remote configured at all) → proceed with this step. Any existing remote — GitHub or not — skips this step silently; the user has already chosen a host.
+**Gate:** `git rev-parse --is-inside-work-tree` fails → this step doesn't run at all (nothing to attach a remote to; `step-05-verify-git.md` already handles warning about a non-git directory). Otherwise, `git remote get-url origin` fails (no remote configured at all) → proceed with this step. Any existing remote — GitHub or not — skips this step silently; the user has already chosen a host.
 
-Steps 10/14/16/17 below independently check for a *reachable GitHub-flavored remote* specifically (not just any remote) via a related, richer two-tier check: `gh repo view --json owner,name` succeeding when `gh` is available and authenticated (works for GitHub Enterprise, not just github.com), else `git remote get-url origin` exits 0 as a fallback heuristic — a non-GitHub git host would simply see those steps' offers and decline them, which costs nothing. This step's own gate above is intentionally simpler and broader: it doesn't try to distinguish GitHub from other hosts, since creating a repo is only relevant when there is truly no remote configured yet.
+Steps 10/14/16/17 independently check for a *reachable GitHub-flavored remote* specifically (not just any remote) via a related, richer two-tier check: `gh repo view --json owner,name` succeeding when `gh` is available and authenticated (works for GitHub Enterprise, not just github.com), else `git remote get-url origin` exits 0 as a fallback heuristic — a non-GitHub git host would simply see those steps' offers and decline them, which costs nothing. This step's own gate above is intentionally simpler and broader: it doesn't try to distinguish GitHub from other hosts, since creating a repo is only relevant when there is truly no remote configured yet.
 
 **1. Ensure `gh` is ready.**
 
-Check `gh --version`. If missing, detect the platform's package manager the same way Step 8 above does:
+Check `gh --version`. If missing, detect the platform's package manager the same way `step-08-statusline-and-dependencies.md` does:
 
 | Platform | Detect | Install command |
 |---|---|---|
@@ -24,7 +24,7 @@ Call `AskUserQuestion`:
 - Option 1 — `label`: `"Install gh CLI (Recommended)"`, `description`: `"Runs {the detected install command} via Bash."`
 - Option 2 — `label`: `"Skip"`, `description`: `"Don't set up a GitHub remote this run."`
 
-On macOS/Windows (no `sudo` needed), run the install command directly via Bash on accept, then re-verify with `gh --version`. On Linux, print the official install instructions instead of running anything — matching Step 8's existing "we don't run sudo from init" rule — and wait for the user to confirm they've run it, then re-verify. If installation fails, or no package manager is detected on a platform other than Linux, abort this step gracefully: proceed to whatever this invocation runs next (Steps 10/14/16/17 below take their existing gate-fails paths).
+On macOS/Windows (no `sudo` needed), run the install command directly via Bash on accept, then re-verify with `gh --version`. On Linux, print the official install instructions instead of running anything — matching Step 8's existing "we don't run sudo from init" rule — and wait for the user to confirm they've run it, then re-verify. If installation fails, or no package manager is detected on a platform other than Linux, abort this step gracefully: proceed to whatever this invocation runs next (Steps 10/14/16/17 take their existing gate-fails paths).
 
 Check `gh auth status`. If not authenticated, explain that this requires a one-time browser step, then run `gh auth login --web` and wait for the user to complete the device-flow authorization in their browser. Re-verify with `gh auth status` afterward. A user who declines, or an auth flow that doesn't complete, aborts this step gracefully the same way.
 
@@ -34,7 +34,7 @@ Check `gh auth status`. If not authenticated, explain that this requires a one-t
 - Option 1 — `label`: `"Create a GitHub repo (Recommended)"`, `description`: `"Set up a new GitHub repository and link it as origin."`
 - Option 2 — `label`: `"Skip"`, `description`: `"Don't set up a GitHub remote this run."`
 
-Declining falls through to existing behavior unchanged — Steps 10/14/16/17 below each take their own gate-fails path.
+Declining falls through to existing behavior unchanged — Steps 10/14/16/17 each take their own gate-fails path.
 
 **3. Choose owner.** Resolve the personal account (`gh api user --jq .login`) and the user's orgs (`gh api user/orgs --jq '.[].login'`). Call `AskUserQuestion`:
 
@@ -67,7 +67,7 @@ gh repo create "{owner}/{name}" --{private|public} --source=. --remote=origin $P
 
 `--push` is included only when the current branch already has at least one commit — an empty repo has nothing to push yet. On a name collision, report it and return to sub-step 4 (pick a different name); on a permission error (the chosen owner rejects the create), report it and return to sub-step 3 (pick a different owner) — neither aborts the whole step.
 
-**8. Downstream effect.** Once the remote exists, Steps 10/14/16/17 below see it via their own existing two-tier check (documented above) and take their already-documented enriched paths — no further action needed here.
+**8. Downstream effect.** Once the remote exists, Steps 10/14/16/17 see it via their own existing two-tier check (documented above) and take their already-documented enriched paths — no further action needed here.
 
 **Failure handling summary:**
 

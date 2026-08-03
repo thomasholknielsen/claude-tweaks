@@ -140,13 +140,13 @@ In interactive mode, only start the server with the user's consent (option 1). I
 
 ## Step 3: Run Visual Review
 
-Run the full review procedures from `browser-review.md` in this skill's directory. That file is the canonical source for everything mechanical — session lifecycle, batch journey walks, annotated screenshots, vitals capture and thresholds, trace-on-failure, and the Step 0-6 review flow (Reconnaissance, Health Check, First Impressions, Use It, Analyze, Reimagine, Report & Route).
+Read `browser-review.md` in this skill's directory first — it holds what every mode needs: session lifecycle, annotated screenshots, dev-URL resolution, QA enrichment, Step 0 reconnaissance, and the **Shared review contract** (vitals thresholds, the First Impressions test, and the Report & Route structure all three modes report against).
 
-Select the procedure block matching the resolved mode:
+Then read the one file matching the resolved mode — each names a single file, so a run never loads another mode's procedure:
 
-- **Page mode** — read `browser-review.md` "Page Mode" section, then Steps 1-6.
-- **Journey mode** — read `browser-review.md` "Journey Mode" section (loads the journey, assembles the batch, walks per-step, assesses the arc), then Step 6 for the report.
-- **Discover mode** — read `browser-review.md` "Discover Mode" section (Phases 1-6: codebase scan → candidates → browser walkthrough → write journey files → coverage report → handoff).
+- **Page mode** — read `page-mode.md` (warm-up, then Steps 1-6: health check, first impressions, use it, analyze, reimagine, report).
+- **Journey mode** — read `journey-mode.md` (loads the journey, assembles the batch, walks per-step, assesses the arc, then reports against the shared contract).
+- **Discover mode** — read `discover-mode.md` (Phases 1-6: codebase scan → candidates → browser walkthrough → write journey files → coverage report → handoff).
 
 Reconnaissance (Step 0) runs before the main steps in **page** and **journey** modes — read `reconnaissance.md` in this skill's directory for the procedure. Discover mode finds the pages itself (Phase 1 codebase scan, Phase 2 candidate selection), so per-page reconnaissance does not apply — see `discover-mode.md`.
 
