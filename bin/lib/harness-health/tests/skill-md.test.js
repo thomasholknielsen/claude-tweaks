@@ -69,8 +69,7 @@ test('no emojis (common emoji unicode sequences)', () => {
 [
   'validate-findings', '$PIPELINE_RUN_DIR', '--dry-run', '_shared/health-state.md',
   'work-record.md', 'work-fingerprint', 'by:harness-health', 'extractFingerprint',
-  'work-types', 'TYPE_LABELS', 'harness-health:additive', 'harness-health:restructural',
-  'harness-health:new-skill', 'relatedSections', 'Bundling rule',
+  'relatedSections', 'Bundling rule', 'filing.md',
 ].forEach((token) => {
   test(`contains required token '${token}'`, () => {
     const content = read();
@@ -78,10 +77,42 @@ test('no emojis (common emoji unicode sequences)', () => {
   });
 });
 
-test('states the classification -> scoring fold table literally', () => {
+// ── filing.md (Step 7, lazy-loaded) ─────────────────────────────────────────
+// Step 7's filing procedure lives in its own sub-file: it is ~10.5 KB of
+// mechanical reference a firing only needs once it actually has surviving
+// findings to file, and keeping it inline pushed SKILL.md past CLAUDE.md's
+// 40 KB soft ceiling. The tokens below moved with it — assert them against the
+// file that now owns them, not against SKILL.md.
+
+const FILING = path.resolve(__dirname, '..', '..', '..', '..', 'skills', 'harness-health', 'filing.md');
+const readFiling = () => fs.readFileSync(FILING, 'utf8');
+
+test('filing.md exists and SKILL.md Step 7 delegates to it', () => {
+  assert.ok(fs.existsSync(FILING), `filing.md not found at ${FILING}`);
   const body = read();
+  assert.match(body, /\*\*Step 7 — FILE\.\*\*/, 'SKILL.md must still declare Step 7');
+  assert.ok(body.includes('filing.md'), 'Step 7 must point at the sub-file that owns the procedure');
+});
+
+[
+  'work-types', 'TYPE_LABELS', 'harness-health:additive', 'harness-health:restructural',
+  'harness-health:new-skill', 'gh issue create', 'retry-queue', 'born-`ready`',
+].forEach((token) => {
+  test(`filing.md contains required token '${token}'`, () => {
+    assert.ok(readFiling().includes(token), `missing required token in filing.md: ${token}`);
+  });
+});
+
+test('filing.md states the classification -> scoring fold table literally', () => {
+  const body = readFiling();
   assert.ok(/\|\s*`?additive`?\s*\|\s*`risk:low`\s*\|\s*`effort:low`\s*\|/.test(body), 'missing literal additive -> risk:low/effort:low table row');
   assert.ok(/\|\s*`?restructural`?\s*\|\s*`risk:medium`\s*\|\s*`effort:high`\s*\|/.test(body), 'missing literal restructural -> risk:medium/effort:high table row');
+});
+
+// The reason the extraction happened at all — guard the regression directly.
+test('SKILL.md stays under CLAUDE.md\'s 40 KB soft ceiling', () => {
+  const size = fs.statSync(SKILL).size;
+  assert.ok(size <= 40960, `SKILL.md is ${size} B, over the 40960 B soft ceiling by ${size - 40960}`);
 });
 
 test('states the born-ready rule explicitly', () => {
