@@ -170,6 +170,8 @@ backlog-backend: github-issues
 
 Rules only — each is a rule plus one clause of why. Where a rule carries an `[IL-nn]` tag, the full post-mortem behind it (which build it bit, how it was caught, what it cost) is in `docs/incident-log.md`.
 
+**Adding one:** write the incident-log entry first, then compress to the rule — writing the rule first pads it, and this file is paid for per dispatched agent, not per session. Allocate the next free `IL-nn`; never renumber, gaps are fine. **Removing one:** `/claude-tweaks:harness-health`'s rule-expiry check proposes it, and only on positive evidence the hazard can no longer occur — a rule nobody has violated lately is usually one that is working. The incident-log entry stays even when its rule goes.
+
 - Don't add "What's Next?" / "Pick an action" navigation menus at the end of skills — use `## Next Actions` blocks with pre-filled commands
 - Don't add per-item decision prompts for lists — use batch tables with "apply all / override"
 - Don't create skills without the standard structure (frontmatter, interaction directive, anti-patterns table, relationship table)

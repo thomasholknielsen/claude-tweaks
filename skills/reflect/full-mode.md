@@ -66,6 +66,8 @@ The table renders as markdown, as above. Immediately below it, call `AskUserQues
 | "We chose X over Y because Z" (from review tradeoffs) | CLAUDE.md Convention or Memory file (if it's a recurring decision) |
 | "We should add X" (X doesn't exist yet) | Backlog work record — improvement work, not a convention |
 
+**Writing a Don't: narrative first, then compress.** When an insight routes to CLAUDE.md's Don'ts, write the incident account *first* — the specific build, how it was caught, what it cost — wherever this project keeps that evidence (an incident log if it has one, otherwise the work record or the commit message). Only then compress it to the rule that lands in CLAUDE.md: one sentence of rule, one clause of why. Doing it in this order matters. Write the rule first and you pad it — the incident is vivid, every detail feels load-bearing, and the justification gets smuggled into the always-loaded file a clause at a time. Giving the evidence a home where it is allowed to be long removes the pressure to do that. A Don't that needs three sentences of background to be believed is a compressed rule plus an account that belongs somewhere else, not a long rule.
+
 **Recommendation rules:**
 - **Implement now** — the strong default. If an insight leads to a concrete change (update CLAUDE.md, update a skill, add a rule, update memory), make the change.
 - **Defer** (new work record, `parked`) — the insight leads to a known improvement but it's bigger and not relevant to the current work. Compose the body with a `Trigger:` line, origin, context, then create it directly via the unified record contract (`_shared/work-record.md`) — `gh issue create` (`work-backend: github-issues`) or `local-store.js`'s `writeRecord` (`work-backend: local-files`).
