@@ -107,7 +107,7 @@ Call the `classify` command to determine the area's type:
 node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" classify --root "${ROOT:-$PWD}" --area "<slice-id>"
 ```
 
-The command prints `{ areaId, types }`. Use the `types` array to select the applicable criteria via `criteriaForArea(types)` from `bin/lib/code-health/criteria.js`. Types are additive — matching is a `.some()` intersection against each domain criterion's `appliesTo` array, not exact-equality, so an area gets universal criteria plus *every* domain criterion whose `appliesTo` includes at least one of the area's types. A `['frontend', 'library']` area, for example, currently pulls in `a11y`, `i18n`, `api-stability`, and `privacy-pii` — do not hand-copy this example list into a mental shortcut; call `criteriaForArea` for the real slice instead, since `criteria.js` is the single source of truth and this list will drift as domain criteria are added.
+The command prints `{ areaId, types }`. Use the `types` array to select the applicable criteria via `criteriaForArea(types)` from `bin/lib/code-health/criteria.js`. Types are additive — matching is a `.some()` intersection against each area-gated criterion's `appliesTo` array, not exact-equality, so an area gets the universal criteria plus *every* area-gated criterion whose `appliesTo` includes at least one of the area's types. Do not hand-copy any example result into a mental shortcut; call `criteriaForArea` for the real slice instead, since `criteria.js` is the single source of truth and the result drifts as criteria are added or re-gated.
 
 If `types` is `[]` (unknown area), apply universal criteria only — run the same `criteriaForArea([])` call below to get the current list (do not hand-maintain a separate copy of it; the catalog in `criteria.js` is the single source of truth):
 
@@ -139,7 +139,7 @@ When a tool is absent or errors, log a single line to stderr and continue — do
 
 For each selected criterion, read the code with that criterion as the lens. Apply the criterion holistically — this is a behavioral judgment, not a mechanical check. Evidence grounds the finding; do not file speculative findings.
 
-For `architecture-depth`, `simplification`, and `review-quality`: the criterion fragments were embedded in Step 4. Use them as the calibration text inline before judging each criterion.
+Every selected criterion whose catalog entry carries a fragment had that fragment embedded in Step 4 — use it as the calibration text inline before judging that criterion. Criteria whose catalog entry has `fragment: null` carry no calibration file; judge those from this step's guidance alone.
 
 After applying all enumerated criteria, run a final "anything else worth flagging?" pass to catch what the checklist missed.
 
