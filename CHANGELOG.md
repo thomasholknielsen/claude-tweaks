@@ -20,6 +20,58 @@ transcription of issue numbers, titles, or labels. Content is a point-in-time
 snapshot, not a live-refreshing view — the diagram carries a "Generated {timestamp}
 — re-run to refresh" note rather than a client-side data fetch.
 
+## v6.26.0 — CLAUDE.md context budget: rules and evidence split (closes #95, #102)
+
+`CLAUDE.md` was 94 KB, and its `## Don'ts` section alone was 53,939 B — 57% of the file. That cost
+is paid per *agent*, not per session: every Task-dispatched subagent inherits the whole file, so a
+13-agent `/review` fan-out carried it thirteen times, at measured ratios of 13:1 to 38:1 against the
+prompts those agents were actually given.
+
+CLAUDE.md is now 44 KB (-53%). The Don'ts are 20 KB (-63%), compressed to rule-plus-one-clause with
+every rule kept and three bundled bullets split rather than shrunk. The 69 post-mortem narratives
+behind them moved **verbatim** to `docs/incident-log.md`, tagged `[IL-nn]` — a move, not a delete, so
+the evidence survives where its length costs nothing. The directory tree, per-skill sub-file table,
+and command reference moved to `docs/plugin-structure.md`.
+
+Ten wrong facts were corrected first (#95) — a stale version literal, a `_shared` inventory naming
+~22 of 49 files, four health-CLI subcommand lists that had all drifted, and a retired `/reflect`
+claim. Four of them were retired by deferral rather than correction, since a corrected count drifts
+again. The same idiom was applied to the three highest-multiplicity restated counts across 23 files
+(#102), following `/visualize`'s numeral-free precedent.
+
+Rules can now also *leave*. `/claude-tweaks:harness-health` gains a rule-expiry check — the
+complement of its "guardrails, not wishes" check — that proposes removing a rule whose hazard can no
+longer occur, guarded by an explicit rule that absence of recurrence is not evidence of death. This
+needed a new `intent: "remove"` finding shape, scoped to `assetType: claude-md`; deletion had been
+unmodelled across every health validator. `/reflect` and `/wrap-up` now direct that the incident
+account be written before the rule, and `/init`'s CLAUDE.md template teaches the same shape to newly
+initialized projects. See ADR-0010.
+
+## v6.25.0 — Live proof the eval harness's OS sandbox denies a Bash escape (closes #46)
+
+`evals/actor.js`'s scope guard denies path-bearing tool inputs outside a scenario's fixture
+`repoDir`, but by design never inspects `Bash` command text — the real containment for Bash
+escapes has always been `runner.js`'s `managedSettings.sandbox`, documented as a belief, not
+verified by an executable test. This closes that gap: a new `actor-escape-attempt` scenario
+prompts a real model to attempt a Bash-executed write outside the fixture repo and asserts the
+OS sandbox denies it — run for real (not just fake-queryFn unit coverage, which structurally
+cannot exercise real OS-level sandboxing), confirmed `allPassed: true`.
+
+Fixing this also surfaced a tool-count accuracy gap: `managedSettings.sandbox`'s own
+`autoAllowBashIfSandboxed` defaults to `true` (confirmed against Anthropic's public sandboxing
+docs — an installed-SDK `node_modules` read was denied by this project's own permission
+settings), letting many sandboxed Bash calls bypass `canUseTool` entirely and silently
+undercount `toolCalls`. `runner.js` now explicitly sets it `false`.
+
+A follow-up code review found the new scenario's assertions only confirmed *some* Bash call
+happened, not the specific escape command — fixed with a new `tool-input-includes` assertion
+(backed by a `toolInputs` context field capturing `{name, input}` per call, parallel to the
+existing bare-name `toolCalls` array so `tool-called`/`tool-count` are unaffected), validated
+with a second live run. Also fixed in the same pass: a fail-open `absolute-path-exists`
+assertion that silently passed on a missing/typo'd context field (now fails closed and cannot
+crash a live run uncaught), and a stale wrap-up cleanup instruction that would have deleted
+`docs/superpowers/plans/*.md` files this project actually keeps as a permanent archive.
+
 ## v6.24.0 — /dispatch's gh-CLI/MCP bridge (closes #61)
 
 `/claude-tweaks:dispatch`'s Preflight previously hard-gated on `gh` CLI presence

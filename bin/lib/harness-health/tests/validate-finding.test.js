@@ -155,3 +155,102 @@ test('validateFinding: a new-skill finding remains valid and unaffected by relat
   assert.strictEqual(result.ok, true);
   assert.strictEqual(result.value.relatedSections, undefined);
 });
+
+// --- intent: "remove" (rule expiry) -----------------------------------------
+// A removal is the one finding shape allowed an empty newString. These tests
+// pin both directions: the shape is accepted where it is safe, and the empty
+// newString it unlocks cannot leak into any other finding shape.
+
+function validRemoval(overrides = {}) {
+  return {
+    kind: 'patch',
+    target: 'CLAUDE',
+    assetType: 'claude-md',
+    category: 'drift',
+    section: "Don'ts",
+    intent: 'remove',
+    classification: 'restructural',
+    confidence: 'high',
+    reversibility: 'high',
+    description: 'Rule guards against a hazard that can no longer occur',
+    oldString: "- Don't call the legacy exporter directly `[IL-23]`",
+    newString: '',
+    reason: 'bin/lib/legacy-exporter.js was deleted in a1b2c3d; nothing can call it.',
+    ...overrides,
+  };
+}
+
+test('validateFinding accepts a well-formed removal finding', () => {
+  const result = validateFinding(validRemoval());
+  assert.strictEqual(result.ok, true, JSON.stringify(result.errors));
+  assert.strictEqual(result.value.intent, 'remove');
+  assert.strictEqual(result.value.newString, '');
+});
+
+test('validateFinding rejects a removal outside CLAUDE.md (no auto-apply guarantee there)', () => {
+  for (const assetType of ['skill', 'rule', 'design-artifact', 'memory']) {
+    const result = validateFinding(validRemoval({ assetType }));
+    assert.strictEqual(result.ok, false, `expected ${assetType} removal to be rejected`);
+    assert.ok(
+      result.errors.some((e) => e.includes('only valid for assetType "claude-md"')),
+      `expected assetType error for ${assetType}, got ${JSON.stringify(result.errors)}`,
+    );
+  }
+});
+
+test('validateFinding rejects a removal that also supplies replacement text', () => {
+  const result = validateFinding(validRemoval({ newString: 'something else' }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.includes('must be exactly ""')), JSON.stringify(result.errors));
+});
+
+test('validateFinding rejects a removal classified as additive', () => {
+  const result = validateFinding(validRemoval({ classification: 'additive' }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.includes('never additive')), JSON.stringify(result.errors));
+});
+
+test('validateFinding rejects a removal with no oldString to identify what is being deleted', () => {
+  for (const oldString of ['', '   ']) {
+    const result = validateFinding(validRemoval({ oldString }));
+    assert.strictEqual(result.ok, false, `expected empty oldString ${JSON.stringify(oldString)} to be rejected`);
+    assert.ok(
+      result.errors.some((e) => e.includes('oldString must be the non-empty verbatim content')),
+      JSON.stringify(result.errors),
+    );
+  }
+});
+
+test('validateFinding rejects an unrecognised intent value', () => {
+  const result = validateFinding(validRemoval({ intent: 'delete' }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.startsWith('intent:')), JSON.stringify(result.errors));
+});
+
+test('validateFinding rejects a removal that is not a patch', () => {
+  const result = validateFinding(validRemoval({ kind: 'new-skill', proposedBody: 'x' }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.errors.some((e) => e.includes('requires kind "patch"')), JSON.stringify(result.errors));
+});
+
+test('the empty-newString guard still holds for ordinary patch findings', () => {
+  // Regression guard: adding removal support must not let a malformed finding
+  // (model returned nothing for newString) through on a normal patch.
+  for (const newString of ['', '   ']) {
+    const result = validateFinding(validPatch({ newString }));
+    assert.strictEqual(result.ok, false, `expected newString ${JSON.stringify(newString)} to be rejected`);
+    assert.ok(
+      result.errors.some((e) => e.includes('required non-empty string when kind is "patch"')),
+      JSON.stringify(result.errors),
+    );
+  }
+});
+
+test('a claude-md patch without intent still requires a non-empty newString', () => {
+  const result = validateFinding(validRemoval({ intent: undefined, classification: 'additive' }));
+  assert.strictEqual(result.ok, false);
+  assert.ok(
+    result.errors.some((e) => e.includes('required non-empty string when kind is "patch"')),
+    JSON.stringify(result.errors),
+  );
+});

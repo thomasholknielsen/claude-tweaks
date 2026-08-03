@@ -80,17 +80,24 @@ export async function runScenarioWith(scenarioPath, opts = {}) {
   } = opts;
   const scenario = loadYaml(fs.readFileSync(scenarioPath, 'utf8'));
   const repoDir = buildFixture(scenario, fixturesDir);
+  const escapeTargetPath = path.join(os.tmpdir(), `ct-eval-escape-${path.basename(repoDir)}.txt`);
+  const prompt = scenario.skill_invocation.prompt.replaceAll('{{ESCAPE_TARGET_PATH}}', escapeTargetPath);
   const pluginSnapshotDir = buildPluginSnapshot();
   const actor = createActor({ answerOverrides: scenario.answer_overrides, repoDir });
 
   const toolCalls = [];
+  // Parallel to toolCalls (which stays a flat array of bare names — several
+  // assertions/tests already key off that exact shape): records {name, input}
+  // per call so tool-input-includes.js can verify a call attempted a specific
+  // thing, not just that the tool ran at all.
+  const toolInputs = [];
   let resultText = '';
   let costUsd = null;
   let tokens = null;
   const startedAt = Date.now();
 
   const stream = queryFn({
-    prompt: scenario.skill_invocation.prompt,
+    prompt,
     options: {
       cwd: repoDir,
       plugins: [{ type: 'local', path: pluginSnapshotDir }],
@@ -99,17 +106,24 @@ export async function runScenarioWith(scenarioPath, opts = {}) {
           enabled: true,
           failIfUnavailable: true,
           allowUnsandboxedCommands: false,
+          // The SDK's own default for this setting is true (confirmed
+          // against the installed SDK's sdk.d.ts — see evals/NOTES.md);
+          // left on, many sandboxed Bash calls bypass canUseTool entirely,
+          // so toolCalls (and any tool-count/tool-called assertion built on
+          // it) silently undercounts real tool use. Explicitly disabling it
+          // routes every Bash call through canUseTool, costing one extra
+          // async JS round-trip per call — noise next to the seconds-scale
+          // latency of the real model turn each scenario already pays for,
+          // so accurate counting wins the tradeoff for a harness whose
+          // whole purpose is measurement.
+          autoAllowBashIfSandboxed: false,
           network: { allowedDomains: [] },
           filesystem: { allowRead: [path.join(repoDir, '.git')] },
         },
       },
-      // Known undercount: managedSettings.sandbox's own `autoAllowBashIfSandboxed`
-      // default lets many sandboxed Bash calls bypass canUseTool entirely, so
-      // toolCalls (and the tool-count assertion it feeds) only counts calls that
-      // actually reached this callback, not every tool call the run made. See
-      // README.md's Safety model section.
       canUseTool: async (toolName, input, options) => {
         toolCalls.push(toolName);
+        toolInputs.push({ name: toolName, input });
         return actor(toolName, input, options);
       },
     },
@@ -136,8 +150,18 @@ export async function runScenarioWith(scenarioPath, opts = {}) {
   }
 
   const durationMs = Date.now() - startedAt;
-  const context = { repoDir, resultText, toolCalls };
-  const assertionResults = (scenario.assertions || []).map((a) => runAssertion(context, a));
+  const context = { repoDir, resultText, toolCalls, escapeTargetPath, toolInputs };
+  // A thrown assertion (unknown type, or a fail-closed check like
+  // absolute-path-exists.js's missing-target guard) must not crash the whole
+  // run after a real, already-paid-for API call completed — that would lose
+  // the run's result entirely instead of recording an inspectable FAIL.
+  const assertionResults = (scenario.assertions || []).map((a) => {
+    try {
+      return runAssertion(context, a);
+    } catch (err) {
+      return { type: a.type, pass: false, message: `assertion threw: ${err.message}` };
+    }
+  });
 
   const result = {
     scenario: scenario.name,

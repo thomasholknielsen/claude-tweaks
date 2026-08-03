@@ -1,9 +1,8 @@
 'use strict';
 
-// Universal criteria catalog for code-health v2.
-// P1 populates the universal criteria below (see the CRITERIA array itself
-// for the current catalog — don't hardcode its size here, it drifts).
-// Domain criteria (a11y, i18n, etc.) are added in P2.
+// Criteria catalog for code-health v2.
+// See the CRITERIA array itself for the current catalog — don't hardcode its
+// size or membership here, or in prose elsewhere; both drift.
 // Each entry: { id, appliesTo, fragment, confidenceFloor }
 //   appliesTo:      'universal' | string[]  (area type strings, e.g. ['frontend','library'])
 //   fragment:       path relative to skills/_shared/ for a criteria detail file, or null
@@ -29,14 +28,19 @@ const CRITERIA = [
     confidenceFloor: 'medium',
   },
   {
+    // Area-gated (not universal): load-bearing only where code runs at scale.
     id: 'scalability',
-    appliesTo: 'universal',
+    appliesTo: ['backend', 'data', 'cli', 'infra'],
     fragment: 'criteria-scalability.md',
     confidenceFloor: 'high',
   },
   {
+    // Area-gated, but wider than the runtime-only three above: security is a
+    // cross-cutting correctness concern, so 'frontend' (client-side authz, XSS,
+    // token handling) and 'library' (crypto, input handling) are included too.
+    // Only genuinely non-code slices (docs, config) gate it out.
     id: 'security-logic',
-    appliesTo: 'universal',
+    appliesTo: ['backend', 'data', 'cli', 'infra', 'frontend', 'library'],
     fragment: 'criteria-security-logic.md',
     confidenceFloor: 'high',
   },
@@ -65,14 +69,16 @@ const CRITERIA = [
     confidenceFloor: 'medium',
   },
   {
+    // Area-gated (not universal): retries/timeouts/failure modes need a runtime.
     id: 'resilience',
-    appliesTo: 'universal',
+    appliesTo: ['backend', 'data', 'cli', 'infra'],
     fragment: 'criteria-resilience.md',
     confidenceFloor: 'high',
   },
   {
+    // Area-gated (not universal): logging/metrics/tracing need a runtime.
     id: 'observability',
-    appliesTo: 'universal',
+    appliesTo: ['backend', 'data', 'cli', 'infra'],
     fragment: 'criteria-observability.md',
     confidenceFloor: 'medium',
   },

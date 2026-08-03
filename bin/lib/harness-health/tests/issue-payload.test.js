@@ -109,8 +109,25 @@ test('toIssuePayload for a patch finding carries structured decision fields matc
   assert.strictEqual(payload.classification, finding.classification);
   assert.strictEqual(payload.confidence, finding.confidence);
   assert.strictEqual(payload.reversibility, finding.reversibility);
-  assert.strictEqual(payload.oldString, finding.oldString);
-  assert.strictEqual(payload.newString, finding.newString);
+});
+
+// The patch text has exactly one carrier: payload.body's fenced Current/Proposed
+// blocks (the markdown that actually ships to GitHub). Duplicating it as
+// top-level fields made a payload with ~2.6 KB of patch text 38% duplicate
+// bytes, uncapped across the findings array. Keep this in step with the
+// identical test in bin/lib/docs-health/tests/issue-payload.test.js.
+test('toIssuePayload does not duplicate the patch text as top-level fields', () => {
+  const f = patchFinding();
+  const payload = toIssuePayload(f);
+  assert.ok(!('oldString' in payload), 'oldString must not be a top-level payload field — body already carries it');
+  assert.ok(!('newString' in payload), 'newString must not be a top-level payload field — body already carries it');
+  // body remains the carrier, so the patch text is never actually lost.
+  assert.ok(payload.body.includes(f.oldString), 'body must still carry oldString verbatim');
+  assert.ok(payload.body.includes(f.newString), 'body must still carry newString verbatim');
+  assert.strictEqual(
+    JSON.stringify(payload).split(f.newString).length - 1, 1,
+    'newString must appear exactly once in the serialized payload',
+  );
 });
 
 test('toIssuePayload for a new-skill finding carries structured decision fields matching the input finding', () => {
@@ -203,4 +220,59 @@ test('toIssuePayload uses the minimal 3-backtick fence when oldString/newString 
   const payload = toIssuePayload(patchFinding({ oldString: 'plain old text', newString: 'plain new text' }));
   assert.ok(payload.body.includes('**Current:**\n```\nplain old text\n```'));
   assert.ok(payload.body.includes('**Proposed:**\n```\nplain new text\n```'));
+});
+
+// --- removal findings (rule expiry) ------------------------------------------
+
+function removalFinding(overrides = {}) {
+  return {
+    id: 'skillhealth-rm000001',
+    kind: 'patch',
+    target: 'CLAUDE',
+    assetType: 'claude-md',
+    category: 'drift',
+    section: "Don'ts",
+    intent: 'remove',
+    classification: 'restructural',
+    confidence: 'high',
+    reversibility: 'high',
+    description: 'Rule guards a hazard that can no longer occur',
+    oldString: "- Don't call the legacy exporter directly `[IL-23]`",
+    newString: '',
+    reason: 'bin/lib/legacy-exporter.js was deleted in a1b2c3d.',
+    ...overrides,
+  };
+}
+
+test('a removal renders as a deletion, not an empty Proposed block', () => {
+  const payload = toIssuePayload(removalFinding());
+  assert.match(payload.body, /\*\*Remove this content:\*\*/);
+  assert.match(payload.body, /delete it — nothing replaces it/);
+  assert.ok(
+    payload.body.includes("- Don't call the legacy exporter directly `[IL-23]`"),
+    'the content being removed must appear verbatim so a reviewer can locate it',
+  );
+  // The bug this guards: the default branch would emit "**Proposed:**" followed
+  // by an empty fence, which reads as a malformed finding rather than a delete.
+  assert.ok(!/\*\*Proposed:\*\*\n```\n\n```/.test(payload.body), 'must not render an empty Proposed fence');
+});
+
+test('a removal title says it retires content', () => {
+  const payload = toIssuePayload(removalFinding());
+  assert.match(payload.title, /retire dead content in CLAUDE — Don't/);
+});
+
+test('intent survives into the payload for downstream consumers', () => {
+  // Regression guard for the producer/consumer field-drop shape: a consumer
+  // must be able to tell a deletion from a replacement without inferring it
+  // from an empty newString.
+  assert.strictEqual(toIssuePayload(removalFinding()).intent, 'remove');
+  assert.strictEqual(toIssuePayload(patchFinding()).intent, undefined);
+});
+
+test('an ordinary patch still renders Current/Proposed', () => {
+  const payload = toIssuePayload(patchFinding());
+  assert.match(payload.body, /\*\*Current:\*\*/);
+  assert.match(payload.body, /\*\*Proposed:\*\*/);
+  assert.ok(!payload.body.includes('Remove this content'));
 });

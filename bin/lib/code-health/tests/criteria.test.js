@@ -5,7 +5,7 @@ const { CRITERIA, criteriaForArea, getCriterion } = require('../criteria');
 
 test('CRITERIA is a non-empty array of criterion objects', () => {
   assert.ok(Array.isArray(CRITERIA));
-  assert.ok(CRITERIA.length >= 15, `expected at least 15 universal criteria, got ${CRITERIA.length}`);
+  assert.ok(CRITERIA.length >= 15, `expected at least 15 catalog entries, got ${CRITERIA.length}`);
 });
 
 test('every criterion has id, appliesTo, confidenceFloor', () => {
@@ -28,16 +28,18 @@ test('CRITERIA ids are unique', () => {
   assert.strictEqual(unique.size, ids.length, `duplicate criterion ids: ${ids.filter((id, i) => ids.indexOf(id) !== i).join(', ')}`);
 });
 
-// The 15 P1 universal criteria must all be present.
-const EXPECTED_UNIVERSAL = [
+// These core criteria must all be present in the catalog. Presence only —
+// four of them (see AREA_GATED below) are area-gated rather than universal,
+// so do not read this list as "the universal set".
+const EXPECTED_CATALOG_IDS = [
   'architecture-depth', 'simplification', 'review-quality',
   'scalability', 'security-logic', 'bad-practice',
   'doc-freshness', 'dead-code', 'test-quality',
   'resilience', 'observability', 'config-secrets',
   'dependency-health', 'input-validation', 'naming-clarity',
 ];
-for (const id of EXPECTED_UNIVERSAL) {
-  test(`universal criterion '${id}' is in the catalog`, () => {
+for (const id of EXPECTED_CATALOG_IDS) {
+  test(`core criterion '${id}' is in the catalog`, () => {
     assert.ok(getCriterion(id) !== undefined, `criterion '${id}' missing from catalog`);
   });
 }
@@ -46,25 +48,31 @@ test("getCriterion returns undefined for unknown ids", () => {
   assert.strictEqual(getCriterion('nonexistent-criterion-xyz'), undefined);
 });
 
-test('criteriaForArea([]) returns all universal criteria', () => {
-  const results = criteriaForArea([]);
-  const universalInCatalog = CRITERIA.filter((c) => c.appliesTo === 'universal');
-  assert.strictEqual(results.length, universalInCatalog.length);
-  for (const c of universalInCatalog) {
-    assert.ok(results.find((r) => r.id === c.id), `missing ${c.id}`);
-  }
+// Literal on purpose. Deriving this by filtering CRITERIA for
+// `appliesTo === 'universal'` would reuse the implementation's own predicate as
+// the oracle, so the test could not distinguish "correct" from "merely
+// self-consistent" — it would pass even if a criterion were wrongly reclassified.
+const UNIVERSAL_IDS = [
+  'architecture-depth', 'simplification', 'review-quality',
+  'bad-practice', 'doc-freshness', 'dead-code', 'test-quality',
+  'config-secrets', 'dependency-health', 'input-validation', 'naming-clarity',
+];
+
+test('criteriaForArea([]) returns exactly the universal criteria', () => {
+  const resultIds = criteriaForArea([]).map((c) => c.id).sort();
+  assert.deepStrictEqual(resultIds, [...UNIVERSAL_IDS].sort());
 });
 
 test('criteriaForArea with a known area type includes universal + matching domain criteria', () => {
-  // Plant a domain criterion to test filtering without relying on P2 domain entries.
-  // We test the logic with the real catalog — if any domain entries exist they appear.
-  const universalCount = CRITERIA.filter((c) => c.appliesTo === 'universal').length;
-  // With no known area types, result length == universal count.
-  const noType = criteriaForArea([]);
-  assert.strictEqual(noType.length, universalCount);
-  // With ['frontend'], result length >= universal count (domain entries may add more).
-  const frontend = criteriaForArea(['frontend']);
-  assert.ok(frontend.length >= universalCount);
+  // Counts anchored to the literal UNIVERSAL_IDS list, not to a re-derivation of
+  // the implementation's own `appliesTo === 'universal'` predicate.
+  assert.strictEqual(criteriaForArea([]).length, UNIVERSAL_IDS.length);
+  // A known area type strictly adds area-gated criteria on top of the universal set.
+  const frontendIds = criteriaForArea(['frontend']).map((c) => c.id);
+  assert.ok(frontendIds.length > UNIVERSAL_IDS.length);
+  for (const id of UNIVERSAL_IDS) {
+    assert.ok(frontendIds.includes(id), `frontend slice must still include universal '${id}'`);
+  }
 });
 
 test('criteriaForArea deduplicates when the same criterion matches multiple area types', () => {
@@ -128,11 +136,18 @@ test('domain criterion concurrency appears for backend, cli, and data', () => {
   assert.ok(!criteriaForArea(['frontend']).some((c) => c.id === 'concurrency'));
 });
 
-test('criteriaForArea with empty types returns universal-only (no domain criteria)', () => {
-  const universalIds = CRITERIA.filter((c) => c.appliesTo === 'universal').map((c) => c.id);
-  const results = criteriaForArea([]);
-  const resultIds = results.map((c) => c.id);
-  assert.deepStrictEqual(resultIds.sort(), universalIds.sort());
+test('criteriaForArea with empty types excludes every area-gated and domain criterion', () => {
+  // Asserts the negative that the positive test above cannot: nothing gated
+  // leaks into an unknown/non-code slice. Literal lists, no re-derivation.
+  const ids = criteriaForArea([]).map((c) => c.id);
+  const MUST_BE_ABSENT = [
+    'scalability', 'security-logic', 'resilience', 'observability',
+    'a11y', 'i18n', 'api-stability', 'migration-safety',
+    'iac-security', 'privacy-pii', 'concurrency',
+  ];
+  for (const id of MUST_BE_ABSENT) {
+    assert.ok(!ids.includes(id), `'${id}' must not load for an unknown/non-code slice`);
+  }
 });
 
 test('multi-type area gets union of universal + all matching domain criteria', () => {
@@ -162,9 +177,85 @@ test('noisy criteria a11y, iac-security, migration-safety, privacy-pii have conf
   }
 });
 
-test('security-logic universal criterion has confidenceFloor high', () => {
+test('security-logic criterion has confidenceFloor high', () => {
   const c = getCriterion('security-logic');
   assert.strictEqual(c.confidenceFloor, 'high');
+});
+
+// ── #99 — area-gating for the four non-core criteria ────────────────────────
+// These four used to be `appliesTo: 'universal'`, so every slice paid for their
+// fragments (a 19,445 B floor). They are now gated the same way domain criteria
+// are. The three genuinely-universal criteria below are deliberately left alone.
+
+// The three runtime-dependent criteria share one gate; security-logic is gated
+// wider (it also covers frontend and library) because security is cross-cutting
+// rather than runtime-dependent. Keep the two sets distinct on purpose.
+const RUNTIME_GATED = ['scalability', 'resilience', 'observability'];
+const RUNTIME_TYPES = ['backend', 'data', 'cli', 'infra'];
+const SECURITY_TYPES = ['backend', 'data', 'cli', 'infra', 'frontend', 'library'];
+const AREA_GATED = [...RUNTIME_GATED, 'security-logic'];
+
+test('the three runtime-dependent criteria are area-gated, not universal', () => {
+  for (const id of RUNTIME_GATED) {
+    const c = getCriterion(id);
+    assert.ok(Array.isArray(c.appliesTo),
+      `${id}.appliesTo must be an array, got ${JSON.stringify(c.appliesTo)}`);
+    assert.deepStrictEqual([...c.appliesTo].sort(), [...RUNTIME_TYPES].sort(),
+      `${id} gate mismatch`);
+  }
+});
+
+test('security-logic is gated wider than the runtime three (adds frontend, library)', () => {
+  const c = getCriterion('security-logic');
+  assert.ok(Array.isArray(c.appliesTo),
+    `security-logic.appliesTo must be an array, got ${JSON.stringify(c.appliesTo)}`);
+  assert.deepStrictEqual([...c.appliesTo].sort(), [...SECURITY_TYPES].sort());
+});
+
+test('security-logic loads for frontend and library; the runtime three do not', () => {
+  for (const t of ['frontend', 'library']) {
+    const ids = criteriaForArea([t]).map((c) => c.id);
+    assert.ok(ids.includes('security-logic'), `security-logic must load for ${t}`);
+    for (const id of RUNTIME_GATED) {
+      assert.ok(!ids.includes(id), `${id} must not load for ${t}`);
+    }
+  }
+});
+
+test('gated OUT: a docs-only slice loads none of the four area-gated criteria', () => {
+  const ids = criteriaForArea(['docs']).map((c) => c.id);
+  for (const id of AREA_GATED) {
+    assert.ok(!ids.includes(id), `${id} must not load for a docs-only slice`);
+  }
+});
+
+test('gated IN: a backend slice still loads all four area-gated criteria', () => {
+  const ids = criteriaForArea(['backend']).map((c) => c.id);
+  for (const id of AREA_GATED) {
+    assert.ok(ids.includes(id), `${id} must still load for a backend slice`);
+  }
+});
+
+// Literal expected list on purpose: deriving it by filtering CRITERIA for
+// appliesTo === 'universal' would use the same predicate as the implementation
+// and so could not distinguish "correct" from "merely self-consistent".
+test('a non-code slice loads exactly the three genuinely-universal fragments', () => {
+  const withFragment = criteriaForArea([])
+    .filter((c) => c.fragment)
+    .map((c) => c.id)
+    .sort();
+  assert.deepStrictEqual(withFragment,
+    ['architecture-depth', 'review-quality', 'simplification']);
+});
+
+// criteria-migration-safety.md's prose cross-references criteria-scalability.md.
+// migration-safety is ['data'] and the scalability gate includes 'data', so the
+// two always co-load and that reference can never dangle. Guard it.
+test('scalability co-loads wherever migration-safety does', () => {
+  const ids = criteriaForArea(['data']).map((c) => c.id);
+  assert.ok(ids.includes('migration-safety'), 'migration-safety must load for data');
+  assert.ok(ids.includes('scalability'),
+    'criteria-migration-safety.md references criteria-scalability.md — they must co-load');
 });
 
 // description was removed from CRITERIA entries — criteria no longer bootstrap their own

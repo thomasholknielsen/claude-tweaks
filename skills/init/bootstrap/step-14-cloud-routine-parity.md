@@ -1,6 +1,6 @@
 # Step 14 — Cloud/Routine Parity Setup (detailed procedure)
 
-*Optional Enhancement step (Steps 9-17). Skipped entirely under `--core-only`, and narrowable via Enhancement filter tokens (see `SKILL.md`'s `## Input`). For this group's ordering and renumbering conventions, see `../bootstrap-steps.md`.*
+*Optional Enhancement step — see `SKILL.md`'s `## Input` for when this group is offered or filtered, and `../bootstrap-steps.md` for its ordering and renumbering conventions.*
 
 Cloud sessions (claude.ai/code) and scheduled Routines run in fresh sandboxes with no access to this machine's local `~/.claude` config — they only see plugins declared in the **project-level** `.claude/settings.json#enabledPlugins` (paired with any custom marketplace under `extraKnownMarketplaces`). A project that never declares this has full local capability but silently loses claude-tweaks (and everything it depends on) the moment someone opens a cloud session or fires a scheduled Routine against it.
 

@@ -27,9 +27,18 @@ function toIssuePayload(finding) {
     ? `**New skill candidate** | **Confidence:** ${finding.confidence}`
     : `**${assetLabel}:** ${finding.target} | **Section:** ${finding.section} | **Category:** ${finding.category} | **Classification:** ${finding.classification} | **Confidence:** ${finding.confidence}`;
 
-  const deliverables = isNewSkill
-    ? `Proposed new skill \`${finding.target}\`:\n\n${finding.proposedBody}`
-    : `**Current:**\n${fencedBlock(finding.oldString || '(N/A — new content)')}\n\n**Proposed:**\n${fencedBlock(finding.newString)}`;
+  // A removal has an empty newString by contract, so rendering it as a
+  // "Proposed:" block would show an empty fence and read as a broken finding
+  // rather than an intentional deletion. Name the action instead.
+  const isRemoval = finding.intent === 'remove';
+  let deliverables;
+  if (isNewSkill) {
+    deliverables = `Proposed new skill \`${finding.target}\`:\n\n${finding.proposedBody}`;
+  } else if (isRemoval) {
+    deliverables = `**Remove this content:**\n${fencedBlock(finding.oldString)}\n\n**Proposed:** delete it — nothing replaces it.`;
+  } else {
+    deliverables = `**Current:**\n${fencedBlock(finding.oldString || '(N/A — new content)')}\n\n**Proposed:**\n${fencedBlock(finding.newString)}`;
+  }
 
   // Only ever populated for kind: "patch" findings — new-skill candidates have
   // no section to bundle by, so finding.relatedSections is always absent there.
@@ -43,9 +52,14 @@ function toIssuePayload(finding) {
     filedBy: '/claude-tweaks:harness-health',
   });
 
-  const title = isNewSkill
-    ? `New skill candidate: ${finding.target}`
-    : `${assetLabel} ${categoryLabel}: ${finding.target} — ${finding.section}`;
+  let title;
+  if (isNewSkill) {
+    title = `New skill candidate: ${finding.target}`;
+  } else if (isRemoval) {
+    title = `${assetLabel} ${categoryLabel}: retire dead content in ${finding.target} — ${finding.section}`;
+  } else {
+    title = `${assetLabel} ${categoryLabel}: ${finding.target} — ${finding.section}`;
+  }
 
   const diagnosticLabel = isNewSkill ? 'harness-health:new-skill' : `harness-health:${finding.classification}`;
   // new-skill is unscored by design (no risk/effort) — the gate flags "needs scoring"
@@ -76,8 +90,21 @@ function toIssuePayload(finding) {
     classification: finding.classification,
     confidence: finding.confidence,
     reversibility: finding.reversibility,
-    oldString: finding.oldString,
-    newString: finding.newString,
+    // oldString/newString are deliberately NOT surfaced as top-level payload
+    // fields: for kind "patch", `body` already carries both verbatim via the
+    // fenced Current/Proposed (or Remove-this-content) blocks composed above,
+    // and that markdown is what actually ships to GitHub. Carrying them twice
+    // made a payload with ~2.6 KB of patch text 38% duplicate bytes, uncapped
+    // across the findings array. Matches docs-health/journey-health/code-health.
+    // Anything needing the patch text reads it out of `body`. (kind "new-skill"
+    // never had them — it carries proposedBody in the body instead.)
+    //
+    // intent stays: it is a 1-word classification, not duplicated content, and
+    // it is the ONLY top-level signal distinguishing a deletion from a
+    // replacement now that newString is gone — a consumer can no longer infer
+    // "removal" from an empty newString, so dropping this too would lose
+    // information rather than just de-duplicate it.
+    intent: finding.intent,
     relatedSections: finding.relatedSections,
     title: payload.title,
     body: payload.body,

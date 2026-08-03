@@ -69,8 +69,33 @@ test('toIssuePayload carries structured decision fields matching the input findi
   assert.strictEqual(payload.classification, f.classification);
   assert.strictEqual(payload.confidence, f.confidence);
   assert.strictEqual(payload.reversibility, f.reversibility);
-  assert.strictEqual(payload.oldString, f.oldString);
-  assert.strictEqual(payload.newString, f.newString);
+});
+
+// The patch text has exactly one carrier: payload.body's fenced Current/Proposed
+// blocks (the markdown that actually ships to GitHub). Duplicating it as
+// top-level fields made a payload with ~2.6 KB of patch text 38% duplicate
+// bytes, uncapped across the findings array.
+test('toIssuePayload does not duplicate the patch text as top-level fields', () => {
+  const f = finding();
+  const payload = toIssuePayload(f);
+  assert.ok(!('oldString' in payload), 'oldString must not be a top-level payload field — body already carries it');
+  assert.ok(!('newString' in payload), 'newString must not be a top-level payload field — body already carries it');
+  // body remains the carrier, so the patch text is never actually lost.
+  assert.ok(payload.body.includes(f.oldString), 'body must still carry oldString verbatim');
+  assert.ok(payload.body.includes(f.newString), 'body must still carry newString verbatim');
+  assert.strictEqual(
+    JSON.stringify(payload).split(f.newString).length - 1, 1,
+    'newString must appear exactly once in the serialized payload',
+  );
+});
+
+test('toIssuePayload top-level shape matches journey-health/code-health (no patch-text fields)', () => {
+  const payload = toIssuePayload(finding());
+  assert.deepStrictEqual(Object.keys(payload).sort(), [
+    'assetType', 'body', 'category', 'classification', 'confidence', 'id',
+    'labels', 'misleads', 'relatedSections', 'reversibility', 'section',
+    'target', 'title', 'type',
+  ]);
 });
 
 test('toIssuePayload title reflects category and misleads', () => {
