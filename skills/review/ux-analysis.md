@@ -70,7 +70,7 @@ When page inventories from multiple pages are available, compare patterns across
 > - [Severity] {path/screenshot.png} — {observation} — Evidence: {what you saw}
 >   Suggested fix: {one line}
 >
-> Severity scale: high / medium / low / info
+> Severity scale: critical / high / medium / low / info — but the UX lens ceiling is `high`, so use only high / medium / low / info here
 > If no observations: return literal text "No observations."
 > Do not add narration or grouping headers.
 > ```

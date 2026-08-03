@@ -4,7 +4,7 @@
 
 ### Required: Superpowers
 
-Provides `/superpowers:brainstorming`, `/superpowers:writing-plans`, `/superpowers:subagent-driven-development`, `/superpowers:executing-plans`, `/superpowers:using-git-worktrees`, `/superpowers:finishing-a-development-branch`, and `/superpowers:dispatching-parallel-agents`.
+Provides `/superpowers:brainstorming`, `/superpowers:writing-plans`, `/superpowers:subagent-driven-development`, `/superpowers:executing-plans`, `/superpowers:using-git-worktrees`, `/superpowers:finishing-a-development-branch`, `/superpowers:dispatching-parallel-agents`, and `/superpowers:systematic-debugging` — the set claude-tweaks skills invoke; see this project's own CLAUDE.md Dependencies row for the authoritative list.
 
 Detect: use the Glob tool to search for `*superpowers*` under the user's `~/.claude/plugins/` directory.
 

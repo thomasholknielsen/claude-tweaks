@@ -1,10 +1,10 @@
 # Browser Review Procedures
 
-Shared procedures for every `/claude-tweaks:visual-review` mode. This file holds what all
-three modes need: prerequisites, mode resolution, QA enrichment, reconnaissance, and the
-review contract they report against. The per-mode procedures live in their own files —
-`page-mode.md`, `journey-mode.md`, and `discover-mode.md` in this skill's directory — so a
-run loads only the mode it resolved to.
+Shared procedures for every `/claude-tweaks:visual-review` mode that opens the browser. This
+file holds what those modes need: prerequisites, mode resolution, QA enrichment,
+reconnaissance, and the review contract they report against. The per-mode procedures live in
+their own files — `page-mode.md`, `journey-mode.md`, and `discover-mode.md` in this skill's
+directory — so a run loads only the mode it resolved to.
 
 ## Prerequisites
 
@@ -27,6 +27,10 @@ screenshots/browse/<session>/<NN>_<description>.png
 `<NN>` is a zero-padded sequence number per session (`01_landing`, `02_pricing`, ...). Annotated screenshots overlay numbered markers tied to the most recent `snapshot` refs — write findings using those overlay numbers, never spatial language like "the button on the right."
 
 ## Mode Resolution
+
+`SKILL.md`'s own Modes table is canonical for the full mode list — it also covers
+`recommendation` mode, which short-circuits in `SKILL.md` Step 0.5 without ever opening the
+browser or reading this file. The browser-opening modes this file serves:
 
 | Mode | Input | What happens |
 |------|-------|-------------|

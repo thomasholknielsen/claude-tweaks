@@ -3,9 +3,9 @@
 *Optional Enhancement step — see `SKILL.md`'s `## Input` for when this group is offered or filtered, and `../bootstrap-steps.md` for its ordering and renumbering conventions.*
 
 `/claude-tweaks:capture`, `/claude-tweaks:specify`, `/claude-tweaks:backlog`,
-`/claude-tweaks:dispatch`, `/claude-tweaks:tidy`, and the health skills
+`/claude-tweaks:dispatch`, `/claude-tweaks:tidy`, and every health skill
 (`/claude-tweaks:code-health`, `/claude-tweaks:harness-health`,
-`/claude-tweaks:journey-health`) all file, shape, gate, dispatch, or sweep against
+`/claude-tweaks:journey-health`, `/claude-tweaks:docs-health`) all file, shape, gate, dispatch, or sweep against
 the same **work record** — the one durable unit each of them acts on. A work record
 is backed by either a GitHub issue or, under the `local-files` driver, one local
 record file per record (`specs/{id}-{slug}.md`, read and written by

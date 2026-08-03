@@ -1,6 +1,6 @@
 # Wrap-Up Cleanup Procedures
 
-Canonical home for the wrap-up cleanup enumeration. Loaded by `/claude-tweaks:wrap-up` Step 5 (planning), Step 9 (summary checklist), Step 10 (execution), and by `review-console.md` (Section 7 of the Review Console). All four call sites reference this list — do NOT duplicate the table inline elsewhere.
+Canonical home for the wrap-up cleanup enumeration. Loaded by `/claude-tweaks:wrap-up` Step 5 (planning), Step 9 (summary checklist), Step 10 (execution), and by `review-console.md` (the Cleanup actions section of the Review Console — the ninth of its named batch sections). All four call sites reference this list — do NOT duplicate the table inline elsewhere.
 
 ## Canonical cleanup list
 

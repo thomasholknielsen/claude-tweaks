@@ -32,8 +32,8 @@ record/diff/failure content. Never invoked directly by a human — always a comp
 Not for: granting `auto:build`/`auto:merge` (still `/claude-tweaks:backlog refine`'s human-confirmed job),
 merging anything itself (`/claude-tweaks:dispatch` acts on the verdict), deciding auto-merge
 eligibility or blast-radius caps (that's still `merge-check` alone — `ceremony-profile` and
-`auto:merge` are independent axes), or any decision outside these four call sites — this is not a
-general-purpose risk service.
+`auto:merge` are independent axes), or any decision outside the call sites listed under "When to
+Use" above — this is not a general-purpose risk service.
 
 ## Input
 

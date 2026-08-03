@@ -39,7 +39,7 @@ Before rendering the Manifesto, derive a per-spec preview by reading each record
 | QA | `stories/*.yaml` exists for this record's surface | `run` if matching stories; `skip` if none |
 | Friction note | Lever recommendations × record content | One-line warning when an approved lever still introduces prompts for this record (e.g., review-severity-floor `low` + a frontend record with prior HIGH findings) |
 
-Suppress the preview table entirely when only one spec is run and all four columns are `skip` or `none` — present a single-line summary instead.
+Suppress the preview table entirely when only one spec is run and Polish, Stories, and QA all read `skip` or `none` — present a single-line summary instead.
 
 ## Determine lever suppressions
 
