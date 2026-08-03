@@ -53,7 +53,7 @@ Without `--budget` (or `--budget 1`), prints `{ target: { kind, id, path, why } 
 
 **Multi-target runs (`--budget > 1`):** treat each `targets` array entry as its own full per-target sweep — run Steps 2, 3, 6, and 7 in their entirety for target 1 (including its own `validate-findings --target <id> --kind <kind>` call and its own `gh issue create` calls), writing that target's Step 3 findings to its own file (`/tmp/harness-health-findings-{target.id}.json`, not a shared path), then repeat Steps 2, 3, 6, 7 for target 2, and so on. Never collect findings from multiple targets into one shared `validate-findings` call — each target needs its own `--target`/`--kind` pair so its cursor persists independently; skipping this silently leaves N-1 of N targets' cursors stuck, so they get immediately re-selected as `stale`/`hotspot` on the very next firing despite having just been judged. Step 5 (GATHER OPEN ISSUES) only needs to run once per firing — its open-issue index is reused across every target's Step 6 call, not target-specific. Step 4 (GAP SCAN), when due, also runs once per firing regardless of budget, never once per target (see below); fold its new-skill candidates into whichever single target's findings file is processed last this firing, or — if no `targets` came back but `gapScanDue` is still `true` — write them to their own `/tmp/harness-health-findings-gapscan.json` and give that file its own dedicated `validate-findings --gap-scan` call with no `--target`/`--kind`. A run that audits 3 targets makes 3 separate `validate-findings` invocations (plus the gap scan's own standalone call if it had nowhere else to attach), never 1 shared invocation across targets.
 
-> **Parallel execution (conditional):** When `--budget > 1` returns 2 or more targets, dispatch each target's READ+JUDGE work (Steps 2-3) as parallel Task agents — each target is a different file with an independent dimension check, so the audits don't interact. Otherwise (a single target, or `--budget` not passed), run Steps 2-3 sequentially in the main thread. Each dispatched agent gets: the target's `{ kind, id, path, why }` object from Step 1; a pointer to `_shared/harness-health-analysis.md` (or, for `kind: design-artifact`/`memory`, this skill's own Step 3 branch text) as the judging procedure to apply; and an explicit instruction to write its findings array to `/tmp/harness-health-findings-{target.id}.json` and reply with nothing but the status line required by the Subagent Contract (`_shared/subagent-output-contract.md`): `DONE`/`DONE_WITH_CONCERNS` once the findings file is written, `NEEDS_CONTEXT` if the target/procedure pointer was insufficient, or `BLOCKED` if it couldn't complete. This doesn't fit Template A/B/C (the output is a JSON findings array written to a file path, not a table/bullet-list/yes-no answer), so the literal per-agent output instruction above stands in for one, per that contract's "not every consumer uses A/B/C" allowance. `[Use: Standard model — this is judgment-heavy analysis against the dimension check, not mechanical extraction]`. Assemble results after all agents complete, then proceed to each target's own Steps 6-7 sequentially in the main thread (dedup/filing must not race against a shared `gh`/cache write).
+> **Parallel execution (conditional):** When `--budget > 1` returns 2 or more targets, dispatch each target's READ+JUDGE work (Steps 2-3) as parallel Task agents — each target is a different file with an independent dimension check, so the audits don't interact. Otherwise (a single target, or `--budget` not passed), run Steps 2-3 sequentially in the main thread. Each dispatched agent gets the target's `{ kind, id, path, why }` object from Step 1 plus its judging procedure **inlined verbatim** — never a path, which reaches nothing (agents see only their own prompt) and makes every agent re-read a 34,314 B fragment. For `kind: skill`/`rule`/`claude-md`, inline the body of `judge-procedure.md` in this skill's directory (everything below its horizontal rule), substituting `{target.path}`/`{target.id}`/`{target.kind}`/`{plugin-root}`/`{root}`; it distills `_shared/harness-health-analysis.md` for exactly those kinds, so keep the two in sync when either changes. For `kind: design-artifact`/`memory`, inline this skill's own Step 3 branch text instead — those never route through the shared fragment. The sequential (`--budget 1`) path still reads the fragment directly, and it stays canonical and unchanged for `/claude-tweaks:wrap-up` Step 7 and `/claude-tweaks:init` Phase 6. `judge-procedure.md` carries its own output contract; restate it in the prompt only for the `design-artifact`/`memory` branch, which has none: write findings to `/tmp/harness-health-findings-{target.id}.json`, then reply with nothing but the Subagent Contract status line (`_shared/subagent-output-contract.md`) — `DONE`/`DONE_WITH_CONCERNS` once written, `NEEDS_CONTEXT` if the target or procedure was insufficient, `BLOCKED` otherwise. This doesn't fit Template A/B/C (the output is a JSON findings array written to a file path, not a table/bullet-list/yes-no answer), so the literal per-agent output instruction above stands in for one, per that contract's "not every consumer uses A/B/C" allowance. `[Use: Standard model — this is judgment-heavy analysis against the dimension check, not mechanical extraction]`. Assemble results after all agents complete, then proceed to each target's own Steps 6-7 sequentially in the main thread (dedup/filing must not race against a shared `gh`/cache write).
 
 Unlike `/code-health`'s `next-slice`, this command is named `next-target` because harness-health, journey-health, and docs-health each rotate over one specific file at a time (a skill file, a journey file, a doc). `/code-health`'s `next-slice` rotates over an area/directory that gets fully swept per firing — a coarser unit than a single file — so it kept its own name rather than adopting this family's.
 
@@ -129,104 +129,7 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" validate-findings "${FINDINGS
 
 **Step 7 — FILE.**
 
-Every harness-health record files onto the unified work record (`skills/_shared/work-record.md`): origin `by:harness-health`; classification folds into the scoring axis instead of staying a producer-specific label the gate must know:
-
-| Classification | risk | effort |
-|---|---|---|
-| `additive` | `risk:low` | `effort:low` |
-| `restructural` | `risk:medium` | `effort:high` |
-| kind `new-skill` (no classification-driven scoring) | unscored — no `risk:*` label | unscored — no `effort:*` label |
-
-`new-skill` candidates file with no scoring labels by design — there is no classification-driven
-tier to guess from a kind that carries no scoring evidence. `/claude-tweaks:assess-agent-autonomy`'s
-`grant-check` mode (`backlog refine`'s grant sub-stage) recognizes a `new-skill` finding from its body content
-directly (it reads "**New skill candidate**" with a "Proposed new skill" deliverable) rather than
-depending on a scoring label being present, and can still recommend `auto:build` for a
-well-specified proposal — building the draft autonomously is reasonable, since a human confirms the
-grant and reviews again before any merge — while recommending against `auto:merge`, since a new
-skill file shapes future agent behavior regardless of how clean the diff looks. Every filed finding
-is **born-`ready`** — harness-health findings are agent-sized and spec-shaped by construction
-(Current State / Deliverables / Acceptance Criteria), so they file with the `ready` label already
-applied and appear directly in the authorization gate's worklist, skipping maturation. `toIssuePayload` (`bin/lib/harness-health/issue-payload.js`) assembles the payload via `record.js`'s `recordPayload`, then appends the classification/kind-derived diagnostic label (`harness-health:additive` / `harness-health:restructural` / `harness-health:new-skill`) after the canonical labels — the emitted label set is exactly `by:harness-health` + scoring (when present) + `ready` + the diagnostic label, matching the table above.
-
-Before filing this firing's own new findings, drain the durable retry queue from prior firings' filing failures and check for regressed reopens (see `_shared/health-state.md`) — both mechanics below follow the canonical shape in `_shared/health-filing-mechanics.md` (`{BINARY}` = `harness-health.js`, `{PREFIX}` = `harness-health`); check that file when either changes to keep this skill's copy in sync with its three siblings:
-
-```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" retry-queue drain --root . > /tmp/harness-health-retry-payloads.json
-```
-
-For each payload in `/tmp/harness-health-retry-payloads.json`, attempt `gh issue create` exactly as below. Track every attempt's outcome (retry-queue payloads AND any brand-new payload from this step's own filing loop that fails) as `[{ fingerprint, payload, ok: true }]` or `[{ fingerprint, payload, ok: false, error: "<gh's error output>" }]`, write to `/tmp/harness-health-retry-results.json`, then:
-
-```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" retry-queue update /tmp/harness-health-retry-results.json --root . > /tmp/harness-health-escalated.json
-```
-
-If `/tmp/harness-health-escalated.json` is non-empty, file (or update) a `harness-health:filing-failed` issue for each entry, naming the stuck fingerprint and its failure history — bootstrap that label the same way as the others below.
-
-Before filing, bootstrap only the label families this run applies, with real descriptions — using the shared helper so a too-long description fails loudly here rather than as a 422 on `gh issue create`. Canonical pairs copied verbatim from `_shared/label-bootstrap.md`'s `LABELS_JSON`, plus harness-health's own diagnostic labels:
-
-```bash
-# Bootstrap per _shared/label-bootstrap.md, LABELS_JSON =
-# [["by:harness-health", "Origin: filed by the harness-health skill"],
-#  ["risk:low",          "Scoring: low blast radius — safe for autonomous build"],
-#  ["risk:medium",       "Scoring: moderate blast radius — review before merge recommended"],
-#  ["effort:low",        "Scoring: small, agent-sized change"],
-#  ["effort:high",       "Scoring: large change — consider decomposition before building"],
-#  ["ready",             "Stage: spec-shaped and agent-sized — in the authorization gate's worklist"],
-#  ["harness-health:additive",     "Safe, mechanical patch - additive change with no removed behavior"],
-#  ["harness-health:restructural", "Structural change requiring human review before applying"],
-#  ["harness-health:new-skill",    "Proposes a new skill candidate surfaced by harness-health"],
-#  ["harness-health:filing-failed", "Escalation: gh issue create failed repeatedly for this fingerprint — needs human attention"]]
-```
-
-Each payload in `/tmp/harness-health-payloads.json` carries structured fields, not just the GitHub issue text — `id`, `kind`, `target`, `assetType`, `category`, `section`, `classification`, `confidence`, `reversibility`, and `intent` are all present directly on the payload object, alongside `title`, `body`, `labels`, and `type`. These stay on the payload as triage metadata — nothing here branches on them anymore, though Step 7's batch table renders `category`/`classification`/`confidence`/`reversibility` as columns. The finding's `oldString`/`newString` patch text is deliberately **not** duplicated as top-level fields: `payload.body` already carries both verbatim in its fenced Current/Proposed (or "Remove this content") blocks, and that markdown is what ships to GitHub. Read the patch out of `body` if you need it. `intent` is the exception that stays: it is a one-word classification rather than duplicated content, and with `newString` gone it is the only top-level signal distinguishing a removal from a replacement.
-
-For a payload whose fingerprint marker (embedded in `payload.body`, read via `extractFingerprint`) matches a `status: "regressed"` entry in `.claude-tweaks/harness-health/cache.json` after this run, the finding was previously closed and has reappeared — reopen the existing issue instead of filing a new one:
-
-```bash
-gh issue reopen <issue_number>
-gh issue comment <issue_number> --body "Regressed: this finding reappeared. Run: ${RUN_ID}"
-```
-
-`<issue_number>` is that cache entry's `issue` field.
-
-Per `_shared/health-filing-gate.md`'s applicability/scope/placement rule: in interactive mode, before filing this firing's own new findings (not the retry-queue drains or regressed reopens above, which already executed unconditionally), route survivors through a two-tier decision:
-
-1. Render all findings as a markdown batch table:
-
-   ```
-   | # | Title | Category | Classification | Confidence | Reversibility | Recommended |
-   |---|-------|----------|-----------------|------------|----------------|-------------|
-   | 1 | {title} | {category} | {classification} | {confidence} | {reversibility} | {File issue|Capture} |
-   ```
-
-   Pre-fill the Recommended column: `confidence: high` or `confidence: med` → `"File issue"`; `confidence: low` → `"Capture"`. (When `--min-confidence` was passed, findings below it never reach this table at all — Step 6's `validate-findings` already diverted them into the `remembered` cache before Step 7 runs.)
-
-2. Call `AskUserQuestion` with `question`: `"How do you want to handle these findings?"`, `header`: `"Findings"`, `multiSelect`: `false`, and:
-   - Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"File / Capture each finding per the Recommended column above"`
-   - Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which #s to change"`
-
-3. If "Override specific items" was chosen, the follow-up is ordinary free-text chat in the next message, per CLAUDE.md's Multi-item decisions convention — not the tool's `Other` field. The user names findings by number and states each one's disposition — `File issue` (file as a GitHub harness-health issue), `Capture` (via `/claude-tweaks:capture` for later triage), `/claude-tweaks:specify directly` (promote straight to a spec, skipping the issue), or `Dismiss` (run `mark` so it doesn't reappear) — e.g. "file 2, capture 5, dismiss 7." Apply the stated disposition to those specific findings; every finding not named keeps its Recommended-column value.
-
-For "dismiss," run `node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" mark "<payload.id>" declined --root .` so the same proposal doesn't reappear on a future firing.
-
-For each survivor disposed as "File issue" (every payload if "Apply all recommended" was chosen and its Recommended value was `"File issue"`; only the individually-overridden ones otherwise), call `gh issue create`.
-
-**Type expression branch** (canonical shape in `_shared/health-finding-shapes.md` — check that file when either changes to keep this skill's copy in sync with its three siblings). Read the project's `work-types` config key once before filing and branch — never re-probe mid-flow (`_shared/work-record.md`'s config-key table; the key is written by `/init`). `work-types: native` applies `payload.type` (always `task`) via GitHub's native Issue Type; `work-types: labels` adds the matching `type:task` label instead (the pair lives in `record.js`'s `TYPE_LABELS`):
-
-```bash
-# Example: an additive finding, work-types: native
-gh issue create --title "<payload.title>" --body "<payload.body>" --type task \
-  --label by:harness-health --label risk:low --label effort:low --label ready --label harness-health:additive
-
-# Same finding, work-types: labels
-gh issue create --title "<payload.title>" --body "<payload.body>" \
-  --label by:harness-health --label risk:low --label effort:low --label ready --label harness-health:additive --label type:task
-```
-
-Apply the same branch to every payload regardless of classification/kind — a `restructural` payload's call carries `risk:medium`/`effort:high`/`harness-health:restructural` instead, and a `new-skill` payload's call carries only `by:harness-health`/`ready`/`harness-health:new-skill` (no scoring labels), per the mapping table above; only the `--type task` vs. `--label type:task` branch and the `--label` list change, never the underlying `gh issue create --title/--body`. This applies uniformly — CLAUDE.md findings, design-artifact findings, additive skill/rule patches, restructural patches, and new-skill candidates all file the same way. `/harness-health` never edits anything directly; matching `/code-health`, it only ever judges and files.
-
-In `--dry-run` mode, print what would be filed or reopened, and the `gh` commands that would run, but do not call `gh`.
+Read `filing.md` in this skill's directory and apply it. It owns the whole filing procedure: the classification-to-scoring fold (`additive` -> `risk:low`/`effort:low`, `restructural` -> `risk:medium`/`effort:high`, `new-skill` unscored by design), the born-`ready` rule, the retry-queue drain and regressed-reopen mechanics (`_shared/health-filing-mechanics.md`'s canonical shape, as `{BINARY}` = `harness-health.js`, `{PREFIX}` = `harness-health`), label bootstrapping, the interactive file-all/route-individually gate (`_shared/health-filing-gate.md`), and the `work-types` Type-expression branch. `/harness-health` never edits anything directly — it only judges and files.
 
 **Step 8 — SUMMARIZE.**
 
@@ -284,6 +187,7 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 | `/claude-tweaks:wrap-up` | Step 7 (Skill Curation) applies the same `_shared/harness-health-analysis.md` procedure on a spec's changed skill files, and writes to the same cursor/cache state this skill reads and writes. |
 | `/claude-tweaks:init` | Phase 6 (Update Mode skill patches) and Phase 3/1u's skill classification apply the same shared procedure on whole-codebase reconnaissance, sharing the same cursor/cache state. Update Mode also invokes this skill's `routine-relevance-analysis.md` directly to judge whether a project's instantiated cloud Routines are still relevant given recent skill changes — the only consumer of that file, and the only case where `/init` reaches into a harness-health-owned analysis file outside this skill's own SELECT/JUDGE/FILE pipeline. |
 | `_shared/harness-health-analysis.md` | The canonical judge this skill, `/wrap-up`, and `/init` all read — the dimension check, evidence pre-checks, verify gate, patch format, the CLAUDE.md rule-expiry check (the only check that proposes removing content), and new-skill gate live there, not here. |
+| `judge-procedure.md` (this skill's directory) | The dispatch-facing distillation of that fragment, scoped to `kind: skill`/`rule`/`claude-md` — Step 1's parallel dispatch inlines its body verbatim into each agent's prompt, since a path reaches nothing and would make every agent re-read 34 KB. Self-contained by contract, enforced by a test. The sequential path reads the fragment directly, so the fragment itself is unchanged and its other consumers are unaffected; keep the two in sync when either changes. |
 | `/claude-tweaks:tidy` | Step 4.8 sweeps `by:harness-health`-labelled issues alongside `by:code-health`-labelled ones, using the same stale/superseded triage. |
 | `/claude-tweaks:backlog` | `/claude-tweaks:assess-agent-autonomy`'s `grant-check` mode (invoked from `refine` mode's grant sub-stage) reads this skill's finding body directly — including recognizing `harness-health:new-skill` findings from their "New skill candidate" body content, not from a label, since those findings carry no `risk:*`/`effort:*` labels at all. `additive`/`restructural` findings already carry colon-form `risk:*`/`effort:*` labels (this skill's own `issue-payload.js` co-emits them alongside the diagnostic label), which grant-check also reads as one input. `/claude-tweaks:backlog` never files or closes harness-health issues. |
 | `/claude-tweaks:code-health` | Sibling health skill for code quality — one of the four recurring-sweep siblings (code-health, harness-health, journey-health, docs-health). Shares the unified work-record filing contract and `_shared/health-state.md`'s durable persistence, scoped to code instead of skill/rule/CLAUDE.md accuracy. |

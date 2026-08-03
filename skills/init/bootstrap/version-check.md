@@ -71,6 +71,6 @@ core-bootstrap:
 EOF
 ```
 
-Write this only after Steps 1-8 have actually run (or been skipped) above — not before.
+Write this only after Steps 1-8 have actually run (or been skipped) — not before.
 `init-state.yml` only ever has this one key today — a full overwrite is safe. If a future
 change adds other top-level keys to this file, switch to a merge instead of an overwrite.

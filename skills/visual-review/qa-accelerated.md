@@ -1,10 +1,10 @@
 # Visual Review — QA-Accelerated Paths
 
-Lazy-loaded by `browser-review.md` when `QA_DATA_AVAILABLE = true`. Contains the abbreviated variants of Steps 1, 3, and 4 that consume QA data instead of re-running mechanical inspection.
+Lazy-loaded by `page-mode.md` (and by `journey-mode.md` for its per-step checks) when `QA_DATA_AVAILABLE = true`. Contains the abbreviated variants of Steps 1, 3, and 4 that consume QA data instead of re-running mechanical inspection.
 
-When `QA_DATA_AVAILABLE = false`, ignore this file and run the full-inspection paths inline in `browser-review.md`.
+When `QA_DATA_AVAILABLE = false`, ignore this file and run the full-inspection paths inline in `page-mode.md`.
 
-Steps 2 (First Impressions) and 5 (Reimagine) always run at full depth — Step 2 captures raw reactions that must be QA-free, and Step 5 is judgment-based. Step 6 (Report & Route) is unchanged. Step 5 does have a QA-informed addendum, which remains inline in `browser-review.md` under "QA-informed reimagining."
+Steps 2 (First Impressions) and 5 (Reimagine) always run at full depth — Step 2 captures raw reactions that must be QA-free, and Step 5 is judgment-based. Step 6 (Report & Route) is unchanged. Step 5 does have a QA-informed addendum, which remains inline in `page-mode.md` under "QA-informed reimagining."
 
 ---
 
@@ -18,7 +18,7 @@ QA health data becomes the baseline. The visual check verifies no **new** issues
 
 Skip the full "Check for obvious problems" checklist — QA already ran it.
 
-Vitals interpretation (thresholds, severity, Performance heading in the report) still applies — see the Vitals table in `browser-review.md` Step 1.
+Vitals interpretation (thresholds, severity, Performance heading in the report) still applies — see "Vitals interpretation (Step 1)" in `browser-review.md`'s Shared review contract.
 
 ---
 
