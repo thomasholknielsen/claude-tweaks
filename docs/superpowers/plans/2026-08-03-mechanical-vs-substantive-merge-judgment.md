@@ -319,7 +319,7 @@ awk '/^## Mode: merge-check/,/^## Mode: failure-check/' skills/assess-agent-auto
 grep -c "auto-merge. eligible" skills/assess-agent-autonomy/SKILL.md
 ```
 
-Expected: one line number; then `1` — proving the subsection landed inside `merge-check` and not another mode; then `3` (the table's three `auto-merge` eligible rows; the other four are `needs-human`).
+Expected: one line number; then `1` — proving the subsection landed inside `merge-check` and not another mode; then `4` — the table's three `auto-merge` eligible rows plus the necessary-not-sufficient clause beneath it, which opens with the same phrase. (The other four rows are `needs-human`.)
 
 - [ ] **Step 4: Verify the table renders as a table**
 
