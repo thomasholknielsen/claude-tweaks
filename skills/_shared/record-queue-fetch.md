@@ -2,12 +2,14 @@
 
 Single source of truth for the first read every open-work-record scan performs: resolve
 `work-backend`, fetch the queue, and facet-parse it. Consumed by `/claude-tweaks:help`
-(`status-scan.md` Stage 1), `/claude-tweaks:tidy` (`scan-procedures.md` Step 1), and
-`/claude-tweaks:backlog` (both `refine-mode.md`'s and `overview-mode.md`'s Step 1) — every one
-of these scans starts from the identical fetch below before branching into its own
-consumer-specific classification (dashboard bucket counts for `/help`; the seven finding shapes
-for `/tidy`; priority/Related synthesis plus the grant worklist for `/backlog refine`, lens
-routing plus the build recommendation for `/backlog overview`).
+(`status-scan.md` Stage 1), `/claude-tweaks:tidy` (`scan-procedures.md` Step 1),
+`/claude-tweaks:backlog` (both `refine-mode.md`'s and `overview-mode.md`'s Step 1), and
+`/claude-tweaks:visualize` (`visualize/record-graph.md` Step A) — every one of these scans
+starts from the identical fetch below before branching into its own consumer-specific
+classification (dashboard bucket counts for `/help`; the seven finding shapes for `/tidy`;
+priority/Related synthesis plus the grant worklist for `/backlog refine`, lens routing plus the
+build recommendation for `/backlog overview`; stage-column bucketing plus six-axis encoding for
+`/visualize record-graph`).
 Subagents cannot read this file — the dispatcher inlines this section into the scan agent's
 prompt, the same pattern already used for `_shared/github-pr-scan.md`.
 

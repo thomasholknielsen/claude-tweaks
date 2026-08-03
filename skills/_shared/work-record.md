@@ -293,6 +293,7 @@ these literal names** — per-skill aliases and env-var renames are forbidden:
 | `/tidy` | Hygiene — stale backlog records, parked-trigger wakes, unsynced local records, `bot:blocked` surfacing |
 | `/help` | Dashboard — live counts by stage / grants / bot state / acceptance |
 | `/init` | Provisions the system — `work-backend` flag, label bootstrap, capability probes (`work-types`, `work-links`) |
+| `/visualize` | Read-only — `record-graph` type renders the live open-record queue (stage columns, dependency edges, six-axis badges) as a diagram; never writes labels or body content |
 
 See also: `_shared/issue-claims.md` (claim protocol; `bot:in-progress` mirror),
 `_shared/label-bootstrap.md` (canonical LABELS_JSON + check-then-create loop).
