@@ -24,6 +24,9 @@ record/diff/failure content. Never invoked directly by a human — always a comp
 - `/claude-tweaks:backlog refine`'s Step 2 needs a grant recommendation for a worklist record.
 - `/claude-tweaks:dispatch`'s Auto-merge gate needs a merge-or-human verdict for a clean, reviewed run.
 - `/claude-tweaks:dispatch`'s Settle step needs to classify why a run failed.
+- `/claude-tweaks:wrap-up`'s Step 8.6 Auto-merge short-circuit needs the same merge-or-human verdict
+  for its own single-record run — the version wrap-up runs directly whether or not
+  `/claude-tweaks:dispatch` was involved.
 - `/claude-tweaks:specify`'s Step 3 (Create the Records) needs a ceremony-depth verdict for a
   record, so `/specify` itself, `/claude-tweaks:review`, and `/claude-tweaks:wrap-up` all know how
   much fixed-cost ceremony it deserves. `/claude-tweaks:flow`'s materialize.md calls this mode only
@@ -443,8 +446,10 @@ bad or under-reflect on real complexity.
 `/claude-tweaks:assess-agent-autonomy` is **always** a component skill — it is never invoked
 directly by a human, and never renders a `## Next Actions` block. Its only callers are
 `/claude-tweaks:backlog refine` (Step 2, `grant-check`), `/claude-tweaks:dispatch` (Auto-merge gate,
-`merge-check`; Settle step, `failure-check`), `/claude-tweaks:specify` (Step 3, `ceremony-check`),
-and `/claude-tweaks:flow` (materialization fallback, `ceremony-check` only when record carries no
+`merge-check`; Settle step, `failure-check`), `/claude-tweaks:wrap-up` (Step 8.6's Auto-merge
+short-circuit, `merge-check` — the single-record version of dispatch's same gate, run whether or not
+`/claude-tweaks:dispatch` was involved), `/claude-tweaks:specify` (Step 3, `ceremony-check`), and
+`/claude-tweaks:flow` (materialization fallback, `ceremony-check` only when record carries no
 `ceremony:*` label).
 
 ## Anti-Patterns
@@ -467,6 +472,7 @@ and `/claude-tweaks:flow` (materialization fallback, `ceremony-check` only when 
 |-------|-------------|
 | `/claude-tweaks:backlog` | `refine` mode calls `grant-check` once per worklist record — the output becomes the unified table's Recommended column for grant rows directly. `refine` still renders the human batch-confirm exactly as before; only what generates the suggestion changed. |
 | `/claude-tweaks:dispatch` | Calls `merge-check` in the Auto-merge gate (replacing layers 2-4) and `failure-check` in the Settle step (replacing the old unconditional-revocation rule). Dispatch still owns layer 1 (authorization) and all label/claim mechanics directly. |
+| `/claude-tweaks:wrap-up` | Step 8.6's Auto-merge short-circuit (`skills/wrap-up/review-console.md`) calls `merge-check` directly as the content-judgment layer of its own two-layer gate — the single-record version of `/claude-tweaks:dispatch`'s group-scoped Auto-merge gate, run whether or not `/claude-tweaks:dispatch` was involved. Wrap-up owns the authorization layer (re-fetching the live `auto:merge` label) and the merge/push itself; a `needs-human` verdict, or either layer failing, falls through to rendering the console normally. |
 | `bin/lib/issues/blast-radius.js` | Pure module supplying `merge-check`'s one genuinely mechanical input — test-exclusion-aware diff sizing. This skill never computes blast radius itself. |
 | `bin/lib/issues/record.js` | `parseRecordFacets`'s `risk`/`effort` fields supply `grant-check`'s and `ceremony-check`'s current-label input (the standalone `tier.js` extractor this used to read was retired as redundant with `parseRecordFacets`). `recommendGrants`/`recommendTier` are also retired — this skill replaces them as backlog refine's recommendation signal. |
 | `bin/lib/issues/retry.js` | `countFailedAttempts` supplies `failure-check`'s retry-history input. |
