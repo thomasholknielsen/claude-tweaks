@@ -1,7 +1,7 @@
 ---
 name: claude-tweaks:visualize
-description: Use when you want a themed, project-local visual diagram — architecture, flowchart, sequence, state, ER, timeline, swimlane, quadrant, nested, tree, org chart, layer stack, venn, or pyramid — generated as self-contained HTML+SVG and styled from the project's own DESIGN.md tokens. Works standalone or as a soft-hook suggestion from /journeys, /specify, and /review.
-argument-hint: "<architecture|flowchart|sequence|state|er|timeline|swimlane|quadrant|nested|tree|org-chart|layers|venn|pyramid> <topic> [--source <caller>] [--ephemeral]"
+description: Use when you want a themed, project-local visual diagram — architecture, flowchart, sequence, state, ER, timeline, swimlane, quadrant, nested, tree, org chart, layer stack, venn, pyramid, or a live diagram of this project's own open work-record queue — generated as self-contained HTML+SVG and styled from the project's own DESIGN.md tokens. Works standalone or as a soft-hook suggestion from /journeys, /specify, and /review.
+argument-hint: "<architecture|flowchart|sequence|state|er|timeline|swimlane|quadrant|nested|tree|org-chart|layers|venn|pyramid|record-graph> [topic] [--source <caller>] [--ephemeral]"
 ---
 > **Interaction style:** Present single decisions via the `AskUserQuestion` tool (options with one marked Recommended) instead of a plain-text numbered list. For multi-item decisions, render a batch table with recommended actions pre-filled, then capture the apply-all/override decision via one `AskUserQuestion` call. Never make more than one `AskUserQuestion` call per logical decision — resolve each before showing the next. End skills with a `## Next Actions` block rendered via `AskUserQuestion` (context-specific options, one recommended), not a navigation menu.
 
@@ -43,8 +43,9 @@ Generates a self-contained HTML+SVG diagram, themed from the project's own desig
 | `layers` | Abstraction levels (transport → app → ui) |
 | `venn` | Set overlap |
 | `pyramid` | Stacked priority/maturity levels |
+| `record-graph` | This project's own live open work-record queue — stage columns, dependency edges, six-axis badges. No topic. |
 
-`<topic>` is free text describing what to diagram. If `$ARGUMENTS` is empty, ask the user for both.
+`<topic>` is free text describing what to diagram. If `$ARGUMENTS` is empty, ask the user for both — except `record-graph`, which takes no topic at all: `/claude-tweaks:visualize record-graph` alone is a complete invocation, and `$ARGUMENTS` being exactly `record-graph` should never trigger the "ask for both" fallback.
 
 Flags:
 - `--source <caller>` — set by soft-hook callers (`journeys`, `specify`, `review`) to select default placement (Step 3) without prompting.
@@ -65,6 +66,9 @@ Resolve `<type>` from Input. Look up the generation path — **enhanced** when t
 | `architecture`, `flowchart`, `tree`, `layers`, `state`, `org-chart`, `nested` | Enhanced | Container-based directed graph |
 | `quadrant` | Enhanced (tentative — confirm against current D2 docs; fall back to baseline if unsupported) | Grid layout |
 | `timeline`, `swimlane`, `venn`, `pyramid` | Baseline only | No native fit |
+| `record-graph` | Enhanced when `d2` is installed, baseline otherwise (same rule as every other type) | Container-based directed graph (stage-column containers, record nodes, dependency edges) |
+
+For `record-graph`, skip topic resolution entirely and read `record-graph.md` in this skill's directory now — it owns the fetch (Step A), render (Step B), and placement (Step C, which overrides Step 3 below for this type only) for the whole type. Return here only if `record-graph.md` hands control back for a step it doesn't override (there are none as of this writing — Steps 2, 4, and 5's generic instructions are fully superseded by `record-graph.md` for this type).
 
 ### Step 2: Token extraction and theming (both paths)
 
@@ -79,6 +83,7 @@ Read `skills/_shared/visual-html-output.md` Steps 1-2. Extract tokens from `DESI
 | `review` | Ephemeral by default; ask before persisting near `docs/architecture.md` |
 | *(none — direct invocation)*, `--ephemeral` not passed | Run `visual-html-output.md` Step 6's `AskUserQuestion`; "Save as a project doc" resolves to `docs/diagrams/{slug}.html` |
 | *(none — direct invocation)*, `--ephemeral` passed | Skip the `AskUserQuestion` — go straight to `visual-html-output.md` Step 6's "Just show me now" behavior (scratch-path-only, no `docs/` placement, no Step 6 registry update, no MDX-embed snippet) |
+| `record-graph` (any invocation) | Overridden entirely by `record-graph.md` Step C — always `docs/diagrams/record-graph.html` (+ `.d2` source), no `AskUserQuestion`, always persisted and overwritten. |
 
 Branch per the routing shape above: enhanced → read `d2-enhanced-path.md` in this skill's directory (it now has a resolved destination path to write to) → Step 5. Baseline → Step 4 → Step 5.
 
@@ -129,6 +134,7 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | Re-asking the DESIGN.md fallback question every invocation | Annoys a user who's already decided not to use Impeccable. Dedupe per session (`visual-html-output.md` Step 2). |
 | Forcing a baseline-only type through the D2 enhanced path | Timeline/swimlane/venn/pyramid have no graph-shaped representation — this fights the tool the same way theming fights Mermaid/D2's own engines. |
 | Writing every diagram to a single central `docs/diagrams/` folder regardless of caller | Co-locate with what the diagram illustrates (Step 3) — `docs/diagrams/` is the fallback for context-free invocations only. |
+| Model hand-authoring `record-graph`'s D2/SVG source from the fetched JSON | Defeats the type's whole purpose — it exists specifically to avoid LLM transcription of structured queue data (wrong issue numbers, dropped labels). Always route through `bin/record-graph.js render`. |
 
 ## Relationship to Other Skills
 
@@ -142,3 +148,4 @@ Direct invocation may pass `--source <parent-skill>` as an explicit fallback whe
 | `/claude-tweaks:help` | /help references /visualize in the workflow diagram and reference card. |
 | `/claude-tweaks:docs-health` | Step 5's suggested `files:` frontmatter line (naming a diagram's depicted source dependencies) gives docs-health's freshness-dependency check (`_shared/criteria-docs-diataxis.md` Dimension 2) something to track once the user applies it to the embedding doc's frontmatter. |
 | `skills/_shared/visual-html-output.md` | Shared core this skill consumes for token extraction, wrapper adapters, MDX/Nextra compatibility, the persist-vs-ephemeral decision, and delivery (Step 7's `file://` link + `SendUserFile` handoff). |
+| `skills/_shared/record-queue-fetch.md` | `record-graph.md` Step A reuses this shared fetch-and-facet-parse procedure verbatim (with `body` added to `{EXTRA_FIELDS}`) — the same procedure `/help`, `/tidy`, and `/backlog` already consume. |
