@@ -1,6 +1,10 @@
 # Health Filing Gate — Canonical Ask-Before-File Rule
 
-`code-health`, `harness-health`, `journey-health`, and `docs-health` each end their SELECT → JUDGE → VALIDATE/DEDUP → FILE pipeline with an interactive decision over which surviving findings actually become GitHub issues. This file is the one place that decision's *applicability*, *scope*, and *placement* are defined — consumers still write out their own batch-table columns and `AskUserQuestion` option blocks in full inline (a skill file must be self-contained for whichever session reads it), matching the canonical menu shape below.
+`code-health`, `harness-health`, `journey-health`, and `docs-health` each end their SELECT → JUDGE → VALIDATE/DEDUP → FILE pipeline with an interactive decision over which surviving findings actually become GitHub issues. This file is the one place that decision's *applicability*, *scope*, *placement*, *menu shape*, and *per-consumer batch table* are defined.
+
+**Consumers no longer inline this gate.** Each one's FILE step carries a short pointer here, conditioned on interactive mode. The reason is Applicability below: a headless Routine firing skips this gate outright, and scheduled firings are how these skills primarily run — so an inlined copy was a block every scheduled firing loaded and never executed. Reading this file is therefore the interactive path's cost, not every path's.
+
+What a consumer still keeps inline is only what its **headless** path also needs: the one-line conditioning sentence that scopes its Type-expression branch (see Placement), and any hold-back rule that applies when filing automatically. Everything below is the interactive path's, and belongs here.
 
 ## Applicability
 
@@ -31,6 +35,29 @@ Every consumer renders its own batch table (columns matching its own Finding Sha
 
 If "Override specific items" is chosen, the follow-up is ordinary free-text chat in the next message, per CLAUDE.md's Multi-item decisions convention — not the tool's `Other` field (a single answer to the batch question above, not a per-item list). The user names findings by number and states each one's disposition — `File issue` (file as a GitHub `by:{skill}` issue), `Capture` (via `/claude-tweaks:capture` for later triage), `/claude-tweaks:specify directly` (promote straight to a spec, skipping the issue), or `Dismiss` (run `mark <id> declined` so it doesn't reappear) — e.g. "file 2, capture 5, dismiss 7." Apply the stated disposition to those specific findings; every finding not named keeps its Recommended-column value from the batch table.
 
-Each consumer's own Recommended-column pre-fill rule uses whatever fields its own Finding Shape already computes. `code-health` keeps its existing `--min-risk`-driven severity×confidence rule (with a third fallback tier held in its `remembered` cache). `docs-health`, `harness-health`, and `journey-health` all use the same rule instead of inventing separate ones: pre-fill `"File issue"` when `confidence` is `high` or `med`, `"Capture"` when `confidence` is `low`.
+## Per-consumer batch table and pre-fill rule
+
+Each consumer renders the columns its own Finding Shape computes. Render the header row plus one row per surviving finding, with the last column pre-filled per the rule beside it:
+
+| Consumer | Columns | Recommended pre-fill |
+|---|---|---|
+| `code-health` | `\| # \| Title \| Criterion \| Severity \| Confidence \| Stale? \| Recommended \|` | high severity + high confidence → `"File issue"`; `confidence: low` → `"Capture"`; everything else (e.g. medium severity + high confidence) → `"File issue"` — filing is the safe default once a finding clears the confidence bar. **Exception:** a finding flagged `possiblyStale` always pre-fills `"Capture"`, overriding the rule above — its anchor changed after the judge read it, so it needs human re-confirmation against current content rather than being filed sight-unseen. |
+| `harness-health` | `\| # \| Title \| Category \| Classification \| Confidence \| Reversibility \| Recommended \|` | `confidence: high` or `med` → `"File issue"`; `low` → `"Capture"`. |
+| `journey-health` | `\| # \| Journey \| Category \| Section \| Severity \| Confidence \| Recommended \|` | `confidence: high` or `med` → `"File issue"`; `low` → `"Capture"`. |
+| `docs-health` | `\| # \| Title \| Category \| Misleads \| Classification \| Confidence \| Recommended \|` | `confidence: high` or `med` → `"File issue"`; `low` → `"Capture"`. |
+
+A finding filtered out by that consumer's confidence/risk floor (`--min-confidence`, or code-health's `--min-risk`) never reaches this table at all — the `validate-findings` step already diverted it into the `remembered` cache before the FILE step runs.
+
+For "Dismiss," run the consumer's own `mark` command, so the same proposal doesn't reappear on a future firing (`<root>` is whatever root that skill's FILE step already resolved — `.` or `"${ROOT:-$PWD}"`):
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/harness-health.js" mark "<payload.id>" declined --root <root>
+node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" mark "<payload.id>" declined --root <root>
+node "${CLAUDE_PLUGIN_ROOT}/bin/docs-health.js"    mark "<payload.id>" declined --root <root>
+```
+
+`code-health` is the exception: its CLI has no `mark` subcommand and no persistent decline cache, so its "Dismiss" simply drops the finding.
+
+Turning the resolved dispositions into `gh issue create` calls is **not** described here: that is the consumer's own conditioning sentence, which per Placement above must stay inline in its FILE step, immediately before its Type expression branch. Restating it here would put the sentence that scopes "every payload" in a file the headless path never reads.
 
 "Dismiss" always runs the consumer's own `mark <id> declined` CLI command so the same proposal doesn't reappear on a future firing — except `code-health`, whose CLI has no `mark` subcommand; its "Dismiss" description stays `"Drop this finding"` since it has no persistent decline cache to write to.

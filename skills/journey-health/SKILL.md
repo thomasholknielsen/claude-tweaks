@@ -217,23 +217,9 @@ gh issue comment <issue_number> --body "Regressed: this finding reappeared. Run:
 
 `<issue_number>` is that cache entry's `issue` field.
 
-Per `_shared/health-filing-gate.md`'s applicability/scope/placement rule: in interactive mode, before filing this firing's own new findings (not the retry-queue drains or regressed reopens above, which already executed unconditionally), render surviving findings as a markdown batch table:
+**Interactive mode only — the ask-before-file gate.** Before filing this firing's own new findings (not the retry-queue drains or regressed reopens above, which already executed unconditionally), read `_shared/health-filing-gate.md` and follow its two-tier decision, using its per-consumer batch table's `journey-health` row for the table columns and the Recommended pre-fill rule.
 
-```
-| # | Journey | Category | Section | Severity | Confidence | Recommended |
-|---|---------|----------|---------|----------|------------|-------------|
-| 1 | {journey} | {category} | {section} | {severity} | {confidence} | {File issue|Capture} |
-```
-
-Pre-fill the Recommended column: `confidence: high` or `confidence: med` → `"File issue"`; `confidence: low` → `"Capture"`.
-
-Then call `AskUserQuestion` with `question`: `"How do you want to handle these findings?"`, `header`: `"Findings"`, `multiSelect`: `false`, and:
-- Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"File / Capture each finding per the Recommended column above"`
-- Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which #s to change"`
-
-If "Override specific items" was chosen, the follow-up is ordinary free-text chat in the next message, per CLAUDE.md's Multi-item decisions convention — not the tool's `Other` field. The user names findings by number and states each one's disposition — `File issue` (file as a GitHub by:journey-health issue), `Capture` (via `/claude-tweaks:capture` for later triage), `/claude-tweaks:specify directly` (promote straight to a spec, skipping the issue), or `Dismiss` (run `mark` so it doesn't reappear) — e.g. "file 2, capture 5, dismiss 7." Apply the stated disposition to those specific findings; every finding not named keeps its Recommended-column value.
-
-For "dismiss," run `node "${CLAUDE_PLUGIN_ROOT}/bin/journey-health.js" mark "<payload.id>" declined --root "${ROOT:-$PWD}"` so the same proposal doesn't reappear on a future firing.
+**Headless (Routine) runs skip this gate entirely** — do not read that file — per `_shared/health-filing-gate.md`'s applicability rule; every surviving finding files automatically, with no human to route it through a table.
 
 For each survivor disposed as "File issue" (every payload if "Apply all recommended" was chosen and its Recommended value was `"File issue"`; only the individually-overridden ones otherwise), call `gh issue create` per the branch below.
 
