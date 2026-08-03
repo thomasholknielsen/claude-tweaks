@@ -49,16 +49,19 @@ Unless `--area` was provided, call the engine to pick the next slice to judge:
 node "${CLAUDE_PLUGIN_ROOT}/bin/code-health.js" next-slice --root "${ROOT:-$PWD}" ${BUDGET:+--budget "$BUDGET"}
 ```
 
-This is named `next-slice`, not `next-target` like its three sibling health skills (harness-health, journey-health, docs-health) — those rotate over one specific file at a time, while code-health rotates over an area/directory that gets fully swept per firing, a coarser unit worth its own name.
+This is named `next-slice`, not `next-target` like its three sibling health skills (harness-health, journey-health, docs-health) — those rotate over one specific file at a time, while code-health rotates over an area/directory swept as a unit per firing, a coarser unit worth its own name. (A directory over the byte cap is split into smaller directory-shaped slices — see below — but the rotation unit is still a directory, never a single file.)
 
-The command prints `{ id, path, why }` JSON, or `null` if nothing is due. Read the output:
+The command prints `{ id, path, recursive, why }` JSON, or `null` if nothing is due. Read the output:
 - If `null`: all slices were judged recently and their content is unchanged. Report this to the user and stop.
 - If `why: "stale"`: this slice has not been judged in over 30 days regardless of content changes.
 - If `why: "hotspot"`: this slice has the highest churn × complexity score among slices with changed content.
+- `recursive` says how far the slice reaches: `true` means the whole subtree under `path`; **`false` means that directory's own direct files only** — its subdirectories are separate slices with their own ids and their own cursors. Honor this in Step 3, or a non-recursive slice's sweep re-reads (and re-files findings against) code that belongs to a sibling slice.
+
+**Why a directory can be non-recursive.** `next-slice` caps an emitted slice at **30 KB of source** (`MAX_SLICE_BYTES` in `bin/lib/code-health/scope.js`). A directory over that cap is *split*: it yields a non-recursive slice for its own direct files plus one slice per subdirectory, each re-tested against the cap and split again if needed. Slice ids stay plain repo-relative paths at every depth (`bin`, `bin/lib`, `bin/lib/issues`), so `--area`, `classify`, and cursor keys are unchanged. Splitting never drops a file — a directory too big to split (no subdirectories left) is emitted whole and over the cap, and the read budget in Step 3 is what bounds that residual case.
 
 **Multi-slice runs (`--budget > 1`):** `next-slice` returns a JSON **array** of up to `n` slices instead of a single object when `--budget` is passed. Treat each array entry as its own full sweep: run Steps 2–9 in their entirety for slice 1 (including its own `validate-findings --slice <id> --run-id <id>` call), then repeat the full Steps 2–9 for slice 2, and so on. Never collect findings from multiple slices into one shared `validate-findings` call — each slice needs its own `--slice` value so its cursor persists independently. A run that judges 3 slices makes 3 separate `validate-findings` invocations, not 1.
 
-When `--area <path>` is provided, skip `next-slice` and use that path directly as the slice (manual override).
+When `--area <path>` is provided, skip `next-slice` and use that path directly as the slice (manual override). A manual override always sweeps the **whole subtree** under that path, ignoring the byte cap — it is the deliberate escape hatch for "judge all of this now." Note the bookkeeping consequence when the path names a directory the splitter would have split: `validate-findings --slice <path>` records the cursor hash for that directory's *own-files* slice, so the nested content you just swept is tracked under the child slices' own cursors, not this one. Step 3's read budget still applies.
 
 Verify the resolved path exists:
 
@@ -90,14 +93,19 @@ Stamp a freshness marker before reading anything, so Step 7.5 can later detect w
 touch /tmp/code-health-read-marker
 ```
 
-Read every source file in `${ROOT}/${AREA}`. Use Read and Glob:
+Read the source files in `${ROOT}/${AREA}`. Use Read and Glob:
 
 ```bash
-# List all files in the area
+# List the files in the area. Add -maxdepth 1 when Step 1 reported
+# "recursive": false — subdirectories are then separate slices, not this one's.
 find "${ROOT}/${AREA}" -type f | sort
 ```
 
 Read each file in full. Hold the full content in context — this is the material the judge will apply criteria to.
+
+**Read budget — 60 KB per slice.** `next-slice` already caps most slices at 30 KB (Step 1), but a directory with no subdirectory left to split by is emitted whole and can exceed that. Track bytes as you read, and on reaching **60 KB** stop full-reading and switch to a bounded read for the remaining files: their imports/exports and top-level declaration signatures (`grep -n '^\(export\|module\.exports\|function\|class\|const .* = \(async \)\?(\)' <file>`), full-reading further only where a bounded read shows something a criterion plausibly bites on.
+
+Never silently skip a file. Every file not read in full must be listed in the Step 10 report as **deferred**, with its size — the next sweep of this slice picks them up, and a human reading the findings can see what the judge did not look at. A slice whose files were quietly dropped produces findings that falsely imply whole-slice coverage.
 
 **Step 4 — CLASSIFY: detect area type + select criteria.**
 
@@ -287,25 +295,9 @@ gh issue comment <issue_number> --body "Regressed: this finding reappeared. Run:
 
 `<issue_number>` is that cache entry's `issue` field.
 
-Per `_shared/health-filing-gate.md`'s applicability/scope/placement rule: in interactive mode, before filing this firing's own new findings (not the retry-queue drains or reopen decisions above, which already executed unconditionally), route survivors through a two-tier decision:
+**Interactive mode only — the ask-before-file gate.** Before filing this firing's own new findings (not the retry-queue drains or reopen decisions above, which already executed unconditionally), read `_shared/health-filing-gate.md` and follow its two-tier decision, using its per-consumer batch table's `code-health` row for the table columns and the Recommended pre-fill rule (including the `possiblyStale` → `"Capture"` override).
 
-1. Render all findings as a markdown batch table:
-
-   ```
-   | # | Title | Criterion | Severity | Confidence | Stale? | Recommended |
-   |---|-------|-----------|----------|------------|--------|-------------|
-   | 1 | {title} | {criterion} | {severity} | {confidence} | {Yes — anchor changed since read|—} | {File issue|Capture} |
-   ```
-
-   Pre-fill the Recommended column: high severity + high confidence → `"File issue"`; low confidence → `"Capture"`; everything else (e.g. medium severity + high confidence) → `"File issue"` — file issue is the safe default whenever a finding clears the confidence bar. (Below-`--min-risk` findings never reach this table at all: Step 8's `validate-findings` already diverts them into the `remembered` cache before Step 9 runs.) **Exception:** a finding flagged `possiblyStale` at Step 7.5 always pre-fills `"Capture"`, overriding the severity/confidence rule above — its anchor changed after the judge read it, so it needs a human to re-confirm it against current content before it becomes a filed issue, not a fresh issue filed sight-unseen.
-
-2. Call `AskUserQuestion` with `question`: `"How do you want to handle these findings?"`, `header`: `"Findings"`, `multiSelect`: `false`, and:
-   - Option 1 — `label`: `"Apply all recommended (Recommended)"`, `description`: `"File / Capture each finding per the Recommended column above"`
-   - Option 2 — `label`: `"Override specific items"`, `description`: `"Tell me which #s to change"`
-
-3. If "Override specific items" was chosen, the follow-up is ordinary free-text chat in the next message, per CLAUDE.md's Multi-item decisions convention — not the tool's `Other` field. The user names findings by number and states each one's disposition — `File issue` (file as a GitHub code-health issue), `Capture` (via `/claude-tweaks:capture` for later triage), `/claude-tweaks:specify directly` (promote straight to a spec, skipping the issue), or `Dismiss` (drop this finding) — e.g. "file 2, capture 5, dismiss 7." Apply the stated disposition to those specific findings; every finding not named keeps its Recommended-column value.
-
-**Headless (Routine) runs skip this gate entirely**, per `_shared/health-filing-gate.md`'s applicability rule — every surviving finding files automatically, with no human to route it through the table above. The one exception is a finding still flagged `possiblyStale` after Step 7.5: hold it back rather than filing it blind. Drop it from the filing set (log the drop reason) instead of calling `gh issue create` for it — the slice's next scheduled sweep will re-judge the same content and, if the finding still holds against then-current evidence, file it then.
+**Headless (Routine) runs skip this gate entirely** — do not read that file — per `_shared/health-filing-gate.md`'s applicability rule; every surviving finding files automatically, with no human to route it through a table. The one exception is a finding still flagged `possiblyStale` after Step 7.5: hold it back rather than filing it blind. Drop it from the filing set (log the drop reason) instead of calling `gh issue create` for it — the slice's next scheduled sweep will re-judge the same content and, if the finding still holds against then-current evidence, file it then.
 
 For each survivor disposed as "File issue" (every payload if "Apply all recommended" was chosen and its Recommended value was `"File issue"`; only the individually-overridden ones otherwise), call `gh issue create`. The engine is emit-only; filing is always done by the skill.
 
@@ -352,6 +344,8 @@ run is truly a no-op for all persistence.
 **Step 10 — SUMMARIZE.**
 
 Report: how many findings were emitted, how many survived dedup, how many issues were filed / skipped / remembered. List any new issue URLs.
+
+Also report the slice's read coverage, so the summary can never imply more coverage than the sweep had: the slice id, whether it was read recursively or own-files-only (Step 1's `recursive`), bytes read, and — if Step 3's read budget was reached — every **deferred** file with its size, under a `Deferred (read budget)` heading. When nothing was deferred, say so in one line rather than omitting the section; an absent section is indistinguishable from a forgotten one.
 
 ## Routine Configuration
 
@@ -436,6 +430,8 @@ Call `AskUserQuestion` with `question`: `"What's next?"`, `header`: `"Next step"
 | Filing `gh issue create` directly off a `--dry-run` payload without a matching non-`--dry-run` `validate-findings` call | Breaks rotation state silently — cursors and the run-log never persist, so `next-slice` re-selects the same slice next time. Always follow a `--dry-run` preview with the real call before filing. |
 | Splitting one recurring root cause into N near-duplicate issues instead of bundling | Floods the tracker with issues that are really one fix applied at N call sites. Use `relatedAnchors` to cover every occurrence in a single finding instead. |
 | Filing before presenting the interactive gate | The two-tier decision must run before any `gh issue create` call for new findings — see `_shared/health-filing-gate.md`'s placement rule. |
+| Reading a `"recursive": false` slice's subdirectories | Those subdirectories are separate slices with their own ids and cursors. Sweeping them here re-reads another slice's code, blows the read budget, and files findings under the wrong slice id. Add `-maxdepth 1`. |
+| Dropping files on reaching Step 3's read budget without listing them | Produces findings that imply whole-slice coverage the sweep never had. Over-budget files are read bounded and reported as **deferred** in Step 10 — never silently skipped. |
 
 ## Relationship to Other Skills
 

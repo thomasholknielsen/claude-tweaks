@@ -23,6 +23,22 @@ test('sliceRecursive is false only for the "." slice id', () => {
   assert.strictEqual(sliceRecursive('packages/a'), true);
 });
 
+// Bytes of filler that reliably pushes a directory past MAX_SLICE_BYTES (30 KB).
+const BIG = 'x'.repeat(40 * 1024);
+
+test('sliceRecursive(id, root) reports false for a split directory\'s own-files slice', () => {
+  const root = tmp();
+  // 'big' exceeds the cap only via its subdirectory, so 'big' splits into a
+  // non-recursive own-files slice plus a recursive 'big/deep'.
+  fs.mkdirSync(path.join(root, 'big', 'deep'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'big', 'own.js'), `// ${BIG}\n`);
+  fs.writeFileSync(path.join(root, 'big', 'deep', 'd.js'), `// ${BIG}\n`);
+  assert.strictEqual(sliceRecursive('big', root), false, 'a split directory\'s own-files slice is non-recursive');
+  assert.strictEqual(sliceRecursive('big/deep', root), true, 'an under-cap child stays recursive');
+  // Without root, the pre-split heuristic still answers for a manual --area path.
+  assert.strictEqual(sliceRecursive('big'), true);
+});
+
 // ─── listSlices ────────────────────────────────────────────────────────────
 
 test('listSlices returns "." for a flat dir with no subdirs', () => {
@@ -246,9 +262,30 @@ test('selectSlice reuses a caller-supplied fileDataCache across repeated calls f
   // The cache must now hold this slice's file data — contentHash(path, cache)
   // must return the exact same hash without needing the file on disk anymore.
   fs.rmSync(path.join(root, 'a.js'));
-  const hashViaCache = contentHash(result.path, cache);
+  // Ask for the same recursive-ness the slice was read under ('.' is
+  // non-recursive) — the cache is keyed on (path, recursive), so a bare
+  // contentHash(path, cache) is a deliberate miss, not a hit on this entry.
+  const hashViaCache = contentHash(result.path, cache, { recursive: result.recursive });
   const expectedHash = contentHash(root); // fresh dir is now empty — different value; used only to confirm cache !== a fresh read
   assert.notStrictEqual(hashViaCache, expectedHash, 'the cached hash must reflect the pre-deletion content, not a fresh (now-empty) read');
+});
+
+test('fileDataCache does not serve a non-recursive read to a recursive caller for the same directory', () => {
+  const root = tmp();
+  fs.writeFileSync(path.join(root, 'a.js'), 'const x = 1;\n');
+  fs.mkdirSync(path.join(root, 'nested'));
+  fs.writeFileSync(path.join(root, 'nested', 'b.js'), 'const y = 2;\n');
+  const cache = new Map();
+  // Populate the cache with the NON-recursive read of root first...
+  const nonRecursive = contentHash(root, cache, { recursive: false });
+  // ...then ask for the recursive read of the very same directory.
+  const recursive = contentHash(root, cache, { recursive: true });
+  assert.notStrictEqual(
+    recursive,
+    nonRecursive,
+    'a recursive read must see nested/b.js — a path-only cache key would hand back the non-recursive file list instead',
+  );
+  assert.strictEqual(recursive, contentHash(root, null, { recursive: true }), 'cached recursive read must equal an uncached one');
 });
 
 test('contentHash returns a stable hash for a dir with no source files', () => {
@@ -505,6 +542,77 @@ test('listSlices returns slices sorted by id, not raw readdir order', () => {
   assert.deepStrictEqual(ids, ['.', 'alpha', 'beta', 'mu', 'zeta']);
 });
 
+// ─── listSlices byte cap (splitOversized) ──────────────────────────────────
+
+test('listSlices leaves an under-cap directory as one recursive slice', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'small', 'nested'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'small', 'a.js'), 'const x = 1;\n');
+  fs.writeFileSync(path.join(root, 'small', 'nested', 'b.js'), 'const y = 2;\n');
+  const slices = listSlices(root);
+  assert.deepStrictEqual(slices.map((s) => s.id), ['small'], 'an under-cap dir must not be split');
+  assert.strictEqual(slices[0].recursive, true);
+});
+
+test('listSlices splits an over-cap directory into own-files + per-subdirectory slices', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'big', 'one'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'big', 'two'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'big', 'own.js'), `// ${BIG}\n`);
+  fs.writeFileSync(path.join(root, 'big', 'one', 'a.js'), `// ${BIG}\n`);
+  fs.writeFileSync(path.join(root, 'big', 'two', 'b.js'), 'const y = 2;\n');
+  const slices = listSlices(root);
+  assert.deepStrictEqual(slices.map((s) => s.id), ['big', 'big/one', 'big/two']);
+  const byId = Object.fromEntries(slices.map((s) => [s.id, s]));
+  assert.strictEqual(byId['big'].recursive, false, 'the parent covers only its OWN direct files once split');
+  assert.strictEqual(byId['big/one'].recursive, true);
+  assert.strictEqual(byId['big/two'].recursive, true);
+});
+
+test('listSlices splitting loses no source file — every file lands in exactly one slice', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'big', 'one', 'deeper'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'big', 'two'), { recursive: true });
+  const written = [
+    path.join(root, 'big', 'own.js'),
+    path.join(root, 'big', 'one', 'a.js'),
+    path.join(root, 'big', 'one', 'deeper', 'c.js'),
+    path.join(root, 'big', 'two', 'b.js'),
+  ];
+  for (const f of written) fs.writeFileSync(f, `// ${BIG}\n`);
+
+  // Reconstruct the covered set from the emitted slices, honoring each
+  // slice's own recursive flag — the same way every consumer reads them.
+  const covered = [];
+  for (const slice of listSlices(root)) {
+    const args = ['find', slice.path, '-type', 'f', '-name', '*.js'];
+    if (!slice.recursive) args.splice(2, 0, '-maxdepth', '1');
+    const out = execFileSync(args[0], args.slice(1), { encoding: 'utf8' });
+    covered.push(...out.split('\n').filter(Boolean));
+  }
+  assert.deepStrictEqual([...covered].sort(), [...written].sort(), 'split must cover every file exactly once — no drops, no double-counting');
+});
+
+test('listSlices emits an over-cap directory whole when it has no subdirectory to split by', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'flat'));
+  fs.writeFileSync(path.join(root, 'flat', 'a.js'), `// ${BIG}\n`);
+  const slices = listSlices(root);
+  // Splitting is impossible here; truncating would make the judge blind to
+  // files it is told it read, so the oversized slice is emitted intact.
+  assert.deepStrictEqual(slices.map((s) => s.id), ['flat']);
+  assert.strictEqual(slices[0].recursive, true);
+});
+
+test('listSlices splits recursively — an over-cap child is itself split', () => {
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'big', 'mid', 'leaf'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'big', 'mid', 'own.js'), `// ${BIG}\n`);
+  fs.writeFileSync(path.join(root, 'big', 'mid', 'leaf', 'x.js'), `// ${BIG}\n`);
+  const ids = listSlices(root).map((s) => s.id);
+  assert.deepStrictEqual(ids, ['big/mid', 'big/mid/leaf'], 'the split must descend past the first level');
+});
+
 // ─── gitChurn ──────────────────────────────────────────────────────────────
 
 test('gitChurn counts a commit within the 30-day window', () => {
@@ -551,6 +659,53 @@ test(
     }
   },
 );
+
+test('gitChurn with { recursive: false } scopes to the named directory, not to the repo root', () => {
+  // splitOversized emits a non-recursive slice for any oversized directory's
+  // own files, so recursive:false now reaches gitChurn with a non-"." relDir.
+  // The pre-split implementation hardcoded the ROOT's direct files in this
+  // branch, which would report root-level churn under 'pkg''s id (and zero
+  // churn for pkg's own files).
+  const root = tmp();
+  fs.mkdirSync(path.join(root, 'pkg', 'nested'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'rootlevel.js'), 'const r = 0;\n');
+  fs.writeFileSync(path.join(root, 'pkg', 'own.js'), 'const x = 1;\n');
+  fs.writeFileSync(path.join(root, 'pkg', 'nested', 'deep.js'), 'const y = 2;\n');
+  initGitRepo(root);
+  execFileSync('git', ['-C', root, 'add', '.']);
+  execFileSync('git', ['-C', root, 'commit', '-q', '-m', 'init']);
+
+  // A commit touching ONLY pkg/own.js must count for pkg's non-recursive churn.
+  fs.writeFileSync(path.join(root, 'pkg', 'own.js'), 'const x = 2;\n');
+  execFileSync('git', ['-C', root, 'add', '.']);
+  execFileSync('git', ['-C', root, 'commit', '-q', '-m', 'touch pkg/own.js']);
+  assert.ok(
+    gitChurn(root, 'pkg', Date.now(), { recursive: false }) >= 1,
+    "a commit to pkg's own direct file must count toward pkg's non-recursive churn",
+  );
+
+  // A commit touching ONLY pkg/nested must NOT count — that is a different slice.
+  const before = gitChurn(root, 'pkg', Date.now(), { recursive: false });
+  fs.writeFileSync(path.join(root, 'pkg', 'nested', 'deep.js'), 'const y = 3;\n');
+  execFileSync('git', ['-C', root, 'add', '.']);
+  execFileSync('git', ['-C', root, 'commit', '-q', '-m', 'touch pkg/nested only']);
+  assert.strictEqual(
+    gitChurn(root, 'pkg', Date.now(), { recursive: false }),
+    before,
+    "a commit touching only pkg/nested belongs to the pkg/nested slice, not to pkg's own-files slice",
+  );
+
+  // A commit touching ONLY a root-level file must NOT count toward pkg.
+  const beforeRoot = gitChurn(root, 'pkg', Date.now(), { recursive: false });
+  fs.writeFileSync(path.join(root, 'rootlevel.js'), 'const r = 1;\n');
+  execFileSync('git', ['-C', root, 'add', '.']);
+  execFileSync('git', ['-C', root, 'commit', '-q', '-m', 'touch rootlevel.js only']);
+  assert.strictEqual(
+    gitChurn(root, 'pkg', Date.now(), { recursive: false }),
+    beforeRoot,
+    "root-level churn must not be reported under pkg's id",
+  );
+});
 
 test('gitChurn with { recursive: false } does not count a commit that only touches a nested file', () => {
   const root = tmp();

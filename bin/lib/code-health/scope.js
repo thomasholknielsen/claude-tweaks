@@ -12,15 +12,31 @@ const SKIP_DIRS = new Set([
 ]);
 const SOURCE_EXTS = new Set(['.js', '.ts', '.tsx', '.jsx', '.mjs', '.cjs']);
 
+// Byte ceiling for one emitted slice. A slice is the unit the code-health judge
+// is told to read in full and hold in context (skills/code-health/SKILL.md
+// Step 3), so an unbounded slice is an unbounded context read: before this cap
+// existed, listSlices went exactly one level deep and this repo's own `bin`
+// slice measured 1,181,325 B across 208 files. A directory over the cap is
+// SPLIT into its subdirectories (never truncated — dropping files would make
+// the judge silently blind to them). See splitOversized.
+const MAX_SLICE_BYTES = 30 * 1024;
+
 // ─── listSlices ──────────────────────────────────────────────────────────────
-// Returns [{ id, path }] for . (root), each immediate non-SKIP subdir NOT covered
-// by a workspace manifest, plus every workspace-expanded package slice. A
-// top-level dir covered by a workspace pattern (e.g. "packages" when
+// Returns [{ id, path, recursive }] for . (root), each immediate non-SKIP subdir
+// NOT covered by a workspace manifest, plus every workspace-expanded package
+// slice. A top-level dir covered by a workspace pattern (e.g. "packages" when
 // "packages/*" is declared) is replaced by its expanded children rather than
-// also appearing as its own mega-slice. Repos with no workspace manifest keep
-// today's exact one-level-deep behavior.
+// also appearing as its own mega-slice.
+//
+// Any candidate whose recursive source-byte total exceeds MAX_SLICE_BYTES is
+// then replaced by the finer-grained slices splitOversized derives from it, so
+// no emitted slice is an unbounded whole-subtree read. Slice ids stay plain
+// repo-relative paths at every depth (`bin`, `bin/lib`, `bin/lib/issues`), so
+// cursor keys, `--area`, and `classify` keep exactly today's semantics.
 function listSlices(root) {
-  const slices = sourceFiles(root, { recursive: false }).length ? [{ id: '.', path: root }] : [];
+  const slices = sourceFiles(root, { recursive: false }).length
+    ? [{ id: '.', path: root, recursive: false }]
+    : [];
   // Read the workspace manifest exactly once and hand the parsed patterns to
   // both consumers below — listWorkspaceSlices and fullyCoveredTopLevelDirs
   // each independently called readWorkspacePatterns(root) before, doubling
@@ -28,15 +44,17 @@ function listSlices(root) {
   const patterns = readWorkspacePatterns(root);
   const workspaceSlices = listWorkspaceSlices(root, patterns);
   const coveredTopLevel = fullyCoveredTopLevelDirs(root, patterns);
+  const candidates = [];
   let entries;
   try { entries = fs.readdirSync(root, { withFileTypes: true }); } catch { return slices; }
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     if (SKIP_DIRS.has(entry.name)) continue;
     if (coveredTopLevel.has(entry.name)) continue;
-    slices.push({ id: entry.name, path: path.join(root, entry.name) });
+    candidates.push({ id: entry.name, path: path.join(root, entry.name) });
   }
-  slices.push(...workspaceSlices);
+  candidates.push(...workspaceSlices);
+  for (const candidate of candidates) splitOversized(candidate.id, candidate.path, slices);
   // fs.readdirSync order is not guaranteed by Node's API, so without an
   // explicit sort, selectByStaleThenChurn's Phase 1 (first-qualifying-wins)
   // could force-pick a different slice across environments/checkouts for
@@ -45,6 +63,82 @@ function listSlices(root) {
   // sort their candidate lists for the same reason.
   slices.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   return slices;
+}
+
+// ─── splitOversized ──────────────────────────────────────────────────────────
+// Appends to `out` the slices that cover absDir, keeping each under
+// MAX_SLICE_BYTES where the directory tree allows it:
+//
+//   - under the cap  → one recursive slice for the whole subtree (today's shape)
+//   - over the cap   → a NON-recursive slice for the directory's own direct
+//                      files (when it has any), plus a recursive descent into
+//                      each immediate subdirectory, each re-tested against the
+//                      cap
+//   - over the cap with no subdirectory to descend into → emitted whole, over
+//     the cap, because the alternative is dropping files. An oversized slice
+//     splits; it never truncates. SKILL.md Step 3's read budget is what bounds
+//     this residual case at read time.
+//
+// One `find` per candidate: the whole subtree's file list is fetched once and
+// every nested total is derived from that in-memory list, rather than
+// re-spawning `find` per directory visited.
+function splitOversized(id, absDir, out) {
+  const files = sourceFiles(absDir, { recursive: true });
+  // A candidate with no source files at all still emits exactly one slice, as
+  // it did before splitting existed — a directory that is empty today but
+  // gains source files later must keep its place in the rotation rather than
+  // silently vanishing from the candidate list.
+  if (files.length === 0) {
+    out.push({ id, path: absDir, recursive: true });
+    return;
+  }
+
+  // relative-dir -> { own: bytes of direct files, total: bytes of whole subtree,
+  //                   ownCount, kids: Set<childDirName> }
+  const nodes = new Map();
+  const nodeFor = (rel) => {
+    if (!nodes.has(rel)) nodes.set(rel, { own: 0, ownCount: 0, total: 0, kids: new Set() });
+    return nodes.get(rel);
+  };
+  nodeFor('');
+  for (const file of files) {
+    let size = 0;
+    try { size = fs.statSync(file).size; } catch { size = 0; }
+    const relDir = path.relative(absDir, path.dirname(file));
+    const node = nodeFor(relDir);
+    node.own += size;
+    node.ownCount += 1;
+    // Walk up, registering this dir with each ancestor and accumulating totals.
+    let cur = relDir;
+    for (;;) {
+      nodeFor(cur).total += size;
+      if (cur === '') break;
+      const parent = path.dirname(cur) === '.' ? '' : path.dirname(cur);
+      nodeFor(parent).kids.add(path.basename(cur));
+      cur = parent;
+    }
+  }
+
+  const walk = (rel, sliceId) => {
+    const node = nodes.get(rel);
+    if (!node || node.total === 0) return;
+    const abs = rel === '' ? absDir : path.join(absDir, rel);
+    if (node.total <= MAX_SLICE_BYTES) {
+      out.push({ id: sliceId, path: abs, recursive: true });
+      return;
+    }
+    const kids = [...node.kids].sort();
+    if (kids.length === 0) {
+      // Nothing left to split by — emit whole rather than drop files.
+      out.push({ id: sliceId, path: abs, recursive: true });
+      return;
+    }
+    if (node.ownCount > 0) out.push({ id: sliceId, path: abs, recursive: false });
+    for (const kid of kids) {
+      walk(rel === '' ? kid : `${rel}/${kid}`, `${sliceId}/${kid}`);
+    }
+  };
+  walk('', id);
 }
 
 // ─── contentHash ─────────────────────────────────────────────────────────────
@@ -105,9 +199,16 @@ function readSourceFileData(absDir, opts) {
 // single-pick call, which falls straight through to the uncached read.
 function readSourceFileDataCached(absDir, cache, opts) {
   if (!cache) return readSourceFileData(absDir, opts);
-  if (cache.has(absDir)) return cache.get(absDir);
+  // Key on the recursive flag as well as the path. One directory can be read
+  // both ways within a single invocation (splitOversized emits an oversized
+  // directory as a non-recursive own-files slice while its children are
+  // separate recursive slices), and a path-only key would hand the second
+  // caller the first caller's file list — silently hashing/scoring the wrong
+  // file set instead of failing.
+  const key = `${absDir}\0${(opts && opts.recursive) !== false}`;
+  if (cache.has(key)) return cache.get(key);
   const data = readSourceFileData(absDir, opts);
-  cache.set(absDir, data);
+  cache.set(key, data);
   return data;
 }
 
@@ -152,18 +253,21 @@ function gitChurn(root, relDir, now, { recursive = true } = {}) {
     // docs-health/scope.js.
     const since = new Date(now - 30 * 86400000).toISOString();
     let pathArgs;
-    // recursive:false is only ever passed for the '.' slice (see sliceRecursive) —
-    // this branch always scopes to root-level files regardless of relDir, so passing
-    // recursive:false with a non-'.' relDir would silently mislabel root-level churn
-    // under the wrong id.
     if (recursive) {
       pathArgs = [relDir === '.' ? '.' : relDir];
     } else {
-      // Non-recursive '.': `git log -- .` always means the whole tree
-      // regardless of depth, so instead pass each direct root-level source
-      // file as its own pathspec, scoping churn to exactly what the
-      // non-recursive content-hash also covers.
-      const files = sourceFiles(root, { recursive: false }).map((f) => path.relative(root, f));
+      // Non-recursive slice: `git log -- <dir>` always means that dir's whole
+      // subtree regardless of depth, so instead pass each of the directory's
+      // DIRECT source files as its own pathspec, scoping churn to exactly what
+      // the non-recursive content-hash also covers.
+      //
+      // Resolve from relDir, not from root: '.' used to be the only
+      // non-recursive slice, so hardcoding root was safe. splitOversized now
+      // emits a non-recursive slice for any oversized directory's own files
+      // (e.g. 'bin/lib'), and scoping those to root-level files would report
+      // the root's churn under that directory's id.
+      const absDir = relDir === '.' ? root : path.resolve(root, relDir);
+      const files = sourceFiles(absDir, { recursive: false }).map((f) => path.relative(root, f));
       if (files.length === 0) return 0;
       pathArgs = files;
     }
@@ -179,12 +283,21 @@ function gitChurn(root, relDir, now, { recursive = true } = {}) {
 }
 
 // Single source of truth for "is this slice's file/churn scan recursive?" —
-// used by selectSlice's computeScore below AND by bin/code-health.js's own
-// contentHash call sites (cmdNextSlice's budget>1 in-memory cursor-patch
-// hash, cmdValidateFindings' durable-persist hash), so all three agree on
-// exactly the same predicate instead of each re-deriving `id !== '.'` (and
-// risking drift between them).
-function sliceRecursive(id) {
+// used by bin/code-health.js's cmdValidateFindings, which is handed only a
+// `--slice <id>` string and so cannot read the flag off a slice object the way
+// selectSlice's computeScore and cmdNextSlice's buildCursorPatch both do.
+//
+// Recursiveness stopped being derivable from the id alone once splitOversized
+// began emitting a non-recursive own-files slice for any oversized directory:
+// 'bin/lib' is non-recursive when bin/lib was split, recursive when it wasn't.
+// Pass `root` to get the real answer; without it this falls back to the
+// pre-split heuristic (only '.' is non-recursive), which is still correct for
+// a manual `--area` path that listSlices never emitted.
+function sliceRecursive(id, root) {
+  if (root) {
+    const match = listSlices(root).find((slice) => slice.id === id);
+    if (match) return match.recursive;
+  }
   return id !== '.';
 }
 
@@ -330,7 +443,9 @@ function selectSlice(root, cursors, opts = {}) {
     // LOC count from that single pass, instead of independently
     // re-spawning `find` and re-reading every file for each.
     computeScore: (slice, cursor) => {
-      const recursive = sliceRecursive(slice.id);
+      // listSlices already resolved this per slice — reading it back off the
+      // slice avoids re-deriving (and re-listing the whole repo) per candidate.
+      const recursive = slice.recursive;
       const fileData = readSourceFileDataCached(slice.path, fileDataCache, { recursive });
       const currentHash = hashFromFileData(slice.path, fileData);
       if (cursor.lastHash && cursor.lastHash === currentHash) return null;

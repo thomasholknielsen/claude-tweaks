@@ -1,6 +1,6 @@
 # Changelog
 
-## v6.29.0 — merge-check judges behavior delta, not diff size or file path (closes #78)
+## v6.31.0 — merge-check judges behavior delta, not diff size or file path (closes #78)
 
 `merge-check`'s instruction-file floor named `skills/**` and `agents/**` — this
 repository's own layout. In any project where the plugin is the harness it never
@@ -31,6 +31,37 @@ Anti-Patterns row — which said "new-or-changed … regardless of how clean or 
 and silently overrode Step 2's own "substantially editing" qualifier — is replaced.
 Calibration cases now live in the skill rather than in a design doc, since the
 previous anchor was a design doc and it was pruned.
+
+## v6.30.0 — Mode-conditional and headless-path content stops loading unconditionally (closes #89, #82; refs #93)
+
+Three independent passes at the same defect: procedure that only one branch of a
+run will ever execute, loaded on every run.
+
+`/claude-tweaks:routine`, `/specify`, `/tidy` and `/dispatch` inlined
+mutually-exclusive mode bodies. Each now resolves its mode first and reads only
+that branch, across 11 new sub-files. Every step number and section heading stays
+in place as a stub, so the ~15 external references that name them
+(`CREATE Step 4`, `STATUS Step 2`, `SKILL.md`'s Shaping mode, the Action
+Vocabulary) still resolve in one hop. Measured per-mode: `/routine status --all`
+-26.8 KB, `/specify` shaping -26.0 KB, `/dispatch`'s common gh-present path
+-6.7 KB, `/tidy` -0.9 to -7.3 KB depending on mode and backend.
+
+Two deliberate deviations from #89's plan. `/routine`'s CREATE and UPDATE share
+one file rather than the proposed two, because UPDATE reuses five of CREATE's
+nine steps by name and splitting them would make an `update` run read CREATE's
+file anyway. `/dispatch`'s local-files Preflight stop stays inline — it is a
+safety gate and must be seen before any action.
+
+`/code-health`'s `next-slice` went exactly one level deep, so with no workspace
+manifest this repo's `bin` was a single 1,181,325 B slice across 208 files, which
+Step 3 told the judge to read in full. Slices are now capped at 30 KB by bytes,
+splitting recursively; every file still lands in exactly one slice and total bytes
+are conserved (12 -> 35 slices here, worst case down to 210,202 B).
+
+The four health skills each inlined the whole ask-before-file gate, which is
+interactive-only by its own rule — so every scheduled Routine firing, their
+primary path, carried 2.1-2.4 KB it would never execute. Each consumer now
+carries a short interactive-only pointer instead.
 
 ## v6.28.0 — Dispatched agents get their procedure inlined, not a pointer (closes #94, #101, #110)
 

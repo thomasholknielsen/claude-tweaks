@@ -1,6 +1,6 @@
 # Specify — Design Pre-Steps (Step 2.5)
 
-Loaded by `/claude-tweaks:specify` Step 2.5 when the design doc (decomposition mode) or the record's own content (shaping mode) covers a frontend surface. Skip this file entirely when the input is backend / infra-only — the frontend-detection sniff below determines whether to load this file at all. Step 2.5a and Step 2.5c run in both modes (Shaping mode calls them directly against the record's own body — see `SKILL.md`'s Shaping mode section); Step 2.5b is decomposition-mode only, since there's no design doc to plan UX/UI for ahead of a shaping-mode record that already exists.
+Loaded by `/claude-tweaks:specify` Step 2.5 when the design doc (decomposition mode) or the record's own content (shaping mode) covers a frontend surface. Skip this file entirely when the input is backend / infra-only — the frontend-detection sniff below determines whether to load this file at all. Step 2.5a and Step 2.5c run in both modes (Shaping mode calls them directly against the record's own body — see `shaping-mode.md` in this skill's directory); Step 2.5b is decomposition-mode only, since there's no design doc to plan UX/UI for ahead of a shaping-mode record that already exists.
 
 These pre-steps capture design context (`shape`), an optional accepted visual direction (`Visual-reference:`), and creative direction (`Design-intent:`) so the resulting records carry all three forward to `/build` and `/flow`'s polish phase as body-metadata lines.
 
@@ -103,7 +103,7 @@ The user can select multiple options (e.g., Bold + Delightful). Map the answers:
 | `6` (or no answer) | `none` |
 | `1,4` (multiple) | `bold, delightful` (comma-separated) |
 
-Record the chosen value(s) — the calling mode's compose-then-write-once step (decomposition mode's Step 3; Shaping mode's own Metadata block / Compose-then-write-once subsections) writes them into the record's body-metadata block.
+Record the chosen value(s) — the calling mode's compose-then-write-once step (decomposition mode's Step 3 in `decomposition-mode.md`; Shaping mode's own Metadata block / Compose-then-write-once subsections in `shaping-mode.md`) writes them into the record's body-metadata block.
 
 **For multi-record decompositions:** ask the question once per design doc and apply the same intent across all generated leaf records. If the user wants different intents per leaf, they can edit individual records after Step 3 (`gh issue edit` / `writeRecord`).
 

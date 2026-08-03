@@ -266,7 +266,7 @@ function cmdValidateFindings(args) {
     try {
       const sliceId = args.slice;
       const areasSwept = sliceId ? [sliceId] : [];
-      const hashes = sliceId ? { [sliceId]: contentHash(path.resolve(root, sliceId), null, { recursive: sliceRecursive(sliceId) }) } : {};
+      const hashes = sliceId ? { [sliceId]: contentHash(path.resolve(root, sliceId), null, { recursive: sliceRecursive(sliceId, root) }) } : {};
       const runRecord = { runId: args.runId, runAt: new Date().toISOString(), fingerprints: [...seen] };
       // Named rather than inlined into the mutator call below, for readability.
       const mutatorInput = { areasSwept, hashes, rememberCandidates, runRecord };
@@ -314,7 +314,9 @@ function cmdNextSlice(args) {
   // cursor state in-memory between picks (see bin/lib/health-core/budget.js).
   const chosen = selectBudget(budget, cursors, (c) => selectSlice(root, c, { now, fileDataCache }), {
     getCursorKey: (slice) => slice.id,
-    buildCursorPatch: (_, slice) => ({ lastSweptMs: now, lastHash: contentHash(slice.path, fileDataCache, { recursive: sliceRecursive(slice.id) }) }),
+    // slice.recursive comes straight from listSlices — no re-derivation, and no
+    // repo-wide re-list per chosen slice the way sliceRecursive(id, root) does.
+    buildCursorPatch: (_, slice) => ({ lastSweptMs: now, lastHash: contentHash(slice.path, fileDataCache, { recursive: slice.recursive }) }),
   });
   process.stdout.write(JSON.stringify(chosen, null, 2) + '\n');
 }

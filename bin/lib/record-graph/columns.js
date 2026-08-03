@@ -20,4 +20,12 @@ function bucketByStage(records) {
   return columns;
 }
 
-module.exports = { bucketByStage };
+// layout.js calls this before handing records to bucketByStage/encodeRecord/
+// computeEdges, so a malformed-stage record is dropped everywhere at once —
+// never just missing from columns while still lurking in encoded/edges, where
+// a Blocked-by reference to it would resolve to an undefined node position.
+function filterKnownStage(records) {
+  return records.filter((record) => KNOWN_STAGES.has(record.facets.stage));
+}
+
+module.exports = { bucketByStage, filterKnownStage };
