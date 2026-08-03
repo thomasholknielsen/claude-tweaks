@@ -361,6 +361,8 @@ Phase 2f findings split into CLAUDE.md Don'ts (convention conflicts and anti-pat
 ## Phase 6: Generate / Update Skills
 
 > **Parallel execution (conditional):** Under Update Mode, when the drift-patch audit's read set (`_shared/harness-health-analysis.md`) covers ≥ 8 existing skills, dispatch the per-skill audit as parallel Task agents per the Subagent Contract (`_shared/subagent-output-contract.md`) — the same threshold and pattern Phase 4 already uses for scoring. Otherwise, run the audit inline in the main thread.
+>
+> **Model tier:** Standard — comparing each skill's content against the canonical template across multiple conformance dimensions (structure, sync with reference files, quality gates) is format-sensitive checking, not synthesis-heavy enough to need Capable; defaulting to Capable across 8+ agents is roughly a 5x cost multiplier for no judgment gain.
 
 **Initial Mode** generates full SKILL.md files for each approved skill. **Update Mode** produces targeted patches for drifted skills and full SKILL.md for gap skills. Each generated skill must pass quality gates (codebase-grounded examples, working commands, project-specific anti-patterns). Skill depth scales with complexity score.
 
