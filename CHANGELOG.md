@@ -1,5 +1,21 @@
 # Changelog
 
+## v6.27.0 — Live record-graph visualization (closes #28)
+
+`/claude-tweaks:visualize` gains a `record-graph` type: a deterministic diagram of
+this project's own live open work-record queue — stage columns (backlog/parked/
+ready), `Blocked by #N` dependency edges, and a six-axis color/badge encoding
+(Origin, Bot state, Type, Scoring, Authorization, Acceptance). No topic argument;
+always persisted to `docs/diagrams/record-graph.html`, regenerated on demand.
+
+A new `bin/record-graph.js` CLI (backed by pure, unit-tested `bin/lib/record-graph/`
+modules) does all data-shape work deterministically — stage bucketing, six-axis
+encoding, and Blocked-by edge resolution reuse the existing, tested
+`bin/lib/issues/record.js` facet/dependency parsing rather than any model-authored
+transcription of issue numbers, titles, or labels. Content is a point-in-time
+snapshot, not a live-refreshing view — the diagram carries a "Generated {timestamp}
+— re-run to refresh" note rather than a client-side data fetch.
+
 ## v6.24.0 — /dispatch's gh-CLI/MCP bridge (closes #61)
 
 `/claude-tweaks:dispatch`'s Preflight previously hard-gated on `gh` CLI presence
