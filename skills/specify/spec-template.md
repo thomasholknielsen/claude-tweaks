@@ -163,7 +163,7 @@ Never write a bare "zero matches anywhere" AC alongside a tombstone requirement 
 
 ## Facets
 
-Type, stage/scoring labels, and parent/dependency links are **record facets** — tracked on the record itself, never as free-form prose in the body's narrative. Type and stage/scoring are always native labels/frontmatter, outside the body entirely. Parent/dependency links follow the driver: native labels/frontmatter under `work-links: native` (or `local-files`), but under `work-links: body-text` they ARE literal body lines (`Parent: #N`, `Blocked by #N`) — structured, parseable markers, not narrative text, but body text nonetheless. The table below is the source of truth for which representation applies; the canonical taxonomy (the seven axes, the label names, who may set what) is `_shared/work-record.md`.
+Type, stage/scoring labels, and parent/dependency links are **record facets** — tracked on the record itself, never as free-form prose in the body's narrative. Type and stage/scoring are always native labels/frontmatter, outside the body entirely. Parent/dependency links follow the driver: native labels/frontmatter under `work-links: native` (or `local-files`), but under `work-links: body-text` they ARE literal body lines (`Parent: #N`, `Blocked by #N`) — structured, parseable markers, not narrative text, but body text nonetheless. The table below is the source of truth for which representation applies; the canonical taxonomy (the axes, the label names, who may set what) is `_shared/work-record.md`.
 
 | Facet | `github-issues` | `local-files` |
 |-------|------------------|----------------|

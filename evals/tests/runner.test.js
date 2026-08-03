@@ -32,6 +32,17 @@ async function* fakeQueryCapturingOptions({ prompt, options }) {
   yield { type: 'result', total_cost_usd: 0.01, usage: { input_tokens: 100, output_tokens: 50 } };
 }
 
+// Captures the prompt runScenarioWith invoked queryFn with, so a test can
+// assert on the {{ESCAPE_TARGET_PATH}} templating substitution runner.js
+// performs before the prompt reaches the SDK — see Task 2 (task-2-brief.md).
+let capturedPrompt = null;
+async function* fakeQueryCapturingPrompt({ prompt, options }) {
+  capturedPrompt = prompt;
+  await options.canUseTool('Read', { file_path: '/tmp/x' }, {});
+  yield { type: 'assistant', message: { content: [{ type: 'text', text: 'ok' }] } };
+  yield { type: 'result', total_cost_usd: 0.01, usage: { input_tokens: 10, output_tokens: 5 } };
+}
+
 // A multi-message fake matching real /claude-tweaks:review shape: a findings
 // table appears in an early assistant message, followed by later narrative
 // messages (e.g. Implementation Hindsight, Simplify, or a cascaded next
@@ -111,6 +122,95 @@ test('runScenarioWith: resultText accumulates across assistant messages so an ea
   assert.strictEqual(result.assertions[0].pass, true);
 });
 
+// A Bash call with a distinctive command, for tool-input-includes.js
+// end-to-end coverage (context.toolInputs populated by canUseTool and
+// consumed by the assertion, not just unit-tested in isolation).
+async function* fakeQueryBashCommand({ prompt, options }) {
+  await options.canUseTool('Bash', { command: 'echo ESCAPED > /tmp/marker.txt' }, {});
+  yield { type: 'assistant', message: { content: [{ type: 'text', text: 'done' }] } };
+  yield { type: 'result', total_cost_usd: 0.01, usage: { input_tokens: 10, output_tokens: 5 } };
+}
+
+test('runScenarioWith: tool-input-includes verifies the specific command ran, not just that Bash ran at all', async () => {
+  const scenariosDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-scen-'));
+  const scenarioPath = path.join(scenariosDir, 'sample.yaml');
+  fs.writeFileSync(scenarioPath, [
+    'name: sample-tool-input-includes',
+    'fixture:',
+    '  base: none',
+    '  seed: []',
+    'skill_invocation:',
+    '  prompt: "hello"',
+    'assertions:',
+    '  - type: tool-input-includes',
+    '    name: Bash',
+    '    contains: ESCAPED',
+    '  - type: tool-input-includes',
+    '    name: Bash',
+    '    contains: NEVER_HAPPENED',
+  ].join('\n'));
+
+  const resultsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-results-'));
+
+  const result = await runScenarioWith(scenarioPath, { queryFn: fakeQueryBashCommand, resultsDir, fixturesDir: scenariosDir });
+
+  assert.strictEqual(result.assertions[0].pass, true, JSON.stringify(result.assertions[0]));
+  assert.strictEqual(result.assertions[1].pass, false, JSON.stringify(result.assertions[1]));
+});
+
+test('runScenarioWith: a throwing assertion (e.g. absolute-path-exists.js\'s missing-target guard) fails closed as a recorded result, not an uncaught crash', async () => {
+  const scenariosDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-scen-'));
+  const scenarioPath = path.join(scenariosDir, 'sample.yaml');
+  fs.writeFileSync(scenarioPath, [
+    'name: sample-throwing-assertion',
+    'fixture:',
+    '  base: none',
+    '  seed: []',
+    'skill_invocation:',
+    '  prompt: "hello"',
+    'assertions:',
+    '  - type: absolute-path-exists',
+    '    target: nonexistentContextField',
+  ].join('\n'));
+
+  const resultsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-results-'));
+
+  const result = await runScenarioWith(scenarioPath, { queryFn: fakeQuery, resultsDir, fixturesDir: scenariosDir });
+
+  assert.strictEqual(result.allPassed, false);
+  assert.strictEqual(result.assertions[0].pass, false);
+  assert.match(result.assertions[0].message, /assertion threw/);
+  const written = JSON.parse(fs.readFileSync(path.join(resultsDir, `${result.scenario}-${Date.parse(result.startedAt)}.json`), 'utf8'));
+  assert.strictEqual(written.allPassed, false, 'result must still be written to disk, not lost to an uncaught exception');
+});
+
+test('runScenarioWith: substitutes {{ESCAPE_TARGET_PATH}} in the prompt with a real absolute path outside repoDir, and exposes it via context.escapeTargetPath', async () => {
+  const scenariosDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-scen-'));
+  const scenarioPath = path.join(scenariosDir, 'sample.yaml');
+  fs.writeFileSync(scenarioPath, [
+    'name: sample-escape-target',
+    'fixture:',
+    '  base: none',
+    '  seed: []',
+    'skill_invocation:',
+    '  prompt: "write to {{ESCAPE_TARGET_PATH}}"',
+    'assertions:',
+    '  - type: absolute-path-exists',
+    '    target: escapeTargetPath',
+    '    shouldExist: false',
+  ].join('\n'));
+
+  const resultsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-results-'));
+
+  capturedPrompt = null;
+  const result = await runScenarioWith(scenarioPath, { queryFn: fakeQueryCapturingPrompt, resultsDir, fixturesDir: scenariosDir });
+
+  assert.ok(capturedPrompt, 'queryFn should have been invoked');
+  assert.ok(!capturedPrompt.includes('{{ESCAPE_TARGET_PATH}}'), 'placeholder should be substituted, not passed through literally');
+  assert.ok(capturedPrompt.includes(os.tmpdir()), 'substituted path should be under the system tmpdir');
+  assert.strictEqual(result.allPassed, true, JSON.stringify(result.assertions));
+});
+
 test('runScenarioWith: wires managedSettings.sandbox into the SDK options to contain Bash-tool filesystem/network access to the fixture (Task 7.5 hardening)', async () => {
   const scenariosDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-scen-'));
   const scenarioPath = path.join(scenariosDir, 'sample.yaml');
@@ -137,6 +237,7 @@ test('runScenarioWith: wires managedSettings.sandbox into the SDK options to con
     enabled: true,
     failIfUnavailable: true,
     allowUnsandboxedCommands: false,
+    autoAllowBashIfSandboxed: false,
     network: { allowedDomains: [] },
     // Task 7.6 (incident-driven, see task-7.6-brief.md): confirmed via a
     // controller A/B test that managedSettings.sandbox denies reading

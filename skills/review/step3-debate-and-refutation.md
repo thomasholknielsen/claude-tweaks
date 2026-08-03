@@ -4,7 +4,7 @@ Loaded by `/claude-tweaks:review` after Step 3's per-lens reproduction completes
 
 ## Step 3.5: Cross-Lens Debate & Per-Candidate Refutation
 
-Two independent findings-quality mechanisms live in this step, each gated at its own `review-effort` tier (Step 2.5). Cross-Lens Debate resolves contradictions between different lenses reviewing the same region. The Per-Candidate Refutation Pass re-examines every individually `confirmed` finding for correlated error that reproduction-pair agreement alone can't catch — two reproduction agents sharing the same blind spot, or the same miscalibration, still agree with each other. They operate on different inputs — debate on cross-lens contradiction pairs, refutation on the whole `confirmed` bucket once debate has resolved — and both can fire in the same `xhigh`/`max` review without interfering with each other.
+Two independent findings-quality mechanisms live in this step, each gated at its own `review-effort` tier (Step 2.5). Cross-Lens Debate resolves contradictions between different lenses reviewing the same region. The Per-Candidate Refutation Pass re-examines individually `confirmed` findings for correlated error that reproduction-pair agreement alone can't catch — two reproduction agents sharing the same blind spot, or the same miscalibration, still agree with each other. They operate on different inputs — debate on cross-lens contradiction pairs, refutation on the `confirmed` bucket once debate has resolved, narrowed by that pass's own severity floor and fan-out cap — and both can fire in the same `xhigh`/`max` review without interfering with each other.
 
 ### Cross-Lens Debate
 
@@ -54,11 +54,31 @@ After per-lens reproduction completes, scan for contradictions across lenses bef
 
 This is explicitly NOT a second reproduction pair — reproduction pairs (Step 3) check agreement between two initial readers; refutation is a distinct, later agent whose only job is to try to break a finding that already survived that agreement. Correlated error (both reproduction agents sharing the same blind spot, or the same miscalibration) is exactly what agreement alone can't catch. This was caught concretely during the #45 native-review prototype: a dedicated verifier subagent, dispatched per surviving candidate finding with the explicit job of trying to falsify it using fresh evidence-gathering, caught false positives that reproduction-pair agreement alone had let through.
 
-> **Parallel execution:** Dispatch one refutation agent per `confirmed` candidate as parallel Task agents — each runs independently, sees only its own candidate finding (not the other candidates or the lens's original reasoning chain), and returns a `refuted`/`not-refuted` verdict. Assemble results after all agents complete.
+> **Parallel execution:** Dispatch one refutation agent per **in-scope** `confirmed` candidate (after the floor and cap in steps 2-3 below) as parallel Task agents — each runs independently, sees only its own candidate finding (not the other candidates or the lens's original reasoning chain), and returns a `refuted`/`not-refuted` verdict. Assemble results after all agents complete.
 
-1. **Collect candidates.** Once Cross-Lens Debate above has resolved, take the full `confirmed` bucket — every finding that would otherwise proceed to Step 3 Routing, whether it got there via plain reproduction or via debate converging positive.
+This pass is the only place in the skill where an unbounded fan-out would meet the Capable (Opus) tier, so it carries an explicit severity floor and fan-out cap — fixed values stated here, not left to model judgment. This is the same cost discipline Cross-Lens Debate's step 5 applies ("Avoid running debate on every `Path:Line`…"), made concrete.
 
-2. **Dispatch one refutation agent per candidate, given fresh file access.** Each agent gets the finding's path/line/severity/evidence and fresh read access to the actual current file content (not the finding's cached evidence text) — instructed to actively try to falsify it: re-trace whether the claimed failure is actually reachable, verify the cited evidence still matches the current code, and challenge the reasoning rather than restate it. Inline this template literally in each `Task()` prompt:
+1. **Collect candidates.** Once Cross-Lens Debate above has resolved, take the full `confirmed` bucket — every finding that would otherwise proceed to Step 3 Routing, whether it got there via plain reproduction or via debate converging positive. Then apply the floor and the cap below, in that order.
+
+2. **Apply the severity floor — `medium`.** Drop `low` and `info` candidates from the refutation set. Falsifying a `low` costs more than simply applying it, and a wrongly-`confirmed` `low` does little damage if it survives.
+
+   Floor-skipped candidates are **not** downgraded — they proceed to Step 3 Routing as `confirmed`, exactly as if this pass had never run. Downgrading them to `unconfirmed` would pull them *out* of routing on the strength of an examination that never happened, which is less scrutiny of the code, not more. Write one aggregate entry: `AUTO {HH:MM:SS} — Refutation: {N} low/info candidates below the medium severity floor, not refuted; proceeding as confirmed. Reversibility: high.`
+
+   This floor is fixed at `medium` and is deliberately independent of `review-severity-floor` (`step3-routing.md`), which governs which findings *surface at all* — not which ones get falsified.
+
+3. **Apply the fan-out cap — 10 candidates.** Order the remaining candidates by severity descending (`critical` → `high` → `medium`), breaking ties by `path:line` ascending so the selection is deterministic and reproducible across runs. Refute only the first 10.
+
+   If more than 10 remain, the overflow note below is **mandatory, not optional** — this repo's rule is that no surfaced finding is ever silently dropped. Append it verbatim to `decisions.md` and render it immediately above the Step 3 Routing findings table:
+
+   > `+{N} more confirmed findings were not refuted (refutation fan-out capped at 10, highest severity first) — they proceed to Step 3 Routing unexamined by this pass.`
+
+   Overflow candidates, like floor-skipped ones, stay `confirmed` and route normally. Also write: `AUTO {HH:MM:SS} — Refutation: fan-out capped at 10; +{N} confirmed findings not refuted, proceeding as confirmed. Reversibility: high.`
+
+   Worst case after the floor and cap: **10 Capable-tier agents per review, regardless of finding count.** A 25-confirmed-finding review previously fanned out to 25 unbounded Capable-tier agents; it now dispatches at most 10 — a ~60% cut to this pass's worst case, and the first bound of any kind on it.
+
+   Typical runs cost well under that worst case, because the `medium` floor is applied *before* the cap is consulted: the cap only binds on a review that surfaces 10 or more `medium`-or-higher `confirmed` findings, which is the tail rather than the norm. The floor is doing most of the work here and the cap is the backstop — so tightening the cap further buys little, while lowering the floor would quietly undo both.
+
+4. **Dispatch one refutation agent per in-scope candidate, given fresh file access.** Each agent gets the finding's path/line/severity/evidence and fresh read access to the actual current file content (not the finding's cached evidence text) — instructed to actively try to falsify it: re-trace whether the claimed failure is actually reachable, verify the cited evidence still matches the current code, and challenge the reasoning rather than restate it. Inline this template literally in each `Task()` prompt:
 >
 >    ```
 >    You are trying to FALSIFY this finding, not confirm it. Re-read the actual current file
@@ -78,7 +98,7 @@ This is explicitly NOT a second reproduction pair — reproduction pairs (Step 3
 >    lens's original context.]
 >    ```
 
-3. **Resolve.** First check the dispatched agent's own status line, per the Subagent Contract (`_shared/subagent-output-contract.md`): a `BLOCKED`/`NEEDS_CONTEXT` status, or a response with no parseable `Verdict:` line, means the refutation attempt itself failed — do not fabricate a verdict for `resolveRefutation`. Treat this case directly: downgrade to `unconfirmed` and write `AUTO {HH:MM:SS} — Refutation: {path}:{line} — dispatch failed ({status}/unparseable verdict), not genuinely re-examined. Downgraded to unconfirmed out of caution. Reversibility: high.` A failed dispatch must never be logged as if a real falsification attempt happened.
+5. **Resolve.** First check the dispatched agent's own status line, per the Subagent Contract (`_shared/subagent-output-contract.md`): a `BLOCKED`/`NEEDS_CONTEXT` status, or a response with no parseable `Verdict:` line, means the refutation attempt itself failed — do not fabricate a verdict for `resolveRefutation`. Treat this case directly: downgrade to `unconfirmed` and write `AUTO {HH:MM:SS} — Refutation: {path}:{line} — dispatch failed ({status}/unparseable verdict), not genuinely re-examined. Downgraded to unconfirmed out of caution. Reversibility: high.` A failed dispatch must never be logged as if a real falsification attempt happened.
 
    Otherwise, apply `resolveRefutation` to the parsed `Verdict:` value:
    ```bash
