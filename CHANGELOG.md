@@ -1,5 +1,34 @@
 # Changelog
 
+## v6.29.0 — merge-check judges behavior delta, not diff size or file path (closes #78)
+
+`merge-check`'s instruction-file floor named `skills/**` and `agents/**` — this
+repository's own layout. In any project where the plugin is the harness it never
+matched `.claude/skills/`, missed `.claude/agents/`, and never covered
+`.claude/rules/` at all, leaving `CLAUDE.md` — the highest-leverage instruction
+file a project has — with weaker merge protection than a single skill file. The
+floor now resolves by role: any file the harness loads as instruction rather than
+as subject matter.
+
+The floor also gained an escape. Previously every instruction-file change was
+`needs-human` regardless of content, so a backlog refine run over harness-health
+drift fixes returned a uniform withhold — a caution that fires on everything stops
+carrying information. The escape is a refutation attempt rather than a
+mechanical-or-substantive classification: name a behavior an agent could take
+differently after the edit, and pass only when the attempt comes up empty.
+
+Blast radius stopped being a proxy for risk. `automerge-max-lines`/
+`automerge-max-files` now weigh only the behavior-carrying portion of a diff, so a
+large uniform rename with a clean review is no longer leaned against while a small
+change to a branch condition sails through.
+
+`grant-check` recommends on content and states plainly that `merge-check` re-judges
+the real diff, so a grant authorizes an attempt rather than promising a merge. Its
+Anti-Patterns row — which said "new-or-changed … regardless of how clean or small"
+and silently overrode Step 2's own "substantially editing" qualifier — is replaced.
+Calibration cases now live in the skill rather than in a design doc, since the
+previous anchor was a design doc and it was pruned.
+
 ## v6.28.0 — Dispatched agents get their procedure inlined, not a pointer (closes #94, #101, #110)
 
 Both `/claude-tweaks:docs-health` and `/claude-tweaks:harness-health` told parallel
