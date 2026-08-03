@@ -236,7 +236,9 @@ caller, since this skill reads its own config rather than depending on one.)
   `.claude/agents/**`, and — in a repository that *is* a plugin — its own `skills/**`/`agents/**`
   sources. Resolve the class by that role for the project at hand; do not match a fixed path list,
   which is wrong in every repository whose layout differs from the one it was written against.
-  `_shared/harness-health-analysis.md` resolves the same set the same way. These files encode
+  `_shared/harness-health-analysis.md` audits a related but narrower set for a different purpose
+  (`.claude/skills/*.md`, `.claude/rules/*.md`, and `CLAUDE.md`, stated there as a fixed list) —
+  read it as a floor for what counts, never as this class's definition. These files encode
   instructions future agents follow, which is high-leverage independent of how small the diff looks.
 
   **The escape is a refutation, not a classification.** Do not ask "is this change mechanical?" —
@@ -247,8 +249,11 @@ caller, since this skill reads its own config rather than depending on one.)
   render `needs-human`. A correction can be factually true and independently verifiable and still
   change what agents infer; truth is not the test, behavior delta is.
 - **Weigh `blastRadiusSummary.implLines`/`implFiles` against the project's configured
-  `automerge-max-lines`/`automerge-max-files` — but only over the diff's behavior-carrying
-  portion.** Size proxies review burden, not risk: a large diff in which every hunk is the same
+  `automerge-max-lines`/`automerge-max-files` — but only once the diff is judged to carry behavior
+  change at all.** `blastRadiusSummary` reports whole-diff totals; there is no per-hunk breakdown
+  to weigh, which is why the judgment below is deliberately a binary on the whole diff rather than
+  an attempt to size some behavior-carrying fraction of it. Size proxies review burden, not risk:
+  a large diff in which every hunk is the same
   behavior-preserving transformation (a rename, a corrected constant, a call site updated
   uniformly, dead code removed) is safer than a small one that changes a branch condition. So ask
   first whether the diff is behavior-preserving as a whole — a single hunk that is not an instance
