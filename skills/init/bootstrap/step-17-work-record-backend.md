@@ -12,7 +12,7 @@ record file per record (`specs/{id}-{slug}.md`, read and written by
 `bin/lib/issues/local-store.js`). Decide the backend once here so every future
 filing/shaping/dispatching run is consistent — no split-brain between issue-backed
 and file-backed records for the same repo. `_shared/work-record.md` is the canonical
-home of the full record taxonomy (the seven axes, the label families, and the
+home of the full record taxonomy (the axes, the label families, and the
 config-key table) — every consumer skill cites it rather than restating it, and this
 step is where its config keys first get written.
 
@@ -125,7 +125,7 @@ result), also run the same loop with `record.js`'s `TYPE_LABELS` — the canonic
 option's "never pays the lazy-create path" promise would be false for Type labels
 the first time `/claude-tweaks:capture` or a health skill files one. Skip this second
 pass under `work-types: native` — there's nothing to bootstrap. See
-`_shared/work-record.md` for the taxonomy each label expresses (the seven axes:
+`_shared/work-record.md` for the taxonomy each label expresses (the axes:
 type, origin, scoring, stage, authorization, bot state, acceptance).
 
 **Pre-existing artifacts.** Projects that used the earlier two-file backlog design

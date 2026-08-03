@@ -108,7 +108,7 @@ Steps 6 and 7 below read the (possibly just-downgraded) value fresh at their own
 
 ## Step 4: Analyze Leftover Work (record- or spec-based only)
 
-Identify unfinished spec sections that cannot be completed in the current work context, then route them per `leftover-routing.md` in this skill's directory — which owns the fix-exhaust qualification criteria, the auto-mode stage entry format, the interactive routing table (5 routing options), and the per-item routing semantics.
+Identify unfinished spec sections that cannot be completed in the current work context. If at least one such section exists, read `leftover-routing.md` in this skill's directory and route them per that file — which owns the fix-exhaust qualification criteria, the auto-mode stage entry format, the interactive routing table (5 routing options), and the per-item routing semantics. If every spec section is complete, report "No leftover work to route" and skip this step entirely — do not read the file.
 
 ---
 
@@ -116,7 +116,14 @@ Identify unfinished spec sections that cannot be completed in the current work c
 
 This step **plans** the cleanup — it does not execute. Actual deletions and archival run in Step 10 *after* the nothing-left-behind gate (Step 8.5) and the Review Console / batch decision (Step 8.6 or Step 9) approve them.
 
-See `cleanup-procedures.md` in this skill's directory for the canonical cleanup list — Step 5 enumerates the same 8 items, in canonical order: execution plans, ledger, design caches, worktree, record/spec lifecycle, ephemeral dev server, issue claim release, pipeline run dir (always last — see the canonical list's ordering rule). Filter the list to rows whose Condition holds for this run (e.g., skip the worktree row when no worktree strategy was used). Carry the filtered list forward into Step 9's summary and Step 10's execution.
+Step 5 enumerates 8 items, in canonical order: execution plans, ledger, design caches, worktree, record/spec lifecycle, ephemeral dev server, issue claim release, pipeline run dir (always last — see the canonical list's ordering rule).
+
+First check whether **any** of the 8 conditions holds for this run — record- or spec-based work (items 1, 5), a ledger exists (2), the design wrapper was active (3), a worktree strategy was used (4), `${RUN_DIR}/ephemeral-server.txt` exists (6), a materialized header exists at `${RUN_DIR}/work/*-spec.md` (7), or a pipeline run directory exists (8):
+
+- **At least one holds** → read `cleanup-procedures.md` in this skill's directory for the canonical cleanup list, filter it to rows whose Condition holds for this run (e.g., skip the worktree row when no worktree strategy was used), and carry the filtered list forward into Step 9's summary and Step 10's execution.
+- **None holds** → report "No cleanup actions apply" and skip this step entirely; do not read the file.
+
+On any pipeline run, items 4 and 8 hold by construction, so this gate is open there. It closes only for conversation-based standalone wrap-up with no ledger, no worktree, and no run directory.
 
 ## Step 6: Assess Configuration Updates
 
@@ -151,14 +158,14 @@ Before adding to CLAUDE.md, check the size budget — keep it concise. Move deta
 
 ### 6.2: Decision Records (ADRs)
 
-Capture the *why* behind significant decisions made during this work — distinct from `decisions.md` (the per-run auto-decision audit log) and the spec (which records *what*). Apply the **3-factor gate** from `_shared/decision-records.md` (read it for the gate, the location convention, and the template).
+Capture the *why* behind significant decisions made during this work — distinct from `decisions.md` (the per-run auto-decision audit log) and the spec (which records *what*). Apply the **ADR gate** from `_shared/decision-records.md` (read it for the gate, the location convention, and the template).
 
 1. **Gather decision candidates** from this work's surfaces:
    - `[ADR-candidate]`-tagged constraints in the brainstorming brief (flagged by `/claude-tweaks:challenge`)
    - Architectural deviations classified in `/build` Common Step 4.5
    - Interface trade-offs flagged `[ADR-candidate]` by `/claude-tweaks:deepen`
    - Tradeoffs accepted during `/review` and reflection insights about approach
-2. **Run the 3-factor gate** on each candidate — write an ADR only when ALL THREE hold: **hard to reverse** AND **surprising without context** AND **the result of a real trade-off**. If any factor is missing, do not propose an ADR (the decision belongs in the spec, a code comment, or nowhere).
+2. **Run the ADR gate** on each candidate — write an ADR only when ALL THREE hold: **hard to reverse** AND **surprising without context** AND **the result of a real trade-off**. If any factor is missing, do not propose an ADR (the decision belongs in the spec, a code comment, or nowhere).
 3. For each decision that passes, propose creating `docs/decisions/NNNN-{slug}.md` using the template in `_shared/decision-records.md` (find the highest existing `NNNN` and increment).
 
 → Collect each as: `[adr] docs/decisions/NNNN-{slug}.md — {decision title}`
@@ -173,7 +180,22 @@ Analyze whether project skills need updating, and whether the work warrants a **
 
 Unlike a pure consumer, Step 7 **generates** candidates from the work itself. Ledger entries (`build/skill`, `review/skill`, `[skill: …]`-tagged) and reflection insights are **seeds** that focus the analysis — but an independent, domain-scoped scan inspects the skills whose domain overlaps the changed files **even when nothing was tagged**, and gap detection looks for reusable patterns no skill covers. New-skill candidates are proposed when **≥2 of 3** criteria (reusability, complexity, project-specificity) are met — not all three.
 
-For the full procedure — seed gathering (7.1), the independent scan + gap detection (7.2), the 8-dimension analysis (7.3), the ≥2-of-3 new-skill gate (7.4), quality gates (7.5), and auto/interactive stage-or-present (7.6) — read `skill-curation.md` in this skill's directory.
+**Gate the read.** Read `skill-curation.md` in this skill's directory — the full procedure: seed gathering (7.1), the independent scan + gap detection (7.2), the dimension analysis (7.3), the ≥2-of-3 new-skill gate (7.4), quality gates (7.5), and auto/interactive stage-or-present (7.6) — when **either** holds:
+
+- `.claude/skills/*.md` exists (there is a skill library to scan or patch), **or**
+- `git diff --name-only` against this work's base ref contains a *cohesive* set of files implementing one reusable pattern — 7.2's gap-detection precondition (multiple files implementing a single pattern, not scattered one-off edits).
+
+The second condition is not optional. `skill-curation.md` 7.2 step 2 calls a project with no skills "the strongest case for a first one" and requires gap detection to run even when `.claude/skills/` is absent — so the library's existence alone must never gate this read.
+
+When **neither** holds, skip the read and emit the mandatory summary line directly:
+
+```
+SCANNED {time} — Step 7 skill curation summary: 0 seeds, 0 skills read (no .claude/skills/ library present), gap detection: not run (no cohesive multi-file pattern in the diff).
+Result: 0 applied, 0 staged, 0 new-skill candidates (0/0).
+Reversibility: N/A.
+```
+
+Auto mode appends this line to `decisions.md` under the `SCANNED` tag (`_shared/auto-decision-log.md`); interactive mode prints it inline. `gap detection: not run` is deliberate — reporting `not found` for a check that never executed is the silent skip this summary exists to prevent.
 
 Skill curation declares "No skill updates needed" only when seeds, the independent scan, and gap detection all come up empty — never merely because no ledger entry was tagged, and even then a mandatory `SCANNED` summary line (naming the seed count, skills read, and gap-detection outcome — see `skill-curation.md` 7.6) is logged so the null result is auditable. Staged updates and new-skill candidates surface at the Wrap-Up Review Console (Step 8.6), or the interactive batch table per `skill-curation.md`.
 
@@ -183,7 +205,17 @@ Analyze whether project documentation needs updating, and detect documentation t
 
 **Fast-lane narrows breadth, never gates existence.** Same principle as Step 7's skill curation (`skill-curation.md`'s opening paragraph) — under `ceremony-profile: fast-lane`, the domain-overlap scan's cap shrinks (top-1 instead of top-3) but the scan itself always runs.
 
-For the full procedure — registry maintenance (new/deleted/moved docs, stale Auto-detect patterns), the domain-overlap scan (D0) with its `docs/REGISTRY.md`-absent fallback and `--doc-budget` cap, the shared JUDGE application (D1) across both touched and domain-overlap docs, missing-documentation gap detection (D2), and the mandatory null-result summary line — read `docs-health-integration.md` in this skill's directory.
+**Gate the read.** If a `docs/` directory exists and is non-empty, read `docs-health-integration.md` in this skill's directory for the full procedure — registry maintenance (new/deleted/moved docs, stale Auto-detect patterns), the domain-overlap scan (D0) with its `docs/REGISTRY.md`-absent fallback and `--doc-budget` cap, the shared JUDGE application (D1) across both touched and domain-overlap docs, missing-documentation gap detection (D2), and the mandatory null-result summary line.
+
+If `docs/` does not exist or is empty, skip the read and emit the mandatory summary line directly:
+
+```
+SCANNED {time} — Step 7.7 documentation curation summary: 0 docs touched, 0 domain-overlap docs read (no docs/ tree present), gap detection: not run.
+Result: 0 applied, 0 staged, 0 restructural filed.
+Reversibility: N/A.
+```
+
+Auto mode appends this line to `decisions.md` under the `SCANNED` tag (`_shared/auto-decision-log.md`); interactive mode prints it inline. `gap detection: not run` is deliberate — see Step 7's equivalent note. Known narrowing: a project with no `docs/` tree at all never gets D2's missing-doc proposal, since D2 is what would create the first doc. Accepted for now — `/claude-tweaks:init` Phase 8.5 covers first-doc scaffolding for such a project.
 
 Documentation curation declares "No documentation updates needed" only when the domain-overlap scan (D0), the touched-docs judgment (D1), and the missing-doc gap detection (D2) all come up empty — never merely because nothing was flagged elsewhere — and even then a mandatory `SCANNED` summary line (naming docs touched, domain-overlap docs read, and gap-detection outcome — see `docs-health-integration.md`) is logged so the null result is auditable. Staged updates and restructural filings surface at the Wrap-Up Review Console (Step 8.6) in the "Documentation updates" section, or Step 9's generic Configuration Updates batch table in interactive/standalone mode (Step 9's template is intentionally not split further — see `docs-health-integration.md`'s own Gotcha note).
 
@@ -193,7 +225,17 @@ Analyze whether journeys the current diff touches have drifted out of sync, and 
 
 Unlike Step 7's skill curation and Step 7.7's documentation curation, journey scope-selection is a direct computation — `docs/journeys/*.md` whose `files:` frontmatter overlaps `git diff --name-only` against this work's base ref — not a ranked domain-overlap scan over the whole library. There is no `--journey-budget` flag and no fast-lane-narrows-the-cap behavior to document; the computation itself is cheap and deterministic regardless of ceremony profile.
 
-For the full procedure — the fresh diff-vs-`files:`-frontmatter overlap computation, the inline application of `_shared/journey-self-review.md`'s four checks plus structural-validity check, missing-journey gap detection, and the mandatory null-result summary line — read `journey-curation.md` in this skill's directory.
+**Gate the read.** If `docs/journeys/*.md` matches at least one file, read `journey-curation.md` in this skill's directory for the full procedure — the fresh diff-vs-`files:`-frontmatter overlap computation, the inline application of `_shared/journey-self-review.md`'s four checks plus structural-validity check, missing-journey gap detection, and the mandatory null-result summary line.
+
+If no `docs/journeys/*.md` file exists, skip the read and emit the mandatory summary line directly:
+
+```
+SCANNED {time} — Step 7.8 journey curation summary: 0 journeys checked (none exist), self-review: n/a, gap detection: not run.
+Result: 0 fixed inline, 0 new journey(s) created, 0 gap(s) found.
+Reversibility: N/A.
+```
+
+Auto mode appends this line to `decisions.md` under the `SCANNED` tag (`_shared/auto-decision-log.md`); interactive mode prints it inline. `gap detection: not run` is deliberate — see Step 7's equivalent note. This gate is safe precisely because Step 7.8 is a **drift** check: `journey-curation.md`'s own framing calls it "a wrap-up-time safety net for drift introduced after build's own journey check ran," and drift presupposes an existing journey. First-journey *creation* is `/claude-tweaks:journeys`' job at build time, not this step's.
 
 Journey curation declares "No journey updates needed" only when no journey's `files:` frontmatter overlaps the diff AND missing-journey gap detection finds no persona-facing flow with zero coverage — and even then a mandatory summary line (naming journeys checked, self-review outcome per journey, and gap-detection outcome — see `journey-curation.md`) is logged so the null result is auditable. Findings surface at the Wrap-Up Review Console (Step 8.6) in the "Journey updates" section.
 
@@ -208,13 +250,19 @@ Suggest running `/claude-tweaks:help` to see the full workflow status.
 
 ### Newly unblocked records (record mode only)
 
-The record this run just closed is already known — `record: {n}` from the materialized header (the same field the close-via-merge carrier commit used). Check whether closing it unblocked anything, purely informational — this must never gate, block, or delay the wrap-up; on any error, log and continue. Record- or spec-based only; the `work-backend: github-issues` (`work-links: body-text` or `native`) and `work-backend: local-files` procedures — including the failure-mode handling and the `decisions.md` log line — live in `unblocked-records.md` in this skill's directory, read only when this run is record-based.
+The record this run just closed is already known — `record: {n}` from the materialized header (the same field the close-via-merge carrier commit used). Check whether closing it unblocked anything, purely informational — this must never gate, block, or delay the wrap-up; on any error, log and continue.
+
+**Gate the read.** If this run is record mode (a materialized header exists at `${RUN_DIR}/work/*-spec.md`), read `unblocked-records.md` in this skill's directory — it holds the `work-backend: github-issues` (`work-links: body-text` or `native`) and `work-backend: local-files` procedures, the failure-mode handling, and the `decisions.md` log line. Otherwise — conversation-based work, or the legacy spec-file alias, neither of which has a record whose closure could unblock a dependent — skip this sub-step entirely and do not read the file.
 
 ---
 
 ## Step 8.5: Nothing Left Behind (Gate)
 
-Run the resolve gate from `/claude-tweaks:ledger` (see ledger skill for the three-phase procedure: Phase 1 fix-exhaust silently → Phase 2 present remainder for per-item user decision → Phase 3 apply). If the ledger doesn't exist (standalone wrap-up, or work predating the ledger), skip this gate.
+Run the resolve gate from `/claude-tweaks:ledger` (see ledger skill for the three-phase procedure: Phase 1 fix-exhaust silently → Phase 2 present remainder for per-item user decision → Phase 3 apply).
+
+**Gate the read.** Read `ledger/resolve-gate.md` when the ledger exists **and holds at least one item** — of any status, not just `open`. If the ledger doesn't exist (standalone wrap-up, or work predating the ledger), or exists but is empty, report "No ledger items to resolve" and skip this gate entirely without reading the file.
+
+The gate is item-*existence*, not open-item-existence: the bulk-resolve fast path below still stages proposals for `acknowledged` items via that file's Phase 3 `Acknowledge` disposition, and the Ops acknowledgment sub-step below applies the same disposition — both operate on items that are already terminal. Gating on `open` items alone would skip the read while those two paths still need it.
 
 **Hard requirements:**
 
@@ -264,7 +312,14 @@ The Review Console is the **second bookend** of the pipeline (see `_shared/auto-
 
 Empty-console fast path: skip the console entirely and proceed to Step 9 when all of `review-console.md`'s Empty-console fast path conditions hold (`decisions.md` has zero entries, `staged/` is empty, no skill/config updates exist, no cleanup actions apply, no queue writes are pending).
 
-For the run-directory resolution sequence, the multi-spec defer protocol, the full console template with all nine section tables (including the conditionally-rendered Low-confidence and Contested findings sections), approval/override/stop semantics, and the sort-order requirement, read `review-console.md` in this skill's directory.
+**Gate the read.** Read `review-console.md` in this skill's directory — for the run-directory resolution sequence, the multi-spec defer protocol, the Auto-merge short-circuit, the full console template with all nine section tables (including the conditionally-rendered Low-confidence and Contested findings sections), approval/override/stop semantics, and the sort-order requirement — when **either** holds:
+
+- The console runs: mode is `auto` or `hybrid`, a pipeline run directory exists, `MULTISPEC_REVIEW_DEFER` is unset, and the empty-console fast path above does not apply; **or**
+- This run has a materialized header (`${RUN_DIR}/work/*-spec.md`) whose issue carries a live `auto:merge` label (re-fetch via `gh issue view --json labels`).
+
+The second condition exists because the **Auto-merge short-circuit** lives in `review-console.md`, not in this file — it is not part of the console rendering it precedes. Without it, a run that qualified for the empty-console fast path would silently skip its authorized auto-merge. In practice the fast path cannot fire on such a run (it requires "no cleanup actions apply," while items 4 and 8 always apply when a run directory exists), so this is a belt-and-braces guard against a latent ordering hazard, not a live bug.
+
+In `interactive` mode and standalone wrap-up — where Step 8.6 is skipped outright — do not read the file at all.
 
 ---
 
@@ -378,7 +433,7 @@ After the cleanup, also apply:
 - **Docs-health restructural filings** — for restructural docs-health findings (`docs-health-integration.md`'s D1) approved at the Console or batch, re-run `validate-findings` without `--dry-run` and file each surviving payload via `gh issue create`, per that file's filing procedure
 - **Decision records (ADRs)** — write the approved `docs/decisions/NNNN-{slug}.md` files (Step 6.2) using the template in `_shared/decision-records.md`, and add them to `docs/REGISTRY.md` if a registry exists
 - **Skill updates** — apply patches and create new skills (Step 7 staged or approved items)
-- **Acceptance labeling** (record mode only — a materialized header exists for this run) — for testable records, gate on a clean visual-review pass (triggering one now via Step 2.5's safety net if `/review` only produced a recommendation), then apply `demo:pending` and post the Verification Brief; see `verification-brief.md` in this skill's directory for the full bootstrap, safety-net, sourcing, and posting procedure
+- **Acceptance labeling** (record mode only — a materialized header exists for this run) — for testable records, gate on a clean visual-review pass (triggering one now via Step 2.5's safety net if `/review` only produced a recommendation), then apply `demo:pending` and post the Verification Brief. **Gate the read:** only when this run is record mode *and* the record is testable, read `verification-brief.md` in this skill's directory for the full bootstrap, safety-net, sourcing, and posting procedure. Conversation-based work and the legacy spec-file alias have no work record to label — skip this bullet and do not read the file (that file's own header states the same restriction)
 
 Commit with a message summarizing the wrap-up actions. When the run is `current-branch` mode
 and a materialized header exists for this spec (`${RUN_DIR}/work/*-spec.md` — its `record:`
@@ -455,9 +510,11 @@ When `$PIPELINE_RUN_DIR` is unset, `/claude-tweaks:wrap-up` runs standalone — 
 | Skipping documentation curation because nothing was directly touched | Step 7.7's domain-overlap scan (D0) reads relevant docs even when this work didn't edit them directly — declaring "no documentation updates needed" without running D0 skips exactly the check this step exists to add |
 | Declaring "no documentation updates needed" with no logged scan scope | The null result is unfalsifiable without a record of what was scanned — Step 7.7's mandatory `SCANNED` summary line (`docs-health-integration.md`) exists precisely so "nothing needed updating" is auditable, not just asserted |
 | Declaring "no journey updates needed" without checking `files:` frontmatter against the diff | Step 7.8's fresh diff-vs-frontmatter computation exists precisely because build-time `/journeys` and review's 3g-cov lens don't catch drift introduced after their own pass ran — skipping the recomputation reintroduces the exact silent-drift gap this step exists to close |
+| Letting a closed sub-file gate suppress the step's `SCANNED` summary line | Steps 7 / 7.7 / 7.8 gate the *read* of their procedure file, never the *reporting*. When a gate is closed, the summary line is emitted from that step's own inline template with `gap detection: not run` — an unreported step is indistinguishable from a step that ran and found nothing, which is exactly the silent skip the summary exists to prevent |
+| Gating `skill-curation.md`'s read on `.claude/skills/*.md` alone | `skill-curation.md` 7.2 step 2 requires gap detection to run even when the directory is absent — "a project with no skills is the strongest case for a first one." Step 7's gate therefore also opens on a cohesive multi-file diff; existence of the skill library is not a sufficient gate on its own |
 | Proposing generic skill updates with no concrete anchor | Every skill update must trace to a ledger entry, a reflection insight, or a specific changed-file observation from the independent scan — updates with no anchor are indistinguishable from hallucinated ones |
 | Mixing skill updates into the doc/CLAUDE.md batch table | Skill updates require full file reads and Update Mode patches — they get their own decision table in Step 7 |
-| Writing an ADR for every decision | ADRs are valuable because they are rare — Step 6.2's 3-factor gate (hard-to-reverse AND surprising AND a real trade-off) keeps them so. Most wrap-ups produce zero ADRs, and that is correct |
+| Writing an ADR for every decision | ADRs are valuable because they are rare — Step 6.2's ADR gate (hard-to-reverse AND surprising AND a real trade-off) keeps them so. Most wrap-ups produce zero ADRs, and that is correct |
 | Treating `demo:pending` as optional for "trivial" record-mode work | The Acceptance axis applies uniformly — triviality gets a fast path at `/demo`'s own verdict step, not wrap-up's labeling step |
 
 ## Relationship to Other Skills
@@ -481,8 +538,8 @@ When `$PIPELINE_RUN_DIR` is unset, `/claude-tweaks:wrap-up` runs standalone — 
 | `/claude-tweaks:design-wrapper` | /wrap-up plans cleanup of the design wrapper's per-spec caches (`*-audit.json`, `*-recommendations.json`, `*-declined.json` in `docs/plans/`) in Step 5 and executes the deletion in Step 10 alongside the ledger. |
 | `/claude-tweaks:flow` | Invoked BY /flow as the pipeline's final step; flow waits for /wrap-up's Review Console (Step 8.6) before archiving the run directory. Multi-spec runs set `MULTISPEC_REVIEW_DEFER=1` so per-spec wrap-ups defer to flow's consolidated console. |
 | `/claude-tweaks:dispatch` | Cleanup Section E releases the claim on success using the `CLAIM_RUN_ID` dispatch threads through `/flow` (not /wrap-up's own `PIPELINE_RUN_DIR`) — see the ownership-check procedure in `cleanup-procedures.md`. Dispatch's own group-scoped Auto-merge gate then runs its checks against this skill's Review Console output before it would otherwise render. |
-| `/claude-tweaks:deepen` | Interface trade-offs /deepen flags `[ADR-candidate]` are picked up by Step 6.2 and run through the 3-factor gate for possible ADR creation |
-| `_shared/decision-records.md` | Canonical 3-factor ADR gate, location convention, and template applied by Step 6.2 |
+| `/claude-tweaks:deepen` | Interface trade-offs /deepen flags `[ADR-candidate]` are picked up by Step 6.2 and run through the ADR gate for possible ADR creation |
+| `_shared/decision-records.md` | Canonical ADR gate, location convention, and template applied by Step 6.2 |
 | `/claude-tweaks:docs-health` and `_shared/criteria-docs-diataxis.md`, `docs-health-integration.md` | Step 7.7 applies this shared judgment inline to docs touched by the current work plus a domain-overlap top-N (same reuse pattern as `_shared/harness-health-analysis.md` in Step 7), and detects missing documentation from the diff. |
 | `/claude-tweaks:journeys` and `/claude-tweaks:journey-health`, `_shared/journey-self-review.md`, `journey-curation.md` | Step 7.8 applies `_shared/journey-self-review.md`'s shared four-check + structural-validity criteria inline to journeys the diff touches (see `journey-curation.md` in this skill's directory; same reuse pattern as `_shared/criteria-docs-diataxis.md` in Step 7.7) — never a nested `Skill()` call to either. |
 | `_shared/auto-mode-contract.md` | Single source of truth for auto-mode behavior — read before adding any auto-mode handling |

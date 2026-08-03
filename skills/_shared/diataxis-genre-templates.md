@@ -131,7 +131,7 @@ Understanding-oriented — discursive prose, no steps, no tables. Answers "why,"
 
 ## ADR (Architecture Decision Record)
 
-Migrated from `_shared/decision-records.md`, which retains the 3-factor gate (hard-to-reverse AND surprising AND a real trade-off), the `docs/decisions/NNNN-{kebab-slug}.md` location convention, and the who-reads-who-writes contract. This is the literal skeleton only.
+Migrated from `_shared/decision-records.md`, which retains the ADR gate (hard-to-reverse AND surprising AND a real trade-off), the `docs/decisions/NNNN-{kebab-slug}.md` location convention, and the who-reads-who-writes contract. This is the literal skeleton only.
 
 ```markdown
 # {NNNN}. {Decision title — a short noun phrase}
