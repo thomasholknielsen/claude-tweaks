@@ -52,6 +52,37 @@ function renderEdges(edges, columns) {
     .join('\n');
 }
 
+function legendId(prefix, key) {
+  return `${prefix}_${String(key).replace(/[^a-zA-Z0-9]/g, '_')}`;
+}
+
+// Legend for the two color-channel axes only (Origin fill, Bot-state border) — the
+// remaining four axes render as self-describing text badges on the nodes themselves.
+// Entries are generated from palette.js's own objects, so a palette change can never
+// leave the legend behind.
+function renderLegend() {
+  const origins = Object.entries(ORIGIN_COLORS).map(([key, hex]) => [
+    `  ${legendId('origin', key)}: "${d2Escape(key)}" {`,
+    `    style.fill: "${hex}"`,
+    '  }',
+  ].join('\n'));
+  const botStates = Object.entries(BORDER_COLORS).map(([key, hex]) => {
+    const lines = [
+      `  ${legendId('bot', key)}: "${d2Escape(key)}" {`,
+      `    style.stroke: "${hex}"`,
+    ];
+    if (key === 'blocked') lines.push('    style.stroke-dash: 3');
+    lines.push('  }');
+    return lines.join('\n');
+  });
+  return [
+    'legend: "Legend — fill: Origin, border: Bot state" {',
+    ...origins,
+    ...botStates,
+    '}',
+  ].join('\n');
+}
+
 function renderD2(graph, { generatedAt }) {
   const header = [
     `# Generated ${generatedAt} — re-run /claude-tweaks:visualize record-graph to refresh`,
@@ -62,7 +93,7 @@ function renderD2(graph, { generatedAt }) {
   const columns = COLUMN_ORDER.map((key) => renderColumn(key, graph.columns[key], graph.encoded)).join('\n\n');
   const edges = renderEdges(graph.edges, graph.columns);
 
-  return `${[header, columns, edges].filter(Boolean).join('\n\n')}\n`;
+  return `${[header, columns, edges, renderLegend()].filter(Boolean).join('\n\n')}\n`;
 }
 
 module.exports = { renderD2 };

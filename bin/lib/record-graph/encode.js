@@ -57,7 +57,12 @@ function borderStyleFor(bot) {
 function encodeRecord(record) {
   return {
     number: record.number,
-    title: truncateTitle(record.title),
+    // The node's first label line, NOT the raw title: the design doc's node spec is
+    // `#{number} {title, truncated ~40 chars}`, and the `#N` prefix is what makes a
+    // queue diagram with dependency edges legible at all (without it, no node says
+    // which issue it is). Only the title portion is capped at TITLE_MAX; the prefix
+    // adds a handful of characters on top of that.
+    title: `#${record.number} ${truncateTitle(record.title)}`,
     fillKey: record.facets.origin || 'human',
     borderStyle: borderStyleFor(record.facets.bot),
     badges: badgesFor(record),

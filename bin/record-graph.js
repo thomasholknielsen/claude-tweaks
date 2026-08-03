@@ -16,7 +16,9 @@ function parseArgs(argv) {
     const a = argv[i];
     if (a === '--format') args.format = argv[++i];
     else if (a === '--work-links') args.workLinks = argv[++i];
-    else if (a === '--fetch-limit') args.fetchLimit = Number(argv[++i]);
+    // Kept as the raw string so cmdRender can tell "flag absent" (fine — truncation
+    // detection is simply off) apart from "flag present but unparseable" (an error).
+    else if (a === '--fetch-limit') args.fetchLimitRaw = String(argv[++i]);
     else if (a === '--generated-at') args.generatedAt = argv[++i];
     else if (a === '--out') args.out = argv[++i];
     else args._.push(a);
@@ -38,8 +40,26 @@ function cmdRender(args) {
     process.stderr.write('render: --work-links must be "native" or "body-text"\n');
     process.exit(2);
   }
-  const records = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
-  const truncated = Number.isFinite(args.fetchLimit) && records.length === args.fetchLimit;
+  let fetchLimit;
+  if (args.fetchLimitRaw !== undefined) {
+    fetchLimit = Number(args.fetchLimitRaw);
+    if (!Number.isFinite(fetchLimit)) {
+      process.stderr.write(`render: --fetch-limit must be a number (got "${args.fetchLimitRaw}")\n`);
+      process.exit(2);
+    }
+  }
+  let records;
+  try {
+    records = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  } catch (e) {
+    process.stderr.write(`render: could not read faceted-record JSON at ${jsonPath} — ${e.message}\n`);
+    process.exit(2);
+  }
+  if (!Array.isArray(records)) {
+    process.stderr.write(`render: expected an array of faceted records at ${jsonPath}\n`);
+    process.exit(2);
+  }
+  const truncated = Number.isFinite(fetchLimit) && records.length === fetchLimit;
   const graph = buildGraph(records, { workLinks: args.workLinks, truncated });
   const output = args.format === 'd2'
     ? renderD2(graph, { generatedAt: args.generatedAt })

@@ -6,7 +6,7 @@ const { FIXTURE_RECORDS } = require('./fixtures');
 test('encodeRecord: backlog record with nothing set gets no badges, human fill, default border', () => {
   const encoded = encodeRecord(FIXTURE_RECORDS[0]);
   assert.strictEqual(encoded.number, 10);
-  assert.strictEqual(encoded.title, 'Backlog record with no scoring');
+  assert.strictEqual(encoded.title, '#10 Backlog record with no scoring');
   assert.strictEqual(encoded.fillKey, 'human');
   assert.strictEqual(encoded.borderStyle, 'default');
   assert.deepStrictEqual(encoded.badges, []);
@@ -46,14 +46,23 @@ test('encodeRecord: only one of risk/effort set still shows a scoring badge with
   assert.deepStrictEqual(encodeRecord(record).badges, ['R:high E:?']);
 });
 
-test('encodeRecord: title over 40 chars is truncated with an ellipsis', () => {
+test('encodeRecord: the label is prefixed with the issue number so a node says which issue it is', () => {
+  for (const record of FIXTURE_RECORDS) {
+    assert.ok(
+      encodeRecord(record).title.startsWith(`#${record.number} `),
+      `expected #${record.number} prefix, got "${encodeRecord(record).title}"`,
+    );
+  }
+});
+
+test('encodeRecord: only the title portion is capped at 40 chars — the #N prefix rides on top', () => {
   const longTitle = 'x'.repeat(50);
   const record = { ...FIXTURE_RECORDS[0], title: longTitle };
   const encoded = encodeRecord(record);
-  assert.strictEqual(encoded.title.length, 40);
-  assert.strictEqual(encoded.title, `${'x'.repeat(39)}…`);
+  assert.strictEqual(encoded.title, `#10 ${'x'.repeat(39)}…`);
+  assert.strictEqual(encoded.title.length, 44);
 });
 
-test('encodeRecord: title at or under 40 chars is left unchanged', () => {
-  assert.strictEqual(encodeRecord(FIXTURE_RECORDS[0]).title, 'Backlog record with no scoring');
+test('encodeRecord: title at or under 40 chars is left unchanged behind the #N prefix', () => {
+  assert.strictEqual(encodeRecord(FIXTURE_RECORDS[0]).title, '#10 Backlog record with no scoring');
 });
