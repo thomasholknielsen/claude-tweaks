@@ -36,6 +36,8 @@ Agents do not inherit the dispatcher's CWD reliably. When a dispatch will run `g
 - **Explicit cd**: every shell step begins with `cd "/absolute/path/to/worktree" && ...`
 - **`git -C` form**: every git command is `git -C "/absolute/path/to/worktree" <subcommand>`
 
+**Substitute the path before dispatching.** The prompt must carry the resolved absolute path, never an unexpanded placeholder like `$WORKTREE` — the agent's shell does not share the dispatcher's variables. A brief that says "verify `cd "$WORKTREE"`" while also forbidding the agent from creating worktrees leaves it no legal move when the substitution didn't happen: `BLOCKED` is then the correct response, and the round-trip is pure waste. If the dispatch template interpolates a path, check one rendered prompt before sending the batch.
+
 Before any commit step, the implementer must echo `pwd` and `git rev-parse --show-toplevel` and verify both match the expected worktree. A mismatch means the commit is about to land on the wrong branch — `BLOCKED` is the correct response.
 
 **Why this matters:** When the dispatcher is itself inside a worktree (e.g., running from `.claude/worktrees/<name>/`), a dispatched agent can resolve a different CWD and commit to the parent repo's checked-out branch instead of the worktree branch. The branches diverge silently — the dispatcher's `git status` looks fine, but the commit went to `main`. The same risk applies to reviewer agents that run `node --test` from the parent repo where the new test files don't exist and report false failures.
